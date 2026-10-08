@@ -146,6 +146,12 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
     selector->showFilterGallery(false);
     selector->setPaintDevice(true, d->node->paintDevice());
     selector->setFilter(filter, overrideDefaultConfig);
+    // the settings only: presets and XML stay in the dialog
+    for (const char *name : {"comboBoxPresets", "chkRememberPreset", "pushButtonEditPresets", "btnXML", "filtersSelector"}) {
+        if (QWidget *widget = selector->findChild<QWidget *>(QLatin1String(name))) {
+            widget->hide();
+        }
+    }
     connect(selector, &KisFilterSelectorWidget::configurationChanged, &d->compressor, &KisSignalCompressor::start);
     connect(selector, &KisFilterSelectorWidget::sigSizeChanged, this, &KisStudioEffectOverlay::reposition);
     d->scroll->setWidget(selector);
