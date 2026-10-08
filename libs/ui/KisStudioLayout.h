@@ -75,7 +75,6 @@ private:
     QMdiArea *mdiArea() const;
     bool isOwnController(class KoCanvasController *controller) const;
     bool isCaptionAt(const QPoint &pos) const;
-    void migrateColorPanel();
     void adoptDocuments();
     void releaseDocuments();
     void updateDocumentButton();

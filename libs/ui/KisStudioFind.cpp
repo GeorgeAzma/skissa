@@ -1020,11 +1020,6 @@ bool KisStudioFind::run(const QString &key)
     return false;
 }
 
-void KisStudioFind::refresh()
-{
-    rebuildIndex();
-}
-
 void KisStudioFind::runSelected()
 {
     if (d->list->currentIndex().isValid()) {

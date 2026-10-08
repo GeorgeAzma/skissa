@@ -19,7 +19,10 @@ class KoToolFactoryBase;
  *
  * It is a list of items, edited by hand:
  * - drag anything from Find (an effect, a command, a brush, a tool...) onto
- *   it and it becomes a button there, with its shortcut on it;
+ *   it, or use the "+" at its bottom, and it becomes a button there, with
+ *   its shortcut on it;
+ * - click between two buttons for a space, click a space to name the group
+ *   below it;
  * - drag a button along the rail to move it, off the rail to remove it;
  * - long press or right click a button for its card: the shortcut as a key
  *   cap to click and press a new one, the slot's variants (drag one out onto

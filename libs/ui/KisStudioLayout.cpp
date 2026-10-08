@@ -82,7 +82,6 @@ const QString leftKey = QStringLiteral("StudioLayoutLeftPanels");
 /// How close to the left window edge a dropped panel button pins its panel there
 const int leftDropZone = 140;
 const QString classicStateKey = QStringLiteral("StudioLayoutClassicState");
-const QString colorMigratedKey = QStringLiteral("StudioLayoutColorPanelMigrated");
 
 /// The panels that get a button on the rail; every other docker is in the "All panels" menu
 QStringList defaultRailPanels()
@@ -120,77 +119,6 @@ QString railIconName(const QString &id)
     };
     return icons.value(id);
 }
-
-/**
- * The title bar of a studio panel: its name, a pin button and a close button.
- * Panels can't be dragged around; where they go is decided by pinning.
- */
-class StudioPanelHeader : public QWidget
-{
-public:
-    explicit StudioPanelHeader(QDockWidget *dock)
-        : QWidget(dock)
-    {
-        auto *layout = new QHBoxLayout(this);
-        layout->setContentsMargins(8, 2, 2, 2);
-        layout->setSpacing(0);
-
-        QFont titleFont = KisUiFont::dockFont();
-        titleFont.setBold(true);
-        m_title = new QLabel(dock->windowTitle(), this);
-        m_title->setFont(titleFont);
-        layout->addWidget(m_title, 1);
-        connect(dock, &QWidget::windowTitleChanged, m_title, &QLabel::setText);
-
-        m_pin = createButton();
-        m_pin->setCheckable(true);
-        layout->addWidget(m_pin);
-
-        m_close = createButton();
-        m_close->setIcon(KisIconUtils::loadIcon(QStringLiteral("close-tab")));
-        m_close->setToolTip(i18nc("@info:tooltip", "Close panel"));
-        m_close->setAccessibleName(m_close->toolTip());
-        layout->addWidget(m_close);
-
-        setPinned(false);
-        // a panel's content says what it is; pinning is on the rail button
-        setFixedHeight(0);
-    }
-
-    QToolButton *pinButton() const { return m_pin; }
-    QToolButton *closeButton() const { return m_close; }
-
-    void setPinned(bool pinned)
-    {
-        QSignalBlocker blocker(m_pin);
-        m_pin->setChecked(pinned);
-        m_pin->setIcon(KisIconUtils::loadIcon(pinned ? QStringLiteral("locked") : QStringLiteral("unlocked")));
-        m_pin->setToolTip(pinned ? i18nc("@info:tooltip", "Unpin panel")
-                                 : i18nc("@info:tooltip", "Pin panel next to the canvas"));
-        m_pin->setAccessibleName(m_pin->toolTip());
-    }
-
-protected:
-    void mouseDoubleClickEvent(QMouseEvent *event) override
-    {
-        // don't let QDockWidget float or redock the panel on double click
-        event->accept();
-    }
-
-private:
-    QToolButton *createButton()
-    {
-        auto *button = new QToolButton(this);
-        button->setAutoRaise(true);
-        button->setIconSize(QSize(14, 14));
-        button->setFocusPolicy(Qt::NoFocus);
-        return button;
-    }
-
-    QLabel *m_title {nullptr};
-    QToolButton *m_pin {nullptr};
-    QToolButton *m_close {nullptr};
-};
 
 /**
  * The first thing in the top bar: which tool the bar is about, with a chevron
@@ -476,7 +404,8 @@ struct KisStudioLayout::Private
         QDockWidget::DockWidgetFeatures features;
     };
     QHash<QDockWidget *, ClassicDock> classicDocks;
-    QHash<QDockWidget *, StudioPanelHeader *> headers;
+    /// The panels the studio layout manages: every docker but the toolbox
+    QSet<QDockWidget *> panels;
     QVector<QMetaObject::Connection> connections;
 };
 
@@ -541,7 +470,6 @@ void KisStudioLayout::setActive(bool active)
 void KisStudioLayout::enter()
 {
     KisMainWindow *mainWindow = d->mainWindow;
-    migrateColorPanel();
     const QStringList pinned = KisConfig(true).readEntry<QStringList>(pinnedKey);
     d->pinned = QSet<QString>(pinned.begin(), pinned.end());
     const QStringList left = KisConfig(true).readEntry<QStringList>(leftKey);
@@ -563,18 +491,11 @@ void KisStudioLayout::enter()
             continue;
         }
 
-        auto *header = new StudioPanelHeader(dock);
-        dock->setTitleBarWidget(header);
-        // closable only: panels are moved by pinning, not by dragging
+        // no title: a panel's content says what it is; pinning and closing are on the rail
+        dock->setTitleBarWidget(new QWidget(dock));
         dock->setFeatures(QDockWidget::DockWidgetClosable);
-        d->headers.insert(dock, header);
+        d->panels.insert(dock);
 
-        d->connections << connect(header->pinButton(), &QToolButton::toggled, this, [this, dock](bool pinned) {
-            setPinned(dock, pinned);
-        });
-        d->connections << connect(header->closeButton(), &QToolButton::clicked, this, [this, dock]() {
-            togglePanel(dock, false);
-        });
         d->connections << connect(dock->toggleViewAction(), &QAction::toggled, this, [this, dock](bool visible) {
             dockToggled(dock, visible);
         });
@@ -705,25 +626,6 @@ bool KisStudioLayout::isOwnController(KoCanvasController *controller) const
 QMdiArea *KisStudioLayout::mdiArea() const
 {
     return d->mainWindow->findChild<QMdiArea *>();
-}
-
-void KisStudioLayout::migrateColorPanel()
-{
-    KisConfig cfg(false);
-    if (cfg.readEntry<bool>(colorMigratedKey, false) || !d->mainWindow->dockWidget(KisStudioColorPanel::id())) {
-        return;
-    }
-    cfg.writeEntry(colorMigratedKey, true);
-    // the perceptual panel takes the place of the old selector, on the rail and pinned
-    for (const QString &key : {panelsKey, pinnedKey}) {
-        QStringList panels = cfg.readEntry<QStringList>(key);
-        const int at = panels.indexOf(QStringLiteral("ColorSelectorNg"));
-        if (at >= 0) {
-            panels[at] = KisStudioColorPanel::id();
-            panels.removeDuplicates();
-            cfg.writeEntry(key, panels);
-        }
-    }
 }
 
 void KisStudioLayout::adoptDocuments()
@@ -869,7 +771,7 @@ void KisStudioLayout::leave()
         }
     }
     d->classicDocks.clear();
-    d->headers.clear();
+    d->panels.clear();
 
     if (d->rail) {
         d->rail->hide();
@@ -938,8 +840,7 @@ void KisStudioLayout::normalize()
      * restored state: it may come from a classic workspace or from the
      * window state saved before the studio layout was enabled.
      */
-    for (auto it = d->headers.begin(); it != d->headers.end(); ++it) {
-        QDockWidget *dock = it.key();
+    Q_FOREACH (QDockWidget *dock, d->panels) {
         if (dock == d->flyout) {
             continue;
         }
@@ -950,10 +851,7 @@ void KisStudioLayout::normalize()
             dock->setFloating(false);
         }
 
-        it.value()->show();
-
         const bool isPinned = d->pinned.contains(dock->objectName());
-        it.value()->setPinned(isPinned);
         if (isPinned) {
             if (!panelsHidden) {
                 dock->show();
@@ -1068,7 +966,7 @@ void KisStudioLayout::closeFlyout()
 
 void KisStudioLayout::showPanel(QDockWidget *dock)
 {
-    if (d->active && d->headers.contains(dock)) {
+    if (d->active && d->panels.contains(dock)) {
         togglePanel(dock, true);
     } else {
         dock->show();
@@ -1182,9 +1080,6 @@ void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
         }
     }
 
-    if (StudioPanelHeader *header = d->headers.value(dock)) {
-        header->setPinned(pinned);
-    }
     savePinned();
     syncRail();
 }
@@ -1402,34 +1297,15 @@ void KisStudioLayout::showRailContextMenu(const QPoint &pos)
         return;
     }
 
-    QMenu menu;
-
-    menu.addSection(i18nc("@title:menu", "Panels on the Rail"));
-    QList<QDockWidget *> docks = d->headers.keys();
-    std::sort(docks.begin(), docks.end(), [](QDockWidget *a, QDockWidget *b) {
-        return QString::localeAwareCompare(a->windowTitle(), b->windowTitle()) < 0;
-    });
-    Q_FOREACH (QDockWidget *dock, docks) {
-        const QString id = dock->objectName();
-        QAction *action = menu.addAction(dock->windowTitle());
-        action->setCheckable(true);
-        action->setChecked(d->railPanels.contains(id));
-        connect(action, &QAction::toggled, this, [this, id](bool onRail) {
-            QStringList panels = d->railPanels;
-            panels.removeAll(id);
-            if (onRail) {
-                panels << id;
-            }
-            setRailPanels(panels);
-        });
-    }
-
-    menu.addSeparator();
-    menu.addAction(i18nc("@action:inmenu", "Reset Rail"), this, [this]() {
-        setRailPanels(defaultRailPanels());
-    });
-
-    menu.exec(d->rail->mapToGlobal(pos));
+    // the rail itself: panels are added with "+", so only putting it back is left
+    auto *card = new KisStudioItemCard(d->mainWindow, KisIconUtils::loadIcon(QStringLiteral("studio_more")),
+                                       i18nc("@title panels rail", "Panels"), nullptr);
+    card->addCommand({KisIconUtils::loadIcon(QStringLiteral("view-refresh")), i18nc("@info:tooltip", "Put back the default panels"),
+                      [this]() { setRailPanels(defaultRailPanels()); }});
+    auto *anchor = new QWidget(d->rail);
+    anchor->setGeometry(QRect(pos, QSize(1, 1)));
+    card->popupBeside(anchor);
+    anchor->deleteLater();
 }
 
 bool KisStudioLayout::handleRailDrag(QObject *watched, QEvent *event)
@@ -1706,24 +1582,6 @@ void KisStudioLayout::moveTopBarToFront()
         mainWindow->removeToolBarBreak(d->topBar);
         mainWindow->removeToolBarBreak(brushBar);
         mainWindow->insertToolBar(brushBar, d->topBar);
-        return;
-    }
-
-    // the leftmost toolbar of the first row, the xmlgui ones are created
-    // after the studio layout and restored states can move them around
-    QToolBar *first = nullptr;
-    Q_FOREACH (QToolBar *toolBar, mainWindow->findChildren<QToolBar *>(QString(), Qt::FindDirectChildrenOnly)) {
-        if (toolBar == d->topBar || toolBar->isHidden() || mainWindow->toolBarArea(toolBar) != Qt::TopToolBarArea) {
-            continue;
-        }
-        const QPoint pos = toolBar->pos();
-        if (!first || pos.y() < first->pos().y() || (pos.y() == first->pos().y() && pos.x() < first->pos().x())) {
-            first = toolBar;
-        }
-    }
-
-    if (first && first->pos().y() <= d->topBar->pos().y() && first->pos().x() < d->topBar->pos().x()) {
-        mainWindow->insertToolBar(first, d->topBar);
     }
 }
 
@@ -1860,7 +1718,7 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
     case QEvent::Paint: {
         // a flyout has no window frame, give it a hairline border
         QDockWidget *dock = qobject_cast<QDockWidget *>(watched);
-        if (dock && dock->isFloating() && d->headers.contains(dock)) {
+        if (dock && dock->isFloating() && d->panels.contains(dock)) {
             QColor border = dock->palette().color(QPalette::WindowText);
             border.setAlphaF(0.25);
             QPainter painter(dock);

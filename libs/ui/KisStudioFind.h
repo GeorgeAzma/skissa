@@ -57,8 +57,6 @@ public:
     /// Looks an item up by its key ("tool:…", "effect:…", "action:…", "brush:…", "panel:…")
     bool item(const QString &key, Item *item);
     bool run(const QString &key);
-    /// Rebuilds the index, e.g. once the resources are loaded
-    void refresh();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

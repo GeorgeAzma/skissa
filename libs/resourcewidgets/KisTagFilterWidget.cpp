@@ -52,7 +52,7 @@ KisTagFilterWidget::KisTagFilterWidget(KisTagModel* model, QWidget* parent)
     d->tagSearchLineEdit = new QLineEdit(this);
     d->tagSearchLineEdit->setClearButtonEnabled(true);
     // a magnifier says "search" without the word
-    d->tagSearchLineEdit->addAction(KisIconUtils::loadIcon(QStringLiteral("edit-find")), QLineEdit::LeadingPosition);
+    d->tagSearchLineEdit->addAction(KisIconUtils::loadIcon(QStringLiteral("studio_find")), QLineEdit::LeadingPosition);
     d->tagSearchLineEdit->setToolTip(searchTooltipMaintext);
     d->tagSearchLineEdit->setEnabled(true);
 
