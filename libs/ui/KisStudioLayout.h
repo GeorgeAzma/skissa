@@ -73,9 +73,12 @@ private:
     bool arePanelsHidden() const;
     /// The rail stays visible when only the dockers are hidden
     bool isRailHidden() const;
+    bool isCanvasOnly() const;
 
     void createRail();
     void createBrushRail();
+    void createTopBar();
+    void moveTopBarToFront();
     void syncRail();
     void populateMoreMenu();
 

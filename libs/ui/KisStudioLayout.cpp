@@ -16,6 +16,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
+#include <QMenuBar>
 #include <QPainter>
 #include <QPointer>
 #include <QSet>
@@ -152,6 +153,11 @@ struct KisStudioLayout::Private
     QPointer<QToolBar> rail;
     /// Brush size and opacity on the left edge
     QPointer<QToolBar> brushRail;
+    /// Replaces the menu bar with a single menu button while a document is open
+    QPointer<QToolBar> topBar;
+    QMenu *mainMenu {nullptr};
+    /// Toolbar entries that duplicate the brush rail, hidden while active
+    QList<QPointer<QAction>> hiddenToolbarActions;
     QMenu *allPanelsMenu {nullptr};
     QHash<QString, QAction *> railActions;
 
@@ -267,6 +273,19 @@ void KisStudioLayout::enter()
 
     createRail();
     createBrushRail();
+    createTopBar();
+
+    // the brush rail already has the size and opacity sliders
+    KisConfig cfg(true);
+    for (int i = 1; i <= 5; i++) {
+        const QString slider = cfg.toolbarSlider(i);
+        QAction *action = mainWindow->actionCollection()->action(QStringLiteral("brushslider%1").arg(i));
+        if (action && action->isVisible() && (slider == QLatin1String("size") || slider == QLatin1String("opacity"))) {
+            action->setVisible(false);
+            d->hiddenToolbarActions << action;
+        }
+    }
+
     qApp->installEventFilter(this);
     normalize();
 }
@@ -304,6 +323,18 @@ void KisStudioLayout::leave()
     if (d->brushRail) {
         d->brushRail->hide();
     }
+    if (d->topBar) {
+        d->topBar->hide();
+    }
+    if (!isCanvasOnly()) {
+        d->mainWindow->menuBar()->show();
+    }
+    Q_FOREACH (QAction *action, d->hiddenToolbarActions) {
+        if (action) {
+            action->setVisible(true);
+        }
+    }
+    d->hiddenToolbarActions.clear();
 
     KisConfig cfg(true);
     const QByteArray classicState = cfg.readEntry<QByteArray>(classicStateKey);
@@ -381,6 +412,14 @@ void KisStudioLayout::normalize()
     if (d->brushRail) {
         d->brushRail->setVisible(!isRailHidden());
     }
+    if (d->topBar) {
+        d->topBar->setVisible(!isRailHidden());
+        moveTopBarToFront();
+    }
+    // canvas-only mode manages the menu bar itself, the welcome page has no top bar
+    if (!isCanvasOnly()) {
+        mainWindow->menuBar()->setVisible(mainWindow->isWelcomeScreenShown());
+    }
 
     syncRail();
 }
@@ -414,8 +453,13 @@ bool KisStudioLayout::arePanelsHidden() const
 
 bool KisStudioLayout::isRailHidden() const
 {
+    return d->mainWindow->isWelcomeScreenShown() || isCanvasOnly();
+}
+
+bool KisStudioLayout::isCanvasOnly() const
+{
     QAction *canvasOnly = d->mainWindow->actionCollection()->action(QStringLiteral("view_show_canvas_only"));
-    return d->mainWindow->isWelcomeScreenShown() || (canvasOnly && canvasOnly->isChecked());
+    return canvasOnly && canvasOnly->isChecked();
 }
 
 void KisStudioLayout::closeFlyout()
@@ -561,10 +605,13 @@ void KisStudioLayout::createRail()
     allPanels->setIcon(KisIconUtils::loadIcon(QStringLiteral("hamburger_menu_dots")));
     allPanels->setToolTip(i18nc("@info:tooltip", "All panels"));
     allPanels->setAccessibleName(allPanels->toolTip());
-    allPanels->setPopupMode(QToolButton::InstantPopup);
     d->allPanelsMenu = new QMenu(allPanels);
-    allPanels->setMenu(d->allPanelsMenu);
-    connect(d->allPanelsMenu, &QMenu::aboutToShow, this, &KisStudioLayout::populateMoreMenu);
+    connect(allPanels, &QToolButton::clicked, this, [this, allPanels]() {
+        populateMoreMenu();
+        // open to the left of the rail
+        const QSize size = d->allPanelsMenu->sizeHint();
+        d->allPanelsMenu->popup(allPanels->mapToGlobal(QPoint(-size.width(), allPanels->height() - size.height())));
+    });
     rail->addWidget(allPanels);
 }
 
@@ -634,6 +681,69 @@ void KisStudioLayout::createBrushRail()
     rail->addWidget(contents);
     mainWindow->addToolBar(Qt::LeftToolBarArea, rail);
     d->brushRail = rail;
+}
+
+void KisStudioLayout::createTopBar()
+{
+    if (d->topBar) {
+        return;
+    }
+
+    KisMainWindow *mainWindow = d->mainWindow;
+
+    QToolBar *bar = new QToolBar(i18nc("@title:window", "Main Menu"), mainWindow);
+    bar->setObjectName(QStringLiteral("studioTopBar"));
+    bar->setMovable(false);
+    bar->setFloatable(false);
+    bar->setContextMenuPolicy(Qt::PreventContextMenu);
+
+    auto *menuButton = new QToolButton(bar);
+    menuButton->setIcon(KisIconUtils::loadIcon(QStringLiteral("hamburger_menu")));
+    menuButton->setToolTip(i18nc("@info:tooltip", "Main menu"));
+    menuButton->setAccessibleName(menuButton->toolTip());
+    menuButton->setAutoRaise(true);
+
+    // the menus of the hidden menu bar; collected on every show, since
+    // plugins and xmlgui can change them
+    d->mainMenu = new QMenu(menuButton);
+    connect(d->mainMenu, &QMenu::aboutToShow, this, [this]() {
+        d->mainMenu->clear();
+        // QMenu skips the hidden ones itself
+        d->mainMenu->addActions(d->mainWindow->menuBar()->actions());
+    });
+    // not setMenu(), it would draw a drop-down arrow next to the icon
+    connect(menuButton, &QToolButton::clicked, this, [this, menuButton]() {
+        d->mainMenu->popup(menuButton->mapToGlobal(QPoint(0, menuButton->height())));
+    });
+    bar->addWidget(menuButton);
+
+    mainWindow->addToolBar(Qt::TopToolBarArea, bar);
+    d->topBar = bar;
+}
+
+void KisStudioLayout::moveTopBarToFront()
+{
+    KisMainWindow *mainWindow = d->mainWindow;
+    if (!d->topBar) {
+        return;
+    }
+
+    // the leftmost toolbar of the first row, the xmlgui ones are created
+    // after the studio layout and restored states can move them around
+    QToolBar *first = nullptr;
+    Q_FOREACH (QToolBar *toolBar, mainWindow->findChildren<QToolBar *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (toolBar == d->topBar || toolBar->isHidden() || mainWindow->toolBarArea(toolBar) != Qt::TopToolBarArea) {
+            continue;
+        }
+        const QPoint pos = toolBar->pos();
+        if (!first || pos.y() < first->pos().y() || (pos.y() == first->pos().y() && pos.x() < first->pos().x())) {
+            first = toolBar;
+        }
+    }
+
+    if (first && first->pos().y() <= d->topBar->pos().y() && first->pos().x() < d->topBar->pos().x()) {
+        mainWindow->insertToolBar(first, d->topBar);
+    }
 }
 
 void KisStudioLayout::syncRail()

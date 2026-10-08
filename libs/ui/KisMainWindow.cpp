@@ -1726,6 +1726,9 @@ void KisMainWindow::setMainWindowLayoutForCurrentMainWidget(int widgetIndex, boo
             }
         }
         adjustLayoutForWelcomePage();
+        if (d->studioLayout) {
+            d->studioLayout->normalize();
+        }
     }
     else {
         setAutoSaveSettings(d->windowStateConfig, false);
