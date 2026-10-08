@@ -690,7 +690,7 @@ void KisPerspectiveTransformStrategy::Private::recalculateTransformations()
     imageTooBig = false;
 
     {
-        QList<QPointF> points;
+        QVector<QPointF> points;
         points << transaction.originalRect().topLeft();
         points << transaction.originalRect().topRight();
         points << transaction.originalRect().bottomRight();
