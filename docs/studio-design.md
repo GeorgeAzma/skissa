@@ -384,3 +384,28 @@ setting searchable from Find, and show the 15 most-changed settings first.
 | UI testing | `KRITA_DEV_PROFILE` builds render their own windows to a PNG on a posted `KritaDevCapture` message (`krita/main.cc`), so tests never read the screen |
 | Single-document tabs | `KisMdiArea` in `libs/ui/KisMainWindow.cpp` |
 | Icons | `krita/pics/svg/*_studio_*.svg`, `*_hamburger_menu.svg` |
+
+## 15. Base systems [done, first pass]
+
+Everything above builds on three systems instead of one-off widgets:
+
+- **Items.** Every tool, effect, command, brush, blend mode and panel Find
+  knows is an item with a key ("tool:…", "effect:…"). Items can be dragged
+  out of Find or a card and dropped on the tools panel.
+- **The tools panel is a list of items.** It floats over the canvas, as tall
+  as its contents, and may be empty. Drag along it to move, off it to
+  remove; the "+" that appears on hover opens Find as a chooser that lists
+  every tool and effect with nothing typed (touch: no keyboard needed).
+  Scrolling over a slot steps through its variants.
+- **The card.** Right click or long press any button: what it is, its
+  shortcut as a key cap that records a new one when clicked (saved like the
+  shortcuts dialog, taken from whatever had it), its variants (drag one out
+  to make it a button, right click to hide it), pin/remove. Badges show
+  every button's shortcut.
+- **Effects on the canvas.** Any effect, from Find, the panel, a shortcut or
+  the old menus, previews live on the whole layer with its settings in a
+  small panel at the bottom; Enter/✓ keeps, Esc/✕ drops, the mask button
+  keeps it editable (`KisFilterManager::setInlineEditor`).
+- **The top bar is the title bar** (Windows): no system caption, empty top
+  bar drags the window, buttons at its end (`KisStudioWindowFrame`,
+  `StudioCustomTitleBar=false` turns it off).

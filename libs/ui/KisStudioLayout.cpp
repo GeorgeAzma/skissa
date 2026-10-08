@@ -58,6 +58,7 @@
 #include "KisStudioItemCard.h"
 #include "KisStudioScrubber.h"
 #include "KisStudioToolStrip.h"
+#include "KisStudioWindowFrame.h"
 #include "kis_canvas_resource_provider.h"
 #include "canvas/kis_canvas_controller.h"
 #include "KisStudioToolRail.h"
@@ -460,6 +461,8 @@ struct KisStudioLayout::Private
     QPointer<QAction> documentButtonAction;
     QPointer<KisStudioCanvasHud> hud;
     QPointer<KisStudioEffectOverlay> effectOverlay;
+    KisStudioWindowFrame *frame {nullptr};
+    QPointer<QAction> windowButtonsAction;
     QPointer<QWidget> colorChip;
     /// How documents were shown before: tabs or windows
     int classicViewMode {-1};
@@ -626,6 +629,12 @@ void KisStudioLayout::enter()
     d->hud->setActive(true);
     mainWindow->setProperty("studioLayoutActive", true);
 
+    // the top bar is the title bar
+    if (!d->frame) {
+        d->frame = new KisStudioWindowFrame(mainWindow, [this](const QPoint &pos) { return isCaptionAt(pos); });
+    }
+    d->frame->setEnabled(KisConfig(true).readEntry<bool>("StudioCustomTitleBar", true));
+
     // effects are adjusted on the canvas, not in a dialog
     if (!d->effectOverlay) {
         d->effectOverlay = new KisStudioEffectOverlay(mainWindow);
@@ -646,6 +655,37 @@ void KisStudioLayout::enter()
 
     normalize();
     updateContextBar();
+}
+
+bool KisStudioLayout::handleNativeEvent(void *message, void *result)
+{
+    return d->active && d->frame && d->frame->handleNativeEvent(message, result);
+}
+
+bool KisStudioLayout::isCaptionAt(const QPoint &pos) const
+{
+    KisMainWindow *mainWindow = d->mainWindow;
+    QWidget *widget = mainWindow->childAt(pos);
+    if (!widget) {
+        // between and around the top toolbars
+        int bottom = 0;
+        Q_FOREACH (QToolBar *toolBar, mainWindow->findChildren<QToolBar *>(QString(), Qt::FindDirectChildrenOnly)) {
+            if (toolBar->isVisible() && mainWindow->toolBarArea(toolBar) == Qt::TopToolBarArea) {
+                bottom = qMax(bottom, toolBar->geometry().bottom());
+            }
+        }
+        return pos.y() <= bottom;
+    }
+    QWidget *container = widget;
+    while (container && !qobject_cast<QToolBar *>(container)) {
+        container = container->parentWidget();
+    }
+    QToolBar *toolBar = qobject_cast<QToolBar *>(container);
+    if (!toolBar || mainWindow->toolBarArea(toolBar) != Qt::TopToolBarArea) {
+        return false;
+    }
+    // the bar itself and the empty space in it drag the window; controls are for clicking
+    return widget == toolBar || QByteArray(widget->metaObject()->className()) == "QWidget";
 }
 
 bool KisStudioLayout::isOwnController(KoCanvasController *controller) const
@@ -784,6 +824,12 @@ void KisStudioLayout::leave()
         d->hud->setActive(false);
     }
     d->mainWindow->setProperty("studioLayoutActive", false);
+    if (d->frame) {
+        d->frame->setEnabled(false);
+    }
+    if (d->windowButtonsAction) {
+        d->windowButtonsAction->setVisible(false);
+    }
     if (d->effectOverlay && d->effectOverlay->isVisible()) {
         d->effectOverlay->reject();
     }
@@ -940,6 +986,9 @@ void KisStudioLayout::normalize()
     placeFindField();
     if (d->findFieldAction) {
         d->findFieldAction->setVisible(!isRailHidden());
+    }
+    if (d->windowButtonsAction) {
+        d->windowButtonsAction->setVisible(d->frame && d->frame->isEnabled() && !isRailHidden());
     }
     if (d->findBar) {
         d->findBar->setVisible(!isRailHidden() && !d->findFieldAction);
@@ -1686,6 +1735,14 @@ void KisStudioLayout::placeFindField()
     }
     if (d->findFieldAction) {
         brushBar->addAction(d->findFieldAction);
+    }
+    if (d->frame && d->frame->isEnabled()) {
+        if (!d->windowButtonsAction) {
+            auto *action = new QWidgetAction(this);
+            action->setDefaultWidget(d->frame->createButtons(d->mainWindow));
+            d->windowButtonsAction = action;
+        }
+        brushBar->addAction(d->windowButtonsAction);
     }
 
     // buttons with a menu open it on a long press instead of with a separate arrow

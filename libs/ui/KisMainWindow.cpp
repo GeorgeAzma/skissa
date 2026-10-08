@@ -2215,6 +2215,18 @@ void KisMainWindow::swapWorkspaces(KisMainWindow *a, KisMainWindow *b)
     b->restoreWorkspaceState(workspaceA);
 }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+bool KisMainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr *result)
+#else
+bool KisMainWindow::nativeEvent(const QByteArray &eventType, void *message, long *result)
+#endif
+{
+    if (d->studioLayout && d->studioLayout->handleNativeEvent(message, result)) {
+        return true;
+    }
+    return KXmlGuiWindow::nativeEvent(eventType, message, result);
+}
+
 KisStudioFind *KisMainWindow::studioFind() const
 {
     return d->studioFind;

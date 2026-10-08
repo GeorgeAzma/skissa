@@ -814,6 +814,60 @@ void KisStudioFind::updateResults()
     }
 
     const bool browsing = query.isEmpty() && d->picker;
+
+    /**
+     * Nothing typed: what was used recently, then every effect and every
+     * tool, so that a finger can find Gaussian Blur by scrolling, without a
+     * keyboard.
+     */
+    if (query.isEmpty() && !d->picker) {
+        std::sort(scored.begin(), scored.end(), [](const Scored &a, const Scored &b) { return a.score > b.score; });
+        if (scored.size() > 8) {
+            scored.resize(8);
+        }
+        auto addHeader = [this](const QString &title) {
+            auto *header = new QStandardItem(title);
+            header->setData(true, HeaderRole);
+            header->setFlags(Qt::NoItemFlags);
+            d->model->appendRow(header);
+        };
+        auto addEntry = [this](int index, const QString &detail) {
+            const Entry &entry = d->entries[index];
+            auto *item = new QStandardItem(entry.icon, entry.title);
+            item->setData(detail, DetailRole);
+            item->setData(entry.shortcut, ShortcutRole);
+            item->setData(index, EntryRole);
+            item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+            d->model->appendRow(item);
+        };
+        if (!scored.isEmpty()) {
+            addHeader(i18nc("@title find results", "Recent"));
+            Q_FOREACH (const Scored &s, scored) {
+                addEntry(s.entry, kindTitle(d->entries[s.entry].kind));
+            }
+        }
+        for (Kind kind : {Kind::Effect, Kind::Tool}) {
+            QVector<int> all;
+            for (int i = 0; i < d->entries.size(); i++) {
+                if (d->entries[i].kind == kind && !d->entries[i].key.isEmpty()) all << i;
+            }
+            std::sort(all.begin(), all.end(), [this](int a, int b) {
+                return d->entries[a].title.localeAwareCompare(d->entries[b].title) < 0;
+            });
+            addHeader(kindTitle(kind));
+            Q_FOREACH (int index, all) {
+                addEntry(index, d->entries[index].detail);
+            }
+        }
+        for (int row = 0; row < d->model->rowCount(); row++) {
+            if (!d->model->item(row)->data(HeaderRole).toBool()) {
+                d->list->setCurrentIndex(d->model->index(row, 0));
+                break;
+            }
+        }
+        adjustGeometry();
+        return;
+    }
     if (browsing) {
         std::sort(scored.begin(), scored.end(), [this](const Scored &a, const Scored &b) {
             if (a.score != b.score) return a.score > b.score;

@@ -62,6 +62,9 @@ public:
 
     bool eventFilter(QObject *watched, QEvent *event) override;
 
+    /// The window's native events, for the title bar drawn by the top bar
+    bool handleNativeEvent(void *message, void *result);
+
 private:
     void enter();
     void leave();
@@ -71,6 +74,7 @@ private:
     void toggleToolOptions();
     QMdiArea *mdiArea() const;
     bool isOwnController(class KoCanvasController *controller) const;
+    bool isCaptionAt(const QPoint &pos) const;
     void migrateColorPanel();
     void adoptDocuments();
     void releaseDocuments();

@@ -19,6 +19,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 #include <KSharedConfig>
 #include <KoCanvasController.h>
@@ -132,6 +133,7 @@ public:
 
     std::function<void()> onCard;
     std::function<void()> onDrag;
+    std::function<void(int steps)> onWheel;
     bool hasVariants {false};
     QPointer<QAction> shortcutAction;
 
@@ -177,6 +179,17 @@ protected:
             return;
         }
         QToolButton::mouseReleaseEvent(event);
+    }
+
+    void wheelEvent(QWheelEvent *event) override
+    {
+        const int steps = event->angleDelta().y() / 120;
+        if (steps && onWheel) {
+            onWheel(-steps);
+            event->accept();
+            return;
+        }
+        QToolButton::wheelEvent(event);
     }
 
     void paintEvent(QPaintEvent *event) override
@@ -566,6 +579,16 @@ void KisStudioToolRail::rebuild()
             }
         };
         connect(button, &QToolButton::clicked, this, [this, index]() { runItem(index); });
+        if (isSlot && variants) {
+            // scrolling over a slot steps through its variants, like the blend modes
+            const QString slotId = key.mid(slotPrefix.size());
+            button->onWheel = [this, slotId](int steps) {
+                const QStringList visible = d->visibleVariants(slotId);
+                const int at = qMax(0, visible.indexOf(d->currentTool.value(slotId)));
+                const int next = ((at + steps) % visible.size() + visible.size()) % visible.size();
+                activateTool(slotId, visible[next]);
+            };
+        }
         d->itemsLayout->addWidget(button, 0, Qt::AlignHCenter);
         d->buttons << button;
         d->buttonItem << i;
