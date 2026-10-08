@@ -91,6 +91,7 @@
 #include "NodeView.h"
 #include "SyncButtonAndAction.h"
 #include "KisMenuStyleDontCloseOnAlt.h"
+#include "KisModernStyle.h"
 
 class LayerBoxStyle : public QProxyStyle
 {
@@ -174,7 +175,7 @@ LayerBox::LayerBox()
 
     m_wdgLayerBox->setupUi(mainWidget);
 
-    QStyle *newStyle = QStyleFactory::create(m_wdgLayerBox->listLayers->style()->objectName());
+    QStyle *newStyle = KisModernStyle::create(m_wdgLayerBox->listLayers->style()->objectName());
     // proxy style steals the ownership of the style and deletes it later
     LayerBoxStyle *proxyStyle = new LayerBoxStyle(newStyle);
 

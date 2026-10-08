@@ -39,6 +39,7 @@
 #include <kis_double_parse_spin_box.h>
 #include <kis_algebra_2d.h>
 #include <kis_signal_compressor_with_param.h>
+#include "KisModernStyle.h"
 
 template <typename SpinBoxTypeTP, typename BaseSpinBoxTypeTP>
 class Q_DECL_HIDDEN KisSliderSpinBoxPrivate : public QObject
@@ -597,7 +598,12 @@ public:
         painter.save();
         painter.setBrush(brush);
         painter.setPen(Qt::NoPen);
-        if (qApp->property(currentUnderlyingStyleNameProperty).toString().toLower() == "fusion") {
+        if (qobject_cast<const KisModernStyle *>(m_q->style())) {
+            // follow the rounded frame of the field
+            const qreal radius = KisModernStyle::cornerRadius - 1;
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            painter.drawRoundedRect(rect, radius, radius);
+        } else if (qApp->property(currentUnderlyingStyleNameProperty).toString().toLower() == "fusion") {
             painter.drawRoundedRect(rect, 1, 1);
         } else {
             painter.drawRoundedRect(rect, 0, 0);

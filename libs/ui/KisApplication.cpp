@@ -83,6 +83,7 @@
 #include "KisViewManager.h"
 #include <KisScopedPerformanceLogger.h>
 #include <KisUsageLogger.h>
+#include <KisModernStyle.h>
 
 #include <dialogs/KisSessionManagerDialog.h>
 
@@ -243,19 +244,12 @@ KisApplication::KisApplication(const QString &key, int &argc, char **argv)
     setWindowIcon(KisIconUtils::loadIcon("krita-branding"));
 #endif
 
-           // if style is set from config, try to load that
+    // if style is set from config, try to load that, otherwise default
+    // to Krita Modern on all platforms instead of styles that use native theming
     KisConfig cfg(true);
-    QString widgetStyleFromConfig = cfg.widgetStyle();
-    QString defaultStyle = style()->objectName().toLower();
-    if (!widgetStyleFromConfig.isEmpty()) {
-        qApp->setStyle(widgetStyleFromConfig);
-    }
-#if defined Q_OS_WIN || defined Q_OS_MACOS || defined Q_OS_ANDROID
-    else {
-        // default to Fusion instead of styles that use native theming
-        qApp->setStyle("fusion");
-    }
-#endif
+    const QString widgetStyleFromConfig = cfg.widgetStyle();
+    QStyle *styleFromConfig = widgetStyleFromConfig.isEmpty() ? nullptr : KisModernStyle::create(widgetStyleFromConfig);
+    qApp->setStyle(styleFromConfig ? styleFromConfig : new KisModernStyle());
 
     /**
      * Load platform plugin for modifiers fetching
@@ -265,7 +259,7 @@ KisApplication::KisApplication(const QString &key, int &argc, char **argv)
     }
 
     // store the style name
-    qApp->setProperty(currentUnderlyingStyleNameProperty, style()->objectName());
+    qApp->setProperty(currentUnderlyingStyleNameProperty, KisModernStyle::underlyingStyleName(style()));
     KisSynchronizedConnectionBase::registerSynchronizedEventBarrier(std::bind(&KisApplication::processPostponedSynchronizationEvents, this));
 
 

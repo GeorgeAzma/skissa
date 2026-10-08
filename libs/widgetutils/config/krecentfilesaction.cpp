@@ -27,6 +27,8 @@
 #include <QStyleFactory>
 #include <QActionGroup>
 
+#include "KisModernStyle.h"
+
 #include <kconfig.h>
 #include <kconfiggroup.h>
 #include <klocalizedstring.h>
@@ -103,12 +105,12 @@ void KRecentFilesActionPrivate::init()
     q->connect(q, SIGNAL(actionTriggered(QAction*)), SLOT(_k_urlSelected(QAction*)));
 #endif
     QString baseStyleName = q->menu()->style()->objectName();
-    if (baseStyleName != QLatin1String("windows")) {
+    if (baseStyleName != QLatin1String("windows") && baseStyleName != KisModernStyle::styleName()) {
         // Force Fusion theme because other themes like Breeze doesn't
         // work well with QProxyStyle, may result in small icons.
         baseStyleName = QStringLiteral("fusion");
     }
-    QStyle *baseStyle = QStyleFactory::create(baseStyleName);
+    QStyle *baseStyle = KisModernStyle::create(baseStyleName);
     QStyle *newStyle = new KRecentFilesIconProxyStyle(baseStyle);
     newStyle->setParent(q->menu());
     q->menu()->setStyle(newStyle);

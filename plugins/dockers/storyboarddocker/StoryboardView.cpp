@@ -15,6 +15,7 @@
 #include "StoryboardModel.h"
 #include "StoryboardDelegate.h"
 #include "KisAddRemoveStoryboardCommand.h"
+#include "KisModernStyle.h"
 
 class StoryboardStyle : public QProxyStyle
 {
@@ -83,7 +84,7 @@ StoryboardView::StoryboardView(QWidget *parent)
     setDropIndicatorShown(true);
     setDragDropMode(QAbstractItemView::InternalMove);
 
-    QStyle *newStyle = QStyleFactory::create(this->style()->objectName());
+    QStyle *newStyle = KisModernStyle::create(this->style()->objectName());
     // proxy style steals the ownership of the style and deletes it later
     StoryboardStyle *proxyStyle = new StoryboardStyle(newStyle);
     proxyStyle->setParent(this);

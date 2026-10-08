@@ -158,6 +158,7 @@
 #include "KisRecentFilesManager.h"
 #include "KisWidgetConnectionUtils.h"
 #include "KisToolBarStateModel.h"
+#include "KisModernStyle.h"
 #include <config-qmdiarea-always-show-subwindow-title.h>
 #include <config-qt-patches-present.h>
 #include <KisPlatformPluginInterfaceFactory.h>
@@ -447,7 +448,7 @@ KisMainWindow::KisMainWindow(QUuid uuid)
 
 #ifndef Q_OS_ANDROID
 
-    Q_FOREACH (QString styleName, QStyleFactory::keys()) {
+    Q_FOREACH (QString styleName, KisModernStyle::availableStyles()) {
 
         action = new QAction(styleName, d->styleActions);
         action->setCheckable(true);
@@ -2577,8 +2578,10 @@ void KisMainWindow::slotUpdateWidgetStyle()
      Q_FOREACH (auto key, d->actionMap.keys()) { // find checked style to save to config
          if(d->actionMap.value(key)->isChecked()) {
             cfg.setWidgetStyle(key);
-            qApp->setProperty(currentUnderlyingStyleNameProperty, key);
-            qApp->setStyle(key);
+            // widgets read the property while handling the style change
+            QStyle *newStyle = KisModernStyle::create(key);
+            qApp->setProperty(currentUnderlyingStyleNameProperty, KisModernStyle::underlyingStyleName(newStyle));
+            qApp->setStyle(newStyle);
 
             // When switching to a style that uses system colors, reset the theme
 #ifndef Q_OS_HAIKU

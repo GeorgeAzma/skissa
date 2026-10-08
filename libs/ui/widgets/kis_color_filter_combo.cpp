@@ -24,6 +24,7 @@
 #include "kis_node_view_color_scheme.h"
 #include "kis_debug.h"
 #include "kis_icon_utils.h"
+#include "KisModernStyle.h"
 #include "krita_utils.h"
 #include "kis_node.h"
 
@@ -196,7 +197,7 @@ KisColorFilterCombo::KisColorFilterCombo(QWidget *parent, bool filterMode, bool 
     QStandardItemModel *newModel = new QStandardItemModel(this);
     setModel(newModel);
 
-    QStyle* newStyle = QStyleFactory::create(style()->objectName());
+    QStyle* newStyle = KisModernStyle::create(style()->objectName());
     // proxy style steals the ownership of the style and deletes it later
     PopupComboBoxStyle *proxyStyle = new PopupComboBoxStyle(newStyle);
 
