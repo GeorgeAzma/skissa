@@ -745,9 +745,12 @@ void NodeDelegate::drawIcons(QPainter *p, const QStyleOptionViewItem &option, co
         std::reverse(realProps.begin(), realProps.end());
     }
 
+    // a row says what is unusual about its layer; the rest shows while it is pointed at or selected
+    const bool revealAll = option.state & (QStyle::State_MouseOver | QStyle::State_Selected);
+
     Q_FOREACH (OptionalProperty prop, realProps) {
         x += scm.iconMargin();
-        if (prop) {
+        if (prop && (prop->state.toBool() || revealAll)) {
             QIcon icon = prop->state.toBool() ? prop->onIcon : prop->offIcon;
             bool fullColor = prop->state.toBool() && option.state & QStyle::State_Enabled;
 
@@ -847,11 +850,17 @@ void NodeDelegate::drawVisibilityIcon(QPainter *p, const QStyleOptionViewItem &o
 
     QIcon icon = prop->state.toBool() ? prop->onIcon : prop->offIcon;
 
-    // if we are not showing the layer, make the icon slightly transparent like other inactive icons
+    // visible is the normal case and needs no mark; a hidden layer shows its closed eye
+    const bool revealAll = option.state & (QStyle::State_MouseOver | QStyle::State_Selected);
+    if (prop->state.toBool() && !revealAll && !prop->isInStasis) {
+        return;
+    }
     const qreal oldOpacity = p->opacity();
 
     if (!prop->state.toBool()) {
-        p->setOpacity(0.35);
+        p->setOpacity(0.7);
+    } else {
+        p->setOpacity(0.55);
     }
 
     QPixmap pixmapIcon(icon.pixmap(scm.visibilitySize(), QIcon::Active));

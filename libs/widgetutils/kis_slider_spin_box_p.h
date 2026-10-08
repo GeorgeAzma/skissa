@@ -628,13 +628,22 @@ public:
         // Draw portion of the text that is over the background
         paintSliderText(painter, text, rect, rect.adjusted(sliderRect.width(), 0, 0, 0), m_lineEdit->palette().text().color(), textOption);
         // Draw portion of the text that is over the progress bar
-        paintSliderText(painter, text, rect, sliderRect, m_lineEdit->palette().highlightedText().color(), textOption);
+        paintSliderText(painter, text, rect, sliderRect, m_lineEdit->palette().text().color(), textOption);
     };
+
+    /**
+     * A value, not a selection: the fill is a lighter neutral, so that a
+     * panel of sliders does not outshout the one thing that is selected.
+     */
+    QColor sliderFillColor() const
+    {
+        return KisPaintingTweaks::blendColors(m_q->palette().text().color(), m_q->palette().base().color(), 0.24);
+    }
 
     void paintSlider(QPainter &painter, const QString &text, double slider01Width, double slider02Width = -1.0)
     {
         const QRectF rect = m_lineEdit->rect();
-        const QColor highlightColor = m_q->palette().highlight().color();
+        const QColor highlightColor = sliderFillColor();
         if (slider02Width < 0.0) {
             const QRectF sliderRect = rect.adjusted(0, 0, -(rect.width() - slider01Width), 0);
             paintSliderRect(painter, sliderRect, highlightColor);
@@ -670,13 +679,13 @@ public:
             paintSliderText(
                 painter, text, rect,
                 rect.adjusted(0, 0, -(rect.width() - slider02Width), softSliderAdjustment),
-                m_lineEdit->palette().highlightedText().color(),
+                m_lineEdit->palette().text().color(),
                 textOption
             );
             paintSliderText(
                 painter, text, rect,
                 rect.adjusted(0, hardSliderAdjustment, -(rect.width() - slider01Width), 0),
-                m_lineEdit->palette().highlightedText().color(),
+                m_lineEdit->palette().text().color(),
                 textOption
             );
         }

@@ -15,6 +15,8 @@
 namespace {
 
 constexpr int labelHeight = 16;
+/// Room for a preview: a 24 px dot reads as a brush, a number does not
+constexpr int previewHeight = 30;
 
 qreal mouseY(const QMouseEvent *event)
 {
@@ -82,6 +84,13 @@ void KisStudioBrushSlider::setValueFormatter(std::function<QString(qreal)> forma
     update();
 }
 
+void KisStudioBrushSlider::setPreview(Preview preview)
+{
+    m_preview = preview;
+    updateGeometry();
+    update();
+}
+
 QSize KisStudioBrushSlider::sizeHint() const
 {
     return QSize(30, 180);
@@ -95,7 +104,8 @@ QSize KisStudioBrushSlider::minimumSizeHint() const
 QRectF KisStudioBrushSlider::trackRect() const
 {
     const qreal width = 14;
-    return QRectF((this->width() - width) / 2.0, 2, width, height() - labelHeight - 4);
+    const int bottom = m_preview == Preview::None ? labelHeight : previewHeight;
+    return QRectF((this->width() - width) / 2.0, 2, width, height() - bottom - 4);
 }
 
 qreal KisStudioBrushSlider::position() const
@@ -161,17 +171,50 @@ void KisStudioBrushSlider::paintEvent(QPaintEvent *)
         trackPath.addRoundedRect(track, radius, radius);
         painter.save();
         painter.setClipPath(trackPath);
-        painter.setBrush(pal.color(QPalette::Highlight));
+        // a value, not a selection: neutral, the accent stays for "active"
+        painter.setBrush(mix(window, text, underMouse() || m_dragging ? 0.62 : 0.48));
         painter.drawRect(QRectF(track.left(), track.bottom() - fillHeight, track.width(), fillHeight));
         painter.restore();
     }
 
-    QFont font = this->font();
-    font.setPointSizeF(font.pointSizeF() * 0.8);
-    painter.setFont(font);
-    painter.setPen(m_dragging ? pal.color(QPalette::Highlight).lighter(130) : text);
-    painter.drawText(QRectF(0, height() - labelHeight, width(), labelHeight),
-                     Qt::AlignCenter, m_formatter(m_value));
+    const bool showNumber = m_preview == Preview::None || underMouse() || m_dragging;
+    const QRectF bottom(0, track.bottom() + 2, width(), height() - track.bottom() - 2);
+    if (showNumber) {
+        QFont font = this->font();
+        font.setPointSizeF(font.pointSizeF() * 0.8);
+        painter.setFont(font);
+        painter.setPen(text);
+        painter.drawText(bottom, Qt::AlignCenter, m_formatter(m_value));
+        return;
+    }
+
+    const QPointF center = bottom.center();
+    const qreal room = qMin(bottom.width(), bottom.height()) - 4;
+    if (m_preview == Preview::Dot) {
+        // a dot that grows the way the slider moves, so 2 px and 200 px both read
+        const qreal diameter = 3.0 + (room - 3.0) * position();
+        painter.setBrush(mix(window, text, 0.85));
+        painter.drawEllipse(center, diameter / 2, diameter / 2);
+    } else {
+        // a tile, not a disc: it must not look like the size dot
+        const qreal side = room - 4;
+        const QRectF disc(center.x() - side / 2, center.y() - side / 2, side, side);
+        QPainterPath discPath;
+        discPath.addRoundedRect(disc, 4, 4);
+        painter.save();
+        painter.setClipPath(discPath);
+        const qreal cell = side / 4;
+        for (int y = 0; y < 4; y++) {
+            for (int x = 0; x < 4; x++) {
+                painter.fillRect(QRectF(disc.left() + x * cell, disc.top() + y * cell, cell, cell),
+                                 (x + y) % 2 ? mix(window, text, 0.18) : mix(window, text, 0.34));
+            }
+        }
+        QColor fill = mix(window, text, 0.85);
+        fill.setAlphaF(qBound(0.0, (m_value - m_minimum) / qMax(1e-6, m_maximum - m_minimum), 1.0));
+        painter.fillRect(disc, fill);
+        painter.restore();
+    }
 }
 
 void KisStudioBrushSlider::mousePressEvent(QMouseEvent *event)

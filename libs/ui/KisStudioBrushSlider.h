@@ -40,6 +40,14 @@ public:
 
     void setValueFormatter(std::function<QString(qreal)> formatter);
 
+    enum class Preview {
+        None,
+        Dot,     ///< a dot as large as the brush, up to what fits
+        Opacity, ///< a disc as opaque as the value, over a checkerboard
+    };
+    /// What is shown under the track instead of the number, which appears while hovered or dragged
+    void setPreview(Preview preview);
+
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
 
@@ -66,6 +74,7 @@ private:
     qreal m_maximum {100.0};
     qreal m_exponent {1.0};
     bool m_logarithmic {false};
+    Preview m_preview {Preview::None};
     qreal m_value {0.0};
     bool m_dragging {false};
     std::function<QString(qreal)> m_formatter;

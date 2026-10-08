@@ -125,7 +125,15 @@ Decisions and why:
 - **Left rail = tools + brush size and opacity.** Right rail = panels.
 - **Panels open as flyouts over the canvas edge** and close on any click
   elsewhere or Escape; pin to dock them.
-- **One document = no tab bar** [next]. QTabBar::autoHide is not enough:
+- **No tab row, no status bar, no scroll bars** [done]. Documents are
+  frameless maximized windows; the document button next to Find names the
+  current one and switches between them. Zoom, rotation (only while rotated),
+  mirror, a value check and progress sit in a pill at the canvas corner
+  (`KisStudioCanvasHud`); color space, profile, size and memory belong to the
+  document properties, not to every minute of painting.
+- **Value check**: a soft proof into gray, so lightness is computed by the
+  color management, without touching the image or its proofing settings.
+- Earlier plan for the tab bar, kept for the record: one document = no tab bar. QTabBar::autoHide is not enough:
   QMdiArea keeps the tab bar's height as a viewport margin, and overriding its
   resize handling to drop the margin recursed (the viewport resize re-enters
   it). The plan is a frameless, maximized sub-window for a single document and
@@ -295,7 +303,7 @@ Consolidation **[next/later]**:
 
 | Today | Becomes | Why |
 |---|---|---|
-| Advanced, Small, Specific, Wide Gamut and Artistic color selectors, Digital Mixer | One Color panel with an OKLCH picker (perceptually uniform lightness, chroma and hue), a recent-colors strip and the palette | Six ways to do one job. HSV's "value" is not perceived lightness; OKLCH's L is. |
+| Advanced, Small, Specific, Wide Gamut and Artistic color selectors, Digital Mixer | **[done: `KisStudioColorPanel`, replaces the Advanced Color Selector on the rail]** One Color panel with an OKLCH picker (perceptually uniform lightness, chroma and hue), a recent-colors strip and the palette | Six ways to do one job. HSV's "value" is not perceived lightness; OKLCH's L is. |
 | Brush Presets + Brush Preset History | Brushes, with a Recent row and stroke previews grouped by medium | History is just a view of the same presets. |
 | Undo History + Snapshots | History | Both answer "go back to an earlier state". |
 | Channels, Compositions | Inside Layers | They are views of the layer stack. |
@@ -304,7 +312,14 @@ Consolidation **[next/later]**:
 | Arrange, Symbol Libraries, Text Properties | Appear with vector/text tools | Contextual. |
 | Recorder, Task Sets, LUT, Log Viewer, Touch Docker, On-Canvas Brush Editor, Storyboard | "All panels" | Specialist tools. |
 
-## 11. Layers panel [next]
+## 11. Layers panel [done, first pass]
+
+Rows mark only what is unusual (hidden, locked, alpha locked, "Multiply 60%");
+every mark shows on hover or selection. Blend mode and opacity sit under the
+list as properties of the selected layer, raise/lower/properties buttons are
+gone (drag, double click), sliders everywhere fill neutral instead of
+selection blue. Still to do: inline editing in the selected row.
+
 
 - Rows: thumbnail, name, a one-line summary only when not default
   ("Multiply · 60 %", "Alpha locked"), visibility.
@@ -358,7 +373,10 @@ setting searchable from Find, and show the 15 most-changed settings first.
 | Theme | `krita/data/themes/KritaStudio*.colors`, `krita/data/kritarc`, `libs/ui/kis_config.cc` (canvas surround) |
 | Widget style | `libs/widgetutils/KisModernStyle.*` |
 | Layout shell, rails, top bar, ☰ | `libs/ui/KisStudioLayout.*` |
-| Tool rail | `libs/ui/KisStudioToolRail.*` |
+| Tool rail, color chip, size dot / opacity tile | `libs/ui/KisStudioToolRail.*`, `KisStudioLayout::createBrushRail()`, `KisStudioBrushSlider` |
+| Inline tool options (transform modes, selection modes, gradient shapes, fill) | `libs/ui/KisStudioToolStrip.*` |
+| Canvas HUD | `libs/ui/KisStudioCanvasHud.*` |
+| Color panel (OKLCH) | `libs/ui/KisStudioColorPanel.*` |
 | Brush sliders | `libs/ui/KisStudioBrushSlider.*`, `KisPaintopBox::brushSlider()` |
 | Find anything | `libs/ui/KisStudioFind.*` |
 | Blend modes | `libs/ui/widgets/KisBlendModePicker.*`, `kis_cmb_composite.*`, `LayerBox::slotPreviewBlendMode()` |

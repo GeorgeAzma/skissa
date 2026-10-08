@@ -15,6 +15,7 @@
 
 class KisMainWindow;
 class QDockWidget;
+class QMdiArea;
 
 /**
  * The canvas-first "studio" layout of the main window.
@@ -68,6 +69,11 @@ private:
     void togglePanel(QDockWidget *dock, bool show);
     void showFlyout(QDockWidget *dock, QWidget *anchor = nullptr);
     void toggleToolOptions();
+    QMdiArea *mdiArea() const;
+    void migrateColorPanel();
+    void adoptDocuments();
+    void releaseDocuments();
+    void updateDocumentButton();
     void positionFlyout();
     void setPinned(QDockWidget *dock, bool pinned);
     void savePinned();

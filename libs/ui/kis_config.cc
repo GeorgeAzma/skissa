@@ -2955,7 +2955,7 @@ void KisConfig::setRenamePastedLayers(bool value)
 
 KisConfig::LayerInfoTextStyle KisConfig::layerInfoTextStyle(bool defaultValue) const
 {
-    return (KisConfig::LayerInfoTextStyle)(defaultValue ? INFOTEXT_NONE : m_cfg.readEntry("layerInfoTextStyle", (int)INFOTEXT_NONE));
+    return (KisConfig::LayerInfoTextStyle)(defaultValue ? INFOTEXT_SIMPLE : m_cfg.readEntry("layerInfoTextStyle", (int)INFOTEXT_SIMPLE));
 }
 
 void KisConfig::setLayerInfoTextStyle(KisConfig::LayerInfoTextStyle value)
@@ -2985,7 +2985,7 @@ void KisConfig::setUseInlineLayerInfoText(bool value)
 
 bool KisConfig::useLayerSelectionCheckbox(bool defaultValue) const
 {
-    return defaultValue ? false : m_cfg.readEntry("useLayerSelectionCheckbox", true);
+    return defaultValue ? false : m_cfg.readEntry("useLayerSelectionCheckbox", false);
 }
 
 void KisConfig::setUseLayerSelectionCheckbox(bool value)

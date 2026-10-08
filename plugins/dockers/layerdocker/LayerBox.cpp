@@ -214,6 +214,38 @@ LayerBox::LayerBox()
                                       i18nc("{n} is the number value, % is the percent sign", "{n}%"));
     }
 
+    /**
+     * Blend mode and opacity belong to the selected layer, not to the panel:
+     * they go right under the list, next to each other. Layers are moved by
+     * dragging and their properties are a double click away, so the raise,
+     * lower and properties buttons go; filtering and the panel options join
+     * the button row.
+     */
+    {
+        Ui_WdgLayerBox *ui = m_wdgLayerBox;
+        ui->hbox2->removeWidget(ui->cmbComposite);
+        ui->hbox2->removeWidget(ui->bnLayerFilters);
+        ui->opacityLayout->removeWidget(ui->doubleOpacity);
+        ui->opacityLayout->removeWidget(ui->configureLayerDockerToolbar);
+        ui->opacityLabel->hide();
+        ui->verticalLayout->removeItem(ui->hbox2);
+        ui->verticalLayout->removeItem(ui->opacityLayout);
+
+        auto *layerRow = new QHBoxLayout();
+        layerRow->setSpacing(6);
+        layerRow->addWidget(ui->cmbComposite, 1);
+        layerRow->addWidget(ui->doubleOpacity, 1);
+        ui->verticalLayout->insertLayout(ui->verticalLayout->indexOf(ui->horizontalLayout) + 1, layerRow);
+        ui->doubleOpacity->setButtonSymbols(QAbstractSpinBox::NoButtons);
+
+        ui->bnRaise->hide();
+        ui->bnLower->hide();
+        ui->bnProperties->hide();
+        const int deleteIndex = ui->hbox1->indexOf(ui->bnDelete);
+        ui->hbox1->insertWidget(deleteIndex, ui->configureLayerDockerToolbar);
+        ui->hbox1->insertWidget(deleteIndex, ui->bnLayerFilters);
+    }
+
     connect(m_wdgLayerBox->doubleOpacity, SIGNAL(valueChanged(qreal)), SLOT(slotOpacitySliderMoved(qreal)));
     connect(&m_nodeOpacityCompressor, SIGNAL(timeout()), SLOT(slotOpacityChanged()));
 

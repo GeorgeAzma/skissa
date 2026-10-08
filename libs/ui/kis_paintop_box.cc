@@ -328,6 +328,8 @@ KisPaintopBox::KisPaintopBox(KisViewManager *viewManager, QWidget *parent, const
 
     m_cmbCompositeOp = new KisCompositeOpComboBox();
     m_cmbCompositeOp->setFixedHeight(buttonsize);
+    // a mode name is one or two words, the picker opens wide anyway
+    m_cmbCompositeOp->setMaximumWidth(150);
     m_cmbCompositeOp->connectBlendmodeActions(m_viewManager->actionManager());
 
     // Workspace Button

@@ -159,6 +159,7 @@
 #include "KisWidgetConnectionUtils.h"
 #include "KisToolBarStateModel.h"
 #include "KisModernStyle.h"
+#include "KisStudioColorPanel.h"
 #include "KisStudioLayout.h"
 #include "KisStudioFind.h"
 #include <config-qmdiarea-always-show-subwindow-title.h>
@@ -412,6 +413,8 @@ KisMainWindow::KisMainWindow(QUuid uuid)
 
     // Load the per-application plugins (Right now, only Python) We do this only once, when the first mainwindow is being created.
     KoPluginLoader::instance()->load("Krita/ApplicationPlugin", KoPluginLoader::PluginsConfig(), qApp, true);
+
+    KisStudioColorPanel::registerFactory();
 
     KoToolBoxFactory toolBoxFactory;
     QDockWidget *toolbox = createDockWidget(&toolBoxFactory);
@@ -3007,6 +3010,11 @@ void KisMainWindow::configChanged()
             QDockWidget* dw = static_cast<QDockWidget*>(widget);
             dw->setFont(KisUiFont::dockFont());
         }
+    }
+
+    // the view mode and the status bar were just reset from the config
+    if (d->studioLayout) {
+        d->studioLayout->normalize();
     }
 }
 

@@ -11,6 +11,7 @@
 #include <KoToolManager.h>
 #include <KoToolRegistry.h>
 #include <QAction>
+#include <QFileInfo>
 #include <QApplication>
 #include <QDockWidget>
 #include <QFrame>
@@ -23,6 +24,8 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMdiArea>
+#include <QMdiSubWindow>
+#include <QStatusBar>
 #include <QMenuBar>
 #include <QTabBar>
 #include <QMouseEvent>
@@ -40,9 +43,15 @@
 #include <kactioncollection.h>
 #include <klocalizedstring.h>
 
+#include "KisDocument.h"
 #include "KisMainWindow.h"
+#include "KisView.h"
 #include "KisResourceServerProvider.h"
 #include "KisStudioBrushSlider.h"
+#include "KisStudioCanvasHud.h"
+#include "KisStudioColorPanel.h"
+#include "KisStudioToolStrip.h"
+#include "kis_canvas_resource_provider.h"
 #include "KisStudioToolRail.h"
 #include "KisViewManager.h"
 #include "kis_paintop_box.h"
@@ -60,6 +69,7 @@ const QString activeKey = QStringLiteral("StudioLayoutActive");
 const QString panelsKey = QStringLiteral("StudioLayoutPanels");
 const QString pinnedKey = QStringLiteral("StudioLayoutPinnedPanels");
 const QString classicStateKey = QStringLiteral("StudioLayoutClassicState");
+const QString colorMigratedKey = QStringLiteral("StudioLayoutColorPanelMigrated");
 
 /// The panels that get a button on the rail; every other docker is in the "All panels" menu
 QStringList defaultRailPanels()
@@ -67,7 +77,7 @@ QStringList defaultRailPanels()
     return {
         QStringLiteral("KisLayerBox"),
         QStringLiteral("PresetDocker"),
-        QStringLiteral("ColorSelectorNg"),
+        QStringLiteral("StudioColor"),
         // not the tool options: the tool chip in the top bar opens them where the tool is
         QStringLiteral("PaletteDocker"),
         QStringLiteral("History"),
@@ -88,6 +98,7 @@ QString railIconName(const QString &id)
     static const QHash<QString, QString> icons = {
         {QStringLiteral("KisLayerBox"), QStringLiteral("studio_layers")},
         {QStringLiteral("PresetDocker"), QStringLiteral("studio_brushes")},
+        {QStringLiteral("StudioColor"), QStringLiteral("studio_color")},
         {QStringLiteral("ColorSelectorNg"), QStringLiteral("studio_color")},
         {QStringLiteral("WideGamutColorSelector"), QStringLiteral("studio_color")},
         {QStringLiteral("sharedtooldocker"), QStringLiteral("studio_tool_options")},
@@ -227,6 +238,82 @@ private:
     static constexpr int chevron = 8;
 };
 
+/**
+ * The colors in use, large enough to read at a glance: the foreground as a
+ * big disc, the background behind it. Clicking the foreground opens the
+ * color panel, clicking the background swaps the two.
+ */
+class ColorChip : public QWidget
+{
+public:
+    std::function<void()> openColors;
+    std::function<void()> swapColors;
+
+    explicit ColorChip(QWidget *parent) : QWidget(parent)
+    {
+        setFixedSize(40, 40);
+        setCursor(Qt::PointingHandCursor);
+        setToolTip(i18nc("@info:tooltip", "Color (click), background color (click to swap, or X)"));
+    }
+
+    void setColors(const QColor &foreground, const QColor &background)
+    {
+        m_foreground = foreground;
+        m_background = background;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QColor border = palette().color(QPalette::WindowText);
+        border.setAlphaF(0.35);
+        painter.setPen(QPen(border, 1));
+        painter.setBrush(m_background);
+        painter.drawEllipse(backgroundRect());
+        // a ring in the chrome color separates the two even when they are alike
+        painter.setPen(QPen(palette().color(QPalette::Window), 3));
+        painter.setBrush(m_foreground);
+        painter.drawEllipse(foregroundRect());
+        painter.setPen(QPen(border, 1));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(foregroundRect().adjusted(-1.5, -1.5, 1.5, 1.5));
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton) return;
+        if (!foregroundRect().contains(event->pos()) && backgroundRect().contains(event->pos())) {
+            if (swapColors) swapColors();
+        } else if (openColors) {
+            openColors();
+        }
+    }
+
+private:
+    QRectF foregroundRect() const { return QRectF(3, 3, 26, 26); }
+    QRectF backgroundRect() const { return QRectF(17, 17, 20, 20); }
+
+    QColor m_foreground {Qt::black};
+    QColor m_background {Qt::white};
+};
+
+/// The document's name, and every open document a click away
+class DocumentButton : public QToolButton
+{
+public:
+    explicit DocumentButton(QWidget *parent) : QToolButton(parent)
+    {
+        setAutoRaise(true);
+        setFocusPolicy(Qt::NoFocus);
+        setToolButtonStyle(Qt::ToolButtonTextOnly);
+        setPopupMode(QToolButton::InstantPopup);
+        setToolTip(i18nc("@info:tooltip", "Open documents"));
+    }
+};
+
 /// Looks like a search field, opens Find Anything
 class FindField : public QAbstractButton
 {
@@ -324,6 +411,14 @@ struct KisStudioLayout::Private
     /// What the flyout opened from, if not the rail: it goes right below it
     QPointer<QWidget> flyoutAnchor;
     QPointer<QToolButton> toolChip;
+    QPointer<KisStudioToolStrip> toolStrip;
+    QPointer<QAction> toolStripAction;
+    QPointer<QToolButton> documentButton;
+    QPointer<QAction> documentButtonAction;
+    QPointer<KisStudioCanvasHud> hud;
+    QPointer<QWidget> colorChip;
+    /// How documents were shown before: tabs or windows
+    int classicViewMode {-1};
     QSet<QString> pinned;
 
     /// What a docker looked like before entering the studio layout
@@ -397,6 +492,7 @@ void KisStudioLayout::setActive(bool active)
 void KisStudioLayout::enter()
 {
     KisMainWindow *mainWindow = d->mainWindow;
+    migrateColorPanel();
     const QStringList pinned = KisConfig(true).readEntry<QStringList>(pinnedKey);
     d->pinned = QSet<QString>(pinned.begin(), pinned.end());
 
@@ -459,14 +555,166 @@ void KisStudioLayout::enter()
     qApp->installEventFilter(this);
     d->connections << connect(KoToolManager::instance(), &KoToolManager::changedTool,
                               this, &KisStudioLayout::updateContextBar);
+    d->connections << connect(KoToolManager::instance(), &KoToolManager::toolOptionWidgetsChanged, this,
+                              [this](KoCanvasController *, const QList<QPointer<QWidget>> &widgets) {
+                                  if (d->toolStrip) {
+                                      d->toolStrip->setOptionWidgets(widgets);
+                                      if (d->toolStripAction) {
+                                          d->toolStripAction->setVisible(d->toolStrip->hasOptions() && !isRailHidden());
+                                      }
+                                  }
+                              });
+    if (QMdiArea *area = mdiArea()) {
+        d->connections << connect(area, &QMdiArea::subWindowActivated, this, [this]() {
+            adoptDocuments();
+            updateDocumentButton();
+        });
+    }
+    d->connections << connect(mainWindow, &QWidget::windowTitleChanged, this, &KisStudioLayout::updateDocumentButton);
+
+    if (!d->hud) {
+        d->hud = new KisStudioCanvasHud(mainWindow);
+    }
+    d->hud->setActive(true);
+
     normalize();
     updateContextBar();
+}
+
+QMdiArea *KisStudioLayout::mdiArea() const
+{
+    return d->mainWindow->findChild<QMdiArea *>();
+}
+
+void KisStudioLayout::migrateColorPanel()
+{
+    KisConfig cfg(false);
+    if (cfg.readEntry<bool>(colorMigratedKey, false) || !d->mainWindow->dockWidget(KisStudioColorPanel::id())) {
+        return;
+    }
+    cfg.writeEntry(colorMigratedKey, true);
+    // the perceptual panel takes the place of the old selector, on the rail and pinned
+    for (const QString &key : {panelsKey, pinnedKey}) {
+        QStringList panels = cfg.readEntry<QStringList>(key);
+        const int at = panels.indexOf(QStringLiteral("ColorSelectorNg"));
+        if (at >= 0) {
+            panels[at] = KisStudioColorPanel::id();
+            panels.removeDuplicates();
+            cfg.writeEntry(key, panels);
+        }
+    }
+}
+
+void KisStudioLayout::adoptDocuments()
+{
+    QMdiArea *area = mdiArea();
+    if (!d->active || !area) {
+        return;
+    }
+    /**
+     * One document fills the canvas area without tabs or a frame; the
+     * document button in the top bar switches between several. Windows
+     * view mode with frameless maximized windows does that, where tabbed
+     * mode would keep a row of tabs for a single name.
+     */
+    if (d->classicViewMode < 0) {
+        d->classicViewMode = area->viewMode();
+    }
+    if (area->viewMode() != QMdiArea::SubWindowView) {
+        area->setViewMode(QMdiArea::SubWindowView);
+    }
+    Q_FOREACH (QMdiSubWindow *window, area->subWindowList()) {
+        if (!(window->windowFlags() & Qt::FramelessWindowHint)) {
+            window->setWindowFlags(window->windowFlags() | Qt::FramelessWindowHint);
+        }
+        if (!window->isMaximized()) {
+            window->showMaximized();
+        }
+    }
+}
+
+void KisStudioLayout::releaseDocuments()
+{
+    QMdiArea *area = mdiArea();
+    if (!area) {
+        return;
+    }
+    Q_FOREACH (QMdiSubWindow *window, area->subWindowList()) {
+        if (window->windowFlags() & Qt::FramelessWindowHint) {
+            window->setWindowFlags(window->windowFlags() & ~Qt::FramelessWindowHint);
+            window->showMaximized();
+        }
+    }
+    if (d->classicViewMode >= 0) {
+        area->setViewMode(QMdiArea::ViewMode(d->classicViewMode));
+        d->classicViewMode = -1;
+    }
+}
+
+void KisStudioLayout::updateDocumentButton()
+{
+    if (!d->documentButton) {
+        return;
+    }
+    QMdiArea *area = mdiArea();
+    const QList<QMdiSubWindow *> windows = area ? area->subWindowList() : QList<QMdiSubWindow *>();
+
+    auto nameOf = [](QMdiSubWindow *window) {
+        KisView *view = qobject_cast<KisView *>(window->widget());
+        KisDocument *document = view ? view->document() : nullptr;
+        if (!document) {
+            return window->windowTitle();
+        }
+        const QString path = document->path();
+        QString name = path.isEmpty() ? i18nc("a document that was never saved", "Untitled") : QFileInfo(path).fileName();
+        if (document->isModified()) {
+            // a dot, like the modified marker of most editors
+            name += QStringLiteral(" •");
+        }
+        return name;
+    };
+
+    QMdiSubWindow *current = area ? area->currentSubWindow() : nullptr;
+    d->documentButton->setText(current ? nameOf(current) : QString());
+
+    QMenu *menu = d->documentButton->menu();
+    menu->clear();
+    Q_FOREACH (QMdiSubWindow *window, windows) {
+        QAction *action = menu->addAction(nameOf(window));
+        action->setCheckable(true);
+        action->setChecked(window == current);
+        QPointer<QMdiSubWindow> target = window;
+        connect(action, &QAction::triggered, this, [area, target]() {
+            if (target && area) area->setActiveSubWindow(target);
+        });
+    }
+    menu->addSeparator();
+    KisKActionCollection *actions = d->mainWindow->actionCollection();
+    for (const char *name : {"file_new", "file_open", "file_close"}) {
+        if (QAction *action = actions->action(QLatin1String(name))) {
+            menu->addAction(action);
+        }
+    }
+    if (d->documentButtonAction) {
+        d->documentButtonAction->setVisible(!windows.isEmpty() && !isRailHidden());
+    }
 }
 
 void KisStudioLayout::leave()
 {
     closeFlyout();
     qApp->removeEventFilter(this);
+    if (d->hud) {
+        d->hud->setActive(false);
+    }
+    releaseDocuments();
+    d->mainWindow->statusBar()->setVisible(KisConfig(true).showStatusBar());
+    if (d->toolStripAction) {
+        d->toolStripAction->setVisible(false);
+    }
+    if (d->documentButtonAction) {
+        d->documentButtonAction->setVisible(false);
+    }
 
     Q_FOREACH (const QMetaObject::Connection &connection, d->connections) {
         disconnect(connection);
@@ -624,6 +872,14 @@ void KisStudioLayout::normalize()
     // canvas-only mode manages the menu bar itself, the welcome page has no top bar
     if (!isCanvasOnly()) {
         mainWindow->menuBar()->setVisible(mainWindow->isWelcomeScreenShown());
+    }
+
+    // what the status bar said about the view is on the canvas now, the rest is in the document properties
+    mainWindow->statusBar()->hide();
+    adoptDocuments();
+    updateDocumentButton();
+    if (d->toolStripAction && d->toolStrip) {
+        d->toolStripAction->setVisible(d->toolStrip->hasOptions() && !isRailHidden());
     }
 
     syncRail();
@@ -1105,6 +1361,31 @@ void KisStudioLayout::createBrushRail()
          [](qreal value) { return i18nc("brush opacity, %1 is the number of percent", "%1%", qRound(value)); }},
     };
 
+    if (KisViewManager *viewManager = mainWindow->viewManager()) {
+        KisCanvasResourceProvider *resources = viewManager->canvasResourceProvider();
+        auto *chip = new ColorChip(contents);
+        chip->setColors(resources->fgColor().toQColor(), resources->bgColor().toQColor());
+        auto refresh = [chip, resources]() {
+            chip->setColors(resources->fgColor().toQColor(), resources->bgColor().toQColor());
+        };
+        connect(resources, &KisCanvasResourceProvider::sigFGColorChanged, chip, refresh);
+        connect(resources, &KisCanvasResourceProvider::sigBGColorChanged, chip, refresh);
+        // the colors are only known once a canvas is there
+        connect(mainWindow, &KisMainWindow::activeViewChanged, chip, refresh);
+        chip->swapColors = [resources]() {
+            const KoColor foreground = resources->fgColor();
+            resources->setFGColor(resources->bgColor());
+            resources->setBGColor(foreground);
+        };
+        chip->openColors = [this]() {
+            if (QDockWidget *colors = d->mainWindow->dockWidget(KisStudioColorPanel::id())) {
+                showPanel(colors);
+            }
+        };
+        layout->addWidget(chip, 0, Qt::AlignHCenter);
+        d->colorChip = chip;
+    }
+
     Q_FOREACH (const SliderInfo &info, sliders) {
         KisDoubleSliderSpinBox *source = paintopBox->brushSlider(info.id);
         if (!source) {
@@ -1115,6 +1396,8 @@ void KisStudioLayout::createBrushRail()
         slider->setValueFormatter(info.format);
         slider->setRange(source->minimum(), source->maximum(), qMax(info.exponent, 1.0));
         slider->setLogarithmic(info.exponent <= 0.0);
+        slider->setPreview(info.id == QLatin1String("size") ? KisStudioBrushSlider::Preview::Dot
+                                                            : KisStudioBrushSlider::Preview::Opacity);
         slider->setValue(source->value());
         layout->addWidget(slider, 0, Qt::AlignHCenter);
 
@@ -1221,6 +1504,15 @@ void KisStudioLayout::createTopBar()
     bar->addWidget(toolChip);
     d->toolChip = toolChip;
 
+    auto *strip = new KisStudioToolStrip(bar);
+    d->toolStripAction = bar->addWidget(strip);
+    d->toolStripAction->setVisible(false);
+    d->toolStrip = strip;
+
+    auto *documents = new DocumentButton(mainWindow);
+    documents->setMenu(new QMenu(documents));
+    d->documentButton = documents;
+
     mainWindow->addToolBar(Qt::TopToolBarArea, bar);
     d->topBar = bar;
 
@@ -1276,6 +1568,9 @@ void KisStudioLayout::placeFindField()
     if (!brushBar) {
         return;
     }
+    if (d->documentButton) {
+        d->documentButtonAction = brushBar->addWidget(d->documentButton);
+    }
     d->findFieldAction = brushBar->addWidget(d->findField);
 }
 
@@ -1310,7 +1605,8 @@ void KisStudioLayout::updateContextBar()
         {"mirror_actions", paints},
         {"gradients", gradient},
         {"patterns", fills || shapeTool},
-        {"dual", usesColor},
+        // on the rail, large, for every tool
+        {"dual", false},
         // set up once, not per stroke: they are in Find Anything
         {"workspaces", false},
         {"select_layout", false},
@@ -1417,8 +1713,11 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 
     case QEvent::Move:
     case QEvent::Resize:
+    case QEvent::WindowStateChange:
+    case QEvent::Show:
+        // also after minimizing: a flyout placed while minimized would be far off
         if (d->flyout && (watched == d->mainWindow || watched == d->mainWindow->centralWidget())) {
-            positionFlyout();
+            QTimer::singleShot(0, this, &KisStudioLayout::positionFlyout);
         }
         break;
 
