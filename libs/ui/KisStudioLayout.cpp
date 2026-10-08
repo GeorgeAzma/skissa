@@ -1541,6 +1541,19 @@ void KisStudioLayout::moveTopBarToFront()
         return;
     }
 
+    /**
+     * One row: the top bar goes right in front of the brush toolbar, which
+     * holds the context options and Find. Positions can't decide this, they
+     * are meaningless until the window has been shown (e.g. started minimized).
+     */
+    QToolBar *brushBar = mainWindow->findChild<QToolBar *>(QStringLiteral("BrushesAndStuff"), Qt::FindDirectChildrenOnly);
+    if (brushBar && mainWindow->toolBarArea(brushBar) == Qt::TopToolBarArea) {
+        mainWindow->removeToolBarBreak(d->topBar);
+        mainWindow->removeToolBarBreak(brushBar);
+        mainWindow->insertToolBar(brushBar, d->topBar);
+        return;
+    }
+
     // the leftmost toolbar of the first row, the xmlgui ones are created
     // after the studio layout and restored states can move them around
     QToolBar *first = nullptr;

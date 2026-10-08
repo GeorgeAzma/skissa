@@ -5,6 +5,8 @@
  */
 #include "KisStudioToolRail.h"
 
+#include <kis_action_registry.h>
+
 #include <QAction>
 #include <QContextMenuEvent>
 #include <QMenu>
@@ -191,7 +193,14 @@ struct KisStudioToolRail::Private
 
 QString KisStudioToolRail::toolName(KoToolFactoryBase *factory)
 {
-    QString name = factory->toolTip();
+    // the action's text is the short name ("Transform Tool"); the tooltip may be a sentence
+    QString name;
+    if (KisActionRegistry::instance()->hasAction(factory->id())) {
+        name = KisActionRegistry::instance()->getActionProperty(factory->id(), QStringLiteral("text"));
+    }
+    if (name.isEmpty()) {
+        name = factory->toolTip();
+    }
     name.remove(QLatin1Char('&'));
     if (name.endsWith(QStringLiteral(" Tool"))) {
         name.chop(5);
