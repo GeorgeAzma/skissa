@@ -47,6 +47,9 @@ public:
 
     void hidePopup() override;
 
+    /// Shows the blend modes grouped by intent instead of the plain list
+    void showPopup() override;
+
     void validate(const KoColorSpace *cs);
     void selectCompositeOp(const KoID &op);
     KoID selectedCompositeOp() const;
@@ -55,6 +58,14 @@ public:
 
     void wheelEvent(QWheelEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
+
+Q_SIGNALS:
+    /**
+     * A mode is highlighted in the popup and can be previewed, e.g. on the
+     * active layer; an empty id means the preview is over and the original
+     * mode should be shown again (a picked mode then comes via activated())
+     */
+    void sigPreviewBlendMode(const QString &id);
 
 private Q_SLOTS:
     void slotCategoryToggled(const QModelIndex& index, bool toggled);
@@ -96,6 +107,7 @@ private:
     KisSortedCompositeOpListModel *m_model;
     KisCategorizedListView *m_view;
     bool m_allowToHidePopup;
+    bool m_limitToLayerStyles {false};
 };
 
 class KRITAUI_EXPORT KisLayerStyleCompositeOpComboBox: public KisCompositeOpComboBox

@@ -10,6 +10,8 @@ if (FOUNDATION_BUILD)
 endif()
 
 install(FILES
+KritaStudioDark.colors
+KritaStudioLight.colors
 KritaNeutral.colors
 KritaBlender.colors
 KritaBright.colors

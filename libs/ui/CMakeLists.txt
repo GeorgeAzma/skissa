@@ -243,6 +243,8 @@ set(kritaui_LIB_SRCS
 
     widgets/kis_canvas_drop.cpp
     widgets/kis_cmb_composite.cc
+    widgets/KisBlendModePicker.cpp
+    widgets/KisPopupCloser.cpp
     widgets/KisCompositeOpListConnectionHelper.cpp
     widgets/kis_cmb_contour.cpp
     widgets/kis_cmb_gradient.cpp
@@ -446,6 +448,8 @@ set(kritaui_LIB_SRCS
     KisMainWindow.cpp
     KisStudioLayout.cpp
     KisStudioBrushSlider.cpp
+    KisStudioFind.cpp
+    KisStudioToolRail.cpp
     KisOpenPane.cpp
     KisPart.cpp
     KisTemplate.cpp

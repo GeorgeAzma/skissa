@@ -27,6 +27,28 @@ QColor mix(const QColor &a, const QColor &b, qreal t)
                             a.alphaF() + (b.alphaF() - a.alphaF()) * t);
 }
 
+/// Focus rings and active indicators use the bright accent, fills the muted selection color
+QColor focusColor(const QPalette &pal)
+{
+    return pal.color(QPalette::Link);
+}
+
+/**
+ * The frame of the window (toolbars, rails, the menu bar) is one step darker
+ * than the panels, so the panels and the canvas read as the content.
+ */
+QColor chromeColor(const QPalette &pal)
+{
+    const QColor window = pal.color(QPalette::Window);
+    return window.lightness() < 128 ? window.darker(136) : window.darker(108);
+}
+
+/// Selected rows and menu items: the selection color mixed into the background
+QColor selectionTint(const QPalette &pal)
+{
+    return mix(pal.color(QPalette::Base), pal.color(QPalette::Highlight), 0.55);
+}
+
 /// A rect whose 1px outline lands exactly on the pixels of \p rect
 QRectF strokeRect(const QRect &rect)
 {
@@ -119,15 +141,28 @@ void drawButtonPanel(QPainter *painter, const QStyleOption *option, bool flat)
         fill = bg;
     }
 
+    // surfaces are separated by lightness, not outlines; only keyboard focus gets a ring
     QColor border;
-    if (!flat) {
-        border = mix(bg, fg, 0.14);
-    }
     if (s.keyboardFocus) {
-        border = pal.color(QPalette::Highlight);
+        border = focusColor(pal);
     }
 
     drawRounded(painter, strokeRect(option->rect), radius, fill, border);
+}
+
+/// The button that Enter activates is the one filled with the selection color
+void drawPrimaryButtonPanel(QPainter *painter, const QStyleOption *option)
+{
+    const Interaction s(option);
+    const QPalette &pal = option->palette;
+    QColor fill = pal.color(QPalette::Highlight);
+    if (s.pressed) {
+        fill = fill.darker(115);
+    } else if (s.hovered) {
+        fill = fill.lighter(112);
+    }
+    drawRounded(painter, strokeRect(option->rect), radius, fill,
+                s.keyboardFocus ? focusColor(pal) : QColor());
 }
 
 /// Background of text fields: line edits, spin boxes and editable combo boxes
@@ -135,12 +170,16 @@ void drawField(QPainter *painter, const QStyleOption *option, bool fill)
 {
     const Interaction s(option);
     const QPalette &pal = option->palette;
-    const QColor bg = pal.color(QPalette::Base);
+    // fields are filled one step above the panel, like buttons, and only get
+    // an outline while hovered or focused
+    const QColor bg = pal.color(QPalette::Button);
     const QColor fg = pal.color(QPalette::Text);
 
-    QColor border = mix(bg, fg, s.hovered ? 0.30 : 0.18);
+    QColor border;
     if (s.enabled && option->state.testFlag(QStyle::State_HasFocus)) {
-        border = pal.color(QPalette::Highlight);
+        border = focusColor(pal);
+    } else if (s.hovered) {
+        border = mix(bg, fg, 0.18);
     }
 
     drawRounded(painter, strokeRect(option->rect), radius, fill ? bg : QColor(), border);
@@ -336,13 +375,11 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     case PE_PanelButtonBevel: {
         const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option);
         const bool flat = button && button->features.testFlag(QStyleOptionButton::Flat);
-        drawButtonPanel(painter, option, flat);
-
-        if (button && button->features.testFlag(QStyleOptionButton::DefaultButton)
-            && !Interaction(option).keyboardFocus) {
-            // the button that Enter activates gets an accent outline
-            const QColor accent = option->palette.color(QPalette::Highlight);
-            drawRounded(painter, strokeRect(option->rect), radius, QColor(), accent);
+        if (button && button->features.testFlag(QStyleOptionButton::DefaultButton) && !flat
+            && option->state.testFlag(State_Enabled)) {
+            drawPrimaryButtonPanel(painter, option);
+        } else {
+            drawButtonPanel(painter, option, flat);
         }
         return;
     }
@@ -480,20 +517,9 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         return;
     }
 
-    case PE_FrameGroupBox: {
-        const QColor bg = option->palette.color(QPalette::Window);
-        const QColor fg = option->palette.color(QPalette::WindowText);
-        const auto *frame = qstyleoption_cast<const QStyleOptionFrame *>(option);
-        if (frame && frame->features.testFlag(QStyleOptionFrame::Flat)) {
-            painter->save();
-            painter->setPen(mix(bg, fg, 0.15));
-            painter->drawLine(option->rect.topLeft(), option->rect.topRight());
-            painter->restore();
-            return;
-        }
-        drawRounded(painter, strokeRect(option->rect), radius + 1, mix(bg, fg, 0.03), mix(bg, fg, 0.12));
+    case PE_FrameGroupBox:
+        // no boxes around boxes: the title and the spacing group the contents
         return;
-    }
 
     case PE_FrameTabWidget: {
         const QColor bg = option->palette.color(QPalette::Window);
@@ -522,7 +548,7 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     }
 
     case PE_PanelMenuBar:
-        painter->fillRect(option->rect, option->palette.window());
+        painter->fillRect(option->rect, chromeColor(option->palette));
         return;
 
     case PE_IndicatorToolBarSeparator: {
@@ -568,10 +594,9 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
                 painter->fillRect(item->rect, item->backgroundBrush);
             }
 
-            QColor fill = item->palette.color(QPalette::Highlight);
-            if (!selected) {
-                fill.setAlphaF(0.2);
-            }
+            const QColor fill = selected
+                ? selectionTint(item->palette)
+                : mix(item->palette.color(QPalette::Base), item->palette.color(QPalette::Text), 0.06);
 
             // A row spanning several columns is drawn as one pill: only
             // round the outer ends and let the inner edges run past the clip
@@ -633,6 +658,19 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
         }
         break;
 
+    case CE_PushButtonLabel:
+        if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
+            if (button->features.testFlag(QStyleOptionButton::DefaultButton)
+                && !button->features.testFlag(QStyleOptionButton::Flat)
+                && button->state.testFlag(State_Enabled)) {
+                QStyleOptionButton label = *button;
+                label.palette.setColor(QPalette::ButtonText, button->palette.color(QPalette::HighlightedText));
+                QProxyStyle::drawControl(element, &label, painter, widget);
+                return;
+            }
+        }
+        break;
+
     case CE_MenuItem:
         if (const auto *item = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
             const bool selected = item->state.testFlag(State_Selected) && item->state.testFlag(State_Enabled);
@@ -641,7 +679,7 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
             }
 
             drawRounded(painter, QRectF(item->rect).adjusted(3, 1, -3, -1), radius - 1,
-                        item->palette.color(QPalette::Highlight));
+                        selectionTint(item->palette));
 
             // Let Fusion draw the contents as if unselected, but in the selected text color
             QStyleOptionMenuItem contents = *item;
@@ -662,7 +700,7 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
             const bool selected = enabled && item->state.testFlag(State_Selected);
             const bool open = selected && item->state.testFlag(State_Sunken);
 
-            painter->fillRect(item->rect, pal.window());
+            painter->fillRect(item->rect, chromeColor(pal));
             const QRectF shape = QRectF(item->rect).adjusted(1, 2, -1, -2);
             if (open) {
                 drawRounded(painter, shape, radius - 1, pal.color(QPalette::Highlight));
@@ -683,7 +721,7 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
     case CE_MenuBarEmptyArea:
     case CE_ToolBar:
         // flat, Fusion paints a gradient here
-        painter->fillRect(option->rect, option->palette.window());
+        painter->fillRect(option->rect, chromeColor(option->palette));
         return;
 
     case CE_Splitter:

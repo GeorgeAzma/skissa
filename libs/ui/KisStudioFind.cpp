@@ -1,0 +1,943 @@
+/*
+ *  SPDX-FileCopyrightText: 2026 GeorgeAzma <lumi.main.mail@gmail.com>
+ *
+ *  SPDX-License-Identifier: GPL-2.0-or-later
+ */
+#include "KisStudioFind.h"
+
+#include "widgets/KisPopupCloser.h"
+
+#include <QAbstractItemView>
+#include <QApplication>
+#include <QDateTime>
+#include <QDockWidget>
+#include <QScopeGuard>
+#include <QKeyEvent>
+#include <QLineEdit>
+#include <QListView>
+#include <QMenu>
+#include <QMenuBar>
+#include <QPainter>
+#include <QPainterPath>
+#include <QRegularExpression>
+#include <QStandardItemModel>
+#include <QStyledItemDelegate>
+#include <QTimer>
+#include <QVBoxLayout>
+#include <QWidgetAction>
+
+#include <cmath>
+
+#include <KoCompositeOpRegistry.h>
+#include <KoToolFactoryBase.h>
+#include <KoToolManager.h>
+#include <KoToolRegistry.h>
+#include <kactioncollection.h>
+#include <kfts_fuzzy_match.h>
+#include <klocalizedstring.h>
+#include <kxmlguiclient.h>
+#include <kxmlguifactory.h>
+#include <KisResourceModel.h>
+
+#include "KisMainWindow.h"
+#include "KisNodeActivationActionCreatorVisitor.h"
+#include "KisResourceServerProvider.h"
+#include "KisView.h"
+#include "KisViewManager.h"
+#include "dialogs/kis_dlg_preferences.h"
+#include "kis_canvas_resource_provider.h"
+#include "kis_config.h"
+#include "kis_filter_registry.h"
+#include "kis_icon_utils.h"
+#include "kis_image.h"
+#include "kis_node_manager.h"
+#include "kis_paintop_preset.h"
+#include "kis_workspace_resource.h"
+#include "filter/kis_filter.h"
+
+namespace {
+
+/**
+ * How well \p query names \p title, or a negative value if it doesn't.
+ * Predictable matches only, best first: the start of the title, the start
+ * of a word, the initials ("gb" for Gaussian Blur), every query word
+ * starting a title word ("gaus bl"), and last a substring inside a word,
+ * which short queries hit by accident ("gb" in RGBA) and so don't get.
+ */
+qreal strictMatch(const QString &query, const QString &title)
+{
+    const qreal lengthPenalty = title.size() * 0.3;
+    qreal best = -1.0;
+
+    for (int at = title.indexOf(query, 0, Qt::CaseInsensitive); at >= 0;
+         at = title.indexOf(query, at + 1, Qt::CaseInsensitive)) {
+        if (at == 0) {
+            best = qMax(best, 130.0 - lengthPenalty);
+        } else if (!title.at(at - 1).isLetterOrNumber()) {
+            best = qMax(best, 115.0 - lengthPenalty);
+        } else if (query.size() >= 3) {
+            best = qMax(best, 50.0 - lengthPenalty);
+        }
+    }
+    if (best >= 100.0) {
+        return best;
+    }
+
+    static const QRegularExpression nonWord(QStringLiteral("[^\\w]+"));
+    const QStringList titleWords = title.split(nonWord, Qt::SkipEmptyParts);
+    const QStringList queryWords = query.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    if (queryWords.size() > 1) {
+        bool all = true;
+        Q_FOREACH (const QString &word, queryWords) {
+            bool found = false;
+            Q_FOREACH (const QString &titleWord, titleWords) {
+                if (titleWord.startsWith(word, Qt::CaseInsensitive)) {
+                    found = true;
+                    break;
+                }
+            }
+            all = all && found;
+        }
+        if (all) {
+            best = qMax(best, 90.0 - lengthPenalty);
+        }
+    }
+
+    if (query.size() >= 2 && !query.contains(QLatin1Char(' ')) && titleWords.size() >= query.size()) {
+        QString initials;
+        Q_FOREACH (const QString &word, titleWords) {
+            initials += word.at(0);
+        }
+        if (initials.startsWith(query, Qt::CaseInsensitive)) {
+            best = qMax(best, initials.size() == query.size() ? 100.0 : 92.0);
+        }
+    }
+    return best;
+}
+
+enum class Kind {
+    Tool,
+    Command,
+    Effect,
+    Brush,
+    BlendMode,
+    Panel,
+    Layer,
+    Setting,
+    Workspace,
+};
+
+QString kindTitle(Kind kind)
+{
+    switch (kind) {
+    case Kind::Tool: return i18nc("@title find results", "Tools");
+    case Kind::Command: return i18nc("@title find results", "Commands");
+    case Kind::Effect: return i18nc("@title find results", "Effects");
+    case Kind::Brush: return i18nc("@title find results", "Brushes");
+    case Kind::BlendMode: return i18nc("@title find results", "Blend Modes");
+    case Kind::Panel: return i18nc("@title find results", "Panels");
+    case Kind::Layer: return i18nc("@title find results", "Layers");
+    case Kind::Setting: return i18nc("@title find results", "Settings");
+    case Kind::Workspace: return i18nc("@title find results", "Workspaces");
+    }
+    return QString();
+}
+
+/// Kinds that are usually what you look for get a small head start
+int kindBias(Kind kind)
+{
+    switch (kind) {
+    case Kind::Tool: return 6;
+    case Kind::Effect: return 5;
+    case Kind::Command: return 4;
+    case Kind::Brush: return 2;
+    case Kind::Panel: return 2;
+    case Kind::Layer: return 1;
+    case Kind::Setting: return 0;
+    case Kind::Workspace: return 0;
+    case Kind::BlendMode: return -4; // 138 of them, they shouldn't drown everything else
+    }
+    return 0;
+}
+
+/// "&Gaussian Blur..." -> "Gaussian Blur"
+QString cleanText(QString text)
+{
+    text.remove(QLatin1Char('&'));
+    text = text.trimmed();
+    while (text.endsWith(QLatin1Char('.')) || text.endsWith(QChar(0x2026))) {
+        text.chop(1);
+    }
+    return text.trimmed();
+}
+
+enum Roles {
+    HeaderRole = Qt::UserRole + 1,
+    DetailRole,
+    ShortcutRole,
+    EntryRole,
+    MessageRole, ///< a line of text instead of results
+};
+
+struct Entry {
+    QString key;       ///< stable id for the usage statistics
+    Kind kind;
+    QString title;
+    QString detail;    ///< where it lives or what it does
+    QString keywords;  ///< extra words that should find it
+    QString shortcut;
+    QIcon icon;
+    std::function<void()> run;
+    QStringList aliases; ///< what other applications call it
+};
+
+/**
+ * The words people bring from other painting applications, so that Find
+ * understands "lasso" as well as "Freehand Selection". Keyed like the
+ * usage statistics; every value is one comma separated translatable list.
+ */
+QHash<QString, QStringList> aliasTable()
+{
+    const QVector<QPair<const char *, QString>> table = {
+        {"tool:KisToolSelectContiguous", i18nc("@info find aliases, comma separated", "magic wand, wand")},
+        {"tool:KisToolSelectOutline", i18nc("@info find aliases, comma separated", "lasso")},
+        {"tool:KisToolSelectPolygonal", i18nc("@info find aliases, comma separated", "polygonal lasso")},
+        {"tool:KisToolSelectMagnetic", i18nc("@info find aliases, comma separated", "magnetic lasso")},
+        {"tool:KisToolSelectSimilar", i18nc("@info find aliases, comma separated", "color range, select color range")},
+        {"tool:KisToolSelectRectangular", i18nc("@info find aliases, comma separated", "marquee, rectangular marquee")},
+        {"tool:KisToolSelectElliptical", i18nc("@info find aliases, comma separated", "elliptical marquee")},
+        {"tool:KritaSelected/KisToolColorSampler", i18nc("@info find aliases, comma separated", "eyedropper, color picker, pipette, picker")},
+        {"tool:KritaFill/KisToolFill", i18nc("@info find aliases, comma separated", "paint bucket, bucket")},
+        {"tool:KisToolTransform", i18nc("@info find aliases, comma separated", "free transform, scale, rotate, warp, liquify, perspective, distort")},
+        {"tool:KritaShape/KisToolSmartPatch", i18nc("@info find aliases, comma separated", "healing brush, spot healing, content aware fill")},
+        {"tool:KritaShape/KisToolBrush", i18nc("@info find aliases, comma separated", "paintbrush, pencil, pen")},
+        {"tool:KritaShape/KisToolLazyBrush", i18nc("@info find aliases, comma separated", "flatting, flats")},
+        {"tool:KisToolPath", i18nc("@info find aliases, comma separated", "pen tool, vector path")},
+        {"tool:SvgTextTool", i18nc("@info find aliases, comma separated", "type")},
+        {"tool:ToolReferenceImages", i18nc("@info find aliases, comma separated", "references")},
+        {"tool:KisAssistantTool", i18nc("@info find aliases, comma separated", "perspective grid, vanishing point, ruler")},
+        {"effect:hsvadjustment", i18nc("@info find aliases, comma separated", "hue saturation, hue/saturation, saturation")},
+        {"effect:perchannel", i18nc("@info find aliases, comma separated", "curves")},
+        {"effect:brightnesscontrast", i18nc("@info find aliases, comma separated", "brightness contrast, contrast")},
+        {"effect:desaturate", i18nc("@info find aliases, comma separated", "black and white, grayscale, greyscale")},
+        {"effect:invert", i18nc("@info find aliases, comma separated", "negative")},
+        {"effect:unsharp", i18nc("@info find aliases, comma separated", "sharpen")},
+        {"effect:colorbalance", i18nc("@info find aliases, comma separated", "color grading, tint")},
+        {"effect:gradientmap", i18nc("@info find aliases, comma separated", "gradient map, colorize")},
+        {"effect:pixelize", i18nc("@info find aliases, comma separated", "mosaic, pixelate")},
+        {"action:invert_selection", i18nc("@info find aliases, comma separated", "inverse selection")},
+        {"action:mirror_canvas", i18nc("@info find aliases, comma separated", "flip canvas, flip view, mirror view")},
+        {"action:merge_layer", i18nc("@info find aliases, comma separated", "merge down")},
+        {"action:flatten_image", i18nc("@info find aliases, comma separated", "flatten")},
+        {"action:imagesize", i18nc("@info find aliases, comma separated", "image size, resize image, resample")},
+        {"action:canvassize", i18nc("@info find aliases, comma separated", "canvas size, resize canvas")},
+        {"action:view_show_canvas_only", i18nc("@info find aliases, comma separated", "full screen, focus mode, hide interface")},
+        {"action:zoom_to_100pct", i18nc("@info find aliases, comma separated", "actual pixels, actual size")},
+    };
+    QHash<QString, QStringList> aliases;
+    for (const auto &entry : table) {
+        QStringList words = entry.second.split(QLatin1Char(','), Qt::SkipEmptyParts);
+        for (QString &word : words) {
+            word = word.trimmed();
+        }
+        aliases.insert(QLatin1String(entry.first), words);
+    }
+    return aliases;
+}
+
+struct Usage {
+    int count {0};
+    qint64 lastUsed {0};
+};
+
+/**
+ * Draws result rows: an icon tile, the title, a dimmed detail and the
+ * shortcut on the right; and section headers in small caps.
+ */
+class FindDelegate : public QStyledItemDelegate
+{
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &index) const override
+    {
+        return QSize(100, index.data(MessageRole).toBool() ? 44 : index.data(HeaderRole).toBool() ? 28 : 40);
+    }
+
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
+    {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+
+        const QPalette &pal = option.palette;
+        const QColor text = pal.color(QPalette::Text);
+        QColor dim = text;
+        dim.setAlphaF(0.55);
+        const QRect r = option.rect;
+
+        if (index.data(MessageRole).toBool()) {
+            painter->setPen(dim);
+            painter->drawText(r.adjusted(12, 0, -12, 0), Qt::AlignLeft | Qt::AlignVCenter, index.data(Qt::DisplayRole).toString());
+            painter->restore();
+            return;
+        }
+
+        if (index.data(HeaderRole).toBool()) {
+            QFont font = option.font;
+            font.setPointSizeF(font.pointSizeF() * 0.82);
+            font.setBold(true);
+            font.setCapitalization(QFont::AllUppercase);
+            font.setLetterSpacing(QFont::PercentageSpacing, 106);
+            painter->setFont(font);
+            painter->setPen(dim);
+            painter->drawText(r.adjusted(12, 6, -12, 0), Qt::AlignLeft | Qt::AlignVCenter, index.data(Qt::DisplayRole).toString());
+            painter->restore();
+            return;
+        }
+
+        if (option.state.testFlag(QStyle::State_Selected)) {
+            const QColor tint = QColor::fromRgbF(
+                pal.color(QPalette::Base).redF() * 0.45 + pal.color(QPalette::Highlight).redF() * 0.55,
+                pal.color(QPalette::Base).greenF() * 0.45 + pal.color(QPalette::Highlight).greenF() * 0.55,
+                pal.color(QPalette::Base).blueF() * 0.45 + pal.color(QPalette::Highlight).blueF() * 0.55);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(tint);
+            painter->drawRoundedRect(QRectF(r).adjusted(4, 1, -4, -1), 7, 7);
+        }
+
+        // icon tile
+        const QRectF tile(r.left() + 12, r.top() + 6, 28, 28);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(pal.color(QPalette::Button));
+        painter->drawRoundedRect(tile, 6, 6);
+        const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
+        if (!icon.isNull()) {
+            icon.paint(painter, tile.adjusted(5, 5, -5, -5).toRect());
+        }
+
+        // shortcut on the right
+        const QString shortcut = index.data(ShortcutRole).toString();
+        int right = r.right() - 14;
+        if (!shortcut.isEmpty()) {
+            QFont font = option.font;
+            font.setPointSizeF(font.pointSizeF() * 0.9);
+            painter->setFont(font);
+            painter->setPen(dim);
+            const int width = painter->fontMetrics().horizontalAdvance(shortcut);
+            painter->drawText(QRect(right - width, r.top(), width, r.height()), Qt::AlignVCenter, shortcut);
+            right -= width + 16;
+        }
+
+        // title and detail on one line
+        painter->setFont(option.font);
+        painter->setPen(text);
+        const QString title = index.data(Qt::DisplayRole).toString();
+        const int left = int(tile.right()) + 12;
+        const QFontMetrics titleMetrics(option.font);
+        const QString elidedTitle = titleMetrics.elidedText(title, Qt::ElideRight, right - left);
+        painter->drawText(QRect(left, r.top(), right - left, r.height()), Qt::AlignVCenter, elidedTitle);
+
+        const QString detail = index.data(DetailRole).toString();
+        const int detailLeft = left + titleMetrics.horizontalAdvance(elidedTitle) + 10;
+        if (!detail.isEmpty() && detailLeft < right - 30) {
+            QFont font = option.font;
+            font.setPointSizeF(font.pointSizeF() * 0.92);
+            painter->setFont(font);
+            painter->setPen(dim);
+            const QString elided = QFontMetrics(font).elidedText(detail, Qt::ElideRight, right - detailLeft);
+            painter->drawText(QRect(detailLeft, r.top(), right - detailLeft, r.height()), Qt::AlignVCenter, elided);
+        }
+
+        painter->restore();
+    }
+};
+
+constexpr int shadowMargin = 18;
+constexpr int maxResults = 40;
+
+} // namespace
+
+struct KisStudioFind::Private
+{
+    KisMainWindow *mainWindow {nullptr};
+    std::function<void(QDockWidget *)> openPanel;
+
+    QLineEdit *edit {nullptr};
+    QListView *list {nullptr};
+    QStandardItemModel *model {nullptr};
+
+    QVector<Entry> entries;
+    QHash<QString, Usage> usage;
+    QScopedPointer<KisKActionCollection> layerActions;
+
+    void loadUsage()
+    {
+        usage.clear();
+        const QStringList stored = KisConfig(true).readEntry<QStringList>(QStringLiteral("StudioFindUsage"));
+        Q_FOREACH (const QString &line, stored) {
+            const QStringList parts = line.split(QLatin1Char('|'));
+            if (parts.size() == 3) {
+                usage.insert(parts[0], {parts[1].toInt(), parts[2].toLongLong()});
+            }
+        }
+    }
+
+    void recordUse(const QString &key)
+    {
+        Usage &u = usage[key];
+        u.count++;
+        u.lastUsed = QDateTime::currentSecsSinceEpoch();
+
+        // keep the 200 most recent ones
+        QVector<QPair<QString, Usage>> sorted;
+        for (auto it = usage.begin(); it != usage.end(); ++it) {
+            sorted.append(qMakePair(it.key(), it.value()));
+        }
+        std::sort(sorted.begin(), sorted.end(), [](const auto &a, const auto &b) {
+            return a.second.lastUsed > b.second.lastUsed;
+        });
+        QStringList stored;
+        for (int i = 0; i < sorted.size() && i < 200; i++) {
+            stored << QStringLiteral("%1|%2|%3").arg(sorted[i].first).arg(sorted[i].second.count).arg(sorted[i].second.lastUsed);
+        }
+        KisConfig(false).writeEntry(QStringLiteral("StudioFindUsage"), stored);
+    }
+
+    /// Frequently and recently used results rank higher; recency decays over a few days
+    qreal frecency(const QString &key) const
+    {
+        const auto it = usage.constFind(key);
+        if (it == usage.constEnd()) {
+            return 0.0;
+        }
+        const qreal days = qMax<qint64>(0, QDateTime::currentSecsSinceEpoch() - it->lastUsed) / 86400.0;
+        return 6.0 * std::log2(1.0 + it->count) + 14.0 * std::exp(-days / 3.0);
+    }
+};
+
+KisStudioFind::KisStudioFind(KisMainWindow *mainWindow)
+    /**
+     * Not Qt::Popup: on Windows a translucent popup renders a black background
+     * (see KisPopupPalette). A frameless tool window with a KisPopupCloser
+     * behaves the same.
+     */
+    : QFrame(mainWindow, Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
+    , d(new Private)
+{
+    d->mainWindow = mainWindow;
+    setAttribute(Qt::WA_TranslucentBackground);
+    new KisPopupCloser(this);
+    setObjectName(QStringLiteral("studioFind"));
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(shadowMargin + 8, shadowMargin + 8, shadowMargin + 8, shadowMargin + 8);
+    layout->setSpacing(6);
+
+    d->edit = new QLineEdit(this);
+    d->edit->setPlaceholderText(i18nc("@info:placeholder", "Find tools, commands, effects, brushes, settings..."));
+    d->edit->setClearButtonEnabled(false);
+    d->edit->setMinimumHeight(36);
+    QFont editFont = d->edit->font();
+    editFont.setPointSizeF(editFont.pointSizeF() * 1.12);
+    d->edit->setFont(editFont);
+    d->edit->setTextMargins(6, 0, 6, 0);
+    d->edit->installEventFilter(this);
+    layout->addWidget(d->edit);
+
+    d->model = new QStandardItemModel(this);
+    d->list = new QListView(this);
+    d->list->setModel(d->model);
+    d->list->setItemDelegate(new FindDelegate(d->list));
+    d->list->setFrameShape(QFrame::NoFrame);
+    d->list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    d->list->setSelectionMode(QAbstractItemView::SingleSelection);
+    d->list->setMouseTracking(true);
+    d->list->setFocusPolicy(Qt::NoFocus);
+    d->list->viewport()->setAutoFillBackground(false);
+    d->list->setAutoFillBackground(false);
+    layout->addWidget(d->list);
+
+    connect(d->edit, &QLineEdit::textChanged, this, &KisStudioFind::updateResults);
+    connect(d->list, &QListView::clicked, this, [this](const QModelIndex &index) { runRow(index.row()); });
+    connect(d->list, &QListView::entered, this, [this](const QModelIndex &index) {
+        if (!index.data(HeaderRole).toBool()) {
+            d->list->setCurrentIndex(index);
+        }
+    });
+}
+
+KisStudioFind::~KisStudioFind() = default;
+
+void KisStudioFind::setPanelOpener(std::function<void(QDockWidget *)> opener)
+{
+    d->openPanel = std::move(opener);
+}
+
+void KisStudioFind::open(const QString &text)
+{
+    d->loadUsage();
+    rebuildIndex();
+    d->edit->setText(text);
+    updateResults();
+    adjustGeometry();
+    show();
+    raise();
+    activateWindow();
+    d->edit->setFocus();
+}
+
+void KisStudioFind::rebuildIndex()
+{
+    d->entries.clear();
+    // the aliases go on at the end, whatever the order of the sources
+    auto attachAliases = qScopeGuard([this]() {
+        static const QHash<QString, QStringList> aliases = aliasTable();
+        static const QRegularExpression blending(QStringLiteral("blend|smudge|smear|wet|mix"), QRegularExpression::CaseInsensitiveOption);
+        const QStringList blendWords = i18nc("@info find aliases, comma separated", "smudge, smear, blend").split(QLatin1Char(','));
+        for (Entry &entry : d->entries) {
+            entry.aliases = aliases.value(entry.key);
+            if (entry.kind == Kind::Brush && blending.match(entry.title).hasMatch()) {
+                for (const QString &word : blendWords) {
+                    entry.aliases << word.trimmed();
+                }
+            }
+        }
+    });
+    KisMainWindow *mainWindow = d->mainWindow;
+    KisViewManager *viewManager = mainWindow->viewManager();
+
+    // tools
+    QSet<QString> toolIds;
+    Q_FOREACH (KoToolFactoryBase *factory, KoToolRegistry::instance()->values()) {
+        toolIds.insert(factory->id());
+        QString shortcut;
+        if (QAction *action = mainWindow->actionCollection()->action(factory->id())) {
+            shortcut = action->shortcut().toString(QKeySequence::NativeText);
+        }
+        const QString id = factory->id();
+        d->entries.append({QStringLiteral("tool:") + id, Kind::Tool,
+                           cleanText(factory->toolTip()).remove(QStringLiteral(" Tool")), QString(),
+                           factory->section(), shortcut, KisIconUtils::loadIcon(factory->iconName()),
+                           [id]() { KoToolManager::instance()->switchToolRequested(id); }});
+    }
+
+    // where every command lives in the menus, shown as its context
+    QHash<QAction *, QString> menuPaths;
+    std::function<void(QMenu *, const QString &)> walk = [&](QMenu *menu, const QString &path) {
+        Q_FOREACH (QAction *action, menu->actions()) {
+            if (action->menu()) {
+                walk(action->menu(), path.isEmpty() ? cleanText(action->text()) : path + QStringLiteral(" › ") + cleanText(action->text()));
+            } else if (!menuPaths.contains(action)) {
+                menuPaths.insert(action, path);
+            }
+        }
+    };
+    Q_FOREACH (QAction *top, mainWindow->menuBar()->actions()) {
+        if (top->menu()) {
+            walk(top->menu(), cleanText(top->text()));
+        }
+    }
+
+    // effects, from the filter registry so that they get their category
+    QSet<QString> filterActions;
+    Q_FOREACH (const QString &filterId, KisFilterRegistry::instance()->keys()) {
+        KisFilterSP filter = KisFilterRegistry::instance()->value(filterId);
+        const QString actionName = QStringLiteral("krita_filter_") + filterId;
+        QAction *action = mainWindow->actionCollection()->action(actionName);
+        if (!action) {
+            Q_FOREACH (KisKXMLGUIClient *client, mainWindow->guiFactory()->clients()) {
+                if (client && client->actionCollection() && (action = client->actionCollection()->action(actionName))) {
+                    break;
+                }
+            }
+        }
+        if (!filter || !action) {
+            continue;
+        }
+        filterActions.insert(actionName);
+        QPointer<QAction> target = action;
+        d->entries.append({QStringLiteral("effect:") + filterId, Kind::Effect, cleanText(filter->name()),
+                           filter->menuCategory().name(), QStringLiteral("filter"),
+                           action->shortcut().toString(QKeySequence::NativeText),
+                           action->icon().isNull() ? KisIconUtils::loadIcon(QStringLiteral("studio_effects")) : action->icon(),
+                           [target]() { if (target && target->isEnabled()) target->trigger(); }});
+    }
+
+    // every other command, from all the action collections
+    QSet<QAction *> seen;
+    Q_FOREACH (KisKXMLGUIClient *client, mainWindow->guiFactory()->clients()) {
+        if (!client || !client->actionCollection()) {
+            continue;
+        }
+        Q_FOREACH (QAction *action, client->actionCollection()->actions()) {
+            const QString name = action->objectName();
+            const QString text = cleanText(action->text());
+            if (seen.contains(action) || text.isEmpty() || action->isSeparator() || action->menu()
+                || qobject_cast<QWidgetAction *>(action) || toolIds.contains(name) || filterActions.contains(name)) {
+                continue;
+            }
+            seen.insert(action);
+            QPointer<QAction> target = action;
+            d->entries.append({QStringLiteral("action:") + name, Kind::Command, text, menuPaths.value(action),
+                               cleanText(action->toolTip()), action->shortcut().toString(QKeySequence::NativeText),
+                               action->icon(),
+                               [target]() { if (target && target->isEnabled()) target->trigger(); }});
+        }
+    }
+
+    // panels
+    Q_FOREACH (QDockWidget *dock, mainWindow->dockWidgets()) {
+        QPointer<QDockWidget> target = dock;
+        d->entries.append({QStringLiteral("panel:") + dock->objectName(), Kind::Panel, dock->windowTitle(),
+                           QString(), QStringLiteral("docker panel"), QString(), dock->windowIcon(),
+                           [this, target]() {
+                               if (!target) return;
+                               if (d->openPanel) {
+                                   d->openPanel(target);
+                               } else {
+                                   target->show();
+                                   target->raise();
+                               }
+                           }});
+    }
+
+    // brushes, from the model so that only the chosen preset gets loaded
+    if (KisPaintOpPresetResourceServer *server = KisResourceServerProvider::instance()->paintOpPresetServer()) {
+        KisResourceModel *model = server->resourceModel();
+        for (int row = 0; row < model->rowCount(); row++) {
+            const QModelIndex index = model->index(row, 0);
+            const QString name = index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString();
+            const QString md5 = index.data(Qt::UserRole + KisAbstractResourceModel::MD5).toString();
+            const QImage thumbnail = index.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>();
+            // the bundled presets sort themselves with "b) ", which is noise here
+            static const QRegularExpression sortPrefix(QStringLiteral("^[a-z]\\)\\s+"));
+            const QString title = QString(name).remove(sortPrefix);
+            d->entries.append({QStringLiteral("brush:") + name, Kind::Brush, title, QString(),
+                               index.data(Qt::UserRole + KisAbstractResourceModel::Tags).toStringList().join(QLatin1Char(' ')),
+                               QString(), QIcon(QPixmap::fromImage(thumbnail)),
+                               [viewManager, md5, name]() {
+                                   KisPaintOpPresetSP preset = KisResourceServerProvider::instance()->paintOpPresetServer()->resource(md5, QString(), name);
+                                   if (preset && viewManager && viewManager->canvasResourceProvider()) {
+                                       viewManager->canvasResourceProvider()->setPaintOpPreset(preset);
+                                   }
+                               }});
+        }
+    }
+
+    // blend modes of the brush
+    const auto ops = KoCompositeOpRegistry::instance().getCompositeOps();
+    for (auto it = ops.constBegin(); it != ops.constEnd(); ++it) {
+        const QString opId = it.value().id();
+        d->entries.append({QStringLiteral("blend:") + opId, Kind::BlendMode, it.value().name(),
+                           i18nc("find result detail", "Brush blend mode · %1", it.key().name()),
+                           QStringLiteral("blending mode composite"), QString(),
+                           KisIconUtils::loadIcon(QStringLiteral("hamburger_menu_dots")),
+                           [viewManager, opId]() {
+                               if (viewManager && viewManager->canvasResourceProvider()) {
+                                   viewManager->canvasResourceProvider()->setCurrentCompositeOp(opId);
+                               }
+                           }});
+    }
+
+    // layers of the current image
+    d->layerActions.reset();
+    if (viewManager && mainWindow->activeView() && mainWindow->activeView()->image()) {
+        d->layerActions.reset(new KisKActionCollection(nullptr, QStringLiteral("studiofindlayers")));
+        KisNodeActivationActionCreatorVisitor visitor(d->layerActions.data(), viewManager->nodeManager());
+        mainWindow->activeView()->image()->rootLayer()->accept(visitor);
+        Q_FOREACH (QAction *action, d->layerActions->actions()) {
+            QPointer<QAction> target = action;
+            d->entries.append({QString(), Kind::Layer, cleanText(action->text()), QString(), QStringLiteral("layer"),
+                               QString(), KisIconUtils::loadIcon(QStringLiteral("all-layers")),
+                               [target]() { if (target) target->trigger(); }});
+        }
+    }
+
+    // settings pages
+    struct SettingPage {
+        QString title;
+        QString keywords;
+        KisDlgPreferences::Page page;
+        int tab;
+    };
+    const QVector<SettingPage> pages = {
+        {i18nc("settings page", "Autosave and Backups"), QStringLiteral("file handling compression export"), KisDlgPreferences::General, KisDlgPreferences::File},
+        {i18nc("settings page", "Pasting"), QStringLiteral("clipboard"), KisDlgPreferences::General, KisDlgPreferences::Pasting},
+        {i18nc("settings page", "Window and Interface"), QStringLiteral("tabs subwindows font hidpi scaling"), KisDlgPreferences::General, KisDlgPreferences::Window},
+        {i18nc("settings page", "Brush Cursor"), QStringLiteral("outline pointer crosshair"), KisDlgPreferences::General, KisDlgPreferences::Cursor},
+        {i18nc("settings page", "Tool Behavior"), QStringLiteral("tool options zoom steps touch painting selection actions bar"), KisDlgPreferences::General, KisDlgPreferences::Tools},
+        {i18nc("settings page", "Animation"), QStringLiteral("timeline playback"), KisDlgPreferences::General, KisDlgPreferences::Animation},
+        {i18nc("settings page", "Resource Folder"), QStringLiteral("resources bundles location"), KisDlgPreferences::General, KisDlgPreferences::Resources},
+        {i18nc("settings page", "Startup, Undo and Miscellaneous"), QStringLiteral("session undo stack layer naming"), KisDlgPreferences::General, KisDlgPreferences::MiscellaneousGeneral},
+        {i18nc("settings page", "Keyboard Shortcuts"), QStringLiteral("keys hotkeys"), KisDlgPreferences::Shortucts, 0},
+        {i18nc("settings page", "Color Management"), QStringLiteral("profile icc monitor display soft proofing"), KisDlgPreferences::Color, 0},
+        {i18nc("settings page", "Memory and Performance"), QStringLiteral("ram swap threads cache instant preview"), KisDlgPreferences::Performance, 0},
+        {i18nc("settings page", "Canvas Display and Acceleration"), QStringLiteral("opengl renderer checkerboard border grid hdr"), KisDlgPreferences::Display, 0},
+        {i18nc("settings page", "Tablet and Pressure"), QStringLiteral("wintab windows ink pen pressure curve"), KisDlgPreferences::Tablet, 0},
+        {i18nc("settings page", "Canvas-only Mode"), QStringLiteral("fullscreen hide"), KisDlgPreferences::Fullscreen, 0},
+        {i18nc("settings page", "Canvas Input and Gestures"), QStringLiteral("mouse pan zoom rotate touch shortcuts"), KisDlgPreferences::Input, 0},
+        {i18nc("settings page", "Pop-up Palette"), QStringLiteral("right click favorites ring"), KisDlgPreferences::PopupPalette, 0},
+    };
+    Q_FOREACH (const SettingPage &page, pages) {
+        QPointer<KisMainWindow> window = mainWindow;
+        const int pageId = page.page;
+        const int tab = page.tab;
+        d->entries.append({QStringLiteral("setting:%1:%2").arg(pageId).arg(tab), Kind::Setting, page.title,
+                           i18nc("find result detail", "Settings"), page.keywords + QStringLiteral(" preferences configure"),
+                           QString(), KisIconUtils::loadIcon(QStringLiteral("configure-thicker")),
+                           [window, pageId, tab]() {
+                               if (!window) return;
+                               if (QAction *configure = window->actionCollection()->action(QStringLiteral("options_configure"))) {
+                                   configure->setData(QVariantList{pageId, tab});
+                                   configure->trigger();
+                               }
+                           }});
+    }
+
+    // workspaces
+    if (KoResourceServer<KisWorkspaceResource> *server = KisResourceServerProvider::instance()->workspaceServer()) {
+        KisResourceModel *model = server->resourceModel();
+        for (int row = 0; row < model->rowCount(); row++) {
+            const QModelIndex index = model->index(row, 0);
+            const QString name = index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString();
+            const QString md5 = index.data(Qt::UserRole + KisAbstractResourceModel::MD5).toString();
+            QPointer<KisMainWindow> window = mainWindow;
+            d->entries.append({QStringLiteral("workspace:") + name, Kind::Workspace, name, QString(),
+                               QStringLiteral("layout"), QString(), QIcon(),
+                               [window, md5, name]() {
+                                   KisWorkspaceResourceSP workspace = KisResourceServerProvider::instance()->workspaceServer()->resource(md5, QString(), name);
+                                   if (window && workspace) {
+                                       window->restoreWorkspace(workspace);
+                                   }
+                               }});
+        }
+    }
+}
+
+void KisStudioFind::updateResults()
+{
+    d->model->clear();
+    const QString query = d->edit->text().trimmed();
+
+    struct Scored {
+        int entry;
+        qreal score;
+    };
+    QVector<Scored> scored;
+
+    for (int i = 0; i < d->entries.size(); i++) {
+        const Entry &entry = d->entries[i];
+        const qreal frecency = entry.key.isEmpty() ? 0.0 : d->frecency(entry.key);
+
+        if (query.isEmpty()) {
+            // nothing typed yet: what was used recently
+            if (frecency > 0.0) {
+                scored.append({i, frecency});
+            }
+            continue;
+        }
+
+        qreal total = strictMatch(query, entry.title);
+        Q_FOREACH (const QString &alias, entry.aliases) {
+            // a little below the real name, which is what the result shows and teaches
+            const qreal viaAlias = strictMatch(query, alias);
+            if (viaAlias >= 0.0) {
+                total = qMax(total, viaAlias - 8.0);
+            }
+        }
+        if (total < 0.0) {
+            // keywords only count as whole words that start with the query,
+            // fuzzy matching across words finds nonsense ("blur" in "tablet ... pressure")
+            bool keywordMatch = false;
+            const QString text = entry.keywords + QLatin1Char(' ') + entry.detail;
+            const QStringList words = text.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+            Q_FOREACH (const QString &word, words) {
+                if (query.size() >= 2 && word.startsWith(query, Qt::CaseInsensitive)) {
+                    keywordMatch = true;
+                    break;
+                }
+            }
+            if (!keywordMatch) {
+                continue;
+            }
+            total = 30;
+        }
+        scored.append({i, total + frecency + kindBias(entry.kind)});
+    }
+
+    // too few predictable matches: allow loose fuzzy ones, which tolerate typos;
+    // not for one or two letters, which fuzzily match half of everything
+    if (query.size() >= 3 && scored.size() < 5) {
+        QSet<int> have;
+        Q_FOREACH (const Scored &s, scored) have.insert(s.entry);
+        for (int i = 0; i < d->entries.size(); i++) {
+            int score = 0;
+            if (!have.contains(i) && kfts::fuzzy_match(query, d->entries[i].title, score)) {
+                scored.append({i, score * 0.3 - 20 + kindBias(d->entries[i].kind)});
+            }
+        }
+    }
+
+    std::sort(scored.begin(), scored.end(), [](const Scored &a, const Scored &b) { return a.score > b.score; });
+    if (scored.size() > maxResults) {
+        scored.resize(maxResults);
+    }
+
+    // group by kind, the groups ordered by their best result
+    QVector<Kind> kindOrder;
+    QHash<int, QVector<int>> groups;
+    Q_FOREACH (const Scored &s, scored) {
+        const Kind kind = d->entries[s.entry].kind;
+        if (!groups.contains(int(kind))) {
+            kindOrder.append(kind);
+        }
+        groups[int(kind)].append(s.entry);
+    }
+
+    if (!query.isEmpty() && scored.isEmpty()) {
+        auto *nothing = new QStandardItem(i18nc("@info find results", "Nothing is called “%1”", query));
+        nothing->setData(true, HeaderRole);
+        nothing->setData(true, MessageRole);
+        nothing->setFlags(Qt::NoItemFlags);
+        d->model->appendRow(nothing);
+    }
+
+    if (query.isEmpty() && !scored.isEmpty()) {
+        auto *header = new QStandardItem(i18nc("@title find results", "Recent"));
+        header->setData(true, HeaderRole);
+        header->setFlags(Qt::NoItemFlags);
+        d->model->appendRow(header);
+    }
+
+    Q_FOREACH (Kind kind, kindOrder) {
+        if (!query.isEmpty()) {
+            auto *header = new QStandardItem(kindTitle(kind));
+            header->setData(true, HeaderRole);
+            header->setFlags(Qt::NoItemFlags);
+            d->model->appendRow(header);
+        }
+        Q_FOREACH (int index, groups[int(kind)]) {
+            const Entry &entry = d->entries[index];
+            auto *item = new QStandardItem(entry.icon, entry.title);
+            item->setData(query.isEmpty() ? kindTitle(entry.kind) + (entry.detail.isEmpty() ? QString() : QStringLiteral(" · ") + entry.detail)
+                                          : entry.detail, DetailRole);
+            item->setData(entry.shortcut, ShortcutRole);
+            item->setData(index, EntryRole);
+            item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+            d->model->appendRow(item);
+        }
+    }
+
+    // select the first result
+    for (int row = 0; row < d->model->rowCount(); row++) {
+        if (!d->model->item(row)->data(HeaderRole).toBool()) {
+            d->list->setCurrentIndex(d->model->index(row, 0));
+            break;
+        }
+    }
+
+    adjustGeometry();
+}
+
+void KisStudioFind::moveSelection(int delta)
+{
+    const int rows = d->model->rowCount();
+    if (!rows) {
+        return;
+    }
+    int row = d->list->currentIndex().isValid() ? d->list->currentIndex().row() : -1;
+    for (int step = 0; step < rows; step++) {
+        row = qBound(0, row + delta, rows - 1);
+        if (!d->model->item(row)->data(HeaderRole).toBool()) {
+            break;
+        }
+        if (row == 0 || row == rows - 1) {
+            delta = -delta; // only headers left in this direction
+        }
+    }
+    d->list->setCurrentIndex(d->model->index(row, 0));
+}
+
+void KisStudioFind::runSelected()
+{
+    if (d->list->currentIndex().isValid()) {
+        runRow(d->list->currentIndex().row());
+    }
+}
+
+void KisStudioFind::runRow(int row)
+{
+    QStandardItem *item = d->model->item(row);
+    if (!item || item->data(HeaderRole).toBool()) {
+        return;
+    }
+    const int index = item->data(EntryRole).toInt();
+    if (index < 0 || index >= d->entries.size()) {
+        return;
+    }
+    const Entry entry = d->entries[index];
+    if (!entry.key.isEmpty()) {
+        d->recordUse(entry.key);
+    }
+    hide();
+    // after the popup is gone, so that dialogs get the focus
+    QTimer::singleShot(0, this, [run = entry.run]() { if (run) run(); });
+}
+
+void KisStudioFind::adjustGeometry()
+{
+    const int width = 640 + 2 * shadowMargin;
+    int listHeight = 0;
+    for (int row = 0; row < d->model->rowCount(); row++) {
+        listHeight += d->list->sizeHintForRow(row);
+    }
+    listHeight = qMin(listHeight + 4, 440);
+    d->list->setFixedHeight(qMax(listHeight, 0));
+    d->list->setVisible(listHeight > 4);
+
+    const int height = d->edit->sizeHint().height() + 36 + (d->list->isVisible() ? listHeight + 6 : 0) + 2 * shadowMargin;
+    const QRect window = d->mainWindow->geometry();
+    setGeometry(window.center().x() - width / 2, window.top() + int(window.height() * 0.12), width, height);
+}
+
+bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == d->edit && event->type() == QEvent::KeyPress) {
+        auto *key = static_cast<QKeyEvent *>(event);
+        switch (key->key()) {
+        case Qt::Key_Down: moveSelection(1); return true;
+        case Qt::Key_Up: moveSelection(-1); return true;
+        case Qt::Key_PageDown: moveSelection(6); return true;
+        case Qt::Key_PageUp: moveSelection(-6); return true;
+        case Qt::Key_Return:
+        case Qt::Key_Enter: runSelected(); return true;
+        case Qt::Key_Escape: hide(); return true;
+        default: break;
+        }
+    }
+    return QFrame::eventFilter(watched, event);
+}
+
+void KisStudioFind::paintEvent(QPaintEvent *)
+{
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    const QRectF panel = QRectF(rect()).adjusted(shadowMargin, shadowMargin, -shadowMargin, -shadowMargin);
+    const qreal radius = 12;
+
+    // a soft shadow: stacked translucent rounded rects
+    for (int i = shadowMargin; i > 0; i -= 2) {
+        QColor shadow(0, 0, 0, int(36.0 * (1.0 - qreal(i) / shadowMargin) + 2));
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(shadow);
+        painter.drawRoundedRect(panel.adjusted(-i, -i + 4, i, i + 4), radius + i, radius + i);
+    }
+
+    const QPalette &pal = palette();
+    QColor border = pal.color(QPalette::WindowText);
+    border.setAlphaF(0.08);
+    painter.setPen(QPen(border, 1));
+    painter.setBrush(pal.color(QPalette::Window));
+    painter.drawRoundedRect(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+}

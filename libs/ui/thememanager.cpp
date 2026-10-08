@@ -109,7 +109,7 @@ QString ThemeManager::currentThemeName() const
     }
     if (themeName.isEmpty()) {
         //qDebug() << "\tfallback";
-        themeName = "Krita dark";
+        themeName = "Krita Studio Dark";
     }
     //qDebug() << "\tresult" << themeName;
     return themeName;

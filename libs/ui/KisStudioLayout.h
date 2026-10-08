@@ -56,6 +56,9 @@ public:
 
     void closeFlyout();
 
+    /// Shows a panel the studio way: pinned panels docked, others as a flyout
+    void showPanel(QDockWidget *dock);
+
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
@@ -63,7 +66,8 @@ private:
     void leave();
 
     void togglePanel(QDockWidget *dock, bool show);
-    void showFlyout(QDockWidget *dock);
+    void showFlyout(QDockWidget *dock, QWidget *anchor = nullptr);
+    void toggleToolOptions();
     void positionFlyout();
     void setPinned(QDockWidget *dock, bool pinned);
     void savePinned();
@@ -84,6 +88,9 @@ private:
     bool handleRailDrag(QObject *watched, QEvent *event);
     void createBrushRail();
     void createTopBar();
+    /// Shows only the toolbar entries that matter to the active tool
+    void updateContextBar();
+    void placeFindField();
     void moveTopBarToFront();
     void syncRail();
     void populateMoreMenu();

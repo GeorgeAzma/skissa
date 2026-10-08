@@ -160,6 +160,7 @@
 #include "KisToolBarStateModel.h"
 #include "KisModernStyle.h"
 #include "KisStudioLayout.h"
+#include "KisStudioFind.h"
 #include <config-qmdiarea-always-show-subwindow-title.h>
 #include <config-qt-patches-present.h>
 #include <KisPlatformPluginInterfaceFactory.h>
@@ -270,6 +271,8 @@ public:
     KisAction *toggleDockerTitleBars {nullptr};
     KisAction *toggleStudioLayout {nullptr};
     KisStudioLayout *studioLayout {nullptr};
+    KisStudioFind *studioFind {nullptr};
+    KisAction *findAnything {nullptr};
 #ifdef Q_OS_ANDROID
     KisAction *showDonationManagementDialog {nullptr};
     KisAction *manageSubscriptions {nullptr};
@@ -381,7 +384,7 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     d->viewManager = new KisViewManager(this, actionCollection());
     KConfigGroup group( KSharedConfig::openConfig(), "theme");
 #ifndef Q_OS_HAIKU
-    d->themeManager = new Digikam::ThemeManager(group.readEntry("Theme", "Krita dark"), this);
+    d->themeManager = new Digikam::ThemeManager(group.readEntry("Theme", "Krita Studio Dark"), this);
 #endif
     d->windowStateConfig = KSharedConfig::openConfig()->group("MainWindow");
 
@@ -514,6 +517,9 @@ KisMainWindow::KisMainWindow(QUuid uuid)
 
     d->studioLayout = new KisStudioLayout(this);
     connect(this, &KisMainWindow::restoringDone, d->studioLayout, &KisStudioLayout::normalize);
+
+    d->studioFind = new KisStudioFind(this);
+    d->studioFind->setPanelOpener([this](QDockWidget *dock) { d->studioLayout->showPanel(dock); });
 
     createActions();
 
@@ -2082,6 +2088,12 @@ void KisMainWindow::restoreWorkspace()
 
 void KisMainWindow::openCommandBar()
 {
+    // "Find anything" searches everything the command bar does and more
+    if (d->studioFind) {
+        d->studioFind->open();
+        return;
+    }
+
     QList<KisKActionCollection *> actionCollections;
 
     auto clients = guiFactory()->clients();
@@ -2970,7 +2982,7 @@ void KisMainWindow::configChanged()
 
     KConfigGroup group( KSharedConfig::openConfig(), "theme");
 #ifndef Q_OS_HAIKU
-    d->themeManager->setCurrentTheme(group.readEntry("Theme", "Krita dark"));
+    d->themeManager->setCurrentTheme(group.readEntry("Theme", "Krita Studio Dark"));
 #endif
     d->actionManager()->updateGUI();
 
@@ -3250,6 +3262,9 @@ void KisMainWindow::createActions()
 
     d->commandBarAction = actionManager->createAction("command_bar_open");
     connect(d->commandBarAction, SIGNAL(triggered(bool)), this, SLOT(openCommandBar()));
+
+    d->findAnything = actionManager->createAction("find_anything");
+    connect(d->findAnything, SIGNAL(triggered(bool)), this, SLOT(openCommandBar()));
 
     actionManager->createStandardAction(KStandardAction::Preferences, this, SLOT(slotPreferences()));
 

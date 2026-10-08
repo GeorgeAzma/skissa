@@ -218,6 +218,7 @@ LayerBox::LayerBox()
     connect(&m_nodeOpacityCompressor, SIGNAL(timeout()), SLOT(slotOpacityChanged()));
 
     connect(m_wdgLayerBox->cmbComposite, SIGNAL(activated(int)), SLOT(slotCompositeOpChanged(int)));
+    connect(m_wdgLayerBox->cmbComposite, SIGNAL(sigPreviewBlendMode(QString)), SLOT(slotPreviewBlendMode(QString)));
 
     m_newLayerMenu = new QMenu(this);
     m_wdgLayerBox->bnAdd->setMenu(m_newLayerMenu);
@@ -875,6 +876,34 @@ void LayerBox::slotCompositeOpChanged(int index)
 
     QString compositeOp = m_wdgLayerBox->cmbComposite->selectedCompositeOp().id();
     m_nodeManager->nodeCompositeOpChanged(m_nodeManager->activeColorSpace()->compositeOp(compositeOp));
+}
+
+void LayerBox::slotPreviewBlendMode(const QString &id)
+{
+    /**
+     * Shows a blend mode on the canvas while it is highlighted in the picker,
+     * without undo commands. The original mode is back before a picked one
+     * is applied through slotCompositeOpChanged(), which makes it one undo step.
+     */
+    if (!id.isEmpty()) {
+        if (!m_canvas || !m_activeNode || !m_activeNode->isEditable(false)) {
+            return;
+        }
+        if (!m_previewNode) {
+            m_previewNode = m_activeNode;
+            m_previewOriginalOp = m_activeNode->compositeOpId();
+        }
+        if (m_previewNode->compositeOpId() != id) {
+            m_previewNode->setCompositeOpId(id);
+            m_previewNode->setDirty();
+        }
+    } else if (m_previewNode) {
+        if (m_previewNode->compositeOpId() != m_previewOriginalOp) {
+            m_previewNode->setCompositeOpId(m_previewOriginalOp);
+            m_previewNode->setDirty();
+        }
+        m_previewNode = nullptr;
+    }
 }
 
 void LayerBox::slotOpacityChanged()

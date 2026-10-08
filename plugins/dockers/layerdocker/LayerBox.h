@@ -102,6 +102,7 @@ private Q_SLOTS:
     void slotChangeCloneSourceClicked();
 
     void slotCompositeOpChanged(int index);
+    void slotPreviewBlendMode(const QString &id);
     void slotOpacityChanged();
     void slotOpacitySliderMoved(qreal opacity);
 
@@ -186,6 +187,9 @@ private:
     QCheckBox *layerSelectionCheckBox {nullptr};
 
     KisNodeSP m_activeNode;
+    /// The layer whose blend mode is previewed from the picker, and its real mode
+    KisNodeSP m_previewNode;
+    QString m_previewOriginalOp;
     KisNodeWSP m_savedNodeBeforeEditSelectionMode;
     KisSignalAutoConnectionsStore m_activeNodeConnections;
     QScopedPointer<KisScreenMigrationTracker> m_screenMigrationTracker;

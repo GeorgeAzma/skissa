@@ -28,6 +28,12 @@ public:
      */
     void setRange(qreal minimum, qreal maximum, qreal exponent = 1.0);
 
+    /**
+     * Equal distances along the slider give equal ratios of the value, the
+     * way sizes are perceived: 2 to 4 px feels like 200 to 400 px.
+     */
+    void setLogarithmic(bool logarithmic);
+
     /// Sets the shown value without emitting valueCommitted()
     void setValue(qreal value);
     qreal value() const;
@@ -59,6 +65,7 @@ private:
     qreal m_minimum {0.0};
     qreal m_maximum {100.0};
     qreal m_exponent {1.0};
+    bool m_logarithmic {false};
     qreal m_value {0.0};
     bool m_dragging {false};
     std::function<QString(qreal)> m_formatter;

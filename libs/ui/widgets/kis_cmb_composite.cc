@@ -8,6 +8,7 @@
  */
 
 #include "kis_cmb_composite.h"
+#include "KisBlendModePicker.h"
 
 #include <KoCompositeOp.h>
 #include <KoCompositeOpRegistry.h>
@@ -64,7 +65,8 @@ KisCompositeOpComboBox::KisCompositeOpComboBox(QWidget* parent)
 KisCompositeOpComboBox::KisCompositeOpComboBox(bool limitToLayerStyles, QWidget* parent)
     : KisSqueezedComboBox(parent),
       m_model(new KisSortedCompositeOpListModel(limitToLayerStyles, this)),
-      m_allowToHidePopup(true)
+      m_allowToHidePopup(true),
+      m_limitToLayerStyles(limitToLayerStyles)
 {
     m_view = new KisCategorizedListView();
     m_view->setCompositeBoxControl(true);
@@ -238,6 +240,42 @@ void KisCompositeOpComboBox::hidePopup()
     m_allowToHidePopup = true;
 }
 
+void KisCompositeOpComboBox::showPopup()
+{
+    // layer styles only allow a fixed subset, the plain list fits them better
+    if (m_limitToLayerStyles) {
+        KisSqueezedComboBox::showPopup();
+        return;
+    }
+
+    QSet<QString> available;
+    for (int row = 0; row < m_model->rowCount(); row++) {
+        KoID op;
+        const QModelIndex index = m_model->index(row, 0);
+        if (m_model->entryAt(op, index) && (index.flags() & Qt::ItemIsEnabled)) {
+            available.insert(op.id());
+        }
+    }
+
+    auto *picker = new KisBlendModePicker(selectedCompositeOp().id(), available, this);
+    connect(picker, &KisBlendModePicker::previewed, this, &KisCompositeOpComboBox::sigPreviewBlendMode);
+    connect(picker, &KisBlendModePicker::picked, this, [this](const KoID &op) {
+        /**
+         * Always report the pick, even when the box already shows this mode:
+         * during the preview the layers panel may have synced the box to it,
+         * while the layer itself is already back to its original mode.
+         */
+        const QModelIndex index = m_model->indexOf(op);
+        if (!index.isValid()) {
+            return;
+        }
+        setCurrentIndex(index.row());
+        Q_EMIT activated(index.row());
+        Q_EMIT textActivated(op.name());
+    });
+    picker->popupBelow(this);
+}
+
 void KisCompositeOpComboBox::slotNextBlendingMode()
 {
     selectNeighbouringBlendMode(true);
@@ -380,6 +418,27 @@ void KisCompositeOpComboBox::slotLuminosity()
 
 void KisCompositeOpComboBox::selectNeighbouringBlendMode(bool down)
 {
+    /**
+     * Stepping through all 138 modes mostly means stepping through ones
+     * nobody wants (binary logic, modulo, the same mode in four color
+     * models). From a common mode, step through the common ones only.
+     */
+    if (!m_limitToLayerStyles) {
+        const QStringList essentials = KisBlendModePicker::essentialModes();
+        const int position = essentials.indexOf(selectedCompositeOp().id());
+        if (position >= 0) {
+            for (int i = position + (down ? 1 : -1); i >= 0 && i < essentials.size(); i += down ? 1 : -1) {
+                const KoID op = KoCompositeOpRegistry::instance().getKoID(essentials[i]);
+                const QModelIndex index = m_model->indexOf(op);
+                if (index.isValid() && (index.flags() & Qt::ItemIsEnabled)) {
+                    selectCompositeOp(op);
+                    return;
+                }
+            }
+            return;
+        }
+    }
+
     const int rowCount = count();
     int newIndex = currentIndex();
 
@@ -414,6 +473,16 @@ void KisCompositeOpComboBox::selectNeighbouringBlendMode(bool down)
 
 void KisCompositeOpComboBox::wheelEvent(QWheelEvent *e)
 {
+    // scrolling over the box steps through the common modes, like the shortcuts
+    if (!m_limitToLayerStyles && KisBlendModePicker::essentialModes().contains(selectedCompositeOp().id())) {
+        const int delta = e->angleDelta().y();
+        if (delta != 0) {
+            selectNeighbouringBlendMode(delta < 0);
+        }
+        e->accept();
+        return;
+    }
+
     /**
      * This code is a copy of QComboBox::wheelEvent. It does the same thing,
      * except that it skips "Category" items, by checking m_model->entryAt()

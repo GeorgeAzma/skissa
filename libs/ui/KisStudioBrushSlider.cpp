@@ -53,6 +53,12 @@ void KisStudioBrushSlider::setRange(qreal minimum, qreal maximum, qreal exponent
     setValue(m_value);
 }
 
+void KisStudioBrushSlider::setLogarithmic(bool logarithmic)
+{
+    m_logarithmic = logarithmic;
+    update();
+}
+
 void KisStudioBrushSlider::setValue(qreal value)
 {
     if (m_dragging) {
@@ -97,12 +103,20 @@ qreal KisStudioBrushSlider::position() const
     if (m_maximum <= m_minimum) {
         return 0.0;
     }
+    if (m_logarithmic) {
+        const qreal low = qMax(m_minimum, 1.0);
+        return qBound(0.0, std::log(qMax(m_value, low) / low) / std::log(m_maximum / low), 1.0);
+    }
     const qreal linear = (m_value - m_minimum) / (m_maximum - m_minimum);
     return std::pow(qBound(0.0, linear, 1.0), 1.0 / m_exponent);
 }
 
 qreal KisStudioBrushSlider::valueAtPosition(qreal position) const
 {
+    if (m_logarithmic) {
+        const qreal low = qMax(m_minimum, 1.0);
+        return low * std::pow(m_maximum / low, qBound(0.0, position, 1.0));
+    }
     return m_minimum + (m_maximum - m_minimum) * std::pow(qBound(0.0, position, 1.0), m_exponent);
 }
 
