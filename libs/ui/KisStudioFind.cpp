@@ -492,7 +492,7 @@ void KisStudioFind::rebuildIndex()
     // the aliases go on at the end, whatever the order of the sources
     auto attachAliases = qScopeGuard([this]() {
         static const QHash<QString, QStringList> aliases = aliasTable();
-        static const QRegularExpression blending(QStringLiteral("blend|smudge|smear|wet|mix"), QRegularExpression::CaseInsensitiveOption);
+        static const QRegularExpression blending(QStringLiteral("blend|smudge|smear"), QRegularExpression::CaseInsensitiveOption);
         const QStringList blendWords = i18nc("@info find aliases, comma separated", "smudge, smear, blend").split(QLatin1Char(','));
         for (Entry &entry : d->entries) {
             entry.aliases = aliases.value(entry.key);
@@ -894,6 +894,8 @@ void KisStudioFind::adjustGeometry()
     listHeight = qMin(listHeight + 4, 440);
     d->list->setFixedHeight(qMax(listHeight, 0));
     d->list->setVisible(listHeight > 4);
+    // the minimum size would only follow on the next layout pass and keep the window tall
+    layout()->activate();
 
     const int height = d->edit->sizeHint().height() + 36 + (d->list->isVisible() ? listHeight + 6 : 0) + 2 * shadowMargin;
     const QRect window = d->mainWindow->geometry();

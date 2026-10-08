@@ -29,6 +29,7 @@
 #include <QPainter>
 #include <QPointer>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSet>
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
@@ -734,20 +735,22 @@ void KisStudioLayout::positionFlyout()
     // a column along the right edge of the canvas, next to the pinned panels
     const QRect area(canvasArea->mapToGlobal(QPoint(0, 0)), canvasArea->size());
     const int margin = 6;
-    const int contentsWidth = d->flyout->widget() ? d->flyout->widget()->sizeHint().width() : 0;
+    int contentsWidth = d->flyout->widget() ? d->flyout->widget()->sizeHint().width() : 0;
+    int contentsHeight = d->flyout->sizeHint().height();
+    // a scroll area asks for little, the flyout should fit what it scrolls
+    QScrollArea *scroll = d->flyout->findChild<QScrollArea *>();
+    if (scroll && scroll->widget()) {
+        const int frame = 2 * scroll->frameWidth();
+        const int header = d->flyout->titleBarWidget() ? d->flyout->titleBarWidget()->sizeHint().height() : 0;
+        contentsWidth = qMax(contentsWidth, scroll->widget()->sizeHint().width() + frame + scroll->verticalScrollBar()->sizeHint().width());
+        contentsHeight = qMax(contentsHeight, header + scroll->widget()->sizeHint().height() + frame + 12);
+    }
     const int width = qBound(260, contentsWidth + 2, 420);
 
     if (d->flyoutAnchor) {
         // right below what opened it, only as tall as its contents
         const int left = qMax(area.left() + margin, d->flyoutAnchor->mapToGlobal(QPoint(0, 0)).x());
-        int wanted = d->flyout->sizeHint().height();
-        QScrollArea *scroll = d->flyout->findChild<QScrollArea *>();
-        if (scroll && scroll->widget()) {
-            // a scroll area asks for little, the flyout should fit what it scrolls
-            const int header = d->flyout->titleBarWidget() ? d->flyout->titleBarWidget()->sizeHint().height() : 0;
-            wanted = qMax(wanted, header + scroll->widget()->sizeHint().height() + 2 * scroll->frameWidth() + 12);
-        }
-        const int height = qBound(160, wanted, area.height() - 2 * margin);
+        const int height = qBound(160, contentsHeight, area.height() - 2 * margin);
         d->flyout->setGeometry(left, area.top() + margin, width, height);
         return;
     }
@@ -1394,9 +1397,11 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
         if (d->flyout && d->flyout->isVisible()) {
             QWidget *widget = qobject_cast<QWidget *>(watched);
             const bool onRail = d->rail && widget && (widget == d->rail || d->rail->isAncestorOf(widget));
-            // the chip toggles the tool options itself
+            // the chip toggles the tool options itself, and they follow the tool picked on the tool rail
             const bool onChip = d->toolChip && widget == d->toolChip;
-            if (widget && widget->window() == d->mainWindow && !onRail && !onChip) {
+            const bool pickingTool = d->flyoutAnchor && d->flyoutAnchor == d->toolChip && d->brushRail && widget
+                                     && d->brushRail->isAncestorOf(widget);
+            if (widget && widget->window() == d->mainWindow && !onRail && !onChip && !pickingTool) {
                 closeFlyout();
             }
         }
