@@ -16,6 +16,15 @@ namespace {
 
 constexpr int labelHeight = 16;
 
+qreal mouseY(const QMouseEvent *event)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return event->position().y();
+#else
+    return event->localPos().y();
+#endif
+}
+
 QColor mix(const QColor &a, const QColor &b, qreal t)
 {
     return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t,
@@ -158,7 +167,7 @@ void KisStudioBrushSlider::mousePressEvent(QMouseEvent *event)
         return;
     }
     m_dragging = true;
-    m_value = valueAtY(event->pos().y());
+    m_value = valueAtY(mouseY(event));
     update();
 }
 
@@ -168,7 +177,7 @@ void KisStudioBrushSlider::mouseMoveEvent(QMouseEvent *event)
         QWidget::mouseMoveEvent(event);
         return;
     }
-    m_value = valueAtY(event->pos().y());
+    m_value = valueAtY(mouseY(event));
     update();
 }
 
@@ -179,7 +188,7 @@ void KisStudioBrushSlider::mouseReleaseEvent(QMouseEvent *event)
         return;
     }
     m_dragging = false;
-    m_value = valueAtY(event->pos().y());
+    m_value = valueAtY(mouseY(event));
     updateToolTip();
     update();
     Q_EMIT valueCommitted(m_value);

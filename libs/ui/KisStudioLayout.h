@@ -6,6 +6,7 @@
 #ifndef KISSTUDIOLAYOUT_H
 #define KISSTUDIOLAYOUT_H
 
+#include <QIcon>
 #include <QObject>
 
 #include <memory>
@@ -76,6 +77,11 @@ private:
     bool isCanvasOnly() const;
 
     void createRail();
+    void rebuildRailButtons();
+    void setRailPanels(const QStringList &panels);
+    QIcon railIcon(QDockWidget *dock) const;
+    void showRailContextMenu(const QPoint &pos);
+    bool handleRailDrag(QObject *watched, QEvent *event);
     void createBrushRail();
     void createTopBar();
     void moveTopBarToFront();

@@ -8,6 +8,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QDockWidget>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 
@@ -17,6 +18,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPointer>
 #include <QSet>
@@ -60,6 +62,15 @@ QStringList defaultRailPanels()
     };
 }
 
+QPoint globalMousePos(const QMouseEvent *event)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return event->globalPosition().toPoint();
+#else
+    return event->globalPos();
+#endif
+}
+
 QString railIconName(const QString &id)
 {
     static const QHash<QString, QString> icons = {
@@ -71,7 +82,7 @@ QString railIconName(const QString &id)
         {QStringLiteral("PaletteDocker"), QStringLiteral("palette-library")},
         {QStringLiteral("History"), QStringLiteral("edit-undo")},
     };
-    return icons.value(id, QStringLiteral("hamburger_menu_dots"));
+    return icons.value(id);
 }
 
 /**
@@ -159,7 +170,21 @@ struct KisStudioLayout::Private
     /// Toolbar entries that duplicate the brush rail, hidden while active
     QList<QPointer<QAction>> hiddenToolbarActions;
     QMenu *allPanelsMenu {nullptr};
+    /// The panels on the rail, in order
+    QStringList railPanels;
     QHash<QString, QAction *> railActions;
+    /// Rail buttons are inserted in front of it
+    QAction *railSpacer {nullptr};
+
+    /// Reordering a rail button by dragging it
+    struct RailDrag {
+        QPointer<QToolButton> button;
+        QString id;
+        QPoint pressPos;
+        bool active {false};
+        int targetIndex {-1};
+    } railDrag;
+    QPointer<QFrame> dropIndicator;
 
     /// The unpinned panel that is currently open over the canvas
     QPointer<QDockWidget> flyout;
@@ -576,30 +601,14 @@ void KisStudioLayout::createRail()
     rail->setOrientation(Qt::Vertical);
     rail->setToolButtonStyle(Qt::ToolButtonIconOnly);
     rail->setIconSize(QSize(22, 22));
-    rail->setContextMenuPolicy(Qt::PreventContextMenu);
+    rail->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(rail, &QWidget::customContextMenuRequested, this, &KisStudioLayout::showRailContextMenu);
     mainWindow->addToolBar(Qt::RightToolBarArea, rail);
     d->rail = rail;
 
-    const QStringList ids = KisConfig(true).readEntry<QStringList>(panelsKey, defaultRailPanels());
-    Q_FOREACH (const QString &id, ids) {
-        QDockWidget *dock = mainWindow->dockWidget(id);
-        if (!dock || !d->headers.contains(dock)) {
-            continue;
-        }
-
-        QAction *action = rail->addAction(KisIconUtils::loadIcon(railIconName(id)), dock->windowTitle());
-        action->setCheckable(true);
-        connect(action, &QAction::triggered, this, [this, id](bool checked) {
-            if (QDockWidget *dock = d->mainWindow->dockWidget(id)) {
-                togglePanel(dock, checked);
-            }
-        });
-        d->railActions.insert(id, action);
-    }
-
     auto *spacer = new QWidget(rail);
     spacer->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
-    rail->addWidget(spacer);
+    d->railSpacer = rail->addWidget(spacer);
 
     auto *allPanels = new QToolButton(rail);
     allPanels->setIcon(KisIconUtils::loadIcon(QStringLiteral("hamburger_menu_dots")));
@@ -613,6 +622,221 @@ void KisStudioLayout::createRail()
         d->allPanelsMenu->popup(allPanels->mapToGlobal(QPoint(-size.width(), allPanels->height() - size.height())));
     });
     rail->addWidget(allPanels);
+
+    // shows where a dragged rail button will go
+    auto *indicator = new QFrame(rail);
+    indicator->setFrameShape(QFrame::NoFrame);
+    indicator->setAutoFillBackground(true);
+    indicator->setBackgroundRole(QPalette::Highlight);
+    indicator->hide();
+    d->dropIndicator = indicator;
+
+    d->railPanels = KisConfig(true).readEntry<QStringList>(panelsKey, defaultRailPanels());
+    rebuildRailButtons();
+}
+
+void KisStudioLayout::rebuildRailButtons()
+{
+    QToolBar *rail = d->rail;
+    if (!rail) {
+        return;
+    }
+
+    Q_FOREACH (QAction *action, d->railActions) {
+        rail->removeAction(action);
+        action->deleteLater();
+    }
+    d->railActions.clear();
+
+    QStringList panels;
+    Q_FOREACH (const QString &id, d->railPanels) {
+        QDockWidget *dock = d->mainWindow->dockWidget(id);
+        if (!dock || panels.contains(id)) {
+            continue;
+        }
+        panels << id;
+
+        QAction *action = new QAction(railIcon(dock), dock->windowTitle(), rail);
+        action->setCheckable(true);
+        connect(action, &QAction::triggered, this, [this, id](bool checked) {
+            if (QDockWidget *dock = d->mainWindow->dockWidget(id)) {
+                togglePanel(dock, checked);
+            }
+        });
+        rail->insertAction(d->railSpacer, action);
+        d->railActions.insert(id, action);
+    }
+    d->railPanels = panels;
+
+    syncRail();
+}
+
+void KisStudioLayout::setRailPanels(const QStringList &panels)
+{
+    d->railPanels = panels;
+    KisConfig(false).writeEntry(panelsKey, panels);
+    rebuildRailButtons();
+}
+
+QIcon KisStudioLayout::railIcon(QDockWidget *dock) const
+{
+    const QString iconName = railIconName(dock->objectName());
+    if (!iconName.isEmpty()) {
+        return KisIconUtils::loadIcon(iconName);
+    }
+
+    // the first letter of the title, for panels without an icon of their own
+    const int size = 44;
+    QPixmap pixmap(size, size);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QColor color = d->rail ? d->rail->palette().color(QPalette::ButtonText) : QColor(Qt::gray);
+    painter.setPen(QPen(color, 3));
+    painter.drawRoundedRect(QRectF(3, 3, size - 6, size - 6), 9, 9);
+    QFont font = painter.font();
+    font.setPixelSize(24);
+    font.setBold(true);
+    painter.setFont(font);
+    painter.drawText(QRect(0, 0, size, size), Qt::AlignCenter, dock->windowTitle().left(1).toUpper());
+    painter.end();
+    return QIcon(pixmap);
+}
+
+void KisStudioLayout::showRailContextMenu(const QPoint &pos)
+{
+    QMenu menu;
+
+    const QString clickedId = d->railActions.key(d->rail->actionAt(pos));
+    if (!clickedId.isEmpty()) {
+        menu.addAction(i18nc("@action:inmenu", "Remove from Rail"), this, [this, clickedId]() {
+            QStringList panels = d->railPanels;
+            panels.removeAll(clickedId);
+            setRailPanels(panels);
+        });
+        menu.addSeparator();
+    }
+
+    menu.addSection(i18nc("@title:menu", "Panels on the Rail"));
+    QList<QDockWidget *> docks = d->headers.keys();
+    std::sort(docks.begin(), docks.end(), [](QDockWidget *a, QDockWidget *b) {
+        return QString::localeAwareCompare(a->windowTitle(), b->windowTitle()) < 0;
+    });
+    Q_FOREACH (QDockWidget *dock, docks) {
+        const QString id = dock->objectName();
+        QAction *action = menu.addAction(dock->windowTitle());
+        action->setCheckable(true);
+        action->setChecked(d->railPanels.contains(id));
+        connect(action, &QAction::toggled, this, [this, id](bool onRail) {
+            QStringList panels = d->railPanels;
+            panels.removeAll(id);
+            if (onRail) {
+                panels << id;
+            }
+            setRailPanels(panels);
+        });
+    }
+
+    menu.addSeparator();
+    menu.addAction(i18nc("@action:inmenu", "Reset Rail"), this, [this]() {
+        setRailPanels(defaultRailPanels());
+    });
+
+    menu.exec(d->rail->mapToGlobal(pos));
+}
+
+bool KisStudioLayout::handleRailDrag(QObject *watched, QEvent *event)
+{
+    Private::RailDrag &drag = d->railDrag;
+
+    switch (event->type()) {
+    case QEvent::MouseButtonPress: {
+        auto *button = qobject_cast<QToolButton *>(watched);
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (!button || !d->rail || button->parentWidget() != d->rail || mouseEvent->button() != Qt::LeftButton) {
+            return false;
+        }
+        const QString id = d->railActions.key(button->defaultAction());
+        if (id.isEmpty()) {
+            return false;
+        }
+        drag = Private::RailDrag();
+        drag.button = button;
+        drag.id = id;
+        drag.pressPos = globalMousePos(mouseEvent);
+        return false; // let the button show its pressed state
+    }
+
+    case QEvent::MouseMove: {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (!drag.button || watched != drag.button || !(mouseEvent->buttons() & Qt::LeftButton)) {
+            return false;
+        }
+        if (!drag.active) {
+            if ((globalMousePos(mouseEvent) - drag.pressPos).manhattanLength() < QApplication::startDragDistance()) {
+                return false;
+            }
+            drag.active = true;
+            drag.button->setDown(false);
+        }
+
+        // the gap between rail buttons that is closest to the cursor
+        const int y = d->rail->mapFromGlobal(globalMousePos(mouseEvent)).y();
+        drag.targetIndex = d->railPanels.size();
+        int indicatorY = 0;
+        for (int i = 0; i < d->railPanels.size(); i++) {
+            QWidget *widget = d->rail->widgetForAction(d->railActions.value(d->railPanels[i]));
+            if (!widget) {
+                continue;
+            }
+            indicatorY = widget->geometry().bottom() + 1;
+            if (y < widget->geometry().center().y()) {
+                drag.targetIndex = i;
+                indicatorY = widget->geometry().top();
+                break;
+            }
+        }
+        if (d->dropIndicator) {
+            d->dropIndicator->setGeometry(3, indicatorY - 1, d->rail->width() - 6, 2);
+            d->dropIndicator->show();
+            d->dropIndicator->raise();
+        }
+        return true;
+    }
+
+    case QEvent::MouseButtonRelease: {
+        if (!drag.button || watched != drag.button) {
+            return false;
+        }
+        const bool wasActive = drag.active;
+        const QString id = drag.id;
+        int target = drag.targetIndex;
+        drag.button->setDown(false);
+        drag = Private::RailDrag();
+        if (d->dropIndicator) {
+            d->dropIndicator->hide();
+        }
+        if (!wasActive) {
+            return false; // a plain click
+        }
+
+        QStringList panels = d->railPanels;
+        const int from = panels.indexOf(id);
+        if (from >= 0 && target >= 0) {
+            panels.removeAt(from);
+            if (target > from) {
+                target--;
+            }
+            panels.insert(qBound(0, target, panels.size()), id);
+            // the buttons are recreated, do it after the release has been delivered
+            QTimer::singleShot(0, this, [this, panels]() { setRailPanels(panels); });
+        }
+        return true;
+    }
+
+    default:
+        return false;
+    }
 }
 
 void KisStudioLayout::createBrushRail()
@@ -776,6 +1000,10 @@ void KisStudioLayout::populateMoreMenu()
 
 bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 {
+    if (handleRailDrag(watched, event)) {
+        return true;
+    }
+
     switch (event->type()) {
     case QEvent::Paint: {
         // a flyout has no window frame, give it a hairline border
