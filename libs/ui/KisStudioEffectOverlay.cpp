@@ -28,6 +28,7 @@
 #include "input/KisInputActionGroup.h"
 #include "kis_filter_manager.h"
 #include "kis_icon_utils.h"
+#include "kis_node_manager.h"
 #include "kis_node_commands_adapter.h"
 #include "kis_selection.h"
 #include "kis_signal_compressor.h"
@@ -119,6 +120,16 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
 
     connect(&d->compressor, &KisSignalCompressor::timeout, this, &KisStudioEffectOverlay::startApplying);
     parentWidget()->installEventFilter(this);
+
+    // the preview belongs to one layer of one document: leaving either drops it
+    connect(mainWindow, &KisMainWindow::activeViewChanged, this, [this]() {
+        if (isVisible()) reject();
+    });
+    if (KisViewManager *viewManager = mainWindow->viewManager()) {
+        connect(viewManager->nodeManager(), &KisNodeManager::sigNodeActivated, this, [this](KisNodeSP node) {
+            if (isVisible() && node != d->node) reject();
+        });
+    }
     hide();
 }
 
@@ -198,6 +209,8 @@ void KisStudioEffectOverlay::accept()
         startApplying();
     }
     if (filterManager->isStrokeRunning()) {
+        // only the frame on screen: the overlay has no switch for the other selected frames
+        filterManager->setFilterAllSelectedFrames(false);
         filterManager->finish();
     }
     // finish() remembers the settings as the filter's last used ones

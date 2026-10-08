@@ -11,6 +11,7 @@
 #include <memory>
 
 class KisMainWindow;
+class KoCanvasController;
 class KoToolFactoryBase;
 
 /**
@@ -45,9 +46,13 @@ public:
 
     /// Puts an item (a Find key) at the end, if it isn't there yet
     void addItem(const QString &key);
+    /// Builds the buttons again, e.g. once the commands they stand for exist
+    void refresh();
 
     /// "Rectangular Selection Tool" -> "Rectangular Selection"
     static QString toolName(KoToolFactoryBase *factory);
+    /// Whether a canvas controller is the one of this window's active view; tool signals are global
+    static bool isOwnController(KisMainWindow *mainWindow, KoCanvasController *controller);
 
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;

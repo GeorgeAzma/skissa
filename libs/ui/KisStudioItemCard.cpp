@@ -49,7 +49,8 @@ QString cleanText(QString text)
 
 QList<QAction *> allActions(KisMainWindow *mainWindow)
 {
-    QList<QAction *> actions = mainWindow->actionCollection()->actions();
+    // the collections, and actions added to the window directly (rail items, panels)
+    QList<QAction *> actions = mainWindow->actionCollection()->actions() + mainWindow->actions();
     if (mainWindow->guiFactory()) {
         Q_FOREACH (KisKXMLGUIClient *client, mainWindow->guiFactory()->clients()) {
             if (client && client->actionCollection()) {
@@ -131,6 +132,7 @@ public:
     }
 
     std::function<void()> dragged;
+    std::function<void()> dropped;
 
 protected:
     void paintEvent(QPaintEvent *) override
@@ -172,6 +174,7 @@ protected:
             drag->setPixmap(m_choice.icon.pixmap(32, 32));
             if (dragged) dragged();
             drag->exec(Qt::CopyAction);
+            if (dropped) dropped();
             return;
         }
         QAbstractButton::mouseMoveEvent(event);
@@ -336,8 +339,9 @@ void KisStudioItemCard::setChoices(const QVector<Choice> &choices)
             if (pick) pick();
             close();
         });
-        // dragged out of the card: it goes away so that the drop target is visible
+        // dragged out of the card: it gets out of the way of the drop, then closes
         tile->dragged = [this]() { hide(); };
+        tile->dropped = [this]() { close(); };
         d->choices->addWidget(tile);
     }
     d->choices->addStretch(1);

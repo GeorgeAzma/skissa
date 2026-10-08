@@ -151,7 +151,6 @@
 #include <KritaVersionWrapper.h>
 #include "KisCanvasWindow.h"
 #include "kis_action.h"
-#include <katecommandbar.h>
 #include "KisNodeActivationActionCreatorVisitor.h"
 #include "KisUiFont.h"
 #include <KisResourceUserOperations.h>
@@ -225,8 +224,6 @@ public:
 #ifdef HAVE_QMDIAREA_ALWAYS_SHOW_SUBWINDOW_TITLE
         mdiArea->setOption(QMdiArea::AlwaysShowSubwindowNameInTitleBar);
 #endif /* HAVE_QMDIAREA_ALWAYS_SHOW_SUBWINDOW_TITLE */
-
-        commandBar = new KateCommandBar(parent);
     }
 
     ~Private() {
@@ -335,7 +332,6 @@ public:
 
     QUuid workspaceBorrowedBy;
 
-    KateCommandBar *commandBar {nullptr};
 
     KisActionManager * actionManager() {
         return viewManager->actionManager();
@@ -2091,48 +2087,8 @@ void KisMainWindow::restoreWorkspace()
 
 void KisMainWindow::openCommandBar()
 {
-    // "Find anything" searches everything the command bar does and more
-    if (d->studioFind) {
-        d->studioFind->open();
-        return;
-    }
-
-    QList<KisKActionCollection *> actionCollections;
-
-    auto clients = guiFactory()->clients();
-    int actionsCount = 0;
-    for (const KisKXMLGUIClient *c : clients) {
-        if (!c) {
-            continue;
-        }
-        if (auto collection = c->actionCollection()) {
-            actionCollections.append(collection);
-            actionsCount += collection->count();
-        }
-    }
-
-    if (activeKisView()) {
-        KisKActionCollection *layerActionCollection = new KisKActionCollection(0, "layeractions (disposable)");
-        layerActionCollection->setComponentDisplayName(i18n("Layers/Masks"));
-        KisNodeActivationActionCreatorVisitor v(layerActionCollection, viewManager()->nodeManager());
-        activeKisView()->image()->rootLayer()->accept(v);
-        actionCollections.append(layerActionCollection);
-        actionsCount += layerActionCollection->count();
-    }
-
-    d->commandBar->updateBar(actionCollections, actionsCount);
-
-    // The following line is needed to work around input method not working
-    // on Windows.
-    // See https://bugs.kde.org/show_bug.cgi?id=395598
-    // and https://bugs.kde.org/show_bug.cgi?id=438122
-    d->commandBar->activateWindow();
-
-    // The following line is present in Kate's version and was ported over
-    // but I am sceptical of its use. I worry that it may subtly cause other
-    // issues, and since the command bar appears to work fine without it, I
-    // believe it may be better to leave it out.  -- Alvin
-    // centralWidget()->setFocusProxy(d->commandBar);
+    // "Search Actions" is Find Anything, which searches everything the old command bar did and more
+    d->studioFind->open();
 }
 
 void KisMainWindow::slotStoragesWarning(const QString &/*location*/)
@@ -3374,7 +3330,7 @@ void KisMainWindow::showManual()
 
 void KisMainWindow::showDockerTitleBars(bool show)
 {
-    // studio panels always show their own header
+    // studio panels have no title bars to show
     const bool studioLayout = d->studioLayout && d->studioLayout->isActive();
 
     Q_FOREACH (QDockWidget *dock, studioLayout ? QList<QDockWidget *>() : dockWidgets()) {

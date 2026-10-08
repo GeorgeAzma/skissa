@@ -42,6 +42,8 @@
 #include <QWidgetAction>
 
 #include <kactioncollection.h>
+#include <kconfiggroup.h>
+#include <KSharedConfig>
 #include <klocalizedstring.h>
 
 #include "KisDocument.h"
@@ -83,7 +85,7 @@ const QString leftKey = QStringLiteral("StudioLayoutLeftPanels");
 const int leftDropZone = 140;
 const QString classicStateKey = QStringLiteral("StudioLayoutClassicState");
 
-/// The panels that get a button on the rail; every other docker is in the "All panels" menu
+/// The panels that get a button on the rail; "+" on the rail adds any other
 QStringList defaultRailPanels()
 {
     return {
@@ -396,6 +398,7 @@ struct KisStudioLayout::Private
     KisStudioWindowFrame *frame {nullptr};
     QPointer<QAction> windowButtonsAction;
     QPointer<QWidget> colorChip;
+    QPointer<KisStudioToolRail> toolRail;
     QSet<QString> pinned;
 
     /// What a docker looked like before entering the studio layout
@@ -496,6 +499,18 @@ void KisStudioLayout::enter()
         dock->setFeatures(QDockWidget::DockWidgetClosable);
         d->panels.insert(dock);
 
+        // a name, so that a shortcut given on its card is saved, and on the window, so that it works
+        QAction *toggle = dock->toggleViewAction();
+        if (toggle->objectName().isEmpty()) {
+            toggle->setObjectName(QStringLiteral("studio_panel_") + dock->objectName());
+            const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
+                                      .readEntry(toggle->objectName(), QString());
+            if (!saved.isEmpty() && saved != QLatin1String("none")) {
+                toggle->setShortcuts(QKeySequence::listFromString(saved));
+            }
+            mainWindow->addAction(toggle);
+        }
+
         d->connections << connect(dock->toggleViewAction(), &QAction::toggled, this, [this, dock](bool visible) {
             dockToggled(dock, visible);
         });
@@ -528,12 +543,12 @@ void KisStudioLayout::enter()
     qApp->installEventFilter(this);
     d->connections << connect(KoToolManager::instance(), &KoToolManager::changedTool, this,
                               [this](KoCanvasController *controller) {
-                                  if (isOwnController(controller)) updateContextBar();
+                                  if (KisStudioToolRail::isOwnController(d->mainWindow, controller)) updateContextBar();
                               });
     d->connections << connect(KoToolManager::instance(), &KoToolManager::toolOptionWidgetsChanged, this,
                               [this](KoCanvasController *controller, const QList<QPointer<QWidget>> &widgets) {
                                   // with two windows, the other one's tool is not this top bar's business
-                                  if (!isOwnController(controller)) return;
+                                  if (!KisStudioToolRail::isOwnController(d->mainWindow, controller)) return;
                                   if (d->toolStrip) {
                                       d->toolStrip->setOptionWidgets(widgets);
                                       if (d->toolStripAction) {
@@ -612,15 +627,6 @@ bool KisStudioLayout::isCaptionAt(const QPoint &pos) const
     }
     // the bar itself and the empty space in it drag the window; controls are for clicking
     return widget == toolBar || QByteArray(widget->metaObject()->className()) == "QWidget";
-}
-
-bool KisStudioLayout::isOwnController(KoCanvasController *controller) const
-{
-    KisView *view = d->mainWindow->activeView();
-    if (!controller || !view) {
-        return true;
-    }
-    return static_cast<KoCanvasController *>(view->canvasController()) == controller;
 }
 
 QMdiArea *KisStudioLayout::mdiArea() const
@@ -876,6 +882,10 @@ void KisStudioLayout::normalize()
     if (d->topBar) {
         d->topBar->setVisible(!isRailHidden());
         moveTopBarToFront();
+    }
+    // the rail's commands are known once the GUI is built, which is after the rail
+    if (d->toolRail) {
+        d->toolRail->refresh();
     }
     placeFindField();
     if (d->findFieldAction) {
@@ -1440,6 +1450,7 @@ void KisStudioLayout::createBrushRail()
 
     auto *rail = new RailOverlay(mainWindow->centralWidget());
     auto *toolRail = new KisStudioToolRail(mainWindow, rail);
+    d->toolRail = toolRail;
     if (KisStudioFind *find = mainWindow->studioFind()) {
         QPointer<KisStudioToolRail> target = toolRail;
         find->setToolsAdder([target](const QString &key) {

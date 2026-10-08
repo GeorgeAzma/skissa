@@ -72,6 +72,8 @@ struct KisFilterManager::Private {
 
     /// Replaces the dialog when set, e.g. by the studio layout's overlay on the canvas
     KisFilterManager::InlineEditor inlineEditor;
+    /// The image the running preview stroke was started on
+    KisImageWSP strokeImage;
 };
 
 KisFilterManager::KisFilterManager(KisViewManager * view)
@@ -200,6 +202,10 @@ void KisFilterManager::showFilterDialog(const QString &filterId, KisFilterConfig
         return;
     }
 
+    if (d->currentStrokeId && !d->filterDialog && d->inlineEditor.reject) {
+        d->inlineEditor.reject();
+    }
+
     if (d->filterDialog && d->filterDialog->isVisible()) {
         KisFilterSP filter = KisFilterRegistry::instance()->value(filterId);
         d->filterDialog->setFilter(filter, overrideDefaultConfig);
@@ -285,7 +291,10 @@ void KisFilterManager::apply(KisFilterConfigurationSP _filterConfig)
     KisImageWSP image = d->view->image();
 
     if (d->currentStrokeId) {
-        image->cancelStroke(d->currentStrokeId);
+        // the stroke belongs to the image it was started on, which may no longer be the view's
+        if (KisImageSP strokeImage = d->strokeImage) {
+            strokeImage->cancelStroke(d->currentStrokeId);
+        }
 
         d->currentStrokeId.clear();
         d->idleBarrierCookie.clear();
@@ -319,6 +328,7 @@ void KisFilterManager::apply(KisFilterConfigurationSP _filterConfig)
 
     d->currentStrokeId =
         image->startStroke(strategy);
+    d->strokeImage = image;
 
     // Apply filter preview to active, visible frame only.
     KisImageConfig imgConf(true);
@@ -353,7 +363,9 @@ void KisFilterManager::finish()
         }
     }
 
-    d->view->image()->endStroke(d->currentStrokeId);
+    if (KisImageSP strokeImage = d->strokeImage) {
+        strokeImage->endStroke(d->currentStrokeId);
+    }
 
     KisFilterSP filter = KisFilterRegistry::instance()->value(d->currentlyAppliedConfiguration->name());
     if (filter->bookmarkManager()) {
@@ -375,7 +387,9 @@ void KisFilterManager::cancelRunningStroke()
 
     // we should to notify the stroke that it should do the updates itself.
     d->externalCancelUpdatesStorage->shouldIssueCancellationUpdates.ref();
-    d->view->image()->cancelStroke(d->currentStrokeId);
+    if (KisImageSP strokeImage = d->strokeImage) {
+        strokeImage->cancelStroke(d->currentStrokeId);
+    }
 
     d->currentStrokeId.clear();
     d->idleBarrierCookie.clear();
@@ -387,7 +401,11 @@ void KisFilterManager::cancelDialog()
 {
     cancelRunningStroke();
 
-    d->filterDialog->reject();
+    if (d->filterDialog) {
+        d->filterDialog->reject();
+    } else if (d->inlineEditor.reject) {
+        d->inlineEditor.reject();
+    }
 }
 
 bool KisFilterManager::isStrokeRunning() const

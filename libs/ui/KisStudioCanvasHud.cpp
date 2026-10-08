@@ -133,7 +133,7 @@ void KisStudioCanvasHud::setActive(bool active)
             // the bar shows and hides itself; the box only takes room while it is there
             if (QProgressBar *bar = progress->findChild<QProgressBar *>()) {
                 bar->installEventFilter(this);
-                d->progressBox->setVisible(bar->isVisible());
+                d->progressBox->setVisible(!bar->isHidden());
             }
         }
     } else {
@@ -167,9 +167,6 @@ void KisStudioCanvasHud::viewChanged()
 
     KisCanvasController *controller = view->canvasController();
     if (controller) {
-        // the canvas is panned by gesture, wheel and Space; scroll bars are only chrome
-        controller->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        controller->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         d->viewConnections << connect(controller->proxyObject, &KoCanvasControllerProxyObject::effectiveZoomChanged,
                                       this, &KisStudioCanvasHud::updateZoom);
         d->viewConnections << connect(controller->proxyObject, &KoCanvasControllerProxyObject::documentRotationChanged,
@@ -223,8 +220,10 @@ bool KisStudioCanvasHud::eventFilter(QObject *watched, QEvent *event)
             d->trigger(steps > 0 ? "view_zoom_in" : "view_zoom_out");
         }
         return true;
-    } else if (qobject_cast<QProgressBar *>(watched) && (event->type() == QEvent::Show || event->type() == QEvent::Hide)) {
-        d->progressBox->setVisible(event->type() == QEvent::Show);
+    } else if (qobject_cast<QProgressBar *>(watched)
+               && (event->type() == QEvent::ShowToParent || event->type() == QEvent::HideToParent)) {
+        // ShowToParent: Show itself only arrives while the box is already visible
+        d->progressBox->setVisible(event->type() == QEvent::ShowToParent);
         reposition();
     }
     return QWidget::eventFilter(watched, event);

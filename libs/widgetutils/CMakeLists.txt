@@ -91,8 +91,6 @@ set(kritawidgetutils_LIB_SRCS
     xmlgui/kxmlguiversionhandler.cpp
     xmlgui/kxmlguiwindow.cpp
 
-    katecommandbar.cpp
-    commandmodel.cpp
 
     KisClickableLabel.cpp
 )

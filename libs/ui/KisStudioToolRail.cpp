@@ -116,15 +116,11 @@ public:
     std::function<void()> onDrag;
 
 protected:
-    /// Call from mouseMoveEvent; true when the move turned into a drag
-    bool dragStarted(QMouseEvent *event, const QPoint &pressPos)
+    /// Whether a move with the button down is a drag: a pen wobbles, only a clear move is
+    static bool isDrag(QMouseEvent *event, const QPoint &pressPos)
     {
-        // a pen wobbles: only a clear move is a drag
-        if ((event->buttons() & Qt::LeftButton) && (event->pos() - pressPos).manhattanLength() > 2 * QApplication::startDragDistance()) {
-            if (onDrag) onDrag();
-            return true;
-        }
-        return false;
+        return (event->buttons() & Qt::LeftButton)
+            && (event->pos() - pressPos).manhattanLength() > 2 * QApplication::startDragDistance();
     }
 };
 
@@ -176,10 +172,12 @@ protected:
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (!m_held && !m_dragged && dragStarted(event, m_pressPos)) {
+        if (!m_held && !m_dragged && isDrag(event, m_pressPos)) {
+            // all this before the drag, whose event loop would let the hold timer fire
             m_holdTimer.stop();
             m_dragged = true;
             setDown(false);
+            if (onDrag) onDrag();
             return;
         }
         QToolButton::mouseMoveEvent(event);
@@ -286,8 +284,9 @@ protected:
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (!m_dragged && dragStarted(event, m_pressPos)) {
+        if (!m_dragged && isDrag(event, m_pressPos)) {
             m_dragged = true;
+            if (onDrag) onDrag();
         }
     }
 
@@ -431,7 +430,7 @@ struct KisStudioToolRail::Private
         return own;
     }
 
-    std::function<void(const QString &slotId)> activate;
+    KisStudioToolRail *q {nullptr};
 
     /**
      * What a slot's shortcut is: Erase is Krita's eraser toggle (E), Paint the
@@ -448,7 +447,7 @@ struct KisStudioToolRail::Private
             return toolAction(currentTool.value(slotId));
         }
         return ownAction(slotPrefix + slotId, QStringLiteral("studio_slot_") + slotId, slots.value(slotId).title,
-                         [this, slotId]() { if (activate) activate(slotId); });
+                         [this, slotId]() { q->activateSlot(slotId); });
     }
 
     /// The action whose shortcut a button shows and the card edits
@@ -467,18 +466,18 @@ struct KisStudioToolRail::Private
         });
     }
 
-    bool isOwnController(KoCanvasController *controller) const
-    {
-        KisView *active = mainWindow->activeView();
-        if (!controller || !active) return true;
-        return static_cast<KoCanvasController *>(active->canvasController()) == controller;
-    }
-
     RailButton *buttonAt(int widget) const
     {
         return dynamic_cast<RailButton *>(widgets.value(widget));
     }
 };
+
+bool KisStudioToolRail::isOwnController(KisMainWindow *mainWindow, KoCanvasController *controller)
+{
+    KisView *active = mainWindow->activeView();
+    if (!controller || !active) return true;
+    return static_cast<KoCanvasController *>(active->canvasController()) == controller;
+}
 
 QString KisStudioToolRail::toolName(KoToolFactoryBase *factory)
 {
@@ -552,11 +551,11 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     const QStringList hidden = cfg.readEntry<QStringList>(hiddenKey, QStringList());
     d->hidden = QSet<QString>(hidden.begin(), hidden.end());
     d->items = cfg.readEntry<QStringList>(itemsKey, defaultItems());
-    d->activate = [this](const QString &slotId) { activateSlot(slotId); };
+    d->q = this;
 
     connect(KoToolManager::instance(), &KoToolManager::changedTool, this, [this](KoCanvasController *controller) {
         // other windows have their own rails
-        if (d->isOwnController(controller)) updateActiveSlot();
+        if (isOwnController(d->mainWindow, controller)) updateActiveSlot();
     });
     if (QAction *erase = d->eraseAction()) {
         connect(erase, &QAction::toggled, this, &KisStudioToolRail::updateActiveSlot);
@@ -578,6 +577,12 @@ void KisStudioToolRail::addBottomWidget(QWidget *widget)
 {
     widget->setParent(this);
     d->layout->addWidget(widget, 0, Qt::AlignHCenter);
+}
+
+void KisStudioToolRail::refresh()
+{
+    rebuild();
+    updateActiveSlot();
 }
 
 void KisStudioToolRail::addItem(const QString &key)

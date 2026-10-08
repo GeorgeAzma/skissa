@@ -376,6 +376,13 @@ struct KisStudioFind::Private
     std::function<void(const QString &key)> picker;
     QString pickPrefix; ///< while picking, only items whose key starts with it
     std::function<void(const QString &key)> addToTools;
+    /// How many GUI clients the index saw: commands only exist once the GUI is built
+    int indexedClients {-1};
+
+    int clientCount() const
+    {
+        return mainWindow->guiFactory() ? mainWindow->guiFactory()->clients().size() : 0;
+    }
     QString placeholder;
 
     QVector<Entry> entries;
@@ -522,6 +529,7 @@ void KisStudioFind::open(const QString &text)
 void KisStudioFind::rebuildIndex()
 {
     d->entries.clear();
+    d->indexedClients = d->clientCount();
     // the aliases go on at the end, whatever the order of the sources
     auto attachAliases = qScopeGuard([this]() {
         static const QHash<QString, QStringList> aliases = aliasTable();
@@ -991,7 +999,7 @@ void KisStudioFind::moveSelection(int delta)
 
 bool KisStudioFind::item(const QString &key, Item *item)
 {
-    if (d->entries.isEmpty()) {
+    if (d->entries.isEmpty() || d->indexedClients != d->clientCount()) {
         rebuildIndex();
     }
     Q_FOREACH (const Entry &entry, d->entries) {
@@ -1007,7 +1015,7 @@ bool KisStudioFind::item(const QString &key, Item *item)
 
 bool KisStudioFind::run(const QString &key)
 {
-    if (d->entries.isEmpty()) {
+    if (d->entries.isEmpty() || d->indexedClients != d->clientCount()) {
         rebuildIndex();
     }
     Q_FOREACH (const Entry &entry, d->entries) {
