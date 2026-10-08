@@ -864,18 +864,21 @@ void KisPaintopBox::setWidgetState(int flags)
 
 void KisPaintopBox::setSliderValue(const QString& sliderID, qreal value)
 {
+    // opacity and flows UI stored at 0-100%
+    const qreal sliderValue = (sliderID == "opacity" || sliderID == "flow") ? value * 100 : value;
+
     for (int i = 0; i < 5; ++i) {
         KisDoubleSliderSpinBox* slider = m_sliderChooser[i]->getWidget<KisDoubleSliderSpinBox>(sliderID);
         KisSignalsBlocker b(slider);
-
-        if (sliderID == "opacity" || sliderID == "flow") { // opacity and flows UI stored at 0-100%
-            slider->setValue(value*100);
-        } else {
-            slider->setValue(value); // brush size
-        }
-
-
+        slider->setValue(sliderValue);
     }
+
+    Q_EMIT sigBrushSliderValueChanged(sliderID, sliderValue);
+}
+
+KisDoubleSliderSpinBox *KisPaintopBox::brushSlider(const QString &sliderID) const
+{
+    return m_sliderChooser[0]->getWidget<KisDoubleSliderSpinBox>(sliderID);
 }
 
 void KisPaintopBox::setMultiplierSliderValue(const QString& sliderID, qreal value)

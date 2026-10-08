@@ -9,6 +9,9 @@
 #include <QApplication>
 #include <QDockWidget>
 #include <QHBoxLayout>
+#include <QVBoxLayout>
+
+#include <functional>
 #include <QHash>
 #include <QKeyEvent>
 #include <QLabel>
@@ -25,6 +28,10 @@
 
 #include "KisMainWindow.h"
 #include "KisResourceServerProvider.h"
+#include "KisStudioBrushSlider.h"
+#include "KisViewManager.h"
+#include "kis_paintop_box.h"
+#include "kis_slider_spin_box.h"
 #include "kis_workspace_resource.h"
 #include "KisUiFont.h"
 #include "kis_config.h"
@@ -143,6 +150,8 @@ struct KisStudioLayout::Private
     bool active {false};
 
     QPointer<QToolBar> rail;
+    /// Brush size and opacity on the left edge
+    QPointer<QToolBar> brushRail;
     QMenu *allPanelsMenu {nullptr};
     QHash<QString, QAction *> railActions;
 
@@ -257,6 +266,7 @@ void KisStudioLayout::enter()
     }
 
     createRail();
+    createBrushRail();
     qApp->installEventFilter(this);
     normalize();
 }
@@ -290,6 +300,9 @@ void KisStudioLayout::leave()
 
     if (d->rail) {
         d->rail->hide();
+    }
+    if (d->brushRail) {
+        d->brushRail->hide();
     }
 
     KisConfig cfg(true);
@@ -364,6 +377,9 @@ void KisStudioLayout::normalize()
 
     if (d->rail) {
         d->rail->setVisible(!isRailHidden());
+    }
+    if (d->brushRail) {
+        d->brushRail->setVisible(!isRailHidden());
     }
 
     syncRail();
@@ -550,6 +566,74 @@ void KisStudioLayout::createRail()
     allPanels->setMenu(d->allPanelsMenu);
     connect(d->allPanelsMenu, &QMenu::aboutToShow, this, &KisStudioLayout::populateMoreMenu);
     rail->addWidget(allPanels);
+}
+
+void KisStudioLayout::createBrushRail()
+{
+    if (d->brushRail) {
+        return;
+    }
+
+    KisMainWindow *mainWindow = d->mainWindow;
+    KisPaintopBox *paintopBox = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr;
+    if (!paintopBox) {
+        return;
+    }
+
+    QToolBar *rail = new QToolBar(i18nc("@title:window", "Brush"), mainWindow);
+    rail->setObjectName(QStringLiteral("studioBrushRail"));
+    rail->setMovable(false);
+    rail->setFloatable(false);
+    rail->setOrientation(Qt::Vertical);
+    rail->setContextMenuPolicy(Qt::PreventContextMenu);
+
+    auto *contents = new QWidget(rail);
+    auto *layout = new QVBoxLayout(contents);
+    layout->setContentsMargins(2, 8, 2, 8);
+    layout->setSpacing(16);
+
+    struct SliderInfo {
+        QString id;
+        QString title;
+        qreal exponent;
+        std::function<QString(qreal)> format;
+    };
+    const QVector<SliderInfo> sliders = {
+        // the same response curve as the size slider in the toolbar
+        {QStringLiteral("size"), i18nc("@info:tooltip", "Brush size"), 3.0,
+         [](qreal value) { return QString::number(value, 'f', value < 10.0 ? 1 : 0); }},
+        {QStringLiteral("opacity"), i18nc("@info:tooltip", "Opacity"), 1.0,
+         [](qreal value) { return i18nc("brush opacity, %1 is the number of percent", "%1%", qRound(value)); }},
+    };
+
+    Q_FOREACH (const SliderInfo &info, sliders) {
+        KisDoubleSliderSpinBox *source = paintopBox->brushSlider(info.id);
+        if (!source) {
+            continue;
+        }
+
+        auto *slider = new KisStudioBrushSlider(info.title, contents);
+        slider->setValueFormatter(info.format);
+        slider->setRange(source->minimum(), source->maximum(), info.exponent);
+        slider->setValue(source->value());
+        layout->addWidget(slider, 0, Qt::AlignHCenter);
+
+        // setting the toolbar slider applies the value to the current preset
+        connect(slider, &KisStudioBrushSlider::valueCommitted, source, [source](qreal value) {
+            source->setValue(value);
+        });
+        connect(paintopBox, &KisPaintopBox::sigBrushSliderValueChanged, slider,
+                [slider, id = info.id](const QString &sliderID, qreal value) {
+                    if (sliderID == id) {
+                        slider->setValue(value);
+                    }
+                });
+    }
+    layout->addStretch(1);
+
+    rail->addWidget(contents);
+    mainWindow->addToolBar(Qt::LeftToolBarArea, rail);
+    d->brushRail = rail;
 }
 
 void KisStudioLayout::syncRail()

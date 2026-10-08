@@ -1,0 +1,200 @@
+/*
+ *  SPDX-FileCopyrightText: 2026 GeorgeAzma <lumi.main.mail@gmail.com>
+ *
+ *  SPDX-License-Identifier: GPL-2.0-or-later
+ */
+#include "KisStudioBrushSlider.h"
+
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
+#include <QWheelEvent>
+
+#include <cmath>
+
+namespace {
+
+constexpr int labelHeight = 16;
+
+QColor mix(const QColor &a, const QColor &b, qreal t)
+{
+    return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t,
+                            a.greenF() + (b.greenF() - a.greenF()) * t,
+                            a.blueF() + (b.blueF() - a.blueF()) * t);
+}
+
+} // namespace
+
+KisStudioBrushSlider::KisStudioBrushSlider(const QString &title, QWidget *parent)
+    : QWidget(parent)
+    , m_title(title)
+    , m_formatter([](qreal value) { return QString::number(value, 'f', 0); })
+{
+    setCursor(Qt::SizeVerCursor);
+    setAccessibleName(title);
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    updateToolTip();
+}
+
+void KisStudioBrushSlider::setRange(qreal minimum, qreal maximum, qreal exponent)
+{
+    m_minimum = minimum;
+    m_maximum = qMax(minimum, maximum);
+    m_exponent = qMax(exponent, 0.01);
+    setValue(m_value);
+}
+
+void KisStudioBrushSlider::setValue(qreal value)
+{
+    if (m_dragging) {
+        // don't fight with the user while they drag
+        return;
+    }
+    m_value = qBound(m_minimum, value, m_maximum);
+    updateToolTip();
+    update();
+}
+
+qreal KisStudioBrushSlider::value() const
+{
+    return m_value;
+}
+
+void KisStudioBrushSlider::setValueFormatter(std::function<QString(qreal)> formatter)
+{
+    m_formatter = std::move(formatter);
+    updateToolTip();
+    update();
+}
+
+QSize KisStudioBrushSlider::sizeHint() const
+{
+    return QSize(30, 180);
+}
+
+QSize KisStudioBrushSlider::minimumSizeHint() const
+{
+    return QSize(30, 80);
+}
+
+QRectF KisStudioBrushSlider::trackRect() const
+{
+    const qreal width = 14;
+    return QRectF((this->width() - width) / 2.0, 2, width, height() - labelHeight - 4);
+}
+
+qreal KisStudioBrushSlider::position() const
+{
+    if (m_maximum <= m_minimum) {
+        return 0.0;
+    }
+    const qreal linear = (m_value - m_minimum) / (m_maximum - m_minimum);
+    return std::pow(qBound(0.0, linear, 1.0), 1.0 / m_exponent);
+}
+
+qreal KisStudioBrushSlider::valueAtPosition(qreal position) const
+{
+    return m_minimum + (m_maximum - m_minimum) * std::pow(qBound(0.0, position, 1.0), m_exponent);
+}
+
+qreal KisStudioBrushSlider::valueAtY(qreal y) const
+{
+    const QRectF track = trackRect();
+    return valueAtPosition((track.bottom() - y) / track.height());
+}
+
+void KisStudioBrushSlider::updateToolTip()
+{
+    setToolTip(QStringLiteral("%1: %2").arg(m_title, m_formatter(m_value)));
+}
+
+bool KisStudioBrushSlider::event(QEvent *event)
+{
+    if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) {
+        update(); // the track is highlighted while hovered
+    }
+    return QWidget::event(event);
+}
+
+void KisStudioBrushSlider::paintEvent(QPaintEvent *)
+{
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    const QPalette &pal = palette();
+    const QColor window = pal.color(QPalette::Window);
+    const QColor text = pal.color(QPalette::WindowText);
+    const QRectF track = trackRect();
+    const qreal radius = track.width() / 2.0;
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(mix(window, text, underMouse() || m_dragging ? 0.16 : 0.10));
+    painter.drawRoundedRect(track, radius, radius);
+
+    // fill from the bottom, clipped to the rounded track
+    const qreal fillHeight = track.height() * position();
+    if (fillHeight > 0.5) {
+        QPainterPath trackPath;
+        trackPath.addRoundedRect(track, radius, radius);
+        painter.save();
+        painter.setClipPath(trackPath);
+        painter.setBrush(pal.color(QPalette::Highlight));
+        painter.drawRect(QRectF(track.left(), track.bottom() - fillHeight, track.width(), fillHeight));
+        painter.restore();
+    }
+
+    QFont font = this->font();
+    font.setPointSizeF(font.pointSizeF() * 0.8);
+    painter.setFont(font);
+    painter.setPen(m_dragging ? pal.color(QPalette::Highlight).lighter(130) : text);
+    painter.drawText(QRectF(0, height() - labelHeight, width(), labelHeight),
+                     Qt::AlignCenter, m_formatter(m_value));
+}
+
+void KisStudioBrushSlider::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() != Qt::LeftButton) {
+        QWidget::mousePressEvent(event);
+        return;
+    }
+    m_dragging = true;
+    m_value = valueAtY(event->pos().y());
+    update();
+}
+
+void KisStudioBrushSlider::mouseMoveEvent(QMouseEvent *event)
+{
+    if (!m_dragging) {
+        QWidget::mouseMoveEvent(event);
+        return;
+    }
+    m_value = valueAtY(event->pos().y());
+    update();
+}
+
+void KisStudioBrushSlider::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (!m_dragging || event->button() != Qt::LeftButton) {
+        QWidget::mouseReleaseEvent(event);
+        return;
+    }
+    m_dragging = false;
+    m_value = valueAtY(event->pos().y());
+    updateToolTip();
+    update();
+    Q_EMIT valueCommitted(m_value);
+}
+
+void KisStudioBrushSlider::wheelEvent(QWheelEvent *event)
+{
+    const qreal notches = event->angleDelta().y() / 120.0;
+    if (qFuzzyIsNull(notches) || m_dragging) {
+        event->ignore();
+        return;
+    }
+    m_value = valueAtPosition(position() + 0.02 * notches);
+    updateToolTip();
+    update();
+    Q_EMIT valueCommitted(m_value);
+    event->accept();
+}

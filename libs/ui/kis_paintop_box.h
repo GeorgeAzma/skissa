@@ -49,6 +49,7 @@ class KisFavoriteResourceManager;
 class KisAction;
 class KisPresetSaveWidget;
 class KisAcyclicSignalConnector;
+class KisDoubleSliderSpinBox;
 
 /**
  * This widget presents all paintops that a user can paint with.
@@ -104,6 +105,18 @@ public:
     void newOptionWidgets(const QList<QPointer<QWidget> > & optionWidgetList);
 
     KisFavoriteResourceManager *favoriteResourcesManager() { return m_favoriteResourceManager; }
+
+    /**
+     * The "opacity", "flow" or "size" slider of the first brush slider
+     * toolbar entry. Setting its value applies it to the current preset
+     * just like the toolbar does; sigBrushSliderValueChanged() reports
+     * changes that come from anywhere else.
+     */
+    KisDoubleSliderSpinBox *brushSlider(const QString &sliderID) const;
+
+Q_SIGNALS:
+    /// The value as shown in the sliders, i.e. 0-100 for opacity and flow
+    void sigBrushSliderValueChanged(const QString &sliderID, qreal value);
 
 public Q_SLOTS:
 

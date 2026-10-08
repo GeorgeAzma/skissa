@@ -75,6 +75,7 @@ private:
     bool isRailHidden() const;
 
     void createRail();
+    void createBrushRail();
     void syncRail();
     void populateMoreMenu();
 
