@@ -625,10 +625,9 @@ public:
     {
         QTextOption textOption(Qt::AlignAbsolute | Qt::AlignHCenter | Qt::AlignVCenter);
         textOption.setWrapMode(QTextOption::NoWrap);
-        // Draw portion of the text that is over the background
-        paintSliderText(painter, text, rect, rect.adjusted(sliderRect.width(), 0, 0, 0), m_lineEdit->palette().text().color(), textOption);
-        // Draw portion of the text that is over the progress bar
-        paintSliderText(painter, text, rect, sliderRect, m_lineEdit->palette().text().color(), textOption);
+        Q_UNUSED(sliderRect);
+        // the fill is neutral, so one color reads over it and over the background
+        paintSliderText(painter, text, rect, rect, m_lineEdit->palette().text().color(), textOption);
     };
 
     /**
@@ -661,7 +660,7 @@ public:
             textOption.setWrapMode(QTextOption::NoWrap);
             paintSliderText(painter, text, rect, rect, m_lineEdit->palette().text().color(), textOption);
             // Paint soft range slider
-            const QColor softSliderColor = KisPaintingTweaks::blendColors(highlightColor, m_q->palette().base().color(), 1.0 - 0.25);
+            const QColor softSliderColor = KisPaintingTweaks::blendColors(m_q->palette().text().color(), m_q->palette().base().color(), 0.1);
             const double softSliderAdjustment = -KisAlgebra2D::lerp(a, b, animationPos);
             paintSliderRect(
                 painter,

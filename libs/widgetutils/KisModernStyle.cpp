@@ -14,6 +14,10 @@
 #include <QStyleFactory>
 #include <QStyleOption>
 #include <QLabel>
+#include <functional>
+#include <QRegularExpression>
+#include <QGridLayout>
+#include <QFormLayout>
 #include <QTabBar>
 
 namespace {
@@ -244,6 +248,52 @@ QString KisModernStyle::underlyingStyleName(const QStyle *style)
     return style ? style->objectName() : QString();
 }
 
+namespace {
+/// Whether a label names the field next to it, rather than being a sentence of its own
+bool labelsAField(QLabel *label)
+{
+    if (label->buddy()) {
+        return true;
+    }
+    QWidget *parent = label->parentWidget();
+    if (!parent || !parent->layout()) {
+        return false;
+    }
+    std::function<QLayout *(QLayout *)> holding = [&](QLayout *layout) -> QLayout * {
+        if (layout->indexOf(label) >= 0) return layout;
+        for (int i = 0; i < layout->count(); i++) {
+            if (QLayout *child = layout->itemAt(i)->layout()) {
+                if (QLayout *found = holding(child)) return found;
+            }
+        }
+        return nullptr;
+    };
+    QLayout *layout = holding(parent->layout());
+    if (auto *form = qobject_cast<QFormLayout *>(layout)) {
+        int row = 0;
+        QFormLayout::ItemRole role = QFormLayout::FieldRole;
+        form->getWidgetPosition(label, &row, &role);
+        return role == QFormLayout::LabelRole;
+    }
+    if (auto *grid = qobject_cast<QGridLayout *>(layout)) {
+        int row = 0, column = 0, rowSpan = 0, columnSpan = 0;
+        grid->getItemPosition(grid->indexOf(label), &row, &column, &rowSpan, &columnSpan);
+        for (int c = column + columnSpan; c < grid->columnCount(); c++) {
+            if (QLayoutItem *item = grid->itemAtPosition(row, c)) {
+                if (item->widget()) return true;
+            }
+        }
+        return false;
+    }
+    if (auto *box = qobject_cast<QBoxLayout *>(layout)) {
+        const int at = box->indexOf(label);
+        const bool horizontal = box->direction() == QBoxLayout::LeftToRight || box->direction() == QBoxLayout::RightToLeft;
+        return horizontal && at + 1 < box->count() && box->itemAt(at + 1)->widget();
+    }
+    return false;
+}
+} // namespace
+
 void KisModernStyle::polish(QWidget *widget)
 {
     QProxyStyle::polish(widget);
@@ -256,9 +306,12 @@ void KisModernStyle::polish(QWidget *widget)
 
     // "Size:" next to its field says nothing the layout doesn't: the label and the field are a pair
     if (QLabel *label = qobject_cast<QLabel *>(widget)) {
-        const QString text = label->text();
-        if (text.endsWith(QLatin1Char(':')) && label->textFormat() != Qt::RichText) {
-            label->setText(text.chopped(1));
+        if (label->textFormat() != Qt::RichText && labelsAField(label)) {
+            static const QRegularExpression colon(QStringLiteral("\\s*[:\\x{FF1A}]\\s*$"));
+            QString text = label->text();
+            if (text.contains(colon)) {
+                label->setText(text.remove(colon));
+            }
         }
     }
 }

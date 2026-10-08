@@ -44,30 +44,34 @@ struct Group {
     QStringList ids;
 };
 
-/// The essential modes, by intent. The ids are the ones of KoCompositeOpRegistry.
-QVector<QVector<Group>> essentialColumns()
+/**
+ * The essential modes, by intent, in the order scrolling steps through them.
+ * The ids are the ones of KoCompositeOpRegistry.
+ */
+QVector<Group> essentialGroups()
 {
     return {
-        {
-            {i18nc("blend mode group", "Normal"), {QStringLiteral("normal")}},
-            {i18nc("blend mode group", "Darken"), {QStringLiteral("multiply"), QStringLiteral("burn"), QStringLiteral("linear_burn"),
-                                                   QStringLiteral("darken"), QStringLiteral("darker color")}},
-            {i18nc("blend mode group", "Transparency"), {QStringLiteral("erase"), QStringLiteral("behind"), QStringLiteral("dissolve")}},
-        },
-        {
-            {i18nc("blend mode group", "Lighten"), {QStringLiteral("screen"), QStringLiteral("linear_dodge"), QStringLiteral("dodge"),
-                                                    QStringLiteral("lighten"), QStringLiteral("lighter color")}},
-            {i18nc("blend mode group", "Compare"), {QStringLiteral("diff"), QStringLiteral("exclusion"), QStringLiteral("subtract"),
-                                                    QStringLiteral("divide")}},
-        },
-        {
-            {i18nc("blend mode group", "Contrast"), {QStringLiteral("overlay"), QStringLiteral("soft_light"), QStringLiteral("hard_light"),
-                                                     QStringLiteral("vivid_light"), QStringLiteral("linear light"), QStringLiteral("pin_light"),
-                                                     QStringLiteral("hard_mix_photoshop")}},
-            {i18nc("blend mode group", "Color"), {QStringLiteral("hue"), QStringLiteral("saturation"), QStringLiteral("color"),
-                                                  QStringLiteral("luminize")}},
-        },
+        {i18nc("blend mode group", "Normal"), {QStringLiteral("normal")}},
+        {i18nc("blend mode group", "Darken"), {QStringLiteral("multiply"), QStringLiteral("burn"), QStringLiteral("linear_burn"),
+                                               QStringLiteral("darken"), QStringLiteral("darker color")}},
+        {i18nc("blend mode group", "Lighten"), {QStringLiteral("screen"), QStringLiteral("linear_dodge"), QStringLiteral("dodge"),
+                                                QStringLiteral("lighten"), QStringLiteral("lighter color")}},
+        {i18nc("blend mode group", "Contrast"), {QStringLiteral("overlay"), QStringLiteral("soft_light"), QStringLiteral("hard_light"),
+                                                 QStringLiteral("vivid_light"), QStringLiteral("linear light"), QStringLiteral("pin_light"),
+                                                 QStringLiteral("hard_mix_photoshop")}},
+        {i18nc("blend mode group", "Compare"), {QStringLiteral("diff"), QStringLiteral("exclusion"), QStringLiteral("subtract"),
+                                                QStringLiteral("divide")}},
+        {i18nc("blend mode group", "Color"), {QStringLiteral("hue"), QStringLiteral("saturation"), QStringLiteral("color"),
+                                              QStringLiteral("luminize")}},
+        {i18nc("blend mode group", "Transparency"), {QStringLiteral("erase"), QStringLiteral("behind"), QStringLiteral("dissolve")}},
     };
+}
+
+/// The same groups in three columns of about equal height
+QVector<QVector<Group>> essentialColumns()
+{
+    const QVector<Group> g = essentialGroups();
+    return {{g[0], g[1], g[6]}, {g[2], g[4]}, {g[3], g[5]}};
 }
 
 /**
@@ -531,19 +535,12 @@ QStringList KisBlendModePicker::favoriteModes()
 
 QStringList KisBlendModePicker::essentialModes()
 {
-    // your favorites first, then in reading order of intent: darken, lighten, contrast, compare, color
+    // your favorites first, then the groups in order of intent
     QStringList order = favoriteModes();
-    const QStringList essentials = {
-        QStringLiteral("normal"),
-        QStringLiteral("multiply"), QStringLiteral("burn"), QStringLiteral("linear_burn"), QStringLiteral("darken"), QStringLiteral("darker color"),
-        QStringLiteral("screen"), QStringLiteral("linear_dodge"), QStringLiteral("dodge"), QStringLiteral("lighten"), QStringLiteral("lighter color"),
-        QStringLiteral("overlay"), QStringLiteral("soft_light"), QStringLiteral("hard_light"), QStringLiteral("vivid_light"),
-        QStringLiteral("linear light"), QStringLiteral("pin_light"), QStringLiteral("hard_mix_photoshop"),
-        QStringLiteral("diff"), QStringLiteral("exclusion"), QStringLiteral("subtract"), QStringLiteral("divide"),
-        QStringLiteral("hue"), QStringLiteral("saturation"), QStringLiteral("color"), QStringLiteral("luminize"),
-    };
-    Q_FOREACH (const QString &id, essentials) {
-        if (!order.contains(id)) order << id;
+    Q_FOREACH (const Group &group, essentialGroups()) {
+        Q_FOREACH (const QString &id, group.ids) {
+            if (!order.contains(id)) order << id;
+        }
     }
     return order;
 }

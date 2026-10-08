@@ -36,6 +36,7 @@
 
 #include "kritalayerdocker_export.h"
 
+class QLabel;
 class QModelIndex;
 
 typedef QList<QModelIndex> QModelIndexList;
@@ -120,6 +121,7 @@ private Q_SLOTS:
     void slotNodeManagerChangedSelection(const QList<KisNodeSP> &nodes);
     void slotColorLabelChanged(int index);
     void slotUpdateIcons();
+    void updateOpacityGlyph();
     void toggleActiveLayerSolo();
     void updateLayerOpMenu(const QModelIndex &index, QMenu &menu);
 
@@ -189,6 +191,8 @@ private:
     KisNodeSP m_activeNode;
     /// The layer whose blend mode is previewed from the picker, and its real mode
     KisNodeSP m_previewNode;
+    KisImageWSP m_previewImage;
+    QPointer<QLabel> m_opacityGlyph;
     QString m_previewOriginalOp;
     KisNodeWSP m_savedNodeBeforeEditSelectionMode;
     KisSignalAutoConnectionsStore m_activeNodeConnections;

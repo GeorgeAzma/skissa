@@ -33,8 +33,8 @@
 
 namespace {
 
-/// The widest chroma the plane shows; sRGB reaches about 0.32 (magenta)
-constexpr qreal maxPlaneChroma = 0.32;
+/// The widest chroma the plane shows; sRGB reaches about 0.3225 (magenta)
+constexpr qreal maxPlaneChroma = 0.33;
 
 struct Oklch {
     qreal l {0.0};
@@ -88,6 +88,18 @@ bool inGamut(const Oklch &c)
     linearRgbFromOklch(c, r, g, b);
     const qreal e = 1e-4;
     return r >= -e && r <= 1 + e && g >= -e && g <= 1 + e && b >= -e && b <= 1 + e;
+}
+
+/// The color, or an invalid one outside sRGB: one conversion for both answers
+QColor rgbIfInGamut(const Oklch &c)
+{
+    qreal r, g, b;
+    linearRgbFromOklch(c, r, g, b);
+    const qreal e = 1e-4;
+    if (r < -e || r > 1 + e || g < -e || g > 1 + e || b < -e || b > 1 + e) {
+        return QColor();
+    }
+    return QColor::fromRgbF(qBound(0.0, toGamma(r), 1.0), qBound(0.0, toGamma(g), 1.0), qBound(0.0, toGamma(b), 1.0));
 }
 
 QColor rgbFromOklch(const Oklch &c)
@@ -305,6 +317,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override
     {
         for (int i = 0; i < m_colors.size(); i++) {
+            if (chipRect(i).right() > width()) break; // not drawn, so not clickable
             if (chipRect(i).contains(event->pos()) && picked) {
                 picked(i);
                 return;
@@ -383,10 +396,12 @@ struct KisStudioColorPanel::Private
 
     void showColor(const QColor &rgb, bool fromOutside)
     {
-        if (rgb == current) return;
+        // compared as the canvas keeps it, in 8 bits, so that its echo is the same color
+        const QColor rgb8 = QColor::fromRgb(rgb.rgb());
+        if (rgb8 == current) return;
         // a drag in the panel is one change: "previous" is set when it starts, not on every move
         if (fromOutside && current.isValid()) previous = current;
-        current = rgb;
+        current = rgb8;
         if (fromOutside) {
             readCoordinates(rgb);
         }
@@ -436,7 +451,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->currentRow->setToolTip(i18nc("@info:tooltip", "Current color, and the one before it (click to go back)"));
     row->addWidget(d->currentRow);
     d->recentRow = new Swatches(16, contents);
-    d->recentRow->setToolTip(i18nc("@info:tooltip", "Painted with recently"));
+    d->recentRow->setToolTip(i18nc("@info:tooltip", "Colors painted with lately, by hue"));
     row->addWidget(d->recentRow, 1, Qt::AlignVCenter);
     d->mode = new QToolButton(contents);
     d->mode->setAutoRaise(true);
@@ -456,8 +471,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     // what the plane and the strip show, in either model
     d->plane->colorAt = [this](qreal x, qreal y) {
         if (d->hsv) return QColor::fromHsvF(d->hsvHue, x, 1.0 - y);
-        const Oklch c{1.0 - y, maxPlaneChroma * x, d->color.h};
-        return inGamut(c) ? rgbFromOklch(c) : QColor();
+        return rgbIfInGamut({1.0 - y, maxPlaneChroma * x, d->color.h});
     };
     d->hueStrip->colorAt = [this](qreal t) {
         if (d->hsv) return QColor::fromHsvF(qMin(t, 0.9999), 1.0, 1.0);
@@ -516,6 +530,9 @@ KisStudioColorPanel::KisStudioColorPanel()
         }
     };
     connect(d->hex, &QLineEdit::editingFinished, this, [this]() {
+        // focus leaving the field is not an edit
+        if (!d->hex->isModified()) return;
+        d->hex->setModified(false);
         static const QRegularExpression hexCode(QStringLiteral("^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$"));
         const QString text = d->hex->text().trimmed();
         if (!hexCode.match(text).hasMatch()) {

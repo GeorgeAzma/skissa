@@ -1349,7 +1349,12 @@ QColor KisConfig::canvasBorderColor(bool defaultValue) const
 
 void KisConfig::setCanvasBorderColor(const QColor& color) const
 {
-    m_cfg.writeEntry("canvasBorderColor", color);
+    // the default follows the theme: only a different color is a choice to remember
+    if (color == canvasBorderColor(true)) {
+        m_cfg.deleteEntry("canvasBorderColor");
+    } else {
+        m_cfg.writeEntry("canvasBorderColor", color);
+    }
 }
 
 bool KisConfig::hideScrollbars(bool defaultValue) const

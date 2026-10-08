@@ -226,36 +226,21 @@ LayerBox::LayerBox()
         ui->opacityLabel->hide();
         ui->verticalLayout->removeItem(ui->hbox2);
         ui->verticalLayout->removeItem(ui->opacityLayout);
+        // emptied and taken out: nothing owns them anymore
+        delete ui->hbox2;
+        ui->hbox2 = nullptr;
+        delete ui->opacityLayout;
+        ui->opacityLayout = nullptr;
 
         auto *layerRow = new QHBoxLayout();
         layerRow->setSpacing(6);
         layerRow->addWidget(ui->cmbComposite, 1);
 
         // opacity as a picture, not a word: a tile half see-through, then the number
-        auto *opacityGlyph = new QLabel(mainWidget);
-        {
-            const qreal dpr = mainWidget->devicePixelRatioF();
-            QPixmap glyph(QSize(18, 18) * dpr);
-            glyph.setDevicePixelRatio(dpr);
-            glyph.fill(Qt::transparent);
-            QPainter painter(&glyph);
-            painter.setRenderHint(QPainter::Antialiasing, true);
-            const QColor ink = mainWidget->palette().color(QPalette::WindowText);
-            QColor faint = ink;
-            faint.setAlphaF(0.25);
-            painter.setPen(QPen(faint, 1));
-            painter.setBrush(Qt::NoBrush);
-            painter.drawRoundedRect(QRectF(1.5, 1.5, 15, 15), 4, 4);
-            QColor half = ink;
-            half.setAlphaF(0.55);
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(half);
-            painter.drawRoundedRect(QRectF(1.5, 9, 15, 7.5), 3, 3);
-            painter.end();
-            opacityGlyph->setPixmap(glyph);
-        }
-        opacityGlyph->setToolTip(i18nc("@info:tooltip", "Layer opacity"));
-        layerRow->addWidget(opacityGlyph);
+        m_opacityGlyph = new QLabel(mainWidget);
+        m_opacityGlyph->setToolTip(i18nc("@info:tooltip", "Layer opacity"));
+        updateOpacityGlyph();
+        layerRow->addWidget(m_opacityGlyph);
         layerRow->addWidget(ui->doubleOpacity, 1);
         ui->verticalLayout->insertLayout(ui->verticalLayout->indexOf(ui->horizontalLayout) + 1, layerRow);
         ui->doubleOpacity->setButtonSymbols(QAbstractSpinBox::NoButtons);
@@ -945,18 +930,20 @@ void LayerBox::slotPreviewBlendMode(const QString &id)
         }
         if (!m_previewNode) {
             m_previewNode = m_activeNode;
+            m_previewImage = m_image;
             m_previewOriginalOp = m_activeNode->compositeOpId();
         }
         // the merge threads read the op: change it only while they are stopped,
         // and skip a hover rather than wait for a heavy update to finish
-        KisImageSP image = m_image;
+        KisImageSP image = m_previewImage;
         if (m_previewNode->compositeOpId() != id && image && image->tryBarrierLock()) {
             m_previewNode->setCompositeOpId(id);
             image->unlock();
             m_previewNode->setDirty();
         }
     } else if (m_previewNode) {
-        KisImageSP image = m_image;
+        // the image the preview was made in, even if another one is shown now
+        KisImageSP image = m_previewImage;
         if (m_previewNode->compositeOpId() != m_previewOriginalOp && image) {
             // the original must come back, so this one waits
             image->barrierLock();
@@ -965,6 +952,7 @@ void LayerBox::slotPreviewBlendMode(const QString &id)
             m_previewNode->setDirty();
         }
         m_previewNode = nullptr;
+        m_previewImage = nullptr;
     }
 }
 
@@ -1404,6 +1392,33 @@ void LayerBox::slotUpdateIcons() {
 
     // call child function about needing to update icons
     m_wdgLayerBox->listLayers->slotUpdateIcons();
+    updateOpacityGlyph();
+}
+
+void LayerBox::updateOpacityGlyph()
+{
+    if (!m_opacityGlyph) {
+        return;
+    }
+    const qreal dpr = m_opacityGlyph->devicePixelRatioF();
+    QPixmap glyph(QSize(18, 18) * dpr);
+    glyph.setDevicePixelRatio(dpr);
+    glyph.fill(Qt::transparent);
+    QPainter painter(&glyph);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QColor ink = m_opacityGlyph->palette().color(QPalette::WindowText);
+    QColor faint = ink;
+    faint.setAlphaF(0.25);
+    painter.setPen(QPen(faint, 1));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(QRectF(1.5, 1.5, 15, 15), 4, 4);
+    QColor half = ink;
+    half.setAlphaF(0.55);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(half);
+    painter.drawRoundedRect(QRectF(1.5, 9, 15, 7.5), 3, 3);
+    painter.end();
+    m_opacityGlyph->setPixmap(glyph);
 }
 
 void LayerBox::toggleActiveLayerSolo() {

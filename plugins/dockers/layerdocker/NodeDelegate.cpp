@@ -241,38 +241,10 @@ void NodeDelegate::drawColorLabel(QPainter *p, const QStyleOptionViewItem &optio
 
 void NodeDelegate::drawFrame(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
-    KisNodeViewColorScheme scm;
-
-    QPen oldPen = p->pen();
-    p->setPen(scm.gridColor(option, d->view));
-
-    const QRect visibilityRect = visibilityClickRect(option, index);
-    const QRect thumbnailRect  = thumbnailClickRect(option, index);
-    const QRect iconsRectR     = iconsRect(option, index);
-
-    const float bottomY = thumbnailRect.bottomLeft().y();
-
-    QPoint bottomLeftPoint;
-    QPoint bottomRightPoint;
-    if (option.direction == Qt::RightToLeft) {
-        bottomLeftPoint = iconsRectR.bottomLeft();
-        bottomRightPoint = visibilityRect.bottomRight();
-    } else {
-        bottomLeftPoint = visibilityRect.bottomLeft();
-        bottomRightPoint = iconsRectR.bottomRight();
-    }
-
-    Q_UNUSED(bottomY);
-
-    // icons' lines are drawn by drawIcons
-
-    //// For debugging purposes only
-    p->setPen(Qt::blue);
-    //KritaUtils::renderExactRect(p, iconsRectR);
-    //KritaUtils::renderExactRect(p, textRect(option, index));
-    //KritaUtils::renderExactRect(p, visibilityRect);
-
-    p->setPen(oldPen);
+    // rows are told apart by spacing and their rounded highlight, not by grid lines
+    Q_UNUSED(p);
+    Q_UNUSED(option);
+    Q_UNUSED(index);
 }
 
 QRect NodeDelegate::thumbnailClickRect(const QStyleOptionViewItem &option, const QModelIndex &index) const
@@ -1091,6 +1063,10 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
 
         const bool leftButton = mouseEvent->buttons() & Qt::LeftButton;
         const bool altButton = mouseEvent->modifiers() & Qt::AltModifier;
+        // marks that are off only show on hover or selection; a pen or a finger
+        // has no hover, so its tap on another row can't hit an unseen mark
+        const bool marksShown = mouseEvent->source() == Qt::MouseEventNotSynthesized
+            || d->view->selectionModel()->isRowSelected(index.row(), index.parent());
 
         if (index.column() == NodeView::VISIBILITY_COL) {
 
@@ -1100,6 +1076,7 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
                 KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
                 OptionalProperty clickedProperty = d->findVisibilityProperty(props);
                 if (!clickedProperty) return false;
+                if (!marksShown && clickedProperty->state.toBool()) return false;
 
                 d->toggleProperty(props, clickedProperty, mouseEvent->modifiers(), index);
 
@@ -1178,6 +1155,9 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
                     return false;
                 }
 
+                if (!marksShown && !clickedProperty->state.toBool()) {
+                    return false;
+                }
                 KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
                 d->toggleProperty(props, &(*clickedProperty), mouseEvent->modifiers(), index);
                 return true;
