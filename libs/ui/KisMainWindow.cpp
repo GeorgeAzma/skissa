@@ -159,6 +159,7 @@
 #include "KisWidgetConnectionUtils.h"
 #include "KisToolBarStateModel.h"
 #include "KisModernStyle.h"
+#include "KisStudioLayout.h"
 #include <config-qmdiarea-always-show-subwindow-title.h>
 #include <config-qt-patches-present.h>
 #include <KisPlatformPluginInterfaceFactory.h>
@@ -267,6 +268,8 @@ public:
     KisAction *toggleDockers {nullptr};
     KisAction *resetConfigurations {nullptr};
     KisAction *toggleDockerTitleBars {nullptr};
+    KisAction *toggleStudioLayout {nullptr};
+    KisStudioLayout *studioLayout {nullptr};
 #ifdef Q_OS_ANDROID
     KisAction *showDonationManagementDialog {nullptr};
     KisAction *manageSubscriptions {nullptr};
@@ -509,7 +512,14 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     d->canvasWindow = new KisCanvasWindow(this);
     actionCollection()->addAssociatedWidget(d->canvasWindow);
 
+    d->studioLayout = new KisStudioLayout(this);
+    connect(this, &KisMainWindow::restoringDone, d->studioLayout, &KisStudioLayout::normalize);
+
     createActions();
+
+    if (KisStudioLayout::isEnabledInConfig()) {
+        d->studioLayout->setActive(true);
+    }
 
     // the welcome screen needs to grab actions...so make sure this line goes after the createAction() so they exist
     d->welcomePage->setMainWindow(this);
@@ -1720,6 +1730,9 @@ void KisMainWindow::setMainWindowLayoutForCurrentMainWidget(int widgetIndex, boo
     else {
         setAutoSaveSettings(d->windowStateConfig, false);
         statusBar()->setVisible(KisConfig(true).showStatusBar());
+        if (d->studioLayout) {
+            d->studioLayout->normalize();
+        }
     }
 
     QList<QAction *> actions = d->dockWidgetMenu->menu()->actions();
@@ -1817,6 +1830,11 @@ void KisMainWindow::switchTab(int index)
     if (!tabBar) return;
 
     tabBar->setCurrentIndex(index);
+}
+
+bool KisMainWindow::isWelcomeScreenShown() const
+{
+    return d->widgetStack->currentIndex() == 0;
 }
 
 void KisMainWindow::showWelcomeScreen(bool show)
@@ -2038,7 +2056,10 @@ bool KisMainWindow::restoreWorkspaceState(const QByteArray &state)
                 dock->titleBarWidget()->setVisible(showTitlebars || dock->isFloating());
             }
         }
-        return false;
+    }
+
+    if (d->studioLayout) {
+        d->studioLayout->normalize();
     }
     return success;
 }
@@ -2634,6 +2655,9 @@ QList<KoCanvasObserverBase*> KisMainWindow::canvasObservers() const
 void KisMainWindow::toggleDockersVisibility(bool visible, bool onWelcomePage)
 {
     if (!visible) {
+        if (d->studioLayout) {
+            d->studioLayout->closeFlyout();
+        }
         d->dockerStateBeforeHiding = saveState();
 
         Q_FOREACH (QObject* widget, children()) {
@@ -2647,6 +2671,9 @@ void KisMainWindow::toggleDockersVisibility(bool visible, bool onWelcomePage)
     }
     else {
         restoreState(d->dockerStateBeforeHiding);
+        if (d->studioLayout) {
+            d->studioLayout->normalize();
+        }
     }
 }
 
@@ -3160,6 +3187,10 @@ void KisMainWindow::createActions()
     d->toggleDockerTitleBars->setChecked(KisConfig(false).showDockerTitleBars());
     connect(d->toggleDockerTitleBars, SIGNAL(toggled(bool)), SLOT(showDockerTitleBars(bool)));
 
+    d->toggleStudioLayout = actionManager->createAction("view_studio_layout");
+    d->toggleStudioLayout->setChecked(KisStudioLayout::isEnabledInConfig());
+    connect(d->toggleStudioLayout, &QAction::toggled, d->studioLayout, &KisStudioLayout::setActive);
+
     actionCollection()->addAction("settings_dockers_menu", d->dockWidgetMenu);
     actionCollection()->addAction("window", d->windowMenu);
 
@@ -3300,7 +3331,10 @@ void KisMainWindow::showManual()
 
 void KisMainWindow::showDockerTitleBars(bool show)
 {
-    Q_FOREACH (QDockWidget *dock, dockWidgets()) {
+    // studio panels always show their own header
+    const bool studioLayout = d->studioLayout && d->studioLayout->isActive();
+
+    Q_FOREACH (QDockWidget *dock, studioLayout ? QList<QDockWidget *>() : dockWidgets()) {
         if (dock->titleBarWidget() && !dock->titleBarWidget()->inherits("KisUtilityTitleBar")) {
             dock->titleBarWidget()->setVisible(show || dock->isFloating());
         }

@@ -444,6 +444,7 @@ set(kritaui_LIB_SRCS
     KisImportUserFeedbackInterface.cpp
     kis_async_action_feedback.cpp
     KisMainWindow.cpp
+    KisStudioLayout.cpp
     KisOpenPane.cpp
     KisPart.cpp
     KisTemplate.cpp

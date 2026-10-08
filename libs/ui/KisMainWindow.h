@@ -108,6 +108,9 @@ public:
      */
     void showWelcomeScreen(bool show);
 
+    /// Whether the welcome page is shown instead of the documents
+    bool isWelcomeScreenShown() const;
+
     /**
      * Saves the document, asking for a filename if necessary.
      *

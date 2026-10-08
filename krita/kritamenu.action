@@ -1828,6 +1828,18 @@
       <isCheckable>true</isCheckable>
       <statusTip></statusTip>
     </Action>
+    <Action name="view_studio_layout">
+      <icon></icon>
+      <text>&amp;Studio Layout</text>
+      <whatsThis></whatsThis>
+      <toolTip>Canvas-first layout with panel rails and flyout panels</toolTip>
+      <iconText>Studio Layout</iconText>
+      <activationFlags>0</activationFlags>
+      <activationConditions>0</activationConditions>
+      <shortcut></shortcut>
+      <isCheckable>true</isCheckable>
+      <statusTip></statusTip>
+    </Action>
     <Action name="view_toggledockertitlebars">
       <icon></icon>
       <text>Sho&amp;w Docker Titlebars</text>
