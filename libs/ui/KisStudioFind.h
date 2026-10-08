@@ -37,13 +37,15 @@ public:
 
     /// How a panel gets shown, e.g. as a studio layout flyout
     void setPanelOpener(std::function<void(QDockWidget *)> opener);
+    /// How a result goes onto the tools panel, from its card
+    void setToolsAdder(std::function<void(const QString &key)> adder);
 
     void open(const QString &text = QString());
     /**
      * Find as a chooser: what is chosen goes to \p picked instead of running.
      * With nothing typed it lists every tool and effect, to choose by tapping.
      */
-    void pick(const QString &placeholder, std::function<void(const QString &key)> picked);
+    void pick(const QString &placeholder, std::function<void(const QString &key)> picked, const QString &keyPrefix = QString());
 
     /// One thing Find knows: what the rail and the cards need to show and run it
     struct Item {

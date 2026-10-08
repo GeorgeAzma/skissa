@@ -13,6 +13,7 @@
 #include <QSlider>
 #include <QStyleFactory>
 #include <QStyleOption>
+#include <QLabel>
 #include <QTabBar>
 
 namespace {
@@ -251,6 +252,14 @@ void KisModernStyle::polish(QWidget *widget)
     // Fusion already enables them for buttons, sliders and scroll bars.
     if (qobject_cast<QTabBar *>(widget) || qobject_cast<QHeaderView *>(widget)) {
         widget->setAttribute(Qt::WA_Hover, true);
+    }
+
+    // "Size:" next to its field says nothing the layout doesn't: the label and the field are a pair
+    if (QLabel *label = qobject_cast<QLabel *>(widget)) {
+        const QString text = label->text();
+        if (text.endsWith(QLatin1Char(':')) && label->textFormat() != Qt::RichText) {
+            label->setText(text.chopped(1));
+        }
     }
 }
 

@@ -6,6 +6,7 @@
 #include "KisBlendModePicker.h"
 
 #include "KisPopupCloser.h"
+#include "kis_config.h"
 
 #include <QAbstractButton>
 #include <QApplication>
@@ -28,6 +29,7 @@
 #include <klocalizedstring.h>
 
 #include <algorithm>
+#include <cmath>
 
 namespace {
 
@@ -142,6 +144,24 @@ QString withoutQualifier(QString name)
     return name.remove(qualifier);
 }
 
+const QString favoritesKey = QStringLiteral("StudioFavoriteBlendModes");
+
+QRectF starRect(const QRect &row)
+{
+    return QRectF(row.right() - 20, row.center().y() - 6.5, 13, 13);
+}
+
+QPolygonF starShape(const QRectF &r)
+{
+    QPolygonF star;
+    for (int i = 0; i < 10; i++) {
+        const qreal radius = (i % 2 ? 0.42 : 1.0) * r.width() / 2;
+        const qreal angle = M_PI / 2 + i * M_PI / 5;
+        star << r.center() + QPointF(radius * std::cos(angle), -radius * std::sin(angle));
+    }
+    return star;
+}
+
 /// Every registered mode, once
 QList<KoID> allOps()
 {
@@ -174,6 +194,8 @@ struct KisBlendModePicker::Private
 {
     QString original;
     QSet<QString> available;
+    QStringList favorites;
+    std::function<void()> relayout;
     bool showAll {false};
     bool done {false};
     int highlighted {-1};
@@ -252,8 +274,17 @@ protected:
             painter.restore();
 
             painter.setPen(enabled ? pal.color(QPalette::WindowText) : dim);
-            painter.drawText(item.rect.adjusted(46, 0, -6, 0), Qt::AlignVCenter | Qt::AlignLeft,
-                             painter.fontMetrics().elidedText(item.name, Qt::ElideRight, item.rect.width() - 52));
+            painter.drawText(item.rect.adjusted(46, 0, -24, 0), Qt::AlignVCenter | Qt::AlignLeft,
+                             painter.fontMetrics().elidedText(item.name, Qt::ElideRight, item.rect.width() - 72));
+
+            const bool favorite = m_d->favorites.contains(item.id);
+            if (favorite || highlighted) {
+                QColor ink = favorite ? pal.color(QPalette::Link) : pal.color(QPalette::WindowText);
+                ink.setAlphaF(favorite ? 0.9 : 0.45);
+                painter.setPen(QPen(ink, 1.1));
+                painter.setBrush(favorite ? ink : Qt::NoBrush);
+                painter.drawPolygon(starShape(starRect(item.rect)));
+            }
         }
     }
 
@@ -271,6 +302,13 @@ protected:
     {
         const int index = itemAt(event->pos());
         if (index >= 0 && event->button() == Qt::LeftButton) {
+            // the star makes a favorite, the rest of the row picks
+            if (starRect(m_d->items[index].rect).adjusted(-4, -6, 4, 6).contains(event->pos())) {
+                KisBlendModePicker::setFavorite(m_d->items[index].id, !m_d->favorites.contains(m_d->items[index].id));
+                m_d->favorites = KisBlendModePicker::favoriteModes();
+                if (m_d->relayout) m_d->relayout();
+                return;
+            }
             m_pick(index);
         }
     }
@@ -319,6 +357,7 @@ KisBlendModePicker::KisBlendModePicker(const QString &current, const QSet<QStrin
 {
     d->original = current;
     d->available = available;
+    d->favorites = favoriteModes();
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_DeleteOnClose);
 
@@ -433,6 +472,10 @@ KisBlendModePicker::KisBlendModePicker(const QString &current, const QSet<QStrin
             }
         } else {
             cols = essentialColumns();
+            // favorites open the first column, and come first when scrolling through modes
+            if (!d->favorites.isEmpty()) {
+                cols[0].prepend(Group{i18nc("blend mode group", "Favorites"), d->favorites});
+            }
         }
 
         int height = 0;
@@ -470,6 +513,7 @@ KisBlendModePicker::KisBlendModePicker(const QString &current, const QSet<QStrin
         adjustSize();
     };
 
+    d->relayout = relayout;
     connect(d->search, &QLineEdit::textChanged, this, relayout);
     connect(all, &QAbstractButton::clicked, this, [this, relayout]() {
         d->showAll = !d->showAll;
@@ -480,16 +524,16 @@ KisBlendModePicker::KisBlendModePicker(const QString &current, const QSet<QStrin
 
 KisBlendModePicker::~KisBlendModePicker() = default;
 
+QStringList KisBlendModePicker::favoriteModes()
+{
+    return KisConfig(true).readEntry<QStringList>(favoritesKey, QStringList());
+}
+
 QStringList KisBlendModePicker::essentialModes()
 {
-    QStringList ids;
-    Q_FOREACH (const QVector<Group> &column, essentialColumns()) {
-        Q_FOREACH (const Group &group, column) {
-            ids << group.ids;
-        }
-    }
-    // cycle in reading order of intent: darken, lighten, contrast, compare, color
-    const QStringList order = {
+    // your favorites first, then in reading order of intent: darken, lighten, contrast, compare, color
+    QStringList order = favoriteModes();
+    const QStringList essentials = {
         QStringLiteral("normal"),
         QStringLiteral("multiply"), QStringLiteral("burn"), QStringLiteral("linear_burn"), QStringLiteral("darken"), QStringLiteral("darker color"),
         QStringLiteral("screen"), QStringLiteral("linear_dodge"), QStringLiteral("dodge"), QStringLiteral("lighten"), QStringLiteral("lighter color"),
@@ -498,7 +542,18 @@ QStringList KisBlendModePicker::essentialModes()
         QStringLiteral("diff"), QStringLiteral("exclusion"), QStringLiteral("subtract"), QStringLiteral("divide"),
         QStringLiteral("hue"), QStringLiteral("saturation"), QStringLiteral("color"), QStringLiteral("luminize"),
     };
+    Q_FOREACH (const QString &id, essentials) {
+        if (!order.contains(id)) order << id;
+    }
     return order;
+}
+
+void KisBlendModePicker::setFavorite(const QString &id, bool favorite)
+{
+    QStringList favorites = favoriteModes();
+    favorites.removeAll(id);
+    if (favorite) favorites << id;
+    KisConfig(false).writeEntry(favoritesKey, favorites);
 }
 
 void KisBlendModePicker::popupBelow(QWidget *anchor)

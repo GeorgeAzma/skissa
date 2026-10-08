@@ -52,7 +52,7 @@ KisTagToolButton::KisTagToolButton(QWidget* parent)
     d->tagToolButton = new QToolButton(this);
     loadIcon();
     d->tagToolButton->setText(i18n("Tag"));
-    d->tagToolButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    d->tagToolButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
     d->tagToolButton->setToolTip(i18nc("@info:tooltip", "<qt>Show the tag box options.</qt>"));
     d->tagToolButton->setPopupMode(QToolButton::InstantPopup);
     d->tagToolButton->setEnabled(true);

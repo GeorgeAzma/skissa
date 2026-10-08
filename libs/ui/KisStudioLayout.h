@@ -82,6 +82,8 @@ private:
     void positionFlyout();
     void setPinned(QDockWidget *dock, bool pinned);
     void savePinned();
+    void arrangePinned();
+    void setPanelSide(const QString &id, bool left);
 
     void dockToggled(QDockWidget *dock, bool visible);
 
@@ -104,7 +106,6 @@ private:
     void placeFindField();
     void moveTopBarToFront();
     void syncRail();
-    void populateMoreMenu();
 
     struct Private;
     const std::unique_ptr<Private> d;

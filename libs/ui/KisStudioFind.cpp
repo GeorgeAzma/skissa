@@ -374,6 +374,8 @@ struct KisStudioFind::Private
     QPersistentModelIndex dragIndex;
     /// Set while Find picks something for the caller instead of running it
     std::function<void(const QString &key)> picker;
+    QString pickPrefix; ///< while picking, only items whose key starts with it
+    std::function<void(const QString &key)> addToTools;
     QString placeholder;
 
     QVector<Entry> entries;
@@ -484,10 +486,16 @@ void KisStudioFind::setPanelOpener(std::function<void(QDockWidget *)> opener)
     d->openPanel = std::move(opener);
 }
 
-void KisStudioFind::pick(const QString &placeholder, std::function<void(const QString &key)> picked)
+void KisStudioFind::setToolsAdder(std::function<void(const QString &key)> adder)
+{
+    d->addToTools = std::move(adder);
+}
+
+void KisStudioFind::pick(const QString &placeholder, std::function<void(const QString &key)> picked, const QString &keyPrefix)
 {
     open();
     d->picker = std::move(picked);
+    d->pickPrefix = keyPrefix;
     d->edit->setPlaceholderText(placeholder);
     updateResults();
 }
@@ -495,6 +503,7 @@ void KisStudioFind::pick(const QString &placeholder, std::function<void(const QS
 void KisStudioFind::open(const QString &text)
 {
     d->picker = nullptr;
+    d->pickPrefix.clear();
     if (d->placeholder.isNull()) {
         d->placeholder = d->edit->placeholderText();
     }
@@ -757,8 +766,12 @@ void KisStudioFind::updateResults()
         const Entry &entry = d->entries[i];
         const qreal frecency = entry.key.isEmpty() ? 0.0 : d->frecency(entry.key);
 
+        if (d->picker && !d->pickPrefix.isEmpty() && !entry.key.startsWith(d->pickPrefix)) {
+            continue;
+        }
         if (query.isEmpty() && d->picker) {
-            if ((entry.kind == Kind::Tool || entry.kind == Kind::Effect) && !entry.key.isEmpty()) {
+            const bool browsable = d->pickPrefix.isEmpty() ? (entry.kind == Kind::Tool || entry.kind == Kind::Effect) : true;
+            if (browsable && !entry.key.isEmpty()) {
                 // tools before effects, each alphabetically (the sort below is stable)
                 scored.append({i, entry.kind == Kind::Tool ? 2.0 : 1.0});
             }
@@ -807,6 +820,9 @@ void KisStudioFind::updateResults()
         Q_FOREACH (const Scored &s, scored) have.insert(s.entry);
         for (int i = 0; i < d->entries.size(); i++) {
             int score = 0;
+            if (d->picker && !d->pickPrefix.isEmpty() && !d->entries[i].key.startsWith(d->pickPrefix)) {
+                continue;
+            }
             if (!have.contains(i) && kfts::fuzzy_match(query, d->entries[i].title, score)) {
                 scored.append({i, score * 0.3 - 20 + kindBias(d->entries[i].kind)});
             }
@@ -844,6 +860,24 @@ void KisStudioFind::updateResults()
             addHeader(i18nc("@title find results", "Recent"));
             Q_FOREACH (const Scored &s, scored) {
                 addEntry(s.entry, kindTitle(d->entries[s.entry].kind));
+            }
+        }
+        // what the main menu had: the document's commands
+        QVector<int> document;
+        for (const char *name : {"file_new", "file_open", "file_save", "file_save_as", "file_export_file",
+                                 "imagesize", "canvassize", "options_configure"}) {
+            const QString key = QStringLiteral("action:") + QLatin1String(name);
+            for (int i = 0; i < d->entries.size(); i++) {
+                if (d->entries[i].key == key) {
+                    document << i;
+                    break;
+                }
+            }
+        }
+        if (!document.isEmpty()) {
+            addHeader(i18nc("@title find results", "Document"));
+            Q_FOREACH (int index, document) {
+                addEntry(index, QString());
             }
         }
         for (Kind kind : {Kind::Effect, Kind::Tool}) {
@@ -1048,6 +1082,26 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == d->list->viewport()) {
         auto *mouse = static_cast<QMouseEvent *>(event);
+        if (event->type() == QEvent::MouseButtonPress && mouse->button() == Qt::RightButton) {
+            // a result's card: its shortcut, and a place on the tools panel
+            const QModelIndex at = d->list->indexAt(mouse->pos());
+            const int index = at.data(EntryRole).isValid() ? at.data(EntryRole).toInt() : -1;
+            if (index >= 0 && index < d->entries.size() && !d->entries[index].key.isEmpty()) {
+                const Entry entry = d->entries[index];
+                auto *card = new KisStudioItemCard(d->mainWindow, entry.icon, entry.title, entry.action);
+                if (d->addToTools) {
+                    auto add = d->addToTools;
+                    card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")),
+                                      i18nc("@info:tooltip", "Put it on the tools panel"),
+                                      [add, key = entry.key]() { add(key); }});
+                }
+                QWidget *anchor = new QWidget(d->list->viewport());
+                anchor->setGeometry(d->list->visualRect(at));
+                card->popupBeside(anchor);
+                anchor->deleteLater();
+            }
+            return true;
+        }
         if (event->type() == QEvent::MouseButtonPress && mouse->button() == Qt::LeftButton) {
             d->dragStart = mouse->pos();
             d->dragIndex = d->list->indexAt(mouse->pos());

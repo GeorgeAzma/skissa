@@ -470,11 +470,6 @@ void KisStudioItemCard::keyPressEvent(QKeyEvent *event)
     finishRecording(QKeySequence(int(modifiers) | key), false);
 }
 
-bool KisStudioItemCard::eventFilter(QObject *watched, QEvent *event)
-{
-    return QFrame::eventFilter(watched, event);
-}
-
 void KisStudioItemCard::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);

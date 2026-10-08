@@ -447,7 +447,6 @@ set(kritaui_LIB_SRCS
     kis_async_action_feedback.cpp
     KisMainWindow.cpp
     KisStudioLayout.cpp
-    KisStudioBrushSlider.cpp
     KisStudioFind.cpp
     KisStudioCanvasHud.cpp
     KisStudioColorPanel.cpp

@@ -16,6 +16,11 @@
 #include <KisOptionButtonStrip.h>
 #include <KoGroupButton.h>
 #include <klocalizedstring.h>
+#include <cmath>
+#include "kis_icon_utils.h"
+#include <KoToolFactoryBase.h>
+#include <KoToolRegistry.h>
+#include <KoToolManager.h>
 
 #include "widgets/kis_selection_options.h"
 
@@ -129,6 +134,59 @@ QIcon reverseIcon(const QColor &ink)
     return icon;
 }
 
+/// The multibrush modes as pictures: symmetry, mirror, translate, snowflake, copy translate
+QIcon multihandIcon(int type, const QColor &ink)
+{
+    QIcon icon;
+    for (int size : {20, 40}) {
+        QPixmap pixmap(size, size);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const qreal s = size / 20.0;
+        QPen pen(ink, 1.4 * s);
+        pen.setCapStyle(Qt::RoundCap);
+        painter.setPen(pen);
+        const QPointF c(10 * s, 10 * s);
+        switch (type) {
+        case 0: // symmetry: spokes around a center
+            for (int i = 0; i < 6; i++) {
+                const qreal a = i * M_PI / 3;
+                painter.drawLine(c + QPointF(2.5 * s * std::cos(a), 2.5 * s * std::sin(a)), c + QPointF(7.5 * s * std::cos(a), 7.5 * s * std::sin(a)));
+            }
+            break;
+        case 1: // mirror: a stroke and its reflection
+            painter.drawLine(QPointF(10 * s, 3 * s), QPointF(10 * s, 17 * s));
+            painter.drawArc(QRectF(3 * s, 5 * s, 6 * s, 10 * s), 90 * 16, 180 * 16);
+            painter.drawArc(QRectF(11 * s, 5 * s, 6 * s, 10 * s), 270 * 16, 180 * 16);
+            break;
+        case 2: // translate: copies side by side
+            for (int i = 0; i < 3; i++) painter.drawLine(QPointF((4 + 6 * i) * s, 6 * s), QPointF((4 + 6 * i) * s, 14 * s));
+            break;
+        case 3: // snowflake: spokes with mirrored ticks
+            for (int i = 0; i < 6; i++) {
+                const qreal a = i * M_PI / 3;
+                const QPointF tip = c + QPointF(7.5 * s * std::cos(a), 7.5 * s * std::sin(a));
+                painter.drawLine(c, tip);
+                const QPointF mid = c + QPointF(5 * s * std::cos(a), 5 * s * std::sin(a));
+                painter.drawLine(mid, mid + QPointF(2 * s * std::cos(a + 0.8), 2 * s * std::sin(a + 0.8)));
+                painter.drawLine(mid, mid + QPointF(2 * s * std::cos(a - 0.8), 2 * s * std::sin(a - 0.8)));
+            }
+            break;
+        default: // copy translate: two strokes
+            painter.drawRoundedRect(QRectF(3 * s, 4 * s, 7 * s, 7 * s), 1.5 * s, 1.5 * s);
+            painter.drawRoundedRect(QRectF(10 * s, 9 * s, 7 * s, 7 * s), 1.5 * s, 1.5 * s);
+            break;
+        }
+        painter.end();
+        icon.addPixmap(pixmap);
+    }
+    return icon;
+}
+
+const QString brushToolId = QStringLiteral("KritaShape/KisToolBrush");
+const QString multiBrushToolId = QStringLiteral("KritaShape/KisToolMultiBrush");
+
 } // namespace
 
 KisStudioToolStrip::KisStudioToolStrip(QWidget *parent)
@@ -224,9 +282,33 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
     const QColor ink = palette().color(QPalette::ButtonText);
     const QColor paper = palette().color(QPalette::Window).darker(170);
 
+
+    // Brush and Multibrush are one tool: the multibrush is a toggle of the brush
+    const QString tool = KoToolManager::instance()->activeToolId();
+    if ((tool == brushToolId || tool == multiBrushToolId) && KoToolRegistry::instance()->value(multiBrushToolId)) {
+        const bool multi = tool == multiBrushToolId;
+        QToolButton *toggle = addButton(KisIconUtils::loadIcon(KoToolRegistry::instance()->value(multiBrushToolId)->iconName()),
+                                        i18nc("@info:tooltip", "Multibrush: paint with symmetry, mirrors and copies"));
+        toggle->setChecked(multi);
+        connect(toggle, &QToolButton::clicked, this, [multi]() {
+            KoToolManager::instance()->switchToolRequested(multi ? brushToolId : multiBrushToolId);
+        });
+    }
+
     Q_FOREACH (const QPointer<QWidget> &widget, widgets) {
         if (!widget) {
             continue;
+        }
+
+        // multibrush: its modes, while it is on
+        if (QComboBox *type = widget->findChild<QComboBox *>(QStringLiteral("multihandTypeCombobox"))) {
+            QVector<int> indexes;
+            QVector<QIcon> icons;
+            for (int i = 0; i < qMin(type->count(), 5); i++) {
+                indexes << i;
+                icons << multihandIcon(i, ink);
+            }
+            mirrorCombo(type, indexes, icons);
         }
 
         // transform: every mode, warp and liquify included

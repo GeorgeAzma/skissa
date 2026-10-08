@@ -35,8 +35,11 @@ public:
     KisBlendModePicker(const QString &current, const QSet<QString> &available, QWidget *parent = nullptr);
     ~KisBlendModePicker() override;
 
-    /// The modes worth having at hand, in the order the picker and cycling use
+    /// Your favorites, then the modes worth having at hand: the order scrolling uses
     static QStringList essentialModes();
+    /// The modes starred in the picker
+    static QStringList favoriteModes();
+    static void setFavorite(const QString &id, bool favorite);
 
     void popupBelow(QWidget *anchor);
 

@@ -8,6 +8,8 @@
 
 #include "KisTagFilterWidget.h"
 
+#include <kis_icon_utils.h>
+
 #include <QAction>
 #include <QGridLayout>
 #include <QLineEdit>
@@ -49,7 +51,8 @@ KisTagFilterWidget::KisTagFilterWidget(KisTagModel* model, QWidget* parent)
 
     d->tagSearchLineEdit = new QLineEdit(this);
     d->tagSearchLineEdit->setClearButtonEnabled(true);
-    d->tagSearchLineEdit->setPlaceholderText(i18n("Search"));
+    // a magnifier says "search" without the word
+    d->tagSearchLineEdit->addAction(KisIconUtils::loadIcon(QStringLiteral("edit-find")), QLineEdit::LeadingPosition);
     d->tagSearchLineEdit->setToolTip(searchTooltipMaintext);
     d->tagSearchLineEdit->setEnabled(true);
 
@@ -72,6 +75,8 @@ KisTagFilterWidget::KisTagFilterWidget(KisTagModel* model, QWidget* parent)
 
 
     filterBarLayout->addWidget(d->filterByTagCheckbox, 0, 1);
+    // searching stays within the chosen tag; "All" searches everything
+    d->filterByTagCheckbox->hide();
     connect(d->tagSearchLineEdit, SIGNAL(textChanged(QString)),
             this, SLOT(onTextChanged(QString)));
     connect(d->filterByTagCheckbox, SIGNAL(stateChanged(int)), this, SLOT(slotFilterByTagChanged(int)));

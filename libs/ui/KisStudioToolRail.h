@@ -40,6 +40,9 @@ public:
     /// Widgets below the tools, e.g. the color chip
     void addBottomWidget(QWidget *widget);
 
+    /// Puts an item (a Find key) at the end, if it isn't there yet
+    void addItem(const QString &key);
+
     /// "Rectangular Selection Tool" -> "Rectangular Selection"
     static QString toolName(KoToolFactoryBase *factory);
 
@@ -55,10 +58,15 @@ protected:
     void enterEvent(QEvent *event) override;
 #endif
     void leaveEvent(QEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
 
 private:
     void rebuild();
     void updatePlus();
+    int gapAt(int y) const;
+    void showIndicator(int itemIndex, int thickness);
+    void startDrag(int index, QWidget *source, const QPixmap &pixmap);
     void setItems(const QStringList &items);
     int dropIndex(int y) const;
     void showCard(int index);

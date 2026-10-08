@@ -48,10 +48,10 @@
 #include "KisMainWindow.h"
 #include "KisView.h"
 #include "KisResourceServerProvider.h"
-#include "KisStudioBrushSlider.h"
 #include "KisStudioCanvasHud.h"
 #include "KisStudioColorPanel.h"
 #include "KisStudioEffectOverlay.h"
+#include "KisStudioFind.h"
 #include "kis_filter_manager.h"
 #include <filter/kis_filter.h>
 #include <filter/kis_filter_configuration.h>
@@ -77,6 +77,10 @@ const QString toolBoxId = QStringLiteral("ToolBox");
 const QString activeKey = QStringLiteral("StudioLayoutActive");
 const QString panelsKey = QStringLiteral("StudioLayoutPanels");
 const QString pinnedKey = QStringLiteral("StudioLayoutPinnedPanels");
+/// Pinned panels on the left of the canvas instead of the right
+const QString leftKey = QStringLiteral("StudioLayoutLeftPanels");
+/// How close to the left window edge a dropped panel button pins its panel there
+const int leftDropZone = 140;
 const QString classicStateKey = QStringLiteral("StudioLayoutClassicState");
 const QString colorMigratedKey = QStringLiteral("StudioLayoutColorPanelMigrated");
 
@@ -419,19 +423,19 @@ struct KisStudioLayout::Private
     QPointer<QWidget> brushRail;
     /// Replaces the menu bar with a single menu button while a document is open
     QPointer<QToolBar> topBar;
-    QPointer<QToolBar> findBar;
     QPointer<QWidget> findField;
     QPointer<QAction> findFieldAction;
     /// The toolbar the find field and document button were put on
     QPointer<QToolBar> placedOnBar;
-    QMenu *mainMenu {nullptr};
     /// Toolbar entries that duplicate the brush rail, hidden while active
     QList<QPointer<QAction>> hiddenToolbarActions;
     /// Toolbar entries shown only for the tools they matter to
     QList<QPointer<QAction>> contextActions;
     /// Toolbars that only duplicate the main menu or shortcuts, hidden while active
     QList<QPointer<QToolBar>> hiddenToolBars;
-    QMenu *allPanelsMenu {nullptr};
+    QSet<QString> leftPanels;
+    /// The order and sides the pinned panels were last arranged in, so that it is only redone when it changed
+    QString arrangement;
     /// The panels on the rail, in order
     QStringList railPanels;
     QHash<QString, QAction *> railActions;
@@ -464,8 +468,6 @@ struct KisStudioLayout::Private
     KisStudioWindowFrame *frame {nullptr};
     QPointer<QAction> windowButtonsAction;
     QPointer<QWidget> colorChip;
-    /// How documents were shown before: tabs or windows
-    int classicViewMode {-1};
     QSet<QString> pinned;
 
     /// What a docker looked like before entering the studio layout
@@ -542,6 +544,9 @@ void KisStudioLayout::enter()
     migrateColorPanel();
     const QStringList pinned = KisConfig(true).readEntry<QStringList>(pinnedKey);
     d->pinned = QSet<QString>(pinned.begin(), pinned.end());
+    const QStringList left = KisConfig(true).readEntry<QStringList>(leftKey);
+    d->leftPanels = QSet<QString>(left.begin(), left.end());
+    d->arrangement.clear();
 
     Q_FOREACH (QDockWidget *dock, mainWindow->dockWidgets()) {
         QWidget *titleBar = dock->titleBarWidget();
@@ -733,9 +738,6 @@ void KisStudioLayout::adoptDocuments()
      * view mode with frameless maximized windows does that, where tabbed
      * mode would keep a row of tabs for a single name.
      */
-    if (d->classicViewMode < 0) {
-        d->classicViewMode = area->viewMode();
-    }
     if (area->viewMode() != QMdiArea::SubWindowView) {
         area->setViewMode(QMdiArea::SubWindowView);
     }
@@ -763,7 +765,6 @@ void KisStudioLayout::releaseDocuments()
     }
     // what Preferences say now, which may have changed while in the studio layout
     area->setViewMode(QMdiArea::ViewMode(KisConfig(true).readEntry<int>("mdi_viewmode", int(QMdiArea::TabbedView))));
-    d->classicViewMode = -1;
 }
 
 void KisStudioLayout::updateDocumentButton()
@@ -879,9 +880,6 @@ void KisStudioLayout::leave()
     if (d->topBar) {
         d->topBar->hide();
     }
-    if (d->findBar) {
-        d->findBar->hide();
-    }
     if (d->findFieldAction) {
         d->findFieldAction->setVisible(false);
     }
@@ -957,9 +955,6 @@ void KisStudioLayout::normalize()
         const bool isPinned = d->pinned.contains(dock->objectName());
         it.value()->setPinned(isPinned);
         if (isPinned) {
-            if (mainWindow->dockWidgetArea(dock) != Qt::RightDockWidgetArea) {
-                mainWindow->addDockWidget(Qt::RightDockWidgetArea, dock);
-            }
             if (!panelsHidden) {
                 dock->show();
             }
@@ -967,6 +962,7 @@ void KisStudioLayout::normalize()
             dock->hide();
         }
     }
+    arrangePinned();
 
     // the tool rail replaces the toolbox
     if (QDockWidget *toolBox = mainWindow->dockWidget(toolBoxId)) {
@@ -989,9 +985,6 @@ void KisStudioLayout::normalize()
     }
     if (d->windowButtonsAction) {
         d->windowButtonsAction->setVisible(d->frame && d->frame->isEnabled() && !isRailHidden());
-    }
-    if (d->findBar) {
-        d->findBar->setVisible(!isRailHidden() && !d->findFieldAction);
     }
 
     // restored window states bring these back
@@ -1177,7 +1170,8 @@ void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
             d->flyout = nullptr;
         }
         dock->setFloating(false);
-        d->mainWindow->addDockWidget(Qt::RightDockWidgetArea, dock);
+        d->arrangement.clear();
+        arrangePinned();
         dock->show();
     } else {
         d->pinned.remove(id);
@@ -1193,6 +1187,53 @@ void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
     }
     savePinned();
     syncRail();
+}
+
+void KisStudioLayout::arrangePinned()
+{
+    /**
+     * Pinned panels stack in the order of their rail buttons, on their side
+     * of the canvas: reordering the rail reorders them. Only redone when the
+     * order or a side changed, since it resets the panels' heights.
+     */
+    QStringList order;
+    Q_FOREACH (const QString &id, d->railPanels) {
+        if (d->pinned.contains(id)) order << id;
+    }
+    // pinned panels that are not on the rail keep their place after the others
+    Q_FOREACH (const QString &id, d->pinned) {
+        if (!order.contains(id)) order << id;
+    }
+    QString arrangement;
+    Q_FOREACH (const QString &id, order) {
+        arrangement += (d->leftPanels.contains(id) ? QStringLiteral("L:") : QStringLiteral("R:")) + id + QLatin1Char(',');
+    }
+    if (arrangement == d->arrangement) {
+        return;
+    }
+    d->arrangement = arrangement;
+
+    QDockWidget *previous[2] = {nullptr, nullptr};
+    Q_FOREACH (const QString &id, order) {
+        QDockWidget *dock = d->mainWindow->dockWidget(id);
+        if (!dock || dock == d->flyout) continue;
+        const bool left = d->leftPanels.contains(id);
+        QDockWidget *&above = previous[left ? 0 : 1];
+        if (above) {
+            d->mainWindow->splitDockWidget(above, dock, Qt::Vertical);
+        } else {
+            d->mainWindow->addDockWidget(left ? Qt::LeftDockWidgetArea : Qt::RightDockWidgetArea, dock);
+        }
+        above = dock;
+    }
+}
+
+void KisStudioLayout::setPanelSide(const QString &id, bool left)
+{
+    if (left) d->leftPanels.insert(id);
+    else d->leftPanels.remove(id);
+    KisConfig(false).writeEntry(leftKey, QStringList(d->leftPanels.values()));
+    arrangePinned();
 }
 
 void KisStudioLayout::savePinned()
@@ -1226,18 +1267,24 @@ void KisStudioLayout::createRail()
     spacer->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     d->railSpacer = rail->addWidget(spacer);
 
-    auto *allPanels = new QToolButton(rail);
-    allPanels->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_more")));
-    allPanels->setToolTip(i18nc("@info:tooltip", "All panels"));
-    allPanels->setAccessibleName(allPanels->toolTip());
-    d->allPanelsMenu = new QMenu(allPanels);
-    connect(allPanels, &QToolButton::clicked, this, [this, allPanels]() {
-        populateMoreMenu();
-        // open to the left of the rail
-        const QSize size = d->allPanelsMenu->sizeHint();
-        d->allPanelsMenu->popup(allPanels->mapToGlobal(QPoint(-size.width(), allPanels->height() - size.height())));
+    auto *addPanel = new QToolButton(rail);
+    addPanel->setIcon(KisIconUtils::loadIcon(QStringLiteral("list-add")));
+    addPanel->setToolTip(i18nc("@info:tooltip", "Add a panel"));
+    addPanel->setAccessibleName(addPanel->toolTip());
+    connect(addPanel, &QToolButton::clicked, this, [this]() {
+        KisStudioFind *find = d->mainWindow->studioFind();
+        if (!find) return;
+        find->pick(i18nc("@info:placeholder", "Add a panel"), [this](const QString &key) {
+            const QString id = key.mid(QStringLiteral("panel:").size());
+            QDockWidget *dock = d->mainWindow->dockWidget(id);
+            if (!dock) return;
+            if (!d->railPanels.contains(id)) {
+                setRailPanels(d->railPanels + QStringList{id});
+            }
+            showPanel(dock);
+        }, QStringLiteral("panel:"));
     });
-    rail->addWidget(allPanels);
+    rail->addWidget(addPanel);
 
     // shows where a dragged rail button will go
     auto *indicator = new QFrame(rail);
@@ -1292,6 +1339,7 @@ void KisStudioLayout::setRailPanels(const QStringList &panels)
     d->railPanels = panels;
     KisConfig(false).writeEntry(panelsKey, panels);
     rebuildRailButtons();
+    arrangePinned();
 }
 
 QIcon KisStudioLayout::railIcon(QDockWidget *dock) const
@@ -1336,7 +1384,14 @@ void KisStudioLayout::showRailContextMenu(const QPoint &pos)
                               if (dock) setPinned(dock, !pinned);
                           },
                           true, pinned});
-        card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")), i18nc("@info:tooltip", "Take off the rail"),
+        if (pinned) {
+            const bool left = d->leftPanels.contains(clickedId);
+            card->addCommand({KisIconUtils::loadIcon(left ? QStringLiteral("arrow-right") : QStringLiteral("arrow-left")),
+                              left ? i18nc("@info:tooltip", "Move to the right of the canvas")
+                                   : i18nc("@info:tooltip", "Move to the left of the canvas (or drag its button to the left edge)"),
+                              [this, clickedId, left]() { setPanelSide(clickedId, !left); }});
+        }
+        card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")), i18nc("@info:tooltip", "Take off the rail (or drag it onto the canvas)"),
                           [this, clickedId]() {
                               QStringList panels = d->railPanels;
                               panels.removeAll(clickedId);
@@ -1452,6 +1507,30 @@ bool KisStudioLayout::handleRailDrag(QObject *watched, QEvent *event)
             return false; // a plain click
         }
 
+        const QPoint release = globalMousePos(static_cast<QMouseEvent *>(event));
+        if (!QRect(d->rail->mapToGlobal(QPoint(0, 0)), d->rail->size()).adjusted(-12, 0, 12, 0).contains(release)) {
+            QDockWidget *dock = d->mainWindow->dockWidget(id);
+            const bool onLeftEdge = d->mainWindow->mapFromGlobal(release).x() < leftDropZone;
+            QTimer::singleShot(0, this, [this, id, dock, onLeftEdge]() {
+                if (onLeftEdge && dock) {
+                    // moved: pinned beside the canvas, on the left
+                    setPanelSide(id, true);
+                    setPinned(dock, true);
+                } else {
+                    // dropped on the canvas: off the rail, and closed
+                    if (dock) {
+                        if (d->pinned.contains(id)) setPinned(dock, false);
+                        if (dock == d->flyout) closeFlyout();
+                        dock->hide();
+                    }
+                    QStringList panels = d->railPanels;
+                    panels.removeAll(id);
+                    setRailPanels(panels);
+                }
+            });
+            return true;
+        }
+
         QStringList panels = d->railPanels;
         const int from = panels.indexOf(id);
         if (from >= 0 && target >= 0) {
@@ -1485,6 +1564,12 @@ void KisStudioLayout::createBrushRail()
 
     auto *rail = new RailOverlay(mainWindow->centralWidget());
     auto *toolRail = new KisStudioToolRail(mainWindow, rail);
+    if (KisStudioFind *find = mainWindow->studioFind()) {
+        QPointer<KisStudioToolRail> target = toolRail;
+        find->setToolsAdder([target](const QString &key) {
+            if (target) target->addItem(key);
+        });
+    }
 
     auto *contents = new QWidget(rail);
     auto *layout = new QVBoxLayout(contents);
@@ -1530,77 +1615,11 @@ void KisStudioLayout::createTopBar()
 
     KisMainWindow *mainWindow = d->mainWindow;
 
-    QToolBar *bar = new QToolBar(i18nc("@title:window", "Main Menu"), mainWindow);
+    QToolBar *bar = new QToolBar(i18nc("@title:window", "Tool"), mainWindow);
     bar->setObjectName(QStringLiteral("studioTopBar"));
     bar->setMovable(false);
     bar->setFloatable(false);
     bar->setContextMenuPolicy(Qt::PreventContextMenu);
-
-    auto *menuButton = new QToolButton(bar);
-    menuButton->setIcon(KisIconUtils::loadIcon(QStringLiteral("hamburger_menu")));
-    menuButton->setToolTip(i18nc("@info:tooltip", "Main menu"));
-    menuButton->setAccessibleName(menuButton->toolTip());
-    menuButton->setAutoRaise(true);
-
-    /**
-     * Only what is about the document and the application lives here. Everything
-     * else is where it is used (layers in the layers panel, effects in Effects,
-     * tools on the rail) or one search away; the complete classic menus stay
-     * reachable under "All Menus", built on every show since plugins and
-     * xmlgui change them.
-     */
-    d->mainMenu = new QMenu(menuButton);
-    connect(d->mainMenu, &QMenu::aboutToShow, this, [this]() {
-        QMenu *menu = d->mainMenu;
-        menu->clear();
-        KisKActionCollection *actions = d->mainWindow->actionCollection();
-        auto add = [actions](QMenu *target, const char *name) {
-            if (QAction *action = actions->action(QLatin1String(name))) {
-                target->addAction(action);
-            }
-        };
-
-        add(menu, "file_new");
-        add(menu, "file_open");
-        add(menu, "file_open_recent");
-        menu->addSeparator();
-        add(menu, "file_save");
-        add(menu, "file_save_as");
-        add(menu, "file_export_file");
-        menu->addSeparator();
-
-        QMenu *image = menu->addMenu(i18nc("@title:menu", "Image"));
-        add(image, "imagesize");
-        add(image, "canvassize");
-        add(image, "resizeimagetoselection");
-        add(image, "trim_to_image");
-        image->addSeparator();
-        add(image, "rotateImageCW90");
-        add(image, "rotateImageCCW90");
-        add(image, "mirrorImageHorizontal");
-        add(image, "mirrorImageVertical");
-        image->addSeparator();
-        add(image, "imagecolorspaceconversion");
-        add(image, "image_color");
-        add(image, "image_properties");
-
-        menu->addSeparator();
-        add(menu, "find_anything");
-        QMenu *all = menu->addMenu(i18nc("@title:menu", "All Menus"));
-        // QMenu skips the hidden ones itself
-        all->addActions(d->mainWindow->menuBar()->actions());
-        menu->addSeparator();
-        add(menu, "options_configure");
-        add(menu, "help_contents");
-        menu->addSeparator();
-        add(menu, "file_close");
-        add(menu, "file_quit");
-    });
-    // not setMenu(), it would draw a drop-down arrow next to the icon
-    connect(menuButton, &QToolButton::clicked, this, [this, menuButton]() {
-        d->mainMenu->popup(menuButton->mapToGlobal(QPoint(0, menuButton->height())));
-    });
-    bar->addWidget(menuButton);
 
     auto *toolChip = new ToolChip(bar);
     toolChip->setIconSize(bar->iconSize());
@@ -1828,25 +1847,6 @@ void KisStudioLayout::syncRail()
         QDockWidget *dock = d->mainWindow->dockWidget(it.key());
         QSignalBlocker blocker(it.value());
         it.value()->setChecked(dock && !dock->isHidden());
-    }
-}
-
-void KisStudioLayout::populateMoreMenu()
-{
-    d->allPanelsMenu->clear();
-
-    QList<QDockWidget *> docks = d->headers.keys();
-    std::sort(docks.begin(), docks.end(), [](QDockWidget *a, QDockWidget *b) {
-        return QString::localeAwareCompare(a->windowTitle(), b->windowTitle()) < 0;
-    });
-
-    Q_FOREACH (QDockWidget *dock, docks) {
-        QAction *action = d->allPanelsMenu->addAction(dock->windowTitle());
-        action->setCheckable(true);
-        action->setChecked(!dock->isHidden());
-        connect(action, &QAction::triggered, this, [this, dock](bool checked) {
-            togglePanel(dock, checked);
-        });
     }
 }
 

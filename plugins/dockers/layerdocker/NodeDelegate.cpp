@@ -20,6 +20,7 @@
 #include <QModelIndex>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPointer>
 #include <QStyle>
 #include <QStyleOptionViewItem>
@@ -117,7 +118,24 @@ void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &o, const QMode
     {
         QStyleOptionViewItem option = getOptions(o, index);
         QStyle *style = option.widget ? option.widget->style() : QApplication::style();
-        style->drawPrimitive(QStyle::PE_PanelItemViewItem, &option, p, option.widget);
+        // the selection is the weight, not the font
+        option.font.setBold(false);
+
+        // a rounded highlight behind the row, none behind the eye
+        if (index.column() != NodeView::VISIBILITY_COL && (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))) {
+            const QColor base = option.palette.color(QPalette::Base);
+            const QColor tint = (option.state & QStyle::State_Selected) ? option.palette.color(QPalette::Highlight)
+                                                                          : option.palette.color(QPalette::Text);
+            const qreal t = (option.state & QStyle::State_Selected) ? 0.45 : 0.07;
+            p->save();
+            p->setRenderHint(QPainter::Antialiasing, true);
+            p->setPen(Qt::NoPen);
+            p->setBrush(QColor::fromRgbF(base.redF() + (tint.redF() - base.redF()) * t,
+                                         base.greenF() + (tint.greenF() - base.greenF()) * t,
+                                         base.blueF() + (tint.blueF() - base.blueF()) * t));
+            p->drawRoundedRect(QRectF(option.rect).adjusted(1, 1, -2, -1), 6, 6);
+            p->restore();
+        }
 
         bool shouldGrayOut = index.data(KisNodeModel::ShouldGrayOutRole).toBool();
         if (shouldGrayOut) {
@@ -244,9 +262,7 @@ void NodeDelegate::drawFrame(QPainter *p, const QStyleOptionViewItem &option, co
         bottomRightPoint = iconsRectR.bottomRight();
     }
 
-    // bottom running horizontal line
-    p->drawLine(bottomLeftPoint.x(), bottomY,
-                bottomRightPoint.x(), bottomY);
+    Q_UNUSED(bottomY);
 
     // icons' lines are drawn by drawIcons
 
@@ -304,13 +320,23 @@ void NodeDelegate::drawThumbnail(QPainter *p, const QStyleOptionViewItem &option
     QBrush brush(d->checkers);
     p->setBrushOrigin(offset);
     QRect imageRectLowRes = QRect(img.rect().topLeft(), img.rect().size()/devicePixelRatio);
+
+    // a rounded tile, like a picture on a phone, with a hairline around it
+    p->save();
+    p->setRenderHint(QPainter::Antialiasing, true);
+    QPainterPath tile;
+    tile.addRoundedRect(QRectF(imageRectLowRes.translated(offset)), 3, 3);
+    p->setClipPath(tile);
     p->fillRect(imageRectLowRes.translated(offset), brush);
-
     p->drawImage(offset, img);
+    p->setClipping(false);
     p->setOpacity(oldOpacity); // restore old opacity
-
-    QRect borderRect = kisGrowRect(imageRectLowRes, 1).translated(offset);
-    KritaUtils::renderExactRect(p, borderRect, scm.gridColor(option, d->view));
+    QColor border = option.palette.color(QPalette::Text);
+    border.setAlphaF(0.18);
+    p->setPen(QPen(border, 1));
+    p->setBrush(Qt::NoBrush);
+    p->drawPath(tile);
+    p->restore();
 }
 
 QRect NodeDelegate::iconsRect(const QStyleOptionViewItem &option, const QModelIndex &index) const

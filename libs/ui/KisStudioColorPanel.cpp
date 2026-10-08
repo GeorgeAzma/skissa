@@ -12,6 +12,7 @@
 #include <QPainterPath>
 #include <QPointer>
 #include <QRegularExpression>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <KoCanvasBase.h>
@@ -27,6 +28,7 @@
 #include "KisViewManager.h"
 #include "canvas/kis_canvas2.h"
 #include "kis_favorite_resource_manager.h"
+#include "kis_config.h"
 #include "kis_paintop_box.h"
 
 namespace {
@@ -117,52 +119,55 @@ void drawMarker(QPainter &painter, const QPointF &center, qreal radius)
     painter.drawEllipse(center, radius, radius);
 }
 
-/// Lightness down, chroma across, at one hue
+/**
+ * A square of colors: \p colorAt(x, y) for x and y in 0..1, invalid where
+ * there is no such color (outside sRGB). The image is kept until the key
+ * (mode and hue) changes.
+ */
 class Plane : public QWidget
 {
 public:
-    std::function<void(qreal l, qreal c)> picked;
+    std::function<QColor(qreal x, qreal y)> colorAt;
+    std::function<void(qreal x, qreal y)> picked;
     std::function<void()> started;
 
     explicit Plane(QWidget *parent) : QWidget(parent)
     {
-        setMinimumSize(160, 120);
+        setMinimumSize(140, 84);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         setCursor(Qt::CrossCursor);
     }
 
-    void setColor(const Oklch &color)
+    void setContents(const QString &key, const QPointF &marker)
     {
-        if (!qFuzzyCompare(color.h + 1.0, m_color.h + 1.0)) {
+        if (key != m_key) {
+            m_key = key;
             m_image = QImage();
         }
-        m_color = color;
+        m_marker = marker;
         update();
     }
 
-    QSize sizeHint() const override { return QSize(240, 170); }
+    QSize sizeHint() const override { return QSize(240, 116); }
 
 protected:
     void paintEvent(QPaintEvent *) override
     {
         const qreal dpr = devicePixelRatioF();
         const QSize pixels = size() * dpr;
-        if (m_image.size() != pixels) {
+        if (m_image.size() != pixels && colorAt) {
             m_image = QImage(pixels, QImage::Format_ARGB32_Premultiplied);
             m_image.fill(Qt::transparent);
             for (int y = 0; y < pixels.height(); y++) {
-                const qreal l = 1.0 - qreal(y) / qMax(1, pixels.height() - 1);
                 QRgb *line = reinterpret_cast<QRgb *>(m_image.scanLine(y));
+                const qreal fy = qreal(y) / qMax(1, pixels.height() - 1);
                 for (int x = 0; x < pixels.width(); x++) {
-                    const Oklch c{l, maxPlaneChroma * x / qMax(1, pixels.width() - 1), m_color.h};
-                    if (inGamut(c)) {
-                        line[x] = rgbFromOklch(c).rgba();
-                    }
+                    const QColor color = colorAt(qreal(x) / qMax(1, pixels.width() - 1), fy);
+                    if (color.isValid()) line[x] = color.rgba();
                 }
             }
             m_image.setDevicePixelRatio(dpr);
         }
-
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         QPainterPath clip;
@@ -170,9 +175,7 @@ protected:
         painter.setClipPath(clip);
         painter.drawImage(0, 0, m_image);
         painter.setClipping(false);
-
-        const QPointF marker(m_color.c / maxPlaneChroma * (width() - 1), (1.0 - m_color.l) * (height() - 1));
-        drawMarker(painter, marker, 6);
+        drawMarker(painter, QPointF(m_marker.x() * (width() - 1), m_marker.y() * (height() - 1)), 6);
     }
 
     void mousePressEvent(QMouseEvent *event) override
@@ -180,6 +183,7 @@ protected:
         if (started) started();
         pick(event->pos());
     }
+
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if (event->buttons() & Qt::LeftButton) pick(event->pos());
@@ -188,45 +192,48 @@ protected:
 private:
     void pick(const QPoint &pos)
     {
-        const qreal l = qBound(0.0, 1.0 - qreal(pos.y()) / qMax(1, height() - 1), 1.0);
-        // past the edge of the gamut means "as saturated as it gets here"
-        const qreal c = qMin(qBound(0.0, maxPlaneChroma * pos.x() / qMax(1, width() - 1), maxPlaneChroma), maxChroma(l, m_color.h));
-        if (picked) picked(l, c);
+        if (picked) {
+            picked(qBound(0.0, qreal(pos.x()) / qMax(1, width() - 1), 1.0), qBound(0.0, qreal(pos.y()) / qMax(1, height() - 1), 1.0));
+        }
     }
 
-    Oklch m_color;
+    QString m_key;
+    QPointF m_marker;
     QImage m_image;
 };
 
-/// Hues at even perceived steps, all at one lightness and chroma
+/// A strip of hues: \p colorAt(t) for t in 0..1
 class HueStrip : public QWidget
 {
 public:
-    std::function<void(qreal h)> picked;
+    std::function<QColor(qreal t)> colorAt;
+    std::function<void(qreal t)> picked;
     std::function<void()> started;
 
     explicit HueStrip(QWidget *parent) : QWidget(parent)
     {
-        setFixedHeight(18);
+        setFixedHeight(16);
         setCursor(Qt::PointingHandCursor);
     }
 
-    void setHue(qreal hue)
+    void setContents(const QString &key, qreal marker)
     {
-        m_hue = hue;
+        if (key != m_key) {
+            m_key = key;
+            m_image = QImage();
+        }
+        m_marker = marker;
         update();
     }
 
 protected:
     void paintEvent(QPaintEvent *) override
     {
-        const qreal dpr = devicePixelRatioF();
-        const int pixels = qRound(width() * dpr);
-        if (m_image.width() != pixels) {
+        const int pixels = qRound(width() * devicePixelRatioF());
+        if (m_image.width() != pixels && colorAt) {
             m_image = QImage(pixels, 1, QImage::Format_ARGB32);
             for (int x = 0; x < pixels; x++) {
-                const qreal h = 360.0 * x / qMax(1, pixels - 1);
-                m_image.setPixel(x, 0, rgbFromOklch({0.72, qMin(0.14, maxChroma(0.72, h)), h}).rgba());
+                m_image.setPixel(x, 0, colorAt(qreal(x) / qMax(1, pixels - 1)).rgba());
             }
         }
         QPainter painter(this);
@@ -237,7 +244,7 @@ protected:
         painter.setClipPath(clip);
         painter.drawImage(strip, m_image);
         painter.setClipping(false);
-        drawMarker(painter, QPointF(m_hue / 360.0 * (width() - 1), height() / 2.0), 6);
+        drawMarker(painter, QPointF(m_marker * (width() - 1), height() / 2.0), 6);
     }
 
     void mousePressEvent(QMouseEvent *event) override
@@ -245,6 +252,7 @@ protected:
         if (started) started();
         pick(event->pos().x());
     }
+
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if (event->buttons() & Qt::LeftButton) pick(event->pos().x());
@@ -253,10 +261,11 @@ protected:
 private:
     void pick(int x)
     {
-        if (picked) picked(qBound(0.0, 360.0 * x / qMax(1, width() - 1), 360.0));
+        if (picked) picked(qBound(0.0, qreal(x) / qMax(1, width() - 1), 1.0));
     }
 
-    qreal m_hue {0.0};
+    QString m_key;
+    qreal m_marker {0.0};
     QImage m_image;
 };
 
@@ -323,8 +332,12 @@ struct KisStudioColorPanel::Private
     Swatches *currentRow {nullptr};
     Swatches *recentRow {nullptr};
     QLineEdit *hex {nullptr};
+    QToolButton *mode {nullptr};
 
-    Oklch color;
+    /// OKLCH: even perceived steps; HSV: the familiar square, for those used to it
+    bool hsv {false};
+    Oklch color;                    ///< OKLCH coordinates
+    qreal hsvHue {0.0}, hsvS {0.0}, hsvV {0.0}; ///< HSV coordinates, 0..1
     QColor current;
     QColor previous;
 
@@ -339,6 +352,35 @@ struct KisStudioColorPanel::Private
         applying = false;
     }
 
+    /// Takes the coordinates of both models from a color that came from elsewhere
+    void readCoordinates(const QColor &rgb)
+    {
+        const Oklch picked = oklchFromRgb(rgb);
+        color.l = picked.l;
+        color.c = picked.c;
+        // grays have no hue, keep the one in use
+        if (picked.c > 0.012) color.h = picked.h;
+        qreal h, s, v;
+        rgb.getHsvF(&h, &s, &v);
+        if (h >= 0.0 && s > 0.01) hsvHue = h;
+        hsvS = s;
+        hsvV = v;
+    }
+
+    void refresh()
+    {
+        if (hsv) {
+            plane->setContents(QStringLiteral("hsv %1").arg(hsvHue), QPointF(hsvS, 1.0 - hsvV));
+            hueStrip->setContents(QStringLiteral("hsv"), hsvHue);
+        } else {
+            plane->setContents(QStringLiteral("oklch %1").arg(color.h), QPointF(color.c / maxPlaneChroma, 1.0 - color.l));
+            hueStrip->setContents(QStringLiteral("oklch"), color.h / 360.0);
+        }
+        mode->setText(hsv ? QStringLiteral("HSV") : QStringLiteral("OKLCH"));
+        currentRow->setColors({current, previous.isValid() ? previous : current});
+        hex->setText(current.name().mid(1).toUpper());
+    }
+
     void showColor(const QColor &rgb, bool fromOutside)
     {
         if (rgb == current) return;
@@ -346,16 +388,16 @@ struct KisStudioColorPanel::Private
         if (fromOutside && current.isValid()) previous = current;
         current = rgb;
         if (fromOutside) {
-            const Oklch picked = oklchFromRgb(rgb);
-            color.l = picked.l;
-            color.c = picked.c;
-            // grays have no hue, keep the one in use
-            if (picked.c > 0.012) color.h = picked.h;
+            readCoordinates(rgb);
         }
-        plane->setColor(color);
-        hueStrip->setHue(color.h);
-        currentRow->setColors({current, previous.isValid() ? previous : current});
-        hex->setText(current.name().mid(1).toUpper());
+        refresh();
+    }
+
+    /// A change made in the panel: shown, and sent to the canvas
+    void pickColor(const QColor &rgb)
+    {
+        showColor(rgb, false);
+        applyColor(rgb);
     }
 
     void updateRecent()
@@ -374,61 +416,90 @@ KisStudioColorPanel::KisStudioColorPanel()
     : d(new Private)
 {
     setWindowTitle(i18nc("@title:window", "Color"));
+    d->hsv = KisConfig(true).readEntry<bool>("StudioColorHsv", false);
 
     auto *contents = new QWidget(this);
     auto *layout = new QVBoxLayout(contents);
-    layout->setContentsMargins(8, 6, 8, 8);
-    layout->setSpacing(8);
+    layout->setContentsMargins(8, 6, 8, 6);
+    layout->setSpacing(6);
 
     d->plane = new Plane(contents);
-    d->plane->setToolTip(i18nc("@info:tooltip", "Lightness (up) and saturation (right), in even perceived steps"));
     layout->addWidget(d->plane, 1);
-
     d->hueStrip = new HueStrip(contents);
     d->hueStrip->setToolTip(i18nc("@info:tooltip", "Hue"));
     layout->addWidget(d->hueStrip);
 
     auto *row = new QHBoxLayout();
-    row->setSpacing(8);
-    d->currentRow = new Swatches(28, contents);
-    d->currentRow->setFixedWidth(28 * 2 + 4);
-    d->currentRow->setToolTip(i18nc("@info:tooltip", "Current color, and the one before it"));
+    row->setSpacing(6);
+    d->currentRow = new Swatches(22, contents);
+    d->currentRow->setFixedWidth(22 * 2 + 4);
+    d->currentRow->setToolTip(i18nc("@info:tooltip", "Current color, and the one before it (click to go back)"));
     row->addWidget(d->currentRow);
-    row->addStretch(1);
+    d->recentRow = new Swatches(16, contents);
+    d->recentRow->setToolTip(i18nc("@info:tooltip", "Painted with recently"));
+    row->addWidget(d->recentRow, 1, Qt::AlignVCenter);
+    d->mode = new QToolButton(contents);
+    d->mode->setAutoRaise(true);
+    d->mode->setFocusPolicy(Qt::NoFocus);
+    d->mode->setToolTip(i18nc("@info:tooltip", "OKLCH: even perceived steps. HSV: the classic square. Click to switch."));
+    row->addWidget(d->mode);
     d->hex = new QLineEdit(contents);
     d->hex->setFrame(false);
-    d->hex->setMaximumWidth(84);
+    d->hex->setFixedWidth(64);
     d->hex->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     d->hex->setToolTip(i18nc("@info:tooltip", "Hex code"));
     row->addWidget(d->hex);
     layout->addLayout(row);
 
-    d->recentRow = new Swatches(18, contents);
-    d->recentRow->setToolTip(i18nc("@info:tooltip", "Painted with recently"));
-    layout->addWidget(d->recentRow);
-
     setWidget(contents);
+
+    // what the plane and the strip show, in either model
+    d->plane->colorAt = [this](qreal x, qreal y) {
+        if (d->hsv) return QColor::fromHsvF(d->hsvHue, x, 1.0 - y);
+        const Oklch c{1.0 - y, maxPlaneChroma * x, d->color.h};
+        return inGamut(c) ? rgbFromOklch(c) : QColor();
+    };
+    d->hueStrip->colorAt = [this](qreal t) {
+        if (d->hsv) return QColor::fromHsvF(qMin(t, 0.9999), 1.0, 1.0);
+        const qreal h = 360.0 * t;
+        return rgbFromOklch({0.72, qMin(0.14, maxChroma(0.72, h)), h});
+    };
 
     auto remember = [this]() {
         if (d->current.isValid()) d->previous = d->current;
     };
     d->plane->started = remember;
     d->hueStrip->started = remember;
-    d->plane->picked = [this](qreal l, qreal c) {
-        d->color.l = l;
-        d->color.c = c;
-        const QColor rgb = rgbFromOklch(d->color);
-        d->showColor(rgb, false);
-        d->applyColor(rgb);
+    d->plane->picked = [this](qreal x, qreal y) {
+        if (d->hsv) {
+            d->hsvS = x;
+            d->hsvV = 1.0 - y;
+            d->pickColor(QColor::fromHsvF(d->hsvHue, d->hsvS, d->hsvV));
+            return;
+        }
+        d->color.l = 1.0 - y;
+        // past the edge of the gamut means "as saturated as it gets here"
+        d->color.c = qMin(maxPlaneChroma * x, maxChroma(d->color.l, d->color.h));
+        d->pickColor(rgbFromOklch(d->color));
     };
-    d->hueStrip->picked = [this](qreal h) {
-        d->color.h = h;
+    d->hueStrip->picked = [this](qreal t) {
+        if (d->hsv) {
+            d->hsvHue = qMin(t, 0.9999);
+            d->pickColor(QColor::fromHsvF(d->hsvHue, d->hsvS, d->hsvV));
+            return;
+        }
+        d->color.h = 360.0 * t;
         // keep the lightness, and the chroma where the new hue allows it
-        d->color.c = qMin(d->color.c, maxChroma(d->color.l, h));
-        const QColor rgb = rgbFromOklch(d->color);
-        d->showColor(rgb, false);
-        d->applyColor(rgb);
+        d->color.c = qMin(d->color.c, maxChroma(d->color.l, d->color.h));
+        d->pickColor(rgbFromOklch(d->color));
     };
+    connect(d->mode, &QToolButton::clicked, this, [this]() {
+        d->hsv = !d->hsv;
+        KisConfig(false).writeEntry("StudioColorHsv", d->hsv);
+        // the other model's coordinates follow the color as it is now
+        if (d->current.isValid()) d->readCoordinates(d->current);
+        d->refresh();
+    });
     d->currentRow->picked = [this](int index) {
         if (index == 1 && d->previous.isValid()) {
             // swaps, so a second click goes back
