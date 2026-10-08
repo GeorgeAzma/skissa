@@ -128,6 +128,91 @@ void tryInitDrMingw()
 } // namespace
 #endif
 
+#if defined Q_OS_WIN
+#include <QAbstractNativeEventFilter>
+#include <QFile>
+#include <QPainter>
+
+#include <algorithm>
+
+namespace
+{
+/**
+ * Lets UI tests look at a development build without looking at the screen,
+ * which also shows other applications: a posted "KritaDevCapture" message
+ * makes Krita render its own visible windows, translucent popups included,
+ * into one PNG at %KRITA_DEV_CAPTURE% (or krita-dev-capture.png in TEMP).
+ */
+class DevCaptureFilter : public QAbstractNativeEventFilter
+{
+public:
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    bool nativeEventFilter(const QByteArray &, void *message, qintptr *) override
+#else
+    bool nativeEventFilter(const QByteArray &, void *message, long *) override
+#endif
+    {
+        static const UINT captureMessage = RegisterWindowMessageW(L"KritaDevCapture");
+        if (static_cast<MSG *>(message)->message != captureMessage) {
+            return false;
+        }
+        capture();
+        return true;
+    }
+
+private:
+    static void capture()
+    {
+        QList<QWidget *> windows;
+        QRect bounds;
+        // minimized windows too, they keep their size and render all the same
+        Q_FOREACH (QWidget *window, QApplication::topLevelWidgets()) {
+            if (window->isVisible()) {
+                windows << window;
+                bounds |= window->geometry();
+            }
+        }
+        if (windows.isEmpty()) {
+            return;
+        }
+
+        // the main window at the bottom, popups on top
+        auto layer = [](QWidget *window) {
+            if (qobject_cast<KisMainWindow *>(window)) return 0;
+            switch (window->windowType()) {
+            case Qt::Tool: return 2;
+            case Qt::Popup: return 3;
+            case Qt::ToolTip: return 4;
+            default: return 1;
+            }
+        };
+        std::stable_sort(windows.begin(), windows.end(), [&](QWidget *a, QWidget *b) { return layer(a) < layer(b); });
+
+        const qreal dpr = windows.first()->devicePixelRatioF();
+        QImage image(bounds.size() * dpr, QImage::Format_ARGB32_Premultiplied);
+        image.setDevicePixelRatio(dpr);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        Q_FOREACH (QWidget *window, windows) {
+            painter.drawPixmap(window->geometry().topLeft() - bounds.topLeft(), window->grab());
+        }
+        painter.end();
+
+        QString path = qEnvironmentVariable("KRITA_DEV_CAPTURE");
+        if (path.isEmpty()) {
+            path = QDir::temp().absoluteFilePath(QStringLiteral("krita-dev-capture.png"));
+        }
+        // written aside and renamed, so that a waiting reader never sees half a file
+        const QString partial = path + QStringLiteral(".part");
+        if (image.save(partial, "PNG")) {
+            QFile::remove(path);
+            QFile::rename(partial, path);
+        }
+    }
+};
+} // namespace
+#endif
+
 namespace
 {
 
@@ -670,6 +755,12 @@ if (!qEnvironmentVariableIsEmpty("KRITA_OPENGL_DEBUG")) {
 
     // first create the application so we can create a pixmap
     KisApplication app(key, argc, argv);
+
+#if defined Q_OS_WIN
+    if (useDevProfile) {
+        app.installNativeEventFilter(new DevCaptureFilter);
+    }
+#endif
 
 #if defined Q_OS_WIN && QT_VERSION > QT_VERSION_CHECK(6, 0, 0)
     const bool forceWinTab = !KisConfig::useWin8PointerInputNoApp(&kritarc);
