@@ -12,6 +12,7 @@
 
 #include "LayerBox.h"
 
+#include <QLabel>
 #include <QApplication>
 #include <QToolButton>
 #include <QLayout>
@@ -205,14 +206,9 @@ LayerBox::LayerBox()
     m_wdgLayerBox->bnRaise->setEnabled(false);
 
     m_wdgLayerBox->doubleOpacity->setRange(0, 100, 0);
-    if (cfg.sliderLabels()) {
-        m_wdgLayerBox->opacityLabel->hide();
-        KisSpinBoxI18nHelper::setText(m_wdgLayerBox->doubleOpacity,
-                                      i18nc("{n} is the number value, % is the percent sign", "Opacity: {n}%"));
-    } else {
-        KisSpinBoxI18nHelper::setText(m_wdgLayerBox->doubleOpacity,
-                                      i18nc("{n} is the number value, % is the percent sign", "{n}%"));
-    }
+    // the glyph next to it says what the number is
+    KisSpinBoxI18nHelper::setText(m_wdgLayerBox->doubleOpacity,
+                                  i18nc("{n} is the number value, % is the percent sign", "{n}%"));
 
     /**
      * Blend mode and opacity belong to the selected layer, not to the panel:
@@ -234,6 +230,32 @@ LayerBox::LayerBox()
         auto *layerRow = new QHBoxLayout();
         layerRow->setSpacing(6);
         layerRow->addWidget(ui->cmbComposite, 1);
+
+        // opacity as a picture, not a word: a tile half see-through, then the number
+        auto *opacityGlyph = new QLabel(mainWidget);
+        {
+            const qreal dpr = mainWidget->devicePixelRatioF();
+            QPixmap glyph(QSize(18, 18) * dpr);
+            glyph.setDevicePixelRatio(dpr);
+            glyph.fill(Qt::transparent);
+            QPainter painter(&glyph);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            const QColor ink = mainWidget->palette().color(QPalette::WindowText);
+            QColor faint = ink;
+            faint.setAlphaF(0.25);
+            painter.setPen(QPen(faint, 1));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawRoundedRect(QRectF(1.5, 1.5, 15, 15), 4, 4);
+            QColor half = ink;
+            half.setAlphaF(0.55);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(half);
+            painter.drawRoundedRect(QRectF(1.5, 9, 15, 7.5), 3, 3);
+            painter.end();
+            opacityGlyph->setPixmap(glyph);
+        }
+        opacityGlyph->setToolTip(i18nc("@info:tooltip", "Layer opacity"));
+        layerRow->addWidget(opacityGlyph);
         layerRow->addWidget(ui->doubleOpacity, 1);
         ui->verticalLayout->insertLayout(ui->verticalLayout->indexOf(ui->horizontalLayout) + 1, layerRow);
         ui->doubleOpacity->setButtonSymbols(QAbstractSpinBox::NoButtons);
@@ -925,13 +947,21 @@ void LayerBox::slotPreviewBlendMode(const QString &id)
             m_previewNode = m_activeNode;
             m_previewOriginalOp = m_activeNode->compositeOpId();
         }
-        if (m_previewNode->compositeOpId() != id) {
+        // the merge threads read the op: change it only while they are stopped,
+        // and skip a hover rather than wait for a heavy update to finish
+        KisImageSP image = m_image;
+        if (m_previewNode->compositeOpId() != id && image && image->tryBarrierLock()) {
             m_previewNode->setCompositeOpId(id);
+            image->unlock();
             m_previewNode->setDirty();
         }
     } else if (m_previewNode) {
-        if (m_previewNode->compositeOpId() != m_previewOriginalOp) {
+        KisImageSP image = m_image;
+        if (m_previewNode->compositeOpId() != m_previewOriginalOp && image) {
+            // the original must come back, so this one waits
+            image->barrierLock();
             m_previewNode->setCompositeOpId(m_previewOriginalOp);
+            image->unlock();
             m_previewNode->setDirty();
         }
         m_previewNode = nullptr;

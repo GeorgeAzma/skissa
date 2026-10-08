@@ -1615,6 +1615,13 @@ void KisViewManager::showHideScrollbars()
     if (!d->currentImageView) return;
     if (!d->currentImageView->canvasController()) return;
 
+    // the studio layout pans by gesture and has no scroll bars
+    if (mainWindow() && mainWindow()->property("studioLayoutActive").toBool()) {
+        d->currentImageView->canvasController()->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        d->currentImageView->canvasController()->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        return;
+    }
+
     KisConfig cfg(true);
     bool toggled = actionCollection()->action("view_show_canvas_only")->isChecked();
 

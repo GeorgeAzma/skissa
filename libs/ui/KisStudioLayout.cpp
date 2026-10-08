@@ -39,6 +39,7 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QWidgetAction>
 
 #include <kactioncollection.h>
 #include <klocalizedstring.h>
@@ -50,8 +51,15 @@
 #include "KisStudioBrushSlider.h"
 #include "KisStudioCanvasHud.h"
 #include "KisStudioColorPanel.h"
+#include "KisStudioEffectOverlay.h"
+#include "kis_filter_manager.h"
+#include <filter/kis_filter.h>
+#include <filter/kis_filter_configuration.h>
+#include "KisStudioItemCard.h"
+#include "KisStudioScrubber.h"
 #include "KisStudioToolStrip.h"
 #include "kis_canvas_resource_provider.h"
+#include "canvas/kis_canvas_controller.h"
 #include "KisStudioToolRail.h"
 #include "KisViewManager.h"
 #include "kis_paintop_box.h"
@@ -140,6 +148,8 @@ public:
         layout->addWidget(m_close);
 
         setPinned(false);
+        // a panel's content says what it is; pinning is on the rail button
+        setFixedHeight(0);
     }
 
     QToolButton *pinButton() const { return m_pin; }
@@ -314,6 +324,54 @@ public:
     }
 };
 
+/**
+ * The tools float over the canvas instead of taking a column of it: a panel
+ * in the top left corner, as tall as what is in it. Empty, it is only a "+".
+ */
+class RailOverlay : public QWidget
+{
+public:
+    explicit RailOverlay(QWidget *canvasArea)
+        : QWidget(canvasArea)
+    {
+        setObjectName(QStringLiteral("studioToolRail"));
+        auto *layout = new QVBoxLayout(this);
+        layout->setContentsMargins(3, 3, 3, 6);
+        layout->setSpacing(6);
+        // follows its contents: adding a tool makes it taller, removing one shorter
+        layout->setSizeConstraint(QLayout::SetFixedSize);
+        canvasArea->installEventFilter(this);
+    }
+
+    void place()
+    {
+        move(10, 10);
+        raise();
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == parentWidget() && (event->type() == QEvent::Resize || event->type() == QEvent::ChildAdded)) {
+            place();
+        }
+        return QWidget::eventFilter(watched, event);
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QColor background = palette().color(QPalette::Window);
+        background.setAlphaF(0.94);
+        QColor border = palette().color(QPalette::WindowText);
+        border.setAlphaF(0.12);
+        painter.setPen(QPen(border, 1));
+        painter.setBrush(background);
+        painter.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14, 14);
+    }
+};
+
 /// Looks like a search field, opens Find Anything
 class FindField : public QAbstractButton
 {
@@ -321,10 +379,10 @@ public:
     explicit FindField(QWidget *parent)
         : QAbstractButton(parent)
     {
-        setCursor(Qt::IBeamCursor);
+        setCursor(Qt::PointingHandCursor);
         setFocusPolicy(Qt::NoFocus);
         setAttribute(Qt::WA_Hover);
-        setFixedSize(240, 28);
+        setFixedSize(34, 30);
         setToolTip(i18nc("@info:tooltip", "Find tools, commands, effects, brushes, layers and settings"));
         setAccessibleName(i18nc("@info:placeholder", "Find anything"));
     }
@@ -335,35 +393,16 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         const QPalette &pal = palette();
-        QColor background = pal.color(QPalette::Button);
         if (underMouse()) {
-            background = background.lighter(112);
+            QColor background = pal.color(QPalette::ButtonText);
+            background.setAlphaF(0.09);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(background);
+            painter.drawRoundedRect(QRectF(rect()).adjusted(1, 1, -1, -1), 7, 7);
         }
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(background);
-        painter.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 7, 7);
-
-        QColor dim = pal.color(QPalette::ButtonText);
-        dim.setAlphaF(0.55);
-        const int iconSize = 16;
-        KisIconUtils::loadIcon(QStringLiteral("studio_find")).paint(&painter, QRect(10, (height() - iconSize) / 2, iconSize, iconSize));
-
-        painter.setPen(dim);
-        painter.drawText(rect().adjusted(34, 0, -10, 0), Qt::AlignVCenter | Qt::AlignLeft, accessibleName());
-
-        QString shortcut;
-        QWidget *window = this->window();
-        if (auto *mainWindow = qobject_cast<KisMainWindow *>(window)) {
-            if (QAction *find = mainWindow->actionCollection()->action(QStringLiteral("find_anything"))) {
-                shortcut = find->shortcut().toString(QKeySequence::NativeText);
-            }
-        }
-        if (!shortcut.isEmpty()) {
-            QFont font = painter.font();
-            font.setPointSizeF(font.pointSizeF() * 0.88);
-            painter.setFont(font);
-            painter.drawText(rect().adjusted(0, 0, -10, 0), Qt::AlignVCenter | Qt::AlignRight, shortcut);
-        }
+        const int iconSize = 18;
+        KisIconUtils::loadIcon(QStringLiteral("studio_find"))
+            .paint(&painter, QRect((width() - iconSize) / 2, (height() - iconSize) / 2, iconSize, iconSize));
     }
 };
 
@@ -376,12 +415,14 @@ struct KisStudioLayout::Private
 
     QPointer<QToolBar> rail;
     /// Brush size and opacity on the left edge
-    QPointer<QToolBar> brushRail;
+    QPointer<QWidget> brushRail;
     /// Replaces the menu bar with a single menu button while a document is open
     QPointer<QToolBar> topBar;
     QPointer<QToolBar> findBar;
     QPointer<QWidget> findField;
     QPointer<QAction> findFieldAction;
+    /// The toolbar the find field and document button were put on
+    QPointer<QToolBar> placedOnBar;
     QMenu *mainMenu {nullptr};
     /// Toolbar entries that duplicate the brush rail, hidden while active
     QList<QPointer<QAction>> hiddenToolbarActions;
@@ -411,11 +452,14 @@ struct KisStudioLayout::Private
     /// What the flyout opened from, if not the rail: it goes right below it
     QPointer<QWidget> flyoutAnchor;
     QPointer<QToolButton> toolChip;
+    QPointer<QAction> toolChipAction;
     QPointer<KisStudioToolStrip> toolStrip;
     QPointer<QAction> toolStripAction;
+    QPointer<QAction> brushValuesAction;
     QPointer<QToolButton> documentButton;
     QPointer<QAction> documentButtonAction;
     QPointer<KisStudioCanvasHud> hud;
+    QPointer<KisStudioEffectOverlay> effectOverlay;
     QPointer<QWidget> colorChip;
     /// How documents were shown before: tabs or windows
     int classicViewMode {-1};
@@ -553,10 +597,14 @@ void KisStudioLayout::enter()
     }
 
     qApp->installEventFilter(this);
-    d->connections << connect(KoToolManager::instance(), &KoToolManager::changedTool,
-                              this, &KisStudioLayout::updateContextBar);
+    d->connections << connect(KoToolManager::instance(), &KoToolManager::changedTool, this,
+                              [this](KoCanvasController *controller) {
+                                  if (isOwnController(controller)) updateContextBar();
+                              });
     d->connections << connect(KoToolManager::instance(), &KoToolManager::toolOptionWidgetsChanged, this,
-                              [this](KoCanvasController *, const QList<QPointer<QWidget>> &widgets) {
+                              [this](KoCanvasController *controller, const QList<QPointer<QWidget>> &widgets) {
+                                  // with two windows, the other one's tool is not this top bar's business
+                                  if (!isOwnController(controller)) return;
                                   if (d->toolStrip) {
                                       d->toolStrip->setOptionWidgets(widgets);
                                       if (d->toolStripAction) {
@@ -576,9 +624,37 @@ void KisStudioLayout::enter()
         d->hud = new KisStudioCanvasHud(mainWindow);
     }
     d->hud->setActive(true);
+    mainWindow->setProperty("studioLayoutActive", true);
+
+    // effects are adjusted on the canvas, not in a dialog
+    if (!d->effectOverlay) {
+        d->effectOverlay = new KisStudioEffectOverlay(mainWindow);
+    }
+    if (KisViewManager *viewManager = mainWindow->viewManager()) {
+        QPointer<KisStudioEffectOverlay> overlay = d->effectOverlay;
+        viewManager->filterManager()->setInlineEditor({
+            [overlay](KisFilterSP filter, KisFilterConfigurationSP config) { return overlay && overlay->open(filter, config); },
+            [overlay]() { if (overlay) overlay->accept(); },
+            [overlay]() { if (overlay) overlay->reject(); },
+        });
+    }
+
+    // the current tool's options, for the strip, without waiting for a tool change
+    if (mainWindow->activeView()) {
+        KoToolManager::instance()->initializeCurrentToolForCanvas();
+    }
 
     normalize();
     updateContextBar();
+}
+
+bool KisStudioLayout::isOwnController(KoCanvasController *controller) const
+{
+    KisView *view = d->mainWindow->activeView();
+    if (!controller || !view) {
+        return true;
+    }
+    return static_cast<KoCanvasController *>(view->canvasController()) == controller;
 }
 
 QMdiArea *KisStudioLayout::mdiArea() const
@@ -645,10 +721,9 @@ void KisStudioLayout::releaseDocuments()
             window->showMaximized();
         }
     }
-    if (d->classicViewMode >= 0) {
-        area->setViewMode(QMdiArea::ViewMode(d->classicViewMode));
-        d->classicViewMode = -1;
-    }
+    // what Preferences say now, which may have changed while in the studio layout
+    area->setViewMode(QMdiArea::ViewMode(KisConfig(true).readEntry<int>("mdi_viewmode", int(QMdiArea::TabbedView))));
+    d->classicViewMode = -1;
 }
 
 void KisStudioLayout::updateDocumentButton()
@@ -695,8 +770,9 @@ void KisStudioLayout::updateDocumentButton()
             menu->addAction(action);
         }
     }
+    // one document needs no switcher; its name is in the window title
     if (d->documentButtonAction) {
-        d->documentButtonAction->setVisible(!windows.isEmpty() && !isRailHidden());
+        d->documentButtonAction->setVisible(windows.size() > 1 && !isRailHidden());
     }
 }
 
@@ -706,6 +782,16 @@ void KisStudioLayout::leave()
     qApp->removeEventFilter(this);
     if (d->hud) {
         d->hud->setActive(false);
+    }
+    d->mainWindow->setProperty("studioLayoutActive", false);
+    if (d->effectOverlay && d->effectOverlay->isVisible()) {
+        d->effectOverlay->reject();
+    }
+    if (KisViewManager *viewManager = d->mainWindow->viewManager()) {
+        viewManager->filterManager()->setInlineEditor({});
+    }
+    if (d->mainWindow->viewManager()) {
+        d->mainWindow->viewManager()->showHideScrollbars();
     }
     releaseDocuments();
     d->mainWindow->statusBar()->setVisible(KisConfig(true).showStatusBar());
@@ -1186,17 +1272,33 @@ QIcon KisStudioLayout::railIcon(QDockWidget *dock) const
 
 void KisStudioLayout::showRailContextMenu(const QPoint &pos)
 {
-    QMenu menu;
-
     const QString clickedId = d->railActions.key(d->rail->actionAt(pos));
-    if (!clickedId.isEmpty()) {
-        menu.addAction(i18nc("@action:inmenu", "Remove from Rail"), this, [this, clickedId]() {
-            QStringList panels = d->railPanels;
-            panels.removeAll(clickedId);
-            setRailPanels(panels);
-        });
-        menu.addSeparator();
+    QDockWidget *clickedDock = clickedId.isEmpty() ? nullptr : d->mainWindow->dockWidget(clickedId);
+    if (clickedDock) {
+        // the panel's card: its shortcut, pinning it next to the canvas, taking it off the rail
+        auto *card = new KisStudioItemCard(d->mainWindow, KisIconUtils::loadIcon(railIconName(clickedId)),
+                                           clickedDock->windowTitle(), clickedDock->toggleViewAction());
+        const bool pinned = d->pinned.contains(clickedId);
+        QPointer<QDockWidget> dock = clickedDock;
+        card->addCommand({KisIconUtils::loadIcon(pinned ? QStringLiteral("locked") : QStringLiteral("unlocked")),
+                          pinned ? i18nc("@info:tooltip", "Unpin: open it over the canvas when needed")
+                                 : i18nc("@info:tooltip", "Pin next to the canvas"),
+                          [this, dock, pinned]() {
+                              if (dock) setPinned(dock, !pinned);
+                          },
+                          true, pinned});
+        card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")), i18nc("@info:tooltip", "Take off the rail"),
+                          [this, clickedId]() {
+                              QStringList panels = d->railPanels;
+                              panels.removeAll(clickedId);
+                              setRailPanels(panels);
+                          }});
+        QWidget *button = d->rail->widgetForAction(d->rail->actionAt(pos));
+        card->popupBeside(button ? button : d->rail);
+        return;
     }
+
+    QMenu menu;
 
     menu.addSection(i18nc("@title:menu", "Panels on the Rail"));
     QList<QDockWidget *> docks = d->headers.keys();
@@ -1332,34 +1434,13 @@ void KisStudioLayout::createBrushRail()
         return;
     }
 
-    QToolBar *rail = new QToolBar(i18nc("@title:window", "Tools"), mainWindow);
-    rail->setObjectName(QStringLiteral("studioToolRail"));
-    rail->setMovable(false);
-    rail->setFloatable(false);
-    rail->setOrientation(Qt::Vertical);
-    rail->setContextMenuPolicy(Qt::PreventContextMenu);
-
+    auto *rail = new RailOverlay(mainWindow->centralWidget());
     auto *toolRail = new KisStudioToolRail(mainWindow, rail);
 
     auto *contents = new QWidget(rail);
     auto *layout = new QVBoxLayout(contents);
-    layout->setContentsMargins(0, 8, 0, 4);
-    layout->setSpacing(14);
-
-    struct SliderInfo {
-        QString id;
-        QString title;
-        qreal exponent;
-        std::function<QString(qreal)> format;
-    };
-    const QVector<SliderInfo> sliders = {
-        // size is perceived as ratios, so it is logarithmic; opacity is
-        // blended in the gamma encoded image, where it already looks even
-        {QStringLiteral("size"), i18nc("@info:tooltip", "Brush size"), 0.0,
-         [](qreal value) { return QString::number(value, 'f', value < 10.0 ? 1 : 0); }},
-        {QStringLiteral("opacity"), i18nc("@info:tooltip", "Opacity"), 1.0,
-         [](qreal value) { return i18nc("brush opacity, %1 is the number of percent", "%1%", qRound(value)); }},
-    };
+    layout->setContentsMargins(0, 2, 0, 0);
+    layout->setSpacing(0);
 
     if (KisViewManager *viewManager = mainWindow->viewManager()) {
         KisCanvasResourceProvider *resources = viewManager->canvasResourceProvider();
@@ -1386,35 +1467,9 @@ void KisStudioLayout::createBrushRail()
         d->colorChip = chip;
     }
 
-    Q_FOREACH (const SliderInfo &info, sliders) {
-        KisDoubleSliderSpinBox *source = paintopBox->brushSlider(info.id);
-        if (!source) {
-            continue;
-        }
-
-        auto *slider = new KisStudioBrushSlider(info.title, contents);
-        slider->setValueFormatter(info.format);
-        slider->setRange(source->minimum(), source->maximum(), qMax(info.exponent, 1.0));
-        slider->setLogarithmic(info.exponent <= 0.0);
-        slider->setPreview(info.id == QLatin1String("size") ? KisStudioBrushSlider::Preview::Dot
-                                                            : KisStudioBrushSlider::Preview::Opacity);
-        slider->setValue(source->value());
-        layout->addWidget(slider, 0, Qt::AlignHCenter);
-
-        // setting the toolbar slider applies the value to the current preset
-        connect(slider, &KisStudioBrushSlider::valueCommitted, source, [source](qreal value) {
-            source->setValue(value);
-        });
-        connect(paintopBox, &KisPaintopBox::sigBrushSliderValueChanged, slider,
-                [slider, id = info.id](const QString &sliderID, qreal value) {
-                    if (sliderID == id) {
-                        slider->setValue(value);
-                    }
-                });
-    }
     toolRail->addBottomWidget(contents);
-    rail->addWidget(toolRail);
-    mainWindow->addToolBar(Qt::LeftToolBarArea, rail);
+    rail->layout()->addWidget(toolRail);
+    rail->place();
     d->brushRail = rail;
 }
 
@@ -1501,7 +1556,7 @@ void KisStudioLayout::createTopBar()
     auto *toolChip = new ToolChip(bar);
     toolChip->setIconSize(bar->iconSize());
     connect(toolChip, &QToolButton::clicked, this, &KisStudioLayout::toggleToolOptions);
-    bar->addWidget(toolChip);
+    d->toolChipAction = bar->addWidget(toolChip);
     d->toolChip = toolChip;
 
     auto *strip = new KisStudioToolStrip(bar);
@@ -1509,28 +1564,60 @@ void KisStudioLayout::createTopBar()
     d->toolStripAction->setVisible(false);
     d->toolStrip = strip;
 
+    // size and opacity, only for the tools that paint with them
+    if (KisPaintopBox *paintopBox = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr) {
+        auto *values = new QWidget(bar);
+        auto *valuesLayout = new QHBoxLayout(values);
+        valuesLayout->setContentsMargins(6, 0, 0, 0);
+        valuesLayout->setSpacing(2);
+        const QVector<QPair<QString, KisStudioScrubber::Kind>> scrubbers = {
+            {QStringLiteral("size"), KisStudioScrubber::Kind::Size},
+            {QStringLiteral("opacity"), KisStudioScrubber::Kind::Opacity},
+        };
+        for (const auto &entry : scrubbers) {
+            KisDoubleSliderSpinBox *source = paintopBox->brushSlider(entry.first);
+            if (!source) {
+                continue;
+            }
+            auto *scrubber = new KisStudioScrubber(entry.second,
+                                                   entry.second == KisStudioScrubber::Kind::Size
+                                                       ? i18nc("@info:tooltip", "Brush size: drag sideways, scroll, or double click to type")
+                                                       : i18nc("@info:tooltip", "Opacity: drag sideways, scroll, or double click to type"),
+                                                   values);
+            scrubber->setRange(entry.second == KisStudioScrubber::Kind::Size ? qMax(source->minimum(), 1.0) : source->minimum(),
+                               source->maximum());
+            scrubber->setValue(source->value());
+            valuesLayout->addWidget(scrubber);
+            connect(scrubber, &KisStudioScrubber::valueCommitted, source, [source](qreal value) {
+                source->setValue(value);
+            });
+            connect(paintopBox, &KisPaintopBox::sigBrushSliderValueChanged, scrubber,
+                    [scrubber, id = entry.first](const QString &sliderID, qreal value) {
+                        if (sliderID == id) {
+                            scrubber->setValue(value);
+                        }
+                    });
+        }
+        d->brushValuesAction = bar->addWidget(values);
+        d->brushValuesAction->setVisible(false);
+    }
+
     auto *documents = new DocumentButton(mainWindow);
+    documents->hide();
     documents->setMenu(new QMenu(documents));
     d->documentButton = documents;
 
     mainWindow->addToolBar(Qt::TopToolBarArea, bar);
     d->topBar = bar;
 
-    // a search field at the end of the top bar, which also teaches its shortcut
-    QToolBar *findBar = new QToolBar(i18nc("@title:window", "Find"), mainWindow);
-    findBar->setObjectName(QStringLiteral("studioFindBar"));
-    findBar->setMovable(false);
-    findBar->setFloatable(false);
-    findBar->setContextMenuPolicy(Qt::PreventContextMenu);
-    auto *field = new FindField(findBar);
+    // Find at the end of the top bar, placed there by placeFindField()
+    auto *field = new FindField(mainWindow);
+    field->hide();
     connect(field, &QAbstractButton::clicked, this, [this]() {
         if (QAction *find = d->mainWindow->actionCollection()->action(QStringLiteral("find_anything"))) {
             find->trigger();
         }
     });
-    findBar->addWidget(field);
-    mainWindow->addToolBar(Qt::TopToolBarArea, findBar);
-    d->findBar = findBar;
     d->findField = field;
 }
 
@@ -1574,17 +1661,39 @@ void KisStudioLayout::moveTopBarToFront()
 
 void KisStudioLayout::placeFindField()
 {
-    if (!d->findField || d->findFieldAction) {
-        return;
-    }
     QToolBar *brushBar = d->mainWindow->findChild<QToolBar *>(QStringLiteral("BrushesAndStuff"), Qt::FindDirectChildrenOnly);
-    if (!brushBar) {
+    if (!brushBar || brushBar == d->placedOnBar) {
         return;
     }
-    if (d->documentButton) {
-        d->documentButtonAction = brushBar->addWidget(d->documentButton);
+    /**
+     * The actions are ours, not the toolbar's: Configure Toolbars deletes and
+     * recreates the toolbar, which only gives our widgets back this way, and
+     * they are put on the new toolbar the next time the layout is normalized.
+     */
+    d->placedOnBar = brushBar;
+    if (d->documentButton && !d->documentButtonAction) {
+        auto *action = new QWidgetAction(this);
+        action->setDefaultWidget(d->documentButton);
+        d->documentButtonAction = action;
     }
-    d->findFieldAction = brushBar->addWidget(d->findField);
+    if (d->findField && !d->findFieldAction) {
+        auto *action = new QWidgetAction(this);
+        action->setDefaultWidget(d->findField);
+        d->findFieldAction = action;
+    }
+    if (d->documentButtonAction) {
+        brushBar->addAction(d->documentButtonAction);
+    }
+    if (d->findFieldAction) {
+        brushBar->addAction(d->findFieldAction);
+    }
+
+    // buttons with a menu open it on a long press instead of with a separate arrow
+    Q_FOREACH (QToolButton *button, brushBar->findChildren<QToolButton *>()) {
+        if (button->menu() && button->popupMode() == QToolButton::MenuButtonPopup) {
+            button->setPopupMode(QToolButton::DelayedPopup);
+        }
+    }
 }
 
 void KisStudioLayout::updateContextBar()
@@ -1625,9 +1734,14 @@ void KisStudioLayout::updateContextBar()
         {"select_layout", false},
     };
 
+    if (d->brushValuesAction) {
+        d->brushValuesAction->setVisible(paints && !isRailHidden());
+    }
     if (d->toolChip) {
         KoToolFactoryBase *factory = KoToolRegistry::instance()->value(tool);
-        d->toolChip->setVisible(factory);
+        if (d->toolChipAction) {
+            d->toolChipAction->setVisible(factory && !isRailHidden());
+        }
         if (factory) {
             d->toolChip->setIcon(KisIconUtils::loadIcon(factory->iconName()));
             d->toolChip->setText(KisStudioToolRail::toolName(factory));

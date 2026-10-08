@@ -15,7 +15,7 @@ class KisMainWindow;
 /**
  * The view's own state, on the view: a small pill in the bottom right corner
  * of the canvas with the zoom, the rotation (only while the canvas is
- * rotated), mirroring, a value check and the progress of long operations.
+ * rotated), mirroring and the progress of long operations.
  * It replaces the status bar, whose other entries (color space, profile,
  * memory, size) describe the document rather than the view and live in the
  * document properties.
@@ -38,7 +38,6 @@ private:
     void viewChanged();
     void updateZoom(qreal zoom);
     void updateRotation(qreal angle);
-    void setValueCheck(bool enabled);
     void reposition();
 
     struct Private;

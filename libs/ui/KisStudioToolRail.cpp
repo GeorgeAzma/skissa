@@ -8,24 +8,34 @@
 #include <kis_action_registry.h>
 
 #include <QAction>
+#include <QApplication>
 #include <QContextMenuEvent>
-#include <QMenu>
+#include <QDrag>
+#include <QDragEnterEvent>
+#include <QFrame>
+#include <QMimeData>
 #include <QPainter>
 #include <QPointer>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <KSharedConfig>
 #include <KoCanvasController.h>
 #include <KoToolFactoryBase.h>
 #include <KoToolManager.h>
 #include <KoToolRegistry.h>
 #include <kactioncollection.h>
+#include <kconfiggroup.h>
 #include <klocalizedstring.h>
 #include <KisResourceModel.h>
 
 #include "KisMainWindow.h"
 #include "KisResourceServerProvider.h"
+#include "KisStudioFind.h"
+#include "KisStudioItemCard.h"
+#include "KisView.h"
+#include "canvas/kis_canvas_controller.h"
 #include "KisViewManager.h"
 #include "kis_canvas_resource_provider.h"
 #include "kis_config.h"
@@ -35,6 +45,10 @@
 namespace {
 
 const QString brushToolId = QStringLiteral("KritaShape/KisToolBrush");
+const QString itemsKey = QStringLiteral("StudioRailItems");
+const QString hiddenKey = QStringLiteral("StudioHiddenVariants");
+const QString slotPrefix = QStringLiteral("slot:");
+const QString toolPrefix = QStringLiteral("tool:");
 
 enum class BrushMode {
     None,
@@ -47,86 +61,117 @@ struct ToolSlot {
     QString id;
     QString title;
     QString icon;
-    QString shortcutHint; ///< the shortcut of the slot's main tool, for the tooltip
     BrushMode brush;
-    QStringList tools;    ///< the variants, the first is the default
+    QStringList tools; ///< the variants, the first is the default
 };
 
 QVector<ToolSlot> toolSlots()
 {
     return {
-        {QStringLiteral("paint"), i18nc("@info:tooltip tool slot", "Paint"), QStringLiteral("studio_paint"), QStringLiteral("B"), BrushMode::Paint,
+        {QStringLiteral("paint"), i18nc("@info:tooltip tool slot", "Paint"), QStringLiteral("studio_paint"), BrushMode::Paint,
          {brushToolId, QStringLiteral("KritaShape/KisToolDyna"), QStringLiteral("KritaShape/KisToolMultiBrush"),
           QStringLiteral("KritaShape/KisToolSmartPatch")}},
-        {QStringLiteral("blend"), i18nc("@info:tooltip tool slot", "Blend"), QStringLiteral("studio_blend"), QString(), BrushMode::Blend,
+        {QStringLiteral("blend"), i18nc("@info:tooltip tool slot", "Blend"), QStringLiteral("studio_blend"), BrushMode::Blend,
          {brushToolId}},
-        {QStringLiteral("erase"), i18nc("@info:tooltip tool slot", "Erase"), QStringLiteral("studio_erase"), QStringLiteral("E"), BrushMode::Erase,
+        {QStringLiteral("erase"), i18nc("@info:tooltip tool slot", "Erase"), QStringLiteral("studio_erase"), BrushMode::Erase,
          {brushToolId}},
-        {QStringLiteral("select"), i18nc("@info:tooltip tool slot", "Select"), QStringLiteral("studio_select"), QString(), BrushMode::None,
+        {QStringLiteral("select"), i18nc("@info:tooltip tool slot", "Select"), QStringLiteral("studio_select"), BrushMode::None,
          {QStringLiteral("KisToolSelectRectangular"), QStringLiteral("KisToolSelectElliptical"), QStringLiteral("KisToolSelectOutline"),
           QStringLiteral("KisToolSelectPolygonal"), QStringLiteral("KisToolSelectContiguous"), QStringLiteral("KisToolSelectSimilar"),
           QStringLiteral("KisToolSelectMagnetic"), QStringLiteral("KisToolSelectPath")}},
-        {QStringLiteral("move"), i18nc("@info:tooltip tool slot", "Move and Transform"), QStringLiteral("studio_move"), QString(), BrushMode::None,
+        {QStringLiteral("move"), i18nc("@info:tooltip tool slot", "Move and Transform"), QStringLiteral("studio_move"), BrushMode::None,
          {QStringLiteral("KritaTransform/KisToolMove"), QStringLiteral("KisToolTransform"), QStringLiteral("KisToolCrop"),
           QStringLiteral("InteractionTool")}},
-        {QStringLiteral("fill"), i18nc("@info:tooltip tool slot", "Fill"), QStringLiteral("studio_fill"), QString(), BrushMode::None,
+        {QStringLiteral("fill"), i18nc("@info:tooltip tool slot", "Fill"), QStringLiteral("studio_fill"), BrushMode::None,
          {QStringLiteral("KritaFill/KisToolFill"), QStringLiteral("KritaFill/KisToolGradient"), QStringLiteral("KisToolEncloseAndFill"),
           QStringLiteral("KritaShape/KisToolLazyBrush")}},
-        {QStringLiteral("shape"), i18nc("@info:tooltip tool slot", "Shape"), QStringLiteral("studio_shape"), QString(), BrushMode::None,
+        {QStringLiteral("shape"), i18nc("@info:tooltip tool slot", "Shape"), QStringLiteral("studio_shape"), BrushMode::None,
          {QStringLiteral("KritaShape/KisToolRectangle"), QStringLiteral("KritaShape/KisToolEllipse"), QStringLiteral("KritaShape/KisToolLine"),
           QStringLiteral("KisToolPolygon"), QStringLiteral("KisToolPolyline"), QStringLiteral("KisToolPath"), QStringLiteral("KisToolPencil"),
           QStringLiteral("PathTool"), QStringLiteral("KarbonCalligraphyTool"), QStringLiteral("KritaShape/KisToolKnife")}},
-        {QStringLiteral("text"), i18nc("@info:tooltip tool slot", "Text"), QStringLiteral("studio_text"), QString(), BrushMode::None,
+        {QStringLiteral("text"), i18nc("@info:tooltip tool slot", "Text"), QStringLiteral("studio_text"), BrushMode::None,
          {QStringLiteral("SvgTextTool")}},
-        {QStringLiteral("guides"), i18nc("@info:tooltip tool slot", "Guides and References"), QStringLiteral("studio_guides"), QString(), BrushMode::None,
+        {QStringLiteral("guides"), i18nc("@info:tooltip tool slot", "Guides and References"), QStringLiteral("studio_guides"), BrushMode::None,
          {QStringLiteral("KisAssistantTool"), QStringLiteral("ToolReferenceImages"), QStringLiteral("KritaShape/KisToolMeasure")}},
     };
 }
 
+QStringList defaultItems()
+{
+    QStringList items;
+    Q_FOREACH (const ToolSlot &slot, toolSlots()) {
+        items << slotPrefix + slot.id;
+    }
+    return items;
+}
+
 /**
- * A rail button. Slots with variants get a small corner mark, and holding
- * the button shows the variants, which is the natural gesture with a pen.
+ * A rail button: a click uses it, a long press or right click shows its
+ * card, dragging moves it along the rail or, off the rail, removes it.
  */
-class SlotButton : public QToolButton
+class RailButton : public QToolButton
 {
 public:
-    SlotButton(bool hasVariants, QWidget *parent)
+    explicit RailButton(QWidget *parent)
         : QToolButton(parent)
-        , m_hasVariants(hasVariants)
     {
         setAutoRaise(true);
         setCheckable(true);
         setFixedSize(40, 40);
         setIconSize(QSize(22, 22));
         setFocusPolicy(Qt::NoFocus);
+        setContextMenuPolicy(Qt::PreventContextMenu);
         m_holdTimer.setSingleShot(true);
-        m_holdTimer.setInterval(420);
+        m_holdTimer.setInterval(450);
+        QObject::connect(&m_holdTimer, &QTimer::timeout, this, [this]() {
+            m_held = true;
+            setDown(false);
+            if (onCard) onCard();
+        });
     }
 
-    std::function<void()> onHold;
+    std::function<void()> onCard;
+    std::function<void()> onDrag;
+    bool hasVariants {false};
+    QPointer<QAction> shortcutAction;
 
 protected:
     void mousePressEvent(QMouseEvent *event) override
     {
-        if (m_hasVariants && event->button() == Qt::LeftButton) {
+        if (event->button() == Qt::RightButton) {
+            if (onCard) onCard();
+            return;
+        }
+        if (event->button() == Qt::LeftButton) {
             m_held = false;
-            QObject::disconnect(m_holdConnection);
-            m_holdConnection = QObject::connect(&m_holdTimer, &QTimer::timeout, this, [this]() {
-                m_held = true;
-                setDown(false);
-                if (onHold) onHold();
-            });
+            m_dragged = false;
+            m_pressPos = event->pos();
             m_holdTimer.start();
         }
         QToolButton::mousePressEvent(event);
     }
 
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        // a pen wobbles: only a clear move is a drag
+        if ((event->buttons() & Qt::LeftButton) && !m_held && !m_dragged
+            && (event->pos() - m_pressPos).manhattanLength() > 2 * QApplication::startDragDistance()) {
+            m_holdTimer.stop();
+            m_dragged = true;
+            setDown(false);
+            if (onDrag) onDrag();
+            return;
+        }
+        QToolButton::mouseMoveEvent(event);
+    }
+
     void mouseReleaseEvent(QMouseEvent *event) override
     {
         m_holdTimer.stop();
-        if (m_held) {
-            // the hold already showed the variants, this is not a click
+        if (m_held || m_dragged) {
+            // the hold showed the card or the drag moved it: not a click
             m_held = false;
+            m_dragged = false;
             setDown(false);
             event->accept();
             return;
@@ -137,24 +182,55 @@ protected:
     void paintEvent(QPaintEvent *event) override
     {
         QToolButton::paintEvent(event);
-        if (!m_hasVariants) {
-            return;
-        }
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        QColor mark = palette().color(QPalette::ButtonText);
-        mark.setAlphaF(isChecked() ? 0.8 : 0.45);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(mark);
-        const QPointF corner(width() - 6, height() - 6);
-        painter.drawPolygon(QPolygonF() << corner << corner - QPointF(5, 0) << corner - QPointF(0, 5));
+        if (hasVariants) {
+            QColor mark = palette().color(QPalette::ButtonText);
+            mark.setAlphaF(isChecked() ? 0.8 : 0.4);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(mark);
+            const QPointF corner(width() - 5, 5);
+            painter.drawPolygon(QPolygonF() << corner << corner - QPointF(5, 0) << corner + QPointF(0, 5));
+        }
+        if (shortcutAction && !shortcutAction->shortcut().isEmpty()) {
+            KisStudioShortcuts::paintBadge(painter, rect(), KisStudioShortcuts::badgeText(shortcutAction->shortcut()), palette());
+        }
     }
 
 private:
-    bool m_hasVariants {false};
-    bool m_held {false};
     QTimer m_holdTimer;
-    QMetaObject::Connection m_holdConnection;
+    QPoint m_pressPos;
+    bool m_held {false};
+    bool m_dragged {false};
+};
+
+/// The "+" at the bottom: adds a tool, an effect, anything Find knows
+class PlusButton : public QToolButton
+{
+public:
+    explicit PlusButton(QWidget *parent) : QToolButton(parent)
+    {
+        setAutoRaise(true);
+        setFixedSize(40, 32);
+        setFocusPolicy(Qt::NoFocus);
+        setToolTip(i18nc("@info:tooltip", "Add a tool, an effect or anything else (or drag one here from Find)"));
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        QToolButton::paintEvent(event);
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QColor ink = palette().color(QPalette::ButtonText);
+        ink.setAlphaF(underMouse() ? 0.9 : 0.55);
+        QPen pen(ink, 1.6);
+        pen.setCapStyle(Qt::RoundCap);
+        painter.setPen(pen);
+        const QPointF c = QRectF(rect()).center();
+        painter.drawLine(c - QPointF(6, 0), c + QPointF(6, 0));
+        painter.drawLine(c - QPointF(0, 6), c + QPointF(0, 6));
+    }
 };
 
 } // namespace
@@ -162,14 +238,24 @@ private:
 struct KisStudioToolRail::Private
 {
     KisMainWindow *mainWindow {nullptr};
-    QVector<ToolSlot> slotList;
-    QVector<SlotButton *> buttons;
-    QVector<QString> currentTool; ///< the variant each slot uses now
     QVBoxLayout *layout {nullptr};
+    QVBoxLayout *itemsLayout {nullptr};
+    QFrame *dropIndicator {nullptr};
+    QToolButton *plus {nullptr};
+    bool hovered {false};
+    bool dragOver {false};
 
-    /// Paint or Blend: which slot the brush tool belongs to while not erasing
-    int brushSlot {0};
-    int activeSlot {-1};
+    QHash<QString, ToolSlot> slots;        ///< the built-in slots this build has, by id
+    QHash<QString, QString> currentTool;   ///< slot id -> the variant it uses now
+    QSet<QString> hidden;                  ///< variants hidden from their slot's card
+
+    QStringList items;                     ///< what is on the rail, in order
+    QVector<RailButton *> buttons;
+    QVector<int> buttonItem;               ///< for every button, its index in items
+    QHash<QString, QPointer<QAction>> ownActions; ///< shortcuts for items that have no action of their own
+
+    QString activeSlot;
+    QString brushSlot;                     ///< Paint or Blend, whichever the brush belongs to
     bool loadingPreset {false};
 
     QAction *eraseAction() const
@@ -182,12 +268,100 @@ struct KisStudioToolRail::Private
         return mainWindow->viewManager() ? mainWindow->viewManager()->canvasResourceProvider() : nullptr;
     }
 
-    int slotIndex(BrushMode mode) const
+    QString slotWithMode(BrushMode mode) const
     {
-        for (int i = 0; i < slotList.size(); i++) {
-            if (slotList[i].brush == mode) return i;
+        for (auto it = slots.constBegin(); it != slots.constEnd(); ++it) {
+            if (it->brush == mode) return it.key();
         }
-        return -1;
+        return QString();
+    }
+
+    QStringList visibleVariants(const QString &slotId) const
+    {
+        QStringList visible;
+        Q_FOREACH (const QString &tool, slots.value(slotId).tools) {
+            if (!hidden.contains(tool)) visible << tool;
+        }
+        if (visible.isEmpty() && !slots.value(slotId).tools.isEmpty()) {
+            visible << slots.value(slotId).tools.first();
+        }
+        return visible;
+    }
+
+    QAction *toolAction(const QString &toolId) const
+    {
+        return mainWindow->actionCollection()->action(toolId);
+    }
+
+    std::function<void(const QString &slotId)> activate;
+
+    /**
+     * What a slot's shortcut is: Erase is Krita's eraser toggle (E), Paint the
+     * brush tool (B), the others their current variant's tool; Blend, which
+     * no tool stands for, gets an action of its own.
+     */
+    QAction *slotAction(const QString &slotId)
+    {
+        const BrushMode mode = slots.value(slotId).brush;
+        if (mode == BrushMode::Erase) {
+            return eraseAction();
+        }
+        if (mode != BrushMode::Blend) {
+            return toolAction(currentTool.value(slotId));
+        }
+        QPointer<QAction> &own = ownActions[slotPrefix + slotId];
+        if (!own) {
+            own = new QAction(slots.value(slotId).title, mainWindow);
+            own->setObjectName(QStringLiteral("studio_slot_") + slotId);
+            own->setShortcutContext(Qt::WindowShortcut);
+            const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
+                                      .readEntry(own->objectName(), QString());
+            if (!saved.isEmpty() && saved != QLatin1String("none")) {
+                own->setShortcuts(QKeySequence::listFromString(saved));
+            }
+            mainWindow->addAction(own);
+            QObject::connect(own, &QAction::triggered, mainWindow, [this, slotId]() {
+                if (activate) activate(slotId);
+            });
+        }
+        return own;
+    }
+
+    /// The action whose shortcut a button shows and the card edits
+    QAction *shortcutActionFor(const QString &key)
+    {
+        if (key.startsWith(slotPrefix)) {
+            return slotAction(key.mid(slotPrefix.size()));
+        }
+        KisStudioFind::Item item;
+        if (mainWindow->studioFind() && mainWindow->studioFind()->item(key, &item) && item.action) {
+            return item.action;
+        }
+        QPointer<QAction> &own = ownActions[key];
+        if (!own) {
+            // brushes, blend modes and the like get an action of their own for their shortcut
+            own = new QAction(item.title.isEmpty() ? key : item.title, mainWindow);
+            own->setObjectName(QStringLiteral("studio_item_") + key);
+            own->setShortcutContext(Qt::WindowShortcut);
+            const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
+                                      .readEntry(own->objectName(), QString());
+            if (!saved.isEmpty() && saved != QLatin1String("none")) {
+                own->setShortcuts(QKeySequence::listFromString(saved));
+            }
+            mainWindow->addAction(own);
+            QObject::connect(own, &QAction::triggered, mainWindow, [this, key]() {
+                if (mainWindow->studioFind()) mainWindow->studioFind()->run(key);
+            });
+        }
+        return own;
+    }
+
+    /// Whether a canvas controller belongs to this rail's window
+    bool isOwnController(KoCanvasController *controller) const
+    {
+        KisView *active = mainWindow->activeView();
+        if (!controller || !active) return true;
+        return static_cast<KoCanvasController *>(active->canvasController()) == controller;
     }
 };
 
@@ -213,13 +387,35 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     , d(new Private)
 {
     d->mainWindow = mainWindow;
+    setAcceptDrops(true);
+
     d->layout = new QVBoxLayout(this);
-    d->layout->setContentsMargins(8, 8, 8, 8);
+    d->layout->setContentsMargins(4, 4, 4, 4);
     d->layout->setSpacing(2);
+    d->itemsLayout = new QVBoxLayout();
+    d->itemsLayout->setContentsMargins(0, 0, 0, 0);
+    d->itemsLayout->setSpacing(2);
+    d->layout->addLayout(d->itemsLayout);
+
+    d->plus = new PlusButton(this);
+    connect(d->plus, &QToolButton::clicked, this, [this]() {
+        if (KisStudioFind *find = d->mainWindow->studioFind()) {
+            find->pick(i18nc("@info:placeholder", "Add to the tools"), [this](const QString &key) {
+                if (!d->items.contains(key)) {
+                    setItems(d->items + QStringList{key});
+                }
+            });
+        }
+    });
+    d->layout->addWidget(d->plus, 0, Qt::AlignHCenter);
+
+    d->dropIndicator = new QFrame(this);
+    d->dropIndicator->setAutoFillBackground(true);
+    d->dropIndicator->setBackgroundRole(QPalette::Highlight);
+    d->dropIndicator->hide();
 
     KisConfig cfg(true);
-    const QVector<ToolSlot> allSlots = toolSlots();
-    Q_FOREACH (const ToolSlot &slot, allSlots) {
+    Q_FOREACH (const ToolSlot &slot, toolSlots()) {
         // only the variants this build has
         ToolSlot available = slot;
         available.tools.clear();
@@ -231,39 +427,20 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
         if (available.tools.isEmpty()) {
             continue;
         }
-
-        const int index = d->slotList.size();
-        d->slotList << available;
-
+        d->slots.insert(slot.id, available);
         const QString remembered = cfg.readEntry<QString>(QStringLiteral("StudioToolSlot_") + slot.id, available.tools.first());
-        d->currentTool << (available.tools.contains(remembered) ? remembered : available.tools.first());
-
-        auto *button = new SlotButton(available.tools.size() > 1, this);
-        button->setIcon(KisIconUtils::loadIcon(available.icon));
-        button->setAccessibleName(available.title);
-        button->setContextMenuPolicy(Qt::CustomContextMenu);
-        button->onHold = [this, index]() { showVariants(index); };
-        connect(button, &QToolButton::clicked, this, [this, index]() {
-            // clicking the active slot again shows its variants
-            if (index == d->activeSlot && d->slotList[index].tools.size() > 1) {
-                d->buttons[index]->setChecked(true);
-                showVariants(index);
-            } else {
-                activateSlot(index);
-            }
-        });
-        connect(button, &QWidget::customContextMenuRequested, this, [this, index]() { showVariants(index); });
-        d->buttons << button;
-
-        // a gap after the brush slots and between the groups
-        if (index > 0 && d->slotList[index - 1].brush != BrushMode::None && available.brush == BrushMode::None) {
-            d->layout->addSpacing(10);
-        }
-        d->layout->addWidget(button, 0, Qt::AlignHCenter);
+        d->currentTool.insert(slot.id, available.tools.contains(remembered) ? remembered : available.tools.first());
     }
-    d->layout->addStretch(1);
 
-    connect(KoToolManager::instance(), &KoToolManager::changedTool, this, &KisStudioToolRail::updateActiveSlot);
+    const QStringList hidden = cfg.readEntry<QStringList>(hiddenKey, QStringList());
+    d->hidden = QSet<QString>(hidden.begin(), hidden.end());
+    d->items = cfg.readEntry<QStringList>(itemsKey, defaultItems());
+    d->activate = [this](const QString &slotId) { activateSlot(slotId); };
+
+    connect(KoToolManager::instance(), &KoToolManager::changedTool, this, [this](KoCanvasController *controller) {
+        // other windows have their own rails
+        if (d->isOwnController(controller)) updateActiveSlot();
+    });
     if (QAction *erase = d->eraseAction()) {
         connect(erase, &QAction::toggled, this, &KisStudioToolRail::updateActiveSlot);
     }
@@ -272,7 +449,8 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     }
 
     // the current brush decides between Paint and Blend, see rememberPreset()
-    d->brushSlot = d->slotIndex(BrushMode::Paint);
+    d->brushSlot = d->slotWithMode(BrushMode::Paint);
+    rebuild();
     rememberPreset();
     updateActiveSlot();
 }
@@ -285,16 +463,326 @@ void KisStudioToolRail::addBottomWidget(QWidget *widget)
     d->layout->addWidget(widget, 0, Qt::AlignHCenter);
 }
 
-void KisStudioToolRail::activateSlot(int slot)
+void KisStudioToolRail::setItems(const QStringList &items)
 {
-    activateTool(slot, d->currentTool[slot]);
+    d->items = items;
+    d->items.removeDuplicates();
+    KisConfig(false).writeEntry(itemsKey, d->items);
+    rebuild();
+    updateActiveSlot();
 }
 
-void KisStudioToolRail::activateTool(int slot, const QString &toolId)
+void KisStudioToolRail::updatePlus()
 {
-    const ToolSlot &s = d->slotList[slot];
-    d->currentTool[slot] = toolId;
-    KisConfig(false).writeEntry(QStringLiteral("StudioToolSlot_") + s.id, toolId);
+    // there when it can be used: pointed at, dragged onto, or nothing on the rail yet
+    d->plus->setVisible(d->items.isEmpty() || d->buttons.isEmpty() || d->hovered || d->dragOver);
+}
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+void KisStudioToolRail::enterEvent(QEnterEvent *event)
+#else
+void KisStudioToolRail::enterEvent(QEvent *event)
+#endif
+{
+    d->hovered = true;
+    updatePlus();
+    QWidget::enterEvent(event);
+}
+
+void KisStudioToolRail::leaveEvent(QEvent *event)
+{
+    d->hovered = false;
+    updatePlus();
+    QWidget::leaveEvent(event);
+}
+
+void KisStudioToolRail::rebuild()
+{
+    while (QLayoutItem *item = d->itemsLayout->takeAt(0)) {
+        if (QWidget *widget = item->widget()) {
+            widget->hide();
+            widget->deleteLater();
+        }
+        delete item;
+    }
+    d->buttons.clear();
+    d->buttonItem.clear();
+
+    KisStudioFind *find = d->mainWindow->studioFind();
+    BrushMode previousMode = BrushMode::None;
+    bool previousWasSlot = true;
+    bool first = true;
+
+    for (int i = 0; i < d->items.size(); i++) {
+        const QString key = d->items[i];
+        const bool isSlot = key.startsWith(slotPrefix);
+        QIcon icon;
+        QString title;
+        BrushMode mode = BrushMode::None;
+        bool variants = false;
+
+        if (isSlot) {
+            const QString slotId = key.mid(slotPrefix.size());
+            if (!d->slots.contains(slotId)) continue;
+            const ToolSlot &slot = d->slots[slotId];
+            icon = KisIconUtils::loadIcon(slot.icon);
+            title = slot.title;
+            mode = slot.brush;
+            variants = d->visibleVariants(slotId).size() > 1;
+        } else {
+            KisStudioFind::Item item;
+            if (!find || !find->item(key, &item)) continue;
+            icon = item.icon.isNull() ? KisIconUtils::loadIcon(QStringLiteral("studio_more")) : item.icon;
+            title = item.title;
+        }
+
+        // gaps between the brush slots, the other slots and your own items
+        if (!first && ((previousMode != BrushMode::None && mode == BrushMode::None && isSlot) || (previousWasSlot && !isSlot))) {
+            d->itemsLayout->addSpacing(10);
+        }
+        first = false;
+        previousMode = mode;
+        previousWasSlot = isSlot;
+
+        auto *button = new RailButton(this);
+        button->setIcon(icon);
+        button->setAccessibleName(title);
+        button->hasVariants = variants;
+        button->shortcutAction = d->shortcutActionFor(key);
+        const int index = i;
+        button->onCard = [this, index]() { showCard(index); };
+        button->onDrag = [this, index, button, icon]() {
+            const QString dragged = d->items.value(index);
+            auto *drag = new QDrag(button);
+            auto *mime = new QMimeData();
+            mime->setData(KisStudioShortcuts::itemMimeType(), dragged.toUtf8());
+            drag->setMimeData(mime);
+            drag->setPixmap(icon.pixmap(32, 32));
+            // dropped anywhere but on the rail: it is taken off the rail
+            if (drag->exec(Qt::MoveAction) == Qt::IgnoreAction) {
+                QStringList items = d->items;
+                items.removeAll(dragged);
+                QTimer::singleShot(0, this, [this, items]() { setItems(items); });
+            }
+        };
+        connect(button, &QToolButton::clicked, this, [this, index]() { runItem(index); });
+        d->itemsLayout->addWidget(button, 0, Qt::AlignHCenter);
+        d->buttons << button;
+        d->buttonItem << i;
+    }
+    updatePlus();
+}
+
+void KisStudioToolRail::runItem(int index)
+{
+    const QString key = d->items.value(index);
+    if (key.startsWith(slotPrefix)) {
+        const QString slotId = key.mid(slotPrefix.size());
+        // clicking the active slot again shows its variants
+        if (slotId == d->activeSlot && d->visibleVariants(slotId).size() > 1) {
+            showCard(index);
+            updateActiveSlot();
+        } else {
+            activateSlot(slotId);
+        }
+        return;
+    }
+    if (key.startsWith(toolPrefix)) {
+        KoToolManager::instance()->switchToolRequested(key.mid(toolPrefix.size()));
+    } else if (KisStudioFind *find = d->mainWindow->studioFind()) {
+        find->run(key);
+    }
+    updateActiveSlot();
+}
+
+void KisStudioToolRail::showCard(int index)
+{
+    const int buttonIndex = d->buttonItem.indexOf(index);
+    if (buttonIndex < 0) {
+        return;
+    }
+    RailButton *button = d->buttons[buttonIndex];
+    const QString key = d->items.value(index);
+    KisStudioItemCard *card = nullptr;
+
+    if (key.startsWith(slotPrefix)) {
+        const QString slotId = key.mid(slotPrefix.size());
+        const ToolSlot slot = d->slots.value(slotId);
+        card = new KisStudioItemCard(d->mainWindow, KisIconUtils::loadIcon(slot.icon), slot.title, d->slotAction(slotId));
+        const QStringList variants = d->visibleVariants(slotId);
+        if (variants.size() > 1) {
+            QVector<KisStudioItemCard::Choice> choices;
+            Q_FOREACH (const QString &toolId, variants) {
+                KoToolFactoryBase *factory = KoToolRegistry::instance()->value(toolId);
+                if (!factory) continue;
+                KisStudioItemCard::Choice choice;
+                choice.key = toolPrefix + toolId;
+                choice.icon = KisIconUtils::loadIcon(factory->iconName());
+                choice.title = toolName(factory);
+                choice.action = d->toolAction(toolId);
+                choice.current = toolId == d->currentTool.value(slotId);
+                choice.pick = [this, slotId, toolId]() { activateTool(slotId, toolId); };
+                choice.hide = [this, toolId, card]() {
+                    d->hidden.insert(toolId);
+                    KisConfig(false).writeEntry(hiddenKey, QStringList(d->hidden.values()));
+                    if (card) card->close();
+                    rebuild();
+                    updateActiveSlot();
+                };
+                choices << choice;
+            }
+            card->setChoices(choices);
+        }
+        QStringList hiddenHere;
+        Q_FOREACH (const QString &toolId, slot.tools) {
+            if (d->hidden.contains(toolId)) hiddenHere << toolId;
+        }
+        if (!hiddenHere.isEmpty()) {
+            card->addCommand({KisIconUtils::loadIcon(QStringLiteral("visible")),
+                              i18nc("@info:tooltip", "Show the %1 hidden variants", hiddenHere.size()),
+                              [this, hiddenHere]() {
+                                  Q_FOREACH (const QString &toolId, hiddenHere) d->hidden.remove(toolId);
+                                  KisConfig(false).writeEntry(hiddenKey, QStringList(d->hidden.values()));
+                                  rebuild();
+                                  updateActiveSlot();
+                              }});
+        }
+    } else {
+        KisStudioFind::Item item;
+        if (d->mainWindow->studioFind()) d->mainWindow->studioFind()->item(key, &item);
+        card = new KisStudioItemCard(d->mainWindow, item.icon, item.title, d->shortcutActionFor(key));
+    }
+
+    card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")),
+                      i18nc("@info:tooltip", "Take off the rail (or drag it off)"),
+                      [this, key]() {
+                          QStringList items = d->items;
+                          items.removeAll(key);
+                          QTimer::singleShot(0, this, [this, items]() { setItems(items); });
+                      }});
+    // the badges show the shortcut, which the card may have changed
+    connect(card, &QObject::destroyed, this, [this]() {
+        Q_FOREACH (RailButton *b, d->buttons) b->update();
+    });
+    card->popupBeside(button);
+}
+
+void KisStudioToolRail::showRestoreCard(const QPoint &globalPos)
+{
+    auto *card = new KisStudioItemCard(d->mainWindow, KisIconUtils::loadIcon(QStringLiteral("studio_more")),
+                                       i18nc("@title tools rail", "Rail"), nullptr);
+    QVector<KisStudioItemCard::Choice> choices;
+    Q_FOREACH (const ToolSlot &slot, toolSlots()) {
+        if (!d->slots.contains(slot.id) || d->items.contains(slotPrefix + slot.id)) continue;
+        KisStudioItemCard::Choice choice;
+        choice.key = slotPrefix + slot.id;
+        choice.icon = KisIconUtils::loadIcon(slot.icon);
+        choice.title = slot.title;
+        choice.pick = [this, id = slot.id]() { setItems(d->items + QStringList{slotPrefix + id}); };
+        choices << choice;
+    }
+    if (!choices.isEmpty()) {
+        card->setChoices(choices);
+    }
+    card->addCommand({KisIconUtils::loadIcon(QStringLiteral("view-refresh")),
+                      i18nc("@info:tooltip", "Put back the default tools and variants"),
+                      [this]() {
+                          d->hidden.clear();
+                          KisConfig(false).writeEntry(hiddenKey, QStringList());
+                          setItems(defaultItems());
+                      }});
+    // an invisible anchor at the click
+    auto *anchor = new QWidget(this);
+    anchor->setGeometry(QRect(mapFromGlobal(globalPos), QSize(1, 1)));
+    card->popupBeside(anchor);
+    anchor->deleteLater();
+}
+
+void KisStudioToolRail::contextMenuEvent(QContextMenuEvent *event)
+{
+    showRestoreCard(event->globalPos());
+}
+
+int KisStudioToolRail::dropIndex(int y) const
+{
+    for (int b = 0; b < d->buttons.size(); b++) {
+        if (y < d->buttons[b]->geometry().center().y()) {
+            return d->buttonItem[b];
+        }
+    }
+    return d->items.size();
+}
+
+void KisStudioToolRail::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasFormat(KisStudioShortcuts::itemMimeType())) {
+        event->acceptProposedAction();
+        d->dragOver = true;
+        updatePlus();
+    }
+}
+
+void KisStudioToolRail::dragMoveEvent(QDragMoveEvent *event)
+{
+    if (!event->mimeData()->hasFormat(KisStudioShortcuts::itemMimeType())) {
+        return;
+    }
+    event->acceptProposedAction();
+    const int index = dropIndex(event->pos().y());
+    int y = d->buttons.isEmpty() ? 8 : d->buttons.last()->geometry().bottom() + 1;
+    for (int b = 0; b < d->buttons.size(); b++) {
+        if (d->buttonItem[b] >= index) {
+            y = d->buttons[b]->geometry().top() - 1;
+            break;
+        }
+    }
+    d->dropIndicator->setGeometry(6, y - 1, width() - 12, 2);
+    d->dropIndicator->show();
+    d->dropIndicator->raise();
+}
+
+void KisStudioToolRail::dragLeaveEvent(QDragLeaveEvent *)
+{
+    d->dropIndicator->hide();
+    d->dragOver = false;
+    updatePlus();
+}
+
+void KisStudioToolRail::dropEvent(QDropEvent *event)
+{
+    d->dropIndicator->hide();
+    d->dragOver = false;
+    const QString key = QString::fromUtf8(event->mimeData()->data(KisStudioShortcuts::itemMimeType()));
+    if (key.isEmpty()) {
+        return;
+    }
+    int to = dropIndex(event->pos().y());
+    QStringList items = d->items;
+    const int from = items.indexOf(key);
+    if (from >= 0) {
+        items.removeAt(from);
+        if (to > from) to--;
+    }
+    items.insert(qBound(0, to, items.size()), key);
+    event->setDropAction(from >= 0 ? Qt::MoveAction : Qt::CopyAction);
+    event->accept();
+    // the dragged button is still on the stack of its drag
+    QTimer::singleShot(0, this, [this, items]() { setItems(items); });
+}
+
+void KisStudioToolRail::activateSlot(const QString &slotId)
+{
+    activateTool(slotId, d->currentTool.value(slotId));
+}
+
+void KisStudioToolRail::activateTool(const QString &slotId, const QString &toolId)
+{
+    const ToolSlot s = d->slots.value(slotId);
+    if (toolId.isEmpty()) {
+        return;
+    }
+    d->currentTool[slotId] = toolId;
+    KisConfig(false).writeEntry(QStringLiteral("StudioToolSlot_") + slotId, toolId);
 
     QAction *erase = d->eraseAction();
     if (s.brush == BrushMode::Erase) {
@@ -303,58 +791,23 @@ void KisStudioToolRail::activateTool(int slot, const QString &toolId)
             erase->setChecked(true);
         }
     } else if (s.brush == BrushMode::Paint || s.brush == BrushMode::Blend) {
-        const bool switchingBrush = d->brushSlot != slot;
+        const bool switchingBrush = d->brushSlot != slotId;
         KisCanvasResourceProvider *resources = d->resources();
-        if (switchingBrush && resources && resources->currentPreset()) {
+        if (switchingBrush && resources && resources->currentPreset() && !d->brushSlot.isEmpty()) {
             // the slot we leave keeps the brush it was using
-            KisConfig(false).writeEntry(QStringLiteral("StudioBrushPreset_") + d->slotList[d->brushSlot].id,
-                                        resources->currentPreset()->name());
+            KisConfig(false).writeEntry(QStringLiteral("StudioBrushPreset_") + d->brushSlot, resources->currentPreset()->name());
         }
-        d->brushSlot = slot;
+        d->brushSlot = slotId;
         if (erase && erase->isChecked()) {
             erase->setChecked(false);
         }
         KoToolManager::instance()->switchToolRequested(toolId);
         if (switchingBrush) {
-            loadPresetForSlot(slot);
+            loadPresetForSlot(slotId);
         }
     } else {
         KoToolManager::instance()->switchToolRequested(toolId);
     }
-    updateActiveSlot();
-}
-
-void KisStudioToolRail::showVariants(int slot)
-{
-    const ToolSlot &s = d->slotList[slot];
-    if (s.tools.size() < 2) {
-        return;
-    }
-
-    QMenu menu;
-    menu.addSection(s.title);
-    Q_FOREACH (const QString &toolId, s.tools) {
-        KoToolFactoryBase *factory = KoToolRegistry::instance()->value(toolId);
-        if (!factory) {
-            continue;
-        }
-        QString text = toolName(factory);
-        // the shortcut shown after a tab is only a hint, it doesn't register a second shortcut
-        if (QAction *toolAction = d->mainWindow->actionCollection()->action(toolId)) {
-            const QString shortcut = toolAction->shortcut().toString(QKeySequence::NativeText);
-            if (!shortcut.isEmpty()) {
-                text += QLatin1Char('\t') + shortcut;
-            }
-        }
-        QAction *action = menu.addAction(KisIconUtils::loadIcon(factory->iconName()), text);
-        action->setCheckable(true);
-        action->setChecked(toolId == d->currentTool[slot]);
-        connect(action, &QAction::triggered, this, [this, slot, toolId]() { activateTool(slot, toolId); });
-    }
-
-    // next to the rail, aligned with the button
-    QWidget *button = d->buttons[slot];
-    menu.exec(button->mapToGlobal(QPoint(button->width() + 6, 0)));
     updateActiveSlot();
 }
 
@@ -364,45 +817,50 @@ void KisStudioToolRail::updateActiveSlot()
     QAction *erase = d->eraseAction();
     const bool erasing = erase && erase->isChecked();
 
-    int active = -1;
+    QString active;
     if (toolId == brushToolId) {
-        active = erasing ? d->slotIndex(BrushMode::Erase) : d->brushSlot;
+        active = erasing ? d->slotWithMode(BrushMode::Erase) : d->brushSlot;
     } else {
-        for (int i = 0; i < d->slotList.size() && active < 0; i++) {
-            if (d->slotList[i].brush == BrushMode::None && d->slotList[i].tools.contains(toolId)) {
-                active = i;
+        // slots on the rail first, then any slot that has the tool
+        Q_FOREACH (const QString &key, d->items) {
+            const QString id = key.mid(slotPrefix.size());
+            if (key.startsWith(slotPrefix) && d->slots.contains(id) && d->slots[id].brush == BrushMode::None
+                && d->slots[id].tools.contains(toolId)) {
+                active = id;
+                break;
             }
         }
-        // a variant of Paint, e.g. the dynamic brush
-        if (active < 0) {
-            const int paint = d->slotIndex(BrushMode::Paint);
-            if (paint >= 0 && d->slotList[paint].tools.contains(toolId)) {
+        if (active.isEmpty()) {
+            const QString paint = d->slotWithMode(BrushMode::Paint);
+            if (!paint.isEmpty() && d->slots[paint].tools.contains(toolId)) {
                 active = paint;
             }
         }
     }
-
-    if (active >= 0 && d->slotList[active].tools.contains(toolId)) {
+    if (!active.isEmpty() && d->slots.value(active).tools.contains(toolId)) {
         d->currentTool[active] = toolId;
     }
     d->activeSlot = active;
 
-    for (int i = 0; i < d->buttons.size(); i++) {
-        d->buttons[i]->setChecked(i == active);
-
-        QString tip = d->slotList[i].title;
-        if (d->slotList[i].tools.size() > 1) {
-            if (KoToolFactoryBase *factory = KoToolRegistry::instance()->value(d->currentTool[i])) {
-                tip = QStringLiteral("%1 · %2").arg(tip, toolName(factory));
+    for (int b = 0; b < d->buttons.size(); b++) {
+        const QString key = d->items.value(d->buttonItem[b]);
+        RailButton *button = d->buttons[b];
+        if (key.startsWith(slotPrefix)) {
+            const QString id = key.mid(slotPrefix.size());
+            button->setChecked(id == active);
+            button->shortcutAction = d->slotAction(id);
+            QString tip = d->slots.value(id).title;
+            if (d->visibleVariants(id).size() > 1) {
+                if (KoToolFactoryBase *factory = KoToolRegistry::instance()->value(d->currentTool.value(id))) {
+                    tip = QStringLiteral("%1 · %2").arg(tip, toolName(factory));
+                }
             }
+            button->setToolTip(tip);
+        } else {
+            button->setChecked(key == toolPrefix + toolId && !d->items.contains(slotPrefix + active));
+            button->setToolTip(button->accessibleName());
         }
-        if (!d->slotList[i].shortcutHint.isEmpty()) {
-            tip += QStringLiteral("  (%1)").arg(d->slotList[i].shortcutHint);
-        }
-        if (d->slotList[i].tools.size() > 1) {
-            tip += QLatin1Char('\n') + i18nc("@info:tooltip", "Hold or right-click for more");
-        }
-        d->buttons[i]->setToolTip(tip);
+        button->update();
     }
 }
 
@@ -417,12 +875,11 @@ void KisStudioToolRail::rememberPreset()
     // a brush that one of the slots remembers belongs to that slot, so the
     // highlighted slot always matches the brush in use (e.g. after a restart)
     KisConfig cfg(true);
-    for (int i = 0; i < d->slotList.size(); i++) {
-        const BrushMode mode = d->slotList[i].brush;
-        if ((mode == BrushMode::Paint || mode == BrushMode::Blend)
-            && cfg.readEntry<QString>(QStringLiteral("StudioBrushPreset_") + d->slotList[i].id) == name) {
-            if (d->brushSlot != i) {
-                d->brushSlot = i;
+    for (auto it = d->slots.constBegin(); it != d->slots.constEnd(); ++it) {
+        if ((it->brush == BrushMode::Paint || it->brush == BrushMode::Blend)
+            && cfg.readEntry<QString>(QStringLiteral("StudioBrushPreset_") + it.key()) == name) {
+            if (d->brushSlot != it.key()) {
+                d->brushSlot = it.key();
                 updateActiveSlot();
             }
             return;
@@ -430,14 +887,14 @@ void KisStudioToolRail::rememberPreset()
     }
 
     QAction *erase = d->eraseAction();
-    if (KoToolManager::instance()->activeToolId() != brushToolId || (erase && erase->isChecked())) {
+    if (KoToolManager::instance()->activeToolId() != brushToolId || (erase && erase->isChecked()) || d->brushSlot.isEmpty()) {
         return;
     }
     // a new brush picked while in Paint or Blend becomes that slot's brush
-    KisConfig(false).writeEntry(QStringLiteral("StudioBrushPreset_") + d->slotList[d->brushSlot].id, name);
+    KisConfig(false).writeEntry(QStringLiteral("StudioBrushPreset_") + d->brushSlot, name);
 }
 
-void KisStudioToolRail::loadPresetForSlot(int slot)
+void KisStudioToolRail::loadPresetForSlot(const QString &slotId)
 {
     KisCanvasResourceProvider *resources = d->resources();
     KisPaintOpPresetResourceServer *server = KisResourceServerProvider::instance()->paintOpPresetServer();
@@ -445,8 +902,8 @@ void KisStudioToolRail::loadPresetForSlot(int slot)
         return;
     }
 
-    QString name = KisConfig(true).readEntry<QString>(QStringLiteral("StudioBrushPreset_") + d->slotList[slot].id);
-    if (name.isEmpty() && d->slotList[slot].brush == BrushMode::Blend) {
+    QString name = KisConfig(true).readEntry<QString>(QStringLiteral("StudioBrushPreset_") + slotId);
+    if (name.isEmpty() && d->slots.value(slotId).brush == BrushMode::Blend) {
         // first use of Blend: a smudging brush from the bundled ones
         KisResourceModel *model = server->resourceModel();
         for (int row = 0; row < model->rowCount() && name.isEmpty(); row++) {
@@ -467,6 +924,6 @@ void KisStudioToolRail::loadPresetForSlot(int slot)
         d->loadingPreset = true;
         resources->setPaintOpPreset(preset);
         d->loadingPreset = false;
-        KisConfig(false).writeEntry(QStringLiteral("StudioBrushPreset_") + d->slotList[slot].id, name);
+        KisConfig(false).writeEntry(QStringLiteral("StudioBrushPreset_") + slotId, name);
     }
 }

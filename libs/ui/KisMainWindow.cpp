@@ -2215,6 +2215,11 @@ void KisMainWindow::swapWorkspaces(KisMainWindow *a, KisMainWindow *b)
     b->restoreWorkspaceState(workspaceA);
 }
 
+KisStudioFind *KisMainWindow::studioFind() const
+{
+    return d->studioFind;
+}
+
 KisViewManager *KisMainWindow::viewManager() const
 {
     return d->viewManager;

@@ -122,6 +122,7 @@ class Plane : public QWidget
 {
 public:
     std::function<void(qreal l, qreal c)> picked;
+    std::function<void()> started;
 
     explicit Plane(QWidget *parent) : QWidget(parent)
     {
@@ -174,7 +175,11 @@ protected:
         drawMarker(painter, marker, 6);
     }
 
-    void mousePressEvent(QMouseEvent *event) override { pick(event->pos()); }
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (started) started();
+        pick(event->pos());
+    }
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if (event->buttons() & Qt::LeftButton) pick(event->pos());
@@ -198,6 +203,7 @@ class HueStrip : public QWidget
 {
 public:
     std::function<void(qreal h)> picked;
+    std::function<void()> started;
 
     explicit HueStrip(QWidget *parent) : QWidget(parent)
     {
@@ -234,7 +240,11 @@ protected:
         drawMarker(painter, QPointF(m_hue / 360.0 * (width() - 1), height() / 2.0), 6);
     }
 
-    void mousePressEvent(QMouseEvent *event) override { pick(event->pos().x()); }
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (started) started();
+        pick(event->pos().x());
+    }
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if (event->buttons() & Qt::LeftButton) pick(event->pos().x());
@@ -318,16 +328,22 @@ struct KisStudioColorPanel::Private
     QColor current;
     QColor previous;
 
+    /// Set while the panel itself sets the color, whose 8-bit echo is not a change from outside
+    bool applying {false};
+
     void applyColor(const QColor &rgb)
     {
         if (!canvas || !canvas->resourceManager()) return;
+        applying = true;
         canvas->resourceManager()->setForegroundColor(KoColor(rgb, KoColorSpaceRegistry::instance()->rgb8()));
+        applying = false;
     }
 
     void showColor(const QColor &rgb, bool fromOutside)
     {
         if (rgb == current) return;
-        if (current.isValid()) previous = current;
+        // a drag in the panel is one change: "previous" is set when it starts, not on every move
+        if (fromOutside && current.isValid()) previous = current;
         current = rgb;
         if (fromOutside) {
             const Oklch picked = oklchFromRgb(rgb);
@@ -393,6 +409,11 @@ KisStudioColorPanel::KisStudioColorPanel()
 
     setWidget(contents);
 
+    auto remember = [this]() {
+        if (d->current.isValid()) d->previous = d->current;
+    };
+    d->plane->started = remember;
+    d->hueStrip->started = remember;
     d->plane->picked = [this](qreal l, qreal c) {
         d->color.l = l;
         d->color.c = c;
@@ -410,6 +431,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     };
     d->currentRow->picked = [this](int index) {
         if (index == 1 && d->previous.isValid()) {
+            // swaps, so a second click goes back
             const QColor previous = d->previous;
             d->showColor(previous, true);
             d->applyColor(previous);
@@ -462,7 +484,7 @@ void KisStudioColorPanel::setCanvas(KoCanvasBase *canvas)
 
     d->canvasConnections << connect(canvas->resourceManager(), &KoCanvasResourceProvider::canvasResourceChanged, this,
                                     [this](int key, const QVariant &value) {
-                                        if (key == KoCanvasResource::ForegroundColor) {
+                                        if (key == KoCanvasResource::ForegroundColor && !d->applying) {
                                             d->showColor(value.value<KoColor>().toQColor(), true);
                                         }
                                     });

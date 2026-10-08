@@ -11,6 +11,8 @@
 #include <QApplication>
 #include <QDateTime>
 #include <QDockWidget>
+#include <QDrag>
+#include <QMimeData>
 #include <QScopeGuard>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -40,6 +42,8 @@
 #include <KisResourceModel.h>
 
 #include "KisMainWindow.h"
+#include "KisStudioItemCard.h"
+#include "KisStudioToolRail.h"
 #include "KisNodeActivationActionCreatorVisitor.h"
 #include "KisResourceServerProvider.h"
 #include "KisView.h"
@@ -189,6 +193,7 @@ struct Entry {
     QIcon icon;
     std::function<void()> run;
     QStringList aliases; ///< what other applications call it
+    QPointer<QAction> action; ///< what has its shortcut, if anything does
 };
 
 /**
@@ -365,6 +370,11 @@ struct KisStudioFind::Private
     QLineEdit *edit {nullptr};
     QListView *list {nullptr};
     QStandardItemModel *model {nullptr};
+    QPoint dragStart;
+    QPersistentModelIndex dragIndex;
+    /// Set while Find picks something for the caller instead of running it
+    std::function<void(const QString &key)> picker;
+    QString placeholder;
 
     QVector<Entry> entries;
     QHash<QString, Usage> usage;
@@ -450,6 +460,7 @@ KisStudioFind::KisStudioFind(KisMainWindow *mainWindow)
     d->list->setItemDelegate(new FindDelegate(d->list));
     d->list->setFrameShape(QFrame::NoFrame);
     d->list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    d->list->viewport()->installEventFilter(this);
     d->list->setSelectionMode(QAbstractItemView::SingleSelection);
     d->list->setMouseTracking(true);
     d->list->setFocusPolicy(Qt::NoFocus);
@@ -473,8 +484,21 @@ void KisStudioFind::setPanelOpener(std::function<void(QDockWidget *)> opener)
     d->openPanel = std::move(opener);
 }
 
+void KisStudioFind::pick(const QString &placeholder, std::function<void(const QString &key)> picked)
+{
+    open();
+    d->picker = std::move(picked);
+    d->edit->setPlaceholderText(placeholder);
+    updateResults();
+}
+
 void KisStudioFind::open(const QString &text)
 {
+    d->picker = nullptr;
+    if (d->placeholder.isNull()) {
+        d->placeholder = d->edit->placeholderText();
+    }
+    d->edit->setPlaceholderText(d->placeholder);
     d->loadUsage();
     rebuildIndex();
     d->edit->setText(text);
@@ -516,9 +540,10 @@ void KisStudioFind::rebuildIndex()
         }
         const QString id = factory->id();
         d->entries.append({QStringLiteral("tool:") + id, Kind::Tool,
-                           cleanText(factory->toolTip()).remove(QStringLiteral(" Tool")), QString(),
+                           KisStudioToolRail::toolName(factory), QString(),
                            factory->section(), shortcut, KisIconUtils::loadIcon(factory->iconName()),
                            [id]() { KoToolManager::instance()->switchToolRequested(id); }});
+        d->entries.last().action = mainWindow->actionCollection()->action(factory->id());
     }
 
     // where every command lives in the menus, shown as its context
@@ -561,6 +586,7 @@ void KisStudioFind::rebuildIndex()
                            action->shortcut().toString(QKeySequence::NativeText),
                            action->icon().isNull() ? KisIconUtils::loadIcon(QStringLiteral("studio_effects")) : action->icon(),
                            [target]() { if (target && target->isEnabled()) target->trigger(); }});
+        d->entries.last().action = action;
     }
 
     // every other command, from all the action collections
@@ -582,6 +608,7 @@ void KisStudioFind::rebuildIndex()
                                cleanText(action->toolTip()), action->shortcut().toString(QKeySequence::NativeText),
                                action->icon(),
                                [target]() { if (target && target->isEnabled()) target->trigger(); }});
+            d->entries.last().action = action;
         }
     }
 
@@ -599,6 +626,7 @@ void KisStudioFind::rebuildIndex()
                                    target->raise();
                                }
                            }});
+        d->entries.last().action = dock->toggleViewAction();
     }
 
     // brushes, from the model so that only the chosen preset gets loaded
@@ -729,6 +757,13 @@ void KisStudioFind::updateResults()
         const Entry &entry = d->entries[i];
         const qreal frecency = entry.key.isEmpty() ? 0.0 : d->frecency(entry.key);
 
+        if (query.isEmpty() && d->picker) {
+            if ((entry.kind == Kind::Tool || entry.kind == Kind::Effect) && !entry.key.isEmpty()) {
+                // tools before effects, each alphabetically (the sort below is stable)
+                scored.append({i, entry.kind == Kind::Tool ? 2.0 : 1.0});
+            }
+            continue;
+        }
         if (query.isEmpty()) {
             // nothing typed yet: what was used recently
             if (frecency > 0.0) {
@@ -778,9 +813,17 @@ void KisStudioFind::updateResults()
         }
     }
 
-    std::sort(scored.begin(), scored.end(), [](const Scored &a, const Scored &b) { return a.score > b.score; });
-    if (scored.size() > maxResults) {
-        scored.resize(maxResults);
+    const bool browsing = query.isEmpty() && d->picker;
+    if (browsing) {
+        std::sort(scored.begin(), scored.end(), [this](const Scored &a, const Scored &b) {
+            if (a.score != b.score) return a.score > b.score;
+            return d->entries[a.entry].title.localeAwareCompare(d->entries[b.entry].title) < 0;
+        });
+    } else {
+        std::sort(scored.begin(), scored.end(), [](const Scored &a, const Scored &b) { return a.score > b.score; });
+        if (scored.size() > maxResults) {
+            scored.resize(maxResults);
+        }
     }
 
     // group by kind, the groups ordered by their best result
@@ -802,7 +845,7 @@ void KisStudioFind::updateResults()
         d->model->appendRow(nothing);
     }
 
-    if (query.isEmpty() && !scored.isEmpty()) {
+    if (query.isEmpty() && !browsing && !scored.isEmpty()) {
         auto *header = new QStandardItem(i18nc("@title find results", "Recent"));
         header->setData(true, HeaderRole);
         header->setFlags(Qt::NoItemFlags);
@@ -810,7 +853,7 @@ void KisStudioFind::updateResults()
     }
 
     Q_FOREACH (Kind kind, kindOrder) {
-        if (!query.isEmpty()) {
+        if (!query.isEmpty() || browsing) {
             auto *header = new QStandardItem(kindTitle(kind));
             header->setData(true, HeaderRole);
             header->setFlags(Qt::NoItemFlags);
@@ -858,6 +901,42 @@ void KisStudioFind::moveSelection(int delta)
     d->list->setCurrentIndex(d->model->index(row, 0));
 }
 
+bool KisStudioFind::item(const QString &key, Item *item)
+{
+    if (d->entries.isEmpty()) {
+        rebuildIndex();
+    }
+    Q_FOREACH (const Entry &entry, d->entries) {
+        if (entry.key == key) {
+            if (item) {
+                *item = {entry.key, entry.title, entry.icon, entry.action};
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+bool KisStudioFind::run(const QString &key)
+{
+    if (d->entries.isEmpty()) {
+        rebuildIndex();
+    }
+    Q_FOREACH (const Entry &entry, d->entries) {
+        if (entry.key == key && entry.run) {
+            d->recordUse(key);
+            entry.run();
+            return true;
+        }
+    }
+    return false;
+}
+
+void KisStudioFind::refresh()
+{
+    rebuildIndex();
+}
+
 void KisStudioFind::runSelected()
 {
     if (d->list->currentIndex().isValid()) {
@@ -876,6 +955,15 @@ void KisStudioFind::runRow(int row)
         return;
     }
     const Entry entry = d->entries[index];
+    if (d->picker) {
+        auto picked = d->picker;
+        d->picker = nullptr;
+        hide();
+        if (!entry.key.isEmpty()) {
+            picked(entry.key);
+        }
+        return;
+    }
     if (!entry.key.isEmpty()) {
         d->recordUse(entry.key);
     }
@@ -904,6 +992,29 @@ void KisStudioFind::adjustGeometry()
 
 bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
 {
+    if (watched == d->list->viewport()) {
+        auto *mouse = static_cast<QMouseEvent *>(event);
+        if (event->type() == QEvent::MouseButtonPress && mouse->button() == Qt::LeftButton) {
+            d->dragStart = mouse->pos();
+            d->dragIndex = d->list->indexAt(mouse->pos());
+        } else if (event->type() == QEvent::MouseMove && (mouse->buttons() & Qt::LeftButton) && d->dragIndex.isValid()
+                   && (mouse->pos() - d->dragStart).manhattanLength() > QApplication::startDragDistance()) {
+            const int index = d->dragIndex.data(EntryRole).toInt();
+            d->dragIndex = QModelIndex();
+            if (index >= 0 && index < d->entries.size() && !d->entries[index].key.isEmpty()) {
+                // take it to the rail: Find gets out of the way of the drop
+                const Entry entry = d->entries[index];
+                auto *drag = new QDrag(this);
+                auto *mime = new QMimeData();
+                mime->setData(KisStudioShortcuts::itemMimeType(), entry.key.toUtf8());
+                drag->setMimeData(mime);
+                drag->setPixmap(entry.icon.pixmap(32, 32));
+                hide();
+                drag->exec(Qt::CopyAction);
+                return true;
+            }
+        }
+    }
     if (watched == d->edit && event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
         switch (key->key()) {

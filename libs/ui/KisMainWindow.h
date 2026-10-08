@@ -150,6 +150,9 @@ public:
 
     KisViewManager *viewManager() const;
 
+    /// Find Anything, which also knows every item the studio layout can show
+    class KisStudioFind *studioFind() const;
+
     KisView *addViewAndNotifyLoadingCompleted(KisDocument *document,
                                               QMdiSubWindow *subWindow = 0);
 

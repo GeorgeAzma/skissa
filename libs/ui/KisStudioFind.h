@@ -6,7 +6,10 @@
 #ifndef KISSTUDIOFIND_H
 #define KISSTUDIOFIND_H
 
+#include <QAction>
 #include <QFrame>
+#include <QIcon>
+#include <QPointer>
 
 #include <functional>
 #include <memory>
@@ -36,6 +39,24 @@ public:
     void setPanelOpener(std::function<void(QDockWidget *)> opener);
 
     void open(const QString &text = QString());
+    /**
+     * Find as a chooser: what is chosen goes to \p picked instead of running.
+     * With nothing typed it lists every tool and effect, to choose by tapping.
+     */
+    void pick(const QString &placeholder, std::function<void(const QString &key)> picked);
+
+    /// One thing Find knows: what the rail and the cards need to show and run it
+    struct Item {
+        QString key;
+        QString title;
+        QIcon icon;
+        QPointer<QAction> action; ///< has its shortcut, may be null
+    };
+    /// Looks an item up by its key ("tool:…", "effect:…", "action:…", "brush:…", "panel:…")
+    bool item(const QString &key, Item *item);
+    bool run(const QString &key);
+    /// Rebuilds the index, e.g. once the resources are loaded
+    void refresh();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

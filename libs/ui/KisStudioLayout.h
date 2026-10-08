@@ -70,6 +70,7 @@ private:
     void showFlyout(QDockWidget *dock, QWidget *anchor = nullptr);
     void toggleToolOptions();
     QMdiArea *mdiArea() const;
+    bool isOwnController(class KoCanvasController *controller) const;
     void migrateColorPanel();
     void adoptDocuments();
     void releaseDocuments();

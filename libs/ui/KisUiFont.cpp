@@ -18,6 +18,7 @@
 
 #include <QtGlobal>
 #include <QFontDatabase>
+#include <QLocale>
 
 #if defined(Q_OS_WIN) && QT_VERSION < 0x060000
 # include <qt_windows.h>
@@ -85,12 +86,30 @@ QFont normalFont()
         font = *userFont;
     } else {
         font = systemDefaultUiFont();
+#ifdef Q_OS_WIN
+        /**
+         * The Windows 11 UI face, at the size Windows 11 uses for body text.
+         * Segoe UI at 9 pt through GDI is what makes a Qt application look
+         * like it is from 2010.
+         */
+        static const bool hasVariable = QFontDatabase().families().contains(QStringLiteral("Segoe UI Variable Text"));
+        if (hasVariable) {
+            font.setFamily(QStringLiteral("Segoe UI Variable Text"));
+            font.setPointSizeF(qMax(font.pointSizeF(), 10.0));
+        }
+#endif
     }
 #ifdef Q_OS_WIN
-    // XXX: Forces Qt to use full hinting for UI text, otherwise the default
-    //      will cause Qt to do vertical hinting only when High-DPI is active,
-    //      which makes some UI text extremely blurry on CJK systems.
-    font.setHintingPreference(QFont::PreferFullHinting);
+    /**
+     * Full hinting selects Qt's GDI font engine: thin, jagged, dated text.
+     * Vertical hinting selects DirectWrite, which renders like the rest of
+     * Windows. Full hinting stays for CJK locales, where DirectWrite with
+     * vertical hinting gets blurry.
+     */
+    const QLocale::Script script = QLocale().script();
+    const bool cjk = script == QLocale::SimplifiedHanScript || script == QLocale::TraditionalHanScript
+        || script == QLocale::JapaneseScript || script == QLocale::KoreanScript || script == QLocale::HanScript;
+    font.setHintingPreference(cjk ? QFont::PreferFullHinting : QFont::PreferVerticalHinting);
 #endif
     return font;
 }

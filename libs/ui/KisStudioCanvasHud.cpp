@@ -8,60 +8,26 @@
 #include <QAction>
 #include <QEvent>
 #include <QHBoxLayout>
-#include <QMenu>
 #include <QPainter>
-#include <QPainterPath>
 #include <QPointer>
 #include <QProgressBar>
 #include <QStatusBar>
 #include <QToolButton>
+#include <QWheelEvent>
 
 #include <cmath>
 
 #include <KoCanvasController.h>
-#include <KoColorModelStandardIds.h>
-#include <KoColorProfile.h>
-#include <KoColorSpace.h>
-#include <KoColorSpaceRegistry.h>
 #include <kactioncollection.h>
 #include <klocalizedstring.h>
 
 #include "KisMainWindow.h"
-#include "KisProofingConfiguration.h"
 #include "KisView.h"
 #include "canvas/kis_canvas2.h"
 #include "canvas/kis_canvas_controller.h"
 #include "canvas/kis_coordinates_converter.h"
-#include "kis_image.h"
 
 namespace {
-
-/// Half dark, half light: what the value check shows
-QIcon valueCheckIcon(const QColor &color)
-{
-    QIcon icon;
-    for (int size : {16, 32}) {
-        QPixmap pixmap(size, size);
-        pixmap.fill(Qt::transparent);
-        QPainter painter(&pixmap);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        const qreal pen = size / 12.0;
-        const QRectF circle = QRectF(0, 0, size, size).adjusted(pen * 1.5, pen * 1.5, -pen * 1.5, -pen * 1.5);
-        painter.setPen(QPen(color, pen));
-        painter.setBrush(Qt::NoBrush);
-        painter.drawEllipse(circle);
-        QPainterPath half;
-        half.moveTo(circle.center());
-        half.arcTo(circle, 90, 180);
-        half.closeSubpath();
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(color);
-        painter.drawPath(half);
-        painter.end();
-        icon.addPixmap(pixmap);
-    }
-    return icon;
-}
 
 QToolButton *hudButton(QWidget *parent)
 {
@@ -83,7 +49,6 @@ struct KisStudioCanvasHud::Private
     QWidget *progressBox {nullptr};
     QPointer<QWidget> progress;
 
-    QToolButton *valueCheck {nullptr};
     QToolButton *mirror {nullptr};
     QToolButton *rotation {nullptr};
     QToolButton *zoom {nullptr};
@@ -91,13 +56,16 @@ struct KisStudioCanvasHud::Private
     QPointer<KisView> view;
     QList<QMetaObject::Connection> viewConnections;
 
-    /// The view's proofing setup before the value check replaced it
-    KisProofingConfiguration savedProofing;
-    bool hadSoftProofing {false};
-
     QAction *action(const char *name) const
     {
         return mainWindow->actionCollection()->action(QLatin1String(name));
+    }
+
+    void trigger(const char *name) const
+    {
+        if (QAction *found = action(name)) {
+            found->trigger();
+        }
     }
 };
 
@@ -110,20 +78,14 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     setAttribute(Qt::WA_TranslucentBackground);
 
     auto *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(6, 4, 6, 4);
+    layout->setContentsMargins(6, 3, 6, 3);
     layout->setSpacing(2);
 
     d->progressBox = new QWidget(this);
     auto *progressLayout = new QHBoxLayout(d->progressBox);
     progressLayout->setContentsMargins(0, 0, 4, 0);
+    d->progressBox->hide();
     layout->addWidget(d->progressBox);
-
-    d->valueCheck = hudButton(this);
-    d->valueCheck->setCheckable(true);
-    d->valueCheck->setIcon(valueCheckIcon(palette().color(QPalette::ButtonText)));
-    d->valueCheck->setToolTip(i18nc("@info:tooltip", "Value check: show the canvas by lightness only"));
-    connect(d->valueCheck, &QToolButton::toggled, this, &KisStudioCanvasHud::setValueCheck);
-    layout->addWidget(d->valueCheck);
 
     d->mirror = hudButton(this);
     if (QAction *mirror = d->action("mirror_canvas")) {
@@ -134,30 +96,15 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
 
     // only there while the canvas is rotated; a click puts it straight again
     d->rotation = hudButton(this);
-    d->rotation->setToolTip(i18nc("@info:tooltip", "Reset rotation"));
-    connect(d->rotation, &QToolButton::clicked, this, [this]() {
-        if (QAction *reset = d->action("reset_canvas_rotation")) {
-            reset->trigger();
-        }
-    });
+    d->rotation->setToolTip(i18nc("@info:tooltip", "Rotated: click to straighten"));
+    connect(d->rotation, &QToolButton::clicked, this, [this]() { d->trigger("reset_canvas_rotation"); });
     layout->addWidget(d->rotation);
 
+    // no menu: a click flips between fitting the window and the last zoom, the wheel zooms
     d->zoom = hudButton(this);
-    d->zoom->setToolTip(i18nc("@info:tooltip", "Zoom"));
-    auto *zoomMenu = new QMenu(d->zoom);
-    connect(zoomMenu, &QMenu::aboutToShow, this, [this, zoomMenu]() {
-        zoomMenu->clear();
-        for (const char *name : {"zoom_to_fit", "zoom_to_fit_width", "zoom_to_100pct", "", "view_zoom_in", "view_zoom_out"}) {
-            if (!*name) {
-                zoomMenu->addSeparator();
-            } else if (QAction *action = d->action(name)) {
-                zoomMenu->addAction(action);
-            }
-        }
-    });
-    connect(d->zoom, &QToolButton::clicked, this, [this, zoomMenu]() {
-        zoomMenu->popup(d->zoom->mapToGlobal(QPoint(0, 0)) - QPoint(0, zoomMenu->sizeHint().height() + 4));
-    });
+    d->zoom->setToolTip(i18nc("@info:tooltip", "Zoom: click to fit or go back, scroll to zoom"));
+    d->zoom->installEventFilter(this);
+    connect(d->zoom, &QToolButton::clicked, this, [this]() { d->trigger("toggle_zoom_to_fit"); });
     layout->addWidget(d->zoom);
 
     parentWidget()->installEventFilter(this);
@@ -190,15 +137,16 @@ void KisStudioCanvasHud::setActive(bool active)
             }
         }
     } else {
-        if (d->valueCheck->isChecked()) {
-            d->valueCheck->setChecked(false);
-        }
         if (d->progress && statusBar) {
+            if (QProgressBar *bar = d->progress->findChild<QProgressBar *>()) {
+                bar->removeEventFilter(this);
+            }
             d->progressBox->layout()->removeWidget(d->progress);
             statusBar->addWidget(d->progress);
             d->progress->show();
         }
         d->progress = nullptr;
+        d->progressBox->hide();
     }
     viewChanged();
 }
@@ -209,10 +157,6 @@ void KisStudioCanvasHud::viewChanged()
         disconnect(connection);
     }
     d->viewConnections.clear();
-
-    if (d->view && d->valueCheck->isChecked()) {
-        d->valueCheck->setChecked(false);
-    }
 
     KisView *view = d->mainWindow->activeView();
     d->view = view;
@@ -234,8 +178,6 @@ void KisStudioCanvasHud::viewChanged()
     if (KisCanvas2 *canvas = view->canvasBase()) {
         updateZoom(canvas->coordinatesConverter()->effectiveZoom());
         updateRotation(canvas->rotationAngle());
-        // soft proofing, and so the value check, needs integer channels
-        d->valueCheck->setEnabled(view->image() && view->image()->colorSpace()->colorDepthId().id().contains(QLatin1Char('U')));
     }
 
     show();
@@ -260,48 +202,6 @@ void KisStudioCanvasHud::updateRotation(qreal angle)
     reposition();
 }
 
-void KisStudioCanvasHud::setValueCheck(bool enabled)
-{
-    KisView *view = d->view;
-    QAction *softProof = d->action("softProof");
-    if (!view || !view->canvasBase() || !softProof) {
-        return;
-    }
-    KisCanvas2 *canvas = view->canvasBase();
-    KisProofingConfigurationSP config = canvas->proofingConfiguration();
-    if (!config) {
-        return;
-    }
-
-    if (enabled) {
-        // a soft proof into gray: lightness as the color management computes it,
-        // without touching the image or its own proofing setup
-        const KoColorSpace *gray = KoColorSpaceRegistry::instance()->colorSpace(
-            GrayAColorModelID.id(), Integer8BitsColorDepthID.id(), nullptr);
-        if (!gray || !gray->profile()) {
-            return;
-        }
-        d->savedProofing = *config;
-        d->hadSoftProofing = softProof->isChecked();
-        config->proofingModel = GrayAColorModelID.id();
-        config->proofingDepth = Integer8BitsColorDepthID.id();
-        config->proofingProfile = gray->profile()->name();
-        config->displayFlags.setFlag(KoColorConversionTransformation::GamutCheck, false);
-        if (softProof->isChecked()) {
-            canvas->slotSoftProofing();
-        } else {
-            softProof->setChecked(true);
-        }
-    } else {
-        *config = d->savedProofing;
-        if (d->hadSoftProofing) {
-            canvas->slotSoftProofing();
-        } else {
-            softProof->setChecked(false);
-        }
-    }
-}
-
 void KisStudioCanvasHud::reposition()
 {
     if (!parentWidget()) {
@@ -315,11 +215,16 @@ void KisStudioCanvasHud::reposition()
 
 bool KisStudioCanvasHud::eventFilter(QObject *watched, QEvent *event)
 {
-    if (qobject_cast<QProgressBar *>(watched) && (event->type() == QEvent::Show || event->type() == QEvent::Hide)) {
-        d->progressBox->setVisible(event->type() == QEvent::Show);
-        reposition();
-    }
     if (watched == parentWidget() && (event->type() == QEvent::Resize || event->type() == QEvent::LayoutRequest)) {
+        reposition();
+    } else if (watched == d->zoom && event->type() == QEvent::Wheel) {
+        const int steps = static_cast<QWheelEvent *>(event)->angleDelta().y();
+        if (steps) {
+            d->trigger(steps > 0 ? "view_zoom_in" : "view_zoom_out");
+        }
+        return true;
+    } else if (qobject_cast<QProgressBar *>(watched) && (event->type() == QEvent::Show || event->type() == QEvent::Hide)) {
+        d->progressBox->setVisible(event->type() == QEvent::Show);
         reposition();
     }
     return QWidget::eventFilter(watched, event);

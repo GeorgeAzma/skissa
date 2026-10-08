@@ -9,6 +9,9 @@
 #define _KIS_FILTER_MANAGER_
 
 #include <QObject>
+
+#include <functional>
+
 #include <kritaui_export.h>
 #include <kis_types.h>
 
@@ -33,6 +36,18 @@ public:
 
     void setup(KisKActionCollection * ac, KisActionManager *actionManager);
     void updateGUI();
+
+    /**
+     * Something other than the filter dialog that edits a filter's settings,
+     * with apply() for the preview, finish() and cancelRunningStroke().
+     * open() returns false to fall back to the dialog.
+     */
+    struct InlineEditor {
+        std::function<bool(KisFilterSP filter, KisFilterConfigurationSP overrideDefaultConfig)> open;
+        std::function<void()> accept;
+        std::function<void()> reject;
+    };
+    void setInlineEditor(const InlineEditor &editor);
 
     void apply(KisFilterConfigurationSP filterConfig);
     void finish();

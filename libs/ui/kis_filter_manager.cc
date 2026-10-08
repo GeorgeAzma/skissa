@@ -69,6 +69,9 @@ struct KisFilterManager::Private {
      * \note parent QWidget is set to mainwindow, so we delegate deletion of this widget to Qt (we don't `delete` it ourselves)
      */
     KisDlgFilter *filterDialog = nullptr;
+
+    /// Replaces the dialog when set, e.g. by the studio layout's overlay on the canvas
+    KisFilterManager::InlineEditor inlineEditor;
 };
 
 KisFilterManager::KisFilterManager(KisViewManager * view)
@@ -184,6 +187,11 @@ void KisFilterManager::reapplyLastFilterReprompt()
     showFilterDialog(d->lastConfiguration->name(), d->lastConfiguration);
 }
 
+void KisFilterManager::setInlineEditor(const InlineEditor &editor)
+{
+    d->inlineEditor = editor;
+}
+
 void KisFilterManager::showFilterDialog(const QString &filterId, KisFilterConfigurationSP overrideDefaultConfig)
 {
     if (!d->view->activeNode()->isEditable()) {
@@ -249,6 +257,9 @@ void KisFilterManager::showFilterDialog(const QString &filterId, KisFilterConfig
     }
 
     if (filter->showConfigurationWidget()) {
+        if (d->inlineEditor.open && d->inlineEditor.open(filter, overrideDefaultConfig)) {
+            return;
+        }
         if (!d->filterDialog) {
             d->filterDialog = new KisDlgFilter(d->view , d->view->activeNode(), this, d->view->mainWindow());
             d->filterDialog->setAttribute(Qt::WA_DeleteOnClose); // make sure that the dialog is deleted when calling `done()`
@@ -403,6 +414,8 @@ void KisFilterManager::slotStrokeEndRequested()
 {
     if (d->currentStrokeId && d->filterDialog) {
         d->filterDialog->accept();
+    } else if (d->currentStrokeId && d->inlineEditor.accept) {
+        d->inlineEditor.accept();
     }
 }
 
@@ -410,6 +423,8 @@ void KisFilterManager::slotStrokeCancelRequested()
 {
     if (d->currentStrokeId && d->filterDialog) {
         d->filterDialog->reject();
+    } else if (d->currentStrokeId && d->inlineEditor.reject) {
+        d->inlineEditor.reject();
     }
 }
 void KisFilterManager::filterDialogHasFinished(int)

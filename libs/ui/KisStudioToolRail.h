@@ -14,15 +14,21 @@ class KisMainWindow;
 class KoToolFactoryBase;
 
 /**
- * The tools of the studio layout, grouped by what you want to do instead of
- * by how they are implemented: Paint, Blend and Erase (all the freehand brush,
- * each remembering its own preset), Select, Move, Fill, Shape, Text and Guides.
+ * The left rail: tool slots grouped by what you want to do, and anything
+ * else you put there.
  *
- * Every slot remembers the variant that was used last, e.g. the lasso for
- * Select. Clicking the active slot again, holding it or right-clicking it
- * shows its variants. Tools that are better reached by a modifier or a
- * gesture (zoom, pan, color sampler) have no slot; they are still found with
- * Find Anything and keep their shortcuts.
+ * It is a list of items, edited by hand:
+ * - drag anything from Find (an effect, a command, a brush, a tool...) onto
+ *   it and it becomes a button there, with its shortcut on it;
+ * - drag a button along the rail to move it, off the rail to remove it;
+ * - long press or right click a button for its card: the shortcut as a key
+ *   cap to click and press a new one, the slot's variants (drag one out onto
+ *   the rail to make it its own button, right click one to hide it), and
+ *   removing it.
+ *
+ * Every slot remembers the variant used last, e.g. the lasso for Select.
+ * Tools that are better reached by a modifier or a gesture (zoom, pan,
+ * color sampler) have no slot; Find has them.
  */
 class KisStudioToolRail : public QWidget
 {
@@ -31,19 +37,39 @@ public:
     explicit KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent = nullptr);
     ~KisStudioToolRail() override;
 
-    /// Widgets below the tools, e.g. the brush size and opacity sliders
+    /// Widgets below the tools, e.g. the color chip
     void addBottomWidget(QWidget *widget);
 
     /// "Rectangular Selection Tool" -> "Rectangular Selection"
     static QString toolName(KoToolFactoryBase *factory);
 
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    void enterEvent(QEnterEvent *event) override;
+#else
+    void enterEvent(QEvent *event) override;
+#endif
+    void leaveEvent(QEvent *event) override;
+
 private:
-    void activateSlot(int slot);
-    void activateTool(int slot, const QString &toolId);
-    void showVariants(int slot);
+    void rebuild();
+    void updatePlus();
+    void setItems(const QStringList &items);
+    int dropIndex(int y) const;
+    void showCard(int index);
+    void showRestoreCard(const QPoint &globalPos);
+    void runItem(int index);
+
+    void activateSlot(const QString &slotId);
+    void activateTool(const QString &slotId, const QString &toolId);
     void updateActiveSlot();
     void rememberPreset();
-    void loadPresetForSlot(int slot);
+    void loadPresetForSlot(const QString &slotId);
 
     struct Private;
     const std::unique_ptr<Private> d;

@@ -452,6 +452,9 @@ set(kritaui_LIB_SRCS
     KisStudioCanvasHud.cpp
     KisStudioColorPanel.cpp
     KisStudioToolStrip.cpp
+    KisStudioScrubber.cpp
+    KisStudioItemCard.cpp
+    KisStudioEffectOverlay.cpp
     KisStudioToolRail.cpp
     KisOpenPane.cpp
     KisPart.cpp
