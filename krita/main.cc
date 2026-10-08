@@ -242,9 +242,24 @@ extern "C" MAIN_EXPORT int MAIN_FN(int argc, char **argv)
     // Workaround a bug in QNetworkManager
     qputenv("QT_BEARER_POLL_TIMEOUT", QByteArray::number(-1));
 
+    /**
+     * KRITA_DEV_PROFILE=1 runs Krita with its own settings and resources, so
+     * that a development build never touches the profile of an installed
+     * Krita. Qt's test mode moves all the writable standard locations into
+     * "qttest" subfolders, e.g. %LOCALAPPDATA%\qttest\kritarc on Windows.
+     */
+    const bool useDevProfile = qEnvironmentVariableIsSet("KRITA_DEV_PROFILE");
+    if (useDevProfile) {
+        QStandardPaths::setTestModeEnabled(true);
+    }
+
     // A per-user unique string, without /, because QLocalServer cannot use names with a / in it
     QString key = "Krita5" + QStandardPaths::writableLocation(QStandardPaths::HomeLocation).replace("/", "_");
     key = key.replace(":", "_").replace("\\","_");
+    if (useDevProfile) {
+        // don't hand over to (or receive files from) a regular Krita instance
+        key += "_dev";
+    }
 
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts, true);
 
