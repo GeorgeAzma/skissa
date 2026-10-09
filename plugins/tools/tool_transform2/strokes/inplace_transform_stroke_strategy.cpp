@@ -835,12 +835,6 @@ void InplaceTransformStrokeStrategy::transformNode(KisNodeSP node, const ToolTra
                                                    device, &helper);
 
         executeAndAddCommand(transaction.endAndTake(), commandGroup, KisStrokeJobData::CONCURRENT);
-        // its strokes go where its paint went
-        if (levelOfDetail <= 0 && !m_d->externalSource) {
-            if (KUndo2Command *strokes = KisTransformUtils::strokeLogCommand(node, config, m_d->selectionBefore)) {
-                executeAndAddCommand(strokes, commandGroup, KisStrokeJobData::CONCURRENT);
-            }
-        }
         addDirtyRect(node, cachedPortion->extent() | node->projectionPlane()->tightUserVisibleBounds(), levelOfDetail);
 
     } else if (KisTransformMask *transformMask =
@@ -1114,6 +1108,21 @@ void InplaceTransformStrokeStrategy::finishAction(QVector<KisStrokeJobData *> &m
         if (m_d->pendingUpdateArgs) {
             mutatedJobs << new BarrierUpdateData(true);
         }
+    }
+
+    /**
+     * The layers' strokes (see KisStrokeLog) go where their paint went: once,
+     * with the transform as it is applied, not with every preview of it
+     */
+    if (!m_d->externalSource) {
+        KritaUtils::addJobBarrier(mutatedJobs, [this]() {
+            Q_FOREACH (KisNodeSP node, m_d->processedNodes) {
+                if (!node->paintDevice() || dynamic_cast<KisExternalLayer *>(node.data())) continue;
+                if (KUndo2Command *strokes = KisTransformUtils::strokeLogCommand(node, m_d->currentTransformArgs, m_d->selectionBefore)) {
+                    executeAndAddCommand(strokes, Transform, KisStrokeJobData::CONCURRENT);
+                }
+            }
+        });
     }
 
     mutatedJobs << new UpdateTransformData(m_d->currentTransformArgs,

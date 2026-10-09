@@ -44,7 +44,7 @@ void KisStrokeRecorder::start(KisResourcesSnapshotSP resources, KisPaintOpPreset
     m_template.color = resources->currentFgColor().toQColor().rgba();
     m_template.erasing = resources->compositeOpId() == COMPOSITE_ERASE;
     // painted through a selection: only there
-    m_template.clip = KisStrokeLog::outlineOf(resources->activeSelection());
+    m_selection = resources->activeSelection();
     resources->mirroring(&m_axesCenter, &m_mirrorHorizontal, &m_mirrorVertical);
     // the outline of another brush is no measure of this one
     if (m_shownPreset && m_shownPreset->name() != preset->name()) {
@@ -179,5 +179,11 @@ void KisStrokeRecorder::finish()
 KisStrokeLog::Strokes KisStrokeRecorder::strokes() const
 {
     QMutexLocker locker(&m_mutex);
-    return m_strokes;
+    KisStrokeLog::Strokes strokes = m_strokes;
+    // where the selection was when it was painted through (asked from the stroke's end, in its thread)
+    if (m_selection && !strokes.isEmpty()) {
+        const QVector<QPolygon> clip = KisStrokeLog::outlineOf(m_selection);
+        for (int i = 0; i < strokes.size(); i++) strokes[i].clip = clip;
+    }
+    return strokes;
 }

@@ -26,6 +26,7 @@
 #include "kis_paint_device.h"
 #include "kis_paint_device_frames_interface.h"
 #include "kis_pixel_selection.h"
+#include "kis_random_accessor_ng.h"
 #include "kis_selection.h"
 
 namespace {
@@ -215,13 +216,13 @@ QPolygonF densifiedOutline(const QPolygon &outline, qreal step)
 }
 
 /// Outlines moved: bent along with the move, and only as many points kept as that needs
-QVector<QPolygon> mapOutlines(const QVector<QPolygon> &outlines, const QPoint &offset, const KisStrokeLog::Mapper &mapper)
+QVector<QPolygon> mapOutlines(const QVector<QPolygon> &outlines, const QPoint &before, const QPoint &after, const KisStrokeLog::Mapper &mapper)
 {
     QVector<QPolygon> result;
     result.reserve(outlines.size());
     Q_FOREACH (const QPolygon &outline, outlines) {
         QPolygon mapped;
-        Q_FOREACH (const QPointF &point, densifiedOutline(outline, 8.0)) mapped << (mapper(point + offset) - offset).toPoint();
+        Q_FOREACH (const QPointF &point, densifiedOutline(outline, 8.0)) mapped << (mapper(point + before) - after).toPoint();
         result << simplified(mapped, 1.0);
     }
     return result;
@@ -281,8 +282,8 @@ KisStrokeLog::Stroke build(const KisStrokeLog::Stroke &stroke, const QVector<QPo
 }
 
 /// Points [from, to) of a dense stroke moved: where they go, as wide as the move stretches them, cut where it tears
-KisStrokeLog::Strokes mapBrush(const KisStrokeLog::Stroke &stroke, const Dense &dense, int from, int to, const QPoint &offset,
-                               const KisStrokeLog::Mapper &mapper, const KisStrokeLog::Tears &tears,
+KisStrokeLog::Strokes mapBrush(const KisStrokeLog::Stroke &stroke, const Dense &dense, int from, int to, const QPoint &before,
+                               const QPoint &after, const KisStrokeLog::Mapper &mapper, const KisStrokeLog::Tears &tears,
                                QHash<const void *, QVector<QPolygon>> *clips)
 {
     QVector<QPointF> points;
@@ -296,7 +297,7 @@ KisStrokeLog::Strokes mapBrush(const KisStrokeLog::Stroke &stroke, const Dense &
     if (!stroke.clip.isEmpty()) {
         // the selection once for all the strokes painted through it, still shared
         const void *key = stroke.clip.constData();
-        if (!clips->contains(key)) clips->insert(key, mapOutlines(stroke.clip, offset, mapper));
+        if (!clips->contains(key)) clips->insert(key, mapOutlines(stroke.clip, before, after, mapper));
         moved.clip = clips->value(key);
     }
 
@@ -305,7 +306,7 @@ KisStrokeLog::Strokes mapBrush(const KisStrokeLog::Stroke &stroke, const Dense &
     for (int i = 1; i <= points.size(); i++) {
         const bool torn = i < points.size() && tears && tears(dense.points[from + i - 1], dense.points[from + i]);
         if (i < points.size() && !torn) continue;
-        result << build(moved, points, widths, start, i, offset);
+        result << build(moved, points, widths, start, i, after);
         start = i;
     }
     return result;
@@ -385,14 +386,30 @@ bool KisStrokeLog::isEmpty() const
     return m_strokes.isEmpty();
 }
 
-void KisStrokeLog::append(const Strokes &strokes)
+KisStrokeLog::Strokes KisStrokeLog::append(const Strokes &strokes)
 {
+    Strokes dropped;
     {
         QWriteLocker locker(&m_lock);
         m_strokes += strokes;
         if (m_strokes.size() > kept) {
-            m_strokes.remove(0, m_strokes.size() - kept + kept / 20);
+            const int count = m_strokes.size() - kept + kept / 20;
+            dropped = m_strokes.mid(0, count);
+            m_strokes.remove(0, count);
         }
+    }
+    notifier()->notify();
+    return dropped;
+}
+
+void KisStrokeLog::restore(const Strokes &dropped)
+{
+    if (dropped.isEmpty()) {
+        return;
+    }
+    {
+        QWriteLocker locker(&m_lock);
+        m_strokes = dropped + m_strokes;
     }
     notifier()->notify();
 }
@@ -600,17 +617,21 @@ public:
 
     void redo() override
     {
-        m_node->strokeLog().append(m_strokes);
+        m_dropped = m_node->strokeLog().append(m_strokes);
     }
 
     void undo() override
     {
         m_node->strokeLog().remove(m_ids);
+        // the oldest ones let go to make room: back again
+        m_node->strokeLog().restore(m_dropped);
+        m_dropped.clear();
     }
 
 private:
     KisNodeSP m_node;
     KisStrokeLog::Strokes m_strokes;
+    KisStrokeLog::Strokes m_dropped;
     QVector<quint64> m_ids;
 };
 
@@ -695,20 +716,29 @@ KUndo2Command *KisStrokeLog::addCommand(KisNodeSP node, Strokes strokes)
     return new KisStrokeLogAddCommand(node, strokes);
 }
 
-KUndo2Command *KisStrokeLog::mapCommand(KisNodeSP node, Mapper mapper, Selected selected, Tears tears)
+KUndo2Command *KisStrokeLog::mapCommand(KisNodeSP node, const Move &move)
 {
-    if (!node || !mapper || node->strokeLog().isEmpty()) {
+    if (!node || !move.map || node->strokeLog().isEmpty()) {
         return nullptr;
     }
-    return new KisStrokeLogSetCommand(node, [node, mapper, selected, tears](const Strokes &before) {
+    return new KisStrokeLogSetCommand(node, [node, move](const Strokes &before) {
         KisPaintDeviceSP device = node->paintDevice();
-        const QPoint offset = device ? QPoint(device->x(), device->y()) : QPoint();
+        // from the device as it was to the device as it is (moving the pixels may have moved it)
+        const QPoint offsetAfter = device ? QPoint(device->x(), device->y()) : QPoint();
+        const QPoint offsetBefore = move.offsetBefore.value_or(offsetAfter);
         const int frame = currentFrame(device);
+        const Mapper &mapper = move.map;
+        const Selected &selected = move.selected;
         QHash<const void *, QVector<QPolygon>> clips;
         Strokes stay;
         Strokes moved;
         Q_FOREACH (const Stroke &stroke, before) {
             if (!sameFrame(stroke.frame, frame)) {
+                stay << stroke;
+                continue;
+            }
+            // nowhere near what moves
+            if (selected && !move.selectedBounds.isEmpty() && !stroke.bounds.translated(offsetBefore).intersects(move.selectedBounds)) {
                 stay << stroke;
                 continue;
             }
@@ -718,7 +748,7 @@ KUndo2Command *KisStrokeLog::mapCommand(KisNodeSP node, Mapper mapper, Selected 
                 Q_FOREACH (const QPolygon &outline, stroke.area) {
                     Q_FOREACH (const QPointF &point, densifiedOutline(outline, 8.0)) {
                         all++;
-                        if (!selected || selected(QPoint(qFloor(point.x()), qFloor(point.y())) + offset)) in++;
+                        if (!selected || selected(QPoint(qFloor(point.x()), qFloor(point.y())) + offsetBefore)) in++;
                     }
                 }
                 if (in * 2 <= all) {
@@ -726,16 +756,16 @@ KUndo2Command *KisStrokeLog::mapCommand(KisNodeSP node, Mapper mapper, Selected 
                     continue;
                 }
                 Stroke mapped = stroke;
-                mapped.area = mapOutlines(stroke.area, offset, mapper);
-                if (!stroke.clip.isEmpty()) mapped.clip = mapOutlines(stroke.clip, offset, mapper);
+                mapped.area = mapOutlines(stroke.area, offsetBefore, offsetAfter, mapper);
+                if (!stroke.clip.isEmpty()) mapped.clip = mapOutlines(stroke.clip, offsetBefore, offsetAfter, mapper);
                 mapped.updateBounds();
                 moved << mapped;
                 continue;
             }
-            const Dense dense = densified(stroke, offset);
+            const Dense dense = densified(stroke, offsetBefore);
             const int count = dense.points.size();
             if (!selected) {
-                moved += mapBrush(stroke, dense, 0, count, offset, mapper, tears, &clips);
+                moved += mapBrush(stroke, dense, 0, count, offsetBefore, offsetAfter, mapper, move.tears, &clips);
                 continue;
             }
             // only the parts in what moves: the rest stays where it is
@@ -753,9 +783,9 @@ KUndo2Command *KisStrokeLog::mapCommand(KisNodeSP node, Mapper mapper, Selected 
             for (int i = 1; i <= count; i++) {
                 if (i < count && in[i] == in[start]) continue;
                 if (in[start]) {
-                    moved += mapBrush(stroke, dense, start, i, offset, mapper, tears, &clips);
+                    moved += mapBrush(stroke, dense, start, i, offsetBefore, offsetAfter, mapper, move.tears, &clips);
                 } else {
-                    stay << build(stroke, dense.points, dense.widths, start, i, offset);
+                    stay << build(stroke, dense.points, dense.widths, start, i, offsetAfter);
                 }
                 start = i;
             }
@@ -765,12 +795,22 @@ KUndo2Command *KisStrokeLog::mapCommand(KisNodeSP node, Mapper mapper, Selected 
     });
 }
 
-KisStrokeLog::Selected KisStrokeLog::inSelection(KisSelectionSP selection)
+KisStrokeLog::Move KisStrokeLog::moveIn(KisSelectionSP selection, Mapper map)
 {
+    Move move;
+    move.map = map;
     if (!selection) {
-        return Selected();
+        return move;
     }
-    return [selection](const QPoint &point) { return selection->selected(point.x(), point.y()) > MAX_SELECTED / 2; };
+    // asked point by point along every stroke near it: one accessor for all of them
+    KisPixelSelectionSP pixels = selection->projection();
+    QSharedPointer<KisRandomConstAccessorSP> accessor(new KisRandomConstAccessorSP(pixels->createRandomConstAccessorNG()));
+    move.selected = [pixels, accessor](const QPoint &point) {
+        (*accessor)->moveTo(point.x(), point.y());
+        return *(*accessor)->rawDataConst() > MAX_SELECTED / 2;
+    };
+    move.selectedBounds = selection->selectedExactRect();
+    return move;
 }
 
 KUndo2Command *KisStrokeLog::mergeCommand(KisNodeSP target, KisNodeList sources)

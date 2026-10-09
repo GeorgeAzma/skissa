@@ -151,16 +151,20 @@ void FillProcessingVisitor::selectionFill(KisPaintDeviceSP device, const QRect &
 
     painter.endTransaction(undoAdapter);
 
-    coverStrokes(device, m_selection ? KisStrokeLog::outlineOf(m_selection) : QVector<QPolygon>{QPolygon(fillRect_)}, undoAdapter);
+    coverStrokes(device, m_selection, fillRect_, undoAdapter);
 }
 
-void FillProcessingVisitor::coverStrokes(KisPaintDeviceSP device, const QVector<QPolygon> &area, KisUndoAdapter *undoAdapter)
+void FillProcessingVisitor::coverStrokes(KisPaintDeviceSP device, KisSelectionSP filled, const QRect &rect, KisUndoAdapter *undoAdapter)
 {
-    if (!m_node || device != m_node->paintDevice() || area.isEmpty() || m_node->strokeLog().isEmpty()) {
+    // nothing painted with a brush to cover: no outline worked out
+    if (!m_node || device != m_node->paintDevice() || m_node->strokeLog().isEmpty()) {
         return;
     }
     KisStrokeLog::Stroke cover;
-    cover.area = area;
+    cover.area = filled ? KisStrokeLog::outlineOf(filled) : QVector<QPolygon>{QPolygon(rect)};
+    if (cover.area.isEmpty()) {
+        return;
+    }
     if (KUndo2Command *command = KisStrokeLog::addCommand(m_node, {cover})) {
         undoAdapter->addCommand(command);
     }
@@ -209,7 +213,7 @@ void FillProcessingVisitor::normalFill(KisPaintDeviceSP device, const QRect &fil
     fillPainter.endTransaction(undoAdapter);
 
     if (KisSelectionSP filled = fillPainter.filledArea()) {
-        coverStrokes(device, KisStrokeLog::outlineOf(filled), undoAdapter);
+        coverStrokes(device, filled, QRect(), undoAdapter);
     }
 
     if (m_outDirtyRect) {

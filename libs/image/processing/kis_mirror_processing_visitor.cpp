@@ -57,17 +57,18 @@ void KisMirrorProcessingVisitor::transformPaintDevice(KisPaintDeviceSP device, K
 
 void KisMirrorProcessingVisitor::visitNodeWithPaintDevice(KisNode *node, KisUndoAdapter *undoAdapter)
 {
-    transformPaintDevice(node->paintDevice(), undoAdapter);
+    KisPaintDeviceSP device = node->paintDevice();
+    const QPoint offsetBefore(device->x(), device->y());
+    transformPaintDevice(device, undoAdapter);
 
     // its strokes go where its paint went
     const qreal axis = m_axis;
     const bool horizontal = m_orientation == Qt::Horizontal;
-    if (KUndo2Command *strokes = KisStrokeLog::mapCommand(node,
-                                                          [axis, horizontal](const QPointF &point) {
-                                                              return horizontal ? QPointF(2 * axis - point.x(), point.y())
-                                                                                : QPointF(point.x(), 2 * axis - point.y());
-                                                          },
-                                                          KisStrokeLog::inSelection(m_selectionBefore))) {
+    KisStrokeLog::Move move = KisStrokeLog::moveIn(m_selectionBefore, [axis, horizontal](const QPointF &point) {
+        return horizontal ? QPointF(2 * axis - point.x(), point.y()) : QPointF(point.x(), 2 * axis - point.y());
+    });
+    move.offsetBefore = offsetBefore;
+    if (KUndo2Command *strokes = KisStrokeLog::mapCommand(node, move)) {
         undoAdapter->addCommand(strokes);
     }
 }

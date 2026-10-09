@@ -7,6 +7,7 @@
 #define KISSTROKELOG_H
 
 #include <functional>
+#include <optional>
 
 #include <QByteArray>
 #include <QColor>
@@ -117,14 +118,19 @@ public:
 
     /// Adds strokes (image coordinates) painted on \p node now
     static KUndo2Command *addCommand(KisNodeSP node, Strokes strokes);
-    /**
-     * Moves the strokes of \p node's current frame with its pixels: all of
-     * them, or (with \p selected) the parts in what moves, which then lie
-     * over the rest.
-     */
-    static KUndo2Command *mapCommand(KisNodeSP node, Mapper mapper, Selected selected = Selected(), Tears tears = Tears());
-    /// What moves with a selection: its pixels selected more than half (null: everything)
-    static Selected inSelection(KisSelectionSP selection);
+    /// How a node's pixels moved, for its strokes to move alike
+    struct Move {
+        Mapper map;                 ///< where a point went (image coordinates)
+        Selected selected;          ///< only what is here moved, over the rest (none: everything)
+        QRect selectedBounds;       ///< around what is selected: the strokes outside it are not looked at
+        Tears tears;                ///< where a stroke is cut in two
+        /// Where the device was before its pixels moved, if moving them moved it too (none: it did not)
+        std::optional<QPoint> offsetBefore;
+    };
+    /// What moves with a selection: its pixels selected more than half
+    static Move moveIn(KisSelectionSP selection, Mapper map);
+    /// The strokes of \p node's current frame moved as \p move says
+    static KUndo2Command *mapCommand(KisNodeSP node, const Move &move);
     /// All the strokes of \p sources (bottom to top) for \p target, which they were merged into
     static KUndo2Command *mergeCommand(KisNodeSP target, KisNodeList sources);
 
@@ -155,7 +161,10 @@ public:
     static KisStrokeLogNotifier *notifier();
 
 private:
-    void append(const Strokes &strokes);
+    /// Adds them; the oldest strokes no longer kept are returned
+    Strokes append(const Strokes &strokes);
+    /// Puts back strokes \p append let go, as the oldest
+    void restore(const Strokes &dropped);
     void remove(const QVector<quint64> &ids);
     void set(const Strokes &strokes);
 

@@ -64,6 +64,8 @@ private:
 
     KisPaintOpPresetSP m_shownPreset;
     KisStrokeLog::Stroke m_template;
+    /// The selection painted through: its outline is worked out with the stroke's end, away from the GUI thread
+    KisSelectionSP m_selection;
     qreal m_size {0};
     QPointF m_axesCenter;
     bool m_mirrorHorizontal {false};

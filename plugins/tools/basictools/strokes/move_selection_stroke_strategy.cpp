@@ -118,17 +118,18 @@ void MoveSelectionStrokeStrategy::finishStrokeCallback()
 
     indirect->setTemporaryTarget(0);
 
-    // the strokes in what was moved go with it, over what they were moved onto
-    const QPoint offset = m_finalOffset;
-    KisSelectionSP selection = m_selection;
-    if (KUndo2Command *strokes = KisStrokeLog::mapCommand(
-            m_paintLayer,
-            [offset](const QPointF &point) { return point + offset; },
-            // the selection has moved already
-            [selection, offset](const QPoint &point) {
-                return selection->selected(point.x() + offset.x(), point.y() + offset.y()) > MAX_SELECTED / 2;
-            })) {
-        runAndSaveCommand(KUndo2CommandSP(strokes), KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::NORMAL);
+    // the strokes in what was moved go with it, over what they were moved onto (once: not from the preview)
+    const bool preview = m_paintLayer->paintDevice()->defaultBounds()->currentLevelOfDetail() > 0;
+    if (!preview) {
+        const QPoint offset = m_finalOffset;
+        KisStrokeLog::Move move = KisStrokeLog::moveIn(m_selection, [offset](const QPointF &point) { return point + offset; });
+        // the selection has moved already: asked where it was
+        const KisStrokeLog::Selected movedSelection = move.selected;
+        move.selected = [movedSelection, offset](const QPoint &point) { return movedSelection(point + offset); };
+        move.selectedBounds.translate(-offset);
+        if (KUndo2Command *strokes = KisStrokeLog::mapCommand(m_paintLayer, move)) {
+            runAndSaveCommand(KUndo2CommandSP(strokes), KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::NORMAL);
+        }
     }
 
     m_updatesFacade->blockUpdates();

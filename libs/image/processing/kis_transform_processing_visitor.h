@@ -47,6 +47,8 @@ private:
     void transformClones(KisLayer *layer, KisUndoAdapter *undoAdapter);
     void transformPaintDevice(KisPaintDeviceSP device, KisUndoAdapter *adapter, const ProgressHelper &helper);
     void transformSelection(KisSelectionSP selection, KisUndoAdapter *adapter, const ProgressHelper &helper);
+    /// The node's strokes (see KisStrokeLog) moved as its pixels were; \p offsetBefore: its device's offset before
+    void moveStrokes(KisNode *node, const QPoint &offsetBefore, KisUndoAdapter *adapter);
 
     void transformOneDevice(KisPaintDeviceSP device, KoUpdater *updater);
 

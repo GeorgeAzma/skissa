@@ -354,7 +354,7 @@ std::function<QPointF(const QPointF &)> KisTransformUtils::pointMapper(const Too
 
 KUndo2Command *KisTransformUtils::strokeLogCommand(KisNodeSP node, const ToolTransformArgs &config, KisSelectionSP selectionBefore)
 {
-    return KisStrokeLog::mapCommand(node, pointMapper(config), KisStrokeLog::inSelection(selectionBefore));
+    return KisStrokeLog::mapCommand(node, KisStrokeLog::moveIn(selectionBefore, pointMapper(config)));
 }
 
 void KisTransformUtils::transformDevice(const ToolTransformArgs &config,
