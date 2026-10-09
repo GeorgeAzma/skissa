@@ -23,7 +23,8 @@
  * here is OKLCH: lightness down, chroma across, at the hue chosen on the
  * strip below; equal steps look like equal steps. Colors outside sRGB are
  * left out, so the plane shows what is actually reachable (its shape changes
- * with the hue). An HSV square is one click away for those used to it.
+ * with the hue). Krita's classic HSV ring and triangle is one click away
+ * for those used to it.
  * Below: the current and previous color and the colors last painted with.
  */
 class KRITAUI_EXPORT KisStudioColorPanel : public QDockWidget, public KoCanvasObserverBase
