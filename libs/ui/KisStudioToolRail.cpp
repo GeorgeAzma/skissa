@@ -33,6 +33,7 @@
 #include <KisResourceModel.h>
 
 #include "KisMainWindow.h"
+#include "KisStudioBrushPicker.h"
 #include "KisStudioMotion.h"
 #include "KisTouchMode.h"
 #include "KisResourceServerProvider.h"
@@ -1165,6 +1166,7 @@ void KisStudioToolRail::rememberPreset()
         return;
     }
     const QString name = resources->currentPreset()->name();
+    KisStudioBrushPicker::recordUse(name);
 
     // a brush that one of the slots remembers belongs to that slot, so the
     // highlighted slot always matches the brush in use (e.g. after a restart)

@@ -68,6 +68,8 @@ public:
 private:
     void enter();
     void leave();
+    /// Clicks and the wheel on the toolbar's brush picture
+    bool handlePresetChip(QEvent *event);
 
     void togglePanel(QDockWidget *dock, bool show);
     void showFlyout(QDockWidget *dock, QWidget *anchor = nullptr);

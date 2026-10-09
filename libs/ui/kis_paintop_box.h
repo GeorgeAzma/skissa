@@ -114,6 +114,9 @@ public:
      */
     KisDoubleSliderSpinBox *brushSlider(const QString &sliderID) const;
 
+    /// The button with the current brush's picture that opens the brush presets
+    QWidget *presetChip() const;
+
 Q_SIGNALS:
     /// The value as shown in the sliders, i.e. 0-100 for opacity and flow
     void sigBrushSliderValueChanged(const QString &sliderID, qreal value);

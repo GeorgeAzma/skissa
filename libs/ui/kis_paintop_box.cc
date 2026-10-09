@@ -604,6 +604,11 @@ KisPaintopBox::~KisPaintopBox()
     }
 }
 
+QWidget *KisPaintopBox::presetChip() const
+{
+    return m_presetSelectorPopupButton;
+}
+
 void KisPaintopBox::restoreResource(KoResourceSP resource)
 {
     KisPaintOpPresetSP preset = resource.dynamicCast<KisPaintOpPreset>();

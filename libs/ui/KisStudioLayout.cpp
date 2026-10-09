@@ -29,6 +29,7 @@
 #include <QMenuBar>
 #include <QTabBar>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QPainter>
 #include <QPointer>
 #include <QScrollArea>
@@ -49,6 +50,7 @@
 #include "KisDocument.h"
 #include "KisMainWindow.h"
 #include "KisStudioMotion.h"
+#include "KisStudioBrushPicker.h"
 #include "KisStudioEffectsPicker.h"
 #include "KisView.h"
 #include "KisResourceServerProvider.h"
@@ -584,6 +586,10 @@ struct KisStudioLayout::Private
     QPointer<KisStudioToolStrip> toolStrip;
     QPointer<QAction> toolStripAction;
     QPointer<QAction> brushValuesAction;
+    /// The toolbar's brush picture: a click opens the brush picker, the wheel steps through yours
+    QPointer<QWidget> presetChip;
+    QString presetChipToolTip;
+    int presetWheel {0};
     QPointer<QToolButton> documentButton;
     QPointer<QAction> documentButtonAction;
     QPointer<KisStudioCanvasHud> hud;
@@ -755,6 +761,35 @@ void KisStudioLayout::enter()
             auto *picker = new KisStudioEffectsPicker(mainWindow);
             picker->popupNear(QCursor::pos());
         });
+    }
+
+    /**
+     * All the brushes, yours first: from the brush picture in the top bar,
+     * from Find ("Pick a Brush"), or its shortcut, where the pointer is.
+     */
+    if (!mainWindow->actionCollection()->action(QStringLiteral("studio_brush_picker"))) {
+        QAction *brushes = new QAction(KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), i18nc("@action", "Pick a Brush"), mainWindow);
+        brushes->setObjectName(QStringLiteral("studio_brush_picker"));
+        brushes->setToolTip(i18nc("@info:tooltip", "All the brushes, with yours first"));
+        const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
+                                  .readEntry(brushes->objectName(), QString());
+        if (!saved.isEmpty() && saved != QLatin1String("none")) {
+            brushes->setShortcuts(QKeySequence::listFromString(saved));
+        }
+        mainWindow->actionCollection()->addAction(brushes->objectName(), brushes);
+        mainWindow->addAction(brushes);
+        connect(brushes, &QAction::triggered, mainWindow, [mainWindow]() {
+            auto *picker = new KisStudioBrushPicker(mainWindow);
+            picker->popupNear(QCursor::pos());
+        });
+    }
+    if (KisPaintopBox *paintopBox = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr) {
+        d->presetChip = paintopBox->presetChip();
+        if (d->presetChip) {
+            d->presetChipToolTip = d->presetChip->toolTip();
+            d->presetChip->setToolTip(i18nc("@info:tooltip", "Brushes: click to pick one, scroll to go through yours, "
+                                                             "right click for the brush presets to manage them"));
+        }
     }
 
     // New/Open/Save are in the main menu, undo and redo are Ctrl+Z and Ctrl+Shift+Z
@@ -966,6 +1001,9 @@ void KisStudioLayout::leave()
 {
     closeFlyout();
     qApp->removeEventFilter(this);
+    if (d->presetChip) {
+        d->presetChip->setToolTip(d->presetChipToolTip);
+    }
     if (d->hud) {
         d->hud->setActive(false);
     }
@@ -2038,9 +2076,59 @@ void KisStudioLayout::syncRail()
     }
 }
 
+bool KisStudioLayout::handlePresetChip(QEvent *event)
+{
+    switch (event->type()) {
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonDblClick:
+        // the picker opens on the release, as the presets did
+        return static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton;
+    case QEvent::MouseButtonRelease: {
+        auto *mouse = static_cast<QMouseEvent *>(event);
+        if (mouse->button() != Qt::LeftButton) {
+            return false;
+        }
+        // not after a long press, which ends with a release far away
+        if (d->presetChip->rect().contains(mouse->pos())) {
+            auto *picker = new KisStudioBrushPicker(d->mainWindow);
+            picker->popupBelow(d->presetChip);
+        }
+        return true;
+    }
+    case QEvent::ContextMenu:
+        // the brush presets as they were: tags, importing, editing
+        QMetaObject::invokeMethod(d->presetChip, "showPopupWidget");
+        return true;
+    case QEvent::Wheel: {
+        // a notch is one brush; a touchpad's small steps add up to one
+        d->presetWheel += static_cast<QWheelEvent *>(event)->angleDelta().y();
+        if (qAbs(d->presetWheel) < 120) {
+            return true;
+        }
+        const int step = d->presetWheel < 0 ? 1 : -1;
+        d->presetWheel = 0;
+        KisViewManager *view = d->mainWindow->viewManager();
+        KisCanvasResourceProvider *resources = view ? view->canvasResourceProvider() : nullptr;
+        if (resources && resources->currentPreset()) {
+            const QString next = KisStudioBrushPicker::neighbour(d->mainWindow, resources->currentPreset()->name(), step);
+            if (!next.isEmpty()) {
+                KisStudioBrushPicker::use(view, next);
+            }
+        }
+        return true;
+    }
+    default:
+        return false;
+    }
+}
+
 bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 {
     if (handleRailDrag(watched, event)) {
+        return true;
+    }
+
+    if (d->presetChip && watched == d->presetChip && handlePresetChip(event)) {
         return true;
     }
 
