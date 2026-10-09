@@ -5,6 +5,7 @@
  */
 
 #include "kis_kra_loader.h"
+#include "KisStrokeLog.h"
 
 #include <QApplication>
 #include <QStringList>
@@ -448,6 +449,18 @@ KisImageSP KisKraLoader::loadXML(const QDomElement& imageElement)
 
 void KisKraLoader::loadBinaryData(KoStore * store, KisImageSP image, const QString & uri, bool external)
 {
+    // which brush painted what (see KisStrokeLog)
+    {
+        const QString strokesLocation = (external ? QString() : uri) + m_d->imageName + QStringLiteral("/studio/strokes");
+        if (store->hasFile(strokesLocation) && store->open(strokesLocation)) {
+            const QByteArray strokes = store->read(store->size());
+            store->close();
+            if (KisStrokeLog *log = KisStrokeLog::forImage(image)) {
+                log->load(strokes);
+            }
+        }
+    }
+
     // icc profile: if present, this overrides the profile product name loaded in loadXML.
     QString location = external ? QString() : uri;
     location += m_d->imageName + ICC_PATH;

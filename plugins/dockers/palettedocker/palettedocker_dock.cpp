@@ -46,6 +46,10 @@
 #include <KisStudioItemCard.h>
 
 #include <KoColorSpaceRegistry.h>
+#include <KisStrokeLog.h>
+#include <KisStudioBrushMemory.h>
+#include <kis_image.h>
+#include <kis_node.h>
 #include <KisPaletteModel.h>
 #include <KisPaletteChooser.h>
 #include <KisPaletteEditor.h>
@@ -543,9 +547,11 @@ public:
         setToolTip(i18nc("@info:tooltip", "Recent colors: drag one into the palette to keep it"));
     }
 
-    void setColors(const QVector<QColor> &colors)
+    void setColors(const QVector<QColor> &colors, bool ofLayer = false)
     {
         m_colors = colors;
+        setToolTip(ofLayer ? i18nc("@info:tooltip", "Colors on this layer: drag one into the palette to keep it")
+                           : i18nc("@info:tooltip", "Recent colors: drag one into the palette to keep it"));
         fit();
     }
 
@@ -748,7 +754,7 @@ PaletteDockerDock::PaletteDockerDock( )
     m_grid = new PaletteGrid(m_model, mainWidget);
     m_grid->laidOut = [this](int cell, int left, int columns) { m_recentStrip->lineUp(cell, left, columns); };
     m_grid->recentDropped = [this](int recent, const QModelIndex &slot) {
-        if (recent >= 0 && recent < m_recent.size()) addColor(m_recent[recent], slot);
+        if (recent >= 0 && recent < m_shownRecent.size()) addColor(m_shownRecent[recent], slot);
     };
     m_grid->editable = [this]() { return canEdit(); };
     m_grid->picked = [this](const QModelIndex &index) { pickSwatch(index); };
@@ -803,6 +809,8 @@ void PaletteDockerDock::setViewManager(KisViewManager* kisview)
             this, SLOT(slotFGColorResourceChanged(KoColor)));
     // painted with: one of the recent colors
     connect(m_resourceProvider, &KisCanvasResourceProvider::sigFGColorUsed, this, &PaletteDockerDock::slotColorUsed);
+    // another layer: its colors
+    connect(kisview->nodeManager(), &KisNodeManager::sigNodeActivated, this, [this]() { updateRecentStrip(); });
     kisview->nodeManager()->disconnect(m_model);
 }
 
@@ -892,6 +900,15 @@ void PaletteDockerDock::setCanvas(KoCanvasBase *canvas)
     if (m_resourceProvider) {
         m_grid->setCurrentColor(m_resourceProvider->fgColor().toQColor());
     }
+
+    // a stroke ended: the layer's colors may have one more
+    disconnect(m_logConnection);
+    if (m_view && m_view->image()) {
+        if (KisStrokeLog *log = KisStrokeLog::forImage(m_view->image())) {
+            m_logConnection = connect(log, &KisStrokeLog::changed, this, [this]() { updateRecentStrip(); });
+        }
+    }
+    updateRecentStrip();
 
     if (!m_currentColorSet) {
         slotSetColorSet(0);
@@ -1174,26 +1191,41 @@ void PaletteDockerDock::slotColorUsed(const KoColor &color)
 
 void PaletteDockerDock::updateRecentStrip()
 {
+    m_shownRecent.clear();
+    // the colors painted on the active layer, when it has some and layers remember theirs
+    if (m_view && m_view->image() && m_view->activeNode() && KisStudioBrushMemory::layersRememberBrushes()) {
+        if (KisStrokeLog *log = KisStrokeLog::existing(m_view->image().data())) {
+            const QVector<QColor> onLayer = log->colorsOn(m_view->activeNode()->uuid(), recentKept);
+            if (!onLayer.isEmpty()) {
+                Q_FOREACH (const QColor &color, onLayer) {
+                    m_shownRecent << KoColor(color, KoColorSpaceRegistry::instance()->rgb8());
+                }
+                m_recentStrip->setColors(onLayer, true);
+                return;
+            }
+        }
+    }
     QVector<QColor> colors;
     Q_FOREACH (const KoColor &color, m_recent) colors << color.toQColor();
+    m_shownRecent = m_recent;
     m_recentStrip->setColors(colors);
 }
 
 void PaletteDockerDock::pickRecent(int index)
 {
-    if (!m_resourceProvider || index < 0 || index >= m_recent.size()) {
+    if (!m_resourceProvider || index < 0 || index >= m_shownRecent.size()) {
         return;
     }
-    m_resourceProvider->setFGColor(m_recent[index]);
+    m_resourceProvider->setFGColor(m_shownRecent[index]);
 }
 
 void PaletteDockerDock::showRecentCard(int index, QWidget *anchor)
 {
     KisMainWindow *mainWindow = m_view ? m_view->mainWindow() : nullptr;
-    if (!mainWindow || index < 0 || index >= m_recent.size()) {
+    if (!mainWindow || index < 0 || index >= m_shownRecent.size()) {
         return;
     }
-    const KoColor color = m_recent[index];
+    const KoColor color = m_shownRecent[index];
     const qreal dpr = devicePixelRatioF();
     QPixmap chip(QSize(28, 28) * dpr);
     chip.setDevicePixelRatio(dpr);
@@ -1210,8 +1242,13 @@ void PaletteDockerDock::showRecentCard(int index, QWidget *anchor)
         card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")), i18nc("@info:tooltip", "Keep it in the palette"),
                           [this, color]() { addColor(color, QModelIndex()); }});
     }
-    card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")), i18nc("@info:tooltip", "Forget it"), [this, index]() {
-                          if (index < m_recent.size()) m_recent.removeAt(index);
+    card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")), i18nc("@info:tooltip", "Forget it"), [this, color]() {
+                          for (int i = 0; i < m_recent.size(); i++) {
+                              if (m_recent[i].toQColor().rgba() == color.toQColor().rgba()) {
+                                  m_recent.removeAt(i);
+                                  break;
+                              }
+                          }
                           QStringList names;
                           Q_FOREACH (const KoColor &recent, m_recent) names << recent.toQColor().name(QColor::HexArgb);
                           KisConfig(false).writeEntry(recentKey, names);

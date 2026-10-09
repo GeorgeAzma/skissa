@@ -14,6 +14,7 @@
 
 #include <KoCanvasResourceProvider.h>
 #include "KisBlendModePicker.h"
+#include "KisStudioBrushMemory.h"
 
 #include <QLabel>
 #include <QApplication>
@@ -502,6 +503,15 @@ LayerBox::LayerBox()
     // set up the configure menu for changing thumbnail size
     QMenu* configureMenu = new QMenu(i18nc("@item:inmenu the layers list's look", "List"), this);
     configureMenu->setContentsMargins(6, 6, 6, 6);
+    // choosing a layer takes the brush last painted with on it (KisStudioBrushMemory)
+    QAction *rememberBrushes = configureMenu->addAction(i18nc("@option:check", "Layers remember their brush"));
+    rememberBrushes->setCheckable(true);
+    rememberBrushes->setToolTip(i18nc("@info:tooltip", "Choosing a layer takes the brush last painted with on it"));
+    connect(configureMenu, &QMenu::aboutToShow, rememberBrushes, [rememberBrushes]() {
+        QSignalBlocker blocker(rememberBrushes);
+        rememberBrushes->setChecked(KisStudioBrushMemory::layersRememberBrushes());
+    });
+    connect(rememberBrushes, &QAction::toggled, this, [](bool on) { KisStudioBrushMemory::setLayersRememberBrushes(on); });
     configureMenu->addSection(i18n("Thumbnail Size"));
     m_configureMenu = configureMenu;
 

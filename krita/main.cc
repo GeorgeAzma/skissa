@@ -296,7 +296,8 @@ private:
         }
         default: break;
         }
-        QWindowSystemInterface::handleMouseEvent(window, local, global, buttons, button, type);
+        // with the modifiers held through "KritaDevKey" (e.g. Alt+click)
+        QWindowSystemInterface::handleMouseEvent(window, local, global, buttons, button, type, QGuiApplication::keyboardModifiers());
     }
 
     /**

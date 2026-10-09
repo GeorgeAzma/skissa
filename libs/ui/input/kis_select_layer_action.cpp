@@ -232,7 +232,12 @@ public:
         }
 
         // Select
+        const KisNodeSP previous = nodeManager->activeNode();
         nodeManager->slotImageRequestNodeReselection(activeNode, finalSelectedNodes);
+        // picked on the canvas: chosen by the user, as a click in the layers panel is
+        if (activeNode && activeNode != previous) {
+            Q_EMIT nodeManager->sigUserActivatedNode(activeNode);
+        }
     }
 
     void selectNode(KisNodeSP node, int selectionOverrideMode) const

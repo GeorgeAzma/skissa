@@ -57,6 +57,8 @@ Q_SIGNALS:
     /// without telling the node manager that the node is activated,
     /// preventing loops (I think...)
     void sigUiNeedChangeActiveNode(KisNodeSP node);
+    /// A layer was chosen by the user (in the layers panel, or picked on the canvas), not by an action
+    void sigUserActivatedNode(KisNodeSP node);
 
     void sigUiNeedChangeSelectedNodes(const QList<KisNodeSP> &nodes);
 

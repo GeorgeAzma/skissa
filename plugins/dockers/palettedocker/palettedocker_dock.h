@@ -101,6 +101,9 @@ private /* member variables */:
     RecentStrip *m_recentStrip {nullptr};
     /// The colors last painted with, newest first
     QVector<KoColor> m_recent;
+    /// What the row shows: the active layer's colors, or the recent ones
+    QVector<KoColor> m_shownRecent;
+    QMetaObject::Connection m_logConnection;
     KisPopupButton *m_paletteButton {nullptr};
     QToolButton *m_undo {nullptr};
     QToolButton *m_redo {nullptr};

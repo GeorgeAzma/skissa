@@ -872,6 +872,9 @@ void KisNodeManager::slotUiActivatedNode(KisNodeSP node)
     if (node == activeNode()) return;
 
     slotSomethingActivatedNodeImpl(node);
+    if (node && node == activeNode()) {
+        Q_EMIT sigUserActivatedNode(node);
+    }
 }
 
 void KisNodeManager::nodesUpdated()

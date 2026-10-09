@@ -108,6 +108,7 @@
 #include "KisPart.h"
 #include "KisApplication.h"
 #include "KisDocument.h"
+#include "KisStrokeLog.h"
 #include "KisImportExportManager.h"
 #include "KisView.h"
 #include "kis_grid_config.h"
@@ -1288,6 +1289,8 @@ void KisDocument::copyFromDocumentImpl(const KisDocument &rhs, CopyPolicy policy
             // NOTE: we expect the image to be locked!
             setCurrentImage(rhs.image()->clone(/* exactCopy = */ true), /* forceInitialUpdate = */ false);
         }
+        // which brush painted what goes along: the layers keep their GUIDs
+        KisStrokeLog::copy(rhs.d->image, d->image);
     }
 
     if (policy == REPLACE) {

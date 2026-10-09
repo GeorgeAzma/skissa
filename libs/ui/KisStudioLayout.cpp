@@ -50,6 +50,7 @@
 #include "KisDocument.h"
 #include "KisMainWindow.h"
 #include "KisStudioMotion.h"
+#include "KisStudioBrushMemory.h"
 #include "KisStudioBrushPicker.h"
 #include "KisStudioEffectsPicker.h"
 #include "KisView.h"
@@ -641,6 +642,8 @@ struct KisStudioLayout::Private
     QPointer<QAction> brushValuesAction;
     /// The toolbar's brush picture: a click opens the brush picker, the wheel steps through yours
     QPointer<QWidget> presetChip;
+    /// Brushes taken from strokes (Alt+click) and from layers
+    QPointer<KisStudioBrushMemory> brushMemory;
     QString presetChipToolTip;
     int presetWheel {0};
     QPointer<QToolButton> documentButton;
@@ -839,6 +842,9 @@ void KisStudioLayout::enter()
             auto *picker = new KisStudioBrushPicker(mainWindow);
             picker->popupNear(QCursor::pos());
         });
+    }
+    if (!d->brushMemory) {
+        d->brushMemory = new KisStudioBrushMemory(mainWindow);
     }
     if (KisPaintopBox *paintopBox = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr) {
         d->presetChip = paintopBox->presetChip();
@@ -1061,6 +1067,7 @@ void KisStudioLayout::leave()
     if (d->presetChip) {
         d->presetChip->setToolTip(d->presetChipToolTip);
     }
+    delete d->brushMemory;
     if (d->hud) {
         d->hud->setActive(false);
     }

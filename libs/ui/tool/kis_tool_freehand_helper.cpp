@@ -36,6 +36,10 @@
 #include "KisAsynchronousStrokeUpdateHelper.h"
 #include "kis_canvas_resource_provider.h"
 #include <KisOptimizedBrushOutline.h>
+#include <KoCompositeOpRegistry.h>
+#include "KisStrokeLog.h"
+#include "kis_paintop_preset.h"
+#include "kis_paintop_settings.h"
 
 #include <math.h>
 
@@ -103,6 +107,11 @@ struct KisToolFreehandHelper::Private
     // Keeps track of past cursor positions. This is used to determine the drawing angle when
     // drawing the brush outline or starting a stroke.
     KisPaintOpUtils::PositionHistory lastCursorPos;
+
+    // What the stroke is, for the image's stroke log: the layer, the brush, where it went
+    KisStrokeLog::Stroke recording;
+    QPointF lastRecorded;
+    bool recordingActive {false};
 
     // Stabilizer data
     bool usingStabilizer;
@@ -321,6 +330,21 @@ void KisToolFreehandHelper::initPaintImpl(qreal startAngle,
         m_d->resources->setCurrentNode(overrideNode);
     }
 
+    // which layer, brush, size and color: what a later Alt+click on it, or the layer, gives back
+    m_d->recording = KisStrokeLog::Stroke();
+    m_d->recordingActive = false;
+    if (KisNodeSP node = m_d->resources->currentNode()) {
+        KisPaintOpPresetSP preset = m_d->resources->currentPaintOpPreset();
+        if (preset) {
+            m_d->recording.node = node->uuid();
+            m_d->recording.brush = preset->name();
+            m_d->recording.size = preset->settings() ? preset->settings()->paintOpSize() : 10.0;
+            m_d->recording.color = m_d->resources->currentFgColor().toQColor();
+            m_d->recording.erasing = m_d->resources->compositeOpId() == COMPOSITE_ERASE;
+            m_d->recordingActive = true;
+        }
+    }
+
     const bool airbrushing = m_d->resources->needsAirbrushing();
     const bool useSpacingUpdates = m_d->resources->needsSpacingUpdates();
 
@@ -374,6 +398,15 @@ KoCanvasResourceProvider *KisToolFreehandHelper::resourceManager() const
 
 void KisToolFreehandHelper::updateCurrentBrushPosition(const QPointF &pixelPos)
 {
+    // a point every so often along the stroke: enough to tell later where it went
+    if (m_d->recordingActive) {
+        const qreal spacing = qMax(6.0, m_d->recording.size * 0.6);
+        if (m_d->recording.path.isEmpty() || QLineF(m_d->lastRecorded, pixelPos).length() >= spacing) {
+            m_d->recording.path << pixelPos.toPoint();
+            m_d->lastRecorded = pixelPos;
+        }
+    }
+
     // Store on the flake-level resource provider (the only provider this
     // helper holds), keyed by a Krita-specific resource id.
     if (KoCanvasResourceProvider *manager = resourceManager()) {
@@ -746,6 +779,18 @@ void KisToolFreehandHelper::endPaint()
     m_d->strokesFacade->endStroke(m_d->strokeId);
     m_d->strokeId.clear();
     m_d->infoBuilder->reset();
+
+    // into the image's stroke log, with the stroke's end
+    if (m_d->recordingActive && !m_d->recording.path.isEmpty() && m_d->resources) {
+        const QPoint end = m_d->previousPaintInformation.pos().toPoint();
+        if (m_d->recording.path.last() != end) m_d->recording.path << end;
+        const int radius = qCeil(m_d->recording.size / 2) + 2;
+        m_d->recording.bounds = m_d->recording.path.boundingRect().adjusted(-radius, -radius, radius, radius);
+        if (KisStrokeLog *log = KisStrokeLog::forImage(m_d->resources->image())) {
+            log->add(m_d->recording);
+        }
+    }
+    m_d->recordingActive = false;
 }
 
 void KisToolFreehandHelper::cancelPaint()
@@ -775,6 +820,7 @@ void KisToolFreehandHelper::cancelPaint()
 
     m_d->strokesFacade->cancelStroke(m_d->strokeId);
     m_d->strokeId.clear();
+    m_d->recordingActive = false;
 
 }
 

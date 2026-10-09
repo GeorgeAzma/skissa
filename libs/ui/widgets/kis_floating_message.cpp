@@ -206,9 +206,9 @@ QRect KisFloatingMessage::determineMetrics( const int M )
     QPoint newPos(MARGIN, MARGIN);
 
     if (parentWidget() && m_showOverParent) {
+        // centered at the top of the canvas: clear of the panels and the tools along its sides
         screen = parentWidget()->geometry();
-        screen.setTopLeft(parentWidget()->mapToGlobal(QPoint(MARGIN, MARGIN + 50)));
-        newPos = screen.topLeft();
+        newPos = parentWidget()->mapToGlobal(QPoint((parentWidget()->width() - newSize.width()) / 2, MARGIN + 30));
     }
     else {
         // move to the right
@@ -234,7 +234,8 @@ QRect KisFloatingMessage::determineMetrics( const int M )
 
 void KisFloatingMessage::startFade()
 {
-    m_fadeTimeLine.setDuration(500);
+    // quick: it is only going away
+    m_fadeTimeLine.setDuration(180);
     m_fadeTimeLine.setEasingCurve(QEasingCurve::InCurve);
     m_fadeTimeLine.setLoopCount(1);
     m_fadeTimeLine.setFrameRange(0, 10);
