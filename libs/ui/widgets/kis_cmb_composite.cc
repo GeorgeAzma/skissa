@@ -17,6 +17,8 @@
 #include "kis_categorized_item_delegate.h"
 #include <kis_action.h>
 #include <QWheelEvent>
+#include <QApplication>
+#include <QMouseEvent>
 #include "kis_action_manager.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -75,7 +77,7 @@ KisCompositeOpComboBox::KisCompositeOpComboBox(bool limitToLayerStyles, QWidget*
     setSizeAdjustPolicy(AdjustToContents);
     m_view->setResizeMode(QListView::Adjust);
 
-    setToolTip(i18n("Blending Mode"));
+    setToolTip(limitToLayerStyles ? i18n("Blending Mode") : i18nc("@info:tooltip", "Blend mode: click, scroll, or drag sideways"));
 
     setModel(m_model);
     setView(m_view);
@@ -257,7 +259,8 @@ void KisCompositeOpComboBox::showPopup()
         }
     }
 
-    auto *picker = new KisBlendModePicker(selectedCompositeOp().id(), available, this);
+    auto *picker = new KisBlendModePicker(selectedCompositeOp().id(), available, this,
+                                          m_pictures ? m_pictures() : KisBlendModePicker::Pictures());
     connect(picker, &KisBlendModePicker::previewed, this, &KisCompositeOpComboBox::sigPreviewBlendMode);
     connect(picker, &KisBlendModePicker::picked, this, [this](const KoID &op) {
         /**
@@ -467,6 +470,89 @@ void KisCompositeOpComboBox::selectNeighbouringBlendMode(bool down)
         if (m_model->entryAt(op, m_model->index(newIndex, 0))) {
             Q_EMIT textActivated(op.name());
         }
+    }
+}
+
+void KisCompositeOpComboBox::setPreviewPictures(std::function<KisBlendModePicker::Pictures()> pictures)
+{
+    m_pictures = std::move(pictures);
+}
+
+void KisCompositeOpComboBox::mousePressEvent(QMouseEvent *e)
+{
+    if (m_limitToLayerStyles || e->button() != Qt::LeftButton || !isEnabled()) {
+        KisSqueezedComboBox::mousePressEvent(e);
+        return;
+    }
+    // the picker opens on the release, unless this turns into a scrub
+    m_pressed = true;
+    m_scrubbing = false;
+    m_pressPos = e->pos();
+    e->accept();
+}
+
+void KisCompositeOpComboBox::mouseMoveEvent(QMouseEvent *e)
+{
+    if (!m_pressed) {
+        KisSqueezedComboBox::mouseMoveEvent(e);
+        return;
+    }
+    const QPoint delta = e->pos() - m_pressPos;
+    const QStringList order = KisBlendModePicker::scrollOrder();
+    if (!m_scrubbing) {
+        if (qAbs(delta.x()) < 2 * QApplication::startDragDistance() || qAbs(delta.x()) < qAbs(delta.y())) {
+            return;
+        }
+        m_scrubbing = true;
+        m_scrubStart = order.indexOf(selectedCompositeOp().id());
+        m_scrubId.clear();
+        setCursor(Qt::SizeHorCursor);
+    }
+    // one mode per step of the pointer, through yours and on into the others, no wrapping
+    constexpr int step = 18;
+    int target = qBound(0, m_scrubStart + delta.x() / step, order.size() - 1);
+    const int direction = delta.x() >= 0 ? 1 : -1;
+    for (; target >= 0 && target < order.size(); target += direction) {
+        const QModelIndex index = m_model->indexOf(KoCompositeOpRegistry::instance().getKoID(order[target]));
+        if (index.isValid() && (index.flags() & Qt::ItemIsEnabled)) break;
+    }
+    if (target < 0 || target >= order.size() || order[target] == m_scrubId) {
+        return;
+    }
+    m_scrubId = order[target];
+    // the box shows it (a brush's box applies it as it changes), a layer previews it
+    setCurrentIndex(m_model->indexOf(KoCompositeOpRegistry::instance().getKoID(m_scrubId)).row());
+    Q_EMIT sigPreviewBlendMode(m_scrubId);
+}
+
+void KisCompositeOpComboBox::mouseReleaseEvent(QMouseEvent *e)
+{
+    if (!m_pressed) {
+        KisSqueezedComboBox::mouseReleaseEvent(e);
+        return;
+    }
+    m_pressed = false;
+    e->accept();
+    if (m_scrubbing) {
+        m_scrubbing = false;
+        unsetCursor();
+        if (m_scrubId.isEmpty()) {
+            return;
+        }
+        // the preview ends, the mode it ended on is picked
+        Q_EMIT sigPreviewBlendMode(QString());
+        const KoID op = KoCompositeOpRegistry::instance().getKoID(m_scrubId);
+        const QModelIndex index = m_model->indexOf(op);
+        if (index.isValid()) {
+            setCurrentIndex(index.row());
+            Q_EMIT activated(index.row());
+            Q_EMIT textActivated(op.name());
+        }
+        return;
+    }
+    // a click; not after a long press, which ends with a release far away
+    if (rect().contains(e->pos())) {
+        showPopup();
     }
 }
 

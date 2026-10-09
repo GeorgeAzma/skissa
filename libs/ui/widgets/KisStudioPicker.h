@@ -7,6 +7,7 @@
 #define KISSTUDIOPICKER_H
 
 #include <QFrame>
+#include <QImage>
 #include <QSet>
 #include <QSize>
 #include <QVector>
@@ -69,6 +70,11 @@ public:
         /// "All %1 ..." where %1 is the number of them
         QString allLabel;
     };
+
+    /// A picture with a bit of everything an effect or blend mode can change, for a blank canvas
+    static QImage samplePicture(const QSize &size);
+    /// Whether a picture is one flat color (or empty): an effect or a blend mode would show nothing on it
+    static bool isFlat(const QImage &image);
 
     static QStringList pinnedIds(const Source &source);
     static void setPinnedIds(const Source &source, const QStringList &ids);

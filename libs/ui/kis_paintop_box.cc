@@ -12,6 +12,7 @@
  */
 
 #include "kis_paintop_box.h"
+#include "KisBlendModePicker.h"
 
 #include <QHBoxLayout>
 #include <tuple>
@@ -333,6 +334,11 @@ KisPaintopBox::KisPaintopBox(KisViewManager *viewManager, QWidget *parent, const
     // a mode name is one or two words, the picker opens wide anyway
     m_cmbCompositeOp->setMaximumWidth(150);
     m_cmbCompositeOp->connectBlendmodeActions(m_viewManager->actionManager());
+    // the picker shows each mode as a stroke of the current color over the image
+    m_cmbCompositeOp->setPreviewPictures([this]() {
+        return KisBlendModePicker::brushPictures(m_viewManager->image(), KisBlendModePicker::pictureSize(m_cmbCompositeOp),
+                                                 m_resourceProvider->fgColor().toQColor());
+    });
 
     // Workspace Button
     m_workspaceWidget = new KisPopupButton(this);

@@ -13,6 +13,9 @@
 #include <KisSqueezedComboBox.h>
 #include <kritaui_export.h>
 #include "kis_categorized_list_view.h"
+#include "KisBlendModePicker.h"
+
+#include <functional>
 
 class KoID;
 class KoColorSpace;
@@ -59,6 +62,16 @@ public:
     void wheelEvent(QWheelEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
 
+    /// What the picker's tiles show the modes doing to, made when it opens; without, small swatches
+    void setPreviewPictures(std::function<KisBlendModePicker::Pictures()> pictures);
+
+protected:
+    /// A press and a drag sideways steps through the modes, previewing them; a click opens the picker
+    void mousePressEvent(QMouseEvent *e) override;
+    void mouseMoveEvent(QMouseEvent *e) override;
+    void mouseReleaseEvent(QMouseEvent *e) override;
+
+public:
 Q_SIGNALS:
     /**
      * A mode is highlighted in the popup and can be previewed, e.g. on the
@@ -108,6 +121,13 @@ private:
     KisCategorizedListView *m_view;
     bool m_allowToHidePopup;
     bool m_limitToLayerStyles {false};
+    std::function<KisBlendModePicker::Pictures()> m_pictures;
+    /// Pressed, not yet released: a click or a scrub
+    bool m_pressed {false};
+    bool m_scrubbing {false};
+    QPoint m_pressPos;
+    int m_scrubStart {-1};
+    QString m_scrubId;
 };
 
 class KRITAUI_EXPORT KisLayerStyleCompositeOpComboBox: public KisCompositeOpComboBox

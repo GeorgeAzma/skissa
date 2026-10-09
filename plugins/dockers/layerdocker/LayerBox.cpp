@@ -12,6 +12,9 @@
 
 #include "LayerBox.h"
 
+#include <KoCanvasResourceProvider.h>
+#include "KisBlendModePicker.h"
+
 #include <QLabel>
 #include <QApplication>
 #include <QToolButton>
@@ -365,6 +368,13 @@ LayerBox::LayerBox()
 
     connect(m_wdgLayerBox->cmbComposite, SIGNAL(activated(int)), SLOT(slotCompositeOpChanged(int)));
     connect(m_wdgLayerBox->cmbComposite, SIGNAL(sigPreviewBlendMode(QString)), SLOT(slotPreviewBlendMode(QString)));
+    // the picker shows each mode on this layer over the ones below it
+    m_wdgLayerBox->cmbComposite->setPreviewPictures([this]() {
+        KisNodeSP node = m_nodeManager ? m_nodeManager->activeNode() : KisNodeSP();
+        const QColor color = m_canvas && m_canvas->resourceManager() ? m_canvas->resourceManager()->foregroundColor().toQColor()
+                                                                       : QColor(200, 85, 61);
+        return KisBlendModePicker::layerPictures(node, KisBlendModePicker::pictureSize(this), color);
+    });
 
     m_newLayerMenu = new QMenu(this);
     m_wdgLayerBox->bnAdd->setMenu(m_newLayerMenu);

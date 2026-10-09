@@ -149,57 +149,6 @@ QString groupOf(const QString &id)
     return QStringLiteral("other");
 }
 
-/// A picture with a bit of everything an effect can change: color, light, soft and hard edges, detail
-QImage samplePicture(const QSize &size)
-{
-    QImage image(size, QImage::Format_ARGB32);
-    QPainter painter(&image);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    const QRectF r(QPointF(0, 0), QSizeF(size));
-    QLinearGradient sky(r.topLeft(), r.bottomLeft());
-    sky.setColorAt(0.0, QColor(72, 104, 168));
-    sky.setColorAt(0.6, QColor(226, 160, 122));
-    sky.setColorAt(1.0, QColor(244, 214, 168));
-    painter.fillRect(r, sky);
-    QRadialGradient sun(QPointF(r.width() * 0.68, r.height() * 0.38), r.height() * 0.3);
-    sun.setColorAt(0.0, QColor(255, 246, 214));
-    sun.setColorAt(0.45, QColor(255, 210, 120, 230));
-    sun.setColorAt(1.0, QColor(255, 180, 90, 0));
-    painter.fillRect(r, sun);
-    QPainterPath hills;
-    hills.moveTo(0, r.height() * 0.72);
-    hills.cubicTo(r.width() * 0.25, r.height() * 0.5, r.width() * 0.45, r.height() * 0.86, r.width() * 0.7, r.height() * 0.66);
-    hills.cubicTo(r.width() * 0.85, r.height() * 0.56, r.width() * 0.95, r.height() * 0.7, r.width(), r.height() * 0.64);
-    hills.lineTo(r.width(), r.height());
-    hills.lineTo(0, r.height());
-    hills.closeSubpath();
-    painter.fillPath(hills, QColor(46, 70, 62));
-    // fine dark lines, for the effects that work on edges and detail
-    painter.setPen(QPen(QColor(24, 30, 36), qMax(1.0, r.height() / 48)));
-    for (int i = 0; i < 5; i++) {
-        const qreal x = r.width() * (0.12 + 0.06 * i);
-        painter.drawLine(QPointF(x, r.height() * 0.62), QPointF(x + r.width() * 0.03, r.height() * (0.3 + 0.04 * i)));
-    }
-    return image;
-}
-
-/// Whether a picture is one flat color, e.g. a blank canvas: an effect would show nothing on it
-bool isFlat(const QImage &image)
-{
-    int lowest = 255 * 3, highest = 0, lowestAlpha = 255, highestAlpha = 0;
-    for (int y = 0; y < image.height(); y += qMax(1, image.height() / 16)) {
-        for (int x = 0; x < image.width(); x += qMax(1, image.width() / 16)) {
-            const QRgb pixel = image.pixel(x, y);
-            const int value = qRed(pixel) + qGreen(pixel) + qBlue(pixel);
-            lowest = qMin(lowest, value);
-            highest = qMax(highest, value);
-            lowestAlpha = qMin(lowestAlpha, qAlpha(pixel));
-            highestAlpha = qMax(highestAlpha, qAlpha(pixel));
-        }
-    }
-    return highest - lowest < 24 && highestAlpha - lowestAlpha < 10;
-}
-
 /// The image, cropped to the tiles' shape; the sample when there is nothing to see
 QImage basePicture(KisViewManager *view, const QSize &size)
 {
@@ -213,8 +162,8 @@ QImage basePicture(KisViewManager *view, const QSize &size)
                                     size.width(), size.height());
         }
     }
-    if (picture.isNull() || isFlat(picture)) {
-        picture = samplePicture(size);
+    if (picture.isNull() || KisStudioPicker::isFlat(picture)) {
+        picture = KisStudioPicker::samplePicture(size);
     }
     return picture.convertToFormat(QImage::Format_ARGB32);
 }
