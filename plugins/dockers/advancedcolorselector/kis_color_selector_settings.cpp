@@ -139,7 +139,7 @@ QString KisColorSelectorSettings::name()
 
 QString KisColorSelectorSettings::header()
 {
-    return QString(i18n("Color Selector Settings"));
+    return QString(i18nc("settings page", "Color Selector"));
 }
 
 

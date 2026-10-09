@@ -30,13 +30,13 @@ KisDlgCreateNewDocument::KisDlgCreateNewDocument(QWidget* parent)
 
     addCustomDocumentWidget(
         new KisCustomImageWidget(this, w, h, resolution, colorModel, colorDepth, colorProfile, i18n("Unnamed")),
-        i18n("Custom Document"),
+        i18nc("new image: one made to measure", "Custom"),
         "Custom Document",
         "document-new");
 
    addCustomDocumentWidget(
         new KisImageFromClipboardWidget(this, 0, 0, resolution, colorModel, colorDepth, colorProfile, i18n("Unnamed")),
-        i18n("Create from Clipboard"),
+        i18nc("new image: from the clipboard's picture", "From Clipboard"),
         "Create from ClipBoard",
         "tab-new");
 

@@ -365,7 +365,7 @@
           </size>
          </property>
          <property name="text">
-          <string>Save New Brush Preset...</string>
+          <string>Save as New</string>
          </property>
         </widget>
        </item>
@@ -384,7 +384,7 @@
           </size>
          </property>
          <property name="text">
-          <string>Overwrite Brush Preset</string>
+          <string>Overwrite</string>
          </property>
         </widget>
        </item>
@@ -678,7 +678,7 @@
            </sizepolicy>
           </property>
           <property name="text">
-           <string>Temporarily Save Tweaks To Presets</string>
+           <string>Keep Tweaks</string>
           </property>
           <property name="checked">
            <bool>true</bool>

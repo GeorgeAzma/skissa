@@ -5,6 +5,8 @@
  */
 #include "KisModernStyle.h"
 
+#include <QApplication>
+
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QComboBox>
@@ -433,10 +435,60 @@ int KisModernStyle::styleHint(StyleHint hint, const QStyleOption *option, const 
     case SH_DitherDisabledText:
     case SH_EtchDisabledText:
         return 0;
+    case SH_UnderlineShortcut:
+        // no underlined letters in every label: Alt still reaches them
+        return 0;
     default:
         break;
     }
     return QProxyStyle::styleHint(hint, option, widget, returnData);
+}
+
+QIcon KisModernStyle::standardIcon(StandardPixmap standardIcon, const QStyleOption *option, const QWidget *widget) const
+{
+    QColor fill;
+    QString glyph;
+    switch (standardIcon) {
+    case SP_MessageBoxWarning:
+        fill = QColor(232, 168, 56);
+        glyph = QStringLiteral("!");
+        break;
+    case SP_MessageBoxCritical:
+        fill = QColor(220, 80, 72);
+        glyph = QStringLiteral("!");
+        break;
+    case SP_MessageBoxInformation:
+        fill = QColor(74, 136, 232);
+        glyph = QStringLiteral("i");
+        break;
+    case SP_MessageBoxQuestion:
+        fill = QColor(74, 136, 232);
+        glyph = QStringLiteral("?");
+        break;
+    default:
+        return QProxyStyle::standardIcon(standardIcon, option, widget);
+    }
+    // a filled circle with the mark in it, at the sizes a message box asks for
+    QIcon icon;
+    for (int size : {16, 24, 32, 48, 64, 96}) {
+        QPixmap pixmap(size, size);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setRenderHint(QPainter::TextAntialiasing, true);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(fill);
+        painter.drawEllipse(QRectF(0.5, 0.5, size - 1, size - 1));
+        QFont font = QApplication::font();
+        font.setBold(true);
+        font.setPixelSize(qRound(size * 0.62));
+        painter.setFont(font);
+        painter.setPen(Qt::white);
+        painter.drawText(QRect(0, 0, size, size), Qt::AlignCenter, glyph);
+        painter.end();
+        icon.addPixmap(pixmap);
+    }
+    return icon;
 }
 
 QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &contentsSize, const QWidget *widget) const

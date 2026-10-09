@@ -2682,7 +2682,8 @@ KisDlgPreferences::KisDlgPreferences(QWidget* parent, const char* name)
     setWindowTitle(i18n("Configure Krita"));
     setStandardButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::RestoreDefaults);
 
-    setFaceType(KPageDialog::List);
+    // a plain list down the side: small icons, the name beside them
+    setFaceType(KPageDialog::FlatList);
 
     // General
     KoVBox *vbox = new KoVBox();
@@ -2696,7 +2697,7 @@ KisDlgPreferences::KisDlgPreferences(QWidget* parent, const char* name)
 
     // Shortcuts
     vbox = new KoVBox();
-    page = new KPageWidgetItem(vbox, i18n("Keyboard Shortcuts"));
+    page = new KPageWidgetItem(vbox, i18nc("settings page", "Shortcuts"));
     page->setObjectName("shortcuts");
     page->setHeader(i18n("Shortcuts"));
     page->setIcon(KisIconUtils::loadIcon("config-keyboard"));
@@ -2708,7 +2709,7 @@ KisDlgPreferences::KisDlgPreferences(QWidget* parent, const char* name)
 
     // Canvas input settings
     m_inputConfiguration = new KisInputConfigurationPage();
-    page = addPage(m_inputConfiguration, i18n("Canvas Input Settings"));
+    page = addPage(m_inputConfiguration, i18nc("settings page", "Canvas Input"));
     page->setHeader(i18n("Canvas Input"));
     page->setObjectName("canvasinput");
     page->setIcon(KisIconUtils::loadIcon("config-canvas-input"));
@@ -2746,7 +2747,7 @@ KisDlgPreferences::KisDlgPreferences(QWidget* parent, const char* name)
 
     // Tablet
     vbox = new KoVBox();
-    page = new KPageWidgetItem(vbox, i18n("Tablet settings"));
+    page = new KPageWidgetItem(vbox, i18nc("settings page", "Tablet"));
     page->setObjectName("tablet");
     page->setHeader(i18n("Tablet"));
     page->setIcon(KisIconUtils::loadIcon("config-tablet"));
@@ -2756,7 +2757,7 @@ KisDlgPreferences::KisDlgPreferences(QWidget* parent, const char* name)
 
     // full-screen mode
     vbox = new KoVBox();
-    page = new KPageWidgetItem(vbox, i18n("Canvas-only settings"));
+    page = new KPageWidgetItem(vbox, i18nc("settings page", "Canvas-only"));
     page->setObjectName("canvasonly");
     page->setHeader(i18n("Canvas-only"));
     page->setIcon(KisIconUtils::loadIcon("config-canvas-only"));

@@ -67,7 +67,7 @@ QString WGColorSelectorSettings::name()
 
 QString WGColorSelectorSettings::header()
 {
-    return QString(i18n("Wide Gamut Color Selector Settings"));
+    return QString(i18nc("settings page", "Wide Gamut Selector"));
 }
 
 QIcon WGColorSelectorSettings::icon()
