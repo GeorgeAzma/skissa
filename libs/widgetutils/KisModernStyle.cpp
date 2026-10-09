@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisModernStyle.h"
+#include "KisTouchMode.h"
 
 #include <QApplication>
 
@@ -278,6 +279,14 @@ KisModernStyle::KisModernStyle()
     : QProxyStyle(QStyleFactory::create(QStringLiteral("fusion")))
 {
     setObjectName(styleName());
+    // a finger came (or went): every widget measures itself again, bigger for it
+    connect(KisTouchMode::instance(), &KisTouchMode::changed, this, []() {
+        Q_FOREACH (QWidget *widget, QApplication::allWidgets()) {
+            QEvent change(QEvent::StyleChange);
+            QApplication::sendEvent(widget, &change);
+            widget->updateGeometry();
+        }
+    });
 }
 
 QString KisModernStyle::styleName()
@@ -398,9 +407,16 @@ void KisModernStyle::polish(QWidget *widget)
 
 int KisModernStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const
 {
+    const bool touch = KisTouchMode::isActive();
     switch (metric) {
     case PM_ScrollBarExtent:
-        return 10;
+        // a finger drags a scroll bar too
+        return touch ? 16 : 10;
+    case PM_IndicatorWidth:
+    case PM_IndicatorHeight:
+    case PM_ExclusiveIndicatorWidth:
+    case PM_ExclusiveIndicatorHeight:
+        return QProxyStyle::pixelMetric(metric, option, widget) + (touch ? 6 : 0);
     case PM_ScrollBarSliderMin:
         return 32;
     case PM_ButtonShiftHorizontal:
@@ -494,6 +510,34 @@ QIcon KisModernStyle::standardIcon(StandardPixmap standardIcon, const QStyleOpti
 QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &contentsSize, const QWidget *widget) const
 {
     QSize size = QProxyStyle::sizeFromContents(type, option, contentsSize, widget);
+
+    // with a finger: everything to press a bit bigger, so that a fingertip finds it
+    if (KisTouchMode::isActive()) {
+        switch (type) {
+        case CT_PushButton:
+        case CT_ComboBox:
+        case CT_LineEdit:
+        case CT_SpinBox:
+        case CT_TabBarTab:
+            size.rheight() += 10;
+            break;
+        case CT_ToolButton:
+            size += QSize(8, 8);
+            break;
+        case CT_CheckBox:
+        case CT_RadioButton:
+        case CT_ItemViewItem:
+            size.rheight() += 8;
+            break;
+        case CT_MenuItem:
+            if (const auto *item = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
+                if (item->menuItemType != QStyleOptionMenuItem::Separator) size.rheight() += 12;
+            }
+            break;
+        default:
+            break;
+        }
+    }
 
     switch (type) {
     case CT_MenuItem:
