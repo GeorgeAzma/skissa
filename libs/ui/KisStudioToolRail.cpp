@@ -627,6 +627,18 @@ void KisStudioToolRail::addItem(const QString &key)
     }
 }
 
+bool KisStudioToolRail::hasItem(const QString &key) const
+{
+    return d->items.contains(key);
+}
+
+void KisStudioToolRail::removeItem(const QString &key)
+{
+    QStringList items = d->items;
+    items.removeAll(key);
+    setItems(items);
+}
+
 void KisStudioToolRail::setItems(const QStringList &items)
 {
     // every space is its own item, the rest only once

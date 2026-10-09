@@ -224,11 +224,11 @@
     </Action>
     <Action name="command_bar_open">
       <icon/>
-      <text>Search Actions</text>
+      <text>Commands</text>
       <whatsThis/>
-      <toolTip>Open the command bar to search through actions.</toolTip>
-      <iconText>Search Actions</iconText>
-      <shortcut>Ctrl+Return</shortcut>
+      <toolTip>Find a command: Find Anything with ">"</toolTip>
+      <iconText>Commands</iconText>
+      <shortcut>Ctrl+Shift+P; Ctrl+Return</shortcut>
       <isCheckable>false</isCheckable>
       <statusTip/>
     </Action>

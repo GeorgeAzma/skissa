@@ -1674,7 +1674,7 @@ void KisNodeManager::createQuickClippingGroup()
     KisNodeSP above;
 
     KisImageSP image = m_d->view->image();
-    if (createQuickGroupImpl(juggler, image->nextLayerName(i18nc("default name for a clipping group layer", "Clipping Group")), &parent, &above)) {
+    if (createQuickGroupImpl(juggler, image->nextLayerName(i18nc("default name for a clipping group layer", "Clip Group")), &parent, &above)) {
         KisPaintLayerSP maskLayer = new KisPaintLayer(image.data(), i18nc("default name for quick clip group mask layer", "Mask Layer"), OPACITY_OPAQUE_U8, image->colorSpace());
         maskLayer->disableAlphaChannel(true);
 

@@ -91,6 +91,7 @@ const QString leftKey = QStringLiteral("StudioLayoutLeftPanels");
 const int leftDropZone = 140;
 /// The heights of pinned panels, as "id=height", so that a short panel stays short
 const QString heightsKey = QStringLiteral("StudioLayoutPanelHeights");
+const QString foldedKey = QStringLiteral("StudioLayoutFoldedPanels");
 const QString classicStateKey = QStringLiteral("StudioLayoutClassicState");
 
 /// The panels that get a button on the rail; "+" on the rail adds any other
@@ -142,26 +143,63 @@ public:
     std::function<void(const QPoint &globalPos)> dragged;
     std::function<void(const QPoint &globalPos)> dropped;
     std::function<void()> cardRequested;
+    std::function<void()> clicked;
 
     explicit PanelGrip(QWidget *parent) : QWidget(parent)
     {
         setAttribute(Qt::WA_Hover);
         setCursor(Qt::OpenHandCursor);
-        setToolTip(i18nc("@info:tooltip", "Drag to move the panel, right click for more"));
-        // a finger needs more to hold on to
-        auto fit = [this]() { setFixedHeight(KisTouchMode::isActive() ? 22 : 10); };
+        setToolTip(i18nc("@info:tooltip", "Drag to move, click to fold"));
+        QObject::connect(KisTouchMode::instance(), &KisTouchMode::changed, this, [this]() { fit(); });
         fit();
-        QObject::connect(KisTouchMode::instance(), &KisTouchMode::changed, this, fit);
     }
+
+    /// Folded: the panel shows only this, with its name
+    void setFolded(bool folded, const QString &title)
+    {
+        m_folded = folded;
+        m_title = title;
+        setToolTip(folded ? i18nc("@info:tooltip", "Drag to move, click to unfold") : i18nc("@info:tooltip", "Drag to move, click to fold"));
+        fit();
+        update();
+    }
+    bool isFolded() const { return m_folded; }
 
     QSize sizeHint() const override { return QSize(40, height()); }
 
 protected:
+    void fit()
+    {
+        // a finger needs more to hold on to; folded, the name needs a line
+        const bool touch = KisTouchMode::isActive();
+        setFixedHeight(m_folded ? (touch ? 32 : 22) : (touch ? 22 : 10));
+        // folded, the panel is only this
+        auto *dock = qobject_cast<QDockWidget *>(parentWidget());
+        if (m_folded && dock) dock->setMaximumHeight(height());
+    }
+
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         QColor ink = palette().color(QPalette::WindowText);
+        if (m_folded) {
+            // the name on the left, a chevron saying it opens on the right
+            ink.setAlphaF(underMouse() ? 0.85 : 0.6);
+            QFont font = this->font();
+            font.setPointSizeF(font.pointSizeF() * 0.9);
+            painter.setFont(font);
+            painter.setPen(ink);
+            painter.drawText(rect().adjusted(10, 0, -28, 0), Qt::AlignLeft | Qt::AlignVCenter,
+                             QFontMetrics(font).elidedText(m_title, Qt::ElideRight, width() - 38));
+            QPen pen(ink, 1.4);
+            pen.setCapStyle(Qt::RoundCap);
+            pen.setJoinStyle(Qt::RoundJoin);
+            painter.setPen(pen);
+            const QPointF c(width() - 14, height() / 2.0);
+            painter.drawPolyline(QPolygonF(QVector<QPointF>{c + QPointF(-3.5, -1.8), c + QPointF(0, 1.8), c + QPointF(3.5, -1.8)}));
+            return;
+        }
         ink.setAlphaF(m_dragging ? 0.6 : underMouse() ? 0.4 : 0.14);
         painter.setPen(Qt::NoPen);
         painter.setBrush(ink);
@@ -173,6 +211,7 @@ protected:
     {
         if (event->button() == Qt::LeftButton) {
             m_pressPos = globalMousePos(event);
+            m_pressed = true;
         }
         event->accept();
     }
@@ -191,7 +230,15 @@ protected:
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
-        if (!m_dragging) return;
+        const bool wasPressed = m_pressed;
+        m_pressed = false;
+        if (!m_dragging) {
+            // a click: not after a long press, which ends with a release far away
+            if (wasPressed && event->button() == Qt::LeftButton && rect().contains(event->pos()) && clicked) {
+                QTimer::singleShot(0, this, [this]() { if (clicked) clicked(); });
+            }
+            return;
+        }
         m_dragging = false;
         setCursor(Qt::OpenHandCursor);
         update();
@@ -207,7 +254,10 @@ protected:
 
 private:
     QPoint m_pressPos;
+    bool m_pressed {false};
     bool m_dragging {false};
+    bool m_folded {false};
+    QString m_title;
 };
 
 /// Where a dragged panel would go: a place in the column on one side, or none (the canvas)
@@ -482,6 +532,9 @@ struct KisStudioLayout::Private
 
     /// Pinned panel heights by id, see heightsKey
     QHash<QString, int> heights;
+    /// Pinned panels folded to their grip, by id
+    QSet<QString> folded;
+    QHash<QString, QPointer<PanelGrip>> grips;
     QTimer *heightSave {nullptr};
     /// Set while the panels are being arranged, whose resizing is not the user's
     bool settlingHeights {false};
@@ -680,6 +733,8 @@ void KisStudioLayout::enter()
     KisMainWindow *mainWindow = d->mainWindow;
     const QStringList pinned = KisConfig(true).readEntry<QStringList>(pinnedKey);
     d->pinned = QSet<QString>(pinned.begin(), pinned.end());
+    const QStringList folded = KisConfig(true).readEntry<QStringList>(foldedKey);
+    d->folded = QSet<QString>(folded.begin(), folded.end());
     const QStringList left = KisConfig(true).readEntry<QStringList>(leftKey);
     d->leftPanels = QSet<QString>(left.begin(), left.end());
     d->arrangement.clear();
@@ -717,6 +772,8 @@ void KisStudioLayout::enter()
         grip->cardRequested = [this, id, gripPointer]() {
             if (gripPointer) showPanelCard(id, gripPointer);
         };
+        grip->clicked = [this, id]() { gripClicked(id); };
+        d->grips.insert(id, grip);
         dock->setTitleBarWidget(grip);
         dock->setFeatures(QDockWidget::DockWidgetClosable);
         d->panels.insert(dock);
@@ -1040,6 +1097,7 @@ void KisStudioLayout::leave()
     const bool showTitleBars = KisConfig(true).showDockerTitleBars();
     for (auto it = d->classicDocks.begin(); it != d->classicDocks.end(); ++it) {
         QDockWidget *dock = it.key();
+        applyFold(dock, false);
         QWidget *studioTitleBar = dock->titleBarWidget();
 
         dock->setTitleBarWidget(it->titleBar);
@@ -1053,6 +1111,7 @@ void KisStudioLayout::leave()
     }
     d->classicDocks.clear();
     d->panels.clear();
+    d->grips.clear();
 
     if (d->rail) {
         d->rail->hide();
@@ -1356,8 +1415,10 @@ void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
         d->arrangement.clear();
         arrangePinned();
         dock->show();
+        applyFold(dock, d->folded.contains(id));
     } else {
         d->pinned.remove(id);
+        applyFold(dock, false);
         const bool wasVisible = !dock->isHidden();
         dock->hide();
         if (wasVisible) {
@@ -1412,7 +1473,8 @@ void KisStudioLayout::restoreHeights()
         QList<int> sizes;
         Q_FOREACH (const QString &id, d->pinnedOrder()) {
             QDockWidget *dock = d->mainWindow->dockWidget(id);
-            if (dock && !dock->isHidden() && !dock->isFloating() && d->heights.contains(id)) {
+            applyFold(dock, d->folded.contains(id) && d->pinned.contains(id));
+            if (dock && !dock->isHidden() && !dock->isFloating() && d->heights.contains(id) && !d->folded.contains(id)) {
                 docks << dock;
                 sizes << d->heights.value(id);
             }
@@ -1428,7 +1490,7 @@ void KisStudioLayout::saveHeights()
 {
     Q_FOREACH (const QString &id, d->pinnedOrder()) {
         QDockWidget *dock = d->mainWindow->dockWidget(id);
-        if (dock && !dock->isHidden() && !dock->isFloating()) {
+        if (dock && !dock->isHidden() && !dock->isFloating() && !d->folded.contains(id)) {
             d->heights.insert(id, dock->height());
         }
     }
@@ -1438,6 +1500,70 @@ void KisStudioLayout::saveHeights()
     }
     entries.sort();
     KisConfig(false).writeEntry(heightsKey, entries);
+}
+
+void KisStudioLayout::gripClicked(const QString &id)
+{
+    QDockWidget *dock = d->mainWindow->dockWidget(id);
+    if (!dock) {
+        return;
+    }
+    // over the canvas: tucked away, as its rail button would
+    if (!d->pinned.contains(id)) {
+        if (dock == d->flyout) closeFlyout();
+        return;
+    }
+    // next to the canvas: folded to a line with its name, or back
+    const bool fold = !d->folded.contains(id);
+    if (fold) {
+        saveHeights();
+        d->folded.insert(id);
+    } else {
+        d->folded.remove(id);
+    }
+    KisConfig(false).writeEntry(foldedKey, QStringList(d->folded.values()));
+    applyFold(dock, fold);
+    if (!fold && d->heights.contains(id)) {
+        d->settlingHeights = true;
+        QTimer::singleShot(0, this, [this, id]() {
+            QDockWidget *dock = d->mainWindow->dockWidget(id);
+            if (dock && !dock->isHidden()) d->mainWindow->resizeDocks({dock}, {d->heights.value(id)}, Qt::Vertical);
+            QTimer::singleShot(0, this, [this]() { d->settlingHeights = false; });
+        });
+    }
+}
+
+void KisStudioLayout::applyFold(QDockWidget *dock, bool fold)
+{
+    if (!dock || !dock->widget()) {
+        return;
+    }
+    PanelGrip *grip = d->grips.value(dock->objectName());
+    QWidget *content = dock->widget();
+    const bool isFolded = content->property("studioFolded").toBool();
+    if (isFolded == fold && (!grip || grip->isFolded() == fold)) {
+        return;
+    }
+    /**
+     * Not hidden: a dock with hidden content leaves the column, and the column
+     * narrows. Squeezed to no height instead, it keeps its width, and the dock
+     * may not grow past its grip.
+     */
+    if (fold) {
+        content->setProperty("studioFolded", true);
+        content->setProperty("studioMinHeight", content->minimumHeight());
+        content->setProperty("studioMaxHeight", content->maximumHeight());
+        content->setMinimumHeight(0);
+        content->setMaximumHeight(0);
+    } else if (isFolded) {
+        content->setProperty("studioFolded", false);
+        content->setMaximumHeight(content->property("studioMaxHeight").toInt());
+        content->setMinimumHeight(content->property("studioMinHeight").toInt());
+    }
+    if (grip) {
+        grip->setFolded(fold, dock->windowTitle());
+    }
+    dock->setMaximumHeight(fold && grip ? grip->height() : QWIDGETSIZE_MAX);
 }
 
 void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool fromRail)
@@ -1660,21 +1786,6 @@ void KisStudioLayout::showPanelCard(const QString &id, QWidget *anchor)
     // the panel's card: its shortcut, pinning it next to the canvas, taking it off the rail
     auto *card = new KisStudioItemCard(d->mainWindow, KisIconUtils::loadIcon(railIconName(id)),
                                        dock->windowTitle(), dock->toggleViewAction());
-    const bool pinned = d->pinned.contains(id);
-    card->addCommand({KisIconUtils::loadIcon(pinned ? QStringLiteral("locked") : QStringLiteral("unlocked")),
-                      pinned ? i18nc("@info:tooltip", "Unpin: open it over the canvas when needed")
-                             : i18nc("@info:tooltip", "Pin next to the canvas"),
-                      [this, dock, pinned]() {
-                          if (dock) setPinned(dock, !pinned);
-                      },
-                      true, pinned});
-    if (pinned) {
-        const bool left = d->leftPanels.contains(id);
-        card->addCommand({KisIconUtils::loadIcon(left ? QStringLiteral("arrow-right") : QStringLiteral("arrow-left")),
-                          left ? i18nc("@info:tooltip", "Move to the right of the canvas")
-                               : i18nc("@info:tooltip", "Move to the left of the canvas (or drag it there by its top edge)"),
-                          [this, id, left]() { setPanelSide(id, !left); }});
-    }
     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")), i18nc("@info:tooltip", "Take off the rail (or drag its button onto the canvas)"),
                       [this, id]() {
                           QStringList panels = d->railPanels;
@@ -1812,9 +1923,12 @@ void KisStudioLayout::createBrushRail()
     d->toolRail = toolRail;
     if (KisStudioFind *find = mainWindow->studioFind()) {
         QPointer<KisStudioToolRail> target = toolRail;
-        find->setToolsAdder([target](const QString &key) {
-            if (target) target->addItem(key);
-        });
+        find->setTools([target](const QString &key) { return target && target->hasItem(key); },
+                       [target](const QString &key, bool on) {
+                           if (!target) return;
+                           if (on) target->addItem(key);
+                           else target->removeItem(key);
+                       });
     }
 
     auto *contents = new QWidget(rail);

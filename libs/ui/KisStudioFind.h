@@ -37,8 +37,8 @@ public:
 
     /// How a panel gets shown, e.g. as a studio layout flyout
     void setPanelOpener(std::function<void(QDockWidget *)> opener);
-    /// How a result goes onto the tools panel, from its card
-    void setToolsAdder(std::function<void(const QString &key)> adder);
+    /// Whether a result is on the tools panel, and how it goes on or off it (its pin, its card)
+    void setTools(std::function<bool(const QString &key)> isOnTools, std::function<void(const QString &key, bool on)> setOnTools);
 
     void open(const QString &text = QString());
     /**
@@ -66,6 +66,11 @@ protected:
 private:
     void rebuildIndex();
     void updateResults();
+    /// "> ...": only what can be done, one list
+    void updateCommands(const QString &query);
+    void appendResult(int index, const QString &detail);
+    void appendHeader(const QString &title);
+    static bool isCommandKind(int kind);
     void moveSelection(int delta);
     void runSelected();
     void runRow(int row);

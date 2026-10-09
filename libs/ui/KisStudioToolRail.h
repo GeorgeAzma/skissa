@@ -46,6 +46,8 @@ public:
 
     /// Puts an item (a Find key) at the end, if it isn't there yet
     void addItem(const QString &key);
+    bool hasItem(const QString &key) const;
+    void removeItem(const QString &key);
     /// Builds the buttons again, e.g. once the commands they stand for exist
     void refresh();
 

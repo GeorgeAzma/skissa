@@ -3245,7 +3245,8 @@ void KisMainWindow::createActions()
     connect(d->showSessionManager, SIGNAL(triggered(bool)), this, SLOT(slotShowSessionManager()));
 
     d->commandBarAction = actionManager->createAction("command_bar_open");
-    connect(d->commandBarAction, SIGNAL(triggered(bool)), this, SLOT(openCommandBar()));
+    // the command bar is Find limited to commands, as "> " in it
+    connect(d->commandBarAction, &QAction::triggered, this, [this]() { d->studioFind->open(QStringLiteral("> ")); });
 
     d->findAnything = actionManager->createAction("find_anything");
     connect(d->findAnything, SIGNAL(triggered(bool)), this, SLOT(openCommandBar()));

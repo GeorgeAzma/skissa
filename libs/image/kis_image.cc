@@ -763,7 +763,7 @@ QString KisImage::nextLayerName(const QString &_baseName) const
     }
 
     if (baseName.isEmpty()) {
-        baseName = i18n("Paint Layer");
+        baseName = i18nc("default name of a new layer, followed by a number", "Layer");
     }
 
     return QString("%1 %2").arg(baseName).arg(maxLayerIndex + 1);

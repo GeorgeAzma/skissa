@@ -310,6 +310,9 @@ private:
             const QList<QWidget *> windows = visibleWindows(bounds);
             if (windows.isEmpty() || !windows.last()->windowHandle()) return;
             window = windows.last()->windowHandle();
+            // nothing active yet (never clicked): active for Qt, so that its shortcuts work
+            QWindowSystemInterface::handleWindowActivated(window, Qt::OtherFocusReason);
+            QCoreApplication::processEvents();
         }
         const QString text = qtKey >= Qt::Key_Space && qtKey <= Qt::Key_AsciiTilde && !(modifiers & Qt::ControlModifier)
                                  ? (modifiers & Qt::ShiftModifier ? QString(QChar(qtKey)).toUpper() : QString(QChar(qtKey)).toLower())

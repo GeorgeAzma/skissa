@@ -44,6 +44,8 @@
 
 #include "KisMainWindow.h"
 #include "KisStudioMotion.h"
+#include "kis_floating_message.h"
+#include "KisTouchMode.h"
 #include "KisStudioItemCard.h"
 #include "KisStudioToolRail.h"
 #include "KisNodeActivationActionCreatorVisitor.h"
@@ -183,7 +185,35 @@ enum Roles {
     ShortcutRole,
     EntryRole,
     MessageRole, ///< a line of text instead of results
+    PinnableRole, ///< it can go on the tools panel
+    PinnedRole,   ///< it is on the tools panel
 };
+
+/// The pin of a result row, at its right end: puts the result on the tools panel, or takes it off
+QRect pinRect(const QRect &row)
+{
+    return QRect(row.right() - 38, row.center().y() - 12, 24, 24);
+}
+
+/// A push pin, upright, in \p rect: filled when pinned
+void paintPin(QPainter *painter, const QRectF &rect, const QColor &ink, bool pinned)
+{
+    painter->save();
+    painter->translate(rect.center());
+    painter->rotate(45);
+    QPen pen(ink, 1.3);
+    pen.setJoinStyle(Qt::RoundJoin);
+    pen.setCapStyle(Qt::RoundCap);
+    painter->setPen(pen);
+    painter->setBrush(pinned ? ink : Qt::NoBrush);
+    // the head, the collar and the needle
+    QPainterPath head;
+    head.addRoundedRect(QRectF(-3.2, -7.0, 6.4, 6.0), 1.2, 1.2);
+    painter->drawPath(head);
+    painter->drawLine(QPointF(-5.5, -1.0), QPointF(5.5, -1.0));
+    painter->drawLine(QPointF(0, -1.0), QPointF(0, 6.5));
+    painter->restore();
+}
 
 struct Entry {
     QString key;       ///< stable id for the usage statistics
@@ -322,9 +352,21 @@ public:
             icon.paint(painter, tile.adjusted(5, 5, -5, -5).toRect());
         }
 
-        // shortcut on the right
-        const QString shortcut = index.data(ShortcutRole).toString();
         int right = r.right() - 14;
+        // the pin: on the pointed at row, always when pinned, and on every row for a finger
+        if (index.data(PinnableRole).toBool()) {
+            const bool pinned = index.data(PinnedRole).toBool();
+            const bool pointed = option.state.testFlag(QStyle::State_Selected) || option.state.testFlag(QStyle::State_MouseOver);
+            if (pinned || pointed || KisTouchMode::isActive()) {
+                QColor ink = pinned ? pal.color(QPalette::Link) : text;
+                ink.setAlphaF(pinned ? 0.95 : 0.5);
+                paintPin(painter, pinRect(r), ink, pinned);
+            }
+            right = pinRect(r).left() - 8;
+        }
+
+        // shortcut on the right: seen every time, so it gets learned
+        const QString shortcut = index.data(ShortcutRole).toString();
         if (!shortcut.isEmpty()) {
             QFont font = option.font;
             font.setPointSizeF(font.pointSizeF() * 0.9);
@@ -377,7 +419,10 @@ struct KisStudioFind::Private
     /// Set while Find picks something for the caller instead of running it
     std::function<void(const QString &key)> picker;
     QString pickPrefix; ///< while picking, only items whose key starts with it
-    std::function<void(const QString &key)> addToTools;
+    std::function<bool(const QString &key)> isOnTools;
+    std::function<void(const QString &key, bool on)> setOnTools;
+    /// The pin pressed, released on it to toggle
+    QPersistentModelIndex pinPress;
     /// How many GUI clients the index saw: commands only exist once the GUI is built
     int indexedClients {-1};
 
@@ -461,7 +506,7 @@ KisStudioFind::KisStudioFind(KisMainWindow *mainWindow)
     layout->setSpacing(6);
 
     d->edit = new QLineEdit(this);
-    d->edit->setPlaceholderText(i18nc("@info:placeholder", "Find tools, commands, effects, brushes, settings..."));
+    d->edit->setPlaceholderText(i18nc("@info:placeholder", "Find anything, or > for commands"));
     d->edit->setClearButtonEnabled(false);
     d->edit->setMinimumHeight(36);
     QFont editFont = d->edit->font();
@@ -501,9 +546,10 @@ void KisStudioFind::setPanelOpener(std::function<void(QDockWidget *)> opener)
     d->openPanel = std::move(opener);
 }
 
-void KisStudioFind::setToolsAdder(std::function<void(const QString &key)> adder)
+void KisStudioFind::setTools(std::function<bool(const QString &key)> isOnTools, std::function<void(const QString &key, bool on)> setOnTools)
 {
-    d->addToTools = std::move(adder);
+    d->isOnTools = std::move(isOnTools);
+    d->setOnTools = std::move(setOnTools);
 }
 
 void KisStudioFind::pick(const QString &placeholder, std::function<void(const QString &key)> picked, const QString &keyPrefix)
@@ -624,8 +670,10 @@ void KisStudioFind::rebuildIndex()
         Q_FOREACH (QAction *action, client->actionCollection()->actions()) {
             const QString name = action->objectName();
             const QString text = cleanText(action->text());
+            // every KisAction is a QWidgetAction: only the ones that are a widget (the toolbar's sliders, spacers) are left out
+            auto *widgetAction = qobject_cast<QWidgetAction *>(action);
             if (seen.contains(action) || text.isEmpty() || action->isSeparator() || action->menu()
-                || qobject_cast<QWidgetAction *>(action) || toolIds.contains(name) || filterActions.contains(name)) {
+                || (widgetAction && widgetAction->defaultWidget()) || toolIds.contains(name) || filterActions.contains(name)) {
                 continue;
             }
             seen.insert(action);
@@ -768,10 +816,151 @@ void KisStudioFind::rebuildIndex()
     }
 }
 
+bool KisStudioFind::isCommandKind(int kind)
+{
+    switch (Kind(kind)) {
+    case Kind::Tool:
+    case Kind::Command:
+    case Kind::Effect:
+    case Kind::Panel:
+    case Kind::Setting:
+        return true;
+    default:
+        return false;
+    }
+}
+
+void KisStudioFind::appendResult(int index, const QString &detail)
+{
+    const Entry &entry = d->entries[index];
+    auto *item = new QStandardItem(entry.icon, entry.title);
+    item->setData(detail, DetailRole);
+    item->setData(entry.shortcut, ShortcutRole);
+    item->setData(index, EntryRole);
+    // brushes, effects, commands, tools and panels can go on the tools panel
+    const bool pinnable = !d->picker && d->isOnTools && !entry.key.isEmpty()
+        && (entry.kind == Kind::Tool || entry.kind == Kind::Command || entry.kind == Kind::Effect
+            || entry.kind == Kind::Panel || entry.kind == Kind::Brush);
+    item->setData(pinnable, PinnableRole);
+    item->setData(pinnable && d->isOnTools(entry.key), PinnedRole);
+    item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    d->model->appendRow(item);
+}
+
+void KisStudioFind::appendHeader(const QString &title)
+{
+    auto *header = new QStandardItem(title);
+    header->setData(true, HeaderRole);
+    header->setFlags(Qt::NoItemFlags);
+    d->model->appendRow(header);
+}
+
+/**
+ * "> ..." lists only what can be done, as one list ranked by how well it
+ * matches (loosely: a few letters of each word are enough) and how often
+ * it was used; with nothing after the ">", the recent ones, the most used
+ * ones, then all of them.
+ */
+void KisStudioFind::updateCommands(const QString &query)
+{
+    auto detailOf = [this](int index) {
+        const Entry &entry = d->entries[index];
+        return entry.detail.isEmpty() || entry.kind != Kind::Command ? kindTitle(entry.kind) : entry.detail;
+    };
+    QVector<int> commands;
+    for (int i = 0; i < d->entries.size(); i++) {
+        if (isCommandKind(int(d->entries[i].kind)) && !d->entries[i].key.isEmpty()) commands << i;
+    }
+
+    if (query.isEmpty()) {
+        QVector<int> recent = commands;
+        recent.erase(std::remove_if(recent.begin(), recent.end(), [this](int i) { return !d->usage.contains(d->entries[i].key); }),
+                     recent.end());
+        std::sort(recent.begin(), recent.end(), [this](int a, int b) {
+            return d->usage.value(d->entries[a].key).lastUsed > d->usage.value(d->entries[b].key).lastUsed;
+        });
+        QVector<int> often = recent;
+        recent.resize(qMin(recent.size(), 6));
+        often.erase(std::remove_if(often.begin(), often.end(), [&recent](int i) { return recent.contains(i); }), often.end());
+        std::sort(often.begin(), often.end(), [this](int a, int b) {
+            return d->usage.value(d->entries[a].key).count > d->usage.value(d->entries[b].key).count;
+        });
+        often.resize(qMin(often.size(), 6));
+        if (!recent.isEmpty()) {
+            appendHeader(i18nc("@title find results", "Recent"));
+            Q_FOREACH (int index, recent) appendResult(index, detailOf(index));
+        }
+        if (!often.isEmpty()) {
+            appendHeader(i18nc("@title find results", "Most used"));
+            Q_FOREACH (int index, often) appendResult(index, detailOf(index));
+        }
+        std::sort(commands.begin(), commands.end(), [this](int a, int b) {
+            return d->entries[a].title.localeAwareCompare(d->entries[b].title) < 0;
+        });
+        appendHeader(i18nc("@title find results", "All"));
+        Q_FOREACH (int index, commands) appendResult(index, detailOf(index));
+    } else {
+        QVector<QPair<qreal, int>> scored;
+        Q_FOREACH (int i, commands) {
+            const Entry &entry = d->entries[i];
+            // the menu it is in counts too: "new layer" finds Layer › New › Paint Layer
+            QStringList path = entry.kind == Kind::Command ? entry.detail.split(QStringLiteral(" › "), Qt::SkipEmptyParts) : QStringList();
+            const QString inMenu = path.isEmpty() ? QString() : path.last() + QLatin1Char(' ') + entry.title;
+            const QString fullPath = path.isEmpty() ? QString() : path.join(QLatin1Char(' ')) + QLatin1Char(' ') + entry.title;
+            qreal score = strictMatch(query, entry.title);
+            Q_FOREACH (const QString &alias, entry.aliases) {
+                const qreal viaAlias = strictMatch(query, alias);
+                if (viaAlias >= 0.0) score = qMax(score, viaAlias - 8.0);
+            }
+            if (!inMenu.isEmpty()) {
+                const qreal viaMenu = qMax(strictMatch(query, inMenu), strictMatch(query, fullPath) - 4.0);
+                if (viaMenu >= 0.0) score = qMax(score, viaMenu - 4.0);
+            }
+            // a few letters of each word, in order
+            bool loose = false;
+            if (score < 0.0) {
+                int fuzzy = 0;
+                if (kfts::fuzzy_match(query, entry.title, fuzzy)) {
+                    loose = true;
+                    score = fuzzy * 0.3 - 10;
+                } else if (!inMenu.isEmpty() && (kfts::fuzzy_match(query, inMenu, fuzzy) || kfts::fuzzy_match(query, fullPath, fuzzy))) {
+                    loose = true;
+                    score = fuzzy * 0.3 - 14;
+                }
+            }
+            if (score >= 0.0 || loose) {
+                scored.append({score + d->frecency(entry.key) + kindBias(entry.kind), i});
+            }
+        }
+        std::stable_sort(scored.begin(), scored.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+        if (scored.isEmpty()) {
+            auto *nothing = new QStandardItem(i18nc("@info find results", "No command is called “%1”", query));
+            nothing->setData(true, HeaderRole);
+            nothing->setData(true, MessageRole);
+            nothing->setFlags(Qt::NoItemFlags);
+            d->model->appendRow(nothing);
+        }
+        for (int i = 0; i < scored.size() && i < 60; i++) {
+            appendResult(scored[i].second, detailOf(scored[i].second));
+        }
+    }
+    for (int row = 0; row < d->model->rowCount(); row++) {
+        if (!d->model->item(row)->data(HeaderRole).toBool()) {
+            d->list->setCurrentIndex(d->model->index(row, 0));
+            break;
+        }
+    }
+    adjustGeometry();
+}
+
 void KisStudioFind::updateResults()
 {
     d->model->clear();
     const QString query = d->edit->text().trimmed();
+    if (!d->picker && query.startsWith(QLatin1Char('>'))) {
+        updateCommands(query.mid(1).trimmed());
+        return;
+    }
 
     struct Scored {
         int entry;
@@ -858,21 +1047,8 @@ void KisStudioFind::updateResults()
         if (scored.size() > 8) {
             scored.resize(8);
         }
-        auto addHeader = [this](const QString &title) {
-            auto *header = new QStandardItem(title);
-            header->setData(true, HeaderRole);
-            header->setFlags(Qt::NoItemFlags);
-            d->model->appendRow(header);
-        };
-        auto addEntry = [this](int index, const QString &detail) {
-            const Entry &entry = d->entries[index];
-            auto *item = new QStandardItem(entry.icon, entry.title);
-            item->setData(detail, DetailRole);
-            item->setData(entry.shortcut, ShortcutRole);
-            item->setData(index, EntryRole);
-            item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-            d->model->appendRow(item);
-        };
+        auto addHeader = [this](const QString &title) { appendHeader(title); };
+        auto addEntry = [this](int index, const QString &detail) { appendResult(index, detail); };
         if (!scored.isEmpty()) {
             addHeader(i18nc("@title find results", "Recent"));
             Q_FOREACH (const Scored &s, scored) {
@@ -966,13 +1142,8 @@ void KisStudioFind::updateResults()
         }
         Q_FOREACH (int index, groups[int(kind)]) {
             const Entry &entry = d->entries[index];
-            auto *item = new QStandardItem(entry.icon, entry.title);
-            item->setData(query.isEmpty() ? kindTitle(entry.kind) + (entry.detail.isEmpty() ? QString() : QStringLiteral(" · ") + entry.detail)
-                                          : entry.detail, DetailRole);
-            item->setData(entry.shortcut, ShortcutRole);
-            item->setData(index, EntryRole);
-            item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-            d->model->appendRow(item);
+            appendResult(index, query.isEmpty() ? kindTitle(entry.kind) + (entry.detail.isEmpty() ? QString() : QStringLiteral(" · ") + entry.detail)
+                                                : entry.detail);
         }
     }
 
@@ -1070,6 +1241,11 @@ void KisStudioFind::runRow(int row)
     hide();
     // after the popup is gone, so that dialogs get the focus
     QTimer::singleShot(0, this, [run = entry.run]() { if (run) run(); });
+    // it has a quicker way: say so, the first few times
+    if (!entry.shortcut.isEmpty() && d->usage.value(entry.key).count <= 3 && d->mainWindow->viewManager()) {
+        d->mainWindow->viewManager()->showFloatingMessage(i18nc("@info a shortcut Find teaches; %1 the command, %2 its keys", "%1  ·  %2", entry.title, entry.shortcut),
+                                                          entry.icon, 2600, KisFloatingMessage::Low);
+    }
 }
 
 void KisStudioFind::adjustGeometry()
@@ -1101,16 +1277,35 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
             if (index >= 0 && index < d->entries.size() && !d->entries[index].key.isEmpty()) {
                 const Entry entry = d->entries[index];
                 auto *card = new KisStudioItemCard(d->mainWindow, entry.icon, entry.title, entry.action);
-                if (d->addToTools) {
-                    auto add = d->addToTools;
+                if (d->setOnTools && d->isOnTools && !d->isOnTools(entry.key)) {
+                    auto set = d->setOnTools;
                     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")),
-                                      i18nc("@info:tooltip", "Put it on the tools panel"),
-                                      [add, key = entry.key]() { add(key); }});
+                                      i18nc("@info:tooltip", "Pin to the tools panel"),
+                                      [set, key = entry.key]() { set(key, true); }});
                 }
                 QWidget *anchor = new QWidget(d->list->viewport());
                 anchor->setGeometry(d->list->visualRect(at));
                 card->popupBeside(anchor);
                 anchor->deleteLater();
+            }
+            return true;
+        }
+        if ((event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick)
+            && mouse->button() == Qt::LeftButton) {
+            const QModelIndex at = d->list->indexAt(mouse->pos());
+            if (at.data(PinnableRole).toBool() && pinRect(d->list->visualRect(at)).adjusted(-4, -4, 4, 4).contains(mouse->pos())) {
+                d->pinPress = at;
+                return true;
+            }
+        }
+        if (event->type() == QEvent::MouseButtonRelease && d->pinPress.isValid()) {
+            const QModelIndex at = d->pinPress;
+            d->pinPress = QModelIndex();
+            if (d->list->indexAt(mouse->pos()) == at && d->setOnTools) {
+                const int index = at.data(EntryRole).toInt();
+                const bool pinned = !at.data(PinnedRole).toBool();
+                d->setOnTools(d->entries[index].key, pinned);
+                d->model->setData(at, pinned, PinnedRole);
             }
             return true;
         }
