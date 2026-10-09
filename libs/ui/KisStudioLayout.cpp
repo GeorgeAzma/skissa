@@ -49,6 +49,7 @@
 #include "KisDocument.h"
 #include "KisMainWindow.h"
 #include "KisStudioMotion.h"
+#include "KisStudioEffectsPicker.h"
 #include "KisView.h"
 #include "KisResourceServerProvider.h"
 #include "KisStudioCanvasHud.h"
@@ -730,6 +731,27 @@ void KisStudioLayout::enter()
     createRail();
     createBrushRail();
     createTopBar();
+
+    /**
+     * All the effects, to browse: from Find ("Effects"), its shortcut, or a
+     * button on the tools panel; it opens where the pointer is.
+     */
+    if (!mainWindow->actionCollection()->action(QStringLiteral("studio_effects"))) {
+        QAction *effects = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_effects")), i18nc("@action", "Effects"), mainWindow);
+        effects->setObjectName(QStringLiteral("studio_effects"));
+        effects->setToolTip(i18nc("@info:tooltip", "All the effects, with yours first"));
+        const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
+                                  .readEntry(effects->objectName(), QString());
+        if (!saved.isEmpty() && saved != QLatin1String("none")) {
+            effects->setShortcuts(QKeySequence::listFromString(saved));
+        }
+        mainWindow->actionCollection()->addAction(effects->objectName(), effects);
+        mainWindow->addAction(effects);
+        connect(effects, &QAction::triggered, mainWindow, [mainWindow]() {
+            auto *picker = new KisStudioEffectsPicker(mainWindow);
+            picker->popupNear(QCursor::pos());
+        });
+    }
 
     // New/Open/Save are in the main menu, undo and redo are Ctrl+Z and Ctrl+Shift+Z
     for (const char *name : {"mainToolBar", "editToolBar"}) {

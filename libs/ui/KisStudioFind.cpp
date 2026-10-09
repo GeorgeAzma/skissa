@@ -384,6 +384,12 @@ struct KisStudioFind::Private
     {
         return mainWindow->guiFactory() ? mainWindow->guiFactory()->clients().size() : 0;
     }
+    /// The index is out of date once the GUI has more clients, or the window more commands of its own
+    bool isStale() const
+    {
+        return entries.isEmpty() || indexedClients != clientCount() || indexedActions != mainWindow->actionCollection()->actions().size();
+    }
+    int indexedActions {-1};
     QString placeholder;
 
     QVector<Entry> entries;
@@ -531,6 +537,7 @@ void KisStudioFind::rebuildIndex()
 {
     d->entries.clear();
     d->indexedClients = d->clientCount();
+    d->indexedActions = d->mainWindow->actionCollection()->actions().size();
     // the aliases go on at the end, whatever the order of the sources
     auto attachAliases = qScopeGuard([this]() {
         static const QHash<QString, QStringList> aliases = aliasTable();
@@ -1000,13 +1007,13 @@ void KisStudioFind::moveSelection(int delta)
 
 bool KisStudioFind::item(const QString &key, Item *item)
 {
-    if (d->entries.isEmpty() || d->indexedClients != d->clientCount()) {
+    if (d->isStale()) {
         rebuildIndex();
     }
     Q_FOREACH (const Entry &entry, d->entries) {
         if (entry.key == key) {
             if (item) {
-                *item = {entry.key, entry.title, entry.icon, entry.action};
+                *item = {entry.key, entry.title, entry.icon, entry.action, entry.aliases};
             }
             return true;
         }
@@ -1016,7 +1023,7 @@ bool KisStudioFind::item(const QString &key, Item *item)
 
 bool KisStudioFind::run(const QString &key)
 {
-    if (d->entries.isEmpty() || d->indexedClients != d->clientCount()) {
+    if (d->isStale()) {
         rebuildIndex();
     }
     Q_FOREACH (const Entry &entry, d->entries) {

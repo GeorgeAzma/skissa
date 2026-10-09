@@ -244,6 +244,7 @@ set(kritaui_LIB_SRCS
     widgets/kis_canvas_drop.cpp
     widgets/kis_cmb_composite.cc
     widgets/KisBlendModePicker.cpp
+    widgets/KisStudioPicker.cpp
     widgets/KisPopupCloser.cpp
     widgets/KisCompositeOpListConnectionHelper.cpp
     widgets/kis_cmb_contour.cpp
@@ -457,6 +458,7 @@ set(kritaui_LIB_SRCS
     KisStudioWindowFrame.cpp
     KisStudioToolRail.cpp
     KisStudioMotion.cpp
+    KisStudioEffectsPicker.cpp
     KisOpenPane.cpp
     KisPart.cpp
     KisTemplate.cpp

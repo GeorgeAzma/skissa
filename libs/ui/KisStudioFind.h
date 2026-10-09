@@ -53,6 +53,7 @@ public:
         QString title;
         QIcon icon;
         QPointer<QAction> action; ///< has its shortcut, may be null
+        QStringList aliases;      ///< what other applications call it
     };
     /// Looks an item up by its key ("tool:…", "effect:…", "action:…", "brush:…", "panel:…")
     bool item(const QString &key, Item *item);

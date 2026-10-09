@@ -24,6 +24,7 @@
 
 #include "KisMainWindow.h"
 #include "KisStudioMotion.h"
+#include "KisStudioEffectsPicker.h"
 #include "KisViewManager.h"
 #include "canvas/kis_canvas2.h"
 #include "input/KisInputActionGroup.h"
@@ -215,6 +216,9 @@ void KisStudioEffectOverlay::accept()
         filterManager->finish();
     }
     // finish() remembers the settings as the filter's last used ones
+    if (d->filter) {
+        KisStudioEffectsPicker::recordUse(d->filter->id());
+    }
     finishEditing();
 }
 
@@ -255,6 +259,7 @@ void KisStudioEffectOverlay::createMask()
     if (layer->allowAsChild(mask)) {
         KisNodeCommandsAdapter adapter(viewManager);
         adapter.addNode(mask, layer, layer->lastChild());
+        KisStudioEffectsPicker::recordUse(d->filter->id());
     }
     finishEditing();
 }

@@ -55,6 +55,10 @@ const QString hiddenKey = QStringLiteral("StudioHiddenVariants");
 const QString slotPrefix = QStringLiteral("slot:");
 const QString toolPrefix = QStringLiteral("tool:");
 const QString spacePrefix = QStringLiteral("space:");
+/// The effects picker, see KisStudioEffectsPicker
+const QString effectsItem = QStringLiteral("action:studio_effects");
+/// Set once the effects button was put on a rail that existed before it
+const QString effectsOfferedKey = QStringLiteral("StudioRailEffectsOffered");
 
 enum class BrushMode {
     None,
@@ -106,7 +110,8 @@ QStringList defaultItems()
     return {slotPrefix + QStringLiteral("paint"), slotPrefix + QStringLiteral("blend"), slotPrefix + QStringLiteral("erase"),
             spacePrefix,
             slotPrefix + QStringLiteral("select"), slotPrefix + QStringLiteral("move"), slotPrefix + QStringLiteral("fill"),
-            slotPrefix + QStringLiteral("shape"), slotPrefix + QStringLiteral("text"), slotPrefix + QStringLiteral("guides")};
+            slotPrefix + QStringLiteral("shape"), slotPrefix + QStringLiteral("text"), slotPrefix + QStringLiteral("guides"),
+            effectsItem};
 }
 
 /// What every widget on the rail can do: be dragged along it or off it
@@ -577,6 +582,15 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     const QStringList hidden = cfg.readEntry<QStringList>(hiddenKey, QStringList());
     d->hidden = QSet<QString>(hidden.begin(), hidden.end());
     d->items = cfg.readEntry<QStringList>(itemsKey, defaultItems());
+    // a rail made before the effects button existed gets it once; taken off, it stays off
+    if (!cfg.readEntry<bool>(effectsOfferedKey, false)) {
+        KisConfig writable(false);
+        if (!d->items.contains(effectsItem)) {
+            d->items << effectsItem;
+            writable.writeEntry(itemsKey, d->items);
+        }
+        writable.writeEntry(effectsOfferedKey, true);
+    }
     d->q = this;
 
     connect(KoToolManager::instance(), &KoToolManager::changedTool, this, [this](KoCanvasController *controller) {
