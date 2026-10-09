@@ -159,6 +159,7 @@ public:
         static const UINT captureMessage = RegisterWindowMessageW(L"KritaDevCapture");
         static const UINT mouseMessage = RegisterWindowMessageW(L"KritaDevMouse");
         static const UINT keyMessage = RegisterWindowMessageW(L"KritaDevKey");
+        static const UINT exportMessage = RegisterWindowMessageW(L"KritaDevExport");
         const MSG *msg = static_cast<MSG *>(message);
         if (msg->message == captureMessage) {
             capture();
@@ -166,6 +167,15 @@ public:
         }
         if (msg->message == mouseMessage) {
             mouse(int(msg->wParam), QPoint(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam)));
+            return true;
+        }
+        if (msg->message == exportMessage) {
+            // the active document, as a .kra in the temp folder (krita-dev-export.kra): a file to open again
+            KisMainWindow *window = KisPart::instance()->currentMainwindow();
+            KisDocument *document = window && window->activeView() ? window->activeView()->document() : nullptr;
+            if (document) {
+                document->exportDocumentSync(QDir::temp().filePath(QStringLiteral("krita-dev-export.kra")), "application/x-krita");
+            }
             return true;
         }
         if (msg->message == keyMessage) {
