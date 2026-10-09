@@ -70,6 +70,8 @@
 #  include <QtGui/qpa/qplatformintegration.h>
 #endif
 #include <QtGui/qpa/qwindowsysteminterface.h>
+#include <QScreen>
+#include <QTouchDevice>
 #include <windows.h>
 #include <winuser.h>
 #include <windowsx.h>
@@ -268,6 +270,28 @@ private:
         case 6:
             QWindowSystemInterface::handleWheelEvent(window, local, global, QPoint(), QPoint(0, action == 5 ? 120 : -120));
             return;
+        case 7:
+        case 8:
+        case 9: {
+            // a finger: 7 down, 8 moving, 9 up
+            static QTouchDevice *device = nullptr;
+            if (!device) {
+                device = new QTouchDevice();
+                device->setName(QStringLiteral("KritaDevTouch"));
+                device->setType(QTouchDevice::TouchScreen);
+                device->setCapabilities(QTouchDevice::Position | QTouchDevice::Area);
+                QWindowSystemInterface::registerTouchDevice(device);
+            }
+            QWindowSystemInterface::TouchPoint point;
+            point.id = 1;
+            point.state = action == 7 ? Qt::TouchPointPressed : action == 8 ? Qt::TouchPointMoved : Qt::TouchPointReleased;
+            point.area = QRectF(global - QPointF(2, 2), QSizeF(4, 4));
+            const QRect screen = window->screen() ? window->screen()->geometry() : QRect(0, 0, 1, 1);
+            point.normalPosition = QPointF((global.x() - screen.x()) / screen.width(), (global.y() - screen.y()) / screen.height());
+            point.pressure = action == 9 ? 0 : 1;
+            QWindowSystemInterface::handleTouchEvent(window, device, {point});
+            return;
+        }
         default: break;
         }
         QWindowSystemInterface::handleMouseEvent(window, local, global, buttons, button, type);
