@@ -64,6 +64,8 @@ private:
     bool m_moved {false};
     int m_hover {-1};
     QPointF m_center;
+    /// Growing in as it opens
+    qreal m_scale {1.0};
 };
 
 #endif // KISSTUDIOCANVASRING_H

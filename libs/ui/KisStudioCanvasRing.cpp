@@ -13,6 +13,7 @@
 #include <QRegularExpression>
 #include <QTabletEvent>
 #include <QTimer>
+#include <QVariantAnimation>
 #include <QtMath>
 
 #include <KoColor.h>
@@ -156,6 +157,18 @@ void KisStudioCanvasRing::open(QWidget *canvas, const QPointF &pos)
     show();
     raise();
     KisStudioMotion::showFaded(this);
+    // it grows out of the pointer, quickly
+    auto *grow = new QVariantAnimation(this);
+    grow->setStartValue(0.86);
+    grow->setEndValue(1.0);
+    grow->setDuration(120);
+    grow->setEasingCurve(QEasingCurve::OutCubic);
+    connect(grow, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
+        m_scale = value.toReal();
+        update();
+    });
+    m_scale = 0.86;
+    grow->start(QAbstractAnimation::DeleteWhenStopped);
     update();
 }
 
@@ -306,6 +319,11 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    if (m_scale < 1.0) {
+        painter.translate(m_center);
+        painter.scale(m_scale, m_scale);
+        painter.translate(-m_center);
+    }
     const QPalette pal = palette();
     QColor plate = pal.color(QPalette::Window);
     plate.setAlphaF(0.92);

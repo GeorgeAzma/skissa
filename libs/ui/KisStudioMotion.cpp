@@ -59,10 +59,15 @@ bool canFade(QWidget *widget)
     return widget->isWindow() || !widget->graphicsEffect() || qobject_cast<QGraphicsOpacityEffect *>(widget->graphicsEffect());
 }
 
-void fade(QWidget *widget, qreal to, int duration, QEasingCurve::Type curve, bool hideAtEnd)
+/// A window rises this far into its place as it fades in
+constexpr int rise = 6;
+
+void fade(QWidget *widget, qreal to, int duration, QEasingCurve::Type curve, bool hideAtEnd, bool rising = false)
 {
     delete runningFade(widget);
     const qreal from = currentOpacity(widget);
+    // where it ends up: it starts a little below, and rises with the fade
+    const QPoint place = widget->pos();
 
     auto *animation = new QVariantAnimation(widget);
     animation->setObjectName(QStringLiteral("studioFade"));
@@ -72,8 +77,10 @@ void fade(QWidget *widget, qreal to, int duration, QEasingCurve::Type curve, boo
     animation->setDuration(qMax(1, qRound(duration * qAbs(to - from))));
     animation->setEasingCurve(curve);
     QPointer<QWidget> target = widget;
-    QObject::connect(animation, &QVariantAnimation::valueChanged, widget, [target](const QVariant &value) {
-        if (target) setOpacity(target, value.toReal());
+    QObject::connect(animation, &QVariantAnimation::valueChanged, widget, [target, rising, place](const QVariant &value) {
+        if (!target) return;
+        setOpacity(target, value.toReal());
+        if (rising) target->move(place + QPoint(0, qRound(rise * (1.0 - value.toReal()))));
     });
     QObject::connect(animation, &QVariantAnimation::finished, widget, [target, hideAtEnd]() {
         if (!target) return;
@@ -102,11 +109,13 @@ void KisStudioMotion::showFaded(QWidget *widget)
         widget->show();
         return;
     }
-    if (!widget->isVisible()) {
+    const bool appearing = !widget->isVisible();
+    if (appearing) {
         setOpacity(widget, 0.0);
         widget->show();
     }
-    fade(widget, 1.0, 110, QEasingCurve::OutCubic, false);
+    // a window (a picker, a card, Find) rises into its place; a part of a window only fades
+    fade(widget, 1.0, 120, QEasingCurve::OutCubic, false, appearing && widget->isWindow());
 }
 
 void KisStudioMotion::hideFaded(QWidget *widget)

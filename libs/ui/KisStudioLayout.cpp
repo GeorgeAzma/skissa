@@ -30,6 +30,7 @@
 #include <QTabBar>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QVariantAnimation>
 #include <QPainter>
 #include <QPointer>
 #include <QScrollArea>
@@ -1531,7 +1532,7 @@ void KisStudioLayout::gripClicked(const QString &id)
         if (dock == d->flyout) closeFlyout();
         return;
     }
-    // next to the canvas: folded to a line with its name, or back
+    // next to the canvas: folded to a line with its name, or back, in a moment
     const bool fold = !d->folded.contains(id);
     if (fold) {
         saveHeights();
@@ -1540,15 +1541,55 @@ void KisStudioLayout::gripClicked(const QString &id)
         d->folded.remove(id);
     }
     KisConfig(false).writeEntry(foldedKey, QStringList(d->folded.values()));
-    applyFold(dock, fold);
-    if (!fold && d->heights.contains(id)) {
-        d->settlingHeights = true;
-        QTimer::singleShot(0, this, [this, id]() {
-            QDockWidget *dock = d->mainWindow->dockWidget(id);
-            if (dock && !dock->isHidden()) d->mainWindow->resizeDocks({dock}, {d->heights.value(id)}, Qt::Vertical);
-            QTimer::singleShot(0, this, [this]() { d->settlingHeights = false; });
-        });
+    PanelGrip *grip = d->grips.value(id);
+    const int from = dock->height();
+    QWidget *content = dock->widget();
+    if (!grip || !content || dock->isHidden()) {
+        applyFold(dock, fold);
+        return;
     }
+    d->settlingHeights = true;
+    int to;
+    if (fold) {
+        // free to shrink, the name shown at once; squeezed for good at the end
+        content->setProperty("studioMinHeight", content->minimumHeight());
+        content->setProperty("studioMaxHeight", content->maximumHeight());
+        content->setMinimumHeight(0);
+        grip->setFolded(true, dock->windowTitle());
+        to = grip->height();
+    } else {
+        applyFold(dock, false);
+        to = d->heights.value(id, qMax(160, content->sizeHint().height() + grip->height()));
+        dock->setMaximumHeight(from);
+    }
+    auto *animation = new QVariantAnimation(this);
+    animation->setStartValue(from);
+    animation->setEndValue(to);
+    animation->setDuration(140);
+    animation->setEasingCurve(fold ? QEasingCurve::InOutCubic : QEasingCurve::OutCubic);
+    QPointer<QDockWidget> target = dock;
+    connect(animation, &QVariantAnimation::valueChanged, this, [this, target, fold](const QVariant &value) {
+        if (!target) return;
+        target->setMaximumHeight(value.toInt());
+        // growing: the column hands it the space as it may take it
+        if (!fold) d->mainWindow->resizeDocks({target.data()}, {value.toInt()}, Qt::Vertical);
+    });
+    connect(animation, &QVariantAnimation::finished, this, [this, target, fold, to]() {
+        if (target) {
+            if (fold) {
+                // the rest of folding: the content held at no height
+                QWidget *content = target->widget();
+                content->setProperty("studioFolded", true);
+                content->setMaximumHeight(0);
+                target->setMaximumHeight(to);
+            } else {
+                target->setMaximumHeight(QWIDGETSIZE_MAX);
+                d->mainWindow->resizeDocks({target.data()}, {to}, Qt::Vertical);
+            }
+        }
+        QTimer::singleShot(0, this, [this]() { d->settlingHeights = false; });
+    });
+    animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void KisStudioLayout::applyFold(QDockWidget *dock, bool fold)
