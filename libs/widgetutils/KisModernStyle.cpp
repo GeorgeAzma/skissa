@@ -19,6 +19,64 @@
 #include <QGridLayout>
 #include <QFormLayout>
 #include <QTabBar>
+#include <QDockWidget>
+#include <QEvent>
+#include <QFrame>
+#include <QLibrary>
+#include <QOperatingSystemVersion>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
+namespace {
+
+/**
+ * Asks the system for round corners on a window each time it is shown (a
+ * window can get a new native handle): menus, lists and floating panels
+ * the size of the system's own menus, tooltips smaller. Windows with a
+ * translucent background draw their own shape and are left alone.
+ */
+class RoundedCorners : public QObject
+{
+public:
+    static RoundedCorners *instance()
+    {
+        static RoundedCorners *filter = new RoundedCorners();
+        return filter;
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() == QEvent::Show || event->type() == QEvent::WinIdChange) {
+            QWidget *window = qobject_cast<QWidget *>(watched);
+            if (window && window->isWindow() && window->internalWinId() && !window->testAttribute(Qt::WA_TranslucentBackground)) {
+                round(window);
+            }
+        }
+        return false;
+    }
+
+private:
+    static void round(QWidget *window)
+    {
+#ifdef Q_OS_WIN
+        using SetWindowAttribute = HRESULT(WINAPI *)(HWND, DWORD, LPCVOID, DWORD);
+        static const auto setAttribute = reinterpret_cast<SetWindowAttribute>(QLibrary::resolve(QStringLiteral("dwmapi"), "DwmSetWindowAttribute"));
+        if (!setAttribute) {
+            return;
+        }
+        const DWORD cornerPreference = 33; // DWMWA_WINDOW_CORNER_PREFERENCE
+        const int preference = window->windowType() == Qt::ToolTip ? 3 : 2; // DWMWCP_ROUNDSMALL : DWMWCP_ROUND
+        setAttribute(reinterpret_cast<HWND>(window->internalWinId()), cornerPreference, &preference, sizeof(preference));
+#else
+        Q_UNUSED(window);
+#endif
+    }
+};
+
+} // namespace
 
 namespace {
 
@@ -294,9 +352,29 @@ bool labelsAField(QLabel *label)
 }
 } // namespace
 
+bool KisModernStyle::systemRoundsWindows()
+{
+#ifdef Q_OS_WIN
+    static const bool rounds = QOperatingSystemVersion::current() >= QOperatingSystemVersion(QOperatingSystemVersion::Windows, 10, 0, 22000);
+    return rounds;
+#else
+    return false;
+#endif
+}
+
 void KisModernStyle::polish(QWidget *widget)
 {
     QProxyStyle::polish(widget);
+
+    // menus, drop down lists, tooltips, floating panels: the same round corners everywhere
+    if (systemRoundsWindows()) {
+        const Qt::WindowType type = widget->windowType();
+        const bool popup = widget->isWindow() && (type == Qt::Popup || type == Qt::ToolTip || type == Qt::Tool);
+        // a panel is a window only once it floats
+        if (popup || qobject_cast<QDockWidget *>(widget)) {
+            widget->installEventFilter(RoundedCorners::instance());
+        }
+    }
 
     // State_MouseOver is only set for widgets that receive hover events.
     // Fusion already enables them for buttons, sliders and scroll bars.
@@ -346,6 +424,12 @@ int KisModernStyle::styleHint(StyleHint hint, const QStyleOption *option, const 
     case SH_ComboBox_Popup:
         // drop the list down below the box instead of covering it
         return 0;
+    case SH_ComboBox_PopupFrameStyle:
+        // a round list has the system's border
+        if (systemRoundsWindows()) {
+            return QFrame::NoFrame;
+        }
+        break;
     case SH_DitherDisabledText:
     case SH_EtchDisabledText:
         return 0;
@@ -599,6 +683,10 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         return;
 
     case PE_FrameMenu: {
+        // the system draws the border of a round menu
+        if (systemRoundsWindows() && widget && widget->isWindow()) {
+            return;
+        }
         const QColor bg = option->palette.color(QPalette::Window);
         const QColor fg = option->palette.color(QPalette::WindowText);
         painter->save();
@@ -612,6 +700,14 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     case PE_PanelMenuBar:
         painter->fillRect(option->rect, chromeColor(option->palette));
         return;
+
+    case PE_PanelTipLabel:
+        // a round tooltip has the system's border
+        if (systemRoundsWindows()) {
+            painter->fillRect(option->rect, option->palette.brush(QPalette::ToolTipBase));
+            return;
+        }
+        break;
 
     case PE_IndicatorToolBarSeparator: {
         const QColor bg = option->palette.color(QPalette::Window);

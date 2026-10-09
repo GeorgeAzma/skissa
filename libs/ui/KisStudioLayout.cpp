@@ -70,6 +70,7 @@
 #include "kis_slider_spin_box.h"
 #include "kis_workspace_resource.h"
 #include "KisUiFont.h"
+#include "KisModernStyle.h"
 #include "kis_config.h"
 #include "kis_icon_utils.h"
 
@@ -2027,9 +2028,9 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 
     switch (event->type()) {
     case QEvent::Paint: {
-        // a flyout has no window frame, give it a hairline border
+        // a flyout has no window frame, give it a hairline border (Windows 11 rounds it and draws one)
         QDockWidget *dock = qobject_cast<QDockWidget *>(watched);
-        if (dock && dock->isFloating() && d->panels.contains(dock)) {
+        if (dock && dock->isFloating() && d->panels.contains(dock) && !KisModernStyle::systemRoundsWindows()) {
             QColor border = dock->palette().color(QPalette::WindowText);
             border.setAlphaF(0.25);
             QPainter painter(dock);

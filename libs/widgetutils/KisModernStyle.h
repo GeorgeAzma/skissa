@@ -41,6 +41,14 @@ public:
     /// Corner radius of rounded controls, for widgets that paint themselves
     static constexpr int cornerRadius = 5;
 
+    /**
+     * Whether the system rounds popup windows (menus, lists, tooltips,
+     * floating panels) and draws their border and shadow: Windows 11. The
+     * style asks it to for every such window; they then draw no frame of
+     * their own.
+     */
+    static bool systemRoundsWindows();
+
     using QProxyStyle::polish;
     void polish(QWidget *widget) override;
 
