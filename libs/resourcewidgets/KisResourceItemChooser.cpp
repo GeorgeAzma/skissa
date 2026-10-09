@@ -95,7 +95,8 @@ public:
     ListViewMode requestedViewMode = ListViewMode::IconGrid;
     bool isResponsive = false;
     bool showViewModeBtn = true;
-    bool showStoragePopupBtn = true;
+    // which bundles and folders resources come from is set up once, in Settings > Manage Resources
+    bool showStoragePopupBtn = false;
 
     // Horizontal Layout Widgets
     QSplitter* horzSplitter {0};

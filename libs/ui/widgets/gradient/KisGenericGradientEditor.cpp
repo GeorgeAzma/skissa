@@ -554,7 +554,6 @@ void KisGenericGradientEditor::updateAddGradientButton()
 void KisGenericGradientEditor::updateGradientPresetChooser()
 {
     m_d->widgetGradientPresetChooser->resourceItemChooser()->showImportExportBtns(!m_d->compactGradientPresetChooserMode);
-    m_d->widgetGradientPresetChooser->resourceItemChooser()->showStorageBtn(!m_d->compactGradientPresetChooserMode);
     m_d->widgetGradientPresetChooser->resourceItemChooser()->showTaggingBar(!m_d->compactGradientPresetChooserMode);
     m_d->widgetGradientPresetChooser->resourceItemChooser()->showViewModeBtn(!m_d->compactGradientPresetChooserMode);
 

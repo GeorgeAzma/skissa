@@ -11,7 +11,6 @@ set(kritaresourcewidgets_LIB_SRCS
     KisTagChooserWidget.cpp
     KisTagLabel.cpp
     KisTagFilterWidget.cpp
-    KisTagToolButton.cpp
     KisResourceTaggingManager.cpp
     KisStorageChooserWidget.cpp
     TagActions.cpp
