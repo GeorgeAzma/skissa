@@ -852,6 +852,10 @@ void KisStudioLayout::enter()
     if (!d->canvasRing) {
         d->canvasRing = new KisStudioCanvasRing(mainWindow);
     }
+    // the buttons' shortcuts work from the start, not only once Find was opened
+    QTimer::singleShot(0, this, [this]() {
+        if (KisStudioFind *find = d->mainWindow->studioFind()) find->registerButtons();
+    });
     if (KisPaintopBox *paintopBox = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr) {
         d->presetChip = paintopBox->presetChip();
         if (d->presetChip) {

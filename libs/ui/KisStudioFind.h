@@ -63,6 +63,10 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
 
+public:
+    /// Every button of the window that is no action of its own gets one: for its shortcut and for Find
+    void registerButtons();
+
 private:
     void rebuildIndex();
     void updateResults();

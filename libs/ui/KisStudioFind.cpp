@@ -28,6 +28,16 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidgetAction>
+#include <QAbstractButton>
+#include <QAbstractSpinBox>
+#include <QComboBox>
+#include <QScrollBar>
+#include <QTabBar>
+#include <QTextDocument>
+#include <QToolButton>
+
+#include <KSharedConfig>
+#include <kconfiggroup.h>
 
 #include <cmath>
 
@@ -440,6 +450,14 @@ struct KisStudioFind::Private
 
     QVector<Entry> entries;
     QHash<QString, Usage> usage;
+    /// A button that is not an action of its own, by its key: what Find runs, and what holds its shortcut
+    struct Button {
+        QPointer<QAbstractButton> button;
+        QPointer<QAction> action;
+        QString title;
+        QString where;
+    };
+    QHash<QString, Button> buttons;
     QScopedPointer<KisKActionCollection> layerActions;
 
     void loadUsage()
@@ -684,6 +702,20 @@ void KisStudioFind::rebuildIndex()
                                [target]() { if (target && target->isEnabled()) target->trigger(); }});
             d->entries.last().action = action;
         }
+    }
+
+    // every other button: findable, pinnable, and given a shortcut from its card
+    registerButtons();
+    for (auto it = d->buttons.constBegin(); it != d->buttons.constEnd(); ++it) {
+        if (!it->button || !it->action) continue;
+        const QString key = it.key();
+        QPointer<QAction> action = it->action;
+        QIcon icon = it->button->icon();
+        if (icon.isNull()) icon = KisIconUtils::loadIcon(QStringLiteral("hamburger_menu_dots"));
+        d->entries.append({key, Kind::Command, it->title, it->where, QStringLiteral("button"),
+                           it->action->shortcut().toString(QKeySequence::NativeText), icon,
+                           [action]() { if (action) action->trigger(); }});
+        d->entries.last().action = it->action;
     }
 
     // panels
@@ -951,6 +983,114 @@ void KisStudioFind::updateCommands(const QString &query)
         }
     }
     adjustGeometry();
+}
+
+/**
+ * The buttons of the window that are no action of their own (the panels'
+ * buttons, the top bar's, switches and options), each with a hidden action
+ * on the window that clicks it: Find shows them like commands, and their
+ * card gives them a shortcut, saved as any shortcut is. Their key is where
+ * they are: the panel, the named widgets on the way, the button.
+ */
+void KisStudioFind::registerButtons()
+{
+    KisMainWindow *mainWindow = d->mainWindow;
+    // the actions Krita already has: those buttons are found as commands
+    QSet<QAction *> known;
+    Q_FOREACH (QAction *action, mainWindow->actionCollection()->actions()) known.insert(action);
+    if (mainWindow->guiFactory()) {
+        Q_FOREACH (KisKXMLGUIClient *client, mainWindow->guiFactory()->clients()) {
+            if (client && client->actionCollection()) {
+                Q_FOREACH (QAction *action, client->actionCollection()->actions()) known.insert(action);
+            }
+        }
+    }
+    static const QRegularExpression tags(QStringLiteral("<[^>]*>"));
+    QHash<QString, int> seen;
+    const KConfigGroup shortcuts(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"));
+
+    Q_FOREACH (QAbstractButton *button, mainWindow->findChildren<QAbstractButton *>()) {
+        auto *tool = qobject_cast<QToolButton *>(button);
+        if (tool && tool->defaultAction() && known.contains(tool->defaultAction())) continue;
+        // parts of other widgets, Find itself, the tools panel (its items are Find's already)
+        bool skip = false;
+        QDockWidget *dock = nullptr;
+        QStringList path;
+        for (QWidget *w = button->parentWidget(); w && w != mainWindow; w = w->parentWidget()) {
+            if (qobject_cast<QAbstractSpinBox *>(w) || qobject_cast<QComboBox *>(w) || qobject_cast<QLineEdit *>(w)
+                || qobject_cast<QTabBar *>(w) || qobject_cast<QScrollBar *>(w) || qobject_cast<QMenu *>(w)
+                || w == this || qobject_cast<KisStudioToolRail *>(w) || w->inherits("KisStudioPicker")) {
+                skip = true;
+                break;
+            }
+            if (auto *asDock = qobject_cast<QDockWidget *>(w)) {
+                dock = asDock;
+                path.prepend(asDock->objectName());
+                break;
+            }
+            if (!w->objectName().isEmpty() && !w->objectName().startsWith(QLatin1String("qt_"))) path.prepend(w->objectName());
+        }
+        // hidden on purpose (replaced, or not for this mode): not a button there is
+        if (skip || !button->isVisibleTo(dock ? static_cast<QWidget *>(dock) : static_cast<QWidget *>(mainWindow))) continue;
+
+        // what it is called: its text, else the first line of its tooltip
+        QString title = cleanText(button->text());
+        if (title.isEmpty()) {
+            QString tip = button->toolTip();
+            tip.remove(tags);
+            tip = tip.section(QLatin1Char('\n'), 0, 0).trimmed();
+            // "Drag to move, click to fold" is no name: only the part before a colon or comma if long
+            if (tip.size() > 48) tip = tip.section(QRegularExpression(QStringLiteral("[:,.]")), 0, 0);
+            title = cleanText(tip);
+        }
+        if (title.isEmpty()) title = cleanText(button->accessibleName());
+        if (title.isEmpty() || title.size() > 60) continue;
+
+        QString key = QStringLiteral("button:") + path.join(QLatin1Char('/')) + QLatin1Char('/')
+            + (button->objectName().isEmpty() ? title : button->objectName());
+        const int count = seen.value(key, 0);
+        seen.insert(key, count + 1);
+        if (count > 0) key += QLatin1Char('#') + QString::number(count);
+
+        Private::Button &entry = d->buttons[key];
+        entry.button = button;
+        entry.title = title;
+        entry.where = dock ? dock->windowTitle() : i18nc("find result detail: a button of the window, outside the panels", "Window");
+        if (!entry.action) {
+            // the hidden action that holds its shortcut, named after where the button is
+            QString name = key;
+            name.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_]")), QStringLiteral("_"));
+            auto *action = new QAction(title, mainWindow);
+            action->setObjectName(QStringLiteral("studio_button_") + name);
+            const QString saved = shortcuts.readEntry(action->objectName(), QString());
+            if (!saved.isEmpty() && saved != QLatin1String("none")) {
+                action->setShortcuts(QKeySequence::listFromString(saved));
+            }
+            QPointer<QAbstractButton> target = button;
+            connect(action, &QAction::triggered, this, [this, key]() {
+                const Private::Button entry = d->buttons.value(key);
+                QAbstractButton *button = entry.button;
+                if (!button || !button->isEnabled()) return;
+                if (button->isVisible()) {
+                    button->click();
+                    return;
+                }
+                // in a panel that is closed: opened, then clicked
+                QDockWidget *dock = nullptr;
+                for (QWidget *w = button->parentWidget(); w && !dock; w = w->parentWidget()) dock = qobject_cast<QDockWidget *>(w);
+                if (dock && d->openPanel) {
+                    d->openPanel(dock);
+                    QPointer<QAbstractButton> later = button;
+                    QTimer::singleShot(0, this, [later]() {
+                        if (later && later->isVisible() && later->isEnabled()) later->click();
+                    });
+                }
+            });
+            mainWindow->addAction(action);
+            entry.action = action;
+        }
+        entry.action->setText(title);
+    }
 }
 
 void KisStudioFind::updateResults()
