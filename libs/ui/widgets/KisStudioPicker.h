@@ -100,6 +100,14 @@ public:
     struct Private;
 
 protected:
+    /**
+     * Another way to see them (e.g. a map), instead of the list: a link in
+     * the footer switches; \p rememberedKey keeps which one was last shown.
+     */
+    void addAlternateView(QWidget *view, const QString &label, const QString &rememberedKey);
+    /// Picks as a click on an item does: says so, and closes
+    void pickId(const QString &id);
+
     bool eventFilter(QObject *watched, QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void hideEvent(QHideEvent *event) override;

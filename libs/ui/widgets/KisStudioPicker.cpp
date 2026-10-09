@@ -22,6 +22,7 @@
 #include <QRadialGradient>
 #include <QLinearGradient>
 #include <QPainterPath>
+#include <QPointer>
 #include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -115,6 +116,10 @@ struct KisStudioPicker::Private
     QWidget *grid {nullptr};
     QScrollArea *scroll {nullptr};
     QAbstractButton *allButton {nullptr};
+    QHBoxLayout *footer {nullptr};
+    /// Another way to see them, and the link that switches to it
+    QPointer<QWidget> alternate;
+    QAbstractButton *alternateButton {nullptr};
     QLabel *hint {nullptr};
 
     QVector<Item> items;
@@ -676,6 +681,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     layout->addWidget(d->scroll);
 
     auto *footer = new QHBoxLayout();
+    d->footer = footer;
     footer->setContentsMargins(8, 2, 4, 0);
     d->hint = new QLabel(i18nc("@info", "Drag to reorder, the star adds or removes"), this);
     QPalette hintPalette = d->hint->palette();
@@ -833,6 +839,49 @@ KisStudioPicker::~KisStudioPicker() = default;
 void KisStudioPicker::updatePreviews()
 {
     d->grid->update();
+    if (d->alternate) d->alternate->update();
+}
+
+void KisStudioPicker::addAlternateView(QWidget *view, const QString &label, const QString &rememberedKey)
+{
+    d->alternate = view;
+    view->setParent(this);
+    view->hide();
+    // where the list is, the list hidden while it shows
+    if (auto *box = qobject_cast<QVBoxLayout *>(layout())) {
+        box->insertWidget(box->indexOf(d->scroll) + 1, view);
+    }
+    auto *link = new LinkButton(this);
+    link->setCursor(Qt::PointingHandCursor);
+    d->alternateButton = link;
+    d->footer->insertWidget(d->footer->count() - 1, link);
+    d->footer->insertSpacing(d->footer->count() - 1, 14);
+    auto apply = [this, label](bool on) {
+        d->alternate->setVisible(on);
+        d->scroll->setVisible(!on);
+        d->search->setVisible(!on);
+        d->allButton->setVisible(!on && d->search->text().trimmed().isEmpty());
+        d->hint->setVisible(!on && d->search->text().trimmed().isEmpty());
+        d->alternateButton->setText(on ? i18nc("@action:button back to the list", "List") : label);
+        adjustSize();
+    };
+    connect(link, &QAbstractButton::clicked, this, [this, apply, rememberedKey]() {
+        const bool on = !d->alternate->isVisible();
+        KisConfig(false).writeEntry(rememberedKey, on);
+        apply(on);
+        if (!on) d->search->setFocus();
+    });
+    apply(KisConfig(true).readEntry<bool>(rememberedKey, false));
+}
+
+void KisStudioPicker::pickId(const QString &id)
+{
+    if (!d->isAvailable(id)) return;
+    d->done = true;
+    d->previewTimer.stop();
+    Q_EMIT sigPreview(QString());
+    Q_EMIT sigPicked(id);
+    close();
 }
 
 void KisStudioPicker::popupBelow(QWidget *anchor)

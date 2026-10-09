@@ -10,6 +10,9 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QPainter>
+#include <QRegularExpression>
+#include <QPainterPath>
+#include <QMouseEvent>
 #include <QThread>
 #include <QTimer>
 #include <QtConcurrent>
@@ -86,6 +89,9 @@ struct KisStudioBrushStrokes {
     std::atomic<bool> allQueued {false};
     std::atomic<bool> finished {false};
     QHash<QString, QImage> shown;       ///< the ones collected, used in the GUI thread only
+    /// What each stroke changed, as alpha (over a background: the difference it made): for the map
+    QHash<QString, QImage> madeMasks;   ///< by the worker, under the mutex
+    QHash<QString, QImage> masks;       ///< collected, GUI thread only
 };
 
 namespace {
@@ -281,7 +287,7 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
 }
 
 /// The brush's stroke: a wave that starts and ends light, heaviest in the middle
-QImage paintStroke(const Job &job)
+QImage paintStroke(const Job &job, QImage *mask)
 {
     KisPaintDeviceSP device = job.layer->paintDevice();
     const int w = job.size.width();
@@ -303,6 +309,9 @@ QImage paintStroke(const Job &job)
         wash.setOpacity(0.55);
         device->fill(bounds, wash);
     }
+    const bool overBackground = job.kind == QLatin1String("blend") || job.kind == QLatin1String("effect")
+        || job.kind == QLatin1String("erase");
+    const QImage before = overBackground ? device->convertToQImage(nullptr, 0, 0, w, h).convertToFormat(QImage::Format_ARGB32) : QImage();
 
     KisPainter painter(device);
     painter.setPaintColor(job.paint);
@@ -341,7 +350,27 @@ QImage paintStroke(const Job &job)
         }
         if (!more) break;
     }
-    return device->convertToQImage(nullptr, 0, 0, w, h);
+    const QImage after = device->convertToQImage(nullptr, 0, 0, w, h).convertToFormat(QImage::Format_ARGB32);
+    if (mask) {
+        if (overBackground) {
+            // only what the stroke changed: the larger difference of any channel, as alpha
+            QImage changed(w, h, QImage::Format_ARGB32);
+            for (int y = 0; y < h; y++) {
+                const QRgb *a = reinterpret_cast<const QRgb *>(before.constScanLine(y));
+                const QRgb *b = reinterpret_cast<const QRgb *>(after.constScanLine(y));
+                QRgb *out = reinterpret_cast<QRgb *>(changed.scanLine(y));
+                for (int x = 0; x < w; x++) {
+                    const int d = qMax(qMax(qAbs(qRed(a[x]) - qRed(b[x])), qAbs(qGreen(a[x]) - qGreen(b[x]))),
+                                       qMax(qAbs(qBlue(a[x]) - qBlue(b[x])), qAbs(qAlpha(a[x]) - qAlpha(b[x]))));
+                    out[x] = qRgba(0, 0, 0, qMin(255, d * 2));
+                }
+            }
+            *mask = changed;
+        } else {
+            *mask = after;
+        }
+    }
+    return after;
 }
 
 /// Strokes already painted, by brush, for the color and size they were painted at
@@ -358,6 +387,13 @@ QHash<QString, QImage> &latestStrokes()
     return latest;
 }
 
+/// What each cached stroke changed (see KisStudioBrushStrokes::masks), by the same keys
+QHash<QString, QImage> &maskCache()
+{
+    static QHash<QString, QImage> cache;
+    return cache;
+}
+
 QString &strokeCacheStamp()
 {
     static QString stamp;
@@ -365,6 +401,220 @@ QString &strokeCacheStamp()
 }
 
 } // namespace
+
+/**
+ * All the brushes on one field, placed by how their strokes look: soft to
+ * hard from left to right, smooth to textured from top to bottom, so that
+ * brushes that paint alike are neighbours. Measured from the strokes as they
+ * are painted; yours get their places first, the rest the nearest free one.
+ */
+class BrushMap : public QWidget
+{
+public:
+    std::function<void(const QString &)> picked;
+
+    BrushMap(std::shared_ptr<KisStudioBrushStrokes> strokes, const QStringList &yours, const QString &current, QWidget *parent)
+        : QWidget(parent)
+        , m_strokes(strokes)
+        , m_yours(yours)
+        , m_current(current)
+    {
+        setMouseTracking(true);
+        setFixedSize(496, 512);
+    }
+
+protected:
+    struct Look {
+        qreal soft {0};
+        qreal texture {0};
+    };
+
+    /// How much of the stroke is half transparent (soft), and how much it changes from pixel to pixel (texture)
+    static Look measure(const QImage &image)
+    {
+        const QImage img = image.convertToFormat(QImage::Format_ARGB32);
+        qint64 covered = 0, mid = 0, roughCount = 0;
+        qreal rough = 0;
+        for (int y = 0; y < img.height(); y++) {
+            const QRgb *line = reinterpret_cast<const QRgb *>(img.constScanLine(y));
+            for (int x = 0; x < img.width(); x++) {
+                const int a = qAlpha(line[x]);
+                if (a > 10) {
+                    covered++;
+                    if (a > 25 && a < 215) mid++;
+                }
+                if (x + 1 < img.width()) {
+                    const int b = qAlpha(line[x + 1]);
+                    if (a > 10 || b > 10) {
+                        rough += qAbs(a - b);
+                        roughCount++;
+                    }
+                }
+            }
+        }
+        Look look;
+        look.soft = covered ? qreal(mid) / covered : 0;
+        look.texture = roughCount ? rough / roughCount / 255.0 : 0;
+        return look;
+    }
+
+    void place()
+    {
+        // the ones painted since: measured once
+        for (auto it = m_strokes->shown.constBegin(); it != m_strokes->shown.constEnd(); ++it) {
+            if (m_looks.contains(it.key())) continue;
+            // what the stroke itself changed, where there is a background under it
+            const QImage mask = m_strokes->masks.value(it.key());
+            m_looks.insert(it.key(), measure(mask.isNull() ? it.value() : mask));
+        }
+        if (m_looks.size() == m_placedFor) return;
+        m_placedFor = m_looks.size();
+
+        // by rank on each axis: spread over the whole field
+        QStringList ids = m_looks.keys();
+        QStringList bySoft = ids, byTexture = ids;
+        std::sort(bySoft.begin(), bySoft.end(), [this](const QString &a, const QString &b) { return m_looks[a].soft > m_looks[b].soft; });
+        std::sort(byTexture.begin(), byTexture.end(), [this](const QString &a, const QString &b) { return m_looks[a].texture < m_looks[b].texture; });
+        const int columns = width() / cellWidth;
+        const int rows = (height() - 22) / cellHeight;
+        QVector<QVector<QString>> taken(rows, QVector<QString>(columns));
+        m_cells.clear();
+
+        // yours first, in your order: their places are the most exact
+        QStringList order;
+        Q_FOREACH (const QString &id, m_yours) if (m_looks.contains(id)) order << id;
+        std::sort(ids.begin(), ids.end());
+        Q_FOREACH (const QString &id, ids) if (!order.contains(id)) order << id;
+
+        const qreal n = qMax(1, ids.size() - 1);
+        Q_FOREACH (const QString &id, order) {
+            const int cx = qRound(bySoft.indexOf(id) / n * (columns - 1));
+            const int cy = qRound(byTexture.indexOf(id) / n * (rows - 1));
+            // the nearest free cell, ring by ring
+            bool done = false;
+            for (int r = 0; r < qMax(columns, rows) && !done; r++) {
+                for (int dy = -r; dy <= r && !done; dy++) {
+                    for (int dx = -r; dx <= r && !done; dx++) {
+                        if (qMax(qAbs(dx), qAbs(dy)) != r) continue;
+                        const int x = cx + dx, y = cy + dy;
+                        if (x < 0 || y < 0 || x >= columns || y >= rows || !taken[y][x].isEmpty()) continue;
+                        taken[y][x] = id;
+                        m_cells.insert(id, QRect(x * cellWidth, 18 + y * cellHeight, cellWidth, cellHeight));
+                        done = true;
+                    }
+                }
+            }
+        }
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        place();
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        QColor dim = palette().color(QPalette::WindowText);
+        dim.setAlphaF(0.45);
+
+        // which way is what
+        QFont small = font();
+        small.setPointSizeF(small.pointSizeF() * 0.85);
+        painter.setFont(small);
+        painter.setPen(dim);
+        painter.drawText(QRect(2, 0, width() / 2, 16), Qt::AlignLeft | Qt::AlignVCenter, i18nc("brush map: the left side", "← Soft"));
+        painter.drawText(QRect(width() / 2, 0, width() / 2 - 2, 16), Qt::AlignRight | Qt::AlignVCenter, i18nc("brush map: the right side", "Hard →"));
+        painter.drawText(QRect(0, height() - 18, width() / 2, 18), Qt::AlignLeft | Qt::AlignVCenter, i18nc("brush map: the bottom", "↓ Textured"));
+
+        for (auto it = m_cells.constBegin(); it != m_cells.constEnd(); ++it) {
+            if (it.key() == m_hover) continue;
+            paintCell(painter, it.value().adjusted(2, 2, -2, -2), it.key(), false);
+        }
+        // the one pointed at, bigger, with its name
+        if (m_cells.contains(m_hover)) {
+            const QRect cell = m_cells.value(m_hover);
+            QRect big(0, 0, cellWidth * 2.2, cellHeight * 2.2);
+            big.moveCenter(cell.center());
+            big.moveLeft(qBound(0, big.left(), width() - big.width()));
+            big.moveTop(qBound(18, big.top(), height() - big.height() - 20));
+            paintCell(painter, big, m_hover, true);
+            static const QRegularExpression sortPrefix(QStringLiteral("^[a-z]\\)\\s+"));
+            const QString name = QString(m_hover).remove(sortPrefix);
+            QFont bold = font();
+            bold.setBold(true);
+            painter.setFont(bold);
+            const QFontMetrics metrics(bold);
+            QRectF pill(0, 0, metrics.horizontalAdvance(name) + 20, metrics.height() + 8);
+            pill.moveCenter(QPointF(big.center().x(), big.bottom() + pill.height() / 2 + 4));
+            pill.moveLeft(qBound(0.0, pill.left(), width() - pill.width()));
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(palette().color(QPalette::Highlight));
+            painter.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+            painter.setPen(palette().color(QPalette::HighlightedText));
+            painter.drawText(pill, Qt::AlignCenter, name);
+        }
+    }
+
+    void paintCell(QPainter &painter, const QRect &rect, const QString &id, bool big)
+    {
+        QPainterPath clip;
+        clip.addRoundedRect(QRectF(rect), big ? 8 : 4, big ? 8 : 4);
+        painter.save();
+        painter.setClipPath(clip);
+        painter.fillRect(rect, m_strokes->paper);
+        painter.drawImage(rect, m_strokes->shown.value(id));
+        painter.restore();
+        const bool yours = m_yours.contains(id);
+        const bool current = id == m_current;
+        if (big || yours || current) {
+            painter.setBrush(Qt::NoBrush);
+            painter.setPen(QPen(big ? palette().color(QPalette::Highlight) : current ? palette().color(QPalette::WindowText)
+                                                                              : palette().color(QPalette::Link),
+                                big ? 2 : 1.2));
+            painter.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), big ? 8 : 4, big ? 8 : 4);
+        }
+    }
+
+    QString idAt(const QPoint &pos) const
+    {
+        for (auto it = m_cells.constBegin(); it != m_cells.constEnd(); ++it) {
+            if (it.value().contains(pos)) return it.key();
+        }
+        return QString();
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        const QString hover = idAt(event->pos());
+        if (hover != m_hover) {
+            m_hover = hover;
+            setCursor(hover.isEmpty() ? Qt::ArrowCursor : Qt::PointingHandCursor);
+            update();
+        }
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        const QString id = idAt(event->pos());
+        if (event->button() == Qt::LeftButton && !id.isEmpty() && picked) picked(id);
+    }
+
+    void leaveEvent(QEvent *) override
+    {
+        m_hover.clear();
+        update();
+    }
+
+private:
+    static constexpr int cellWidth = 49;
+    static constexpr int cellHeight = 30;
+    std::shared_ptr<KisStudioBrushStrokes> m_strokes;
+    QStringList m_yours;
+    QString m_current;
+    QHash<QString, Look> m_looks;
+    QHash<QString, QRect> m_cells;
+    int m_placedFor {-1};
+    QString m_hover;
+};
 
 struct KisStudioBrushPicker::Private
 {
@@ -415,6 +665,16 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
         use(mainWindow->viewManager(), id);
     });
 
+    // all of them by how they look
+    auto *map = new BrushMap(strokes, pinnedIds(brushSource(strokes->catalog, nullptr)),
+                             mainWindow->viewManager() && mainWindow->viewManager()->canvasResourceProvider()
+                                     && mainWindow->viewManager()->canvasResourceProvider()->currentPreset()
+                                 ? mainWindow->viewManager()->canvasResourceProvider()->currentPreset()->name()
+                                 : QString(),
+                             this);
+    map->picked = [this](const QString &id) { pickId(id); };
+    addAlternateView(map, i18nc("@action:button the brushes by how they look", "Map"), QStringLiteral("StudioBrushesAsMap"));
+
     if (!resources || !resources->resourceManager()) {
         strokes->finished = true;
         return;
@@ -424,6 +684,7 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
     const QString stamp = d->paint.toQColor().name() + QLatin1Char('@') + QString::number(d->size.width());
     if (strokeCacheStamp() != stamp) {
         strokeCache().clear();
+        maskCache().clear();
         strokeCacheStamp() = stamp;
     }
 
@@ -436,6 +697,8 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
         const QImage cached = strokeCache().value(brush.md5 + id);
         if (!cached.isNull()) {
             strokes->shown.insert(id, cached);
+            const QImage cachedMask = maskCache().value(brush.md5 + id);
+            if (!cachedMask.isNull()) strokes->masks.insert(id, cachedMask);
         } else if (!brush.name.isEmpty()) {
             d->toQueue << id;
         }
@@ -460,9 +723,11 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
                 QThread::msleep(4);
                 continue;
             }
-            const QImage stroke = paintStroke(job);
+            QImage mask;
+            const QImage stroke = paintStroke(job, &mask);
             QMutexLocker locker(&strokes->mutex);
             if (!stroke.isNull()) strokes->made.insert(job.id, stroke);
+            if (!mask.isNull()) strokes->madeMasks.insert(job.id, mask);
             strokes->spent << job;
         }
         strokes->finished = true;
@@ -479,6 +744,11 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
         QList<Job> spent;
         {
             QMutexLocker locker(&d->strokes->mutex);
+            for (auto it = d->strokes->madeMasks.constBegin(); it != d->strokes->madeMasks.constEnd(); ++it) {
+                d->strokes->masks.insert(it.key(), it.value());
+                maskCache().insert(d->catalog->brushes.value(it.key()).md5 + it.key(), it.value());
+            }
+            d->strokes->madeMasks.clear();
             for (auto it = d->strokes->made.constBegin(); it != d->strokes->made.constEnd(); ++it) {
                 d->strokes->shown.insert(it.key(), it.value());
                 strokeCache().insert(d->catalog->brushes.value(it.key()).md5 + it.key(), it.value());
