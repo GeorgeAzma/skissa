@@ -419,16 +419,15 @@ void KisCompositeOpComboBox::slotLuminosity()
 void KisCompositeOpComboBox::selectNeighbouringBlendMode(bool down)
 {
     /**
-     * Stepping through all 138 modes mostly means stepping through ones
-     * nobody wants (binary logic, modulo, the same mode in four color
-     * models). From a common mode, step through the common ones only.
+     * Through your modes in your order first, then on into all the others;
+     * no wrapping around, so that up always heads back to your first ones.
      */
     if (!m_limitToLayerStyles) {
-        const QStringList essentials = KisBlendModePicker::essentialModes();
-        const int position = essentials.indexOf(selectedCompositeOp().id());
+        const QStringList order = KisBlendModePicker::scrollOrder();
+        const int position = order.indexOf(selectedCompositeOp().id());
         if (position >= 0) {
-            for (int i = position + (down ? 1 : -1); i >= 0 && i < essentials.size(); i += down ? 1 : -1) {
-                const KoID op = KoCompositeOpRegistry::instance().getKoID(essentials[i]);
+            for (int i = position + (down ? 1 : -1); i >= 0 && i < order.size(); i += down ? 1 : -1) {
+                const KoID op = KoCompositeOpRegistry::instance().getKoID(order[i]);
                 const QModelIndex index = m_model->indexOf(op);
                 if (index.isValid() && (index.flags() & Qt::ItemIsEnabled)) {
                     selectCompositeOp(op);
@@ -473,8 +472,8 @@ void KisCompositeOpComboBox::selectNeighbouringBlendMode(bool down)
 
 void KisCompositeOpComboBox::wheelEvent(QWheelEvent *e)
 {
-    // scrolling over the box steps through the common modes, like the shortcuts
-    if (!m_limitToLayerStyles && KisBlendModePicker::essentialModes().contains(selectedCompositeOp().id())) {
+    // scrolling over the box steps through your modes, then the others, like the shortcuts
+    if (!m_limitToLayerStyles) {
         const int delta = e->angleDelta().y();
         if (delta != 0) {
             selectNeighbouringBlendMode(delta < 0);

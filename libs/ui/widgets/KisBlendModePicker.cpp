@@ -13,6 +13,7 @@
 #include <QApplication>
 #include <QHBoxLayout>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPainter>
 #include <QPainterPath>
@@ -21,6 +22,9 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QVBoxLayout>
+
+#include <KSharedConfig>
+#include <kconfiggroup.h>
 
 #include <KoColorSpace.h>
 #include <KoColorSpaceRegistry.h>
@@ -35,10 +39,14 @@
 namespace {
 
 constexpr int shadowMargin = 16;
-constexpr int columnWidth = 182;
+constexpr int columnWidth = 196;
 constexpr int rowHeight = 32;
 constexpr int headerHeight = 26;
 constexpr int columns = 3;
+
+const QString pinnedKey = QStringLiteral("StudioBlendModes");
+/// Before the list could be ordered, starred modes came first
+const QString oldFavoritesKey = QStringLiteral("StudioFavoriteBlendModes");
 
 struct Group {
     QString title;
@@ -46,33 +54,30 @@ struct Group {
 };
 
 /**
- * The essential modes, by intent, in the order scrolling steps through them.
- * The ids are the ones of KoCompositeOpRegistry.
+ * The list "your modes" starts as: the common modes by intent, the order
+ * scrolling stepped through before it could be changed. The ids are the
+ * ones of KoCompositeOpRegistry.
  */
-QVector<Group> essentialGroups()
+QStringList defaultPinned()
 {
     return {
-        {i18nc("blend mode group", "Normal"), {QStringLiteral("normal")}},
-        {i18nc("blend mode group", "Darken"), {QStringLiteral("multiply"), QStringLiteral("burn"), QStringLiteral("linear_burn"),
-                                               QStringLiteral("darken"), QStringLiteral("darker color")}},
-        {i18nc("blend mode group", "Lighten"), {QStringLiteral("screen"), QStringLiteral("linear_dodge"), QStringLiteral("dodge"),
-                                                QStringLiteral("lighten"), QStringLiteral("lighter color")}},
-        {i18nc("blend mode group", "Contrast"), {QStringLiteral("overlay"), QStringLiteral("soft_light"), QStringLiteral("hard_light"),
-                                                 QStringLiteral("vivid_light"), QStringLiteral("linear light"), QStringLiteral("pin_light"),
-                                                 QStringLiteral("hard_mix_photoshop")}},
-        {i18nc("blend mode group", "Compare"), {QStringLiteral("diff"), QStringLiteral("exclusion"), QStringLiteral("subtract"),
-                                                QStringLiteral("divide")}},
-        {i18nc("blend mode group", "Color"), {QStringLiteral("hue"), QStringLiteral("saturation"), QStringLiteral("color"),
-                                              QStringLiteral("luminize")}},
-        {i18nc("blend mode group", "Transparency"), {QStringLiteral("erase"), QStringLiteral("behind"), QStringLiteral("dissolve")}},
+        QStringLiteral("normal"),
+        // darken
+        QStringLiteral("multiply"), QStringLiteral("burn"), QStringLiteral("linear_burn"), QStringLiteral("darken"),
+        QStringLiteral("darker color"),
+        // lighten
+        QStringLiteral("screen"), QStringLiteral("linear_dodge"), QStringLiteral("dodge"), QStringLiteral("lighten"),
+        QStringLiteral("lighter color"),
+        // contrast
+        QStringLiteral("overlay"), QStringLiteral("soft_light"), QStringLiteral("hard_light"), QStringLiteral("vivid_light"),
+        QStringLiteral("linear light"), QStringLiteral("pin_light"), QStringLiteral("hard_mix_photoshop"),
+        // compare
+        QStringLiteral("diff"), QStringLiteral("exclusion"), QStringLiteral("subtract"), QStringLiteral("divide"),
+        // color
+        QStringLiteral("hue"), QStringLiteral("saturation"), QStringLiteral("color"), QStringLiteral("luminize"),
+        // transparency
+        QStringLiteral("erase"), QStringLiteral("behind"), QStringLiteral("dissolve"),
     };
-}
-
-/// The same groups in three columns of about equal height
-QVector<QVector<Group>> essentialColumns()
-{
-    const QVector<Group> g = essentialGroups();
-    return {{g[0], g[1], g[6]}, {g[2], g[4]}, {g[3], g[5]}};
 }
 
 /**
@@ -142,14 +147,12 @@ QImage swatchFor(const QString &id)
     return swatch;
 }
 
-/// "Soft Light (Photoshop)" -> "Soft Light", where only one of the variants is shown
+/// "Soft Light (Photoshop)" -> "Soft Light", in your list, where the variant rarely matters
 QString withoutQualifier(QString name)
 {
     static const QRegularExpression qualifier(QStringLiteral("\\s*\\([^)]*\\)$"));
     return name.remove(qualifier);
 }
-
-const QString favoritesKey = QStringLiteral("StudioFavoriteBlendModes");
 
 QRectF starRect(const QRect &row)
 {
@@ -167,6 +170,11 @@ QPolygonF starShape(const QRectF &r)
     return star;
 }
 
+QString nameOf(const QString &id)
+{
+    return KoCompositeOpRegistry::instance().getKoID(id).name();
+}
+
 /// Every registered mode, once
 QList<KoID> allOps()
 {
@@ -182,10 +190,33 @@ QList<KoID> allOps()
     return ops;
 }
 
+/// The modes that are not yours, by category, each once, in the order the picker shows them
+QVector<Group> otherGroups(const QStringList &pinned)
+{
+    QVector<Group> groups;
+    QSet<QString> seen(pinned.begin(), pinned.end());
+    const auto ops = KoCompositeOpRegistry::instance().getCompositeOps();
+    Q_FOREACH (const KoID &category, KoCompositeOpRegistry::instance().getCategories()) {
+        Group group{category.name(), {}};
+        Q_FOREACH (const KoID &op, ops.values(category)) {
+            if (!seen.contains(op.id())) {
+                seen.insert(op.id());
+                group.ids << op.id();
+            }
+        }
+        std::sort(group.ids.begin(), group.ids.end(), [](const QString &a, const QString &b) {
+            return nameOf(a).localeAwareCompare(nameOf(b)) < 0;
+        });
+        if (!group.ids.isEmpty()) groups << group;
+    }
+    return groups;
+}
+
 struct Item {
     QString id;
     QString name;
     QRect rect;
+    int order {-1}; ///< the place in your modes, -1 for the others
 };
 
 struct Header {
@@ -199,7 +230,7 @@ struct KisBlendModePicker::Private
 {
     QString original;
     QSet<QString> available;
-    QStringList favorites;
+    QStringList pinned;
     std::function<void()> relayout;
     bool showAll {false};
     bool done {false};
@@ -209,19 +240,30 @@ struct KisBlendModePicker::Private
     QWidget *grid {nullptr};
     QScrollArea *scroll {nullptr};
     QAbstractButton *allButton {nullptr};
+    QLabel *hint {nullptr};
 
     QVector<Item> items;
     QVector<Header> headers;
+    /// Where your modes are, a drop there puts a mode among them; empty while searching
+    QRect pinnedArea;
 
-    QString nameOf(const QString &id) const
+    bool searching() const { return !search->text().trimmed().isEmpty(); }
+
+    void setPinned(const QStringList &ids)
     {
-        return KoCompositeOpRegistry::instance().getKoID(id).name();
+        pinned = ids;
+        KisBlendModePicker::setPinnedModes(ids);
+        if (relayout) relayout();
     }
 };
 
 namespace {
 
-/// The painted grid of modes inside the picker
+/**
+ * The painted grid of modes inside the picker. A press and a release picks,
+ * a press and a drag moves the mode: among your modes to reorder them, into
+ * them to add it, out of them to take it off.
+ */
 class Grid : public QWidget
 {
 public:
@@ -251,12 +293,17 @@ protected:
             painter.drawText(header.rect.adjusted(8, 0, 0, -2), Qt::AlignLeft | Qt::AlignBottom, header.title);
         }
 
-        painter.setFont(font());
+        QFont numberFont = font();
+        numberFont.setPointSizeF(numberFont.pointSizeF() * 0.8);
+        QColor numberInk = pal.color(QPalette::WindowText);
+        numberInk.setAlphaF(0.35);
+
         for (int i = 0; i < m_d->items.size(); i++) {
             const Item &item = m_d->items[i];
             const bool current = item.id == m_d->original;
-            const bool highlighted = i == m_d->highlighted;
+            const bool highlighted = i == m_d->highlighted && m_dragging < 0;
             const bool enabled = m_d->available.contains(item.id);
+            painter.setOpacity(i == m_dragging ? 0.3 : 1.0);
 
             if (highlighted || current) {
                 const QColor base = pal.color(QPalette::Window);
@@ -269,53 +316,122 @@ protected:
                 painter.drawRoundedRect(QRectF(item.rect).adjusted(2, 1, -2, -1), 6, 6);
             }
 
-            const QRect swatchRect(item.rect.left() + 8, item.rect.center().y() - 10, 30, 20);
+            // your modes are numbered: the order scrolling goes in
+            const int left = item.order >= 0 ? 22 : 8;
+            if (item.order >= 0) {
+                painter.setFont(numberFont);
+                painter.setPen(numberInk);
+                painter.drawText(QRect(item.rect.left() + 2, item.rect.top(), 18, item.rect.height()),
+                                 Qt::AlignRight | Qt::AlignVCenter, QString::number(item.order + 1));
+            }
+
+            const QRect swatchRect(item.rect.left() + left, item.rect.center().y() - 10, 30, 20);
             QPainterPath clip;
             clip.addRoundedRect(QRectF(swatchRect), 4, 4);
             painter.save();
             painter.setClipPath(clip);
-            painter.setOpacity(enabled ? 1.0 : 0.35);
+            painter.setOpacity(painter.opacity() * (enabled ? 1.0 : 0.35));
             painter.drawImage(swatchRect, swatchFor(item.id));
             painter.restore();
 
+            painter.setFont(font());
             painter.setPen(enabled ? pal.color(QPalette::WindowText) : dim);
-            painter.drawText(item.rect.adjusted(46, 0, -24, 0), Qt::AlignVCenter | Qt::AlignLeft,
-                             painter.fontMetrics().elidedText(item.name, Qt::ElideRight, item.rect.width() - 72));
+            const int textLeft = left + 38;
+            painter.drawText(item.rect.adjusted(textLeft, 0, -24, 0), Qt::AlignVCenter | Qt::AlignLeft,
+                             painter.fontMetrics().elidedText(item.name, Qt::ElideRight, item.rect.width() - textLeft - 26));
 
-            const bool favorite = m_d->favorites.contains(item.id);
-            if (favorite || highlighted) {
-                QColor ink = favorite ? pal.color(QPalette::Link) : pal.color(QPalette::WindowText);
-                ink.setAlphaF(favorite ? 0.9 : 0.45);
+            // the star of the row pointed at: full for your modes, empty for the others; among
+            // search matches your modes always show theirs, as there is no other way to tell
+            const bool pinned = item.order >= 0 || m_d->pinned.contains(item.id);
+            if (highlighted || (pinned && item.order < 0)) {
+                QColor ink = pinned ? pal.color(QPalette::Link) : pal.color(QPalette::WindowText);
+                ink.setAlphaF(pinned ? 0.9 : 0.45);
                 painter.setPen(QPen(ink, 1.1));
-                painter.setBrush(favorite ? ink : Qt::NoBrush);
+                painter.setBrush(pinned ? ink : Qt::NoBrush);
                 painter.drawPolygon(starShape(starRect(item.rect)));
             }
         }
+        painter.setOpacity(1.0);
+
+        // where a dragged mode would go
+        if (m_dragging >= 0) {
+            if (!m_dropLine.isNull()) {
+                painter.setPen(Qt::NoPen);
+                painter.setBrush(pal.color(QPalette::Highlight));
+                painter.drawRoundedRect(QRectF(m_dropLine), 1.5, 1.5);
+            } else if (m_dropUnpins) {
+                QColor wash = pal.color(QPalette::WindowText);
+                wash.setAlphaF(0.06);
+                painter.setPen(Qt::NoPen);
+                painter.setBrush(wash);
+                painter.drawRoundedRect(QRectF(0, m_d->pinnedArea.bottom() + 4, width(), height() - m_d->pinnedArea.bottom() - 4), 8, 8);
+            }
+            // the mode itself, beside the pointer, where it does not hide the line
+            const Item &dragged = m_d->items[m_dragging];
+            const QRect ghost(m_pointer + QPoint(14, 10), QSize(columnWidth - 8, rowHeight - 2));
+            QColor card = pal.color(QPalette::Window).lighter(125);
+            painter.setPen(QPen(pal.color(QPalette::Highlight), 1));
+            painter.setBrush(card);
+            painter.drawRoundedRect(QRectF(ghost), 6, 6);
+            const QRect swatchRect(ghost.left() + 8, ghost.center().y() - 10, 30, 20);
+            painter.drawImage(swatchRect, swatchFor(dragged.id));
+            painter.setPen(pal.color(QPalette::WindowText));
+            painter.drawText(ghost.adjusted(46, 0, -6, 0), Qt::AlignVCenter | Qt::AlignLeft,
+                             painter.fontMetrics().elidedText(dragged.name, Qt::ElideRight, ghost.width() - 52));
+        }
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        m_press = event->button() == Qt::LeftButton ? itemAt(event->pos()) : -1;
+        m_pressPos = event->pos();
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
+        if (m_press >= 0 && (event->buttons() & Qt::LeftButton)) {
+            if (m_dragging < 0 && (event->pos() - m_pressPos).manhattanLength() >= QApplication::startDragDistance()
+                && !m_d->searching()) {
+                m_dragging = m_press;
+                m_hover(-1);
+            }
+            if (m_dragging >= 0) {
+                m_pointer = event->pos();
+                updateDrop();
+                update();
+                return;
+            }
+        }
         m_hover(itemAt(event->pos()));
     }
 
     void leaveEvent(QEvent *) override
     {
-        m_hover(-1);
+        if (m_dragging < 0) m_hover(-1);
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
-        const int index = itemAt(event->pos());
-        if (index >= 0 && event->button() == Qt::LeftButton) {
-            // the star makes a favorite, the rest of the row picks
-            if (starRect(m_d->items[index].rect).adjusted(-4, -6, 4, 6).contains(event->pos())) {
-                KisBlendModePicker::setFavorite(m_d->items[index].id, !m_d->favorites.contains(m_d->items[index].id));
-                m_d->favorites = KisBlendModePicker::favoriteModes();
-                if (m_d->relayout) m_d->relayout();
-                return;
-            }
-            m_pick(index);
+        const int pressed = m_press;
+        m_press = -1;
+        if (m_dragging >= 0) {
+            drop();
+            return;
         }
+        const int index = itemAt(event->pos());
+        if (index < 0 || index != pressed || event->button() != Qt::LeftButton) {
+            return;
+        }
+        // the star keeps a mode in your list or takes it off, the rest of the row picks
+        const Item &item = m_d->items[index];
+        if (starRect(item.rect).adjusted(-4, -6, 4, 6).contains(event->pos())) {
+            QStringList pinned = m_d->pinned;
+            if (pinned.contains(item.id)) pinned.removeAll(item.id);
+            else pinned << item.id;
+            m_d->setPinned(pinned);
+            return;
+        }
+        m_pick(index);
     }
 
 private:
@@ -327,9 +443,75 @@ private:
         return -1;
     }
 
+    /// Where the dragged mode goes: a place among your modes, or out of them
+    void updateDrop()
+    {
+        m_dropAt = -1;
+        m_dropLine = QRect();
+        m_dropUnpins = false;
+        const QRect area = m_d->pinnedArea.adjusted(0, 0, 0, rowHeight / 2);
+        if (!area.contains(m_pointer)) {
+            m_dropUnpins = m_d->items[m_dragging].order >= 0;
+            return;
+        }
+        // before the row under the pointer, or after it in its lower half
+        const int column = qBound(0, m_pointer.x() / columnWidth, columns - 1);
+        int lastInColumn = -1;
+        for (int i = 0; i < m_d->items.size(); i++) {
+            const Item &item = m_d->items[i];
+            if (item.order < 0 || item.rect.left() != column * columnWidth) continue;
+            lastInColumn = i;
+            if (m_pointer.y() < item.rect.center().y()) {
+                m_dropAt = item.order;
+                m_dropLine = QRect(item.rect.left() + 6, item.rect.top() - 2, columnWidth - 12, 3);
+                return;
+            }
+        }
+        if (lastInColumn >= 0) {
+            const Item &last = m_d->items[lastInColumn];
+            m_dropAt = last.order + 1;
+            m_dropLine = QRect(last.rect.left() + 6, last.rect.bottom() - 1, columnWidth - 12, 3);
+        } else {
+            m_dropAt = m_d->pinned.size();
+        }
+    }
+
+    void drop()
+    {
+        const QString id = m_d->items[m_dragging].id;
+        const int from = m_d->pinned.indexOf(id);
+        QStringList pinned = m_d->pinned;
+        if (m_dropAt >= 0) {
+            int to = m_dropAt;
+            if (from >= 0) {
+                pinned.removeAt(from);
+                if (to > from) to--;
+            }
+            pinned.insert(qBound(0, to, pinned.size()), id);
+        } else if (m_dropUnpins) {
+            pinned.removeAll(id);
+        }
+        m_dragging = -1;
+        m_dropLine = QRect();
+        m_dropUnpins = false;
+        if (pinned != m_d->pinned) {
+            m_d->setPinned(pinned);
+        } else {
+            update();
+        }
+    }
+
     KisBlendModePicker::Private *m_d;
     std::function<void(int)> m_hover;
     std::function<void(int)> m_pick;
+
+    int m_press {-1};
+    QPoint m_pressPos;
+    int m_dragging {-1};
+    QPoint m_pointer;
+    int m_dropAt {-1};       ///< the place among your modes it would take
+    bool m_dropUnpins {false};
+    QRect m_dropLine;
 };
 
 /// A text button that looks like a link
@@ -362,7 +544,7 @@ KisBlendModePicker::KisBlendModePicker(const QString &current, const QSet<QStrin
 {
     d->original = current;
     d->available = available;
-    d->favorites = favoriteModes();
+    d->pinned = pinnedModes();
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_DeleteOnClose);
 
@@ -405,63 +587,31 @@ KisBlendModePicker::KisBlendModePicker(const QString &current, const QSet<QStrin
 
     auto *footer = new QHBoxLayout();
     footer->setContentsMargins(8, 2, 4, 0);
-    auto *hint = new QWidget(this);
-    hint->setFixedHeight(24);
-    footer->addWidget(hint, 1);
+    d->hint = new QLabel(this);
+    d->hint->setText(i18nc("@info", "Drag to reorder, the star adds or removes"));
+    QColor hintInk = d->hint->palette().color(QPalette::WindowText);
+    hintInk.setAlphaF(0.45);
+    QPalette hintPalette = d->hint->palette();
+    hintPalette.setColor(QPalette::WindowText, hintInk);
+    d->hint->setPalette(hintPalette);
+    footer->addWidget(d->hint, 1);
     auto *all = new LinkButton(this);
-    all->setText(i18nc("@action:button", "All %1 modes", allOps().size()));
     all->setCursor(Qt::PointingHandCursor);
     d->allButton = all;
     footer->addWidget(all);
     layout->addLayout(footer);
 
-    // lays the modes out in columns; the essentials by intent, the rest by category
+    // your modes first, numbered, in three columns read downwards; then the others by category, or the matches
     auto relayout = [this]() {
         d->items.clear();
         d->headers.clear();
+        d->pinnedArea = QRect();
         const QString query = d->search->text().trimmed();
 
-        QVector<QVector<Group>> cols;
-        const bool essentials = query.isEmpty() && !d->showAll;
-        if (!essentials) {
-            QVector<Group> groups;
-            if (!query.isEmpty()) {
-                QVector<QPair<int, QString>> scored;
-                Q_FOREACH (const KoID &id, allOps()) {
-                    const int at = id.name().indexOf(query, 0, Qt::CaseInsensitive);
-                    if (at >= 0) {
-                        const bool wordStart = at == 0 || !id.name().at(at - 1).isLetterOrNumber();
-                        scored.append(qMakePair(1000 - (wordStart ? 0 : 200) - at, id.id()));
-                    }
-                }
-                if (scored.size() < 6) {
-                    Q_FOREACH (const KoID &id, allOps()) {
-                        int score = 0;
-                        const bool have = std::any_of(scored.begin(), scored.end(), [&id](const auto &s) { return s.second == id.id(); });
-                        if (!have && kfts::fuzzy_match(query, id.name(), score)) {
-                            scored.append(qMakePair(score, id.id()));
-                        }
-                    }
-                }
-                std::stable_sort(scored.begin(), scored.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
-                Group matches{i18nc("blend mode group", "Matches"), {}};
-                for (const auto &s : scored) matches.ids << s.second;
-                groups << matches;
-            } else {
-                const auto ops = KoCompositeOpRegistry::instance().getCompositeOps();
-                Q_FOREACH (const KoID &category, KoCompositeOpRegistry::instance().getCategories()) {
-                    Group group{category.name(), {}};
-                    Q_FOREACH (const KoID &op, ops.values(category)) group.ids << op.id();
-                    std::sort(group.ids.begin(), group.ids.end(), [this](const QString &a, const QString &b) {
-                        return d->nameOf(a).localeAwareCompare(d->nameOf(b)) < 0;
-                    });
-                    if (!group.ids.isEmpty()) groups << group;
-                }
-            }
-            // balance the groups over the columns by height
-            cols.resize(columns);
+        auto placeGroups = [this](const QVector<Group> &groups, int top, bool balanceOne) {
+            QVector<QVector<Group>> cols(columns);
             QVector<int> heights(columns, 0);
-            if (groups.size() == 1) {
+            if (groups.size() == 1 && balanceOne) {
                 const Group &only = groups.first();
                 const int perColumn = (only.ids.size() + columns - 1) / columns;
                 for (int c = 0; c < columns; c++) {
@@ -475,29 +625,62 @@ KisBlendModePicker::KisBlendModePicker(const QString &current, const QSet<QStrin
                     heights[c] += headerHeight + group.ids.size() * rowHeight;
                 }
             }
-        } else {
-            cols = essentialColumns();
-            // favorites open the first column, and come first when scrolling through modes
-            if (!d->favorites.isEmpty()) {
-                cols[0].prepend(Group{i18nc("blend mode group", "Favorites"), d->favorites});
+            int bottom = top;
+            for (int c = 0; c < columns; c++) {
+                int y = top;
+                Q_FOREACH (const Group &group, cols[c]) {
+                    if (!group.title.isEmpty() || y > top) {
+                        d->headers << Header{group.title, QRect(c * columnWidth, y, columnWidth, headerHeight)};
+                        y += headerHeight;
+                    }
+                    Q_FOREACH (const QString &id, group.ids) {
+                        d->items << Item{id, nameOf(id), QRect(c * columnWidth, y, columnWidth, rowHeight), -1};
+                        y += rowHeight;
+                    }
+                }
+                bottom = std::max(bottom, y);
             }
-        }
+            return bottom;
+        };
 
         int height = 0;
-        for (int c = 0; c < cols.size(); c++) {
-            int y = 0;
-            Q_FOREACH (const Group &group, cols[c]) {
-                if (!group.title.isEmpty() || y > 0) {
-                    d->headers << Header{group.title, QRect(c * columnWidth, y, columnWidth, headerHeight)};
-                    y += headerHeight;
-                }
-                Q_FOREACH (const QString &id, group.ids) {
-                    const QString name = essentials ? withoutQualifier(d->nameOf(id)) : d->nameOf(id);
-                    d->items << Item{id, name, QRect(c * columnWidth, y, columnWidth, rowHeight)};
-                    y += rowHeight;
+        if (!query.isEmpty()) {
+            QVector<QPair<int, QString>> scored;
+            Q_FOREACH (const KoID &id, allOps()) {
+                const int at = id.name().indexOf(query, 0, Qt::CaseInsensitive);
+                if (at >= 0) {
+                    const bool wordStart = at == 0 || !id.name().at(at - 1).isLetterOrNumber();
+                    scored.append(qMakePair(1000 - (wordStart ? 0 : 200) - at, id.id()));
                 }
             }
-            height = std::max(height, y);
+            if (scored.size() < 6) {
+                Q_FOREACH (const KoID &id, allOps()) {
+                    int score = 0;
+                    const bool have = std::any_of(scored.begin(), scored.end(), [&id](const auto &s) { return s.second == id.id(); });
+                    if (!have && kfts::fuzzy_match(query, id.name(), score)) {
+                        scored.append(qMakePair(score, id.id()));
+                    }
+                }
+            }
+            std::stable_sort(scored.begin(), scored.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+            Group matches{i18nc("blend mode group", "Matches"), {}};
+            for (const auto &s : scored) matches.ids << s.second;
+            height = placeGroups({matches}, 0, true);
+        } else {
+            // read downwards, column by column, like a list
+            const int count = d->pinned.size();
+            const int perColumn = std::max(1, (count + columns - 1) / columns);
+            d->headers << Header{i18nc("blend mode group", "Your modes"), QRect(0, 0, columnWidth, headerHeight)};
+            for (int i = 0; i < count; i++) {
+                const QString &id = d->pinned[i];
+                const QRect rect((i / perColumn) * columnWidth, headerHeight + (i % perColumn) * rowHeight, columnWidth, rowHeight);
+                d->items << Item{id, withoutQualifier(nameOf(id)), rect, i};
+            }
+            height = headerHeight + std::max(1, std::min(count, perColumn)) * rowHeight;
+            d->pinnedArea = QRect(0, 0, columns * columnWidth, height);
+            if (d->showAll) {
+                height = placeGroups(otherGroups(d->pinned), height + 8, false);
+            }
         }
 
         d->grid->setFixedSize(columns * columnWidth, std::max(height, rowHeight));
@@ -505,9 +688,10 @@ KisBlendModePicker::KisBlendModePicker(const QString &current, const QSet<QStrin
         d->scroll->setFixedSize(columns * columnWidth + (height > maxHeight ? d->scroll->verticalScrollBar()->sizeHint().width() : 0),
                                 std::min(height, maxHeight) + 2);
         d->scroll->setVerticalScrollBarPolicy(height > maxHeight ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
-        d->allButton->setText(d->showAll ? i18nc("@action:button", "Common modes")
+        d->allButton->setText(d->showAll ? i18nc("@action:button", "Only yours")
                                          : i18nc("@action:button", "All %1 modes", allOps().size()));
         d->allButton->setVisible(query.isEmpty());
+        d->hint->setVisible(query.isEmpty());
 
         d->highlighted = -1;
         for (int i = 0; i < d->items.size(); i++) {
@@ -524,34 +708,47 @@ KisBlendModePicker::KisBlendModePicker(const QString &current, const QSet<QStrin
         d->showAll = !d->showAll;
         relayout();
     });
+    // a current mode that is not one of yours: show it among the others
+    d->showAll = !d->pinned.contains(current);
     relayout();
 }
 
 KisBlendModePicker::~KisBlendModePicker() = default;
 
-QStringList KisBlendModePicker::favoriteModes()
+QStringList KisBlendModePicker::pinnedModes()
 {
-    return KisConfig(true).readEntry<QStringList>(favoritesKey, QStringList());
-}
-
-QStringList KisBlendModePicker::essentialModes()
-{
-    // your favorites first, then the groups in order of intent
-    QStringList order = favoriteModes();
-    Q_FOREACH (const Group &group, essentialGroups()) {
-        Q_FOREACH (const QString &id, group.ids) {
-            if (!order.contains(id)) order << id;
+    KisConfig cfg(true);
+    QStringList pinned;
+    // an empty list is a list too: the key says whether you made one
+    if (KSharedConfig::openConfig()->group(QString()).hasKey(pinnedKey)) {
+        pinned = cfg.readEntry<QStringList>(pinnedKey, QStringList());
+    } else {
+        // first time: the stars of before, then the common modes
+        pinned = cfg.readEntry<QStringList>(oldFavoritesKey, QStringList());
+        Q_FOREACH (const QString &id, defaultPinned()) {
+            if (!pinned.contains(id)) pinned << id;
         }
     }
-    return order;
+    // modes this version does not have
+    QSet<QString> known;
+    Q_FOREACH (const KoID &op, allOps()) known.insert(op.id());
+    pinned.erase(std::remove_if(pinned.begin(), pinned.end(), [&known](const QString &id) { return !known.contains(id); }), pinned.end());
+    pinned.removeDuplicates();
+    return pinned;
 }
 
-void KisBlendModePicker::setFavorite(const QString &id, bool favorite)
+void KisBlendModePicker::setPinnedModes(const QStringList &ids)
 {
-    QStringList favorites = favoriteModes();
-    favorites.removeAll(id);
-    if (favorite) favorites << id;
-    KisConfig(false).writeEntry(favoritesKey, favorites);
+    KisConfig(false).writeEntry(pinnedKey, ids);
+}
+
+QStringList KisBlendModePicker::scrollOrder()
+{
+    QStringList order = pinnedModes();
+    Q_FOREACH (const Group &group, otherGroups(order)) {
+        order << group.ids;
+    }
+    return order;
 }
 
 void KisBlendModePicker::popupBelow(QWidget *anchor)
@@ -569,6 +766,11 @@ void KisBlendModePicker::popupBelow(QWidget *anchor)
     raise();
     activateWindow();
     d->search->setFocus();
+    // the current mode in view, also when it is far down among all the others
+    if (d->highlighted >= 0) {
+        const QRect rect = d->items[d->highlighted].rect;
+        d->scroll->ensureVisible(rect.center().x(), rect.center().y(), 0, rowHeight * 2);
+    }
 }
 
 bool KisBlendModePicker::eventFilter(QObject *watched, QEvent *event)
