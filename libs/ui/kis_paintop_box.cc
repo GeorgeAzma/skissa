@@ -14,6 +14,7 @@
 #include "kis_paintop_box.h"
 
 #include <QHBoxLayout>
+#include <tuple>
 #include <QToolButton>
 #include <QPixmap>
 #include <QWidgetAction>
@@ -195,26 +196,27 @@ KisPaintopBox::KisPaintopBox(KisViewManager *viewManager, QWidget *parent, const
 
     // create horizontal and vertical mirror buttons
 
-    m_hMirrorButton = new KisHighlightedToolButton(this);
-    int menuPadding = 20;
-    m_hMirrorButton->setFixedSize(buttonsize + menuPadding, buttonsize);
-    m_hMirrorButton->setIconSize(QSize(iconsize, iconsize));
-    m_hMirrorButton->setCheckable(true);
-    m_hMirrorAction = m_viewManager->actionManager()->createAction("hmirror_action");
-    m_hMirrorButton->setDefaultAction(m_hMirrorAction);
-    m_hMirrorButton->setMenu(toolbarMenuXMirror);
-    m_hMirrorButton->setPopupMode(QToolButton::MenuButtonPopup);
-    m_hMirrorButton->setAutoRaise(true);
-
-    m_vMirrorButton = new KisHighlightedToolButton(this);
-    m_vMirrorButton->setFixedSize(buttonsize + menuPadding, buttonsize);
-    m_vMirrorButton->setIconSize(QSize(iconsize, iconsize));
-    m_vMirrorButton->setCheckable(true);
-    m_vMirrorAction = m_viewManager->actionManager()->createAction("vmirror_action");
-    m_vMirrorButton->setDefaultAction(m_vMirrorAction);
-    m_vMirrorButton->setMenu(toolbarMenuYMirror);
-    m_vMirrorButton->setPopupMode(QToolButton::MenuButtonPopup);
-    m_vMirrorButton->setAutoRaise(true);
+    /**
+     * A click mirrors; the few options of the mirror (hide its line, lock
+     * it, center it) are a right click away (press and hold on a touch
+     * screen), instead of an arrow next to every button that is rarely used.
+     */
+    auto mirrorButton = [this, buttonsize, iconsize](const QString &actionName, QMenu *options) {
+        auto *button = new KisHighlightedToolButton(this);
+        button->setFixedSize(buttonsize, buttonsize);
+        button->setIconSize(QSize(iconsize, iconsize));
+        button->setCheckable(true);
+        button->setAutoRaise(true);
+        KisAction *action = m_viewManager->actionManager()->createAction(actionName);
+        button->setDefaultAction(action);
+        button->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(button, &QWidget::customContextMenuRequested, button, [button, options](const QPoint &pos) {
+            options->popup(button->mapToGlobal(pos));
+        });
+        return std::make_pair(button, action);
+    };
+    std::tie(m_hMirrorButton, m_hMirrorAction) = mirrorButton(QStringLiteral("hmirror_action"), toolbarMenuXMirror);
+    std::tie(m_vMirrorButton, m_vMirrorAction) = mirrorButton(QStringLiteral("vmirror_action"), toolbarMenuYMirror);
 
     QAction *wrapAroundAction = m_viewManager->actionManager()->createAction("wrap_around_mode");
 
