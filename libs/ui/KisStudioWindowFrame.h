@@ -41,6 +41,9 @@ public:
     /// Minimize, maximize and close, painted like the rest of the top bar
     QWidget *createButtons(QWidget *parent);
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private:
     QMainWindow *m_window {nullptr};
     std::function<bool(const QPoint &)> m_isCaption;

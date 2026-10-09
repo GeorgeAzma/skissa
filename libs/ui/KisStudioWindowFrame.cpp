@@ -138,6 +138,20 @@ KisStudioWindowFrame::KisStudioWindowFrame(QMainWindow *window, std::function<bo
     , m_window(window)
     , m_isCaption(std::move(isCaption))
 {
+    window->installEventFilter(this);
+}
+
+bool KisStudioWindowFrame::eventFilter(QObject *watched, QEvent *event)
+{
+#ifdef Q_OS_WIN
+    // a new native window (Qt recreates it for some changes) has no extended frame yet
+    if (watched == m_window && event->type() == QEvent::WinIdChange && m_enabled && m_window->internalWinId()) {
+        HWND hwnd = reinterpret_cast<HWND>(m_window->internalWinId());
+        extendFrame(hwnd, true);
+        SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+#endif
+    return QObject::eventFilter(watched, event);
 }
 
 bool KisStudioWindowFrame::isSupported()
@@ -170,8 +184,13 @@ bool KisStudioWindowFrame::handleNativeEvent(void *message, void *resultPointer)
         return false;
     }
     MSG *msg = static_cast<MSG *>(message);
-    HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-    if (msg->hwnd != hwnd) {
+    /**
+     * Not winId(): messages also arrive while the native window is being
+     * created, and winId() would create it again from inside its creation
+     * (a crash). Until it exists, the system's handling is right.
+     */
+    HWND hwnd = reinterpret_cast<HWND>(m_window->internalWinId());
+    if (!hwnd || msg->hwnd != hwnd) {
         return false;
     }
     auto setResult = [resultPointer](LRESULT value) {
