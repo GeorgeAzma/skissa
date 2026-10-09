@@ -23,6 +23,7 @@
 #include <kis_paint_layer.h>
 
 #include "KisMainWindow.h"
+#include "KisStudioMotion.h"
 #include "KisViewManager.h"
 #include "canvas/kis_canvas2.h"
 #include "input/KisInputActionGroup.h"
@@ -174,7 +175,7 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
 
     d->guard.reset(new KisInputActionGroupsMaskGuard(viewManager->canvasBase()->inputActionGroupsMaskInterface(),
                                                      ViewTransformActionGroup));
-    show();
+    KisStudioMotion::showFaded(this);
     raise();
     reposition();
     setFocus();

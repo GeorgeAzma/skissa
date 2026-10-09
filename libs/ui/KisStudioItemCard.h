@@ -14,6 +14,8 @@
 #include <functional>
 #include <memory>
 
+#include "kritaui_export.h"
+
 class KisMainWindow;
 class QAction;
 class QPainter;
@@ -44,7 +46,7 @@ QString itemMimeType();
  * variants if it has some, and what can be done with it (pin, remove...).
  * One card for every kind of button, so there is one thing to learn.
  */
-class KisStudioItemCard : public QFrame
+class KRITAUI_EXPORT KisStudioItemCard : public QFrame
 {
     Q_OBJECT
 public:

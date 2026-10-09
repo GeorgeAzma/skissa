@@ -235,12 +235,8 @@ LayerBox::LayerBox()
         auto *layerRow = new QHBoxLayout();
         layerRow->setSpacing(6);
         layerRow->addWidget(ui->cmbComposite, 1);
-
-        // opacity as a picture, not a word: a tile half see-through, then the number
-        m_opacityGlyph = new QLabel(mainWidget);
-        m_opacityGlyph->setToolTip(i18nc("@info:tooltip", "Layer opacity"));
-        updateOpacityGlyph();
-        layerRow->addWidget(m_opacityGlyph);
+        // a percentage next to the blend mode says what it is
+        ui->doubleOpacity->setToolTip(i18nc("@info:tooltip", "Layer opacity"));
         layerRow->addWidget(ui->doubleOpacity, 1);
         ui->verticalLayout->insertLayout(ui->verticalLayout->indexOf(ui->horizontalLayout) + 1, layerRow);
         ui->doubleOpacity->setButtonSymbols(QAbstractSpinBox::NoButtons);
@@ -1392,33 +1388,6 @@ void LayerBox::slotUpdateIcons() {
 
     // call child function about needing to update icons
     m_wdgLayerBox->listLayers->slotUpdateIcons();
-    updateOpacityGlyph();
-}
-
-void LayerBox::updateOpacityGlyph()
-{
-    if (!m_opacityGlyph) {
-        return;
-    }
-    const qreal dpr = m_opacityGlyph->devicePixelRatioF();
-    QPixmap glyph(QSize(18, 18) * dpr);
-    glyph.setDevicePixelRatio(dpr);
-    glyph.fill(Qt::transparent);
-    QPainter painter(&glyph);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    const QColor ink = m_opacityGlyph->palette().color(QPalette::WindowText);
-    QColor faint = ink;
-    faint.setAlphaF(0.25);
-    painter.setPen(QPen(faint, 1));
-    painter.setBrush(Qt::NoBrush);
-    painter.drawRoundedRect(QRectF(1.5, 1.5, 15, 15), 4, 4);
-    QColor half = ink;
-    half.setAlphaF(0.55);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(half);
-    painter.drawRoundedRect(QRectF(1.5, 9, 15, 7.5), 3, 3);
-    painter.end();
-    m_opacityGlyph->setPixmap(glyph);
 }
 
 void LayerBox::toggleActiveLayerSolo() {

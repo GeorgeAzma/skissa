@@ -81,6 +81,11 @@ private:
     void setPinned(QDockWidget *dock, bool pinned);
     void savePinned();
     void arrangePinned();
+    void restoreHeights();
+    void saveHeights();
+    /// A panel dragged by its grip, or by its rail button, let go at \p globalPos
+    void dropPanel(const QString &id, const QPoint &globalPos, bool fromRail);
+    void showPanelCard(const QString &id, QWidget *anchor);
     void setPanelSide(const QString &id, bool left);
 
     void dockToggled(QDockWidget *dock, bool visible);

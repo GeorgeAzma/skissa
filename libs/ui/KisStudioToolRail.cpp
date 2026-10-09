@@ -33,6 +33,7 @@
 #include <KisResourceModel.h>
 
 #include "KisMainWindow.h"
+#include "KisStudioMotion.h"
 #include "KisResourceServerProvider.h"
 #include "KisStudioFind.h"
 #include "KisStudioItemCard.h"
@@ -650,8 +651,13 @@ void KisStudioToolRail::updatePlus()
     if (show) {
         d->plus->move(panel->geometry().center().x() - d->plus->width() / 2, panel->geometry().bottom() + 6);
         d->plus->raise();
+        KisStudioMotion::showFaded(d->plus);
+    } else if (!isVisible()) {
+        // the panel is gone: no lingering "+" without it
+        d->plus->hide();
+    } else {
+        KisStudioMotion::hideFaded(d->plus);
     }
-    d->plus->setVisible(show);
 }
 
 void KisStudioToolRail::resizeEvent(QResizeEvent *event)

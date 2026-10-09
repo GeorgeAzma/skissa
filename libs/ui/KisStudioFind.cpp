@@ -42,6 +42,7 @@
 #include <KisResourceModel.h>
 
 #include "KisMainWindow.h"
+#include "KisStudioMotion.h"
 #include "KisStudioItemCard.h"
 #include "KisStudioToolRail.h"
 #include "KisNodeActivationActionCreatorVisitor.h"
@@ -520,7 +521,7 @@ void KisStudioFind::open(const QString &text)
     d->edit->setText(text);
     updateResults();
     adjustGeometry();
-    show();
+    KisStudioMotion::showFaded(this);
     raise();
     activateWindow();
     d->edit->setFocus();

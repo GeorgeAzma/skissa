@@ -28,6 +28,7 @@
 #include <kxmlguifactory.h>
 
 #include "KisMainWindow.h"
+#include "KisStudioMotion.h"
 #include "widgets/KisPopupCloser.h"
 
 namespace {
@@ -397,7 +398,7 @@ void KisStudioItemCard::popupBeside(QWidget *anchor)
     pos.setX(qBound(available.left(), pos.x(), available.right() - width()));
     pos.setY(qBound(available.top(), pos.y(), available.bottom() - height()));
     move(pos);
-    show();
+    KisStudioMotion::showFaded(this);
     raise();
     activateWindow();
 }

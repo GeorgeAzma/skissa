@@ -456,6 +456,7 @@ set(kritaui_LIB_SRCS
     KisStudioEffectOverlay.cpp
     KisStudioWindowFrame.cpp
     KisStudioToolRail.cpp
+    KisStudioMotion.cpp
     KisOpenPane.cpp
     KisPart.cpp
     KisTemplate.cpp

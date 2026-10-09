@@ -6,6 +6,7 @@
 #include "KisBlendModePicker.h"
 
 #include "KisPopupCloser.h"
+#include "KisStudioMotion.h"
 #include "kis_config.h"
 
 #include <QAbstractButton>
@@ -564,7 +565,7 @@ void KisBlendModePicker::popupBelow(QWidget *anchor)
     }
     move(pos);
     new KisPopupCloser(this, anchor);
-    show();
+    KisStudioMotion::showFaded(this);
     raise();
     activateWindow();
     d->search->setFocus();
