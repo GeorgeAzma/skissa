@@ -156,6 +156,7 @@ public:
     {
         static const UINT captureMessage = RegisterWindowMessageW(L"KritaDevCapture");
         static const UINT mouseMessage = RegisterWindowMessageW(L"KritaDevMouse");
+        static const UINT keyMessage = RegisterWindowMessageW(L"KritaDevKey");
         const MSG *msg = static_cast<MSG *>(message);
         if (msg->message == captureMessage) {
             capture();
@@ -163,6 +164,10 @@ public:
         }
         if (msg->message == mouseMessage) {
             mouse(int(msg->wParam), QPoint(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam)));
+            return true;
+        }
+        if (msg->message == keyMessage) {
+            key(int(msg->wParam), Qt::KeyboardModifiers(int(msg->lParam)));
             return true;
         }
         return false;
@@ -266,6 +271,27 @@ private:
         default: break;
         }
         QWindowSystemInterface::handleMouseEvent(window, local, global, buttons, button, type);
+    }
+
+    /**
+     * A posted "KritaDevKey" message is a key press and release (wParam: the
+     * Qt::Key, lParam: Qt::KeyboardModifiers) for the window with the focus,
+     * or the topmost one of Krita's windows.
+     */
+    static void key(int qtKey, Qt::KeyboardModifiers modifiers)
+    {
+        QWindow *window = QGuiApplication::focusWindow();
+        if (!window) {
+            QRect bounds;
+            const QList<QWidget *> windows = visibleWindows(bounds);
+            if (windows.isEmpty() || !windows.last()->windowHandle()) return;
+            window = windows.last()->windowHandle();
+        }
+        const QString text = qtKey >= Qt::Key_Space && qtKey <= Qt::Key_AsciiTilde && !(modifiers & Qt::ControlModifier)
+                                 ? (modifiers & Qt::ShiftModifier ? QString(QChar(qtKey)).toUpper() : QString(QChar(qtKey)).toLower())
+                                 : QString();
+        QWindowSystemInterface::handleKeyEvent(window, QEvent::KeyPress, qtKey, modifiers, text);
+        QWindowSystemInterface::handleKeyEvent(window, QEvent::KeyRelease, qtKey, modifiers, text);
     }
 };
 } // namespace
