@@ -157,6 +157,8 @@ private:
     void placeRowControls();
     /// The row under the line between two rows at \p pos, if it is near one; \p gapY is the line
     QModelIndex gapAt(const QPoint &pos, int *gapY) const;
+    /// A drag on a row: sideways, its layer's opacity; true while it is that
+    bool handleOpacityDrag(const QPoint &pos);
     inline void addActionToMenu(QMenu *menu, const QString &id);
     // reimp from KisNodeManager
     qint32 convertOpacityToInt(qreal opacity);
@@ -209,6 +211,13 @@ private:
     QWidget *m_gapIndicator {nullptr};
     QPersistentModelIndex m_gapIndex;
     QAbstractButton *m_addStrip {nullptr};
+    /// A drag sideways on a row sets its layer's opacity
+    QPersistentModelIndex m_opacityPress;
+    QPoint m_opacityPressPos;
+    bool m_opacityScrubbing {false};
+    KisNodeSP m_opacityNode;
+    qreal m_opacityStart {100};
+    QWidget *m_opacityScrub {nullptr};
     /// The list's settings: thumbnail size, indentation, info text
     QMenu *m_configureMenu {nullptr};
 };

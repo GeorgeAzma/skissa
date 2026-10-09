@@ -24,11 +24,145 @@
 #include <kis_group_layer.h>
 
 #include <kis_assert.h>
+#include <kis_coordinates_converter.h>
+#include <kis_paint_device.h>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPointer>
+#include <QTabletEvent>
+
+namespace {
+
+/**
+ * While the key is held: the layer a click would select, tinted on the
+ * canvas where it has pixels, with its name by the pointer. Shown over the
+ * canvas, never in the way of it.
+ */
+class LayerHover : public QWidget
+{
+public:
+    explicit LayerHover(KisCanvas2 *canvas)
+        : QWidget(canvas->canvasWidget())
+        , m_canvas(canvas)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_NoSystemBackground);
+        setGeometry(parentWidget()->rect());
+        parentWidget()->installEventFilter(this);
+        show();
+        raise();
+        const QPoint cursor = parentWidget()->mapFromGlobal(QCursor::pos());
+        if (rect().contains(cursor)) pointAt(cursor);
+    }
+
+    void pointAt(const QPointF &widgetPos)
+    {
+        m_cursor = widgetPos;
+        KisImageSP image = m_canvas ? KisImageSP(m_canvas->image()) : KisImageSP();
+        if (!image) {
+            return;
+        }
+        const QPoint imagePos = m_canvas->coordinatesConverter()->widgetToImage(widgetPos).toPoint();
+        KisNodeSP node = KisToolUtils::findNode(image->root(), imagePos, false, false);
+        if (node != m_node) {
+            m_node = node;
+            m_tint = QImage();
+            m_bounds = QRect();
+            if (node && node->projection()) {
+                m_bounds = node->exactBounds();
+                if (!m_bounds.isEmpty()) {
+                    // where it has pixels, in the selection color, at a size good enough over the canvas
+                    const QSize size = m_bounds.size().scaled(QSize(480, 480), Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
+                    QImage alpha = node->projection()->createThumbnailUncached(size.width(), size.height(), m_bounds)
+                                       .convertToFormat(QImage::Format_ARGB32);
+                    const QColor ink = palette().color(QPalette::Highlight);
+                    for (int y = 0; y < alpha.height(); y++) {
+                        QRgb *line = reinterpret_cast<QRgb *>(alpha.scanLine(y));
+                        for (int x = 0; x < alpha.width(); x++) {
+                            line[x] = qRgba(ink.red(), ink.green(), ink.blue(), qAlpha(line[x]) * 110 / 255);
+                        }
+                    }
+                    m_tint = alpha;
+                }
+            }
+        }
+        update();
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == parentWidget()) {
+            switch (event->type()) {
+            case QEvent::MouseMove:
+                pointAt(static_cast<QMouseEvent *>(event)->localPos());
+                break;
+            case QEvent::TabletMove:
+                pointAt(static_cast<QTabletEvent *>(event)->posF());
+                break;
+            case QEvent::Resize:
+                setGeometry(parentWidget()->rect());
+                break;
+            default:
+                break;
+            }
+        }
+        return false;
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        if (!m_node || !m_canvas) {
+            return;
+        }
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        const QColor ink = palette().color(QPalette::Highlight);
+        if (!m_tint.isNull()) {
+            // in image coordinates: rotated and mirrored with the canvas
+            painter.save();
+            painter.setTransform(m_canvas->coordinatesConverter()->imageToWidgetTransform());
+            painter.drawImage(QRectF(m_bounds), m_tint);
+            QPen pen(ink, 1.5);
+            pen.setCosmetic(true);
+            pen.setStyle(Qt::DashLine);
+            painter.setPen(pen);
+            painter.setBrush(Qt::NoBrush);
+            painter.drawRect(QRectF(m_bounds));
+            painter.restore();
+        }
+        // the name, by the pointer
+        QFont font = this->font();
+        font.setBold(true);
+        painter.setFont(font);
+        const QString name = m_node->name();
+        const QFontMetrics metrics(font);
+        QRectF pill(m_cursor + QPointF(18, 14), QSizeF(metrics.horizontalAdvance(name) + 20, metrics.height() + 10));
+        if (pill.right() > width() - 4) pill.moveRight(m_cursor.x() - 10);
+        if (pill.bottom() > height() - 4) pill.moveBottom(m_cursor.y() - 10);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(ink);
+        painter.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+        painter.setPen(palette().color(QPalette::HighlightedText));
+        painter.drawText(pill, Qt::AlignCenter, name);
+    }
+
+private:
+    QPointer<KisCanvas2> m_canvas;
+    KisNodeSP m_node;
+    QRect m_bounds;
+    QImage m_tint;
+    QPointF m_cursor;
+};
+
+} // namespace
 
 class KisSelectLayerAction::Private
 {
 public:
     KisSelectLayerAction *q {nullptr};
+    QPointer<QWidget> hover;
     int shortcut {makeShortcut(LayerSelectionMode_TopLayer, SelectionOverrideMode_Replace)};
 
     Private(KisSelectLayerAction *q)
@@ -146,12 +280,18 @@ void KisSelectLayerAction::activate(int shortcut)
 {
     Q_UNUSED(shortcut);
     QApplication::setOverrideCursor(KisCursor::pickLayerCursor());
+    // which layer a click would select, before the click
+    if (KisCanvas2 *canvas = inputManager()->canvas()) {
+        delete d->hover;
+        d->hover = new LayerHover(canvas);
+    }
 }
 
 void KisSelectLayerAction::deactivate(int shortcut)
 {
     Q_UNUSED(shortcut);
     QApplication::restoreOverrideCursor();
+    delete d->hover;
 }
 
 void KisSelectLayerAction::begin(int shortcut, QEvent *event)

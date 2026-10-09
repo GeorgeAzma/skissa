@@ -24,6 +24,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPoint>
 #include <QRect>
 #include <QString>
@@ -148,6 +149,48 @@ int listRow(Ui_WdgLayerBox *ui)
     }
     return 0;
 }
+
+/// A layer's opacity while it is dragged sideways on its row: the row fills up to it, with the number
+class OpacityScrub : public QWidget
+{
+public:
+    explicit OpacityScrub(QWidget *parent) : QWidget(parent)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
+
+    void setValue(qreal percent)
+    {
+        m_percent = percent;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QRectF r = QRectF(rect()).adjusted(1, 1, -1, -1);
+        QColor ink = palette().color(QPalette::Highlight);
+        QColor wash = ink;
+        wash.setAlphaF(0.28);
+        QPainterPath clip;
+        clip.addRoundedRect(r, 6, 6);
+        painter.setClipPath(clip);
+        painter.fillRect(r, QColor(0, 0, 0, 60));
+        const qreal edge = r.left() + r.width() * m_percent / 100.0;
+        painter.fillRect(QRectF(r.left(), r.top(), edge - r.left(), r.height()), wash);
+        painter.fillRect(QRectF(edge - 1, r.top(), 2, r.height()), ink);
+        QFont font = this->font();
+        font.setBold(true);
+        painter.setFont(font);
+        painter.setPen(palette().color(QPalette::BrightText).isValid() ? QColor(Qt::white) : palette().color(QPalette::WindowText));
+        painter.drawText(r.adjusted(0, 0, -10, 0), Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("%1%").arg(qRound(m_percent)));
+    }
+
+private:
+    qreal m_percent {100};
+};
 
 /// Where a click between two rows adds a layer: a line with a "+" at its start
 class GapIndicator : public QWidget
@@ -351,7 +394,9 @@ LayerBox::LayerBox()
         });
 
         // a click between two rows adds a layer there
-        m_gapIndicator = new GapIndicator(ui->listLayers->viewport());
+        m_opacityScrub = new OpacityScrub(m_wdgLayerBox->listLayers->viewport());
+    m_opacityScrub->hide();
+    m_gapIndicator = new GapIndicator(ui->listLayers->viewport());
         m_gapIndicator->hide();
 
         // and so does the strip above the list: above the selected layer; other kinds on a right click
@@ -1044,6 +1089,9 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
             break;
         case QEvent::MouseMove: {
             auto *mouse = static_cast<QMouseEvent *>(event);
+            if (m_opacityPress.isValid() && (mouse->buttons() & Qt::LeftButton) && handleOpacityDrag(mouse->pos())) {
+                return true;
+            }
             int y = 0;
             // a mouse only: a finger has the strip and "New Layer Above/Below" in its menu
             const QModelIndex gap = (mouse->buttons() == Qt::NoButton && mouse->source() == Qt::MouseEventNotSynthesized)
@@ -1073,8 +1121,27 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
                 addLayerAbove(gap);
                 return true;
             }
+            // maybe the start of a drag sideways: the layer's opacity
+            m_opacityPress = mouse->button() == Qt::LeftButton ? QPersistentModelIndex(static_cast<QAbstractItemView *>(view)->indexAt(mouse->pos())) : QPersistentModelIndex();
+            m_opacityPressPos = mouse->pos();
+            m_opacityScrubbing = false;
             break;
         }
+        case QEvent::MouseButtonRelease:
+            if (m_opacityScrubbing) {
+                m_opacityScrubbing = false;
+                m_opacityPress = QModelIndex();
+                m_opacityScrub->hide();
+                view->viewport()->unsetCursor();
+                // the last value now, not after the compressor's wait
+                if (m_nodeOpacityCompressor.isActive()) {
+                    m_nodeOpacityCompressor.stop();
+                    slotOpacityChanged();
+                }
+                return true;
+            }
+            m_opacityPress = QModelIndex();
+            break;
         case QEvent::Wheel: {
             // Ctrl+wheel: smaller or larger rows, as the list's settings set them
             auto *wheel = static_cast<QWheelEvent *>(event);
@@ -1103,6 +1170,45 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
         return true;
     }
     return QDockWidget::eventFilter(watched, event);
+}
+
+bool LayerBox::handleOpacityDrag(const QPoint &pos)
+{
+    NodeView *view = m_wdgLayerBox->listLayers;
+    const QPoint delta = pos - m_opacityPressPos;
+    if (!m_opacityScrubbing) {
+        if (delta.manhattanLength() < QApplication::startDragDistance()) {
+            return false;
+        }
+        // mostly sideways: the opacity; anything else is the list's (moving the layer, scrolling)
+        KisNodeSP node = m_filteringModel ? m_filteringModel->nodeFromIndex(m_opacityPress) : KisNodeSP();
+        if (qAbs(delta.x()) < 2 * qAbs(delta.y()) || !node || !node->isEditable(false)) {
+            m_opacityPress = QModelIndex();
+            return false;
+        }
+        m_opacityScrubbing = true;
+        m_opacityNode = node;
+        m_opacityStart = node->opacity() * 100.0 / 255.0;
+        view->viewport()->setCursor(Qt::SizeHorCursor);
+    }
+    if (!m_opacityNode) {
+        return true;
+    }
+    // the row's width is all of it, from where it was
+    const QRect row = view->visualRect(m_opacityPress);
+    const qreal percent = qBound(0.0, m_opacityStart + delta.x() * 100.0 / qMax(80, view->viewport()->width() - row.left()), 100.0);
+    m_newOpacity = percent;
+    m_changedOpacityNode = m_opacityNode;
+    m_nodeOpacityCompressor.start();
+    if (m_opacityNode == m_activeNode) {
+        QSignalBlocker blocker(m_wdgLayerBox->doubleOpacity);
+        m_wdgLayerBox->doubleOpacity->setValue(percent);
+    }
+    m_opacityScrub->setGeometry(row.left(), row.top(), view->viewport()->width() - row.left(), qMin(row.height(), 30));
+    static_cast<OpacityScrub *>(m_opacityScrub)->setValue(percent);
+    m_opacityScrub->show();
+    m_opacityScrub->raise();
+    return true;
 }
 
 void LayerBox::slotRmClicked()

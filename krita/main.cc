@@ -169,7 +169,9 @@ public:
             return true;
         }
         if (msg->message == keyMessage) {
-            key(int(msg->wParam), Qt::KeyboardModifiers(int(msg->lParam)));
+            // the low bits: 1 only the press, 2 only the release (a key held), 0 both
+            const int bits = int(msg->lParam);
+            key(int(msg->wParam), Qt::KeyboardModifiers(bits & ~0x3), bits & 0x3);
             return true;
         }
         return false;
@@ -302,7 +304,7 @@ private:
      * Qt::Key, lParam: Qt::KeyboardModifiers) for the window with the focus,
      * or the topmost one of Krita's windows.
      */
-    static void key(int qtKey, Qt::KeyboardModifiers modifiers)
+    static void key(int qtKey, Qt::KeyboardModifiers modifiers, int phase = 0)
     {
         QWindow *window = QGuiApplication::focusWindow();
         if (!window) {
@@ -317,8 +319,8 @@ private:
         const QString text = qtKey >= Qt::Key_Space && qtKey <= Qt::Key_AsciiTilde && !(modifiers & Qt::ControlModifier)
                                  ? (modifiers & Qt::ShiftModifier ? QString(QChar(qtKey)).toUpper() : QString(QChar(qtKey)).toLower())
                                  : QString();
-        QWindowSystemInterface::handleKeyEvent(window, QEvent::KeyPress, qtKey, modifiers, text);
-        QWindowSystemInterface::handleKeyEvent(window, QEvent::KeyRelease, qtKey, modifiers, text);
+        if (phase != 2) QWindowSystemInterface::handleKeyEvent(window, QEvent::KeyPress, qtKey, modifiers, text);
+        if (phase != 1) QWindowSystemInterface::handleKeyEvent(window, QEvent::KeyRelease, qtKey, modifiers, text);
     }
 };
 } // namespace
