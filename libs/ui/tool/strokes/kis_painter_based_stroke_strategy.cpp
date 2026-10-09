@@ -419,6 +419,14 @@ void KisPainterBasedStrokeStrategy::finishStrokeCallback()
         wrapper->addCommand(m_autokeyCommand.release());
     }
 
+    // which brush painted what: done and undone with the paint
+    if (m_recorder) {
+        if (KUndo2Command *record = KisStrokeLog::addCommand(node, m_recorder->strokes())) {
+            KisCommandUtils::CompositeCommand *wrapper = new KisCommandUtils::CompositeCommand(parentCommand.data());
+            wrapper->addCommand(record);
+        }
+    }
+
     if (indirect && indirect->hasTemporaryTarget()) {
         KUndo2MagicString transactionText = m_transaction->text();
         m_transaction->end();
@@ -466,6 +474,11 @@ void KisPainterBasedStrokeStrategy::finishStrokeCallback()
 
     }
 
+}
+
+void KisPainterBasedStrokeStrategy::setStrokeRecorder(KisStrokeRecorderSP recorder)
+{
+    m_recorder = recorder;
 }
 
 void KisPainterBasedStrokeStrategy::cancelStrokeCallback()

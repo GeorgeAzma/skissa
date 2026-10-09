@@ -28,6 +28,7 @@ class KisAbstractProjectionPlane;
 class KisProjectionLeaf;
 class KisKeyframeChannel;
 class KisTimeSpan;
+class KisStrokeLog;
 class KisUndoAdapter;
 struct KisFrameChangeUpdateRecipe;
 
@@ -189,6 +190,12 @@ public:
      * graph may have a different order the main one.
      */
     virtual KisProjectionLeafSP projectionLeaf() const;
+
+    /**
+     * The brush strokes painted on this node: which brush painted what
+     * (see KisStrokeLog). Copied with the node.
+     */
+    KisStrokeLog &strokeLog() const;
 
 
     void setImage(KisImageWSP newImage) override;

@@ -11,6 +11,9 @@
 #include "kis_node.h"
 #include "kis_image.h"
 #include "kis_painter.h"
+#include "kis_selection.h"
+#include "kis_undo_adapter.h"
+#include "KisStrokeLog.h"
 
 #include "kis_transform_worker.h"
 #include "lazybrush/kis_colorize_mask.h"
@@ -34,6 +37,7 @@ KisMirrorProcessingVisitor::KisMirrorProcessingVisitor(KisSelectionSP selection,
     : KisMirrorProcessingVisitor(selection->selectedExactRect(), orientation)
 {
     m_selectionHelper.setSelection(selection);
+    m_selectionBefore = new KisSelection(*selection);
 }
 
 KUndo2Command *KisMirrorProcessingVisitor::createInitCommand()
@@ -54,6 +58,18 @@ void KisMirrorProcessingVisitor::transformPaintDevice(KisPaintDeviceSP device, K
 void KisMirrorProcessingVisitor::visitNodeWithPaintDevice(KisNode *node, KisUndoAdapter *undoAdapter)
 {
     transformPaintDevice(node->paintDevice(), undoAdapter);
+
+    // its strokes go where its paint went
+    const qreal axis = m_axis;
+    const bool horizontal = m_orientation == Qt::Horizontal;
+    if (KUndo2Command *strokes = KisStrokeLog::mapCommand(node,
+                                                          [axis, horizontal](const QPointF &point) {
+                                                              return horizontal ? QPointF(2 * axis - point.x(), point.y())
+                                                                                : QPointF(point.x(), 2 * axis - point.y());
+                                                          },
+                                                          KisStrokeLog::inSelection(m_selectionBefore))) {
+        undoAdapter->addCommand(strokes);
+    }
 }
 
 void KisMirrorProcessingVisitor::visitExternalLayer(KisExternalLayer *layer, KisUndoAdapter *undoAdapter)

@@ -5,6 +5,7 @@
  */
 
 #include "kis_node.h"
+#include "KisStrokeLog.h"
 
 #include <QList>
 #include <QReadWriteLock>
@@ -91,6 +92,8 @@ public:
     QReadWriteLock nodeSubgraphLock;
 
     KisProjectionLeafSP projectionLeaf;
+
+    KisStrokeLog strokeLog;
 
     const KisNode* findSymmetricClone(const KisNode *srcRoot,
                                       const KisNode *dstRoot,
@@ -193,6 +196,13 @@ KisNode::KisNode(const KisNode & rhs)
     }
 
     m_d->processDuplicatedClones(&rhs, this, this);
+
+    m_d->strokeLog = rhs.m_d->strokeLog;
+}
+
+KisStrokeLog &KisNode::strokeLog() const
+{
+    return m_d->strokeLog;
 }
 
 KisNode::~KisNode()

@@ -208,6 +208,7 @@ set(kritaui_LIB_SRCS
     tool/kis_tool_freehand_helper.cpp
     tool/kis_tool_multihand_helper.cpp
     tool/kis_figure_painting_tool_helper.cpp
+    tool/KisStrokeRecorder.cpp
     tool/KisAsynchronousStrokeUpdateHelper.cpp
     tool/kis_tool_paint.cc
     tool/kis_tool_shape.cc
@@ -460,7 +461,6 @@ set(kritaui_LIB_SRCS
     KisStudioMotion.cpp
     KisStudioEffectsPicker.cpp
     KisStudioBrushPicker.cpp
-    KisStrokeLog.cpp
     KisStudioBrushMemory.cpp
     KisStudioCanvasRing.cpp
     KisOpenPane.cpp

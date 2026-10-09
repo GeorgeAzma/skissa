@@ -4,11 +4,6 @@
  * SPDX-License-Identifier: LGPL-2.0-or-later
  */
 #include "kis_kra_saver.h"
-#include "KisStrokeLog.h"
-
-namespace {
-const QString STROKES_PATH = QStringLiteral("/studio/strokes");
-}
 
 #include "kis_hdr_metadata.h"
 #include "kis_kra_tags.h"
@@ -522,18 +517,6 @@ bool KisKraSaver::saveBinaryData(KoStore* store, KisImageSP image, const QString
 
     if (!savingAnnotationsSuccess) {
         m_d->errorMessages.append(i18nc("Saving .kra file error message", "Could not save annotations."));
-    }
-
-    // which brush painted what, for taking a brush from the canvas: small, and nothing to fail the save
-    if (KisStrokeLog *log = KisStrokeLog::existing(image.data())) {
-        const QByteArray strokes = log->save();
-        if (!strokes.isEmpty()) {
-            location = (external ? QString() : uri) + m_d->imageName + STROKES_PATH;
-            if (store->open(location)) {
-                store->write(strokes);
-                store->close();
-            }
-        }
     }
 
     success = success && savingAnnotationsSuccess;

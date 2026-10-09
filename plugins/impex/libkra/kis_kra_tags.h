@@ -51,6 +51,7 @@ const QString DOT_FILTERCONFIG = ".filterconfig";
 const QString DOT_TRANSFORMCONFIG = ".transformconfig";
 const QString DOT_ICC = ".icc";
 const QString DOT_PIXEL_SELECTION = ".pixelselection";
+const QString DOT_STROKES = ".strokes";
 const QString DOT_SHAPE_SELECTION = ".shapeselection";
 const QString DOT_SHAPE_LAYER = ".shapelayer";
 const QString DOT_COLORIZE_MASK = ".colorizemask";

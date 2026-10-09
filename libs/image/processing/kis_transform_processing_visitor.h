@@ -58,6 +58,8 @@ private:
     qreal m_angle;
     QTransform m_shapesCorrection;
     KisSelectionBasedProcessingHelper m_selectionHelper;
+    /// The selection as it was before it was transformed too: what moves the strokes in it
+    KisSelectionSP m_selectionBefore;
 };
 
 #endif /* __KIS_TRANSFORM_PROCESSING_VISITOR_H */

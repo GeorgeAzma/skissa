@@ -245,6 +245,7 @@ set(kritaimage_LIB_SRCS
    kis_abstract_projection_plane.cpp
    kis_layer_projection_plane.cpp
    kis_layer_utils.cpp
+   KisStrokeLog.cpp
    kis_mask_projection_plane.cpp
    kis_projection_leaf.cpp
    KisSafeNodeProjectionStore.cpp

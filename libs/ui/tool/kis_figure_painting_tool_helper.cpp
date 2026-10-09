@@ -14,6 +14,9 @@
 #include "kis_painter.h"
 #include <strokes/KisFreehandStrokeInfo.h>
 #include "KisAsynchronousStrokeUpdateHelper.h"
+#include "KisStrokeRecorder.h"
+
+#include <QPainterPathStroker>
 
 
 KisFigurePaintingToolHelper::KisFigurePaintingToolHelper(const KUndo2MagicString &name,
@@ -32,11 +35,15 @@ KisFigurePaintingToolHelper::KisFigurePaintingToolHelper(const KUndo2MagicString
                                  resourceManager);
 
     setupPaintStyles(m_resources, strokeStyle, fillStyle, fillTransform);
+    m_brushOutline = strokeStyle != KisToolShapeUtils::StrokeStyleNone;
+    m_filled = fillStyle != KisToolShapeUtils::FillStyleNone;
 
     KisFreehandStrokeInfo *strokeInfo = new KisFreehandStrokeInfo();
 
-    KisStrokeStrategy *stroke =
+    FreehandStrokeStrategy *stroke =
         new FreehandStrokeStrategy(m_resources, strokeInfo, name);
+    m_recorder.reset(new KisStrokeRecorder());
+    stroke->setStrokeRecorder(m_recorder);
 
     m_strokeId = m_strokesFacade->startStroke(stroke);
 }
@@ -93,14 +100,22 @@ void KisFigurePaintingToolHelper::setupPaintStyles(KisResourcesSnapshotSP resour
 
 KisFigurePaintingToolHelper::~KisFigurePaintingToolHelper()
 {
+    if (m_recorder->isStarted()) m_recorder->finish();
     m_strokesFacade->addJob(m_strokeId,
         new KisAsynchronousStrokeUpdateHelper::UpdateData(true));
     m_strokesFacade->endStroke(m_strokeId);
 }
 
+KisStrokeRecorder *KisFigurePaintingToolHelper::recorder()
+{
+    if (!m_recorder->isStarted()) m_recorder->start(m_resources);
+    return m_recorder.data();
+}
+
 void KisFigurePaintingToolHelper::paintLine(const KisPaintInformation &pi0,
                                             const KisPaintInformation &pi1)
 {
+    if (m_brushOutline) recorder()->addOutline(QPolygonF(QVector<QPointF>{pi0.pos(), pi1.pos()}), false);
     m_strokesFacade->addJob(m_strokeId,
         new FreehandStrokeStrategy::Data(0,
                                          pi0, pi1));
@@ -108,6 +123,7 @@ void KisFigurePaintingToolHelper::paintLine(const KisPaintInformation &pi0,
 
 void KisFigurePaintingToolHelper::paintPolyline(const vQPointF &points)
 {
+    if (m_brushOutline) recorder()->addOutline(QPolygonF(points), false);
     m_strokesFacade->addJob(m_strokeId,
         new FreehandStrokeStrategy::Data(0,
                                          FreehandStrokeStrategy::Data::POLYLINE,
@@ -116,6 +132,12 @@ void KisFigurePaintingToolHelper::paintPolyline(const vQPointF &points)
 
 void KisFigurePaintingToolHelper::paintPolygon(const vQPointF &points)
 {
+    if (m_filled) {
+        QPainterPath area;
+        area.addPolygon(QPolygonF(points));
+        recorder()->addArea(area);
+    }
+    if (m_brushOutline) recorder()->addOutline(QPolygonF(points), true);
     m_strokesFacade->addJob(m_strokeId,
         new FreehandStrokeStrategy::Data(0,
                                          FreehandStrokeStrategy::Data::POLYGON,
@@ -124,6 +146,12 @@ void KisFigurePaintingToolHelper::paintPolygon(const vQPointF &points)
 
 void KisFigurePaintingToolHelper::paintRect(const QRectF &rect)
 {
+    if (m_filled) {
+        QPainterPath area;
+        area.addRect(rect);
+        recorder()->addArea(area);
+    }
+    if (m_brushOutline) recorder()->addOutline(QPolygonF(rect), true);
     m_strokesFacade->addJob(m_strokeId,
         new FreehandStrokeStrategy::Data(0,
                                          FreehandStrokeStrategy::Data::RECT,
@@ -132,6 +160,10 @@ void KisFigurePaintingToolHelper::paintRect(const QRectF &rect)
 
 void KisFigurePaintingToolHelper::paintEllipse(const QRectF &rect)
 {
+    QPainterPath ellipse;
+    ellipse.addEllipse(rect);
+    if (m_filled) recorder()->addArea(ellipse);
+    if (m_brushOutline) recorder()->addOutline(ellipse.toFillPolygon(), true);
     m_strokesFacade->addJob(m_strokeId,
         new FreehandStrokeStrategy::Data(0,
                                          FreehandStrokeStrategy::Data::ELLIPSE,
@@ -140,6 +172,10 @@ void KisFigurePaintingToolHelper::paintEllipse(const QRectF &rect)
 
 void KisFigurePaintingToolHelper::paintPainterPath(const QPainterPath &path)
 {
+    if (m_filled) recorder()->addArea(path);
+    if (m_brushOutline) {
+        Q_FOREACH (const QPolygonF &outline, path.toSubpathPolygons()) recorder()->addOutline(outline, false);
+    }
     m_strokesFacade->addJob(m_strokeId,
         new FreehandStrokeStrategy::Data(0,
                                          FreehandStrokeStrategy::Data::PAINTER_PATH,
@@ -168,6 +204,8 @@ void KisFigurePaintingToolHelper::setBrush(const KisPaintOpPresetSP &brush)
 
 void KisFigurePaintingToolHelper::paintPainterPathQPen(const QPainterPath path, const QPen &pen, const KoColor &color)
 {
+    // drawn with a pen, not the brush
+    recorder()->addArea(QPainterPathStroker(pen).createStroke(path));
     m_strokesFacade->addJob(m_strokeId,
         new FreehandStrokeStrategy::Data(0,
                                          FreehandStrokeStrategy::Data::QPAINTER_PATH,
@@ -176,6 +214,7 @@ void KisFigurePaintingToolHelper::paintPainterPathQPen(const QPainterPath path, 
 
 void KisFigurePaintingToolHelper::paintPainterPathQPenFill(const QPainterPath path, const QPen &pen, const KoColor &color)
 {
+    recorder()->addArea(path.united(QPainterPathStroker(pen).createStroke(path)));
     m_strokesFacade->addJob(m_strokeId,
         new FreehandStrokeStrategy::Data(0,
                                          FreehandStrokeStrategy::Data::QPAINTER_PATH_FILL,

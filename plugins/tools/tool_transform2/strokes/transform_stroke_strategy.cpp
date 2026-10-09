@@ -8,6 +8,7 @@
 
 #include <QMutexLocker>
 #include "kundo2commandextradata.h"
+#include "kis_selection.h"
 
 #include "kis_node_progress_proxy.h"
 
@@ -67,6 +68,7 @@ TransformStrokeStrategy::TransformStrokeStrategy(ToolTransformArgs::TransformMod
       m_forceReset(forceReset),
       m_selection(selection)
 {
+    if (selection) m_selectionBefore = new KisSelection(*selection);
     if (selection) {
         Q_FOREACH(KisNodeSP node, rootNodes) {
             KIS_SAFE_ASSERT_RECOVER_NOOP(!dynamic_cast<KisTransformMask*>(node.data()));
@@ -313,6 +315,10 @@ void TransformStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                 runAndSaveCommand(KUndo2CommandSP(transaction.endAndTake()),
                                   KisStrokeJobData::CONCURRENT,
                                   KisStrokeJobData::NORMAL);
+                // its strokes go where its paint went
+                if (KUndo2Command *strokes = KisTransformUtils::strokeLogCommand(td->node, td->config, m_selectionBefore)) {
+                    runAndSaveCommand(KUndo2CommandSP(strokes), KisStrokeJobData::CONCURRENT, KisStrokeJobData::NORMAL);
+                }
 
                 m_updateData->addUpdate(td->node, cachedPortion->extent() | oldExtent | td->node->projectionPlane()->tightUserVisibleBounds());
             } else if (KisExternalLayer *extLayer =

@@ -426,6 +426,12 @@ public:
         return m_stopGrowingAtDarkestPixel;
     }
 
+    /// What the last fill covered (the selection taken into account); null for a fill in fast mode
+    KisSelectionSP filledArea() const
+    {
+        return m_fillSelection;
+    }
+
 protected:
     void setCurrentFillSelection(KisSelectionSP fillSelection)
     {

@@ -15,6 +15,7 @@
 #include <KoCompositeOpRegistry.h>
 #include "KisAnimAutoKey.h"
 #include "kis_undo_adapter.h"
+#include <KisStrokeLog.h>
 
 
 FillProcessingVisitor::FillProcessingVisitor(KisPaintDeviceSP refPaintDevice,
@@ -59,7 +60,9 @@ void FillProcessingVisitor::visitNodeWithPaintDevice(KisNode *node, KisUndoAdapt
     if (!m_progressHelper) {
         m_progressHelper.reset(new ProgressHelper(node));
     }
+    m_node = node;
     fillPaintDevice(device, undoAdapter);
+    m_node.clear();
 }
 
 void FillProcessingVisitor::visitColorizeMask(KisColorizeMask *mask, KisUndoAdapter *undoAdapter)
@@ -147,6 +150,20 @@ void FillProcessingVisitor::selectionFill(KisPaintDeviceSP device, const QRect &
     }
 
     painter.endTransaction(undoAdapter);
+
+    coverStrokes(device, m_selection ? KisStrokeLog::outlineOf(m_selection) : QVector<QPolygon>{QPolygon(fillRect_)}, undoAdapter);
+}
+
+void FillProcessingVisitor::coverStrokes(KisPaintDeviceSP device, const QVector<QPolygon> &area, KisUndoAdapter *undoAdapter)
+{
+    if (!m_node || device != m_node->paintDevice() || area.isEmpty() || m_node->strokeLog().isEmpty()) {
+        return;
+    }
+    KisStrokeLog::Stroke cover;
+    cover.area = area;
+    if (KUndo2Command *command = KisStrokeLog::addCommand(m_node, {cover})) {
+        undoAdapter->addCommand(command);
+    }
 }
 
 void FillProcessingVisitor::normalFill(KisPaintDeviceSP device, const QRect &fillRect, const QPoint &seedPoint, KisUndoAdapter *undoAdapter)
@@ -190,6 +207,10 @@ void FillProcessingVisitor::normalFill(KisPaintDeviceSP device, const QRect &fil
     }
 
     fillPainter.endTransaction(undoAdapter);
+
+    if (KisSelectionSP filled = fillPainter.filledArea()) {
+        coverStrokes(device, KisStrokeLog::outlineOf(filled), undoAdapter);
+    }
 
     if (m_outDirtyRect) {
         QVector<QRect> dirtyRects = fillPainter.takeDirtyRegion();

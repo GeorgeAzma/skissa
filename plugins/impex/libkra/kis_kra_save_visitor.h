@@ -68,6 +68,8 @@ private:
     bool saveSelection(KisNode* node);
     bool saveFilterConfiguration(KisNode* node);
     bool saveMetaData(KisNode* node);
+    /// Which brush painted what on it (see KisStrokeLog): small, and nothing to fail the save for
+    void saveStrokeLog(KisNode *node);
     bool saveIccProfile(KisNode* node, const KoColorProfile *profile);
     QString getLocation(KisNode* node, const QString& suffix = QString());
     QString getLocation(const QString &filename, const QString &suffix = QString());

@@ -64,11 +64,15 @@ private:
 
     void selectionFill(KisPaintDeviceSP device, const QRect &fillRect, KisUndoAdapter *undoAdapter);
     void normalFill(KisPaintDeviceSP device, const QRect &fillRect, const QPoint &seedPoint, KisUndoAdapter *undoAdapter);
+    /// The fill covers the strokes under it: no brush to take from there (see KisStrokeLog)
+    void coverStrokes(KisPaintDeviceSP device, const QVector<QPolygon> &area, KisUndoAdapter *undoAdapter);
     void continuousFill(KisPaintDeviceSP device, const QRect &fillRect, const QPoint &seedPoint, KisUndoAdapter *undoAdapter);
 
 private:
     KisPaintDeviceSP m_refPaintDevice;
     KisSelectionSP m_selection;
+    /// The node filled, while it is
+    KisNodeSP m_node;
     KisResourcesSnapshotSP m_resources;
 
     QVector<QPoint> m_seedPoints;

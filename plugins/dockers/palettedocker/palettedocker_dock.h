@@ -12,6 +12,7 @@
 #include <QModelIndex>
 #include <QScopedPointer>
 #include <QPointer>
+#include <QTimer>
 
 #include <KoResourceServer.h>
 #include <resources/KoColorSet.h>
@@ -104,6 +105,7 @@ private /* member variables */:
     /// What the row shows: the active layer's colors, or the recent ones
     QVector<KoColor> m_shownRecent;
     QMetaObject::Connection m_logConnection;
+    QTimer m_recentUpdate;
     KisPopupButton *m_paletteButton {nullptr};
     QToolButton *m_undo {nullptr};
     QToolButton *m_redo {nullptr};

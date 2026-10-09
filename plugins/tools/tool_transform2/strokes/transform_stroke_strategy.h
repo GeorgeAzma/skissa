@@ -133,6 +133,8 @@ private:
     bool m_forceReset;
 
     KisSelectionSP m_selection;
+    /// The selection as it was before the transform moved it: what moves the strokes in it
+    KisSelectionSP m_selectionBefore;
 
     QMutex m_devicesCacheMutex;
     QHash<KisPaintDevice*, KisPaintDeviceSP> m_devicesCacheHash;

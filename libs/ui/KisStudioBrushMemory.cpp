@@ -9,6 +9,7 @@
 #include <QMouseEvent>
 #include <QRegularExpression>
 #include <QTabletEvent>
+#include <QtMath>
 
 #include <KoToolManager.h>
 #include <klocalizedstring.h>
@@ -82,21 +83,20 @@ void KisStudioBrushMemory::layerChosen(KisNodeSP node)
     if (!node || !view || !layersRememberBrushes() || !paintToolActive()) {
         return;
     }
-    KisStrokeLog *log = KisStrokeLog::existing(view->image().data());
-    const KisStrokeLog::Stroke *stroke = log ? log->lastOn(node->uuid()) : nullptr;
+    KisStrokeLog::Stroke stroke;
     KisCanvasResourceProvider *resources = view->canvasResourceProvider();
-    if (!stroke || !resources || !resources->currentPreset() || stroke->brush.isEmpty()) {
+    if (!node->strokeLog().lastBrush(&stroke) || !resources || !resources->currentPreset()) {
         return;
     }
     // already in hand: nothing to say
-    if (resources->currentPreset()->name() == stroke->brush) {
+    if (resources->currentPreset()->name() == stroke.brush) {
         return;
     }
-    KisStudioBrushPicker::use(view, stroke->brush);
-    if (resources->currentPreset() && resources->currentPreset()->name() == stroke->brush) {
-        resources->setSize(stroke->size);
+    KisStudioBrushPicker::use(view, stroke.brush);
+    if (resources->currentPreset() && resources->currentPreset()->name() == stroke.brush) {
+        resources->setSize(stroke.brushSize);
         view->showFloatingMessage(i18nc("@info a brush taken from the layer just chosen, %1 its name", "%1 · this layer's brush",
-                                        titleOf(stroke->brush)),
+                                        titleOf(stroke.brush)),
                                   KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), 1600, KisFloatingMessage::Low);
     }
 }
@@ -106,24 +106,29 @@ bool KisStudioBrushMemory::pickAt(const QPointF &widgetPos)
     KisViewManager *view = m_mainWindow->viewManager();
     KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
     KisImageSP image = view ? KisImageSP(view->image()) : KisImageSP();
-    KisStrokeLog *log = image ? KisStrokeLog::existing(image.data()) : nullptr;
-    if (!canvas || !log) {
+    if (!canvas || !image) {
         return false;
     }
-    const QPoint imagePos = canvas->coordinatesConverter()->widgetToImage(widgetPos).toPoint();
-    const KisStrokeLog::Stroke *stroke = log->strokeAt(image, imagePos);
-    if (!stroke) {
+    // the pixel under the pointer: where it is in the image (the view may be rotated, mirrored, zoomed)
+    const QPointF imagePoint = canvas->coordinatesConverter()->widgetToImage(widgetPos);
+    const QPoint imagePos(qFloor(imagePoint.x()), qFloor(imagePoint.y()));
+    KisStrokeLog::Pick pick;
+    if (!KisStrokeLog::pick(image->root(), imagePos, &pick)) {
         return false;
     }
-    KisStudioBrushPicker::use(view, stroke->brush);
+    const KisStrokeLog::Stroke &stroke = pick.stroke;
+    KisStudioBrushPicker::use(view, stroke.brush);
     KisCanvasResourceProvider *resources = view->canvasResourceProvider();
-    if (!resources || !resources->currentPreset() || resources->currentPreset()->name() != stroke->brush) {
-        // the brush is gone (removed, renamed): nothing taken
-        return false;
+    if (!resources || !resources->currentPreset() || resources->currentPreset()->name() != stroke.brush) {
+        // the brush is gone (removed, renamed): nothing taken, but what it was is said
+        view->showFloatingMessage(i18nc("@info a brush found on the canvas that is no longer there, %1 its name", "%1 · not found",
+                                        titleOf(stroke.brush)),
+                                  KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), 1400, KisFloatingMessage::Low);
+        return true;
     }
-    resources->setSize(stroke->size);
+    resources->setSize(stroke.brushSize);
     view->showFloatingMessage(i18nc("@info a brush taken from the canvas, %1 its name, %2 its size", "%1 · %2 px",
-                                    titleOf(stroke->brush), QString::number(stroke->size, 'f', stroke->size < 10 ? 1 : 0)),
+                                    titleOf(stroke.brush), QString::number(stroke.brushSize, 'f', stroke.brushSize < 10 ? 1 : 0)),
                               KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), 1400, KisFloatingMessage::Low);
     return true;
 }
@@ -167,12 +172,13 @@ bool KisStudioBrushMemory::eventFilter(QObject *watched, QEvent *event)
         pos = mouse->localPos();
         modifiers = mouse->modifiers();
     }
-    // Alt alone, with a tool that paints
+    // Alt alone, with a tool that paints: never a dab, whether there is a brush to take or not
     if (modifiers != Qt::AltModifier || !paintToolActive()) {
         return false;
     }
     if (!pickAt(pos)) {
-        return false;
+        view->showFloatingMessage(i18nc("@info Alt+click on the canvas found no brush stroke to take a brush from", "No brush here"),
+                                  KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), 1000, KisFloatingMessage::Low);
     }
     m_swallowing = true;
     event->accept();

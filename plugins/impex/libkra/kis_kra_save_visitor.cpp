@@ -6,6 +6,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 
+#include <KisStrokeLog.h>
+#include <kis_raster_keyframe_channel.h>
 #include "kis_kra_save_visitor.h"
 #include "kis_kra_tags.h"
 
@@ -132,6 +134,7 @@ bool KisKraSaveVisitor::visit(KisPaintLayer *layer)
         m_errorMessages << i18n("Failed to save the metadata for layer %1.", layer->name());
         return false;
     }
+    saveStrokeLog(layer);
     return visitAllInverse(layer);
 }
 
@@ -248,6 +251,7 @@ bool KisKraSaveVisitor::visit(KisTransparencyMask *mask)
         m_errorMessages << i18n("Failed to save the selection for transparency mask %1.", mask->name());
         return false;
     }
+    saveStrokeLog(mask);
     return true;
 }
 
@@ -429,6 +433,26 @@ bool KisKraSaveVisitor::saveIccProfile(KisNode *node, const KoColorProfile *prof
         }
     }
     return true;
+}
+
+void KisKraSaveVisitor::saveStrokeLog(KisNode *node)
+{
+    KisPaintDeviceSP device = node->paintDevice();
+    if (!device || node->strokeLog().isEmpty()) {
+        return;
+    }
+    // frame ids are not kept in the file: a frame is saved as the time of its keyframe
+    KisRasterKeyframeChannel *channel = device->keyframeChannel();
+    const QByteArray data = node->strokeLog().save([channel](int frame) {
+        if (!channel) return -1;
+        // what was painted before there were frames is in the first one
+        const QSet<int> times = channel->timesForFrameID(qMax(0, frame));
+        return times.isEmpty() ? -2 : *std::min_element(times.begin(), times.end());
+    });
+    if (!data.isEmpty() && m_store->open(getLocation(node, DOT_STROKES))) {
+        m_store->write(data);
+        m_store->close();
+    }
 }
 
 bool KisKraSaveVisitor::saveSelection(KisNode* node)

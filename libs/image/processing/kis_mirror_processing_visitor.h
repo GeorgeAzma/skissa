@@ -38,6 +38,8 @@ private:
     qreal m_axis = 0.0;
 
     KisSelectionBasedProcessingHelper m_selectionHelper;
+    /// The selection as it was before it was mirrored too: what moves the strokes in it
+    KisSelectionSP m_selectionBefore;
 };
 
 #endif /* __KIS_MIRROR_PROCESSING_VISITOR_H */

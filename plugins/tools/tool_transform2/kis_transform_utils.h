@@ -9,6 +9,8 @@
 
 #include <QtGlobal>
 
+#include <functional>
+
 #include "kis_coordinates_converter.h"
 
 #include <QTransform>
@@ -82,6 +84,18 @@ public:
     };
 
     static bool checkImageTooBig(const QRectF &bounds, const MatricesPack &m, qreal cameraHeight);
+
+    /**
+     * Where the transform takes a point of the image: what moves a layer's
+     * strokes (see KisStrokeLog) with its pixels
+     */
+    static std::function<QPointF(const QPointF &)> pointMapper(const ToolTransformArgs &config);
+    /**
+     * Moves \p node's strokes as the transform moves its pixels: all of
+     * them, or those in \p selectionBefore (the selection as it was before
+     * it was transformed too)
+     */
+    static KUndo2Command *strokeLogCommand(KisNodeSP node, const ToolTransformArgs &config, KisSelectionSP selectionBefore);
 
     static KisTransformWorker createTransformWorker(const ToolTransformArgs &config,
                                                     KisPaintDeviceSP device,

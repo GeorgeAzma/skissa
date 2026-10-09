@@ -66,6 +66,8 @@ public:
 
     void setOpacity(qreal opacity);
     void setMirroring(bool horizontal, bool vertical);
+    /// Where the mirror axes cross, and which of them the brush paints mirrored over
+    void mirroring(QPointF *axesCenter, bool *horizontal, bool *vertical) const;
     qreal opacity() const;
     QString compositeOpId() const;
 

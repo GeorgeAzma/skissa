@@ -1565,8 +1565,9 @@ void KisStudioLayout::gripClicked(const QString &id)
     auto *animation = new QVariantAnimation(this);
     animation->setStartValue(from);
     animation->setEndValue(to);
-    animation->setDuration(140);
-    animation->setEasingCurve(fold ? QEasingCurve::InOutCubic : QEasingCurve::OutCubic);
+    // fast at first, easing into place: no wind-up, no overshoot
+    animation->setDuration(220);
+    animation->setEasingCurve(QEasingCurve::OutExpo);
     QPointer<QDockWidget> target = dock;
     connect(animation, &QVariantAnimation::valueChanged, this, [this, target, fold](const QVariant &value) {
         if (!target) return;

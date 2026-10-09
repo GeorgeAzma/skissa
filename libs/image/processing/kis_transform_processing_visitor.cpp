@@ -36,6 +36,7 @@
 #include <kis_transform_mask_params_interface.h>
 
 #include "KisSimpleModifyTransformMaskCommand.h"
+#include "KisStrokeLog.h"
 
 
 KisTransformProcessingVisitor::
@@ -58,6 +59,7 @@ KisTransformProcessingVisitor(qreal  xscale, qreal  yscale,
 void KisTransformProcessingVisitor::setSelection(KisSelectionSP selection)
 {
     m_selectionHelper.setSelection(selection);
+    m_selectionBefore = selection ? new KisSelection(*selection) : KisSelectionSP();
 }
 
 KUndo2Command *KisTransformProcessingVisitor::createInitCommand()
@@ -78,6 +80,15 @@ void KisTransformProcessingVisitor::visit(KisNode *node, KisUndoAdapter *undoAda
 void KisTransformProcessingVisitor::visit(KisPaintLayer *layer, KisUndoAdapter *undoAdapter)
 {
     transformPaintDevice(layer->paintDevice(), undoAdapter, ProgressHelper(layer));
+
+    // its strokes go where its paint went
+    KisTransformWorker tw(layer->paintDevice(), m_sx, m_sy, m_shearx, m_sheary, m_angle, m_tx, m_ty, 0, m_filter);
+    const QTransform transform = tw.transform();
+    if (KUndo2Command *strokes = KisStrokeLog::mapCommand(layer, [transform](const QPointF &point) { return transform.map(point); },
+                                                          KisStrokeLog::inSelection(m_selectionBefore))) {
+        undoAdapter->addCommand(strokes);
+    }
+
     transformClones(layer, undoAdapter);
 }
 

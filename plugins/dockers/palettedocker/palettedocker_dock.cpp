@@ -747,6 +747,9 @@ PaletteDockerDock::PaletteDockerDock( )
     layout->addLayout(header);
 
     m_recentStrip = new RecentStrip(mainWidget);
+    m_recentUpdate.setSingleShot(true);
+    m_recentUpdate.setInterval(0);
+    connect(&m_recentUpdate, &QTimer::timeout, this, &PaletteDockerDock::updateRecentStrip);
     m_recentStrip->picked = [this](int index) { pickRecent(index); };
     m_recentStrip->cardRequested = [this](int index, QWidget *anchor) { showRecentCard(index, anchor); };
     layout->addWidget(m_recentStrip);
@@ -901,13 +904,11 @@ void PaletteDockerDock::setCanvas(KoCanvasBase *canvas)
         m_grid->setCurrentColor(m_resourceProvider->fgColor().toQColor());
     }
 
-    // a stroke ended: the layer's colors may have one more
+    // a stroke ended (or was undone): the layer's colors may have changed; once for many at a time
     disconnect(m_logConnection);
-    if (m_view && m_view->image()) {
-        if (KisStrokeLog *log = KisStrokeLog::forImage(m_view->image())) {
-            m_logConnection = connect(log, &KisStrokeLog::changed, this, [this]() { updateRecentStrip(); });
-        }
-    }
+    m_logConnection = connect(KisStrokeLog::notifier(), &KisStrokeLogNotifier::changed, this, [this]() {
+        if (!m_recentUpdate.isActive()) m_recentUpdate.start();
+    });
     updateRecentStrip();
 
     if (!m_currentColorSet) {
@@ -1194,15 +1195,13 @@ void PaletteDockerDock::updateRecentStrip()
     m_shownRecent.clear();
     // the colors painted on the active layer, when it has some and layers remember theirs
     if (m_view && m_view->image() && m_view->activeNode() && KisStudioBrushMemory::layersRememberBrushes()) {
-        if (KisStrokeLog *log = KisStrokeLog::existing(m_view->image().data())) {
-            const QVector<QColor> onLayer = log->colorsOn(m_view->activeNode()->uuid(), recentKept);
-            if (!onLayer.isEmpty()) {
-                Q_FOREACH (const QColor &color, onLayer) {
-                    m_shownRecent << KoColor(color, KoColorSpaceRegistry::instance()->rgb8());
-                }
-                m_recentStrip->setColors(onLayer, true);
-                return;
+        const QVector<QColor> onLayer = m_view->activeNode()->strokeLog().colors(recentKept);
+        if (!onLayer.isEmpty()) {
+            Q_FOREACH (const QColor &color, onLayer) {
+                m_shownRecent << KoColor(color, KoColorSpaceRegistry::instance()->rgb8());
             }
+            m_recentStrip->setColors(onLayer, true);
+            return;
         }
     }
     QVector<QColor> colors;

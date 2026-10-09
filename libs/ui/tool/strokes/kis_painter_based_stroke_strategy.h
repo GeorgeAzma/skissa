@@ -11,6 +11,7 @@
 
 #include "KisRunnableBasedStrokeStrategy.h"
 #include "kis_resources_snapshot.h"
+#include "KisStrokeRecorder.h"
 #include "kis_selection.h"
 #include "kis_indirect_painting_support.h"
 
@@ -44,6 +45,13 @@ public:
 
     void suspendStrokeCallback() override;
     void resumeStrokeCallback() override;
+
+    /**
+     * What the stroke paints, taken down as it is painted: kept in the
+     * node's KisStrokeLog when it is done, undone with it. Set before the
+     * stroke starts; the level of detail preview has none.
+     */
+    void setStrokeRecorder(KisStrokeRecorderSP recorder);
 
 protected:
     KisNodeSP targetNode() const;
@@ -128,6 +136,8 @@ private:
     KisSelectionSP m_activeSelection;
 
     std::unique_ptr<KUndo2Command> m_autokeyCommand;
+
+    KisStrokeRecorderSP m_recorder;
 
     bool m_useMergeID {false};
 

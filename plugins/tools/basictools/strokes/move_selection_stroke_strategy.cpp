@@ -20,6 +20,8 @@
 #include <commands_new/kis_selection_move_command2.h>
 #include "kis_lod_transform.h"
 #include "KisAnimAutoKey.h"
+#include "kis_selection.h"
+#include <KisStrokeLog.h>
 
 
 MoveSelectionStrokeStrategy::MoveSelectionStrokeStrategy(KisPaintLayerSP paintLayer,
@@ -115,6 +117,19 @@ void MoveSelectionStrokeStrategy::finishStrokeCallback()
                       KisStrokeJobData::NORMAL);
 
     indirect->setTemporaryTarget(0);
+
+    // the strokes in what was moved go with it, over what they were moved onto
+    const QPoint offset = m_finalOffset;
+    KisSelectionSP selection = m_selection;
+    if (KUndo2Command *strokes = KisStrokeLog::mapCommand(
+            m_paintLayer,
+            [offset](const QPointF &point) { return point + offset; },
+            // the selection has moved already
+            [selection, offset](const QPoint &point) {
+                return selection->selected(point.x() + offset.x(), point.y() + offset.y()) > MAX_SELECTED / 2;
+            })) {
+        runAndSaveCommand(KUndo2CommandSP(strokes), KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::NORMAL);
+    }
 
     m_updatesFacade->blockUpdates();
 

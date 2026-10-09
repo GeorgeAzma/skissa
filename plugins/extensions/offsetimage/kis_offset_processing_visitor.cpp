@@ -26,6 +26,9 @@
 #include "kis_undo_adapter.h"
 #include <kis_transform_worker.h>
 #include "lazybrush/kis_colorize_mask.h"
+#include <KisStrokeLog.h>
+
+#include <QtMath>
 
 
 KisOffsetProcessingVisitor::KisOffsetProcessingVisitor(const QPoint &offsetPoint, const QRect &rect)
@@ -45,6 +48,28 @@ void KisOffsetProcessingVisitor::offsetPaintDevice(KisPaintDeviceSP device, KisU
 void KisOffsetProcessingVisitor::visitNodeWithPaintDevice(KisNode *node, KisUndoAdapter *undoAdapter)
 {
     offsetPaintDevice(node->paintDevice(), undoAdapter);
+
+    // its strokes go where its paint went, around the edges too
+    const QPoint offset = m_offset;
+    const QRect wrap = m_wrapRect;
+    if (wrap.isEmpty()) {
+        return;
+    }
+    auto tile = [offset, wrap](const QPointF &point) {
+        return QPoint(qFloor((point.x() - wrap.x() + offset.x()) / wrap.width()),
+                      qFloor((point.y() - wrap.y() + offset.y()) / wrap.height()));
+    };
+    if (KUndo2Command *strokes = KisStrokeLog::mapCommand(
+            node,
+            [offset, wrap, tile](const QPointF &point) {
+                const QPoint whole = tile(point);
+                return point + offset - QPointF(whole.x() * wrap.width(), whole.y() * wrap.height());
+            },
+            KisStrokeLog::Selected(),
+            // a stroke over the edge is cut in two, one part at each side
+            [tile](const QPointF &a, const QPointF &b) { return tile(a) != tile(b); })) {
+        undoAdapter->addCommand(strokes);
+    }
 }
 
 void KisOffsetProcessingVisitor::visitExternalLayer(KisExternalLayer *layer, KisUndoAdapter *undoAdapter)

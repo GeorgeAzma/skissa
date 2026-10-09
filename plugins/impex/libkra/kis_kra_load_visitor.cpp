@@ -5,6 +5,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 
+#include <KisStrokeLog.h>
+#include <kis_raster_keyframe_channel.h>
 #include "kis_kra_load_visitor.h"
 #include "kis_kra_tags.h"
 #include "flake/kis_shape_layer.h"
@@ -197,6 +199,7 @@ bool KisKraLoadVisitor::visit(KisPaintLayer *layer)
     if (!loadMetaData(layer)) {
         return false;
     }
+    loadStrokeLog(layer);
 
     if (m_syntaxVersion == 1) {
         // Check whether there is a file with a .mask extension in the
@@ -440,7 +443,9 @@ bool KisKraLoadVisitor::visit(KisTransparencyMask *mask)
 
     loadNodeKeyframes(mask);
 
-    return loadSelection(getLocation(mask), mask->selection());
+    const bool result = loadSelection(getLocation(mask), mask->selection());
+    loadStrokeLog(mask);
+    return result;
 }
 
 bool KisKraLoadVisitor::visit(KisSelectionMask *mask)
@@ -731,6 +736,23 @@ bool KisKraLoadVisitor::loadMetaData(KisNode* node)
         }
     }
     return true;
+}
+
+void KisKraLoadVisitor::loadStrokeLog(KisNode *node)
+{
+    KisPaintDeviceSP device = node->paintDevice();
+    const QString location = getLocation(node, DOT_STROKES);
+    if (!device || !m_store->hasFile(location) || !m_store->open(location)) {
+        return;
+    }
+    const QByteArray data = m_store->read(m_store->size());
+    m_store->close();
+    // a frame by the time of its keyframe
+    KisRasterKeyframeChannel *channel = device->keyframeChannel();
+    node->strokeLog().load(data, [channel](int time) {
+        KisRasterKeyframeSP keyframe = channel ? channel->keyframeAt<KisRasterKeyframe>(time) : KisRasterKeyframeSP();
+        return keyframe ? keyframe->frameID() : -1;
+    });
 }
 
 bool KisKraLoadVisitor::loadSelection(const QString& location, KisSelectionSP dstSelection)

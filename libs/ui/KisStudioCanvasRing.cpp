@@ -135,10 +135,8 @@ void KisStudioCanvasRing::open(QWidget *canvas, const QPointF &pos)
     }
     // the colors painted on the layer, around them
     m_colors.clear();
-    if (KisStrokeLog *log = view->image() ? KisStrokeLog::existing(view->image().data()) : nullptr) {
-        if (view->activeNode()) {
-            m_colors = log->colorsOn(view->activeNode()->uuid(), ringColors);
-        }
+    if (view->activeNode()) {
+        m_colors = view->activeNode()->strokeLog().colors(ringColors);
     }
     m_current = resources->fgColor().toQColor();
     m_currentBrush = resources->currentPreset() ? resources->currentPreset()->name() : QString();

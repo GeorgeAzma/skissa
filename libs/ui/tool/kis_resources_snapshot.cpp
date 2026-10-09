@@ -366,6 +366,13 @@ void KisResourcesSnapshot::setMirroring(bool horizontal, bool vertical)
     m_d->mirrorMaskVertical = vertical;
 }
 
+void KisResourcesSnapshot::mirroring(QPointF *axesCenter, bool *horizontal, bool *vertical) const
+{
+    *axesCenter = m_d->axesCenter;
+    *horizontal = m_d->mirrorMaskHorizontal;
+    *vertical = m_d->mirrorMaskVertical;
+}
+
 qreal KisResourcesSnapshot::opacity() const
 {
     return m_d->opacity;

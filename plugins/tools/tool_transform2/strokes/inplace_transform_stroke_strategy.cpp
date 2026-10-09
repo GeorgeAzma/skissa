@@ -10,6 +10,7 @@
 #include <QMutexLocker>
 #include <QElapsedTimer>
 #include "kundo2commandextradata.h"
+#include "kis_selection.h"
 
 #include "kis_node_progress_proxy.h"
 
@@ -70,6 +71,8 @@ struct InplaceTransformStrokeStrategy::Private
     bool forceReset;
     KisNodeList rootNodes;
     KisSelectionSP selection;
+    /// The selection as it was before the transform moved it: what moves the strokes in it
+    KisSelectionSP selectionBefore;
     KisPaintDeviceSP externalSource;
     KisNodeSP imageRoot;
     int currentTime = -1; // NOTE: initialized asynchronously in initStrokeCallback!
@@ -159,6 +162,7 @@ InplaceTransformStrokeStrategy::InplaceTransformStrokeStrategy(ToolTransformArgs
     m_d->forceReset = forceReset;
     m_d->rootNodes = rootNodes;
     m_d->selection = selection;
+    if (selection) m_d->selectionBefore = new KisSelection(*selection);
     m_d->externalSource = externalSource;
     m_d->updatesFacade = updatesFacade;
     m_d->undoFacade = undoFacade;
@@ -831,6 +835,12 @@ void InplaceTransformStrokeStrategy::transformNode(KisNodeSP node, const ToolTra
                                                    device, &helper);
 
         executeAndAddCommand(transaction.endAndTake(), commandGroup, KisStrokeJobData::CONCURRENT);
+        // its strokes go where its paint went
+        if (levelOfDetail <= 0 && !m_d->externalSource) {
+            if (KUndo2Command *strokes = KisTransformUtils::strokeLogCommand(node, config, m_d->selectionBefore)) {
+                executeAndAddCommand(strokes, commandGroup, KisStrokeJobData::CONCURRENT);
+            }
+        }
         addDirtyRect(node, cachedPortion->extent() | node->projectionPlane()->tightUserVisibleBounds(), levelOfDetail);
 
     } else if (KisTransformMask *transformMask =

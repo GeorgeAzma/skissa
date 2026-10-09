@@ -48,6 +48,7 @@
 #include "kis_command_utils.h"
 #include "kis_processing_applicator.h"
 #include "kis_processing_visitor.h"
+#include <KisStrokeLog.h>
 
 
 KisToolGradient::KisToolGradient(KoCanvasBase * canvas)
@@ -186,7 +187,19 @@ void KisToolGradient::endPrimaryAction(KoPointerEvent *event)
                                           bounds.width(), bounds.height(),
                                           dither, ditherSteps);
 
-                    return painter.endAndTakeTransaction();
+                    KUndo2Command *gradient = painter.endAndTakeTransaction();
+
+                    // it covers the strokes under it: no brush to take from there (see KisStrokeLog)
+                    if (node->strokeLog().isEmpty()) {
+                        return gradient;
+                    }
+                    KisStrokeLog::Stroke cover;
+                    cover.area = resources->activeSelection() ? KisStrokeLog::outlineOf(resources->activeSelection())
+                                                              : QVector<QPolygon>{QPolygon(bounds)};
+                    KisCommandUtils::CompositeCommand *both = new KisCommandUtils::CompositeCommand();
+                    both->addCommand(gradient);
+                    both->addCommand(KisStrokeLog::addCommand(node, {cover}));
+                    return static_cast<KUndo2Command *>(both);
                 }));
         applicator.end();
     }

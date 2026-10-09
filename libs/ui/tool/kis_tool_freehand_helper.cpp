@@ -36,10 +36,7 @@
 #include "KisAsynchronousStrokeUpdateHelper.h"
 #include "kis_canvas_resource_provider.h"
 #include <KisOptimizedBrushOutline.h>
-#include <KoCompositeOpRegistry.h>
-#include "KisStrokeLog.h"
-#include "kis_paintop_preset.h"
-#include "kis_paintop_settings.h"
+#include "KisStrokeRecorder.h"
 
 #include <math.h>
 
@@ -108,10 +105,8 @@ struct KisToolFreehandHelper::Private
     // drawing the brush outline or starting a stroke.
     KisPaintOpUtils::PositionHistory lastCursorPos;
 
-    // What the stroke is, for the image's stroke log: the layer, the brush, where it went
-    KisStrokeLog::Stroke recording;
-    QPointF lastRecorded;
-    bool recordingActive {false};
+    // what the stroke paints, for the node's stroke log (which brush painted what)
+    KisStrokeRecorderSP recorder;
 
     // Stabilizer data
     bool usingStabilizer;
@@ -330,21 +325,6 @@ void KisToolFreehandHelper::initPaintImpl(qreal startAngle,
         m_d->resources->setCurrentNode(overrideNode);
     }
 
-    // which layer, brush, size and color: what a later Alt+click on it, or the layer, gives back
-    m_d->recording = KisStrokeLog::Stroke();
-    m_d->recordingActive = false;
-    if (KisNodeSP node = m_d->resources->currentNode()) {
-        KisPaintOpPresetSP preset = m_d->resources->currentPaintOpPreset();
-        if (preset) {
-            m_d->recording.node = node->uuid();
-            m_d->recording.brush = preset->name();
-            m_d->recording.size = preset->settings() ? preset->settings()->paintOpSize() : 10.0;
-            m_d->recording.color = m_d->resources->currentFgColor().toQColor();
-            m_d->recording.erasing = m_d->resources->compositeOpId() == COMPOSITE_ERASE;
-            m_d->recordingActive = true;
-        }
-    }
-
     const bool airbrushing = m_d->resources->needsAirbrushing();
     const bool useSpacingUpdates = m_d->resources->needsSpacingUpdates();
 
@@ -358,12 +338,20 @@ void KisToolFreehandHelper::initPaintImpl(qreal startAngle,
     createPainters(m_d->strokeInfos,
                    startDist);
 
-    KisStrokeStrategy *stroke =
+    FreehandStrokeStrategy *stroke =
         new FreehandStrokeStrategy(m_d->resources,
                                    m_d->strokeInfos,
                                    m_d->transactionText,
                                    FreehandStrokeStrategy::SupportsContinuedInterstrokeData |
                                    FreehandStrokeStrategy::SupportsTimedMergeId);
+
+    // the brush as the canvas shows it: its outline tells how wide it paints at a pressure
+    m_d->recorder.reset(new KisStrokeRecorder());
+    m_d->recorder->start(m_d->resources,
+                         m_d->resourceManager
+                             ? m_d->resourceManager->resource(KoCanvasResource::CurrentPaintOpPreset).value<KisPaintOpPresetSP>()
+                             : KisPaintOpPresetSP());
+    stroke->setStrokeRecorder(m_d->recorder);
 
     m_d->strokeId = m_d->strokesFacade->startStroke(stroke);
 
@@ -398,15 +386,6 @@ KoCanvasResourceProvider *KisToolFreehandHelper::resourceManager() const
 
 void KisToolFreehandHelper::updateCurrentBrushPosition(const QPointF &pixelPos)
 {
-    // a point every so often along the stroke: enough to tell later where it went
-    if (m_d->recordingActive) {
-        const qreal spacing = qMax(6.0, m_d->recording.size * 0.6);
-        if (m_d->recording.path.isEmpty() || QLineF(m_d->lastRecorded, pixelPos).length() >= spacing) {
-            m_d->recording.path << pixelPos.toPoint();
-            m_d->lastRecorded = pixelPos;
-        }
-    }
-
     // Store on the flake-level resource provider (the only provider this
     // helper holds), keyed by a Krita-specific resource id.
     if (KoCanvasResourceProvider *manager = resourceManager()) {
@@ -776,21 +755,14 @@ void KisToolFreehandHelper::endPaint()
     m_d->strokesFacade->addJob(m_d->strokeId,
        new KisAsynchronousStrokeUpdateHelper::UpdateData(true));
 
+    if (m_d->recorder) {
+        m_d->recorder->finish();
+        m_d->recorder.clear();
+    }
+
     m_d->strokesFacade->endStroke(m_d->strokeId);
     m_d->strokeId.clear();
     m_d->infoBuilder->reset();
-
-    // into the image's stroke log, with the stroke's end
-    if (m_d->recordingActive && !m_d->recording.path.isEmpty() && m_d->resources) {
-        const QPoint end = m_d->previousPaintInformation.pos().toPoint();
-        if (m_d->recording.path.last() != end) m_d->recording.path << end;
-        const int radius = qCeil(m_d->recording.size / 2) + 2;
-        m_d->recording.bounds = m_d->recording.path.boundingRect().adjusted(-radius, -radius, radius, radius);
-        if (KisStrokeLog *log = KisStrokeLog::forImage(m_d->resources->image())) {
-            log->add(m_d->recording);
-        }
-    }
-    m_d->recordingActive = false;
 }
 
 void KisToolFreehandHelper::cancelPaint()
@@ -820,7 +792,7 @@ void KisToolFreehandHelper::cancelPaint()
 
     m_d->strokesFacade->cancelStroke(m_d->strokeId);
     m_d->strokeId.clear();
-    m_d->recordingActive = false;
+    m_d->recorder.clear();
 
 }
 
@@ -1064,6 +1036,7 @@ void KisToolFreehandHelper::paintAt(int strokeInfoId,
                                     const KisPaintInformation &pi)
 {
     updateCurrentBrushPosition(pi.pos());
+    if (m_d->recorder) m_d->recorder->addPoint(strokeInfoId, pi);
     m_d->hasPaintAtLeastOnce = true;
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId, pi));
@@ -1075,6 +1048,7 @@ void KisToolFreehandHelper::paintLine(int strokeInfoId,
                                       const KisPaintInformation &pi2)
 {
     updateCurrentBrushPosition(pi2.pos());
+    if (m_d->recorder) m_d->recorder->addLine(strokeInfoId, pi1, pi2);
     m_d->hasPaintAtLeastOnce = true;
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId, pi1, pi2));
@@ -1113,6 +1087,7 @@ void KisToolFreehandHelper::paintBezierCurve(int strokeInfoId,
     paintLine(tpi1, tpi2);
 #endif
 
+    if (m_d->recorder) m_d->recorder->addCurve(strokeInfoId, pi1, control1, control2, pi2);
     m_d->hasPaintAtLeastOnce = true;
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId,
