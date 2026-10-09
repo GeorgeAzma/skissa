@@ -102,13 +102,20 @@ NodeDelegate::~NodeDelegate()
     delete d;
 }
 
+int NodeDelegate::extraHeight(const QModelIndex &index) const
+{
+    const QModelIndex current = d->view->currentIndex();
+    const bool currentRow = current.isValid() && current.row() == index.row() && current.parent() == index.parent();
+    return currentRow && d->view->property("rowControls").toBool() ? rowControlsHeight : 0;
+}
+
 QSize NodeDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
     KisNodeViewColorScheme scm;
     if (index.column() == NodeView::VISIBILITY_COL) {
-        return QSize(scm.visibilityColumnWidth(), d->rowHeight);
+        return QSize(scm.visibilityColumnWidth(), d->rowHeight + extraHeight(index));
     }
-    return QSize(option.rect.width(), d->rowHeight);
+    return QSize(option.rect.width(), d->rowHeight + extraHeight(index));
 }
 
 void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &o, const QModelIndex &index) const
@@ -142,10 +149,15 @@ void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &o, const QMode
             option.state &= ~QStyle::State_Enabled;
         }
 
+        // the highlight takes the whole row, the layer's own content its top: the rest holds the controls
+        option.rect.setHeight(option.rect.height() - extraHeight(index));
+        QStyleOptionViewItem top = o;
+        top.rect = option.rect;
+
         drawFrame(p, option, index);
 
         if (index.column() == NodeView::SELECTED_COL) {
-            drawSelectedButton(p, o, index, style);
+            drawSelectedButton(p, top, index, style);
         } else if (index.column() == NodeView::VISIBILITY_COL) {
             drawVisibilityIcon(p, option, index); // TODO hide when dragging
         } else {

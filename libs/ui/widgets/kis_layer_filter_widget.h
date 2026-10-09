@@ -38,6 +38,8 @@ public:
     int getDesiredMinimumHeight() const;
 
     void reset();
+    /// Filters by name from \p typed on, with the field focused to type the rest
+    void startTextFilter(const QString &typed);
 
     QSize sizeHint() const override;
 

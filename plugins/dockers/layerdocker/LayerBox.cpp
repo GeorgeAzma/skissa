@@ -2,10 +2,10 @@
  *  LayerBox.cc - part of Krita aka Krayon aka KimageShop
  *
  *  SPDX-FileCopyrightText: 2002 Patrick Julien <freak@codepimps.org>
- *  SPDX-FileCopyrightText: 2006 Gábor Lehel <illissius@gmail.com>
+ *  SPDX-FileCopyrightText: 2006 GÃ¡bor Lehel <illissius@gmail.com>
  *  SPDX-FileCopyrightText: 2007 Thomas Zander <zander@kde.org>
  *  SPDX-FileCopyrightText: 2007 Boudewijn Rempt <boud@valdyas.org>
- *  SPDX-FileCopyrightText: 2011 José Luis Vergara <pentalis@gmail.com>
+ *  SPDX-FileCopyrightText: 2011 JosÃ© Luis Vergara <pentalis@gmail.com>
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -16,7 +16,10 @@
 #include <QApplication>
 #include <QToolButton>
 #include <QLayout>
+#include <QKeyEvent>
+#include <QLineEdit>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QPainter>
 #include <QPoint>
 #include <QRect>
@@ -93,6 +96,8 @@
 #include "SyncButtonAndAction.h"
 #include "KisMenuStyleDontCloseOnAlt.h"
 #include "KisModernStyle.h"
+#include "KisTouchMode.h"
+#include "NodeDelegate.h"
 
 class LayerBoxStyle : public QProxyStyle
 {
@@ -126,6 +131,91 @@ public:
         {
             QProxyStyle::drawPrimitive(element, option, painter, widget);
         }
+    }
+};
+
+/// The place of the list in the panel's layout: what goes above it goes there
+int listRow(Ui_WdgLayerBox *ui)
+{
+    for (int i = 0; i < ui->verticalLayout->count(); i++) {
+        QLayoutItem *item = ui->verticalLayout->itemAt(i);
+        if (item->widget() == ui->listLayers || (item->layout() && item->layout()->indexOf(ui->listLayers) >= 0)) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+/// Where a click between two rows adds a layer: a line with a "+" at its start
+class GapIndicator : public QWidget
+{
+public:
+    explicit GapIndicator(QWidget *parent) : QWidget(parent)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QColor ink = palette().color(QPalette::Highlight);
+        const qreal y = height() / 2.0;
+        painter.fillRect(QRectF(16, y - 1, width() - 20, 2), ink);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(ink);
+        painter.drawEllipse(QPointF(9, y), 5.5, 5.5);
+        painter.setPen(QPen(palette().color(QPalette::HighlightedText), 1.4));
+        painter.drawLine(QPointF(6.5, y), QPointF(11.5, y));
+        painter.drawLine(QPointF(9, y - 2.5), QPointF(9, y + 2.5));
+    }
+};
+
+/**
+ * Above the list, what the "+" under it was: a click adds a layer above the
+ * selected one, a right click (or holding it) offers the other kinds.
+ */
+class AddLayerStrip : public QAbstractButton
+{
+public:
+    explicit AddLayerStrip(QWidget *parent) : QAbstractButton(parent)
+    {
+        setAttribute(Qt::WA_Hover);
+        setCursor(Qt::PointingHandCursor);
+        setFocusPolicy(Qt::NoFocus);
+        setContextMenuPolicy(Qt::CustomContextMenu);
+        setText(i18nc("@action:button", "New layer"));
+        setToolTip(i18nc("@info:tooltip", "A layer above the selected one; right click for the other kinds. "
+                                          "Or click between two layers to put one there"));
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        // a finger needs more to hit
+        auto fit = [this]() { setFixedHeight(KisTouchMode::isActive() ? 34 : 26); };
+        fit();
+        QObject::connect(KisTouchMode::instance(), &KisTouchMode::changed, this, fit);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QColor ink = palette().color(QPalette::WindowText);
+        if (underMouse() || isDown()) {
+            QColor wash = ink;
+            wash.setAlphaF(isDown() ? 0.12 : 0.06);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(wash);
+            painter.drawRoundedRect(QRectF(rect()).adjusted(1, 1, -2, -1), 6, 6);
+        }
+        ink.setAlphaF(underMouse() ? 0.85 : 0.55);
+        const qreal y = height() / 2.0;
+        QPen pen(ink, 1.5);
+        pen.setCapStyle(Qt::RoundCap);
+        painter.setPen(pen);
+        painter.drawLine(QPointF(12, y), QPointF(22, y));
+        painter.drawLine(QPointF(17, y - 5), QPointF(17, y + 5));
+        painter.drawText(QRect(32, 0, width() - 36, height()), Qt::AlignLeft | Qt::AlignVCenter, text());
     }
 };
 
@@ -211,11 +301,12 @@ LayerBox::LayerBox()
                                   i18nc("{n} is the number value, % is the percent sign", "{n}%"));
 
     /**
-     * Blend mode and opacity belong to the selected layer, not to the panel:
-     * they go right under the list, next to each other. Layers are moved by
-     * dragging and their properties are a double click away, so the raise,
-     * lower and properties buttons go; filtering and the panel options join
-     * the button row.
+     * The list is the panel. The selected layer's row holds its blend mode
+     * and opacity; a strip above the list adds a layer, and so does a click
+     * between two rows, right there; a layer dragged off the panel is
+     * deleted; Ctrl+wheel sizes the rows. The rest (other kinds of layer,
+     * filtering, the list's settings) is in the right click menu: no
+     * buttons under the list. Their actions stay, with their shortcuts.
      */
     {
         Ui_WdgLayerBox *ui = m_wdgLayerBox;
@@ -226,27 +317,47 @@ LayerBox::LayerBox()
         ui->opacityLabel->hide();
         ui->verticalLayout->removeItem(ui->hbox2);
         ui->verticalLayout->removeItem(ui->opacityLayout);
-        // emptied and taken out: nothing owns them anymore
+        ui->verticalLayout->removeItem(ui->hbox1);
+        // emptied and taken out: nothing owns them anymore; their buttons stay, hidden, for their actions
         delete ui->hbox2;
         ui->hbox2 = nullptr;
         delete ui->opacityLayout;
         ui->opacityLayout = nullptr;
+        delete ui->hbox1;
+        ui->hbox1 = nullptr;
+        for (QWidget *button : std::initializer_list<QWidget *>{ui->bnAdd, ui->bnDuplicate, ui->bnRaise, ui->bnLower, ui->bnProperties,
+                                                                  ui->bnDelete, ui->bnLayerFilters, ui->configureLayerDockerToolbar}) {
+            button->hide();
+        }
 
-        auto *layerRow = new QHBoxLayout();
-        layerRow->setSpacing(6);
-        layerRow->addWidget(ui->cmbComposite, 1);
-        // a percentage next to the blend mode says what it is
+        // in the selected row, under the layer: see NodeDelegate::extraHeight()
+        ui->listLayers->setProperty("rowControls", true);
+        m_rowControls = new QWidget(ui->listLayers->viewport());
+        auto *row = new QHBoxLayout(m_rowControls);
+        row->setContentsMargins(6, 2, 8, 6);
+        row->setSpacing(6);
+        row->addWidget(ui->cmbComposite, 1);
         ui->doubleOpacity->setToolTip(i18nc("@info:tooltip", "Layer opacity"));
-        layerRow->addWidget(ui->doubleOpacity, 1);
-        ui->verticalLayout->insertLayout(ui->verticalLayout->indexOf(ui->horizontalLayout) + 1, layerRow);
         ui->doubleOpacity->setButtonSymbols(QAbstractSpinBox::NoButtons);
+        row->addWidget(ui->doubleOpacity, 1);
+        m_rowControls->hide();
+        ui->listLayers->viewport()->installEventFilter(this);
+        ui->listLayers->installEventFilter(this);
+        connect(ui->listLayers, &NodeView::draggedOff, this, [this]() {
+            if (m_removeAction) m_removeAction->trigger();
+        });
 
-        ui->bnRaise->hide();
-        ui->bnLower->hide();
-        ui->bnProperties->hide();
-        const int deleteIndex = ui->hbox1->indexOf(ui->bnDelete);
-        ui->hbox1->insertWidget(deleteIndex, ui->configureLayerDockerToolbar);
-        ui->hbox1->insertWidget(deleteIndex, ui->bnLayerFilters);
+        // a click between two rows adds a layer there
+        m_gapIndicator = new GapIndicator(ui->listLayers->viewport());
+        m_gapIndicator->hide();
+
+        // and so does the strip above the list: above the selected layer; other kinds on a right click
+        m_addStrip = new AddLayerStrip(mainWidget);
+        connect(m_addStrip, &QAbstractButton::clicked, this, &LayerBox::slotAddLayerBnClicked);
+        connect(m_addStrip, &QWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
+            m_newLayerMenu->popup(m_addStrip->mapToGlobal(pos));
+        });
+        ui->verticalLayout->insertWidget(listRow(ui), m_addStrip);
     }
 
     connect(m_wdgLayerBox->doubleOpacity, SIGNAL(valueChanged(qreal)), SLOT(slotOpacitySliderMoved(qreal)));
@@ -314,42 +425,19 @@ LayerBox::LayerBox()
             this, &LayerBox::slotAdjustCurrentBeforeRemoveRows);
 
 
-    //LayerFilter Menu
-    QMenu *layerFilterMenu = new QMenu(this);
-    m_wdgLayerBox->bnLayerFilters->setMenu(layerFilterMenu);
-    m_wdgLayerBox->bnLayerFilters->setPopupMode(QToolButton::InstantPopup);
-
-    const QIcon filterIcon = KisIconUtils::loadIcon("view-filter");
-    m_wdgLayerBox->bnLayerFilters->setIcon(filterIcon);
-    m_wdgLayerBox->bnLayerFilters->setAutoRaise(true);
-    QPixmap filterEnabledPixmap = filterIcon.pixmap(64,64);
-    const QBitmap filterEnabledBitmask = filterEnabledPixmap.mask();
-    filterEnabledPixmap.fill(palette().color(QPalette::Highlight));
-    filterEnabledPixmap.setMask(filterEnabledBitmask);
-    const QIcon filterEnabledIcon = QIcon(filterEnabledPixmap);
-
+    // filtering by name and color label: a row above the list, there while it filters
     layerFilterWidget = new KisLayerFilterWidget(this);
     connect(layerFilterWidget, SIGNAL(filteringOptionsChanged()), this, SLOT(updateLayerFiltering()));
-    connect(layerFilterWidget, &KisLayerFilterWidget::filteringOptionsChanged, [this, filterIcon, filterEnabledIcon](){
-        if (layerFilterWidget->isCurrentlyFiltering()) {
-            m_wdgLayerBox->bnLayerFilters->setIcon(filterEnabledIcon);
-        } else {
-            m_wdgLayerBox->bnLayerFilters->setIcon(filterIcon);
+    connect(layerFilterWidget, &KisLayerFilterWidget::filteringOptionsChanged, this, [this]() {
+        if (!layerFilterWidget->isCurrentlyFiltering() && !layerFilterWidget->isAncestorOf(QApplication::focusWidget())) {
+            layerFilterWidget->hide();
         }
-
-        auto activeColors = layerFilterWidget->getActiveColors();
-        m_wdgLayerBox->bnLayerFilters->setSelectedColors(QList(activeColors.begin(), activeColors.end()));
-        m_wdgLayerBox->bnLayerFilters->setTextFilter(layerFilterWidget->hasTextFilter());
     });
-
-    QWidgetAction *layerFilterMenuAction = new QWidgetAction(this);
-    layerFilterMenuAction->setDefaultWidget(layerFilterWidget);
-    layerFilterMenu->addAction(layerFilterMenuAction);
-
-
-    KisMenuStyleDontCloseOnAlt *menuStyle = new KisMenuStyleDontCloseOnAlt(layerFilterMenu->style());
-    menuStyle->setParent(layerFilterMenu);
-    layerFilterMenu->setStyle(menuStyle);
+    m_wdgLayerBox->verticalLayout->insertWidget(listRow(m_wdgLayerBox), layerFilterWidget);
+    layerFilterWidget->hide();
+    if (QLineEdit *field = layerFilterWidget->findChild<QLineEdit *>()) {
+        field->installEventFilter(this);
+    }
 
     setEnabled(false);
 
@@ -357,14 +445,10 @@ LayerBox::LayerBox()
 
 
     // set up the configure menu for changing thumbnail size
-    QMenu* configureMenu = new QMenu(this);
+    QMenu* configureMenu = new QMenu(i18nc("@item:inmenu the layers list's look", "List"), this);
     configureMenu->setContentsMargins(6, 6, 6, 6);
     configureMenu->addSection(i18n("Thumbnail Size"));
-
-    m_wdgLayerBox->configureLayerDockerToolbar->setMenu(configureMenu);
-    m_wdgLayerBox->configureLayerDockerToolbar->setIconSize(QSize(16, 16));
-    m_wdgLayerBox->configureLayerDockerToolbar->setPopupMode(QToolButton::InstantPopup);
-    m_wdgLayerBox->configureLayerDockerToolbar->setAutoRaise(true);
+    m_configureMenu = configureMenu;
 
 
     // add horizontal slider
@@ -849,15 +933,166 @@ void LayerBox::slotUpdateOpacitySlider(quint8 value) {
 
 void LayerBox::slotContextMenuRequested(const QPoint &pos, const QModelIndex &index)
 {
+    if (!m_canvas || !m_nodeManager) return;
     KisNodeList nodes = m_nodeManager->selectedNodes();
     KisNodeSP activeNode = m_nodeManager->activeNode();
-    if (nodes.isEmpty() || !activeNode) return;
 
-    if (m_canvas) {
-        QMenu menu;
-        updateLayerOpMenu(index, menu);
-        menu.exec(pos);
+    QMenu menu;
+    // what the "+" and its menu were: a layer here, or another kind of layer
+    menu.addAction(KisIconUtils::loadIcon("addlayer"), i18nc("@action:inmenu", "New Layer Above"), this, &LayerBox::slotAddLayerBnClicked);
+    if (index.isValid()) {
+        menu.addAction(i18nc("@action:inmenu", "New Layer Below"), this, &LayerBox::addLayerBelow);
     }
+    QMenu *kinds = menu.addMenu(i18nc("@title:menu other kinds of layer", "New"));
+    kinds->addActions(m_newLayerMenu->actions());
+    menu.addSeparator();
+
+    if (index.isValid() && !nodes.isEmpty() && activeNode) {
+        updateLayerOpMenu(index, menu);
+    } else {
+        // the list itself
+        menu.addAction(KisIconUtils::loadIcon("view-filter"), i18nc("@action:inmenu", "Filter Layers (Ctrl+F)"), this,
+                       [this]() { startFiltering(QString()); });
+        menu.addMenu(m_configureMenu);
+    }
+    menu.exec(pos);
+}
+
+void LayerBox::addLayerBelow()
+{
+    // a new layer goes above the selected one: then one step down
+    slotAddLayerBnClicked();
+    if (m_canvas) {
+        if (KisAction *down = m_canvas->viewManager()->actionManager()->actionByName("move_layer_down")) {
+            down->trigger();
+        }
+    }
+}
+
+void LayerBox::addLayerAbove(const QModelIndex &index)
+{
+    // a new layer goes above the selected one: select the one it goes above first
+    NodeView *view = m_wdgLayerBox->listLayers;
+    view->setCurrentIndex(index);
+    view->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    slotAddLayerBnClicked();
+}
+
+void LayerBox::startFiltering(const QString &typed)
+{
+    layerFilterWidget->show();
+    layerFilterWidget->startTextFilter(typed);
+}
+
+void LayerBox::placeRowControls()
+{
+    NodeView *view = m_wdgLayerBox->listLayers;
+    const QModelIndex current = view->currentIndex();
+    const QModelIndex main = current.isValid() ? current.sibling(current.row(), NodeView::DEFAULT_COL) : QModelIndex();
+    const QRect row = main.isValid() ? view->visualRect(main) : QRect();
+    if (!m_canvas || row.isEmpty() || !view->viewport()->rect().intersects(row)) {
+        if (m_rowControls->isVisible()) m_rowControls->hide();
+        return;
+    }
+    const QRect rect(row.left(), row.bottom() + 1 - NodeDelegate::rowControlsHeight,
+                     view->viewport()->width() - row.left(), NodeDelegate::rowControlsHeight);
+    if (m_rowControls->geometry() != rect) m_rowControls->setGeometry(rect);
+    if (!m_rowControls->isVisible()) m_rowControls->show();
+}
+
+QModelIndex LayerBox::gapAt(const QPoint &pos, int *gapY) const
+{
+    // within a few pixels of the line between two rows: the row under it, which the new layer goes above
+    NodeView *view = m_wdgLayerBox->listLayers;
+    const QModelIndex at = static_cast<QAbstractItemView *>(view)->indexAt(pos);
+    if (!at.isValid()) return QModelIndex();
+    const QModelIndex main = at.sibling(at.row(), NodeView::DEFAULT_COL);
+    const QRect row = view->visualRect(main);
+    const int band = 3;
+    if (pos.y() - row.top() <= band) {
+        *gapY = row.top();
+        return main;
+    }
+    if (row.bottom() - pos.y() <= band) {
+        const QModelIndex below = view->indexBelow(main);
+        if (below.isValid()) {
+            *gapY = row.bottom() + 1;
+            return below.sibling(below.row(), NodeView::DEFAULT_COL);
+        }
+    }
+    return QModelIndex();
+}
+
+bool LayerBox::eventFilter(QObject *watched, QEvent *event)
+{
+    NodeView *view = m_wdgLayerBox->listLayers;
+    if (watched == view->viewport()) {
+        switch (event->type()) {
+        case QEvent::Paint:
+            // scrolled, resized, another layer selected, rows added: the controls follow the row
+            placeRowControls();
+            break;
+        case QEvent::MouseMove: {
+            auto *mouse = static_cast<QMouseEvent *>(event);
+            int y = 0;
+            // a mouse only: a finger has the strip and "New Layer Above/Below" in its menu
+            const QModelIndex gap = (mouse->buttons() == Qt::NoButton && mouse->source() == Qt::MouseEventNotSynthesized)
+                                        ? gapAt(mouse->pos(), &y) : QModelIndex();
+            m_gapIndex = gap;
+            if (gap.isValid()) {
+                const QRect row = view->visualRect(gap);
+                m_gapIndicator->setGeometry(row.left(), y - 6, view->viewport()->width() - row.left(), 12);
+                m_gapIndicator->show();
+                m_gapIndicator->raise();
+            } else {
+                m_gapIndicator->hide();
+            }
+            break;
+        }
+        case QEvent::Leave:
+            m_gapIndicator->hide();
+            m_gapIndex = QModelIndex();
+            break;
+        case QEvent::MouseButtonPress: {
+            auto *mouse = static_cast<QMouseEvent *>(event);
+            int y = 0;
+            if (mouse->button() == Qt::LeftButton && m_gapIndicator->isVisible() && m_gapIndex.isValid()
+                && gapAt(mouse->pos(), &y).isValid()) {
+                const QModelIndex gap = m_gapIndex;
+                m_gapIndicator->hide();
+                addLayerAbove(gap);
+                return true;
+            }
+            break;
+        }
+        case QEvent::Wheel: {
+            // Ctrl+wheel: smaller or larger rows, as the list's settings set them
+            auto *wheel = static_cast<QWheelEvent *>(event);
+            if (wheel->modifiers() & Qt::ControlModifier) {
+                const int steps = wheel->angleDelta().y() / 120;
+                if (steps) thumbnailSizeSlider->setValue(thumbnailSizeSlider->value() + 5 * steps);
+                return true;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    } else if (watched == view && event->type() == QEvent::KeyPress) {
+        auto *key = static_cast<QKeyEvent *>(event);
+        if (key->key() == Qt::Key_F && key->modifiers() == Qt::ControlModifier) {
+            startFiltering(QString());
+            return true;
+        }
+    } else if (event->type() == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape
+               && layerFilterWidget->isAncestorOf(qobject_cast<QWidget *>(watched))) {
+        // Escape: no filter, back to the list
+        layerFilterWidget->reset();
+        layerFilterWidget->hide();
+        view->setFocus();
+        return true;
+    }
+    return QDockWidget::eventFilter(watched, event);
 }
 
 void LayerBox::slotRmClicked()

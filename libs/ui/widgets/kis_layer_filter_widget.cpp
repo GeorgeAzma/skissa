@@ -119,6 +119,12 @@ bool KisLayerFilterWidget::isCurrentlyFiltering() const
     return isFilteringText || isFilteringColors;
 }
 
+void KisLayerFilterWidget::startTextFilter(const QString &typed)
+{
+    textFilter->setFocus();
+    textFilter->setText(textFilter->text() + typed);
+}
+
 bool KisLayerFilterWidget::hasTextFilter() const
 {
     return !textFilter->text().isEmpty();

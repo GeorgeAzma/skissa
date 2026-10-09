@@ -13,6 +13,7 @@
 
 #include <QList>
 #include <QDockWidget>
+#include <QPersistentModelIndex>
 #include <QPointer>
 
 #include <kis_debug.h>
@@ -80,6 +81,7 @@ public:
 protected:
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private Q_SLOTS:
 
@@ -147,6 +149,14 @@ Q_SIGNALS:
 
 private:
     inline void connectActionToButton(KisViewManager* view, QAbstractButton *button, const QString &id);
+    void addLayerBelow();
+    /// A new layer right above the layer at \p index
+    void addLayerAbove(const QModelIndex &index);
+    void startFiltering(const QString &typed);
+    /// The selected row's blend mode and opacity, in the row, under the layer
+    void placeRowControls();
+    /// The row under the line between two rows at \p pos, if it is near one; \p gapY is the line
+    QModelIndex gapAt(const QPoint &pos, int *gapY) const;
     inline void addActionToMenu(QMenu *menu, const QString &id);
     // reimp from KisNodeManager
     qint32 convertOpacityToInt(qreal opacity);
@@ -195,6 +205,12 @@ private:
     KisNodeWSP m_savedNodeBeforeEditSelectionMode;
     KisSignalAutoConnectionsStore m_activeNodeConnections;
     QScopedPointer<KisScreenMigrationTracker> m_screenMigrationTracker;
+    QWidget *m_rowControls {nullptr};
+    QWidget *m_gapIndicator {nullptr};
+    QPersistentModelIndex m_gapIndex;
+    QAbstractButton *m_addStrip {nullptr};
+    /// The list's settings: thumbnail size, indentation, info text
+    QMenu *m_configureMenu {nullptr};
 };
 
 class KRITALAYERDOCKER_EXPORT LayerBoxFactory : public KoDockFactoryBase

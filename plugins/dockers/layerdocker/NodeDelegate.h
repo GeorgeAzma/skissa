@@ -38,6 +38,11 @@ public:
 
     void toggleSolo(const QModelIndex &index);
 
+    /// The selected layer's row holds its blend mode and opacity under it: this much taller
+    static constexpr int rowControlsHeight = 34;
+    /// The height of the row's own content: the selected row is taller than that by rowControlsHeight
+    int extraHeight(const QModelIndex &index) const;
+
     void slotUpdateIcon();
 
 Q_SIGNALS:
