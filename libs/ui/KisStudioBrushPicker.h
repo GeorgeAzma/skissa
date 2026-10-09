@@ -38,6 +38,10 @@ public:
     static QString neighbour(KisMainWindow *mainWindow, const QString &current, int step);
     /// Makes the brush with that name the current one
     static void use(KisViewManager *view, const QString &presetName);
+    /// A stroke the brush painted for the picker, if it painted one yet (in whatever color it was then)
+    static QImage strokePicture(const QString &presetName);
+    /// Your brushes, in your order
+    static QStringList yourBrushes();
 
 private:
     /// The strokes exist before the picker: its Source paints them

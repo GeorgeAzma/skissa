@@ -351,6 +351,13 @@ QHash<QString, QImage> &strokeCache()
     return cache;
 }
 
+/// The last stroke painted for each brush, whatever the color: for showing a brush elsewhere (the canvas ring)
+QHash<QString, QImage> &latestStrokes()
+{
+    static QHash<QString, QImage> latest;
+    return latest;
+}
+
 QString &strokeCacheStamp()
 {
     static QString stamp;
@@ -475,6 +482,7 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
             for (auto it = d->strokes->made.constBegin(); it != d->strokes->made.constEnd(); ++it) {
                 d->strokes->shown.insert(it.key(), it.value());
                 strokeCache().insert(d->catalog->brushes.value(it.key()).md5 + it.key(), it.value());
+                latestStrokes().insert(it.key(), it.value());
                 any = true;
             }
             d->strokes->made.clear();
@@ -584,4 +592,14 @@ void KisStudioBrushPicker::use(KisViewManager *view, const QString &presetName)
     if (preset) {
         resources->setPaintOpPreset(preset);
     }
+}
+
+QImage KisStudioBrushPicker::strokePicture(const QString &presetName)
+{
+    return latestStrokes().value(presetName);
+}
+
+QStringList KisStudioBrushPicker::yourBrushes()
+{
+    return pinnedIds(brushSource(loadCatalog(), nullptr));
 }
