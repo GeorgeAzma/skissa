@@ -11,6 +11,7 @@
 #include <QApplication>
 #include <QDateTime>
 #include <QDockWidget>
+#include <QContextMenuEvent>
 #include <QDrag>
 #include <QMimeData>
 #include <QScopeGuard>
@@ -1093,9 +1094,9 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == d->list->viewport()) {
         auto *mouse = static_cast<QMouseEvent *>(event);
-        if (event->type() == QEvent::MouseButtonPress && mouse->button() == Qt::RightButton) {
-            // a result's card: its shortcut, and a place on the tools panel
-            const QModelIndex at = d->list->indexAt(mouse->pos());
+        if (event->type() == QEvent::ContextMenu) {
+            // a result's card (right click, or a finger or pen held on it): its shortcut, and a place on the tools panel
+            const QModelIndex at = d->list->indexAt(static_cast<QContextMenuEvent *>(event)->pos());
             const int index = at.data(EntryRole).isValid() ? at.data(EntryRole).toInt() : -1;
             if (index >= 0 && index < d->entries.size() && !d->entries[index].key.isEmpty()) {
                 const Entry entry = d->entries[index];

@@ -90,15 +90,6 @@ public:
         setAcceptDrops(true);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-        m_longPress.setSingleShot(true);
-        m_longPress.setInterval(450);
-        QObject::connect(&m_longPress, &QTimer::timeout, this, [this]() {
-            if (isOccupied(m_press)) {
-                m_longPressed = true;
-                requestCard(m_press);
-            }
-        });
-
         // the palette changes underneath: added, removed, moved, another one loaded
         auto changed = [this]() { relayout(); };
         QObject::connect(model, &QAbstractItemModel::dataChanged, this, changed);
@@ -299,15 +290,7 @@ protected:
         m_pressScroll = m_scroll;
         m_press = indexAt(event->pos());
         m_pressOnPlus = m_plus.contains(event->pos() + QPoint(0, m_scroll));
-        m_longPressed = false;
         m_scrolling = false;
-        if (event->button() == Qt::RightButton) {
-            if (isOccupied(m_press)) requestCard(m_press);
-            return;
-        }
-        if (event->button() == Qt::LeftButton && isOccupied(m_press)) {
-            m_longPress.start();
-        }
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
@@ -323,14 +306,13 @@ protected:
             }
             return;
         }
-        if (m_longPressed || m_scrolling) {
-            if (m_scrolling) setScroll(m_pressScroll - (event->pos().y() - m_pressPos.y()));
+        if (m_scrolling) {
+            setScroll(m_pressScroll - (event->pos().y() - m_pressPos.y()));
             return;
         }
         if ((event->pos() - m_pressPos).manhattanLength() < QApplication::startDragDistance()) {
             return;
         }
-        m_longPress.stop();
         if (isOccupied(m_press) && editable && editable()) {
             startDrag();
         } else if (!m_pressOnPlus) {
@@ -341,8 +323,7 @@ protected:
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
-        m_longPress.stop();
-        if (event->button() != Qt::LeftButton || m_longPressed || m_scrolling) {
+        if (event->button() != Qt::LeftButton || m_scrolling) {
             m_scrolling = false;
             return;
         }
@@ -353,10 +334,13 @@ protected:
         }
     }
 
+    // a right click, or a finger or pen held on a swatch (KisTouchMode): its card
     void contextMenuEvent(QContextMenuEvent *event) override
     {
         // the card is the menu: not the main window's toolbar menu behind the panel
         event->accept();
+        const QModelIndex index = indexAt(event->pos());
+        if (isOccupied(index)) requestCard(index);
     }
 
     void leaveEvent(QEvent *) override
@@ -502,11 +486,9 @@ private:
     QPoint m_pressPos;
     int m_pressScroll {0};
     bool m_pressOnPlus {false};
-    bool m_longPressed {false};
     bool m_scrolling {false};
     bool m_dragging {false};
     QRect m_dropRect;
-    QTimer m_longPress;
 };
 
 PaletteDockerDock::PaletteDockerDock( )

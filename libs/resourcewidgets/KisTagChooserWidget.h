@@ -23,9 +23,11 @@
  * renamed and deleted where they are:
  * - "+" next to the box turns it into a field for the new tag's name
  *   (Enter makes it, Escape or clicking elsewhere does not);
- * - in the list, a right click on a tag renames it in place;
- * - a tag under the pointer shows a delete button on its right; for a few
- *   seconds after, the "+" is an undo button that brings it back.
+ * - in the list, a right click on a tag (or holding a finger or pen on it)
+ *   renames it in place;
+ * - a tag under the pointer (every tag, while a finger is used) shows a
+ *   delete button on its right; for a few seconds after, the "+" is an undo
+ *   button that brings it back.
  * Tags Krita makes itself ("All", "All Untagged") cannot be renamed or deleted.
  * All the logic for adding and removing tags is done through KisTagModel.
  */

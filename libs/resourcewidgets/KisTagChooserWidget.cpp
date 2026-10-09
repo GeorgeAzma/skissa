@@ -15,6 +15,7 @@
 
 #include <QAbstractItemView>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -35,6 +36,7 @@
 #include <kis_assert.h>
 
 #include <KoIcon.h>
+#include <KisTouchMode.h>
 
 #include <KisTagResourceModel.h>
 
@@ -57,9 +59,9 @@ public:
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
     {
         QStyledItemDelegate::paint(painter, option, index);
-        // the list makes the row under the pointer the current one
+        // the list makes the row under the pointer the current one; a finger points at none, so all show it
         const bool pointed = option.state & (QStyle::State_MouseOver | QStyle::State_Selected);
-        if (pointed && deletable && deletable(index)) {
+        if ((pointed || KisTouchMode::isActive()) && deletable && deletable(index)) {
             koIcon("edit-delete").paint(painter, deleteButtonRect(option.rect).adjusted(1, 1, -1, -1));
         }
     }
@@ -268,9 +270,12 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
     if (watched == d->comboBox->view()->viewport()) {
         QAbstractItemView *view = d->comboBox->view();
         switch (event->type()) {
-        case QEvent::ContextMenu:
-            // a right click renames, see below
+        case QEvent::ContextMenu: {
+            // a right click, or a finger or pen held on a tag (KisTouchMode): rename it there
+            const QModelIndex index = view->indexAt(static_cast<QContextMenuEvent *>(event)->pos());
+            if (index.isValid()) startRename(index);
             return true;
+        }
         case QEvent::MouseButtonPress:
         case QEvent::MouseButtonRelease:
         case QEvent::MouseButtonDblClick: {
@@ -280,7 +285,7 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
                 break;
             }
             if (mouse->button() == Qt::RightButton) {
-                if (event->type() == QEvent::MouseButtonPress) startRename(index);
+                // not a choice: the context menu event that follows renames
                 return true;
             }
             KisTagSP tag = d->model->tagForIndex(index);

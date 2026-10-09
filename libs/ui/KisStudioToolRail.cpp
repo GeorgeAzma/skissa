@@ -34,6 +34,7 @@
 
 #include "KisMainWindow.h"
 #include "KisStudioMotion.h"
+#include "KisTouchMode.h"
 #include "KisResourceServerProvider.h"
 #include "KisStudioFind.h"
 #include "KisStudioItemCard.h"
@@ -145,14 +146,6 @@ public:
         setFixedSize(40, 40);
         setIconSize(QSize(22, 22));
         setFocusPolicy(Qt::NoFocus);
-        setContextMenuPolicy(Qt::PreventContextMenu);
-        m_holdTimer.setSingleShot(true);
-        m_holdTimer.setInterval(450);
-        QObject::connect(&m_holdTimer, &QTimer::timeout, this, [this]() {
-            m_held = true;
-            setDown(false);
-            if (onCard) onCard();
-        });
     }
 
     std::function<void()> onCard;
@@ -163,24 +156,23 @@ public:
 protected:
     void mousePressEvent(QMouseEvent *event) override
     {
-        if (event->button() == Qt::RightButton) {
-            if (onCard) onCard();
-            return;
-        }
         if (event->button() == Qt::LeftButton) {
-            m_held = false;
             m_dragged = false;
             m_pressPos = event->pos();
-            m_holdTimer.start();
         }
         QToolButton::mousePressEvent(event);
     }
 
+    // a right click, or a finger or pen held on it (KisTouchMode)
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        event->accept();
+        if (onCard) onCard();
+    }
+
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (!m_held && !m_dragged && isDrag(event, m_pressPos)) {
-            // all this before the drag, whose event loop would let the hold timer fire
-            m_holdTimer.stop();
+        if (!m_dragged && isDrag(event, m_pressPos)) {
             m_dragged = true;
             setDown(false);
             if (onDrag) onDrag();
@@ -191,10 +183,8 @@ protected:
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
-        m_holdTimer.stop();
-        if (m_held || m_dragged) {
-            // the hold showed the card or the drag moved it: not a click
-            m_held = false;
+        if (m_dragged) {
+            // the drag moved it: not a click
             m_dragged = false;
             setDown(false);
             event->accept();
@@ -233,9 +223,7 @@ protected:
     }
 
 private:
-    QTimer m_holdTimer;
     QPoint m_pressPos;
-    bool m_held {false};
     bool m_dragged {false};
 };
 
@@ -298,7 +286,8 @@ protected:
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
-        if (m_dragged || event->button() != Qt::LeftButton) {
+        // let go elsewhere (or a long press, see KisTouchMode): not a click
+        if (m_dragged || event->button() != Qt::LeftButton || !rect().contains(event->pos())) {
             m_dragged = false;
             return;
         }
@@ -545,6 +534,7 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     d->plusHide->setSingleShot(true);
     d->plusHide->setInterval(300);
     connect(d->plusHide, &QTimer::timeout, this, &KisStudioToolRail::updatePlus);
+    connect(KisTouchMode::instance(), &KisTouchMode::changed, this, &KisStudioToolRail::updatePlus);
     d->plus->left = [this]() { d->plusHide->start(); };
     connect(d->plus, &QToolButton::clicked, this, [this]() {
         if (KisStudioFind *find = d->mainWindow->studioFind()) {
@@ -661,7 +651,8 @@ void KisStudioToolRail::updatePlus()
         d->plus->setParent(area);
     }
     // there when it can be used: the panel or the "+" pointed at, or nothing on the rail yet
-    const bool show = area && isVisible() && (d->widgets.isEmpty() || d->hovered || d->plus->underMouse());
+    // a finger cannot point at it: while one is used, it is always there
+    const bool show = area && isVisible() && (d->widgets.isEmpty() || d->hovered || d->plus->underMouse() || KisTouchMode::isActive());
     if (show) {
         d->plus->move(panel->geometry().center().x() - d->plus->width() / 2, panel->geometry().bottom() + 6);
         d->plus->raise();
@@ -954,6 +945,14 @@ void KisStudioToolRail::showCard(int index)
         card = new KisStudioItemCard(d->mainWindow, item.icon, item.title, d->shortcutActionFor(key));
     }
 
+    // what clicking between two buttons does, for fingers that cannot hit the gap
+    card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")),
+                      i18nc("@info:tooltip", "Add a space above it (or click between two buttons)"),
+                      [this, index]() {
+                          QStringList items = d->items;
+                          items.insert(qBound(0, index, items.size()), spacePrefix);
+                          QTimer::singleShot(0, this, [this, items]() { setItems(items); });
+                      }});
     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")),
                       i18nc("@info:tooltip", "Take off the rail (or drag it off)"),
                       [this, index, key]() {

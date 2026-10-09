@@ -72,6 +72,7 @@
 #include "kis_workspace_resource.h"
 #include "KisUiFont.h"
 #include "KisModernStyle.h"
+#include "KisTouchMode.h"
 #include "kis_config.h"
 #include "kis_icon_utils.h"
 
@@ -144,11 +145,14 @@ public:
     {
         setAttribute(Qt::WA_Hover);
         setCursor(Qt::OpenHandCursor);
-        setFixedHeight(10);
         setToolTip(i18nc("@info:tooltip", "Drag to move the panel, right click for more"));
+        // a finger needs more to hold on to
+        auto fit = [this]() { setFixedHeight(KisTouchMode::isActive() ? 22 : 10); };
+        fit();
+        QObject::connect(KisTouchMode::instance(), &KisTouchMode::changed, this, fit);
     }
 
-    QSize sizeHint() const override { return QSize(40, 10); }
+    QSize sizeHint() const override { return QSize(40, height()); }
 
 protected:
     void paintEvent(QPaintEvent *) override

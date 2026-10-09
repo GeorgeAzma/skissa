@@ -48,6 +48,7 @@ set(kritawidgetutils_LIB_SRCS
     KisRepaintDebugger.cpp
     KisMenuStyleDontCloseOnAlt.cpp
     KisModernStyle.cpp
+    KisTouchMode.cpp
     KisSpinBoxI18nHelper.cpp
     KisScreenMigrationTracker.cpp
     KisRootSurfaceTrackerBase.cpp

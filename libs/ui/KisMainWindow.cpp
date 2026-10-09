@@ -160,6 +160,7 @@
 #include "KisModernStyle.h"
 #include "KisStudioColorPanel.h"
 #include "KisStudioLayout.h"
+#include "KisTouchMode.h"
 #include "KisStudioFind.h"
 #include <config-qmdiarea-always-show-subwindow-title.h>
 #include <config-qt-patches-present.h>
@@ -514,6 +515,8 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     d->canvasWindow = new KisCanvasWindow(this);
     actionCollection()->addAssociatedWidget(d->canvasWindow);
 
+    // fingers: no hover, and a long press is a right click, see KisTouchMode
+    KisTouchMode::install();
     d->studioLayout = new KisStudioLayout(this);
     connect(this, &KisMainWindow::restoringDone, d->studioLayout, &KisStudioLayout::normalize);
 

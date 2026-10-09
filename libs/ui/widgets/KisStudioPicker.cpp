@@ -7,11 +7,13 @@
 
 #include "KisPopupCloser.h"
 #include "KisStudioMotion.h"
+#include "KisTouchMode.h"
 #include "kis_config.h"
 
 #include <QAbstractButton>
 #include <QApplication>
 #include <QGuiApplication>
+#include <QContextMenuEvent>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
@@ -159,9 +161,12 @@ struct KisStudioPicker::Private
 namespace {
 
 /**
- * The painted items inside the picker. A press and a release picks, a press
- * and a drag moves the item: within your list to reorder it, into it to add
- * it, out of it to take it off.
+ * The painted items inside the picker. With a mouse or a pen: a click picks,
+ * a drag moves the item (within your list to reorder it, into it to add it,
+ * out of it to take it off), a right click adds it to your list or takes it
+ * off. With a finger (KisTouchMode), which does not hover: a tap picks, a
+ * swipe scrolls, and holding previews the item; let go to pick it, or move
+ * to carry it like a drag. Every item shows its star then.
  */
 class Grid : public QWidget
 {
@@ -169,6 +174,16 @@ public:
     explicit Grid(KisStudioPicker::Private *d) : QWidget(nullptr), m_d(d)
     {
         setMouseTracking(true);
+        // holding means more than a right click here, see above
+        setProperty("ownLongPress", true);
+        m_hold.setSingleShot(true);
+        m_hold.setInterval(KisTouchMode::longPressDelay);
+        QObject::connect(&m_hold, &QTimer::timeout, this, [this]() {
+            if (m_press < 0) return;
+            m_lifted = true;
+            m_d->point(m_press);
+        });
+        QObject::connect(KisTouchMode::instance(), &KisTouchMode::changed, this, [this]() { update(); });
     }
 
 protected:
@@ -256,7 +271,7 @@ protected:
             // the star of the one pointed at: full for yours, empty for the others; among search
             // matches and recent ones yours always show theirs, as there is no other way to tell
             const bool pinned = item.order >= 0 || m_d->pinned.contains(item.id);
-            if (highlighted || (pinned && item.order < 0)) {
+            if (highlighted || (pinned && item.order < 0) || KisTouchMode::isActive()) {
                 const QRectF star = starRect(item.rect, tiles);
                 if (tiles) {
                     painter.setPen(Qt::NoPen);
@@ -310,10 +325,47 @@ protected:
     {
         m_press = event->button() == Qt::LeftButton ? itemAt(event->pos()) : -1;
         m_pressPos = event->pos();
+        m_pressGlobal = event->globalPos();
+        m_touch = KisTouchMode::isActive() && event->source() != Qt::MouseEventNotSynthesized && event->button() == Qt::LeftButton;
+        m_lifted = false;
+        m_scrolling = false;
+        if (m_touch) {
+            m_pressScroll = m_d->scroll->verticalScrollBar()->value();
+            if (m_press >= 0 && !m_d->searching()) m_hold.start();
+        }
+    }
+
+    // a right click: into your list, or off it
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        event->accept();
+        const int index = itemAt(event->pos());
+        if (index >= 0) togglePinned(m_d->items[index].id);
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
+        if (m_touch && (event->buttons() & Qt::LeftButton)) {
+            const QPoint moved = event->globalPos() - m_pressGlobal;
+            if (m_dragging < 0 && moved.manhattanLength() > QApplication::startDragDistance()) {
+                m_hold.stop();
+                if (m_lifted && m_press >= 0) {
+                    // held, then moved: carried like a drag
+                    m_dragging = m_press;
+                    m_d->point(-1);
+                } else {
+                    m_scrolling = true;
+                }
+            }
+            if (m_dragging >= 0) {
+                m_pointer = event->pos();
+                updateDrop();
+                update();
+            } else if (m_scrolling) {
+                m_d->scroll->verticalScrollBar()->setValue(m_pressScroll - moved.y());
+            }
+            return;
+        }
         if (m_press >= 0 && (event->buttons() & Qt::LeftButton)) {
             if (m_dragging < 0 && (event->pos() - m_pressPos).manhattanLength() >= QApplication::startDragDistance()
                 && !m_d->searching()) {
@@ -338,28 +390,46 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override
     {
         const int pressed = m_press;
+        const bool touch = m_touch;
+        const bool scrolled = m_scrolling;
         m_press = -1;
+        m_touch = false;
+        m_scrolling = false;
+        m_hold.stop();
         if (m_dragging >= 0) {
             drop();
             return;
         }
+        if (scrolled) {
+            return;
+        }
         const int index = itemAt(event->pos());
         if (index < 0 || index != pressed || event->button() != Qt::LeftButton) {
+            // a finger lifted elsewhere: whatever it was previewing is not wanted
+            if (touch) {
+                m_d->point(-1);
+                Q_EMIT m_d->q->sigPreview(QString());
+            }
             return;
         }
         // the star adds it to your list or takes it off, the rest picks it
         const Item &item = m_d->items[index];
-        if (starRect(item.rect, m_d->source.tiles).adjusted(-4, -6, 4, 6).contains(event->pos())) {
-            QStringList pinned = m_d->pinned;
-            if (pinned.contains(item.id)) pinned.removeAll(item.id);
-            else pinned << item.id;
-            m_d->setPinned(pinned);
+        if (!m_lifted && starRect(item.rect, m_d->source.tiles).adjusted(-4, -6, 4, 6).contains(event->pos())) {
+            togglePinned(item.id);
             return;
         }
         m_d->pick(index);
     }
 
 private:
+    void togglePinned(const QString &id)
+    {
+        QStringList pinned = m_d->pinned;
+        if (pinned.contains(id)) pinned.removeAll(id);
+        else pinned << id;
+        m_d->setPinned(pinned);
+    }
+
     int itemAt(const QPoint &pos) const
     {
         for (int i = 0; i < m_d->items.size(); i++) {
@@ -434,6 +504,13 @@ private:
     KisStudioPicker::Private *m_d;
     int m_press {-1};
     QPoint m_pressPos;
+    QPoint m_pressGlobal;
+    int m_pressScroll {0};
+    /// A finger, see the class comment
+    bool m_touch {false};
+    bool m_lifted {false};
+    bool m_scrolling {false};
+    QTimer m_hold;
     int m_dragging {-1};
     QPoint m_pointer;
     int m_dropAt {-1};       ///< the place in your list it would take
