@@ -69,8 +69,10 @@
 #  include <QtGui/private/qguiapplication_p.h>
 #  include <QtGui/qpa/qplatformintegration.h>
 #endif
+#include <QtGui/qpa/qwindowsysteminterface.h>
 #include <windows.h>
 #include <winuser.h>
+#include <windowsx.h>
 #include <dialogs/KisDlgCustomTabletResolution.h>
 #include "config-high-dpi-scale-factor-rounding-policy.h"
 #include "config-set-has-border-in-full-screen-default.h"
@@ -153,18 +155,24 @@ public:
 #endif
     {
         static const UINT captureMessage = RegisterWindowMessageW(L"KritaDevCapture");
-        if (static_cast<MSG *>(message)->message != captureMessage) {
-            return false;
+        static const UINT mouseMessage = RegisterWindowMessageW(L"KritaDevMouse");
+        const MSG *msg = static_cast<MSG *>(message);
+        if (msg->message == captureMessage) {
+            capture();
+            return true;
         }
-        capture();
-        return true;
+        if (msg->message == mouseMessage) {
+            mouse(int(msg->wParam), QPoint(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam)));
+            return true;
+        }
+        return false;
     }
 
 private:
-    static void capture()
+    /// The visible windows, the main window first and popups last, and the rectangle around them
+    static QList<QWidget *> visibleWindows(QRect &bounds)
     {
         QList<QWidget *> windows;
-        QRect bounds;
         // minimized windows too, they keep their size and render all the same
         Q_FOREACH (QWidget *window, QApplication::topLevelWidgets()) {
             if (window->isVisible()) {
@@ -172,11 +180,6 @@ private:
                 bounds |= window->geometry();
             }
         }
-        if (windows.isEmpty()) {
-            return;
-        }
-
-        // the main window at the bottom, popups on top
         auto layer = [](QWidget *window) {
             if (qobject_cast<KisMainWindow *>(window)) return 0;
             switch (window->windowType()) {
@@ -187,6 +190,16 @@ private:
             }
         };
         std::stable_sort(windows.begin(), windows.end(), [&](QWidget *a, QWidget *b) { return layer(a) < layer(b); });
+        return windows;
+    }
+
+    static void capture()
+    {
+        QRect bounds;
+        const QList<QWidget *> windows = visibleWindows(bounds);
+        if (windows.isEmpty()) {
+            return;
+        }
 
         const qreal dpr = windows.first()->devicePixelRatioF();
         QImage image(bounds.size() * dpr, QImage::Format_ARGB32_Premultiplied);
@@ -208,6 +221,51 @@ private:
             QFile::remove(path);
             QFile::rename(partial, path);
         }
+    }
+
+    /**
+     * A posted "KritaDevMouse" message is mouse input at a point of the
+     * capture image (lParam: x, y), through Qt's input queue like real input,
+     * so that grabs, hovering and popups behave as they do with a mouse. It
+     * does not move the system cursor or take the focus. wParam: 0 move,
+     * 1/2 left press/release, 3/4 right press/release, 5/6 wheel up/down.
+     */
+    static void mouse(int action, const QPoint &imagePos)
+    {
+        static Qt::MouseButtons buttons;
+        QRect bounds;
+        const QList<QWidget *> windows = visibleWindows(bounds);
+        if (windows.isEmpty()) {
+            return;
+        }
+        const qreal dpr = windows.first()->devicePixelRatioF();
+        const QPointF global = QPointF(bounds.topLeft()) + QPointF(imagePos) / dpr;
+
+        // the topmost window there
+        QWidget *target = nullptr;
+        for (int i = windows.size() - 1; i >= 0 && !target; i--) {
+            if (QRectF(windows[i]->geometry()).contains(global)) target = windows[i];
+        }
+        if (!target || !target->windowHandle()) {
+            return;
+        }
+        QWindow *window = target->windowHandle();
+        const QPointF local = global - QPointF(target->geometry().topLeft());
+
+        Qt::MouseButton button = Qt::NoButton;
+        QEvent::Type type = QEvent::MouseMove;
+        switch (action) {
+        case 1: button = Qt::LeftButton; type = QEvent::MouseButtonPress; buttons |= button; break;
+        case 2: button = Qt::LeftButton; type = QEvent::MouseButtonRelease; buttons &= ~button; break;
+        case 3: button = Qt::RightButton; type = QEvent::MouseButtonPress; buttons |= button; break;
+        case 4: button = Qt::RightButton; type = QEvent::MouseButtonRelease; buttons &= ~button; break;
+        case 5:
+        case 6:
+            QWindowSystemInterface::handleWheelEvent(window, local, global, QPoint(), QPoint(0, action == 5 ? 120 : -120));
+            return;
+        default: break;
+        }
+        QWindowSystemInterface::handleMouseEvent(window, local, global, buttons, button, type);
     }
 };
 } // namespace
