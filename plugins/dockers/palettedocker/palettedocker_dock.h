@@ -28,6 +28,7 @@ class KisPaletteModel;
 class KisPaletteEditor;
 class KisPopupButton;
 class PaletteGrid;
+class RecentStrip;
 class QToolButton;
 
 /**
@@ -72,6 +73,8 @@ private Q_SLOTS:
     void slotExportPalette(KoColorSetSP );
     void slotSetColorSet(KoColorSetSP colorSet);
     void slotFGColorResourceChanged(const KoColor& color);
+    /// A color painted with: first among the recent ones
+    void slotColorUsed(const KoColor &color);
     void slotStoragesChanged(const QString &location);
     void updateHeader();
 
@@ -81,6 +84,11 @@ private:
     KisSwatch newSwatch(const KoColor &color) const;
     void pickSwatch(const QModelIndex &index);
     void addCurrentColor(const QModelIndex &emptySlot);
+    /// In \p emptySlot, or a new row under the first group when it is invalid
+    void addColor(const KoColor &color, const QModelIndex &emptySlot);
+    void updateRecentStrip();
+    void pickRecent(int index);
+    void showRecentCard(int index, QWidget *anchor);
     void moveSwatch(const QModelIndex &from, const QModelIndex &to);
     void removeSwatch(const QModelIndex &index);
     void showSwatchCard(const QModelIndex &index, QWidget *anchor);
@@ -90,6 +98,9 @@ private /* member variables */:
     KisPaletteModel *m_model;
     KisPaletteChooser *m_paletteChooser;
     PaletteGrid *m_grid {nullptr};
+    RecentStrip *m_recentStrip {nullptr};
+    /// The colors last painted with, newest first
+    QVector<KoColor> m_recent;
     KisPopupButton *m_paletteButton {nullptr};
     QToolButton *m_undo {nullptr};
     QToolButton *m_redo {nullptr};
