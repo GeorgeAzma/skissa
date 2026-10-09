@@ -321,24 +321,44 @@ private:
     bool m_dragged {false};
 };
 
-/// The "+" at the bottom: adds a tool, an effect, anything Find knows
+/**
+ * The "+" under the panel: adds a tool, an effect, anything Find knows. It
+ * floats below the panel rather than sitting in it, so that showing it never
+ * moves what is in the panel (the color chip right under the pointer).
+ */
 class PlusButton : public QToolButton
 {
 public:
+    std::function<void()> left;
+
     explicit PlusButton(QWidget *parent) : QToolButton(parent)
     {
-        setAutoRaise(true);
-        setFixedSize(40, 32);
+        setFixedSize(30, 30);
+        setAttribute(Qt::WA_Hover);
         setFocusPolicy(Qt::NoFocus);
+        setCursor(Qt::PointingHandCursor);
         setToolTip(i18nc("@info:tooltip", "Add a tool, an effect or anything else (or drag one here from Find)"));
     }
 
 protected:
-    void paintEvent(QPaintEvent *event) override
+    void leaveEvent(QEvent *event) override
     {
-        QToolButton::paintEvent(event);
+        QToolButton::leaveEvent(event);
+        if (left) left();
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
+        // a small round panel of its own, like the one above it
+        QColor background = palette().color(QPalette::Window);
+        background.setAlphaF(0.94);
+        QColor border = palette().color(QPalette::WindowText);
+        border.setAlphaF(0.12);
+        painter.setPen(QPen(border, 1));
+        painter.setBrush(background);
+        painter.drawEllipse(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5));
         QColor ink = palette().color(QPalette::ButtonText);
         ink.setAlphaF(underMouse() ? 0.9 : 0.55);
         QPen pen(ink, 1.6);
@@ -358,9 +378,9 @@ struct KisStudioToolRail::Private
     QVBoxLayout *layout {nullptr};
     QVBoxLayout *itemsLayout {nullptr};
     QFrame *indicator {nullptr};
-    QToolButton *plus {nullptr};
+    QPointer<PlusButton> plus;             ///< a child of the canvas area, under the panel
+    QTimer *plusHide {nullptr};            ///< lets the pointer cross from the panel to the "+"
     bool hovered {false};
-    bool dragOver {false};
     int hoverGap {-1};                     ///< the item index a click in the gap would insert a space at
 
     QHash<QString, ToolSlot> slots;        ///< the built-in slots this build has, by id
@@ -514,6 +534,12 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     d->layout->addLayout(d->itemsLayout);
 
     d->plus = new PlusButton(this);
+    d->plus->hide();
+    d->plusHide = new QTimer(this);
+    d->plusHide->setSingleShot(true);
+    d->plusHide->setInterval(300);
+    connect(d->plusHide, &QTimer::timeout, this, &KisStudioToolRail::updatePlus);
+    d->plus->left = [this]() { d->plusHide->start(); };
     connect(d->plus, &QToolButton::clicked, this, [this]() {
         if (KisStudioFind *find = d->mainWindow->studioFind()) {
             find->pick(i18nc("@info:placeholder", "Add to the tools"), [this](const QString &key) {
@@ -523,7 +549,6 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
             });
         }
     });
-    d->layout->addWidget(d->plus, 0, Qt::AlignHCenter);
 
     d->indicator = new QFrame(this);
     d->indicator->setAutoFillBackground(true);
@@ -571,7 +596,11 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     updateActiveSlot();
 }
 
-KisStudioToolRail::~KisStudioToolRail() = default;
+KisStudioToolRail::~KisStudioToolRail()
+{
+    // not a child of the rail, see updatePlus()
+    delete d->plus;
+}
 
 void KisStudioToolRail::addBottomWidget(QWidget *widget)
 {
@@ -607,8 +636,40 @@ void KisStudioToolRail::setItems(const QStringList &items)
 
 void KisStudioToolRail::updatePlus()
 {
-    // there when it can be used: pointed at, dragged onto, or nothing on the rail yet
-    d->plus->setVisible(d->widgets.isEmpty() || d->hovered || d->dragOver);
+    if (!d->plus) {
+        return;
+    }
+    // under the panel the rail is in, in the area the panel floats over
+    QWidget *panel = parentWidget();
+    QWidget *area = panel ? panel->parentWidget() : nullptr;
+    if (area && d->plus->parentWidget() != area) {
+        d->plus->setParent(area);
+    }
+    // there when it can be used: the panel or the "+" pointed at, or nothing on the rail yet
+    const bool show = area && isVisible() && (d->widgets.isEmpty() || d->hovered || d->plus->underMouse());
+    if (show) {
+        d->plus->move(panel->geometry().center().x() - d->plus->width() / 2, panel->geometry().bottom() + 6);
+        d->plus->raise();
+    }
+    d->plus->setVisible(show);
+}
+
+void KisStudioToolRail::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    updatePlus();
+}
+
+void KisStudioToolRail::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    updatePlus();
+}
+
+void KisStudioToolRail::hideEvent(QHideEvent *event)
+{
+    QWidget::hideEvent(event);
+    updatePlus();
 }
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -618,6 +679,7 @@ void KisStudioToolRail::enterEvent(QEvent *event)
 #endif
 {
     d->hovered = true;
+    d->plusHide->stop();
     updatePlus();
     QWidget::enterEvent(event);
 }
@@ -627,7 +689,8 @@ void KisStudioToolRail::leaveEvent(QEvent *event)
     d->hovered = false;
     d->hoverGap = -1;
     d->indicator->hide();
-    updatePlus();
+    // later, so that the pointer can get to the "+"
+    d->plusHide->start();
     QWidget::leaveEvent(event);
 }
 
@@ -935,8 +998,6 @@ void KisStudioToolRail::dragEnterEvent(QDragEnterEvent *event)
 {
     if (event->mimeData()->hasFormat(KisStudioShortcuts::itemMimeType())) {
         event->acceptProposedAction();
-        d->dragOver = true;
-        updatePlus();
     }
 }
 
@@ -952,14 +1013,11 @@ void KisStudioToolRail::dragMoveEvent(QDragMoveEvent *event)
 void KisStudioToolRail::dragLeaveEvent(QDragLeaveEvent *)
 {
     d->indicator->hide();
-    d->dragOver = false;
-    updatePlus();
 }
 
 void KisStudioToolRail::dropEvent(QDropEvent *event)
 {
     d->indicator->hide();
-    d->dragOver = false;
     const QString key = QString::fromUtf8(event->mimeData()->data(KisStudioShortcuts::itemMimeType()));
     if (key.isEmpty()) {
         return;

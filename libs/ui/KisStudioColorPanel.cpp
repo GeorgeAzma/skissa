@@ -301,8 +301,7 @@ void clipTo(QImage &image, const QPainterPath &shape)
  * by default: a hue ring (red on the left) around an upright triangle with
  * black at the top, white at the bottom left and the full hue at the bottom
  * right. Value goes down the triangle and saturation across each row, so
- * every color of the hue is on it exactly once. The ring is thicker than the
- * Advanced Color Selector's, to be easy to hit.
+ * every color of the hue is on it exactly once.
  */
 class HsvWheel : public QWidget
 {
@@ -349,9 +348,14 @@ protected:
         painter.drawImage(0, 0, m_ring);
         painter.drawImage(0, 0, m_triangle);
 
+        // across the ring, as in the Advanced Color Selector: a dark line and a light one beside it
         const qreal angle = ringAngle(m_hue);
-        const qreal middle = (outerRadius() + innerRadius()) / 2;
-        drawMarker(painter, center() + middle * QPointF(std::cos(angle), std::sin(angle)), 6);
+        const QPointF direction(std::cos(angle), std::sin(angle));
+        const QLineF across(center() + innerRadius() * direction, center() + outerRadius() * direction);
+        painter.setPen(QPen(Qt::black, 1.5));
+        painter.drawLine(across);
+        painter.setPen(QPen(Qt::white, 1.5));
+        painter.drawLine(across.translated(1.5 * QPointF(-direction.y(), direction.x())));
         drawMarker(painter, trianglePoint(center(), triangleRadius(), m_s, m_v), 6);
     }
 
@@ -384,8 +388,8 @@ private:
 
     QPointF center() const { return QRectF(rect()).center(); }
     qreal outerRadius() const { return qMin(width(), height()) / 2.0 - 1; }
-    /// The Advanced Color Selector's ring is 15% of the radius; this one is 24%
-    qreal innerRadius() const { return outerRadius() * 0.76; }
+    /// 15% of the radius, as in the Advanced Color Selector
+    qreal innerRadius() const { return outerRadius() * 0.85; }
     /// The circle the triangle's corners are on, a little inside the ring
     qreal triangleRadius() const { return innerRadius() - 4; }
 
