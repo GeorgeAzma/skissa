@@ -12,28 +12,39 @@
 #include <QModelIndex>
 #include <QScopedPointer>
 #include <QPointer>
-#include <QAction>
-#include <QMenu>
 
-#include <KoResourceServer.h>
 #include <KoResourceServer.h>
 #include <resources/KoColorSet.h>
 
 #include <kis_canvas2.h>
 #include <kis_mainwindow_observer.h>
 #include <KisView.h>
-#include <kis_workspace_resource.h>
-#include <kis_signal_auto_connection.h>
 
 
 class KisViewManager;
 class KisCanvasResourceProvider;
 class KisPaletteChooser;
 class KisPaletteModel;
-
 class KisPaletteEditor;
-class Ui_WdgPaletteDock;
+class KisPopupButton;
+class PaletteGrid;
+class QToolButton;
 
+/**
+ * The palette: its swatches, filling the panel's width, and its name.
+ *
+ * - click a swatch to paint with it; the swatch of the current color has a ring
+ * - "+" after the last swatch adds the current color, no questions asked
+ * - drag a swatch onto another place to move it there (two swap), off the
+ *   panel to remove it; undo is next to the name while there is something to undo
+ * - right click or long press a swatch for its card: use the current color
+ *   there, edit its name and color, remove it
+ * - click the name for the other palettes, right click it to edit, lock,
+ *   save or export this one
+ *
+ * It can be made as short as one row (the wheel scrolls a row at a time):
+ * one or two rows of a palette under the brushes is a fine place for it.
+ */
 class PaletteDockerDock : public QDockWidget, public KisMainwindowObserver, public KoResourceServerObserver<KoColorSet>
 {
     Q_OBJECT
@@ -55,66 +66,46 @@ public: //KoResourceServerObserver
     void resourceChanged(QSharedPointer<KoColorSet> resource) override;
 
 private Q_SLOTS:
-    void slotContextMenu(const QModelIndex &);
-
     void slotAddPalette();
     void slotRemovePalette(KoColorSetSP );
     void slotImportPalette();
     void slotExportPalette(KoColorSetSP );
-
-    void slotAddColor();
-    void slotRemoveColor();
-    void slotEditEntry();
-    void slotEditPalette();
-    void slotSavePalette();
-
-    void slotPaletteIndexSelected(const QModelIndex &index);
-    void slotPaletteIndexClicked(const QModelIndex &index);
-    void slotPaletteIndexDoubleClicked(const QModelIndex &index);
-    void slotNameListSelection(const KoColor &color);
     void slotSetColorSet(KoColorSetSP colorSet);
-
     void slotFGColorResourceChanged(const KoColor& color);
-
     void slotStoragesChanged(const QString &location);
-
-    void slotUpdateLblPaletteName();
-
-    void slotLockPalette(bool locked);
-
-    void setUndoToolTip(const QString &text);
-    void setRedoToolTip(const QString &text);
-
-    void undo();
-    void redo();
+    void updateHeader();
 
 private:
-    void setEntryByForeground(const QModelIndex &index);
-    void setFGColorByPalette(const KisSwatch &entry);
-
+    bool canEdit() const;
+    bool isGlobal() const;
+    KisSwatch newSwatch(const KoColor &color) const;
+    void pickSwatch(const QModelIndex &index);
+    void addCurrentColor(const QModelIndex &emptySlot);
+    void moveSwatch(const QModelIndex &from, const QModelIndex &to);
+    void removeSwatch(const QModelIndex &index);
+    void showSwatchCard(const QModelIndex &index, QWidget *anchor);
+    void showPaletteCard();
 
 private /* member variables */:
-    QScopedPointer<Ui_WdgPaletteDock> m_ui;
     KisPaletteModel *m_model;
     KisPaletteChooser *m_paletteChooser;
+    PaletteGrid *m_grid {nullptr};
+    KisPopupButton *m_paletteButton {nullptr};
+    QToolButton *m_undo {nullptr};
+    QToolButton *m_redo {nullptr};
 
     QPointer<KisViewManager> m_view;
-    KisCanvasResourceProvider *m_resourceProvider;
+    KisCanvasResourceProvider *m_resourceProvider {nullptr};
 
     KoResourceServer<KoColorSet> * const m_rServer;
 
     QPointer<KisDocument> m_activeDocument;
     QSharedPointer<KoColorSet> m_currentColorSet;
     QScopedPointer<KisPaletteEditor> m_paletteEditor;
+    /// To the current palette's undo stack
+    QList<QMetaObject::Connection> m_paletteConnections;
 
-    QScopedPointer<QAction> m_actAdd;
-    QScopedPointer<QAction> m_actRemove;
-    QScopedPointer<QAction> m_actModify;
-    QScopedPointer<QAction> m_actEditPalette;
-    QScopedPointer<QAction> m_actSavePalette;
-    QMenu m_viewContextMenu;
-
-    bool m_colorSelfUpdate;
+    bool m_colorSelfUpdate {false};
 };
 
 
