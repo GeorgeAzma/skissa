@@ -158,8 +158,13 @@ QFile *frameLog = nullptr;
 QElapsedTimer *frameLogClock = nullptr;
 
 /// How long the clock keeps its rate after the last input, and to how slow it eases off after that
-constexpr qint64 holdNs = 250'000'000;
+constexpr qint64 holdNs = 500'000'000;
 constexpr qint64 easeEndNs = 40'000'000;
+/// After a pause, the second frame comes this long after the first, each next one 0.7 times as long, down to the clock's rate
+constexpr qint64 rampStartNs = 25'000'000;
+constexpr qreal rampStep = 0.7;
+/// How long the clock goes on after a window with the canvas is shown or sized
+constexpr qint64 settleNs = 3'000'000'000;
 /// Each frame of the ease that much longer than the one before
 constexpr qreal easeStep = 1.3;
 
@@ -192,6 +197,30 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
         switch (event->type()) {
+        case QEvent::Show:
+        case QEvent::Expose:
+        case QEvent::Resize:
+        case QEvent::WindowStateChange: {
+            /**
+             * A window with the canvas shown, uncovered, sized or maximized:
+             * frames for a while, whatever changes. As a window is shown and
+             * settles (maximized, its panels laid out and their glass drawn)
+             * frames it shows may not reach the screen, and it would show the
+             * glass only after the next input.
+             */
+            QWidget *top = nullptr;
+            if (QWindow *window = qobject_cast<QWindow *>(watched)) {
+                top = topWidget(window);
+            } else if (watched->isWidgetType() && static_cast<QWidget *>(watched)->isWindow() && watched->inherits("KisMainWindow")) {
+                top = static_cast<QWidget *>(watched);
+            }
+            if (top) {
+                heartbeatOf(top);
+                m_settleUntil = m_clock.nsecsElapsed() + settleNs;
+                wake();
+            }
+            return false;
+        }
         case QEvent::UpdateRequest: {
             // the window's repaint, held for the clock's next frame
             if (m_delivering || !watched->isWidgetType()) return false;
@@ -269,7 +298,7 @@ private:
     /**
      * How long a frame took: the clock's rate follows, but it must not keep
      * changing (that is what flickers): slower at once when frames do not
-     * fit in it (two of the last eight), faster again after half a second of
+     * fit in it (four of the last sixteen), faster again after half a second of
      * frames well within the faster rate; each time the faster rate did not
      * hold, after twice as long (up to eight seconds), until it has held for
      * ten seconds
@@ -278,14 +307,14 @@ private:
     {
         const qint64 now = m_clock.nsecsElapsed();
         const qreal r = refresh();
-        // the last eight frames, a bit for each that came late
+        // the last sixteen frames, a bit for each that came late
         const bool late = took > r * m_refreshes * 0.95;
-        m_late = quint8((m_late << 1) | (late ? 1 : 0));
+        m_late = quint16((m_late << 1) | (late ? 1 : 0));
         if (late) {
-            // two late of eight: slower
+            // four late of sixteen: slower (not for a hiccup of the system: each change of the rate is a step a screen may show)
             int count = 0;
-            for (quint8 bits = m_late; bits; bits &= quint8(bits - 1)) count++;
-            if (count >= 2 && m_refreshes < 4) {
+            for (quint16 bits = m_late; bits; bits &= quint16(bits - 1)) count++;
+            if (count >= 4 && m_refreshes < 4) {
                 m_refreshes++;
                 m_late = 0;
                 // soon after it went faster: it is waited for twice as long before the next try
@@ -311,8 +340,8 @@ private:
         if (m_tick.isActive()) {
             return;
         }
-        // after a pause, at once
-        m_interval = period();
+        // after a pause, the first frame at once; the rate up from a screen's slowest in a few frames, not all at once
+        m_interval = rampStartNs;
         m_next = m_clock.nsecsElapsed();
         m_tick.start(0);
     }
@@ -329,7 +358,7 @@ private:
     void tick()
     {
         const qint64 sinceInput = m_clock.nsecsElapsed() - m_input;
-        const bool held = sinceInput < holdNs;
+        const bool held = sinceInput < holdNs || m_clock.nsecsElapsed() < m_settleUntil;
         const bool easing = !held && m_interval < easeEndNs;
         if (held || easing) {
             // the rhythm kept: a window nothing changed in is shown all the same, by its heartbeat alone
@@ -340,7 +369,7 @@ private:
         deliver();
 
         if (held) {
-            m_interval = period();
+            m_interval = qMax(period(), qint64(m_interval * rampStep));
         } else if (easing) {
             m_interval = qint64(m_interval * easeStep);
         } else if (m_waiting.isEmpty()) {
@@ -410,11 +439,13 @@ private:
     FrameTimer m_tick {[this]() { tick(); }};
     /// When the last input came, when the next frame is due, and the time between frames
     qint64 m_input {-holdNs * 10};
+    /// Until when a window shown or sized keeps the clock going
+    qint64 m_settleUntil {0};
     qint64 m_next {0};
     qint64 m_interval {0};
     /// The clock's frames in refreshes of the screen; late frames in a row; since when frames would fit faster ones
     int m_refreshes {2};
-    quint8 m_late {0};
+    quint16 m_late {0};
     qint64 m_fastEnoughSince {0};
     /// How long frames must fit a faster rate before it is tried (longer each time it did not hold), and when it last was
     qint64 m_upWait {500'000'000};
@@ -490,7 +521,8 @@ void KisUpdatePacer::install()
 {
 #ifdef Q_OS_WIN
     static Pacer *pacer = nullptr;
-    if (pacer) return;
+    // for development: without it, to compare
+    if (pacer || (qEnvironmentVariableIsSet("KRITA_DEV_PROFILE") && qEnvironmentVariableIsSet("KRITA_DEV_NOPACER"))) return;
     pacer = new Pacer(qApp);
     // the frame log first: installed later, it sees the repaints before the pacer holds them
     qApp->installEventFilter(pacer);
