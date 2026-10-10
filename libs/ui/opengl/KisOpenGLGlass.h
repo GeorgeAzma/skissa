@@ -51,10 +51,12 @@ public:
      * pixels, from \p canvas (a texture of the same size, the canvas as
      * drawn, of \p canvasFormat: GL_RGBA16F is linear light, HDR; others
      * sRGB), only in \p clip (surface pixels) if it is not empty. \p
-     * pixelRatio: device pixels to a widget's.
+     * pixelRatio: device pixels to a widget's. \p canvasChanged: what the
+     * canvas shows changed since the last time; if not, and the surfaces are
+     * where they were, the blur made then is used again.
      */
     void render(uint canvas, uint canvasFormat, const QSize &viewport, qreal pixelRatio,
-                const QVector<Surface> &surfaces, const QRect &clip);
+                const QVector<Surface> &surfaces, const QRect &clip, bool canvasChanged = true);
 
     /// How far around a glass panel the canvas shows in its blur, in widget pixels
     static qreal reach();

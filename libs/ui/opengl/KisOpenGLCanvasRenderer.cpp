@@ -405,7 +405,7 @@ bool KisOpenGLCanvasRenderer::drawsGlass() const
     return d->canvasFBO && d->glass.isValid();
 }
 
-void KisOpenGLCanvasRenderer::paintGlass(const QVector<KisStudioGlass::Surface> &surfaces, const QRect &viewportUpdateRect)
+void KisOpenGLCanvasRenderer::paintGlass(const QVector<KisStudioGlass::Surface> &surfaces, const QRect &viewportUpdateRect, bool canvasChanged)
 {
     if (!drawsGlass() || surfaces.isEmpty()) {
         return;
@@ -423,7 +423,7 @@ void KisOpenGLCanvasRenderer::paintGlass(const QVector<KisStudioGlass::Surface> 
         drawn.append(glass);
     }
     const QRect clip = viewportUpdateRect.isEmpty() ? QRect() : widgetToSurface(viewportUpdateRect).toAlignedRect();
-    d->glass.render(d->canvasFBO->texture(), d->canvasBridge->internalTextureFormat(), d->viewportDevicePixelSize, ratio, drawn, clip);
+    d->glass.render(d->canvasFBO->texture(), d->canvasBridge->internalTextureFormat(), d->viewportDevicePixelSize, ratio, drawn, clip, canvasChanged);
 }
 
 void KisOpenGLCanvasRenderer::paintToolOutline(const KisOptimizedBrushOutline &path, const QRect &viewportUpdateRect, const int thickness)

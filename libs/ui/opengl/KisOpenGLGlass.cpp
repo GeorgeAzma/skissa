@@ -593,6 +593,10 @@ struct KisOpenGLGlass::Private
     QScopedPointer<QOpenGLFramebufferObject> statistics;
     /// Of what is kept between the steps: half floats where they can be drawn to, eight bits elsewhere
     GLenum keptFormat {GL_RGBA};
+    /// Where the blurs were made last, for which surfaces: made again only when the canvas or they changed
+    QVector<QRectF> blurredFor;
+    QSize blurredViewport;
+    qreal blurredRatio {0};
     bool valid {false};
 
     void ensureSize(const QSize &size)
@@ -649,7 +653,7 @@ qreal KisOpenGLGlass::reach()
 }
 
 void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewport, qreal pixelRatio,
-                            const QVector<Surface> &surfaces, const QRect &clip)
+                            const QVector<Surface> &surfaces, const QRect &clip, bool canvasChanged)
 {
     // a floating point (HDR) canvas is in linear light already, and has no steps to dither
     const bool linearCanvas = canvasFormat == GL_RGBA16F;
@@ -733,8 +737,17 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     };
 
+    // only the brush outline moved, say: what is behind the glass is what was blurred last time
+    QVector<QRectF> rects;
+    for (const Surface &surface : surfaces) rects << surface.rect;
+    const bool blurAgain = canvasChanged || rects != d->blurredFor || viewport != d->blurredViewport || pixelRatio != d->blurredRatio;
+    d->blurredFor = rects;
+    d->blurredViewport = viewport;
+    d->blurredRatio = pixelRatio;
+
     // blurred under each panel only, whole (how bright it is behind all of it sets its tint)
     for (const Surface &surface : surfaces) {
+        if (!blurAgain) break;
         const QRect r = surface.rect.toAlignedRect() & whole;
         if (r.isEmpty()) continue;
         // its small pixels (one more for scaling back up), and as far as the blur takes in around them

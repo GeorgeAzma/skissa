@@ -65,7 +65,8 @@ public:
      */
     void paintCanvasOnly(const QRect &canvasImageDirtyRect, const QRect &viewportUpdateRect = QRect());
     /// The glass of \p surfaces (panels over the canvas, see KisStudioGlass), over the canvas just drawn
-    void paintGlass(const QVector<KisStudioGlass::Surface> &surfaces, const QRect &viewportUpdateRect = QRect());
+    /// \p canvasChanged: what the canvas shows changed since the glass was last painted (not only its decorations)
+    void paintGlass(const QVector<KisStudioGlass::Surface> &surfaces, const QRect &viewportUpdateRect = QRect(), bool canvasChanged = true);
     /// Whether it draws the glass of the panels over it
     bool drawsGlass() const;
 

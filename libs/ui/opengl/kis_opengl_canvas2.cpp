@@ -267,7 +267,7 @@ void KisOpenGLCanvas2::paintGL()
     }
     // the glass over the panels hides the decorations under it (the brush outline, the selection), as
     // a solid panel would; it is blurred from the canvas without them
-    d->renderer->paintGlass(KisStudioGlass::surfacesOver(this), updateRect);
+    d->renderer->paintGlass(KisStudioGlass::surfacesOver(this), updateRect, !canvasImageDirtyRect.isEmpty());
 
     d->repaintDbg.paint(this, updateRect.isEmpty() ? rect() : updateRect);
 
@@ -302,8 +302,10 @@ void KisOpenGLCanvas2::paintEvent(QPaintEvent *e)
         d->updateRect = this->rect();
     }
 
-    // the glass blurs what is around it too: changed near it, it is drawn again whole
-    if (d->renderer->drawsGlass() && !d->updateRect->isEmpty()) {
+    // the glass blurs what is around it too: the image changed near it, it is drawn again whole (only
+    // the decorations changed, e.g. the brush outline moved, what it blurs did not: it is drawn again
+    // only where they changed, over them)
+    if (d->renderer->drawsGlass() && !d->updateRect->isEmpty() && !d->canvasImageDirtyRect.isEmpty()) {
         const int reach = qCeil(KisOpenGLGlass::reach());
         const QRect changed = *d->updateRect;
         for (const KisStudioGlass::Surface &surface : KisStudioGlass::surfacesOver(this)) {

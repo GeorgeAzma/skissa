@@ -8,15 +8,15 @@
 #include "kritaui_export.h"
 
 /**
- * While the mouse or pen moves over a window with the canvas, the window
- * shows a frame for every refresh of the screen, as over the canvas itself
- * (where the brush outline is redrawn on every move).
+ * The windows with the canvas are shown on a steady frame clock while the
+ * mouse or pen moves: every refresh of the screen (or every few, as long as
+ * a frame takes), whatever changed, their repaints held for its frames;
+ * after the last move it slows down little by little, then stops.
  *
- * A screen with a variable refresh rate (G-Sync, FreeSync) refreshes as often
- * as the window shows frames: over a panel, where a move changes little, it
- * would slow down, the pointer would stutter, and some screens flicker as
- * their rate changes. Also: Qt 5 on Windows holds posted repaints back while
- * input waits; they are sent with these frames.
+ * A screen with a variable refresh rate (G-Sync, FreeSync) refreshes when a
+ * frame comes: shown as unevenly as the mouse reports (only when it moves)
+ * and as the canvas finishes, the pointer would stutter, and many screens
+ * flicker as their rate keeps changing.
  */
 namespace KisUpdatePacer
 {
