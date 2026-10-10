@@ -257,15 +257,33 @@ protected:
     }
 
 private:
-    static QWidget *topWidget(QWindow *window)
+    /**
+     * The main window \p window is of, or none (a popup, a dialog: they show
+     * their own changes). The widget of a window is looked up once: all the
+     * widgets there are are gone through for it (QApplication::topLevelWidgets),
+     * too much for each move of the pointer.
+     */
+    QWidget *topWidget(QWindow *window)
     {
-        Q_FOREACH (QWidget *widget, QApplication::topLevelWidgets()) {
-            if (widget->windowHandle() == window) {
-                // only the windows the canvas is in: popups and dialogs show their own changes
-                return widget->inherits("KisMainWindow") ? widget : nullptr;
+        QWidget *widget = nullptr;
+        auto known = m_tops.constFind(window);
+        if (known != m_tops.constEnd()) {
+            widget = known.value().data();
+        } else {
+            Q_FOREACH (QWidget *candidate, QApplication::topLevelWidgets()) {
+                if (candidate->windowHandle() == window) {
+                    widget = candidate;
+                    break;
+                }
+            }
+            if (widget) {
+                m_tops.insert(window, widget);
+                // a window is its widget's for as long as it is there: forgotten when it goes (another may come at its address)
+                connect(window, &QObject::destroyed, this, [this, window]() { m_tops.remove(window); });
             }
         }
-        return nullptr;
+        // asked each time, not kept: what a widget is is only settled once it is made
+        return widget && widget->inherits("KisMainWindow") ? widget : nullptr;
     }
 
     Heartbeat *heartbeatOf(QWidget *top)
@@ -452,6 +470,7 @@ private:
     qint64 m_wentFaster {-100'000'000'000};
     qint64 m_wentSlower {-100'000'000'000};
     QHash<QWidget *, QPointer<Heartbeat>> m_beats;
+    QHash<QWindow *, QPointer<QWidget>> m_tops;
     QHash<QWidget *, QPointer<QWidget>> m_waiting;
     bool m_delivering {false};
 };

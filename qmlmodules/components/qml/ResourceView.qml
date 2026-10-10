@@ -295,6 +295,9 @@ Control {
                 anchors.fill: parent;
                 id: view;
                 currentIndex: modelWrapper.currentIndex;
+                // to the current resource at once (as onCurrentIndexChanged puts it), not scrolled to at 400 px/s:
+                // through a long list (fonts) that took seconds, making every item it went past (each one drawn)
+                highlightMoveDuration: 0;
 
                 Keys.onDownPressed: control.downPress();
                 Keys.onUpPressed: control.upPress();

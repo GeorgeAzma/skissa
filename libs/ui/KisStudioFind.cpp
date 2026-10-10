@@ -247,10 +247,21 @@ struct Entry {
     QString detail;    ///< where it lives or what it does
     QString keywords;  ///< extra words that should find it
     QString shortcut;
-    QIcon icon;
+    mutable QIcon icon; ///< see shownIcon()
     std::function<void()> run;
     QStringList aliases; ///< what other applications call it
     QPointer<QAction> action; ///< what has its shortcut, if anything does
+    /// Makes the icon when it is first shown, if it is costly to make (a brush's thumbnail, read and decoded)
+    mutable std::function<QIcon()> makeIcon;
+
+    const QIcon &shownIcon() const
+    {
+        if (makeIcon) {
+            icon = makeIcon();
+            makeIcon = nullptr;
+        }
+        return icon;
+    }
 };
 
 /**
@@ -763,26 +774,34 @@ void KisStudioFind::rebuildIndex()
         d->entries.last().action = dock->toggleViewAction();
     }
 
-    // brushes, from the model so that only the chosen preset gets loaded
+    // brushes, from the model so that only the chosen preset gets loaded; their thumbnails when shown (reading
+    // and decoding all of them was a good part of startup)
     if (KisPaintOpPresetResourceServer *server = KisResourceServerProvider::instance()->paintOpPresetServer()) {
         KisResourceModel *model = server->resourceModel();
         for (int row = 0; row < model->rowCount(); row++) {
             const QModelIndex index = model->index(row, 0);
             const QString name = index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString();
             const QString md5 = index.data(Qt::UserRole + KisAbstractResourceModel::MD5).toString();
-            const QImage thumbnail = index.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>();
+            const int resourceId = index.data(Qt::UserRole + KisAbstractResourceModel::Id).toInt();
             // the bundled presets sort themselves with "b) ", which is noise here
             static const QRegularExpression sortPrefix(QStringLiteral("^[a-z]\\)\\s+"));
             const QString title = QString(name).remove(sortPrefix);
             d->entries.append({QStringLiteral("brush:") + name, Kind::Brush, title, QString(),
                                index.data(Qt::UserRole + KisAbstractResourceModel::Tags).toStringList().join(QLatin1Char(' ')),
-                               QString(), QIcon(QPixmap::fromImage(thumbnail)),
+                               QString(), QIcon(),
                                [viewManager, md5, name]() {
                                    KisPaintOpPresetSP preset = KisResourceServerProvider::instance()->paintOpPresetServer()->resource(md5, QString(), name);
                                    if (preset && viewManager && viewManager->canvasResourceProvider()) {
                                        viewManager->canvasResourceProvider()->setPaintOpPreset(preset);
                                    }
                                }});
+            d->entries.last().makeIcon = [resourceId]() {
+                KisPaintOpPresetResourceServer *server = KisResourceServerProvider::instance()->paintOpPresetServer();
+                if (!server) return QIcon();
+                // by its id, not a kept index: the model may have been reset since
+                const QModelIndex index = server->resourceModel()->indexForResourceId(resourceId);
+                return QIcon(QPixmap::fromImage(index.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>()));
+            };
         }
     }
 
@@ -893,7 +912,7 @@ bool KisStudioFind::isCommandKind(int kind)
 void KisStudioFind::appendResult(int index, const QString &detail)
 {
     const Entry &entry = d->entries[index];
-    auto *item = new QStandardItem(entry.icon, entry.title);
+    auto *item = new QStandardItem(entry.shownIcon(), entry.title);
     item->setData(detail, DetailRole);
     item->setData(entry.shortcut, ShortcutRole);
     item->setData(entry.action && !entry.action->objectName().isEmpty(), ShortcutEditableRole);
@@ -1354,7 +1373,7 @@ bool KisStudioFind::item(const QString &key, Item *item)
     Q_FOREACH (const Entry &entry, d->entries) {
         if (entry.key == key) {
             if (item) {
-                *item = {entry.key, entry.title, entry.icon, entry.action, entry.aliases};
+                *item = {entry.key, entry.title, entry.shownIcon(), entry.action, entry.aliases};
             }
             return true;
         }
@@ -1413,7 +1432,7 @@ void KisStudioFind::runRow(int row)
     // it has a quicker way: say so, the first few times
     if (!entry.shortcut.isEmpty() && d->usage.value(entry.key).count <= 3 && d->mainWindow->viewManager()) {
         d->mainWindow->viewManager()->showFloatingMessage(i18nc("@info a shortcut Find teaches; %1 the command, %2 its keys", "%1  ·  %2", entry.title, entry.shortcut),
-                                                          entry.icon, 2600, KisFloatingMessage::Low);
+                                                          entry.shownIcon(), 2600, KisFloatingMessage::Low);
     }
 }
 
@@ -1445,7 +1464,7 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
             const int index = at.data(EntryRole).isValid() ? at.data(EntryRole).toInt() : -1;
             if (index >= 0 && index < d->entries.size() && !d->entries[index].key.isEmpty()) {
                 const Entry entry = d->entries[index];
-                auto *card = new KisStudioItemCard(d->mainWindow, entry.icon, entry.title, entry.action);
+                auto *card = new KisStudioItemCard(d->mainWindow, entry.shownIcon(), entry.title, entry.action);
                 if (d->setOnTools && d->isOnTools && !d->isOnTools(entry.key)) {
                     auto set = d->setOnTools;
                     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")),
@@ -1506,7 +1525,7 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
                 auto *mime = new QMimeData();
                 mime->setData(KisStudioShortcuts::itemMimeType(), entry.key.toUtf8());
                 drag->setMimeData(mime);
-                drag->setPixmap(entry.icon.pixmap(32, 32));
+                drag->setPixmap(entry.shownIcon().pixmap(32, 32));
                 hide();
                 drag->exec(Qt::CopyAction);
                 return true;

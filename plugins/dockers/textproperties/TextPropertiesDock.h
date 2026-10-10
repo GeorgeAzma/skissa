@@ -32,6 +32,9 @@ public:
 public Q_SLOTS:
     QColor modalColorDialog(QColor oldColor);
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 
 
 private:

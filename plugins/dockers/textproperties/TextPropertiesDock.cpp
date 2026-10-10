@@ -43,15 +43,28 @@ TextPropertiesDock::TextPropertiesDock()
 
     m_quickWidget->setMinimumHeight(100);
 
-    m_quickWidget->setSource(QUrl("qrc:/TextProperties.qml"));
-
-    if (!m_quickWidget->errors().empty()) {
-        qWarning() << "Errors in " << windowTitle() << ":" << m_quickWidget->errors();
-    } else {
-        m_quickWidget->rootObject()->setProperty("canvasObserver", QVariant::fromValue(d->canvasObserver));
-    }
+    // its QML is made the first time it is shown (see eventFilter): making it takes most of a second at
+    // startup, for a docker that is hidden more often than not
+    m_quickWidget->installEventFilter(this);
 
     m_quickWidget->setPalette(this->palette());
+}
+
+bool TextPropertiesDock::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_quickWidget && event->type() == QEvent::Show && m_quickWidget->source().isEmpty()) {
+        m_quickWidget->setSource(QUrl("qrc:/TextProperties.qml"));
+
+        if (!m_quickWidget->errors().empty()) {
+            qWarning() << "Errors in " << windowTitle() << ":" << m_quickWidget->errors();
+        } else {
+            QObject *root = m_quickWidget->rootObject();
+            root->setProperty("canvasObserver", QVariant::fromValue(d->canvasObserver));
+            // what the observer's signals would have brought it, had it been there before now
+            QMetaObject::invokeMethod(root, "setProperties");
+        }
+    }
+    return QDockWidget::eventFilter(watched, event);
 }
 
 TextPropertiesDock::~TextPropertiesDock()
