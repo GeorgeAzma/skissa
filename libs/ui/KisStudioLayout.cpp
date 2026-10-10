@@ -42,6 +42,7 @@
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
 #include <QTimer>
+#include <QWindow>
 #include <QToolBar>
 #include <QToolButton>
 #include <QWidgetAction>
@@ -107,6 +108,10 @@ const QString columnWidthKey = QStringLiteral("StudioLayoutPanelWidth");
 const QString panelSideKey = QStringLiteral("StudioLayoutPanelSide");
 /// The side of the canvas the tool rail is on ("left" or "right")
 const QString toolRailSideKey = QStringLiteral("StudioLayoutToolRailSide");
+/// Hidden by a tap on their grip: the pinned panels (the strip stays), the tools of the rail, the top bar
+const QString panelsHiddenKey = QStringLiteral("StudioLayoutPanelsTucked");
+const QString toolRailHiddenKey = QStringLiteral("StudioLayoutToolRailTucked");
+const QString topBarHiddenKey = QStringLiteral("StudioLayoutTopBarTucked");
 const QString classicStateKey = QStringLiteral("StudioLayoutClassicState");
 
 /// The panels that get a button on the rail; "+" on the rail adds any other
@@ -490,6 +495,79 @@ protected:
     void leaveEvent(QEvent *) override { update(); }
 };
 
+/**
+ * The top bar's grip. Not a part of the title bar for the system (whose
+ * clicks Qt never sees): a drag moves the window, a tap hides the bar (or
+ * shows it again), a double click maximizes the window.
+ */
+class TopGrip : public DragGrip
+{
+public:
+    std::function<void()> tapped;
+
+    explicit TopGrip(QWidget *parent)
+        : DragGrip(parent)
+    {
+        setProperty("studioTapGrip", true);
+        m_tap.setSingleShot(true);
+        // a tap waits for a second click, which makes it a double click
+        m_tap.setInterval(QApplication::doubleClickInterval());
+        QObject::connect(&m_tap, &QTimer::timeout, this, [this]() { if (tapped) tapped(); });
+    }
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton) {
+            DragGrip::mousePressEvent(event);
+            return;
+        }
+        m_pressPos = globalMousePos(event);
+        m_pressed = true;
+        event->accept();
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (!m_pressed || !(event->buttons() & Qt::LeftButton)) return;
+        if ((globalMousePos(event) - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
+        m_pressed = false;
+        m_tap.stop();
+        QWidget *top = window();
+        // the system moves the window, as by a title bar (a full screen one stays)
+        if (!top->isFullScreen() && top->windowHandle()) top->windowHandle()->startSystemMove();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (!m_pressed || event->button() != Qt::LeftButton) return;
+        m_pressed = false;
+        if (m_doubleClicked) {
+            m_doubleClicked = false;
+            return;
+        }
+        if (rect().contains(event->pos())) m_tap.start();
+    }
+
+    void mouseDoubleClickEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton) return;
+        m_tap.stop();
+        m_pressed = true;
+        m_doubleClicked = true;
+        QWidget *top = window();
+        if (top->isFullScreen()) return;
+        if (top->isMaximized()) top->showNormal();
+        else top->showMaximized();
+    }
+
+private:
+    QTimer m_tap;
+    QPoint m_pressPos;
+    bool m_pressed {false};
+    bool m_doubleClicked {false};
+};
+
 /// Between two pinned panels: nothing drawn, the glass shows; dragged, it shares their heights
 class PanelSplitterHandle : public QSplitterHandle
 {
@@ -523,6 +601,8 @@ class RailOverlay : public QWidget
 public:
     /// Dragged by its grip and let go nearer the other side of the canvas
     std::function<void(bool left)> moved;
+    /// Its grip tapped: its tools hidden, or shown again
+    std::function<void()> tapped;
 
     explicit RailOverlay(QWidget *canvasArea)
         : QWidget(canvasArea)
@@ -533,13 +613,33 @@ public:
         layout->setSpacing(6);
         // follows its contents: adding a tool makes it taller, removing one shorter
         layout->setSizeConstraint(QLayout::SetFixedSize);
-        layout->addWidget(new DragGrip(this));
+        m_grip = new DragGrip(this);
+        layout->addWidget(m_grip);
         canvasArea->installEventFilter(this);
+        setTucked(false);
     }
 
     void setLeft(bool left)
     {
         m_left = left;
+        place();
+    }
+
+    /// Only its grip, as wide as the rail was; or all of it
+    void setTucked(bool tucked)
+    {
+        if (tucked && !m_tucked) m_grip->setFixedWidth(qMax(m_grip->width(), 30));
+        if (!tucked) {
+            m_grip->setMinimumWidth(0);
+            m_grip->setMaximumWidth(QWIDGETSIZE_MAX);
+        }
+        m_tucked = tucked;
+        for (int i = 0; i < layout()->count(); i++) {
+            QWidget *widget = layout()->itemAt(i)->widget();
+            if (widget && widget != m_grip) widget->setVisible(!tucked);
+        }
+        m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Click to show the tools")
+                                  : i18nc("@info:tooltip", "Drag to the other side of the canvas, click to hide the tools"));
         place();
     }
 
@@ -574,6 +674,8 @@ protected:
         if (event->button() == Qt::LeftButton) {
             m_moving = true;
             m_grab = event->pos().x();
+            m_pressPos = globalMousePos(event);
+            m_onGrip = m_grip->geometry().contains(event->pos());
             setCursor(Qt::ClosedHandCursor);
             event->accept();
             return;
@@ -597,6 +699,12 @@ protected:
         }
         m_moving = false;
         unsetCursor();
+        if (m_onGrip && (globalMousePos(event) - m_pressPos).manhattanLength() < QApplication::startDragDistance()) {
+            // a tap on the grip, not a drag
+            place();
+            if (tapped) tapped();
+            return;
+        }
         const bool left = x() + width() / 2 < parentWidget()->width() / 2;
         if (left != m_left && moved) moved(left);
         else place();
@@ -614,9 +722,13 @@ protected:
     }
 
 private:
+    DragGrip *m_grip {nullptr};
     bool m_left {true};
     bool m_moving {false};
+    bool m_tucked {false};
+    bool m_onGrip {false};
     int m_grab {0};
+    QPoint m_pressPos;
 };
 
 /**
@@ -642,20 +754,41 @@ public:
         // as long as what is in it: a tool with more options makes it longer
         layout->setSizeConstraint(QLayout::SetFixedSize);
         if (!right) {
-            auto *grip = new DragGrip(this);
+            m_grip = new TopGrip(this);
             // upright, in the pill's round end
-            grip->setFixedSize(22, 30);
-            grip->setToolTip(i18nc("@info:tooltip", "Drag to move the window, double click to maximize it"));
-            layout->addWidget(grip);
+            m_grip->setFixedSize(22, 30);
+            layout->addWidget(m_grip);
         }
+        // what it holds, hidden at once when the pill is tucked away to its grip
+        m_contents = new QWidget(this);
+        auto *contents = new QHBoxLayout(m_contents);
+        contents->setContentsMargins(0, 0, 0, 0);
+        contents->setSpacing(0);
+        layout->addWidget(m_contents);
+        setTucked(false);
         canvasArea->installEventFilter(this);
         hide();
     }
 
-    /// \p widget in it, at \p index
+    /// \p widget in it, at \p index (counting the grip)
     void insert(int index, QWidget *widget)
     {
-        static_cast<QHBoxLayout *>(layout())->insertWidget(qMin(index, layout()->count()), widget);
+        QLayout *contents = m_contents->layout();
+        const int at = m_grip ? index - 1 : index;
+        static_cast<QHBoxLayout *>(contents)->insertWidget(qBound(0, at, contents->count()), widget);
+    }
+
+    QWidget *contents() const { return m_contents; }
+    TopGrip *grip() const { return m_grip; }
+
+    /// Only the grip; or all of it
+    void setTucked(bool tucked)
+    {
+        m_contents->setVisible(!tucked);
+        if (m_grip) {
+            m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Click to show the bar")
+                                      : i18nc("@info:tooltip", "Drag to move the window, click to hide the bar, double click to maximize"));
+        }
     }
 
     void place()
@@ -692,6 +825,8 @@ protected:
 
 private:
     bool m_right {false};
+    TopGrip *m_grip {nullptr};
+    QWidget *m_contents {nullptr};
 };
 
 /// Looks like a search field, opens Find Anything
@@ -751,6 +886,8 @@ public:
     std::function<void(bool done)> resized;
     /// Dragged by its strip and let go nearer the other side of the canvas
     std::function<void(bool left)> moved;
+    /// Its strip tapped (not on a button): the panels hidden, or shown again
+    std::function<void()> tapped;
 
     KisStudioPanelColumn(QWidget *canvasArea, bool left, int width)
         : QWidget(canvasArea)
@@ -898,6 +1035,7 @@ protected:
             // by the strip: the pill follows the pointer, across the canvas
             m_moving = true;
             m_grab = event->pos().x();
+            m_pressPos = globalMousePos(event);
             setCursor(Qt::ClosedHandCursor);
         } else {
             QWidget::mousePressEvent(event);
@@ -929,6 +1067,15 @@ protected:
     {
         if (event->button() != Qt::LeftButton || (!m_moving && !m_resizing)) {
             QWidget::mouseReleaseEvent(event);
+            return;
+        }
+        if (m_moving && (globalMousePos(event) - m_pressPos).manhattanLength() < QApplication::startDragDistance()) {
+            // a tap on the strip, not a drag
+            m_moving = false;
+            unsetCursor();
+            place();
+            update();
+            if (tapped) tapped();
             return;
         }
         if (m_moving) {
@@ -971,6 +1118,7 @@ private:
     bool m_resizing {false};
     bool m_moving {false};
     int m_grab {0};
+    QPoint m_pressPos;
 };
 
 /**
@@ -1084,6 +1232,11 @@ struct KisStudioLayout::Private
     /// The side of the canvas the pinned panels are on, and the tool rail
     bool panelsLeft {false};
     bool toolRailLeft {true};
+    /// Tucked away by a tap on their grip
+    bool panelsTucked {false};
+    bool toolRailTucked {false};
+    bool topBarTucked {false};
+    QPointer<QWidget> stripGrip;
     QTimer *heightSave {nullptr};
     /// Set while the panels are being arranged, whose resizing is not the user's
     bool settlingHeights {false};
@@ -1303,6 +1456,9 @@ void KisStudioLayout::enter()
     d->panelsLeft = panelSide == QLatin1String("left")
                     || (panelSide.isEmpty() && !d->pinned.isEmpty() && d->leftPanels.contains(d->pinned));
     d->toolRailLeft = KisConfig(true).readEntry<QString>(toolRailSideKey, QStringLiteral("left")) != QLatin1String("right");
+    d->panelsTucked = KisConfig(true).readEntry<bool>(panelsHiddenKey, false);
+    d->toolRailTucked = KisConfig(true).readEntry<bool>(toolRailHiddenKey, false);
+    d->topBarTucked = KisConfig(true).readEntry<bool>(topBarHiddenKey, false);
     d->arrangement.clear();
     d->heights.clear();
     Q_FOREACH (const QString &entry, KisConfig(true).readEntry<QStringList>(heightsKey)) {
@@ -1520,6 +1676,7 @@ bool KisStudioLayout::isCaptionAt(const QPoint &pos) const
     // in a pill over the top of the canvas: its grip, and what is empty in it, move the window; controls are for clicking
     for (QWidget *w = widget; w; w = w->parentWidget()) {
         if (w->property(captionProperty).toBool()) {
+            if (widget->property("studioTapGrip").toBool()) return false;
             return widget == w || dynamic_cast<DragGrip *>(widget) || qobject_cast<QToolBar *>(widget)
                 || QByteArray(widget->metaObject()->className()) == "QWidget";
         }
@@ -1946,6 +2103,7 @@ void KisStudioLayout::togglePanel(QDockWidget *dock, bool show)
 
     if (show) {
         if (d->pinned.contains(dock->objectName())) {
+            if (d->panelsTucked) setPanelsTucked(false);
             dock->show();
             dock->raise();
         } else {
@@ -2130,10 +2288,37 @@ KisStudioPanelColumn *KisStudioLayout::panelColumn()
             if (done && d->panelColumn) KisConfig(false).writeEntry(columnWidthKey, d->panelColumn->columnWidth());
         };
         column->moved = [this](bool left) { setPanelsSide(left); };
+        column->tapped = [this]() { setPanelsTucked(!d->panelsTucked); };
         d->panelColumn = column;
     }
     if (d->rail) d->panelColumn->setStrip(d->rail);
     return d->panelColumn;
+}
+
+void KisStudioLayout::setPanelsTucked(bool tucked)
+{
+    d->panelsTucked = tucked;
+    KisConfig(false).writeEntry(panelsHiddenKey, tucked);
+    if (d->stripGrip) {
+        d->stripGrip->setToolTip(tucked ? i18nc("@info:tooltip", "Click to show the panels")
+                                        : i18nc("@info:tooltip", "Drag to the other side of the canvas, click to hide the panels"));
+    }
+    updateColumns();
+}
+
+void KisStudioLayout::setToolRailTucked(bool tucked)
+{
+    d->toolRailTucked = tucked;
+    KisConfig(false).writeEntry(toolRailHiddenKey, tucked);
+    if (auto *rail = static_cast<RailOverlay *>(d->brushRail.data())) rail->setTucked(tucked);
+}
+
+void KisStudioLayout::setTopBarTucked(bool tucked)
+{
+    d->topBarTucked = tucked;
+    KisConfig(false).writeEntry(topBarHiddenKey, tucked);
+    if (d->topPill) d->topPill->setTucked(tucked);
+    updateCanvasInsets();
 }
 
 void KisStudioLayout::setPanelsSide(bool left)
@@ -2169,7 +2354,7 @@ void KisStudioLayout::updateColumns()
             any = any || !dock->isHidden();
         }
         // the strip is there as the rail was; the panels under it when they are shown
-        column->setPanelsShown(any && !arePanelsHidden());
+        column->setPanelsShown(any && !arePanelsHidden() && !d->panelsTucked);
         column->setVisible(d->active && !isRailHidden());
     }
     updateCanvasInsets();
@@ -2447,11 +2632,13 @@ void KisStudioLayout::createRail()
 
     // between the buttons and "+": what the pill is dragged by
     auto *spacer = new DragGrip(rail);
+    d->stripGrip = spacer;
     spacer->setMinimumHeight(0);
     spacer->setMaximumHeight(QWIDGETSIZE_MAX);
     spacer->setMinimumSize(24, 0);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     d->railSpacer = rail->addWidget(spacer);
+    setPanelsTucked(d->panelsTucked);
 
     auto *addPanel = new QToolButton(rail);
     addPanel->setIcon(KisIconUtils::loadIcon(QStringLiteral("list-add")));
@@ -2521,7 +2708,9 @@ void KisStudioLayout::rebuildRailButtons()
         action->setCheckable(true);
         connect(action, &QAction::triggered, this, [this, id](bool checked) {
             if (QDockWidget *dock = d->mainWindow->dockWidget(id)) {
-                togglePanel(dock, checked);
+                // tucked away, a panel's button brings the panels back, with it among them
+                togglePanel(dock, checked || d->panelsTucked);
+                syncRail();
             }
         });
         rail->insertAction(d->railSpacer, action);
@@ -2781,7 +2970,9 @@ void KisStudioLayout::createBrushRail()
     toolRail->addBottomWidget(contents);
     rail->layout()->addWidget(toolRail);
     rail->moved = [this](bool left) { setToolRailSide(left); };
+    rail->tapped = [this]() { setToolRailTucked(!d->toolRailTucked); };
     rail->setLeft(d->toolRailLeft);
+    rail->setTucked(d->toolRailTucked);
     d->brushRail = rail;
 }
 
@@ -2876,6 +3067,8 @@ void KisStudioLayout::adoptTopBars()
     }
     if (!d->topPill) {
         d->topPill = new TopPill(area, false);
+        d->topPill->grip()->tapped = [this]() { setTopBarTucked(!d->topBarTucked); };
+        d->topPill->setTucked(d->topBarTucked);
     }
     if (!d->windowPill) {
         d->windowPill = new TopPill(area, true);
@@ -2901,7 +3094,7 @@ void KisStudioLayout::adoptTopBars()
     int index = 1;
     for (QToolBar *bar : {d->topBar.data(), brushBar}) {
         if (!bar) continue;
-        if (bar->parentWidget() != d->topPill) {
+        if (bar->parentWidget() != d->topPill->contents()) {
             d->mainWindow->removeToolBar(bar);
             bar->setMovable(false);
             KisStudioGlass::setSeeThrough(bar, true);

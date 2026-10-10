@@ -93,6 +93,10 @@ private:
     /// The pill of pinned panels to the left side of the canvas or the right, and the tool rail
     void setPanelsSide(bool left);
     void setToolRailSide(bool left);
+    /// Hidden by a tap on their grip, or shown again: the pinned panels (not their strip), the tool rail's tools, the top bar
+    void setPanelsTucked(bool tucked);
+    void setToolRailTucked(bool tucked);
+    void setTopBarTucked(bool tucked);
     /// Back among the window's docks, hidden: where it keeps the panels it does not show
     void parkPanel(QDockWidget *dock);
     /// The columns shown if they have panels to show, and what is in the canvas area kept clear of them
