@@ -101,9 +101,11 @@ const int leftDropZone = 140;
 /// The heights of pinned panels, as "id=height", so that a short panel stays short
 const QString heightsKey = QStringLiteral("StudioLayoutPanelHeights");
 const QString foldedKey = QStringLiteral("StudioLayoutFoldedPanels");
-/// How wide the columns of pinned panels are, left and right
-const QString leftWidthKey = QStringLiteral("StudioLayoutLeftColumnWidth");
-const QString rightWidthKey = QStringLiteral("StudioLayoutRightColumnWidth");
+/// How wide the pill of pinned panels is, and on which side of the canvas ("left" or "right")
+const QString columnWidthKey = QStringLiteral("StudioLayoutPanelWidth");
+const QString panelSideKey = QStringLiteral("StudioLayoutPanelSide");
+/// The side of the canvas the tool rail is on ("left" or "right")
+const QString toolRailSideKey = QStringLiteral("StudioLayoutToolRailSide");
 const QString classicStateKey = QStringLiteral("StudioLayoutClassicState");
 
 /// The panels that get a button on the rail; "+" on the rail adds any other
@@ -431,6 +433,44 @@ QMargins canvasInsets(const QWidget *canvasArea)
     return QMargins(canvasArea->property(leftInsetProperty).toInt(), 0, canvasArea->property(rightInsetProperty).toInt(), 0);
 }
 
+/// How far the pinned panels' pill reaches in from the left and right edges, also when it is only its strip
+const char *const leftPillProperty = "studioPanelPillLeft";
+const char *const rightPillProperty = "studioPanelPillRight";
+
+/// What a dragged pill or rail is held by: a grip line; the pointer goes through to what holds it
+class DragGrip : public QWidget
+{
+public:
+    explicit DragGrip(QWidget *parent)
+        : QWidget(parent)
+    {
+        setCursor(Qt::OpenHandCursor);
+        setFixedHeight(10);
+        setToolTip(i18nc("@info:tooltip", "Drag to the other side of the canvas"));
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QColor ink = palette().color(QPalette::WindowText);
+        ink.setAlphaF(underMouse() ? 0.55 : 0.25);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(ink);
+        // dots, three by two: held and dragged, not pressed (a line would read as a minus)
+        const QPointF center = QRectF(rect()).center();
+        for (int column = -1; column <= 1; column++) {
+            for (int row = 0; row < 2; row++) {
+                painter.drawEllipse(center + QPointF(column * 4.0, row * 4.0 - 2.0), 1.1, 1.1);
+            }
+        }
+    }
+
+    void enterEvent(QEvent *) override { update(); }
+    void leaveEvent(QEvent *) override { update(); }
+};
+
 /// Between two pinned panels: nothing drawn, the glass shows; dragged, it shares their heights
 class PanelSplitterHandle : public QSplitterHandle
 {
@@ -462,22 +502,38 @@ protected:
 class RailOverlay : public QWidget
 {
 public:
+    /// Dragged by its grip and let go nearer the other side of the canvas
+    std::function<void(bool left)> moved;
+
     explicit RailOverlay(QWidget *canvasArea)
         : QWidget(canvasArea)
     {
         setObjectName(QStringLiteral("studioToolRail"));
         auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(3, 3, 3, 6);
+        layout->setContentsMargins(3, 0, 3, 6);
         layout->setSpacing(6);
         // follows its contents: adding a tool makes it taller, removing one shorter
         layout->setSizeConstraint(QLayout::SetFixedSize);
+        layout->addWidget(new DragGrip(this));
         canvasArea->installEventFilter(this);
+    }
+
+    void setLeft(bool left)
+    {
+        m_left = left;
+        place();
     }
 
     void place()
     {
-        // right of the pinned panels on the left, if there are
-        move(10 + canvasInsets(parentWidget()).left(), 10);
+        if (m_moving) return;
+        // beside the pinned panels' pill, if it is on the same side
+        QWidget *area = parentWidget();
+        if (m_left) {
+            move(10 + area->property(leftPillProperty).toInt(), 10);
+        } else {
+            move(area->width() - 10 - area->property(rightPillProperty).toInt() - width(), 10);
+        }
         raise();
     }
 
@@ -491,6 +547,40 @@ protected:
         return QWidget::eventFilter(watched, event);
     }
 
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        // by the grip (or between the tools): the rail follows the pointer, across the canvas
+        if (event->button() == Qt::LeftButton) {
+            m_moving = true;
+            m_grab = event->pos().x();
+            setCursor(Qt::ClosedHandCursor);
+            event->accept();
+            return;
+        }
+        QWidget::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (!m_moving) return;
+        const QWidget *area = parentWidget();
+        const int x = area->mapFromGlobal(globalMousePos(event)).x() - m_grab;
+        move(qBound(4, x, qMax(4, area->width() - 4 - width())), y());
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (!m_moving || event->button() != Qt::LeftButton) {
+            QWidget::mouseReleaseEvent(event);
+            return;
+        }
+        m_moving = false;
+        unsetCursor();
+        const bool left = x() + width() / 2 < parentWidget()->width() / 2;
+        if (left != m_left && moved) moved(left);
+        else place();
+    }
+
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
@@ -498,9 +588,14 @@ protected:
         // glass: the canvas under it still shows
         const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14);
         QColor border = palette().color(QPalette::WindowText);
-        border.setAlphaF(0.12);
+        border.setAlphaF(m_moving ? 0.3 : 0.12);
         painter.strokePath(shape, QPen(border, 1));
     }
+
+private:
+    bool m_left {true};
+    bool m_moving {false};
+    int m_grab {0};
 };
 
 /// Looks like a search field, opens Find Anything
@@ -540,10 +635,12 @@ protected:
 } // namespace
 
 /**
- * The pinned panels of one side of the canvas, over it: glass, as the rail,
- * the canvas going on under it and showing through. Dragging between two
- * panels shares their heights; dragging the inner edge makes the column
- * wider or narrower.
+ * The pinned panels, over an edge of the canvas: a pill of glass, as the
+ * rail, the canvas going on under it and showing through. On top is the
+ * strip of panel buttons; with no panel shown, the pill is only that.
+ * Dragged by the strip, it goes to the other side of the canvas; dragging
+ * between two panels shares their heights; dragging the inner edge makes
+ * it wider or narrower.
  */
 class KisStudioPanelColumn : public QWidget
 {
@@ -556,18 +653,20 @@ public:
 
     /// Placed again (moved, made wider or narrower), or its width dragged and let go (\p done)
     std::function<void(bool done)> resized;
+    /// Dragged by its strip and let go nearer the other side of the canvas
+    std::function<void(bool left)> moved;
 
     KisStudioPanelColumn(QWidget *canvasArea, bool left, int width)
         : QWidget(canvasArea)
         , m_left(left)
         , m_width(width)
     {
-        setObjectName(left ? QStringLiteral("studioPanelsLeft") : QStringLiteral("studioPanelsRight"));
-        auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(left ? 1 : edge, 1, left ? edge : 1, 1);
-        layout->setSpacing(0);
+        setObjectName(QStringLiteral("studioPanels"));
+        m_layout = new QVBoxLayout(this);
+        m_layout->setSpacing(0);
         m_splitter = new PanelSplitter(this);
-        layout->addWidget(m_splitter);
+        m_layout->addWidget(m_splitter);
+        updateMargins();
         setMouseTracking(true);
         canvasArea->installEventFilter(this);
         hide();
@@ -575,6 +674,30 @@ public:
 
     QSplitter *splitter() const { return m_splitter; }
     int columnWidth() const { return m_width; }
+    bool isLeft() const { return m_left; }
+
+    /// The strip of panel buttons, on top
+    void setStrip(QWidget *strip)
+    {
+        if (m_strip == strip) return;
+        m_strip = strip;
+        m_layout->insertWidget(0, strip);
+    }
+
+    void setLeft(bool left)
+    {
+        m_left = left;
+        updateMargins();
+        place();
+    }
+
+    /// The panels under the strip shown, or only the strip
+    void setPanelsShown(bool shown)
+    {
+        m_splitter->setVisible(shown);
+        place();
+    }
+    bool panelsShown() const { return !m_splitter->isHidden(); }
 
     QList<QDockWidget *> panels() const
     {
@@ -621,12 +744,18 @@ public:
         m_splitter->setSizes(sizes);
     }
 
-    /// Over the canvas area's edge, as tall as it
+    /// Over the canvas area's edge: as tall as it with panels, as small as the strip without
     void place()
     {
         QWidget *area = parentWidget();
-        const int width = qBound(minimumColumnWidth, m_width, qMax(minimumColumnWidth, area->width() / 2));
-        const QRect geometry(m_left ? margin : area->width() - margin - width, margin, width, qMax(0, area->height() - 2 * margin));
+        QSize size;
+        if (panelsShown()) {
+            size = QSize(qBound(minimumColumnWidth, m_width, qMax(minimumColumnWidth, area->width() / 2)), qMax(0, area->height() - 2 * margin));
+        } else {
+            size = m_layout->sizeHint();
+        }
+        QRect geometry(m_left ? margin : area->width() - margin - size.width(), margin, size.width(), size.height());
+        if (m_moving) geometry.moveLeft(x());
         if (geometry != this->geometry()) {
             setGeometry(geometry);
             if (resized) resized(false);
@@ -655,61 +784,95 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
         const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12);
         QColor border = palette().color(QPalette::WindowText);
-        border.setAlphaF(m_dragging ? 0.3 : 0.12);
+        border.setAlphaF(m_resizing || m_moving ? 0.3 : 0.12);
         painter.strokePath(shape, QPen(border, 1));
     }
 
     void mousePressEvent(QMouseEvent *event) override
     {
-        if (event->button() == Qt::LeftButton && onEdge(event->pos())) {
-            m_dragging = true;
-            update();
-            event->accept();
+        if (event->button() != Qt::LeftButton) {
+            QWidget::mousePressEvent(event);
             return;
         }
-        QWidget::mousePressEvent(event);
+        if (onEdge(event->pos())) {
+            m_resizing = true;
+        } else if (m_strip && event->pos().y() <= m_strip->geometry().bottom()) {
+            // by the strip: the pill follows the pointer, across the canvas
+            m_moving = true;
+            m_grab = event->pos().x();
+            setCursor(Qt::ClosedHandCursor);
+        } else {
+            QWidget::mousePressEvent(event);
+            return;
+        }
+        update();
+        event->accept();
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (!m_dragging) {
-            setCursor(onEdge(event->pos()) ? Qt::SizeHorCursor : Qt::ArrowCursor);
-            return;
-        }
-        // the inner edge follows the pointer
         const QWidget *area = parentWidget();
         const int x = area->mapFromGlobal(globalMousePos(event)).x();
-        m_width = qBound(minimumColumnWidth, m_left ? x - margin : area->width() - margin - x, qMax(minimumColumnWidth, area->width() / 2));
-        place();
+        if (m_moving) {
+            move(qBound(margin, x - m_grab, qMax(margin, area->width() - margin - width())), y());
+            return;
+        }
+        if (m_resizing) {
+            // the inner edge follows the pointer
+            m_width = qBound(minimumColumnWidth, m_left ? x - margin : area->width() - margin - x, qMax(minimumColumnWidth, area->width() / 2));
+            place();
+            return;
+        }
+        if (onEdge(event->pos())) setCursor(Qt::SizeHorCursor);
+        else unsetCursor();
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
-        if (m_dragging && event->button() == Qt::LeftButton) {
-            m_dragging = false;
-            update();
-            if (resized) resized(true);
+        if (event->button() != Qt::LeftButton || (!m_moving && !m_resizing)) {
+            QWidget::mouseReleaseEvent(event);
             return;
         }
-        QWidget::mouseReleaseEvent(event);
+        if (m_moving) {
+            m_moving = false;
+            unsetCursor();
+            // the side it was let go nearer to
+            const bool left = x() + width() / 2 < parentWidget()->width() / 2;
+            if (left != m_left && moved) moved(left);
+            else place();
+        } else {
+            m_resizing = false;
+            if (resized) resized(true);
+        }
+        update();
     }
 
     void leaveEvent(QEvent *event) override
     {
-        if (!m_dragging) unsetCursor();
+        if (!m_resizing && !m_moving) unsetCursor();
         QWidget::leaveEvent(event);
     }
 
 private:
     bool onEdge(const QPoint &pos) const
     {
+        if (!panelsShown()) return false;
         return m_left ? pos.x() >= width() - edge : pos.x() < edge;
     }
 
+    void updateMargins()
+    {
+        m_layout->setContentsMargins(m_left ? 1 : edge, 1, m_left ? edge : 1, 1);
+    }
+
+    QVBoxLayout *m_layout {nullptr};
     QSplitter *m_splitter {nullptr};
+    QPointer<QWidget> m_strip;
     bool m_left {false};
     int m_width {0};
-    bool m_dragging {false};
+    bool m_resizing {false};
+    bool m_moving {false};
+    int m_grab {0};
 };
 
 /**
@@ -814,8 +977,11 @@ struct KisStudioLayout::Private
     /// Pinned panels folded to their grip, by id
     QSet<QString> folded;
     QHash<QString, QPointer<PanelGrip>> grips;
-    /// The pinned panels, over the canvas: left and right
-    QPointer<KisStudioPanelColumn> panelColumns[2];
+    /// The pinned panels, over the canvas, with the panel buttons
+    QPointer<KisStudioPanelColumn> panelColumn;
+    /// The side of the canvas the pinned panels are on, and the tool rail
+    bool panelsLeft {false};
+    bool toolRailLeft {true};
     QTimer *heightSave {nullptr};
     /// Set while the panels are being arranged, whose resizing is not the user's
     bool settlingHeights {false};
@@ -839,8 +1005,7 @@ struct KisStudioLayout::Private
         QList<QDockWidget *> docks;
         Q_FOREACH (const QString &id, pinnedOrder()) {
             QDockWidget *dock = mainWindow->dockWidget(id);
-            if (id == without || !dock || dock == flyout || dock->isHidden() || dock->isFloating()
-                || leftPanels.contains(id) != left) {
+            if (id == without || !dock || dock == flyout || dock->isHidden() || dock->isFloating() || panelsLeft != left) {
                 continue;
             }
             docks << dock;
@@ -855,18 +1020,6 @@ struct KisStudioLayout::Private
         return QRect(dock->mapTo(mainWindow, QPoint()), dock->size());
     }
 
-    /// The column of pinned panels of a side, made when first needed
-    KisStudioPanelColumn *columnOf(bool left, QWidget *canvasArea, const std::function<void(bool)> &resized)
-    {
-        QPointer<KisStudioPanelColumn> &column = panelColumns[left ? 0 : 1];
-        if (!column && canvasArea) {
-            const int width = KisConfig(true).readEntry<int>(left ? leftWidthKey : rightWidthKey, 270);
-            column = new KisStudioPanelColumn(canvasArea, left, width);
-            column->resized = resized;
-        }
-        return column;
-    }
-
     PanelDrop panelDropAt(const QPoint &globalPos, const QString &moving) const
     {
         PanelDrop drop;
@@ -875,7 +1028,8 @@ struct KisStudioLayout::Private
         const QPoint pos = mainWindow->mapFromGlobal(globalPos);
         const QRect canvas = canvasArea->geometry();
 
-        for (const bool left : {true, false}) {
+        // the side the pinned panels are on
+        for (const bool left : {panelsLeft}) {
             const QList<QDockWidget *> docks = column(left, moving);
             QRect area;
             Q_FOREACH (QDockWidget *dock, docks) {
@@ -1042,6 +1196,11 @@ void KisStudioLayout::enter()
     d->folded = QSet<QString>(folded.begin(), folded.end());
     const QStringList left = KisConfig(true).readEntry<QStringList>(leftKey);
     d->leftPanels = QSet<QString>(left.begin(), left.end());
+    // one pill of panels: on the left if it says so, or if all the pinned panels were on the left before there was one
+    const QString panelSide = KisConfig(true).readEntry<QString>(panelSideKey, QString());
+    d->panelsLeft = panelSide == QLatin1String("left")
+                    || (panelSide.isEmpty() && !d->pinned.isEmpty() && d->leftPanels.contains(d->pinned));
+    d->toolRailLeft = KisConfig(true).readEntry<QString>(toolRailSideKey, QStringLiteral("left")) != QLatin1String("right");
     d->arrangement.clear();
     d->heights.clear();
     Q_FOREACH (const QString &entry, KisConfig(true).readEntry<QStringList>(heightsKey)) {
@@ -1434,8 +1593,7 @@ void KisStudioLayout::leave()
     d->classicDocks.clear();
     d->panels.clear();
     d->grips.clear();
-    for (const QPointer<KisStudioPanelColumn> &column : d->panelColumns) {
-        if (!column) continue;
+    if (KisStudioPanelColumn *column = d->panelColumn) {
         Q_FOREACH (QDockWidget *dock, column->panels()) {
             const bool shown = !dock->isHidden();
             parkPanel(dock);
@@ -1805,15 +1963,15 @@ void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
 void KisStudioLayout::arrangePinned()
 {
     /**
-     * Pinned panels stack in the order of their rail buttons, in the column
-     * of their side, over the canvas: reordering the rail reorders them.
-     * Only redone when the order or a side changed; the heights they were
-     * given are put back after.
+     * Pinned panels stack in the order of their rail buttons, in the pill
+     * over the canvas: reordering the rail reorders them. Only redone when
+     * the order or the side changed; the heights they were given are put
+     * back after.
      */
     const QStringList order = d->pinnedOrder();
-    QString arrangement;
+    QString arrangement = d->panelsLeft ? QStringLiteral("L:") : QStringLiteral("R:");
     Q_FOREACH (const QString &id, order) {
-        arrangement += (d->leftPanels.contains(id) ? QStringLiteral("L:") : QStringLiteral("R:")) + id + QLatin1Char(',');
+        arrangement += id + QLatin1Char(',');
     }
     if (arrangement == d->arrangement) {
         updateColumns();
@@ -1821,43 +1979,66 @@ void KisStudioLayout::arrangePinned()
     }
     d->arrangement = arrangement;
 
-    QList<QDockWidget *> sides[2];
+    KisStudioPanelColumn *column = panelColumn();
+    if (!column) {
+        return;
+    }
+    QList<QDockWidget *> docks;
     Q_FOREACH (const QString &id, order) {
         QDockWidget *dock = d->mainWindow->dockWidget(id);
-        if (!dock || dock == d->flyout) continue;
-        sides[d->leftPanels.contains(id) ? 0 : 1] << dock;
+        if (dock && dock != d->flyout) docks << dock;
     }
-    for (int side = 0; side < 2; side++) {
-        KisStudioPanelColumn *column = columnOf(side == 0);
-        if (!column) continue;
-        // no longer in this column: back among the window's docks, hidden, unless in the other column
-        Q_FOREACH (QDockWidget *dock, column->panels()) {
-            if (!sides[0].contains(dock) && !sides[1].contains(dock)) parkPanel(dock);
-        }
-        // out of the window's dock areas, where nothing is to be (the canvas goes on under the columns)
-        Q_FOREACH (QDockWidget *dock, sides[side]) {
-            if (dock->parentWidget() != column->splitter()) {
-                const bool shown = !dock->isHidden();
-                if (dock->isFloating()) dockAway(dock);
-                d->mainWindow->removeDockWidget(dock);
-                dock->setVisible(shown);
-            }
-        }
-        column->setPanels(sides[side]);
+    // no longer pinned: back among the window's docks, hidden
+    Q_FOREACH (QDockWidget *dock, column->panels()) {
+        if (!docks.contains(dock)) parkPanel(dock);
     }
+    // out of the window's dock areas, where nothing is to be (the canvas goes on under the pill)
+    Q_FOREACH (QDockWidget *dock, docks) {
+        if (dock->parentWidget() != column->splitter()) {
+            const bool shown = !dock->isHidden();
+            if (dock->isFloating()) dockAway(dock);
+            d->mainWindow->removeDockWidget(dock);
+            dock->setVisible(shown);
+        }
+    }
+    column->setLeft(d->panelsLeft);
+    column->setPanels(docks);
     restoreHeights();
     updateColumns();
 }
 
-KisStudioPanelColumn *KisStudioLayout::columnOf(bool left)
+KisStudioPanelColumn *KisStudioLayout::panelColumn()
 {
-    QMdiArea *area = mdiArea();
-    return d->columnOf(left, area ? area->parentWidget() : nullptr, [this, left](bool done) {
-        updateCanvasInsets();
-        if (done) {
-            KisConfig(false).writeEntry(left ? leftWidthKey : rightWidthKey, d->panelColumns[left ? 0 : 1]->columnWidth());
-        }
-    });
+    if (!d->panelColumn) {
+        QMdiArea *area = mdiArea();
+        if (!area) return nullptr;
+        KisConfig cfg(true);
+        const int width = cfg.readEntry<int>(columnWidthKey, cfg.readEntry<int>(QStringLiteral("StudioLayoutRightColumnWidth"), 270));
+        auto *column = new KisStudioPanelColumn(area->parentWidget(), d->panelsLeft, width);
+        column->resized = [this](bool done) {
+            updateCanvasInsets();
+            if (done && d->panelColumn) KisConfig(false).writeEntry(columnWidthKey, d->panelColumn->columnWidth());
+        };
+        column->moved = [this](bool left) { setPanelsSide(left); };
+        d->panelColumn = column;
+    }
+    if (d->rail) d->panelColumn->setStrip(d->rail);
+    return d->panelColumn;
+}
+
+void KisStudioLayout::setPanelsSide(bool left)
+{
+    d->panelsLeft = left;
+    KisConfig(false).writeEntry(panelSideKey, left ? QStringLiteral("left") : QStringLiteral("right"));
+    d->arrangement.clear();
+    arrangePinned();
+}
+
+void KisStudioLayout::setToolRailSide(bool left)
+{
+    d->toolRailLeft = left;
+    KisConfig(false).writeEntry(toolRailSideKey, left ? QStringLiteral("left") : QStringLiteral("right"));
+    if (auto *rail = static_cast<RailOverlay *>(d->brushRail.data())) rail->setLeft(left);
 }
 
 void KisStudioLayout::parkPanel(QDockWidget *dock)
@@ -1871,14 +2052,15 @@ void KisStudioLayout::parkPanel(QDockWidget *dock)
 
 void KisStudioLayout::updateColumns()
 {
-    const bool allowed = d->active && !arePanelsHidden();
-    for (const QPointer<KisStudioPanelColumn> &column : d->panelColumns) {
-        if (!column) continue;
+    KisStudioPanelColumn *column = d->panelColumn;
+    if (column) {
         bool any = false;
         Q_FOREACH (QDockWidget *dock, column->panels()) {
             any = any || !dock->isHidden();
         }
-        column->setVisible(allowed && any);
+        // the strip is there as the rail was; the panels under it when they are shown
+        column->setPanelsShown(any && !arePanelsHidden());
+        column->setVisible(d->active && !isRailHidden());
     }
     updateCanvasInsets();
 }
@@ -1890,15 +2072,22 @@ void KisStudioLayout::updateCanvasInsets()
     if (!area) {
         return;
     }
-    KisStudioPanelColumn *left = d->panelColumns[0];
-    KisStudioPanelColumn *right = d->panelColumns[1];
-    const bool leftShown = left && !left->isHidden();
-    const bool rightShown = right && !right->isHidden();
-    const QMargins insets(leftShown ? left->geometry().right() + 1 : 0, 0, rightShown ? area->width() - right->x() : 0, 0);
-    if (canvasInsets(area) != insets) {
+    KisStudioPanelColumn *column = d->panelColumn;
+    const bool shown = column && !column->isHidden();
+    const bool full = shown && column->panelsShown();
+    const bool left = shown && column->isLeft();
+    const int reach = shown ? (left ? column->geometry().right() + 1 : area->width() - column->x()) : 0;
+    // the pill, whatever it shows: what is at the top of the canvas (the tool rail) goes beside it
+    const int pillLeft = shown && left ? reach : 0;
+    const int pillRight = shown && !left ? reach : 0;
+    // the pill as tall as the canvas: what is at the bottom (the zoom pill) too, and the view
+    const QMargins insets(full && left ? reach : 0, 0, full && !left ? reach : 0, 0);
+    if (canvasInsets(area) != insets || area->property(leftPillProperty).toInt() != pillLeft
+        || area->property(rightPillProperty).toInt() != pillRight) {
         area->setProperty(leftInsetProperty, insets.left());
         area->setProperty(rightInsetProperty, insets.right());
-        // the rail and the zoom pill keep clear of the panels
+        area->setProperty(leftPillProperty, pillLeft);
+        area->setProperty(rightPillProperty, pillRight);
         QCoreApplication::postEvent(area, new QEvent(QEvent::LayoutRequest));
         if (d->flyout) positionFlyout();
     }
@@ -1911,8 +2100,8 @@ void KisStudioLayout::updateCanvasInsets()
         if (!canvasWidget) continue;
         const QRect widget(canvasWidget->mapToGlobal(QPoint()), canvasWidget->size());
         QMarginsF viewInsets;
-        if (leftShown) viewInsets.setLeft(qMax(0, left->mapToGlobal(QPoint(left->width(), 0)).x() - widget.left()));
-        if (rightShown) viewInsets.setRight(qMax(0, widget.right() + 1 - right->mapToGlobal(QPoint()).x()));
+        if (full && left) viewInsets.setLeft(qMax(0, column->mapToGlobal(QPoint(column->width(), 0)).x() - widget.left()));
+        if (full && !left) viewInsets.setRight(qMax(0, widget.right() + 1 - column->mapToGlobal(QPoint()).x()));
         if (view->canvasController()) view->canvasController()->setViewportInsets(viewInsets);
     }
 }
@@ -1925,8 +2114,7 @@ void KisStudioLayout::restoreHeights()
         Q_FOREACH (const QString &id, d->pinnedOrder()) {
             applyFold(d->mainWindow->dockWidget(id), d->folded.contains(id) && d->pinned.contains(id));
         }
-        for (const QPointer<KisStudioPanelColumn> &column : d->panelColumns) {
-            if (!column) continue;
+        if (KisStudioPanelColumn *column = d->panelColumn) {
             QList<int> sizes;
             Q_FOREACH (QDockWidget *dock, column->panels()) {
                 const QString id = dock->objectName();
@@ -2029,9 +2217,7 @@ void KisStudioLayout::gripClicked(const QString &id)
 
 void KisStudioLayout::resizePanel(QDockWidget *dock, int height)
 {
-    for (const QPointer<KisStudioPanelColumn> &column : d->panelColumns) {
-        if (column && column->panels().contains(dock)) column->resizePanel(dock, height);
-    }
+    if (d->panelColumn) d->panelColumn->resizePanel(dock, height);
 }
 
 void KisStudioLayout::applyFold(QDockWidget *dock, bool fold)
@@ -2087,9 +2273,6 @@ void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool
         return;
     }
 
-    if (drop.left) d->leftPanels.insert(id);
-    else d->leftPanels.remove(id);
-    KisConfig(false).writeEntry(leftKey, QStringList(d->leftPanels.values()));
     d->pinned.insert(id);
     savePinned();
     if (dock == d->flyout) {
@@ -2115,14 +2298,6 @@ void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool
     setRailPanels(panels);
 }
 
-void KisStudioLayout::setPanelSide(const QString &id, bool left)
-{
-    if (left) d->leftPanels.insert(id);
-    else d->leftPanels.remove(id);
-    KisConfig(false).writeEntry(leftKey, QStringList(d->leftPanels.values()));
-    arrangePinned();
-}
-
 void KisStudioLayout::savePinned()
 {
     QStringList pinned = d->pinned.values();
@@ -2138,20 +2313,26 @@ void KisStudioLayout::createRail()
 
     KisMainWindow *mainWindow = d->mainWindow;
 
+    // a strip on top of the pinned panels' pill: a few panels are open at a time, not a column of them
     QToolBar *rail = new QToolBar(i18nc("@title:window", "Panels"), mainWindow);
-    rail->setObjectName(QStringLiteral("studioPanelRail"));
+    // not the name it had as a toolbar of the window: a restored window state would take it back there
+    rail->setObjectName(QStringLiteral("studioPanelStrip"));
     rail->setMovable(false);
     rail->setFloatable(false);
-    rail->setOrientation(Qt::Vertical);
+    rail->setOrientation(Qt::Horizontal);
     rail->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    rail->setIconSize(QSize(22, 22));
+    rail->setIconSize(QSize(20, 20));
     rail->setContextMenuPolicy(Qt::CustomContextMenu);
+    KisStudioGlass::setSeeThrough(rail, true);
     connect(rail, &QWidget::customContextMenuRequested, this, &KisStudioLayout::showRailContextMenu);
-    mainWindow->addToolBar(Qt::RightToolBarArea, rail);
     d->rail = rail;
 
-    auto *spacer = new QWidget(rail);
-    spacer->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+    // between the buttons and "+": what the pill is dragged by
+    auto *spacer = new DragGrip(rail);
+    spacer->setMinimumHeight(0);
+    spacer->setMaximumHeight(QWIDGETSIZE_MAX);
+    spacer->setMinimumSize(24, 0);
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     d->railSpacer = rail->addWidget(spacer);
 
     auto *addPanel = new QToolButton(rail);
@@ -2178,7 +2359,7 @@ void KisStudioLayout::createRail()
             const QStringList panels = KisConfig(true).readEntry<QStringList>(panelsKey, defaultRailPanels());
             if (panels != d->railPanels) setRailPanels(panels);
         });
-        picker->popupLeftOf(addPanel);
+        picker->popupBelow(addPanel);
     });
     rail->addWidget(addPanel);
 
@@ -2192,6 +2373,9 @@ void KisStudioLayout::createRail()
 
     d->railPanels = KisConfig(true).readEntry<QStringList>(panelsKey, defaultRailPanels());
     rebuildRailButtons();
+    // the toolbar the window had it in, the last time
+    mainWindow->removeToolBar(rail);
+    panelColumn();
 }
 
 void KisStudioLayout::rebuildRailButtons()
@@ -2345,33 +2529,33 @@ bool KisStudioLayout::handleRailDrag(QObject *watched, QEvent *event)
             drag.button->setDown(false);
         }
 
-        // off the rail: where the panel would go beside the canvas
+        // off the strip: where the panel would go in the pill, or the canvas
         const QPoint global = globalMousePos(mouseEvent);
-        if (!QRect(d->rail->mapToGlobal(QPoint(0, 0)), d->rail->size()).adjusted(-12, 0, 12, 0).contains(global)) {
+        if (!QRect(d->rail->mapToGlobal(QPoint(0, 0)), d->rail->size()).adjusted(0, -12, 0, 12).contains(global)) {
             if (d->dropIndicator) d->dropIndicator->hide();
             d->showPanelDrop(global, drag.id);
             return true;
         }
         d->hidePanelDrop();
 
-        // the gap between rail buttons that is closest to the cursor
-        const int y = d->rail->mapFromGlobal(global).y();
+        // the gap between the strip's buttons that is closest to the cursor
+        const int x = d->rail->mapFromGlobal(global).x();
         drag.targetIndex = d->railPanels.size();
-        int indicatorY = 0;
+        int indicatorX = 0;
         for (int i = 0; i < d->railPanels.size(); i++) {
             QWidget *widget = d->rail->widgetForAction(d->railActions.value(d->railPanels[i]));
             if (!widget) {
                 continue;
             }
-            indicatorY = widget->geometry().bottom() + 1;
-            if (y < widget->geometry().center().y()) {
+            indicatorX = widget->geometry().right() + 1;
+            if (x < widget->geometry().center().x()) {
                 drag.targetIndex = i;
-                indicatorY = widget->geometry().top();
+                indicatorX = widget->geometry().left();
                 break;
             }
         }
         if (d->dropIndicator) {
-            d->dropIndicator->setGeometry(3, indicatorY - 1, d->rail->width() - 6, 2);
+            d->dropIndicator->setGeometry(indicatorX - 1, 3, 2, d->rail->height() - 6);
             d->dropIndicator->show();
             d->dropIndicator->raise();
         }
@@ -2396,7 +2580,7 @@ bool KisStudioLayout::handleRailDrag(QObject *watched, QEvent *event)
 
         const QPoint release = globalMousePos(static_cast<QMouseEvent *>(event));
         d->hidePanelDrop();
-        if (!QRect(d->rail->mapToGlobal(QPoint(0, 0)), d->rail->size()).adjusted(-12, 0, 12, 0).contains(release)) {
+        if (!QRect(d->rail->mapToGlobal(QPoint(0, 0)), d->rail->size()).adjusted(0, -12, 0, 12).contains(release)) {
             // beside the canvas it is pinned there, on the canvas it is taken off the rail
             QTimer::singleShot(0, this, [this, id, release]() { dropPanel(id, release, true); });
             return true;
@@ -2478,7 +2662,8 @@ void KisStudioLayout::createBrushRail()
 
     toolRail->addBottomWidget(contents);
     rail->layout()->addWidget(toolRail);
-    rail->place();
+    rail->moved = [this](bool left) { setToolRailSide(left); };
+    rail->setLeft(d->toolRailLeft);
     d->brushRail = rail;
 }
 

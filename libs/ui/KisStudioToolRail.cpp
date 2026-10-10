@@ -16,6 +16,7 @@
 #include <QDragEnterEvent>
 #include <QFrame>
 #include <QLineEdit>
+#include <QScreen>
 #include <QMimeData>
 #include <QPainter>
 #include <QPointer>
@@ -301,7 +302,11 @@ protected:
         editor->setText(m_name);
         editor->setPlaceholderText(i18nc("@info:placeholder", "Group name"));
         editor->setFixedWidth(160);
-        editor->move(mapToGlobal(QPoint(width() + 8, (height() - editor->sizeHint().height()) / 2)));
+        // beside the rail, on the side of the screen there is room on (the rail may be on the right)
+        const int y = (height() - editor->sizeHint().height()) / 2;
+        const QRect available = screen() ? screen()->availableGeometry() : QRect();
+        const bool room = available.isEmpty() || mapToGlobal(QPoint(width() / 2, 0)).x() < available.center().x();
+        editor->move(mapToGlobal(room ? QPoint(width() + 8, y) : QPoint(-8 - editor->width(), y)));
         auto rename = onRename;
         QObject::connect(editor, &QLineEdit::returnPressed, editor, [editor, rename]() {
             const QString name = editor->text().trimmed();

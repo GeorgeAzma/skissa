@@ -28,8 +28,9 @@ class QMdiArea;
  *  - a rail of panel buttons sits on the right edge
  *  - an unpinned panel opens as a flyout floating over the edge of the
  *    canvas and closes when you click anywhere else in the window
- *  - pinned panels stack in a column of glass over the canvas's edge, on
- *    the right or the left: the canvas goes on under them
+ *  - pinned panels stack in a pill of glass over the canvas's edge, on the
+ *    right or the left (dragged there by the strip of panel buttons on top
+ *    of it): the canvas goes on under them
  *
  * The docks are Krita's dockers all the same. After something restores a
  * window state, call normalize() so that it is brought back to the studio
@@ -87,8 +88,11 @@ private:
     void arrangePinned();
     void restoreHeights();
     void saveHeights();
-    /// The column of pinned panels on a side, over the canvas
-    KisStudioPanelColumn *columnOf(bool left);
+    /// The pill of pinned panels over the canvas, with the panel buttons on top
+    KisStudioPanelColumn *panelColumn();
+    /// The pill of pinned panels to the left side of the canvas or the right, and the tool rail
+    void setPanelsSide(bool left);
+    void setToolRailSide(bool left);
     /// Back among the window's docks, hidden: where it keeps the panels it does not show
     void parkPanel(QDockWidget *dock);
     /// The columns shown if they have panels to show, and what is in the canvas area kept clear of them
@@ -107,7 +111,6 @@ private:
     /// A click on a panel's grip: folds it (or unfolds it) next to the canvas, tucks it away over it
     void gripClicked(const QString &id);
     void applyFold(QDockWidget *dock, bool fold);
-    void setPanelSide(const QString &id, bool left);
 
     void dockToggled(QDockWidget *dock, bool visible);
 
