@@ -88,6 +88,8 @@ private:
     /// A panel dragged by its grip, or by its rail button, let go at \p globalPos
     void dropPanel(const QString &id, const QPoint &globalPos, bool fromRail);
     void showPanelCard(const QString &id, QWidget *anchor);
+    /// Off the rail, and closed
+    void takeOffRail(const QString &id);
     /// A click on a panel's grip: folds it (or unfolds it) next to the canvas, tucks it away over it
     void gripClicked(const QString &id);
     void applyFold(QDockWidget *dock, bool fold);

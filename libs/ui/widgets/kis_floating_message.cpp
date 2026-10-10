@@ -60,7 +60,8 @@ KisFloatingMessage::KisFloatingMessage(const QString &message, QWidget *parent, 
 {
     m_icon = KisIconUtils::loadIcon("krita-branding").pixmap(256, 256).toImage();
 
-    setWindowFlags(Qt::FramelessWindowHint | Qt::ToolTip | Qt::WindowTransparentForInput);
+    // a window of Krita's own (not a tooltip, which Windows keeps over every program): gone while Krita is minimized
+    setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint | Qt::WindowTransparentForInput);
     setFocusPolicy(Qt::NoFocus);
     setAttribute(Qt::WA_ShowWithoutActivating);
 
@@ -104,6 +105,11 @@ void KisFloatingMessage::tryOverrideMessage(const QString message,
 void KisFloatingMessage::showMessage()
 {
     if (widgetQueuedForDeletion) return;
+    // nothing to show it over (e.g. "Finished saving" while Krita is minimized)
+    if (parentWidget() && parentWidget()->window()->isMinimized()) {
+        removeMessage();
+        return;
+    }
 
     m_messageLabel->setAlignment(flagsToAlignmentFlags(m_alignment));
     m_messageLabel->setWordWrap(m_alignment & Qt::TextWordWrap);

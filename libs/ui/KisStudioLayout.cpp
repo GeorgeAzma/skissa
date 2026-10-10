@@ -1643,12 +1643,7 @@ void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool
     if (!drop.column) {
         if (fromRail) {
             // a rail button dropped on the canvas: off the rail, and closed
-            if (d->pinned.contains(id)) setPinned(dock, false);
-            if (dock == d->flyout) closeFlyout();
-            dock->hide();
-            QStringList panels = d->railPanels;
-            panels.removeAll(id);
-            setRailPanels(panels);
+            takeOffRail(id);
         } else if (d->pinned.contains(id)) {
             // a panel dropped on the canvas: unpinned, it opens over the canvas from the rail
             setPinned(dock, false);
@@ -1851,6 +1846,19 @@ void KisStudioLayout::showRailContextMenu(const QPoint &pos)
     anchor->deleteLater();
 }
 
+void KisStudioLayout::takeOffRail(const QString &id)
+{
+    // off the rail, and closed: a panel stays only where it can be opened again
+    if (QDockWidget *dock = d->mainWindow->dockWidget(id)) {
+        if (d->pinned.contains(id)) setPinned(dock, false);
+        if (dock == d->flyout) closeFlyout();
+        dock->hide();
+    }
+    QStringList panels = d->railPanels;
+    panels.removeAll(id);
+    setRailPanels(panels);
+}
+
 void KisStudioLayout::showPanelCard(const QString &id, QWidget *anchor)
 {
     QPointer<QDockWidget> dock = d->mainWindow->dockWidget(id);
@@ -1861,11 +1869,7 @@ void KisStudioLayout::showPanelCard(const QString &id, QWidget *anchor)
     auto *card = new KisStudioItemCard(d->mainWindow, KisIconUtils::loadIcon(railIconName(id)),
                                        dock->windowTitle(), dock->toggleViewAction());
     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")), i18nc("@info:tooltip", "Take off the rail (or drag its button onto the canvas)"),
-                      [this, id]() {
-                          QStringList panels = d->railPanels;
-                          panels.removeAll(id);
-                          setRailPanels(panels);
-                      }});
+                      [this, id]() { takeOffRail(id); }});
     card->popupBeside(anchor);
 }
 
