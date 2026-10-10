@@ -378,6 +378,9 @@ LayerBox::LayerBox()
             button->hide();
         }
 
+        // room around the rows, as the other panels have around what is in them
+        ui->verticalLayout->setContentsMargins(6, 2, 6, 6);
+
         // in the selected row, under the layer: see NodeDelegate::extraHeight()
         ui->listLayers->setProperty("rowControls", true);
         m_rowControls = new QWidget(ui->listLayers->viewport());

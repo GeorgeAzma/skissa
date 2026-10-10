@@ -161,6 +161,7 @@
 #include "KisStudioColorPanel.h"
 #include "KisStudioLayout.h"
 #include "KisStudioItemCard.h"
+#include "KisUpdatePacer.h"
 #include "KisTouchMode.h"
 #include "KisStudioFind.h"
 #include <config-qmdiarea-always-show-subwindow-title.h>
@@ -521,6 +522,8 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     d->studioLayout = new KisStudioLayout(this);
     // shortcuts are changed where they are shown, menus too, in either layout
     KisStudioShortcuts::enableMenuEditing();
+    // widgets repaint as often as the screen shows, also while the mouse moves
+    KisUpdatePacer::install();
     connect(this, &KisMainWindow::restoringDone, d->studioLayout, &KisStudioLayout::normalize);
 
     d->studioFind = new KisStudioFind(this);

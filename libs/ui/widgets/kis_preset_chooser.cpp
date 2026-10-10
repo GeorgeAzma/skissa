@@ -108,9 +108,10 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
      */
     auto ring = [&](const QRectF &tile, qreal radius) {
         if (selected) {
-            painter->setPen(QPen(accent, 2));
+            // in the text's color (white on a dark panel): seen at a glance whatever the picture's colors
+            painter->setPen(QPen(ink, 2.25));
             painter->setBrush(Qt::NoBrush);
-            painter->drawPath(KisModernStyle::squircle(tile.adjusted(-2, -2, 2, 2), radius + 2));
+            painter->drawPath(KisModernStyle::squircle(tile.adjusted(-2.5, -2.5, 2.5, 2.5), radius + 2.5));
         } else if (hovered) {
             QColor line = ink;
             line.setAlphaF(0.3);
