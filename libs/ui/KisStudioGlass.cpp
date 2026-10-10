@@ -580,6 +580,24 @@ bool drawnByCanvas(const QWidget *canvasWidget)
 
 /// Hidden where a glass window of its own is over it
 const char *const maskedProperty = "studioGlassMasked";
+/// A panel in the canvas' window over the rest there, as a glass window is (see KisStudioGlass::setOverOverlays)
+const char *const overOverlaysProperty = "studioGlassOverOverlays";
+
+/// Whether \p a is painted before \p b (under it), both in one window: a parent before its children, siblings in their order
+bool paintedBefore(const QWidget *a, const QWidget *b)
+{
+    if (a == b || b->isAncestorOf(a)) return false;
+    if (a->isAncestorOf(b)) return true;
+    for (const QWidget *x = a; x; x = x->parentWidget()) {
+        for (const QWidget *y = b; y; y = y->parentWidget()) {
+            if (x != y && x->parentWidget() && x->parentWidget() == y->parentWidget()) {
+                const QObjectList &siblings = x->parentWidget()->children();
+                return siblings.indexOf(const_cast<QWidget *>(x)) < siblings.indexOf(const_cast<QWidget *>(y));
+            }
+        }
+    }
+    return false;
+}
 
 /// What lies over \p canvas in its window: the tool rail, the zoom pill
 QList<QWidget *> overlaysOf(QWidget *canvas)
@@ -711,19 +729,23 @@ public:
      * in their stacking order, each over the one under it; but what is on a
      * panel would show through the glass of a window over it. So what lies
      * over the canvas in its window (the tool rail), and what is in a glass
-     * window, is hidden where a glass window over it covers it.
+     * window, is hidden where a glass window over it covers it. A panel in
+     * the canvas' window set over the rest there (setOverOverlays) hides what
+     * is under it there the same way.
      */
     void hideUnderWindows(QWidget *canvas)
     {
-        // the glass windows over the canvas, the lowest first, and their shapes on the screen
+        // the glass over the rest (windows, and panels set over the rest in the canvas' window), the lowest first,
+        // and their shapes on the screen
         QList<QWidget *> windows;
         for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
             QWidget *panel = it.key();
-            if (panel->isVisible() && panel->window() != canvas->window() && canvasWidgetOf(panel) == canvas) {
+            const bool over = panel->window() != canvas->window() || panel->property(overOverlaysProperty).toBool();
+            if (over && panel->isVisible() && canvasWidgetOf(panel) == canvas) {
                 windows << panel;
             }
         }
-        std::sort(windows.begin(), windows.end(), [this](QWidget *a, QWidget *b) { return stacking(a) < stacking(b); });
+        std::sort(windows.begin(), windows.end(), [this, canvas](QWidget *a, QWidget *b) { return below(a, b, canvas); });
         QVector<QRegion> shapes;
         for (QWidget *window : qAsConst(windows)) {
             const Panel &panel = m_panels[window];
@@ -731,9 +753,20 @@ public:
             shapes << QRegion(shape).translated(window->mapToGlobal(QPoint()));
         }
 
+        // what lies over the canvas in its window: under every glass window, and under a panel there set over it
+        Q_FOREACH (QWidget *overlay, overlaysOf(canvas)) {
+            QRegion above;
+            for (int i = 0; i < windows.size(); i++) {
+                QWidget *glass = windows[i];
+                if (glass->window() != canvas->window()
+                    || (glass != overlay && !glass->isAncestorOf(overlay) && !overlay->isAncestorOf(glass) && paintedBefore(overlay, glass))) {
+                    above |= shapes[i];
+                }
+            }
+            hide({overlay}, above);
+        }
+
         QRegion above;
-        for (const QRegion &shape : qAsConst(shapes)) above |= shape;
-        hide(overlaysOf(canvas), above);
 
         for (int i = 0; i < windows.size(); i++) {
             above = QRegion();
@@ -801,10 +834,7 @@ public:
         const QPoint canvasOrigin = canvasWidget->mapToGlobal(QPoint());
         // in their stacking order: those in the canvas' window first, under windows of their own
         QList<QWidget *> widgets = m_panels.keys();
-        std::sort(widgets.begin(), widgets.end(), [this, canvasWidget](QWidget *a, QWidget *b) {
-            const bool aOwn = a->window() != canvasWidget->window(), bOwn = b->window() != canvasWidget->window();
-            return aOwn != bOwn ? bOwn : stacking(a) < stacking(b);
-        });
+        std::sort(widgets.begin(), widgets.end(), [this, canvasWidget](QWidget *a, QWidget *b) { return below(a, b, canvasWidget); });
         for (QWidget *widget : qAsConst(widgets)) {
             Panel &panel = m_panels[widget];
             if (!widget->isVisible() || canvasWidgetOf(widget) != canvasWidget) {
@@ -884,6 +914,19 @@ private:
     quint64 stacking(QWidget *panel) const
     {
         return m_shown.value(panel->window());
+    }
+
+    /**
+     * Whether panel \p a is under panel \p b over \p canvas: those in the
+     * canvas' window under windows of their own, those in one window as it
+     * paints them, windows as they were shown
+     */
+    bool below(QWidget *a, QWidget *b, const QWidget *canvas) const
+    {
+        const bool aOwn = a->window() != canvas->window(), bOwn = b->window() != canvas->window();
+        if (aOwn != bOwn) return bOwn;
+        if (a->window() != b->window()) return stacking(a) < stacking(b);
+        return paintedBefore(a, b);
     }
 
     QHash<QWidget *, Panel> m_panels;
@@ -1039,6 +1082,12 @@ protected:
     }
 };
 } // namespace
+
+void KisStudioGlass::setOverOverlays(QWidget *panel)
+{
+    panel->setProperty(overOverlaysProperty, true);
+    changed(panel);
+}
 
 void KisStudioGlass::installMenuGlass()
 {

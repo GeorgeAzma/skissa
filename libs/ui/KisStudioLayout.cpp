@@ -30,6 +30,7 @@
 #include <QMenuBar>
 #include <QTabBar>
 #include <QMouseEvent>
+#include <QTabletEvent>
 #include <QWheelEvent>
 #include <QVariantAnimation>
 #include <QPainter>
@@ -1143,19 +1144,25 @@ private:
 };
 
 /**
- * A panel opened over the canvas, in a window of its own: glass, the canvas
- * under it showing through. Not a floating dock: the window keeps the state
- * of its docks, a floating one too, and restoring a floating panel crashes.
- * The panel is taken out of its column while it is here, and put back after.
+ * A panel opened over the canvas: glass, the canvas under it showing
+ * through. In the main window over the canvas, as the pinned panels are (a
+ * window of its own could not show what renders on the GPU, QML panels: on
+ * Windows a see-through window is drawn on the CPU), and over all that is
+ * over the canvas: a child of the main window, not of the canvas area, where
+ * the pills and rails raise themselves as they are placed.
+ * Not a floating dock: the window keeps the state of its docks, a floating
+ * one too, and restoring a floating panel crashes. The panel is taken out of
+ * its column while it is here, and put back after.
  */
 class FlyoutWindow : public QWidget
 {
 public:
     explicit FlyoutWindow(QWidget *mainWindow)
-        : QWidget(mainWindow, Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
+        : QWidget(mainWindow)
     {
         setObjectName(QStringLiteral("studioFlyout"));
         setAttribute(Qt::WA_TranslucentBackground);
+        KisStudioGlass::setOverOverlays(this);
         auto *layout = new QVBoxLayout(this);
         layout->setContentsMargins(1, 1, 1, 1);
         layout->setSpacing(0);
@@ -2184,18 +2191,24 @@ void KisStudioLayout::positionFlyout()
         contentsWidth = qMax(contentsWidth, scroll->widget()->sizeHint().width() + frame + scroll->verticalScrollBar()->sizeHint().width());
         contentsHeight = qMax(contentsHeight, header + scroll->widget()->sizeHint().height() + frame + 12);
     }
-    const int width = qBound(260, contentsWidth + 2, 420);
+    // and within the canvas area: in the main window, what goes past it is cut off
+    const int width = qMax(0, qMin(qBound(260, contentsWidth + 2, 420), area.width() - 2 * margin));
 
     if (d->flyoutAnchor) {
         // right below what opened it, only as tall as its contents
         const int left = qMax(area.left() + margin, d->flyoutAnchor->mapToGlobal(QPoint(0, 0)).x());
         const int height = qBound(160, contentsHeight, area.height() - 2 * margin);
-        d->flyoutWindow->setGeometry(left, area.top() + margin, width, height);
+        placeFlyout(QRect(left, area.top() + margin, width, height));
         return;
     }
 
-    d->flyoutWindow->setGeometry(area.right() + 1 - margin - width, area.top() + margin,
-                                 width, area.height() - 2 * margin);
+    placeFlyout(QRect(area.right() + 1 - margin - width, area.top() + margin, width, area.height() - 2 * margin));
+}
+
+void KisStudioLayout::placeFlyout(const QRect &global)
+{
+    QWidget *parent = d->flyoutWindow->parentWidget();
+    d->flyoutWindow->setGeometry(QRect(parent->mapFromGlobal(global.topLeft()), global.size()));
 }
 
 void KisStudioLayout::toggleToolOptions()
@@ -3356,13 +3369,17 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
         // rail handles clicks on its own buttons
         if (d->flyout && d->flyout->isVisible()) {
             QWidget *widget = qobject_cast<QWidget *>(watched);
-            // in the flyout: its own window, not the main one
+            // in the flyout (it is in the main window): where the press is, as one not taken there goes on to what holds it
+            const QPoint at = event->type() == QEvent::MouseButtonPress ? static_cast<QMouseEvent *>(event)->pos()
+                                                                         : static_cast<QTabletEvent *>(event)->pos();
+            const bool inFlyout = widget && d->flyoutWindow && d->flyoutWindow->isVisible()
+                                  && d->flyoutWindow->rect().contains(d->flyoutWindow->mapFromGlobal(widget->mapToGlobal(at)));
             const bool onRail = d->rail && widget && (widget == d->rail || d->rail->isAncestorOf(widget));
             // the chip toggles the tool options itself, and they follow the tool picked on the tool rail
             const bool onChip = d->toolChip && widget == d->toolChip;
             const bool pickingTool = d->flyoutAnchor && d->flyoutAnchor == d->toolChip && d->brushRail && widget
                                      && d->brushRail->isAncestorOf(widget);
-            if (widget && widget->window() == d->mainWindow && !onRail && !onChip && !pickingTool) {
+            if (widget && widget->window() == d->mainWindow && !inFlyout && !onRail && !onChip && !pickingTool) {
                 closeFlyout();
             }
         }

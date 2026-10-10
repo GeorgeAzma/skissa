@@ -83,6 +83,8 @@ private:
     void releaseDocuments();
     void updateDocumentButton();
     void positionFlyout();
+    /// The flyout where \p global (on the screen) is
+    void placeFlyout(const QRect &global);
     void setPinned(QDockWidget *dock, bool pinned);
     void savePinned();
     void arrangePinned();

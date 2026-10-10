@@ -183,6 +183,13 @@ public:
      */
     static void installMenuGlass();
 
+    /**
+     * \p panel, glass in the canvas' window, is over the rest there (a
+     * flyout over the panels and pills): what of them it covers is hidden,
+     * as under a glass window, not seen through its glass
+     */
+    static void setOverOverlays(QWidget *panel);
+
     /// Whether glass is on (the setting); off, backgrounds are the plain panel color
     static bool isEnabled();
     static void setEnabled(bool on);
