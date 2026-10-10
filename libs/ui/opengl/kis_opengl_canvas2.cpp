@@ -251,7 +251,6 @@ void KisOpenGLCanvas2::paintGL()
     QRect canvasImageDirtyRect = d->canvasImageDirtyRect & rect();
     d->canvasImageDirtyRect = QRect();
     d->renderer->paintCanvasOnly(canvasImageDirtyRect, updateRect);
-    d->renderer->paintGlass(KisStudioGlass::surfacesOver(this), updateRect);
     {
         QPainter gc(this);
         if (!updateRect.isEmpty()) {
@@ -266,6 +265,9 @@ void KisOpenGLCanvas2::paintGL()
 
         drawDecorations(gc, decorationsBoundingRect);
     }
+    // the glass over the panels hides the decorations under it (the brush outline, the selection), as
+    // a solid panel would; it is blurred from the canvas without them
+    d->renderer->paintGlass(KisStudioGlass::surfacesOver(this), updateRect);
 
     d->repaintDbg.paint(this, updateRect.isEmpty() ? rect() : updateRect);
 

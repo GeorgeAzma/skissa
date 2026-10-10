@@ -512,6 +512,8 @@ public:
         qreal radius {0};
         /// The canvas has drawn its glass since it was shown: until then it is the plain panel color
         bool drawn {false};
+        /// Where a glass window over it covers it (its coordinates): nothing of it is painted there
+        QRegion covered;
     };
 
     static Panels &instance()
@@ -525,11 +527,13 @@ public:
     {
         auto it = m_panels.find(widget);
         if (it == m_panels.end()) {
-            m_panels.insert(widget, {rect, radius, false});
+            m_panels.insert(widget, {rect, radius, false, QRegion()});
+            if (!m_shown.contains(widget->window())) m_shown.insert(widget->window(), ++m_shownCount);
             widget->installEventFilter(this);
             if (widget->window() != widget) widget->window()->installEventFilter(this);
             connect(widget, &QObject::destroyed, this, [this, widget]() {
                 m_panels.remove(widget);
+                m_shown.remove(widget);
                 // where it was, the canvas shows plain again
                 for (QWidget *canvas : qAsConst(m_canvases)) {
                     if (!canvas) continue;
@@ -546,6 +550,12 @@ public:
             changed(widget);
         }
         return it->drawn;
+    }
+
+    /// Where a glass window over \p widget covers it
+    QRegion covered(QWidget *widget) const
+    {
+        return m_panels.value(widget).covered;
     }
 
     /// \p widget, or a panel in its window, is shown otherwise: the canvas under it draws again
@@ -566,40 +576,86 @@ public:
     }
 
     /**
-     * What lies over \p canvas in its window (the tool rail) is hidden
-     * where a glass window of its own is over it: the canvas draws the
-     * glass of both under everything, the window's over the rail's, and the
-     * rail would show through the window's.
+     * The canvas draws the glass of all the panels over it under them all,
+     * in their stacking order, each over the one under it; but what is on a
+     * panel would show through the glass of a window over it. So what lies
+     * over the canvas in its window (the tool rail), and what is in a glass
+     * window, is hidden where a glass window over it covers it.
      */
     void hideUnderWindows(QWidget *canvas)
     {
-        QRegion windows;
+        // the glass windows over the canvas, the lowest first, and their shapes on the screen
+        QList<QWidget *> windows;
         for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
             QWidget *panel = it.key();
             if (panel->isVisible() && panel->window() != canvas->window() && canvasWidgetOf(panel) == canvas) {
-                const QPolygon shape = KisModernStyle::squircle(it->rect, it->radius).toFillPolygon().toPolygon();
-                windows |= QRegion(shape).translated(panel->mapToGlobal(QPoint()));
+                windows << panel;
             }
         }
-        const QList<QWidget *> overlays = overlaysOf(canvas);
-        for (QWidget *overlay : overlays) {
-            const bool masked = overlay->property(maskedProperty).toBool();
-            if (!masked && !overlay->mask().isEmpty()) {
+        std::sort(windows.begin(), windows.end(), [this](QWidget *a, QWidget *b) { return stacking(a) < stacking(b); });
+        QVector<QRegion> shapes;
+        for (QWidget *window : qAsConst(windows)) {
+            const Panel &panel = m_panels[window];
+            const QPolygon shape = KisModernStyle::squircle(panel.rect, panel.radius).toFillPolygon().toPolygon();
+            shapes << QRegion(shape).translated(window->mapToGlobal(QPoint()));
+        }
+
+        QRegion above;
+        for (const QRegion &shape : qAsConst(shapes)) above |= shape;
+        hide(overlaysOf(canvas), above);
+
+        for (int i = 0; i < windows.size(); i++) {
+            above = QRegion();
+            for (int j = i + 1; j < windows.size(); j++) above |= shapes[j];
+            QWidget *window = windows[i];
+            Panel &panel = m_panels[window];
+            const QRegion covered = above.translated(-window->mapToGlobal(QPoint())) & window->rect();
+            if (panel.covered != covered) {
+                panel.covered = covered;
+                window->update();
+            }
+            QList<QWidget *> content;
+            for (QObject *child : window->children()) {
+                QWidget *w = qobject_cast<QWidget *>(child);
+                if (w && !w->isWindow()) content << w;
+            }
+            hide(content, above);
+        }
+        // no longer under one
+        for (auto it = m_panels.begin(); it != m_panels.end(); ++it) {
+            if (!windows.contains(it.key()) && !it->covered.isEmpty()) {
+                it->covered = QRegion();
+                hide(it.key()->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly), QRegion());
+                it.key()->update();
+            }
+        }
+    }
+
+    /// \p widgets hidden where \p region (on the screen) is, shown elsewhere
+    static void hide(const QList<QWidget *> &widgets, const QRegion &region)
+    {
+        for (QWidget *w : widgets) {
+            const bool masked = w->property(maskedProperty).toBool();
+            if (!masked && !w->mask().isEmpty()) {
                 // a shape of its own: left alone
                 continue;
             }
-            const QRegion hidden = windows.translated(-overlay->mapToGlobal(QPoint())) & overlay->rect();
-            if (hidden.isEmpty()) {
+            const QRegion hidden = region.translated(-w->mapToGlobal(QPoint())) & w->rect();
+            if (hidden.isEmpty() || !w->isVisible()) {
                 if (masked) {
-                    overlay->clearMask();
-                    overlay->setProperty(maskedProperty, false);
+                    w->clearMask();
+                    w->setProperty(maskedProperty, false);
                 }
                 continue;
             }
-            const QRegion shown = QRegion(overlay->rect()) - hidden;
-            if (!masked || overlay->mask() != shown) {
-                overlay->setMask(shown);
-                overlay->setProperty(maskedProperty, true);
+            QRegion shown = QRegion(w->rect()) - hidden;
+            if (shown.isEmpty()) {
+                // all of it hidden: a mask of nothing would be no mask, so one pixel beside it
+                shown = QRegion(-1, -1, 1, 1);
+            }
+            if (!masked || w->mask() != shown) {
+                w->setMask(shown);
+                w->setProperty(maskedProperty, true);
             }
         }
     }
@@ -612,10 +668,11 @@ public:
             return surfaces;
         }
         const QPoint canvasOrigin = canvasWidget->mapToGlobal(QPoint());
-        // those in the canvas' window first, under windows of their own
+        // in their stacking order: those in the canvas' window first, under windows of their own
         QList<QWidget *> widgets = m_panels.keys();
-        std::stable_sort(widgets.begin(), widgets.end(), [canvasWidget](QWidget *a, QWidget *b) {
-            return a->window() == canvasWidget->window() && b->window() != canvasWidget->window();
+        std::sort(widgets.begin(), widgets.end(), [this, canvasWidget](QWidget *a, QWidget *b) {
+            const bool aOwn = a->window() != canvasWidget->window(), bOwn = b->window() != canvasWidget->window();
+            return aOwn != bOwn ? bOwn : stacking(a) < stacking(b);
         });
         for (QWidget *widget : qAsConst(widgets)) {
             Panel &panel = m_panels[widget];
@@ -662,6 +719,10 @@ protected:
             changed(static_cast<QWidget *>(watched));
             break;
         case QEvent::Show:
+            // a window shown later is over those shown before
+            if (static_cast<QWidget *>(watched)->isWindow()) m_shown.insert(static_cast<QWidget *>(watched), ++m_shownCount);
+            changed(static_cast<QWidget *>(watched));
+            break;
         case QEvent::Move:
         case QEvent::Resize:
         case QEvent::PaletteChange:
@@ -688,8 +749,16 @@ private:
         return opacity;
     }
 
+    /// Where \p panel's window is in the stacking: windows shown later are over earlier ones
+    quint64 stacking(QWidget *panel) const
+    {
+        return m_shown.value(panel->window());
+    }
+
     QHash<QWidget *, Panel> m_panels;
     QList<QPointer<QWidget>> m_canvases;
+    QHash<QWidget *, quint64> m_shown;
+    quint64 m_shownCount {0};
 };
 
 const char *const savedPaletteProperty = "studioGlassSavedPalette";
@@ -764,6 +833,11 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
     const QPainterPath shape = KisModernStyle::squircle(rect, radius);
     const QColor window = widget->palette().color(QPalette::Window);
     const bool drawn = Panels::instance().paint(widget, rect, radius);
+    // under a glass window, nothing of it shows through that window's glass (what is painted on it after neither)
+    const QRegion covered = Panels::instance().covered(widget);
+    if (!covered.isEmpty()) {
+        painter.setClipRegion(QRegion(widget->rect()) - covered, Qt::IntersectClip);
+    }
 
     // light catching the top edge, faintly
     auto sheen = [&]() {
@@ -808,6 +882,21 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
     painter.restore();
     sheen();
     return shape;
+}
+
+void KisStudioGlass::paintShadow(QPainter &painter, const QRectF &panel, qreal radius, int margin, int darkness, int drop)
+{
+    painter.save();
+    QPainterPath outside;
+    outside.addRect(panel.adjusted(-margin, -margin, margin, margin + drop));
+    painter.setClipPath(outside.subtracted(KisModernStyle::squircle(panel, radius)), Qt::IntersectClip);
+    painter.setPen(Qt::NoPen);
+    // stacked translucent squircles, darker nearer
+    for (int i = margin; i > 0; i -= 2) {
+        painter.setBrush(QColor(0, 0, 0, int(darkness * (1.0 - qreal(i) / margin) + 2)));
+        painter.drawPath(KisModernStyle::squircle(panel.adjusted(-i, -i + drop, i, i + drop), radius + i));
+    }
+    painter.restore();
 }
 
 QVector<KisStudioGlass::Surface> KisStudioGlass::surfacesOver(const QWidget *canvasWidget)

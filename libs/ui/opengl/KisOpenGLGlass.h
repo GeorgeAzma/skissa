@@ -46,11 +46,11 @@ public:
     /**
      * Draws \p surfaces into the framebuffer bound, \p viewport device
      * pixels, from \p canvas (a texture of the same size, the canvas as
-     * drawn), only in \p clip (surface pixels) if it is not empty. \p
-     * linearCanvas: its colors are linear already (a floating point,
-     * HDR canvas), not sRGB. \p pixelRatio: device pixels to a widget's.
+     * drawn, of \p canvasFormat: GL_RGBA16F is linear light, HDR; others
+     * sRGB), only in \p clip (surface pixels) if it is not empty. \p
+     * pixelRatio: device pixels to a widget's.
      */
-    void render(uint canvas, bool linearCanvas, const QSize &viewport, qreal pixelRatio,
+    void render(uint canvas, uint canvasFormat, const QSize &viewport, qreal pixelRatio,
                 const QVector<Surface> &surfaces, const QRect &clip);
 
     /// How far around a glass panel the canvas shows in its blur, in widget pixels

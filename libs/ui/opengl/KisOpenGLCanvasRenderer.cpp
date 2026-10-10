@@ -423,9 +423,7 @@ void KisOpenGLCanvasRenderer::paintGlass(const QVector<KisStudioGlass::Surface> 
         drawn.append(glass);
     }
     const QRect clip = viewportUpdateRect.isEmpty() ? QRect() : widgetToSurface(viewportUpdateRect).toAlignedRect();
-    // an HDR canvas is drawn in linear light already
-    const bool linear = d->canvasBridge->internalTextureFormat() == GL_RGBA16F;
-    d->glass.render(d->canvasFBO->texture(), linear, d->viewportDevicePixelSize, ratio, drawn, clip);
+    d->glass.render(d->canvasFBO->texture(), d->canvasBridge->internalTextureFormat(), d->viewportDevicePixelSize, ratio, drawn, clip);
 }
 
 void KisOpenGLCanvasRenderer::paintToolOutline(const KisOptimizedBrushOutline &path, const QRect &viewportUpdateRect, const int thickness)

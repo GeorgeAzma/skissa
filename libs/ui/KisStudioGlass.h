@@ -45,9 +45,18 @@ public:
     /**
      * Paints \p widget's background, \p rect (widget coordinates) with
      * squircle corners of \p radius: glass over the canvas, the panel color
-     * elsewhere. Returns the shape, for a border.
+     * elsewhere. Returns the shape, for a border. Where a glass window over
+     * \p widget covers it, the painter is left clipped: nothing painted
+     * after shows through that window's glass either.
      */
     static QPainterPath paint(QPainter &painter, QWidget *widget, const QRectF &rect, qreal radius);
+
+    /**
+     * A soft shadow around \p panel (squircle corners of \p radius): \p
+     * margin wide, as dark as \p darkness (alpha) next to the panel, \p drop
+     * lower than it. Only outside the panel: the glass shows what is under it.
+     */
+    static void paintShadow(QPainter &painter, const QRectF &panel, qreal radius, int margin, int darkness, int drop);
 
     /// A glass panel over a canvas, in the canvas widget's coordinates
     struct Surface {

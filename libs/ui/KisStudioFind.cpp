@@ -1497,13 +1497,7 @@ void KisStudioFind::paintEvent(QPaintEvent *)
     const QRectF panel = QRectF(rect()).adjusted(shadowMargin, shadowMargin, -shadowMargin, -shadowMargin);
     const qreal radius = 12;
 
-    // a soft shadow: stacked translucent rounded rects
-    for (int i = shadowMargin; i > 0; i -= 2) {
-        QColor shadow(0, 0, 0, int(36.0 * (1.0 - qreal(i) / shadowMargin) + 2));
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(shadow);
-        painter.drawPath(KisModernStyle::squircle(panel.adjusted(-i, -i + 4, i, i + 4), radius + i));
-    }
+    KisStudioGlass::paintShadow(painter, panel, radius, shadowMargin, 36, 4);
 
     // glass: what it is over still shows through
     const QPainterPath shape = KisStudioGlass::paint(painter, this, panel.adjusted(0.5, 0.5, -0.5, -0.5), radius);

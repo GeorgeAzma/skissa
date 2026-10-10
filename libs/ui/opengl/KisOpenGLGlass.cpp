@@ -15,6 +15,13 @@
 #include <QOpenGLVertexArrayObject>
 #include <QtMath>
 
+#ifndef GL_RGBA16F
+#define GL_RGBA16F 0x881A
+#endif
+#ifndef GL_RGB10_A2
+#define GL_RGB10_A2 0x8059
+#endif
+
 #include "KisStudioGlass.h"
 #include "kis_debug.h"
 #include "opengl/kis_opengl.h"
@@ -119,6 +126,7 @@ uniform float factor;
 uniform vec4 shape;
 uniform float tintLightness;
 uniform vec2 tintStrength;
+uniform float spacing;
 flat out float strength;
 
 void main()
@@ -126,16 +134,19 @@ void main()
     vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));
     gl_Position = vec4(mix(rect.xy, rect.zw, corner), 0.0, 1.0);
 
-    // how bright it is behind, about as seen (the kept colors are about as light looks)
+    // how bright it is behind, about as seen (the kept colors are about as light looks): a grid
+    // as fine as the blur is wide (12 x 12 at most), so that the tint does not flicker as the
+    // canvas slides under it
     ivec2 last = textureSize(blurred, 0) - 1;
+    ivec2 count = clamp(ivec2(ceil(2.0 * shape.zw / spacing)), ivec2(1), ivec2(12));
     float sum = 0.0;
-    for (int y = 0; y < 4; y++) {
-        for (int x = 0; x < 4; x++) {
-            vec2 p = shape.xy + shape.zw * ((vec2(x, y) + 0.5) / 2.0 - 1.0);
+    for (int y = 0; y < count.y; y++) {
+        for (int x = 0; x < count.x; x++) {
+            vec2 p = shape.xy + shape.zw * (2.0 * (vec2(x, y) + 0.5) / vec2(count) - 1.0);
             sum += dot(texelFetch(blurred, clamp(ivec2(p / factor), ivec2(0), last), 0).rgb, vec3(0.299, 0.587, 0.114));
         }
     }
-    strength = mix(tintStrength.x, tintStrength.y, clamp(abs(sum / 16.0 - tintLightness), 0.0, 1.0));
+    strength = mix(tintStrength.x, tintStrength.y, clamp(abs(sum / float(count.x * count.y) - tintLightness), 0.0, 1.0));
 }
 )";
 
@@ -148,7 +159,39 @@ uniform vec2 corner;
 uniform vec3 tint;
 uniform float vibrance;
 uniform float opacity;
+uniform vec2 viewport;
+uniform float sigma;
+uniform vec4 beyond;
+uniform float dither;
 flat in float strength;
+
+float hash(uvec2 p)
+{
+    uint h = p.x * 1664525u + p.y * 1013904223u;
+    h ^= h >> 16;
+    h *= 0x7feb352du;
+    h ^= h >> 15;
+    h *= 0x846ca68bu;
+    h ^= h >> 16;
+    return float(h) * (1.0 / 4294967295.0);
+}
+
+float erf(float x)
+{
+    // Abramowitz and Stegun 7.1.26: within 1.5e-7
+    float t = 1.0 / (1.0 + 0.3275911 * abs(x));
+    float y = 1.0 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * exp(-x * x);
+    return sign(x) * y;
+}
+
+// how much of the blur at d pixels in from an edge of the canvas is of the canvas: beyond the edge
+// is the panel color. Across the edge (crossing, where the panel goes on beyond the canvas, plain)
+// none at the edge, for the glass to meet the plain panel there without a seam.
+float within(float d, float crossing)
+{
+    float e = erf(d / (sigma * 1.41421356));
+    return mix(0.5 + 0.5 * e, max(e, 0.0), crossing);
+}
 
 // how far outside the shape p is, in pixels (inside, less than 0): its squircle corners
 // are each a quarter of a superellipse, |x|^n + |y|^n = reach^n
@@ -182,11 +225,18 @@ void main()
     ivec2 i = ivec2(floor(t));
     vec2 f = t - floor(t);
     vec3 c = mix(mix(at(i), at(i + ivec2(1, 0)), f.x), mix(at(i + ivec2(0, 1)), at(i + ivec2(1, 1)), f.x), f.y);
+    vec2 p = gl_FragCoord.xy;
+    float canvas = within(p.x, beyond.x) * within(viewport.x - p.x, beyond.y) * within(p.y, beyond.z) * within(viewport.y - p.y, beyond.w);
+    c = mix(fromSrgb(tint), c, canvas);
 
     // vibrance: away from the gray of the same luminance, as light through glass looks
     float luminance = dot(c, vec3(0.2126, 0.7152, 0.0722));
     c = max(vec3(0.0), luminance + (c - luminance) * vibrance);
-    fragColor = vec4(mix(toSrgb(c), tint, strength), coverage);
+    vec3 glass = mix(toSrgb(c), tint, strength);
+    // dithered (triangular, a step of the target either way), for its slow gradients not to band
+    uvec2 u = uvec2(p);
+    float noise = hash(u) + hash(u + uvec2(7919u, 104729u)) - 1.0;
+    fragColor = vec4(glass + noise * dither, coverage);
 }
 )";
 
@@ -273,7 +323,8 @@ bool KisOpenGLGlass::initialize()
     d->valid = d->shrink.make(quadSource, shrinkSource, {"rect", "source", "factor", "decode"})
         && d->blur.make(quadSource, blurSource, {"rect", "source", "direction", "taps", "weights"})
         && d->glass.make(glassVertexSource, glassSource,
-                         {"rect", "blurred", "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "vibrance", "opacity"});
+                         {"rect", "blurred", "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "vibrance", "opacity",
+                          "viewport", "sigma", "beyond", "spacing", "dither"});
     if (d->valid && KisOpenGL::supportsVAO()) {
         d->vao.create();
     }
@@ -287,12 +338,16 @@ bool KisOpenGLGlass::isValid() const
 
 qreal KisOpenGLGlass::reach()
 {
-    return 3 * KisStudioGlass::blurSigma;
+    // the gaussian, and the pixels made one in the smaller canvas
+    return 3 * KisStudioGlass::blurSigma + 8;
 }
 
-void KisOpenGLGlass::render(uint canvas, bool linearCanvas, const QSize &viewport, qreal pixelRatio,
+void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewport, qreal pixelRatio,
                             const QVector<Surface> &surfaces, const QRect &clip)
 {
+    // a floating point (HDR) canvas is in linear light already, and has no steps to dither
+    const bool linearCanvas = canvasFormat == GL_RGBA16F;
+    const float dither = linearCanvas ? 0.0f : canvasFormat == GL_RGB10_A2 ? 1.0f / 1023 : 1.0f / 255;
     if (!d->valid || surfaces.isEmpty() || viewport.isEmpty()) {
         return;
     }
@@ -383,6 +438,10 @@ void KisOpenGLGlass::render(uint canvas, bool linearCanvas, const QSize &viewpor
     f->glUniform1f(d->glass["factor"], factor);
     f->glUniform1f(d->glass["vibrance"], KisStudioGlass::vibrance);
     f->glUniform2f(d->glass["tintStrength"], KisStudioGlass::tintOverDark, KisStudioGlass::tintOverBright);
+    f->glUniform2f(d->glass["viewport"], viewport.width(), viewport.height());
+    f->glUniform1f(d->glass["sigma"], KisStudioGlass::blurSigma * pixelRatio);
+    f->glUniform1f(d->glass["spacing"], 2 * KisStudioGlass::blurSigma * pixelRatio);
+    f->glUniform1f(d->glass["dither"], dither);
     f->glBindTexture(GL_TEXTURE_2D, d->blurred->texture());
     for (const Surface &surface : surfaces) {
         const QRectF r = surface.rect;
@@ -394,6 +453,8 @@ void KisOpenGLGlass::render(uint canvas, bool linearCanvas, const QSize &viewpor
         f->glUniform3f(d->glass["tint"], surface.tint.redF(), surface.tint.greenF(), surface.tint.blueF());
         f->glUniform1f(d->glass["tintLightness"], qGray(surface.tint.rgb()) / 255.0f);
         f->glUniform1f(d->glass["opacity"], surface.opacity);
+        // the sides it goes on beyond the canvas on: left, right, bottom, top
+        f->glUniform4f(d->glass["beyond"], r.left() < 0, r.right() > viewport.width(), r.top() < 0, r.bottom() > viewport.height());
         f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
 

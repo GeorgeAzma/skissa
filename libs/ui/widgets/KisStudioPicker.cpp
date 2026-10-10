@@ -973,11 +973,7 @@ void KisStudioPicker::paintEvent(QPaintEvent *)
     painter.setRenderHint(QPainter::Antialiasing, true);
     const QRectF panel = QRectF(rect()).adjusted(shadowMargin, shadowMargin, -shadowMargin, -shadowMargin);
     const qreal radius = 12;
-    for (int i = shadowMargin; i > 0; i -= 2) {
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(0, 0, 0, int(34.0 * (1.0 - qreal(i) / shadowMargin) + 2)));
-        painter.drawPath(KisModernStyle::squircle(panel.adjusted(-i, -i + 4, i, i + 4), radius + i));
-    }
+    KisStudioGlass::paintShadow(painter, panel, radius, shadowMargin, 34, 4);
     // glass: what it is over still shows through
     const QPainterPath shape = KisStudioGlass::paint(painter, this, panel.adjusted(0.5, 0.5, -0.5, -0.5), radius);
     QColor border = palette().color(QPalette::WindowText);
