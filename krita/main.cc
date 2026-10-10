@@ -54,6 +54,9 @@
 #include "KisUiFont.h"
 #include "input/KisQtWidgetsTweaker.h"
 #include "kis_splash_screen.h"
+#ifdef Q_OS_WIN
+#include "KisDevTour.h"
+#endif
 #include "config-qt-patches-present.h"
 
 #ifdef Q_OS_ANDROID
@@ -886,6 +889,7 @@ if (!qEnvironmentVariableIsEmpty("KRITA_OPENGL_DEBUG")) {
 #if defined Q_OS_WIN
     if (useDevProfile) {
         app.installNativeEventFilter(new DevCaptureFilter);
+        KisDevTour::start();
     }
 #endif
 

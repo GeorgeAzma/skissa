@@ -12,6 +12,10 @@ if (ANDROID)
 endif()
 
 set(krita_SRCS main.cc)
+if (WIN32)
+    # a development tool for reviewing the UI, started by KRITA_DEV_TOUR
+    list(APPEND krita_SRCS KisDevTour.cpp)
+endif()
 
 # Set the application icon on the application
 if (NOT APPLE)
@@ -53,7 +57,7 @@ endif()
 if (WIN32)
     # Private headers are needed for main.cc to enable WinTab support
     set_source_files_properties(
-        main.cc
+        main.cc KisDevTour.cpp
         PROPERTIES
         INCLUDE_DIRECTORIES "${Qt${QT_MAJOR_VERSION}Gui_PRIVATE_INCLUDE_DIRS}"
         )
