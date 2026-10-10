@@ -51,7 +51,13 @@ public:
     bool dragFlag, miniCtlFlag;
     KoColor foregroundColor;
     KoColor backgroundColor;
-    KisDlgInternalColorSelector *colorSelectorDialog;
+    /// Made when first opened (see dialog()): one for each of these buttons there are, all at startup, was a good part of it
+    KisDlgInternalColorSelector *colorSelectorDialog {nullptr};
+    /// What was done to the dialog before it was made, done to it when it is: the renderer it was made with
+    /// then, whether it was given another since (setDisplayRenderer), held to the painting color space (updateColorSpace)
+    QPointer<const KoColorDisplayRendererInterface> initialDisplayRenderer;
+    bool displayRendererChanged {false};
+    bool colorSpaceLocked {false};
     struct ColorDialogState {
         KisSignalAutoConnectionsStore connections;
         Selection selection = Foreground;
@@ -64,6 +70,7 @@ public:
     QPointer<const KoColorDisplayRendererInterface> displayRenderer;
 
     void init(KoDualColorButton *q);
+    KisDlgInternalColorSelector *dialog(KoDualColorButton *q);
 };
 
 
@@ -74,12 +81,27 @@ void KoDualColorButton::Private::init(KoDualColorButton *q)
         q->setMinimumSize( q->sizeHint() );
 
     q->setAcceptDrops( true );
-    QString caption = i18n("Select a Color");
-    KisDlgInternalColorSelector::Config config = KisDlgInternalColorSelector::Config();
-    config.modal = false;
-    colorSelectorDialog = new KisDlgInternalColorSelector(q, foregroundColor, config, caption, displayRenderer);
-    connect(colorSelectorDialog, &KisDlgInternalColorSelector::finished, q, &KoDualColorButton::slotColorDialogClosed);
+    initialDisplayRenderer = displayRenderer;
+}
 
+KisDlgInternalColorSelector *KoDualColorButton::Private::dialog(KoDualColorButton *q)
+{
+    if (!colorSelectorDialog) {
+        QString caption = i18n("Select a Color");
+        KisDlgInternalColorSelector::Config config = KisDlgInternalColorSelector::Config();
+        config.modal = false;
+        colorSelectorDialog = new KisDlgInternalColorSelector(q, foregroundColor, config, caption,
+                                                              initialDisplayRenderer ? initialDisplayRenderer.data() : displayRenderer.data());
+        connect(colorSelectorDialog, &KisDlgInternalColorSelector::finished, q, &KoDualColorButton::slotColorDialogClosed);
+        // as it would be had it been there all along
+        if (displayRendererChanged && displayRenderer) {
+            colorSelectorDialog->setDisplayRenderer(displayRenderer);
+        }
+        if (colorSpaceLocked && displayRenderer) {
+            colorSelectorDialog->lockUsedColorSpace(displayRenderer->getPaintingColorSpace());
+        }
+    }
+    return colorSelectorDialog;
 }
 
 KoDualColorButton::KoDualColorButton(KisCanvasResourceProvider *canvasResourceProvider,
@@ -155,8 +177,8 @@ void KoDualColorButton::setForegroundColor(const KoColor &color)
          * The internal color selector might Q_EMIT the color of a different profile, so
          * we should break this cycling dependency somehow.
          */
-        KisSignalsBlocker b(d->colorSelectorDialog);
-        d->colorSelectorDialog->slotColorUpdated(color);
+        KisSignalsBlocker b(d->dialog(this));
+        d->dialog(this)->slotColorUpdated(color);
     }
     update();
 }
@@ -170,8 +192,8 @@ void KoDualColorButton::setBackgroundColor( const KoColor &color )
          * The internal color selector might Q_EMIT the color of a different profile, so
          * we should break this cycling dependency somehow.
          */
-        KisSignalsBlocker b(d->colorSelectorDialog);
-        d->colorSelectorDialog->slotColorUpdated(color);
+        KisSignalsBlocker b(d->dialog(this));
+        d->dialog(this)->slotColorUpdated(color);
     }
     update();
 }
@@ -192,7 +214,9 @@ void KoDualColorButton::setDisplayRenderer(const KoColorDisplayRendererInterface
 
     if (displayRenderer) {
         d->displayRenderer = displayRenderer;
-        d->colorSelectorDialog->setDisplayRenderer(displayRenderer);
+        // a dialog made later is given it then
+        d->displayRendererChanged = true;
+        if (d->colorSelectorDialog) d->colorSelectorDialog->setDisplayRenderer(displayRenderer);
 
         connect(d->displayRenderer, SIGNAL(displayConfigurationChanged()), this, SLOT(updateColorSpace()));
         updateColorSpace();
@@ -203,7 +227,8 @@ void KoDualColorButton::setDisplayRenderer(const KoColorDisplayRendererInterface
 
 void KoDualColorButton::updateColorSpace()
 {
-    d->colorSelectorDialog->lockUsedColorSpace(d->displayRenderer->getPaintingColorSpace());
+    d->colorSpaceLocked = true;
+    if (d->colorSelectorDialog) d->colorSelectorDialog->lockUsedColorSpace(d->displayRenderer->getPaintingColorSpace());
 
     // we need to update preview tiles, so a paint event is necessary
     update();
@@ -292,11 +317,12 @@ void KoDualColorButton::openForegroundDialog()
     d->colorDialogState.emplace();
     d->colorDialogState->selection = Foreground;
     // TODO: fix cyclic connections in a proper way
-    d->colorDialogState->connections.addUniqueConnection(d->colorSelectorDialog, SIGNAL(signalForegroundColorChosen(KoColor)), this, SLOT(slotSetForegroundColorFromDialog(KoColor)));
-    d->colorDialogState->connections.addUniqueConnection(this, SIGNAL(foregroundColorChanged(KoColor)), d->colorSelectorDialog, SLOT(slotColorUpdated(KoColor)));
-    d->colorSelectorDialog->slotColorUpdated(d->foregroundColor);
-    d->colorSelectorDialog->setPreviousColor(d->foregroundColor);
-    d->colorSelectorDialog->show();
+    KisDlgInternalColorSelector *dialog = d->dialog(this);
+    d->colorDialogState->connections.addUniqueConnection(dialog, SIGNAL(signalForegroundColorChosen(KoColor)), this, SLOT(slotSetForegroundColorFromDialog(KoColor)));
+    d->colorDialogState->connections.addUniqueConnection(this, SIGNAL(foregroundColorChanged(KoColor)), dialog, SLOT(slotColorUpdated(KoColor)));
+    dialog->slotColorUpdated(d->foregroundColor);
+    dialog->setPreviousColor(d->foregroundColor);
+    dialog->show();
     update();
 }
 
@@ -305,11 +331,12 @@ void KoDualColorButton::openBackgroundDialog()
     d->colorDialogState.emplace();
     d->colorDialogState->selection = Background;
     // TODO: fix cyclic connections in a proper way
-    d->colorDialogState->connections.addUniqueConnection(d->colorSelectorDialog, SIGNAL(signalForegroundColorChosen(KoColor)), this, SLOT(slotSetBackgroundColorFromDialog(KoColor)));
-    d->colorDialogState->connections.addUniqueConnection(this, SIGNAL(backgroundColorChanged(KoColor)), d->colorSelectorDialog, SLOT(slotColorUpdated(KoColor)));
-    d->colorSelectorDialog->slotColorUpdated(d->backgroundColor);
-    d->colorSelectorDialog->setPreviousColor(d->backgroundColor);
-    d->colorSelectorDialog->show();
+    KisDlgInternalColorSelector *dialog = d->dialog(this);
+    d->colorDialogState->connections.addUniqueConnection(dialog, SIGNAL(signalForegroundColorChosen(KoColor)), this, SLOT(slotSetBackgroundColorFromDialog(KoColor)));
+    d->colorDialogState->connections.addUniqueConnection(this, SIGNAL(backgroundColorChanged(KoColor)), dialog, SLOT(slotColorUpdated(KoColor)));
+    dialog->slotColorUpdated(d->backgroundColor);
+    dialog->setPreviousColor(d->backgroundColor);
+    dialog->show();
     update();
 }
 
