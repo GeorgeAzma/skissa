@@ -718,6 +718,10 @@ PaletteDockerDock::PaletteDockerDock( )
     m_paletteButton->setAutoRaise(true);
     m_paletteButton->setArrowVisible(false);
     m_paletteButton->setPopupWidget(m_paletteChooser);
+    // the list opens on the palette shown: the one highlighted is the one in use
+    connect(m_paletteButton, &KisPopupButton::sigPopupWidgetShown, this, [this]() {
+        if (m_currentColorSet) m_paletteChooser->highlight(m_currentColorSet);
+    });
     m_paletteButton->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_paletteButton, &QWidget::customContextMenuRequested, this, [this]() { showPaletteCard(); });
     header->addWidget(m_paletteButton);
@@ -772,6 +776,8 @@ PaletteDockerDock::PaletteDockerDock( )
     connect(KisResourceLocator::instance(), SIGNAL(storageRemoved(QString)), this, SLOT(slotStoragesChanged(QString)));
 
     connect(m_paletteChooser, SIGNAL(sigPaletteSelected(KoColorSetSP)), SLOT(slotSetColorSet(KoColorSetSP)));
+    // one picked: the list is done
+    connect(m_paletteChooser, &KisPaletteChooser::sigPaletteSelected, m_paletteButton, &KisPopupButton::hidePopupWidget);
     connect(m_paletteChooser, SIGNAL(sigAddPalette()), SLOT(slotAddPalette()));
     connect(m_paletteChooser, SIGNAL(sigImportPalette()), SLOT(slotImportPalette()));
     connect(m_paletteChooser, SIGNAL(sigRemovePalette(KoColorSetSP)), SLOT(slotRemovePalette(KoColorSetSP)));
@@ -952,6 +958,8 @@ void PaletteDockerDock::slotSetColorSet(KoColorSetSP colorSet)
     }
 
     m_currentColorSet = colorSet;
+    // the list of palettes highlights the one shown, however it came to be shown
+    if (colorSet) m_paletteChooser->highlight(colorSet);
     updateHeader();
 }
 

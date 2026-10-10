@@ -6,6 +6,7 @@
  */
 
 #include <QGridLayout>
+#include <QSignalBlocker>
 #include <QFile>
 #include <QMessageBox>
 #include <QInputDialog>
@@ -61,6 +62,8 @@ KisPaletteChooser::KisPaletteChooser(QWidget *parent)
     m_d->itemChooser->setCurrentItem(0);
 
     connect(m_d->itemChooser.data(), SIGNAL(resourceSelected(KoResourceSP )), SLOT(paletteSelected(KoResourceSP )));
+    // a click on the one already highlighted picks it too: it may not be the one shown
+    connect(m_d->itemChooser.data(), SIGNAL(resourceClicked(KoResourceSP )), SLOT(paletteSelected(KoResourceSP )));
 }
 
 KisPaletteChooser::~KisPaletteChooser()
@@ -69,6 +72,17 @@ KisPaletteChooser::~KisPaletteChooser()
 void KisPaletteChooser::setCurrentItem(KoResourceSP currentResource)
 {
     m_d->itemChooser->setCurrentResource(currentResource);
+    // a palette saved again has a newer copy than the one listed: the list knows it by its name
+    KoResourceSP listed = m_d->itemChooser->currentResource();
+    if (currentResource && (!listed || listed->name() != currentResource->name())) {
+        m_d->itemChooser->setCurrentResource(currentResource->name());
+    }
+}
+
+void KisPaletteChooser::highlight(KoResourceSP palette)
+{
+    const QSignalBlocker blocker(m_d->itemChooser.data());
+    setCurrentItem(palette);
 }
 
 void KisPaletteChooser::paletteSelected(KoResourceSP r)

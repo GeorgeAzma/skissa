@@ -28,6 +28,8 @@ public:
     explicit KisPaletteChooser(QWidget *parent = nullptr);
     virtual ~KisPaletteChooser();
     void setCurrentItem(KoResourceSP currentResource);
+    /// Highlights the palette in use, without picking it again (no sigPaletteSelected)
+    void highlight(KoResourceSP palette);
 
 Q_SIGNALS:
     void sigPaletteSelected(KoColorSetSP);
