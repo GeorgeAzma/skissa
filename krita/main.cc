@@ -74,6 +74,7 @@
 #  include <QtGui/qpa/qplatformintegration.h>
 #endif
 #include <QtGui/qpa/qwindowsysteminterface.h>
+#include <QtGui/private/qhighdpiscaling_p.h>
 #include <QScreen>
 #include <QTouchDevice>
 #include <windows.h>
@@ -142,6 +143,7 @@ void tryInitDrMingw()
 #include <QPainter>
 
 #include <algorithm>
+#include <functional>
 
 namespace
 {
@@ -164,6 +166,7 @@ public:
         static const UINT mouseMessage = RegisterWindowMessageW(L"KritaDevMouse");
         static const UINT keyMessage = RegisterWindowMessageW(L"KritaDevKey");
         static const UINT exportMessage = RegisterWindowMessageW(L"KritaDevExport");
+        static const UINT treeMessage = RegisterWindowMessageW(L"KritaDevTree");
         const MSG *msg = static_cast<MSG *>(message);
         if (msg->message == captureMessage) {
             capture();
@@ -171,6 +174,10 @@ public:
         }
         if (msg->message == mouseMessage) {
             mouse(int(msg->wParam), QPoint(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam)));
+            return true;
+        }
+        if (msg->message == treeMessage) {
+            tree();
             return true;
         }
         if (msg->message == exportMessage) {
@@ -214,6 +221,49 @@ private:
         };
         std::stable_sort(windows.begin(), windows.end(), [&](QWidget *a, QWidget *b) { return layer(a) < layer(b); });
         return windows;
+    }
+
+    /**
+     * A posted "KritaDevTree" message writes the visible widgets of the
+     * visible windows, nested, to krita-dev-tree.txt in TEMP: class, name,
+     * where in its window, the attributes that decide how it is drawn, and
+     * for QML widgets how their scene is
+     */
+    static void tree()
+    {
+        QFile file(QDir::temp().absoluteFilePath(QStringLiteral("krita-dev-tree.txt")));
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) return;
+        std::function<void(QWidget *, int)> write = [&](QWidget *widget, int depth) {
+            const QRect r(widget->mapTo(widget->window(), QPoint()), widget->size());
+            QString line = QString(depth * 2, QLatin1Char(' ')) + QString::fromLatin1(widget->metaObject()->className());
+            if (!widget->objectName().isEmpty()) line += QLatin1Char('#') + widget->objectName();
+            line += QStringLiteral(" %1,%2 %3x%4").arg(r.x()).arg(r.y()).arg(r.width()).arg(r.height());
+            if (widget->testAttribute(Qt::WA_TranslucentBackground)) line += QStringLiteral(" translucent");
+            if (widget->testAttribute(Qt::WA_NoSystemBackground)) line += QStringLiteral(" nosysbg");
+            if (widget->testAttribute(Qt::WA_OpaquePaintEvent)) line += QStringLiteral(" opaque");
+            if (widget->autoFillBackground()) line += QStringLiteral(" autofill");
+            if (widget->graphicsEffect()) line += QStringLiteral(" effect");
+            if (widget->windowOpacity() < 1.0) line += QStringLiteral(" opacity=%1").arg(widget->windowOpacity());
+            if (!widget->mask().isEmpty()) {
+                const QRect m = widget->mask().boundingRect();
+                line += QStringLiteral(" mask=%1,%2 %3x%4 (%5 rects)").arg(m.x()).arg(m.y()).arg(m.width()).arg(m.height()).arg(widget->mask().rectCount());
+            }
+            Q_FOREACH (const QByteArray &name, widget->dynamicPropertyNames()) {
+                if (name.startsWith("studioGlass")) line += QStringLiteral(" %1=%2").arg(QString::fromLatin1(name), widget->property(name).toString());
+            }
+            if (widget->inherits("QQuickWidget")) {
+                line += QStringLiteral(" qml status=%1 source=%2").arg(widget->property("status").toInt()).arg(widget->property("source").toUrl().toString());
+            }
+            file.write(line.toUtf8() + '\n');
+            Q_FOREACH (QObject *child, widget->children()) {
+                QWidget *w = qobject_cast<QWidget *>(child);
+                if (w && w->isVisible() && !w->isWindow()) write(w, depth + 1);
+            }
+        };
+        QRect bounds;
+        Q_FOREACH (QWidget *window, visibleWindows(bounds)) {
+            write(window, 0);
+        }
     }
 
     static void capture()
@@ -273,7 +323,9 @@ private:
             return;
         }
         QWindow *window = target->windowHandle();
-        const QPointF local = global - QPointF(target->geometry().topLeft());
+        // the system's events are in the screen's pixels, Qt makes them its own (device independent) ones
+        const QPointF local = QHighDpi::toNativeLocalPosition(global - QPointF(target->geometry().topLeft()), window);
+        const QPointF nativeGlobal = QHighDpi::toNativePixels(global, window);
 
         Qt::MouseButton button = Qt::NoButton;
         QEvent::Type type = QEvent::MouseMove;
@@ -284,7 +336,7 @@ private:
         case 4: button = Qt::RightButton; type = QEvent::MouseButtonRelease; buttons &= ~button; break;
         case 5:
         case 6:
-            QWindowSystemInterface::handleWheelEvent(window, local, global, QPoint(), QPoint(0, action == 5 ? 120 : -120));
+            QWindowSystemInterface::handleWheelEvent(window, local, nativeGlobal, QPoint(), QPoint(0, action == 5 ? 120 : -120));
             return;
         case 7:
         case 8:
@@ -301,7 +353,7 @@ private:
             QWindowSystemInterface::TouchPoint point;
             point.id = 1;
             point.state = action == 7 ? Qt::TouchPointPressed : action == 8 ? Qt::TouchPointMoved : Qt::TouchPointReleased;
-            point.area = QRectF(global - QPointF(2, 2), QSizeF(4, 4));
+            point.area = QHighDpi::toNativePixels(QRectF(global - QPointF(2, 2), QSizeF(4, 4)), window);
             const QRect screen = window->screen() ? window->screen()->geometry() : QRect(0, 0, 1, 1);
             point.normalPosition = QPointF((global.x() - screen.x()) / screen.width(), (global.y() - screen.y()) / screen.height());
             point.pressure = action == 9 ? 0 : 1;
@@ -311,7 +363,7 @@ private:
         default: break;
         }
         // with the modifiers held through "KritaDevKey" (e.g. Alt+click)
-        QWindowSystemInterface::handleMouseEvent(window, local, global, buttons, button, type, QGuiApplication::keyboardModifiers());
+        QWindowSystemInterface::handleMouseEvent(window, local, nativeGlobal, buttons, button, type, QGuiApplication::keyboardModifiers());
     }
 
     /**
