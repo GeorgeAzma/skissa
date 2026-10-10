@@ -13,6 +13,7 @@
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
 #include <QOpenGLVertexArrayObject>
+#include <QVector3D>
 #include <QtMath>
 
 #ifndef GL_RGBA16F
@@ -45,6 +46,9 @@ void main()
 /**
  * Between the steps colors are kept as the square root of light: mixed as
  * light, squared back, and as fine in the darks as sRGB is, in eight bits.
+ * The blur weighs colors (see KisStudioGlass::salience): kept is the light
+ * times its weight, and the weight in alpha, both over the most a weight is,
+ * so that a mean is the one over the other.
  */
 const char *const commonSource = R"(
 vec3 fromSrgb(vec3 c)
@@ -58,35 +62,66 @@ vec3 toSrgb(vec3 c)
     return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
 }
 
-vec3 light(vec4 kept)
+/// Light and its weight, as kept
+vec4 weighted(vec4 kept)
 {
-    return kept.rgb * kept.rgb;
+    return vec4(kept.rgb * kept.rgb, kept.a);
 }
 
-vec4 keep(vec3 light)
+vec4 keep(vec4 weighted)
 {
-    return vec4(sqrt(max(light, 0.0)), 1.0);
+    return vec4(sqrt(max(weighted.rgb, 0.0)), weighted.a);
+}
+
+/// Oklab (Bjoern Ottosson, 2020): lightness, and the two axes of color, as differences are seen
+vec3 toOklab(vec3 c)
+{
+    vec3 lms = vec3(0.4122214708 * c.r + 0.5363325363 * c.g + 0.0514459929 * c.b,
+                    0.2119034982 * c.r + 0.6806995451 * c.g + 0.1073969566 * c.b,
+                    0.0883024619 * c.r + 0.2817188376 * c.g + 0.6299787005 * c.b);
+    lms = pow(max(lms, 0.0), vec3(1.0 / 3.0));
+    return vec3(0.2104542553 * lms.x + 0.7936177850 * lms.y - 0.0040720468 * lms.z,
+                1.9779984951 * lms.x - 2.4285922050 * lms.y + 0.4505937099 * lms.z,
+                0.0259040371 * lms.x + 0.7827717662 * lms.y - 0.8086757660 * lms.z);
+}
+
+vec3 fromOklab(vec3 c)
+{
+    vec3 lms = vec3(c.x + 0.3963377774 * c.y + 0.2158037573 * c.z,
+                    c.x - 0.1055613458 * c.y - 0.0638541728 * c.z,
+                    c.x - 0.0894841775 * c.y - 1.2914855480 * c.z);
+    lms = lms * lms * lms;
+    return vec3(4.0767416621 * lms.x - 3.3077115913 * lms.y + 0.2309699292 * lms.z,
+                -1.2684380046 * lms.x + 2.6097574011 * lms.y - 0.3413193965 * lms.z,
+                -0.0041960863 * lms.x - 0.7034186147 * lms.y + 1.7076147010 * lms.z);
 }
 )";
 
-/// The canvas made smaller: each pixel the mean of the factor x factor it stands for
+/**
+ * The canvas made smaller: each pixel the mean of the factor x factor it
+ * stands for, as light, a saturated color counting more (its chroma in
+ * Oklab is about 0.32 at most, in sRGB)
+ */
 const char *const shrinkSource = R"(
 uniform sampler2D source;
 uniform int factor;
 uniform bool decode;
+uniform float salience;
 
 void main()
 {
     ivec2 last = textureSize(source, 0) - 1;
     ivec2 base = ivec2(gl_FragCoord.xy) * factor;
-    vec3 sum = vec3(0.0);
+    vec4 sum = vec4(0.0);
     for (int y = 0; y < factor; y++) {
         for (int x = 0; x < factor; x++) {
             vec3 c = texelFetch(source, min(base + ivec2(x, y), last), 0).rgb;
-            sum += decode ? fromSrgb(c) : c;
+            c = clamp(decode ? fromSrgb(c) : c, 0.0, 1.0);
+            float weight = 1.0 + salience * length(toOklab(c).yz);
+            sum += vec4(c * weight, weight);
         }
     }
-    fragColor = keep(sum / float(factor * factor));
+    fragColor = keep(sum / (float(factor * factor) * (1.0 + salience * 0.33)));
 }
 )";
 
@@ -97,15 +132,15 @@ uniform ivec2 direction;
 uniform int taps;
 uniform float weights[33];
 
-vec3 at(ivec2 p)
+vec4 at(ivec2 p)
 {
-    return light(texelFetch(source, clamp(p, ivec2(0), textureSize(source, 0) - 1), 0));
+    return weighted(texelFetch(source, clamp(p, ivec2(0), textureSize(source, 0) - 1), 0));
 }
 
 void main()
 {
     ivec2 p = ivec2(gl_FragCoord.xy);
-    vec3 sum = at(p) * weights[0];
+    vec4 sum = at(p) * weights[0];
     for (int i = 1; i <= taps; i++) {
         sum += (at(p + direction * i) + at(p - direction * i)) * weights[i];
     }
@@ -134,7 +169,7 @@ void main()
     vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));
     gl_Position = vec4(mix(rect.xy, rect.zw, corner), 0.0, 1.0);
 
-    // how bright it is behind, about as seen (the kept colors are about as light looks): a grid
+    // how bright it is behind, about as seen (the root of light is about as light looks): a grid
     // as fine as the blur is wide (12 x 12 at most), so that the tint does not flicker as the
     // canvas slides under it
     ivec2 last = textureSize(blurred, 0) - 1;
@@ -143,26 +178,54 @@ void main()
     for (int y = 0; y < count.y; y++) {
         for (int x = 0; x < count.x; x++) {
             vec2 p = shape.xy + shape.zw * (2.0 * (vec2(x, y) + 0.5) / vec2(count) - 1.0);
-            sum += dot(texelFetch(blurred, clamp(ivec2(p / factor), ivec2(0), last), 0).rgb, vec3(0.299, 0.587, 0.114));
+            vec4 kept = texelFetch(blurred, clamp(ivec2(p / factor), ivec2(0), last), 0);
+            sum += dot(kept.rgb / sqrt(max(kept.a, 1e-4)), vec3(0.299, 0.587, 0.114));
         }
     }
     strength = mix(tintStrength.x, tintStrength.y, clamp(abs(sum / float(count.x * count.y) - tintLightness), 0.0, 1.0));
 }
 )";
 
-/// A glass panel: the blur scaled back up in its shape, more vibrant, tinted
+/**
+ * A glass panel: a pane of glass held a little over the canvas, its face
+ * frosted, its edge a polished bevel rounding down to the rim. Each pixel
+ * is the ray seen there, followed down through the glass to the canvas:
+ *
+ *  - where the face is flat it goes straight through, and the frost
+ *    scatters it: the blur, tinted;
+ *  - on the bevel it is bent by the slope it enters (Snell's law), again as
+ *    it leaves the flat underside, and meets the canvas further in: what is
+ *    behind the bevel is seen bent, magnified, through clear glass (each
+ *    color by its own index of refraction: a faint fringe of color, as
+ *    glass disperses light). Where the bevel is steep, the ray cannot leave
+ *    the underside (total internal reflection): it goes back up and shows
+ *    the room through the glass instead.
+ *  - the face reflects the room as much as the angle says (Fresnel): next
+ *    to nothing where it is flat, more and more down the bevel, so the
+ *    edge catches the light of the room, brightest where it faces it.
+ *
+ * What it reflects (see room()): steep, the canvas around; less, the room:
+ * lit walls, a lamp to the upper left and its bounce from the lower right. All of it is worked out in light, what is behind
+ * tinted as tinted glass does (see KisStudioGlass::veil).
+ */
 const char *const glassSource = R"(
 uniform sampler2D blurred;
+uniform sampler2D small;
+uniform sampler2D sharp;
+uniform bool decodeSharp;
 uniform float factor;
 uniform vec4 shape;
 uniform vec2 corner;
 uniform vec3 tint;
-uniform float vibrance;
 uniform float opacity;
 uniform vec2 viewport;
 uniform float sigma;
 uniform vec4 beyond;
 uniform float dither;
+uniform float veil;
+uniform vec3 bevel;
+uniform vec3 ior;
+uniform vec3 light;
 flat in float strength;
 
 float hash(uvec2 p)
@@ -193,12 +256,15 @@ float within(float d, float crossing)
     return mix(0.5 + 0.5 * e, max(e, 0.0), crossing);
 }
 
-// how far outside the shape p is, in pixels (inside, less than 0): its squircle corners
-// are each a quarter of a superellipse, |x|^n + |y|^n = reach^n
-float outside(vec2 p)
+// how far outside the shape p is, in pixels (inside, less than 0), and which way is out there:
+// its squircle corners are each a quarter of a superellipse, |x|^n + |y|^n = reach^n
+float outside(vec2 p, out vec2 normal)
 {
-    vec2 q = abs(p - shape.xy) - (shape.zw - corner.x);
+    vec2 from = p - shape.xy;
+    vec2 side = vec2(from.x < 0.0 ? -1.0 : 1.0, from.y < 0.0 ? -1.0 : 1.0);
+    vec2 q = abs(from) - (shape.zw - corner.x);
     if (q.x <= 0.0 || q.y <= 0.0) {
+        normal = q.x > q.y ? vec2(side.x, 0.0) : vec2(0.0, side.y);
         return max(q.x, q.y) - corner.x;
     }
     float n = corner.y;
@@ -206,37 +272,201 @@ float outside(vec2 p)
     float f = pow(a.x + a.y, 1.0 / n);
     // the distance to f = reach, about: f over how fast it grows
     vec2 gradient = pow(q / f, vec2(n - 1.0));
+    normal = normalize(gradient) * side;
     return (f - corner.x) / length(gradient);
 }
 
-vec3 at(ivec2 p)
+// the bevel d pixels in from the rim, w wide, h thick: its height over the underside, and its
+// slope. A quarter of a superellipse of exponent 4: steep at the rim, flat where the face is,
+// without a crease there
+vec2 profile(float d, float w, float h)
 {
-    return light(texelFetch(blurred, clamp(p, ivec2(0), textureSize(blurred, 0) - 1), 0));
+    float u = 1.0 - clamp(d / w, 0.0, 1.0);
+    float u3 = u * u * u;
+    float k = max(1.0 - u3 * u, 1e-5);
+    return vec2(h * pow(k, 0.25), h / w * u3 * pow(k, -0.75));
+}
+
+// the ray seen at a point of the bevel with the surface normal there, in glass of index n, whose
+// face is height over the underside: where it meets the canvas, from there (xy); z 1 if it gets
+// there, 0 if it is reflected back up inside the glass, and then the way it leaves the face (w,
+// then 0 if it does not)
+vec4 trace(vec3 normal, float height, float n, out vec3 back)
+{
+    // in, at the face
+    vec3 t = refract(vec3(0.0, 0.0, -1.0), normal, 1.0 / n);
+    vec2 offset = t.xy / max(-t.z, 1e-3) * height;
+    // out of the flat underside, and on across the gap down to the canvas
+    float sinGlass = length(t.xy);
+    float sinAir = n * sinGlass;
+    if (sinAir >= 1.0) {
+        // reflected by the underside, and up out of the face (or not)
+        back = refract(vec3(t.xy, -t.z), -normal, n);
+        return vec4(offset, 0.0, dot(back, back) > 0.0 ? 1.0 : 0.0);
+    }
+    back = vec3(0.0);
+    offset += t.xy / max(sinGlass, 1e-6) * (sinAir / sqrt(1.0 - sinAir * sinAir)) * bevel.z;
+    return vec4(offset, 1.0, 0.0);
+}
+
+// how much light the glass reflects, seen at an angle of acos(c) to its face (Schlick)
+float fresnel(float c, float n)
+{
+    float r = (n - 1.0) / (n + 1.0);
+    r *= r;
+    return r + (1.0 - r) * pow(1.0 - clamp(c, 0.0, 1.0), 5.0);
+}
+
+
+// the canvas at p (surface pixels), in light: bilinear
+vec3 sharpAt(vec2 p)
+{
+    ivec2 last = textureSize(sharp, 0) - 1;
+    vec2 t = p - 0.5;
+    ivec2 i = ivec2(floor(t));
+    vec2 f = t - floor(t);
+    vec3 a = texelFetch(sharp, clamp(i, ivec2(0), last), 0).rgb;
+    vec3 b = texelFetch(sharp, clamp(i + ivec2(1, 0), ivec2(0), last), 0).rgb;
+    vec3 c = texelFetch(sharp, clamp(i + ivec2(0, 1), ivec2(0), last), 0).rgb;
+    vec3 d = texelFetch(sharp, clamp(i + ivec2(1, 1), ivec2(0), last), 0).rgb;
+    if (decodeSharp) {
+        a = fromSrgb(a);
+        b = fromSrgb(b);
+        c = fromSrgb(c);
+        d = fromSrgb(d);
+    }
+    return max(mix(mix(a, b, f.x), mix(c, d, f.x), f.y), 0.0);
+}
+
+// a small weighted texture (the blur, or the canvas made small) at p (surface pixels), in light:
+// bilinear, the weights too
+vec3 softAt(sampler2D source, vec2 p)
+{
+    ivec2 last = textureSize(source, 0) - 1;
+    vec2 t = p / factor - 0.5;
+    ivec2 i = ivec2(floor(t));
+    vec2 f = t - floor(t);
+    vec4 a = weighted(texelFetch(source, clamp(i, ivec2(0), last), 0));
+    vec4 b = weighted(texelFetch(source, clamp(i + ivec2(1, 0), ivec2(0), last), 0));
+    vec4 c = weighted(texelFetch(source, clamp(i + ivec2(0, 1), ivec2(0), last), 0));
+    vec4 d = weighted(texelFetch(source, clamp(i + ivec2(1, 1), ivec2(0), last), 0));
+    vec4 m = mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+    return m.rgb / max(m.a, 1e-5);
+}
+
+// what is behind at p, seen through the glass: clear (as sharp as it is spread over the screen:
+// magnified, the canvas; squeezed, the canvas made small), or frosted, the blur
+vec3 behindAt(vec2 p, float frost, float spread)
+{
+    vec3 clear = sharpAt(p);
+    if (spread > 1.0) {
+        clear = mix(clear, softAt(small, p), clamp((spread - 1.0) / (factor - 1.0), 0.0, 1.0));
+    }
+    return mix(clear, softAt(blurred, p), frost);
+}
+
+// what the glass at p reflects in the direction d (z toward the viewer), as light. Down (where a
+// steep bevel reflects to): the canvas it is held over, there, blurred. Up: the room, a dim
+// ceiling, lit walls toward the horizon, a broad lamp to the upper left (brighter than the room,
+// as lights are) and its bounce off a wall to the lower right
+vec3 room(vec3 d, vec2 p)
+{
+    vec3 below = softAt(blurred, p + d.xy / max(-d.z, 0.2) * bevel.z);
+    float ceiling = 0.06 + 0.08 * clamp(d.z, 0.0, 1.0) + 0.16 * pow(1.0 - clamp(d.z, 0.0, 1.0), 4.0);
+    vec3 env = mix(below, vec3(ceiling), smoothstep(-0.12, 0.12, d.z));
+    float lamp = 3.0 * pow(max(dot(d, light), 0.0), 12.0);
+    float bounce = 0.8 * pow(max(dot(d, vec3(-light.xy, light.z)), 0.0), 12.0);
+    return env + vec3(lamp + bounce);
+}
+
+// the largest chroma of hue ab at lightness l that is a color of the screen, scaled: ab times it
+vec3 inGamut(float l, vec2 ab)
+{
+    vec3 c = fromOklab(vec3(l, ab));
+    if (all(greaterThanEqual(c, vec3(-1e-4))) && all(lessThanEqual(c, vec3(1.0 + 1e-4)))) {
+        return c;
+    }
+    float lo = 0.0;
+    float hi = 1.0;
+    for (int i = 0; i < 10; i++) {
+        float m = 0.5 * (lo + hi);
+        c = fromOklab(vec3(l, ab * m));
+        if (all(greaterThanEqual(c, vec3(-1e-4))) && all(lessThanEqual(c, vec3(1.0 + 1e-4)))) {
+            lo = m;
+        } else {
+            hi = m;
+        }
+    }
+    return fromOklab(vec3(l, ab * lo));
+}
+
+// what is behind, in light, through glass tinted s strong: as light as the tint says, the color
+// kept as tinted glass keeps it (see KisStudioGlass::veil)
+vec3 tinted(vec3 behind, vec3 tintLab, float s)
+{
+    vec3 b = toOklab(behind);
+    float l = clamp(mix(b.x, tintLab.x, s), 0.0, 1.0);
+    float darkened = l < b.x ? l / max(b.x, 1e-3) : 1.0;
+    float scattered = s * mix(veil, 1.0, smoothstep(-0.02, 0.06, l - b.x));
+    return inGamut(l, mix(b.yz * darkened, tintLab.yz, scattered));
 }
 
 void main()
 {
-    float coverage = clamp(0.5 - outside(gl_FragCoord.xy), 0.0, 1.0) * opacity;
+    vec2 p = gl_FragCoord.xy;
+    vec2 normal2d;
+    float d = -outside(p, normal2d);
+    float coverage = clamp(d + 0.5, 0.0, 1.0) * opacity;
     if (coverage <= 0.0) {
         discard;
     }
-    // bilinear, in light
-    vec2 t = gl_FragCoord.xy / factor - 0.5;
-    ivec2 i = ivec2(floor(t));
-    vec2 f = t - floor(t);
-    vec3 c = mix(mix(at(i), at(i + ivec2(1, 0)), f.x), mix(at(i + ivec2(0, 1)), at(i + ivec2(1, 1)), f.x), f.y);
-    vec2 p = gl_FragCoord.xy;
+    // of the canvas, not of the panel color beyond its edges
     float canvas = within(p.x, beyond.x) * within(viewport.x - p.x, beyond.y) * within(p.y, beyond.z) * within(viewport.y - p.y, beyond.w);
-    c = mix(fromSrgb(tint), c, canvas);
+    vec3 tintLight = fromSrgb(tint);
+    vec3 tintLab = toOklab(tintLight);
 
-    // vibrance: away from the gray of the same luminance, as light through glass looks
-    float luminance = dot(c, vec3(0.2126, 0.7152, 0.0722));
-    c = max(vec3(0.0), luminance + (c - luminance) * vibrance);
-    vec3 glass = mix(toSrgb(c), tint, strength);
+    // the bevel: no wider than the corners are round, nor than the panel is
+    float w = min(bevel.x, min(corner.x, min(shape.z, shape.w)));
+    vec3 color;
+    if (w > 0.5 && d < w) {
+        float h = bevel.y * w / bevel.x;
+        vec2 bend = profile(d, w, h);
+        vec3 normal = normalize(vec3(normal2d * bend.y, 1.0));
+        float frost = smoothstep(0.0, 1.0, d / w);
+        // how far apart neighbours on the screen see the canvas: more than a pixel, it is squeezed
+        vec3 unused;
+        float before = dot(trace(normalize(vec3(normal2d * profile(d - 0.5, w, h).y, 1.0)), profile(d - 0.5, w, h).x, ior.g, unused).xy, -normal2d);
+        float after = dot(trace(normalize(vec3(normal2d * profile(d + 0.5, w, h).y, 1.0)), profile(d + 0.5, w, h).x, ior.g, unused).xy, -normal2d);
+        float spread = abs(1.0 + after - before);
+
+        vec3 light3 = vec3(0.0);
+        for (int i = 0; i < 3; i++) {
+            vec3 back;
+            vec4 ray = trace(normal, bend.x, ior[i], back);
+            vec3 seen;
+            if (ray.z > 0.0) {
+                seen = mix(tintLight, behindAt(p + ray.xy, frost, spread), canvas);
+            } else {
+                // reflected inside: the room through the glass (or, trapped, the glass itself)
+                seen = ray.w > 0.0 ? room(back, p) : tintLight;
+            }
+            light3[i] = seen[i];
+        }
+        // thinner, the glass tints what is behind it less
+        color = tinted(light3, tintLab, strength * mix(0.6, 1.0, bend.x / h));
+        // and the face reflects the room; what it reflects flat on is in the tint already
+        float faceOn = fresnel(1.0, ior.g);
+        float reflected = fresnel(normal.z, ior.g);
+        color = color * (1.0 - (reflected - faceOn) / (1.0 - faceOn)) + room(reflect(vec3(0.0, 0.0, -1.0), normal), p) * reflected
+            - room(vec3(0.0, 0.0, 1.0), p) * faceOn;
+    } else {
+        color = tinted(mix(tintLight, softAt(blurred, p), canvas), tintLab, strength);
+    }
+
     // dithered (triangular, a step of the target either way), for its slow gradients not to band
     uvec2 u = uvec2(p);
     float noise = hash(u) + hash(u + uvec2(7919u, 104729u)) - 1.0;
-    fragColor = vec4(glass + noise * dither, coverage);
+    fragColor = vec4(toSrgb(color) + noise * dither, coverage);
 }
 )";
 
@@ -281,6 +511,22 @@ struct Program {
     QOpenGLShaderProgram *operator->() const { return program.data(); }
 };
 
+/**
+ * The refractive index of the glass for red, green and blue light (610,
+ * 550 and 465 nm), from its index for yellow light and its Abbe number,
+ * by Cauchy's equation, n = A + B / wavelength^2
+ */
+QVector3D refractiveIndices()
+{
+    const qreal nd = KisStudioGlass::refractiveIndex;
+    // the spread from blue (the F line, 486.1 nm) to red (the C line, 656.3 nm)
+    const qreal spread = (nd - 1) / KisStudioGlass::abbeNumber;
+    const qreal b = spread / (1 / (0.4861 * 0.4861) - 1 / (0.6563 * 0.6563));
+    const qreal a = nd - b / (0.5876 * 0.5876);
+    auto at = [a, b](qreal micrometers) { return float(a + b / (micrometers * micrometers)); };
+    return QVector3D(at(0.610), at(0.550), at(0.465));
+}
+
 } // namespace
 
 struct KisOpenGLGlass::Private
@@ -293,6 +539,8 @@ struct KisOpenGLGlass::Private
     QScopedPointer<QOpenGLFramebufferObject> small;
     QScopedPointer<QOpenGLFramebufferObject> across;
     QScopedPointer<QOpenGLFramebufferObject> blurred;
+    /// Of what is kept between the steps: half floats where they can be drawn to, eight bits elsewhere
+    GLenum keptFormat {GL_RGBA};
     bool valid {false};
 
     void ensureSize(const QSize &size)
@@ -300,9 +548,9 @@ struct KisOpenGLGlass::Private
         if (small && small->size() == size) {
             return;
         }
-        small.reset(new QOpenGLFramebufferObject(size));
-        across.reset(new QOpenGLFramebufferObject(size));
-        blurred.reset(new QOpenGLFramebufferObject(size));
+        small.reset(new QOpenGLFramebufferObject(size, QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, keptFormat));
+        across.reset(new QOpenGLFramebufferObject(size, QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, keptFormat));
+        blurred.reset(new QOpenGLFramebufferObject(size, QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, keptFormat));
     }
 };
 
@@ -320,11 +568,15 @@ bool KisOpenGLGlass::initialize()
     if (!context || context->format().majorVersion() < 3) {
         return false;
     }
-    d->valid = d->shrink.make(quadSource, shrinkSource, {"rect", "source", "factor", "decode"})
+    // drawn to: OpenGL 3 can, OpenGL ES 3 with an extension
+    const bool halfFloats = !context->isOpenGLES() || context->hasExtension("GL_EXT_color_buffer_half_float")
+        || context->hasExtension("GL_EXT_color_buffer_float");
+    d->keptFormat = halfFloats ? GL_RGBA16F : GL_RGBA;
+    d->valid = d->shrink.make(quadSource, shrinkSource, {"rect", "source", "factor", "decode", "salience"})
         && d->blur.make(quadSource, blurSource, {"rect", "source", "direction", "taps", "weights"})
         && d->glass.make(glassVertexSource, glassSource,
-                         {"rect", "blurred", "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "vibrance", "opacity",
-                          "viewport", "sigma", "beyond", "spacing", "dither"});
+                         {"rect", "blurred", "small", "sharp", "decodeSharp", "factor", "shape", "corner", "tint", "tintLightness",
+                          "tintStrength", "opacity", "viewport", "sigma", "beyond", "spacing", "dither", "veil", "bevel", "ior", "light"});
     if (d->valid && KisOpenGL::supportsVAO()) {
         d->vao.create();
     }
@@ -392,6 +644,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1i(d->shrink["source"], 0);
     f->glUniform1i(d->shrink["factor"], factor);
     f->glUniform1i(d->shrink["decode"], !linearCanvas);
+    f->glUniform1f(d->shrink["salience"], KisStudioGlass::salience);
     d->blur->bind();
     f->glUniform4f(d->blur["rect"], -1, -1, 1, 1);
     f->glUniform1i(d->blur["source"], 0);
@@ -435,13 +688,28 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
     d->glass->bind();
     f->glUniform1i(d->glass["blurred"], 0);
+    f->glUniform1i(d->glass["small"], 1);
+    f->glUniform1i(d->glass["sharp"], 2);
+    f->glUniform1i(d->glass["decodeSharp"], !linearCanvas);
     f->glUniform1f(d->glass["factor"], factor);
-    f->glUniform1f(d->glass["vibrance"], KisStudioGlass::vibrance);
     f->glUniform2f(d->glass["tintStrength"], KisStudioGlass::tintOverDark, KisStudioGlass::tintOverBright);
+    f->glUniform1f(d->glass["veil"], KisStudioGlass::veil);
     f->glUniform2f(d->glass["viewport"], viewport.width(), viewport.height());
     f->glUniform1f(d->glass["sigma"], KisStudioGlass::blurSigma * pixelRatio);
     f->glUniform1f(d->glass["spacing"], 2 * KisStudioGlass::blurSigma * pixelRatio);
     f->glUniform1f(d->glass["dither"], dither);
+    const KisStudioGlass::Bevel bevel = KisStudioGlass::bevel();
+    f->glUniform3f(d->glass["bevel"], bevel.width * pixelRatio, bevel.thickness * pixelRatio, bevel.lift * pixelRatio);
+    const QVector3D ior = refractiveIndices();
+    f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
+    // toward the light of the room: above the screen, a little to the left (y is up here)
+    const QVector3D light = QVector3D(-0.3f, 0.55f, 0.78f).normalized();
+    f->glUniform3f(d->glass["light"], light.x(), light.y(), light.z());
+    f->glActiveTexture(GL_TEXTURE2);
+    f->glBindTexture(GL_TEXTURE_2D, canvas);
+    f->glActiveTexture(GL_TEXTURE1);
+    f->glBindTexture(GL_TEXTURE_2D, d->small->texture());
+    f->glActiveTexture(GL_TEXTURE0);
     f->glBindTexture(GL_TEXTURE_2D, d->blurred->texture());
     for (const Surface &surface : surfaces) {
         const QRectF r = surface.rect;
@@ -460,6 +728,11 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
 
     f->glDisable(GL_BLEND);
     f->glDisable(GL_SCISSOR_TEST);
+    f->glActiveTexture(GL_TEXTURE2);
+    f->glBindTexture(GL_TEXTURE_2D, 0);
+    f->glActiveTexture(GL_TEXTURE1);
+    f->glBindTexture(GL_TEXTURE_2D, 0);
+    f->glActiveTexture(GL_TEXTURE0);
     f->glBindTexture(GL_TEXTURE_2D, 0);
     d->glass->release();
     if (d->vao.isCreated()) d->vao.release();

@@ -242,5 +242,5 @@ void KisStudioCanvasHud::paintEvent(QPaintEvent *)
     const QPainterPath shape = KisStudioGlass::paint(painter, this, pill, pill.height() / 2);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.14);
-    painter.strokePath(shape, QPen(border, 1));
+    KisStudioGlass::paintBorder(painter, this, shape, border);
 }

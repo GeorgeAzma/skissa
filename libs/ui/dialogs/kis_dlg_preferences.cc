@@ -25,6 +25,7 @@
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QGroupBox>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
@@ -85,6 +86,7 @@
 #include "kis_canvas_resource_provider.h"
 #include "kis_config.h"
 #include "widgets/KisPresetStrokeThumbnails.h"
+#include "KisStudioGlass.h"
 #include "kis_image_config.h"
 #include "kis_preference_set_registry.h"
 #include "KisMainWindow.h"
@@ -397,32 +399,50 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
     m_chkBrushesAsStrokes = new QCheckBox(i18n("Show brushes as strokes"), m_chkCanvasMessages->parentWidget());
     m_chkBrushesAsStrokes->setToolTip(i18n("Brush presets show a stroke painted with each brush, beside its name, instead of its picture"));
     m_chkBrushesAsStrokes->setChecked(KisPresetStrokeThumbnails::isEnabled());
-    // in the row under it, in whichever layout it is in (a form, as the page is made now, or a grid)
-    std::function<bool(QLayout *)> placeUnder = [&](QLayout *layout) {
+    // and how the glass over the canvas ends: a line, or a bevel that bends the canvas behind it
+    m_cmbGlassEdge = new QComboBox(m_chkCanvasMessages->parentWidget());
+    m_cmbGlassEdge->addItems({i18nc("glass edge", "Line"), i18nc("glass edge", "Subtle"), i18nc("glass edge", "Strong")});
+    m_cmbGlassEdge->setToolTip(i18n("How glass panels over the canvas end: a line, or a glass edge that bends the canvas behind it"));
+    m_cmbGlassEdge->setCurrentIndex(int(KisStudioGlass::edge()));
+    // each in the row under \p anchor, in whichever layout it is in (a form, as the page is made now, or a grid)
+    std::function<bool(QLayout *, QWidget *, const QString &, QWidget *)> placeUnder =
+        [&](QLayout *layout, QWidget *anchor, const QString &label, QWidget *widget) {
         if (!layout) return false;
         if (auto *form = qobject_cast<QFormLayout *>(layout)) {
             int row;
             QFormLayout::ItemRole role;
-            form->getWidgetPosition(m_chkCanvasMessages, &row, &role);
+            form->getWidgetPosition(anchor, &row, &role);
             if (row >= 0) {
-                form->insertRow(row + 1, QString(), m_chkBrushesAsStrokes);
+                form->insertRow(row + 1, label, widget);
                 return true;
             }
         } else if (auto *grid = qobject_cast<QGridLayout *>(layout)) {
-            const int at = grid->indexOf(m_chkCanvasMessages);
+            const int at = grid->indexOf(anchor);
             if (at >= 0) {
                 int row, column, rowSpan, columnSpan;
                 grid->getItemPosition(at, &row, &column, &rowSpan, &columnSpan);
-                grid->addWidget(m_chkBrushesAsStrokes, grid->rowCount(), column);
+                if (label.isEmpty()) {
+                    grid->addWidget(widget, grid->rowCount(), column);
+                } else {
+                    QWidget *line = new QWidget(widget->parentWidget());
+                    QHBoxLayout *box = new QHBoxLayout(line);
+                    box->setContentsMargins(0, 0, 0, 0);
+                    box->addWidget(new QLabel(label, line));
+                    box->addWidget(widget);
+                    box->addStretch();
+                    grid->addWidget(line, grid->rowCount(), column);
+                }
                 return true;
             }
         }
         for (int i = 0; i < layout->count(); i++) {
-            if (placeUnder(layout->itemAt(i)->layout())) return true;
+            if (placeUnder(layout->itemAt(i)->layout(), anchor, label, widget)) return true;
         }
         return false;
     };
-    placeUnder(m_chkCanvasMessages->parentWidget()->layout());
+    QLayout *messagesLayout = m_chkCanvasMessages->parentWidget()->layout();
+    placeUnder(messagesLayout, m_chkCanvasMessages, QString(), m_chkBrushesAsStrokes);
+    placeUnder(messagesLayout, m_chkBrushesAsStrokes, i18n("Glass edge:"), m_cmbGlassEdge);
 
     const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     QSettings kritarc(configPath + QStringLiteral("/kritadisplayrc"), QSettings::IniFormat);
@@ -883,6 +903,7 @@ void GeneralTab::setDefault()
     m_backgroundimage->setText(cfg.getMDIBackgroundImage(true));
     m_chkCanvasMessages->setChecked(cfg.showCanvasMessages(true));
     if (m_chkBrushesAsStrokes) m_chkBrushesAsStrokes->setChecked(false);
+    if (m_cmbGlassEdge) m_cmbGlassEdge->setCurrentIndex(int(KisStudioGlass::Edge::Subtle));
     m_chkCompressKra->setChecked(cfg.compressKra(true));
     m_chkTrimKra->setChecked(cfg.trimKra(true));
     m_chkTrimFramesImport->setChecked(cfg.trimFramesImport(true));
@@ -1091,6 +1112,11 @@ bool GeneralTab::showCanvasMessages()
 bool GeneralTab::brushesAsStrokes()
 {
     return m_chkBrushesAsStrokes && m_chkBrushesAsStrokes->isChecked();
+}
+
+int GeneralTab::glassEdge()
+{
+    return m_cmbGlassEdge ? m_cmbGlassEdge->currentIndex() : int(KisStudioGlass::edge());
 }
 
 bool GeneralTab::compressKra()
@@ -3127,6 +3153,7 @@ bool KisDlgPreferences::editPreferences(std::optional<PageDesc>page)
 
         cfg.setShowCanvasMessages(m_general->showCanvasMessages());
         KisPresetStrokeThumbnails::setEnabled(m_general->brushesAsStrokes());
+        KisStudioGlass::setEdge(KisStudioGlass::Edge(m_general->glassEdge()));
         cfg.setCompressKra(m_general->compressKra());
         cfg.setTrimKra(m_general->trimKra());
         cfg.setTrimFramesImport(m_general->trimFramesImport());

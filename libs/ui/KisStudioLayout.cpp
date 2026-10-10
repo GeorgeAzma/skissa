@@ -610,7 +610,7 @@ protected:
         const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(m_moving ? 0.3 : 0.12);
-        painter.strokePath(shape, QPen(border, 1));
+        KisStudioGlass::paintBorder(painter, this, shape, border);
     }
 
 private:
@@ -687,7 +687,7 @@ protected:
         const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(0.12);
-        painter.strokePath(shape, QPen(border, 1));
+        KisStudioGlass::paintBorder(painter, this, shape, border);
     }
 
 private:
@@ -883,7 +883,7 @@ protected:
         const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(m_resizing || m_moving ? 0.3 : 0.12);
-        painter.strokePath(shape, QPen(border, 1));
+        KisStudioGlass::paintBorder(painter, this, shape, border);
     }
 
     void mousePressEvent(QMouseEvent *event) override
@@ -1022,7 +1022,7 @@ protected:
         const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(0.14);
-        painter.strokePath(shape, QPen(border, 1));
+        KisStudioGlass::paintBorder(painter, this, shape, border);
     }
 
 private:

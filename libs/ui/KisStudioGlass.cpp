@@ -41,11 +41,11 @@
 namespace {
 
 const QString settingKey = QStringLiteral("StudioGlass");
+const QString edgeKey = QStringLiteral("StudioGlassEdge");
 
 /// How the glass looks: soft enough that nothing in it reads as a shape, tinted enough that text on it reads
 constexpr qreal blurRadius = 26;   ///< in widget pixels
 constexpr qreal sampleScale = 0.25; ///< what is behind is drawn at a quarter of the resolution: the blur hides it
-constexpr qreal vibrance = KisStudioGlass::vibrance;
 
 // ------------------------------------------------------------ blurring in linear light
 
@@ -76,6 +76,78 @@ quint8 toSrgb(float linear)
     return table[qBound(0, int(linear * 4095.0f + 0.5f), 4095)];
 }
 
+// ------------------------------------------------------------ Oklab, as the canvas draws the glass
+
+struct Lab {
+    float l, a, b;
+};
+
+Lab toOklab(float r, float g, float b)
+{
+    const float l = std::cbrt(qMax(0.0f, 0.4122214708f * r + 0.5363325363f * g + 0.0514459929f * b));
+    const float m = std::cbrt(qMax(0.0f, 0.2119034982f * r + 0.6806995451f * g + 0.1073969566f * b));
+    const float s = std::cbrt(qMax(0.0f, 0.0883024619f * r + 0.2817188376f * g + 0.6299787005f * b));
+    return {0.2104542553f * l + 0.7936177850f * m - 0.0040720468f * s,
+            1.9779984951f * l - 2.4285922050f * m + 0.4505937099f * s,
+            0.0259040371f * l + 0.7827717662f * m - 0.8086757660f * s};
+}
+
+std::array<float, 3> fromOklab(const Lab &c)
+{
+    float l = c.l + 0.3963377774f * c.a + 0.2158037573f * c.b;
+    float m = c.l - 0.1055613458f * c.a - 0.0638541728f * c.b;
+    float s = c.l - 0.0894841775f * c.a - 1.2914855480f * c.b;
+    l = l * l * l;
+    m = m * m * m;
+    s = s * s * s;
+    return {4.0767416621f * l - 3.3077115913f * m + 0.2309699292f * s,
+            -1.2684380046f * l + 2.6097574011f * m - 0.3413193965f * s,
+            -0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s};
+}
+
+/// \p c with its chroma lowered as much as it takes to be a color of the screen
+std::array<float, 3> inGamut(const Lab &c)
+{
+    auto inside = [](const std::array<float, 3> &rgb) {
+        return rgb[0] >= -1e-4f && rgb[1] >= -1e-4f && rgb[2] >= -1e-4f && rgb[0] <= 1.0001f && rgb[1] <= 1.0001f && rgb[2] <= 1.0001f;
+    };
+    const std::array<float, 3> rgb = fromOklab(c);
+    if (inside(rgb)) return rgb;
+    float lo = 0, hi = 1;
+    for (int i = 0; i < 10; i++) {
+        const float mid = 0.5f * (lo + hi);
+        if (inside(fromOklab({c.l, c.a * mid, c.b * mid}))) lo = mid;
+        else hi = mid;
+    }
+    return fromOklab({c.l, c.a * lo, c.b * lo});
+}
+
+/// \p image (sRGB) through glass tinted \p tint, \p strength strong (see KisStudioGlass::veil)
+QImage tinted(const QImage &image, const QColor &tint, qreal strength)
+{
+    const auto &linear = toLinear();
+    const Lab t = toOklab(linear[tint.red()], linear[tint.green()], linear[tint.blue()]);
+    const float s = float(strength);
+    const float veil = float(KisStudioGlass::veil);
+    QImage result(image.size(), QImage::Format_RGB32);
+    for (int y = 0; y < image.height(); y++) {
+        const QRgb *in = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        QRgb *out = reinterpret_cast<QRgb *>(result.scanLine(y));
+        for (int x = 0; x < image.width(); x++) {
+            const Lab b = toOklab(linear[qRed(in[x])], linear[qGreen(in[x])], linear[qBlue(in[x])]);
+            const float l = qBound(0.0f, b.l + (t.l - b.l) * s, 1.0f);
+            // darkened, as tinted glass darkens: the saturation kept; veiled by the light it scatters
+            const float darkened = l < b.l ? l / qMax(b.l, 1e-3f) : 1.0f;
+            const float lighter = qBound(0.0f, (l - b.l + 0.02f) / 0.08f, 1.0f);
+            const float scattered = s * (veil + (1.0f - veil) * lighter * lighter * (3 - 2 * lighter));
+            const std::array<float, 3> c = inGamut({l, b.a * darkened * (1 - scattered) + t.a * scattered,
+                                                    b.b * darkened * (1 - scattered) + t.b * scattered});
+            out[x] = qRgb(toSrgb(c[0]), toSrgb(c[1]), toSrgb(c[2]));
+        }
+    }
+    return result;
+}
+
 /// One box blur pass along a line of \p count values \p stride apart
 void boxLine(float *data, int count, int stride, int radius, std::vector<float> &scratch)
 {
@@ -92,12 +164,13 @@ void boxLine(float *data, int count, int stride, int radius, std::vector<float> 
     for (int i = 0; i < count; i++) data[i * stride] = scratch[i];
 }
 
-/// Blurred in linear light (three box passes each way: close to a gaussian), a little more vibrant
+/// Blurred in linear light (three box passes each way: close to a gaussian), saturated colors counting more
 QImage blurred(const QImage &source, int radius)
 {
     const QImage image = source.convertToFormat(QImage::Format_RGB32);
     const int w = image.width(), h = image.height();
-    std::vector<float> channels[3];
+    // light times its weight, and the weight
+    std::vector<float> channels[4];
     for (auto &channel : channels) channel.resize(size_t(w) * h);
     const auto &linear = toLinear();
     for (int y = 0; y < h; y++) {
@@ -105,11 +178,12 @@ QImage blurred(const QImage &source, int radius)
         for (int x = 0; x < w; x++) {
             const size_t i = size_t(y) * w + x;
             const float r = linear[qRed(line[x])], g = linear[qGreen(line[x])], b = linear[qBlue(line[x])];
-            // vibrance: away from the gray of the same luminance
-            const float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-            channels[0][i] = qMax(0.0f, luminance + (r - luminance) * float(vibrance));
-            channels[1][i] = qMax(0.0f, luminance + (g - luminance) * float(vibrance));
-            channels[2][i] = qMax(0.0f, luminance + (b - luminance) * float(vibrance));
+            const Lab lab = toOklab(r, g, b);
+            const float weight = 1.0f + float(KisStudioGlass::salience) * std::hypot(lab.a, lab.b);
+            channels[0][i] = r * weight;
+            channels[1][i] = g * weight;
+            channels[2][i] = b * weight;
+            channels[3][i] = weight;
         }
     }
     // a box of r three times is about a gaussian of sigma r: the passes share the radius
@@ -126,7 +200,8 @@ QImage blurred(const QImage &source, int radius)
         QRgb *line = reinterpret_cast<QRgb *>(result.scanLine(y));
         for (int x = 0; x < w; x++) {
             const size_t i = size_t(y) * w + x;
-            line[x] = qRgb(toSrgb(channels[0][i]), toSrgb(channels[1][i]), toSrgb(channels[2][i]));
+            const float weight = qMax(1e-6f, channels[3][i]);
+            line[x] = qRgb(toSrgb(channels[0][i] / weight), toSrgb(channels[1][i] / weight), toSrgb(channels[2][i] / weight));
         }
     }
     return result;
@@ -393,6 +468,9 @@ Engine::Entry makeEntry(const Scene &scene, const QRect &rect, const QRect &glob
     if (canvasRect.intersects(QRect(QPoint(), scene.canvasSize))) {
         entry.image = render(scene, canvasRect, outside);
         entry.lightness = lightness(entry.image);
+        // tinted as much as what is behind needs, for what is on it to read: a bright canvas more, a dark one less
+        const qreal contrast = qBound(0.0, qAbs(entry.lightness - outside.lightnessF()), 1.0);
+        entry.image = tinted(entry.image, outside, KisStudioGlass::tintOverDark + (KisStudioGlass::tintOverBright - KisStudioGlass::tintOverDark) * contrast);
     }
     return entry;
 }
@@ -553,6 +631,21 @@ public:
             changed(widget);
         }
         return it->drawn;
+    }
+
+    /// Whether the canvas has drawn \p widget's glass since it was shown
+    bool isDrawn(QWidget *widget) const
+    {
+        return m_panels.value(widget).drawn;
+    }
+
+    /// All the panels, and the canvases under them, painted again: e.g. their edge changed
+    void repaintAll()
+    {
+        for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) it.key()->update();
+        for (QWidget *canvas : qAsConst(m_canvases)) {
+            if (canvas) canvas->update();
+        }
     }
 
     /// Where a glass window over \p widget covers it
@@ -823,6 +916,61 @@ bool KisStudioGlass::isEnabled()
     return enabled();
 }
 
+namespace {
+/// The setting, read once: the canvas draws the glass every frame
+KisStudioGlass::Edge &edgeSetting()
+{
+    static KisStudioGlass::Edge edge = KisStudioGlass::Edge(qBound(0, KisConfig(true).readEntry<int>(edgeKey, int(KisStudioGlass::Edge::Subtle)), 2));
+    return edge;
+}
+} // namespace
+
+KisStudioGlass::Edge KisStudioGlass::edge()
+{
+    return edgeSetting();
+}
+
+void KisStudioGlass::setEdge(Edge edge)
+{
+    if (edge == edgeSetting()) {
+        return;
+    }
+    edgeSetting() = edge;
+    KisConfig(false).writeEntry(edgeKey, int(edge));
+    Panels::instance().repaintAll();
+}
+
+KisStudioGlass::Bevel KisStudioGlass::bevel()
+{
+    switch (edge()) {
+    case Edge::Subtle:
+        return {10, 10, 12};
+    case Edge::Strong:
+        return {14, 16, 18};
+    case Edge::Line:
+        break;
+    }
+    return {};
+}
+
+void KisStudioGlass::paintBorder(QPainter &painter, QWidget *widget, const QPainterPath &shape, const QColor &color, qreal width)
+{
+    QWidget *canvas = isEnabled() && edge() != Edge::Line ? canvasWidgetOf(widget) : nullptr;
+    if (!drawnByCanvas(canvas) || !canvas->isVisible() || !Panels::instance().isDrawn(widget)) {
+        painter.strokePath(shape, QPen(color, width));
+        return;
+    }
+    // the canvas draws a bevel where the glass is over it: the line only beyond it
+    QPainterPath beyond;
+    beyond.addRect(QRectF(widget->rect()).adjusted(-width, -width, width, width));
+    QPainterPath over;
+    over.addRect(QRectF(widget->mapFromGlobal(canvas->mapToGlobal(QPoint())), canvas->size()));
+    painter.save();
+    painter.setClipPath(beyond.subtracted(over), Qt::IntersectClip);
+    painter.strokePath(shape, QPen(color, width));
+    painter.restore();
+}
+
 void KisStudioGlass::setEnabled(bool on)
 {
     enabled() = on;
@@ -868,7 +1016,8 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
         QPainterPath over;
         over.addRect(QRectF(widget->mapFromGlobal(canvas->mapToGlobal(QPoint())), canvas->size()));
         painter.fillPath(shape.subtracted(over), window);
-        sheen();
+        // a bevel catches the light itself
+        if (edge() == Edge::Line) sheen();
         return shape;
     }
 
@@ -881,12 +1030,8 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
     painter.save();
     painter.setClipPath(shape, Qt::IntersectClip);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    // tinted already
     painter.drawImage(QRectF(bounds), behind.image);
-    // tinted as much as what is behind needs, for what is on it to read: a bright canvas more, a dark one less
-    const qreal contrast = qAbs(behind.lightness - window.lightnessF());
-    QColor tinted = window;
-    tinted.setAlphaF(tintOverDark + (tintOverBright - tintOverDark) * qBound(0.0, contrast, 1.0));
-    painter.fillRect(bounds, tinted);
     painter.restore();
     sheen();
     return shape;

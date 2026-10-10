@@ -36,11 +36,58 @@ class KRITAUI_EXPORT KisStudioGlass
 public:
     /// How the glass looks, drawn here or by the canvas alike: soft enough that nothing in it reads as a shape
     static constexpr qreal blurSigma = 18; ///< in widget pixels
-    /// A little more saturated, as light through glass looks
-    static constexpr qreal vibrance = 1.18;
+    /**
+     * The blur mixes what is behind as light (detail too fine to see mixes
+     * so, on the eye too), but a saturated color counts up to 1 + salience
+     * times as much as a gray: a stroke of color is what one sees of a
+     * canvas, and an average of pixels drowns it in the paper around it.
+     */
+    static constexpr qreal salience = 4.0;
     /// The tint, over a dark and over a bright canvas: text on it reads as well over either
     static constexpr qreal tintOverDark = 0.56;
     static constexpr qreal tintOverBright = 0.84;
+    /**
+     * The tint sets how light the glass is, for text on it to read; the
+     * color of what is behind changes as through tinted glass: darkened, it
+     * keeps its saturation (its chroma over its lightness, in Oklab), and
+     * only the light the glass scatters veils it, this share of the tint
+     * (all of it where the glass is lighter than what is behind: lightening
+     * is all scattered light). Mixing with a gray instead muddies colors.
+     */
+    static constexpr qreal veil = 0.3;
+
+    /**
+     * The edge of the glass over the canvas: a line drawn on it, or a
+     * polished bevel, the face of the pane rounding down to its edge, that
+     * bends what is behind as glass does (Snell's law, with the dispersion of
+     * the glass), reflects the room (Fresnel) and, where the bevel is
+     * steepest, reflects the light inside it (total internal reflection).
+     */
+    enum class Edge {
+        Line = 0,
+        Subtle = 1,
+        Strong = 2,
+    };
+    static Edge edge();
+    static void setEdge(Edge edge);
+
+    /// The bevel of the edge (all zero for a line), in widget pixels
+    struct Bevel {
+        qreal width {0};     ///< from the edge in to where the face is flat
+        qreal thickness {0}; ///< of the pane where its face is flat
+        qreal lift {0};      ///< how far the pane is over the canvas
+    };
+    static Bevel bevel();
+    /// The glass: crown glass, its refractive index for yellow light (the sodium d line) and its Abbe number
+    static constexpr qreal refractiveIndex = 1.52;
+    static constexpr qreal abbeNumber = 40;
+
+    /**
+     * Strokes \p shape (what paint() returned) in \p color, \p width wide:
+     * \p widget's border, where the canvas does not draw a bevel instead
+     * (beyond the canvas, without OpenGL, with the edge set to a line).
+     */
+    static void paintBorder(QPainter &painter, QWidget *widget, const QPainterPath &shape, const QColor &color, qreal width = 1);
 
     /**
      * Paints \p widget's background, \p rect (widget coordinates) with

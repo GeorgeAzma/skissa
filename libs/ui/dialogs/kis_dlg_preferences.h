@@ -92,9 +92,12 @@ public:
     int mdiMode();
     bool showCanvasMessages();
     bool brushesAsStrokes();
+    /// The edge of the glass over the canvas (KisStudioGlass::Edge)
+    int glassEdge();
 
     /// Brush presets shown by what they paint (off: by their pictures)
     QPointer<QCheckBox> m_chkBrushesAsStrokes;
+    QPointer<QComboBox> m_cmbGlassEdge;
     bool compressKra();
     bool trimKra();
     bool trimFramesImport();

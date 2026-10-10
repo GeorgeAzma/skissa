@@ -20,8 +20,11 @@
  *
  * The blur: the canvas a few times smaller (each pixel the mean of the
  * ones it stands for), then a gaussian across and down, then scaled back
- * up where the glass is. Colors are mixed as light, kept as sRGB between
- * steps.
+ * up where the glass is. Colors are mixed as light, saturated ones counting
+ * more (see KisStudioGlass::salience).
+ *
+ * The edge (see KisStudioGlass::Edge): a bevel, traced as glass, that bends
+ * the canvas behind it, sharp, and reflects the room.
  */
 class KisOpenGLGlass
 {

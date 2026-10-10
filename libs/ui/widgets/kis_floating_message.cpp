@@ -155,7 +155,7 @@ void KisFloatingMessage::paintEvent(QPaintEvent *)
     const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 10);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.12);
-    painter.strokePath(shape, QPen(border, 1));
+    KisStudioGlass::paintBorder(painter, this, shape, border);
 }
 
 void KisFloatingMessage::setShowOverParent(bool show)

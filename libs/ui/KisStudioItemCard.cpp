@@ -623,5 +623,5 @@ void KisStudioItemCard::paintEvent(QPaintEvent *)
     const QPainterPath shape = KisStudioGlass::paint(painter, this, panel.adjusted(0.5, 0.5, -0.5, -0.5), radius);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.12);
-    painter.strokePath(shape, QPen(border, 1));
+    KisStudioGlass::paintBorder(painter, this, shape, border);
 }

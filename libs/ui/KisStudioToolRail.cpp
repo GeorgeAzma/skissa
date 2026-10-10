@@ -443,7 +443,7 @@ protected:
         const QPainterPath shape = KisStudioGlass::paint(painter, this, round, round.width() / 2);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(0.12);
-        painter.strokePath(shape, QPen(border, 1));
+        KisStudioGlass::paintBorder(painter, this, shape, border);
         QColor ink = palette().color(QPalette::ButtonText);
         ink.setAlphaF(underMouse() ? 0.9 : 0.55);
         QPen pen(ink, 1.6);
