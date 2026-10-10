@@ -220,55 +220,6 @@ QImage blurred(const QImage &source, int radius)
     return result;
 }
 
-/**
- * The grain of the frost (see KisStudioGlass::grainPhotons), to lay over it:
- * white and black specks, as see-through as they are light and dark. As the
- * canvas draws it: gaussian, correlated over about a pixel, the same in all
- * three colors; here of the strength it has on the glass' usual lightness
- * (about half a percent of sRGB, from dark glass to light), as it is laid over what is
- * painted already.
- */
-const QImage &grainTile()
-{
-    static const QImage tile = []() {
-        const int size = 128;
-        quint32 state = 2463534242u;
-        auto uniform = [&state]() {
-            state ^= state << 13;
-            state ^= state >> 17;
-            state ^= state << 5;
-            return ((state & 0xffffff) + 0.5f) / float(0x1000000);
-        };
-        // gaussian deviates (Box-Muller), smoothed over the 3 x 3 around (wrapping: the tile repeats)
-        std::vector<float> white(size_t(size) * size);
-        for (float &v : white) v = std::sqrt(-2.0f * std::log(uniform())) * std::cos(6.2831853f * uniform());
-        const float sigma = float(KisStudioGlass::grainSize);
-        float weights[3][3];
-        float energy = 0;
-        for (int y = -1; y <= 1; y++) {
-            for (int x = -1; x <= 1; x++) {
-                weights[y + 1][x + 1] = std::exp(-(x * x + y * y) / (2 * sigma * sigma));
-                energy += weights[y + 1][x + 1] * weights[y + 1][x + 1];
-            }
-        }
-        QImage image(size, size, QImage::Format_ARGB32_Premultiplied);
-        for (int y = 0; y < size; y++) {
-            QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
-            for (int x = 0; x < size; x++) {
-                float sum = 0;
-                for (int j = -1; j <= 1; j++) {
-                    for (int i = -1; i <= 1; i++) sum += weights[j + 1][i + 1] * white[size_t((y + j + size) % size) * size + (x + i + size) % size];
-                }
-                const float speck = sum / std::sqrt(energy) * 0.005f;
-                const int alpha = qBound(0, int(std::lround(qAbs(speck) * 255.0f)), 255);
-                line[x] = speck > 0 ? qRgba(alpha, alpha, alpha, alpha) : qRgba(0, 0, 0, alpha);
-            }
-        }
-        return image;
-    }();
-    return tile;
-}
-
 KisMainWindow *mainWindowOf(QWidget *widget)
 {
     for (QWidget *w = widget; w; w = w->parentWidget()) {
@@ -1102,7 +1053,6 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
     // tinted already
     painter.drawImage(QRectF(bounds), behind.image);
-    painter.fillRect(bounds, QBrush(grainTile()));
     painter.restore();
     sheen();
     return shape;
