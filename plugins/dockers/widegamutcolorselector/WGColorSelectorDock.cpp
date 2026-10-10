@@ -37,11 +37,12 @@
 
 #include <QDebug>
 #include <kis_assert.h>
+#include <KisFrameRate.h>
 
 WGColorSelectorDock::WGColorSelectorDock()
 	: QDockWidget()
     , m_displayConfig(new WGSelectorDisplayConfig)
-    , m_colorChangeCompressor(new KisSignalCompressor(100 /* ms */, KisSignalCompressor::POSTPONE, this))
+    , m_colorChangeCompressor(new KisSignalCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE, this))
     , m_actionManager(new WGActionManager(this))
     , m_colorTooltip(new WGColorPreviewToolTip(this))
     , m_colorModelBG(new KisVisualColorModel)

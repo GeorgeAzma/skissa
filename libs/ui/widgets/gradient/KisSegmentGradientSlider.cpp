@@ -27,6 +27,7 @@
 #include <ksharedconfig.h>
 
 #include "KisSegmentGradientSlider.h"
+#include <KisFrameRate.h>
 
 #define MARGIN 5
 #define HANDLE_SIZE 10
@@ -34,7 +35,7 @@
 KisSegmentGradientSlider::KisSegmentGradientSlider(QWidget *parent, const char* name, Qt::WindowFlags f)
     : QWidget(parent, f)
     , m_drag(false)
-    , m_updateCompressor(40, KisSignalCompressor::FIRST_ACTIVE)
+    , m_updateCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE)
 {
     setObjectName(name);
     setMouseTracking(true);

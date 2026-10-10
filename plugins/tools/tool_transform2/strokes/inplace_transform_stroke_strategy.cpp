@@ -59,6 +59,7 @@
 #include "kis_image_animation_interface.h"
 #include "KisAnimAutoKey.h"
 #include "krita_utils.h"
+#include <KisFrameRate.h>
 
 
 struct InplaceTransformStrokeStrategy::Private
@@ -121,7 +122,7 @@ struct InplaceTransformStrokeStrategy::Private
     // data for asynchronous updates
     boost::optional<ToolTransformArgs> pendingUpdateArgs;
     QElapsedTimer updateTimer;
-    const int updateInterval = 30;
+    const int updateInterval = KisFrameRate::frameMs();
 
     // temporary variable to share data between jobs at the initialization phase
     QVector<KisDecoratedNodeInterface*> disabledDecoratedNodes;

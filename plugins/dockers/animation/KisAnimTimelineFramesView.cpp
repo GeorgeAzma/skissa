@@ -49,6 +49,7 @@
 #include "KisImportExportManager.h"
 #include "KoFileDialog.h"
 #include "KisIconToolTip.h"
+#include <KisFrameRate.h>
 
 typedef QPair<QRect, QModelIndex> QItemViewPaintPair;
 typedef QList<QItemViewPaintPair> QItemViewPaintPairs;
@@ -783,7 +784,7 @@ void KisAnimTimelineFramesView::slotAudioVolumeChanged(int value)
 void KisAnimTimelineFramesView::slotScrollerStateChanged( QScroller::State state ) {
 
     if (state == QScroller::Dragging || state == QScroller::Scrolling ) {
-        m_d->kineticScrollInfiniteFrameUpdater.start(16);
+        m_d->kineticScrollInfiniteFrameUpdater.start(KisFrameRate::frameMs());
     } else {
         m_d->kineticScrollInfiniteFrameUpdater.stop();
     }
@@ -839,10 +840,10 @@ void KisAnimTimelineFramesView::slotEnsureRowVisible(int row)
     index = m_d->model->index(row, index.column());
 
     // WORKAROUND BUG:437029
-    // Delay's UI scrolling by 1/60 of a second to compensate for
+    // Delays UI scrolling by a frame to compensate for
     // inconsistent dummy indexing caused by a brief period where
     // two unpinned dummies exist on the timeline simultaneously.
-    QTimer::singleShot(16, Qt::PreciseTimer, this, [this, index](){
+    QTimer::singleShot(KisFrameRate::frameMs(), Qt::PreciseTimer, this, [this, index](){
         scrollTo(index);
     });
 }

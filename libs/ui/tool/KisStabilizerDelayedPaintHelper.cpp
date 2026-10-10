@@ -5,8 +5,7 @@
  */
 
 #include "KisStabilizerDelayedPaintHelper.h"
-
-constexpr int fixedPaintTimerInterval = 20;
+#include <KisFrameRate.h>
 
 KisStabilizerDelayedPaintHelper::TimedPaintInfo::TimedPaintInfo(int elapsedTime, KisPaintInformation paintInfo)
     : elapsedTime(elapsedTime)
@@ -23,7 +22,7 @@ void KisStabilizerDelayedPaintHelper::start(const KisPaintInformation &firstPain
     if (running()) {
         cancel();
     }
-    m_paintTimer.setInterval(fixedPaintTimerInterval);
+    m_paintTimer.setInterval(KisFrameRate::frameMs());
     m_paintTimer.start();
     m_elapsedTimer.start();
     m_lastPendingTime = m_elapsedTimer.elapsed();
@@ -76,7 +75,7 @@ void KisStabilizerDelayedPaintHelper::cancel() {
 }
 
 void KisStabilizerDelayedPaintHelper::stabilizerDelayedPaintTimer() {
-    if (m_elapsedTimer.elapsed() - m_lastPaintTime < fixedPaintTimerInterval) {
+    if (m_elapsedTimer.elapsed() - m_lastPaintTime < m_paintTimer.interval()) {
         return;
     }
     paintSome();

@@ -26,13 +26,14 @@
 #include <KisVisualColorSelector.h>
 
 #include <QVector4D>
+#include <KisFrameRate.h>
 
 WGActionManager::WGActionManager(WGColorSelectorDock *parentDock)
     : QObject(parentDock)
     , m_docker(parentDock)
     , m_displayConfig(new WGSelectorDisplayConfig)
     , m_colorTooltip(new WGColorPreviewToolTip)
-    , m_colorChangeCompressor(new KisSignalCompressor(100 /* ms */, KisSignalCompressor::POSTPONE, this))
+    , m_colorChangeCompressor(new KisSignalCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE, this))
     , m_colorModel(new KisVisualColorModel)
 {
     m_lastUsedColor.setOpacity(quint8(0));

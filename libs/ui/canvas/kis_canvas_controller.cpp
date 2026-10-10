@@ -28,8 +28,8 @@
 #include <KoViewTransformStillPoint.h>
 
 #include "KisCanvasState.h"
+#include <KisFrameRate.h>
 
-static const int gRulersUpdateDelay = 80 /* ms */;
 
 struct KisCanvasController::Private {
     Private(KisCanvasController *qq)
@@ -42,7 +42,7 @@ struct KisCanvasController::Private {
 
         mousePositionCompressor.reset(
             new KisSignalCompressorWithParam<QPoint>(
-                gRulersUpdateDelay,
+                KisFrameRate::frameMs(),
                 callback,
                 KisSignalCompressor::FIRST_ACTIVE));
     }

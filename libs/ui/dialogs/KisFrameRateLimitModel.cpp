@@ -42,7 +42,7 @@ KisFrameRateLimitModel::KisFrameRateLimitModel(lager::cursor<Data> _data)
     , LAGER_QT(frameRateState) {
         lager::with(LAGER_QT(frameRate),
                     lager::make_constant(1),
-                    lager::make_constant(300),
+                    lager::make_constant(1000),
                     LAGER_QT(detectFrameRate).map(std::logical_not<>{}))
             .map(KisWidgetConnectionUtils::ToSpinBoxState{})
         }

@@ -15,6 +15,7 @@
 #include <QStyleOption>
 #include <QPointer>
 #include <kis_signal_compressor.h>
+#include <KisFrameRate.h>
 
 #define ARROWSIZE 8
 
@@ -23,7 +24,7 @@ struct Q_DECL_HIDDEN KoColorSlider::Private
     Private()
         : upToDate(false)
         , displayRenderer(0)
-        , updateCompressor(100, KisSignalCompressor::FIRST_ACTIVE)
+        , updateCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE)
     {
     }
 

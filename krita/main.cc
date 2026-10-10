@@ -50,6 +50,7 @@
 #include "KisApplicationArguments.h"
 #include "KisDocument.h"
 #include "KisPart.h"
+#include <KisFrameRate.h>
 #include "KisUiFont.h"
 #include "input/KisQtWidgetsTweaker.h"
 #include "kis_splash_screen.h"
@@ -879,6 +880,8 @@ if (!qEnvironmentVariableIsEmpty("KRITA_OPENGL_DEBUG")) {
 
     // first create the application so we can create a pixmap
     KisApplication app(key, argc, argv);
+    // animations at the refresh rate of the screen, not at the 60 Hz of Qt's timer
+    KisFrameRate::installAnimationDriver();
 
 #if defined Q_OS_WIN
     if (useDevProfile) {

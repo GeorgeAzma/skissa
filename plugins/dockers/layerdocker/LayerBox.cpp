@@ -11,6 +11,7 @@
  */
 
 #include "LayerBox.h"
+#include <KisFrameRate.h>
 
 #include <KoCanvasResourceProvider.h>
 #include "KisBlendModePicker.h"
@@ -305,7 +306,7 @@ LayerBox::LayerBox()
     , m_thumbnailSizeCompressor(100, KisSignalCompressor::FIRST_INACTIVE)
     , m_treeIndentationCompressor(100, KisSignalCompressor::FIRST_INACTIVE)
     , m_infoTextOpacityCompressor(100, KisSignalCompressor::FIRST_INACTIVE)
-    , m_nodeOpacityCompressor(200, KisSignalCompressor::FIRST_INACTIVE)
+    , m_nodeOpacityCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE, KisSignalCompressor::ADDITIVE_INTERVAL)
 {
     KisConfig cfg(false);
 

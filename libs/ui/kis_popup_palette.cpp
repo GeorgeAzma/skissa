@@ -32,6 +32,7 @@
 #include <kis_paintop_preset.h>
 #include "KisMouseClickEater.h"
 #include <KisPlatformPluginInterfaceFactory.h>
+#include <KisFrameRate.h>
 
 static const int WIDGET_MARGIN = 16;
 static const qreal BORDER_WIDTH = 3.0;
@@ -116,7 +117,7 @@ KisPopupPalette::KisPopupPalette(KisViewManager* viewManager, KisCoordinatesConv
     , m_actionManager(viewManager->actionManager())
     , m_resourceManager(manager)
     , m_displayRenderer(displayRenderer)
-    , m_colorChangeCompressor(new KisSignalCompressor(50, KisSignalCompressor::FIRST_ACTIVE))
+    , m_colorChangeCompressor(new KisSignalCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE))
     , m_actionCollection(viewManager->actionCollection())
     , m_acyclicConnector(new KisAcyclicSignalConnector(this))
     , m_clicksEater(new KisMouseClickEater(Qt::RightButton, 1, this))

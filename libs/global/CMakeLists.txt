@@ -19,6 +19,7 @@ set(kritaglobal_LIB_SRCS
     KisHandlePainterHelper.cpp
     KisHandleStyle.cpp
     kis_signal_compressor.cpp
+    KisFrameRate.cpp
     kis_signal_compressor_with_param.cpp
     kis_thread_safe_signal_compressor.cpp
     kis_acyclic_signal_connector.cpp

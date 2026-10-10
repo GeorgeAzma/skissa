@@ -28,6 +28,7 @@
 #include "config-qt-patches-present.h"
 
 #include <memory>
+#include <KisFrameRate.h>
 
 void KisInputManager::Private::setMaskSyntheticEvents(bool value)
 {
@@ -46,7 +47,7 @@ KisInputManager::Private::Private(KisInputManager *qq)
 {
     KisConfig cfg(true);
 
-    moveEventCompressor.setDelay(cfg.tabletEventsDelay());
+    moveEventCompressor.setDelay(qMin(cfg.tabletEventsDelay(), KisFrameRate::frameMs()));
     testingAcceptCompressedTabletEvents = cfg.testingAcceptCompressedTabletEvents();
     testingCompressBrushEvents = cfg.testingCompressBrushEvents();
 

@@ -35,6 +35,7 @@
 #include "kis_image_view_converter.h"
 #include "kis_default_bounds.h"
 #include "kis_do_something_command.h"
+#include <KisFrameRate.h>
 
 
 KisShapeLayerCanvasBase::KisShapeLayerCanvasBase(KisShapeLayer *parent)
@@ -137,7 +138,7 @@ KisShapeLayerCanvas::KisShapeLayerCanvas(const KoColorSpace *cs, KisDefaultBound
         : KisShapeLayerCanvasBase(parent)
         , m_projection(new KisPaintDevice(parent, cs, defaultBounds))
         , m_parentLayer(parent)
-        , m_asyncUpdateSignalCompressor(25, KisSignalCompressor::FIRST_ACTIVE)
+        , m_asyncUpdateSignalCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE)
         , m_safeForcedConnection(std::bind(&KisShapeLayerCanvas::slotStartAsyncRepaint, this))
 {
     /**

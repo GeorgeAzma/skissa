@@ -28,6 +28,7 @@
 #include <kis_debug.h>
 #include "kis_global.h"
 #include <KisModernStyle.h>
+#include <KisFrameRate.h>
 
 
 // on glass, the canvas behind shows through already: the message itself is not see-through
@@ -260,7 +261,8 @@ void KisFloatingMessage::startFade()
     m_fadeTimeLine.setDuration(180);
     m_fadeTimeLine.setEasingCurve(QEasingCurve::InCurve);
     m_fadeTimeLine.setLoopCount(1);
-    m_fadeTimeLine.setFrameRange(0, 10);
+    m_fadeTimeLine.setFrameRange(0, 100);
+    m_fadeTimeLine.setUpdateInterval(KisFrameRate::frameMs());
     connect(&m_fadeTimeLine, SIGNAL(finished()), SLOT(removeMessage()));
     connect(&m_fadeTimeLine, SIGNAL(frameChanged(int)), SLOT(updateOpacity(int)));
     m_fadeTimeLine.start();
@@ -278,7 +280,7 @@ void KisFloatingMessage::removeMessage()
 
 void KisFloatingMessage::updateOpacity(int value)
 {
-    setWindowOpacity(OSD_WINDOW_OPACITY / 10.0 * (10 - value));
+    setWindowOpacity(OSD_WINDOW_OPACITY / 100.0 * (100 - value));
 }
 
 void KisFloatingMessage::widgetDeleted()

@@ -33,6 +33,7 @@
 #include "kis_canvas2.h"
 #include "kis_signal_compressor.h"
 #include "KisViewManager.h"
+#include <KisFrameRate.h>
 
 
 KisColorSelector::KisColorSelector(KisColorSelectorConfiguration conf, QWidget* parent)
@@ -409,7 +410,7 @@ void KisColorSelector::init()
 
     // a tablet can send many more signals, than a mouse
     // this causes many repaints, if updating after every signal.
-    m_signalCompressor = new KisSignalCompressor(25, KisSignalCompressor::FIRST_INACTIVE, this);
+    m_signalCompressor = new KisSignalCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE, this);
     connect(m_signalCompressor, SIGNAL(timeout()), SLOT(update()));
 
     setMinimumSize(40, 40);

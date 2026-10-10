@@ -42,6 +42,7 @@
 #include <QThread>
 #include "kis_image_config.h"
 #include "kis_wrapped_rect.h"
+#include <KisFrameRate.h>
 
 
 KisBrushOp::KisBrushOp(const KisPaintOpSettingsSP settings, KisPainter *painter, KisNodeSP node, KisImageSP image)
@@ -60,7 +61,7 @@ KisBrushOp::KisBrushOp(const KisPaintOpSettingsSP settings, KisPainter *painter,
     , m_avgNumDabs(50)
     , m_avgUpdateTimePerDab(50)
     , m_idealNumRects(KisImageConfig(true).maxNumberOfThreads())
-    , m_minUpdatePeriod(10)
+    , m_minUpdatePeriod(KisFrameRate::frameMs())
     , m_maxUpdatePeriod(100)
 {
     Q_UNUSED(image);

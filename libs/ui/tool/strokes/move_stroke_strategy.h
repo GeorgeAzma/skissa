@@ -21,6 +21,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <KisFrameRate.h>
 
 class KisUpdatesFacade;
 class KisPostExecutionUndoAdapter;
@@ -108,7 +109,7 @@ private:
 
     QElapsedTimer m_updateTimer;
     bool m_hasPostponedJob {false};
-    const int m_updateInterval {30};
+    const int m_updateInterval {KisFrameRate::frameMs()};
 
     template <typename Functor>
     void recursiveApplyNodes(const KisNodeList &nodes, Functor &&func);

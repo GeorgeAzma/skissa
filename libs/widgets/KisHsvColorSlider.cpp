@@ -19,6 +19,7 @@
 
 #include "KoColorDisplayRendererInterface.h"
 #include <kis_signal_compressor.h>
+#include <KisFrameRate.h>
 
 namespace {
 
@@ -193,7 +194,7 @@ struct Q_DECL_HIDDEN KisHsvColorSlider::Private
         , pixmap()
         , upToDate(false)
         , displayRenderer(nullptr)
-        , updateCompressor(100, KisSignalCompressor::FIRST_ACTIVE)
+        , updateCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE)
         , circularHue(false)
         , mixMode(KisHsvColorSlider::MIX_MODE::HSV)
     {

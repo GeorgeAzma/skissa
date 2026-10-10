@@ -39,6 +39,7 @@
 #include <KisPart.h>
 #include <KisScreenMigrationTracker.h>
 #include <kis_display_color_converter.h>
+#include <KisFrameRate.h>
 
 static const unsigned int ANT_LENGTH = 4;
 static const unsigned int ANT_SPACE = 4;
@@ -46,7 +47,7 @@ static const unsigned int ANT_ADVANCE_WIDTH = ANT_LENGTH + ANT_SPACE;
 
 KisSelectionDecoration::KisSelectionDecoration(QPointer<KisView>_view)
     : KisCanvasDecoration("selection", _view),
-      m_signalCompressor(50 /*ms*/, KisSignalCompressor::FIRST_ACTIVE),
+      m_signalCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE),
       m_offset(0),
       m_mode(Ants)
 {

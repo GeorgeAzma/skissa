@@ -34,19 +34,16 @@
 #include "kis_guides_config.h"
 #include "kis_guides_manager.h"
 #include <kis_config_notifier.h>
+#include <KisFrameRate.h>
 
-
-// A delay longer than 80 ms is needed for a visibly smoother canvas updates
-// (due to the canvas getting affected by the frequent ruler updates).
-static constexpr int guiUpdateDelay = 160;
 
 KisZoomManager::KisZoomManager(QPointer<KisView> view, KoZoomHandler * zoomHandler,
                                KoCanvasController * canvasController)
         : m_view(view)
         , m_zoomHandler(zoomHandler)
         , m_canvasController(canvasController)
-        , m_zoomChangedCompressor(guiUpdateDelay, KisSignalCompressor::FIRST_ACTIVE)
-        , m_documentRectChangedCompressor(guiUpdateDelay, KisSignalCompressor::FIRST_ACTIVE)
+        , m_zoomChangedCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE)
+        , m_documentRectChangedCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE)
         , m_previousZoomMode(KoZoomMode::ZOOM_PAGE)
         , m_previousZoomPoint(QPointF(0.0, 0.0))
 {

@@ -47,6 +47,7 @@
 #include <KisSurfaceColorSpaceWrapper.h>
 
 #include "black_white_point_chooser.h"
+#include <KisFrameRate.h>
 
 
 OCIO::ConstConfigRcPtr defaultRawProfile()
@@ -84,9 +85,9 @@ LutDockerDock::LutDockerDock()
 {
     using namespace std::placeholders; // For _1
     m_exposureCompressor.reset(
-        new KisSignalCompressorWithParam<qreal>(40, std::bind(&LutDockerDock::exposureValueChanged, this, _1)));
+        new KisSignalCompressorWithParam<qreal>(KisFrameRate::frameMs(), std::bind(&LutDockerDock::exposureValueChanged, this, _1)));
     m_gammaCompressor.reset(
-        new KisSignalCompressorWithParam<qreal>(40, std::bind(&LutDockerDock::gammaValueChanged, this, _1)));
+        new KisSignalCompressorWithParam<qreal>(KisFrameRate::frameMs(), std::bind(&LutDockerDock::gammaValueChanged, this, _1)));
 
     m_page = new QWidget(this);
     setupUi(m_page);

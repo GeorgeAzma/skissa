@@ -31,6 +31,7 @@
 #include "kis_display_color_converter.h"
 #include "strokes/kis_color_sampler_stroke_strategy.h"
 #include "kis_painting_tweaks.h"
+#include <KisFrameRate.h>
 
 
 namespace {
@@ -282,7 +283,7 @@ KisAsyncColorSamplerHelper::KisAsyncColorSamplerHelper(KisCanvas2 *canvas)
     std::function<void(QPointF)> callback =
         std::bind(&KisAsyncColorSamplerHelper::slotAddSamplingJob, this, _1);
     m_d->samplingCompressor.reset(
-        new Private::SamplingCompressor(100, callback, KisSignalCompressor::FIRST_ACTIVE));
+        new Private::SamplingCompressor(KisFrameRate::frameMs(), callback, KisSignalCompressor::FIRST_ACTIVE));
 
     m_d->activationDelayTimer.setInterval(100);
     m_d->activationDelayTimer.setSingleShot(true);

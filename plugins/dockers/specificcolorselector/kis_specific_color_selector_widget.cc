@@ -33,6 +33,7 @@
 #include <kis_icon_utils.h>
 
 #include "ui_wdgSpecificColorSelectorWidget.h"
+#include <KisFrameRate.h>
 
 KisSpecificColorSelectorWidget::KisSpecificColorSelectorWidget(QWidget* parent)
     : QWidget(parent)
@@ -46,7 +47,7 @@ KisSpecificColorSelectorWidget::KisSpecificColorSelectorWidget(QWidget* parent)
     , m_color()
     , m_FGColor()
     , m_updateAllowed(true)
-    , m_updateCompressor(new KisSignalCompressor(10, KisSignalCompressor::POSTPONE, this))
+    , m_updateCompressor(new KisSignalCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE, this))
     , m_colorspaceSelector(nullptr)
     , m_ui(nullptr)
     , m_displayConverter(nullptr)

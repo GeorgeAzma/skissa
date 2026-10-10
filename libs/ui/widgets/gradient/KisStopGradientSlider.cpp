@@ -30,13 +30,14 @@
 #include <ksharedconfig.h>
 
 #include "KisStopGradientSlider.h"
+#include <KisFrameRate.h>
 
 KisStopGradientSlider::KisStopGradientSlider(QWidget *parent, Qt::WindowFlags f)
     : QWidget(parent, f)
     , m_selectedStop(0)
     , m_hoveredStop(-1)
     , m_drag(0)
-    , m_updateCompressor(40, KisSignalCompressor::FIRST_ACTIVE)
+    , m_updateCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE)
 {
     QLinearGradient defaultGradient;
     m_defaultGradient = KoStopGradient::fromQGradient(&defaultGradient);

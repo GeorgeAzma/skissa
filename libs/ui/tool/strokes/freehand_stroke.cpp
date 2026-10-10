@@ -31,6 +31,7 @@
 
 #include "brushengine/kis_paintop_utils.h"
 #include "KisAsynchronousStrokeUpdateHelper.h"
+#include <KisFrameRate.h>
 
 struct FreehandStrokeStrategy::Private
 {
@@ -60,7 +61,7 @@ struct FreehandStrokeStrategy::Private
     KisStrokeEfficiencyMeasurer efficiencyMeasurer;
 
     QElapsedTimer timeSinceLastUpdate;
-    int currentUpdatePeriod = 40;
+    int currentUpdatePeriod = KisFrameRate::frameMs();
 
     const bool needsAsynchronousUpdates = false;
     std::mutex updateEntryMutex;

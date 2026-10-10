@@ -5,6 +5,7 @@
  */
 
 #include <KoShapeCreateCommand.h>
+#include <KisFrameRate.h>
 #include <KoShapeDeleteCommand.h>
 #include <KoKeepShapesSelectedCommand.h>
 #include <KoSelection.h>
@@ -91,7 +92,7 @@ public:
         : KisShapeLayerCanvasBase(parent)
         , m_layer(parent)
         , m_fallbackProjection(new KisPaintDevice(parent, cs, defaultBounds))
-        , m_compressor(KisThreadSafeSignalCompressor(25, KisSignalCompressor::FIRST_ACTIVE))
+        , m_compressor(KisThreadSafeSignalCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE))
     {
         connect(&m_compressor, SIGNAL(timeout()), this, SLOT(slotAsyncRepaint()));
     }

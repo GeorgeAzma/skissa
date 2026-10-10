@@ -36,6 +36,7 @@
 #include "kis_coordinates_converter.h"
 #include "kis_image.h"
 #include "kis_paint_device.h"
+#include <KisFrameRate.h>
 
 namespace {
 
@@ -45,8 +46,6 @@ const QString settingKey = QStringLiteral("StudioGlass");
 constexpr qreal blurRadius = 26;   ///< in widget pixels
 constexpr qreal sampleScale = 0.25; ///< what is behind is drawn at a quarter of the resolution: the blur hides it
 constexpr qreal vibrance = KisStudioGlass::vibrance;
-/// How often at most the glass follows the canvas, when it is made here: about a frame
-constexpr int refreshInterval = 16;
 
 // ------------------------------------------------------------ blurring in linear light
 
@@ -247,7 +246,8 @@ private:
     Engine()
     {
         m_refresh.setSingleShot(true);
-        m_refresh.setInterval(refreshInterval);
+        // at most once a frame of the screen
+        m_refresh.setInterval(KisFrameRate::frameMs());
         connect(&m_refresh, &QTimer::timeout, this, [this]() { refresh(); });
         // one at a time: the glass is never far behind, and takes no more than a thread
         m_pool.setMaxThreadCount(1);

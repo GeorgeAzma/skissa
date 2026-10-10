@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: LGPL-2.0-or-later
  */
 #include "kis_small_color_widget.h"
+#include <KisFrameRate.h>
 #include "kis_slider_spin_box.h"
 #include <QVBoxLayout>
 #include "kis_signal_compressor.h"
@@ -128,23 +129,23 @@ KisSmallColorWidget::KisSmallColorWidget(QWidget* parent)
     d->saturation = 0;
     d->updateAllowed = true;
 
-    d->repaintCompressor = new KisSignalCompressor(25, KisSignalCompressor::FIRST_ACTIVE, this);
+    d->repaintCompressor = new KisSignalCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE, this);
     connect(d->repaintCompressor, SIGNAL(timeout()), SLOT(update()));
 
     d->resizeUpdateCompressor = new KisSignalCompressor(200, KisSignalCompressor::FIRST_ACTIVE, this);
     connect(d->resizeUpdateCompressor, SIGNAL(timeout()), SLOT(slotUpdatePalettes()));
 
-    d->valueSliderUpdateCompressor = new KisSignalCompressor(100, KisSignalCompressor::FIRST_ACTIVE, this);
+    d->valueSliderUpdateCompressor = new KisSignalCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE, this);
     connect(d->valueSliderUpdateCompressor, SIGNAL(timeout()), SLOT(updateSVPalette()));
 
-    d->colorChangedSignalCompressor = new KisSignalCompressor(25, KisSignalCompressor::FIRST_ACTIVE, this);
+    d->colorChangedSignalCompressor = new KisSignalCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE, this);
     connect(d->colorChangedSignalCompressor, SIGNAL(timeout()), SLOT(slotTellColorChanged()));
 
     {
         using namespace std::placeholders;
         std::function<void (qreal)> callback(
                     std::bind(&KisSmallColorWidget::updateDynamicRange, this, _1));
-        d->dynamicRangeCompressor.reset(new KisSignalCompressorWithParam<int>(50, callback));
+        d->dynamicRangeCompressor.reset(new KisSignalCompressorWithParam<int>(KisFrameRate::frameMs(), callback));
 
     }
 

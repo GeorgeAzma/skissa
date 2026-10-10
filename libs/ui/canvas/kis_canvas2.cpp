@@ -109,6 +109,7 @@
 #include <KisPlatformPluginInterfaceFactory.h>
 #include <KisMultiSurfaceStateManager.h>
 #include <KisCanvasState.h>
+#include <KisFrameRate.h>
 
 
 namespace {
@@ -337,13 +338,14 @@ KisCanvas2::KisCanvas2(KisCoordinatesConverter *coordConverter, KoCanvasResource
     connect(mainWindow, SIGNAL(guiLoadingFinished()), SLOT(bootstrapFinished()));
 
     KisImageConfig config(false);
+    const int fps = config.detectFpsLimit() ? qRound(KisFrameRate::screenRate()) : config.fpsLimit();
 
 #if !KRITA_QT_HAS_UPDATE_COMPRESSION_PATCH
-    m_d->canvasUpdateCompressor.setDelay(1000 / config.fpsLimit());
+    m_d->canvasUpdateCompressor.setDelay(qMax(1, 1000 / fps));
     m_d->canvasUpdateCompressor.setMode(KisSignalCompressor::FIRST_ACTIVE);
 #endif
 
-    m_d->frameRenderStartCompressor.setDelay(1000 / config.fpsLimit());
+    m_d->frameRenderStartCompressor.setDelay(qMax(1, 1000 / fps));
     m_d->frameRenderStartCompressor.setMode(KisSignalCompressor::FIRST_ACTIVE);
     snapGuide()->overrideSnapStrategy(KoSnapGuide::PixelSnapping, new KisSnapPixelStrategy());
 }
