@@ -4,6 +4,10 @@
 
 #include "KisUpdatePacer.h"
 
+#include "KisMainWindow.h"
+#include "KisViewManager.h"
+#include "canvas/kis_canvas2.h"
+
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEvent>
@@ -149,8 +153,9 @@ private:
     bool m_active {false};
 };
 
-/// The development frame log (see FrameLog), if there is one
+/// The development frame log (see FrameLog), if there is one, and its clock
 QFile *frameLog = nullptr;
+QElapsedTimer *frameLogClock = nullptr;
 
 /// How long the clock keeps its rate after the last input, and to how slow it eases off after that
 constexpr qint64 holdNs = 250'000'000;
@@ -213,7 +218,7 @@ protected:
             QWidget *top = window ? topWidget(window) : nullptr;
             if (!top) return false;
             m_input = m_clock.nsecsElapsed();
-            beat(top);
+            heartbeatOf(top);
             wake();
             return false;
         }
@@ -234,13 +239,11 @@ private:
         return nullptr;
     }
 
-    /// \p top shown in the next frame, whether or not anything in it changed
-    void beat(QWidget *top)
+    Heartbeat *heartbeatOf(QWidget *top)
     {
         QPointer<Heartbeat> &heartbeat = m_beats[top];
         if (!heartbeat) heartbeat = new Heartbeat(top);
-        heartbeat->update();
-        m_waiting.insert(top, top);
+        return heartbeat;
     }
 
     /// The time of a refresh of the screen
@@ -266,9 +269,10 @@ private:
     /**
      * How long a frame took: the clock's rate follows, but it must not keep
      * changing (that is what flickers): slower at once when frames do not
-     * fit in it (two of the last eight), faster again only after a second of
-     * frames well within the faster rate, and each time the faster rate did
-     * not hold, after twice as long (up to eight seconds)
+     * fit in it (two of the last eight), faster again after half a second of
+     * frames well within the faster rate; each time the faster rate did not
+     * hold, after twice as long (up to eight seconds), until it has held for
+     * ten seconds
      */
     void measured(qint64 took)
     {
@@ -285,11 +289,14 @@ private:
                 m_refreshes++;
                 m_late = 0;
                 // soon after it went faster: it is waited for twice as long before the next try
-                m_upWait = now - m_wentFaster < 2 * m_upWait ? qMin<qint64>(m_upWait * 2, 8'000'000'000) : 1'000'000'000;
+                m_upWait = now - m_wentFaster < 2 * m_upWait ? qMin<qint64>(m_upWait * 2, 8'000'000'000) : 500'000'000;
                 m_fastEnoughSince = now;
+                m_wentSlower = now;
             }
             return;
         }
+        // a while without slowing down: what slowed it then (opening a document, say) counts no more
+        if (now - m_wentSlower > 10'000'000'000) m_upWait = 500'000'000;
         if (m_refreshes > 1 && took > r * (m_refreshes - 1) * 0.7) {
             m_fastEnoughSince = now;
         } else if (m_refreshes > 1 && now - m_fastEnoughSince > m_upWait) {
@@ -325,9 +332,9 @@ private:
         const bool held = sinceInput < holdNs;
         const bool easing = !held && m_interval < easeEndNs;
         if (held || easing) {
-            // the rhythm kept, whatever changed
+            // the rhythm kept: a window nothing changed in is shown all the same, by its heartbeat alone
             for (auto it = m_beats.constBegin(); it != m_beats.constEnd(); ++it) {
-                if (it.value() && it.key()->isVisible()) beat(it.key());
+                if (it.value() && it.key()->isVisible() && !m_waiting.contains(it.key())) show(it.key(), it.value());
             }
         }
         deliver();
@@ -338,7 +345,7 @@ private:
             m_interval = qint64(m_interval * easeStep);
         } else if (m_waiting.isEmpty()) {
             // stopped, until the next repaint or input; a slow moment before (opening a document, say) counts no more
-            m_upWait = 1'000'000'000;
+            m_upWait = 500'000'000;
             return;
         }
         schedule();
@@ -351,17 +358,51 @@ private:
         m_waiting.clear();
         for (const QPointer<QWidget> &window : waiting) {
             // hidden too: Qt counts on its repaint to come, and would not ask for another
-            if (!window) continue;
-            QElapsedTimer took;
-            took.start();
-            m_delivering = true;
+            if (window) show(window, nullptr);
+        }
+    }
+
+    /// The canvas widget of \p window, if it shows one
+    static QWidget *canvasOf(QWidget *window)
+    {
+        KisMainWindow *mainWindow = qobject_cast<KisMainWindow *>(window);
+        KisViewManager *view = mainWindow ? mainWindow->viewManager() : nullptr;
+        KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
+        QWidget *widget = canvas ? canvas->canvasWidget() : nullptr;
+        return widget && widget->isVisible() && widget->window() == window ? widget : nullptr;
+    }
+
+    /**
+     * \p window shown: what changed in it repainted, or (\p heartbeat) a
+     * frame of it as it is.
+     *
+     * Its canvas is drawn into a texture: if only such widgets changed, Qt
+     * draws them and puts the window together again; if anything else
+     * changed too, it repaints all of the canvas' area, every panel and
+     * button over it with it (7 ms a frame, not 1). So a frame of the window
+     * as it is is a pixel of its canvas drawn again, nothing else. (A widget
+     * of its own would be a change of the other kind, and where something
+     * opaque covers it, no frame at all.) Without a canvas, the heartbeat
+     * widget, at once.
+     */
+    void show(QWidget *window, Heartbeat *heartbeat)
+    {
+        QElapsedTimer took;
+        took.start();
+        m_delivering = true;
+        QWidget *canvas = heartbeat ? canvasOf(window) : nullptr;
+        if (heartbeat && !canvas) {
+            heartbeat->repaint();
+        } else {
+            if (canvas) canvas->update(QRect(0, 0, 1, 1));
             QEvent request(QEvent::UpdateRequest);
             QCoreApplication::sendEvent(window, &request);
-            m_delivering = false;
-            measured(took.nsecsElapsed());
-            if (frameLog) {
-                frameLog->write(QStringLiteral("%1 shown %2 us, every %3 refreshes\n").arg(m_clock.nsecsElapsed() / 1000).arg(took.nsecsElapsed() / 1000).arg(m_refreshes).toUtf8());
-            }
+        }
+        m_delivering = false;
+        measured(took.nsecsElapsed());
+        if (frameLog) {
+            frameLog->write(QStringLiteral("%1 shown %2 us, every %3 refreshes%4\n").arg(m_clock.nsecsElapsed() / 1000).arg(took.nsecsElapsed() / 1000)
+                                .arg(m_refreshes).arg(heartbeat ? QStringLiteral(", heartbeat") : QString()).toUtf8());
         }
     }
 
@@ -376,8 +417,9 @@ private:
     quint8 m_late {0};
     qint64 m_fastEnoughSince {0};
     /// How long frames must fit a faster rate before it is tried (longer each time it did not hold), and when it last was
-    qint64 m_upWait {1'000'000'000};
+    qint64 m_upWait {500'000'000};
     qint64 m_wentFaster {-100'000'000'000};
+    qint64 m_wentSlower {-100'000'000'000};
     QHash<QWidget *, QPointer<Heartbeat>> m_beats;
     QHash<QWidget *, QPointer<QWidget>> m_waiting;
     bool m_delivering {false};
@@ -398,6 +440,7 @@ public:
         m_file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text);
         frameLog = &m_file;
         m_clock.start();
+        frameLogClock = &m_clock;
         m_flush.setInterval(500);
         connect(&m_flush, &QTimer::timeout, this, [this]() { m_file.flush(); });
         m_flush.start();
@@ -431,6 +474,17 @@ private:
 };
 #endif
 } // namespace
+
+void KisUpdatePacer::log(const QString &what)
+{
+#ifdef Q_OS_WIN
+    if (frameLog) {
+        frameLog->write(QStringLiteral("%1 %2\n").arg(frameLogClock ? frameLogClock->nsecsElapsed() / 1000 : 0).arg(what).toUtf8());
+    }
+#else
+    Q_UNUSED(what);
+#endif
+}
 
 void KisUpdatePacer::install()
 {

@@ -28,6 +28,7 @@
 #include <QWidget>
 
 #include "KisMainWindow.h"
+#include "KisUpdatePacer.h"
 #include "KisPart.h"
 #include "KisViewManager.h"
 #include "KisModernStyle.h"
@@ -673,6 +674,7 @@ public:
     /// \p widget, or a panel in its window, is shown otherwise: the canvas under it draws again
     void changed(QWidget *widget)
     {
+        KisUpdatePacer::log(QStringLiteral("glass changed ") + QString::fromLatin1(widget->metaObject()->className()) + QLatin1Char(' ') + widget->objectName());
         QWidget *window = widget->window();
         QSet<QWidget *> canvases;
         for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {

@@ -18,9 +18,14 @@
  * and as the canvas finishes, the pointer would stutter, and many screens
  * flicker as their rate keeps changing.
  */
+class QString;
+
 namespace KisUpdatePacer
 {
 KRITAUI_EXPORT void install();
+
+/// For development: \p what, with the time, in the frame log (KRITA_DEV_FRAMELOG), if there is one
+KRITAUI_EXPORT void log(const QString &what);
 }
 
 #endif
