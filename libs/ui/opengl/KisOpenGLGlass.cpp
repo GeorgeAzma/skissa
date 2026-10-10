@@ -624,8 +624,8 @@ bool KisOpenGLGlass::isValid() const
 
 qreal KisOpenGLGlass::reach()
 {
-    // the gaussian, and the pixels made one in the smaller canvas
-    return 3 * KisStudioGlass::blurSigma + 8;
+    // the widest gaussian, and the pixels made one in the smaller canvas
+    return 3 * KisStudioGlass::blurSigma * KisStudioGlass::maxBlurScale + 8;
 }
 
 void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewport, qreal pixelRatio,
@@ -666,9 +666,9 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         for (int i = 0; i <= k.taps; i++) k.weights[i] /= sum;
         return k;
     };
-    const Kernel wide = kernel(KisStudioGlass::blurSigma);
     const Kernel fine = kernel(KisStudioGlass::detailSigma);
-    const int taps = wide.taps;
+    // over each panel as wide as it is large (see KisStudioGlass::blurScale)
+    auto scaleOf = [pixelRatio](const Surface &surface) { return KisStudioGlass::blurScale(surface.rect.size() / pixelRatio); };
 
     const QSize smallSize((viewport.width() + factor - 1) / factor, (viewport.height() + factor - 1) / factor);
     d->ensureSize(smallSize);
@@ -718,6 +718,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         if (r.isEmpty()) continue;
         // its small pixels (one more for scaling back up), and as far as the blur takes in around them
         const QRect area = QRect(QPoint(r.left() / factor, r.top() / factor), QPoint(r.right() / factor + 1, r.bottom() / factor + 1)) & smallWhole;
+        const Kernel wide = kernel(KisStudioGlass::blurSigma * scaleOf(surface));
+        const int taps = wide.taps;
         const QRect around = area.adjusted(-taps, -taps, taps, taps) & smallWhole;
 
         d->shrink->bind();
@@ -748,7 +750,6 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1i(d->glass["sharp"], 2);
     f->glUniform1i(d->glass["statistics"], 3);
     f->glUniform1i(d->glass["narrow"], 4);
-    f->glUniform1f(d->glass["detail"], KisStudioGlass::detail);
     f->glUniform1f(d->glass["restore"], KisStudioGlass::restore);
     // as much of a step either way in the target's steps, at least those of eight bits
     f->glUniform1f(d->glass["grain"], KisStudioGlass::grain);
@@ -757,8 +758,6 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform2f(d->glass["tintStrength"], KisStudioGlass::tintOverDark, KisStudioGlass::tintOverBright);
     f->glUniform1f(d->glass["veil"], KisStudioGlass::veil);
     f->glUniform2f(d->glass["viewport"], viewport.width(), viewport.height());
-    f->glUniform1f(d->glass["sigma"], KisStudioGlass::blurSigma * pixelRatio);
-    f->glUniform1f(d->glass["spacing"], 2 * KisStudioGlass::blurSigma * pixelRatio);
     f->glUniform1f(d->glass["dither"], dither);
     const KisStudioGlass::Bevel bevel = KisStudioGlass::bevel();
     f->glUniform3f(d->glass["bevel"], bevel.width * pixelRatio, bevel.thickness * pixelRatio, bevel.lift * pixelRatio);
@@ -784,6 +783,10 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glUniform3f(d->glass["tint"], surface.tint.redF(), surface.tint.greenF(), surface.tint.blueF());
         f->glUniform1f(d->glass["tintLightness"], qGray(surface.tint.rgb()) / 255.0f);
         f->glUniform1f(d->glass["opacity"], surface.opacity);
+        const qreal scale = scaleOf(surface);
+        f->glUniform1f(d->glass["sigma"], KisStudioGlass::blurSigma * scale * pixelRatio);
+        f->glUniform1f(d->glass["spacing"], 2 * KisStudioGlass::blurSigma * scale * pixelRatio);
+        f->glUniform1f(d->glass["detail"], KisStudioGlass::detail / scale);
         // the sides it goes on beyond the canvas on: left, right, bottom, top
         f->glUniform4f(d->glass["beyond"], r.left() < 0, r.right() > viewport.width(), r.top() < 0, r.bottom() > viewport.height());
         f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);

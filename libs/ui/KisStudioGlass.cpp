@@ -169,7 +169,7 @@ void boxLine(float *data, int count, int stride, int radius, std::vector<float> 
  * narrower blur in it; its color the mean in Oklab, what disagreeing hues
  * cancel partly restored
  */
-QImage blurred(const QImage &source, int radius)
+QImage blurred(const QImage &source, int radius, int narrowRadius, float detail)
 {
     const QImage image = source.convertToFormat(QImage::Format_RGB32);
     const int w = image.width(), h = image.height();
@@ -197,7 +197,7 @@ QImage blurred(const QImage &source, int radius)
     }
     // a box of r three times is about a gaussian of sigma r: the passes share the radius
     const int box = qMax(1, int(std::lround(radius / std::sqrt(3.0))));
-    const int narrowBox = qMax(1, int(std::lround(radius * KisStudioGlass::detailSigma / KisStudioGlass::blurSigma / std::sqrt(3.0))));
+    const int narrowBox = qMax(1, int(std::lround(narrowRadius / std::sqrt(3.0))));
     std::vector<float> scratch;
     for (int c = 0; c < Count; c++) {
         const int reach = c >= NarrowR && c <= NarrowWeight ? narrowBox : box;
@@ -206,7 +206,6 @@ QImage blurred(const QImage &source, int radius)
             for (int x = 0; x < w; x++) boxLine(channels[c].data() + x, h, w, reach, scratch);
         }
     }
-    const float detail = float(KisStudioGlass::detail);
     const float restore = float(KisStudioGlass::restore);
     QImage result(w, h, QImage::Format_RGB32);
     for (int y = 0; y < h; y++) {
@@ -277,8 +276,11 @@ struct Scene {
 /// What is behind \p canvasRect (in canvas widget pixels), blurred
 QImage render(const Scene &scene, const QRect &canvasRect, const QColor &outside)
 {
+    // as wide as the glass is large
+    const qreal scale = KisStudioGlass::blurScale(canvasRect.size());
+    const qreal radius = blurRadius * scale;
     // what is behind, a blur's reach around it included, so that the edges blur as the middle does
-    const int pad = qCeil(blurRadius);
+    const int pad = qCeil(radius);
     const QRect area = canvasRect.adjusted(-pad, -pad, pad, pad);
     const QSize size(qMax(1, qCeil(area.width() * sampleScale)), qMax(1, qCeil(area.height() * sampleScale)));
     QImage image(size, QImage::Format_RGB32);
@@ -306,7 +308,9 @@ QImage render(const Scene &scene, const QRect &canvasRect, const QColor &outside
     painter.end();
 
     // blurred, and the reach around cut away again
-    const QImage soft = blurred(image, qMax(1, qRound(blurRadius * sampleScale)));
+    const QImage soft = blurred(image, qMax(1, qRound(radius * sampleScale)),
+                                qMax(1, qRound(blurRadius * KisStudioGlass::detailSigma / KisStudioGlass::blurSigma * sampleScale)),
+                                float(KisStudioGlass::detail / scale));
     const int cut = qRound(pad * sampleScale);
     return soft.copy(cut, cut, qMax(1, soft.width() - 2 * cut), qMax(1, soft.height() - 2 * cut));
 }
@@ -462,7 +466,7 @@ void Engine::refresh()
     if (!m_imageChanged.isEmpty() && m_canvasWidget) {
         const QRect inWidget = m_transform.mapRect(QRectF(m_imageChanged)).toAlignedRect();
         // as far as the blur carries it
-        const int reach = qCeil(blurRadius);
+        const int reach = qCeil(blurRadius * KisStudioGlass::maxBlurScale);
         changed = QRect(m_canvasWidget->mapToGlobal(inWidget.topLeft()), inWidget.size()).adjusted(-reach, -reach, reach, reach);
     }
     m_imageChanged = QRect();
@@ -970,6 +974,11 @@ KisStudioGlass::Edge &edgeSetting()
     return edge;
 }
 } // namespace
+
+qreal KisStudioGlass::blurScale(const QSizeF &size)
+{
+    return qBound<qreal>(1, std::sqrt(qMax<qreal>(0, size.width() * size.height())) / 300, maxBlurScale);
+}
 
 KisStudioGlass::Edge KisStudioGlass::edge()
 {

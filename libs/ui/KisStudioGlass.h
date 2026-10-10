@@ -35,7 +35,15 @@ class KRITAUI_EXPORT KisStudioGlass
 {
 public:
     /// How the glass looks, drawn here or by the canvas alike: soft enough that nothing in it reads as a shape
-    static constexpr qreal blurSigma = 18; ///< in widget pixels
+    static constexpr qreal blurSigma = 18; ///< in widget pixels, over small glass (a pill)
+    /// Over larger glass the blur is wider, up to this many times: over a tall panel what is behind would show its shapes
+    static constexpr qreal maxBlurScale = 2.0;
+    /**
+     * How many times blurSigma the blur over glass of \p size (widget pixels)
+     * is: as wide as the panel is large (the square root of its area), from a
+     * pill's to maxBlurScale times; the narrow blur's share less in proportion
+     */
+    static qreal blurScale(const QSizeF &size);
     /**
      * The blur mixes what is behind as light (detail too fine to see mixes
      * so, on the eye too), but a saturated color counts up to 1 + salience
