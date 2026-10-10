@@ -149,16 +149,14 @@ void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &cell, const QM
 
         // a rounded highlight behind the row, the eye at its end included
         if (index.column() != NodeView::SELECTED_COL && (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))) {
-            const QColor base = option.palette.color(QPalette::Base);
-            const QColor tint = (option.state & QStyle::State_Selected) ? option.palette.color(QPalette::Highlight)
-                                                                          : option.palette.color(QPalette::Text);
-            const qreal t = (option.state & QStyle::State_Selected) ? 0.45 : 0.07;
+            // the tint over what is behind the row, not mixed into a color of it: over glass the glass shows through
+            QColor tint = (option.state & QStyle::State_Selected) ? option.palette.color(QPalette::Highlight)
+                                                                    : option.palette.color(QPalette::Text);
+            tint.setAlphaF((option.state & QStyle::State_Selected) ? 0.45 : 0.07);
             p->save();
             p->setRenderHint(QPainter::Antialiasing, true);
             p->setPen(Qt::NoPen);
-            p->setBrush(QColor::fromRgbF(base.redF() + (tint.redF() - base.redF()) * t,
-                                         base.greenF() + (tint.greenF() - base.greenF()) * t,
-                                         base.blueF() + (tint.blueF() - base.blueF()) * t));
+            p->setBrush(tint);
             // one shape over the two cells: each draws its own end of it
             const bool eye = index.column() == NodeView::VISIBILITY_COL;
             const bool leftToRight = option.direction != Qt::RightToLeft;

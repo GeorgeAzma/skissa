@@ -17,6 +17,7 @@
 #include <QGraphicsOpacityEffect>
 #include <QHash>
 #include <QLinearGradient>
+#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
@@ -34,6 +35,7 @@
 #include "KisModernStyle.h"
 #include "canvas/kis_canvas2.h"
 #include "kis_config.h"
+#include "kis_config_notifier.h"
 #include "kis_coordinates_converter.h"
 #include "kis_image.h"
 #include "kis_paint_device.h"
@@ -639,15 +641,30 @@ public:
                     hideUnderWindows(canvas);
                 }
             });
-            changed(widget);
+            changedAfterPainting(widget);
             return false;
         }
         if (it->rect != rect || it->radius != radius) {
             it->rect = rect;
             it->radius = radius;
-            changed(widget);
+            changedAfterPainting(widget);
         }
         return it->drawn;
+    }
+
+    /**
+     * changed(), once the window's painting is done: \p widget is being
+     * painted, and Qt forgets a canvas asked to draw again meanwhile (it
+     * clears what is to be drawn into textures as it finishes). The glass
+     * of a panel shown with the window was drawn so only where the canvas
+     * happened to draw next, the brush outline, until something drew all of
+     * it again.
+     */
+    void changedAfterPainting(QWidget *widget)
+    {
+        QMetaObject::invokeMethod(this, [this, guard = QPointer<QWidget>(widget)]() {
+            if (guard) changed(guard);
+        }, Qt::QueuedConnection);
     }
 
     /// Whether the canvas has drawn \p widget's glass since it was shown
@@ -875,6 +892,22 @@ private:
     quint64 m_shownCount {0};
 };
 
+/**
+ * White or black, as opaque as it takes over \p under to make \p color's
+ * lightness (a little more, at least: a field still shows as one)
+ */
+QColor veilFor(const QColor &color, const QColor &under)
+{
+    const qreal c = color.lightnessF();
+    const qreal u = under.lightnessF();
+    const bool lighter = c >= u;
+    const qreal room = lighter ? 1.0 - u : u;
+    const qreal amount = room > 0 ? qBound(0.04, qAbs(c - u) / room, 1.0) : 0.0;
+    QColor veil = lighter ? QColor(Qt::white) : QColor(Qt::black);
+    veil.setAlphaF(amount);
+    return veil;
+}
+
 const char *const savedPaletteProperty = "studioGlassSavedPalette";
 const char *const seeThroughProperty = "studioGlassSeeThrough";
 
@@ -888,18 +921,22 @@ void KisStudioGlass::setSeeThrough(QWidget *widget, bool on)
     widget->setProperty(seeThroughProperty, on);
     if (on) {
         widget->setProperty(savedPaletteProperty, widget->testAttribute(Qt::WA_SetPalette) ? QVariant::fromValue(widget->palette()) : QVariant());
-        // its surfaces show the glass behind; fields are a darker glass, so that they still read as fields
+        /**
+         * Its surfaces show the glass behind. Fields, buttons and rows still
+         * read as they did over the panel's color: each a veil of white (one
+         * lighter than the panel) or black (one darker), as strong as it takes
+         * to be that much lighter or darker. A veil of a gray would mute the
+         * glass's colors: one of white or black changes the most of its
+         * lightness with the least of it covered.
+         */
         QPalette palette = widget->palette();
         for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
             QColor window = palette.color(group, QPalette::Window);
+            for (QPalette::ColorRole role : {QPalette::Button, QPalette::Base, QPalette::AlternateBase}) {
+                palette.setColor(group, role, veilFor(palette.color(group, role), window));
+            }
             window.setAlpha(0);
             palette.setColor(group, QPalette::Window, window);
-            QColor base = palette.color(group, QPalette::Base);
-            base.setAlphaF(0.4);
-            palette.setColor(group, QPalette::Base, base);
-            QColor alternate = palette.color(group, QPalette::AlternateBase);
-            alternate.setAlphaF(0.3);
-            palette.setColor(group, QPalette::AlternateBase, alternate);
         }
         widget->setPalette(palette);
         // a dropdown's list is a window of its own, but given its box's palette: it stays solid
@@ -953,6 +990,76 @@ KisStudioGlass::Edge KisStudioGlass::edge()
     return edgeSetting();
 }
 
+namespace {
+const QString surroundKey = QStringLiteral("StudioCanvasSurround");
+
+KisStudioGlass::Surround &surroundSetting()
+{
+    static KisStudioGlass::Surround surround =
+        KisStudioGlass::Surround(qBound(0, KisConfig(true).readEntry<int>(surroundKey, int(KisStudioGlass::Surround::Ambient)), 2));
+    return surround;
+}
+} // namespace
+
+KisStudioGlass::Surround KisStudioGlass::surround()
+{
+    return surroundSetting();
+}
+
+namespace {
+/**
+ * Makes menus glass: see-through windows (set before their window is made,
+ * which is what Qt needs for it), their background painted as a panel's
+ * is, before they paint their items over it
+ */
+class MenuGlass : public QObject
+{
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        QMenu *menu = qobject_cast<QMenu *>(watched);
+        if (!menu) {
+            return false;
+        }
+        if (event->type() == QEvent::Polish && !menu->testAttribute(Qt::WA_WState_Created) && KisStudioGlass::isEnabled()) {
+            // see-through on Windows only as a frameless window (a popup is not one of itself), and its square shadow not
+            menu->overrideWindowFlags(menu->windowFlags() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint);
+            menu->setAttribute(Qt::WA_TranslucentBackground, true);
+            menu->setProperty("studioGlassMenu", true);
+        } else if (event->type() == QEvent::Paint && menu->property("studioGlassMenu").toBool()) {
+            QPainter painter(menu);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            const qreal radius = KisModernStyle::cornerRadius + 2;
+            const QPainterPath shape = KisStudioGlass::paint(painter, menu, QRectF(menu->rect()).adjusted(0.5, 0.5, -0.5, -0.5), radius);
+            QColor border = menu->palette().color(QPalette::WindowText);
+            border.setAlphaF(0.12);
+            KisStudioGlass::paintBorder(painter, menu, shape, border);
+        }
+        return false;
+    }
+};
+} // namespace
+
+void KisStudioGlass::installMenuGlass()
+{
+    static MenuGlass *filter = nullptr;
+    if (filter) return;
+    filter = new MenuGlass();
+    qApp->installEventFilter(filter);
+}
+
+void KisStudioGlass::setSurround(Surround surround)
+{
+    if (surround == surroundSetting()) {
+        return;
+    }
+    surroundSetting() = surround;
+    KisConfig(false).writeEntry(surroundKey, int(surround));
+    // the canvases take the color around the image again (see KisConfig::canvasBorderColor) and draw again
+    KisConfigNotifier::instance()->notifyConfigChanged();
+    Panels::instance().repaintAll();
+}
+
 void KisStudioGlass::setEdge(Edge edge)
 {
     if (edge == edgeSetting()) {
@@ -967,9 +1074,9 @@ KisStudioGlass::Bevel KisStudioGlass::bevel()
 {
     switch (edge()) {
     case Edge::Subtle:
-        return {12, 12, 16};
+        return {14, 14, 26};
     case Edge::Strong:
-        return {16, 18, 24};
+        return {18, 20, 36};
     case Edge::Line:
         break;
     }

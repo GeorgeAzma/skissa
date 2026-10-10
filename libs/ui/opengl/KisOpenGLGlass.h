@@ -12,6 +12,9 @@
 #include <QSize>
 #include <QVector>
 
+class QOpenGLFramebufferObject;
+class QTransform;
+
 /**
  * The frosted glass of what lies over the canvas (see KisStudioGlass),
  * drawn by the canvas itself, on the GPU: what it has drawn of the image,
@@ -57,6 +60,15 @@ public:
      */
     void render(uint canvas, uint canvasFormat, const QSize &viewport, qreal pixelRatio,
                 const QVector<Surface> &surfaces, const QRect &clip, bool canvasChanged = true);
+
+    /**
+     * The ambient light of the image (see KisStudioGlass::Surround) drawn
+     * into \p canvas (the canvas as drawn, \p canvasFormat as for render())
+     * around the image: \p surfaceToImage takes surface pixels to the image's
+     * own coordinates, 0 to 1 across it; \p base the color around it.
+     */
+    void renderAmbient(QOpenGLFramebufferObject *canvas, uint canvasFormat, qreal pixelRatio, const QTransform &surfaceToImage,
+                       const QColor &base);
 
     /// How far around a glass panel the canvas shows in its blur, in widget pixels
     static qreal reach();

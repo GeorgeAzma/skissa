@@ -102,6 +102,23 @@ public:
         qreal lift {0};      ///< how far the pane is over the canvas
     };
     static Bevel bevel();
+
+    /**
+     * What is around the image on the canvas: the theme's gray, black (an
+     * OLED screen's black: the image the only light), or black lit by the
+     * image, as a screen lights the wall behind it: its colors spill out
+     * around it and fade with the distance (ambient light)
+     */
+    enum class Surround {
+        Gray = 0,
+        Black = 1,
+        Ambient = 2,
+    };
+    static Surround surround();
+    static void setSurround(Surround surround);
+    /// How far the ambient light reaches (a gaussian's sigma, widget pixels), and how strong it is next to the image
+    static constexpr qreal ambientSigma = 110;
+    static constexpr qreal ambientStrength = 0.5;
     /// The glass: crown glass, its refractive index for yellow light (the sodium d line) and its Abbe number
     static constexpr qreal refractiveIndex = 1.52;
     static constexpr qreal abbeNumber = 40;
@@ -159,6 +176,12 @@ public:
 
     /// The color a glass background is tinted with: what text is read against
     static QColor tint(const QWidget *widget);
+
+    /**
+     * Menus (context menus, a window's menus) of glass from now on, as the
+     * panels are: see-through windows the canvas draws the glass of
+     */
+    static void installMenuGlass();
 
     /// Whether glass is on (the setting); off, backgrounds are the plain panel color
     static bool isEnabled();

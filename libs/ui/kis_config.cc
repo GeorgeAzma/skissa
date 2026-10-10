@@ -1344,6 +1344,10 @@ QColor KisConfig::canvasBorderColor(bool defaultValue) const
     const int gray = darkTheme ? qRound(window.lightness() + (255 - window.lightness()) * 0.10)
                                : qRound(window.lightness() * 0.82);
     const QColor color(gray, gray, gray);
+    // black around the image, or black lit by it (see KisStudioGlass::Surround: 0 is gray)
+    if (!defaultValue && m_cfg.readEntry<int>("StudioCanvasSurround", 2) != 0) {
+        return QColor(0, 0, 0);
+    }
     return (defaultValue ? color : m_cfg.readEntry("canvasBorderColor", color));
 }
 

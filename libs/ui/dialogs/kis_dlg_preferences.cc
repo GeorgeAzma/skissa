@@ -404,6 +404,11 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
     m_cmbGlassEdge->addItems({i18nc("glass edge", "Line"), i18nc("glass edge", "Subtle"), i18nc("glass edge", "Strong")});
     m_cmbGlassEdge->setToolTip(i18n("How glass panels over the canvas end: a line, or a glass edge that bends the canvas behind it"));
     m_cmbGlassEdge->setCurrentIndex(int(KisStudioGlass::edge()));
+    // and what is around the image: gray, black, or black lit by the image
+    m_cmbSurround = new QComboBox(m_chkCanvasMessages->parentWidget());
+    m_cmbSurround->addItems({i18nc("canvas surround", "Gray"), i18nc("canvas surround", "Black"), i18nc("canvas surround", "Ambient light")});
+    m_cmbSurround->setToolTip(i18n("Around the image: gray, black, or black lit by the image's colors"));
+    m_cmbSurround->setCurrentIndex(int(KisStudioGlass::surround()));
     // each in the row under \p anchor, in whichever layout it is in (a form, as the page is made now, or a grid)
     std::function<bool(QLayout *, QWidget *, const QString &, QWidget *)> placeUnder =
         [&](QLayout *layout, QWidget *anchor, const QString &label, QWidget *widget) {
@@ -443,6 +448,7 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
     QLayout *messagesLayout = m_chkCanvasMessages->parentWidget()->layout();
     placeUnder(messagesLayout, m_chkCanvasMessages, QString(), m_chkBrushesAsStrokes);
     placeUnder(messagesLayout, m_chkBrushesAsStrokes, i18n("Glass edge:"), m_cmbGlassEdge);
+    placeUnder(messagesLayout, m_cmbGlassEdge, i18n("Canvas surround:"), m_cmbSurround);
 
     const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     QSettings kritarc(configPath + QStringLiteral("/kritadisplayrc"), QSettings::IniFormat);
@@ -904,6 +910,7 @@ void GeneralTab::setDefault()
     m_chkCanvasMessages->setChecked(cfg.showCanvasMessages(true));
     if (m_chkBrushesAsStrokes) m_chkBrushesAsStrokes->setChecked(false);
     if (m_cmbGlassEdge) m_cmbGlassEdge->setCurrentIndex(int(KisStudioGlass::Edge::Subtle));
+    if (m_cmbSurround) m_cmbSurround->setCurrentIndex(int(KisStudioGlass::Surround::Ambient));
     m_chkCompressKra->setChecked(cfg.compressKra(true));
     m_chkTrimKra->setChecked(cfg.trimKra(true));
     m_chkTrimFramesImport->setChecked(cfg.trimFramesImport(true));
@@ -1117,6 +1124,11 @@ bool GeneralTab::brushesAsStrokes()
 int GeneralTab::glassEdge()
 {
     return m_cmbGlassEdge ? m_cmbGlassEdge->currentIndex() : int(KisStudioGlass::edge());
+}
+
+int GeneralTab::canvasSurround()
+{
+    return m_cmbSurround ? m_cmbSurround->currentIndex() : int(KisStudioGlass::surround());
 }
 
 bool GeneralTab::compressKra()
@@ -3154,6 +3166,7 @@ bool KisDlgPreferences::editPreferences(std::optional<PageDesc>page)
         cfg.setShowCanvasMessages(m_general->showCanvasMessages());
         KisPresetStrokeThumbnails::setEnabled(m_general->brushesAsStrokes());
         KisStudioGlass::setEdge(KisStudioGlass::Edge(m_general->glassEdge()));
+        KisStudioGlass::setSurround(KisStudioGlass::Surround(m_general->canvasSurround()));
         cfg.setCompressKra(m_general->compressKra());
         cfg.setTrimKra(m_general->trimKra());
         cfg.setTrimFramesImport(m_general->trimFramesImport());

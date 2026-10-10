@@ -14,6 +14,7 @@
 #include "opengl/KisOpenGLSync.h"
 #include "opengl/KisOpenGLGlass.h"
 #include "opengl/KisOpenGLGpuTiming.h"
+#include "KisUpdatePacer.h"
 #include "KisStudioGlass.h"
 #include "opengl/kis_opengl_canvas_debugger.h"
 
@@ -275,7 +276,15 @@ void KisOpenGLCanvas2::paintGL()
     // the glass over the panels hides the decorations under it (the brush outline, the selection), as
     // a solid panel would; it is blurred from the canvas without them
     // (the glass times itself: the GPU's timers do not nest)
-    d->renderer->paintGlass(KisStudioGlass::surfacesOver(this), updateRect, !canvasImageDirtyRect.isEmpty());
+    const QVector<KisStudioGlass::Surface> surfaces = KisStudioGlass::surfacesOver(this);
+    if (KisOpenGLGpuTiming::enabled()) {
+        QString line = QStringLiteral("glass drawn %1 (draws %2):").arg(surfaces.size()).arg(d->renderer->drawsGlass());
+        for (const KisStudioGlass::Surface &surface : surfaces) {
+            line += QStringLiteral(" %1,%2 %3x%4 @%5").arg(surface.rect.x()).arg(surface.rect.y()).arg(surface.rect.width()).arg(surface.rect.height()).arg(surface.opacity, 0, 'f', 2);
+        }
+        KisUpdatePacer::log(line);
+    }
+    d->renderer->paintGlass(surfaces, updateRect, !canvasImageDirtyRect.isEmpty());
 
     d->repaintDbg.paint(this, updateRect.isEmpty() ? rect() : updateRect);
 
@@ -308,6 +317,11 @@ void KisOpenGLCanvas2::paintEvent(QPaintEvent *e)
         d->updateRect = e->rect();
     } else {
         d->updateRect = this->rect();
+    }
+
+    // the image changed or moved: the light it casts around it changed, all over (see KisStudioGlass::Surround)
+    if (KisStudioGlass::surround() == KisStudioGlass::Surround::Ambient && d->renderer->drawsGlass() && !d->canvasImageDirtyRect.isEmpty()) {
+        *d->updateRect = rect();
     }
 
     // the glass blurs what is around it too: the image changed near it, it is drawn again whole (only

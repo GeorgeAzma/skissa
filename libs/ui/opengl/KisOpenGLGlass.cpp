@@ -13,6 +13,7 @@
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
 #include <QOpenGLVertexArrayObject>
+#include <QTransform>
 #include <QVector3D>
 #include <QtMath>
 
@@ -220,6 +221,8 @@ void main()
 const char *const glassSource = R"(
 uniform sampler2D blurred;
 uniform sampler2D statistics;
+uniform sampler2D under;
+uniform bool decode;
 uniform float restore;
 uniform float power;
 uniform float factor;
@@ -234,6 +237,7 @@ uniform float dither;
 uniform float veil;
 uniform vec3 bevel;
 uniform vec3 ior;
+uniform vec4 reach;
 flat in float strength;
 
 float hash(uvec2 p)
@@ -293,6 +297,17 @@ vec2 profile(float d, float w, float h)
     float u3 = u * u * u;
     float k = max(1.0 - u3 * u, 1e-5);
     return vec2(h * pow(k, 0.25), h / w * u3 * pow(k, -0.75));
+}
+
+// the bevel over the pixel d in from the edge: its height there and its slope over all of the pixel
+// (the part of it on the glass), not at its middle. Toward the edge the slope goes up without end;
+// over a pixel it is what the face rises across it, which is finite: the rim antialiased, a line
+// along the edge, not a pixel here and there that happened to fall where it is steepest.
+vec2 bevelOver(float d, float w, float h)
+{
+    float a = max(d - 0.5, 0.0);
+    float b = max(d + 0.5, a + 1e-3);
+    return vec2(profile(0.5 * (a + b), w, h).x, (profile(b, w, h).x - profile(a, w, h).x) / (b - a));
 }
 
 // the ray seen at a point of the bevel with the surface normal there, in glass of index n, whose
@@ -374,6 +389,13 @@ vec3 frostedLab(vec2 p)
     return vec3(wide.x, wide.yz * (1.0 + restore * (1.0 - agree)));
 }
 
+// a point the rim sees, kept within as far around the panel as the canvas is blurred (reach): a
+// steep rim sees far, beyond that is nothing blurred
+vec2 held(vec2 q)
+{
+    return clamp(q, reach.xy, reach.zw);
+}
+
 // and in light: as it comes (made a color of the screen once, at the end: see tintedLab)
 vec3 frostAt(vec2 p)
 {
@@ -384,7 +406,7 @@ vec3 frostAt(vec2 p)
 // meets it: blurred, as the glass is not a mirror
 vec3 reflectedAt(vec3 d, vec2 p)
 {
-    return meanLightAt(blurred, p + d.xy / max(-d.z, 0.2) * bevel.z);
+    return meanLightAt(blurred, held(p + d.xy / max(-d.z, 0.2) * bevel.z));
 }
 
 // the largest chroma of hue ab at lightness l that is a color of the screen, scaled: ab times it
@@ -442,7 +464,7 @@ void main()
     vec3 color;
     if (w > 0.5 && d < w) {
         float h = bevel.y * w / bevel.x;
-        vec2 bend = profile(d, w, h);
+        vec2 bend = bevelOver(d, w, h);
         vec3 normal = normalize(vec3(normal2d * bend.y, 1.0));
 
         vec3 light3 = vec3(0.0);
@@ -451,15 +473,16 @@ void main()
             vec4 ray = trace(normal, bend.x, ior[i], back);
             vec3 through;
             if (ray.z > 0.0) {
-                through = mix(tintLight, frostAt(p + ray.xy), canvas);
+                through = mix(tintLight, frostAt(held(p + ray.xy)), canvas);
             } else {
                 // reflected inside, scattered by the frost: the glass itself
                 through = mix(tintLight, frostAt(p), canvas);
             }
             light3[i] = through[i];
         }
-        // thinner, the glass tints what is behind it a little less
-        color = tinted(light3, tintLab, strength * mix(0.85, 1.0, bend.x / h));
+        // thinner toward the rim, the glass tints what is behind it less (Beer-Lambert): a band along the edge, lighter
+        // over a light canvas, deeper over a dark one, as a border would be
+        color = tinted(light3, tintLab, strength * mix(0.3, 1.0, bend.x / h));
         // where it is steep the face reflects (Fresnel) down onto the canvas around it; up, the
         // room, which is in the tint already (no gloss: the bevel shows by what it bends)
         vec3 mirrored = reflect(vec3(0.0, 0.0, -1.0), normal);
@@ -479,7 +502,106 @@ void main()
      */
     uvec2 u = uvec2(p);
     float steps = hash(u) + hash(u + uvec2(7919u, 104729u)) - 1.0;
-    fragColor = vec4(toSrgb(color) + steps * dither, coverage);
+    if (coverage < 1.0) {
+        /**
+         * A pixel the edge goes across (or glass fading in or out): what it
+         * shows is the light of both, each as much as it covers. Mixed here,
+         * in light, from the canvas under it: blending would mix the encoded
+         * values, which takes the edge too dark over a light canvas and too
+         * light over a dark one.
+         */
+        vec3 behind = texture(under, p / viewport).rgb;
+        color = mix(decode ? fromSrgb(behind) : behind, color, coverage);
+    }
+    fragColor = vec4(toSrgb(color) + steps * dither, 1.0);
+}
+)";
+
+/**
+ * The ambient light: the canvas made sixteen times smaller (every other pixel
+ * of each 16 x 16), only where the image is (toImage takes a pixel to the
+ * image's own coordinates, 0 to 1 across it): its light, in linear, and how
+ * much of the pixel is image, kept as the blur keeps them
+ */
+const char *const ambientShrinkSource = R"(
+uniform sampler2D source;
+uniform int factor;
+uniform bool decode;
+uniform mat3 toImage;
+
+void main()
+{
+    ivec2 last = textureSize(source, 0) - 1;
+    ivec2 base = ivec2(gl_FragCoord.xy) * factor;
+    vec4 sum = vec4(0.0);
+    float count = 0.0;
+    for (int y = 0; y < factor; y += 2) {
+        for (int x = 0; x < factor; x += 2) {
+            ivec2 p = min(base + ivec2(x, y), last);
+            vec3 q = toImage * vec3(vec2(p) + 0.5, 1.0);
+            vec2 uv = q.xy / q.z;
+            float inside = (uv.x >= 0.0 && uv.y >= 0.0 && uv.x <= 1.0 && uv.y <= 1.0) ? 1.0 : 0.0;
+            vec3 c = texelFetch(source, p, 0).rgb;
+            c = clamp(decode ? fromSrgb(c) : c, 0.0, 1.0);
+            sum += vec4(c * inside, inside);
+            count += 1.0;
+        }
+    }
+    fragColor = keep(sum / count);
+}
+)";
+
+/**
+ * The ambient light, drawn around the image (nothing over it): the light of
+ * the image nearby (the blurred light over how much of it is image), as
+ * much as there is image near (that much of it: the light falls off with
+ * the distance as the blur does), a little more colorful (a wall lit by a
+ * screen is lit by its colors, not its grays), over the color around it
+ */
+const char *const ambientSource = R"(
+uniform sampler2D ambient;
+uniform float factor;
+uniform mat3 toImage;
+uniform vec3 base;
+uniform float strength;
+uniform bool encode;
+uniform float dither;
+
+float hash(uvec2 p)
+{
+    uint h = p.x * 1664525u + p.y * 1013904223u;
+    h ^= h >> 16;
+    h *= 0x7feb352du;
+    h ^= h >> 15;
+    h *= 0x846ca68bu;
+    h ^= h >> 16;
+    return float(h) * (1.0 / 4294967295.0);
+}
+
+void main()
+{
+    vec2 p = gl_FragCoord.xy;
+    vec3 q = toImage * vec3(p, 1.0);
+    vec2 uv = q.xy / q.z;
+    if (uv.x >= 0.0 && uv.y >= 0.0 && uv.x <= 1.0 && uv.y <= 1.0) {
+        discard;
+    }
+    ivec2 last = textureSize(ambient, 0) - 1;
+    vec2 t = p / factor - 0.5;
+    ivec2 i = ivec2(floor(t));
+    vec2 f = t - floor(t);
+    vec4 a = weighted(texelFetch(ambient, clamp(i, ivec2(0), last), 0));
+    vec4 b = weighted(texelFetch(ambient, clamp(i + ivec2(1, 0), ivec2(0), last), 0));
+    vec4 c = weighted(texelFetch(ambient, clamp(i + ivec2(0, 1), ivec2(0), last), 0));
+    vec4 d = weighted(texelFetch(ambient, clamp(i + ivec2(1, 1), ivec2(0), last), 0));
+    vec4 m = mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+    vec3 light = m.rgb / max(m.a, 1e-5);
+    vec3 lab = toOklab(light);
+    light = max(fromOklab(vec3(lab.x, lab.yz * 1.25)), 0.0);
+    vec3 color = base + light * strength * m.a;
+    uvec2 u = uvec2(p);
+    float steps = hash(u) + hash(u + uvec2(7919u, 104729u)) - 1.0;
+    fragColor = vec4((encode ? toSrgb(color) : color) + steps * dither, 1.0);
 }
 )";
 
@@ -547,6 +669,12 @@ struct KisOpenGLGlass::Private
     Program shrink;
     Program blur;
     Program glass;
+    Program ambientShrink;
+    Program ambient;
+    /// The ambient light: the canvas made small, blurred across, then down
+    QScopedPointer<QOpenGLFramebufferObject> ambientSmall;
+    QScopedPointer<QOpenGLFramebufferObject> ambientAcross;
+    QScopedPointer<QOpenGLFramebufferObject> ambientBlurred;
     QOpenGLVertexArrayObject vao;
     /// The canvas made small; blurred across; then down; and its Oklab statistics, the same
     QScopedPointer<QOpenGLFramebufferObject> small;
@@ -598,7 +726,9 @@ bool KisOpenGLGlass::initialize()
         && d->glass.make(glassVertexSource, glassSource,
                          {"rect", "blurred", "statistics", "restore", "power",
                           "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
-                          "beyond", "spacing", "dither", "veil", "bevel", "ior"});
+                          "beyond", "spacing", "dither", "veil", "bevel", "ior", "under", "decode", "reach"})
+        && d->ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
+        && d->ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"});
     if (d->valid && KisOpenGL::supportsVAO()) {
         d->vao.create();
     }
@@ -608,6 +738,101 @@ bool KisOpenGLGlass::initialize()
 bool KisOpenGLGlass::isValid() const
 {
     return d->valid;
+}
+
+namespace {
+/// \p transform as a matrix of GLSL (columns)
+void setMatrix(QOpenGLFunctions *f, int location, const QTransform &transform)
+{
+    const float m[9] = {float(transform.m11()), float(transform.m12()), float(transform.m13()),
+                        float(transform.m21()), float(transform.m22()), float(transform.m23()),
+                        float(transform.m31()), float(transform.m32()), float(transform.m33())};
+    f->glUniformMatrix3fv(location, 1, GL_FALSE, m);
+}
+} // namespace
+
+void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvasFormat, qreal pixelRatio, const QTransform &surfaceToImage,
+                                   const QColor &base)
+{
+    if (!d->valid || !canvas) {
+        return;
+    }
+    const QSize viewport = canvas->size();
+    const bool linearCanvas = canvasFormat == GL_RGBA16F;
+    // sixteen times smaller: the light reaches far, nothing in it is fine
+    const int factor = qMax(1, qRound(16 * pixelRatio));
+    const QSize smallSize((viewport.width() + factor - 1) / factor, (viewport.height() + factor - 1) / factor);
+    if (!d->ambientSmall || d->ambientSmall->size() != smallSize) {
+        for (QScopedPointer<QOpenGLFramebufferObject> *fbo : {&d->ambientSmall, &d->ambientAcross, &d->ambientBlurred}) {
+            fbo->reset(new QOpenGLFramebufferObject(smallSize, QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, d->keptFormat));
+        }
+    }
+    const qreal sigma = KisStudioGlass::ambientSigma * pixelRatio / factor;
+    const int taps = qBound(1, qCeil(3 * sigma), maxTaps);
+    float weights[maxTaps + 1] = {};
+    float sum = 0;
+    for (int i = 0; i <= taps; i++) {
+        weights[i] = float(std::exp(-0.5 * i * i / (sigma * sigma)));
+        sum += i ? 2 * weights[i] : weights[i];
+    }
+    for (int i = 0; i <= taps; i++) weights[i] /= sum;
+
+    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+    GLint target = 0;
+    f->glGetIntegerv(GL_FRAMEBUFFER_BINDING, &target);
+    if (d->vao.isCreated()) d->vao.bind();
+    f->glDisable(GL_BLEND);
+    f->glDisable(GL_SCISSOR_TEST);
+    f->glActiveTexture(GL_TEXTURE0);
+    f->glViewport(0, 0, smallSize.width(), smallSize.height());
+
+    // the image's light, made small
+    d->ambientShrink->bind();
+    f->glUniform4f(d->ambientShrink["rect"], -1, -1, 1, 1);
+    f->glUniform1i(d->ambientShrink["source"], 0);
+    f->glUniform1i(d->ambientShrink["factor"], factor);
+    f->glUniform1i(d->ambientShrink["decode"], !linearCanvas);
+    setMatrix(f, d->ambientShrink["toImage"], surfaceToImage);
+    d->ambientSmall->bind();
+    f->glBindTexture(GL_TEXTURE_2D, canvas->texture());
+    f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    // spread as light falls off
+    d->blur->bind();
+    f->glUniform4f(d->blur["rect"], -1, -1, 1, 1);
+    f->glUniform1i(d->blur["source"], 0);
+    f->glUniform1i(d->blur["taps"], taps);
+    f->glUniform1fv(d->blur["weights"], maxTaps + 1, weights);
+    d->ambientAcross->bind();
+    f->glUniform2i(d->blur["direction"], 1, 0);
+    f->glBindTexture(GL_TEXTURE_2D, d->ambientSmall->texture());
+    f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    d->ambientBlurred->bind();
+    f->glUniform2i(d->blur["direction"], 0, 1);
+    f->glBindTexture(GL_TEXTURE_2D, d->ambientAcross->texture());
+    f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    // around the image, on the canvas
+    canvas->bind();
+    f->glViewport(0, 0, viewport.width(), viewport.height());
+    d->ambient->bind();
+    f->glUniform4f(d->ambient["rect"], -1, -1, 1, 1);
+    f->glUniform1i(d->ambient["ambient"], 0);
+    f->glUniform1f(d->ambient["factor"], factor);
+    setMatrix(f, d->ambient["toImage"], surfaceToImage);
+    const QColor linearBase = base;
+    auto toLinear = [](qreal c) { return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4); };
+    f->glUniform3f(d->ambient["base"], float(toLinear(linearBase.redF())), float(toLinear(linearBase.greenF())), float(toLinear(linearBase.blueF())));
+    f->glUniform1f(d->ambient["strength"], float(KisStudioGlass::ambientStrength));
+    f->glUniform1i(d->ambient["encode"], !linearCanvas);
+    f->glUniform1f(d->ambient["dither"], linearCanvas ? 0.0f : canvasFormat == GL_RGB10_A2 ? 1.0f / 1023 : 1.0f / 255);
+    f->glBindTexture(GL_TEXTURE_2D, d->ambientBlurred->texture());
+    f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    f->glBindTexture(GL_TEXTURE_2D, 0);
+    d->ambient->release();
+    if (d->vao.isCreated()) d->vao.release();
+    f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(target));
 }
 
 qreal KisOpenGLGlass::reach()
@@ -700,8 +925,10 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         Kernel wide;
     };
     QVector<Region> regions;
+    // and as far around as the rim sees (its reflections and what it bends in from beside it)
+    const int rimReach = qCeil(KisStudioGlass::bevel().lift * pixelRatio);
     for (const Surface &surface : surfaces) {
-        const QRect r = surface.rect.toAlignedRect() & whole;
+        const QRect r = surface.rect.toAlignedRect().adjusted(-rimReach, -rimReach, rimReach, rimReach) & whole;
         if (!blurAgain || r.isEmpty()) continue;
         Region region;
         region.area = QRect(QPoint(r.left() / factor, r.top() / factor), QPoint(r.right() / factor + 1, r.bottom() / factor + 1)) & smallWhole;
@@ -760,6 +987,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     d->glass->bind();
     f->glUniform1i(d->glass["blurred"], 0);
     f->glUniform1i(d->glass["statistics"], 1);
+    f->glUniform1i(d->glass["under"], 2);
+    f->glUniform1i(d->glass["decode"], !linearCanvas);
     f->glUniform1f(d->glass["restore"], KisStudioGlass::restore);
     f->glUniform1f(d->glass["power"], KisStudioGlass::lightnessPower);
     f->glUniform1f(d->glass["factor"], factor);
@@ -771,6 +1000,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform3f(d->glass["bevel"], bevel.width * pixelRatio, bevel.thickness * pixelRatio, bevel.lift * pixelRatio);
     const QVector3D ior = refractiveIndices();
     f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
+    f->glActiveTexture(GL_TEXTURE2);
+    f->glBindTexture(GL_TEXTURE_2D, canvas);
     f->glActiveTexture(GL_TEXTURE1);
     f->glBindTexture(GL_TEXTURE_2D, d->statistics->texture());
     f->glActiveTexture(GL_TEXTURE0);
@@ -793,12 +1024,16 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glUniform1f(d->glass["spacing"], 2 * KisStudioGlass::blurSigma * scale * pixelRatio);
         // the sides it goes on beyond the canvas on: left, right, bottom, top
         f->glUniform4f(d->glass["beyond"], r.left() < 0, r.right() > viewport.width(), r.top() < 0, r.bottom() > viewport.height());
+        const QRectF reach = r.adjusted(-rimReach, -rimReach, rimReach, rimReach) & QRectF(whole).adjusted(0.5, 0.5, -0.5, -0.5);
+        f->glUniform4f(d->glass["reach"], reach.left(), reach.top(), reach.right(), reach.bottom());
         f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
 
     d->timing.mark();
     f->glDisable(GL_BLEND);
     f->glDisable(GL_SCISSOR_TEST);
+    f->glActiveTexture(GL_TEXTURE2);
+    f->glBindTexture(GL_TEXTURE_2D, 0);
     f->glActiveTexture(GL_TEXTURE1);
     f->glBindTexture(GL_TEXTURE_2D, 0);
     f->glActiveTexture(GL_TEXTURE0);

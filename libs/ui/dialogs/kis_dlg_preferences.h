@@ -94,10 +94,13 @@ public:
     bool brushesAsStrokes();
     /// The edge of the glass over the canvas (KisStudioGlass::Edge)
     int glassEdge();
+    /// What is around the image on the canvas (KisStudioGlass::Surround)
+    int canvasSurround();
 
     /// Brush presets shown by what they paint (off: by their pictures)
     QPointer<QCheckBox> m_chkBrushesAsStrokes;
     QPointer<QComboBox> m_cmbGlassEdge;
+    QPointer<QComboBox> m_cmbSurround;
     bool compressKra();
     bool trimKra();
     bool trimFramesImport();

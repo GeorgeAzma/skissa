@@ -162,6 +162,7 @@
 #include "KisStudioLayout.h"
 #include "KisStudioItemCard.h"
 #include "KisUpdatePacer.h"
+#include "KisStudioGlass.h"
 #include "KisTouchMode.h"
 #include "KisStudioFind.h"
 #include <config-qmdiarea-always-show-subwindow-title.h>
@@ -524,6 +525,7 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     KisStudioShortcuts::enableMenuEditing();
     // widgets repaint as often as the screen shows, also while the mouse moves
     KisUpdatePacer::install();
+    KisStudioGlass::installMenuGlass();
     connect(this, &KisMainWindow::restoringDone, d->studioLayout, &KisStudioLayout::normalize);
 
     d->studioFind = new KisStudioFind(this);

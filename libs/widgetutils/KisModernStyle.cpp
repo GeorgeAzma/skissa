@@ -774,6 +774,18 @@ QRect KisModernStyle::subControlRect(ComplexControl control, const QStyleOptionC
 void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *option, QPainter *painter, const QWidget *widget) const
 {
     switch (element) {
+    case PE_PanelMenu:
+    case PE_FrameMenu:
+        // a menu of glass (see KisStudioGlass::installMenuGlass) has its background painted already, and its border
+        if (widget && widget->property("studioGlassMenu").toBool()) {
+            return;
+        }
+        break;
+    default:
+        break;
+    }
+
+    switch (element) {
     case PE_PanelButtonCommand:
     case PE_PanelButtonBevel: {
         const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option);

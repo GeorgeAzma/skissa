@@ -99,10 +99,19 @@ QColor blendColors(const QColor &c1, const QColor &c2, qreal r1)
 {
     const qreal r2 = 1.0 - r1;
 
+    // each weighed by how opaque it is too (premultiplied): a see-through color (a veil over glass)
+    // mixes as what it shows, not as its color alone. Two opaque colors mix as they always did.
+    const qreal a1 = c1.alphaF() * r1;
+    const qreal a2 = c2.alphaF() * r2;
+    const qreal alpha = a1 + a2;
+    if (alpha <= 0.0) {
+        return QColor::fromRgbF(0, 0, 0, 0);
+    }
     return QColor::fromRgbF(
-        c1.redF() * r1 + c2.redF() * r2,
-        c1.greenF() * r1 + c2.greenF() * r2,
-        c1.blueF() * r1 + c2.blueF() * r2);
+        (c1.redF() * a1 + c2.redF() * a2) / alpha,
+        (c1.greenF() * a1 + c2.greenF() * a2) / alpha,
+        (c1.blueF() * a1 + c2.blueF() * a2) / alpha,
+        alpha);
 }
 
 qreal colorDifference(const QColor &c1, const QColor &c2)

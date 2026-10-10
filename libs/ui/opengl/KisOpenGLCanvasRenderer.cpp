@@ -380,6 +380,18 @@ void KisOpenGLCanvasRenderer::paintCanvasOnly(const QRect &canvasImageDirtyRect,
             d->canvasFBO->bind();
             renderCanvasGL(canvasImageDirtyRect);
             d->canvasFBO->release();
+            // the image changed or moved: the light it casts around it too (see KisOpenGLCanvas2::paintEvent: all of it drawn again then)
+            if (KisStudioGlass::surround() == KisStudioGlass::Surround::Ambient && d->glass.isValid()) {
+                const qreal ratio = devicePixelRatioF();
+                const QTransform widgetToSurface = QTransform::fromScale(1.0, -1.0) * QTransform::fromTranslate(0, d->pixelAlignedWidgetSize.height())
+                    * QTransform::fromScale(ratio, ratio);
+                const QRect bounds = coordinatesConverter()->imageRectInImagePixels();
+                const QTransform imageToUnit = QTransform::fromTranslate(-bounds.x(), -bounds.y())
+                    * QTransform::fromScale(1.0 / qMax(1, bounds.width()), 1.0 / qMax(1, bounds.height()));
+                const QTransform surfaceToImage = (coordinatesConverter()->imageToWidgetTransform() * widgetToSurface).inverted() * imageToUnit;
+                d->glass.renderAmbient(d->canvasFBO.data(), d->canvasBridge->internalTextureFormat(), ratio, surfaceToImage,
+                                       colorToDisplaySpace(borderColor()));
+            }
         }
         QRect blitRect;
         if (viewportUpdateRect.isEmpty()) {
