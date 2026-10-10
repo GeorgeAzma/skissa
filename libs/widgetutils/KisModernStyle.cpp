@@ -17,6 +17,8 @@
 #include <QStyleFactory>
 #include <QStyleOption>
 #include <QLabel>
+#include <QMenu>
+#include <QAction>
 #include <functional>
 #include <QRegularExpression>
 #include <QGridLayout>
@@ -425,6 +427,101 @@ QPainterPath KisModernStyle::squircle(const QRectF &rect, qreal radius)
     return path;
 }
 
+QString KisModernStyle::keyCapText(const QKeySequence &sequence)
+{
+    return sequence.isEmpty() ? QString() : keyCapText(sequence.toString(QKeySequence::NativeText));
+}
+
+QString KisModernStyle::keyCapText(const QString &nativeText)
+{
+    // the first of several, the modifiers in a few letters: "Ctrl+Shift+E" -> "Ctrl ⇧E"
+    QString text = nativeText.section(QLatin1String(", "), 0, 0);
+    text.replace(QStringLiteral("Shift+"), QStringLiteral("⇧"));
+    text.replace(QStringLiteral("Ctrl+"), QStringLiteral("Ctrl "));
+    text.replace(QStringLiteral("Alt+"), QStringLiteral("Alt "));
+    text.replace(QStringLiteral("Meta+"), QStringLiteral("Win "));
+    return text;
+}
+
+QFont KisModernStyle::keyCapFont(const QFont &font)
+{
+    QFont small = font;
+    if (small.pointSizeF() > 0) {
+        small.setPointSizeF(small.pointSizeF() * 0.86);
+    } else {
+        small.setPixelSize(qMax(8, qRound(small.pixelSize() * 0.86)));
+    }
+    small.setWeight(QFont::Medium);
+    return small;
+}
+
+namespace {
+QString keyCapShown(const QString &text, KisModernStyle::KeyCap state)
+{
+    if (state == KisModernStyle::KeyCap::Recording) return QStringLiteral("…");
+    if (state == KisModernStyle::KeyCap::Add || text.isEmpty()) return QStringLiteral("+");
+    return text;
+}
+} // namespace
+
+QSizeF KisModernStyle::keyCapSize(const QFont &font, const QString &text, KeyCap state)
+{
+    const QFontMetricsF metrics(font);
+    const QString shown = keyCapShown(text, state);
+    // a key: as wide as what is on it, never narrower than it is high
+    const qreal height = metrics.height() + 4 + 1.5;
+    return QSizeF(qMax(height + 2, metrics.horizontalAdvance(shown) + 12), height);
+}
+
+QRectF KisModernStyle::keyCapRect(const QRectF &row, const QFont &font, const QString &text, KeyCap state)
+{
+    const QSizeF size = keyCapSize(font, text, state);
+    return QRectF(row.right() - size.width(), row.center().y() - size.height() / 2, size.width(), size.height());
+}
+
+void KisModernStyle::drawKeyCap(QPainter *painter, const QRectF &rect, const QFont &font, const QString &text,
+                                const QPalette &palette, KeyCap state)
+{
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    const QColor window = palette.color(QPalette::Window);
+    const QColor ink = palette.color(QPalette::ButtonText);
+    const QRectF face = rect.adjusted(0, 0, 0, -1.5);
+    const qreal r = qMin<qreal>(cornerRadius, face.height() / 2);
+    painter->setPen(Qt::NoPen);
+    if (state != KeyCap::Add) {
+        // a top face and a darker edge below it: a key, not a button
+        painter->setBrush(mix(window, Qt::black, 0.3));
+        painter->drawPath(squircle(face.translated(0, 1.5), r));
+    }
+    const qreal lift = state == KeyCap::Pointed || state == KeyCap::Recording ? 0.24 : state == KeyCap::Add ? 0.1 : 0.15;
+    painter->setBrush(mix(window, ink, lift));
+    painter->drawPath(squircle(face, r));
+    if (state == KeyCap::Recording) {
+        painter->setPen(QPen(palette.color(QPalette::Link), 1.25));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawPath(squircle(face.adjusted(0.6, 0.6, -0.6, -0.6), r - 0.6));
+    }
+    QColor textColor = ink;
+    textColor.setAlphaF(state == KeyCap::Add ? 0.55 : state == KeyCap::Shown ? 0.85 : 1.0);
+    painter->setPen(textColor);
+    painter->setFont(font);
+    painter->drawText(face, Qt::AlignCenter, keyCapShown(text, state));
+    painter->restore();
+}
+
+QAction *KisModernStyle::shortcutTarget(QAction *entry)
+{
+    if (!entry || entry->isSeparator() || entry->menu()) {
+        return nullptr;
+    }
+    QAction *target = entry;
+    if (QObject *named = entry->property("kisShortcutTarget").value<QObject *>()) {
+        target = qobject_cast<QAction *>(named);
+    }
+    return target && !target->objectName().isEmpty() ? target : nullptr;
+}
+
 bool KisModernStyle::systemRoundsWindows()
 {
 #ifdef Q_OS_WIN
@@ -606,6 +703,8 @@ QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         if (const auto *item = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
             if (item->menuItemType != QStyleOptionMenuItem::Separator) {
                 size.rheight() += 4;
+                // room for the shortcut's key cap (or for the "+" that gives one)
+                size.rwidth() += 26;
             }
         }
         break;
@@ -989,22 +1088,61 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
 
     case CE_MenuItem:
         if (const auto *item = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
-            const bool selected = item->state.testFlag(State_Selected) && item->state.testFlag(State_Enabled);
-            if (item->menuItemType == QStyleOptionMenuItem::Separator || !selected) {
+            if (item->menuItemType == QStyleOptionMenuItem::Separator) {
                 break;
             }
+            const bool enabled = item->state.testFlag(State_Enabled);
+            const bool selected = item->state.testFlag(State_Selected) && enabled;
+            if (selected) {
+                drawRounded(painter, QRectF(item->rect).adjusted(3, 1, -3, -1), radius - 1,
+                            selectionTint(item->palette));
+            }
 
-            drawRounded(painter, QRectF(item->rect).adjusted(3, 1, -3, -1), radius - 1,
-                        selectionTint(item->palette));
-
-            // Let Fusion draw the contents as if unselected, but in the selected text color
+            // Fusion draws the rest as if unselected (in the selected text color), the shortcut left out
             QStyleOptionMenuItem contents = *item;
-            contents.state.setFlag(State_Selected, false);
-            const QColor text = item->palette.color(QPalette::HighlightedText);
-            contents.palette.setColor(QPalette::Text, text);
-            contents.palette.setColor(QPalette::ButtonText, text);
-            contents.palette.setColor(QPalette::WindowText, text);
+            const int tab = item->text.indexOf(QLatin1Char('\t'));
+            const QString shortcut = tab >= 0 ? keyCapText(item->text.mid(tab + 1)) : QString();
+            if (tab >= 0) contents.text = item->text.left(tab);
+            if (selected) {
+                contents.state.setFlag(State_Selected, false);
+                const QColor text = item->palette.color(QPalette::HighlightedText);
+                contents.palette.setColor(QPalette::Text, text);
+                contents.palette.setColor(QPalette::ButtonText, text);
+                contents.palette.setColor(QPalette::WindowText, text);
+            }
             QProxyStyle::drawControl(element, &contents, painter, widget);
+
+            // the shortcut as a key cap, as everywhere; one that can be changed shows it when pointed at
+            const QMenu *menu = qobject_cast<const QMenu *>(widget);
+            QAction *action = nullptr;
+            if (menu) {
+                Q_FOREACH (QAction *candidate, menu->actions()) {
+                    if (menu->actionGeometry(candidate) == item->rect) {
+                        action = candidate;
+                        break;
+                    }
+                }
+            }
+            const bool editable = enabled && qApp->property("kisMenuShortcutsEditable").toBool() && shortcutTarget(action);
+            KeyCap state = KeyCap::Shown;
+            bool shown = !shortcut.isEmpty();
+            if (action && menu->property("kisRecordingShortcut").value<QObject *>() == action) {
+                state = KeyCap::Recording;
+                shown = true;
+            } else if (!shortcut.isEmpty()) {
+                state = selected && editable ? KeyCap::Pointed : KeyCap::Shown;
+            } else if (selected && editable) {
+                state = KeyCap::Add;
+                shown = true;
+            }
+            if (shown) {
+                const QFont font = keyCapFont(item->font);
+                painter->save();
+                if (!enabled) painter->setOpacity(0.5);
+                drawKeyCap(painter, keyCapRect(QRectF(item->rect).adjusted(0, 0, -10, 0), font, shortcut, state),
+                           font, shortcut, item->palette, state);
+                painter->restore();
+            }
             return;
         }
         break;

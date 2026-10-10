@@ -15,6 +15,12 @@
 #include <QRegularExpression>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <functional>
+#include <QToolTip>
+#include <QTimer>
+#include <QStyleOption>
+#include <QScreen>
+#include <QHelpEvent>
 
 #include <KoCanvasBase.h>
 #include <KoCanvasResourceProvider.h>
@@ -550,6 +556,173 @@ private:
 } // namespace
 
 /**
+ * What OKLCH is, shown rather than told: every hue at one HSV value, and at
+ * one OKLCH lightness, each over a band of how light it looks. HSV's band
+ * goes from near white (yellow) to near black (blue); OKLCH's stays even,
+ * which is why its steps are even and its picks keep their lightness.
+ */
+class ModelTip : public QWidget
+{
+public:
+    static void showFor(QWidget *owner, const QPoint &globalPos, bool hsv)
+    {
+        static QPointer<ModelTip> shown;
+        if (shown) shown->close();
+        shown = new ModelTip(owner, hsv);
+        shown->adjustSize();
+        // below the pointer, kept on the screen
+        QPoint at = globalPos + QPoint(-shown->width() / 2, 22);
+        if (QScreen *screen = owner->screen()) {
+            const QRect area = screen->availableGeometry();
+            at.setX(qBound(area.left() + 4, at.x(), area.right() - shown->width() - 4));
+            if (at.y() + shown->height() > area.bottom()) at.setY(globalPos.y() - shown->height() - 12);
+        }
+        shown->move(at);
+        shown->show();
+    }
+
+    QSize sizeHint() const override
+    {
+        return QSize(tipWidth, contentHeight());
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == m_owner && (event->type() == QEvent::Leave || event->type() == QEvent::MouseButtonPress
+                                   || event->type() == QEvent::Hide || event->type() == QEvent::WindowDeactivate)) {
+            close();
+        }
+        return QWidget::eventFilter(watched, event);
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        QStyleOption option;
+        option.initFrom(this);
+        style()->drawPrimitive(QStyle::PE_PanelTipLabel, &option, &painter, this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+
+        const QColor ink = palette().color(QPalette::ToolTipText);
+        QColor faint = ink;
+        faint.setAlphaF(0.6);
+        int y = margin;
+        QFont bold = font();
+        bold.setWeight(QFont::DemiBold);
+        painter.setFont(bold);
+        painter.setPen(ink);
+        const QRect titleRect(margin, y, tipWidth - 2 * margin, QFontMetrics(bold).height());
+        painter.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, title());
+        y += titleRect.height() + 4;
+
+        painter.setFont(font());
+        const QRect textRect(margin, y, tipWidth - 2 * margin, textHeight());
+        painter.drawText(textRect, Qt::TextWordWrap | Qt::AlignLeft | Qt::AlignTop, text());
+        y += textRect.height() + 10;
+
+        y = paintStrip(painter, y, QStringLiteral("HSV"), [](qreal h) { return QColor::fromHsvF(h / 360.0, 1.0, 1.0); });
+        y += 8;
+        y = paintStrip(painter, y, QStringLiteral("OKLCH"), [](qreal h) {
+            return rgbFromOklch({0.75, qMin(0.13, maxChroma(0.75, h)), h});
+        });
+        y += 8;
+
+        QFont small = font();
+        small.setPointSizeF(small.pointSizeF() * 0.9);
+        painter.setFont(small);
+        painter.setPen(faint);
+        painter.drawText(QRect(margin, y, tipWidth - 2 * margin, QFontMetrics(small).height()), Qt::AlignLeft | Qt::AlignVCenter,
+                         m_hsv ? i18nc("@info:tooltip", "Click to use OKLCH") : i18nc("@info:tooltip", "Click to use the classic HSV ring"));
+    }
+
+private:
+    ModelTip(QWidget *owner, bool hsv)
+        : QWidget(nullptr, Qt::ToolTip | Qt::FramelessWindowHint)
+        , m_owner(owner)
+        , m_hsv(hsv)
+    {
+        setAttribute(Qt::WA_DeleteOnClose);
+        setAttribute(Qt::WA_ShowWithoutActivating);
+        setPalette(QToolTip::palette());
+        setFont(QToolTip::font());
+        owner->installEventFilter(this);
+        // a tooltip goes by itself
+        QTimer::singleShot(12000, this, &QWidget::close);
+    }
+
+    static QString title()
+    {
+        return i18nc("@info:tooltip", "OKLCH: color as the eye sees it");
+    }
+
+    static QString text()
+    {
+        return i18nc("@info:tooltip", "Hues at one lightness look equally light, so steps look even and a new hue keeps its lightness. "
+                                      "HSV's full yellow is far lighter than its full blue.");
+    }
+
+    int textHeight() const
+    {
+        return QFontMetrics(font()).boundingRect(QRect(0, 0, tipWidth - 2 * margin, 1000), Qt::TextWordWrap, text()).height();
+    }
+
+    int contentHeight() const
+    {
+        const QFontMetrics metrics(font());
+        QFont small = font();
+        small.setPointSizeF(small.pointSizeF() * 0.9);
+        const int strip = metrics.height() + 2 + stripHeight + 3 + lightnessHeight;
+        return margin + metrics.height() + 4 + textHeight() + 10 + strip + 8 + strip + 8 + QFontMetrics(small).height() + margin;
+    }
+
+    /// The hues, and under them how light each looks (OKLab's L as a gray): a name above
+    int paintStrip(QPainter &painter, int y, const QString &name, const std::function<QColor(qreal)> &colorAt)
+    {
+        QFont label = font();
+        label.setPointSizeF(label.pointSizeF() * 0.8);
+        label.setWeight(QFont::Bold);
+        label.setLetterSpacing(QFont::PercentageSpacing, 108);
+        QColor faint = palette().color(QPalette::ToolTipText);
+        faint.setAlphaF(0.55);
+        painter.setFont(label);
+        painter.setPen(faint);
+        const int labelHeight = QFontMetrics(font()).height();
+        painter.drawText(QRect(margin, y, tipWidth - 2 * margin, labelHeight), Qt::AlignLeft | Qt::AlignBottom, name);
+        y += labelHeight + 2;
+
+        const int w = tipWidth - 2 * margin;
+        QImage hues(w, stripHeight, QImage::Format_ARGB32_Premultiplied);
+        QImage light(w, lightnessHeight, QImage::Format_ARGB32_Premultiplied);
+        for (int x = 0; x < w; x++) {
+            const QColor color = colorAt(360.0 * x / qMax(1, w - 1));
+            const qreal l = oklchFromRgb(color).l;
+            const QColor gray = rgbFromOklch({l, 0.0, 0.0});
+            for (int row = 0; row < stripHeight; row++) hues.setPixel(x, row, color.rgb());
+            for (int row = 0; row < lightnessHeight; row++) light.setPixel(x, row, gray.rgb());
+        }
+        auto put = [&](const QImage &image, int top) {
+            const QRectF area(margin, top, w, image.height());
+            painter.save();
+            painter.setClipPath(KisModernStyle::squircle(area, 3));
+            painter.drawImage(area.topLeft(), image);
+            painter.restore();
+        };
+        put(hues, y);
+        y += stripHeight + 3;
+        put(light, y);
+        return y + lightnessHeight;
+    }
+
+    static constexpr int tipWidth = 300;
+    static constexpr int margin = 10;
+    static constexpr int stripHeight = 16;
+    static constexpr int lightnessHeight = 7;
+    QWidget *m_owner;
+    bool m_hsv;
+};
+
+/**
  * The color model's name, a label more than a button: small capitals, heavy
  * and faint, so it reads at a glance and stays out of the colors' way.
  */
@@ -562,6 +735,16 @@ public:
     {
         const QFontMetrics metrics(labelFont());
         return QSize(metrics.horizontalAdvance(text()) + 12, 22);
+    }
+
+    bool event(QEvent *event) override
+    {
+        // the tooltip shows what the difference is
+        if (event->type() == QEvent::ToolTip) {
+            ModelTip::showFor(this, static_cast<QHelpEvent *>(event)->globalPos(), text() == QStringLiteral("HSV"));
+            return true;
+        }
+        return QToolButton::event(event);
     }
 
 protected:

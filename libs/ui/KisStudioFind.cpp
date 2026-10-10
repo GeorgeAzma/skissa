@@ -28,6 +28,7 @@
 #include <QStandardItemModel>
 #include <QStyledItemDelegate>
 #include <QTimer>
+#include <QToolTip>
 #include <QVBoxLayout>
 #include <QWidgetAction>
 #include <QAbstractButton>
@@ -200,12 +201,23 @@ enum Roles {
     MessageRole, ///< a line of text instead of results
     PinnableRole, ///< it can go on the tools panel
     PinnedRole,   ///< it is on the tools panel
+    ShortcutEditableRole, ///< its shortcut can be changed here (a click on its key cap)
+    RecordingRole,        ///< its key cap waits for the new shortcut
 };
 
 /// The pin of a result row, at its right end: puts the result on the tools panel, or takes it off
 QRect pinRect(const QRect &row)
 {
     return QRect(row.right() - 38, row.center().y() - 12, 24, 24);
+}
+
+/// The key cap of a result's shortcut (or the "+" of one without), left of the pin
+QRectF shortcutCapRect(const QModelIndex &index, const QRect &row, const QFont &font, KisModernStyle::KeyCap state)
+{
+    const int right = index.data(PinnableRole).toBool() ? pinRect(row).left() - 8 : row.right() - 12;
+    return KisModernStyle::keyCapRect(QRectF(row.left(), row.top(), right - row.left(), row.height()),
+                                      KisModernStyle::keyCapFont(font),
+                                      KisModernStyle::keyCapText(index.data(ShortcutRole).toString()), state);
 }
 
 /// A push pin, upright, in \p rect: filled when pinned
@@ -378,16 +390,26 @@ public:
             right = pinRect(r).left() - 8;
         }
 
-        // shortcut on the right: seen every time, so it gets learned
-        const QString shortcut = index.data(ShortcutRole).toString();
-        if (!shortcut.isEmpty()) {
-            QFont font = option.font;
-            font.setPointSizeF(font.pointSizeF() * 0.9);
-            painter->setFont(font);
-            painter->setPen(dim);
-            const int width = painter->fontMetrics().horizontalAdvance(shortcut);
-            painter->drawText(QRect(right - width, r.top(), width, r.height()), Qt::AlignVCenter, shortcut);
-            right -= width + 16;
+        // shortcut on the right: seen every time, so it gets learned; a key cap, as in menus, and changed by a click
+        using KeyCap = KisModernStyle::KeyCap;
+        const QString shortcut = KisModernStyle::keyCapText(index.data(ShortcutRole).toString());
+        const bool pointed = option.state.testFlag(QStyle::State_Selected) || option.state.testFlag(QStyle::State_MouseOver);
+        const bool editable = index.data(ShortcutEditableRole).toBool();
+        KeyCap state = KeyCap::Shown;
+        bool shown = !shortcut.isEmpty();
+        if (index.data(RecordingRole).toBool()) {
+            state = KeyCap::Recording;
+            shown = true;
+        } else if (!shortcut.isEmpty()) {
+            state = pointed && editable ? KeyCap::Pointed : KeyCap::Shown;
+        } else if (pointed && editable) {
+            state = KeyCap::Add;
+            shown = true;
+        }
+        if (shown) {
+            const QRectF cap = shortcutCapRect(index, r, option.font, state);
+            KisModernStyle::drawKeyCap(painter, cap, KisModernStyle::keyCapFont(option.font), shortcut, pal, state);
+            right = int(cap.left()) - 12;
         }
 
         // title and detail on one line
@@ -436,6 +458,9 @@ struct KisStudioFind::Private
     std::function<void(const QString &key, bool on)> setOnTools;
     /// The pin pressed, released on it to toggle
     QPersistentModelIndex pinPress;
+    /// The result whose key cap waits for its new shortcut
+    QPersistentModelIndex recording;
+    bool capPress {false};
     /// How many GUI clients the index saw: commands only exist once the GUI is built
     int indexedClients {-1};
 
@@ -871,6 +896,7 @@ void KisStudioFind::appendResult(int index, const QString &detail)
     auto *item = new QStandardItem(entry.icon, entry.title);
     item->setData(detail, DetailRole);
     item->setData(entry.shortcut, ShortcutRole);
+    item->setData(entry.action && !entry.action->objectName().isEmpty(), ShortcutEditableRole);
     item->setData(index, EntryRole);
     // brushes, effects, commands, tools and panels can go on the tools panel
     const bool pinnable = !d->picker && d->isOnTools && !entry.key.isEmpty()
@@ -1440,6 +1466,20 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
                 d->pinPress = at;
                 return true;
             }
+            stopRecording();
+            const KisModernStyle::KeyCap state = at.data(ShortcutRole).toString().isEmpty() ? KisModernStyle::KeyCap::Add : KisModernStyle::KeyCap::Pointed;
+            if (at.data(ShortcutEditableRole).toBool()
+                && shortcutCapRect(at, d->list->visualRect(at), d->list->font(), state).adjusted(-4, -4, 4, 4).contains(mouse->pos())) {
+                d->recording = at;
+                d->model->setData(at, true, RecordingRole);
+                d->pinPress = QModelIndex();
+                d->capPress = true;
+                return true;
+            }
+        }
+        if (event->type() == QEvent::MouseButtonRelease && d->capPress) {
+            d->capPress = false;
+            return true;
         }
         if (event->type() == QEvent::MouseButtonRelease && d->pinPress.isValid()) {
             const QModelIndex at = d->pinPress;
@@ -1473,6 +1513,16 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
             }
         }
     }
+    if (watched == d->edit && d->recording.isValid()) {
+        if (event->type() == QEvent::ShortcutOverride) {
+            event->accept();
+            return true;
+        }
+        if (event->type() == QEvent::KeyPress) {
+            recordShortcut(static_cast<QKeyEvent *>(event));
+            return true;
+        }
+    }
     if (watched == d->edit && event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
         switch (key->key()) {
@@ -1487,6 +1537,42 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
         }
     }
     return QFrame::eventFilter(watched, event);
+}
+
+void KisStudioFind::stopRecording()
+{
+    if (d->recording.isValid()) {
+        d->model->setData(d->recording, false, RecordingRole);
+    }
+    d->recording = QModelIndex();
+}
+
+void KisStudioFind::recordShortcut(QKeyEvent *event)
+{
+    const int key = event->key();
+    if (key == Qt::Key_Shift || key == Qt::Key_Control || key == Qt::Key_Alt || key == Qt::Key_Meta
+        || key == Qt::Key_AltGr || key == 0 || key == Qt::Key_unknown) {
+        return; // a modifier alone is not a shortcut yet
+    }
+    const QPersistentModelIndex at = d->recording;
+    stopRecording();
+    const int index = at.data(EntryRole).isValid() ? at.data(EntryRole).toInt() : -1;
+    if (key == Qt::Key_Escape || index < 0 || index >= d->entries.size() || !d->entries[index].action) {
+        return;
+    }
+    QKeySequence sequence;
+    if (!((key == Qt::Key_Backspace || key == Qt::Key_Delete) && event->modifiers() == Qt::NoModifier)) {
+        const Qt::KeyboardModifiers modifiers = event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier);
+        sequence = QKeySequence(int(modifiers) | key);
+    }
+    const QString taken = KisStudioShortcuts::assign(d->mainWindow, d->entries[index].action, sequence);
+    d->entries[index].shortcut = sequence.toString(QKeySequence::NativeText);
+    d->model->setData(at, d->entries[index].shortcut, ShortcutRole);
+    if (!taken.isEmpty()) {
+        const QRect row = d->list->visualRect(at);
+        QToolTip::showText(d->list->viewport()->mapToGlobal(QPoint(row.right() - 60, row.bottom())),
+                           i18nc("@info", "Taken from “%1”", taken), d->list);
+    }
 }
 
 void KisStudioFind::paintEvent(QPaintEvent *)

@@ -160,6 +160,7 @@
 #include "KisModernStyle.h"
 #include "KisStudioColorPanel.h"
 #include "KisStudioLayout.h"
+#include "KisStudioItemCard.h"
 #include "KisTouchMode.h"
 #include "KisStudioFind.h"
 #include <config-qmdiarea-always-show-subwindow-title.h>
@@ -518,6 +519,8 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     // fingers: no hover, and a long press is a right click, see KisTouchMode
     KisTouchMode::install();
     d->studioLayout = new KisStudioLayout(this);
+    // shortcuts are changed where they are shown, menus too, in either layout
+    KisStudioShortcuts::enableMenuEditing();
     connect(this, &KisMainWindow::restoringDone, d->studioLayout, &KisStudioLayout::normalize);
 
     d->studioFind = new KisStudioFind(this);

@@ -36,6 +36,9 @@ void paintBadge(QPainter &painter, const QRect &rect, const QString &text, const
  */
 QString assign(KisMainWindow *mainWindow, QAction *action, const QKeySequence &sequence);
 
+/// Lets every menu's shortcuts be changed in place (once, for the whole application)
+KRITAUI_EXPORT void enableMenuEditing();
+
 /// The mime type of an item dragged around the studio layout; the data is the item's key
 QString itemMimeType();
 }

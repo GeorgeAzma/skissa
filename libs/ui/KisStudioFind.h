@@ -17,6 +17,7 @@
 #include "kritaui_export.h"
 
 class KisMainWindow;
+class QKeyEvent;
 class QDockWidget;
 
 /**
@@ -79,6 +80,9 @@ private:
     void runSelected();
     void runRow(int row);
     void adjustGeometry();
+    void stopRecording();
+    /// The keys pressed while a result's key cap records: its new shortcut
+    void recordShortcut(QKeyEvent *event);
 
     struct Private;
     const std::unique_ptr<Private> d;

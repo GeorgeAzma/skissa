@@ -373,6 +373,8 @@ QMenu* KisSelectionToolHelper::getSelectionContextMenu(KisCanvas2* canvas)
         }
         QAction *entry = into->addAction(text);
         entry->setEnabled(action->isEnabled());
+        // its shortcut is the action's: shown as a key cap, and changed there
+        entry->setProperty("kisShortcutTarget", QVariant::fromValue<QObject *>(action));
         entry->setCheckable(action->isCheckable());
         entry->setChecked(action->isChecked());
         QPointer<QAction> target(action);

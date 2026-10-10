@@ -15,10 +15,16 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMimeData>
+#include <QToolTip>
+#include <QPointer>
+#include <QMouseEvent>
+#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QScreen>
 #include <QTimer>
+#include <QStyle>
+#include <QStyleOption>
 #include <QVBoxLayout>
 
 #include <KSharedConfig>
@@ -30,6 +36,7 @@
 #include <kxmlguifactory.h>
 
 #include "KisMainWindow.h"
+#include "KisPart.h"
 #include "KisStudioMotion.h"
 #include "widgets/KisPopupCloser.h"
 #include <KisModernStyle.h>
@@ -94,28 +101,11 @@ public:
 protected:
     void paintEvent(QPaintEvent *) override
     {
+        // the same key cap as every shortcut in menus and lists, only larger
         QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        const QPalette &pal = palette();
-        const QColor window = pal.color(QPalette::Window);
-        const QColor ink = pal.color(QPalette::ButtonText);
-        const QRectF cap = QRectF(rect()).adjusted(1, 1, -1, -3);
-        // a key: a top face and a darker edge below it
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(mix(window, Qt::black, 0.35));
-        painter.drawPath(KisModernStyle::squircle(cap.translated(0, 2), 6));
-        painter.setBrush(mix(window, ink, underMouse() ? 0.22 : 0.15));
-        painter.drawPath(KisModernStyle::squircle(cap, 6));
-        if (m_recording) {
-            painter.setPen(QPen(pal.color(QPalette::Link), 1.5));
-            painter.setBrush(Qt::NoBrush);
-            painter.drawPath(KisModernStyle::squircle(cap.adjusted(0.75, 0.75, -0.75, -0.75), 6));
-        }
-        QColor textColor = ink;
-        if (!m_recording && text().isEmpty()) textColor.setAlphaF(0.5);
-        painter.setPen(textColor);
-        const QString shown = m_recording ? QStringLiteral("…") : (text().isEmpty() ? QStringLiteral("+") : text());
-        painter.drawText(cap, Qt::AlignCenter, shown);
+        using KeyCap = KisModernStyle::KeyCap;
+        const KeyCap state = m_recording ? KeyCap::Recording : text().isEmpty() ? KeyCap::Add : underMouse() ? KeyCap::Pointed : KeyCap::Shown;
+        KisModernStyle::drawKeyCap(&painter, QRectF(rect()).adjusted(1, 1, -1, -2), font(), text(), palette(), state);
     }
 
 private:
@@ -198,15 +188,7 @@ QString KisStudioShortcuts::itemMimeType()
 
 QString KisStudioShortcuts::badgeText(const QKeySequence &sequence)
 {
-    if (sequence.isEmpty()) {
-        return QString();
-    }
-    QString text = sequence.toString(QKeySequence::NativeText).section(QLatin1String(", "), 0, 0);
-    text.replace(QStringLiteral("Shift+"), QStringLiteral("⇧"));
-    text.replace(QStringLiteral("Ctrl+"), QStringLiteral("Ctrl "));
-    text.replace(QStringLiteral("Alt+"), QStringLiteral("Alt "));
-    text.replace(QStringLiteral("Meta+"), QStringLiteral("Win "));
-    return text;
+    return KisModernStyle::keyCapText(sequence);
 }
 
 void KisStudioShortcuts::paintBadge(QPainter &painter, const QRect &rect, const QString &text, const QPalette &palette)
@@ -214,25 +196,153 @@ void KisStudioShortcuts::paintBadge(QPainter &painter, const QRect &rect, const 
     if (text.isEmpty()) {
         return;
     }
-    painter.save();
+    // a small key cap, in the corner of a button
     QFont font = painter.font();
     font.setPointSizeF(qMax(6.0, font.pointSizeF() * 0.62));
     font.setBold(true);
-    painter.setFont(font);
-    const QFontMetrics metrics(font);
-    const int width = metrics.horizontalAdvance(text) + 5;
-    const int height = metrics.height();
-    const QRectF badge(rect.right() - width - 1, rect.bottom() - height - 1, width, height);
-    QColor background = palette.color(QPalette::Window);
-    background.setAlphaF(0.85);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(background);
-    painter.drawPath(KisModernStyle::squircle(badge, 3));
-    QColor ink = palette.color(QPalette::ButtonText);
-    ink.setAlphaF(0.72);
-    painter.setPen(ink);
-    painter.drawText(badge, Qt::AlignCenter, text);
-    painter.restore();
+    const QFontMetricsF metrics(font);
+    const qreal height = metrics.height() + 2.5;
+    const qreal width = qMax(height, metrics.horizontalAdvance(text) + 6);
+    KisModernStyle::drawKeyCap(&painter, QRectF(rect.right() - width, rect.bottom() - height, width, height), font, text, palette);
+}
+
+namespace
+{
+/**
+ * Every menu's shortcuts can be changed where they are shown: a click on a
+ * shortcut's key cap (or on the "+" of an entry that has none) and the next
+ * keys pressed are its new shortcut, as on a button's card. Backspace
+ * removes it, Escape keeps the old one; the menu stays open.
+ */
+class MenuShortcutEditor : public QObject
+{
+public:
+    using QObject::QObject;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        QMenu *menu = qobject_cast<QMenu *>(watched);
+        if (!menu) {
+            return false;
+        }
+        switch (event->type()) {
+        case QEvent::MouseButtonPress: {
+            auto *mouse = static_cast<QMouseEvent *>(event);
+            QAction *entry = menu->actionAt(mouse->pos());
+            QAction *target = KisModernStyle::shortcutTarget(entry);
+            if (recording(menu)) {
+                stop(menu);
+            }
+            if (mouse->button() != Qt::LeftButton || !target || !entry->isEnabled()) {
+                return false;
+            }
+            const QString shortcut = KisModernStyle::keyCapText(target->shortcut());
+            const QRectF cap = KisModernStyle::keyCapRect(QRectF(menu->actionGeometry(entry)).adjusted(0, 0, -10, 0),
+                                                          KisModernStyle::keyCapFont(menu->font()), shortcut,
+                                                          shortcut.isEmpty() ? KisModernStyle::KeyCap::Add : KisModernStyle::KeyCap::Pointed);
+            if (!cap.adjusted(-4, -4, 4, 4).contains(mouse->pos())) {
+                return false;
+            }
+            menu->setProperty("kisRecordingShortcut", QVariant::fromValue<QObject *>(entry));
+            m_swallowRelease = menu;
+            menu->update();
+            return true;
+        }
+        case QEvent::MouseButtonRelease:
+            if (m_swallowRelease == menu) {
+                m_swallowRelease = nullptr;
+                return true;
+            }
+            return false;
+        case QEvent::ShortcutOverride:
+            if (recording(menu)) {
+                event->accept();
+                return true;
+            }
+            return false;
+        case QEvent::KeyPress:
+            if (recording(menu)) {
+                record(menu, static_cast<QKeyEvent *>(event));
+                return true;
+            }
+            return false;
+        case QEvent::Hide:
+            stop(menu);
+            return false;
+        default:
+            return false;
+        }
+    }
+
+private:
+    static QAction *recording(QMenu *menu)
+    {
+        return qobject_cast<QAction *>(menu->property("kisRecordingShortcut").value<QObject *>());
+    }
+
+    static void stop(QMenu *menu)
+    {
+        if (recording(menu)) {
+            menu->setProperty("kisRecordingShortcut", QVariant());
+            menu->update();
+        }
+    }
+
+    void record(QMenu *menu, QKeyEvent *event)
+    {
+        QAction *entry = recording(menu);
+        QAction *target = KisModernStyle::shortcutTarget(entry);
+        const int key = event->key();
+        if (key == Qt::Key_Shift || key == Qt::Key_Control || key == Qt::Key_Alt || key == Qt::Key_Meta
+            || key == Qt::Key_AltGr || key == 0 || key == Qt::Key_unknown) {
+            return; // a modifier alone is not a shortcut yet
+        }
+        stop(menu);
+        if (!target || key == Qt::Key_Escape) {
+            return;
+        }
+        QKeySequence sequence;
+        if (!((key == Qt::Key_Backspace || key == Qt::Key_Delete) && event->modifiers() == Qt::NoModifier)) {
+            const Qt::KeyboardModifiers modifiers = event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier);
+            sequence = QKeySequence(int(modifiers) | key);
+        }
+        const QString taken = KisStudioShortcuts::assign(KisPart::instance()->currentMainwindow(), target, sequence);
+        if (entry != target) {
+            // an entry standing in for the action: its shortcut is in its text
+            const QString label = entry->text().section(QLatin1Char('\t'), 0, 0);
+            entry->setText(sequence.isEmpty() ? label : label + QLatin1Char('\t') + sequence.toString(QKeySequence::NativeText));
+        }
+        // a longer key cap makes the menu wider: as wide as it now needs, still on the screen
+        QTimer::singleShot(0, menu, [menu]() {
+            menu->adjustSize();
+            if (QScreen *screen = menu->screen()) {
+                const QRect area = screen->availableGeometry();
+                QRect geometry = menu->geometry();
+                if (geometry.right() > area.right()) geometry.moveRight(area.right());
+                if (geometry.left() < area.left()) geometry.moveLeft(area.left());
+                menu->move(geometry.topLeft());
+            }
+        });
+        menu->update();
+        if (!taken.isEmpty()) {
+            const QRect row = menu->actionGeometry(entry);
+            QToolTip::showText(menu->mapToGlobal(QPoint(row.right() - 20, row.bottom())), i18nc("@info", "Taken from “%1”", taken), menu);
+        }
+    }
+
+    QPointer<QMenu> m_swallowRelease;
+};
+} // namespace
+
+void KisStudioShortcuts::enableMenuEditing()
+{
+    static MenuShortcutEditor *editor = nullptr;
+    if (editor) return;
+    editor = new MenuShortcutEditor(qApp);
+    qApp->installEventFilter(editor);
+    // for the style: menus draw the "+" of entries that can be given a shortcut
+    qApp->setProperty("kisMenuShortcutsEditable", true);
 }
 
 QString KisStudioShortcuts::assign(KisMainWindow *mainWindow, QAction *action, const QKeySequence &sequence)
@@ -269,7 +379,7 @@ struct KisStudioItemCard::Private
     KeyCap *keyCap {nullptr};
     QLabel *note {nullptr};
     QHBoxLayout *choices {nullptr};
-    QHBoxLayout *commands {nullptr};
+    QVBoxLayout *commands {nullptr};
     bool recording {false};
 };
 
@@ -311,9 +421,10 @@ KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &ico
     d->choices->setSpacing(2);
     layout->addLayout(d->choices);
 
-    d->commands = new QHBoxLayout();
-    d->commands->setSpacing(4);
-    d->commands->addStretch(1);
+    // what can be done with it: rows, as in a menu
+    d->commands = new QVBoxLayout();
+    d->commands->setSpacing(0);
+    d->commands->setContentsMargins(0, 0, 0, 0);
     layout->addLayout(d->commands);
 
     d->note = new QLabel(this);
@@ -353,40 +464,63 @@ void KisStudioItemCard::setChoices(const QVector<Choice> &choices)
 
 void KisStudioItemCard::addCommand(const Command &command)
 {
-    class CommandButton : public QAbstractButton
+    /**
+     * A row drawn as a menu's entry is (the style draws both), named in a
+     * few words; the rest of the description ("(or drag it off)") is its
+     * tooltip. A card and a menu are the same kind of list.
+     */
+    class CommandRow : public QAbstractButton
     {
     public:
         using QAbstractButton::QAbstractButton;
-        QSize sizeHint() const override { return QSize(34, 34); }
+
+        QSize sizeHint() const override
+        {
+            QStyleOptionMenuItem option = menuOption();
+            const QSize text(fontMetrics().horizontalAdvance(option.text), fontMetrics().height());
+            return style()->sizeFromContents(QStyle::CT_MenuItem, &option, text, this).expandedTo(QSize(0, 30));
+        }
 
     protected:
+        QStyleOptionMenuItem menuOption() const
+        {
+            QStyleOptionMenuItem option;
+            option.initFrom(this);
+            option.rect = rect();
+            option.text = text();
+            option.icon = icon();
+            option.maxIconWidth = 20;
+            option.menuItemType = QStyleOptionMenuItem::Normal;
+            option.checkType = isCheckable() ? QStyleOptionMenuItem::NonExclusive : QStyleOptionMenuItem::NotCheckable;
+            option.checked = isChecked();
+            option.menuHasCheckableItems = isCheckable();
+            option.font = font();
+            option.state.setFlag(QStyle::State_Selected, underMouse());
+            return option;
+        }
+
         void paintEvent(QPaintEvent *) override
         {
             QPainter painter(this);
-            painter.setRenderHint(QPainter::Antialiasing, true);
-            const QPalette &pal = palette();
-            if (isChecked() || underMouse()) {
-                painter.setPen(Qt::NoPen);
-                painter.setBrush(isChecked() ? mix(pal.color(QPalette::Window), pal.color(QPalette::Highlight), 0.55)
-                                             : mix(pal.color(QPalette::Window), pal.color(QPalette::ButtonText), 0.1));
-                painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), 8));
-            }
-            icon().paint(&painter, QRect((width() - 20) / 2, (height() - 20) / 2, 20, 20));
+            const QStyleOptionMenuItem option = menuOption();
+            style()->drawControl(QStyle::CE_MenuItem, &option, &painter, this);
         }
     };
 
-    auto *commandButton = new CommandButton(this);
-    commandButton->setAttribute(Qt::WA_Hover);
-    commandButton->setFocusPolicy(Qt::NoFocus);
-    commandButton->setIcon(command.icon);
-    commandButton->setToolTip(command.toolTip);
-    commandButton->setCheckable(command.checkable);
-    commandButton->setChecked(command.checked);
-    connect(commandButton, &QAbstractButton::clicked, this, [this, run = command.run]() {
+    auto *row = new CommandRow(this);
+    row->setAttribute(Qt::WA_Hover);
+    row->setFocusPolicy(Qt::NoFocus);
+    row->setIcon(command.icon);
+    const QString name = command.toolTip.section(QStringLiteral(" ("), 0, 0);
+    row->setText(name);
+    if (name != command.toolTip) row->setToolTip(command.toolTip);
+    row->setCheckable(command.checkable);
+    row->setChecked(command.checked);
+    connect(row, &QAbstractButton::clicked, this, [this, run = command.run]() {
         if (run) run();
         close();
     });
-    d->commands->addWidget(commandButton);
+    d->commands->addWidget(row);
 }
 
 void KisStudioItemCard::popupBeside(QWidget *anchor)

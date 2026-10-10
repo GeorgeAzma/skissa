@@ -9,6 +9,9 @@
 #include "kritawidgetutils_export.h"
 #include <QPainterPath>
 #include <QProxyStyle>
+#include <QKeySequence>
+
+class QAction;
 
 /**
  * A flat, rounded widget style built on top of Fusion.
@@ -66,6 +69,35 @@ public:
      * their own.
      */
     static bool systemRoundsWindows();
+
+    /**
+     * Shortcuts look the same wherever they are listed (menus, Find, a
+     * button's card, a button's corner): a key cap, its text short ("Ctrl ⇧E").
+     */
+    enum class KeyCap {
+        Shown,     ///< the shortcut
+        Pointed,   ///< the shortcut, under the pointer (a click records another)
+        Add,       ///< none yet, a faint "+" (a click records one)
+        Recording, ///< waiting for the new one to be pressed
+    };
+    static QString keyCapText(const QKeySequence &sequence);
+    /// \p nativeText as QKeySequence::NativeText writes it ("Ctrl+Shift+E")
+    static QString keyCapText(const QString &nativeText);
+    static QSizeF keyCapSize(const QFont &font, const QString &text, KeyCap state = KeyCap::Shown);
+    /// The key cap at the right of \p row, in the middle of its height
+    static QRectF keyCapRect(const QRectF &row, const QFont &font, const QString &text, KeyCap state = KeyCap::Shown);
+    static void drawKeyCap(QPainter *painter, const QRectF &rect, const QFont &font, const QString &text,
+                           const QPalette &palette, KeyCap state = KeyCap::Shown);
+    /// The smaller font of key caps in lists, from the list's font
+    static QFont keyCapFont(const QFont &font);
+
+    /**
+     * The action whose shortcut a menu entry shows: the entry itself, or
+     * the action it stands in for (its "kisShortcutTarget" property: menus
+     * may name an action in fewer words). None for what has no shortcut of
+     * its own (a submenu, a separator, an action with no name to keep it by).
+     */
+    static QAction *shortcutTarget(QAction *entry);
 
     using QProxyStyle::polish;
     void polish(QWidget *widget) override;

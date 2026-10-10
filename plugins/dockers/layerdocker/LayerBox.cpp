@@ -1039,6 +1039,8 @@ QAction *LayerBox::addMenuEntry(QMenu *menu, QAction *action, const QString &lab
     }
     QAction *entry = new QAction(text, menu);
     entry->setEnabled(action->isEnabled());
+    // its shortcut is the action's: shown as a key cap, and changed there
+    entry->setProperty("kisShortcutTarget", QVariant::fromValue<QObject *>(action));
     entry->setCheckable(action->isCheckable());
     entry->setChecked(action->isChecked());
     QPointer<QAction> target(action);
