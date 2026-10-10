@@ -197,8 +197,18 @@ protected:
             return true;
         }
         case QEvent::MouseMove:
-        case QEvent::TabletMove: {
-            // one move from the system is first a QWindow's: counted once, there
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonRelease:
+        case QEvent::TabletMove:
+        case QEvent::TabletPress:
+        case QEvent::TabletRelease:
+        case QEvent::Wheel:
+        case QEvent::KeyPress:
+        case QEvent::KeyRelease:
+        case QEvent::TouchBegin:
+        case QEvent::TouchUpdate:
+        case QEvent::TouchEnd: {
+            // input: one from the system is first a QWindow's, counted once, there
             QWindow *window = qobject_cast<QWindow *>(watched);
             QWidget *top = window ? topWidget(window) : nullptr;
             if (!top) return false;
@@ -340,7 +350,8 @@ private:
         const QHash<QWidget *, QPointer<QWidget>> waiting = m_waiting;
         m_waiting.clear();
         for (const QPointer<QWidget> &window : waiting) {
-            if (!window || !window->isVisible()) continue;
+            // hidden too: Qt counts on its repaint to come, and would not ask for another
+            if (!window) continue;
             QElapsedTimer took;
             took.start();
             m_delivering = true;

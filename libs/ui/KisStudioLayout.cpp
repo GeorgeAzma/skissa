@@ -798,6 +798,13 @@ public:
         raise();
     }
 
+    /**
+     * Its size, or whether it is shown, changed: what is under it (the tool
+     * rail, the pinned panels) moves. Its layout sizes it only once it is
+     * laid out, after it is first placed.
+     */
+    std::function<void()> changed;
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
@@ -811,6 +818,19 @@ protected:
     {
         QWidget::resizeEvent(event);
         place();
+        if (changed) changed();
+    }
+
+    void showEvent(QShowEvent *event) override
+    {
+        QWidget::showEvent(event);
+        if (changed) changed();
+    }
+
+    void hideEvent(QHideEvent *event) override
+    {
+        QWidget::hideEvent(event);
+        if (changed) changed();
     }
 
     void paintEvent(QPaintEvent *) override
@@ -3067,11 +3087,13 @@ void KisStudioLayout::adoptTopBars()
     }
     if (!d->topPill) {
         d->topPill = new TopPill(area, false);
+        d->topPill->changed = [self = QPointer<KisStudioLayout>(this)]() { if (self) self->updateCanvasInsets(); };
         d->topPill->grip()->tapped = [this]() { setTopBarTucked(!d->topBarTucked); };
         d->topPill->setTucked(d->topBarTucked);
     }
     if (!d->windowPill) {
         d->windowPill = new TopPill(area, true);
+        d->windowPill->changed = [self = QPointer<KisStudioLayout>(this)]() { if (self) self->updateCanvasInsets(); };
         auto *bar = new QToolBar(i18nc("@title:window", "Window"), d->windowPill);
         bar->setObjectName(QStringLiteral("studioWindowBar"));
         bar->setMovable(false);
