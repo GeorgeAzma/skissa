@@ -24,7 +24,7 @@
  * more (see KisStudioGlass::salience).
  *
  * The edge (see KisStudioGlass::Edge): a bevel, traced as glass, that bends
- * the canvas behind it, sharp, and reflects the room.
+ * the canvas behind it, sharp.
  */
 class KisOpenGLGlass
 {

@@ -198,15 +198,14 @@ void main()
  *    behind the bevel is seen bent, magnified, through clear glass (each
  *    color by its own index of refraction: a faint fringe of color, as
  *    glass disperses light). Where the bevel is steep, the ray cannot leave
- *    the underside (total internal reflection): it goes back up and shows
- *    the room through the glass instead.
- *  - the face reflects the room as much as the angle says (Fresnel): next
- *    to nothing where it is flat, more and more down the bevel, so the
- *    edge catches the light of the room, brightest where it faces it.
+ *    the underside (total internal reflection): it stays in the glass, and
+ *    shows the frosted glass.
+ *  - where the bevel is steep the face reflects (Fresnel), down onto the
+ *    canvas around it: the rim takes on the colors around the panel.
  *
- * What it reflects (see room()): steep, the canvas around; less, the room:
- * lit walls, a lamp to the upper left and its bounce from the lower right. All of it is worked out in light, what is behind
- * tinted as tinted glass does (see KisStudioGlass::veil).
+ * No highlights, no lighting: the edge shows by what it bends. All of it
+ * is worked out in light, what is behind tinted as tinted glass does (see
+ * KisStudioGlass::veil).
  */
 const char *const glassSource = R"(
 uniform sampler2D blurred;
@@ -225,7 +224,6 @@ uniform float dither;
 uniform float veil;
 uniform vec3 bevel;
 uniform vec3 ior;
-uniform vec3 light;
 flat in float strength;
 
 float hash(uvec2 p)
@@ -365,18 +363,11 @@ vec3 behindAt(vec2 p, float frost, float spread)
     return mix(clear, softAt(blurred, p), frost);
 }
 
-// what the glass at p reflects in the direction d (z toward the viewer), as light. Down (where a
-// steep bevel reflects to): the canvas it is held over, there, blurred. Up: the room, a dim
-// ceiling, lit walls toward the horizon, a broad lamp to the upper left (brighter than the room,
-// as lights are) and its bounce off a wall to the lower right
-vec3 room(vec3 d, vec2 p)
+// the canvas the glass at p is held over, where the reflected ray d (z toward the viewer, down)
+// meets it: blurred, as the glass is not a mirror
+vec3 reflectedAt(vec3 d, vec2 p)
 {
-    vec3 below = softAt(blurred, p + d.xy / max(-d.z, 0.2) * bevel.z);
-    float ceiling = 0.06 + 0.08 * clamp(d.z, 0.0, 1.0) + 0.16 * pow(1.0 - clamp(d.z, 0.0, 1.0), 4.0);
-    vec3 env = mix(below, vec3(ceiling), smoothstep(-0.12, 0.12, d.z));
-    float lamp = 3.0 * pow(max(dot(d, light), 0.0), 12.0);
-    float bounce = 0.8 * pow(max(dot(d, vec3(-light.xy, light.z)), 0.0), 12.0);
-    return env + vec3(lamp + bounce);
+    return softAt(blurred, p + d.xy / max(-d.z, 0.2) * bevel.z);
 }
 
 // the largest chroma of hue ab at lightness l that is a color of the screen, scaled: ab times it
@@ -447,18 +438,19 @@ void main()
             if (ray.z > 0.0) {
                 seen = mix(tintLight, behindAt(p + ray.xy, frost, spread), canvas);
             } else {
-                // reflected inside: the room through the glass (or, trapped, the glass itself)
-                seen = ray.w > 0.0 ? room(back, p) : tintLight;
+                // reflected inside, scattered by the frost: the glass itself
+                seen = mix(tintLight, softAt(blurred, p), canvas);
             }
             light3[i] = seen[i];
         }
-        // thinner, the glass tints what is behind it less
-        color = tinted(light3, tintLab, strength * mix(0.6, 1.0, bend.x / h));
-        // and the face reflects the room; what it reflects flat on is in the tint already
+        // thinner, the glass tints what is behind it a little less
+        color = tinted(light3, tintLab, strength * mix(0.85, 1.0, bend.x / h));
+        // where it is steep the face reflects (Fresnel) down onto the canvas around it; up, the
+        // room, which is in the tint already (no gloss: the bevel shows by what it bends)
+        vec3 mirrored = reflect(vec3(0.0, 0.0, -1.0), normal);
         float faceOn = fresnel(1.0, ior.g);
-        float reflected = fresnel(normal.z, ior.g);
-        color = color * (1.0 - (reflected - faceOn) / (1.0 - faceOn)) + room(reflect(vec3(0.0, 0.0, -1.0), normal), p) * reflected
-            - room(vec3(0.0, 0.0, 1.0), p) * faceOn;
+        float reflected = (fresnel(normal.z, ior.g) - faceOn) / (1.0 - faceOn) * smoothstep(0.0, 0.25, -mirrored.z);
+        color = mix(color, reflectedAt(mirrored, p), reflected);
     } else {
         color = tinted(mix(tintLight, softAt(blurred, p), canvas), tintLab, strength);
     }
@@ -576,7 +568,7 @@ bool KisOpenGLGlass::initialize()
         && d->blur.make(quadSource, blurSource, {"rect", "source", "direction", "taps", "weights"})
         && d->glass.make(glassVertexSource, glassSource,
                          {"rect", "blurred", "small", "sharp", "decodeSharp", "factor", "shape", "corner", "tint", "tintLightness",
-                          "tintStrength", "opacity", "viewport", "sigma", "beyond", "spacing", "dither", "veil", "bevel", "ior", "light"});
+                          "tintStrength", "opacity", "viewport", "sigma", "beyond", "spacing", "dither", "veil", "bevel", "ior"});
     if (d->valid && KisOpenGL::supportsVAO()) {
         d->vao.create();
     }
@@ -702,9 +694,6 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform3f(d->glass["bevel"], bevel.width * pixelRatio, bevel.thickness * pixelRatio, bevel.lift * pixelRatio);
     const QVector3D ior = refractiveIndices();
     f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
-    // toward the light of the room: above the screen, a little to the left (y is up here)
-    const QVector3D light = QVector3D(-0.3f, 0.55f, 0.78f).normalized();
-    f->glUniform3f(d->glass["light"], light.x(), light.y(), light.z());
     f->glActiveTexture(GL_TEXTURE2);
     f->glBindTexture(GL_TEXTURE_2D, canvas);
     f->glActiveTexture(GL_TEXTURE1);

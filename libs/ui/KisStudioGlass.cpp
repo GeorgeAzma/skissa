@@ -944,9 +944,9 @@ KisStudioGlass::Bevel KisStudioGlass::bevel()
 {
     switch (edge()) {
     case Edge::Subtle:
-        return {10, 10, 12};
+        return {12, 12, 16};
     case Edge::Strong:
-        return {14, 16, 18};
+        return {16, 18, 24};
     case Edge::Line:
         break;
     }

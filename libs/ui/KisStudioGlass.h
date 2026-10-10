@@ -60,8 +60,9 @@ public:
      * The edge of the glass over the canvas: a line drawn on it, or a
      * polished bevel, the face of the pane rounding down to its edge, that
      * bends what is behind as glass does (Snell's law, with the dispersion of
-     * the glass), reflects the room (Fresnel) and, where the bevel is
-     * steepest, reflects the light inside it (total internal reflection).
+     * the glass), reflects the canvas around it where it is steep (Fresnel)
+     * and, steepest, keeps the light inside it (total internal reflection).
+     * No gloss: it shows by what it bends.
      */
     enum class Edge {
         Line = 0,
