@@ -42,17 +42,30 @@ public:
      * times as much as a gray: a stroke of color is what one sees of a
      * canvas, and an average of pixels drowns it in the paper around it.
      */
-    static constexpr qreal salience = 4.0;
+    static constexpr qreal salience = 2.0;
+    /// A narrower blur (sigma, widget pixels), this share of the lightness: a hint of what is behind, as frosted glass shows it
+    static constexpr qreal detailSigma = 6;
+    static constexpr qreal detail = 0.3;
+    /**
+     * The frost's color is the mean in Oklab: mixed as light, a stroke of
+     * color on white keeps only half of its chroma. Hues that disagree
+     * cancel out: of the chroma lost so, this share is restored as far as
+     * they agree (never more than the colors behind have, on average).
+     */
+    static constexpr qreal restore = 0.5;
+    /// The grain of the frost, as much either way (in sRGB, 0 to 1): finer than the blur, it makes it a surface
+    static constexpr qreal grain = 0.02;
     /// The tint, over a dark and over a bright canvas: text on it reads as well over either
     static constexpr qreal tintOverDark = 0.56;
     static constexpr qreal tintOverBright = 0.84;
     /**
-     * The tint sets how light the glass is, for text on it to read; the
-     * color of what is behind changes as through tinted glass: darkened, it
-     * keeps its saturation (its chroma over its lightness, in Oklab), and
-     * only the light the glass scatters veils it, this share of the tint
-     * (all of it where the glass is lighter than what is behind: lightening
-     * is all scattered light). Mixing with a gray instead muddies colors.
+     * The tint sets how light the glass is, for text on it to read; what is
+     * behind keeps its chroma (Oklab), as colorful as on the canvas, and only
+     * the light the glass scatters veils it, this share of the tint (all of
+     * it where the glass is lighter than what is behind: lightening is all
+     * scattered light). Mixing with a gray instead muddies colors; keeping
+     * the saturation (chroma over lightness) drains them, as dark glass over
+     * a light canvas is a third as light.
      */
     static constexpr qreal veil = 0.3;
 

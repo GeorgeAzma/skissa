@@ -136,12 +136,10 @@ QImage tinted(const QImage &image, const QColor &tint, qreal strength)
         for (int x = 0; x < image.width(); x++) {
             const Lab b = toOklab(linear[qRed(in[x])], linear[qGreen(in[x])], linear[qBlue(in[x])]);
             const float l = qBound(0.0f, b.l + (t.l - b.l) * s, 1.0f);
-            // darkened, as tinted glass darkens: the saturation kept; veiled by the light it scatters
-            const float darkened = l < b.l ? l / qMax(b.l, 1e-3f) : 1.0f;
+            // as colorful as what is behind (its chroma kept), veiled by the light the glass scatters
             const float lighter = qBound(0.0f, (l - b.l + 0.02f) / 0.08f, 1.0f);
             const float scattered = s * (veil + (1.0f - veil) * lighter * lighter * (3 - 2 * lighter));
-            const std::array<float, 3> c = inGamut({l, b.a * darkened * (1 - scattered) + t.a * scattered,
-                                                    b.b * darkened * (1 - scattered) + t.b * scattered});
+            const std::array<float, 3> c = inGamut({l, b.a * (1 - scattered) + t.a * scattered, b.b * (1 - scattered) + t.b * scattered});
             out[x] = qRgb(toSrgb(c[0]), toSrgb(c[1]), toSrgb(c[2]));
         }
     }
@@ -164,13 +162,20 @@ void boxLine(float *data, int count, int stride, int radius, std::vector<float> 
     for (int i = 0; i < count; i++) data[i * stride] = scratch[i];
 }
 
-/// Blurred in linear light (three box passes each way: close to a gaussian), saturated colors counting more
+/**
+ * The frost, as the canvas makes it (see frostedAt() in KisOpenGLGlass):
+ * blurred \p radius (three box passes each way: close to a gaussian), a
+ * saturated color counting more; as light as light mixes, a little of a
+ * narrower blur in it; its color the mean in Oklab, what disagreeing hues
+ * cancel partly restored
+ */
 QImage blurred(const QImage &source, int radius)
 {
     const QImage image = source.convertToFormat(QImage::Format_RGB32);
     const int w = image.width(), h = image.height();
-    // light times its weight, and the weight
-    std::vector<float> channels[4];
+    // weighted: light, widely and narrowly, Oklab's a and b and chroma widely; and the weight, both ways
+    enum { R, G, B, Weight, NarrowR, NarrowG, NarrowB, NarrowWeight, A, Bb, Chroma, Count };
+    std::vector<float> channels[Count];
     for (auto &channel : channels) channel.resize(size_t(w) * h);
     const auto &linear = toLinear();
     for (int y = 0; y < h; y++) {
@@ -179,32 +184,73 @@ QImage blurred(const QImage &source, int radius)
             const size_t i = size_t(y) * w + x;
             const float r = linear[qRed(line[x])], g = linear[qGreen(line[x])], b = linear[qBlue(line[x])];
             const Lab lab = toOklab(r, g, b);
-            const float weight = 1.0f + float(KisStudioGlass::salience) * std::hypot(lab.a, lab.b);
-            channels[0][i] = r * weight;
-            channels[1][i] = g * weight;
-            channels[2][i] = b * weight;
-            channels[3][i] = weight;
+            const float chroma = std::hypot(lab.a, lab.b);
+            const float weight = 1.0f + float(KisStudioGlass::salience) * chroma;
+            channels[R][i] = channels[NarrowR][i] = r * weight;
+            channels[G][i] = channels[NarrowG][i] = g * weight;
+            channels[B][i] = channels[NarrowB][i] = b * weight;
+            channels[Weight][i] = channels[NarrowWeight][i] = weight;
+            channels[A][i] = lab.a * weight;
+            channels[Bb][i] = lab.b * weight;
+            channels[Chroma][i] = chroma * weight;
         }
     }
     // a box of r three times is about a gaussian of sigma r: the passes share the radius
     const int box = qMax(1, int(std::lround(radius / std::sqrt(3.0))));
+    const int narrowBox = qMax(1, int(std::lround(radius * KisStudioGlass::detailSigma / KisStudioGlass::blurSigma / std::sqrt(3.0))));
     std::vector<float> scratch;
-    for (auto &channel : channels) {
+    for (int c = 0; c < Count; c++) {
+        const int reach = c >= NarrowR && c <= NarrowWeight ? narrowBox : box;
         for (int pass = 0; pass < 3; pass++) {
-            for (int y = 0; y < h; y++) boxLine(channel.data() + size_t(y) * w, w, 1, box, scratch);
-            for (int x = 0; x < w; x++) boxLine(channel.data() + x, h, w, box, scratch);
+            for (int y = 0; y < h; y++) boxLine(channels[c].data() + size_t(y) * w, w, 1, reach, scratch);
+            for (int x = 0; x < w; x++) boxLine(channels[c].data() + x, h, w, reach, scratch);
         }
     }
+    const float detail = float(KisStudioGlass::detail);
+    const float restore = float(KisStudioGlass::restore);
     QImage result(w, h, QImage::Format_RGB32);
     for (int y = 0; y < h; y++) {
         QRgb *line = reinterpret_cast<QRgb *>(result.scanLine(y));
         for (int x = 0; x < w; x++) {
             const size_t i = size_t(y) * w + x;
-            const float weight = qMax(1e-6f, channels[3][i]);
-            line[x] = qRgb(toSrgb(channels[0][i] / weight), toSrgb(channels[1][i] / weight), toSrgb(channels[2][i] / weight));
+            const float weight = qMax(1e-6f, channels[Weight][i]);
+            const float narrowWeight = qMax(1e-6f, channels[NarrowWeight][i]);
+            const float wideL = toOklab(channels[R][i] / weight, channels[G][i] / weight, channels[B][i] / weight).l;
+            const float narrowL = toOklab(channels[NarrowR][i] / narrowWeight, channels[NarrowG][i] / narrowWeight, channels[NarrowB][i] / narrowWeight).l;
+            const float a = channels[A][i] / weight, b = channels[Bb][i] / weight;
+            const float agree = qBound(0.0f, std::hypot(a, b) / qMax(1e-4f, channels[Chroma][i] / weight), 1.0f);
+            const float gain = 1.0f + restore * (1.0f - agree);
+            const std::array<float, 3> c = inGamut({qBound(0.0f, wideL + (narrowL - wideL) * detail, 1.0f), a * gain, b * gain});
+            line[x] = qRgb(toSrgb(c[0]), toSrgb(c[1]), toSrgb(c[2]));
         }
     }
     return result;
+}
+
+/// The grain of the frost (see KisStudioGlass::grain), to lay over it: white and black specks, as see-through as they are light and dark
+const QImage &grainTile()
+{
+    static const QImage tile = []() {
+        QImage image(128, 128, QImage::Format_ARGB32_Premultiplied);
+        quint32 state = 2463534242u;
+        auto next = [&state]() {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            return (state & 0xffffff) / float(0xffffff);
+        };
+        for (int y = 0; y < image.height(); y++) {
+            QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+            for (int x = 0; x < image.width(); x++) {
+                // triangular, as on the GPU
+                const float speck = (next() + next() - 1.0f) * float(KisStudioGlass::grain);
+                const int alpha = qBound(0, int(std::lround(qAbs(speck) * 255.0f)), 255);
+                line[x] = speck > 0 ? qRgba(alpha, alpha, alpha, alpha) : qRgba(0, 0, 0, alpha);
+            }
+        }
+        return image;
+    }();
+    return tile;
 }
 
 KisMainWindow *mainWindowOf(QWidget *widget)
@@ -1032,6 +1078,7 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
     // tinted already
     painter.drawImage(QRectF(bounds), behind.image);
+    painter.fillRect(bounds, QBrush(grainTile()));
     painter.restore();
     sheen();
     return shape;
