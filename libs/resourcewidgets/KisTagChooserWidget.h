@@ -109,6 +109,8 @@ private:
     void deleteTag(KisTagSP tag);
     void restoreDeletedTag();
     void startNewTag();
+    /// The tag of a row of the list (none for "New tag…")
+    KisTagSP tagAt(const QModelIndex &rowIndex) const;
     void startRename(const QModelIndex &index);
 
 private:

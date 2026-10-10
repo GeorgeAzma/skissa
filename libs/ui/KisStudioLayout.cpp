@@ -427,10 +427,16 @@ public:
 const char *const leftInsetProperty = "studioCanvasLeftInset";
 const char *const rightInsetProperty = "studioCanvasRightInset";
 
+/// How far the pills over the top of the canvas reach down: what is on the sides starts under them
+const char *const topInsetProperty = "studioCanvasTopInset";
+/// A pill whose empty space (and grip) moves the window, as a title bar
+const char *const captionProperty = "studioCaption";
+
 QMargins canvasInsets(const QWidget *canvasArea)
 {
     if (!canvasArea) return QMargins();
-    return QMargins(canvasArea->property(leftInsetProperty).toInt(), 0, canvasArea->property(rightInsetProperty).toInt(), 0);
+    return QMargins(canvasArea->property(leftInsetProperty).toInt(), canvasArea->property(topInsetProperty).toInt(),
+                    canvasArea->property(rightInsetProperty).toInt(), 0);
 }
 
 /// How far the pinned panels' pill reaches in from the left and right edges, also when it is only its strip
@@ -529,10 +535,12 @@ public:
         if (m_moving) return;
         // beside the pinned panels' pill, if it is on the same side
         QWidget *area = parentWidget();
+        const int top = area->property(topInsetProperty).toInt();
+        const int y = top > 0 ? top + 6 : 10;
         if (m_left) {
-            move(10 + area->property(leftPillProperty).toInt(), 10);
+            move(10 + area->property(leftPillProperty).toInt(), y);
         } else {
-            move(area->width() - 10 - area->property(rightPillProperty).toInt() - width(), 10);
+            move(area->width() - 10 - area->property(rightPillProperty).toInt() - width(), y);
         }
         raise();
     }
@@ -596,6 +604,80 @@ private:
     bool m_left {true};
     bool m_moving {false};
     int m_grab {0};
+};
+
+/**
+ * A pill of glass over the top of the canvas, as long as what is in it:
+ * the tool, its options and the brush's (on the left), or the document,
+ * Find and the window's buttons (on the right). The canvas goes on under
+ * it; its grip and its empty space move the window, as a title bar would.
+ */
+class TopPill : public QWidget
+{
+public:
+    static constexpr int margin = 6;
+
+    TopPill(QWidget *canvasArea, bool right)
+        : QWidget(canvasArea)
+        , m_right(right)
+    {
+        setObjectName(right ? QStringLiteral("studioWindowPill") : QStringLiteral("studioTopPill"));
+        setProperty(captionProperty, true);
+        auto *layout = new QHBoxLayout(this);
+        layout->setContentsMargins(right ? 4 : 2, 1, 4, 1);
+        layout->setSpacing(0);
+        // as long as what is in it: a tool with more options makes it longer
+        layout->setSizeConstraint(QLayout::SetFixedSize);
+        if (!right) {
+            auto *grip = new DragGrip(this);
+            grip->setFixedSize(16, 30);
+            grip->setToolTip(i18nc("@info:tooltip", "Drag to move the window, double click to maximize it"));
+            layout->addWidget(grip);
+        }
+        canvasArea->installEventFilter(this);
+        hide();
+    }
+
+    /// \p widget in it, at \p index
+    void insert(int index, QWidget *widget)
+    {
+        static_cast<QHBoxLayout *>(layout())->insertWidget(qMin(index, layout()->count()), widget);
+    }
+
+    void place()
+    {
+        QWidget *area = parentWidget();
+        move(m_right ? area->width() - margin - width() : margin, margin);
+        raise();
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == parentWidget() && event->type() == QEvent::Resize) {
+            place();
+        }
+        return QWidget::eventFilter(watched, event);
+    }
+
+    void resizeEvent(QResizeEvent *event) override
+    {
+        QWidget::resizeEvent(event);
+        place();
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12);
+        QColor border = palette().color(QPalette::WindowText);
+        border.setAlphaF(0.12);
+        painter.strokePath(shape, QPen(border, 1));
+    }
+
+private:
+    bool m_right {false};
 };
 
 /// Looks like a search field, opens Find Anything
@@ -748,13 +830,15 @@ public:
     void place()
     {
         QWidget *area = parentWidget();
+        // under the pills over the top of the canvas
+        const int top = area->property(topInsetProperty).toInt() + margin;
         QSize size;
         if (panelsShown()) {
-            size = QSize(qBound(minimumColumnWidth, m_width, qMax(minimumColumnWidth, area->width() / 2)), qMax(0, area->height() - 2 * margin));
+            size = QSize(qBound(minimumColumnWidth, m_width, qMax(minimumColumnWidth, area->width() / 2)), qMax(0, area->height() - top - margin));
         } else {
             size = m_layout->sizeHint();
         }
-        QRect geometry(m_left ? margin : area->width() - margin - size.width(), margin, size.width(), size.height());
+        QRect geometry(m_left ? margin : area->width() - margin - size.width(), top, size.width(), size.height());
         if (m_moving) geometry.moveLeft(x());
         if (geometry != this->geometry()) {
             setGeometry(geometry);
@@ -979,6 +1063,10 @@ struct KisStudioLayout::Private
     QHash<QString, QPointer<PanelGrip>> grips;
     /// The pinned panels, over the canvas, with the panel buttons
     QPointer<KisStudioPanelColumn> panelColumn;
+    /// Over the top of the canvas: the tool's and the brush's bars, and the window's (the document, Find, its buttons)
+    QPointer<TopPill> topPill;
+    QPointer<TopPill> windowPill;
+    QPointer<QToolBar> windowBar;
     /// The side of the canvas the pinned panels are on, and the tool rail
     bool panelsLeft {false};
     bool toolRailLeft {true};
@@ -1415,6 +1503,13 @@ bool KisStudioLayout::isCaptionAt(const QPoint &pos) const
 {
     KisMainWindow *mainWindow = d->mainWindow;
     QWidget *widget = mainWindow->childAt(pos);
+    // in a pill over the top of the canvas: its grip, and what is empty in it, move the window; controls are for clicking
+    for (QWidget *w = widget; w; w = w->parentWidget()) {
+        if (w->property(captionProperty).toBool()) {
+            return widget == w || dynamic_cast<DragGrip *>(widget) || qobject_cast<QToolBar *>(widget)
+                || QByteArray(widget->metaObject()->className()) == "QWidget";
+        }
+    }
     if (!widget) {
         // between and around the top toolbars
         int bottom = 0;
@@ -1613,6 +1708,7 @@ void KisStudioLayout::leave()
     if (d->topBar) {
         d->topBar->hide();
     }
+    releaseTopBars();
     if (d->findFieldAction) {
         d->findFieldAction->setVisible(false);
     }
@@ -1709,8 +1805,8 @@ void KisStudioLayout::normalize()
     }
     if (d->topBar) {
         d->topBar->setVisible(!isRailHidden());
-        moveTopBarToFront();
     }
+    adoptTopBars();
     // the rail's commands are known once the GUI is built, which is after the rail
     if (d->toolRail) {
         d->toolRail->refresh();
@@ -2080,12 +2176,19 @@ void KisStudioLayout::updateCanvasInsets()
     // the pill, whatever it shows: what is at the top of the canvas (the tool rail) goes beside it
     const int pillLeft = shown && left ? reach : 0;
     const int pillRight = shown && !left ? reach : 0;
+    // the pills over the top of the canvas: what is on the sides starts under them
+    int top = 0;
+    for (TopPill *pill : {d->topPill.data(), d->windowPill.data()}) {
+        if (pill && !pill->isHidden()) top = qMax(top, pill->geometry().bottom() + 1);
+    }
     // the pill as tall as the canvas: what is at the bottom (the zoom pill) too, and the view
-    const QMargins insets(full && left ? reach : 0, 0, full && !left ? reach : 0, 0);
+    const QMargins insets(full && left ? reach : 0, top, full && !left ? reach : 0, 0);
     if (canvasInsets(area) != insets || area->property(leftPillProperty).toInt() != pillLeft
         || area->property(rightPillProperty).toInt() != pillRight) {
         area->setProperty(leftInsetProperty, insets.left());
         area->setProperty(rightInsetProperty, insets.right());
+        area->setProperty(topInsetProperty, insets.top());
+        if (column) column->place();
         area->setProperty(leftPillProperty, pillLeft);
         area->setProperty(rightPillProperty, pillRight);
         QCoreApplication::postEvent(area, new QEvent(QEvent::LayoutRequest));
@@ -2100,6 +2203,7 @@ void KisStudioLayout::updateCanvasInsets()
         if (!canvasWidget) continue;
         const QRect widget(canvasWidget->mapToGlobal(QPoint()), canvasWidget->size());
         QMarginsF viewInsets;
+        viewInsets.setTop(qMax(0, area->mapToGlobal(QPoint(0, top)).y() - widget.top()));
         if (full && left) viewInsets.setLeft(qMax(0, column->mapToGlobal(QPoint(column->width(), 0)).x() - widget.left()));
         if (full && !left) viewInsets.setRight(qMax(0, widget.right() + 1 - column->mapToGlobal(QPoint()).x()));
         if (view->canvasController()) view->canvasController()->setViewportInsets(viewInsets);
@@ -2735,7 +2839,7 @@ void KisStudioLayout::createTopBar()
     documents->setMenu(new QMenu(documents));
     d->documentButton = documents;
 
-    mainWindow->addToolBar(Qt::TopToolBarArea, bar);
+    KisStudioGlass::setSeeThrough(bar, true);
     d->topBar = bar;
 
     // Find at the end of the top bar, placed there by placeFindField()
@@ -2749,63 +2853,111 @@ void KisStudioLayout::createTopBar()
     d->findField = field;
 }
 
-void KisStudioLayout::moveTopBarToFront()
+void KisStudioLayout::adoptTopBars()
 {
-    KisMainWindow *mainWindow = d->mainWindow;
-    if (!d->topBar) {
+    QMdiArea *mdi = mdiArea();
+    QWidget *area = mdi ? mdi->parentWidget() : nullptr;
+    if (!area) {
         return;
+    }
+    if (!d->topPill) {
+        d->topPill = new TopPill(area, false);
+    }
+    if (!d->windowPill) {
+        d->windowPill = new TopPill(area, true);
+        auto *bar = new QToolBar(i18nc("@title:window", "Window"), d->windowPill);
+        bar->setObjectName(QStringLiteral("studioWindowBar"));
+        bar->setMovable(false);
+        bar->setFloatable(false);
+        bar->setContextMenuPolicy(Qt::PreventContextMenu);
+        KisStudioGlass::setSeeThrough(bar, true);
+        d->windowPill->insert(0, bar);
+        // a toolbar is hidden until a main window shows it
+        bar->show();
+        d->windowBar = bar;
     }
 
     /**
-     * One row: the top bar goes right in front of the brush toolbar, which
-     * holds the context options and Find. Positions can't decide this, they
-     * are meaningless until the window has been shown (e.g. started minimized).
+     * The tool's bar and the brush's (the window's, made from its GUI
+     * description) in the pill, out of the window's top row: the canvas
+     * goes on under them. A restored window state, or Configure Toolbars,
+     * may put the brush's back there; it is taken again here.
      */
-    QToolBar *brushBar = mainWindow->findChild<QToolBar *>(QStringLiteral("BrushesAndStuff"), Qt::FindDirectChildrenOnly);
-    if (brushBar && mainWindow->toolBarArea(brushBar) == Qt::TopToolBarArea) {
-        mainWindow->removeToolBarBreak(d->topBar);
-        mainWindow->removeToolBarBreak(brushBar);
-        mainWindow->insertToolBar(brushBar, d->topBar);
+    QToolBar *brushBar = d->mainWindow->findChild<QToolBar *>(QStringLiteral("BrushesAndStuff"));
+    int index = 1;
+    for (QToolBar *bar : {d->topBar.data(), brushBar}) {
+        if (!bar) continue;
+        if (bar->parentWidget() != d->topPill) {
+            d->mainWindow->removeToolBar(bar);
+            bar->setMovable(false);
+            KisStudioGlass::setSeeThrough(bar, true);
+            d->topPill->insert(index, bar);
+        }
+        index++;
     }
+    // the brush's options are always there (the tool's bar shows itself, see normalize); a toolbar is
+    // hidden until a main window shows it, and taken out of the window it is not
+    if (brushBar) brushBar->show();
+    // a restored window state hides the toolbars it finds that it has no place for
+    if (d->windowBar) d->windowBar->show();
+
+    const bool shown = d->active && !isRailHidden();
+    d->topPill->setVisible(shown);
+    d->windowPill->setVisible(shown);
+    if (shown) {
+        d->topPill->place();
+        d->windowPill->place();
+    }
+    updateCanvasInsets();
+}
+
+void KisStudioLayout::releaseTopBars()
+{
+    // back in the window's top row, as Krita has them
+    QToolBar *brushBar = d->mainWindow->findChild<QToolBar *>(QStringLiteral("BrushesAndStuff"));
+    if (brushBar && brushBar->parentWidget() != d->mainWindow) {
+        const bool shown = !brushBar->isHidden();
+        KisStudioGlass::setSeeThrough(brushBar, false);
+        brushBar->setMovable(true);
+        d->mainWindow->addToolBar(Qt::TopToolBarArea, brushBar);
+        brushBar->setVisible(shown);
+    }
+    if (d->topPill) d->topPill->hide();
+    if (d->windowPill) d->windowPill->hide();
+    updateCanvasInsets();
 }
 
 void KisStudioLayout::placeFindField()
 {
-    QToolBar *brushBar = d->mainWindow->findChild<QToolBar *>(QStringLiteral("BrushesAndStuff"), Qt::FindDirectChildrenOnly);
-    if (!brushBar || brushBar == d->placedOnBar) {
-        return;
-    }
     /**
-     * The actions are ours, not the toolbar's: Configure Toolbars deletes and
-     * recreates the toolbar, which only gives our widgets back this way, and
-     * they are put on the new toolbar the next time the layout is normalized.
+     * The document, Find and the window's buttons, in the pill over the
+     * top right of the canvas. The actions are ours, not a toolbar's: they
+     * go on the window pill's bar once, and stay.
      */
-    d->placedOnBar = brushBar;
     if (d->documentButton && !d->documentButtonAction) {
         auto *action = new QWidgetAction(this);
         action->setDefaultWidget(d->documentButton);
         d->documentButtonAction = action;
+        if (d->windowBar) d->windowBar->addAction(action);
     }
     if (d->findField && !d->findFieldAction) {
         auto *action = new QWidgetAction(this);
         action->setDefaultWidget(d->findField);
         d->findFieldAction = action;
+        if (d->windowBar) d->windowBar->addAction(action);
     }
-    if (d->documentButtonAction) {
-        brushBar->addAction(d->documentButtonAction);
-    }
-    if (d->findFieldAction) {
-        brushBar->addAction(d->findFieldAction);
-    }
-    if (d->frame && d->frame->isEnabled()) {
-        if (!d->windowButtonsAction) {
-            auto *action = new QWidgetAction(this);
-            action->setDefaultWidget(d->frame->createButtons(d->mainWindow));
-            d->windowButtonsAction = action;
-        }
-        brushBar->addAction(d->windowButtonsAction);
+    if (d->frame && d->frame->isEnabled() && !d->windowButtonsAction) {
+        auto *action = new QWidgetAction(this);
+        action->setDefaultWidget(d->frame->createButtons(d->mainWindow));
+        d->windowButtonsAction = action;
+        if (d->windowBar) d->windowBar->addAction(action);
     }
 
+    QToolBar *brushBar = d->mainWindow->findChild<QToolBar *>(QStringLiteral("BrushesAndStuff"));
+    if (!brushBar || brushBar == d->placedOnBar) {
+        return;
+    }
+    d->placedOnBar = brushBar;
     // buttons with a menu open it on a long press instead of with a separate arrow
     Q_FOREACH (QToolButton *button, brushBar->findChildren<QToolButton *>()) {
         if (button->menu() && button->popupMode() == QToolButton::MenuButtonPopup) {

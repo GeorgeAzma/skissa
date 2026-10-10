@@ -17,6 +17,8 @@
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QHBoxLayout>
+#include <QIdentityProxyModel>
+#include <QSignalBlocker>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -67,13 +69,81 @@ public:
     }
 };
 
+/// The tags, and last a row that starts a new one: making a tag is where the tags are chosen
+class NewTagRow : public QIdentityProxyModel
+{
+public:
+    using QIdentityProxyModel::QIdentityProxyModel;
+
+    int newTagRow() const
+    {
+        return sourceModel() ? sourceModel()->rowCount() : 0;
+    }
+
+    /// The row it adds: made here with no pointer, where the tags' rows carry their source's (not asking for
+    /// its parent, which asks this)
+    bool isNewTag(const QModelIndex &index) const
+    {
+        return index.isValid() && index.model() == this && !index.internalPointer() && index.row() == newTagRow();
+    }
+
+    int rowCount(const QModelIndex &parent = QModelIndex()) const override
+    {
+        return parent.isValid() ? 0 : QIdentityProxyModel::rowCount(parent) + 1;
+    }
+
+    QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override
+    {
+        if (!parent.isValid() && row == newTagRow() && column == 0) {
+            return createIndex(row, column);
+        }
+        return QIdentityProxyModel::index(row, column, parent);
+    }
+
+    QModelIndex parent(const QModelIndex &child) const override
+    {
+        if (isNewTag(child)) {
+            return QModelIndex();
+        }
+        return QIdentityProxyModel::parent(child);
+    }
+
+    QModelIndex mapToSource(const QModelIndex &proxyIndex) const override
+    {
+        if (isNewTag(proxyIndex)) {
+            return QModelIndex();
+        }
+        return QIdentityProxyModel::mapToSource(proxyIndex);
+    }
+
+    QVariant data(const QModelIndex &index, int role) const override
+    {
+        if (isNewTag(index)) {
+            if (role == Qt::DisplayRole) return i18nc("@item:inlistbox", "New tag…");
+            return QVariant();
+        }
+        return QIdentityProxyModel::data(index, role);
+    }
+
+    Qt::ItemFlags flags(const QModelIndex &index) const override
+    {
+        if (isNewTag(index)) {
+            return Qt::ItemIsEnabled | Qt::ItemIsSelectable;
+        }
+        return QIdentityProxyModel::flags(index);
+    }
+};
+
 } // namespace
 
 class Q_DECL_HIDDEN KisTagChooserWidget::Private
 {
 public:
     QComboBox *comboBox;
-    QToolButton *addButton;
+    /// The tags, and "New tag…" last
+    NewTagRow *rows;
+    /// The tag chosen before "New tag…" was
+    int lastIndex {0};
     QToolButton *undoButton;
     QTimer undoTimeout;
     KisTagSP deletedTag;
@@ -88,6 +158,8 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
     , d(new Private)
 {
     d->resourceType = resourceType;
+    // one row: the list under it takes the height
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
     d->comboBox = new QComboBox(this);
     d->comboBox->setToolTip(i18n("Tag"));
@@ -101,13 +173,15 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
 
     d->comboBox->setInsertPolicy(QComboBox::InsertAlphabetically);
     model->sort(KisAllTagsModel::Name);
-    d->comboBox->setModel(model);
+    d->rows = new NewTagRow(this);
+    d->rows->setSourceModel(model);
+    d->comboBox->setModel(d->rows);
 
     d->model = model;
 
     // the list: a delete button on the tag under the pointer, a right click renames
     auto *delegate = new TagItemDelegate(d->comboBox->view());
-    delegate->deletable = [this](const QModelIndex &index) { return isUserTag(d->model->tagForIndex(index)); };
+    delegate->deletable = [this](const QModelIndex &index) { return isUserTag(tagAt(index)); };
     d->comboBox->view()->setItemDelegate(delegate);
     d->comboBox->view()->setMouseTracking(true);
     d->comboBox->view()->viewport()->installEventFilter(this);
@@ -117,25 +191,18 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(d->comboBox, 1);
 
-    d->addButton = new QToolButton(this);
-    d->addButton->setAutoRaise(true);
-    d->addButton->setToolTip(i18nc("@info:tooltip", "New tag"));
-    connect(d->addButton, &QToolButton::clicked, this, &KisTagChooserWidget::startNewTag);
-    layout->addWidget(d->addButton);
-
     d->undoButton = new QToolButton(this);
     d->undoButton->setAutoRaise(true);
     d->undoButton->hide();
     connect(d->undoButton, &QToolButton::clicked, this, &KisTagChooserWidget::restoreDeletedTag);
     layout->addWidget(d->undoButton);
 
-    // the undo is offered for a little while, then the "+" is back
+    // the undo is offered for a little while
     d->undoTimeout.setSingleShot(true);
     d->undoTimeout.setInterval(8000);
     connect(&d->undoTimeout, &QTimer::timeout, this, [this]() {
         d->deletedTag.clear();
         d->undoButton->hide();
-        d->addButton->show();
     });
     updateIcons();
 
@@ -143,6 +210,10 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
 
     connect(d->comboBox, SIGNAL(currentIndexChanged(int)),
             this, SLOT(tagChanged(int)));
+    // "New tag…" picked: the box becomes the field for the new one's name
+    connect(d->comboBox, QOverload<int>::of(&QComboBox::activated), this, [this](int index) {
+        if (index == d->rows->newTagRow()) QTimer::singleShot(0, this, &KisTagChooserWidget::startNewTag);
+    });
 
     // Workaround for handling tag selection deselection when model resets.
     // Occurs when model changes under the user e.g. +/- a resource storage.
@@ -176,7 +247,6 @@ void KisTagChooserWidget::deleteTag(KisTagSP tag)
 
     d->deletedTag = tag;
     d->undoButton->setToolTip(i18nc("@info:tooltip, %1 is a tag name", "Bring back “%1”", tag->name()));
-    d->addButton->hide();
     d->undoButton->show();
     d->undoTimeout.start();
 }
@@ -187,7 +257,6 @@ void KisTagChooserWidget::restoreDeletedTag()
     d->undoTimeout.stop();
     d->deletedTag.clear();
     d->undoButton->hide();
-    d->addButton->show();
     if (tag && d->model->setTagActive(tag)) {
         d->model->sort(KisAllTagsModel::Name);
         setCurrentItem(tag->url());
@@ -210,9 +279,15 @@ void KisTagChooserWidget::startNewTag()
     d->editor = editor;
 }
 
+KisTagSP KisTagChooserWidget::tagAt(const QModelIndex &rowIndex) const
+{
+    const QModelIndex index = d->rows->mapToSource(rowIndex);
+    return index.isValid() ? d->model->tagForIndex(index) : KisTagSP();
+}
+
 void KisTagChooserWidget::startRename(const QModelIndex &index)
 {
-    KisTagSP tag = d->model->tagForIndex(index);
+    KisTagSP tag = tagAt(index);
     if (!isUserTag(tag) || d->editor) {
         return;
     }
@@ -288,7 +363,7 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
                 // not a choice: the context menu event that follows renames
                 return true;
             }
-            KisTagSP tag = d->model->tagForIndex(index);
+            KisTagSP tag = tagAt(index);
             if (mouse->button() == Qt::LeftButton && isUserTag(tag)
                 && deleteButtonRect(view->visualRect(index)).contains(mouse->pos())) {
                 // the list stays open: the other tags are still there to choose from
@@ -306,7 +381,14 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
 
 void KisTagChooserWidget::tagChanged(int tagIndex)
 {
+    if (tagIndex == d->rows->newTagRow()) {
+        // not a tag: the one chosen before stays (chosen by the user, a name is asked for, see activated)
+        QSignalBlocker blocker(d->comboBox);
+        d->comboBox->setCurrentIndex(qMin(d->lastIndex, d->rows->newTagRow() - 1));
+        return;
+    }
     if (tagIndex >= 0) {
+        d->lastIndex = tagIndex;
         KisTagSP tag = currentlySelectedTag();
         KConfigGroup group =  KSharedConfig::openConfig()->group("SelectedTags");
         group.writeEntry(d->resourceType, currentlySelectedTag()->url());
@@ -486,6 +568,5 @@ KisTagSP KisTagChooserWidget::currentlySelectedTag()
 
 void KisTagChooserWidget::updateIcons()
 {
-    d->addButton->setIcon(koIcon("list-add"));
     d->undoButton->setIcon(koIcon("edit-undo"));
 }

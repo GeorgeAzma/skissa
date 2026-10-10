@@ -131,7 +131,10 @@ private:
     /// Shows only the toolbar entries that matter to the active tool
     void updateContextBar();
     void placeFindField();
-    void moveTopBarToFront();
+    /// The tool's bar and the brush's in a pill over the top of the canvas, and the window's in another
+    void adoptTopBars();
+    /// Back in the window's top row
+    void releaseTopBars();
     void syncRail();
 
     struct Private;

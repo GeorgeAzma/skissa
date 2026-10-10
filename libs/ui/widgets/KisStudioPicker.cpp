@@ -894,7 +894,14 @@ void KisStudioPicker::pickId(const QString &id)
 void KisStudioPicker::popupBelow(QWidget *anchor)
 {
     adjustSize();
-    popupAt(anchor->mapToGlobal(QPoint(0, anchor->height())) - QPoint(shadowMargin, shadowMargin - 4), anchor);
+    QPoint pos = anchor->mapToGlobal(QPoint(0, anchor->height())) - QPoint(shadowMargin, shadowMargin - 4);
+    // past the right of the window it opens from: lined up with the anchor's right instead
+    const QWidget *window = anchor->window();
+    const int windowRight = window->mapToGlobal(QPoint(window->width(), 0)).x();
+    if (pos.x() + width() - shadowMargin > windowRight) {
+        pos.setX(anchor->mapToGlobal(QPoint(anchor->width(), 0)).x() - width() + shadowMargin);
+    }
+    popupAt(pos, anchor);
 }
 
 void KisStudioPicker::popupNear(const QPoint &globalPos)

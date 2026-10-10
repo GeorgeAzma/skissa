@@ -202,7 +202,26 @@ void KisStudioCanvasRing::choose(int target)
 
 bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
 {
+    /**
+     * Every event of the application comes here: only the pointer's and
+     * Escape are of the ring's concern, the rest goes on before anything is
+     * looked up (also while the window is being destroyed, its view
+     * manager half gone, when its actions are taken away).
+     */
     const QEvent::Type type = event->type();
+    switch (type) {
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonDblClick:
+    case QEvent::MouseMove:
+    case QEvent::MouseButtonRelease:
+    case QEvent::TabletPress:
+    case QEvent::TabletMove:
+    case QEvent::TabletRelease:
+    case QEvent::KeyPress:
+        break;
+    default:
+        return false;
+    }
     KisViewManager *view = m_mainWindow->viewManager();
     KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
     QWidget *canvasWidget = canvas ? canvas->canvasWidget() : nullptr;

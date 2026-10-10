@@ -108,6 +108,37 @@ struct Looks {
     }
 };
 
+/**
+ * \p look without the panel's own background (a picture taken when panels
+ * were solid), for it to show on glass as the panels do now: the color at
+ * its corner, taken out wherever it is. Kept, for each picture.
+ */
+QImage withoutBackground(const QImage &look)
+{
+    static QHash<qint64, QImage> made;
+    auto it = made.constFind(look.cacheKey());
+    if (it != made.constEnd()) {
+        return *it;
+    }
+    QImage image = look.convertToFormat(QImage::Format_ARGB32);
+    const QRgb background = image.pixel(image.width() - 1, image.height() - 1);
+    if (qAlpha(background) == 255) {
+        auto close = [background](QRgb c) {
+            return qAbs(qRed(c) - qRed(background)) <= 2 && qAbs(qGreen(c) - qGreen(background)) <= 2
+                && qAbs(qBlue(c) - qBlue(background)) <= 2;
+        };
+        for (int y = 0; y < image.height(); y++) {
+            QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+            for (int x = 0; x < image.width(); x++) {
+                if (close(line[x])) line[x] = 0;
+            }
+        }
+    }
+    if (made.size() > 64) made.clear();
+    made.insert(look.cacheKey(), image);
+    return image;
+}
+
 } // namespace
 
 /// What the picker and the tiles it draws share
@@ -154,13 +185,13 @@ static KisStudioPicker::Source panelsSource(std::shared_ptr<KisStudioPanelPicker
         const QImage look = Looks::instance().look(id);
         painter.save();
         if (!look.isNull()) {
-            // all of what is in it, on its own background, as large as fits
-            painter.fillRect(rect, QColor(look.pixel(look.width() - 1, look.height() - 1)));
-            const QSize fitted = look.size().scaled(rect.size() - QSize(8, 8), Qt::KeepAspectRatio);
+            // all of what is in it, as large as fits, on the picker's glass as a panel is on the canvas's
+            const QImage onGlass = withoutBackground(look);
+            const QSize fitted = onGlass.size().scaled(rect.size() - QSize(8, 8), Qt::KeepAspectRatio);
             QRect target(QPoint(0, 0), fitted);
             target.moveCenter(rect.center());
             painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-            painter.drawImage(target, look);
+            painter.drawImage(target, onGlass);
         } else {
             // never opened yet: its icon, until it has been (laying out a panel off screen changes it)
             painter.fillRect(rect, QColor(128, 128, 128, 40));

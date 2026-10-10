@@ -9,6 +9,9 @@
 #include <cmath>
 #include <vector>
 
+#include <QAbstractItemView>
+#include <QApplication>
+#include <QComboBox>
 #include <QEvent>
 #include <QFile>
 #include <QGraphicsOpacityEffect>
@@ -788,6 +791,11 @@ void KisStudioGlass::setSeeThrough(QWidget *widget, bool on)
             palette.setColor(group, QPalette::AlternateBase, alternate);
         }
         widget->setPalette(palette);
+        // a dropdown's list is a window of its own, but given its box's palette: it stays solid
+        Q_FOREACH (QComboBox *box, widget->findChildren<QComboBox *>()) {
+            QWidget *popup = box->view() ? box->view()->window() : nullptr;
+            if (popup && popup != box->window()) popup->setPalette(QApplication::palette(box));
+        }
     } else {
         const QVariant saved = widget->property(savedPaletteProperty);
         if (saved.isValid()) {
@@ -884,18 +892,84 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
     return shape;
 }
 
+namespace {
+
+/**
+ * A squircle's shadow, as the alpha of black: the shape blurred by a
+ * gaussian (a penumbra fades so; stacked outlines fade in steps), \p
+ * strength at most, dithered so that its long faint tail does not band.
+ * Made once for each size, and kept.
+ */
+QImage shadowImage(const QSizeF &panel, qreal radius, int margin, qreal sigma, qreal strength, qreal ratio)
+{
+    static QHash<QString, QImage> cache;
+    const QString key = QStringLiteral("%1 %2 %3 %4 %5 %6 %7").arg(panel.width()).arg(panel.height()).arg(radius).arg(margin).arg(sigma).arg(strength).arg(ratio);
+    auto it = cache.constFind(key);
+    if (it != cache.constEnd()) {
+        return *it;
+    }
+
+    const QSize size = (QSizeF(panel.width() + 2 * margin, panel.height() + 2 * margin) * ratio).toSize();
+    QImage mask(size, QImage::Format_Alpha8);
+    mask.fill(0);
+    {
+        QPainter painter(&mask);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.scale(ratio, ratio);
+        painter.fillPath(KisModernStyle::squircle(QRectF(QPointF(margin, margin), panel), radius), Qt::black);
+    }
+
+    // three box blurs each way: a gaussian, near enough
+    const int w = size.width(), h = size.height();
+    std::vector<float> alpha(size_t(w) * h);
+    for (int y = 0; y < h; y++) {
+        const uchar *line = mask.constScanLine(y);
+        for (int x = 0; x < w; x++) alpha[size_t(y) * w + x] = line[x] / 255.0f;
+    }
+    const int box = qMax(1, int(std::lround(sigma * ratio / std::sqrt(3.0))));
+    std::vector<float> scratch;
+    for (int pass = 0; pass < 3; pass++) {
+        for (int y = 0; y < h; y++) boxLine(alpha.data() + size_t(y) * w, w, 1, box, scratch);
+        for (int x = 0; x < w; x++) boxLine(alpha.data() + x, h, w, box, scratch);
+    }
+
+    // black, as see-through as the blur says; a 4 x 4 ordered dither under the step of eight bits
+    static const float bayer[4][4] = {{0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}};
+    QImage image(size, QImage::Format_ARGB32_Premultiplied);
+    for (int y = 0; y < h; y++) {
+        QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+        for (int x = 0; x < w; x++) {
+            const float value = alpha[size_t(y) * w + x] * float(strength) * 255.0f + (bayer[y & 3][x & 3] + 0.5f) / 16.0f - 0.5f;
+            line[x] = qRgba(0, 0, 0, qBound(0, int(value + 0.5f), 255));
+        }
+    }
+    image.setDevicePixelRatio(ratio);
+    if (cache.size() > 32) cache.clear();
+    cache.insert(key, image);
+    return image;
+}
+
+} // namespace
+
 void KisStudioGlass::paintShadow(QPainter &painter, const QRectF &panel, qreal radius, int margin, int darkness, int drop)
 {
+    /**
+     * Two shadows, as of a pane held a little over the canvas in soft light
+     * from above: a wide faint one all around (the room's light it keeps
+     * off), and a tight one at its edge, a little lower (where it nearly
+     * touches). Only outside the panel: the glass shows what is under it.
+     */
+    const qreal ratio = painter.device() ? painter.device()->devicePixelRatioF() : 1.0;
+    const qreal strength = darkness / 36.0;
     painter.save();
     QPainterPath outside;
-    outside.addRect(panel.adjusted(-margin, -margin, margin, margin + drop));
+    outside.addRect(panel.adjusted(-margin, -margin, margin, margin));
     painter.setClipPath(outside.subtracted(KisModernStyle::squircle(panel, radius)), Qt::IntersectClip);
-    painter.setPen(Qt::NoPen);
-    // stacked translucent squircles, darker nearer
-    for (int i = margin; i > 0; i -= 2) {
-        painter.setBrush(QColor(0, 0, 0, int(darkness * (1.0 - qreal(i) / margin) + 2)));
-        painter.drawPath(KisModernStyle::squircle(panel.adjusted(-i, -i + drop, i, i + drop), radius + i));
-    }
+    const QPointF origin = panel.topLeft() - QPointF(margin, margin);
+    // wide: fading out by the edge of the margin, lowered as far as the light is above
+    painter.drawImage(origin + QPointF(0, drop * 0.5), shadowImage(panel.size(), radius, margin, margin / 3.2, 0.20 * strength, ratio));
+    // tight, at the edge
+    painter.drawImage(origin + QPointF(0, 1), shadowImage(panel.size(), radius, margin, 1.6, 0.16 * strength, ratio));
     painter.restore();
 }
 
