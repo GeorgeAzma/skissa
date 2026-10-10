@@ -16,6 +16,7 @@
 #include <kis_painting_tweaks.h>
 
 #include <QDebug>
+#include <KisModernStyle.h>
 
 
 KisColorSamplerPreviewPreview::KisColorSamplerPreviewPreview(QWidget *parent)
@@ -63,7 +64,7 @@ void KisColorSamplerPreviewPreview::paintEvent(QPaintEvent *e)
     QRect edgeRectSmaller = kisGrowRect(viewRect, -1);
 
 
-    edge.addRoundedRect(edgeRect, m_roundingMargin, m_roundingMargin);
+    edge.addPath(KisModernStyle::squircle(edgeRect, m_roundingMargin));
 
     QColor outsideColor = palette().base().color();
     painter.setBrush(outsideColor);
@@ -123,7 +124,7 @@ void KisColorSamplerPreviewPreview::paintEvent(QPaintEvent *e)
     darkTransparent = KisPaintingTweaks::blendColors(outsideColor, darkTransparent, 0.6);
 
     painter.setPen(QPen(darkTransparent, 2));
-    edge.addRoundedRect(edgeRectSmaller, m_roundingMargin, m_roundingMargin);
+    edge.addPath(KisModernStyle::squircle(edgeRectSmaller, m_roundingMargin));
     painter.drawPath(edge);
 
     painter.restore();

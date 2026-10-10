@@ -5,6 +5,10 @@
  */
 #include "KisBlendModePicker.h"
 
+#include <cmath>
+
+#include <QHash>
+
 #include "kis_config.h"
 
 #include <QPainter>
@@ -152,6 +156,56 @@ QImage compositeWith(const QImage &backdrop, const QImage &source, qreal opacity
         op->composite(params);
     }
     return dst;
+}
+
+/**
+ * What a mode is shown over when there is nothing under the layer: dark to
+ * light from left to right (most modes are about lightness: Multiply shows
+ * on the light side, Screen on the dark), and cool to warm from top to
+ * bottom, for the modes about color. Even steps of perceived lightness
+ * (OKLab), soft color, nothing that is a picture of something.
+ */
+QImage blendBackdrop(const QSize &size)
+{
+    static QHash<qint64, QImage> made;
+    const qint64 key = (qint64(size.width()) << 32) | size.height();
+    auto it = made.constFind(key);
+    if (it != made.constEnd()) {
+        return *it;
+    }
+
+    auto toSrgb = [](qreal c) {
+        c = qBound(0.0, c, 1.0);
+        return c <= 0.0031308 ? 12.92 * c : 1.055 * std::pow(c, 1.0 / 2.4) - 0.055;
+    };
+    QImage image(size, QImage::Format_ARGB32);
+    const int w = size.width(), h = size.height();
+    for (int y = 0; y < h; y++) {
+        QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+        const qreal v = h > 1 ? qreal(y) / (h - 1) : 0.5;
+        // blue at the top, through violet, to amber at the bottom
+        const qreal hue = (250.0 + 150.0 * v) * M_PI / 180.0;
+        for (int x = 0; x < w; x++) {
+            const qreal u = w > 1 ? qreal(x) / (w - 1) : 0.5;
+            const qreal L = 0.2 + 0.74 * u;
+            // less color near black and white, where there is little room for it
+            const qreal C = 0.085 * std::sin(M_PI * qBound(0.0, (L - 0.08) / 0.9, 1.0));
+            const qreal A = C * std::cos(hue), B = C * std::sin(hue);
+            const qreal l = std::pow(L + 0.3963377774 * A + 0.2158037573 * B, 3);
+            const qreal m = std::pow(L - 0.1055613458 * A - 0.0638541728 * B, 3);
+            const qreal s = std::pow(L - 0.0894841775 * A - 1.2914855480 * B, 3);
+            const qreal r = toSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s);
+            const qreal g = toSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s);
+            const qreal b = toSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s);
+            // a little noise under the step of eight bits: a smooth ramp, no bands
+            const qreal noise = (((x * 7 + y * 13) % 16) + 0.5) / 16.0 - 0.5;
+            line[x] = qRgb(qBound(0, int(r * 255 + 0.5 + noise), 255), qBound(0, int(g * 255 + 0.5 + noise), 255),
+                           qBound(0, int(b * 255 + 0.5 + noise), 255));
+        }
+    }
+    if (made.size() > 16) made.clear();
+    made.insert(key, image);
+    return image;
 }
 
 /// A soft round shape of the color: something to blend when the layer is empty
@@ -390,7 +444,7 @@ KisBlendModePicker::Pictures KisBlendModePicker::layerPictures(KisNodeSP node, c
     below(image->root());
 
     Pictures pictures;
-    pictures.backdrop = KisStudioPicker::isFlat(backdrop) ? KisStudioPicker::samplePicture(size).convertToFormat(QImage::Format_ARGB32) : backdrop;
+    pictures.backdrop = KisStudioPicker::isFlat(backdrop) ? blendBackdrop(size) : backdrop;
     // the whole image's area, so that it lines up with the layers below (a cached thumbnail is only the painted part)
     const QImage layer = node->projection()
         ? cropTo(node->projection()->createThumbnailUncached(full.width(), full.height(), image->bounds()), full, size)
@@ -414,7 +468,7 @@ KisBlendModePicker::Pictures KisBlendModePicker::brushPictures(KisImageSP image,
         backdrop = compositeWith(backdrop, projection, 1.0, QStringLiteral("normal"));
     }
     Pictures pictures;
-    pictures.backdrop = KisStudioPicker::isFlat(backdrop) ? KisStudioPicker::samplePicture(size).convertToFormat(QImage::Format_ARGB32) : backdrop;
+    pictures.backdrop = KisStudioPicker::isFlat(backdrop) ? blendBackdrop(size) : backdrop;
     pictures.source = strokeShape(size, color);
     return pictures;
 }

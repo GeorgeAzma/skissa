@@ -9,6 +9,7 @@
 #include <QDebug>
 #include <QStyleOptionButton>
 #include <QStylePainter>
+#include <KisModernStyle.h>
 
 KisMemoryReportButton::KisMemoryReportButton(QWidget *parent) :
     QPushButton(parent)
@@ -78,14 +79,15 @@ void KisMemoryReportButton::paintEvent(QPaintEvent *e)
     currentBytes.setWidth(int(ratioCur*totalWidth));
     painter.setOpacity(0.5);
 
-    painter.drawRoundedRect(currentBytes, 2, 2);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.drawPath(KisModernStyle::squircle(currentBytes, 3));
 
     if (m_imgbytes<m_curbytes) {
         QRect imageSize = area;
         imageSize.setWidth(int((qreal(m_imgbytes)/qreal(m_maxbytes))*totalWidth));
 
         painter.setOpacity(1.0);
-        painter.drawRoundedRect(imageSize, 2, 2);
+        painter.drawPath(KisModernStyle::squircle(imageSize, 3));
     }
 
     QPushButton::paintEvent(e);

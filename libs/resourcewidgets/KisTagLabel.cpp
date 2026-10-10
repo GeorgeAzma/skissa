@@ -11,6 +11,7 @@
 #include <QApplication>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <KisModernStyle.h>
 
 KisTagLabel::KisTagLabel(QString string, QWidget *parent) :
     QWidget(parent)
@@ -43,7 +44,7 @@ void KisTagLabel::paintEvent(QPaintEvent *event)
     QWidget::paintEvent(event);
     painter.setRenderHint(QPainter::Antialiasing);
     QPainterPath path;
-    path.addRoundedRect(this->rect(), 6, 6);
+    path.addPath(KisModernStyle::squircle(this->rect(), 6));
 
     // good color:
     painter.fillPath(path, qApp->palette().light());

@@ -6,6 +6,8 @@
 
 #include "kis_selection_tool_helper.h"
 
+#include <QPointer>
+
 
 #include <kundo2command.h>
 #include <kactioncollection.h>
@@ -351,59 +353,72 @@ bool KisSelectionToolHelper::tryDeselectCurrentSelection(const QRectF selectionV
 
 QMenu* KisSelectionToolHelper::getSelectionContextMenu(KisCanvas2* canvas)
 {
-    QMenu *m_contextMenu = new QMenu();
+    // one menu at a time: the one shown before goes (the caller only empties it)
+    static QPointer<QMenu> menu;
+    delete menu;
+    menu = new QMenu();
 
     KisKActionCollection *actionCollection = canvas->viewManager()->actionCollection();
 
-    m_contextMenu->addSection(i18n("Selection Actions"));
-    m_contextMenu->addSeparator();
+    /**
+     * Short entries (the actions keep their full names in Find and the main
+     * menu), each with its shortcut; what changes the selection's shape in
+     * one list, how it is shown in another.
+     */
+    auto add = [](QMenu *into, QAction *action, const QString &label) {
+        if (!action) return;
+        QString text = label;
+        if (!action->shortcut().isEmpty()) {
+            text += QLatin1Char('\t') + action->shortcut().toString(QKeySequence::NativeText);
+        }
+        QAction *entry = into->addAction(text);
+        entry->setEnabled(action->isEnabled());
+        entry->setCheckable(action->isCheckable());
+        entry->setChecked(action->isChecked());
+        QPointer<QAction> target(action);
+        QObject::connect(entry, &QAction::triggered, entry, [target]() {
+            if (target) target->trigger();
+        });
+    };
+    auto action = [actionCollection](const char *id) { return actionCollection->action(QLatin1String(id)); };
 
-    m_contextMenu->addAction(actionCollection->action("select_all"));
-    m_contextMenu->addAction(actionCollection->action("deselect"));
-    m_contextMenu->addAction(actionCollection->action("reselect"));
-    m_contextMenu->addAction(actionCollection->action("invert_selection"));
-
-
-    m_contextMenu->addSeparator();
-
-    m_contextMenu->addAction(actionCollection->action("cut_selection_to_new_layer"));
-    m_contextMenu->addAction(actionCollection->action("copy_selection_to_new_layer"));
-
-    m_contextMenu->addSeparator();
+    add(menu, action("select_all"), i18nc("@action:inmenu", "Select All"));
+    add(menu, action("deselect"), i18nc("@action:inmenu", "Deselect"));
+    add(menu, action("reselect"), i18nc("@action:inmenu", "Reselect"));
+    add(menu, action("invert_selection"), i18nc("@action:inmenu", "Invert"));
+    menu->addSeparator();
+    add(menu, action("cut_selection_to_new_layer"), i18nc("@action:inmenu", "Cut to New Layer"));
+    add(menu, action("copy_selection_to_new_layer"), i18nc("@action:inmenu", "Copy to New Layer"));
 
     KisSelectionSP selection = canvas->viewManager()->selection();
     if (selection && canvas->viewManager()->selectionEditable()) {
-        m_contextMenu->addAction(actionCollection->action("edit_selection"));
-
+        menu->addSeparator();
+        add(menu, action("KisToolTransform"), i18nc("@action:inmenu", "Transform"));
+        QMenu *modify = menu->addMenu(i18nc("@title:menu change the selection's shape", "Modify"));
+        add(modify, action("growselection"), i18nc("@action:inmenu", "Grow…"));
+        add(modify, action("shrinkselection"), i18nc("@action:inmenu", "Shrink…"));
+        add(modify, action("borderselection"), i18nc("@action:inmenu", "Border…"));
+        add(modify, action("smoothselection"), i18nc("@action:inmenu", "Smooth"));
+        add(modify, action("featherselection"), i18nc("@action:inmenu", "Feather…"));
+        add(modify, action("selectionscale"), i18nc("@action:inmenu", "Scale…"));
+        add(menu, action("stroke_selection"), i18nc("@action:inmenu", "Stroke…"));
+        add(menu, action("edit_selection"), i18nc("@action:inmenu", "Edit"));
+        QMenu *convert = menu->addMenu(i18nc("@title:menu", "Convert"));
         if (!selection->hasShapeSelection()) {
-            m_contextMenu->addAction(actionCollection->action("convert_to_vector_selection"));
+            add(convert, action("convert_to_vector_selection"), i18nc("@action:inmenu", "To Vector"));
         } else {
-            m_contextMenu->addAction(actionCollection->action("convert_to_raster_selection"));
+            add(convert, action("convert_to_raster_selection"), i18nc("@action:inmenu", "To Raster"));
         }
-
-        m_contextMenu->addAction(actionCollection->action("convert_selection_to_shape"));
-
-        QMenu *transformMenu = m_contextMenu->addMenu(i18n("Transform"));
-        transformMenu->addAction(actionCollection->action("KisToolTransform"));
-        transformMenu->addAction(actionCollection->action("selectionscale"));
-        transformMenu->addAction(actionCollection->action("growselection"));
-        transformMenu->addAction(actionCollection->action("shrinkselection"));
-        transformMenu->addAction(actionCollection->action("borderselection"));
-        transformMenu->addAction(actionCollection->action("smoothselection"));
-        transformMenu->addAction(actionCollection->action("featherselection"));
-        transformMenu->addAction(actionCollection->action("stroke_selection"));
-
-        m_contextMenu->addSeparator();
+        add(convert, action("convert_selection_to_shape"), i18nc("@action:inmenu", "To Shape"));
     }
 
-    m_contextMenu->addAction(actionCollection->action("resizeimagetoselection"));
+    menu->addSeparator();
+    add(menu, action("resizeimagetoselection"), i18nc("@action:inmenu", "Crop Image to It"));
+    QMenu *show = menu->addMenu(i18nc("@title:menu", "Show"));
+    add(show, action("toggle_display_selection"), i18nc("@action:inmenu", "Selection"));
+    add(show, action("show-global-selection-mask"), i18nc("@action:inmenu", "As a Layer"));
 
-    m_contextMenu->addSeparator();
-
-    m_contextMenu->addAction(actionCollection->action("toggle_display_selection"));
-    m_contextMenu->addAction(actionCollection->action("show-global-selection-mask"));
-
-    return m_contextMenu;
+    return menu;
 }
 
 SelectionMode KisSelectionToolHelper::tryOverrideSelectionMode(KisSelectionSP activeSelection, SelectionMode currentMode, SelectionAction currentAction) const

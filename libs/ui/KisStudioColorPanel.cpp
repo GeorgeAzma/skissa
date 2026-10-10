@@ -5,6 +5,7 @@
  */
 #include "KisStudioColorPanel.h"
 
+#include <QApplication>
 #include <QHBoxLayout>
 #include <QLineEdit>
 #include <QMouseEvent>
@@ -548,6 +549,94 @@ private:
 
 } // namespace
 
+/**
+ * The color model's name, a label more than a button: small capitals, heavy
+ * and faint, so it reads at a glance and stays out of the colors' way.
+ */
+class ModeButton : public QToolButton
+{
+public:
+    using QToolButton::QToolButton;
+
+    QSize sizeHint() const override
+    {
+        const QFontMetrics metrics(labelFont());
+        return QSize(metrics.horizontalAdvance(text()) + 12, 22);
+    }
+
+protected:
+    QFont labelFont() const
+    {
+        QFont font = this->font();
+        font.setPointSizeF(font.pointSizeF() * 0.78);
+        font.setWeight(QFont::Bold);
+        font.setLetterSpacing(QFont::PercentageSpacing, 108);
+        return font;
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QColor ink = palette().color(QPalette::WindowText);
+        if (underMouse()) {
+            QColor field = ink;
+            field.setAlphaF(0.08);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(field);
+            painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), 6));
+        }
+        ink.setAlphaF(underMouse() ? 0.7 : 0.42);
+        painter.setPen(ink);
+        painter.setFont(labelFont());
+        painter.drawText(rect(), Qt::AlignCenter, text());
+    }
+};
+
+/// The hex code: faint while it is only shown, full strength while it is typed in
+class HexField : public QLineEdit
+{
+public:
+    explicit HexField(QWidget *parent) : QLineEdit(parent)
+    {
+        fade();
+    }
+
+protected:
+    void focusInEvent(QFocusEvent *event) override
+    {
+        QLineEdit::focusInEvent(event);
+        fade();
+    }
+
+    void focusOutEvent(QFocusEvent *event) override
+    {
+        QLineEdit::focusOutEvent(event);
+        fade();
+    }
+
+    void changeEvent(QEvent *event) override
+    {
+        QLineEdit::changeEvent(event);
+        // another theme: faded from its text color
+        if (event->type() == QEvent::PaletteChange && !m_fading) fade();
+    }
+
+private:
+    void fade()
+    {
+        m_fading = true;
+        QPalette palette = this->palette();
+        QColor ink = QApplication::palette(this).color(QPalette::Text);
+        ink.setAlphaF(hasFocus() ? 1.0 : 0.5);
+        palette.setColor(QPalette::Text, ink);
+        setPalette(palette);
+        m_fading = false;
+    }
+
+    bool m_fading {false};
+};
+
 struct KisStudioColorPanel::Private
 {
     QPointer<KoCanvasBase> canvas;
@@ -674,12 +763,12 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->recentRow = new Swatches(16, contents);
     d->recentRow->setToolTip(i18nc("@info:tooltip", "Colors painted with lately, by hue"));
     row->addWidget(d->recentRow, 1, Qt::AlignVCenter);
-    d->mode = new QToolButton(contents);
+    d->mode = new ModeButton(contents);
     d->mode->setAutoRaise(true);
     d->mode->setFocusPolicy(Qt::NoFocus);
     d->mode->setToolTip(i18nc("@info:tooltip", "OKLCH: even perceived steps. HSV: the classic ring and triangle. Click to switch."));
     row->addWidget(d->mode);
-    d->hex = new QLineEdit(contents);
+    d->hex = new HexField(contents);
     d->hex->setFrame(false);
     d->hex->setFixedWidth(64);
     d->hex->setAlignment(Qt::AlignRight | Qt::AlignVCenter);

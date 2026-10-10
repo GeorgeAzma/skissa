@@ -34,6 +34,7 @@
 
 
 #include "kis_icon.h"
+#include <KisModernStyle.h>
 
 
 WdgCloseableLabel::WdgCloseableLabel(KoID tag, bool editable, bool semiSelected, QWidget *parent)
@@ -95,7 +96,7 @@ void WdgCloseableLabel::paintEvent(QPaintEvent *event)
     QWidget::paintEvent(event);
     painter.setRenderHint(QPainter::Antialiasing);
     QPainterPath path;
-    path.addRoundedRect(this->rect(), 6, 6);
+    path.addPath(KisModernStyle::squircle(this->rect(), 6));
 
     // good color:
     painter.fillPath(path, qApp->palette().light());
@@ -106,7 +107,7 @@ void WdgCloseableLabel::paintEvent(QPaintEvent *event)
         penwt.setStyle(Qt::DashLine);
 
         QPainterPath outlinePath;
-        outlinePath.addRoundedRect(this->rect().adjusted(1, 1, -1, -1), 4, 4);
+        outlinePath.addPath(KisModernStyle::squircle(QRectF(this->rect()).adjusted(1.5, 1.5, -1.5, -1.5), 4.5));
 
         painter.setPen(penwt);
         painter.drawPath(outlinePath);
@@ -225,7 +226,7 @@ void WdgAddTagButton::paintEvent(QPaintEvent *event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     QPainterPath path;
-    path.addRoundedRect(this->rect(), 6, 6);
+    path.addPath(KisModernStyle::squircle(this->rect(), 6));
     painter.fillPath(path, qApp->palette().light());
 
     //Draw icon

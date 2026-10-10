@@ -13,6 +13,7 @@
 #include <QWidget>
 #include <QButtonGroup>
 #include <QMap>
+#include <QPointer>
 #include <QString>
 
 #include <kpagedialog.h>
@@ -90,6 +91,10 @@ public:
 
     int mdiMode();
     bool showCanvasMessages();
+    bool brushesAsStrokes();
+
+    /// Brush presets shown by what they paint (off: by their pictures)
+    QPointer<QCheckBox> m_chkBrushesAsStrokes;
     bool compressKra();
     bool trimKra();
     bool trimFramesImport();

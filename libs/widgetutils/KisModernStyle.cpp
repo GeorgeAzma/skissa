@@ -1117,6 +1117,41 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
         }
         break;
 
+    case CE_ProgressBarGroove:
+        // the track, as round as the field shapes (a pill when it is thin)
+        drawRounded(painter, QRectF(option->rect).adjusted(0.5, 0.5, -0.5, -0.5),
+                    qMin<qreal>(radius, qMin(option->rect.width(), option->rect.height()) / 2.0),
+                    mix(option->palette.color(QPalette::Base), option->palette.color(QPalette::Text), 0.1));
+        return;
+
+    case CE_ProgressBarContents:
+        if (const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
+            if (bar->minimum == bar->maximum) {
+                break; // busy, with no amount: the base style's moving bar
+            }
+            const qreal amount = qBound(0.0, qreal(bar->progress - bar->minimum) / qreal(bar->maximum - bar->minimum), 1.0);
+            if (amount <= 0.0) {
+                return;
+            }
+            const bool vertical = !(bar->state & QStyle::State_Horizontal);
+            const bool reversed = bar->invertedAppearance != (bar->direction == Qt::RightToLeft && !vertical);
+            QRectF filled = QRectF(option->rect).adjusted(0.5, 0.5, -0.5, -0.5);
+            if (vertical) {
+                const qreal h = filled.height() * amount;
+                filled = reversed ? QRectF(filled.left(), filled.top(), filled.width(), h)
+                                  : QRectF(filled.left(), filled.bottom() - h, filled.width(), h);
+            } else {
+                const qreal w = filled.width() * amount;
+                filled = reversed ? QRectF(filled.right() - w, filled.top(), w, filled.height())
+                                  : QRectF(filled.left(), filled.top(), w, filled.height());
+            }
+            const qreal r = qMin<qreal>(radius, qMin(option->rect.width(), option->rect.height()) / 2.0);
+            drawRounded(painter, filled, qMin(r, qMin(filled.width(), filled.height()) / 2.0),
+                        option->palette.color(QPalette::Highlight));
+            return;
+        }
+        break;
+
     default:
         break;
     }

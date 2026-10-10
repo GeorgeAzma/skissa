@@ -39,6 +39,7 @@
 #include <QList>
 #include <QMenu>
 #include <QWidgetAction>
+#include <QPointer>
 #include <QProxyStyle>
 #include <QStyleFactory>
 
@@ -1003,24 +1004,80 @@ void LayerBox::slotContextMenuRequested(const QPoint &pos, const QModelIndex &in
     KisNodeSP activeNode = m_nodeManager->activeNode();
 
     QMenu menu;
-    // what the "+" and its menu were: a layer here, or another kind of layer
-    menu.addAction(KisIconUtils::loadIcon("addlayer"), i18nc("@action:inmenu", "New Layer Above"), this, &LayerBox::slotAddLayerBnClicked);
-    if (index.isValid()) {
-        menu.addAction(i18nc("@action:inmenu", "New Layer Below"), this, &LayerBox::addLayerBelow);
-    }
-    QMenu *kinds = menu.addMenu(i18nc("@title:menu other kinds of layer", "New"));
-    kinds->addActions(m_newLayerMenu->actions());
-    menu.addSeparator();
-
     if (index.isValid() && !nodes.isEmpty() && activeNode) {
         updateLayerOpMenu(index, menu);
     } else {
         // the list itself
-        menu.addAction(KisIconUtils::loadIcon("view-filter"), i18nc("@action:inmenu", "Filter Layers (Ctrl+F)"), this,
-                       [this]() { startFiltering(QString()); });
+        addMenuEntry(&menu, "add_new_paint_layer", i18nc("@action:inmenu", "New Layer"));
+        addNewLayerMenu(&menu, false);
+        addMenuEntry(&menu, "paste_layer_from_clipboard", i18nc("@action:inmenu", "Paste"));
+        menu.addSeparator();
+        QAction *filter = menu.addAction(i18nc("@action:inmenu", "Filter…") + QLatin1Char('\t') + QKeySequence(QKeySequence::Find).toString(QKeySequence::NativeText));
+        connect(filter, &QAction::triggered, this, [this]() { startFiltering(QString()); });
+        QMenu *select = menu.addMenu(i18nc("@title:menu", "Select"));
+        addMenuEntry(select, "select_all_layers", i18nc("@action:inmenu select layers", "All"));
+        addMenuEntry(select, "select_visible_layers", i18nc("@action:inmenu select layers", "Visible"));
+        addMenuEntry(select, "select_invisible_layers", i18nc("@action:inmenu select layers", "Hidden"));
+        addMenuEntry(select, "select_locked_layers", i18nc("@action:inmenu select layers", "Locked"));
+        addMenuEntry(select, "select_unlocked_layers", i18nc("@action:inmenu select layers", "Unlocked"));
         menu.addMenu(m_configureMenu);
     }
     menu.exec(pos);
+}
+
+QAction *LayerBox::addMenuEntry(QMenu *menu, QAction *action, const QString &label, bool onlyIfEnabled)
+{
+    /**
+     * A short entry for the action: its name in the fewest words (it keeps
+     * its full name elsewhere, in Find and the main menu), the shortcut
+     * beside it, and no icon (a menu is read, not looked over).
+     */
+    if (!action || (onlyIfEnabled && !action->isEnabled())) return nullptr;
+    QString text = label.isEmpty() ? action->text() : label;
+    if (!action->shortcut().isEmpty()) {
+        text += QLatin1Char('\t') + action->shortcut().toString(QKeySequence::NativeText);
+    }
+    QAction *entry = new QAction(text, menu);
+    entry->setEnabled(action->isEnabled());
+    entry->setCheckable(action->isCheckable());
+    entry->setChecked(action->isChecked());
+    QPointer<QAction> target(action);
+    connect(entry, &QAction::triggered, this, [target]() {
+        if (target) target->trigger();
+    });
+    menu->addAction(entry);
+    return entry;
+}
+
+QAction *LayerBox::addMenuEntry(QMenu *menu, const QString &id, const QString &label, bool onlyIfEnabled)
+{
+    if (!m_canvas) return nullptr;
+    return addMenuEntry(menu, m_canvas->viewManager()->actionManager()->actionByName(id), label, onlyIfEnabled);
+}
+
+void LayerBox::addNewLayerMenu(QMenu *menu, bool below)
+{
+    // every kind of layer and mask: one list, not "New" and "Add" with half of it each
+    QMenu *kinds = menu->addMenu(i18nc("@title:menu other kinds of layer", "New"));
+    addMenuEntry(kinds, "add_new_paint_layer", i18nc("@action:inmenu", "Paint Layer"));
+    if (below) {
+        QAction *entry = kinds->addAction(i18nc("@action:inmenu", "Paint Layer Below"));
+        connect(entry, &QAction::triggered, this, &LayerBox::addLayerBelow);
+    }
+    addMenuEntry(kinds, "add_new_group_layer", i18nc("@action:inmenu", "Group"));
+    addMenuEntry(kinds, "add_new_shape_layer", i18nc("@action:inmenu", "Vector Layer"));
+    addMenuEntry(kinds, "add_new_adjustment_layer", i18nc("@action:inmenu", "Filter Layer…"));
+    addMenuEntry(kinds, "add_new_fill_layer", i18nc("@action:inmenu", "Fill Layer…"));
+    addMenuEntry(kinds, "add_new_file_layer", i18nc("@action:inmenu", "File Layer…"));
+    addMenuEntry(kinds, "add_new_clone_layer", i18nc("@action:inmenu", "Clone"));
+    addMenuEntry(kinds, "new_from_visible", i18nc("@action:inmenu", "From Visible"));
+    kinds->addSeparator();
+    addMenuEntry(kinds, "add_new_transparency_mask", i18nc("@action:inmenu", "Transparency Mask"));
+    addMenuEntry(kinds, "add_new_filter_mask", i18nc("@action:inmenu", "Filter Mask…"));
+    addMenuEntry(kinds, "add_new_fast_color_overlay_mask", i18nc("@action:inmenu", "Color Overlay Mask"));
+    addMenuEntry(kinds, "add_new_colorize_mask", i18nc("@action:inmenu", "Colorize Mask"));
+    addMenuEntry(kinds, "add_new_transform_mask", i18nc("@action:inmenu", "Transform Mask"));
+    addMenuEntry(kinds, "add_new_selection_mask", i18nc("@action:inmenu", "Local Selection"));
 }
 
 void LayerBox::addLayerBelow()
@@ -1623,114 +1680,105 @@ void LayerBox::updateLayerOpMenu(const QModelIndex &index, QMenu &menu) {
     KisNodeSP activeNode = m_nodeManager->activeNode();
     const bool singleNode = nodes.size() == 1;
 
-    if (index.isValid()) {
-        menu.addAction(m_propertiesAction);
+    if (!index.isValid()) {
+        return;
+    }
 
-        KisLayerSP singleLayer = dynamic_cast<KisLayer*>(activeNode.data());
+    /**
+     * What is done to layers every day, by name, at the top; the rest in a
+     * few lists by what they are about. Nothing that was here is gone.
+     */
+    addMenuEntry(&menu, "add_new_paint_layer", i18nc("@action:inmenu", "New Layer"));
+    addNewLayerMenu(&menu, true);
+    menu.addSeparator();
 
-        if (singleLayer) {
-            addActionToMenu(&menu, "layer_style");
+    addMenuEntry(&menu, "duplicatelayer", i18nc("@action:inmenu", "Duplicate"));
+    addMenuEntry(&menu, "merge_layer", i18nc("@action:inmenu", "Merge Down"));
+    addMenuEntry(&menu, "create_quick_group", i18nc("@action:inmenu", "Group"));
+    if (singleNode && activeNode->inherits("KisGroupLayer")) {
+        addMenuEntry(&menu, "quick_ungroup", i18nc("@action:inmenu", "Ungroup"));
+    }
+    addMenuEntry(&menu, m_removeAction, i18nc("@action:inmenu", "Delete"));
+    menu.addSeparator();
 
-            if (singleLayer->layerStyle()) {
-                addActionToMenu(&menu, "copy_layer_style");
-            }
+    addMenuEntry(&menu, "copy_layer_clipboard", i18nc("@action:inmenu", "Copy"));
+    addMenuEntry(&menu, "cut_layer_clipboard", i18nc("@action:inmenu", "Cut"));
+    addMenuEntry(&menu, "paste_layer_from_clipboard", i18nc("@action:inmenu", "Paste"));
+    menu.addSeparator();
 
-            if (KisClipboard::instance()->hasLayerStyles()) {
-                addActionToMenu(&menu, "paste_layer_style");
-            }
+    addMenuEntry(&menu, m_propertiesAction, i18nc("@action:inmenu", "Properties…"));
+    KisLayerSP singleLayer = dynamic_cast<KisLayer*>(activeNode.data());
+    if (singleLayer) {
+        QMenu *style = menu.addMenu(i18nc("@title:menu layer style", "Style"));
+        addMenuEntry(style, "layer_style", i18nc("@action:inmenu layer style", "Edit…"));
+        if (singleLayer->layerStyle()) {
+            addMenuEntry(style, "copy_layer_style", i18nc("@action:inmenu layer style", "Copy"));
         }
-
-        Q_FOREACH(KisNodeSP node, nodes) {
-            if (node && node->inherits("KisCloneLayer")) {
-                menu.addAction(m_changeCloneSourceAction);
-                break;
-            }
-        }
-
-        {
-            KisSignalsBlocker b(m_colorSelector->colorLabelSelector());
-            m_colorSelector->colorLabelSelector()->setCurrentIndex(singleNode ? activeNode->colorLabelIndex() : -1);
-        }
-
-        menu.addAction(m_colorSelectorAction);
-
-        menu.addSeparator();
-
-        addActionToMenu(&menu, "cut_layer_clipboard");
-        addActionToMenu(&menu, "copy_layer_clipboard");
-        addActionToMenu(&menu, "paste_layer_from_clipboard");
-        menu.addAction(m_removeAction);
-        addActionToMenu(&menu, "duplicatelayer");
-        addActionToMenu(&menu, "merge_layer");
-        addActionToMenu(&menu, "new_from_visible");
-
-        if (singleNode) {
-            addActionToMenu(&menu, "flatten_image");
-            addActionToMenu(&menu, "flatten_layer");
-        }
-
-        menu.addSeparator();
-        QMenu *selectMenu = menu.addMenu(i18n("&Select"));
-        addActionToMenu(selectMenu, "select_all_layers");
-        addActionToMenu(selectMenu, "select_visible_layers");
-        addActionToMenu(selectMenu, "select_invisible_layers");
-        addActionToMenu(selectMenu, "select_locked_layers");
-        addActionToMenu(selectMenu, "select_unlocked_layers");
-        QMenu *groupMenu = menu.addMenu(i18nc("A group of layers", "&Group"));
-        addActionToMenu(groupMenu, "create_quick_group");
-        addActionToMenu(groupMenu, "create_quick_clipping_group");
-        addActionToMenu(groupMenu, "quick_ungroup");
-        QMenu *locksMenu = menu.addMenu(i18n("&Toggle Locks && Visibility"));
-        addActionToMenu(locksMenu, "toggle_layer_visibility");
-        addActionToMenu(locksMenu, "toggle_layer_lock");
-        addActionToMenu(locksMenu, "toggle_layer_inherit_alpha");
-        addActionToMenu(locksMenu, "toggle_layer_alpha_lock");
-
-        if (singleNode) {
-            QMenu *addLayerMenu = menu.addMenu(i18n("&Add"));
-            addActionToMenu(addLayerMenu, "add_new_transparency_mask");
-            addActionToMenu(addLayerMenu, "add_new_filter_mask");
-            addActionToMenu(addLayerMenu, "add_new_fast_color_overlay_mask");
-            addActionToMenu(addLayerMenu, "add_new_colorize_mask");
-            addActionToMenu(addLayerMenu, "add_new_transform_mask");
-            addActionToMenu(addLayerMenu, "add_new_selection_mask");
-            addLayerMenu->addSeparator();
-            addActionToMenu(addLayerMenu, "add_new_clone_layer");
-
-            QMenu *convertToMenu = menu.addMenu(i18n("&Convert"));
-            addActionToMenu(convertToMenu, "convert_to_paint_layer");
-            addActionToMenu(convertToMenu, "convert_to_transparency_mask");
-            addActionToMenu(convertToMenu, "convert_to_filter_mask");
-            addActionToMenu(convertToMenu, "convert_to_selection_mask");
-            addActionToMenu(convertToMenu, "convert_to_file_layer");
-            addActionToMenu(convertToMenu, "convert_group_to_animated");
-            addActionToMenu(convertToMenu, "layercolorspaceconversion");
-
-            QMenu *splitAlphaMenu = menu.addMenu(i18n("S&plit Alpha"));
-            addActionToMenu(splitAlphaMenu, "split_alpha_into_mask");
-            addActionToMenu(splitAlphaMenu, "split_alpha_write");
-            addActionToMenu(splitAlphaMenu, "split_alpha_save_merged");
-        } else {
-            QMenu *addLayerMenu = menu.addMenu(i18n("&Add"));
-            addActionToMenu(addLayerMenu, "add_new_clone_layer");
-        }
-
-        menu.addSeparator();
-
-        addActionToMenu(&menu, "pin_to_timeline");
-
-
-        if (singleNode) {
-            KisNodeSP node = m_filteringModel->nodeFromIndex(index);
-            if (node && !node->inherits("KisTransformMask")) {
-                addActionToMenu(&menu, "isolate_active_layer");
-                addActionToMenu(&menu, "isolate_active_group");
-            }
-
-            addActionToMenu(&menu, "selectopaque");
-
+        if (KisClipboard::instance()->hasLayerStyles()) {
+            addMenuEntry(style, "paste_layer_style", i18nc("@action:inmenu layer style", "Paste"));
         }
     }
+    {
+        KisSignalsBlocker b(m_colorSelector->colorLabelSelector());
+        m_colorSelector->colorLabelSelector()->setCurrentIndex(singleNode ? activeNode->colorLabelIndex() : -1);
+    }
+    menu.addAction(m_colorSelectorAction);
+    menu.addSeparator();
+
+    QMenu *select = menu.addMenu(i18nc("@title:menu", "Select"));
+    addMenuEntry(select, "select_all_layers", i18nc("@action:inmenu select layers", "All"));
+    addMenuEntry(select, "select_visible_layers", i18nc("@action:inmenu select layers", "Visible"));
+    addMenuEntry(select, "select_invisible_layers", i18nc("@action:inmenu select layers", "Hidden"));
+    addMenuEntry(select, "select_locked_layers", i18nc("@action:inmenu select layers", "Locked"));
+    addMenuEntry(select, "select_unlocked_layers", i18nc("@action:inmenu select layers", "Unlocked"));
+    if (singleNode) {
+        select->addSeparator();
+        // a selection of the layer's painted pixels (not of layers)
+        addMenuEntry(select, "selectopaque", i18nc("@action:inmenu", "Opaque Pixels"));
+    }
+
+    // only what can be done to this layer: the rest would be grayed lines to read past
+    if (singleNode) {
+        QMenu *convert = menu.addMenu(i18nc("@title:menu", "Convert"));
+        addMenuEntry(convert, "convert_to_paint_layer", i18nc("@action:inmenu convert to", "To Paint Layer"), true);
+        addMenuEntry(convert, "convert_to_transparency_mask", i18nc("@action:inmenu convert to", "To Transparency Mask"), true);
+        addMenuEntry(convert, "convert_to_filter_mask", i18nc("@action:inmenu convert to", "To Filter Mask"), true);
+        addMenuEntry(convert, "convert_to_selection_mask", i18nc("@action:inmenu convert to", "To Local Selection"), true);
+        addMenuEntry(convert, "convert_to_file_layer", i18nc("@action:inmenu convert to", "To File Layer"), true);
+        addMenuEntry(convert, "convert_group_to_animated", i18nc("@action:inmenu convert to", "To Animated Layer"), true);
+        addMenuEntry(convert, "layercolorspaceconversion", i18nc("@action:inmenu", "Color Space…"), true);
+        convert->addSeparator();
+        addMenuEntry(convert, "split_alpha_into_mask", i18nc("@action:inmenu", "Alpha into Mask"), true);
+        addMenuEntry(convert, "split_alpha_write", i18nc("@action:inmenu", "Write as Alpha"), true);
+        addMenuEntry(convert, "split_alpha_save_merged", i18nc("@action:inmenu", "Save Merged…"), true);
+    }
+
+    QMenu *more = menu.addMenu(i18nc("@title:menu", "More"));
+    addMenuEntry(more, "create_quick_clipping_group", i18nc("@action:inmenu", "Clipping Group"));
+    if (singleNode) {
+        addMenuEntry(more, "flatten_layer", i18nc("@action:inmenu", "Flatten Layer"));
+        addMenuEntry(more, "flatten_image", i18nc("@action:inmenu", "Flatten Image"));
+    }
+    Q_FOREACH(KisNodeSP node, nodes) {
+        if (node && node->inherits("KisCloneLayer")) {
+            addMenuEntry(more, m_changeCloneSourceAction, i18nc("@action:inmenu", "Clone Source…"));
+            break;
+        }
+    }
+    more->addSeparator();
+    addMenuEntry(more, "toggle_layer_visibility", i18nc("@action:inmenu", "Show or Hide"));
+    addMenuEntry(more, "toggle_layer_lock", i18nc("@action:inmenu", "Lock or Unlock"));
+    addMenuEntry(more, "toggle_layer_inherit_alpha", i18nc("@action:inmenu", "Clip to Layer Below"));
+    addMenuEntry(more, "toggle_layer_alpha_lock", i18nc("@action:inmenu", "Lock Alpha"));
+    more->addSeparator();
+    if (singleNode) {
+        KisNodeSP node = m_filteringModel->nodeFromIndex(index);
+        if (node && !node->inherits("KisTransformMask")) {
+            addMenuEntry(more, "isolate_active_layer", i18nc("@action:inmenu", "Isolate Layer"));
+            addMenuEntry(more, "isolate_active_group", i18nc("@action:inmenu", "Isolate Group"));
+        }
+    }
+    addMenuEntry(more, "pin_to_timeline", i18nc("@action:inmenu", "Pin to Timeline"));
 }
 
 void LayerBox::slotForgetAboutSavedNodeBeforeEditSelectionMode()

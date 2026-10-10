@@ -125,9 +125,10 @@ void NodeView::setModel(QAbstractItemModel *model)
         qWarning() << "NodeView: expected 2 model columns, got " << this->model()->columnCount();
     }
 
-    if (header()->sectionPosition(VISIBILITY_COL) != 0 || header()->sectionPosition(SELECTED_COL) != 1) {
-        header()->moveSection(VISIBILITY_COL, 0);
-        header()->moveSection(SELECTED_COL, 1);
+    // the eye at the end of the row, with the layer's other switches; the selection box (if shown) first
+    if (header()->sectionPosition(SELECTED_COL) != 0 || header()->sectionPosition(VISIBILITY_COL) != 2) {
+        header()->moveSection(header()->visualIndex(SELECTED_COL), 0);
+        header()->moveSection(header()->visualIndex(VISIBILITY_COL), 2);
     }
 
     KisConfig cfg(true);

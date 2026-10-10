@@ -13,6 +13,7 @@
 #include <qpainter.h>
 #include <qpainterpath.h>
 #include <KoColorDisplayRendererInterface.h>
+#include <KisModernStyle.h>
 
 static constexpr int ICON_SIZE_OFFSET = 6;
 
@@ -40,7 +41,7 @@ void KisSelectionActionsPanelButton::draw(QPainter &painter, const KoColorDispla
 
 
     QPainterPath rectAroundButton;
-    rectAroundButton.addRoundedRect(rect, 3, 3);
+    rectAroundButton.addPath(KisModernStyle::squircle(rect, 4));
 
     if (isCheckable() && isChecked()) {
         painter.save();

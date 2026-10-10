@@ -160,6 +160,11 @@ private:
     /// A drag on a row: sideways, its layer's opacity; true while it is that
     bool handleOpacityDrag(const QPoint &pos);
     inline void addActionToMenu(QMenu *menu, const QString &id);
+    /// A short entry in \p menu for the action (by \p label, its shortcut beside it); none if \p onlyIfEnabled and it is not
+    QAction *addMenuEntry(QMenu *menu, QAction *action, const QString &label, bool onlyIfEnabled = false);
+    QAction *addMenuEntry(QMenu *menu, const QString &id, const QString &label, bool onlyIfEnabled = false);
+    /// "New": every kind of layer and mask (and a paint layer below the one clicked, if \p below)
+    void addNewLayerMenu(QMenu *menu, bool below);
     // reimp from KisNodeManager
     qint32 convertOpacityToInt(qreal opacity);
 

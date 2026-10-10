@@ -14,6 +14,9 @@
 
 #include <QBitmap>
 #include <QCheckBox>
+#include <QGridLayout>
+#include <QFormLayout>
+#include <functional>
 #include <QComboBox>
 #include <QClipboard>
 #include <QCursor>
@@ -81,6 +84,7 @@
 #include "KoColorSpaceRegistry.h"
 #include "kis_canvas_resource_provider.h"
 #include "kis_config.h"
+#include "widgets/KisPresetStrokeThumbnails.h"
 #include "kis_image_config.h"
 #include "kis_preference_set_registry.h"
 #include "KisMainWindow.h"
@@ -388,6 +392,37 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
     m_chkRubberBand->setChecked(cfg.readEntry<int>("mdi_rubberband", cfg.useOpenGL()));
 
     m_chkCanvasMessages->setChecked(cfg.showCanvasMessages());
+
+    // under the canvas messages: brushes by what they paint, an extra look that costs a little to make
+    m_chkBrushesAsStrokes = new QCheckBox(i18n("Show brushes as strokes"), m_chkCanvasMessages->parentWidget());
+    m_chkBrushesAsStrokes->setToolTip(i18n("Brush presets show a stroke painted with each brush, beside its name, instead of its picture"));
+    m_chkBrushesAsStrokes->setChecked(KisPresetStrokeThumbnails::isEnabled());
+    // in the row under it, in whichever layout it is in (a form, as the page is made now, or a grid)
+    std::function<bool(QLayout *)> placeUnder = [&](QLayout *layout) {
+        if (!layout) return false;
+        if (auto *form = qobject_cast<QFormLayout *>(layout)) {
+            int row;
+            QFormLayout::ItemRole role;
+            form->getWidgetPosition(m_chkCanvasMessages, &row, &role);
+            if (row >= 0) {
+                form->insertRow(row + 1, QString(), m_chkBrushesAsStrokes);
+                return true;
+            }
+        } else if (auto *grid = qobject_cast<QGridLayout *>(layout)) {
+            const int at = grid->indexOf(m_chkCanvasMessages);
+            if (at >= 0) {
+                int row, column, rowSpan, columnSpan;
+                grid->getItemPosition(at, &row, &column, &rowSpan, &columnSpan);
+                grid->addWidget(m_chkBrushesAsStrokes, grid->rowCount(), column);
+                return true;
+            }
+        }
+        for (int i = 0; i < layout->count(); i++) {
+            if (placeUnder(layout->itemAt(i)->layout())) return true;
+        }
+        return false;
+    };
+    placeUnder(m_chkCanvasMessages->parentWidget()->layout());
 
     const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     QSettings kritarc(configPath + QStringLiteral("/kritadisplayrc"), QSettings::IniFormat);
@@ -847,6 +882,7 @@ void GeneralTab::setDefault()
     m_mdiColor->setColor(mdiColor);
     m_backgroundimage->setText(cfg.getMDIBackgroundImage(true));
     m_chkCanvasMessages->setChecked(cfg.showCanvasMessages(true));
+    if (m_chkBrushesAsStrokes) m_chkBrushesAsStrokes->setChecked(false);
     m_chkCompressKra->setChecked(cfg.compressKra(true));
     m_chkTrimKra->setChecked(cfg.trimKra(true));
     m_chkTrimFramesImport->setChecked(cfg.trimFramesImport(true));
@@ -1050,6 +1086,11 @@ int GeneralTab::mdiMode()
 bool GeneralTab::showCanvasMessages()
 {
     return m_chkCanvasMessages->isChecked();
+}
+
+bool GeneralTab::brushesAsStrokes()
+{
+    return m_chkBrushesAsStrokes && m_chkBrushesAsStrokes->isChecked();
 }
 
 bool GeneralTab::compressKra()
@@ -3092,6 +3133,7 @@ bool KisDlgPreferences::editPreferences(std::optional<PageDesc>page)
 
 
         cfg.setShowCanvasMessages(m_general->showCanvasMessages());
+        KisPresetStrokeThumbnails::setEnabled(m_general->brushesAsStrokes());
         cfg.setCompressKra(m_general->compressKra());
         cfg.setTrimKra(m_general->trimKra());
         cfg.setTrimFramesImport(m_general->trimFramesImport());

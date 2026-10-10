@@ -16,6 +16,7 @@
 #include <KisVisualColorSelector.h>
 #include <WGSelectorWidgetBase.h>
 #include <WGShadeSelector.h>
+#include <KisModernStyle.h>
 
 WGSelectorPopup::WGSelectorPopup(QWidget *parent)
     : QWidget(parent, Qt::Popup | Qt::FramelessWindowHint), m_hideTimer(new QTimer(this))
@@ -76,7 +77,7 @@ void WGSelectorPopup::paintEvent(QPaintEvent *event)
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setPen(Qt::NoPen);
     painter.setBrush(palette().window());
-    painter.drawRoundedRect(QRect(0, 0, width(), height()), m_margin, m_margin);
+    painter.drawPath(KisModernStyle::squircle(QRectF(0, 0, width(), height()), m_margin));
 }
 
 #if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))

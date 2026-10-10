@@ -15,6 +15,7 @@
 
 #include <QtDebug>
 #include <QApplication>
+#include <QCursor>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QModelIndex>
@@ -119,9 +120,26 @@ QSize NodeDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelInd
     return QSize(option.rect.width(), d->rowHeight + extraHeight(index));
 }
 
-void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &o, const QModelIndex &index) const
+void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &cell, const QModelIndex &index) const
 {
     p->save();
+
+    /**
+     * The eye's cell is part of its row: selected and pointed at with it
+     * (only the layer's own cell is selectable in the model).
+     */
+    QStyleOptionViewItem o = cell;
+    if (index.column() != NodeView::DEFAULT_COL) {
+        const QModelIndex main = index.sibling(index.row(), NodeView::DEFAULT_COL);
+        if (d->view->selectionModel() && d->view->selectionModel()->isSelected(main)) {
+            o.state |= QStyle::State_Selected;
+        }
+        const QPoint pointer = d->view->viewport()->mapFromGlobal(QCursor::pos());
+        const QModelIndex under = d->view->viewport()->rect().contains(pointer) ? static_cast<QAbstractItemView *>(d->view)->indexAt(pointer) : QModelIndex();
+        if (under.isValid() && under.row() == index.row() && under.parent() == index.parent()) {
+            o.state |= QStyle::State_MouseOver;
+        }
+    }
 
     {
         QStyleOptionViewItem option = getOptions(o, index);
@@ -129,8 +147,8 @@ void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &o, const QMode
         // the selection is the weight, not the font
         option.font.setBold(false);
 
-        // a rounded highlight behind the row, none behind the eye
-        if (index.column() != NodeView::VISIBILITY_COL && (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))) {
+        // a rounded highlight behind the row, the eye at its end included
+        if (index.column() != NodeView::SELECTED_COL && (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))) {
             const QColor base = option.palette.color(QPalette::Base);
             const QColor tint = (option.state & QStyle::State_Selected) ? option.palette.color(QPalette::Highlight)
                                                                           : option.palette.color(QPalette::Text);
@@ -141,7 +159,18 @@ void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &o, const QMode
             p->setBrush(QColor::fromRgbF(base.redF() + (tint.redF() - base.redF()) * t,
                                          base.greenF() + (tint.greenF() - base.greenF()) * t,
                                          base.blueF() + (tint.blueF() - base.blueF()) * t));
-            p->drawPath(KisModernStyle::squircle(QRectF(option.rect).adjusted(1, 1, -2, -1), 6));
+            // one shape over the two cells: each draws its own end of it
+            const bool eye = index.column() == NodeView::VISIBILITY_COL;
+            const bool leftToRight = option.direction != Qt::RightToLeft;
+            const qreal beyond = 48;
+            QRectF shape = QRectF(option.rect).adjusted(1, 1, -1, -1);
+            if (eye == leftToRight) {
+                shape.adjust(-beyond, 0, -1, 0);
+            } else {
+                shape.adjust(0, 0, beyond, 0);
+            }
+            p->setClipRect(option.rect);
+            p->drawPath(KisModernStyle::squircle(shape, 6));
             p->restore();
         }
 
@@ -361,8 +390,9 @@ QRect NodeDelegate::textRect(const QStyleOptionViewItem &option, const QModelInd
     const QRect decoRect = decorationClickRect(option, index);
     const QRect iconRect = iconsRect(option, index);
 
-    QRect rc = QRect((option.direction == Qt::RightToLeft) ? iconRect.topRight() : decoRect.topRight(),
-                     (option.direction == Qt::RightToLeft) ? decoRect.bottomLeft() : iconRect.bottomLeft());
+    const bool decorated = showsDecoration(index) || (option.state & QStyle::State_Children);
+    QRect rc = QRect((option.direction == Qt::RightToLeft) ? iconRect.topRight() : (decorated ? decoRect.topRight() : decoRect.topLeft()),
+                     (option.direction == Qt::RightToLeft) ? (decorated ? decoRect.bottomLeft() : decoRect.bottomRight()) : iconRect.bottomLeft());
     rc.adjust(-(scm.border()+(minbearing/2)), 0,
                (scm.border()+(minbearing/2)), 0);
 
@@ -897,12 +927,20 @@ void NodeDelegate::drawVisibilityIcon(QPainter *p, const QStyleOptionViewItem &o
 // //     // p->restore();
 }
 
+bool NodeDelegate::showsDecoration(const QModelIndex &index) const
+{
+    // a paint layer is what a layer is unless it says otherwise: its icon would only repeat that on every row
+    const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
+    static const qint64 paintLayer = KisIconUtils::loadIcon("paintLayer").cacheKey();
+    return !icon.isNull() && icon.cacheKey() != paintLayer;
+}
+
 void NodeDelegate::drawDecoration(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
     KisNodeViewColorScheme scm;
     QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
 
-    if (!icon.isNull()) {
+    if (showsDecoration(index)) {
         QPixmap pixmap = icon.pixmap(scm.decorationSize(),
                                      (option.state & QStyle::State_Enabled) ?
                                      QIcon::Normal : QIcon::Disabled);
@@ -918,7 +956,7 @@ void NodeDelegate::drawDecoration(QPainter *p, const QStyleOptionViewItem &optio
             p->setOpacity(0.35);
         }
 
-        p->drawPixmap(rc.topLeft()-QPoint(0, 1), pixmap);
+        p->drawPixmap(QPoint(rc.left(), rc.center().y() - pixmap.height() / pixmap.devicePixelRatio() / 2), pixmap);
 
         p->setOpacity(oldOpacity); // restore old opacity
     }

@@ -35,6 +35,7 @@
 #include <QApplication>
 
 #include "kis_temporary_paint_constraint.h"
+#include <KisModernStyle.h>
 
 namespace {
 bool hasLockedValidTemporaryConstraint(const std::optional<KisTemporaryPaintConstraint> &constraint)
@@ -766,7 +767,7 @@ void KisPaintingAssistantsDecoration::drawEditorWidget(KisPaintingAssistantSP as
                   actionsBGRectangle.y(),
                   globalEditorWidgetData.boundingSize.width(),
                   globalEditorWidgetData.boundingSize.height());
-    bgPath.addRoundedRect(bgRect, 6, 6);
+    bgPath.addPath(KisModernStyle::squircle(bgRect, 6));
 
 
     // if the assistant is selected, make outline stroke fatter and use theme's highlight color

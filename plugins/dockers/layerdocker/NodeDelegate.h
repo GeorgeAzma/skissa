@@ -75,6 +75,8 @@ private:
     void drawVisibilityIcon(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
 
     QRect decorationClickRect(const QStyleOptionViewItem &option, const QModelIndex &index) const;
+    /// Whether the row shows its layer's type (not for a plain paint layer)
+    bool showsDecoration(const QModelIndex &index) const;
     void drawDecoration(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
     void drawExpandButton(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
     void drawAnimatedDecoration(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;

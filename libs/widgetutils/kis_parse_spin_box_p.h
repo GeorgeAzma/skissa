@@ -30,6 +30,7 @@
 #include <kis_painting_tweaks.h>
 #include <kis_num_parser.h>
 #include <kis_algebra_2d.h>
+#include "KisModernStyle.h"
 
 template <typename SpinBoxTypeTP, typename BaseSpinBoxTypeTP>
 class Q_DECL_HIDDEN KisParseSpinBoxPrivate : public QObject
@@ -388,7 +389,11 @@ public:
         painter.setBrush(color);
         painter.setPen(Qt::NoPen);
         QString style = qApp->property(currentUnderlyingStyleNameProperty).toString().toLower();
-        if (style == "fusion") {
+        if (qobject_cast<const KisModernStyle *>(m_q->style())) {
+            // the field's own rounded shape
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            painter.drawPath(KisModernStyle::squircle(rect, KisModernStyle::cornerRadius - 1));
+        } else if (style == "fusion") {
             painter.drawRoundedRect(rect, 1, 1);
         } else {
             painter.drawRoundedRect(rect, 0, 0);

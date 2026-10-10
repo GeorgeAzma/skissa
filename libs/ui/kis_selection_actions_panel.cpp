@@ -45,6 +45,7 @@
 #include <QMenu>
 
 #include <KoColorDisplayRendererInterface.h>
+#include <KisModernStyle.h>
 
 static constexpr int BUTTON_SIZE = 30;
 static constexpr int BUFFER_SPACE = 5;
@@ -689,9 +690,10 @@ void KisSelectionActionsPanel::drawActionBarBackground(QPainter &painter, const 
     QPainterPath outlinePath;
     QPainterPath contrastOutlinePath;
 
-    bgPath.addRoundedRect(centerBackground, cornerRadius, cornerRadius);
-    outlinePath.addRoundedRect(midOutline, cornerRadius, cornerRadius);
-    contrastOutlinePath.addRoundedRect(contrastOutline, cornerRadius, cornerRadius);
+    // each layer's corner as far out as it is, so that the rings stay even
+    bgPath.addPath(KisModernStyle::squircle(centerBackground, cornerRadius));
+    outlinePath.addPath(KisModernStyle::squircle(midOutline, cornerRadius + outline_width / 2.0));
+    contrastOutlinePath.addPath(KisModernStyle::squircle(contrastOutline, cornerRadius + outline_width / 2.0 + 1));
 
     painter.fillPath(contrastOutlinePath, bgColorTrans);
     painter.fillPath(outlinePath, outlineColor);

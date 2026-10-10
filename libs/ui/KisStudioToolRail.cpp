@@ -16,6 +16,8 @@
 #include <QDragEnterEvent>
 #include <QFrame>
 #include <QLineEdit>
+#include <QKeyEvent>
+#include <QValidator>
 #include <QScreen>
 #include <QMimeData>
 #include <QPainter>
@@ -36,6 +38,7 @@
 #include <KisResourceModel.h>
 
 #include "KisMainWindow.h"
+#include "KisModernStyle.h"
 #include "KisStudioBrushPicker.h"
 #include "KisStudioMotion.h"
 #include "KisTouchMode.h"
@@ -250,12 +253,38 @@ public:
 
     std::function<void(const QString &name)> onRename;
 
+    /// The names' look: small capitals, a little heavier than the text around
+    QFont nameFont() const
+    {
+        QFont font = this->font();
+        font.setPointSizeF(font.pointSizeF() * 0.66);
+        font.setWeight(QFont::DemiBold);
+        font.setCapitalization(QFont::AllUppercase);
+        font.setLetterSpacing(QFont::PercentageSpacing, 104);
+        return font;
+    }
+
+    /// Whether \p name is short enough to show whole: names are never cut short with "…"
+    bool fits(const QString &name) const
+    {
+        return QFontMetricsF(nameFont()).horizontalAdvance(name.toUpper()) <= width() - 4;
+    }
+
 protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         QColor ink = palette().color(QPalette::WindowText);
+        if (m_editor) {
+            // where the name is typed, in place
+            QColor field = ink;
+            field.setAlphaF(0.1);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(field);
+            painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), 5));
+            return;
+        }
         if (m_name.isEmpty()) {
             // a hairline, a little stronger when pointed at
             ink.setAlphaF(underMouse() ? 0.4 : 0.14);
@@ -264,14 +293,19 @@ protected:
             return;
         }
         ink.setAlphaF(underMouse() ? 0.85 : 0.5);
-        QFont font = this->font();
-        font.setPointSizeF(font.pointSizeF() * 0.66);
-        font.setWeight(QFont::DemiBold);
-        font.setCapitalization(QFont::AllUppercase);
+        // a name from before names were kept short: a little tighter, then as many letters as fit (never "…")
+        QFont font = nameFont();
+        QString shown = m_name;
+        if (!fits(shown)) {
+            font.setLetterSpacing(QFont::PercentageSpacing, 96);
+            font.setPointSizeF(font.pointSizeF() * 0.9);
+            while (shown.size() > 1 && QFontMetricsF(font).horizontalAdvance(shown.toUpper()) > width() - 4) {
+                shown.chop(1);
+            }
+        }
         painter.setFont(font);
         painter.setPen(ink);
-        painter.drawText(rect().adjusted(1, 0, -1, 0), Qt::AlignCenter,
-                         QFontMetrics(font).elidedText(m_name, Qt::ElideRight, width() - 2));
+        painter.drawText(rect(), Qt::AlignCenter, shown.trimmed());
     }
 
     void mousePressEvent(QMouseEvent *event) override
@@ -291,35 +325,85 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override
     {
         // let go elsewhere (or a long press, see KisTouchMode): not a click
-        if (m_dragged || event->button() != Qt::LeftButton || !rect().contains(event->pos())) {
+        if (m_dragged || event->button() != Qt::LeftButton || !rect().contains(event->pos()) || m_editor) {
             m_dragged = false;
             return;
         }
-        // a small field beside the rail: names are short, the rail is narrow
-        auto *editor = new QLineEdit(nullptr);
-        editor->setWindowFlags(Qt::Popup);
-        editor->setAttribute(Qt::WA_DeleteOnClose);
-        editor->setText(m_name);
-        editor->setPlaceholderText(i18nc("@info:placeholder", "Group name"));
-        editor->setFixedWidth(160);
-        // beside the rail, on the side of the screen there is room on (the rail may be on the right)
-        const int y = (height() - editor->sizeHint().height()) / 2;
-        const QRect available = screen() ? screen()->availableGeometry() : QRect();
-        const bool room = available.isEmpty() || mapToGlobal(QPoint(width() / 2, 0)).x() < available.center().x();
-        editor->move(mapToGlobal(room ? QPoint(width() + 8, y) : QPoint(-8 - editor->width(), y)));
-        auto rename = onRename;
-        QObject::connect(editor, &QLineEdit::returnPressed, editor, [editor, rename]() {
-            const QString name = editor->text().trimmed();
-            editor->close();
-            if (rename) rename(name);
-        });
-        editor->show();
-        editor->selectAll();
-        editor->setFocus();
+        startEditing();
     }
 
 private:
+    /// Named in place, as many letters as the rail shows: Return or a click away keeps it, Escape does not
+    void startEditing()
+    {
+        setFixedHeight(20);
+        m_editor = new QLineEdit(this);
+        m_editor->setFrame(false);
+        m_editor->setFont(nameFont());
+        m_editor->setAlignment(Qt::AlignCenter);
+        m_editor->setAttribute(Qt::WA_TranslucentBackground);
+        m_editor->setAutoFillBackground(false);
+        QPalette palette = m_editor->palette();
+        palette.setColor(QPalette::Base, Qt::transparent);
+        m_editor->setPalette(palette);
+        m_editor->setTextMargins(0, 0, 0, 0);
+        m_editor->setContentsMargins(0, 0, 0, 0);
+        m_editor->setGeometry(rect());
+        m_editor->setMaxLength(16);
+        m_editor->setValidator(new FitValidator(this, m_editor));
+        m_editor->setText(fits(m_name) ? m_name : QString());
+        m_editor->installEventFilter(this);
+        QObject::connect(m_editor, &QLineEdit::editingFinished, this, [this]() { finishEditing(true); });
+        m_editor->show();
+        m_editor->selectAll();
+        m_editor->setFocus(Qt::MouseFocusReason);
+        update();
+    }
+
+    void finishEditing(bool keep)
+    {
+        if (!m_editor) return;
+        QLineEdit *editor = m_editor;
+        m_editor = nullptr;
+        const QString name = editor->text().trimmed();
+        editor->removeEventFilter(this);
+        editor->hide();
+        editor->deleteLater();
+        if (!keep || name == m_name) {
+            setFixedHeight(m_name.isEmpty() ? 14 : 20);
+            update();
+            return;
+        }
+        // the rail is made again with it (later: this item goes with the old rail)
+        if (onRename) onRename(name);
+    }
+
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == m_editor && event->type() == QEvent::KeyPress
+            && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+            finishEditing(false);
+            return true;
+        }
+        return QWidget::eventFilter(watched, event);
+    }
+
+    /// Takes what still shows whole on the rail, nothing longer
+    class FitValidator : public QValidator
+    {
+    public:
+        FitValidator(const SpaceItem *item, QObject *parent) : QValidator(parent), m_item(item) {}
+        State validate(QString &input, int &) const override
+        {
+            return m_item->fits(input) ? Acceptable : Invalid;
+        }
+
+    private:
+        const SpaceItem *m_item;
+    };
+
     QString m_name;
+    QPointer<QLineEdit> m_editor;
     QPoint m_pressPos;
     bool m_dragged {false};
 };

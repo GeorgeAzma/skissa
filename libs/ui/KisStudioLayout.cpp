@@ -11,6 +11,7 @@
 #include <KoToolManager.h>
 #include <KoToolRegistry.h>
 #include <QAction>
+#include <cmath>
 #include <QFileInfo>
 #include <QApplication>
 #include <QDockWidget>
@@ -451,7 +452,7 @@ public:
         : QWidget(parent)
     {
         setCursor(Qt::OpenHandCursor);
-        setFixedHeight(10);
+        setFixedHeight(14);
         setToolTip(i18nc("@info:tooltip", "Drag to the other side of the canvas"));
     }
 
@@ -461,14 +462,26 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         QColor ink = palette().color(QPalette::WindowText);
-        ink.setAlphaF(underMouse() ? 0.55 : 0.25);
+        ink.setAlphaF(underMouse() ? 0.6 : 0.3);
         painter.setPen(Qt::NoPen);
         painter.setBrush(ink);
-        // dots, three by two: held and dragged, not pressed (a line would read as a minus)
+        /**
+         * Six dots, held and dragged (a line would read as a minus): three
+         * along the longer side, two across, as a handle is held. Each on a
+         * pixel's middle, so that all six look alike and none blurs.
+         */
+        const bool upright = height() > width();
+        const int along = 3, across = 2;
+        const qreal pitch = 5.0;
+        const qreal ratio = devicePixelRatioF();
         const QPointF center = QRectF(rect()).center();
-        for (int column = -1; column <= 1; column++) {
-            for (int row = 0; row < 2; row++) {
-                painter.drawEllipse(center + QPointF(column * 4.0, row * 4.0 - 2.0), 1.1, 1.1);
+        for (int i = 0; i < along; i++) {
+            for (int j = 0; j < across; j++) {
+                const qreal a = (i - (along - 1) / 2.0) * pitch;
+                const qreal b = (j - (across - 1) / 2.0) * pitch;
+                QPointF dot = center + (upright ? QPointF(b, a) : QPointF(a, b));
+                dot = QPointF((std::floor(dot.x() * ratio) + 0.5) / ratio, (std::floor(dot.y() * ratio) + 0.5) / ratio);
+                painter.drawEllipse(dot, 1.3, 1.3);
             }
         }
     }
@@ -624,13 +637,14 @@ public:
         setObjectName(right ? QStringLiteral("studioWindowPill") : QStringLiteral("studioTopPill"));
         setProperty(captionProperty, true);
         auto *layout = new QHBoxLayout(this);
-        layout->setContentsMargins(right ? 4 : 2, 1, 4, 1);
+        layout->setContentsMargins(right ? 4 : 3, 1, 4, 1);
         layout->setSpacing(0);
         // as long as what is in it: a tool with more options makes it longer
         layout->setSizeConstraint(QLayout::SetFixedSize);
         if (!right) {
             auto *grip = new DragGrip(this);
-            grip->setFixedSize(16, 30);
+            // upright, in the pill's round end
+            grip->setFixedSize(22, 30);
             grip->setToolTip(i18nc("@info:tooltip", "Drag to move the window, double click to maximize it"));
             layout->addWidget(grip);
         }
