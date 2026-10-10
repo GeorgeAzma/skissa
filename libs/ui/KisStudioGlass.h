@@ -45,20 +45,27 @@ public:
      */
     static qreal blurScale(const QSizeF &size);
     /**
-     * The blur mixes what is behind as light (detail too fine to see mixes
-     * so, on the eye too), but a saturated color counts up to 1 + salience
-     * times as much as a gray: a stroke of color is what one sees of a
-     * canvas, and an average of pixels drowns it in the paper around it.
+     * The blur averages what is behind as it is seen (in Oklab), a saturated
+     * color counting up to 1 + salience times as much as a gray: a stroke of
+     * color stands out of a canvas.
      */
-    static constexpr qreal salience = 2.0;
+    static constexpr qreal salience = 1.0;
+    /**
+     * Lightness is averaged as a power mean of Oklab's lightness: 1 averages
+     * it as seen (darks keep their depth, but small highlights vanish), about
+     * 3 as light (as frosted glass does: its scattered light lifts the darks
+     * into a milky haze); between, darks stay dark and highlights still glow
+     */
+    static constexpr qreal lightnessPower = 1.5;
     /// A narrower blur (sigma, widget pixels), this share of the lightness: a hint of what is behind, as frosted glass shows it
     static constexpr qreal detailSigma = 6;
     static constexpr qreal detail = 0.3;
     /**
      * The frost's color is the mean in Oklab: mixed as light, a stroke of
-     * color on white keeps only half of its chroma. Hues that disagree
-     * cancel out: of the chroma lost so, this share is restored as far as
-     * they agree (never more than the colors behind have, on average).
+     * color on white would keep only half of its chroma, and orange and blue
+     * would make pink. Hues that disagree cancel out: of the chroma lost so,
+     * this share is restored as far as they agree (never more than the
+     * colors behind have, on average).
      */
     static constexpr qreal restore = 0.5;
     /// The grain of the frost, as much either way (in sRGB, 0 to 1): finer than the blur, it makes it a surface

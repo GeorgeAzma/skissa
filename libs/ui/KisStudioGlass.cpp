@@ -165,16 +165,17 @@ void boxLine(float *data, int count, int stride, int radius, std::vector<float> 
 /**
  * The frost, as the canvas makes it (see frostedAt() in KisOpenGLGlass):
  * blurred \p radius (three box passes each way: close to a gaussian), a
- * saturated color counting more; as light as light mixes, a little of a
- * narrower blur in it; its color the mean in Oklab, what disagreeing hues
- * cancel partly restored
+ * saturated color counting more, the mean in Oklab: its lightness a power
+ * mean, a little of a narrower blur in it; what disagreeing hues cancel
+ * partly restored
  */
 QImage blurred(const QImage &source, int radius, int narrowRadius, float detail)
 {
     const QImage image = source.convertToFormat(QImage::Format_RGB32);
     const int w = image.width(), h = image.height();
-    // weighted: light, widely and narrowly, Oklab's a and b and chroma widely; and the weight, both ways
-    enum { R, G, B, Weight, NarrowR, NarrowG, NarrowB, NarrowWeight, A, Bb, Chroma, Count };
+    // weighted: lightness to the power, widely and narrowly, Oklab's a and b and chroma widely; and the weight, both ways
+    enum { L, Weight, NarrowL, NarrowWeight, A, Bb, Chroma, Count };
+    const float power = float(KisStudioGlass::lightnessPower);
     std::vector<float> channels[Count];
     for (auto &channel : channels) channel.resize(size_t(w) * h);
     const auto &linear = toLinear();
@@ -186,9 +187,7 @@ QImage blurred(const QImage &source, int radius, int narrowRadius, float detail)
             const Lab lab = toOklab(r, g, b);
             const float chroma = std::hypot(lab.a, lab.b);
             const float weight = 1.0f + float(KisStudioGlass::salience) * chroma;
-            channels[R][i] = channels[NarrowR][i] = r * weight;
-            channels[G][i] = channels[NarrowG][i] = g * weight;
-            channels[B][i] = channels[NarrowB][i] = b * weight;
+            channels[L][i] = channels[NarrowL][i] = std::pow(qMax(0.0f, lab.l), power) * weight;
             channels[Weight][i] = channels[NarrowWeight][i] = weight;
             channels[A][i] = lab.a * weight;
             channels[Bb][i] = lab.b * weight;
@@ -200,7 +199,7 @@ QImage blurred(const QImage &source, int radius, int narrowRadius, float detail)
     const int narrowBox = qMax(1, int(std::lround(narrowRadius / std::sqrt(3.0))));
     std::vector<float> scratch;
     for (int c = 0; c < Count; c++) {
-        const int reach = c >= NarrowR && c <= NarrowWeight ? narrowBox : box;
+        const int reach = c == NarrowL || c == NarrowWeight ? narrowBox : box;
         for (int pass = 0; pass < 3; pass++) {
             for (int y = 0; y < h; y++) boxLine(channels[c].data() + size_t(y) * w, w, 1, reach, scratch);
             for (int x = 0; x < w; x++) boxLine(channels[c].data() + x, h, w, reach, scratch);
@@ -214,8 +213,8 @@ QImage blurred(const QImage &source, int radius, int narrowRadius, float detail)
             const size_t i = size_t(y) * w + x;
             const float weight = qMax(1e-6f, channels[Weight][i]);
             const float narrowWeight = qMax(1e-6f, channels[NarrowWeight][i]);
-            const float wideL = toOklab(channels[R][i] / weight, channels[G][i] / weight, channels[B][i] / weight).l;
-            const float narrowL = toOklab(channels[NarrowR][i] / narrowWeight, channels[NarrowG][i] / narrowWeight, channels[NarrowB][i] / narrowWeight).l;
+            const float wideL = std::pow(qMax(0.0f, channels[L][i] / weight), 1.0f / power);
+            const float narrowL = std::pow(qMax(0.0f, channels[NarrowL][i] / narrowWeight), 1.0f / power);
             const float a = channels[A][i] / weight, b = channels[Bb][i] / weight;
             const float agree = qBound(0.0f, std::hypot(a, b) / qMax(1e-4f, channels[Chroma][i] / weight), 1.0f);
             const float gain = 1.0f + restore * (1.0f - agree);

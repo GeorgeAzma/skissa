@@ -44,11 +44,11 @@ void main()
 )";
 
 /**
- * Between the steps colors are kept as the square root of light: mixed as
- * light, squared back, and as fine in the darks as sRGB is, in eight bits.
- * The blur weighs colors (see KisStudioGlass::salience): kept is the light
- * times its weight, and the weight in alpha, both over the most a weight is,
- * so that a mean is the one over the other.
+ * Between the steps values are kept as their square roots, as fine near 0
+ * as sRGB is, in eight bits. The blur weighs colors (see
+ * KisStudioGlass::salience): kept is a value times its weight, and the
+ * weight in alpha, both over the most a weight is, so that a mean is the
+ * one over the other.
  */
 const char *const commonSource = R"(
 vec3 fromSrgb(vec3 c)
@@ -100,15 +100,17 @@ vec3 fromOklab(vec3 c)
 /**
  * The canvas made smaller: each pixel the mean of the factor x factor it
  * stands for, a saturated color counting more (its chroma in Oklab is about
- * 0.32 at most, in sRGB). Of light; or (statistics) of Oklab's two axes of
- * color, a and b (half added, to be kept as they are), and of chroma: the
- * mean color as seen, and how far its hues agree.
+ * 0.32 at most, in sRGB). Of Oklab: its lightness to the power (see
+ * KisStudioGlass::lightnessPower) and its two axes of color, a and b (half
+ * added, to be kept as they are); or (statistics) of chroma: how far the
+ * hues agree.
  */
 const char *const shrinkSource = R"(
 uniform sampler2D source;
 uniform int factor;
 uniform bool decode;
 uniform float salience;
+uniform float power;
 uniform bool statistics;
 
 void main()
@@ -123,7 +125,8 @@ void main()
             vec3 lab = toOklab(c);
             float chroma = length(lab.yz);
             float weight = 1.0 + salience * chroma;
-            sum += statistics ? vec4(vec3(lab.yz + 0.5, chroma) * weight, weight) : vec4(c * weight, weight);
+            vec3 kept = statistics ? vec3(chroma, 0.0, 0.0) : vec3(pow(max(lab.x, 0.0), power), lab.yz + 0.5);
+            sum += vec4(kept * weight, weight);
         }
     }
     fragColor = keep(sum / (float(factor * factor) * (1.0 + salience * 0.33)));
@@ -167,6 +170,7 @@ uniform vec4 shape;
 uniform float tintLightness;
 uniform vec2 tintStrength;
 uniform float spacing;
+uniform float power;
 flat out float strength;
 
 void main()
@@ -174,7 +178,7 @@ void main()
     vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));
     gl_Position = vec4(mix(rect.xy, rect.zw, corner), 0.0, 1.0);
 
-    // how bright it is behind, about as seen (the root of light is about as light looks): a grid
+    // how light it is behind, as seen (Oklab): a grid
     // as fine as the blur is wide (12 x 12 at most), so that the tint does not flicker as the
     // canvas slides under it
     ivec2 last = textureSize(blurred, 0) - 1;
@@ -183,8 +187,8 @@ void main()
     for (int y = 0; y < count.y; y++) {
         for (int x = 0; x < count.x; x++) {
             vec2 p = shape.xy + shape.zw * (2.0 * (vec2(x, y) + 0.5) / vec2(count) - 1.0);
-            vec4 kept = texelFetch(blurred, clamp(ivec2(p / factor), ivec2(0), last), 0);
-            sum += dot(kept.rgb / sqrt(max(kept.a, 1e-4)), vec3(0.299, 0.587, 0.114));
+            vec4 mean = weighted(texelFetch(blurred, clamp(ivec2(p / factor), ivec2(0), last), 0));
+            sum += pow(max(mean.x / max(mean.a, 1e-5), 0.0), 1.0 / power);
         }
     }
     strength = mix(tintStrength.x, tintStrength.y, clamp(abs(sum / float(count.x * count.y) - tintLightness), 0.0, 1.0));
@@ -221,6 +225,7 @@ uniform sampler2D narrow;
 uniform float detail;
 uniform float restore;
 uniform float grain;
+uniform float power;
 uniform bool decodeSharp;
 uniform float factor;
 uniform vec4 shape;
@@ -364,22 +369,37 @@ vec3 softAt(sampler2D source, vec2 p)
 
 vec3 inGamut(float l, vec2 ab);
 
+// a mean kept in source (lightness to the power, a and b half added) at p, in Oklab
+vec3 meanAt(sampler2D source, vec2 p)
+{
+    vec3 m = softAt(source, p);
+    return vec3(pow(max(m.x, 0.0), 1.0 / power), m.yz - 0.5);
+}
+
+// and in light
+vec3 meanLightAt(sampler2D source, vec2 p)
+{
+    vec3 lab = meanAt(source, p);
+    return inGamut(clamp(lab.x, 0.0, 1.0), lab.yz);
+}
+
 /**
- * The frost at p, in light. How light: from light mixed (as it mixes, on the
- * eye too), mostly the wide blur, a little of a narrow one: the eye sees
- * structure by lightness, finer than by color. Its color: the mean in Oklab
- * (mixed as light, a stroke of color on white paper keeps only half of its
- * chroma: brightness drowns it), and of what hues cancel out where they
- * disagree, as much restored as they agree: never more than the chroma of
- * the colors behind, on average.
+ * The frost at p, in light: the mean in Oklab. Its lightness a power mean
+ * (see KisStudioGlass::lightnessPower), mostly of the wide blur, a little of
+ * a narrow one: the eye sees structure by lightness, finer than by color.
+ * Its color the mean of a and b: a mean of the hues as strong as they are,
+ * never a hue that is not between them (mixed as light, orange and blue
+ * make pink), and a stroke of color on white paper keeps its chroma (mixed
+ * as light, it keeps half). What hues cancel where they disagree is as much
+ * restored as they agree: never more than the chroma behind, on average.
  */
 vec3 frostedAt(vec2 p)
 {
-    float l = mix(toOklab(softAt(blurred, p)).x, toOklab(softAt(narrow, p)).x, detail);
-    vec3 seen = softAt(statistics, p);
-    vec2 ab = seen.xy - 0.5;
-    float agree = clamp(length(ab) / max(seen.z, 1e-4), 0.0, 1.0);
-    return inGamut(clamp(l, 0.0, 1.0), ab * (1.0 + restore * (1.0 - agree)));
+    vec3 wide = meanAt(blurred, p);
+    float l = mix(wide.x, meanAt(narrow, p).x, detail);
+    float chroma = softAt(statistics, p).x;
+    float agree = clamp(length(wide.yz) / max(chroma, 1e-4), 0.0, 1.0);
+    return inGamut(clamp(l, 0.0, 1.0), wide.yz * (1.0 + restore * (1.0 - agree)));
 }
 
 // what is behind at p, seen through the glass: clear (as sharp as it is spread over the screen:
@@ -388,7 +408,7 @@ vec3 behindAt(vec2 p, float frost, float spread)
 {
     vec3 clear = sharpAt(p);
     if (spread > 1.0) {
-        clear = mix(clear, softAt(small, p), clamp((spread - 1.0) / (factor - 1.0), 0.0, 1.0));
+        clear = mix(clear, meanLightAt(small, p), clamp((spread - 1.0) / (factor - 1.0), 0.0, 1.0));
     }
     return mix(clear, frostedAt(p), frost);
 }
@@ -397,7 +417,7 @@ vec3 behindAt(vec2 p, float frost, float spread)
 // meets it: blurred, as the glass is not a mirror
 vec3 reflectedAt(vec3 d, vec2 p)
 {
-    return softAt(blurred, p + d.xy / max(-d.z, 0.2) * bevel.z);
+    return meanLightAt(blurred, p + d.xy / max(-d.z, 0.2) * bevel.z);
 }
 
 // the largest chroma of hue ab at lightness l that is a color of the screen, scaled: ab times it
@@ -605,10 +625,10 @@ bool KisOpenGLGlass::initialize()
     const bool halfFloats = !context->isOpenGLES() || context->hasExtension("GL_EXT_color_buffer_half_float")
         || context->hasExtension("GL_EXT_color_buffer_float");
     d->keptFormat = halfFloats ? GL_RGBA16F : GL_RGBA;
-    d->valid = d->shrink.make(quadSource, shrinkSource, {"rect", "source", "factor", "decode", "salience", "statistics"})
+    d->valid = d->shrink.make(quadSource, shrinkSource, {"rect", "source", "factor", "decode", "salience", "power", "statistics"})
         && d->blur.make(quadSource, blurSource, {"rect", "source", "direction", "taps", "weights"})
         && d->glass.make(glassVertexSource, glassSource,
-                         {"rect", "blurred", "small", "sharp", "statistics", "narrow", "detail", "restore", "grain", "decodeSharp",
+                         {"rect", "blurred", "small", "sharp", "statistics", "narrow", "detail", "restore", "grain", "power", "decodeSharp",
                           "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
                           "beyond", "spacing", "dither", "veil", "bevel", "ior"});
     if (d->valid && KisOpenGL::supportsVAO()) {
@@ -690,6 +710,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1i(d->shrink["factor"], factor);
     f->glUniform1i(d->shrink["decode"], !linearCanvas);
     f->glUniform1f(d->shrink["salience"], KisStudioGlass::salience);
+    f->glUniform1f(d->shrink["power"], KisStudioGlass::lightnessPower);
     d->blur->bind();
     f->glUniform4f(d->blur["rect"], -1, -1, 1, 1);
     f->glUniform1i(d->blur["source"], 0);
@@ -751,6 +772,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1i(d->glass["statistics"], 3);
     f->glUniform1i(d->glass["narrow"], 4);
     f->glUniform1f(d->glass["restore"], KisStudioGlass::restore);
+    f->glUniform1f(d->glass["power"], KisStudioGlass::lightnessPower);
     // as much of a step either way in the target's steps, at least those of eight bits
     f->glUniform1f(d->glass["grain"], KisStudioGlass::grain);
     f->glUniform1i(d->glass["decodeSharp"], !linearCanvas);
@@ -781,7 +803,10 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glUniform4f(d->glass["shape"], r.center().x(), r.center().y(), r.width() / 2, r.height() / 2);
         f->glUniform2f(d->glass["corner"], surface.reach, surface.exponent);
         f->glUniform3f(d->glass["tint"], surface.tint.redF(), surface.tint.greenF(), surface.tint.blueF());
-        f->glUniform1f(d->glass["tintLightness"], qGray(surface.tint.rgb()) / 255.0f);
+        // as light as it looks (Oklab, about the cube root of its luminance), as what is behind is measured
+        auto linear = [](qreal c) { return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4); };
+        const qreal luminance = 0.2126 * linear(surface.tint.redF()) + 0.7152 * linear(surface.tint.greenF()) + 0.0722 * linear(surface.tint.blueF());
+        f->glUniform1f(d->glass["tintLightness"], float(std::cbrt(luminance)));
         f->glUniform1f(d->glass["opacity"], surface.opacity);
         const qreal scale = scaleOf(surface);
         f->glUniform1f(d->glass["sigma"], KisStudioGlass::blurSigma * scale * pixelRatio);
