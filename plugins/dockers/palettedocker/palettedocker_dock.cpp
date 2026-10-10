@@ -54,6 +54,7 @@
 #include <KisPaletteChooser.h>
 #include <KisPaletteEditor.h>
 #include <dialogs/KisDlgPaletteEditor.h>
+#include <KisModernStyle.h>
 
 namespace {
 
@@ -243,28 +244,28 @@ protected:
             if (!isOccupied(cell.index)) {
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(empty);
-                painter.drawRoundedRect(rect, radius, radius);
+                painter.drawPath(KisModernStyle::squircle(rect, radius));
                 continue;
             }
             painter.setOpacity(m_dragging && cell.index == m_press ? 0.3 : 1.0);
             painter.setPen(Qt::NoPen);
             painter.setBrush(swatchColor(cell.index));
-            painter.drawRoundedRect(rect, radius, radius);
+            painter.drawPath(KisModernStyle::squircle(rect, radius));
             painter.setOpacity(1.0);
             // the color itself, not as the display shows it, as the current color is
             if (m_model->getSwatch(cell.index).color().toQColor().rgb() == m_current) {
                 // the color painted with now: a ring that reads on any color
                 painter.setBrush(Qt::NoBrush);
                 painter.setPen(QPen(QColor(0, 0, 0, 170), 3));
-                painter.drawRoundedRect(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius, radius);
+                painter.drawPath(KisModernStyle::squircle(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius));
                 painter.setPen(QPen(Qt::white, 1.5));
-                painter.drawRoundedRect(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius, radius);
+                painter.drawPath(KisModernStyle::squircle(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius));
             } else if (cell.index == m_hover && !m_dragging) {
                 QColor outline = ink;
                 outline.setAlphaF(0.6);
                 painter.setBrush(Qt::NoBrush);
                 painter.setPen(QPen(outline, 1));
-                painter.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+                painter.drawPath(KisModernStyle::squircle(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius));
             }
         }
 
@@ -283,7 +284,7 @@ protected:
         if (!m_dropRect.isNull()) {
             painter.setBrush(Qt::NoBrush);
             painter.setPen(QPen(palette().color(QPalette::Highlight), 2));
-            painter.drawRoundedRect(QRectF(m_dropRect).adjusted(1, 1, -1, -1), radius, radius);
+            painter.drawPath(KisModernStyle::squircle(QRectF(m_dropRect).adjusted(1, 1, -1, -1), radius));
         }
     }
 
@@ -483,7 +484,7 @@ private:
             painter.setRenderHint(QPainter::Antialiasing, true);
             painter.setPen(QPen(QColor(0, 0, 0, 90), 1));
             painter.setBrush(swatchColor(from));
-            painter.drawRoundedRect(QRectF(0.5, 0.5, m_cell - 1, m_cell - 1), 4, 4);
+            painter.drawPath(KisModernStyle::squircle(QRectF(0.5, 0.5, m_cell - 1, m_cell - 1), 4));
         }
         auto *drag = new QDrag(this);
         auto *mime = new QMimeData();
@@ -595,19 +596,19 @@ protected:
             const QRectF rect = QRectF(m_left + i * m_cell, 0, m_cell, m_cell).adjusted(1, 1, -1, -1);
             painter.setPen(Qt::NoPen);
             painter.setBrush(m_colors[i]);
-            painter.drawRoundedRect(rect, radius, radius);
+            painter.drawPath(KisModernStyle::squircle(rect, radius));
             if (m_colors[i].rgb() == m_current) {
                 painter.setBrush(Qt::NoBrush);
                 painter.setPen(QPen(QColor(0, 0, 0, 170), 3));
-                painter.drawRoundedRect(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius, radius);
+                painter.drawPath(KisModernStyle::squircle(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius));
                 painter.setPen(QPen(Qt::white, 1.5));
-                painter.drawRoundedRect(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius, radius);
+                painter.drawPath(KisModernStyle::squircle(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius));
             } else if (i == m_hover) {
                 QColor outline = palette().color(QPalette::WindowText);
                 outline.setAlphaF(0.6);
                 painter.setBrush(Qt::NoBrush);
                 painter.setPen(QPen(outline, 1));
-                painter.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+                painter.drawPath(KisModernStyle::squircle(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius));
             }
         }
         // a hairline between the colors used and the palette
@@ -648,7 +649,7 @@ protected:
             painter.setRenderHint(QPainter::Antialiasing, true);
             painter.setPen(QPen(QColor(0, 0, 0, 90), 1));
             painter.setBrush(m_colors.value(index));
-            painter.drawRoundedRect(QRectF(0.5, 0.5, m_cell - 1, m_cell - 1), 4, 4);
+            painter.drawPath(KisModernStyle::squircle(QRectF(0.5, 0.5, m_cell - 1, m_cell - 1), 4));
         }
         auto *drag = new QDrag(this);
         auto *mime = new QMimeData();
@@ -1102,7 +1103,7 @@ void PaletteDockerDock::showSwatchCard(const QModelIndex &index, QWidget *anchor
         painter.setRenderHint(QPainter::Antialiasing, true);
         painter.setPen(QPen(QColor(0, 0, 0, 90), 1));
         painter.setBrush(swatchColor(index));
-        painter.drawRoundedRect(QRectF(0.5, 0.5, 27, 27), 6, 6);
+        painter.drawPath(KisModernStyle::squircle(QRectF(0.5, 0.5, 27, 27), 6));
     }
 
     auto *card = new KisStudioItemCard(mainWindow, QIcon(chip),
@@ -1242,7 +1243,7 @@ void PaletteDockerDock::showRecentCard(int index, QWidget *anchor)
         painter.setRenderHint(QPainter::Antialiasing, true);
         painter.setPen(QPen(QColor(0, 0, 0, 90), 1));
         painter.setBrush(color.toQColor());
-        painter.drawRoundedRect(QRectF(0.5, 0.5, 27, 27), 6, 6);
+        painter.drawPath(KisModernStyle::squircle(QRectF(0.5, 0.5, 27, 27), 6));
     }
     auto *card = new KisStudioItemCard(mainWindow, QIcon(chip), color.toQColor().name(), nullptr);
     if (canEdit()) {

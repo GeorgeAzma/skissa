@@ -32,6 +32,7 @@
 #include "KisMainWindow.h"
 #include "KisStudioMotion.h"
 #include "widgets/KisPopupCloser.h"
+#include <KisModernStyle.h>
 
 namespace {
 
@@ -102,13 +103,13 @@ protected:
         // a key: a top face and a darker edge below it
         painter.setPen(Qt::NoPen);
         painter.setBrush(mix(window, Qt::black, 0.35));
-        painter.drawRoundedRect(cap.translated(0, 2), 6, 6);
+        painter.drawPath(KisModernStyle::squircle(cap.translated(0, 2), 6));
         painter.setBrush(mix(window, ink, underMouse() ? 0.22 : 0.15));
-        painter.drawRoundedRect(cap, 6, 6);
+        painter.drawPath(KisModernStyle::squircle(cap, 6));
         if (m_recording) {
             painter.setPen(QPen(pal.color(QPalette::Link), 1.5));
             painter.setBrush(Qt::NoBrush);
-            painter.drawRoundedRect(cap.adjusted(0.75, 0.75, -0.75, -0.75), 6, 6);
+            painter.drawPath(KisModernStyle::squircle(cap.adjusted(0.75, 0.75, -0.75, -0.75), 6));
         }
         QColor textColor = ink;
         if (!m_recording && text().isEmpty()) textColor.setAlphaF(0.5);
@@ -147,7 +148,7 @@ protected:
             painter.setPen(Qt::NoPen);
             painter.setBrush(m_choice.current ? mix(pal.color(QPalette::Window), pal.color(QPalette::Highlight), 0.55)
                                               : mix(pal.color(QPalette::Window), pal.color(QPalette::ButtonText), 0.1));
-            painter.drawRoundedRect(QRectF(rect()).adjusted(1, 1, -1, -1), 8, 8);
+            painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), 8));
         }
         m_choice.icon.paint(&painter, QRect(9, 9, 22, 22));
         if (m_choice.action && !m_choice.action->shortcut().isEmpty()) {
@@ -226,7 +227,7 @@ void KisStudioShortcuts::paintBadge(QPainter &painter, const QRect &rect, const 
     background.setAlphaF(0.85);
     painter.setPen(Qt::NoPen);
     painter.setBrush(background);
-    painter.drawRoundedRect(badge, 3, 3);
+    painter.drawPath(KisModernStyle::squircle(badge, 3));
     QColor ink = palette.color(QPalette::ButtonText);
     ink.setAlphaF(0.72);
     painter.setPen(ink);
@@ -368,7 +369,7 @@ void KisStudioItemCard::addCommand(const Command &command)
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(isChecked() ? mix(pal.color(QPalette::Window), pal.color(QPalette::Highlight), 0.55)
                                              : mix(pal.color(QPalette::Window), pal.color(QPalette::ButtonText), 0.1));
-                painter.drawRoundedRect(QRectF(rect()).adjusted(1, 1, -1, -1), 8, 8);
+                painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), 8));
             }
             icon().paint(&painter, QRect((width() - 20) / 2, (height() - 20) / 2, 20, 20));
         }
@@ -486,11 +487,11 @@ void KisStudioItemCard::paintEvent(QPaintEvent *)
     for (int i = shadowMargin; i > 0; i -= 2) {
         painter.setPen(Qt::NoPen);
         painter.setBrush(QColor(0, 0, 0, int(30.0 * (1.0 - qreal(i) / shadowMargin) + 2)));
-        painter.drawRoundedRect(panel.adjusted(-i, -i + 3, i, i + 3), radius + i, radius + i);
+        painter.drawPath(KisModernStyle::squircle(panel.adjusted(-i, -i + 3, i, i + 3), radius + i));
     }
     // glass: what it is over still shows through
     QPainterPath shape;
-    shape.addRoundedRect(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+    shape.addPath(KisModernStyle::squircle(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius));
     KisStudioGlass::paint(painter, this, shape);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.12);

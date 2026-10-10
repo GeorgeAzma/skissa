@@ -12,6 +12,7 @@
 #include <QWheelEvent>
 
 #include <cmath>
+#include <KisModernStyle.h>
 
 namespace {
 
@@ -99,7 +100,7 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
     if (underMouse() || m_dragging) {
         painter.setPen(Qt::NoPen);
         painter.setBrush(mix(window, text, m_dragging ? 0.16 : 0.09));
-        painter.drawRoundedRect(QRectF(rect()).adjusted(1, 2, -1, -2), 7, 7);
+        painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 2, -1, -2), 7));
     }
 
     const QRectF icon(8, (height() - iconSize) / 2.0, iconSize, iconSize);
@@ -113,7 +114,7 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
         painter.drawEllipse(icon.center(), diameter / 2, diameter / 2);
     } else {
         QPainterPath tile;
-        tile.addRoundedRect(icon.adjusted(1, 1, -1, -1), 4, 4);
+        tile.addPath(KisModernStyle::squircle(icon.adjusted(1, 1, -1, -1), 4));
         painter.save();
         painter.setClipPath(tile);
         const qreal cell = (iconSize - 2) / 3.0;

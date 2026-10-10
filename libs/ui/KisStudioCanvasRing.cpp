@@ -31,6 +31,7 @@
 #include "kis_image.h"
 #include "kis_node.h"
 #include "kis_paintop_preset.h"
+#include <KisModernStyle.h>
 
 namespace {
 
@@ -415,7 +416,7 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
                           metrics.horizontalAdvance(name) + 20, metrics.height() + 8);
         painter.setPen(Qt::NoPen);
         painter.setBrush(accent);
-        painter.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+        painter.drawPath(KisModernStyle::squircle(pill, pill.height() / 2));
         painter.setPen(pal.color(QPalette::HighlightedText));
         painter.drawText(pill, Qt::AlignCenter, name);
     }

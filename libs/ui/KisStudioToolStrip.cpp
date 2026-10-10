@@ -23,6 +23,7 @@
 #include <KoToolManager.h>
 
 #include "widgets/kis_selection_options.h"
+#include <KisModernStyle.h>
 
 namespace {
 
@@ -59,7 +60,7 @@ QIcon gradientShapeIcon(int shape, const QColor &ink, const QColor &paper)
         painter.setRenderHint(QPainter::Antialiasing, true);
         const QRectF r = QRectF(0, 0, size, size).adjusted(size * 0.08, size * 0.08, -size * 0.08, -size * 0.08);
         QPainterPath clip;
-        clip.addRoundedRect(r, size * 0.16, size * 0.16);
+        clip.addPath(KisModernStyle::squircle(r, size * 0.16));
         painter.setClipPath(clip);
         switch (shape) {
         case 0: { // linear
@@ -174,8 +175,8 @@ QIcon multihandIcon(int type, const QColor &ink)
             }
             break;
         default: // copy translate: two strokes
-            painter.drawRoundedRect(QRectF(3 * s, 4 * s, 7 * s, 7 * s), 1.5 * s, 1.5 * s);
-            painter.drawRoundedRect(QRectF(10 * s, 9 * s, 7 * s, 7 * s), 1.5 * s, 1.5 * s);
+            painter.drawPath(KisModernStyle::squircle(QRectF(3 * s, 4 * s, 7 * s, 7 * s), 1.5 * s));
+            painter.drawPath(KisModernStyle::squircle(QRectF(10 * s, 9 * s, 7 * s, 7 * s), 1.5 * s));
             break;
         }
         painter.end();

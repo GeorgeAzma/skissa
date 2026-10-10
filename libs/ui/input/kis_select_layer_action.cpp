@@ -30,6 +30,7 @@
 #include <QPainterPath>
 #include <QPointer>
 #include <QTabletEvent>
+#include <KisModernStyle.h>
 
 namespace {
 
@@ -143,7 +144,7 @@ protected:
         if (pill.bottom() > height() - 4) pill.moveBottom(m_cursor.y() - 10);
         painter.setPen(Qt::NoPen);
         painter.setBrush(ink);
-        painter.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+        painter.drawPath(KisModernStyle::squircle(pill, pill.height() / 2));
         painter.setPen(palette().color(QPalette::HighlightedText));
         painter.drawText(pill, Qt::AlignCenter, name);
     }

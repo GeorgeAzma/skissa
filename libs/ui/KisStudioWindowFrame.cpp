@@ -13,6 +13,8 @@
 
 #include <klocalizedstring.h>
 
+#include <KisModernStyle.h>
+
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <windowsx.h>
@@ -76,11 +78,11 @@ protected:
             break;
         case WindowButtonKind::Maximize:
             if (m_window->isMaximized()) {
-                painter.drawRoundedRect(QRectF(c.x() - s, c.y() - s + 2, 2 * s - 2, 2 * s - 2), 1.5, 1.5);
+                painter.drawPath(KisModernStyle::squircle(QRectF(c.x() - s, c.y() - s + 2, 2 * s - 2, 2 * s - 2), 1.5));
                 painter.drawPolyline(QPolygonF({QPointF(c.x() - s + 2, c.y() - s), QPointF(c.x() + s, c.y() - s),
                                                 QPointF(c.x() + s, c.y() + s - 2)}));
             } else {
-                painter.drawRoundedRect(QRectF(c.x() - s, c.y() - s, 2 * s, 2 * s), 1.5, 1.5);
+                painter.drawPath(KisModernStyle::squircle(QRectF(c.x() - s, c.y() - s, 2 * s, 2 * s), 1.5));
             }
             break;
         case WindowButtonKind::Close:

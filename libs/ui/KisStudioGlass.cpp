@@ -16,6 +16,8 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
+#include <QSet>
+#include <QThreadPool>
 #include <QtMath>
 #include <QTimer>
 #include <QWidget>
@@ -136,21 +138,98 @@ KisMainWindow *mainWindowOf(QWidget *widget)
     return KisPart::instance()->currentMainwindow();
 }
 
+/// What a backdrop is made from: taken from the canvas on the GUI thread, made into one on any
+struct Scene {
+    KisPaintDeviceSP projection;
+    QRect imageBounds;
+    QTransform toWidget;
+    qreal zoom {1};
+    QSize canvasSize;
+    /// The canvas around the image
+    QColor border;
+    /// Where the image is see-through: the middle of the checkers
+    QColor transparent;
+};
+
+/// What is behind \p canvasRect (in canvas widget pixels), blurred
+QImage render(const Scene &scene, const QRect &canvasRect, const QColor &outside)
+{
+    // what is behind, a blur's reach around it included, so that the edges blur as the middle does
+    const int pad = qCeil(blurRadius);
+    const QRect area = canvasRect.adjusted(-pad, -pad, pad, pad);
+    const QSize size(qMax(1, qCeil(area.width() * sampleScale)), qMax(1, qCeil(area.height() * sampleScale)));
+    QImage image(size, QImage::Format_RGB32);
+    image.fill(outside);
+
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter.scale(sampleScale, sampleScale);
+    painter.translate(-area.topLeft());
+    painter.fillRect(QRect(QPoint(0, 0), scene.canvasSize), scene.border);
+
+    if (scene.projection) {
+        // the part of the image behind, at about the resolution it is drawn at here
+        const QRect imageArea = scene.toWidget.inverted().mapRect(QRectF(area)).toAlignedRect() & scene.imageBounds;
+        if (!imageArea.isEmpty()) {
+            const QSize thumbSize(qBound(1, qCeil(imageArea.width() * scene.zoom * sampleScale), imageArea.width()),
+                                  qBound(1, qCeil(imageArea.height() * scene.zoom * sampleScale), imageArea.height()));
+            KisPaintDeviceSP projection = scene.projection;
+            const QImage thumbnail = projection->createThumbnailUncached(thumbSize.width(), thumbSize.height(), imageArea, 2);
+            painter.setTransform(scene.toWidget, true);
+            painter.fillRect(imageArea, scene.transparent);
+            painter.drawImage(QRectF(imageArea), thumbnail);
+        }
+    }
+    painter.end();
+
+    // blurred, and the reach around cut away again
+    const QImage soft = blurred(image, qMax(1, qRound(blurRadius * sampleScale)));
+    const int cut = qRound(pad * sampleScale);
+    return soft.copy(cut, cut, qMax(1, soft.width() - 2 * cut), qMax(1, soft.height() - 2 * cut));
+}
+
+/// How bright \p image is, 0 to 1 (perceived lightness): how strong the tint over it is
+qreal lightness(const QImage &image)
+{
+    if (image.isNull()) return 0;
+    qreal sum = 0;
+    int count = 0;
+    const QImage small = image.scaled(16, 16, Qt::IgnoreAspectRatio, Qt::FastTransformation).convertToFormat(QImage::Format_RGB32);
+    for (int y = 0; y < small.height(); y++) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(small.constScanLine(y));
+        for (int x = 0; x < small.width(); x++, count++) sum += qGray(line[x]) / 255.0;
+    }
+    return count ? sum / count : 0;
+}
+
 /**
- * Keeps what is behind each glass widget, and repaints them when the
- * canvas changes under them: the image painted on, or the view moved.
+ * Keeps what is behind each glass widget, and makes it again when the
+ * canvas changes under it: the image painted on, or the view moved. A
+ * widget's first glass is made at once, for it never to be shown without;
+ * after that in the background, the glass it has shown meanwhile: the
+ * canvas is never kept waiting on the glass.
  */
 class Engine : public QObject
 {
 public:
+    /// What is behind a glass widget
+    struct Entry {
+        /// What of the widget is glass, and where that was on the screen when this was made
+        QRect rect;
+        QRect globalRect;
+        QImage image;
+        /// How bright it is, 0 to 1
+        qreal lightness {0};
+    };
+
     static Engine &instance()
     {
         static Engine *engine = new Engine();
         return *engine;
     }
 
-    /// The canvas behind \p rect of \p widget, blurred; null if there is none
-    QImage backdrop(QWidget *widget, const QRect &rect);
+    /// The canvas behind \p rect of \p widget, blurred; a null image if there is none
+    Entry backdrop(QWidget *widget, const QRect &rect);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
@@ -167,44 +246,37 @@ private:
         m_refresh.setSingleShot(true);
         m_refresh.setInterval(refreshInterval);
         connect(&m_refresh, &QTimer::timeout, this, [this]() { refresh(); });
+        // one at a time: the glass is never far behind, and takes no more than a thread
+        m_pool.setMaxThreadCount(1);
     }
-
-    struct Entry {
-        QRect globalRect;
-        QImage image;
-    };
-public:
-    /// How bright what is behind is, 0 to 1 (perceived lightness): how strong the tint over it is
-    static qreal lightness(const QImage &image)
-    {
-        if (image.isNull()) return 0;
-        qreal sum = 0;
-        int count = 0;
-        const QImage small = image.scaled(16, 16, Qt::IgnoreAspectRatio, Qt::FastTransformation).convertToFormat(QImage::Format_RGB32);
-        for (int y = 0; y < small.height(); y++) {
-            const QRgb *line = reinterpret_cast<const QRgb *>(small.constScanLine(y));
-            for (int x = 0; x < small.width(); x++, count++) sum += qGray(line[x]) / 255.0;
-        }
-        return count ? sum / count : 0;
-    }
-private:
 
     void follow(KisCanvas2 *canvas);
+    void watch(QWidget *widget);
     void refresh();
-    QImage render(KisCanvas2 *canvas, const QRect &canvasRect, const QColor &outside);
+    Scene scene() const;
+    /// Makes the glass of \p widget again in the background
+    void renderLater(QWidget *widget);
+    void rendered(QWidget *widget, const QPointer<QWidget> &guard, int epoch, const Entry &entry);
 
     QPointer<KisCanvas2> m_canvas;
     QPointer<QWidget> m_canvasWidget;
     KisImageWSP m_image;
     QMetaObject::Connection m_imageConnection;
     QMetaObject::Connection m_viewConnection;
-    bool m_imageChanged {false};
+    /// Where the image changed since the glass last followed it, in image pixels
+    QRect m_imageChanged;
     QTransform m_transform;
     QSize m_canvasSize;
 
     QTimer m_refresh;
     QHash<QWidget *, Entry> m_cache;
-    QList<QPointer<QWidget>> m_watched;
+    QSet<QWidget *> m_watched;
+    QThreadPool m_pool;
+    /// Being made in the background; and changed again meanwhile
+    QSet<QWidget *> m_rendering;
+    QSet<QWidget *> m_again;
+    /// Counts the canvases followed: glass made for another one is dropped
+    int m_epoch {0};
 };
 
 void Engine::follow(KisCanvas2 *canvas)
@@ -226,116 +298,168 @@ void Engine::follow(KisCanvas2 *canvas)
         });
     }
     if (m_image) {
-        m_imageConnection = connect(m_image.data(), &KisImage::sigImageUpdated, this, [this](const QRect &) {
-            m_imageChanged = true;
+        m_imageConnection = connect(m_image.data(), &KisImage::sigImageUpdated, this, [this](const QRect &rect) {
+            m_imageChanged |= rect;
             if (!m_refresh.isActive()) m_refresh.start();
         });
     }
     m_cache.clear();
+    m_again.clear();
+    m_epoch++;
+}
+
+void Engine::watch(QWidget *widget)
+{
+    if (m_watched.contains(widget)) {
+        return;
+    }
+    m_watched.insert(widget);
+    connect(widget, &QObject::destroyed, this, [this, widget]() {
+        m_watched.remove(widget);
+        m_cache.remove(widget);
+        m_again.remove(widget);
+    });
 }
 
 void Engine::refresh()
 {
-    // anything to follow: the image painted on, or the view moved
-    bool changed = m_imageChanged;
-    m_imageChanged = false;
-    if (m_canvas) {
+    // the view moved: all the glass follows it; the image painted on: only the glass over (or near) the change
+    bool moved = false;
+    if (m_canvas && m_canvasWidget) {
         const QTransform transform = m_canvas->coordinatesConverter()->imageToWidgetTransform();
-        const QSize size = m_canvasWidget ? m_canvasWidget->size() : QSize();
+        const QSize size = m_canvasWidget->size();
         if (transform != m_transform || size != m_canvasSize) {
             m_transform = transform;
             m_canvasSize = size;
-            changed = true;
+            moved = true;
         }
     }
-    if (!changed) {
+    QRect changed;
+    if (!m_imageChanged.isEmpty() && m_canvasWidget) {
+        const QRect inWidget = m_transform.mapRect(QRectF(m_imageChanged)).toAlignedRect();
+        // as far as the blur carries it
+        const int reach = qCeil(blurRadius);
+        changed = QRect(m_canvasWidget->mapToGlobal(inWidget.topLeft()), inWidget.size()).adjusted(-reach, -reach, reach, reach);
+    }
+    m_imageChanged = QRect();
+    if (!moved && changed.isEmpty()) {
         return;
     }
-    m_cache.clear();
-    for (int i = m_watched.size() - 1; i >= 0; i--) {
-        QWidget *widget = m_watched[i];
-        if (!widget) {
-            m_watched.removeAt(i);
-        } else if (widget->isVisible()) {
-            widget->update();
+    const QList<QWidget *> widgets = m_watched.values();
+    for (QWidget *widget : widgets) {
+        auto it = m_cache.find(widget);
+        if (it == m_cache.end() || (!moved && !it->globalRect.intersects(changed))) {
+            continue;
+        }
+        if (widget->isVisible()) {
+            renderLater(widget);
+        } else {
+            // made when it is shown again
+            m_cache.erase(it);
         }
     }
 }
 
-QImage Engine::render(KisCanvas2 *canvas, const QRect &canvasRect, const QColor &outside)
+Scene Engine::scene() const
 {
-    // what is behind, a blur's reach around it included, so that the edges blur as the middle does
-    const int pad = qCeil(blurRadius);
-    const QRect area = canvasRect.adjusted(-pad, -pad, pad, pad);
-    const QSize size(qMax(1, qCeil(area.width() * sampleScale)), qMax(1, qCeil(area.height() * sampleScale)));
-    QImage image(size, QImage::Format_RGB32);
-    image.fill(outside);
-
-    QPainter painter(&image);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    painter.scale(sampleScale, sampleScale);
-    painter.translate(-area.topLeft());
-
-    // the canvas around the image, as the canvas shows it
-    const KisConfig cfg(true);
-    QWidget *canvasWidget = canvas->canvasWidget();
-    painter.fillRect(QRect(QPoint(0, 0), canvasWidget->size()), cfg.canvasBorderColor());
-
-    KisImageSP image2 = canvas->image();
-    const KisCoordinatesConverter *converter = canvas->coordinatesConverter();
-    if (image2 && image2->projection()) {
-        const QTransform toWidget = converter->imageToWidgetTransform();
-        // the part of the image behind, at about the resolution it is drawn at here
-        const QRect imageArea = toWidget.inverted().mapRect(QRectF(area)).toAlignedRect() & image2->bounds();
-        if (!imageArea.isEmpty()) {
-            const qreal zoom = qMax(1e-3, converter->effectiveZoom());
-            const QSize thumbSize(qBound(1, qCeil(imageArea.width() * zoom * sampleScale), imageArea.width()),
-                                  qBound(1, qCeil(imageArea.height() * zoom * sampleScale), imageArea.height()));
-            const QImage thumbnail = image2->projection()->createThumbnailUncached(thumbSize.width(), thumbSize.height(), imageArea, 2);
-            painter.save();
-            painter.setTransform(toWidget, true);
-            // where the image is see-through: the middle of the checkers
-            const QColor c1 = cfg.checkersColor1(), c2 = cfg.checkersColor2();
-            painter.fillRect(imageArea, QColor((c1.red() + c2.red()) / 2, (c1.green() + c2.green()) / 2, (c1.blue() + c2.blue()) / 2));
-            painter.drawImage(QRectF(imageArea), thumbnail);
-            painter.restore();
-        }
+    Scene scene;
+    if (!m_canvas || !m_canvasWidget) {
+        return scene;
     }
-    painter.end();
-
-    // blurred, and the reach around cut away again
-    const QImage soft = blurred(image, qMax(1, qRound(blurRadius * sampleScale)));
-    const int cut = qRound(pad * sampleScale);
-    return soft.copy(cut, cut, qMax(1, soft.width() - 2 * cut), qMax(1, soft.height() - 2 * cut));
+    const KisConfig cfg(true);
+    scene.border = cfg.canvasBorderColor();
+    const QColor c1 = cfg.checkersColor1(), c2 = cfg.checkersColor2();
+    scene.transparent = QColor((c1.red() + c2.red()) / 2, (c1.green() + c2.green()) / 2, (c1.blue() + c2.blue()) / 2);
+    scene.canvasSize = m_canvasWidget->size();
+    const KisCoordinatesConverter *converter = m_canvas->coordinatesConverter();
+    scene.toWidget = converter->imageToWidgetTransform();
+    scene.zoom = qMax(1e-3, converter->effectiveZoom());
+    KisImageSP image = m_canvas->image();
+    if (image) {
+        scene.projection = image->projection();
+        scene.imageBounds = image->bounds();
+    }
+    return scene;
 }
 
-QImage Engine::backdrop(QWidget *widget, const QRect &rect)
+/// The glass of \p rect (\p canvasRect on the canvas) made from \p scene
+Engine::Entry makeEntry(const Scene &scene, const QRect &rect, const QRect &globalRect, const QRect &canvasRect, const QColor &outside)
+{
+    Engine::Entry entry {rect, globalRect, QImage(), 0};
+    // nothing of the canvas behind: no glass
+    if (canvasRect.intersects(QRect(QPoint(), scene.canvasSize))) {
+        entry.image = render(scene, canvasRect, outside);
+        entry.lightness = lightness(entry.image);
+    }
+    return entry;
+}
+
+void Engine::renderLater(QWidget *widget)
+{
+    if (m_rendering.contains(widget)) {
+        m_again.insert(widget);
+        return;
+    }
+    auto it = m_cache.constFind(widget);
+    if (it == m_cache.constEnd() || !m_canvasWidget) {
+        return;
+    }
+    const QRect rect = it->rect;
+    const QRect globalRect(widget->mapToGlobal(rect.topLeft()), rect.size());
+    const QRect canvasRect(m_canvasWidget->mapFromGlobal(globalRect.topLeft()), globalRect.size());
+    const QColor outside = widget->palette().color(QPalette::Window);
+    const QPointer<QWidget> guard(widget);
+    const int epoch = m_epoch;
+    m_rendering.insert(widget);
+    m_pool.start([this, scene = scene(), rect, globalRect, canvasRect, outside, widget, guard, epoch]() mutable {
+        const Entry entry = makeEntry(scene, rect, globalRect, canvasRect, outside);
+        // the image let go of on the thread it lives in
+        QMetaObject::invokeMethod(this, [this, widget, guard, epoch, entry, projection = std::move(scene.projection)]() {
+            rendered(widget, guard, epoch, entry);
+        }, Qt::QueuedConnection);
+    });
+}
+
+void Engine::rendered(QWidget *widget, const QPointer<QWidget> &guard, int epoch, const Entry &entry)
+{
+    m_rendering.remove(widget);
+    const bool again = m_again.remove(widget);
+    auto it = m_cache.find(widget);
+    // gone, another canvas, or made again at another size meanwhile
+    if (!guard || epoch != m_epoch || it == m_cache.end() || it->rect.size() != entry.rect.size()) {
+        return;
+    }
+    *it = entry;
+    if (widget->isVisible()) widget->update();
+    if (again) renderLater(widget);
+}
+
+Engine::Entry Engine::backdrop(QWidget *widget, const QRect &rect)
 {
     KisMainWindow *mainWindow = mainWindowOf(widget);
     KisViewManager *view = mainWindow ? mainWindow->viewManager() : nullptr;
     KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
     follow(canvas);
     if (!canvas || !m_canvasWidget || !m_canvasWidget->isVisible()) {
-        return QImage();
+        return Entry();
     }
-    if (!m_watched.contains(widget)) {
-        m_watched << widget;
-    }
+    watch(widget);
 
     const QRect globalRect(widget->mapToGlobal(rect.topLeft()), rect.size());
-    auto it = m_cache.constFind(widget);
-    if (it != m_cache.constEnd() && it->globalRect == globalRect) {
-        return it->image;
+    auto it = m_cache.find(widget);
+    if (it != m_cache.end() && it->rect.size() == rect.size()) {
+        // moved: made again in the background, the glass it has shown meanwhile
+        if (it->globalRect != globalRect) {
+            it->rect = rect;
+            renderLater(widget);
+        }
+        return *it;
     }
-    // nothing of the canvas behind: no glass
+    // new, or of another size: made now
     const QRect canvasRect(m_canvasWidget->mapFromGlobal(globalRect.topLeft()), globalRect.size());
-    if (!canvasRect.intersects(m_canvasWidget->rect())) {
-        m_cache.insert(widget, {globalRect, QImage()});
-        return QImage();
-    }
-    const QImage image = render(canvas, canvasRect, widget->palette().color(QPalette::Window));
-    m_cache.insert(widget, {globalRect, image});
-    return image;
+    const Entry entry = makeEntry(scene(), rect, globalRect, canvasRect, widget->palette().color(QPalette::Window));
+    m_cache.insert(widget, entry);
+    return entry;
 }
 
 const char *const savedPaletteProperty = "studioGlassSavedPalette";
@@ -378,13 +502,23 @@ void KisStudioGlass::setSeeThrough(QWidget *widget, bool on)
     }
 }
 
+namespace {
+/// The setting, read once: glass is painted often
+bool &enabled()
+{
+    static bool on = KisConfig(true).readEntry<bool>(settingKey, true);
+    return on;
+}
+} // namespace
+
 bool KisStudioGlass::isEnabled()
 {
-    return KisConfig(true).readEntry<bool>(settingKey, true);
+    return enabled();
 }
 
 void KisStudioGlass::setEnabled(bool on)
 {
+    enabled() = on;
     KisConfig(false).writeEntry(settingKey, on);
 }
 
@@ -398,7 +532,8 @@ QColor KisStudioGlass::tint(const QWidget *widget)
 void KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QPainterPath &shape)
 {
     const QRect rect = shape.boundingRect().toAlignedRect();
-    const QImage backdrop = isEnabled() ? Engine::instance().backdrop(widget, rect) : QImage();
+    const Engine::Entry behind = isEnabled() ? Engine::instance().backdrop(widget, rect) : Engine::Entry();
+    const QImage &backdrop = behind.image;
     if (backdrop.isNull()) {
         painter.fillPath(shape, widget->palette().color(QPalette::Window));
         return;
@@ -410,8 +545,7 @@ void KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QPainterPat
 
     // tinted as much as what is behind needs, for what is on it to read: a bright canvas more, a dark one less
     const QColor window = widget->palette().color(QPalette::Window);
-    const qreal behind = Engine::lightness(backdrop);
-    const qreal contrast = qAbs(behind - window.lightnessF());
+    const qreal contrast = qAbs(behind.lightness - window.lightnessF());
     QColor tinted = window;
     tinted.setAlphaF(tintOverDark + (tintOverBright - tintOverDark) * qBound(0.0, contrast, 1.0));
     painter.fillRect(rect, tinted);

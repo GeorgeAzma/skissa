@@ -52,6 +52,7 @@
 #include "kis_selection.h"
 #include "kis_signal_compressor.h"
 #include "widgets/kis_filter_selector_widget.h"
+#include <KisModernStyle.h>
 
 namespace {
 
@@ -283,7 +284,7 @@ protected:
         background.setAlphaF(0.94);
         painter.setPen(Qt::NoPen);
         painter.setBrush(background);
-        painter.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), height() / 2.0, height() / 2.0);
+        painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), height() / 2.0));
         QFont font = this->font();
         font.setBold(true);
         painter.setFont(font);
@@ -839,5 +840,5 @@ void KisStudioEffectOverlay::paintEvent(QPaintEvent *)
     border.setAlphaF(0.14);
     painter.setPen(QPen(border, 1));
     painter.setBrush(background);
-    painter.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14, 14);
+    painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14));
 }

@@ -38,6 +38,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <KisModernStyle.h>
 
 namespace {
 
@@ -238,12 +239,12 @@ protected:
                 painter.setBrush(QColor::fromRgbF(base.redF() + (select.redF() - base.redF()) * t,
                                                   base.greenF() + (select.greenF() - base.greenF()) * t,
                                                   base.blueF() + (select.blueF() - base.blueF()) * t));
-                painter.drawRoundedRect(QRectF(item.rect).adjusted(2, 1, -2, -1), tiles ? 8 : 6, tiles ? 8 : 6);
+                painter.drawPath(KisModernStyle::squircle(QRectF(item.rect).adjusted(2, 1, -2, -1), tiles ? 8 : 6));
             }
 
             const QRect preview = previewRect(item.rect, tiles, item.order >= 0);
             QPainterPath clip;
-            clip.addRoundedRect(QRectF(preview), tiles ? 6 : 4, tiles ? 6 : 4);
+            clip.addPath(KisModernStyle::squircle(QRectF(preview), tiles ? 6 : 4));
             painter.save();
             painter.setClipPath(clip);
             painter.setOpacity(painter.opacity() * (enabled ? 1.0 : 0.35));
@@ -258,7 +259,7 @@ protected:
                     const QRect badge(preview.left() + 4, preview.top() + 4, painter.fontMetrics().horizontalAdvance(number) + 10, 16);
                     painter.setPen(Qt::NoPen);
                     painter.setBrush(QColor(0, 0, 0, 140));
-                    painter.drawRoundedRect(QRectF(badge), 8, 8);
+                    painter.drawPath(KisModernStyle::squircle(QRectF(badge), 8));
                     painter.setPen(Qt::white);
                     painter.drawText(badge, Qt::AlignCenter, number);
                 } else {
@@ -305,13 +306,13 @@ protected:
             if (!m_dropLine.isNull()) {
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(pal.color(QPalette::Highlight));
-                painter.drawRoundedRect(QRectF(m_dropLine), 1.5, 1.5);
+                painter.drawPath(KisModernStyle::squircle(QRectF(m_dropLine), 1.5));
             } else if (m_dropUnpins) {
                 QColor wash = pal.color(QPalette::WindowText);
                 wash.setAlphaF(0.06);
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(wash);
-                painter.drawRoundedRect(QRectF(0, m_d->pinnedArea.bottom() + 4, width(), height() - m_d->pinnedArea.bottom() - 4), 8, 8);
+                painter.drawPath(KisModernStyle::squircle(QRectF(0, m_d->pinnedArea.bottom() + 4, width(), height() - m_d->pinnedArea.bottom() - 4), 8));
             }
             // the item itself, beside the pointer, where it does not hide the line
             const Item &dragged = m_d->items[m_dragging];
@@ -319,11 +320,11 @@ protected:
             const QRect ghost(m_pointer + QPoint(14, 10), size);
             painter.setPen(QPen(pal.color(QPalette::Highlight), 1));
             painter.setBrush(pal.color(QPalette::Window).lighter(125));
-            painter.drawRoundedRect(QRectF(ghost), 6, 6);
+            painter.drawPath(KisModernStyle::squircle(QRectF(ghost), 6));
             const QRect preview = previewRect(ghost, tiles, false);
             painter.save();
             QPainterPath clip;
-            clip.addRoundedRect(QRectF(preview), 4, 4);
+            clip.addPath(KisModernStyle::squircle(QRectF(preview), 4));
             painter.setClipPath(clip);
             if (m_d->source.paintPreview) m_d->source.paintPreview(painter, preview, dragged.id);
             painter.restore();
@@ -975,11 +976,11 @@ void KisStudioPicker::paintEvent(QPaintEvent *)
     for (int i = shadowMargin; i > 0; i -= 2) {
         painter.setPen(Qt::NoPen);
         painter.setBrush(QColor(0, 0, 0, int(34.0 * (1.0 - qreal(i) / shadowMargin) + 2)));
-        painter.drawRoundedRect(panel.adjusted(-i, -i + 4, i, i + 4), radius + i, radius + i);
+        painter.drawPath(KisModernStyle::squircle(panel.adjusted(-i, -i + 4, i, i + 4), radius + i));
     }
     // glass: what it is over still shows through
     QPainterPath shape;
-    shape.addRoundedRect(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+    shape.addPath(KisModernStyle::squircle(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius));
     KisStudioGlass::paint(painter, this, shape);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.08);

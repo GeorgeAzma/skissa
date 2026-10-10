@@ -38,6 +38,7 @@
 typedef KisBaseNode::Property* OptionalProperty;
 
 #include <kis_base_node.h>
+#include <KisModernStyle.h>
 
 class NodeDelegate::Private
 {
@@ -140,7 +141,7 @@ void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &o, const QMode
             p->setBrush(QColor::fromRgbF(base.redF() + (tint.redF() - base.redF()) * t,
                                          base.greenF() + (tint.greenF() - base.greenF()) * t,
                                          base.blueF() + (tint.blueF() - base.blueF()) * t));
-            p->drawRoundedRect(QRectF(option.rect).adjusted(1, 1, -2, -1), 6, 6);
+            p->drawPath(KisModernStyle::squircle(QRectF(option.rect).adjusted(1, 1, -2, -1), 6));
             p->restore();
         }
 
@@ -309,7 +310,7 @@ void NodeDelegate::drawThumbnail(QPainter *p, const QStyleOptionViewItem &option
     p->save();
     p->setRenderHint(QPainter::Antialiasing, true);
     QPainterPath tile;
-    tile.addRoundedRect(QRectF(imageRectLowRes.translated(offset)), 3, 3);
+    tile.addPath(KisModernStyle::squircle(QRectF(imageRectLowRes.translated(offset)), 3));
     p->setClipPath(tile);
     p->fillRect(imageRectLowRes.translated(offset), brush);
     p->drawImage(offset, img);

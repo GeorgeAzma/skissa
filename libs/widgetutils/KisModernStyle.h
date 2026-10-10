@@ -7,6 +7,7 @@
 #define KISMODERNSTYLE_H
 
 #include "kritawidgetutils_export.h"
+#include <QPainterPath>
 #include <QProxyStyle>
 
 /**
@@ -40,6 +41,16 @@ public:
 
     /// Corner radius of rounded controls, for widgets that paint themselves
     static constexpr int cornerRadius = 5;
+
+    /**
+     * \p rect with round corners whose curvature eases in from the sides
+     * (a squircle, as Apple's and Figma's corners): the bend does not start
+     * all at once where the side ends, as a circular corner's does. \p radius is the
+     * radius of the arc in the middle of a corner; the corner reaches
+     * further along the sides. Where the sides are too short for that, the
+     * easing is less, down to a plain circular corner: a pill stays a pill.
+     */
+    static QPainterPath squircle(const QRectF &rect, qreal radius);
 
     /**
      * Whether the system rounds popup windows (menus, lists, tooltips,

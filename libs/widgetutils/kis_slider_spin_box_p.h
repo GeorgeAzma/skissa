@@ -602,7 +602,7 @@ public:
             // follow the rounded frame of the field
             const qreal radius = KisModernStyle::cornerRadius - 1;
             painter.setRenderHint(QPainter::Antialiasing, true);
-            painter.drawRoundedRect(rect, radius, radius);
+            painter.drawPath(KisModernStyle::squircle(rect, radius));
         } else if (qApp->property(currentUnderlyingStyleNameProperty).toString().toLower() == "fusion") {
             painter.drawRoundedRect(rect, 1, 1);
         } else {

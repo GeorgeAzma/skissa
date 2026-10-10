@@ -176,7 +176,7 @@ protected:
         QColor wash = ink;
         wash.setAlphaF(0.28);
         QPainterPath clip;
-        clip.addRoundedRect(r, 6, 6);
+        clip.addPath(KisModernStyle::squircle(r, 6));
         painter.setClipPath(clip);
         painter.fillRect(r, QColor(0, 0, 0, 60));
         const qreal edge = r.left() + r.width() * m_percent / 100.0;
@@ -253,7 +253,7 @@ protected:
             wash.setAlphaF(isDown() ? 0.12 : 0.06);
             painter.setPen(Qt::NoPen);
             painter.setBrush(wash);
-            painter.drawRoundedRect(QRectF(rect()).adjusted(1, 1, -2, -1), 6, 6);
+            painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -2, -1), 6));
         }
         ink.setAlphaF(underMouse() ? 0.85 : 0.55);
         const qreal y = height() / 2.0;

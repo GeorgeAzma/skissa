@@ -210,7 +210,7 @@ protected:
         painter.setPen(Qt::NoPen);
         painter.setBrush(ink);
         const QRectF pill(width() / 2.0 - 14, height() / 2.0 - 1.5, 28, 3);
-        painter.drawRoundedRect(pill, 1.5, 1.5);
+        painter.drawPath(KisModernStyle::squircle(pill, 1.5));
     }
 
     void mousePressEvent(QMouseEvent *event) override
@@ -451,7 +451,7 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
         // glass: the canvas under it still shows
         QPainterPath shape;
-        shape.addRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14, 14);
+        shape.addPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14));
         KisStudioGlass::paint(painter, this, shape);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(0.12);
@@ -485,7 +485,7 @@ protected:
             background.setAlphaF(0.09);
             painter.setPen(Qt::NoPen);
             painter.setBrush(background);
-            painter.drawRoundedRect(QRectF(rect()).adjusted(1, 1, -1, -1), 7, 7);
+            painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), 7));
         }
         const int iconSize = 18;
         KisIconUtils::loadIcon(QStringLiteral("studio_find"))
@@ -542,7 +542,7 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         QPainterPath shape;
-        shape.addRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12, 12);
+        shape.addPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12));
         KisStudioGlass::paint(painter, this, shape);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(0.14);
@@ -1924,7 +1924,7 @@ QIcon KisStudioLayout::railIcon(QDockWidget *dock) const
     painter.setRenderHint(QPainter::Antialiasing, true);
     const QColor color = d->rail ? d->rail->palette().color(QPalette::ButtonText) : QColor(Qt::gray);
     painter.setPen(QPen(color, 3));
-    painter.drawRoundedRect(QRectF(3, 3, size - 6, size - 6), 9, 9);
+    painter.drawPath(KisModernStyle::squircle(QRectF(3, 3, size - 6, size - 6), 9));
     QFont font = painter.font();
     font.setPixelSize(24);
     font.setBold(true);

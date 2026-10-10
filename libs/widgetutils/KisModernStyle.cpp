@@ -27,6 +27,8 @@
 #include <QFrame>
 #include <QLibrary>
 #include <QOperatingSystemVersion>
+#include <QtMath>
+#include <cmath>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -131,8 +133,7 @@ void drawRounded(QPainter *painter, const QRectF &rect, qreal r, const QColor &f
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setPen(border.isValid() ? QPen(border, 1.0) : QPen(Qt::NoPen));
     painter->setBrush(fill.isValid() ? QBrush(fill) : QBrush(Qt::NoBrush));
-    r = qMin(r, qMin(rect.width(), rect.height()) / 2.0);
-    painter->drawRoundedRect(rect, r, r);
+    painter->drawPath(KisModernStyle::squircle(rect, r));
     painter->restore();
 }
 
@@ -362,6 +363,61 @@ bool labelsAField(QLabel *label)
     return false;
 }
 } // namespace
+
+QPainterPath KisModernStyle::squircle(const QRectF &rect, qreal radius)
+{
+    // how far a corner eases in, as a part of its radius (iOS's corners)
+    constexpr qreal smoothing = 0.6;
+
+    QPainterPath path;
+    if (rect.isEmpty()) {
+        return path;
+    }
+    const qreal room = qMin(rect.width(), rect.height()) / 2;
+    const qreal r = qBound<qreal>(0, radius, room);
+    if (r <= 0) {
+        path.addRect(rect);
+        return path;
+    }
+    // Figma's corner: an arc in the middle, a cubic either side easing into the side
+    const qreal s = qBound<qreal>(0, qMin(smoothing, room / r - 1), 1);
+    const qreal reach = (1 + s) * r; // along each side, from the corner
+    const qreal ease = qDegreesToRadians(45 * s); // the angle each cubic turns
+    const qreal arcSpan = M_PI / 2 - 2 * ease;
+    const qreal chord = r * (std::cos(ease) - std::sin(ease)); // the arc, along each side
+    const qreal c = r * std::tan(ease / 2) * std::cos(ease);
+    const qreal d = c * std::tan(ease);
+    const qreal b = (reach - chord - c - d) / 3;
+    const qreal a = 2 * b;
+    const qreal handle = 4.0 / 3.0 * std::tan(arcSpan / 4) * r; // a cubic as the arc
+
+    // one corner at point o, coming along u, leaving along v
+    auto corner = [&](const QPointF &o, const QPointF &u, const QPointF &v) {
+        const QPointF start = o - reach * u;
+        if (path.isEmpty()) {
+            path.moveTo(start);
+        } else {
+            path.lineTo(start);
+        }
+        const QPointF arcStart = o - (chord + d) * u + d * v;
+        if (s > 0) {
+            path.cubicTo(start + a * u, start + (a + b) * u, arcStart);
+        }
+        const QPointF center = o - r * u + r * v;
+        auto tangent = [&](qreal t) { return std::cos(t) * u + std::sin(t) * v; };
+        const QPointF arcEnd = center + r * (std::sin(M_PI / 2 - ease) * u - std::cos(M_PI / 2 - ease) * v);
+        path.cubicTo(arcStart + handle * tangent(ease), arcEnd - handle * tangent(M_PI / 2 - ease), arcEnd);
+        if (s > 0) {
+            path.cubicTo(arcEnd + d * u + c * v, arcEnd + d * u + (b + c) * v, o + reach * v);
+        }
+    };
+    corner(rect.topRight(), {1, 0}, {0, 1});
+    corner(rect.bottomRight(), {0, 1}, {-1, 0});
+    corner(rect.bottomLeft(), {-1, 0}, {0, -1});
+    corner(rect.topLeft(), {0, -1}, {1, 0});
+    path.closeSubpath();
+    return path;
+}
 
 bool KisModernStyle::systemRoundsWindows()
 {

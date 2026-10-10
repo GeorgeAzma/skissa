@@ -44,6 +44,7 @@
 #include "kis_distance_information.h"
 #include "KisRunnableStrokeJobData.h"
 #include "brushengine/kis_paintop.h"
+#include <KisModernStyle.h>
 
 /**
  * The tiles' strokes: painted in a worker thread, one brush after another.
@@ -548,7 +549,7 @@ protected:
             pill.moveLeft(qBound(0.0, pill.left(), width() - pill.width()));
             painter.setPen(Qt::NoPen);
             painter.setBrush(palette().color(QPalette::Highlight));
-            painter.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+            painter.drawPath(KisModernStyle::squircle(pill, pill.height() / 2));
             painter.setPen(palette().color(QPalette::HighlightedText));
             painter.drawText(pill, Qt::AlignCenter, name);
         }
@@ -557,7 +558,7 @@ protected:
     void paintCell(QPainter &painter, const QRect &rect, const QString &id, bool big)
     {
         QPainterPath clip;
-        clip.addRoundedRect(QRectF(rect), big ? 8 : 4, big ? 8 : 4);
+        clip.addPath(KisModernStyle::squircle(QRectF(rect), big ? 8 : 4));
         painter.save();
         painter.setClipPath(clip);
         painter.fillRect(rect, m_strokes->paper);
@@ -570,7 +571,7 @@ protected:
             painter.setPen(QPen(big ? palette().color(QPalette::Highlight) : current ? palette().color(QPalette::WindowText)
                                                                               : palette().color(QPalette::Link),
                                 big ? 2 : 1.2));
-            painter.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), big ? 8 : 4, big ? 8 : 4);
+            painter.drawPath(KisModernStyle::squircle(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), big ? 8 : 4));
         }
     }
 

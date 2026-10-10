@@ -74,6 +74,7 @@
 #include "kis_paintop_preset.h"
 #include "kis_workspace_resource.h"
 #include "filter/kis_filter.h"
+#include <KisModernStyle.h>
 
 namespace {
 
@@ -220,7 +221,7 @@ void paintPin(QPainter *painter, const QRectF &rect, const QColor &ink, bool pin
     painter->setBrush(pinned ? ink : Qt::NoBrush);
     // the head, the collar and the needle
     QPainterPath head;
-    head.addRoundedRect(QRectF(-3.2, -7.0, 6.4, 6.0), 1.2, 1.2);
+    head.addPath(KisModernStyle::squircle(QRectF(-3.2, -7.0, 6.4, 6.0), 1.2));
     painter->drawPath(head);
     painter->drawLine(QPointF(-5.5, -1.0), QPointF(5.5, -1.0));
     painter->drawLine(QPointF(0, -1.0), QPointF(0, 6.5));
@@ -351,14 +352,14 @@ public:
                 pal.color(QPalette::Base).blueF() * 0.45 + pal.color(QPalette::Highlight).blueF() * 0.55);
             painter->setPen(Qt::NoPen);
             painter->setBrush(tint);
-            painter->drawRoundedRect(QRectF(r).adjusted(4, 1, -4, -1), 7, 7);
+            painter->drawPath(KisModernStyle::squircle(QRectF(r).adjusted(4, 1, -4, -1), 7));
         }
 
         // icon tile
         const QRectF tile(r.left() + 12, r.top() + 6, 28, 28);
         painter->setPen(Qt::NoPen);
         painter->setBrush(pal.color(QPalette::Button));
-        painter->drawRoundedRect(tile, 6, 6);
+        painter->drawPath(KisModernStyle::squircle(tile, 6));
         const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
         if (!icon.isNull()) {
             icon.paint(painter, tile.adjusted(5, 5, -5, -5).toRect());
@@ -1501,12 +1502,12 @@ void KisStudioFind::paintEvent(QPaintEvent *)
         QColor shadow(0, 0, 0, int(36.0 * (1.0 - qreal(i) / shadowMargin) + 2));
         painter.setPen(Qt::NoPen);
         painter.setBrush(shadow);
-        painter.drawRoundedRect(panel.adjusted(-i, -i + 4, i, i + 4), radius + i, radius + i);
+        painter.drawPath(KisModernStyle::squircle(panel.adjusted(-i, -i + 4, i, i + 4), radius + i));
     }
 
     // glass: what it is over still shows through
     QPainterPath shape;
-    shape.addRoundedRect(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+    shape.addPath(KisModernStyle::squircle(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius));
     KisStudioGlass::paint(painter, this, shape);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.08);

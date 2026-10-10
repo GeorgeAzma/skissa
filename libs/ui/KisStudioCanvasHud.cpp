@@ -28,6 +28,7 @@
 #include "canvas/kis_canvas2.h"
 #include "canvas/kis_canvas_controller.h"
 #include "canvas/kis_coordinates_converter.h"
+#include <KisModernStyle.h>
 
 namespace {
 
@@ -237,7 +238,7 @@ void KisStudioCanvasHud::paintEvent(QPaintEvent *)
     painter.setRenderHint(QPainter::Antialiasing, true);
     const QRectF pill = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
     QPainterPath shape;
-    shape.addRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+    shape.addPath(KisModernStyle::squircle(pill, pill.height() / 2));
     KisStudioGlass::paint(painter, this, shape);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.14);

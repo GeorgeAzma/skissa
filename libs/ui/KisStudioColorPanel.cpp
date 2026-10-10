@@ -30,6 +30,7 @@
 #include "kis_favorite_resource_manager.h"
 #include "kis_config.h"
 #include "kis_paintop_box.h"
+#include <KisModernStyle.h>
 
 namespace {
 
@@ -183,7 +184,7 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         QPainterPath clip;
-        clip.addRoundedRect(QRectF(rect()), 8, 8);
+        clip.addPath(KisModernStyle::squircle(QRectF(rect()), 8));
         painter.setClipPath(clip);
         painter.drawImage(0, 0, m_image);
         painter.setClipping(false);
@@ -252,7 +253,7 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
         QPainterPath clip;
         const QRectF strip = QRectF(rect()).adjusted(0, 3, 0, -3);
-        clip.addRoundedRect(strip, strip.height() / 2, strip.height() / 2);
+        clip.addPath(KisModernStyle::squircle(strip, strip.height() / 2));
         painter.setClipPath(clip);
         painter.drawImage(strip, m_image);
         painter.setClipping(false);
@@ -523,7 +524,7 @@ protected:
             if (chip.right() > width()) break;
             painter.setPen(QPen(border, 1));
             painter.setBrush(m_colors[i]);
-            painter.drawRoundedRect(chip.adjusted(0.5, 0.5, -0.5, -0.5), 4, 4);
+            painter.drawPath(KisModernStyle::squircle(chip.adjusted(0.5, 0.5, -0.5, -0.5), 4));
         }
     }
 

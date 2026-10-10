@@ -27,6 +27,7 @@
 #include <kis_icon.h>
 #include <kis_debug.h>
 #include "kis_global.h"
+#include <KisModernStyle.h>
 
 
 // on glass, the canvas behind shows through already: the message itself is not see-through
@@ -151,7 +152,7 @@ void KisFloatingMessage::paintEvent(QPaintEvent *)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
     QPainterPath shape;
-    shape.addRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 10, 10);
+    shape.addPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 10));
     KisStudioGlass::paint(painter, this, shape);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.12);
