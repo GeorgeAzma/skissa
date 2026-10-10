@@ -10,6 +10,7 @@
 
 #include <optional>
 
+#include <QMarginsF>
 #include <QTransform>
 #include <KoZoomHandler.h>
 
@@ -55,6 +56,16 @@ public:
     QSize viewportDevicePixelSize() const;
 
     void setCanvasWidgetSize(QSizeF size);
+
+    /**
+     * How much of the canvas widget, along each edge, lies under panels
+     * over it. Fitting the image to the view, and the center the view is
+     * zoomed and rotated about, are of the rest of it.
+     */
+    void setViewportInsets(const QMarginsF &insets);
+    QMarginsF viewportInsets() const;
+    /// The canvas widget without its insets
+    QRectF unobscuredWidgetRect() const;
     void setDevicePixelRatio(qreal value);
     void setImage(KisImageWSP image);
     void setExtraReferencesBounds(const QRect &imageRect);

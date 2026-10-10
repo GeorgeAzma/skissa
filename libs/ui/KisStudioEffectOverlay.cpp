@@ -691,7 +691,10 @@ void KisStudioEffectOverlay::reposition()
         const int contents = d->selector ? d->selector->sizeHint().height() : 0;
         height = qMin(height + contents + 20, int(area.height() * 0.55));
     }
-    setGeometry((area.width() - width) / 2, area.height() - height - 54, width, height);
+    // in the middle of what the pinned panels over the canvas leave of it
+    const int left = parentWidget()->property("studioCanvasLeftInset").toInt();
+    const int right = parentWidget()->property("studioCanvasRightInset").toInt();
+    setGeometry(left + (area.width() - left - right - width) / 2, area.height() - height - 54, width, height);
     raise();
 }
 

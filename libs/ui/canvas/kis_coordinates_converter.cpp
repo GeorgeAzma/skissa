@@ -51,6 +51,8 @@ struct KisCoordinatesConverter::Private {
     qreal rotationBaseAngle;
     bool rotationIsOrthogonal;
     QSizeF canvasWidgetSize;
+    /// Under panels over the canvas, see setViewportInsets()
+    QMarginsF viewportInsets;
     qreal devicePixelRatio;
     QPointF documentOffset;
     QPointF preferredTransformationCenterImage;
@@ -473,8 +475,9 @@ void KisCoordinatesConverter::setZoom(KoZoomMode::Mode mode, qreal zoom, qreal r
         KIS_SAFE_ASSERT_RECOVER_RETURN(!m_d->canvasWidgetSize.isEmpty());
 
         const QSizeF documentSize = imageRectInWidgetPixels().size();
-        const qreal zoomCoeffX = (m_d->canvasWidgetSize.width() - 2 * cfgMargin) / documentSize.width();
-        const qreal zoomCoeffY = (m_d->canvasWidgetSize.height() - 2 * cfgMargin) / documentSize.height();
+        const QRectF unobscured = unobscuredWidgetRect();
+        const qreal zoomCoeffX = (unobscured.width() - 2 * cfgMargin) / documentSize.width();
+        const qreal zoomCoeffY = (unobscured.height() - 2 * cfgMargin) / documentSize.height();
 
         const bool fitToWidth = [&]() {
             if (mode == KoZoomMode::ZOOM_PAGE) {
@@ -498,9 +501,9 @@ void KisCoordinatesConverter::setZoom(KoZoomMode::Mode mode, qreal zoom, qreal r
         // just explicitly set minimal axis offset to zero to
         // avoid imperfections of floating point numbers
         if (fitToWidth) {
-            newDocumentOffset.setX(-cfgMargin);
+            newDocumentOffset.setX(-(unobscured.left() + cfgMargin));
         } else {
-            newDocumentOffset.setY(-cfgMargin);
+            newDocumentOffset.setY(-(unobscured.top() + cfgMargin));
         }
 
         m_d->documentOffset = snapToDevicePixel(newDocumentOffset);
@@ -516,8 +519,9 @@ void KisCoordinatesConverter::zoomTo(const QRectF &zoomRectWidget)
 
     const QPointF zoomPortionCenterInImagePixels = widgetToImage(zoomRectWidget.center());
 
-    const qreal zoomCoeffX = m_d->canvasWidgetSize.width() / zoomRectWidget.width();
-    const qreal zoomCoeffY = m_d->canvasWidgetSize.height() / zoomRectWidget.height();
+    const QRectF unobscured = unobscuredWidgetRect();
+    const qreal zoomCoeffX = unobscured.width() / zoomRectWidget.width();
+    const qreal zoomCoeffY = unobscured.height() / zoomRectWidget.height();
 
     const bool fitToWidth = zoomCoeffX < zoomCoeffY;
 
@@ -861,7 +865,25 @@ QPointF KisCoordinatesConverter::flakeCenterPoint() const
 
 QPointF KisCoordinatesConverter::widgetCenterPoint() const
 {
-    return QPointF(m_d->canvasWidgetSize.width() / 2.0, m_d->canvasWidgetSize.height() / 2.0);
+    return unobscuredWidgetRect().center();
+}
+
+void KisCoordinatesConverter::setViewportInsets(const QMarginsF &insets)
+{
+    m_d->viewportInsets = insets;
+}
+
+QMarginsF KisCoordinatesConverter::viewportInsets() const
+{
+    return m_d->viewportInsets;
+}
+
+QRectF KisCoordinatesConverter::unobscuredWidgetRect() const
+{
+    const QRectF widget(QPointF(), m_d->canvasWidgetSize);
+    const QRectF unobscured = widget.marginsRemoved(m_d->viewportInsets);
+    // panels over all of it: the whole of it, rather than nothing
+    return unobscured.width() >= 64 && unobscured.height() >= 64 ? unobscured : widget;
 }
 
 void KisCoordinatesConverter::imageScale(qreal *scaleX, qreal *scaleY) const

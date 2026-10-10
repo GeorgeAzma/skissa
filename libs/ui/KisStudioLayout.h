@@ -14,6 +14,7 @@
 #include "kritaui_export.h"
 
 class KisMainWindow;
+class KisStudioPanelColumn;
 class QDockWidget;
 class QMdiArea;
 
@@ -27,11 +28,12 @@ class QMdiArea;
  *  - a rail of panel buttons sits on the right edge
  *  - an unpinned panel opens as a flyout floating over the edge of the
  *    canvas and closes when you click anywhere else in the window
- *  - a pinned panel is docked on the right, next to the rail
+ *  - pinned panels stack in a column of glass over the canvas's edge, on
+ *    the right or the left: the canvas goes on under them
  *
- * Everything is still a regular QMainWindow state, so saving and restoring
- * the window state works as before. After something restores a state, call
- * normalize() so that it is brought back to the studio arrangement.
+ * The docks are Krita's dockers all the same. After something restores a
+ * window state, call normalize() so that it is brought back to the studio
+ * arrangement.
  */
 class KRITAUI_EXPORT KisStudioLayout : public QObject
 {
@@ -85,6 +87,14 @@ private:
     void arrangePinned();
     void restoreHeights();
     void saveHeights();
+    /// The column of pinned panels on a side, over the canvas
+    KisStudioPanelColumn *columnOf(bool left);
+    /// Back among the window's docks, hidden: where it keeps the panels it does not show
+    void parkPanel(QDockWidget *dock);
+    /// The columns shown if they have panels to show, and what is in the canvas area kept clear of them
+    void updateColumns();
+    void updateCanvasInsets();
+    void resizePanel(QDockWidget *dock, int height);
     /// A panel dragged by its grip, or by its rail button, let go at \p globalPos
     void dropPanel(const QString &id, const QPoint &globalPos, bool fromRail);
     void showPanelCard(const QString &id, QWidget *anchor);

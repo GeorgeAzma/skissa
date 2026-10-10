@@ -54,6 +54,13 @@ public:
 
     void rotateCanvas(qreal angle, const std::optional<KoViewTransformStillPoint> &stillPoint, bool isNativeGesture = false);
 
+    /**
+     * How much of the canvas lies under panels over it, along each edge
+     * (see KisCoordinatesConverter::setViewportInsets()): the image, if it
+     * is fitted to the view, is fitted again to what is left.
+     */
+    void setViewportInsets(const QMarginsF &insets);
+
 public:
     bool wrapAroundMode() const;
     WrapAroundAxis wrapAroundModeAxis() const;

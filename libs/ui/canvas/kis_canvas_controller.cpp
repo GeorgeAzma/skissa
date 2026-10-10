@@ -468,6 +468,18 @@ void KisCanvasController::restoreCanvasState(const KisPropertiesConfiguration &c
     kritaCanvas->setLodPreferredInCanvas(config.getBool("enableInstantPreview", false));
 }
 
+void KisCanvasController::setViewportInsets(const QMarginsF &insets)
+{
+    if (!m_d->coordinatesConverter || m_d->coordinatesConverter->viewportInsets() == insets) {
+        return;
+    }
+    m_d->coordinatesConverter->setViewportInsets(insets);
+    const KoZoomMode::Mode mode = m_d->coordinatesConverter->zoomMode();
+    if (mode != KoZoomMode::ZOOM_CONSTANT) {
+        setZoom(mode, 1.0);
+    }
+}
+
 void KisCanvasController::syncOnReferencesChange(const QRectF &referencesRect)
 {
     const KisCanvasState oldCanvasState = canvasState();

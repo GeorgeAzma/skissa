@@ -2662,6 +2662,10 @@ void KisMainWindow::toggleDockersVisibility(bool visible, bool onWelcomePage)
                 }
             }
         }
+        // the studio layout's pinned panels are not the window's docks: it hides them
+        if (d->studioLayout) {
+            d->studioLayout->normalize();
+        }
     }
     else {
         restoreState(d->dockerStateBeforeHiding);
