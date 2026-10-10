@@ -63,6 +63,8 @@ public:
         std::function<QStringList()> recent;
         /// Tiles with large previews instead of rows with swatches
         bool tiles {false};
+        /// The size of a tile, its name under its picture (none: a landscape thumbnail's)
+        QSize tileSize;
         /// How long the pointer rests on one before it is previewed, in ms
         int previewDelay {0};
         QString yoursTitle;
@@ -87,6 +89,8 @@ public:
 
     void popupBelow(QWidget *anchor);
     void popupNear(const QPoint &globalPos);
+    /// To the left of \p anchor, their bottoms lined up: e.g. from a button on the right edge
+    void popupLeftOf(QWidget *anchor);
     /// Paints the previews again, e.g. when one more of them is ready
     void updatePreviews();
 

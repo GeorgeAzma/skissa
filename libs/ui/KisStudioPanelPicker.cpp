@@ -1,0 +1,230 @@
+/*
+ *  SPDX-FileCopyrightText: 2026 GeorgeAzma <lumi.main.mail@gmail.com>
+ *
+ *  SPDX-License-Identifier: GPL-2.0-or-later
+ */
+#include "KisStudioPanelPicker.h"
+
+#include <QDateTime>
+#include <QDir>
+#include <QDockWidget>
+#include <QHash>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPointer>
+#include <QRegularExpression>
+#include <QSet>
+#include <QStandardPaths>
+
+#include <klocalizedstring.h>
+
+#include "KisMainWindow.h"
+#include "kis_config.h"
+
+namespace {
+
+/// The size of a tile: portrait, as panels are
+const QSize tileSize(156, 176);
+/// A picture is kept this wide (and as tall as the panel is, in proportion): sharp in a tile on a 2x screen
+constexpr int keptWidth = 300;
+
+/// Without the empty space around what is in it: most panels are mostly empty
+QImage trimmed(const QImage &image)
+{
+    const QImage img = image.convertToFormat(QImage::Format_ARGB32);
+    if (img.isNull()) {
+        return img;
+    }
+    // the panel's own background, where nothing is: a bottom corner
+    const QRgb background = img.pixel(img.width() - 1, img.height() - 1);
+    auto differs = [background](QRgb c) {
+        return qAbs(qRed(c) - qRed(background)) + qAbs(qGreen(c) - qGreen(background)) + qAbs(qBlue(c) - qBlue(background)) > 30;
+    };
+    int left = img.width(), right = -1, top = img.height(), bottom = -1;
+    for (int y = 0; y < img.height(); y++) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(img.constScanLine(y));
+        for (int x = 0; x < img.width(); x++) {
+            if (!differs(line[x])) continue;
+            left = qMin(left, x);
+            right = qMax(right, x);
+            top = qMin(top, y);
+            bottom = qMax(bottom, y);
+        }
+    }
+    if (right < 0) {
+        return img;
+    }
+    const int margin = qRound(6 * image.devicePixelRatio());
+    return img.copy(QRect(QPoint(left, top), QPoint(right, bottom)).adjusted(-margin, -margin, margin, margin) & img.rect());
+}
+
+/// The pictures, by panel: in memory once made or read, and on disk between sessions
+struct Looks {
+    QHash<QString, QImage> images;
+    QHash<QString, qint64> taken;
+
+    static Looks &instance()
+    {
+        static Looks looks;
+        return looks;
+    }
+
+    static QString folder()
+    {
+        return QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/studio-panels");
+    }
+
+    static QString fileOf(const QString &id)
+    {
+        QString name = id;
+        name.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_.-]")), QStringLiteral("_"));
+        return folder() + QLatin1Char('/') + name + QStringLiteral(".png");
+    }
+
+    QImage look(const QString &id)
+    {
+        auto it = images.constFind(id);
+        if (it != images.constEnd()) {
+            return *it;
+        }
+        // from an earlier session
+        const QImage image = trimmed(QImage(fileOf(id)));
+        images.insert(id, image);
+        return image;
+    }
+
+    void keep(const QString &id, const QImage &image, bool save)
+    {
+        if (image.isNull()) {
+            return;
+        }
+        const QImage content = trimmed(image);
+        const QImage small = content.width() > keptWidth ? content.scaledToWidth(keptWidth, Qt::SmoothTransformation) : content;
+        images.insert(id, small);
+        taken.insert(id, QDateTime::currentMSecsSinceEpoch());
+        if (save && QDir().mkpath(folder())) {
+            small.save(fileOf(id), "PNG");
+        }
+    }
+};
+
+} // namespace
+
+/// What the picker and the tiles it draws share
+struct KisStudioPanelPickerState {
+    QPointer<KisMainWindow> mainWindow;
+    KisStudioPanelPicker::Rail rail;
+};
+
+static KisStudioPicker::Source panelsSource(std::shared_ptr<KisStudioPanelPickerState> state)
+{
+    auto docks = [state]() {
+        QHash<QString, QDockWidget *> result;
+        if (!state->mainWindow) return result;
+        Q_FOREACH (QDockWidget *dock, state->mainWindow->dockWidgets()) {
+            if (!dock->objectName().isEmpty() && !dock->windowTitle().isEmpty()) result.insert(dock->objectName(), dock);
+        }
+        return result;
+    };
+
+    KisStudioPicker::Source source;
+    source.pinnedKey = state->rail.key;
+    source.initialPinned = state->rail.defaults;
+    source.allIds = [docks]() {
+        const QHash<QString, QDockWidget *> all = docks();
+        QStringList ids = all.keys();
+        std::sort(ids.begin(), ids.end(), [&all](const QString &a, const QString &b) {
+            return all.value(a)->windowTitle().localeAwareCompare(all.value(b)->windowTitle()) < 0;
+        });
+        return ids;
+    };
+    source.otherGroups = [source](const QStringList &pinned) {
+        KisStudioPicker::Group group{i18nc("panels group: the ones not on the rail", "More panels"), {}};
+        Q_FOREACH (const QString &id, source.allIds()) {
+            if (!pinned.contains(id)) group.ids << id;
+        }
+        return QVector<KisStudioPicker::Group>{group};
+    };
+    source.name = [docks](const QString &id) {
+        QDockWidget *dock = docks().value(id);
+        return dock ? dock->windowTitle() : id;
+    };
+    source.aliases = [](const QString &id) { return QStringList{id}; };
+    source.paintPreview = [state, docks](QPainter &painter, const QRect &rect, const QString &id) {
+        const QImage look = Looks::instance().look(id);
+        painter.save();
+        if (!look.isNull()) {
+            // all of what is in it, on its own background, as large as fits
+            painter.fillRect(rect, QColor(look.pixel(look.width() - 1, look.height() - 1)));
+            const QSize fitted = look.size().scaled(rect.size() - QSize(8, 8), Qt::KeepAspectRatio);
+            QRect target(QPoint(0, 0), fitted);
+            target.moveCenter(rect.center());
+            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            painter.drawImage(target, look);
+        } else {
+            // never opened yet: its icon, until it has been (laying out a panel off screen changes it)
+            painter.fillRect(rect, QColor(128, 128, 128, 40));
+            if (QDockWidget *dock = docks().value(id)) {
+                const QIcon icon = state->rail.icon ? state->rail.icon(dock) : dock->windowIcon();
+                QRect iconRect(0, 0, 32, 32);
+                iconRect.moveCenter(rect.center());
+                painter.setOpacity(painter.opacity() * 0.6);
+                icon.paint(&painter, iconRect);
+            }
+        }
+        painter.restore();
+    };
+    source.tiles = true;
+    source.tileSize = tileSize;
+    source.yoursTitle = i18nc("panels group: the ones on the rail", "On the rail");
+    source.searchPlaceholder = i18nc("@info:placeholder", "Search all panels");
+    // the number goes in later: %1 passes through
+    source.allLabel = i18nc("@action:button %1 is a number", "All %1 panels", QStringLiteral("%1"));
+    return source;
+}
+
+struct KisStudioPanelPicker::Private
+{
+    std::shared_ptr<KisStudioPanelPickerState> state;
+};
+
+KisStudioPanelPicker::KisStudioPanelPicker(KisMainWindow *mainWindow, const Rail &rail)
+    : KisStudioPanelPicker([mainWindow, rail]() {
+        auto state = std::make_shared<KisStudioPanelPickerState>();
+        state->mainWindow = mainWindow;
+        state->rail = rail;
+        return state;
+    }())
+{
+}
+
+KisStudioPanelPicker::KisStudioPanelPicker(std::shared_ptr<KisStudioPanelPickerState> state)
+    : KisStudioPicker(panelsSource(state), QString(), QSet<QString>(), state->mainWindow)
+    , d(new Private)
+{
+    d->state = state;
+
+    // the open ones as they are now
+    Q_FOREACH (QDockWidget *dock, state->mainWindow->dockWidgets()) {
+        if (dock->isVisible()) rememberLook(dock);
+    }
+}
+
+KisStudioPanelPicker::~KisStudioPanelPicker()
+{
+}
+
+void KisStudioPanelPicker::rememberLook(QDockWidget *dock)
+{
+    QWidget *content = dock ? dock->widget() : nullptr;
+    // only laid out for real, on screen (not while the window closes)
+    if (!content || !dock->window() || !dock->window()->isVisible() || content->width() < 40 || content->height() < 40) {
+        return;
+    }
+    Looks &looks = Looks::instance();
+    // not again for every flicker: a second apart at least
+    if (QDateTime::currentMSecsSinceEpoch() - looks.taken.value(dock->objectName(), 0) < 1000) {
+        return;
+    }
+    looks.keep(dock->objectName(), content->grab().toImage(), true);
+}

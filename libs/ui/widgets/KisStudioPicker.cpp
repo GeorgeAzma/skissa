@@ -49,8 +49,12 @@ struct Metrics {
     int cellHeight;
 };
 
-Metrics metricsFor(bool tiles)
+Metrics metricsFor(bool tiles, const QSize &tileSize = QSize())
 {
+    if (tiles && tileSize.isValid()) {
+        // as many across as fit where four of the usual ones do
+        return Metrics{qMax(2, 4 * 124 / tileSize.width()), tileSize.width(), tileSize.height()};
+    }
     return tiles ? Metrics{4, 124, 96} : Metrics{3, 196, 32};
 }
 
@@ -648,7 +652,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
 {
     d->q = this;
     d->source = source;
-    d->m = metricsFor(source.tiles);
+    d->m = metricsFor(source.tiles, source.tileSize);
     d->original = current;
     d->available = available;
     d->pinned = pinnedIds(source);
@@ -895,6 +899,12 @@ void KisStudioPicker::popupNear(const QPoint &globalPos)
     adjustSize();
     // the search field just above the pointer, the items under it
     popupAt(globalPos - QPoint(width() / 2, shadowMargin + 26), nullptr);
+}
+
+void KisStudioPicker::popupLeftOf(QWidget *anchor)
+{
+    adjustSize();
+    popupAt(anchor->mapToGlobal(QPoint(0, anchor->height())) - QPoint(width() - shadowMargin + 4, height() - shadowMargin), anchor);
 }
 
 void KisStudioPicker::popupAt(QPoint pos, QWidget *anchor)

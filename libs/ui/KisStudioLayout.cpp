@@ -55,6 +55,7 @@
 #include "KisStudioCanvasRing.h"
 #include "KisStudioBrushPicker.h"
 #include "KisStudioEffectsPicker.h"
+#include "KisStudioPanelPicker.h"
 #include "KisView.h"
 #include "KisResourceServerProvider.h"
 #include "KisStudioCanvasHud.h"
@@ -782,6 +783,10 @@ void KisStudioLayout::enter()
         grip->clicked = [this, id]() { gripClicked(id); };
         d->grips.insert(id, grip);
         dock->setTitleBarWidget(grip);
+        // how it looked, for the panel picker: taken as it goes off screen
+        d->connections << connect(dock, &QDockWidget::visibilityChanged, this, [dock](bool visible) {
+            if (!visible) KisStudioPanelPicker::rememberLook(dock);
+        });
         dock->setFeatures(QDockWidget::DockWidgetClosable);
         d->panels.insert(dock);
 
@@ -1721,18 +1726,27 @@ void KisStudioLayout::createRail()
     addPanel->setIcon(KisIconUtils::loadIcon(QStringLiteral("list-add")));
     addPanel->setToolTip(i18nc("@info:tooltip", "Add a panel"));
     addPanel->setAccessibleName(addPanel->toolTip());
-    connect(addPanel, &QToolButton::clicked, this, [this]() {
-        KisStudioFind *find = d->mainWindow->studioFind();
-        if (!find) return;
-        find->pick(i18nc("@info:placeholder", "Add a panel"), [this](const QString &key) {
-            const QString id = key.mid(QStringLiteral("panel:").size());
+    connect(addPanel, &QToolButton::clicked, this, [this, addPanel]() {
+        // every panel as it looks; the rail's first, and changed there too
+        KisStudioPanelPicker::Rail rail;
+        rail.key = panelsKey;
+        rail.defaults = defaultRailPanels;
+        rail.icon = [this](QDockWidget *dock) { return railIcon(dock); };
+        auto *picker = new KisStudioPanelPicker(d->mainWindow, rail);
+        connect(picker, &KisStudioPicker::sigPicked, this, [this](const QString &id) {
             QDockWidget *dock = d->mainWindow->dockWidget(id);
             if (!dock) return;
             if (!d->railPanels.contains(id)) {
                 setRailPanels(d->railPanels + QStringList{id});
             }
             showPanel(dock);
-        }, QStringLiteral("panel:"));
+        });
+        connect(picker, &QObject::destroyed, this, [this]() {
+            // starred, unstarred or reordered there
+            const QStringList panels = KisConfig(true).readEntry<QStringList>(panelsKey, defaultRailPanels());
+            if (panels != d->railPanels) setRailPanels(panels);
+        });
+        picker->popupLeftOf(addPanel);
     });
     rail->addWidget(addPanel);
 

@@ -460,6 +460,7 @@ set(kritaui_LIB_SRCS
     KisStudioToolRail.cpp
     KisStudioMotion.cpp
     KisStudioEffectsPicker.cpp
+    KisStudioPanelPicker.cpp
     KisStudioBrushPicker.cpp
     KisStudioBrushMemory.cpp
     KisStudioCanvasRing.cpp
