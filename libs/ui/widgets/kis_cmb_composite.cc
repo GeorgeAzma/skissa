@@ -500,7 +500,8 @@ void KisCompositeOpComboBox::mouseMoveEvent(QMouseEvent *e)
     const QPoint delta = e->pos() - m_pressPos;
     const QStringList order = KisBlendModePicker::scrollOrder();
     if (!m_scrubbing) {
-        if (qAbs(delta.x()) < 2 * QApplication::startDragDistance() || qAbs(delta.x()) < qAbs(delta.y())) {
+        // a scrub as soon as the pointer is clearly going sideways: a few pixels, not a drag's distance twice
+        if (qAbs(delta.x()) < qMax(3, QApplication::startDragDistance() / 2) || qAbs(delta.x()) < qAbs(delta.y())) {
             return;
         }
         m_scrubbing = true;
@@ -508,9 +509,10 @@ void KisCompositeOpComboBox::mouseMoveEvent(QMouseEvent *e)
         m_scrubId.clear();
         setCursor(Qt::SizeHorCursor);
     }
-    // one mode per step of the pointer, through yours and on into the others, no wrapping
+    // one mode per step of the pointer, through yours and on into the others, no wrapping; the first
+    // half a step from the press, so that it comes as soon as the ones after it
     constexpr int step = 18;
-    int target = qBound(0, m_scrubStart + delta.x() / step, order.size() - 1);
+    int target = qBound(0, m_scrubStart + qRound(qreal(delta.x()) / step), order.size() - 1);
     const int direction = delta.x() >= 0 ? 1 : -1;
     for (; target >= 0 && target < order.size(); target += direction) {
         const QModelIndex index = m_model->indexOf(KoCompositeOpRegistry::instance().getKoID(order[target]));

@@ -679,10 +679,9 @@ private:
     /// The hues, and under them how light each looks (OKLab's L as a gray): a name above
     int paintStrip(QPainter &painter, int y, const QString &name, const std::function<QColor(qreal)> &colorAt)
     {
-        QFont label = font();
-        label.setPointSizeF(label.pointSizeF() * 0.8);
-        label.setWeight(QFont::Bold);
-        label.setLetterSpacing(QFont::PercentageSpacing, 108);
+        // caps set small: the face's small cut at semibold (bold that small clots), a little apart
+        QFont label = KisModernStyle::textFont(font(), 0.8, QFont::DemiBold);
+        label.setLetterSpacing(QFont::PercentageSpacing, 106);
         QColor faint = palette().color(QPalette::ToolTipText);
         faint.setAlphaF(0.55);
         painter.setFont(label);
@@ -750,10 +749,9 @@ public:
 protected:
     QFont labelFont() const
     {
-        QFont font = this->font();
-        font.setPointSizeF(font.pointSizeF() * 0.78);
-        font.setWeight(QFont::Bold);
-        font.setLetterSpacing(QFont::PercentageSpacing, 108);
+        // caps set small: the face's small cut at semibold (bold that small clots), a little apart
+        QFont font = KisModernStyle::textFont(this->font(), 0.78, QFont::DemiBold);
+        font.setLetterSpacing(QFont::PercentageSpacing, 106);
         return font;
     }
 

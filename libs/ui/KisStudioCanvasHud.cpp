@@ -14,7 +14,9 @@
 #include <QPointer>
 #include <QProgressBar>
 #include <QStatusBar>
+#include <QStyleOptionToolButton>
 #include <QToolButton>
+#include <QtMath>
 #include <QWheelEvent>
 
 #include <cmath>
@@ -41,6 +43,90 @@ QToolButton *hudButton(QWidget *parent)
     button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     return button;
 }
+
+/**
+ * The zoom, set as a reading: the number semibold, what it is in (the %)
+ * smaller and fainter, on the number's baseline. Its digits are all as wide,
+ * so the pill keeps its width as the zoom changes.
+ */
+class ZoomButton : public QToolButton
+{
+public:
+    using QToolButton::QToolButton;
+
+    QSize sizeHint() const override
+    {
+        const QSize plain = QToolButton::sizeHint();
+        const int padding = plain.width() - fontMetrics().horizontalAdvance(text());
+        return QSize(qMax(0, padding) + qCeil(textWidth(numberFont(), unitFont())), plain.height());
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        QStyleOptionToolButton option;
+        initStyleOption(&option);
+        option.text.clear();
+        style()->drawComplexControl(QStyle::CC_ToolButton, &option, &painter, this);
+
+        const QFont number = numberFont();
+        const QFont unit = unitFont();
+        const QFontMetricsF numberMetrics(number);
+        const QFontMetricsF unitMetrics(unit);
+        // the line centered as a number is: by its digits' height, not the font's
+        const qreal baseline = rect().center().y() + 0.5 + numberMetrics.capHeight() / 2;
+        qreal x = (width() - textWidth(number, unit)) / 2;
+        QColor ink = palette().color(QPalette::ButtonText);
+        QColor faint = ink;
+        faint.setAlphaF(0.6);
+        for (const Run &run : runs()) {
+            painter.setFont(run.number ? number : unit);
+            painter.setPen(run.number ? ink : faint);
+            painter.drawText(QPointF(x, baseline), run.text);
+            x += (run.number ? numberMetrics : unitMetrics).horizontalAdvance(run.text) + (run.number ? 0 : 0.5);
+        }
+    }
+
+private:
+    struct Run {
+        QString text;
+        bool number;
+    };
+
+    /// The text in runs of the number (digits, its separators) and the rest
+    QList<Run> runs() const
+    {
+        QList<Run> runs;
+        Q_FOREACH (const QChar c, text()) {
+            const bool number = c.isDigit() || c == QLatin1Char('.') || c == QLatin1Char(',');
+            if (runs.isEmpty() || runs.last().number != number) {
+                runs.append({QString(), number});
+            }
+            runs.last().text += c;
+        }
+        return runs;
+    }
+
+    qreal textWidth(const QFont &number, const QFont &unit) const
+    {
+        qreal sum = 0;
+        for (const Run &run : runs()) {
+            sum += QFontMetricsF(run.number ? number : unit).horizontalAdvance(run.text) + (run.number ? 0 : 0.5);
+        }
+        return sum;
+    }
+
+    QFont numberFont() const
+    {
+        return KisModernStyle::textFont(font(), 1.0, QFont::DemiBold);
+    }
+
+    QFont unitFont() const
+    {
+        return KisModernStyle::textFont(font(), 0.8);
+    }
+};
 
 } // namespace
 
@@ -104,7 +190,10 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     layout->addWidget(d->rotation);
 
     // no menu: a click flips between fitting the window and the last zoom, the wheel zooms
-    d->zoom = hudButton(this);
+    d->zoom = new ZoomButton(this);
+    d->zoom->setAutoRaise(true);
+    d->zoom->setFocusPolicy(Qt::NoFocus);
+    d->zoom->setToolButtonStyle(Qt::ToolButtonTextOnly);
     d->zoom->setToolTip(i18nc("@info:tooltip", "Zoom: click to fit or go back, scroll to zoom"));
     d->zoom->installEventFilter(this);
     connect(d->zoom, &QToolButton::clicked, this, [this]() { d->trigger("toggle_zoom_to_fit"); });

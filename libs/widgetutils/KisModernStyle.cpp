@@ -7,6 +7,7 @@
 #include "KisTouchMode.h"
 
 #include <QApplication>
+#include <QFontDatabase>
 
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
@@ -445,14 +446,43 @@ QString KisModernStyle::keyCapText(const QString &nativeText)
 
 QFont KisModernStyle::keyCapFont(const QFont &font)
 {
-    QFont small = font;
-    if (small.pointSizeF() > 0) {
-        small.setPointSizeF(small.pointSizeF() * 0.86);
+    return textFont(font, 0.86);
+}
+
+QFont KisModernStyle::textFont(const QFont &font, qreal scale, QFont::Weight weight)
+{
+    QFont sized = font;
+    if (sized.pointSizeF() > 0) {
+        sized.setPointSizeF(sized.pointSizeF() * scale);
     } else {
-        small.setPixelSize(qMax(8, qRound(small.pixelSize() * 0.86)));
+        sized.setPixelSize(qMax(8, qRound(sized.pixelSize() * scale)));
     }
-    small.setWeight(QFont::Medium);
-    return small;
+    sized.setWeight(weight);
+
+    static const QString variable = QStringLiteral("Segoe UI Variable");
+    if (!font.family().startsWith(variable)) {
+        return sized;
+    }
+    // the cuts Windows has: Small up to 12 px (9 pt), Text for body text, Display from 20 px (15 pt)
+    const qreal points = sized.pointSizeF() > 0 ? sized.pointSizeF() : sized.pixelSize() * 0.75;
+    QString family = variable + (points < 9.5 ? QStringLiteral(" Small") : points >= 15 ? QStringLiteral(" Display") : QStringLiteral(" Text"));
+    // its weights between regular and bold are families of their own
+    if (weight == QFont::DemiBold || weight == QFont::Medium) {
+        family += QStringLiteral(" Semibold");
+        sized.setWeight(QFont::Normal);
+    } else if (weight == QFont::Light || weight == QFont::ExtraLight) {
+        family += QStringLiteral(" Light");
+        sized.setWeight(QFont::Normal);
+    }
+    static const QStringList installed = QFontDatabase().families();
+    // listed as Windows names them, in at most 31 characters
+    for (const QString &name : {family, family.left(31)}) {
+        if (installed.contains(name)) {
+            sized.setFamily(name);
+            break;
+        }
+    }
+    return sized;
 }
 
 namespace {

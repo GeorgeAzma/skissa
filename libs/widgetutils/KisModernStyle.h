@@ -10,6 +10,7 @@
 #include <QPainterPath>
 #include <QProxyStyle>
 #include <QKeySequence>
+#include <QFont>
 
 class QAction;
 
@@ -90,6 +91,14 @@ public:
                            const QPalette &palette, KeyCap state = KeyCap::Shown);
     /// The smaller font of key caps in lists, from the list's font
     static QFont keyCapFont(const QFont &font);
+
+    /**
+     * \p font at \p scale times its size and of \p weight, as type is set:
+     * Segoe UI Variable (the Windows 11 face) cut for the size, small text
+     * from its Small cut (wider, more open), large from Display, and a
+     * semibold its own (not the bold Qt would take for it)
+     */
+    static QFont textFont(const QFont &font, qreal scale, QFont::Weight weight = QFont::Normal);
 
     /**
      * The action whose shortcut a menu entry shows: the entry itself, or

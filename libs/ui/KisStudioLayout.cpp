@@ -609,7 +609,8 @@ public:
     {
         setObjectName(QStringLiteral("studioToolRail"));
         auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(3, 0, 3, 6);
+        // a little room over the grip, under the rail's round top
+        layout->setContentsMargins(3, 4, 3, 6);
         layout->setSpacing(6);
         // follows its contents: adding a tool makes it taller, removing one shorter
         layout->setSizeConstraint(QLayout::SetFixedSize);
