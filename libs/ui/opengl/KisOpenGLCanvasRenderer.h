@@ -20,6 +20,7 @@
 #include "kritaui_export.h"
 #include "kis_ui_types.h"
 #include "KisWraparoundAxis.h"
+#include "KisStudioGlass.h"
 
 class KisCanvas2;
 class KisCoordinatesConverter;
@@ -63,6 +64,10 @@ public:
      * Paint only the canvas background and image tiles.
      */
     void paintCanvasOnly(const QRect &canvasImageDirtyRect, const QRect &viewportUpdateRect = QRect());
+    /// The glass of \p surfaces (panels over the canvas, see KisStudioGlass), over the canvas just drawn
+    void paintGlass(const QVector<KisStudioGlass::Surface> &surfaces, const QRect &viewportUpdateRect = QRect());
+    /// Whether it draws the glass of the panels over it
+    bool drawsGlass() const;
 
 private:
     void renderCanvasGL(const QRect &updateRect);

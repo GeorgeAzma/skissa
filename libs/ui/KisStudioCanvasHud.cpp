@@ -237,9 +237,7 @@ void KisStudioCanvasHud::paintEvent(QPaintEvent *)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
     const QRectF pill = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-    QPainterPath shape;
-    shape.addPath(KisModernStyle::squircle(pill, pill.height() / 2));
-    KisStudioGlass::paint(painter, this, shape);
+    const QPainterPath shape = KisStudioGlass::paint(painter, this, pill, pill.height() / 2);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.14);
     painter.strokePath(shape, QPen(border, 1));

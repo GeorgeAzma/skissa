@@ -450,9 +450,7 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         // glass: the canvas under it still shows
-        QPainterPath shape;
-        shape.addPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14));
-        KisStudioGlass::paint(painter, this, shape);
+        const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(0.12);
         painter.strokePath(shape, QPen(border, 1));
@@ -541,9 +539,7 @@ protected:
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        QPainterPath shape;
-        shape.addPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12));
-        KisStudioGlass::paint(painter, this, shape);
+        const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(0.14);
         painter.strokePath(shape, QPen(border, 1));

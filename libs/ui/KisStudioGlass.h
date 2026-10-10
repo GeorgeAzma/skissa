@@ -7,11 +7,13 @@
 #define KISSTUDIOGLASS_H
 
 #include <QColor>
+#include <QPainterPath>
+#include <QRectF>
+#include <QVector>
 
 #include "kritaui_export.h"
 
 class QPainter;
-class QPainterPath;
 class QWidget;
 
 /**
@@ -20,11 +22,11 @@ class QWidget;
  * behind, blurred, under a tint, so that what is covered still shows its
  * colors and the canvas is not cut off by solid blocks.
  *
- * What is behind is the image itself (not a screenshot), drawn as the
- * canvas shows it (zoomed, rotated, mirrored) at a fraction of the
- * resolution, and blurred in linear light, as light mixes: a bright
- * stroke glows, it does not turn into grey mud. It follows the canvas as
- * it is painted on, panned or zoomed, a few times a second at most.
+ * The OpenGL canvas draws it itself, frame by frame, on the GPU (see
+ * KisOpenGLGlass): what it shows of the image, blurred in linear light, as
+ * light mixes: a bright stroke glows, it does not turn into grey mud. Over
+ * another canvas it is made here, from the image drawn as the canvas shows
+ * it, in the background, following the canvas about every frame.
  *
  * Where there is no canvas behind (over a panel, or with no image open)
  * it is the plain panel color, as before.
@@ -32,8 +34,41 @@ class QWidget;
 class KRITAUI_EXPORT KisStudioGlass
 {
 public:
-    /// Paints \p widget's background in \p shape (widget coordinates): glass over the canvas, the panel color elsewhere
-    static void paint(QPainter &painter, QWidget *widget, const QPainterPath &shape);
+    /// How the glass looks, drawn here or by the canvas alike: soft enough that nothing in it reads as a shape
+    static constexpr qreal blurSigma = 18; ///< in widget pixels
+    /// A little more saturated, as light through glass looks
+    static constexpr qreal vibrance = 1.18;
+    /// The tint, over a dark and over a bright canvas: text on it reads as well over either
+    static constexpr qreal tintOverDark = 0.56;
+    static constexpr qreal tintOverBright = 0.84;
+
+    /**
+     * Paints \p widget's background, \p rect (widget coordinates) with
+     * squircle corners of \p radius: glass over the canvas, the panel color
+     * elsewhere. Returns the shape, for a border.
+     */
+    static QPainterPath paint(QPainter &painter, QWidget *widget, const QRectF &rect, qreal radius);
+
+    /// A glass panel over a canvas, in the canvas widget's coordinates
+    struct Surface {
+        QRectF rect;
+        qreal radius;
+        QColor tint;
+        qreal opacity;
+    };
+
+    /// The glass panels shown over \p canvasWidget, for it to draw their glass itself
+    static QVector<Surface> surfacesOver(const QWidget *canvasWidget);
+
+    /**
+     * \p canvasWidget draws the glass of the panels over it itself (on the
+     * GPU, frame by frame), from now on; or, \p on false, no longer. The
+     * panels then paint only what is on the glass.
+     */
+    static void setDrawnByCanvas(QWidget *canvasWidget, bool on);
+
+    /// \p widget (a glass panel, or what holds one) is shown otherwise, e.g. faded: the canvas draws its glass again
+    static void changed(QWidget *widget);
 
     /**
      * Makes \p widget's surfaces see-through (and its fields a darker

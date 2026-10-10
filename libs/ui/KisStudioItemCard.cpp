@@ -490,9 +490,7 @@ void KisStudioItemCard::paintEvent(QPaintEvent *)
         painter.drawPath(KisModernStyle::squircle(panel.adjusted(-i, -i + 3, i, i + 3), radius + i));
     }
     // glass: what it is over still shows through
-    QPainterPath shape;
-    shape.addPath(KisModernStyle::squircle(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius));
-    KisStudioGlass::paint(painter, this, shape);
+    const QPainterPath shape = KisStudioGlass::paint(painter, this, panel.adjusted(0.5, 0.5, -0.5, -0.5), radius);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.12);
     painter.strokePath(shape, QPen(border, 1));

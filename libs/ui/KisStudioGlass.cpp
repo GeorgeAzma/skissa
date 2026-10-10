@@ -11,11 +11,13 @@
 
 #include <QEvent>
 #include <QFile>
+#include <QGraphicsOpacityEffect>
 #include <QHash>
 #include <QLinearGradient>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
+#include <QRegion>
 #include <QSet>
 #include <QThreadPool>
 #include <QtMath>
@@ -25,6 +27,7 @@
 #include "KisMainWindow.h"
 #include "KisPart.h"
 #include "KisViewManager.h"
+#include "KisModernStyle.h"
 #include "canvas/kis_canvas2.h"
 #include "kis_config.h"
 #include "kis_coordinates_converter.h"
@@ -38,12 +41,9 @@ const QString settingKey = QStringLiteral("StudioGlass");
 /// How the glass looks: soft enough that nothing in it reads as a shape, tinted enough that text on it reads
 constexpr qreal blurRadius = 26;   ///< in widget pixels
 constexpr qreal sampleScale = 0.25; ///< what is behind is drawn at a quarter of the resolution: the blur hides it
-constexpr qreal vibrance = 1.18;   ///< a little more saturated, as light through glass looks
-/// The tint, over a dark and over a bright canvas: text on it reads as well over either
-constexpr qreal tintOverDark = 0.56;
-constexpr qreal tintOverBright = 0.84;
-/// How often at most the glass follows the canvas
-constexpr int refreshInterval = 90;
+constexpr qreal vibrance = KisStudioGlass::vibrance;
+/// How often at most the glass follows the canvas, when it is made here: about a frame
+constexpr int refreshInterval = 16;
 
 // ------------------------------------------------------------ blurring in linear light
 
@@ -462,6 +462,236 @@ Engine::Entry Engine::backdrop(QWidget *widget, const QRect &rect)
     return entry;
 }
 
+/// Glass drawn by the canvas under it (on the GPU), not here
+const char *const drawnByCanvasProperty = "studioGlassDrawnByCanvas";
+
+QWidget *canvasWidgetOf(QWidget *widget)
+{
+    KisMainWindow *mainWindow = mainWindowOf(widget);
+    KisViewManager *view = mainWindow ? mainWindow->viewManager() : nullptr;
+    KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
+    return canvas ? canvas->canvasWidget() : nullptr;
+}
+
+bool drawnByCanvas(const QWidget *canvasWidget)
+{
+    return canvasWidget && canvasWidget->property(drawnByCanvasProperty).toBool();
+}
+
+/// Hidden where a glass window of its own is over it
+const char *const maskedProperty = "studioGlassMasked";
+
+/// What lies over \p canvas in its window: the tool rail, the zoom pill
+QList<QWidget *> overlaysOf(QWidget *canvas)
+{
+    QList<QWidget *> overlays;
+    const QRect canvasRect(canvas->mapToGlobal(QPoint()), canvas->size());
+    auto add = [&](QObject *object) {
+        QWidget *w = qobject_cast<QWidget *>(object);
+        if (w && !w->isWindow() && canvasRect.intersects(QRect(w->mapToGlobal(QPoint()), w->size()))) overlays << w;
+    };
+    for (QObject *child : canvas->children()) add(child);
+    // stacked over it: what comes after it, or after what holds it, among its siblings
+    for (QWidget *w = canvas; !w->isWindow() && w->parentWidget(); w = w->parentWidget()) {
+        const QObjectList &siblings = w->parentWidget()->children();
+        for (int i = siblings.indexOf(w) + 1; i < siblings.size(); i++) add(siblings[i]);
+    }
+    return overlays;
+}
+
+/**
+ * The glass panels there are, and where: for a canvas that draws their
+ * glass itself, which it draws again as they are shown, hidden, moved or
+ * faded.
+ */
+class Panels : public QObject
+{
+public:
+    struct Panel {
+        QRectF rect;
+        qreal radius {0};
+        /// The canvas has drawn its glass since it was shown: until then it is the plain panel color
+        bool drawn {false};
+    };
+
+    static Panels &instance()
+    {
+        static Panels *panels = new Panels();
+        return *panels;
+    }
+
+    /// \p widget is glass in \p rect, with corners of \p radius; whether the canvas has drawn its glass yet
+    bool paint(QWidget *widget, const QRectF &rect, qreal radius)
+    {
+        auto it = m_panels.find(widget);
+        if (it == m_panels.end()) {
+            m_panels.insert(widget, {rect, radius, false});
+            widget->installEventFilter(this);
+            if (widget->window() != widget) widget->window()->installEventFilter(this);
+            connect(widget, &QObject::destroyed, this, [this, widget]() {
+                m_panels.remove(widget);
+                // where it was, the canvas shows plain again
+                for (QWidget *canvas : qAsConst(m_canvases)) {
+                    if (!canvas) continue;
+                    canvas->update();
+                    hideUnderWindows(canvas);
+                }
+            });
+            changed(widget);
+            return false;
+        }
+        if (it->rect != rect || it->radius != radius) {
+            it->rect = rect;
+            it->radius = radius;
+            changed(widget);
+        }
+        return it->drawn;
+    }
+
+    /// \p widget, or a panel in its window, is shown otherwise: the canvas under it draws again
+    void changed(QWidget *widget)
+    {
+        QWidget *window = widget->window();
+        QSet<QWidget *> canvases;
+        for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
+            if (it.key() == widget || it.key()->window() == window) {
+                QWidget *canvas = canvasWidgetOf(it.key());
+                if (drawnByCanvas(canvas)) canvases.insert(canvas);
+            }
+        }
+        for (QWidget *canvas : qAsConst(canvases)) {
+            canvas->update();
+            hideUnderWindows(canvas);
+        }
+    }
+
+    /**
+     * What lies over \p canvas in its window (the tool rail) is hidden
+     * where a glass window of its own is over it: the canvas draws the
+     * glass of both under everything, the window's over the rail's, and the
+     * rail would show through the window's.
+     */
+    void hideUnderWindows(QWidget *canvas)
+    {
+        QRegion windows;
+        for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
+            QWidget *panel = it.key();
+            if (panel->isVisible() && panel->window() != canvas->window() && canvasWidgetOf(panel) == canvas) {
+                const QPolygon shape = KisModernStyle::squircle(it->rect, it->radius).toFillPolygon().toPolygon();
+                windows |= QRegion(shape).translated(panel->mapToGlobal(QPoint()));
+            }
+        }
+        const QList<QWidget *> overlays = overlaysOf(canvas);
+        for (QWidget *overlay : overlays) {
+            const bool masked = overlay->property(maskedProperty).toBool();
+            if (!masked && !overlay->mask().isEmpty()) {
+                // a shape of its own: left alone
+                continue;
+            }
+            const QRegion hidden = windows.translated(-overlay->mapToGlobal(QPoint())) & overlay->rect();
+            if (hidden.isEmpty()) {
+                if (masked) {
+                    overlay->clearMask();
+                    overlay->setProperty(maskedProperty, false);
+                }
+                continue;
+            }
+            const QRegion shown = QRegion(overlay->rect()) - hidden;
+            if (!masked || overlay->mask() != shown) {
+                overlay->setMask(shown);
+                overlay->setProperty(maskedProperty, true);
+            }
+        }
+    }
+
+    /// The panels over \p canvasWidget, for it to draw their glass: from then on they show it
+    QVector<KisStudioGlass::Surface> over(const QWidget *canvasWidget)
+    {
+        QVector<KisStudioGlass::Surface> surfaces;
+        if (!KisStudioGlass::isEnabled()) {
+            return surfaces;
+        }
+        const QPoint canvasOrigin = canvasWidget->mapToGlobal(QPoint());
+        // those in the canvas' window first, under windows of their own
+        QList<QWidget *> widgets = m_panels.keys();
+        std::stable_sort(widgets.begin(), widgets.end(), [canvasWidget](QWidget *a, QWidget *b) {
+            return a->window() == canvasWidget->window() && b->window() != canvasWidget->window();
+        });
+        for (QWidget *widget : qAsConst(widgets)) {
+            Panel &panel = m_panels[widget];
+            if (!widget->isVisible() || canvasWidgetOf(widget) != canvasWidget) {
+                continue;
+            }
+            if (!panel.drawn) {
+                panel.drawn = true;
+                widget->update();
+            }
+            const qreal opacity = opacityOf(widget);
+            if (opacity <= 0) {
+                continue;
+            }
+            const QPointF offset = widget->mapToGlobal(QPoint()) - canvasOrigin;
+            surfaces.append({panel.rect.translated(offset), panel.radius, widget->palette().color(QPalette::Window), opacity});
+        }
+        return surfaces;
+    }
+
+    /// A canvas that draws glass
+    void addCanvas(QWidget *canvas)
+    {
+        if (!m_canvases.contains(canvas)) m_canvases.append(canvas);
+    }
+
+    /// The panels over \p canvas, painted again (with their glass drawn here, or not)
+    void repaintOver(QWidget *canvas)
+    {
+        for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
+            if (canvasWidgetOf(it.key()) == canvas) it.key()->update();
+        }
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        switch (event->type()) {
+        case QEvent::Hide:
+            // shown again, it is the panel color until the canvas draws its glass
+            for (auto it = m_panels.begin(); it != m_panels.end(); ++it) {
+                if (it.key() == watched || it.key()->window() == watched) it->drawn = false;
+            }
+            changed(static_cast<QWidget *>(watched));
+            break;
+        case QEvent::Show:
+        case QEvent::Move:
+        case QEvent::Resize:
+        case QEvent::PaletteChange:
+        case QEvent::WindowStateChange:
+            changed(static_cast<QWidget *>(watched));
+            break;
+        default:
+            break;
+        }
+        return false;
+    }
+
+private:
+    /// How opaque \p widget is shown: its window's opacity, and that of the opacity effects on it
+    static qreal opacityOf(QWidget *widget)
+    {
+        qreal opacity = widget->window()->windowOpacity();
+        for (QWidget *w = widget; w; w = w->parentWidget()) {
+            if (auto *effect = qobject_cast<QGraphicsOpacityEffect *>(w->graphicsEffect())) {
+                if (effect->isEnabled()) opacity *= effect->opacity();
+            }
+            if (w->isWindow()) break;
+        }
+        return opacity;
+    }
+
+    QHash<QWidget *, Panel> m_panels;
+    QList<QPointer<QWidget>> m_canvases;
+};
+
 const char *const savedPaletteProperty = "studioGlassSavedPalette";
 const char *const seeThroughProperty = "studioGlassSeeThrough";
 
@@ -529,31 +759,74 @@ QColor KisStudioGlass::tint(const QWidget *widget)
     return color;
 }
 
-void KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QPainterPath &shape)
+QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRectF &rect, qreal radius)
 {
-    const QRect rect = shape.boundingRect().toAlignedRect();
-    const Engine::Entry behind = isEnabled() ? Engine::instance().backdrop(widget, rect) : Engine::Entry();
-    const QImage &backdrop = behind.image;
-    if (backdrop.isNull()) {
-        painter.fillPath(shape, widget->palette().color(QPalette::Window));
-        return;
+    const QPainterPath shape = KisModernStyle::squircle(rect, radius);
+    const QColor window = widget->palette().color(QPalette::Window);
+    const bool drawn = Panels::instance().paint(widget, rect, radius);
+
+    // light catching the top edge, faintly
+    auto sheen = [&]() {
+        const QRectF bounds = shape.boundingRect();
+        QLinearGradient gradient(bounds.topLeft(), QPointF(bounds.left(), bounds.top() + qMin<qreal>(28, bounds.height())));
+        gradient.setColorAt(0, QColor(255, 255, 255, 18));
+        gradient.setColorAt(1, QColor(255, 255, 255, 0));
+        painter.fillPath(shape, gradient);
+    };
+
+    QWidget *canvas = isEnabled() ? canvasWidgetOf(widget) : nullptr;
+    if (drawnByCanvas(canvas) && canvas->isVisible()) {
+        if (!drawn) {
+            // until the canvas has drawn the glass under it, not to show the canvas plain through it
+            painter.fillPath(shape, window);
+            sheen();
+            return shape;
+        }
+        // the canvas draws the glass under it; beyond the canvas it is the panel color
+        QPainterPath over;
+        over.addRect(QRectF(widget->mapFromGlobal(canvas->mapToGlobal(QPoint())), canvas->size()));
+        painter.fillPath(shape.subtracted(over), window);
+        sheen();
+        return shape;
+    }
+
+    const QRect bounds = shape.boundingRect().toAlignedRect();
+    const Engine::Entry behind = isEnabled() ? Engine::instance().backdrop(widget, bounds) : Engine::Entry();
+    if (behind.image.isNull()) {
+        painter.fillPath(shape, window);
+        return shape;
     }
     painter.save();
     painter.setClipPath(shape, Qt::IntersectClip);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    painter.drawImage(QRectF(rect), backdrop);
-
+    painter.drawImage(QRectF(bounds), behind.image);
     // tinted as much as what is behind needs, for what is on it to read: a bright canvas more, a dark one less
-    const QColor window = widget->palette().color(QPalette::Window);
     const qreal contrast = qAbs(behind.lightness - window.lightnessF());
     QColor tinted = window;
     tinted.setAlphaF(tintOverDark + (tintOverBright - tintOverDark) * qBound(0.0, contrast, 1.0));
-    painter.fillRect(rect, tinted);
-
-    // light catching the top edge, faintly
-    QLinearGradient sheen(rect.topLeft(), QPointF(rect.left(), rect.top() + qMin(28, rect.height())));
-    sheen.setColorAt(0, QColor(255, 255, 255, 18));
-    sheen.setColorAt(1, QColor(255, 255, 255, 0));
-    painter.fillRect(rect, sheen);
+    painter.fillRect(bounds, tinted);
     painter.restore();
+    sheen();
+    return shape;
+}
+
+QVector<KisStudioGlass::Surface> KisStudioGlass::surfacesOver(const QWidget *canvasWidget)
+{
+    return Panels::instance().over(canvasWidget);
+}
+
+void KisStudioGlass::setDrawnByCanvas(QWidget *canvasWidget, bool on)
+{
+    if (drawnByCanvas(canvasWidget) == on) {
+        return;
+    }
+    canvasWidget->setProperty(drawnByCanvasProperty, on);
+    if (on) Panels::instance().addCanvas(canvasWidget);
+    Panels::instance().repaintOver(canvasWidget);
+    canvasWidget->update();
+}
+
+void KisStudioGlass::changed(QWidget *widget)
+{
+    Panels::instance().changed(widget);
 }

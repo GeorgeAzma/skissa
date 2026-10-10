@@ -12,6 +12,8 @@
 
 #include "kis_algebra_2d.h"
 #include "opengl/kis_opengl_shader_loader.h"
+#include "opengl/KisOpenGLGlass.h"
+#include "KisModernStyle.h"
 #include "canvas/kis_canvas2.h"
 #include "canvas/kis_coordinates_converter.h"
 #include "canvas/kis_display_filter.h"
@@ -79,6 +81,8 @@ public:
     KisShaderProgram *solidColorShader{0};
 
     QScopedPointer<QOpenGLFramebufferObject> canvasFBO;
+    /// Glass over the canvas, blurred from the canvas FBO
+    KisOpenGLGlass glass;
 
     bool displayShaderCompiledWithDisplayFilterSupport{false};
 
@@ -254,6 +258,7 @@ void KisOpenGLCanvasRenderer::initializeGL()
     d->openGLImageTextures->generateCheckerTexture(KisCanvasWidgetBase::createCheckersImage(cfg.checkSize()));
 
     initializeShaders();
+    d->glass.initialize();
 
     // If we support OpenGL 3.0, then prepare our VAOs and VBOs for drawing
     if (KisOpenGL::supportsVAO()) {
@@ -392,6 +397,35 @@ void KisOpenGLCanvasRenderer::paintCanvasOnly(const QRect &canvasImageDirtyRect,
         }
         renderCanvasGL(fullUpdateRect);
     }
+}
+
+bool KisOpenGLCanvasRenderer::drawsGlass() const
+{
+    // blurred from what the canvas drew, without the decorations: kept in the canvas FBO
+    return d->canvasFBO && d->glass.isValid();
+}
+
+void KisOpenGLCanvasRenderer::paintGlass(const QVector<KisStudioGlass::Surface> &surfaces, const QRect &viewportUpdateRect)
+{
+    if (!drawsGlass() || surfaces.isEmpty()) {
+        return;
+    }
+    const qreal ratio = devicePixelRatioF();
+    QVector<KisOpenGLGlass::Surface> drawn;
+    drawn.reserve(surfaces.size());
+    for (const KisStudioGlass::Surface &surface : surfaces) {
+        KisOpenGLGlass::Surface glass;
+        glass.rect = widgetToSurface(surface.rect);
+        KisModernStyle::squircleCorner(surface.radius * ratio, qMin(glass.rect.width(), glass.rect.height()) / 2,
+                                       &glass.reach, &glass.exponent);
+        glass.tint = surface.tint;
+        glass.opacity = surface.opacity;
+        drawn.append(glass);
+    }
+    const QRect clip = viewportUpdateRect.isEmpty() ? QRect() : widgetToSurface(viewportUpdateRect).toAlignedRect();
+    // an HDR canvas is drawn in linear light already
+    const bool linear = d->canvasBridge->internalTextureFormat() == GL_RGBA16F;
+    d->glass.render(d->canvasFBO->texture(), linear, d->viewportDevicePixelSize, ratio, drawn, clip);
 }
 
 void KisOpenGLCanvasRenderer::paintToolOutline(const KisOptimizedBrushOutline &path, const QRect &viewportUpdateRect, const int thickness)

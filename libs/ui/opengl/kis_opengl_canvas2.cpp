@@ -12,6 +12,8 @@
 #include "opengl/kis_opengl_canvas2.h"
 #include "opengl/KisOpenGLCanvasRenderer.h"
 #include "opengl/KisOpenGLSync.h"
+#include "opengl/KisOpenGLGlass.h"
+#include "KisStudioGlass.h"
 #include "opengl/kis_opengl_canvas_debugger.h"
 
 #include "canvas/kis_canvas2.h"
@@ -227,6 +229,7 @@ void KisOpenGLCanvas2::resizeGL(int width, int height)
 {
     d->renderer->resizeGL(width, height);
     d->canvasImageDirtyRect = QRect(0, 0, width, height);
+    KisStudioGlass::setDrawnByCanvas(this, d->renderer->drawsGlass());
 }
 
 void KisOpenGLCanvas2::paintGL()
@@ -248,6 +251,7 @@ void KisOpenGLCanvas2::paintGL()
     QRect canvasImageDirtyRect = d->canvasImageDirtyRect & rect();
     d->canvasImageDirtyRect = QRect();
     d->renderer->paintCanvasOnly(canvasImageDirtyRect, updateRect);
+    d->renderer->paintGlass(KisStudioGlass::surfacesOver(this), updateRect);
     {
         QPainter gc(this);
         if (!updateRect.isEmpty()) {
@@ -294,6 +298,19 @@ void KisOpenGLCanvas2::paintEvent(QPaintEvent *e)
         d->updateRect = e->rect();
     } else {
         d->updateRect = this->rect();
+    }
+
+    // the glass blurs what is around it too: changed near it, it is drawn again whole
+    if (d->renderer->drawsGlass() && !d->updateRect->isEmpty()) {
+        const int reach = qCeil(KisOpenGLGlass::reach());
+        const QRect changed = *d->updateRect;
+        for (const KisStudioGlass::Surface &surface : KisStudioGlass::surfacesOver(this)) {
+            const QRect glass = surface.rect.toAlignedRect().adjusted(-1, -1, 1, 1);
+            if (changed.intersects(glass.adjusted(-reach, -reach, reach, reach))) {
+                *d->updateRect |= glass;
+            }
+        }
+        *d->updateRect &= rect();
     }
 
 #if KRITA_QT_HAS_UPDATE_COMPRESSION_PATCH

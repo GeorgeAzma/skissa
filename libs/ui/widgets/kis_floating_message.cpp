@@ -151,9 +151,7 @@ void KisFloatingMessage::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    QPainterPath shape;
-    shape.addPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 10));
-    KisStudioGlass::paint(painter, this, shape);
+    const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 10);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.12);
     painter.strokePath(shape, QPen(border, 1));

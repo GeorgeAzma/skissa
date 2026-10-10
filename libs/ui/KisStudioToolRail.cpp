@@ -350,9 +350,8 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         // a small round panel of its own, glass like the one above it
-        QPainterPath shape;
-        shape.addEllipse(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5));
-        KisStudioGlass::paint(painter, this, shape);
+        const QRectF round = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+        const QPainterPath shape = KisStudioGlass::paint(painter, this, round, round.width() / 2);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(0.12);
         painter.strokePath(shape, QPen(border, 1));

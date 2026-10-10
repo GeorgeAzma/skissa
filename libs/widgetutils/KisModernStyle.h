@@ -43,14 +43,21 @@ public:
     static constexpr int cornerRadius = 5;
 
     /**
-     * \p rect with round corners whose curvature eases in from the sides
-     * (a squircle, as Apple's and Figma's corners): the bend does not start
-     * all at once where the side ends, as a circular corner's does. \p radius is the
-     * radius of the arc in the middle of a corner; the corner reaches
-     * further along the sides. Where the sides are too short for that, the
-     * easing is less, down to a plain circular corner: a pill stays a pill.
+     * \p rect with squircle corners: each a quarter of a superellipse,
+     * |x|^4 + |y|^4 = 1, whose bend eases in from the sides (a circular
+     * corner's starts all at once where the side ends). A corner is as round
+     * as a circular one of \p radius (it comes as far into the corner) and
+     * reaches further along the sides. Where the sides are too short for
+     * that, the exponent is less, down to 2, a circle: a pill stays a pill.
      */
     static QPainterPath squircle(const QRectF &rect, qreal radius);
+
+    /**
+     * The corners of squircle() for \p radius, the sides \p room long
+     * either way from the middle: how far along the sides a corner reaches,
+     * and the exponent of its superellipse.
+     */
+    static void squircleCorner(qreal radius, qreal room, qreal *reach, qreal *exponent);
 
     /**
      * Whether the system rounds popup windows (menus, lists, tooltips,

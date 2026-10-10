@@ -10,6 +10,8 @@
 #include <QVariantAnimation>
 #include <QWidget>
 
+#include "KisStudioGlass.h"
+
 namespace {
 
 const char *const fadingOutProperty = "studioFadingOut";
@@ -33,6 +35,7 @@ void setOpacity(QWidget *widget, qreal opacity)
 {
     if (widget->isWindow()) {
         widget->setWindowOpacity(opacity);
+        KisStudioGlass::changed(widget);
         return;
     }
     auto *effect = qobject_cast<QGraphicsOpacityEffect *>(widget->graphicsEffect());
@@ -41,6 +44,8 @@ void setOpacity(QWidget *widget, qreal opacity)
         widget->setGraphicsEffect(effect);
     }
     effect->setOpacity(opacity);
+    // the glass under it fades with it
+    KisStudioGlass::changed(widget);
 }
 
 /// Done: fully opaque again with nothing in between (an effect renders through a pixmap)
@@ -51,6 +56,7 @@ void settle(QWidget *widget)
     } else if (qobject_cast<QGraphicsOpacityEffect *>(widget->graphicsEffect())) {
         widget->setGraphicsEffect(nullptr);
     }
+    KisStudioGlass::changed(widget);
 }
 
 bool canFade(QWidget *widget)
