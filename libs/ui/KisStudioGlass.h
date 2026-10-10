@@ -35,7 +35,7 @@ class KRITAUI_EXPORT KisStudioGlass
 {
 public:
     /// How the glass looks, drawn here or by the canvas alike: soft enough that nothing in it reads as a shape
-    static constexpr qreal blurSigma = 18; ///< in widget pixels, over small glass (a pill)
+    static constexpr qreal blurSigma = 16; ///< in widget pixels, over small glass (a pill)
     /// Over larger glass the blur is wider, up to this many times: over a tall panel what is behind would show its shapes
     static constexpr qreal maxBlurScale = 2.0;
     /**
@@ -57,9 +57,10 @@ public:
      * into a milky haze); between, darks stay dark and highlights still glow
      */
     static constexpr qreal lightnessPower = 1.5;
-    /// A narrower blur (sigma, widget pixels), this share of the lightness: a hint of what is behind, as frosted glass shows it
+    /// A narrower blur (sigma, widget pixels): a step between the clear bevel and the frost
     static constexpr qreal detailSigma = 6;
-    static constexpr qreal detail = 0.3;
+    /// How far in from the rim the frost is full, in widths of the bevel: clearer toward the edge
+    static constexpr qreal frostDepth = 3.0;
     /**
      * The frost's color is the mean in Oklab: mixed as light, a stroke of
      * color on white would keep only half of its chroma, and orange and blue
@@ -68,8 +69,16 @@ public:
      * colors behind have, on average).
      */
     static constexpr qreal restore = 0.5;
-    /// The grain of the frost, as much either way (in sRGB, 0 to 1): finer than the blur, it makes it a surface
-    static constexpr qreal grain = 0.02;
+    /**
+     * The grain of the frost, as a sensor's: photons caught by a widget pixel
+     * at white (shot noise, the square root of the light), the read noise
+     * under it (in light), and how far it is correlated (sigma, widget
+     * pixels). About half a percent of the lightness (Oklab): finer than the blur, it
+     * makes the frost a surface.
+     */
+    static constexpr qreal grainPhotons = 10000;
+    static constexpr qreal grainReadNoise = 0.0004;
+    static constexpr qreal grainSize = 0.7;
     /// The tint, over a dark and over a bright canvas: text on it reads as well over either
     static constexpr qreal tintOverDark = 0.56;
     static constexpr qreal tintOverBright = 0.84;

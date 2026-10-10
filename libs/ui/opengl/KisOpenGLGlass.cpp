@@ -24,6 +24,7 @@
 #endif
 
 #include "KisStudioGlass.h"
+#include "KisOpenGLGpuTiming.h"
 #include "kis_debug.h"
 #include "opengl/kis_opengl.h"
 
@@ -222,9 +223,10 @@ uniform sampler2D small;
 uniform sampler2D sharp;
 uniform sampler2D statistics;
 uniform sampler2D narrow;
-uniform float detail;
+uniform vec3 levels;
+uniform float frostDepth;
 uniform float restore;
-uniform float grain;
+uniform vec3 grain;
 uniform float power;
 uniform bool decodeSharp;
 uniform float factor;
@@ -250,6 +252,34 @@ float hash(uvec2 p)
     h *= 0x846ca68bu;
     h ^= h >> 16;
     return float(h) * (1.0 / 4294967295.0);
+}
+
+// a standard normal deviate for the cell q (Box-Muller)
+float gaussian(uvec2 q)
+{
+    float u1 = max(hash(q), 1e-7);
+    float u2 = hash(q + uvec2(1013u, 7331u));
+    return sqrt(-2.0 * log(u1)) * cos(6.2831853 * u2);
+}
+
+/**
+ * Grain at p (pixels from a fixed corner): a gaussian deviate a pixel,
+ * smoothed by a gaussian of sigma size over the 3 x 3 around it, and
+ * brought back to a standard deviation of 1
+ */
+float grainAt(vec2 p, float size)
+{
+    ivec2 cell = ivec2(floor(p)) + ivec2(65536);
+    float sum = 0.0;
+    float energy = 0.0;
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            float w = exp(-float(x * x + y * y) / (2.0 * size * size));
+            sum += w * gaussian(uvec2(cell + ivec2(x, y)));
+            energy += w * w;
+        }
+    }
+    return sum / sqrt(energy);
 }
 
 float erf(float x)
@@ -384,33 +414,51 @@ vec3 meanLightAt(sampler2D source, vec2 p)
 }
 
 /**
- * The frost at p, in light: the mean in Oklab. Its lightness a power mean
- * (see KisStudioGlass::lightnessPower), mostly of the wide blur, a little of
- * a narrow one: the eye sees structure by lightness, finer than by color.
- * Its color the mean of a and b: a mean of the hues as strong as they are,
- * never a hue that is not between them (mixed as light, orange and blue
- * make pink), and a stroke of color on white paper keeps its chroma (mixed
- * as light, it keeps half). What hues cancel where they disagree is as much
- * restored as they agree: never more than the chroma behind, on average.
+ * The frost at p, in Oklab: the mean of the wide blur. Its lightness a power
+ * mean (see KisStudioGlass::lightnessPower). Its color the mean of a and b:
+ * a mean of the hues as strong as they are, never a hue that is not between
+ * them (mixed as light, orange and blue make pink), and a stroke of color on
+ * white paper keeps its chroma (mixed as light, it keeps half). What hues
+ * cancel where they disagree is as much restored as they agree: never more
+ * than the chroma behind, on average.
  */
-vec3 frostedAt(vec2 p)
+vec3 frostedLab(vec2 p)
 {
     vec3 wide = meanAt(blurred, p);
-    float l = mix(wide.x, meanAt(narrow, p).x, detail);
     float chroma = softAt(statistics, p).x;
     float agree = clamp(length(wide.yz) / max(chroma, 1e-4), 0.0, 1.0);
-    return inGamut(clamp(l, 0.0, 1.0), wide.yz * (1.0 + restore * (1.0 - agree)));
+    return vec3(wide.x, wide.yz * (1.0 + restore * (1.0 - agree)));
 }
 
-// what is behind at p, seen through the glass: clear (as sharp as it is spread over the screen:
-// magnified, the canvas; squeezed, the canvas made small), or frosted
-vec3 behindAt(vec2 p, float frost, float spread)
+// a level of blur at p, in Oklab: 0 the canvas, 1 the canvas made small, 2 the narrow blur, 3 the frost
+vec3 levelLab(int level, vec2 p)
 {
-    vec3 clear = sharpAt(p);
-    if (spread > 1.0) {
-        clear = mix(clear, meanLightAt(small, p), clamp((spread - 1.0) / (factor - 1.0), 0.0, 1.0));
+    if (level == 0) return toOklab(sharpAt(p));
+    if (level == 1) return meanAt(small, p);
+    if (level == 2) return meanAt(narrow, p);
+    return frostedLab(p);
+}
+
+/**
+ * What is behind at p blurred s (a gaussian's sigma, surface pixels), in
+ * light: between the two levels made whose blurs it is between, as far
+ * between them as it is on a logarithmic scale (a blur twice another looks
+ * as far from it at any size), eased in and out
+ */
+vec3 behindAt(vec2 p, float s)
+{
+    float sigmas[4] = float[4](0.0, levels.x, levels.y, levels.z);
+    int level = 0;
+    while (level < 3 && s > sigmas[level + 1]) level++;
+    vec3 lab;
+    if (level == 3) {
+        lab = frostedLab(p);
+    } else {
+        float t = (log(1.0 + s) - log(1.0 + sigmas[level])) / (log(1.0 + sigmas[level + 1]) - log(1.0 + sigmas[level]));
+        t = smoothstep(0.0, 1.0, clamp(t, 0.0, 1.0));
+        lab = t <= 0.0 ? levelLab(level, p) : mix(levelLab(level, p), levelLab(level + 1, p), t);
     }
-    return mix(clear, frostedAt(p), frost);
+    return inGamut(clamp(lab.x, 0.0, 1.0), lab.yz);
 }
 
 // the canvas the glass at p is held over, where the reflected ray d (z toward the viewer, down)
@@ -467,33 +515,42 @@ void main()
 
     // the bevel: no wider than the corners are round, nor than the panel is
     float w = min(bevel.x, min(corner.x, min(shape.z, shape.w)));
+    /**
+     * How frosted the glass is here: the frost on the face fades out toward
+     * the polished bevel over a few of its widths, the blur growing from none
+     * at the rim (eased in, as a matt finish wears off unevenly) to the full
+     * frost: the glass gets clearer toward its edge, with no seam where the
+     * bevel meets the face
+     */
+    float depth = max(1.0, min(frostDepth * max(w, 1.0), 0.8 * min(shape.z, shape.w)));
+    float frost = smoothstep(0.15 * w, depth, d);
+    frost *= frost;
+    float s = levels.z * frost;
     vec3 color;
-    // the grain of the frost: none on the clear bevel
-    float grained = 1.0;
     if (w > 0.5 && d < w) {
         float h = bevel.y * w / bevel.x;
         vec2 bend = profile(d, w, h);
         vec3 normal = normalize(vec3(normal2d * bend.y, 1.0));
-        float frost = smoothstep(0.0, 1.0, d / w);
-        grained = frost;
         // how far apart neighbours on the screen see the canvas: more than a pixel, it is squeezed
         vec3 unused;
         float before = dot(trace(normalize(vec3(normal2d * profile(d - 0.5, w, h).y, 1.0)), profile(d - 0.5, w, h).x, ior.g, unused).xy, -normal2d);
         float after = dot(trace(normalize(vec3(normal2d * profile(d + 0.5, w, h).y, 1.0)), profile(d + 0.5, w, h).x, ior.g, unused).xy, -normal2d);
         float spread = abs(1.0 + after - before);
+        // squeezed onto fewer pixels than it covers, the canvas is blurred at least that much
+        float seen = max(s, 0.5 * max(spread - 1.0, 0.0));
 
         vec3 light3 = vec3(0.0);
         for (int i = 0; i < 3; i++) {
             vec3 back;
             vec4 ray = trace(normal, bend.x, ior[i], back);
-            vec3 seen;
+            vec3 through;
             if (ray.z > 0.0) {
-                seen = mix(tintLight, behindAt(p + ray.xy, frost, spread), canvas);
+                through = mix(tintLight, behindAt(p + ray.xy, seen), canvas);
             } else {
                 // reflected inside, scattered by the frost: the glass itself
-                seen = mix(tintLight, frostedAt(p), canvas);
+                through = mix(tintLight, behindAt(p, levels.z), canvas);
             }
-            light3[i] = seen[i];
+            light3[i] = through[i];
         }
         // thinner, the glass tints what is behind it a little less
         color = tinted(light3, tintLab, strength * mix(0.85, 1.0, bend.x / h));
@@ -504,16 +561,32 @@ void main()
         float reflected = (fresnel(normal.z, ior.g) - faceOn) / (1.0 - faceOn) * smoothstep(0.0, 0.25, -mirrored.z);
         color = mix(color, reflectedAt(mirrored, p), reflected);
     } else {
-        color = tinted(mix(tintLight, frostedAt(p), canvas), tintLab, strength);
+        color = tinted(mix(tintLight, behindAt(p, s), canvas), tintLab, strength);
     }
 
-    // dithered (triangular, a step of the target either way), for its slow gradients not to band;
-    // and grained, as frosted glass is (a finer texture than it can blur): the same on all three,
-    // light and dark, as much either way as seen
+    /**
+     * The grain of the frost, as a camera's sensor or film records light:
+     * shot noise, as many photons caught as the light is strong (grain.x at
+     * white, per pixel), so it varies as the square root of the light, with
+     * a little read noise under it (grain.y, in light); a gaussian, as so many
+     * photons are; correlated over a pixel or so (grain.z), as grain is, not
+     * the hard per-pixel noise of a digital render; in brightness only, the
+     * color kept (color noise looks digital): the light there scaled, never
+     * a gray added, which a saturated color with a channel near nothing could
+     * only take one way, and turn speckled. Seen in Oklab, it is about even
+     * from dark to light, a little stronger in the darks, as on film. It is
+     * the frosted face's: tied to the panel, so it moves with it, and none on
+     * the polished bevel.
+     */
+    vec3 rgbToY = vec3(0.2126, 0.7152, 0.0722);
+    float luminance = max(dot(color, rgbToY), 1e-5);
+    float noise = sqrt(luminance / grain.x + grain.y * grain.y) * grainAt(p - (shape.xy - shape.zw), grain.z);
+    color *= max(1.0 + noise * smoothstep(0.0, 0.6, frost) / luminance, 0.0);
+
+    // dithered (triangular, a step of the target either way), for its slow gradients not to band
     uvec2 u = uvec2(p);
-    float noise = hash(u) + hash(u + uvec2(7919u, 104729u)) - 1.0;
-    float speck = hash(u + uvec2(3571u, 6007u)) + hash(u + uvec2(15485u, 2741u)) - 1.0;
-    fragColor = vec4(toSrgb(color) + noise * dither + speck * grain * grained, coverage);
+    float steps = hash(u) + hash(u + uvec2(7919u, 104729u)) - 1.0;
+    fragColor = vec4(toSrgb(color) + steps * dither, coverage);
 }
 )";
 
@@ -595,6 +668,7 @@ struct KisOpenGLGlass::Private
     GLenum keptFormat {GL_RGBA};
     /// Where the blurs were made last, for which surfaces: made again only when the canvas or they changed
     QVector<QRectF> blurredFor;
+    KisOpenGLGpuTiming timing {QStringLiteral("glass gpu:"), {QStringLiteral("shrink"), QStringLiteral("blur"), QStringLiteral("draw")}};
     QSize blurredViewport;
     qreal blurredRatio {0};
     bool valid {false};
@@ -632,7 +706,7 @@ bool KisOpenGLGlass::initialize()
     d->valid = d->shrink.make(quadSource, shrinkSource, {"rect", "source", "factor", "decode", "salience", "power", "statistics"})
         && d->blur.make(quadSource, blurSource, {"rect", "source", "direction", "taps", "weights"})
         && d->glass.make(glassVertexSource, glassSource,
-                         {"rect", "blurred", "small", "sharp", "statistics", "narrow", "detail", "restore", "grain", "power", "decodeSharp",
+                         {"rect", "blurred", "small", "sharp", "statistics", "narrow", "levels", "frostDepth", "restore", "grain", "power", "decodeSharp",
                           "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
                           "beyond", "spacing", "dither", "veil", "bevel", "ior"});
     if (d->valid && KisOpenGL::supportsVAO()) {
@@ -719,24 +793,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform4f(d->blur["rect"], -1, -1, 1, 1);
     f->glUniform1i(d->blur["source"], 0);
 
-    // source blurred across into across, then down into result, with kernel k, in area (and as far
-    // around as it takes in)
-    auto blur = [&](QOpenGLFramebufferObject *source, QOpenGLFramebufferObject *across, QOpenGLFramebufferObject *result,
-                    const Kernel &k, const QRect &area) {
-        f->glUniform1i(d->blur["taps"], k.taps);
-        f->glUniform1fv(d->blur["weights"], maxTaps + 1, k.weights);
-        across->bind();
-        scissor(area.adjusted(0, -k.taps, 0, k.taps) & smallWhole);
-        f->glUniform2i(d->blur["direction"], 1, 0);
-        f->glBindTexture(GL_TEXTURE_2D, source->texture());
-        f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-        result->bind();
-        scissor(area);
-        f->glUniform2i(d->blur["direction"], 0, 1);
-        f->glBindTexture(GL_TEXTURE_2D, across->texture());
-        f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    };
 
+    d->timing.begin();
     // only the brush outline moved, say: what is behind the glass is what was blurred last time
     QVector<QRectF> rects;
     for (const Surface &surface : surfaces) rects << surface.rect;
@@ -745,33 +803,68 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     d->blurredViewport = viewport;
     d->blurredRatio = pixelRatio;
 
-    // blurred under each panel only, whole (how bright it is behind all of it sets its tint)
+    // blurred under each panel only, whole (how bright it is behind all of it sets its tint): its small
+    // pixels (one more for scaling back up), and as far as the blur takes in around them
+    struct Region {
+        QRect area;
+        QRect around;
+        Kernel wide;
+    };
+    QVector<Region> regions;
     for (const Surface &surface : surfaces) {
-        if (!blurAgain) break;
         const QRect r = surface.rect.toAlignedRect() & whole;
-        if (r.isEmpty()) continue;
-        // its small pixels (one more for scaling back up), and as far as the blur takes in around them
-        const QRect area = QRect(QPoint(r.left() / factor, r.top() / factor), QPoint(r.right() / factor + 1, r.bottom() / factor + 1)) & smallWhole;
-        const Kernel wide = kernel(KisStudioGlass::blurSigma * scaleOf(surface));
-        const int taps = wide.taps;
-        const QRect around = area.adjusted(-taps, -taps, taps, taps) & smallWhole;
-
-        d->shrink->bind();
-        f->glBindTexture(GL_TEXTURE_2D, canvas);
-        scissor(around);
-        d->small->bind();
-        f->glUniform1i(d->shrink["statistics"], 0);
-        f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-        d->smallStatistics->bind();
-        f->glUniform1i(d->shrink["statistics"], 1);
-        f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-        d->blur->bind();
-        blur(d->small.data(), d->across.data(), d->blurred.data(), wide, area);
-        blur(d->small.data(), d->acrossNarrow.data(), d->narrow.data(), fine, area);
-        blur(d->smallStatistics.data(), d->acrossStatistics.data(), d->statistics.data(), wide, area);
+        if (!blurAgain || r.isEmpty()) continue;
+        Region region;
+        region.area = QRect(QPoint(r.left() / factor, r.top() / factor), QPoint(r.right() / factor + 1, r.bottom() / factor + 1)) & smallWhole;
+        region.wide = kernel(KisStudioGlass::blurSigma * scaleOf(surface));
+        region.around = region.area.adjusted(-region.wide.taps, -region.wide.taps, region.wide.taps, region.wide.taps) & smallWhole;
+        regions << region;
+    }
+    // the canvas made small, as colors and as their statistics
+    d->shrink->bind();
+    f->glBindTexture(GL_TEXTURE_2D, canvas);
+    for (int statistics = 0; statistics < 2; statistics++) {
+        (statistics ? d->smallStatistics : d->small)->bind();
+        f->glUniform1i(d->shrink["statistics"], statistics);
+        for (const Region &region : qAsConst(regions)) {
+            scissor(region.around);
+            f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        }
+    }
+    d->timing.mark();
+    // blurred: each pass for all the panels at once, the target switched (which makes the GPU wait for what
+    // was drawn into it) six times, not six times a panel
+    d->blur->bind();
+    struct Pass {
+        QOpenGLFramebufferObject *source;
+        QOpenGLFramebufferObject *target;
+        bool across;
+        bool narrow;
+    };
+    const Pass passes[] = {
+        {d->small.data(), d->across.data(), true, false},
+        {d->small.data(), d->acrossNarrow.data(), true, true},
+        {d->smallStatistics.data(), d->acrossStatistics.data(), true, false},
+        {d->across.data(), d->blurred.data(), false, false},
+        {d->acrossNarrow.data(), d->narrow.data(), false, true},
+        {d->acrossStatistics.data(), d->statistics.data(), false, false},
+    };
+    for (const Pass &pass : passes) {
+        if (regions.isEmpty()) break;
+        pass.target->bind();
+        f->glBindTexture(GL_TEXTURE_2D, pass.source->texture());
+        f->glUniform2i(d->blur["direction"], pass.across ? 1 : 0, pass.across ? 0 : 1);
+        for (const Region &region : qAsConst(regions)) {
+            const Kernel &k = pass.narrow ? fine : region.wide;
+            f->glUniform1i(d->blur["taps"], k.taps);
+            f->glUniform1fv(d->blur["weights"], maxTaps + 1, k.weights);
+            // across: as far up and down as the pass down takes in
+            scissor(pass.across ? region.area.adjusted(0, -k.taps, 0, k.taps) & smallWhole : region.area);
+            f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        }
     }
 
+    d->timing.mark();
     // the glass, over what is drawn
     f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(target));
     f->glViewport(0, 0, viewport.width(), viewport.height());
@@ -786,8 +879,10 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1i(d->glass["narrow"], 4);
     f->glUniform1f(d->glass["restore"], KisStudioGlass::restore);
     f->glUniform1f(d->glass["power"], KisStudioGlass::lightnessPower);
-    // as much of a step either way in the target's steps, at least those of eight bits
-    f->glUniform1f(d->glass["grain"], KisStudioGlass::grain);
+    // photons a device pixel catches at white: as many as a widget pixel, over the pixels it is made of
+    f->glUniform3f(d->glass["grain"], float(KisStudioGlass::grainPhotons / (pixelRatio * pixelRatio)), float(KisStudioGlass::grainReadNoise),
+                   float(KisStudioGlass::grainSize * pixelRatio));
+    f->glUniform1f(d->glass["frostDepth"], float(KisStudioGlass::frostDepth));
     f->glUniform1i(d->glass["decodeSharp"], !linearCanvas);
     f->glUniform1f(d->glass["factor"], factor);
     f->glUniform2f(d->glass["tintStrength"], KisStudioGlass::tintOverDark, KisStudioGlass::tintOverBright);
@@ -824,12 +919,16 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         const qreal scale = scaleOf(surface);
         f->glUniform1f(d->glass["sigma"], KisStudioGlass::blurSigma * scale * pixelRatio);
         f->glUniform1f(d->glass["spacing"], 2 * KisStudioGlass::blurSigma * scale * pixelRatio);
-        f->glUniform1f(d->glass["detail"], KisStudioGlass::detail / scale);
+        // the blurs of the levels between the canvas and the frost: the canvas made small (a box of the
+        // factor, sampled between its pixels), the narrow blur, the wide one
+        f->glUniform3f(d->glass["levels"], float(0.45 * factor), float(KisStudioGlass::detailSigma * pixelRatio),
+                       float(KisStudioGlass::blurSigma * scale * pixelRatio));
         // the sides it goes on beyond the canvas on: left, right, bottom, top
         f->glUniform4f(d->glass["beyond"], r.left() < 0, r.right() > viewport.width(), r.top() < 0, r.bottom() > viewport.height());
         f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
 
+    d->timing.mark();
     f->glDisable(GL_BLEND);
     f->glDisable(GL_SCISSOR_TEST);
     f->glActiveTexture(GL_TEXTURE4);

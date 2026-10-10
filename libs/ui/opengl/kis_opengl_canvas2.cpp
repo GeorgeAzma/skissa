@@ -13,6 +13,7 @@
 #include "opengl/KisOpenGLCanvasRenderer.h"
 #include "opengl/KisOpenGLSync.h"
 #include "opengl/KisOpenGLGlass.h"
+#include "opengl/KisOpenGLGpuTiming.h"
 #include "KisStudioGlass.h"
 #include "opengl/kis_opengl_canvas_debugger.h"
 
@@ -76,6 +77,8 @@ public:
     bool shouldSkipRenderingPass = false;
 #endif
     QRect canvasImageDirtyRect;
+    /// For development: how long the GPU takes for what this canvas draws (see KisOpenGLGpuTiming)
+    KisOpenGLGpuTiming gpuTiming {QStringLiteral("canvas gpu:"), {QStringLiteral("canvas"), QStringLiteral("decorations")}};
     KisOpenGLCanvasRenderer *renderer;
     QScopedPointer<KisOpenGLSync> glSyncObject;
     KisRepaintDebugger repaintDbg;
@@ -248,9 +251,12 @@ void KisOpenGLCanvas2::paintGL()
     }
 
     KisOpenglCanvasDebugger::instance()->notifyPaintRequested();
+    KisOpenGLGpuTiming &timing = d->gpuTiming;
+    timing.begin();
     QRect canvasImageDirtyRect = d->canvasImageDirtyRect & rect();
     d->canvasImageDirtyRect = QRect();
     d->renderer->paintCanvasOnly(canvasImageDirtyRect, updateRect);
+    timing.mark();
     {
         QPainter gc(this);
         if (!updateRect.isEmpty()) {
@@ -265,8 +271,10 @@ void KisOpenGLCanvas2::paintGL()
 
         drawDecorations(gc, decorationsBoundingRect);
     }
+    timing.mark();
     // the glass over the panels hides the decorations under it (the brush outline, the selection), as
     // a solid panel would; it is blurred from the canvas without them
+    // (the glass times itself: the GPU's timers do not nest)
     d->renderer->paintGlass(KisStudioGlass::surfacesOver(this), updateRect, !canvasImageDirtyRect.isEmpty());
 
     d->repaintDbg.paint(this, updateRect.isEmpty() ? rect() : updateRect);

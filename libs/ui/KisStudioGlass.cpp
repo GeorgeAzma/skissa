@@ -163,18 +163,17 @@ void boxLine(float *data, int count, int stride, int radius, std::vector<float> 
 }
 
 /**
- * The frost, as the canvas makes it (see frostedAt() in KisOpenGLGlass):
+ * The frost, as the canvas makes it (see frostedLab() in KisOpenGLGlass):
  * blurred \p radius (three box passes each way: close to a gaussian), a
  * saturated color counting more, the mean in Oklab: its lightness a power
- * mean, a little of a narrower blur in it; what disagreeing hues cancel
- * partly restored
+ * mean; what disagreeing hues cancel partly restored
  */
-QImage blurred(const QImage &source, int radius, int narrowRadius, float detail)
+QImage blurred(const QImage &source, int radius)
 {
     const QImage image = source.convertToFormat(QImage::Format_RGB32);
     const int w = image.width(), h = image.height();
-    // weighted: lightness to the power, widely and narrowly, Oklab's a and b and chroma widely; and the weight, both ways
-    enum { L, Weight, NarrowL, NarrowWeight, A, Bb, Chroma, Count };
+    // weighted: lightness to the power, Oklab's a and b, and chroma; and the weight
+    enum { L, Weight, A, Bb, Chroma, Count };
     const float power = float(KisStudioGlass::lightnessPower);
     std::vector<float> channels[Count];
     for (auto &channel : channels) channel.resize(size_t(w) * h);
@@ -187,8 +186,8 @@ QImage blurred(const QImage &source, int radius, int narrowRadius, float detail)
             const Lab lab = toOklab(r, g, b);
             const float chroma = std::hypot(lab.a, lab.b);
             const float weight = 1.0f + float(KisStudioGlass::salience) * chroma;
-            channels[L][i] = channels[NarrowL][i] = std::pow(qMax(0.0f, lab.l), power) * weight;
-            channels[Weight][i] = channels[NarrowWeight][i] = weight;
+            channels[L][i] = std::pow(qMax(0.0f, lab.l), power) * weight;
+            channels[Weight][i] = weight;
             channels[A][i] = lab.a * weight;
             channels[Bb][i] = lab.b * weight;
             channels[Chroma][i] = chroma * weight;
@@ -196,13 +195,11 @@ QImage blurred(const QImage &source, int radius, int narrowRadius, float detail)
     }
     // a box of r three times is about a gaussian of sigma r: the passes share the radius
     const int box = qMax(1, int(std::lround(radius / std::sqrt(3.0))));
-    const int narrowBox = qMax(1, int(std::lround(narrowRadius / std::sqrt(3.0))));
     std::vector<float> scratch;
     for (int c = 0; c < Count; c++) {
-        const int reach = c == NarrowL || c == NarrowWeight ? narrowBox : box;
         for (int pass = 0; pass < 3; pass++) {
-            for (int y = 0; y < h; y++) boxLine(channels[c].data() + size_t(y) * w, w, 1, reach, scratch);
-            for (int x = 0; x < w; x++) boxLine(channels[c].data() + x, h, w, reach, scratch);
+            for (int y = 0; y < h; y++) boxLine(channels[c].data() + size_t(y) * w, w, 1, box, scratch);
+            for (int x = 0; x < w; x++) boxLine(channels[c].data() + x, h, w, box, scratch);
         }
     }
     const float restore = float(KisStudioGlass::restore);
@@ -212,36 +209,57 @@ QImage blurred(const QImage &source, int radius, int narrowRadius, float detail)
         for (int x = 0; x < w; x++) {
             const size_t i = size_t(y) * w + x;
             const float weight = qMax(1e-6f, channels[Weight][i]);
-            const float narrowWeight = qMax(1e-6f, channels[NarrowWeight][i]);
-            const float wideL = std::pow(qMax(0.0f, channels[L][i] / weight), 1.0f / power);
-            const float narrowL = std::pow(qMax(0.0f, channels[NarrowL][i] / narrowWeight), 1.0f / power);
+            const float l = std::pow(qMax(0.0f, channels[L][i] / weight), 1.0f / power);
             const float a = channels[A][i] / weight, b = channels[Bb][i] / weight;
             const float agree = qBound(0.0f, std::hypot(a, b) / qMax(1e-4f, channels[Chroma][i] / weight), 1.0f);
             const float gain = 1.0f + restore * (1.0f - agree);
-            const std::array<float, 3> c = inGamut({qBound(0.0f, wideL + (narrowL - wideL) * detail, 1.0f), a * gain, b * gain});
+            const std::array<float, 3> c = inGamut({qBound(0.0f, l, 1.0f), a * gain, b * gain});
             line[x] = qRgb(toSrgb(c[0]), toSrgb(c[1]), toSrgb(c[2]));
         }
     }
     return result;
 }
 
-/// The grain of the frost (see KisStudioGlass::grain), to lay over it: white and black specks, as see-through as they are light and dark
+/**
+ * The grain of the frost (see KisStudioGlass::grainPhotons), to lay over it:
+ * white and black specks, as see-through as they are light and dark. As the
+ * canvas draws it: gaussian, correlated over about a pixel, the same in all
+ * three colors; here of the strength it has on the glass' usual lightness
+ * (about half a percent of sRGB, from dark glass to light), as it is laid over what is
+ * painted already.
+ */
 const QImage &grainTile()
 {
     static const QImage tile = []() {
-        QImage image(128, 128, QImage::Format_ARGB32_Premultiplied);
+        const int size = 128;
         quint32 state = 2463534242u;
-        auto next = [&state]() {
+        auto uniform = [&state]() {
             state ^= state << 13;
             state ^= state >> 17;
             state ^= state << 5;
-            return (state & 0xffffff) / float(0xffffff);
+            return ((state & 0xffffff) + 0.5f) / float(0x1000000);
         };
-        for (int y = 0; y < image.height(); y++) {
+        // gaussian deviates (Box-Muller), smoothed over the 3 x 3 around (wrapping: the tile repeats)
+        std::vector<float> white(size_t(size) * size);
+        for (float &v : white) v = std::sqrt(-2.0f * std::log(uniform())) * std::cos(6.2831853f * uniform());
+        const float sigma = float(KisStudioGlass::grainSize);
+        float weights[3][3];
+        float energy = 0;
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+                weights[y + 1][x + 1] = std::exp(-(x * x + y * y) / (2 * sigma * sigma));
+                energy += weights[y + 1][x + 1] * weights[y + 1][x + 1];
+            }
+        }
+        QImage image(size, size, QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < size; y++) {
             QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
-            for (int x = 0; x < image.width(); x++) {
-                // triangular, as on the GPU
-                const float speck = (next() + next() - 1.0f) * float(KisStudioGlass::grain);
+            for (int x = 0; x < size; x++) {
+                float sum = 0;
+                for (int j = -1; j <= 1; j++) {
+                    for (int i = -1; i <= 1; i++) sum += weights[j + 1][i + 1] * white[size_t((y + j + size) % size) * size + (x + i + size) % size];
+                }
+                const float speck = sum / std::sqrt(energy) * 0.005f;
                 const int alpha = qBound(0, int(std::lround(qAbs(speck) * 255.0f)), 255);
                 line[x] = speck > 0 ? qRgba(alpha, alpha, alpha, alpha) : qRgba(0, 0, 0, alpha);
             }
@@ -307,9 +325,7 @@ QImage render(const Scene &scene, const QRect &canvasRect, const QColor &outside
     painter.end();
 
     // blurred, and the reach around cut away again
-    const QImage soft = blurred(image, qMax(1, qRound(radius * sampleScale)),
-                                qMax(1, qRound(blurRadius * KisStudioGlass::detailSigma / KisStudioGlass::blurSigma * sampleScale)),
-                                float(KisStudioGlass::detail / scale));
+    const QImage soft = blurred(image, qMax(1, qRound(radius * sampleScale)));
     const int cut = qRound(pad * sampleScale);
     return soft.copy(cut, cut, qMax(1, soft.width() - 2 * cut), qMax(1, soft.height() - 2 * cut));
 }
