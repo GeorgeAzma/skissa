@@ -4,6 +4,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioCanvasHud.h"
+#include "KisStudioGlass.h"
+#include <QPainterPath>
 
 #include <QAction>
 #include <QEvent>
@@ -233,12 +235,11 @@ void KisStudioCanvasHud::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    QColor background = palette().color(QPalette::Window);
-    background.setAlphaF(0.88);
+    const QRectF pill = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+    QPainterPath shape;
+    shape.addRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+    KisStudioGlass::paint(painter, this, shape);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.14);
-    painter.setPen(QPen(border, 1));
-    painter.setBrush(background);
-    const QRectF pill = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-    painter.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+    painter.strokePath(shape, QPen(border, 1));
 }

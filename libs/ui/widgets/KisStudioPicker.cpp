@@ -4,6 +4,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioPicker.h"
+#include "KisStudioGlass.h"
+#include <QPainterPath>
 
 #include "KisPopupCloser.h"
 #include "KisStudioMotion.h"
@@ -975,11 +977,13 @@ void KisStudioPicker::paintEvent(QPaintEvent *)
         painter.setBrush(QColor(0, 0, 0, int(34.0 * (1.0 - qreal(i) / shadowMargin) + 2)));
         painter.drawRoundedRect(panel.adjusted(-i, -i + 4, i, i + 4), radius + i, radius + i);
     }
+    // glass: what it is over still shows through
+    QPainterPath shape;
+    shape.addRoundedRect(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+    KisStudioGlass::paint(painter, this, shape);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.08);
-    painter.setPen(QPen(border, 1));
-    painter.setBrush(palette().color(QPalette::Window));
-    painter.drawRoundedRect(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+    painter.strokePath(shape, QPen(border, 1));
 }
 
 void KisStudioPicker::hideEvent(QHideEvent *event)

@@ -59,6 +59,9 @@ public Q_SLOTS:
     void showMessage();
     void removeMessage();
 
+protected:
+    void paintEvent(QPaintEvent *event) override;
+
 private Q_SLOTS:
     void startFade();
     void updateOpacity(int value);

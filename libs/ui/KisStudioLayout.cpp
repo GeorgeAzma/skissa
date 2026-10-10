@@ -56,6 +56,8 @@
 #include "KisStudioBrushPicker.h"
 #include "KisStudioEffectsPicker.h"
 #include "KisStudioPanelPicker.h"
+#include "KisStudioGlass.h"
+#include <QPainterPath>
 #include "KisView.h"
 #include "KisResourceServerProvider.h"
 #include "KisStudioCanvasHud.h"
@@ -447,13 +449,13 @@ protected:
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        QColor background = palette().color(QPalette::Window);
-        background.setAlphaF(0.94);
+        // glass: the canvas under it still shows
+        QPainterPath shape;
+        shape.addRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14, 14);
+        KisStudioGlass::paint(painter, this, shape);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(0.12);
-        painter.setPen(QPen(border, 1));
-        painter.setBrush(background);
-        painter.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14, 14);
+        painter.strokePath(shape, QPen(border, 1));
     }
 };
 
@@ -492,6 +494,64 @@ protected:
 };
 
 } // namespace
+
+/**
+ * A panel opened over the canvas, in a window of its own: glass, the canvas
+ * under it showing through. Not a floating dock: the window keeps the state
+ * of its docks, a floating one too, and restoring a floating panel crashes.
+ * The panel is taken out of its column while it is here, and put back after.
+ */
+class FlyoutWindow : public QWidget
+{
+public:
+    explicit FlyoutWindow(QWidget *mainWindow)
+        : QWidget(mainWindow, Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
+    {
+        setObjectName(QStringLiteral("studioFlyout"));
+        setAttribute(Qt::WA_TranslucentBackground);
+        auto *layout = new QVBoxLayout(this);
+        layout->setContentsMargins(1, 1, 1, 1);
+        layout->setSpacing(0);
+    }
+
+    QDockWidget *panel() const { return m_panel; }
+
+    void hold(QDockWidget *dock)
+    {
+        m_panel = dock;
+        KisStudioGlass::setSeeThrough(dock, true);
+        layout()->addWidget(dock);
+        dock->show();
+    }
+
+    /// The panel let go of, see-through no more; still a child of this window until put somewhere else
+    QDockWidget *release()
+    {
+        QDockWidget *dock = m_panel;
+        m_panel = nullptr;
+        if (dock) {
+            layout()->removeWidget(dock);
+            KisStudioGlass::setSeeThrough(dock, false);
+        }
+        return dock;
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QPainterPath shape;
+        shape.addRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12, 12);
+        KisStudioGlass::paint(painter, this, shape);
+        QColor border = palette().color(QPalette::WindowText);
+        border.setAlphaF(0.14);
+        painter.strokePath(shape, QPen(border, 1));
+    }
+
+private:
+    QPointer<QDockWidget> m_panel;
+};
 
 struct KisStudioLayout::Private
 {
@@ -636,6 +696,8 @@ struct KisStudioLayout::Private
 
     /// The unpinned panel that is currently open over the canvas
     QPointer<QDockWidget> flyout;
+    /// Where the flyout is shown
+    QPointer<FlyoutWindow> flyoutWindow;
     /// What the flyout opened from, if not the rail: it goes right below it
     QPointer<QWidget> flyoutAnchor;
     QPointer<QToolButton> toolChip;
@@ -1212,7 +1274,7 @@ void KisStudioLayout::normalize()
         // a flyout never outlives the moment it was opened for
         if (dock->isFloating()) {
             dock->hide();
-            dock->setFloating(false);
+            dockAway(dock);
         }
 
         const bool isPinned = d->pinned.contains(dock->objectName());
@@ -1224,6 +1286,8 @@ void KisStudioLayout::normalize()
             dock->hide();
         }
     }
+    // the column follows the rail, whatever order a restored window state had
+    d->arrangement.clear();
     arrangePinned();
 
     // the tool rail replaces the toolbox
@@ -1319,17 +1383,38 @@ bool KisStudioLayout::isCanvasOnly() const
 
 void KisStudioLayout::closeFlyout()
 {
-
     QDockWidget *dock = d->flyout;
     d->flyout = nullptr;
     d->flyoutAnchor = nullptr;
     if (!dock) {
         return;
     }
-
+    // back in its column, hidden: where the window keeps it, and finds it again
+    releaseFlyout();
     dock->hide();
-    dock->setFloating(false);
+    d->mainWindow->addDockWidget(Qt::RightDockWidgetArea, dock);
+    dock->hide();
     syncRail();
+}
+
+void KisStudioLayout::releaseFlyout()
+{
+    if (d->flyoutWindow) {
+        d->flyoutWindow->release();
+        d->flyoutWindow->hide();
+    }
+}
+
+void KisStudioLayout::dockAway(QDockWidget *dock)
+{
+    dock->setFloating(false);
+    // a panel that never was in a column cannot be docked back by Qt: it is put in one, hidden,
+    // so that it is not left floating (and saved so: restoring a floating panel crashes Qt)
+    if (dock->isFloating()) {
+        const bool hidden = dock->isHidden();
+        d->mainWindow->addDockWidget(Qt::RightDockWidgetArea, dock);
+        if (hidden) dock->hide();
+    }
 }
 
 void KisStudioLayout::showPanel(QDockWidget *dock)
@@ -1361,24 +1446,35 @@ void KisStudioLayout::togglePanel(QDockWidget *dock, bool show)
 
 void KisStudioLayout::showFlyout(QDockWidget *dock, QWidget *anchor)
 {
-
     if (d->flyout && d->flyout != dock) {
         closeFlyout();
+    }
+    if (d->flyout == dock) {
+        d->flyoutAnchor = anchor;
+        positionFlyout();
+        d->flyoutWindow->raise();
+        return;
     }
 
     d->flyout = dock;
     d->flyoutAnchor = anchor;
-    dock->setFloating(true);
+    if (!d->flyoutWindow) {
+        d->flyoutWindow = new FlyoutWindow(d->mainWindow);
+    }
+    // out of its column (where it is hidden), into a window of glass over the canvas
+    if (dock->isFloating()) dockAway(dock);
+    d->mainWindow->removeDockWidget(dock);
+    d->flyoutWindow->hold(dock);
     positionFlyout();
-    KisStudioMotion::showFaded(dock);
-    dock->raise();
+    KisStudioMotion::showFaded(d->flyoutWindow);
+    d->flyoutWindow->raise();
     syncRail();
 }
 
 void KisStudioLayout::positionFlyout()
 {
     QWidget *canvasArea = d->mainWindow->centralWidget();
-    if (!d->flyout || !canvasArea) {
+    if (!d->flyout || !d->flyoutWindow || !canvasArea) {
         return;
     }
 
@@ -1401,12 +1497,12 @@ void KisStudioLayout::positionFlyout()
         // right below what opened it, only as tall as its contents
         const int left = qMax(area.left() + margin, d->flyoutAnchor->mapToGlobal(QPoint(0, 0)).x());
         const int height = qBound(160, contentsHeight, area.height() - 2 * margin);
-        d->flyout->setGeometry(left, area.top() + margin, width, height);
+        d->flyoutWindow->setGeometry(left, area.top() + margin, width, height);
         return;
     }
 
-    d->flyout->setGeometry(area.right() + 1 - margin - width, area.top() + margin,
-                           width, area.height() - 2 * margin);
+    d->flyoutWindow->setGeometry(area.right() + 1 - margin - width, area.top() + margin,
+                                 width, area.height() - 2 * margin);
 }
 
 void KisStudioLayout::toggleToolOptions()
@@ -1434,8 +1530,10 @@ void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
         d->pinned.insert(id);
         if (dock == d->flyout) {
             d->flyout = nullptr;
+            d->flyoutAnchor = nullptr;
+            releaseFlyout();
         }
-        dock->setFloating(false);
+        dockAway(dock);
         d->arrangement.clear();
         arrangePinned();
         dock->show();
@@ -1472,6 +1570,14 @@ void KisStudioLayout::arrangePinned()
     }
     d->arrangement = arrangement;
 
+    // out of their columns first: splitting panels already in a column does not reliably put them in order
+    QHash<QDockWidget *, bool> shown;
+    Q_FOREACH (const QString &id, order) {
+        QDockWidget *dock = d->mainWindow->dockWidget(id);
+        if (!dock || dock == d->flyout) continue;
+        shown.insert(dock, !dock->isHidden());
+        d->mainWindow->removeDockWidget(dock);
+    }
     QDockWidget *previous[2] = {nullptr, nullptr};
     Q_FOREACH (const QString &id, order) {
         QDockWidget *dock = d->mainWindow->dockWidget(id);
@@ -1483,6 +1589,7 @@ void KisStudioLayout::arrangePinned()
         } else {
             d->mainWindow->addDockWidget(left ? Qt::LeftDockWidgetArea : Qt::RightDockWidgetArea, dock);
         }
+        dock->setVisible(shown.value(dock));
         above = dock;
     }
     restoreHeights();
@@ -1659,8 +1766,9 @@ void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool
     if (dock == d->flyout) {
         d->flyout = nullptr;
         d->flyoutAnchor = nullptr;
+        releaseFlyout();
     }
-    dock->setFloating(false);
+    dockAway(dock);
 
     // stacking follows the rail: put it on the rail where the panels of that column are
     QStringList panels = d->railPanels;
@@ -2316,6 +2424,15 @@ bool KisStudioLayout::handlePresetChip(QEvent *event)
 
 bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 {
+    // a flyout is for the moment it was opened for: never saved with the window as a floating panel
+    // (restoring one floating crashes Qt), so closed before the window keeps how it is laid out
+    if (watched == d->mainWindow && event->type() == QEvent::Close) {
+        if (d->flyout) closeFlyout();
+        Q_FOREACH (QDockWidget *dock, d->mainWindow->dockWidgets()) {
+            if (dock->isFloating() && dock->isHidden()) dockAway(dock);
+        }
+    }
+
     if (handleRailDrag(watched, event)) {
         return true;
     }
@@ -2334,15 +2451,6 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 
     switch (event->type()) {
     case QEvent::Paint: {
-        // a flyout has no window frame, give it a hairline border (Windows 11 rounds it and draws one)
-        QDockWidget *dock = qobject_cast<QDockWidget *>(watched);
-        if (dock && dock->isFloating() && d->panels.contains(dock) && !KisModernStyle::systemRoundsWindows()) {
-            QColor border = dock->palette().color(QPalette::WindowText);
-            border.setAlphaF(0.25);
-            QPainter painter(dock);
-            painter.setPen(border);
-            painter.drawRect(dock->rect().adjusted(0, 0, -1, -1));
-        }
         break;
     }
 
@@ -2352,6 +2460,7 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
         // rail handles clicks on its own buttons
         if (d->flyout && d->flyout->isVisible()) {
             QWidget *widget = qobject_cast<QWidget *>(watched);
+            // in the flyout: its own window, not the main one
             const bool onRail = d->rail && widget && (widget == d->rail || d->rail->isAncestorOf(widget));
             // the chip toggles the tool options itself, and they follow the tool picked on the tool rail
             const bool onChip = d->toolChip && widget == d->toolChip;

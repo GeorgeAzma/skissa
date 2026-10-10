@@ -10,6 +10,9 @@
  *  SPDX-FileCopyrightText: 2021 Alvin Wong <alvin@alvinhc.com>
  *
  */
+#include "KisStudioGlass.h"
+#include <QPainter>
+#include <QPainterPath>
 #include "kis_floating_message.h"
 
 #include <QApplication>
@@ -26,7 +29,8 @@
 #include "kis_global.h"
 
 
-#define OSD_WINDOW_OPACITY 0.85
+// on glass, the canvas behind shows through already: the message itself is not see-through
+#define OSD_WINDOW_OPACITY 1.0
 
 static void addDropShadow(QWidget *widget, QColor color)
 {
@@ -64,6 +68,7 @@ KisFloatingMessage::KisFloatingMessage(const QString &message, QWidget *parent, 
     setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint | Qt::WindowTransparentForInput);
     setFocusPolicy(Qt::NoFocus);
     setAttribute(Qt::WA_ShowWithoutActivating);
+    setAttribute(Qt::WA_TranslucentBackground);
 
     m_messageLabel = new QLabel(message, this);
     m_messageLabel->setAttribute(Qt::WA_TranslucentBackground);
@@ -139,6 +144,18 @@ void KisFloatingMessage::showMessage()
     QWidget::setVisible(true);
     m_fadeTimeLine.stop();
     m_timer.start(m_timeout);
+}
+
+void KisFloatingMessage::paintEvent(QPaintEvent *)
+{
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    QPainterPath shape;
+    shape.addRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 10, 10);
+    KisStudioGlass::paint(painter, this, shape);
+    QColor border = palette().color(QPalette::WindowText);
+    border.setAlphaF(0.12);
+    painter.strokePath(shape, QPen(border, 1));
 }
 
 void KisFloatingMessage::setShowOverParent(bool show)

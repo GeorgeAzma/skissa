@@ -4,6 +4,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioFind.h"
+#include "KisStudioGlass.h"
+#include <QPainterPath>
 
 #include "widgets/KisPopupCloser.h"
 
@@ -1502,10 +1504,11 @@ void KisStudioFind::paintEvent(QPaintEvent *)
         painter.drawRoundedRect(panel.adjusted(-i, -i + 4, i, i + 4), radius + i, radius + i);
     }
 
-    const QPalette &pal = palette();
-    QColor border = pal.color(QPalette::WindowText);
+    // glass: what it is over still shows through
+    QPainterPath shape;
+    shape.addRoundedRect(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+    KisStudioGlass::paint(painter, this, shape);
+    QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.08);
-    painter.setPen(QPen(border, 1));
-    painter.setBrush(pal.color(QPalette::Window));
-    painter.drawRoundedRect(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+    painter.strokePath(shape, QPen(border, 1));
 }

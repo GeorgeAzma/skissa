@@ -461,6 +461,7 @@ set(kritaui_LIB_SRCS
     KisStudioMotion.cpp
     KisStudioEffectsPicker.cpp
     KisStudioPanelPicker.cpp
+    KisStudioGlass.cpp
     KisStudioBrushPicker.cpp
     KisStudioBrushMemory.cpp
     KisStudioCanvasRing.cpp

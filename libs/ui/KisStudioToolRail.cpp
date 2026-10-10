@@ -4,6 +4,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioToolRail.h"
+#include "KisStudioGlass.h"
+#include <QPainterPath>
 
 #include <kis_action_registry.h>
 
@@ -347,14 +349,13 @@ protected:
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        // a small round panel of its own, like the one above it
-        QColor background = palette().color(QPalette::Window);
-        background.setAlphaF(0.94);
+        // a small round panel of its own, glass like the one above it
+        QPainterPath shape;
+        shape.addEllipse(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5));
+        KisStudioGlass::paint(painter, this, shape);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(0.12);
-        painter.setPen(QPen(border, 1));
-        painter.setBrush(background);
-        painter.drawEllipse(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5));
+        painter.strokePath(shape, QPen(border, 1));
         QColor ink = palette().color(QPalette::ButtonText);
         ink.setAlphaF(underMouse() ? 0.9 : 0.55);
         QPen pen(ink, 1.6);

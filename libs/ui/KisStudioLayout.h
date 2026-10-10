@@ -90,6 +90,10 @@ private:
     void showPanelCard(const QString &id, QWidget *anchor);
     /// Off the rail, and closed
     void takeOffRail(const QString &id);
+    /// No longer floating, also a panel that never was in a column
+    void dockAway(QDockWidget *dock);
+    /// The flyout window lets go of its panel, and goes
+    void releaseFlyout();
     /// A click on a panel's grip: folds it (or unfolds it) next to the canvas, tucks it away over it
     void gripClicked(const QString &id);
     void applyFold(QDockWidget *dock, bool fold);

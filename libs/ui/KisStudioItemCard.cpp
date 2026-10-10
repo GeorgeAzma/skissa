@@ -4,6 +4,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioItemCard.h"
+#include "KisStudioGlass.h"
+#include <QPainterPath>
 
 #include <QAbstractButton>
 #include <QAction>
@@ -486,9 +488,11 @@ void KisStudioItemCard::paintEvent(QPaintEvent *)
         painter.setBrush(QColor(0, 0, 0, int(30.0 * (1.0 - qreal(i) / shadowMargin) + 2)));
         painter.drawRoundedRect(panel.adjusted(-i, -i + 3, i, i + 3), radius + i, radius + i);
     }
+    // glass: what it is over still shows through
+    QPainterPath shape;
+    shape.addRoundedRect(panel.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
+    KisStudioGlass::paint(painter, this, shape);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.12);
-    painter.setPen(QPen(border, 1));
-    painter.setBrush(palette().color(QPalette::Window));
-    painter.drawRoundedRect(panel, radius, radius);
+    painter.strokePath(shape, QPen(border, 1));
 }
