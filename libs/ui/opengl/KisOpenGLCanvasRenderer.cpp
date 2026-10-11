@@ -380,8 +380,9 @@ void KisOpenGLCanvasRenderer::paintCanvasOnly(const QRect &canvasImageDirtyRect,
             d->canvasFBO->bind();
             renderCanvasGL(canvasImageDirtyRect);
             d->canvasFBO->release();
-            // the image changed or moved: the light it casts around it too (see KisOpenGLCanvas2::paintEvent: all of it drawn again then)
-            if (KisStudioGlass::surround() == KisStudioGlass::Surround::Ambient && d->glass.isValid()) {
+            // the image changed or moved: the light it casts around it too (see KisOpenGLCanvas2::paintEvent: all of it drawn again then);
+            // none in wrap-around mode, where the image's copies are all around it
+            if (KisStudioGlass::surround() == KisStudioGlass::Surround::Ambient && d->glass.isValid() && !d->wrapAroundMode) {
                 const qreal ratio = devicePixelRatioF();
                 const QTransform widgetToSurface = QTransform::fromScale(1.0, -1.0) * QTransform::fromTranslate(0, d->pixelAlignedWidgetSize.height())
                     * QTransform::fromScale(ratio, ratio);
