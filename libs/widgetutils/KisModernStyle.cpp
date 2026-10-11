@@ -755,6 +755,14 @@ QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         // Fusion reserves this space for the check mark of its menu-like
         // popup, which is disabled by SH_ComboBox_Popup
         size.rwidth() += 10;
+        // a flat one has no chevron to make room for (see subControlRect)
+        if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
+            if (!combo->frame && !combo->editable) {
+                QStyleOptionComboBox sized = *combo;
+                sized.rect = QRect(QPoint(), size);
+                size.rwidth() -= QProxyStyle::subControlRect(CC_ComboBox, &sized, SC_ComboBoxArrow, widget).width();
+            }
+        }
         break;
     default:
         break;
@@ -764,18 +772,17 @@ QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *op
 
 QRect KisModernStyle::subControlRect(ComplexControl control, const QStyleOptionComplex *option, SubControl subControl, const QWidget *widget) const
 {
-    if (control == CC_ComboBox && subControl == SC_ComboBoxArrow) {
-        // a flat combo box reads as its text with a chevron: right after the text, not at the far end
+    if (control == CC_ComboBox) {
+        // a flat combo box is its text, no chevron: what is pointed at fills, that it opens is plain enough
         const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option);
-        const QRect arrow = QProxyStyle::subControlRect(control, option, subControl, widget);
-        if (combo && !combo->frame && !combo->editable && !combo->currentText.isEmpty()) {
-            const QRect field = QProxyStyle::subControlRect(control, option, SC_ComboBoxEditField, widget);
-            int text = combo->fontMetrics.horizontalAdvance(combo->currentText);
-            if (!combo->currentIcon.isNull()) text += combo->iconSize.width() + 4;
-            const int left = field.left() + text + 2;
-            if (left < arrow.left()) return arrow.translated(left - arrow.left(), 0);
+        if (combo && !combo->frame && !combo->editable) {
+            if (subControl == SC_ComboBoxArrow) return QRect();
+            if (subControl == SC_ComboBoxEditField) {
+                const QRect field = QProxyStyle::subControlRect(control, option, subControl, widget);
+                const QRect arrow = QProxyStyle::subControlRect(control, option, SC_ComboBoxArrow, widget);
+                return QRect(field.left(), field.top(), qMax(field.right(), arrow.right()) - field.left() + 1, field.height());
+            }
         }
-        return arrow;
     }
     if (control == CC_ScrollBar) {
         // Same layout as QCommonStyle, but without the arrow buttons
@@ -1528,8 +1535,8 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
                 drawButtonPanel(painter, option, !combo->frame);
             }
 
-            if (combo->subControls.testFlag(SC_ComboBoxArrow)) {
-                const QRect arrow = proxy()->subControlRect(CC_ComboBox, combo, SC_ComboBoxArrow, widget);
+            const QRect arrow = proxy()->subControlRect(CC_ComboBox, combo, SC_ComboBoxArrow, widget);
+            if (combo->subControls.testFlag(SC_ComboBoxArrow) && !arrow.isEmpty()) {
                 drawChevron(painter, arrow, Qt::DownArrow,
                             combo->palette.color(combo->editable ? QPalette::Text : QPalette::ButtonText));
             }

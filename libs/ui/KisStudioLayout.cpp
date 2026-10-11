@@ -205,20 +205,14 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
         QColor ink = palette().color(QPalette::WindowText);
         if (m_folded) {
-            // the name on the left, a chevron saying it opens on the right
+            // the name: a click unfolds it
             ink.setAlphaF(underMouse() ? 0.85 : 0.6);
             QFont font = this->font();
             font.setPointSizeF(font.pointSizeF() * 0.9);
             painter.setFont(font);
             painter.setPen(ink);
-            painter.drawText(rect().adjusted(10, 0, -28, 0), Qt::AlignLeft | Qt::AlignVCenter,
-                             QFontMetrics(font).elidedText(m_title, Qt::ElideRight, width() - 38));
-            QPen pen(ink, 1.4);
-            pen.setCapStyle(Qt::RoundCap);
-            pen.setJoinStyle(Qt::RoundJoin);
-            painter.setPen(pen);
-            const QPointF c(width() - 14, height() / 2.0);
-            painter.drawPolyline(QPolygonF(QVector<QPointF>{c + QPointF(-3.5, -1.8), c + QPointF(0, 1.8), c + QPointF(3.5, -1.8)}));
+            painter.drawText(rect().adjusted(10, 0, -10, 0), Qt::AlignLeft | Qt::AlignVCenter,
+                             QFontMetrics(font).elidedText(m_title, Qt::ElideRight, width() - 20));
             return;
         }
         ink.setAlphaF(m_dragging ? 0.6 : underMouse() ? 0.4 : 0.14);
@@ -290,9 +284,9 @@ struct PanelDrop {
 };
 
 /**
- * The first thing in the top bar: which tool the bar is about, with a chevron
- * that says it opens that tool's options. The rail shows the slot, this
- * shows the variant ("Contiguous Selection").
+ * The first thing in the top bar: which tool the bar is about; a click opens
+ * that tool's options. The rail shows the slot, this shows the variant
+ * ("Contiguous Selection").
  */
 class ToolChip : public QToolButton
 {
@@ -312,7 +306,7 @@ public:
         const int icon = iconSize().width();
         // painted by hand, so without the mnemonic the accelerator manager adds
         const QString label = QString(text()).remove(QLatin1Char('&'));
-        return QSize(padding + icon + gap + fontMetrics().horizontalAdvance(label) + gap + chevron + padding,
+        return QSize(padding + icon + gap + fontMetrics().horizontalAdvance(label) + padding,
                      qMax(28, icon + 8));
     }
 
@@ -331,23 +325,12 @@ protected:
         this->icon().paint(&painter, QRect(area.left(), (height() - icon) / 2, icon, icon));
         area.setLeft(area.left() + icon + gap);
         painter.setPen(palette().color(QPalette::ButtonText));
-        painter.drawText(area.adjusted(0, 0, -(gap + chevron), 0), Qt::AlignVCenter | Qt::AlignLeft | Qt::TextHideMnemonic, text());
-
-        QColor dim = palette().color(QPalette::ButtonText);
-        dim.setAlphaF(0.6);
-        QPen pen(dim, 1.4);
-        pen.setCapStyle(Qt::RoundCap);
-        pen.setJoinStyle(Qt::RoundJoin);
-        painter.setPen(pen);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        const QPointF tip(area.right() - chevron / 2.0, height() / 2.0 + 2);
-        painter.drawPolyline(QPolygonF({tip + QPointF(-3.5, -3.5), tip, tip + QPointF(3.5, -3.5)}));
+        painter.drawText(area, Qt::AlignVCenter | Qt::AlignLeft | Qt::TextHideMnemonic, text());
     }
 
 private:
     static constexpr int padding = 8;
     static constexpr int gap = 6;
-    static constexpr int chevron = 8;
 };
 
 /**

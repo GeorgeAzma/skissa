@@ -853,9 +853,11 @@ void NodeDelegate::drawIcons(QPainter *p, const QStyleOptionViewItem &option, co
             bool fullColor = prop->state.toBool() && option.state & QStyle::State_Enabled;
 
             const qreal oldOpacity = p->opacity(); // remember previous opacity
-            if (lit) {
+            // on is a toggle pressed in: a plate under it at full ink; off is faint, bare; pointed at, a lighter plate
+            const bool on = prop->state.toBool();
+            if (on || lit) {
                 QColor plate = option.palette.color(QPalette::Text);
-                plate.setAlphaF(0.14);
+                plate.setAlphaF((on ? 0.2 : 0.0) + (lit ? 0.1 : 0.0));
                 p->save();
                 p->setRenderHint(QPainter::Antialiasing, true);
                 p->setPen(Qt::NoPen);
@@ -867,7 +869,7 @@ void NodeDelegate::drawIcons(QPainter *p, const QStyleOptionViewItem &option, co
             if (fullColor || lit) {
                 p->setOpacity(1.0);
             } else {
-                p->setOpacity(0.35);
+                p->setOpacity(on ? 0.6 : 0.3);
             }
 
             if (prop->id == KisLayerPropertiesIcons::colorOverlay.id()) {
