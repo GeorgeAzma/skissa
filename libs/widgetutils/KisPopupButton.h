@@ -9,7 +9,11 @@
 
 #include <QToolButton>
 
+#include <functional>
+
 #include <kritawidgetutils_export.h>
+
+class QFrame;
 
 /**
  * This class is a convenience class for a button that
@@ -51,6 +55,17 @@ public:
     void setArrowVisible(bool v);
 
     bool isPopupWidgetVisible();
+
+    /**
+     * Called on a popup's frame (the window around the popup widget) each
+     * time just before its window is made, while what Qt only takes then
+     * (e.g. Qt::WA_TranslucentBackground) can still be set. \p detached is
+     * whether it is a dialog rather than a popup, \p holdsMenu whether the
+     * popup widget is a menu. The frame's own look (its frame style, no
+     * margins) is set again before each call.
+     */
+    using FrameDecorator = std::function<void(QFrame *frame, bool detached, bool holdsMenu)>;
+    static void setFrameDecorator(const FrameDecorator &decorator);
 
 Q_SIGNALS:
     void sigPopupWidgetShown();

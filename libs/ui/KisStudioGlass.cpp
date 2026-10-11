@@ -5,6 +5,7 @@
  */
 #include "KisStudioGlass.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <vector>
@@ -35,6 +36,7 @@
 #include "KisPart.h"
 #include "KisViewManager.h"
 #include "KisModernStyle.h"
+#include "KisPopupButton.h"
 #include "canvas/kis_canvas2.h"
 #include "kis_config.h"
 #include "kis_config_notifier.h"
@@ -654,12 +656,7 @@ public:
             connect(widget, &QObject::destroyed, this, [this, widget]() {
                 m_panels.remove(widget);
                 m_shown.remove(widget);
-                // where it was, the canvas shows plain again
-                for (QWidget *canvas : qAsConst(m_canvases)) {
-                    if (!canvas) continue;
-                    canvas->update();
-                    hideUnderWindows(canvas);
-                }
+                showPlainAgain();
             });
             changedAfterPainting(widget);
             return false;
@@ -670,6 +667,22 @@ public:
             changedAfterPainting(widget);
         }
         return it->drawn;
+    }
+
+    /// \p widget is not glass anymore (it is still there): the canvas under it shows plain again
+    void forget(QWidget *widget)
+    {
+        if (!m_panels.remove(widget)) {
+            return;
+        }
+        m_shown.remove(widget);
+        disconnect(widget, &QObject::destroyed, this, nullptr);
+        widget->removeEventFilter(this);
+        QWidget *window = widget->window();
+        if (window != widget && std::none_of(m_panels.keyBegin(), m_panels.keyEnd(), [window](QWidget *panel) { return panel->window() == window; })) {
+            window->removeEventFilter(this);
+        }
+        showPlainAgain();
     }
 
     /**
@@ -685,6 +698,16 @@ public:
         QMetaObject::invokeMethod(this, [this, guard = QPointer<QWidget>(widget)]() {
             if (guard) changed(guard);
         }, Qt::QueuedConnection);
+    }
+
+    /// Where a panel was, the canvases show plain again
+    void showPlainAgain()
+    {
+        for (QWidget *canvas : qAsConst(m_canvases)) {
+            if (!canvas) continue;
+            canvas->update();
+            hideUnderWindows(canvas);
+        }
     }
 
     /// Whether the canvas has drawn \p widget's glass since it was shown
@@ -1066,11 +1089,31 @@ KisStudioGlass::Surround KisStudioGlass::surround()
 }
 
 namespace {
+const char *const glassMenuProperty = "studioGlassMenu";
+
+/// \p widget's glass painted as a panel's is, under what it paints, with corners of \p radius
+void paintMenuGlass(QWidget *widget, qreal radius)
+{
+    QPainter painter(widget);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QPainterPath shape = KisStudioGlass::paint(painter, widget, QRectF(widget->rect()).adjusted(0.5, 0.5, -0.5, -0.5), radius);
+    QColor border = widget->palette().color(QPalette::WindowText);
+    border.setAlphaF(0.12);
+    KisStudioGlass::paintBorder(painter, widget, shape, border);
+}
+
+/// See-through on Windows only as a frameless window (a popup is not one of itself), and its square shadow not
+void makeSeeThroughWindow(QWidget *widget)
+{
+    widget->overrideWindowFlags(widget->windowFlags() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint);
+    widget->setAttribute(Qt::WA_TranslucentBackground, true);
+    widget->setProperty(glassMenuProperty, true);
+}
+
 /**
- * Makes menus glass, and the popups of KisPopupButton (the brush editor, the
- * brush size's slider...): see-through windows (set before their window is
- * made, which is what Qt needs for it), their background painted as a
- * panel's is, before they paint what is on it
+ * Makes menus glass: see-through windows (set before their window is made,
+ * which is what Qt needs for it), their background painted as a panel's
+ * is, before they paint their items over it
  */
 class MenuGlass : public QObject
 {
@@ -1080,42 +1123,60 @@ protected:
         if (event->type() != QEvent::Polish && event->type() != QEvent::Paint) {
             return false;
         }
-        QWidget *widget = qobject_cast<QMenu *>(watched);
-        const bool popupFrame = !widget && watched->isWidgetType() && watched->objectName() == QLatin1String("KisPopupButtonFrame");
-        if (popupFrame) {
-            widget = static_cast<QWidget *>(watched);
-        }
-        if (!widget) {
+        QMenu *menu = qobject_cast<QMenu *>(watched);
+        if (!menu) {
             return false;
         }
-        if (event->type() == QEvent::Polish && !widget->testAttribute(Qt::WA_WState_Created) && KisStudioGlass::isEnabled()
-            // a popup button's detached popup is a dialog, a window of its own; a menu in one is glass itself
-            && (!popupFrame || (widget->windowType() == Qt::Popup && !widget->findChild<QMenu *>(QString(), Qt::FindDirectChildrenOnly)))) {
-            // see-through on Windows only as a frameless window (a popup is not one of itself), and its square shadow not
-            widget->overrideWindowFlags(widget->windowFlags() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint);
-            widget->setAttribute(Qt::WA_TranslucentBackground, true);
-            widget->setProperty("studioGlassMenu", true);
-            if (popupFrame) {
-                // no box: what is in it lies on the glass, kept clear of its round corners
-                if (QFrame *frame = qobject_cast<QFrame *>(widget)) frame->setFrameStyle(QFrame::NoFrame);
-                if (widget->layout()) widget->layout()->setContentsMargins(8, 8, 8, 8);
-                // what is in it see-through (the frame keeps its color: the glass is tinted with it)
-                Q_FOREACH (QWidget *content, widget->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
-                    KisStudioGlass::setSeeThrough(content, true);
-                }
-            }
-        } else if (event->type() == QEvent::Paint && widget->property("studioGlassMenu").toBool()) {
-            QPainter painter(widget);
-            painter.setRenderHint(QPainter::Antialiasing, true);
-            const qreal radius = popupFrame ? KisModernStyle::cornerRadius + 6 : KisModernStyle::cornerRadius + 2;
-            const QPainterPath shape = KisStudioGlass::paint(painter, widget, QRectF(widget->rect()).adjusted(0.5, 0.5, -0.5, -0.5), radius);
-            QColor border = widget->palette().color(QPalette::WindowText);
-            border.setAlphaF(0.12);
-            KisStudioGlass::paintBorder(painter, widget, shape, border);
+        if (event->type() == QEvent::Polish && !menu->testAttribute(Qt::WA_WState_Created) && KisStudioGlass::isEnabled()) {
+            makeSeeThroughWindow(menu);
+        } else if (event->type() == QEvent::Paint && menu->property(glassMenuProperty).toBool()) {
+            paintMenuGlass(menu, KisModernStyle::cornerRadius + 2);
         }
         return false;
     }
 };
+
+/// Paints the glass of a popup button's popup (see decoratePopupFrame), installed on it
+class PopupFrameGlass : public QObject
+{
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() == QEvent::Paint && watched->property(glassMenuProperty).toBool()) {
+            paintMenuGlass(static_cast<QWidget *>(watched), KisModernStyle::cornerRadius + 6);
+        }
+        return false;
+    }
+};
+
+/**
+ * A popup of KisPopupButton (the brush editor, the brush size's slider...)
+ * glass as a menu is, as its window is about to be made (again after it
+ * was detached or attached). A detached one is a dialog, a window of its
+ * own, and stays solid; a menu in one is glass itself.
+ */
+void decoratePopupFrame(QFrame *frame, bool detached, bool holdsMenu)
+{
+    static PopupFrameGlass *painter = new PopupFrameGlass();
+    const bool glass = KisStudioGlass::isEnabled() && !detached && !holdsMenu;
+    if (glass) {
+        makeSeeThroughWindow(frame);
+        frame->installEventFilter(painter);
+        // no box: what is in it lies on the glass, kept clear of its round corners
+        frame->setFrameStyle(QFrame::NoFrame);
+        frame->layout()->setContentsMargins(8, 8, 8, 8);
+    } else {
+        // the window flags and the frame are the frame's own again already (see KisPopupButton::setFrameDecorator)
+        frame->setAttribute(Qt::WA_TranslucentBackground, false);
+        frame->setProperty(glassMenuProperty, false);
+        frame->removeEventFilter(painter);
+        Panels::instance().forget(frame);
+    }
+    // what is in it see-through (the frame keeps its color: the glass is tinted with it)
+    Q_FOREACH (QWidget *content, frame->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
+        KisStudioGlass::setSeeThrough(content, glass);
+    }
+}
 } // namespace
 
 void KisStudioGlass::setOverOverlays(QWidget *panel)
@@ -1130,6 +1191,7 @@ void KisStudioGlass::installMenuGlass()
     if (filter) return;
     filter = new MenuGlass();
     qApp->installEventFilter(filter);
+    KisPopupButton::setFrameDecorator(decoratePopupFrame);
     if (isEnabled()) {
         // Windows fades menus in through their window's opacity, of which nothing is told: the canvas drew
         // the glass under one as faint as it was then, and did not again, and the menu showed no background

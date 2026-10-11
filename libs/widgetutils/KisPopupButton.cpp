@@ -21,10 +21,20 @@
 #include "kis_global.h"
 #include <kis_debug.h>
 
+namespace {
+KisPopupButton::FrameDecorator &frameDecorator()
+{
+    static KisPopupButton::FrameDecorator decorator;
+    return decorator;
+}
+} // namespace
+
 
 class KisPopupButtonFrame : public QFrame
 {
     QHBoxLayout* frameLayout {0};
+    bool m_detached {false};
+    bool m_popupIsMenu {false};
 
 public:
     KisPopupButtonFrame(QWidget *parent, bool detach, bool popupIsMenu)
@@ -33,7 +43,6 @@ public:
         setObjectName("KisPopupButtonFrame");
         setProperty("_kis_excludeFromLayoutThumbnail", true);
         frameLayout = new QHBoxLayout(this);
-        frameLayout->setContentsMargins(0, 0, 0, 0);
 
         setDetached(detach, popupIsMenu);
     }
@@ -52,6 +61,10 @@ public:
         // shadows.
         destroy();
 
+        m_detached = detach;
+        m_popupIsMenu = popupIsMenu;
+        frameLayout->setContentsMargins(0, 0, 0, 0);
+
         if (detach) {
             setWindowFlags(Qt::Dialog);
             setFrameStyle(QFrame::NoFrame);        
@@ -67,6 +80,15 @@ public:
         }
 
         updateGeometry();
+    }
+
+    void setVisible(bool visible) override
+    {
+        // its window is made as it is first shown (again after setDetached): what only counts before then, now
+        if (visible && !testAttribute(Qt::WA_WState_Created) && frameDecorator()) {
+            frameDecorator()(this, m_detached, m_popupIsMenu);
+        }
+        QFrame::setVisible(visible);
     }
 
 protected:
@@ -202,6 +224,11 @@ void KisPopupButton::setPopupWidgetVisible(bool visible)
     }
 }
 
+void KisPopupButton::setFrameDecorator(const FrameDecorator &decorator)
+{
+    frameDecorator() = decorator;
+}
+
 bool KisPopupButton::isPopupWidgetVisible()
 {
     return m_d->popupWidget && m_d->frame->isVisible();
@@ -254,9 +281,8 @@ void KisPopupButton::adjustPosition()
 
     // Attach to the button if it's visible, else attach to the cursor.
     QPoint pos = this->isVisible() ? this->mapToGlobal(QPoint(0, this->size().height())) : QCursor().pos();
-    // the frame around the popup widget, with its margins (a style may give it some)
-    QMargins margins = m_d->frame->contentsMargins();
-    if (m_d->frame->layout()) margins += m_d->frame->layout()->contentsMargins();
+    // the frame around the popup widget, with its margins (a decorator may give it some)
+    const QMargins margins = m_d->frame->contentsMargins() + m_d->frame->layout()->contentsMargins();
     QSize popSize = m_d->popupWidget->size().grownBy(margins);
     QRect popupRect(pos, popSize);
 
