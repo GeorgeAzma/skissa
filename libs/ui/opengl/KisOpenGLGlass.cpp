@@ -246,6 +246,12 @@ uniform float clearing;
 uniform float gloss;
 uniform vec3 ior;
 uniform vec4 reach;
+// the glass under this one (a menu over a panel): its shape, its corners, its tint (Oklab), how strongly it tints
+uniform int lowerCount;
+uniform vec4 lowerShape[4];
+uniform vec2 lowerCorner[4];
+uniform vec3 lowerTint[4];
+uniform float lowerStrength;
 flat in float strength;
 
 float hash(uvec2 p)
@@ -277,9 +283,10 @@ float within(float d, float crossing)
     return mix(1.0, max(erf(d / (sigma * 1.41421356)), 0.0), crossing);
 }
 
-// how far outside the shape p is, in pixels (inside, less than 0), and which way is out there:
-// its squircle corners are each a quarter of a superellipse, |x|^n + |y|^n = reach^n
-float outside(vec2 p, out vec2 normal)
+// how far outside a shape (its middle and half its size, s; its corners, c) p is, in pixels (inside,
+// less than 0), and which way is out there: its squircle corners are each a quarter of a
+// superellipse, |x|^n + |y|^n = reach^n
+float outsideOf(vec2 p, vec4 shape, vec2 corner, out vec2 normal)
 {
     vec2 from = p - shape.xy;
     vec2 side = vec2(from.x < 0.0 ? -1.0 : 1.0, from.y < 0.0 ? -1.0 : 1.0);
@@ -295,6 +302,12 @@ float outside(vec2 p, out vec2 normal)
     vec2 gradient = pow(q / f, vec2(n - 1.0));
     normal = normalize(gradient) * side;
     return (f - corner.x) / length(gradient);
+}
+
+// of this glass' own shape
+float outside(vec2 p, out vec2 normal)
+{
+    return outsideOf(p, shape, corner, normal);
 }
 
 // the bevel d pixels in from the rim, w wide, h thick: its height over the underside, and its
@@ -477,6 +490,24 @@ vec3 tinted(vec3 behind, vec3 tintLab, float s)
     return tintedLab(toOklab(behind), tintLab, s);
 }
 
+/**
+ * What is seen at p (lab, Oklab) through the glass under this one, where
+ * this one lies over it (a menu over a panel): tinted by each as its own
+ * glass tints it, glass over glass, not the canvas as if they were not
+ * there. Their edges as soft as this glass' frost makes what is under it.
+ */
+vec3 throughLower(vec3 lab, vec2 p)
+{
+    for (int i = 0; i < 4; i++) {
+        if (i >= lowerCount) break;
+        vec2 n;
+        float d = outsideOf(p, lowerShape[i], lowerCorner[i], n);
+        float cover = clamp(0.5 - d / max(2.0 * sigma, 1.0), 0.0, 1.0);
+        if (cover > 0.0) lab = mix(lab, toOklab(tintedLab(lab, lowerTint[i], lowerStrength)), cover);
+    }
+    return lab;
+}
+
 void main()
 {
     vec2 p = gl_FragCoord.xy;
@@ -526,9 +557,10 @@ void main()
                 vec2 q = held(p + ray.xy);
                 seen = frostedLab(q);
                 if (clear > 0.0) seen = mix(seen, clearLab(q, jx, jy), clear);
+                seen = throughLower(seen, q);
             } else {
                 // reflected inside, scattered by the frost: the glass itself
-                seen = frostedLab(p);
+                seen = throughLower(frostedLab(p), p);
             }
             vec3 through = max(fromOklab(mix(tintLab, seen, canvas)), 0.0);
             light3[i] = through[i];
@@ -550,7 +582,7 @@ void main()
             color += vec3(gloss * lit * pow(1.0 - normal.z, 1.5));
         }
     } else {
-        color = tintedLab(mix(tintLab, frostedLab(p), canvas), tintLab, strength);
+        color = tintedLab(mix(tintLab, throughLower(frostedLab(p), p), canvas), tintLab, strength);
     }
 
     /**
@@ -788,7 +820,8 @@ bool KisOpenGLGlass::initialize()
         && d->glass.make(glassVertexSource, glassSource,
                          {"rect", "blurred", "statistics", "shift", "slot", "restore", "power",
                           "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
-                          "beyond", "spacing", "dither", "veil", "bevel", "polish", "clearing", "gloss", "ior", "under", "decode", "reach"})
+                          "beyond", "spacing", "dither", "veil", "bevel", "polish", "clearing", "gloss", "ior", "under", "decode", "reach",
+                          "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"})
         && d->ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
         && d->ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"});
     if (d->valid && KisOpenGL::supportsVAO()) {
@@ -804,6 +837,18 @@ bool KisOpenGLGlass::isValid() const
 
 namespace {
 /// \p transform as a matrix of GLSL (columns)
+/// \p color (sRGB) in Oklab
+QVector3D oklabOf(const QColor &color)
+{
+    auto linear = [](qreal c) { return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4); };
+    const qreal r = linear(color.redF()), g = linear(color.greenF()), b = linear(color.blueF());
+    const qreal l = std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const qreal m = std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const qreal s = std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return QVector3D(float(0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s), float(1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s),
+                     float(0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s));
+}
+
 void setMatrix(QOpenGLFunctions *f, int location, const QTransform &transform)
 {
     const float m[9] = {float(transform.m11()), float(transform.m12()), float(transform.m13()),
@@ -1099,6 +1144,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1f(d->glass["gloss"], bevel.gloss);
     const QVector3D ior = refractiveIndices(bevel.abbeNumber);
     f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
+    f->glUniform1f(d->glass["lowerStrength"], float(0.5 * (KisStudioGlass::tintOverDark + KisStudioGlass::tintOverBright)));
     f->glActiveTexture(GL_TEXTURE2);
     f->glBindTexture(GL_TEXTURE_2D, canvas);
     f->glActiveTexture(GL_TEXTURE1);
@@ -1130,6 +1176,29 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glUniform4f(d->glass["beyond"], r.left() < 0, r.right() > viewport.width(), r.top() < 0, r.bottom() > viewport.height());
         const QRectF reach = r.adjusted(-rimReach, -rimReach, rimReach, rimReach) & QRectF(whole).adjusted(0.5, 0.5, -0.5, -0.5);
         f->glUniform4f(d->glass["reach"], reach.left(), reach.top(), reach.right(), reach.bottom());
+        // the glass under it, where it lies over that (the nearest four)
+        GLfloat lowerShape[4 * 4] = {};
+        GLfloat lowerCorner[4 * 2] = {};
+        GLfloat lowerTint[4 * 3] = {};
+        int lowerCount = 0;
+        for (int j = i - 1; j >= 0 && lowerCount < 4; j--) {
+            const Surface &lower = surfaces[j];
+            if (lower.opacity <= 0 || regions[j].around.isEmpty() || !lower.rect.intersects(r)) continue;
+            const QRectF l = lower.rect;
+            const GLfloat shape[4] = {GLfloat(l.center().x()), GLfloat(l.center().y()), GLfloat(l.width() / 2), GLfloat(l.height() / 2)};
+            std::copy(shape, shape + 4, lowerShape + 4 * lowerCount);
+            lowerCorner[2 * lowerCount] = GLfloat(lower.reach);
+            lowerCorner[2 * lowerCount + 1] = GLfloat(lower.exponent);
+            const QVector3D lab = oklabOf(lower.tint);
+            lowerTint[3 * lowerCount] = lab.x();
+            lowerTint[3 * lowerCount + 1] = lab.y();
+            lowerTint[3 * lowerCount + 2] = lab.z();
+            lowerCount++;
+        }
+        f->glUniform1i(d->glass["lowerCount"], lowerCount);
+        f->glUniform4fv(d->glass["lowerShape"], 4, lowerShape);
+        f->glUniform2fv(d->glass["lowerCorner"], 4, lowerCorner);
+        f->glUniform3fv(d->glass["lowerTint"], 4, lowerTint);
         f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
 
