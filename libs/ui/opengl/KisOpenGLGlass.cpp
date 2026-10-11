@@ -553,13 +553,13 @@ void main()
     /**
      * The Clear style's frost: a little of it where the dome is flat, none
      * where it is curved (its edges). How curved: how fast its slope changes
-     * over a pixel, against the dome's own size (w over h); flat, a third
-     * frosted at most.
+     * over a pixel, against the dome's own size (w over h); flat, nearly all
+     * frosted.
      */
     float domeFrost = 0.0;
     if (dome && w > 0.5) {
         float curvature = abs(profile(d + 1.0, w, h).y - profile(max(d - 1.0, 0.0), w, h).y) * 0.5 * w / max(h, 1e-3);
-        domeFrost = 0.33 / (1.0 + curvature * curvature * 4.0);
+        domeFrost = 0.9 / (1.0 + curvature * curvature * 4.0);
     }
 
     vec3 color;
