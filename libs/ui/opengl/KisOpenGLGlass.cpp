@@ -328,18 +328,22 @@ float seamless(float t)
 }
 
 // the bevel d pixels in from the rim, w wide, h thick: its height over the underside, and its
-// slope. A quarter of a superellipse of exponent 4 (steep at the rim) of g = exp(1 - 1/u), u
-// from the face out: every derivative of g is 0 at the face, so where the bevel turns into it
-// there is no crease of any order (of the light it bends, nor of how much it bends it)
+// slope. A quarter of a superellipse of exponent 4 (steep at the rim) of g = u exp(a^2 (1 - 1/u^2)),
+// u from the face out: g is about u over most of the bevel (it bends the light as gradually across
+// it), and every derivative of it is 0 at the face, so where the bevel turns into it there is no
+// crease of any order
 vec2 profile(float d, float w, float h)
 {
     float u = 1.0 - clamp(d / w, 0.0, 1.0);
     if (u <= 0.0) return vec2(h, 0.0);
-    float g = exp(1.0 - 1.0 / u);
+    const float a2 = 0.04;
+    float e = exp(a2 * (1.0 - 1.0 / (u * u)));
+    float g = u * e;
+    // dg/du = e (1 + 2 a^2 / u^2)
+    float dg = e * (1.0 + 2.0 * a2 / (u * u));
     float g3 = g * g * g;
     float k = max(1.0 - g3 * g, 1e-5);
-    // d(height)/d(d) = h * g^3 * k^-3/4 * dg/du / w, dg/du = g / u^2
-    return vec2(h * pow(k, 0.25), h / w * g3 * pow(k, -0.75) * g / (u * u));
+    return vec2(h * pow(k, 0.25), h / w * g3 * pow(k, -0.75) * dg);
 }
 
 // the bevel over the pixel d in from the edge: its height there and its slope over all of the pixel
@@ -598,17 +602,22 @@ void main()
     vec3 tintLight = fromSrgb(tint);
     vec3 tintLab = toOklab(tintLight);
 
+    /**
+     * How blurred what the glass shows is, d in from the rim: a pixel's worth
+     * at the rim (all polish) up to the frost's, from where it is all clear
+     * on to a frost's width into the face (the frost is wider than the bevel:
+     * grown over the bevel alone, the blur doubled from a pixel to the next,
+     * an edge), by its log, eased without a seam of any order
+     */
+    float sharpest = exp(mix(log(sigma), log(0.35), polish));
+    float rampStart = clearing * w;
+    float rampEnd = w + sigma;
+    float frosting = w > 0.5 ? seamless((d - rampStart) / max(rampEnd - rampStart, 1.0)) : 1.0;
+    float blur = exp(mix(log(sharpest), log(sigma), frosting));
+
     vec3 color;
     if (onBevel) {
-        /**
-         * Polished toward the rim, it shows the canvas itself, bent; into the
-         * face, the frost: the blur grows from the one to the other, as much
-         * as a pixel's worth at the rim (all polish) to the frost's, the way
-         * there (by its log) eased without a seam of any order
-         */
-        float frosting = seamless((d / w - clearing) / max(1.0 - clearing, 1e-3));
-        float sharpest = exp(mix(log(sigma), log(0.35), polish));
-        float blur = exp(mix(log(sharpest), log(sigma), frosting));
+        // polished toward the rim, it shows the canvas itself, bent; into the face, the frost (see blur)
 
         vec3 light3 = vec3(0.0);
         for (int i = 0; i < 3; i++) {
@@ -645,7 +654,9 @@ void main()
         }
     } else {
         // through the light of the screen as the bevel's is (a color beyond it held at its edge): the same where they meet
-        color = tinted(max(fromOklab(mix(tintLab, throughLower(frostedLab(p), p), canvas)), 0.0), tintLab, strength);
+        // the frost, or near the bevel what the blur is there on its way to it
+        vec3 seen = blur < sigma * 0.999 ? blurredLab(p, blur, jx, jy) : frostedLab(p);
+        color = tinted(max(fromOklab(mix(tintLab, throughLower(seen, p), canvas)), 0.0), tintLab, strength);
     }
 
     /**
