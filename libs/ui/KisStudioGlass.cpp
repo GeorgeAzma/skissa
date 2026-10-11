@@ -179,17 +179,16 @@ void boxLine(float *data, int count, int stride, int radius, std::vector<float> 
 }
 
 /**
- * The frost, as the canvas makes it (see frostedLab() in KisOpenGLGlass):
- * blurred \p radius (three box passes each way: close to a gaussian), a
- * saturated color counting more, the mean in Oklab: its lightness a power
- * mean; what disagreeing hues cancel partly restored
+ * The frost, as the canvas makes it (see KisOpenGLGlass): blurred \p radius
+ * (three box passes each way: close to a gaussian), a saturated color
+ * counting more, the mean in Oklab: its lightness a power mean
  */
 QImage blurred(const QImage &source, int radius)
 {
     const QImage image = source.convertToFormat(QImage::Format_RGB32);
     const int w = image.width(), h = image.height();
-    // weighted: lightness to the power, Oklab's a and b, and chroma; and the weight
-    enum { L, Weight, A, Bb, Chroma, Count };
+    // weighted: lightness to the power, Oklab's a and b; and the weight
+    enum { L, Weight, A, Bb, Count };
     const float power = float(KisStudioGlass::lightnessPower);
     std::vector<float> channels[Count];
     for (auto &channel : channels) channel.resize(size_t(w) * h);
@@ -200,13 +199,11 @@ QImage blurred(const QImage &source, int radius)
             const size_t i = size_t(y) * w + x;
             const float r = linear[qRed(line[x])], g = linear[qGreen(line[x])], b = linear[qBlue(line[x])];
             const Lab lab = toOklab(r, g, b);
-            const float chroma = std::hypot(lab.a, lab.b);
-            const float weight = 1.0f + float(KisStudioGlass::salience) * chroma;
+            const float weight = 1.0f + float(KisStudioGlass::salience) * std::hypot(lab.a, lab.b);
             channels[L][i] = std::pow(qMax(0.0f, lab.l), power) * weight;
             channels[Weight][i] = weight;
             channels[A][i] = lab.a * weight;
             channels[Bb][i] = lab.b * weight;
-            channels[Chroma][i] = chroma * weight;
         }
     }
     // a box of r three times is about a gaussian of sigma r: the passes share the radius
@@ -218,7 +215,6 @@ QImage blurred(const QImage &source, int radius)
             for (int x = 0; x < w; x++) boxLine(channels[c].data() + x, h, w, box, scratch);
         }
     }
-    const float restore = float(KisStudioGlass::restore);
     QImage result(w, h, QImage::Format_RGB32);
     for (int y = 0; y < h; y++) {
         QRgb *line = reinterpret_cast<QRgb *>(result.scanLine(y));
@@ -227,9 +223,7 @@ QImage blurred(const QImage &source, int radius)
             const float weight = qMax(1e-6f, channels[Weight][i]);
             const float l = std::pow(qMax(0.0f, channels[L][i] / weight), 1.0f / power);
             const float a = channels[A][i] / weight, b = channels[Bb][i] / weight;
-            const float agree = qBound(0.0f, std::hypot(a, b) / qMax(1e-4f, channels[Chroma][i] / weight), 1.0f);
-            const float gain = 1.0f + restore * (1.0f - agree);
-            const std::array<float, 3> c = inGamut({qBound(0.0f, l, 1.0f), a * gain, b * gain});
+            const std::array<float, 3> c = inGamut({qBound(0.0f, l, 1.0f), a, b});
             line[x] = qRgb(toSrgb(c[0]), toSrgb(c[1]), toSrgb(c[2]));
         }
     }

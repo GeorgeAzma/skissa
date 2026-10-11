@@ -47,7 +47,9 @@ public:
     /**
      * The blur averages what is behind as it is seen (in Oklab), a saturated
      * color counting up to 1 + salience times as much as a gray: a stroke of
-     * color stands out of a canvas.
+     * color stands out of a canvas. Its color is the mean of Oklab's a and b:
+     * mixed as light, a stroke of color on white would keep only half of its
+     * chroma, and orange and blue would make pink.
      */
     static constexpr qreal salience = 1.0;
     /**
@@ -57,14 +59,6 @@ public:
      * into a milky haze); between, darks stay dark and highlights still glow
      */
     static constexpr qreal lightnessPower = 1.5;
-    /**
-     * The frost's color is the mean in Oklab: mixed as light, a stroke of
-     * color on white would keep only half of its chroma, and orange and blue
-     * would make pink. Hues that disagree cancel out: of the chroma lost so,
-     * this share is restored as far as they agree (never more than the
-     * colors behind have, on average).
-     */
-    static constexpr qreal restore = 0.5;
     /// The tint, over a dark and over a bright canvas: text on it reads as well over either
     static constexpr qreal tintOverDark = 0.56;
     static constexpr qreal tintOverBright = 0.84;

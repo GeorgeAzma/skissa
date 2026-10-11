@@ -21,13 +21,15 @@ class QTransform;
  * blurred in linear light, tinted, in the shape of each glass panel. It
  * follows the canvas frame by frame, and costs the CPU nothing.
  *
- * The blur: the canvas a few times smaller (each pixel the mean of the
- * ones it stands for), then a gaussian across and down, then scaled back
- * up where the glass is. Colors are mixed as light, saturated ones counting
- * more (see KisStudioGlass::salience).
+ * The blur: levels of the canvas, each half as large as the one before and
+ * twice as blurred, from which a blur of any width is read (the two levels
+ * about as wide, mixed), smooth however magnified. Colors are mixed as they
+ * are seen (Oklab), saturated ones counting more (see
+ * KisStudioGlass::salience).
  *
- * The edge (see KisStudioGlass::Edge): a bevel, traced as glass, that bends
- * the canvas behind it, sharp.
+ * The edge (see KisStudioGlass::Bevel): a bevel, traced as glass, that bends
+ * the canvas behind it, clear at the rim and as blurred as the frost where
+ * it meets the face, the blur growing between without a seam of any order.
  */
 class KisOpenGLGlass
 {
