@@ -11,6 +11,61 @@ out vec4 fragColor;
 
 const float eps = 1e-6;
 
+/**
+ * The value view: each color as a gray as light as it looks (OKLab's
+ * lightness, the color panel's), in the display's own values. Its colors are
+ * taken to light by the display's curves (valueCurves, row 0: a value of each
+ * channel to its light; row 1: a light, at its square root, to the value of
+ * it), to linear sRGB by toLinearSrgb; a gray of lightness L is linear sRGB
+ * L cubed, which is grayInDisplay times that in the display's light. A linear
+ * display (valueLinear: float textures, HDR) needs no curves, and has no
+ * ceiling. After OCIO, its display is taken to be sRGB.
+ */
+uniform bool valueView;
+#ifndef USE_OCIO
+uniform highp sampler2D valueCurves;
+uniform mat3 toLinearSrgb;
+uniform vec3 grayInDisplay;
+uniform bool valueLinear;
+
+float valueCurve(int row, int channel, float x)
+{
+    float t = clamp(x, 0.0, 1.0) * 1023.0;
+    int i = int(floor(t));
+    vec4 a = texelFetch(valueCurves, ivec2(i, row), 0);
+    vec4 b = texelFetch(valueCurves, ivec2(min(i + 1, 1023), row), 0);
+    return mix(a[channel], b[channel], t - float(i));
+}
+#endif
+
+float oklabLightness(vec3 c)
+{
+    vec3 lms = vec3(dot(vec3(0.4122214708, 0.5363325363, 0.0514459929), c),
+                    dot(vec3(0.2119034982, 0.6806995451, 0.1073969566), c),
+                    dot(vec3(0.0883024619, 0.2817188376, 0.6299787005), c));
+    lms = sign(lms) * pow(abs(lms), vec3(1.0 / 3.0));
+    return dot(vec3(0.2104542553, 0.7936177850, -0.0040720468), lms);
+}
+
+vec4 valueOf(vec4 col)
+{
+#ifdef USE_OCIO
+    vec3 c = clamp(col.rgb, 0.0, 1.0);
+    vec3 light = mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+    float y = pow(max(oklabLightness(light), 0.0), 3.0);
+    float v = y <= 0.0031308 ? 12.92 * y : 1.055 * pow(y, 1.0 / 2.4) - 0.055;
+    return vec4(vec3(v), col.a);
+#else
+    vec3 light = valueLinear ? col.rgb : vec3(valueCurve(0, 0, col.r), valueCurve(0, 1, col.g), valueCurve(0, 2, col.b));
+    float y = pow(max(oklabLightness(toLinearSrgb * light), 0.0), 3.0);
+    vec3 gray = grayInDisplay * y;
+    if (!valueLinear) {
+        gray = vec3(valueCurve(1, 0, sqrt(max(gray.r, 0.0))), valueCurve(1, 1, sqrt(max(gray.g, 0.0))), valueCurve(1, 2, sqrt(max(gray.b, 0.0))));
+    }
+    return vec4(gray, col.a);
+#endif
+}
+
 #if defined HIGHQ_SCALING || defined DIRECT_LOD_FETCH
 uniform float viewportScale;
 #endif /* defined HIGHQ_SCALING || defined DIRECT_LOD_FETCH */
@@ -122,5 +177,6 @@ void main() {
 #else /* USE_OCIO */
     fragColor = col;
 #endif /* USE_OCIO */
+    if (valueView) fragColor = valueOf(fragColor);
 
 }

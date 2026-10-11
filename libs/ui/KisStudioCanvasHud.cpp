@@ -204,9 +204,9 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     connect(valueView, &QAction::toggled, this, [](bool on) {
         KisOpenGLUpdateInfoBuilder::setValueView(on);
         Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
-            // the textures made again, all of them: they hold the image in grays, or in its colors
+            // drawn again: the grays are made as the canvas draws the image (one frame), the textures as they are
             KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
-            if (canvas && canvas->image()) canvas->startUpdateInPatches(canvas->image()->bounds());
+            if (canvas) canvas->updateCanvas();
         }
     });
     d->value = hudButton(this);

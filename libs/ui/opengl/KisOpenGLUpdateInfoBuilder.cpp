@@ -19,7 +19,7 @@
 
 
 namespace {
-/// Read on the threads that make the textures
+/// Read as the canvas draws (see KisOpenGLCanvasRenderer::drawImage)
 std::atomic<bool> valueViewOn {false};
 }
 
@@ -133,8 +133,6 @@ KisOpenGLUpdateInfoSP KisOpenGLUpdateInfoBuilder::buildUpdateInfo(const QRect &r
         channelFlags = m_d->channelFlags;
     }
 
-    const bool grayscale = valueViewOn;
-
     qint32 numItems = (lastColumn - firstColumn + 1) * (lastRow - firstRow + 1);
     info->tileList.reserve(numItems);
 
@@ -160,7 +158,7 @@ KisOpenGLUpdateInfoSP KisOpenGLUpdateInfoBuilder::buildUpdateInfo(const QRect &r
                                                      m_d->pool));
             // Don't update empty tiles
             if (tileInfo->valid()) {
-                tileInfo->retrieveData(projection, channelFlags, m_d->onlyOneChannelSelected, m_d->selectedChannelIndex, grayscale);
+                tileInfo->retrieveData(projection, channelFlags, m_d->onlyOneChannelSelected, m_d->selectedChannelIndex);
 
                 if (convertColorSpace) {
                     if (m_d->proofingTransform) {
