@@ -168,9 +168,9 @@ void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &cell, const QM
         // a rounded highlight behind the row, the eye at its end included
         if (index.column() != NodeView::SELECTED_COL && (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))) {
             // the tint over what is behind the row, not mixed into a color of it: over glass the glass shows through
-            QColor tint = (option.state & QStyle::State_Selected) ? option.palette.color(QPalette::Highlight)
-                                                                    : option.palette.color(QPalette::Text);
-            tint.setAlphaF((option.state & QStyle::State_Selected) ? 0.45 : 0.07);
+            // a wash of the ink, as a flat button on the glass is lit: selected the most
+            QColor tint = option.palette.color(QPalette::Text);
+            tint.setAlphaF((option.state & QStyle::State_Selected) ? (option.state & QStyle::State_MouseOver ? 0.2 : 0.16) : 0.07);
             p->save();
             p->setRenderHint(QPainter::Antialiasing, true);
             p->setPen(Qt::NoPen);

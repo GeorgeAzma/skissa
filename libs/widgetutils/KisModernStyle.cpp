@@ -867,7 +867,16 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
 
         QColor fill;
         QColor border;
-        if (s.checked) {
+        if (option->state.testFlag(State_AutoRaise) && (s.checked || s.pressed || s.hovered)) {
+            /**
+             * A flat button (the tool rail's, the top bar's) on glass: lit by a
+             * wash of its ink, the glass showing through, not a gray card laid
+             * on it. On (the active tool, the eraser) the most; pressed, then
+             * pointed at, less.
+             */
+            fill = fg;
+            fill.setAlphaF(s.checked ? (s.hovered ? 0.24 : 0.2) : s.pressed ? 0.16 : 0.08);
+        } else if (s.checked) {
             // e.g. the active tool in the toolbox
             fill = mix(bg, accent, s.hovered ? 0.55 : 0.45);
             border = mix(bg, accent, 0.8);
