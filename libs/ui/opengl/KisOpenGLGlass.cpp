@@ -236,6 +236,7 @@ uniform vec4 beyond;
 uniform float dither;
 uniform float veil;
 uniform vec3 bevel;
+uniform float polish;
 uniform vec3 ior;
 uniform vec4 reach;
 flat in float strength;
@@ -390,6 +391,20 @@ vec3 frostedLab(vec2 p)
     return vec3(wide.x, wide.yz * (1.0 + restore * (1.0 - agree)));
 }
 
+// the canvas itself at q, in light, softened a little (five taps a pixel and a half apart): what a
+// polished rim shows, clear glass, of the canvas it bends
+vec3 canvasLightAt(vec2 q)
+{
+    vec3 c = texture(under, q / viewport).rgb;
+    return decode ? fromSrgb(c) : c;
+}
+
+vec3 clearLab(vec2 q)
+{
+    vec2 o = vec2(1.5, 0.0);
+    return toOklab(0.4 * canvasLightAt(q) + 0.15 * (canvasLightAt(q + o) + canvasLightAt(q - o) + canvasLightAt(q + o.yx) + canvasLightAt(q - o.yx)));
+}
+
 // a point the rim sees, kept within as far around the panel as the canvas is blurred (reach): a
 // steep rim sees far, beyond that is nothing blurred
 vec2 held(vec2 q)
@@ -461,6 +476,8 @@ void main()
         float h = bevel.y * w / bevel.x;
         vec2 bend = bevelOver(d, w, h);
         vec3 normal = normalize(vec3(normal2d * bend.y, 1.0));
+        // polished toward the rim, it shows the canvas itself, bent; into the face, the frost, without a step
+        float clear = polish * (1.0 - smoothstep(0.0, 1.0, d / w));
 
         vec3 light3 = vec3(0.0);
         for (int i = 0; i < 3; i++) {
@@ -470,7 +487,9 @@ void main()
             // flattens into the face the two are one, without a step
             vec3 seen;
             if (ray.z > 0.0) {
-                seen = frostedLab(held(p + ray.xy));
+                vec2 q = held(p + ray.xy);
+                seen = frostedLab(q);
+                if (clear > 0.0) seen = mix(seen, clearLab(q), clear);
             } else {
                 // reflected inside, scattered by the frost: the glass itself
                 seen = frostedLab(p);
@@ -724,7 +743,7 @@ bool KisOpenGLGlass::initialize()
         && d->glass.make(glassVertexSource, glassSource,
                          {"rect", "blurred", "statistics", "restore", "power",
                           "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
-                          "beyond", "spacing", "dither", "veil", "bevel", "ior", "under", "decode", "reach"})
+                          "beyond", "spacing", "dither", "veil", "bevel", "polish", "ior", "under", "decode", "reach"})
         && d->ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
         && d->ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"});
     if (d->valid && KisOpenGL::supportsVAO()) {
@@ -996,6 +1015,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1f(d->glass["dither"], dither);
     const KisStudioGlass::Bevel bevel = KisStudioGlass::bevel();
     f->glUniform3f(d->glass["bevel"], bevel.width * pixelRatio, bevel.thickness * pixelRatio, bevel.lift * pixelRatio);
+    f->glUniform1f(d->glass["polish"], bevel.polish);
     const QVector3D ior = refractiveIndices();
     f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
     f->glActiveTexture(GL_TEXTURE2);

@@ -1230,11 +1230,12 @@ void KisStudioGlass::setEdge(Edge edge)
 
 KisStudioGlass::Bevel KisStudioGlass::bevel()
 {
+    // a polished rim: the canvas under it bent, clear toward the edge
     switch (edge()) {
     case Edge::Subtle:
-        return {14, 14, 26};
+        return {16, 17, 31, 0.85};
     case Edge::Strong:
-        return {18, 20, 36};
+        return {18, 20, 36, 0.85};
     case Edge::Line:
         break;
     }

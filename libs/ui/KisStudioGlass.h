@@ -100,6 +100,8 @@ public:
         qreal width {0};     ///< from the edge in to where the face is flat
         qreal thickness {0}; ///< of the pane where its face is flat
         qreal lift {0};      ///< how far the pane is over the canvas
+        /// How clear the rim is, 0 to 1: polished, it shows the canvas itself bent, frosted the blur
+        qreal polish {0};
     };
     static Bevel bevel();
 
