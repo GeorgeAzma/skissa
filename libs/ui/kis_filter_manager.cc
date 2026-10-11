@@ -6,6 +6,7 @@
  */
 
 #include "kis_filter_manager.h"
+#include "KisUpdatePacer.h"
 
 
 #include <QHash>
@@ -55,6 +56,8 @@ struct KisFilterManager::Private {
     KisViewManager *view = nullptr;
 
     KisFilterConfigurationSP lastConfiguration;
+    /// the running preview's coarse pass and full pass (see KisFilterStrokeStrategy::setProgressivePreview)
+    KisFilterStrokeStrategy::PreviewHandleSP preview;
     KisFilterConfigurationSP currentlyAppliedConfiguration;
     KisStrokeId currentStrokeId;
     KisFilterStrokeStrategy::ExternalCancelUpdatesStorageSP externalCancelUpdatesStorage;
@@ -286,6 +289,7 @@ void KisFilterManager::showFilterDialog(const QString &filterId, KisFilterConfig
 void KisFilterManager::apply(KisFilterConfigurationSP _filterConfig)
 {
     KisFilterConfigurationSP filterConfig = _filterConfig->cloneWithResourcesSnapshot();
+    KisUpdatePacer::log(QStringLiteral("filter asked"));
 
     KisFilterSP filter = KisFilterRegistry::instance()->value(filterConfig->name());
     KisImageWSP image = d->view->image();
@@ -325,7 +329,7 @@ void KisFilterManager::apply(KisFilterConfigurationSP _filterConfig)
         KConfigGroup group( KSharedConfig::openConfig(), "filterdialog");
         strategy->setForceLodModeIfPossible(group.readEntry("forceLodMode", true));
     // at full resolution, a coarse pass first (shown at once), then the full one in its place
-    strategy->setProgressivePreview(true);
+    d->preview = strategy->setProgressivePreview(true);
     }
 
     d->currentStrokeId =
@@ -365,6 +369,11 @@ void KisFilterManager::finish()
         }
     }
 
+    // its full pass at once, not waiting for the settings to settle
+    if (d->preview) {
+        d->preview->release();
+        d->preview.clear();
+    }
     if (KisImageSP strokeImage = d->strokeImage) {
         strokeImage->endStroke(d->currentStrokeId);
     }
@@ -395,6 +404,7 @@ void KisFilterManager::cancelRunningStroke()
 
     d->currentStrokeId.clear();
     d->idleBarrierCookie.clear();
+    d->preview.clear();
     d->currentlyAppliedConfiguration.clear();
     d->externalCancelUpdatesStorage.clear();
 }
@@ -417,7 +427,8 @@ bool KisFilterManager::isStrokeRunning() const
 
 bool KisFilterManager::isIdle() const
 {
-    return !d->idleBarrierCookie;
+    // a coarse pass shown is enough: the next settings are sent, not waiting for the full pass
+    return !d->idleBarrierCookie || (d->preview && d->preview->coarseShown.loadAcquire());
 }
 
 void KisFilterManager::setFilterAllSelectedFrames(bool filterAllSelectedFrames)

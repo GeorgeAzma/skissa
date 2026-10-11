@@ -19,6 +19,11 @@ KisConfigWidget::~KisConfigWidget()
 {
 }
 
+void KisConfigWidget::setUpdateDelay(int delay)
+{
+    m_compressor.setDelay(delay);
+}
+
 void KisConfigWidget::slotConfigChanged()
 {
     if (!signalsBlocked()) {

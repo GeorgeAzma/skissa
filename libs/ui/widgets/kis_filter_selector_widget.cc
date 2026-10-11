@@ -232,6 +232,8 @@ void KisFilterSelectorWidget::setFilter(KisFilterSP f, KisFilterConfigurationSP 
         d->currentFilterConfigurationWidget->blockSignals(false);
         d->uiFilterSelector.scrollArea->setContentsMargins(0,0,0,0);
         d->uiFilterSelector.scrollArea->setMinimumWidth(widget->sizeHint().width() + 18);
+        // each change at once: whoever shows the filter paces them (the filter dialog, as fast as its preview keeps up)
+        d->currentFilterConfigurationWidget->setUpdateDelay(10);
         connect(d->currentFilterConfigurationWidget, SIGNAL(sigConfigurationUpdated()), this, SIGNAL(configurationChanged()));
     }
 

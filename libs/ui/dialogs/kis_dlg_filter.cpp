@@ -42,7 +42,7 @@ struct KisDlgFilter::Private {
             [this] () {
                 return filterManager->isIdle();
             },
-            20, 200);
+            10, 200);
     }
 
     KisFilterSP currentFilter;

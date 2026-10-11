@@ -58,6 +58,9 @@ public:
     virtual void setCanvasResourcesInterface(KoCanvasResourcesInterfaceSP canvasResourcesInterface);
     virtual KoCanvasResourcesInterfaceSP canvasResourcesInterface() const;
 
+    /// The least time between two sigConfigurationUpdated (the delay it was made with)
+    void setUpdateDelay(int delay);
+
 Q_SIGNALS:
 
     /**

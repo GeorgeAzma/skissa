@@ -300,7 +300,14 @@ private:
 
 struct KisStudioEffectOverlay::Private
 {
-    Private() : compressor(200, KisSignalCompressor::FIRST_ACTIVE) {}
+    Private() : compressor(200, KisSignalCompressor::FIRST_ACTIVE)
+    {
+        // as the filter dialog: each change as soon as the last one's preview shows, at most 200 ms apart
+        compressor.setDelay([this]() {
+            KisFilterManager *manager = filterManager();
+            return !manager || manager->isIdle();
+        }, 10, 200);
+    }
 
     KisMainWindow *mainWindow {nullptr};
     KisFilterSP filter;

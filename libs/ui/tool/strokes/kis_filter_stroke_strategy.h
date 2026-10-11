@@ -12,6 +12,10 @@
 #include "kis_lod_transform.h"
 #include "kis_resources_snapshot.h"
 
+#include <QAtomicInt>
+#include <QMutex>
+#include <QWaitCondition>
+
 class KRITAUI_EXPORT KisFilterStrokeStrategy : public KisStrokeStrategyUndoCommandBased
 {
 public:
@@ -76,15 +80,39 @@ public:
 
     using ExternalCancelUpdatesStorageSP = QSharedPointer<ExternalCancelUpdatesStorage>;
 
+    /**
+     * A progressive preview, as whoever shows it sees it: whether its coarse
+     * pass is shown yet (the next settings can be sent then), and its full
+     * pass let start at once (otherwise it waits for the settings to settle)
+     */
+    struct PreviewHandle {
+        QAtomicInt coarseShown;
+
+        /// the full pass started now, not waiting any more (the dialog's OK)
+        void release()
+        {
+            QMutexLocker l(&mutex);
+            released = true;
+            wake.wakeAll();
+        }
+
+        QMutex mutex;
+        QWaitCondition wake;
+        bool released = false;
+        bool cancelled = false;
+    };
+    using PreviewHandleSP = QSharedPointer<PreviewHandle>;
+
 public:
     /**
      * A preview: a coarse pass first (the filter on the image made a few
      * times smaller, scaled back up), shown at once, then the pass at full
-     * resolution in its place. For filters that work on fewer pixels the
-     * same (supportsLevelOfDetail) and need pixels around each (a blur, not
-     * a curve: those are as fast at full resolution), over a large region.
+     * resolution in its place, once the settings stay the same a moment.
+     * For filters that work on fewer pixels the same (supportsLevelOfDetail)
+     * and need pixels around each (a blur, not a curve: those are as fast
+     * at full resolution), over a large region.
      */
-    void setProgressivePreview(bool progressive);
+    PreviewHandleSP setProgressivePreview(bool progressive);
 
     KisFilterStrokeStrategy(KisFilterSP filter,
                             KisFilterConfigurationSP filterConfig,
@@ -103,6 +131,8 @@ public:
     void doStrokeCallback(KisStrokeJobData *data) override;
     void cancelStrokeCallback() override;
     void finishStrokeCallback() override;
+    /// a preview's settle wait and full pass stopped, for the next settings
+    void tryCancelCurrentStrokeJobAsync() override;
 
     KisStrokeStrategy* createLodClone(int levelOfDetail) override;
 
