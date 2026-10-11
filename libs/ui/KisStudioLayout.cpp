@@ -909,6 +909,17 @@ public:
         m_layout->addWidget(m_splitter);
         updateMargins();
         setMouseTracking(true);
+        /**
+         * The inner edge, dragged: a widget of its own with its own cursor. Set
+         * on the column itself, the cursor was the panels' too (a child takes
+         * its parent's), and stayed on them when the pointer went from the
+         * edge straight onto one (it never left the column).
+         */
+        m_grip = new QWidget(this);
+        m_grip->setObjectName(QStringLiteral("studioPanelsEdge"));
+        m_grip->setCursor(Qt::SizeHorCursor);
+        m_grip->setAttribute(Qt::WA_NoSystemBackground);
+        m_grip->installEventFilter(this);
         canvasArea->installEventFilter(this);
         hide();
     }
@@ -930,6 +941,7 @@ public:
         m_left = left;
         updateMargins();
         place();
+        placeGrip();
     }
 
     /// The panels under the strip shown, or only the strip
@@ -937,6 +949,7 @@ public:
     {
         m_splitter->setVisible(shown);
         place();
+        placeGrip();
     }
     bool panelsShown() const { return !m_splitter->isHidden(); }
 
@@ -1012,6 +1025,38 @@ protected:
         if (watched == parentWidget() && event->type() == QEvent::Resize && isVisible()) {
             place();
         }
+        if (watched == m_grip) {
+            switch (event->type()) {
+            case QEvent::MouseButtonPress:
+                if (static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
+                    m_resizing = true;
+                    update();
+                    return true;
+                }
+                break;
+            case QEvent::MouseMove:
+                if (m_resizing) {
+                    // the inner edge follows the pointer
+                    const QWidget *area = parentWidget();
+                    const int x = area->mapFromGlobal(globalMousePos(static_cast<QMouseEvent *>(event))).x();
+                    m_width = qBound(minimumColumnWidth, m_left ? x - margin : area->width() - margin - x,
+                                     qMax(minimumColumnWidth, area->width() / 2));
+                    place();
+                    return true;
+                }
+                break;
+            case QEvent::MouseButtonRelease:
+                if (m_resizing && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
+                    m_resizing = false;
+                    if (resized) resized(true);
+                    update();
+                    return true;
+                }
+                break;
+            default:
+                break;
+            }
+        }
         return QWidget::eventFilter(watched, event);
     }
 
@@ -1019,6 +1064,13 @@ protected:
     {
         QWidget::showEvent(event);
         place();
+        placeGrip();
+    }
+
+    void resizeEvent(QResizeEvent *event) override
+    {
+        QWidget::resizeEvent(event);
+        placeGrip();
     }
 
     void paintEvent(QPaintEvent *) override
@@ -1037,9 +1089,7 @@ protected:
             QWidget::mousePressEvent(event);
             return;
         }
-        if (onEdge(event->pos())) {
-            m_resizing = true;
-        } else if (m_strip && event->pos().y() <= m_strip->geometry().bottom()) {
+        if (m_strip && event->pos().y() <= m_strip->geometry().bottom()) {
             // by the strip: the pill follows the pointer, across the canvas
             m_moving = true;
             m_grab = event->pos().x();
@@ -1061,19 +1111,12 @@ protected:
             move(qBound(margin, x - m_grab, qMax(margin, area->width() - margin - width())), y());
             return;
         }
-        if (m_resizing) {
-            // the inner edge follows the pointer
-            m_width = qBound(minimumColumnWidth, m_left ? x - margin : area->width() - margin - x, qMax(minimumColumnWidth, area->width() / 2));
-            place();
-            return;
-        }
-        if (onEdge(event->pos())) setCursor(Qt::SizeHorCursor);
-        else unsetCursor();
+        QWidget::mouseMoveEvent(event);
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
-        if (event->button() != Qt::LeftButton || (!m_moving && !m_resizing)) {
+        if (event->button() != Qt::LeftButton || !m_moving) {
             QWidget::mouseReleaseEvent(event);
             return;
         }
@@ -1086,31 +1129,22 @@ protected:
             if (tapped) tapped();
             return;
         }
-        if (m_moving) {
-            m_moving = false;
-            unsetCursor();
-            // the side it was let go nearer to
-            const bool left = x() + width() / 2 < parentWidget()->width() / 2;
-            if (left != m_left && moved) moved(left);
-            else place();
-        } else {
-            m_resizing = false;
-            if (resized) resized(true);
-        }
+        m_moving = false;
+        unsetCursor();
+        // the side it was let go nearer to
+        const bool left = x() + width() / 2 < parentWidget()->width() / 2;
+        if (left != m_left && moved) moved(left);
+        else place();
         update();
     }
 
-    void leaveEvent(QEvent *event) override
-    {
-        if (!m_resizing && !m_moving) unsetCursor();
-        QWidget::leaveEvent(event);
-    }
-
 private:
-    bool onEdge(const QPoint &pos) const
+    /// The edge's grip over the inner edge, there only with the panels
+    void placeGrip()
     {
-        if (!panelsShown()) return false;
-        return m_left ? pos.x() >= width() - edge : pos.x() < edge;
+        m_grip->setGeometry(m_left ? width() - edge : 0, 0, edge, height());
+        m_grip->setVisible(panelsShown());
+        m_grip->raise();
     }
 
     void updateMargins()
@@ -1121,6 +1155,7 @@ private:
     QVBoxLayout *m_layout {nullptr};
     QSplitter *m_splitter {nullptr};
     QPointer<QWidget> m_strip;
+    QWidget *m_grip {nullptr};
     bool m_left {false};
     int m_width {0};
     bool m_resizing {false};
