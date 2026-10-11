@@ -47,6 +47,13 @@ public:
      */
     QRect inlineControlsRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const;
 
+    /**
+     * Rows tall enough for two lines (big thumbnails): the name and the
+     * icons on the first, the blend mode and opacity on the second, under
+     * the name, the opacity as long as the row
+     */
+    bool isTall() const;
+
     void slotUpdateIcon();
 
 Q_SIGNALS:

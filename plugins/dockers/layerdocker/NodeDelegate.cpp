@@ -16,6 +16,7 @@
 #include <QtDebug>
 #include <QApplication>
 #include <QCursor>
+#include <QRegularExpression>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QModelIndex>
@@ -110,6 +111,25 @@ int NodeDelegate::extraHeight(const QModelIndex &index) const
     return 0;
 }
 
+/// The height of a line of a tall row (see NodeDelegate::isTall())
+static int lineHeight(const QWidget *view)
+{
+    KisNodeViewColorScheme scm;
+    return qMax(view->fontMetrics().height(), scm.iconSize()) + 4;
+}
+
+bool NodeDelegate::isTall() const
+{
+    return d->view->property("rowControls").toBool() && d->rowHeight >= 2 * lineHeight(d->view) + 10;
+}
+
+/// Line \p line (0, 1) of a tall row \p row, \p rowHeight high: the two together in its middle
+static QRect lineOf(const QRect &row, int rowHeight, int height, int line)
+{
+    const int top = row.top() + (rowHeight - 2 * height) / 2;
+    return QRect(row.left(), top + line * height, row.width(), height);
+}
+
 /// Whether \p index is the selected layer's row, with its blend mode and opacity in it
 static bool holdsControls(const QAbstractItemView *view, const QModelIndex &index)
 {
@@ -124,6 +144,15 @@ QRect NodeDelegate::inlineControlsRect(const QModelIndex &index, const QRect &ro
     option.rect = row;
     option.direction = direction;
     const QRect icons = iconsRect(option, index);
+    if (isTall()) {
+        // the second line, under the name, to the row's end
+        KisNodeViewColorScheme scm;
+        const QRect name = textRect(option, index).adjusted(scm.textMargin(), 0, -scm.textMargin(), 0);
+        const QRect line = lineOf(row, d->rowHeight, lineHeight(d->view), 1);
+        const int start = direction == Qt::RightToLeft ? row.left() + scm.border() : name.left() - 2;
+        const int end = direction == Qt::RightToLeft ? name.right() + 2 : row.right() - scm.border() - 2;
+        return QRect(start, line.top(), end - start, line.height());
+    }
     const int width = d->view->property("rowControlsWidth").toInt();
     const int left = direction == Qt::RightToLeft ? icons.right() + 1 : icons.left() - width;
     return QRect(left, row.top(), width, d->rowHeight);
@@ -382,6 +411,12 @@ QRect NodeDelegate::iconsRect(const QStyleOptionViewItem &option, const QModelIn
     QRect fitRect = QRect(0, 0, iconsWidth, d->rowHeight - scm.border());
     // Move to current index
     fitRect.moveTop(option.rect.topLeft().y());
+    if (isTall()) {
+        // the first line, by the name
+        const QRect line = lineOf(option.rect, d->rowHeight, lineHeight(d->view), 0);
+        fitRect.setTop(line.top());
+        fitRect.setHeight(line.height());
+    }
     // Move to correct location.
     if (option.direction == Qt::RightToLeft) {
         fitRect.moveLeft(option.rect.topLeft().x());
@@ -409,8 +444,13 @@ QRect NodeDelegate::textRect(const QStyleOptionViewItem &option, const QModelInd
     const bool decorated = showsDecoration(index) || (option.state & QStyle::State_Children);
     QRect rc = QRect((option.direction == Qt::RightToLeft) ? iconRect.topRight() : (decorated ? decoRect.topRight() : decoRect.topLeft()),
                      (option.direction == Qt::RightToLeft) ? (decorated ? decoRect.bottomLeft() : decoRect.bottomRight()) : iconRect.bottomLeft());
-    // the selected layer's blend mode and opacity by its icons
-    if (holdsControls(d->view, index)) {
+    if (isTall()) {
+        // the name on the first line
+        const QRect line = lineOf(option.rect, d->rowHeight, lineHeight(d->view), 0);
+        rc.setTop(line.top());
+        rc.setBottom(line.bottom());
+    } else if (holdsControls(d->view, index)) {
+        // the selected layer's blend mode and opacity by its icons
         const int controls = d->view->property("rowControlsWidth").toInt();
         if (option.direction == Qt::RightToLeft) {
             rc.setLeft(rc.left() + controls);
@@ -442,6 +482,54 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
     QString text = index.data(Qt::DisplayRole).toString();
     // being renamed: its editor shows the name
     if (d->edit && d->edit->isVisible() && d->view->indexWidget(index) == d->edit) text.clear();
+    if (isTall()) {
+        p->drawText(rc, (option.direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter,
+                    p->fontMetrics().elidedText(text, Qt::ElideRight, rc.width()));
+        // under it, its blend (the selected layer's, the controls to change it there instead)
+        QString mode;
+        int opacity = -1;
+        const KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
+        for (const KisBaseNode::Property &prop : props) {
+            if (prop.id == QLatin1String("compositeop")) mode = prop.state.toString();
+            if (prop.id == QLatin1String("opacity")) {
+                QString digits = prop.state.toString();
+                digits.remove(QRegularExpression(QStringLiteral("[^0-9]")));
+                opacity = digits.isEmpty() ? -1 : digits.toInt();
+            }
+        }
+        if (!holdsControls(d->view, index) && !mode.isEmpty() && opacity >= 0) {
+            const QRect line = inlineControlsRect(index, option.rect, option.direction);
+            QFont small = p->font();
+            small.setPointSizeF(small.pointSizeF() * 0.9);
+            p->setFont(small);
+            p->setOpacity(p->opacity() * 0.55);
+            const QString percent = QStringLiteral("%1%").arg(opacity);
+            const int modeWidth = p->fontMetrics().horizontalAdvance(mode);
+            const int percentWidth = p->fontMetrics().horizontalAdvance(percent);
+            const QRect modeRect(line.left() + 2, line.top(), modeWidth, line.height());
+            const QRect percentRect(line.right() - percentWidth - 2, line.top(), percentWidth, line.height());
+            p->drawText(modeRect, Qt::AlignLeft | Qt::AlignVCenter, mode);
+            p->drawText(percentRect, Qt::AlignRight | Qt::AlignVCenter, percent);
+            // the opacity as long as the row: a hairline, filled to it, as the selected layer's slider is
+            const QRectF track(modeRect.right() + 10, line.center().y(), percentRect.left() - modeRect.right() - 20, 2);
+            if (track.width() > 8) {
+                QColor ink = option.palette.color(QPalette::Text);
+                p->save();
+                p->setRenderHint(QPainter::Antialiasing, true);
+                p->setPen(Qt::NoPen);
+                ink.setAlphaF(0.35);
+                p->setBrush(ink);
+                p->drawRoundedRect(track, 1, 1);
+                ink.setAlphaF(1.0);
+                p->setBrush(ink);
+                p->drawRoundedRect(QRectF(track.topLeft(), QSizeF(qMax(2.0, track.width() * opacity / 100.0), 2)), 1, 1);
+                p->restore();
+            }
+        }
+        p->setPen(oldPen);
+        p->setOpacity(oldOpacity);
+        return;
+    }
     if (d->view->property("rowControls").toBool()) {
         /**
          * The name, and by the icons what is unusual about the layer's blend
@@ -824,7 +912,7 @@ void NodeDelegate::drawIcons(QPainter *p, const QStyleOptionViewItem &option, co
     p->setPen(scm.gridColor(option, d->view));
 
     int x = 0;
-    const int y = (d->rowHeight - scm.border() - scm.iconSize()) / 2;
+    const int y = (rc.height() - scm.iconSize()) / 2;
     KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
     QList<OptionalProperty> realProps = d->rightmostProperties(props);
 
@@ -917,6 +1005,12 @@ QRect NodeDelegate::visibilityClickRect(const QStyleOptionViewItem &option, cons
 
     // Move to current index
     rc.moveCenter(option.rect.center());
+    if (isTall()) {
+        // on the first line, with the name and the icons
+        const QRect line = lineOf(QRect(option.rect.topLeft(), QSize(option.rect.width(), d->rowHeight)), d->rowHeight, lineHeight(d->view), 0);
+        rc.setHeight(line.height());
+        rc.moveTop(line.top());
+    }
     // Move to correct location.
     if (option.direction == Qt::RightToLeft) {
         rc.moveRight(option.rect.right());

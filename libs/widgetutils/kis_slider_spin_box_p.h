@@ -660,7 +660,11 @@ public:
         QColor value = ink;
         value.setAlphaF(0.55);
         const qreal thickness = 2.0;
-        const QRectF line(rect.left() + 2, rect.bottom() - thickness - 2, rect.width() - 4, thickness);
+        QRectF line(rect.left() + 2, rect.bottom() - thickness - 2, rect.width() - 4, thickness);
+        // wide (a long row of its own): the line through the middle, the number after it
+        const qreal textWidth = m_lineEdit->fontMetrics().horizontalAdvance(text);
+        const bool wide = rect.width() > 4 * textWidth + 24;
+        if (wide) line = QRectF(rect.left() + 2, rect.center().y() - thickness / 2, rect.width() - textWidth - 14, thickness);
         painter.save();
         painter.setPen(Qt::NoPen);
         painter.setBrush(track);
@@ -669,9 +673,9 @@ public:
         painter.drawRoundedRect(QRectF(line.topLeft(), QSizeF(qMax(thickness, line.width() * sliderWidth / qMax(1.0, rect.width())), thickness)),
                                 thickness / 2, thickness / 2);
         painter.restore();
-        QTextOption textOption(Qt::AlignAbsolute | Qt::AlignHCenter | Qt::AlignVCenter);
+        QTextOption textOption(Qt::AlignAbsolute | (wide ? Qt::AlignRight : Qt::AlignHCenter) | Qt::AlignVCenter);
         textOption.setWrapMode(QTextOption::NoWrap);
-        paintSliderText(painter, text, rect.adjusted(0, -1, 0, -1), rect, ink, textOption);
+        paintSliderText(painter, text, wide ? rect.adjusted(0, 0, -2, 0) : rect.adjusted(0, -1, 0, -1), rect, ink, textOption);
     }
 
     void paintSlider(QPainter &painter, const QString &text, double slider01Width, double slider02Width = -1.0)

@@ -1163,6 +1163,15 @@ void LayerBox::placeRowControls()
     }
     auto *delegate = qobject_cast<NodeDelegate *>(view->itemDelegate());
     const QRect rect = delegate ? delegate->inlineControlsRect(main, row, view->layoutDirection()) : QRect();
+    // tall rows: the opacity as long as the row; in one line, as wide as its number
+    QWidget *opacity = m_wdgLayerBox->doubleOpacity;
+    const bool tall = delegate && delegate->isTall();
+    if (tall && opacity->maximumWidth() == 46) {
+        opacity->setMinimumWidth(46);
+        opacity->setMaximumWidth(QWIDGETSIZE_MAX);
+    } else if (!tall && opacity->maximumWidth() != 46) {
+        opacity->setFixedWidth(46);
+    }
     if (rect.isEmpty()) {
         if (m_rowControls->isVisible()) m_rowControls->hide();
         return;
