@@ -211,6 +211,8 @@ public:
         setMinimumSize(140, 140);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         setCursor(Qt::CrossCursor);
+        // held still, a color is being picked: no menu
+        setProperty("ownLongPress", true);
     }
 
     void setContents(const Oklch &color, const QColor &rgb)
@@ -390,6 +392,7 @@ public:
         setMinimumWidth(60);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         setCursor(Qt::PointingHandCursor);
+        setProperty("ownLongPress", true);
     }
 
     /// The colors are made again when \p key changes; \p edge, from 0 to 1, marks where sRGB ends
@@ -507,6 +510,8 @@ public:
         setMinimumSize(140, 140);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         setCursor(Qt::CrossCursor);
+        // held still, a color is being picked: no menu
+        setProperty("ownLongPress", true);
     }
 
     /// Hue, saturation and value in 0..1

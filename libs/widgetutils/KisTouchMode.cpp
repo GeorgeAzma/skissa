@@ -5,6 +5,8 @@
  */
 #include "KisTouchMode.h"
 
+#include <QAbstractSlider>
+#include <QAbstractSpinBox>
 #include <QApplication>
 #include <QContextMenuEvent>
 #include <QMouseEvent>
@@ -103,7 +105,8 @@ bool KisTouchMode::eventFilter(QObject *watched, QEvent *event)
     }
     case QEvent::MouseButtonRelease: {
         m_holdTimer.stop();
-        if (m_swallowRelease && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
+        // the widget's, not its window's (which keeps track of what is pressed)
+        if (m_swallowRelease && watched->isWidgetType() && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
             m_swallowRelease = false;
             return true;
         }
@@ -118,7 +121,9 @@ bool KisTouchMode::eventFilter(QObject *watched, QEvent *event)
 void KisTouchMode::startHold(QWidget *widget, const QPoint &globalPos)
 {
     for (const QWidget *w = widget; w; w = w->parentWidget()) {
-        if (w->property("ownLongPress").toBool() || isCanvas(w)) {
+        // held still there means held: a value stepping on, a color being picked
+        if (w->property("ownLongPress").toBool() || isCanvas(w) || qobject_cast<const QAbstractSpinBox *>(w)
+            || qobject_cast<const QAbstractSlider *>(w) || w->inherits("KisColorSelectorBase")) {
             return;
         }
         if (w->isWindow()) break;

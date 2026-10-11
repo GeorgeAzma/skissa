@@ -19,6 +19,9 @@
 #include "KisStudioBrushPicker.h"
 #include "KisViewManager.h"
 #include "canvas/kis_canvas2.h"
+#include "input/kis_input_profile.h"
+#include "input/kis_input_profile_manager.h"
+#include "input/kis_shortcut_configuration.h"
 #include "kis_canvas_resource_provider.h"
 #include "kis_config.h"
 #include "kis_coordinates_converter.h"
@@ -48,6 +51,20 @@ QString titleOf(const QString &brush)
 {
     static const QRegularExpression sortPrefix(QStringLiteral("^[a-z]\\)\\s+"));
     return QString(brush).remove(sortPrefix);
+}
+
+/// The canvas input profile gives Alt+click to something already (a color sampler, as in Photoshop's): it stays that
+bool altClickTaken()
+{
+    KisInputProfile *profile = KisInputProfileManager::instance()->currentProfile();
+    if (!profile) return false;
+    Q_FOREACH (const KisShortcutConfiguration *shortcut, profile->allShortcuts()) {
+        if (shortcut->type() == KisShortcutConfiguration::MouseButtonType && shortcut->buttons() == Qt::LeftButton
+            && shortcut->keys() == QList<Qt::Key>{Qt::Key_Alt}) {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace
@@ -173,7 +190,7 @@ bool KisStudioBrushMemory::eventFilter(QObject *watched, QEvent *event)
         modifiers = mouse->modifiers();
     }
     // Alt alone, with a tool that paints: never a dab, whether there is a brush to take or not
-    if (modifiers != Qt::AltModifier || !paintToolActive()) {
+    if (modifiers != Qt::AltModifier || !paintToolActive() || altClickTaken()) {
         return false;
     }
     if (!pickAt(pos)) {

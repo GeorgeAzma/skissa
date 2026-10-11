@@ -324,11 +324,11 @@ int KisSelectLayerAction::priority() const
 
 void KisSelectLayerAction::activate(int shortcut)
 {
-    Q_UNUSED(shortcut);
     QApplication::setOverrideCursor(KisCursor::pickLayerCursor());
-    // which layer a click would select, before the click
-    if (KisCanvas2 *canvas = inputManager()->canvas()) {
-        delete d->hover;
+    delete d->hover;
+    // which layer a click would select, before the click (all of them, or a menu, is not one layer)
+    KisCanvas2 *canvas = inputManager()->canvas();
+    if (canvas && Private::layerSelectionMode(shortcut) == LayerSelectionMode_TopLayer) {
         d->hover = new LayerHover(canvas, [this](const QPointF &widgetPos) { return d->pickAt(widgetPos); });
     }
 }
