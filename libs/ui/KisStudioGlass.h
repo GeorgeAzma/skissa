@@ -94,7 +94,7 @@ public:
     enum class Style {
         Frosted = 0,
         Liquid = 1,
-        /// No frost: clear glass, its rim bending the canvas as Frosted's does
+        /// No frost: each panel one clear superellipse dome, the canvas bent all over it
         Clear = 2,
     };
     static Style style();

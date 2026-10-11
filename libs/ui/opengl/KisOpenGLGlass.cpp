@@ -313,12 +313,19 @@ float outside(vec2 p, out vec2 normal)
 // the bevel d pixels in from the rim, w wide, h thick: its height over the underside, and its
 // slope. A quarter of a superellipse of exponent 4: steep at the rim, flat where the face is,
 // without a crease there
+// (the Clear style's dome: of exponent 2.5, rounder, still bending toward the middle)
+float profileExponent()
+{
+    return clearing >= 0.999 ? 2.5 : 4.0;
+}
+
 vec2 profile(float d, float w, float h)
 {
+    float n = profileExponent();
     float u = 1.0 - clamp(d / w, 0.0, 1.0);
-    float u3 = u * u * u;
-    float k = max(1.0 - u3 * u, 1e-5);
-    return vec2(h * pow(k, 0.25), h / w * u3 * pow(k, -0.75));
+    float un1 = pow(max(u, 1e-6), n - 1.0);
+    float k = max(1.0 - un1 * u, 1e-5);
+    return vec2(h * pow(k, 1.0 / n), h / w * un1 * pow(k, 1.0 / n - 1.0));
 }
 
 // the bevel over the pixel d in from the edge: its height there and its slope over all of the pixel
@@ -515,9 +522,11 @@ void main()
     float d = -outside(p, normal2d);
 
     // the bevel: no wider than the corners are round, nor than the panel is
-    float w = min(bevel.x, min(corner.x, min(shape.z, shape.w)));
+    // the Clear style: all of the panel one surface, rising from its edges to its middle
+    bool dome = clearing >= 0.999;
+    float w = dome ? min(shape.z, shape.w) : min(bevel.x, min(corner.x, min(shape.z, shape.w)));
     bool onBevel = w > 0.5 && d < w;
-    float h = bevel.y * w / max(bevel.x, 1e-3);
+    float h = dome ? bevel.y : bevel.y * w / max(bevel.x, 1e-3);
     vec2 bend = vec2(0.0);
     vec3 normal = vec3(0.0, 0.0, 1.0);
     // where a pixel sees the canvas (the middle color's ray), and how far that moves a pixel across and
