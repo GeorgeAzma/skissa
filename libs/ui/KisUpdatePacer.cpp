@@ -494,6 +494,17 @@ public:
         m_flush.setInterval(500);
         connect(&m_flush, &QTimer::timeout, this, [this]() { m_file.flush(); });
         m_flush.start();
+        // Qt's warnings too (QML errors among them), and on to wherever they went before
+        previousHandler() = qInstallMessageHandler([](QtMsgType type, const QMessageLogContext &context, const QString &message) {
+            if (type != QtDebugMsg && type != QtInfoMsg) KisUpdatePacer::log(QStringLiteral("qt ") + message);
+            if (previousHandler()) previousHandler()(type, context, message);
+        });
+    }
+
+    static QtMessageHandler &previousHandler()
+    {
+        static QtMessageHandler handler = nullptr;
+        return handler;
     }
 
 protected:
