@@ -74,8 +74,6 @@ public:
      * panel. False if it is no command Find knows (a button of a list, say).
      */
     bool showCard(QAbstractButton *button);
-    /// The action \p button's card is of (its own, or the one made for it), null if it has no card
-    QAction *cardAction(QAbstractButton *button, QString *key = nullptr, QString *title = nullptr);
 
 private:
     void rebuildIndex();
