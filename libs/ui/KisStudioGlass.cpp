@@ -1418,14 +1418,15 @@ KisStudioGlass::Bevel KisStudioGlass::bevel()
     // the rim fades in from nothing as the bevel does
     const qreal fadeIn = qMin<qreal>(1, r * 2);
     if (style() == Style::Clear) {
-        // the whole panel one surface (as wide as it is: see the glass shader), thin, all clear: the canvas bent, not frosted
-        return {at(0, 4000, 4000), at(0, 10, 14), at(0, 10, 14), fadeIn, 1.0, 0, 40};
+        // Frosted's rim, all of it clear, and its face too: the canvas only bent, never frosted
+        return {at(10, 16, 20), at(0, 17, 24), at(0, 31, 44), fadeIn, 1.0, 0, 40};
     }
     if (style() == Style::Liquid) {
-        // a thick pane; its edge catches the light, and its colors spread
+        // a thick pane, clear far into its bevel; its edge catches the light, and its colors spread
         return {at(16, 22, 26), at(0, 24, 34), at(0, 28, 40), fadeIn, 0.55, 0.45 * fadeIn, 22};
     }
-    // a polished rim: the canvas under it bent, clear over the outer third of it, then blurred into the frost
+    // a polished rim: the canvas under it bent, clear over the outer third of it (filtered as much as it
+    // is squeezed, it keeps its detail without shimmering), then into the frost
     return {at(10, 16, 20), at(0, 17, 24), at(0, 31, 44), 0.85 * fadeIn, 0.35, 0, 40};
 }
 

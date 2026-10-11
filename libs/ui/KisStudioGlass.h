@@ -94,7 +94,7 @@ public:
     enum class Style {
         Frosted = 0,
         Liquid = 1,
-        /// No frost: all of the panel one gentle superellipse of clear glass, the canvas bent through it
+        /// No frost: clear glass, its rim bending the canvas as Frosted's does
         Clear = 2,
     };
     static Style style();
@@ -111,7 +111,7 @@ public:
         qreal lift {0};      ///< how far the pane is over the canvas
         /// How clear the rim is, 0 to 1: polished, it shows the canvas itself bent, frosted the blur
         qreal polish {0};
-        /// How far into the bevel it is all clear (a share of its width), from where its blur grows into the frost
+        /// How far into the bevel it is all clear (a share of its width), from where it turns to frost
         qreal clear {0};
         /// How bright the light the edge catches is (0, none)
         qreal gloss {0};
