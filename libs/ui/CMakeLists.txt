@@ -62,6 +62,7 @@ set(kritaui_LIB_SRCS
     dialogs/kis_dlg_layer_properties.cc
     dialogs/kis_dlg_paste_format.cpp
     dialogs/kis_dlg_preferences.cc
+    dialogs/KisKeysPage.cpp
     dialogs/slider_and_spin_box_sync.cpp
     dialogs/kis_dlg_layer_style.cpp
     dialogs/kis_dlg_png_import.cpp

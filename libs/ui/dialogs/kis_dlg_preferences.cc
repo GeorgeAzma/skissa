@@ -111,6 +111,7 @@
 #include <kis_signals_blocker.h>
 
 #include "input/config/kis_input_configuration_page.h"
+#include "KisKeysPage.h"
 #include "input/wintab/drawpile_tablettester/tablettester.h"
 
 #include "KisDlgConfigureCumulativeUndo.h"
@@ -2778,25 +2779,14 @@ KisDlgPreferences::KisDlgPreferences(QWidget* parent, const char* name)
     addPage(page);
     m_general = new GeneralTab(vbox);
 
-    // Shortcuts
-    vbox = new KoVBox();
-    page = new KPageWidgetItem(vbox, i18nc("settings page", "Shortcuts"));
-    page->setObjectName("shortcuts");
-    page->setHeader(i18n("Shortcuts"));
+    // every shortcut, and the keys held on the canvas
+    m_keysPage = new KisKeysPage();
+    page = addPage(m_keysPage, i18nc("settings page", "Keys"));
+    page->setHeader(i18nc("settings page", "Keys"));
+    page->setObjectName("keys");
     page->setIcon(KisIconUtils::loadIcon("config-keyboard"));
     m_pages << page;
-    addPage(page);
-    m_shortcutSettings = new ShortcutSettingsTab(vbox);
-    connect(this, SIGNAL(accepted()), m_shortcutSettings, SLOT(saveChanges()));
-    connect(this, SIGNAL(rejected()), m_shortcutSettings, SLOT(cancelChanges()));
-
-    // Canvas input settings
-    m_inputConfiguration = new KisInputConfigurationPage();
-    page = addPage(m_inputConfiguration, i18nc("settings page", "Canvas Input"));
-    page->setHeader(i18n("Canvas Input"));
-    page->setObjectName("canvasinput");
-    page->setIcon(KisIconUtils::loadIcon("config-canvas-input"));
-    m_pages << page;
+    connect(this, &KisDlgPreferences::accepted, m_keysPage, &KisKeysPage::apply);
 
     // Display
     vbox = new KoVBox();
@@ -2861,8 +2851,6 @@ KisDlgPreferences::KisDlgPreferences(QWidget* parent, const char* name)
     QPushButton *restoreDefaultsButton = button(QDialogButtonBox::RestoreDefaults);
     restoreDefaultsButton->setText(i18nc("@action:button", "Restore Defaults"));
 
-    connect(this, SIGNAL(accepted()), m_inputConfiguration, SLOT(saveChanges()));
-    connect(this, SIGNAL(rejected()), m_inputConfiguration, SLOT(revertChanges()));
 
     KisPreferenceSetRegistry *preferenceSetRegistry = KisPreferenceSetRegistry::instance();
     QStringList keys = preferenceSetRegistry->keys();
@@ -2939,8 +2927,8 @@ void KisDlgPreferences::slotDefault()
     if (currentPage()->objectName() == "general") {
         m_general->setDefault();
     }
-    else if (currentPage()->objectName() == "shortcuts") {
-        m_shortcutSettings->setDefault();
+    else if (currentPage()->objectName() == "keys") {
+        m_keysPage->setDefaults();
     }
     else if (currentPage()->objectName() == "display") {
         m_displaySettings->setDefault();
@@ -2957,9 +2945,6 @@ void KisDlgPreferences::slotDefault()
     else if (currentPage()->objectName() == "canvasonly") {
         m_fullscreenSettings->setDefault();
     }
-    else if (currentPage()->objectName() == "canvasinput") {
-        m_inputConfiguration->setDefaults();
-    }
     else if (currentPage()->objectName() == "popuppalette") {
         m_popupPaletteSettings->setDefault();
     }
@@ -2973,7 +2958,7 @@ KPageWidgetItem *KisDlgPreferences::getPage(Page page_enum)
         name = "general";
         break;
     case Shortucts:
-        name = "shortcuts";
+        name = "keys";
         break;
     case Color:
         name = "colormanagement";
@@ -2991,7 +2976,7 @@ KPageWidgetItem *KisDlgPreferences::getPage(Page page_enum)
         name = "canvasonly";
         break;
     case Input:
-        name = "canvasinput";
+        name = "keys";
         break;
     case PopupPalette:
         name = "popuppalette";

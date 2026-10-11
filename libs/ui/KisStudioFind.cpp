@@ -856,12 +856,11 @@ void KisStudioFind::rebuildIndex()
         {i18nc("settings page", "Animation"), QStringLiteral("timeline playback"), KisDlgPreferences::General, KisDlgPreferences::Animation},
         {i18nc("settings page", "Resource Folder"), QStringLiteral("resources bundles location"), KisDlgPreferences::General, KisDlgPreferences::Resources},
         {i18nc("settings page", "Startup, Undo and Miscellaneous"), QStringLiteral("session undo stack layer naming"), KisDlgPreferences::General, KisDlgPreferences::MiscellaneousGeneral},
-        {i18nc("settings page", "Keyboard Shortcuts"), QStringLiteral("keys hotkeys"), KisDlgPreferences::Shortucts, 0},
+        {i18nc("settings page", "Keys and Shortcuts"), QStringLiteral("keyboard hotkeys keybindings canvas input mouse pan zoom rotate gestures held"), KisDlgPreferences::Shortucts, 0},
         {i18nc("settings page", "Color Management"), QStringLiteral("profile icc monitor display soft proofing"), KisDlgPreferences::Color, 0},
         {i18nc("settings page", "Memory and Performance"), QStringLiteral("ram swap threads cache instant preview"), KisDlgPreferences::Performance, 0},
         {i18nc("settings page", "Canvas Display and Acceleration"), QStringLiteral("opengl renderer checkerboard border grid hdr"), KisDlgPreferences::Display, 0},
         {i18nc("settings page", "Tablet and Pressure"), QStringLiteral("wintab windows ink pen pressure curve"), KisDlgPreferences::Tablet, 0},
-        {i18nc("settings page", "Canvas Input and Gestures"), QStringLiteral("mouse pan zoom rotate touch shortcuts"), KisDlgPreferences::Input, 0},
     };
     Q_FOREACH (const SettingPage &page, pages) {
         QPointer<KisMainWindow> window = mainWindow;

@@ -40,6 +40,7 @@ class KoConfigAuthorPage;
 class KisProofingConfigModel;
 class KisFrameRateLimitModel;
 class KisSliderSpinBox;
+class KisKeysPage;
 
 /**
  *  "General"-tab for preferences dialog
@@ -480,13 +481,12 @@ private:
     void switchTab (PageDesc tab);
 
     GeneralTab *m_general;
-    ShortcutSettingsTab  *m_shortcutSettings;
+    KisKeysPage *m_keysPage {nullptr};
     ColorSettingsTab *m_colorSettings;
     PerformanceTab *m_performanceSettings;
     DisplaySettingsTab  *m_displaySettings;
     TabletSettingsTab *m_tabletSettings;
     FullscreenSettingsTab *m_fullscreenSettings;
-    KisInputConfigurationPage *m_inputConfiguration;
     PopupPaletteTab *m_popupPaletteSettings;
     KoConfigAuthorPage *m_authorPage;
 
