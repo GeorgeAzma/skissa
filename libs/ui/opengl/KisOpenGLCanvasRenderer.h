@@ -82,10 +82,6 @@ public:
     void setWrapAroundViewingMode(bool value);
     bool wrapAroundViewingMode() const;
 
-    /// Every canvas shows the image in grays (as light as its colors look), to judge its values
-    static void setValueView(bool on);
-    static bool valueView();
-
     void setWrapAroundViewingModeAxis(WrapAroundAxis value);
     WrapAroundAxis wrapAroundViewingModeAxis() const;
 

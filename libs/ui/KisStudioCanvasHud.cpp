@@ -27,7 +27,8 @@
 
 #include "KisMainWindow.h"
 #include "KisPart.h"
-#include "opengl/KisOpenGLCanvasRenderer.h"
+#include "opengl/KisOpenGLUpdateInfoBuilder.h"
+#include "kis_image.h"
 #include <KSharedConfig>
 #include <kconfiggroup.h>
 #include <kis_icon_utils.h>
@@ -201,10 +202,11 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     }
     mainWindow->actionCollection()->addAction(valueView->objectName(), valueView);
     connect(valueView, &QAction::toggled, this, [](bool on) {
-        KisOpenGLCanvasRenderer::setValueView(on);
+        KisOpenGLUpdateInfoBuilder::setValueView(on);
         Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
-            // all of the image drawn again: it is kept drawn, and only what changed is drawn anew
-            if (view && view->canvasBase()) view->canvasBase()->updateCanvas();
+            // the textures made again, all of them: they hold the image in grays, or in its colors
+            KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
+            if (canvas && canvas->image()) canvas->startUpdateInPatches(canvas->image()->bounds());
         }
     });
     d->value = hudButton(this);

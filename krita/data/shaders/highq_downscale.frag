@@ -11,17 +11,6 @@ out vec4 fragColor;
 
 const float eps = 1e-6;
 
-// the image in grays, each as light as its color looks (its luminance): to judge the values
-uniform float grayscale;
-
-vec4 toGray(vec4 c)
-{
-    vec3 linear = mix(c.rgb / 12.92, pow((c.rgb + 0.055) / 1.055, vec3(2.4)), step(0.04045, c.rgb));
-    float y = dot(linear, vec3(0.2126, 0.7152, 0.0722));
-    float encoded = y <= 0.0031308 ? 12.92 * y : 1.055 * pow(y, 1.0 / 2.4) - 0.055;
-    return vec4(vec3(encoded), c.a);
-}
-
 #if defined HIGHQ_SCALING || defined DIRECT_LOD_FETCH
 uniform float viewportScale;
 #endif /* defined HIGHQ_SCALING || defined DIRECT_LOD_FETCH */
@@ -133,9 +122,5 @@ void main() {
 #else /* USE_OCIO */
     fragColor = col;
 #endif /* USE_OCIO */
-
-    if (grayscale > 0.5) {
-        fragColor = toGray(fragColor);
-    }
 
 }

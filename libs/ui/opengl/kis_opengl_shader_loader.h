@@ -20,7 +20,7 @@
  * An enum for storing all uniform names used in shaders
  */
 enum Uniform { ModelViewProjection, TextureMatrix, ViewportScale,
-               TexelSize, Texture0, Texture1, FixedLodLevel, FragmentColor, Grayscale };
+               TexelSize, Texture0, Texture1, FixedLodLevel, FragmentColor };
 
 /**
  * A wrapper class over Qt's QOpenGLShaderProgram to

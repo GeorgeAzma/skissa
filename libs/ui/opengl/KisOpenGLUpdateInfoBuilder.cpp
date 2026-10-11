@@ -15,6 +15,23 @@
 #include <QReadLocker>
 #include <QWriteLocker>
 
+#include <atomic>
+
+
+namespace {
+/// Read on the threads that make the textures
+std::atomic<bool> valueViewOn {false};
+}
+
+void KisOpenGLUpdateInfoBuilder::setValueView(bool on)
+{
+    valueViewOn = on;
+}
+
+bool KisOpenGLUpdateInfoBuilder::valueView()
+{
+    return valueViewOn;
+}
 
 struct KRITAUI_NO_EXPORT KisOpenGLUpdateInfoBuilder::Private
 {
@@ -116,6 +133,8 @@ KisOpenGLUpdateInfoSP KisOpenGLUpdateInfoBuilder::buildUpdateInfo(const QRect &r
         channelFlags = m_d->channelFlags;
     }
 
+    const bool grayscale = valueViewOn;
+
     qint32 numItems = (lastColumn - firstColumn + 1) * (lastRow - firstRow + 1);
     info->tileList.reserve(numItems);
 
@@ -141,7 +160,7 @@ KisOpenGLUpdateInfoSP KisOpenGLUpdateInfoBuilder::buildUpdateInfo(const QRect &r
                                                      m_d->pool));
             // Don't update empty tiles
             if (tileInfo->valid()) {
-                tileInfo->retrieveData(projection, channelFlags, m_d->onlyOneChannelSelected, m_d->selectedChannelIndex);
+                tileInfo->retrieveData(projection, channelFlags, m_d->onlyOneChannelSelected, m_d->selectedChannelIndex, grayscale);
 
                 if (convertColorSpace) {
                     if (m_d->proofingTransform) {

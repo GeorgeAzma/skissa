@@ -227,20 +227,6 @@ void KisOpenGLCanvasRenderer::notifyImageColorSpaceChanged(const KoColorSpace *c
     }
 }
 
-namespace {
-bool valueViewOn = false;
-}
-
-void KisOpenGLCanvasRenderer::setValueView(bool on)
-{
-    valueViewOn = on;
-}
-
-bool KisOpenGLCanvasRenderer::valueView()
-{
-    return valueViewOn;
-}
-
 void KisOpenGLCanvasRenderer::setWrapAroundViewingMode(bool value)
 {
     d->wrapAroundMode = value;
@@ -956,9 +942,6 @@ void KisOpenGLCanvasRenderer::drawImageTiles(int firstCol, int lastCol, int firs
     modelMatrix.optimize();
     modelMatrix = projectionMatrix * modelMatrix;
     d->displayShader->setUniformValue(d->displayShader->location(Uniform::ModelViewProjection), modelMatrix);
-    if (d->displayShader->location(Uniform::Grayscale) >= 0) {
-        d->displayShader->setUniformValue(d->displayShader->location(Uniform::Grayscale), GLfloat(valueViewOn ? 1 : 0));
-    }
 
     int lastTileLodPlane = -1;
 

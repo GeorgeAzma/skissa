@@ -18,6 +18,7 @@
 #include <KoColorConversionTransformation.h>
 #include <KoColorModelStandardIds.h>
 #include <KoColorSpace.h>
+#include <KoLabColorSpaceMaths.h>
 #include <kis_lod_transform.h>
 #include <KisPortingUtils.h>
 #include <KisDisplayConfig.h>
@@ -148,7 +149,9 @@ public:
     ~KisTextureTileUpdateInfo() {
     }
 
-    void retrieveData(KisPaintDeviceSP projectionDevice, const QBitArray &channelFlags, bool onlyOneChannelSelected, int selectedChannelIndex)
+    /// \p grayscale: each color as a gray as light as it looks (the value view, see KisOpenGLUpdateInfoBuilder::setValueView)
+    void retrieveData(KisPaintDeviceSP projectionDevice, const QBitArray &channelFlags, bool onlyOneChannelSelected, int selectedChannelIndex,
+                      bool grayscale = false)
     {
         m_patchColorSpace = projectionDevice->colorSpace();
         m_patchPixels.allocate(m_patchColorSpace->pixelSize());
@@ -175,6 +178,24 @@ public:
             conversionCache.swap(m_patchPixels);
         }
 
+        /**
+         * The value view: the colors made neutral in the image's own color
+         * space, keeping their lightness (CIE L*, as light as each looks),
+         * before they are made colors of the display. A neutral stays one
+         * through whatever comes after (the monitor's profile, proofing,
+         * OCIO), so the grays are right for any image and any screen, as a
+         * gray made of the display's values would not be.
+         */
+        if (grayscale && m_patchRect.isValid()) {
+            const quint32 numPixels = m_patchRect.width() * m_patchRect.height();
+            QVector<quint16> lab(int(numPixels) * 4);
+            m_patchColorSpace->toLabA16(m_patchPixels.data(), reinterpret_cast<quint8 *>(lab.data()), numPixels);
+            for (quint32 i = 0; i < numPixels; i++) {
+                lab[int(4 * i + 1)] = KoLabColorSpaceMathsTraits<quint16>::halfValueAB;
+                lab[int(4 * i + 2)] = KoLabColorSpaceMathsTraits<quint16>::halfValueAB;
+            }
+            m_patchColorSpace->fromLabA16(reinterpret_cast<const quint8 *>(lab.data()), m_patchPixels.data(), numPixels);
+        }
     }
 
     void convertTo(const KoColorSpace* dstCS,

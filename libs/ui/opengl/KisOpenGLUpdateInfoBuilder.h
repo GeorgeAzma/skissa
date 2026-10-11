@@ -60,6 +60,14 @@ public:
     void setProofingConfig(KisProofingConfigurationSP config);
     KisProofingConfigurationSP proofingConfig() const;
 
+    /**
+     * Every canvas shows the image in grays, each as light as its color
+     * looks, to judge its values. The textures are made so: the canvases
+     * need to be updated all over after a change (KisCanvas2::startUpdateInPatches).
+     */
+    static void setValueView(bool on);
+    static bool valueView();
+
 private:
     struct Private;
     const QScopedPointer<Private> m_d;
