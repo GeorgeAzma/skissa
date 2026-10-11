@@ -634,9 +634,15 @@ void main()
             vec3 seen;
             if (ray.z > 0.0) {
                 vec2 q = held(p + ray.xy);
-                // and as much on its way to the frost itself: its light follows the blur's growth as evenly
-                // (blurred alone, a dark shape stays dark until the blur is wider than it, then lightens at once)
-                seen = throughLower(mix(blurredLab(q, blur, jx, jy), frostedLab(q), frosting), q);
+                /**
+                 * The frost where the ray meets the canvas, and on it the bent
+                 * picture's detail (what is finer than the second step of
+                 * blur), fading toward the face. How light and how colored the
+                 * rim is is always the frost's (bent): only detail fades, and a
+                 * detail has no light of its own to leave a band where it goes.
+                 */
+                vec3 detail = clearLab(q, jx, jy, sharpest) - meanAt(level2, q);
+                seen = throughLower(frostedLab(q) + detail * (1.0 - frosting), q);
             } else {
                 // reflected inside, scattered by the frost: the glass itself
                 seen = throughLower(frostedLab(p), p);
