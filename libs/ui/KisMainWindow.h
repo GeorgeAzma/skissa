@@ -152,6 +152,8 @@ public:
 
     /// Find Anything, which also knows every item the studio layout can show
     class KisStudioFind *studioFind() const;
+    /// Rings of your own on keys (see KisStudioRings)
+    class KisStudioRings *studioRings() const;
 
     KisView *addViewAndNotifyLoadingCompleted(KisDocument *document,
                                               QMdiSubWindow *subWindow = 0);

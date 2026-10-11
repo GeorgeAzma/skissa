@@ -48,6 +48,7 @@
 #include "KisMainWindow.h"
 #include "KisPart.h"
 #include "KisStudioFind.h"
+#include "KisStudioRings.h"
 #include "input/kis_abstract_input_action.h"
 #include "input/kis_input_profile.h"
 #include "input/kis_input_profile_manager.h"
@@ -668,6 +669,7 @@ struct KisKeysPage::Private
         const QString tools = i18nc("keys group", "Tools");
         const QString painting = i18nc("keys group", "Painting");
         const QString panels = i18nc("keys group", "Panels");
+        const QString rings = i18nc("keys group", "Rings");
         const QString other = i18nc("keys group", "Other");
         QSet<QAction *> seen;
         Q_FOREACH (QAction *action, actions) {
@@ -687,7 +689,9 @@ struct KisKeysPage::Private
             command.registered = registry->hasAction(id);
             command.current = action->shortcuts();
             const QString category = command.registered ? registry->fetchActionCategory(id).categoryName : QString();
-            if (id.startsWith(QLatin1String("studio_panel_")) || id.startsWith(QLatin1String("studio_button_"))) {
+            if (id.startsWith(QLatin1String("studio_ring_"))) {
+                command.group = rings;
+            } else if (id.startsWith(QLatin1String("studio_panel_")) || id.startsWith(QLatin1String("studio_button_"))) {
                 command.group = panels;
             } else if (category == QLatin1String("tool-shortcuts") || id.startsWith(QLatin1String("studio_slot_")) || id.startsWith(QLatin1String("studio_item_tool"))
                        || id.startsWith(QLatin1String("Kis")) || id.contains(QLatin1Char('/')) || id.endsWith(QLatin1String("Tool"))) {
@@ -706,7 +710,7 @@ struct KisKeysPage::Private
             command.search = words.join(QLatin1Char(' ')).toLower();
             commands.append(command);
         }
-        groupOrder = QStringList{tools, painting, heldTitle()} + menuOrder + QStringList{panels, other};
+        groupOrder = QStringList{tools, painting, heldTitle(), rings} + menuOrder + QStringList{panels, other};
     }
 
     /// Krita's names of the canvas' input actions, as people say them
@@ -1185,6 +1189,28 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     d->changedOnly->setText(i18nc("@action:button keys page: show only changed shortcuts", "Changed"));
     d->changedOnly->setCheckable(true);
     bar->addWidget(d->changedOnly);
+    // a ring of your own: made, and its key asked for at once
+    auto *newRing = new QToolButton(this);
+    newRing->setText(i18nc("@action:button keys page", "New ring"));
+    newRing->setToolTip(i18nc("@info:tooltip", "A ring of your own on a key: tap it to open, hold it and point to pick. Add what goes on it on the ring"));
+    bar->addWidget(newRing);
+    connect(newRing, &QToolButton::clicked, this, [this]() {
+        KisStudioRings *rings = d->mainWindow ? d->mainWindow->studioRings() : nullptr;
+        if (!rings) return;
+        QAction *ring = rings->createRing();
+        Private::Command command;
+        command.action = ring;
+        command.id = ring->objectName();
+        command.title = ring->text();
+        command.group = i18nc("keys group", "Rings");
+        command.search = (command.title + QLatin1Char(' ') + command.id + QLatin1Char(' ') + command.group).toLower();
+        d->commands.append(command);
+        d->rebuildTree();
+        const int row = d->commands.size() - 1;
+        d->tree->scrollToItem(d->commands[row].item);
+        d->tree->setCurrentItem(d->commands[row].item);
+        d->startRecording(row, -1);
+    });
     bar->addSpacing(8);
     bar->addWidget(new QLabel(i18nc("@label:listbox keys page", "Start from"), this));
     d->startFrom = new QComboBox(this);

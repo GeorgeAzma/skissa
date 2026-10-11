@@ -166,6 +166,7 @@
 #include "KisTouchMode.h"
 #include "KisStudioFind.h"
 #include "KisStudioHoldKeys.h"
+#include "KisStudioRings.h"
 #include <config-qmdiarea-always-show-subwindow-title.h>
 #include <config-qt-patches-present.h>
 #include <KisPlatformPluginInterfaceFactory.h>
@@ -275,6 +276,7 @@ public:
     KisAction *toggleStudioLayout {nullptr};
     KisStudioLayout *studioLayout {nullptr};
     KisStudioFind *studioFind {nullptr};
+    KisStudioRings *studioRings {nullptr};
     KisAction *findAnything {nullptr};
 #ifdef Q_OS_ANDROID
     KisAction *showDonationManagementDialog {nullptr};
@@ -533,6 +535,15 @@ KisMainWindow::KisMainWindow(QUuid uuid)
 
     d->studioFind = new KisStudioFind(this);
     d->studioFind->setPanelOpener([this](QDockWidget *dock) { d->studioLayout->showPanel(dock); });
+    d->studioRings = new KisStudioRings(this);
+    // a new ring of your own, from Find or the menu: opened, for what goes on it
+    QAction *newRing = actionCollection()->addAction(QStringLiteral("studio_ring_new"));
+    newRing->setText(i18nc("@action", "New Ring"));
+    newRing->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_ring")));
+    connect(newRing, &QAction::triggered, this, [this]() {
+        QAction *ring = d->studioRings->createRing();
+        d->studioRings->open(ring->objectName().mid(QStringLiteral("studio_ring_").size()));
+    });
 
     createActions();
 
@@ -2195,6 +2206,11 @@ bool KisMainWindow::nativeEvent(const QByteArray &eventType, void *message, long
         return true;
     }
     return KXmlGuiWindow::nativeEvent(eventType, message, result);
+}
+
+KisStudioRings *KisMainWindow::studioRings() const
+{
+    return d->studioRings;
 }
 
 KisStudioFind *KisMainWindow::studioFind() const
