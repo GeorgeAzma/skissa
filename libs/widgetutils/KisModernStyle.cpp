@@ -764,6 +764,19 @@ QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *op
 
 QRect KisModernStyle::subControlRect(ComplexControl control, const QStyleOptionComplex *option, SubControl subControl, const QWidget *widget) const
 {
+    if (control == CC_ComboBox && subControl == SC_ComboBoxArrow) {
+        // a flat combo box reads as its text with a chevron: right after the text, not at the far end
+        const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option);
+        const QRect arrow = QProxyStyle::subControlRect(control, option, subControl, widget);
+        if (combo && !combo->frame && !combo->editable && !combo->currentText.isEmpty()) {
+            const QRect field = QProxyStyle::subControlRect(control, option, SC_ComboBoxEditField, widget);
+            int text = combo->fontMetrics.horizontalAdvance(combo->currentText);
+            if (!combo->currentIcon.isNull()) text += combo->iconSize.width() + 4;
+            const int left = field.left() + text + 2;
+            if (left < arrow.left()) return arrow.translated(left - arrow.left(), 0);
+        }
+        return arrow;
+    }
     if (control == CC_ScrollBar) {
         // Same layout as QCommonStyle, but without the arrow buttons
         if (const auto *bar = qstyleoption_cast<const QStyleOptionSlider *>(option)) {

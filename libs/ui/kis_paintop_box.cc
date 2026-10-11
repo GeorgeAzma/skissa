@@ -14,6 +14,8 @@
 #include "kis_paintop_box.h"
 #include "KisBlendModePicker.h"
 
+#include <QStyleOption>
+#include <QTimer>
 #include <QHBoxLayout>
 #include <tuple>
 #include <QToolButton>
@@ -336,6 +338,20 @@ KisPaintopBox::KisPaintopBox(KisViewManager *viewManager, QWidget *parent, const
 
     m_cmbCompositeOp = new KisCompositeOpComboBox();
     m_cmbCompositeOp->setFixedHeight(buttonsize);
+    // flat, as the rest of the bar: a box only when pointed at; as wide as its mode, its chevron right after
+    // it (as the brush's name has), the rest of the bar moving up after it
+    m_cmbCompositeOp->setFrame(false);
+    auto fitMode = [this]() {
+        QStyleOptionComboBox option;
+        option.initFrom(m_cmbCompositeOp);
+        option.frame = false;
+        const QSize text(m_cmbCompositeOp->fontMetrics().horizontalAdvance(m_cmbCompositeOp->currentText()), m_cmbCompositeOp->height());
+        m_cmbCompositeOp->setFixedWidth(qMin(150, m_cmbCompositeOp->style()->sizeFromContents(QStyle::CT_ComboBox, &option, text, m_cmbCompositeOp).width()));
+    };
+    connect(m_cmbCompositeOp, QOverload<int>::of(&QComboBox::currentIndexChanged), this, fitMode);
+    // its mode is already set: at its width now, and once its font is the bar's
+    fitMode();
+    QTimer::singleShot(0, this, fitMode);
     // a mode name is one or two words, the picker opens wide anyway
     m_cmbCompositeOp->setMaximumWidth(150);
     m_cmbCompositeOp->connectBlendmodeActions(m_viewManager->actionManager());

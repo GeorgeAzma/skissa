@@ -388,9 +388,14 @@ LayerBox::LayerBox()
         auto *row = new QHBoxLayout(m_rowControls);
         row->setContentsMargins(6, 2, 8, 6);
         row->setSpacing(6);
+        // flat on the row's own highlight: a box only when pointed at
+        ui->cmbComposite->setFrame(false);
         row->addWidget(ui->cmbComposite, 1);
         ui->doubleOpacity->setToolTip(i18nc("@info:tooltip", "Layer opacity"));
         ui->doubleOpacity->setButtonSymbols(QAbstractSpinBox::NoButtons);
+        // the number and a hairline of it, a slider when pointed at
+        ui->doubleOpacity->setFrame(false);
+        ui->doubleOpacity->setProperty(KisModernStyle::quietFieldProperty, true);
         row->addWidget(ui->doubleOpacity, 1);
         m_rowControls->hide();
         ui->listLayers->viewport()->installEventFilter(this);

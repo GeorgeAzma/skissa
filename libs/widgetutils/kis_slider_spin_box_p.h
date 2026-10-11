@@ -639,10 +639,53 @@ public:
         return KisPaintingTweaks::blendColors(m_q->palette().text().color(), m_q->palette().base().color(), 0.24);
     }
 
+    /**
+     * Quiet (KisModernStyle::quietFieldProperty, and frameless): the number
+     * and under it a hairline as long as the value, until it is pointed at,
+     * dragged or typed in; then the slider it is. For a slider among other
+     * things in a row (a layer's opacity next to its blend mode), not boxes.
+     */
+    bool isQuietNow() const
+    {
+        return m_q->property(KisModernStyle::quietFieldProperty).toBool() && !m_q->hasFrame() && !m_q->underMouse() && !m_isDragging
+            && !isEditModeActive();
+    }
+
+    void paintQuietSlider(QPainter &painter, const QString &text, double sliderWidth)
+    {
+        const QRectF rect = m_lineEdit->rect();
+        const QColor ink = m_lineEdit->palette().text().color();
+        QColor track = ink;
+        track.setAlphaF(0.14);
+        QColor value = ink;
+        value.setAlphaF(0.55);
+        const qreal thickness = 2.0;
+        const QRectF line(rect.left() + 2, rect.bottom() - thickness - 2, rect.width() - 4, thickness);
+        painter.save();
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(track);
+        painter.drawRoundedRect(line, thickness / 2, thickness / 2);
+        painter.setBrush(value);
+        painter.drawRoundedRect(QRectF(line.topLeft(), QSizeF(qMax(thickness, line.width() * sliderWidth / qMax(1.0, rect.width())), thickness)),
+                                thickness / 2, thickness / 2);
+        painter.restore();
+        QTextOption textOption(Qt::AlignAbsolute | Qt::AlignHCenter | Qt::AlignVCenter);
+        textOption.setWrapMode(QTextOption::NoWrap);
+        paintSliderText(painter, text, rect.adjusted(0, -1, 0, -1), rect, ink, textOption);
+    }
+
     void paintSlider(QPainter &painter, const QString &text, double slider01Width, double slider02Width = -1.0)
     {
         const QRectF rect = m_lineEdit->rect();
         const QColor highlightColor = sliderFillColor();
+        if (slider02Width < 0.0 && isQuietNow()) {
+            paintQuietSlider(painter, text, slider01Width);
+            return;
+        }
+        if (m_q->property(KisModernStyle::quietFieldProperty).toBool() && !m_q->hasFrame()) {
+            // pointed at: its field, as a quiet field has
+            paintSliderRect(painter, rect, KisPaintingTweaks::blendColors(m_q->palette().text().color(), m_q->palette().base().color(), 0.08));
+        }
         if (slider02Width < 0.0) {
             const QRectF sliderRect = rect.adjusted(0, 0, -(rect.width() - slider01Width), 0);
             paintSliderRect(painter, sliderRect, highlightColor);
@@ -907,6 +950,11 @@ public:
                 case QEvent::KeyPress : return qKeyPressEvent(static_cast<QKeyEvent*>(e));
                 case QEvent::ContextMenu : return qContextMenuEvent(static_cast<QContextMenuEvent*>(e));
                 case QEvent::InputMethodQuery: return blockInputMethodQuery(static_cast<QInputMethodQueryEvent *>(e));
+                // quiet: a slider only while pointed at
+                case QEvent::Enter:
+                case QEvent::Leave:
+                    if (m_q->property(KisModernStyle::quietFieldProperty).toBool()) m_lineEdit->update();
+                    break;
                 default: break;
             }
         } else if (o == m_lineEdit) {
