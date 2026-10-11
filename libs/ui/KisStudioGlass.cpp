@@ -14,8 +14,10 @@
 #include <QComboBox>
 #include <QEvent>
 #include <QFile>
+#include <QFrame>
 #include <QGraphicsOpacityEffect>
 #include <QHash>
+#include <QLayout>
 #include <QLinearGradient>
 #include <QMenu>
 #include <QPainter>
@@ -1065,32 +1067,51 @@ KisStudioGlass::Surround KisStudioGlass::surround()
 
 namespace {
 /**
- * Makes menus glass: see-through windows (set before their window is made,
- * which is what Qt needs for it), their background painted as a panel's
- * is, before they paint their items over it
+ * Makes menus glass, and the popups of KisPopupButton (the brush editor, the
+ * brush size's slider...): see-through windows (set before their window is
+ * made, which is what Qt needs for it), their background painted as a
+ * panel's is, before they paint what is on it
  */
 class MenuGlass : public QObject
 {
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
-        QMenu *menu = qobject_cast<QMenu *>(watched);
-        if (!menu) {
+        if (event->type() != QEvent::Polish && event->type() != QEvent::Paint) {
             return false;
         }
-        if (event->type() == QEvent::Polish && !menu->testAttribute(Qt::WA_WState_Created) && KisStudioGlass::isEnabled()) {
+        QWidget *widget = qobject_cast<QMenu *>(watched);
+        const bool popupFrame = !widget && watched->isWidgetType() && watched->objectName() == QLatin1String("KisPopupButtonFrame");
+        if (popupFrame) {
+            widget = static_cast<QWidget *>(watched);
+        }
+        if (!widget) {
+            return false;
+        }
+        if (event->type() == QEvent::Polish && !widget->testAttribute(Qt::WA_WState_Created) && KisStudioGlass::isEnabled()
+            // a popup button's detached popup is a dialog, a window of its own; a menu in one is glass itself
+            && (!popupFrame || (widget->windowType() == Qt::Popup && !widget->findChild<QMenu *>(QString(), Qt::FindDirectChildrenOnly)))) {
             // see-through on Windows only as a frameless window (a popup is not one of itself), and its square shadow not
-            menu->overrideWindowFlags(menu->windowFlags() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint);
-            menu->setAttribute(Qt::WA_TranslucentBackground, true);
-            menu->setProperty("studioGlassMenu", true);
-        } else if (event->type() == QEvent::Paint && menu->property("studioGlassMenu").toBool()) {
-            QPainter painter(menu);
+            widget->overrideWindowFlags(widget->windowFlags() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint);
+            widget->setAttribute(Qt::WA_TranslucentBackground, true);
+            widget->setProperty("studioGlassMenu", true);
+            if (popupFrame) {
+                // no box: what is in it lies on the glass, kept clear of its round corners
+                if (QFrame *frame = qobject_cast<QFrame *>(widget)) frame->setFrameStyle(QFrame::NoFrame);
+                if (widget->layout()) widget->layout()->setContentsMargins(8, 8, 8, 8);
+                // what is in it see-through (the frame keeps its color: the glass is tinted with it)
+                Q_FOREACH (QWidget *content, widget->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
+                    KisStudioGlass::setSeeThrough(content, true);
+                }
+            }
+        } else if (event->type() == QEvent::Paint && widget->property("studioGlassMenu").toBool()) {
+            QPainter painter(widget);
             painter.setRenderHint(QPainter::Antialiasing, true);
-            const qreal radius = KisModernStyle::cornerRadius + 2;
-            const QPainterPath shape = KisStudioGlass::paint(painter, menu, QRectF(menu->rect()).adjusted(0.5, 0.5, -0.5, -0.5), radius);
-            QColor border = menu->palette().color(QPalette::WindowText);
+            const qreal radius = popupFrame ? KisModernStyle::cornerRadius + 6 : KisModernStyle::cornerRadius + 2;
+            const QPainterPath shape = KisStudioGlass::paint(painter, widget, QRectF(widget->rect()).adjusted(0.5, 0.5, -0.5, -0.5), radius);
+            QColor border = widget->palette().color(QPalette::WindowText);
             border.setAlphaF(0.12);
-            KisStudioGlass::paintBorder(painter, menu, shape, border);
+            KisStudioGlass::paintBorder(painter, widget, shape, border);
         }
         return false;
     }

@@ -254,7 +254,10 @@ void KisPopupButton::adjustPosition()
 
     // Attach to the button if it's visible, else attach to the cursor.
     QPoint pos = this->isVisible() ? this->mapToGlobal(QPoint(0, this->size().height())) : QCursor().pos();
-    QSize popSize = m_d->popupWidget->size();
+    // the frame around the popup widget, with its margins (a style may give it some)
+    QMargins margins = m_d->frame->contentsMargins();
+    if (m_d->frame->layout()) margins += m_d->frame->layout()->contentsMargins();
+    QSize popSize = m_d->popupWidget->size().grownBy(margins);
     QRect popupRect(pos, popSize);
 
     // Get the available geometry of the screen which contains the popup.
