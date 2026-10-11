@@ -120,8 +120,12 @@ void KisStudioMotion::showFaded(QWidget *widget)
         setOpacity(widget, 0.0);
         widget->show();
     }
-    // a window (a picker, a card, Find) rises into its place; a part of a window only fades
-    fade(widget, 1.0, 120, QEasingCurve::OutCubic, false, appearing && widget->isWindow());
+    /**
+     * It only fades in, in its place: a glass window that moved as it did hid
+     * what is under it anew each frame (each panel there painted again whole),
+     * frames too slow for its glass to keep up with it
+     */
+    fade(widget, 1.0, 120, QEasingCurve::OutCubic, false);
 }
 
 void KisStudioMotion::hideFaded(QWidget *widget)

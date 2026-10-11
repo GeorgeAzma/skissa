@@ -928,13 +928,16 @@ public:
             if (!widget->isVisible() || canvasWidgetOf(widget) != canvasWidget) {
                 continue;
             }
-            if (!panel.drawn) {
-                panel.drawn = true;
-                widget->update();
-            }
             const qreal opacity = opacityOf(widget);
             if (opacity <= 0) {
+                // not drawn: one fading in from nothing is still solid until its glass is there
                 continue;
+            }
+            if (!panel.drawn) {
+                panel.drawn = true;
+                // see-through only once the frame with its glass is out: a window of its own (a menu) shows at once,
+                // the canvas' frame a moment later (the queue's turn comes after it is shown)
+                QMetaObject::invokeMethod(widget, QOverload<>::of(&QWidget::update), Qt::QueuedConnection);
             }
             const QPointF offset = widget->mapToGlobal(QPoint()) - canvasOrigin;
             surfaces.append({panel.rect.translated(offset), panel.radius, widget->palette().color(QPalette::Window), opacity});
