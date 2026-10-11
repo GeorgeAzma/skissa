@@ -313,10 +313,10 @@ float outside(vec2 p, out vec2 normal)
 // the bevel d pixels in from the rim, w wide, h thick: its height over the underside, and its
 // slope. A quarter of a superellipse of exponent 4: steep at the rim, flat where the face is,
 // without a crease there
-// (the Clear style's dome: of exponent 2.5, rounder, still bending toward the middle)
+// (the Clear style's dome: of exponent 8, its edges defined, its middle flat)
 float profileExponent()
 {
-    return clearing >= 0.999 ? 2.5 : 4.0;
+    return clearing >= 0.999 ? 8.0 : 4.0;
 }
 
 vec2 profile(float d, float w, float h)
@@ -550,6 +550,18 @@ void main()
     vec3 tintLight = fromSrgb(tint);
     vec3 tintLab = toOklab(tintLight);
 
+    /**
+     * The Clear style's frost: a little of it where the dome is flat, none
+     * where it is curved (its edges). How curved: how fast its slope changes
+     * over a pixel, against the dome's own size (w over h); flat, a third
+     * frosted at most.
+     */
+    float domeFrost = 0.0;
+    if (dome && w > 0.5) {
+        float curvature = abs(profile(d + 1.0, w, h).y - profile(max(d - 1.0, 0.0), w, h).y) * 0.5 * w / max(h, 1e-3);
+        domeFrost = 0.33 / (1.0 + curvature * curvature * 4.0);
+    }
+
     vec3 color;
     if (onBevel) {
         // polished toward the rim, it shows the canvas itself, bent; into the face, the frost, without a step
@@ -565,7 +577,8 @@ void main()
             if (ray.z > 0.0) {
                 vec2 q = held(p + ray.xy);
                 // all clear (the Clear style): the canvas bent, no frost to fade into
-                seen = clearing >= 0.999 ? clearLab(q, jx, jy) : frostedLab(q);
+                // the Clear style: the canvas bent, frosted a little where the dome is flat (see domeFrost)
+                seen = clearing >= 0.999 ? mix(clearLab(q, jx, jy), frostedLab(q), domeFrost) : frostedLab(q);
                 if (clear > 0.0 && clearing < 0.999) seen = mix(seen, clearLab(q, jx, jy), clear);
                 seen = throughLower(seen, q);
             } else {
@@ -593,7 +606,7 @@ void main()
         }
     } else {
         // the face: the frost, or clear (the Clear style) the canvas itself
-        vec3 face = clearing >= 0.999 ? clearLab(p, jx, jy) : frostedLab(p);
+        vec3 face = clearing >= 0.999 ? mix(clearLab(p, jx, jy), frostedLab(p), domeFrost) : frostedLab(p);
         color = tintedLab(mix(tintLab, throughLower(face, p), canvas), tintLab, strength);
     }
 
