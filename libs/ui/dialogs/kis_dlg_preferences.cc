@@ -403,9 +403,11 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
     m_chkBrushesAsStrokes->setChecked(KisPresetStrokeThumbnails::isEnabled());
     // panels, menus and popups of glass (frosted or liquid), or of the plain panel color
     m_cmbGlass = new QComboBox(m_chkCanvasMessages->parentWidget());
-    m_cmbGlass->addItems({i18nc("glass panels", "Off"), i18nc("glass panels", "Frosted"), i18nc("glass panels", "Liquid")});
+    m_cmbGlass->addItems({i18nc("glass panels", "Off"), i18nc("glass panels", "Frosted"), i18nc("glass panels", "Liquid"),
+                          i18nc("glass panels", "Clear")});
     m_cmbGlass->setToolTip(i18n("Panels, menus and popups show the canvas behind them, blurred. "
-                                "Liquid: their edges are clearer, bend the canvas more and catch the light"));
+                                "Liquid: their edges are clearer, bend the canvas more and catch the light. "
+                                "Clear: no blur, the whole panel a lens"));
     m_cmbGlass->setCurrentIndex(KisStudioGlass::isEnabled() ? 1 + int(KisStudioGlass::style()) : 0);
     // and how much its edge bends the canvas behind it (none: a line)
     m_sldRefraction = new KisSliderSpinBox(m_chkCanvasMessages->parentWidget());

@@ -1162,7 +1162,7 @@ namespace {
 /// The settings, read once: the canvas draws the glass every frame
 KisStudioGlass::Style &styleSetting()
 {
-    static KisStudioGlass::Style style = KisStudioGlass::Style(qBound(0, KisConfig(true).readEntry<int>(styleKey, 0), 1));
+    static KisStudioGlass::Style style = KisStudioGlass::Style(qBound(0, KisConfig(true).readEntry<int>(styleKey, 0), 2));
     return style;
 }
 
@@ -1417,6 +1417,10 @@ KisStudioGlass::Bevel KisStudioGlass::bevel()
     };
     // the rim fades in from nothing as the bevel does
     const qreal fadeIn = qMin<qreal>(1, r * 2);
+    if (style() == Style::Clear) {
+        // the whole panel one surface (as wide as it is: see the glass shader), thin, all clear: the canvas bent, not frosted
+        return {at(0, 4000, 4000), at(0, 10, 14), at(0, 10, 14), fadeIn, 1.0, 0, 40};
+    }
     if (style() == Style::Liquid) {
         // a thick pane; its edge catches the light, and its colors spread
         return {at(16, 22, 26), at(0, 24, 34), at(0, 28, 40), fadeIn, 0.55, 0.45 * fadeIn, 22};

@@ -576,7 +576,9 @@ void main()
     float d = -outside(p, normal2d);
 
     // the bevel: no wider than the corners are round, nor than the panel is
-    float w = min(bevel.x, min(corner.x, min(shape.z, shape.w)));
+    // all clear (the Clear style): the whole panel one surface, as wide as it is
+    bool allClear = clearing >= 0.999;
+    float w = allClear ? min(bevel.x, min(shape.z, shape.w)) : min(bevel.x, min(corner.x, min(shape.z, shape.w)));
     bool onBevel = w > 0.5 && d < w;
     float h = bevel.y * w / max(bevel.x, 1e-3);
     vec2 bend = vec2(0.0);
@@ -641,11 +643,15 @@ void main()
                  * rim is is always the frost's (bent): only detail fades, and a
                  * detail has no light of its own to leave a band where it goes.
                  */
-                vec3 detail = clearLab(q, jx, jy, sharpest) - meanAt(level2, q);
-                seen = throughLower(frostedLab(q) + detail * (1.0 - frosting), q);
+                if (allClear) {
+                    seen = throughLower(clearLab(q, jx, jy, sharpest), q);
+                } else {
+                    vec3 detail = clearLab(q, jx, jy, sharpest) - meanAt(level2, q);
+                    seen = throughLower(frostedLab(q) + detail * (1.0 - frosting), q);
+                }
             } else {
                 // reflected inside, scattered by the frost: the glass itself
-                seen = throughLower(frostedLab(p), p);
+                seen = throughLower(allClear ? clearLab(p, jx, jy, sharpest) : frostedLab(p), p);
             }
             vec3 through = max(fromOklab(mix(tintLab, seen, canvas)), 0.0);
             light3[i] = through[i];
@@ -669,7 +675,7 @@ void main()
     } else {
         // through the light of the screen as the bevel's is (a color beyond it held at its edge): the same where they meet
         // the frost, or near the bevel what the blur is there on its way to it
-        vec3 seen = frostedLab(p);
+        vec3 seen = allClear ? clearLab(p, jx, jy, sharpest) : frostedLab(p);
         color = tinted(max(fromOklab(mix(tintLab, throughLower(seen, p), canvas)), 0.0), tintLab, strength);
     }
 
