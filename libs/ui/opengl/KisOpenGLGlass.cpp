@@ -109,6 +109,7 @@ vec3 fromOklab(vec3 c)
  */
 const char *const shrinkSource = R"(
 uniform sampler2D source;
+uniform ivec2 shift;
 uniform int factor;
 uniform bool decode;
 uniform float salience;
@@ -118,11 +119,11 @@ uniform bool statistics;
 void main()
 {
     ivec2 last = textureSize(source, 0) - 1;
-    ivec2 base = ivec2(gl_FragCoord.xy) * factor;
+    ivec2 base = (ivec2(gl_FragCoord.xy) - shift) * factor;
     vec4 sum = vec4(0.0);
     for (int y = 0; y < factor; y++) {
         for (int x = 0; x < factor; x++) {
-            vec3 c = texelFetch(source, min(base + ivec2(x, y), last), 0).rgb;
+            vec3 c = texelFetch(source, clamp(base + ivec2(x, y), ivec2(0), last), 0).rgb;
             c = clamp(decode ? fromSrgb(c) : c, 0.0, 1.0);
             vec3 lab = toOklab(c);
             float chroma = length(lab.yz);
@@ -135,16 +136,17 @@ void main()
 }
 )";
 
-/// Half of a gaussian: across, or down
+/// Half of a gaussian: across, or down, within a surface's place (slot: its first and last texel)
 const char *const blurSource = R"(
 uniform sampler2D source;
+uniform ivec4 slot;
 uniform ivec2 direction;
 uniform int taps;
 uniform float weights[33];
 
 vec4 at(ivec2 p)
 {
-    return weighted(texelFetch(source, clamp(p, ivec2(0), textureSize(source, 0) - 1), 0));
+    return weighted(texelFetch(source, clamp(p, slot.xy, slot.zw), 0));
 }
 
 void main()
@@ -167,6 +169,8 @@ void main()
 const char *const glassVertexSource = R"(
 uniform vec4 rect;
 uniform sampler2D blurred;
+uniform vec2 shift;
+uniform ivec4 slot;
 uniform float factor;
 uniform vec4 shape;
 uniform float tintLightness;
@@ -183,13 +187,12 @@ void main()
     // how light it is behind, as seen (Oklab): a grid
     // as fine as the blur is wide (12 x 12 at most), so that the tint does not flicker as the
     // canvas slides under it
-    ivec2 last = textureSize(blurred, 0) - 1;
     ivec2 count = clamp(ivec2(ceil(2.0 * shape.zw / spacing)), ivec2(1), ivec2(12));
     float sum = 0.0;
     for (int y = 0; y < count.y; y++) {
         for (int x = 0; x < count.x; x++) {
             vec2 p = shape.xy + shape.zw * (2.0 * (vec2(x, y) + 0.5) / vec2(count) - 1.0);
-            vec4 mean = weighted(texelFetch(blurred, clamp(ivec2(p / factor), ivec2(0), last), 0));
+            vec4 mean = weighted(texelFetch(blurred, clamp(ivec2(p / factor + shift), slot.xy, slot.zw), 0));
             sum += pow(max(mean.x / max(mean.a, 1e-5), 0.0), 1.0 / power);
         }
     }
@@ -221,6 +224,8 @@ void main()
 const char *const glassSource = R"(
 uniform sampler2D blurred;
 uniform sampler2D statistics;
+uniform vec2 shift;
+uniform ivec4 slot;
 uniform sampler2D under;
 uniform bool decode;
 uniform float restore;
@@ -345,18 +350,17 @@ float fresnel(float c, float n)
 }
 
 
-// a small weighted texture (the blur, or its statistics) at p (surface pixels): bilinear, the
-// weights too
+// a small weighted texture (the blur, or its statistics) at p (surface pixels), in this surface's
+// place of it: bilinear, the weights too
 vec3 softAt(sampler2D source, vec2 p)
 {
-    ivec2 last = textureSize(source, 0) - 1;
-    vec2 t = p / factor - 0.5;
+    vec2 t = p / factor - 0.5 + shift;
     ivec2 i = ivec2(floor(t));
     vec2 f = t - floor(t);
-    vec4 a = weighted(texelFetch(source, clamp(i, ivec2(0), last), 0));
-    vec4 b = weighted(texelFetch(source, clamp(i + ivec2(1, 0), ivec2(0), last), 0));
-    vec4 c = weighted(texelFetch(source, clamp(i + ivec2(0, 1), ivec2(0), last), 0));
-    vec4 d = weighted(texelFetch(source, clamp(i + ivec2(1, 1), ivec2(0), last), 0));
+    vec4 a = weighted(texelFetch(source, clamp(i, slot.xy, slot.zw), 0));
+    vec4 b = weighted(texelFetch(source, clamp(i + ivec2(1, 0), slot.xy, slot.zw), 0));
+    vec4 c = weighted(texelFetch(source, clamp(i + ivec2(0, 1), slot.xy, slot.zw), 0));
+    vec4 d = weighted(texelFetch(source, clamp(i + ivec2(1, 1), slot.xy, slot.zw), 0));
     vec4 m = mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
     return m.rgb / max(m.a, 1e-5);
 }
@@ -718,13 +722,15 @@ struct KisOpenGLGlass::Private
     qreal blurredRatio {0};
     bool valid {false};
 
+    /// At least \p size: grown only (as panels come and go, their places take more or less of it)
     void ensureSize(const QSize &size)
     {
-        if (small && small->size() == size) {
+        if (small && small->width() >= size.width() && small->height() >= size.height()) {
             return;
         }
+        const QSize grown = small ? size.expandedTo(small->size()) : size;
         for (QScopedPointer<QOpenGLFramebufferObject> *fbo : {&small, &across, &blurred, &smallStatistics, &acrossStatistics, &statistics}) {
-            fbo->reset(new QOpenGLFramebufferObject(size, QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, keptFormat));
+            fbo->reset(new QOpenGLFramebufferObject(grown, QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, keptFormat));
         }
     }
 };
@@ -747,10 +753,10 @@ bool KisOpenGLGlass::initialize()
     const bool halfFloats = !context->isOpenGLES() || context->hasExtension("GL_EXT_color_buffer_half_float")
         || context->hasExtension("GL_EXT_color_buffer_float");
     d->keptFormat = halfFloats ? GL_RGBA16F : GL_RGBA;
-    d->valid = d->shrink.make(quadSource, shrinkSource, {"rect", "source", "factor", "decode", "salience", "power", "statistics"})
-        && d->blur.make(quadSource, blurSource, {"rect", "source", "direction", "taps", "weights"})
+    d->valid = d->shrink.make(quadSource, shrinkSource, {"rect", "source", "shift", "factor", "decode", "salience", "power", "statistics"})
+        && d->blur.make(quadSource, blurSource, {"rect", "source", "slot", "direction", "taps", "weights"})
         && d->glass.make(glassVertexSource, glassSource,
-                         {"rect", "blurred", "statistics", "restore", "power",
+                         {"rect", "blurred", "statistics", "shift", "slot", "restore", "power",
                           "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
                           "beyond", "spacing", "dither", "veil", "bevel", "polish", "clearing", "gloss", "ior", "under", "decode", "reach"})
         && d->ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
@@ -909,8 +915,49 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     auto scaleOf = [pixelRatio](const Surface &surface) { return KisStudioGlass::blurScale(surface.rect.size() / pixelRatio); };
 
     const QSize smallSize((viewport.width() + factor - 1) / factor, (viewport.height() + factor - 1) / factor);
-    d->ensureSize(smallSize);
     const QRect smallWhole(QPoint(), smallSize);
+
+    /**
+     * Each panel blurred under it (whole: how bright it is behind all of it
+     * sets its tint), in a place of its own in the small textures: its small
+     * pixels (one more for scaling back up), as far as the rim sees around it
+     * (its reflections, what it bends in from beside it), and as far around
+     * that as its blur takes in. Of a place of their own: panels side by side
+     * are each blurred as wide as they are large (a pill less than a column),
+     * and in one place the blur of one would show in the other where they are
+     * near (a block of it, with straight edges).
+     */
+    struct Region {
+        QRect area;
+        QRect around;
+        /// From the small canvas to its place
+        QPoint shift;
+        Kernel wide;
+    };
+    QVector<Region> regions(surfaces.size());
+    const int rimReach = qCeil(KisStudioGlass::bevel().lift * pixelRatio);
+    {
+        // in rows, left to right
+        QPoint next;
+        int rowHeight = 0;
+        for (int i = 0; i < surfaces.size(); i++) {
+            const QRect r = surfaces[i].rect.toAlignedRect().adjusted(-rimReach, -rimReach, rimReach, rimReach) & whole;
+            if (r.isEmpty()) continue;
+            Region &region = regions[i];
+            region.area = QRect(QPoint(r.left() / factor, r.top() / factor), QPoint(r.right() / factor + 1, r.bottom() / factor + 1)) & smallWhole;
+            region.wide = kernel(KisStudioGlass::blurSigma * scaleOf(surfaces[i]));
+            region.around = region.area.adjusted(-region.wide.taps, -region.wide.taps, region.wide.taps, region.wide.taps) & smallWhole;
+            if (next.x() + region.around.width() > smallSize.width()) {
+                next = QPoint(0, next.y() + rowHeight);
+                rowHeight = 0;
+            }
+            region.shift = next - region.around.topLeft();
+            next.rx() += region.around.width();
+            rowHeight = qMax(rowHeight, region.around.height());
+        }
+        d->ensureSize(QSize(smallSize.width(), qMax(1, next.y() + rowHeight)));
+    }
+    const QSize placesSize = d->small->size();
 
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     GLint target = 0;
@@ -919,7 +966,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glDisable(GL_BLEND);
     f->glEnable(GL_SCISSOR_TEST);
     f->glActiveTexture(GL_TEXTURE0);
-    f->glViewport(0, 0, smallSize.width(), smallSize.height());
+    f->glViewport(0, 0, placesSize.width(), placesSize.height());
     auto scissor = [f](const QRect &r) { f->glScissor(r.x(), r.y(), r.width(), r.height()); };
 
     d->shrink->bind();
@@ -943,24 +990,12 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     d->blurredViewport = viewport;
     d->blurredRatio = pixelRatio;
 
-    // blurred under each panel only, whole (how bright it is behind all of it sets its tint): its small
-    // pixels (one more for scaling back up), and as far as the blur takes in around them
-    struct Region {
-        QRect area;
-        QRect around;
-        Kernel wide;
-    };
-    QVector<Region> regions;
-    // and as far around as the rim sees (its reflections and what it bends in from beside it)
-    const int rimReach = qCeil(KisStudioGlass::bevel().lift * pixelRatio);
-    for (const Surface &surface : surfaces) {
-        const QRect r = surface.rect.toAlignedRect().adjusted(-rimReach, -rimReach, rimReach, rimReach) & whole;
-        if (!blurAgain || r.isEmpty()) continue;
-        Region region;
-        region.area = QRect(QPoint(r.left() / factor, r.top() / factor), QPoint(r.right() / factor + 1, r.bottom() / factor + 1)) & smallWhole;
-        region.wide = kernel(KisStudioGlass::blurSigma * scaleOf(surface));
-        region.around = region.area.adjusted(-region.wide.taps, -region.wide.taps, region.wide.taps, region.wide.taps) & smallWhole;
-        regions << region;
+    // only those that are on the canvas, when what is behind them changed
+    QVector<Region> blurring;
+    if (blurAgain) {
+        for (const Region &region : qAsConst(regions)) {
+            if (!region.around.isEmpty()) blurring << region;
+        }
     }
     // the canvas made small, as colors and as their statistics
     d->shrink->bind();
@@ -968,8 +1003,9 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     for (int statistics = 0; statistics < 2; statistics++) {
         (statistics ? d->smallStatistics : d->small)->bind();
         f->glUniform1i(d->shrink["statistics"], statistics);
-        for (const Region &region : qAsConst(regions)) {
-            scissor(region.around);
+        for (const Region &region : qAsConst(blurring)) {
+            f->glUniform2i(d->shrink["shift"], region.shift.x(), region.shift.y());
+            scissor(region.around.translated(region.shift));
             f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         }
     }
@@ -989,16 +1025,18 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         {d->acrossStatistics.data(), d->statistics.data(), false},
     };
     for (const Pass &pass : passes) {
-        if (regions.isEmpty()) break;
+        if (blurring.isEmpty()) break;
         pass.target->bind();
         f->glBindTexture(GL_TEXTURE_2D, pass.source->texture());
         f->glUniform2i(d->blur["direction"], pass.across ? 1 : 0, pass.across ? 0 : 1);
-        for (const Region &region : qAsConst(regions)) {
+        for (const Region &region : qAsConst(blurring)) {
             const Kernel &k = region.wide;
             f->glUniform1i(d->blur["taps"], k.taps);
             f->glUniform1fv(d->blur["weights"], maxTaps + 1, k.weights);
+            const QRect place = region.around.translated(region.shift);
+            f->glUniform4i(d->blur["slot"], place.left(), place.top(), place.right(), place.bottom());
             // across: as far up and down as the pass down takes in
-            scissor(pass.across ? region.area.adjusted(0, -k.taps, 0, k.taps) & smallWhole : region.area);
+            scissor((pass.across ? region.area.adjusted(0, -k.taps, 0, k.taps) & region.around : region.area).translated(region.shift));
             f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         }
     }
@@ -1035,7 +1073,12 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glBindTexture(GL_TEXTURE_2D, d->statistics->texture());
     f->glActiveTexture(GL_TEXTURE0);
     f->glBindTexture(GL_TEXTURE_2D, d->blurred->texture());
-    for (const Surface &surface : surfaces) {
+    for (int i = 0; i < surfaces.size(); i++) {
+        const Surface &surface = surfaces[i];
+        if (regions[i].around.isEmpty()) continue;
+        const QRect place = regions[i].around.translated(regions[i].shift);
+        f->glUniform2f(d->glass["shift"], regions[i].shift.x(), regions[i].shift.y());
+        f->glUniform4i(d->glass["slot"], place.left(), place.top(), place.right(), place.bottom());
         const QRectF r = surface.rect;
         const QRectF quad = r.adjusted(-1, -1, 1, 1);
         f->glUniform4f(d->glass["rect"], quad.left() / viewport.width() * 2 - 1, quad.top() / viewport.height() * 2 - 1,
