@@ -293,6 +293,11 @@ KoFontRegistry::KoFontRegistry(QObject *parent)
     , d(new Private())
 {
     connect(d->fontChangeTracker().data(), SIGNAL(sigUpdateConfig()), this, SLOT(updateConfig()), Qt::UniqueConnection);
+
+    // The fonts are read now: the resource database, which puts that off at startup, can list them
+    if (QCoreApplication *app = QCoreApplication::instance()) {
+        QMetaObject::invokeMethod(app, [] { KisResourceLocator::instance()->fontRegistryLoaded(); }, Qt::QueuedConnection);
+    }
 }
 
 KoFontRegistry::~KoFontRegistry() {

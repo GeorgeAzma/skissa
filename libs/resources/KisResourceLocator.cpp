@@ -53,6 +53,9 @@ public:
     QHash<QPair<QString, QString>, KoResourceSP> resourceCache;
     QMap<QPair<QString, QString>, KisTagSP> tagCache;
     QStringList errorMessages;
+    bool fontRegistryLoaded {false};
+    /// The "fontregistry" storage was not synchronized at startup
+    bool fontStorageDeferred {false};
 
     KisResourceStorageSP safeGetStorage(const QString &storageLocation) {
         /**
@@ -1032,10 +1035,19 @@ QString KisResourceLocator::filePathForResource(KoResourceSP resource)
 
 void KisResourceLocator::updateFontStorage()
 {
+    d->fontStorageDeferred = false;
     if (!KisResourceCacheDb::synchronizeStorage(fontStorage())) {
         qWarning() << i18n("Could not synchronize updated font registry with the database");
     } else {
         Q_EMIT storageResynchronized(fontStorage()->location(), false);
+    }
+}
+
+void KisResourceLocator::fontRegistryLoaded()
+{
+    d->fontRegistryLoaded = true;
+    if (d->fontStorageDeferred) {
+        updateFontStorage();
     }
 }
 
@@ -1241,6 +1253,18 @@ bool KisResourceLocator::synchronizeDb()
 
     findStorages();
     Q_FOREACH(const KisResourceStorageSP storage, d->storages) {
+        // Listing the fonts reads every font file: if the database has the fonts from the last time,
+        // they are synchronized once the font registry has been loaded for the text (fontRegistryLoaded())
+        if (storage->type() == KisResourceStorage::StorageType::FontStorage && !d->fontRegistryLoaded) {
+            QSqlQuery q;
+            if (q.prepare("SELECT id FROM storages WHERE location = :location")) {
+                q.bindValue(":location", makeStorageLocationRelative(storage->location()));
+                if (q.exec() && q.first()) {
+                    d->fontStorageDeferred = true;
+                    continue;
+                }
+            }
+        }
         if (!KisResourceCacheDb::synchronizeStorage(storage)) {
             d->errorMessages.append(i18n("Could not synchronize %1 with the database", storage->location()));
         } else {

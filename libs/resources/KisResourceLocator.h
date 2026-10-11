@@ -122,6 +122,13 @@ public:
     /// This updates the "fontregistry" storage. Called when the font directories change;
     void updateFontStorage();
 
+    /**
+     * The font registry has read the fonts. Reading them takes seconds, so at
+     * startup the "fontregistry" storage is not synchronized if the database
+     * has it from the last time: it is now. Called on the GUI thread.
+     */
+    void fontRegistryLoaded();
+
 Q_SIGNALS:
 
     void progressMessage(const QString&);

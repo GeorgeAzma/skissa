@@ -718,10 +718,12 @@ void KisAllResourcesModel::storageActiveStateChanged(const QString &location)
 
 void KisAllResourcesModel::storageResynchronized(const QString &storage, bool isBulkResynchronization)
 {
-    Q_UNUSED(storage);
-
     // we handle bulk-synchronization separately in slotStoragesBulkSynchronizationFinished()
     if (isBulkResynchronization) return;
+
+    // the fonts' storage has only fonts: synchronized when the fonts are first loaded, the other resources stay as they are
+    KisResourceStorageSP fonts = KisResourceLocator::instance()->fontStorage();
+    if (fonts && storage == fonts->location() && d->resourceType != ResourceType::FontFamilies) return;
 
     // TODO: ideally, we should use more fine-grained updates for
     //       updating the storages, but let's keep it this
