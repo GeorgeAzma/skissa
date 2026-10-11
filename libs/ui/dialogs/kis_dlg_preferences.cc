@@ -399,11 +399,17 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
     m_chkBrushesAsStrokes = new QCheckBox(i18n("Show brushes as strokes"), m_chkCanvasMessages->parentWidget());
     m_chkBrushesAsStrokes->setToolTip(i18n("Brush presets show a stroke painted with each brush, beside its name, instead of its picture"));
     m_chkBrushesAsStrokes->setChecked(KisPresetStrokeThumbnails::isEnabled());
+    // panels, menus and popups of glass, or of the plain panel color
+    m_chkGlass = new QCheckBox(i18n("Glass panels"), m_chkCanvasMessages->parentWidget());
+    m_chkGlass->setToolTip(i18n("Panels, menus and popups show the canvas behind them, blurred"));
+    m_chkGlass->setChecked(KisStudioGlass::isEnabled());
     // and how the glass over the canvas ends: a line, or a bevel that bends the canvas behind it
     m_cmbGlassEdge = new QComboBox(m_chkCanvasMessages->parentWidget());
     m_cmbGlassEdge->addItems({i18nc("glass edge", "Line"), i18nc("glass edge", "Subtle"), i18nc("glass edge", "Strong")});
     m_cmbGlassEdge->setToolTip(i18n("How glass panels over the canvas end: a line, or a glass edge that bends the canvas behind it"));
     m_cmbGlassEdge->setCurrentIndex(int(KisStudioGlass::edge()));
+    m_cmbGlassEdge->setEnabled(m_chkGlass->isChecked());
+    connect(m_chkGlass, &QCheckBox::toggled, m_cmbGlassEdge, &QWidget::setEnabled);
     // and what is around the image: gray, black, or black lit by the image
     m_cmbSurround = new QComboBox(m_chkCanvasMessages->parentWidget());
     m_cmbSurround->addItems({i18nc("canvas surround", "Gray"), i18nc("canvas surround", "Black"), i18nc("canvas surround", "Ambient light")});
@@ -447,7 +453,8 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
     };
     QLayout *messagesLayout = m_chkCanvasMessages->parentWidget()->layout();
     placeUnder(messagesLayout, m_chkCanvasMessages, QString(), m_chkBrushesAsStrokes);
-    placeUnder(messagesLayout, m_chkBrushesAsStrokes, i18n("Glass edge:"), m_cmbGlassEdge);
+    placeUnder(messagesLayout, m_chkBrushesAsStrokes, QString(), m_chkGlass);
+    placeUnder(messagesLayout, m_chkGlass, i18n("Glass edge:"), m_cmbGlassEdge);
     placeUnder(messagesLayout, m_cmbGlassEdge, i18n("Canvas surround:"), m_cmbSurround);
 
     const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
@@ -909,6 +916,7 @@ void GeneralTab::setDefault()
     m_backgroundimage->setText(cfg.getMDIBackgroundImage(true));
     m_chkCanvasMessages->setChecked(cfg.showCanvasMessages(true));
     if (m_chkBrushesAsStrokes) m_chkBrushesAsStrokes->setChecked(false);
+    if (m_chkGlass) m_chkGlass->setChecked(true);
     if (m_cmbGlassEdge) m_cmbGlassEdge->setCurrentIndex(int(KisStudioGlass::Edge::Subtle));
     if (m_cmbSurround) m_cmbSurround->setCurrentIndex(int(KisStudioGlass::Surround::Ambient));
     m_chkCompressKra->setChecked(cfg.compressKra(true));
@@ -1119,6 +1127,11 @@ bool GeneralTab::showCanvasMessages()
 bool GeneralTab::brushesAsStrokes()
 {
     return m_chkBrushesAsStrokes && m_chkBrushesAsStrokes->isChecked();
+}
+
+bool GeneralTab::glass()
+{
+    return m_chkGlass ? m_chkGlass->isChecked() : KisStudioGlass::isEnabled();
 }
 
 int GeneralTab::glassEdge()
@@ -3165,6 +3178,7 @@ bool KisDlgPreferences::editPreferences(std::optional<PageDesc>page)
 
         cfg.setShowCanvasMessages(m_general->showCanvasMessages());
         KisPresetStrokeThumbnails::setEnabled(m_general->brushesAsStrokes());
+        KisStudioGlass::setEnabled(m_general->glass());
         KisStudioGlass::setEdge(KisStudioGlass::Edge(m_general->glassEdge()));
         KisStudioGlass::setSurround(KisStudioGlass::Surround(m_general->canvasSurround()));
         cfg.setCompressKra(m_general->compressKra());

@@ -92,6 +92,8 @@ public:
     int mdiMode();
     bool showCanvasMessages();
     bool brushesAsStrokes();
+    /// Glass panels: the canvas shows through them, blurred (KisStudioGlass::isEnabled)
+    bool glass();
     /// The edge of the glass over the canvas (KisStudioGlass::Edge)
     int glassEdge();
     /// What is around the image on the canvas (KisStudioGlass::Surround)
@@ -99,6 +101,7 @@ public:
 
     /// Brush presets shown by what they paint (off: by their pictures)
     QPointer<QCheckBox> m_chkBrushesAsStrokes;
+    QPointer<QCheckBox> m_chkGlass;
     QPointer<QComboBox> m_cmbGlassEdge;
     QPointer<QComboBox> m_cmbSurround;
     bool compressKra();

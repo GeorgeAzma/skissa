@@ -1287,8 +1287,13 @@ Qt::WindowType KisStudioGlass::popupWindowType()
 
 void KisStudioGlass::setEnabled(bool on)
 {
+    if (on == enabled()) {
+        return;
+    }
     enabled() = on;
     KisConfig(false).writeEntry(settingKey, on);
+    // the panels painted again, as glass or in their plain color, and the canvases under them
+    Panels::instance().repaintAll();
 }
 
 QColor KisStudioGlass::tint(const QWidget *widget)
