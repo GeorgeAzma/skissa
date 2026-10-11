@@ -7,6 +7,8 @@
 #define KIS_TEXTURE_TILE_UPDATE_INFO_H_
 
 #include <QMessageBox>
+#include <QtGlobal>
+#include <cmath>
 #include <QThreadStorage>
 #include <QScopedArrayPointer>
 
@@ -149,6 +151,37 @@ public:
     ~KisTextureTileUpdateInfo() {
     }
 
+    /**
+     * The CIE L* of the gray as light as a color of 16 bit Lab (D50) looks,
+     * by OKLab's lightness: Lab to XYZ, adapted to D65 (Bradford), OKLab's
+     * L of it; a gray of that L has the luminance L cubed
+     */
+    static qreal oklabGrayLightness(quint16 l16, quint16 a16, quint16 b16)
+    {
+        const qreal L = l16 / 65535.0 * 100.0;
+        const qreal a = (a16 - 32896.0) / 257.0;
+        const qreal b = (b16 - 32896.0) / 257.0;
+        auto finv = [](qreal t) { return t > 6.0 / 29.0 ? t * t * t : 3.0 * (6.0 / 29.0) * (6.0 / 29.0) * (t - 4.0 / 29.0); };
+        const qreal fy = (L + 16.0) / 116.0;
+        // XYZ, D50 white
+        const qreal x50 = 0.9642 * finv(fy + a / 500.0);
+        const qreal y50 = finv(fy);
+        const qreal z50 = 0.8249 * finv(fy - b / 200.0);
+        // to D65
+        const qreal x = 0.9555766 * x50 - 0.0230393 * y50 + 0.0631636 * z50;
+        const qreal y = -0.0282895 * x50 + 1.0099416 * y50 + 0.0210077 * z50;
+        const qreal z = 0.0122982 * x50 - 0.0204830 * y50 + 1.3299098 * z50;
+        // OKLab: XYZ to cone responses, their cube roots, the lightness of them
+        const qreal l = std::cbrt(qMax(0.0, 0.8189330101 * x + 0.3618667424 * y - 0.1288597137 * z));
+        const qreal m = std::cbrt(qMax(0.0, 0.0329845436 * x + 0.9293118715 * y + 0.0361456387 * z));
+        const qreal s = std::cbrt(qMax(0.0, 0.0482003018 * x + 0.2643662691 * y + 0.6338517070 * z));
+        const qreal lightness = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
+        // the gray of that lightness: its luminance, and that as L*
+        const qreal grayY = lightness * lightness * lightness;
+        const qreal f = grayY > 216.0 / 24389.0 ? std::cbrt(grayY) : (24389.0 / 27.0 * grayY + 16.0) / 116.0;
+        return 116.0 * f - 16.0;
+    }
+
     /// \p grayscale: each color as a gray as light as it looks (the value view, see KisOpenGLUpdateInfoBuilder::setValueView)
     void retrieveData(KisPaintDeviceSP projectionDevice, const QBitArray &channelFlags, bool onlyOneChannelSelected, int selectedChannelIndex,
                       bool grayscale = false)
@@ -180,19 +213,28 @@ public:
 
         /**
          * The value view: the colors made neutral in the image's own color
-         * space, keeping their lightness (CIE L*, as light as each looks),
-         * before they are made colors of the display. A neutral stays one
-         * through whatever comes after (the monitor's profile, proofing,
-         * OCIO), so the grays are right for any image and any screen, as a
-         * gray made of the display's values would not be.
+         * space, each as light as it looks, before they are made colors of
+         * the display. A neutral stays one through whatever comes after (the
+         * monitor's profile, proofing, OCIO), so the grays are right for any
+         * image and any screen, as a gray made of the display's values would
+         * not be.
+         *
+         * As light as it looks is OKLab's lightness, the one the color panel
+         * picks by: two colors of one OKLCH lightness are one gray. (CIE L*
+         * follows luminance alone, and makes saturated blues and purples
+         * darker than they look.) A gray's OKLab lightness is the cube root
+         * of its luminance.
          */
         if (grayscale && m_patchRect.isValid()) {
             const quint32 numPixels = m_patchRect.width() * m_patchRect.height();
             QVector<quint16> lab(int(numPixels) * 4);
             m_patchColorSpace->toLabA16(m_patchPixels.data(), reinterpret_cast<quint8 *>(lab.data()), numPixels);
+            const quint16 neutral = KoLabColorSpaceMathsTraits<quint16>::halfValueAB;
             for (quint32 i = 0; i < numPixels; i++) {
-                lab[int(4 * i + 1)] = KoLabColorSpaceMathsTraits<quint16>::halfValueAB;
-                lab[int(4 * i + 2)] = KoLabColorSpaceMathsTraits<quint16>::halfValueAB;
+                quint16 *px = lab.data() + 4 * i;
+                px[0] = quint16(qBound(0.0, oklabGrayLightness(px[0], px[1], px[2]) * 65535.0 / 100.0 + 0.5, 65535.0));
+                px[1] = neutral;
+                px[2] = neutral;
             }
             m_patchColorSpace->fromLabA16(reinterpret_cast<const quint8 *>(lab.data()), m_patchPixels.data(), numPixels);
         }
