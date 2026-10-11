@@ -19,12 +19,12 @@
  * One color panel in perceptual coordinates.
  *
  * HSV's value is not lightness: at the same "value" yellow is far lighter
- * than blue, so HSV pickers make value structure hard to control. The plane
- * here is OKLCH: lightness down, chroma across, at the hue chosen on the
- * strip below; equal steps look like equal steps. Colors outside sRGB are
- * left out, so the plane shows what is actually reachable (its shape changes
- * with the hue). Krita's classic HSV ring and triangle is one click away
- * for those used to it.
+ * than blue, so HSV pickers make value structure hard to control. The
+ * pickers here are OKLCH, where equal steps look like equal steps: a ring of
+ * hues around the hue's square of lightness (down) and chroma (across),
+ * which shows where sRGB ends (its shape changes with the hue); or, compact,
+ * a track each for lightness, chroma and hue beside the color. Krita's
+ * classic HSV ring and triangle is the third choice, for those used to it.
  * Below: the current and previous color and the colors last painted with.
  */
 class KRITAUI_EXPORT KisStudioColorPanel : public QDockWidget, public KoCanvasObserverBase
@@ -45,6 +45,9 @@ public:
     struct Private;
 
 private:
+    /// No taller than the picker needs, where that is less than the room it is given
+    void fitHeight();
+
     const std::unique_ptr<Private> d;
 };
 
