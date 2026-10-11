@@ -449,6 +449,12 @@ QFont KisModernStyle::keyCapFont(const QFont &font)
     return textFont(font, 0.86);
 }
 
+QColor KisModernStyle::secondaryInk(QColor ink)
+{
+    ink.setAlphaF(ink.alphaF() * 0.62);
+    return ink;
+}
+
 QFont KisModernStyle::textFont(const QFont &font, qreal scale, QFont::Weight weight)
 {
     QFont sized = font;

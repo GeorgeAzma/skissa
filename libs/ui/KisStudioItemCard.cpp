@@ -429,9 +429,7 @@ KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &ico
 
     d->note = new QLabel(this);
     QPalette notePalette = d->note->palette();
-    QColor dim = notePalette.color(QPalette::WindowText);
-    dim.setAlphaF(0.6);
-    notePalette.setColor(QPalette::WindowText, dim);
+    notePalette.setColor(QPalette::WindowText, KisModernStyle::secondaryInk(notePalette.color(QPalette::WindowText)));
     d->note->setPalette(notePalette);
     d->note->hide();
     layout->addWidget(d->note);

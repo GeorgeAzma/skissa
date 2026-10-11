@@ -78,8 +78,7 @@ protected:
         const qreal baseline = rect().center().y() + 0.5 + numberMetrics.capHeight() / 2;
         qreal x = (width() - textWidth(number, unit)) / 2;
         QColor ink = palette().color(QPalette::ButtonText);
-        QColor faint = ink;
-        faint.setAlphaF(0.6);
+        const QColor faint = KisModernStyle::secondaryInk(ink);
         for (const Run &run : runs()) {
             painter.setFont(run.number ? number : unit);
             painter.setPen(run.number ? ink : faint);

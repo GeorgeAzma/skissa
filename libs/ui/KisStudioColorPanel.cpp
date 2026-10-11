@@ -786,8 +786,7 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
 
         const QColor ink = palette().color(QPalette::ToolTipText);
-        QColor faint = ink;
-        faint.setAlphaF(0.6);
+        const QColor faint = KisModernStyle::secondaryInk(ink);
         int y = margin;
         QFont bold = font();
         bold.setWeight(QFont::DemiBold);
@@ -862,8 +861,7 @@ private:
         // caps set small: the face's small cut at semibold (bold that small clots), a little apart
         QFont label = KisModernStyle::textFont(font(), 0.8, QFont::DemiBold);
         label.setLetterSpacing(QFont::PercentageSpacing, 106);
-        QColor faint = palette().color(QPalette::ToolTipText);
-        faint.setAlphaF(0.65);
+        const QColor faint = KisModernStyle::secondaryInk(palette().color(QPalette::ToolTipText));
         painter.setFont(label);
         painter.setPen(faint);
         const int labelHeight = QFontMetrics(font()).height();

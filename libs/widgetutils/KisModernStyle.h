@@ -101,6 +101,12 @@ public:
     static QFont textFont(const QFont &font, qreal scale, QFont::Weight weight = QFont::Normal);
 
     /**
+     * \p ink as secondary text is set (hints, captions, units, column
+     * labels): faint, but still readable on glass over a bright canvas
+     */
+    static QColor secondaryInk(QColor ink);
+
+    /**
      * The action whose shortcut a menu entry shows: the entry itself, or
      * the action it stands in for (its "kisShortcutTarget" property: menus
      * may name an action in fewer words). None for what has no shortcut of

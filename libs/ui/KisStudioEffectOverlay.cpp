@@ -439,9 +439,7 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
 
     d->hint = new QLabel(this);
     QPalette hintPalette = d->hint->palette();
-    QColor hintInk = hintPalette.color(QPalette::WindowText);
-    hintInk.setAlphaF(0.6);
-    hintPalette.setColor(QPalette::WindowText, hintInk);
+    hintPalette.setColor(QPalette::WindowText, KisModernStyle::secondaryInk(hintPalette.color(QPalette::WindowText)));
     d->hint->setPalette(hintPalette);
     d->hint->setContentsMargins(26, 0, 0, 2);
     layout->addWidget(d->hint);

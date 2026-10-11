@@ -207,9 +207,7 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
         const QPalette &pal = palette();
         const bool tiles = m_d->source.tiles;
-        QColor dim = pal.color(QPalette::WindowText);
-        // faint, but readable on glass over a bright canvas
-        dim.setAlphaF(0.62);
+        const QColor dim = KisModernStyle::secondaryInk(pal.color(QPalette::WindowText));
 
         QFont headerFont = font();
         headerFont.setPointSizeF(headerFont.pointSizeF() * 0.8);
@@ -693,9 +691,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     footer->setContentsMargins(8, 2, 4, 0);
     d->hint = new QLabel(i18nc("@info", "Drag to reorder, the star adds or removes"), this);
     QPalette hintPalette = d->hint->palette();
-    QColor hintInk = hintPalette.color(QPalette::WindowText);
-    hintInk.setAlphaF(0.62);
-    hintPalette.setColor(QPalette::WindowText, hintInk);
+    hintPalette.setColor(QPalette::WindowText, KisModernStyle::secondaryInk(hintPalette.color(QPalette::WindowText)));
     d->hint->setPalette(hintPalette);
     footer->addWidget(d->hint, 1);
     auto *all = new LinkButton(this);

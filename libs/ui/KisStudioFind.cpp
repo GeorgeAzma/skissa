@@ -344,8 +344,7 @@ public:
 
         const QPalette &pal = option.palette;
         const QColor text = pal.color(QPalette::Text);
-        QColor dim = text;
-        dim.setAlphaF(0.65);
+        const QColor dim = KisModernStyle::secondaryInk(text);
         const QRect r = option.rect;
 
         if (index.data(MessageRole).toBool()) {
