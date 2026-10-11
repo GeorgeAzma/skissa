@@ -122,8 +122,13 @@ void KisStudioCanvasRing::open(QWidget *canvas, const QPointF &pos)
     if (!view || !resources) {
         return;
     }
-    if (parentWidget() != canvas) {
-        setParent(canvas);
+    /**
+     * In the window, over everything in it (the panels, the rail, the top
+     * bars), its glass over theirs: not in the canvas, which they lie over
+     */
+    if (parentWidget() != m_mainWindow) {
+        setParent(m_mainWindow);
+        KisStudioGlass::setOverOverlays(this);
     }
 
     loadSlots();
@@ -140,7 +145,7 @@ void KisStudioCanvasRing::open(QWidget *canvas, const QPointF &pos)
     QPointF at = pos;
     if (canvas->width() > width()) at.setX(qBound(half.width(), at.x(), canvas->width() - half.width()));
     if (canvas->height() > height()) at.setY(qBound(half.height(), at.y(), canvas->height() - half.height()));
-    move((at - QPointF(half.width(), half.height())).toPoint());
+    move(m_mainWindow->mapFromGlobal(canvas->mapToGlobal((at - QPointF(half.width(), half.height())).toPoint())));
     m_center = QPointF(half.width(), half.height());
 
     m_held = true;
@@ -421,10 +426,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
 void KisStudioCanvasRing::hideEvent(QHideEvent *event)
 {
     QWidget::hideEvent(event);
-    // off the canvas while hidden: a closed view must not take the ring with it
-    QTimer::singleShot(0, this, [this]() {
-        if (!isVisible() && parentWidget()) setParent(nullptr);
-    });
+    // in the window, not in a view: a closed view does not take it with it
 }
 
 void KisStudioCanvasRing::paintEvent(QPaintEvent *)

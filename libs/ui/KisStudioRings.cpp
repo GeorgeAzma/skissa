@@ -57,10 +57,12 @@ class CommandRing : public QWidget
 {
 public:
     CommandRing(KisStudioRings *rings, KisMainWindow *mainWindow)
-        : QWidget(mainWindow->centralWidget())
+        // in the window, over everything in it, its glass over theirs
+        : QWidget(mainWindow)
         , m_rings(rings)
         , m_mainWindow(mainWindow)
     {
+        KisStudioGlass::setOverOverlays(this);
         setAttribute(Qt::WA_NoSystemBackground);
         setMouseTracking(true);
         setFixedSize(int(2 * plateRadius + 16), int(2 * plateRadius + 16));
