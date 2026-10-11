@@ -106,9 +106,27 @@ NodeDelegate::~NodeDelegate()
 
 int NodeDelegate::extraHeight(const QModelIndex &index) const
 {
-    const QModelIndex current = d->view->currentIndex();
-    const bool currentRow = current.isValid() && current.row() == index.row() && current.parent() == index.parent();
-    return currentRow && d->view->property("rowControls").toBool() ? rowControlsHeight : 0;
+    Q_UNUSED(index);
+    return 0;
+}
+
+/// Whether \p index is the selected layer's row, with its blend mode and opacity in it
+static bool holdsControls(const QAbstractItemView *view, const QModelIndex &index)
+{
+    const QModelIndex current = view->currentIndex();
+    return view->property("rowControls").toBool() && current.isValid() && current.row() == index.row()
+        && current.parent() == index.parent();
+}
+
+QRect NodeDelegate::inlineControlsRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const
+{
+    QStyleOptionViewItem option;
+    option.rect = row;
+    option.direction = direction;
+    const QRect icons = iconsRect(option, index);
+    const int width = d->view->property("rowControlsWidth").toInt();
+    const int left = direction == Qt::RightToLeft ? icons.right() + 1 : icons.left() - width;
+    return QRect(left, row.top(), width, d->rowHeight);
 }
 
 QSize NodeDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
@@ -391,6 +409,15 @@ QRect NodeDelegate::textRect(const QStyleOptionViewItem &option, const QModelInd
     const bool decorated = showsDecoration(index) || (option.state & QStyle::State_Children);
     QRect rc = QRect((option.direction == Qt::RightToLeft) ? iconRect.topRight() : (decorated ? decoRect.topRight() : decoRect.topLeft()),
                      (option.direction == Qt::RightToLeft) ? (decorated ? decoRect.bottomLeft() : decoRect.bottomRight()) : iconRect.bottomLeft());
+    // the selected layer's blend mode and opacity by its icons
+    if (holdsControls(d->view, index)) {
+        const int controls = d->view->property("rowControlsWidth").toInt();
+        if (option.direction == Qt::RightToLeft) {
+            rc.setLeft(rc.left() + controls);
+        } else {
+            rc.setRight(rc.right() - controls);
+        }
+    }
     rc.adjust(-(scm.border()+(minbearing/2)), 0,
                (scm.border()+(minbearing/2)), 0);
 
@@ -413,6 +440,25 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
     }
 
     const QString text = index.data(Qt::DisplayRole).toString();
+    if (d->view->property("rowControls").toBool()) {
+        /**
+         * The name, and by the icons what is unusual about the layer's blend
+         * (its mode, its opacity: where the selected layer has them to change)
+         */
+        const QString info = holdsControls(d->view, index) ? QString() : index.data(KisNodeModel::InfoTextRole).toString();
+        const int infoWidth = info.isEmpty() ? 0 : p->fontMetrics().horizontalAdvance(info) + scm.textMargin() * 2;
+        const QString name = p->fontMetrics().elidedText(text, Qt::ElideRight, qMax(0, rc.width() - infoWidth));
+        const Qt::Alignment start = option.direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft;
+        const Qt::Alignment end = option.direction == Qt::RightToLeft ? Qt::AlignLeft : Qt::AlignRight;
+        p->drawText(rc, start | Qt::AlignVCenter, name);
+        if (!info.isEmpty()) {
+            p->setOpacity(p->opacity() * 0.55);
+            p->drawText(rc, end | Qt::AlignVCenter, p->fontMetrics().elidedText(info, Qt::ElideLeft, infoWidth));
+        }
+        p->setPen(oldPen);
+        p->setOpacity(oldOpacity);
+        return;
+    }
     const QString elided = p->fontMetrics().elidedText(text, Qt::ElideRight, rc.width());
     KisConfig cfg(true);
     if (cfg.layerInfoTextStyle() == KisConfig::LayerInfoTextStyle::INFOTEXT_NONE) {
@@ -785,16 +831,38 @@ void NodeDelegate::drawIcons(QPainter *p, const QStyleOptionViewItem &option, co
     }
 
     // a row says what is unusual about its layer; the rest shows while it is pointed at or selected
+    const bool pointedAt = option.state & QStyle::State_MouseOver;
     const bool revealAll = option.state & (QStyle::State_MouseOver | QStyle::State_Selected);
+    // a hidden layer is its closed eye: nothing else of it matters until it is pointed at
+    KisBaseNode::PropertyList allProps = props;
+    const OptionalProperty visibility = d->findVisibilityProperty(allProps);
+    const bool hidden = visibility && !visibility->state.toBool();
+    // the icon under the pointer, lit, on a backplate of its own
+    const QPoint pointer = d->view->viewport()->mapFromGlobal(QCursor::pos()) - rc.topLeft();
+    const int slot = scm.iconSize() + 2 * scm.iconMargin() + scm.border();
+    const int under = pointedAt && pointer.y() >= 0 && pointer.y() < rc.height() && pointer.x() >= 0 ? pointer.x() / slot : -1;
+    int slotAt = 0;
 
     Q_FOREACH (OptionalProperty prop, realProps) {
+        const bool lit = slotAt++ == under;
         x += scm.iconMargin();
-        if (prop && (prop->state.toBool() || revealAll)) {
+        if (prop && (prop->state.toBool() || revealAll) && (!hidden || pointedAt)) {
             QIcon icon = prop->state.toBool() ? prop->onIcon : prop->offIcon;
             bool fullColor = prop->state.toBool() && option.state & QStyle::State_Enabled;
 
             const qreal oldOpacity = p->opacity(); // remember previous opacity
-            if (fullColor) {
+            if (lit) {
+                QColor plate = option.palette.color(QPalette::Text);
+                plate.setAlphaF(0.14);
+                p->save();
+                p->setRenderHint(QPainter::Antialiasing, true);
+                p->setPen(Qt::NoPen);
+                p->setBrush(plate);
+                p->drawPath(KisModernStyle::squircle(QRectF(x - scm.iconMargin() + 1, y - scm.iconMargin() + 1, scm.iconSize() + 2 * scm.iconMargin() - 2,
+                                                            scm.iconSize() + 2 * scm.iconMargin() - 2), 4));
+                p->restore();
+            }
+            if (fullColor || lit) {
                 p->setOpacity(1.0);
             } else {
                 p->setOpacity(0.35);

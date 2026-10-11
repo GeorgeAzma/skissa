@@ -105,6 +105,8 @@
 #include "KisModernStyle.h"
 #include "KisTouchMode.h"
 #include "NodeDelegate.h"
+#include <QStyleOption>
+#include <QTimer>
 
 class LayerBoxStyle : public QProxyStyle
 {
@@ -382,21 +384,53 @@ LayerBox::LayerBox()
         // room around the rows, as the other panels have around what is in them
         ui->verticalLayout->setContentsMargins(6, 2, 6, 6);
 
-        // in the selected row, under the layer: see NodeDelegate::extraHeight()
+        // in the selected layer's row, by its icons: see NodeDelegate::inlineControlsRect()
         ui->listLayers->setProperty("rowControls", true);
         m_rowControls = new QWidget(ui->listLayers->viewport());
         auto *row = new QHBoxLayout(m_rowControls);
-        row->setContentsMargins(6, 2, 8, 6);
-        row->setSpacing(6);
-        // flat on the row's own highlight: a box only when pointed at
+        row->setContentsMargins(0, 3, 2, 3);
+        row->setSpacing(2);
+        // flat on the row's own highlight: a box only when pointed at; as wide as its mode
         ui->cmbComposite->setFrame(false);
-        row->addWidget(ui->cmbComposite, 1);
+        row->addWidget(ui->cmbComposite);
         ui->doubleOpacity->setToolTip(i18nc("@info:tooltip", "Layer opacity"));
         ui->doubleOpacity->setButtonSymbols(QAbstractSpinBox::NoButtons);
         // the number and a hairline of it, a slider when pointed at
         ui->doubleOpacity->setFrame(false);
         ui->doubleOpacity->setProperty(KisModernStyle::quietFieldProperty, true);
-        row->addWidget(ui->doubleOpacity, 1);
+        ui->doubleOpacity->setFixedWidth(46);
+        row->addWidget(ui->doubleOpacity);
+        // the row's name ends where they begin, which is as wide as the mode's name makes them
+        auto fit = [this]() {
+            Ui_WdgLayerBox *ui = m_wdgLayerBox;
+            QStyleOptionComboBox option;
+            option.initFrom(ui->cmbComposite);
+            option.frame = false;
+            const QSize text(ui->cmbComposite->fontMetrics().horizontalAdvance(ui->cmbComposite->currentText()), ui->cmbComposite->height());
+            const int mode = qMin(140, ui->cmbComposite->style()->sizeFromContents(QStyle::CT_ComboBox, &option, text, ui->cmbComposite).width());
+            ui->cmbComposite->setFixedWidth(mode);
+            // (its width() is the new one only once the layout has run)
+            const QMargins margins = m_rowControls->layout()->contentsMargins();
+            const int width = mode + m_rowControls->layout()->spacing() + 46 + margins.left() + margins.right();
+            if (ui->listLayers->property("rowControlsWidth").toInt() != width) {
+                ui->listLayers->setProperty("rowControlsWidth", width);
+                ui->listLayers->viewport()->update();
+            }
+        };
+        connect(ui->cmbComposite, QOverload<int>::of(&QComboBox::currentIndexChanged), this, fit);
+        fit();
+        // once its font is the panel's
+        QTimer::singleShot(0, this, fit);
+        // the layer's blend, quieter than its name next to it
+        for (QWidget *quiet : std::initializer_list<QWidget *>{ui->cmbComposite, ui->doubleOpacity}) {
+            QPalette palette = quiet->palette();
+            for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::Text, QPalette::WindowText}) {
+                QColor ink = palette.color(role);
+                ink.setAlphaF(0.62);
+                palette.setColor(role, ink);
+            }
+            quiet->setPalette(palette);
+        }
         m_rowControls->hide();
         ui->listLayers->viewport()->installEventFilter(this);
         ui->listLayers->installEventFilter(this);
@@ -1127,8 +1161,12 @@ void LayerBox::placeRowControls()
         if (m_rowControls->isVisible()) m_rowControls->hide();
         return;
     }
-    const QRect rect(row.left(), row.bottom() + 1 - NodeDelegate::rowControlsHeight,
-                     view->viewport()->width() - row.left(), NodeDelegate::rowControlsHeight);
+    auto *delegate = qobject_cast<NodeDelegate *>(view->itemDelegate());
+    const QRect rect = delegate ? delegate->inlineControlsRect(main, row, view->layoutDirection()) : QRect();
+    if (rect.isEmpty()) {
+        if (m_rowControls->isVisible()) m_rowControls->hide();
+        return;
+    }
     if (m_rowControls->geometry() != rect) m_rowControls->setGeometry(rect);
     if (!m_rowControls->isVisible()) m_rowControls->show();
 }

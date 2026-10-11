@@ -268,6 +268,10 @@ bool NodeView::viewportEvent(QEvent *e)
                 }
                 d->hovered = hovered;
             }
+            // within the row too: the icon pointed at is lit
+            if (hovered.isValid()) {
+                viewport()->update(QRect(0, visualRect(hovered).top(), viewport()->width(), visualRect(hovered).height()));
+            }
             /* This is a workaround for a bug in QTreeView that immediately begins a dragging action
             when the mouse lands on the decoration/icon of a different index and moves 1 pixel or more */
             Qt::MouseButtons buttons = static_cast<QMouseEvent*>(e)->buttons();

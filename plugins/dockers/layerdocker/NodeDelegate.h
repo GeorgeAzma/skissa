@@ -38,10 +38,14 @@ public:
 
     void toggleSolo(const QModelIndex &index);
 
-    /// The selected layer's row holds its blend mode and opacity under it: this much taller
-    static constexpr int rowControlsHeight = 34;
-    /// The height of the row's own content: the selected row is taller than that by rowControlsHeight
+    /// How much taller than its content a row is (none: the selected layer's blend mode and opacity are in its row)
     int extraHeight(const QModelIndex &index) const;
+
+    /**
+     * Where in \p row (the layer's cell) the selected layer's blend mode and
+     * opacity are: by its icons, as wide as the view's "rowControlsWidth"
+     */
+    QRect inlineControlsRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const;
 
     void slotUpdateIcon();
 
