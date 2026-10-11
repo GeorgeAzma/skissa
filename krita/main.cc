@@ -301,7 +301,8 @@ private:
      * capture image (lParam: x, y), through Qt's input queue like real input,
      * so that grabs, hovering and popups behave as they do with a mouse. It
      * does not move the system cursor or take the focus. wParam: 0 move,
-     * 1/2 left press/release, 3/4 right press/release, 5/6 wheel up/down.
+     * 1/2 left press/release, 3/4 right press/release, 5/6 wheel up/down,
+     * 7/8/9 a finger down/moving/up, 10/11 middle press/release (a pan).
      */
     static void mouse(int action, const QPoint &imagePos)
     {
@@ -334,6 +335,8 @@ private:
         case 2: button = Qt::LeftButton; type = QEvent::MouseButtonRelease; buttons &= ~button; break;
         case 3: button = Qt::RightButton; type = QEvent::MouseButtonPress; buttons |= button; break;
         case 4: button = Qt::RightButton; type = QEvent::MouseButtonRelease; buttons &= ~button; break;
+        case 10: button = Qt::MiddleButton; type = QEvent::MouseButtonPress; buttons |= button; break;
+        case 11: button = Qt::MiddleButton; type = QEvent::MouseButtonRelease; buttons &= ~button; break;
         case 5:
         case 6:
             QWindowSystemInterface::handleWheelEvent(window, local, nativeGlobal, QPoint(), QPoint(0, action == 5 ? 120 : -120));
