@@ -1418,8 +1418,9 @@ KisStudioGlass::Bevel KisStudioGlass::bevel()
         // a thick pane, clear far into its bevel; its edge catches the light, and its colors spread
         return {at(16, 22, 26), at(0, 24, 34), at(0, 28, 40), fadeIn, 0.55, 0.45 * fadeIn, 22};
     }
-    // a polished rim: the canvas under it bent, clear toward the edge
-    return {at(10, 16, 20), at(0, 17, 24), at(0, 31, 44), 0.85 * fadeIn, 0, 0, 40};
+    // a polished rim: the canvas under it bent, clear over the outer third of it (filtered as much as it
+    // is squeezed, it keeps its detail without shimmering), then into the frost
+    return {at(10, 16, 20), at(0, 17, 24), at(0, 31, 44), 0.85 * fadeIn, 0.35, 0, 40};
 }
 
 void KisStudioGlass::paintBorder(QPainter &painter, QWidget *widget, const QPainterPath &shape, const QColor &color, qreal width)

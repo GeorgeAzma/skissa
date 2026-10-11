@@ -405,10 +405,26 @@ vec3 canvasLightAt(vec2 q)
     return decode ? fromSrgb(c) : c;
 }
 
-vec3 clearLab(vec2 q)
+/**
+ * The canvas over what a pixel at q sees of it (jx, jy: how far that moves a
+ * pixel across and down), averaged in light: where the bevel bends it little,
+ * a pixel sees about a pixel, all its detail; where it squeezes much of the
+ * canvas into a pixel, all of that, its taps spread along the squeeze (none
+ * of it skipped: no shimmer, no stair steps), never blurred beyond it.
+ */
+vec3 clearLab(vec2 q, vec2 jx, vec2 jy)
 {
-    vec2 o = vec2(1.5, 0.0);
-    return toOklab(0.4 * canvasLightAt(q) + 0.15 * (canvasLightAt(q + o) + canvasLightAt(q - o) + canvasLightAt(q + o.yx) + canvasLightAt(q - o.yx)));
+    bool across = dot(jx, jx) > dot(jy, jy);
+    vec2 major = across ? jx : jy;
+    vec2 minor = across ? jy : jx;
+    int n = int(clamp(ceil(length(major)), 1.0, 12.0));
+    vec3 sum = vec3(0.0);
+    for (int i = 0; i < 12; i++) {
+        if (i >= n) break;
+        vec2 o = major * ((float(i) + 0.5) / float(n) - 0.5);
+        sum += canvasLightAt(q + o + 0.25 * minor) + canvasLightAt(q + o - 0.25 * minor);
+    }
+    return toOklab(sum / float(2 * n));
 }
 
 // a point the rim sees, kept within as far around the panel as the canvas is blurred (reach): a
@@ -466,6 +482,25 @@ void main()
     vec2 p = gl_FragCoord.xy;
     vec2 normal2d;
     float d = -outside(p, normal2d);
+
+    // the bevel: no wider than the corners are round, nor than the panel is
+    float w = min(bevel.x, min(corner.x, min(shape.z, shape.w)));
+    bool onBevel = w > 0.5 && d < w;
+    float h = bevel.y * w / max(bevel.x, 1e-3);
+    vec2 bend = vec2(0.0);
+    vec3 normal = vec3(0.0, 0.0, 1.0);
+    // where a pixel sees the canvas (the middle color's ray), and how far that moves a pixel across and
+    // down: of every pixel, before any is left out (derivatives are of the four pixels together)
+    vec2 seenAt = p;
+    if (onBevel) {
+        bend = bevelOver(d, w, h);
+        normal = normalize(vec3(normal2d * bend.y, 1.0));
+        vec3 back;
+        seenAt = p + trace(normal, bend.x, ior.g, back).xy;
+    }
+    vec2 jx = dFdx(seenAt);
+    vec2 jy = dFdy(seenAt);
+
     float coverage = clamp(d + 0.5, 0.0, 1.0) * opacity;
     if (coverage <= 0.0) {
         discard;
@@ -475,13 +510,8 @@ void main()
     vec3 tintLight = fromSrgb(tint);
     vec3 tintLab = toOklab(tintLight);
 
-    // the bevel: no wider than the corners are round, nor than the panel is
-    float w = min(bevel.x, min(corner.x, min(shape.z, shape.w)));
     vec3 color;
-    if (w > 0.5 && d < w) {
-        float h = bevel.y * w / bevel.x;
-        vec2 bend = bevelOver(d, w, h);
-        vec3 normal = normalize(vec3(normal2d * bend.y, 1.0));
+    if (onBevel) {
         // polished toward the rim, it shows the canvas itself, bent; into the face, the frost, without a step
         float clear = polish * (1.0 - smoothstep(clearing, 1.0, d / w));
 
@@ -495,7 +525,7 @@ void main()
             if (ray.z > 0.0) {
                 vec2 q = held(p + ray.xy);
                 seen = frostedLab(q);
-                if (clear > 0.0) seen = mix(seen, clearLab(q), clear);
+                if (clear > 0.0) seen = mix(seen, clearLab(q, jx, jy), clear);
             } else {
                 // reflected inside, scattered by the frost: the glass itself
                 seen = frostedLab(p);
