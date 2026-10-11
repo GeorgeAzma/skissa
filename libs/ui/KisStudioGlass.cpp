@@ -1419,10 +1419,10 @@ KisStudioGlass::Bevel KisStudioGlass::bevel()
     const qreal fadeIn = qMin<qreal>(1, r * 2);
     if (style() == Style::Liquid) {
         // a thick pane; its edge catches the light, and its colors spread
-        return {at(16, 22, 26), at(0, 24, 34), at(0, 28, 40), fadeIn, 0.45 * fadeIn, 22};
+        return {at(16, 22, 26), at(0, 24, 34), at(0, 28, 40), fadeIn, 0.55, 0.45 * fadeIn, 22};
     }
-    // a polished rim: the canvas under it bent, clear at the rim, as frosted as the bevel is thick inward
-    return {at(10, 16, 20), at(0, 17, 24), at(0, 31, 44), 0.85 * fadeIn, 0, 40};
+    // a polished rim: the canvas under it bent, clear over the outer third of it, then blurred into the frost
+    return {at(10, 16, 20), at(0, 17, 24), at(0, 31, 44), 0.85 * fadeIn, 0.35, 0, 40};
 }
 
 void KisStudioGlass::paintBorder(QPainter &painter, QWidget *widget, const QPainterPath &shape, const QColor &color, qreal width)

@@ -249,6 +249,7 @@ uniform float dither;
 uniform float veil;
 uniform vec3 bevel;
 uniform float polish;
+uniform float clearing;
 uniform float gloss;
 uniform vec3 ior;
 uniform vec4 reach;
@@ -602,15 +603,23 @@ void main()
     vec3 tintLab = toOklab(tintLight);
 
     /**
-     * How blurred what the glass shows is: as much as the glass is thick
-     * there. The frost is in the glass, so where the bevel rises from the rim
-     * to the face the blur grows with it, from a pixel's worth at the rim (all
-     * polish) to the frost's where the bevel is the face; the height meets the
-     * face flat, every derivative 0 (see profile), and so does the blur: the
-     * bevel's blur and the face's frost are one.
+     * How blurred what the glass shows is, d in from the rim: clear (a
+     * pixel's worth, all polish) over the outer share of the bevel (clearing),
+     * the canvas bent there as it is; from there to the face the blur grows to
+     * the frost's, by its log, eased without a seam of any order. A growing
+     * blur, not a clear picture faded into the frost (whose edges would show
+     * where it fades out).
      */
     float sharpest = exp(mix(log(sigma), log(0.35), polish));
-    float blur = onBevel ? max(sharpest, sigma * clamp(bend.x / max(h, 1e-3), 0.0, 1.0)) : sigma;
+    // the middle of seamless (its ends are flat, its middle steep: the light changed in a few pixels), made 0 to 1
+    float frosting = 1.0;
+    if (onBevel) {
+        float t = clamp((d / w - clearing) / max(1.0 - clearing, 1e-3), 0.0, 1.0);
+        float low = seamless(0.2);
+        float high = seamless(0.8);
+        frosting = clamp((seamless(0.2 + 0.6 * t) - low) / (high - low), 0.0, 1.0);
+    }
+    float blur = exp(mix(log(sharpest), log(sigma), frosting));
 
     vec3 color;
     if (onBevel) {
@@ -625,7 +634,9 @@ void main()
             vec3 seen;
             if (ray.z > 0.0) {
                 vec2 q = held(p + ray.xy);
-                seen = throughLower(blurredLab(q, blur, jx, jy), q);
+                // and as much on its way to the frost itself: its light follows the blur's growth as evenly
+                // (blurred alone, a dark shape stays dark until the blur is wider than it, then lightens at once)
+                seen = throughLower(mix(blurredLab(q, blur, jx, jy), frostedLab(q), frosting), q);
             } else {
                 // reflected inside, scattered by the frost: the glass itself
                 seen = throughLower(frostedLab(p), p);
@@ -897,7 +908,7 @@ bool KisOpenGLGlass::initialize()
         && d->glass.make(glassVertexSource, glassSource,
                          {"rect", "blurred", "statistics", "shift", "slot", "restore", "power",
                           "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
-                          "beyond", "spacing", "dither", "veil", "bevel", "polish", "gloss", "ior", "under", "decode", "reach",
+                          "beyond", "spacing", "dither", "veil", "bevel", "polish", "clearing", "gloss", "ior", "under", "decode", "reach",
                           "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength", "small", "level1", "level2", "levelSigmas"})
         && d->ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
         && d->ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"});
@@ -1266,6 +1277,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     const KisStudioGlass::Bevel bevel = KisStudioGlass::bevel();
     f->glUniform3f(d->glass["bevel"], bevel.width * pixelRatio, bevel.thickness * pixelRatio, bevel.lift * pixelRatio);
     f->glUniform1f(d->glass["polish"], bevel.polish);
+    f->glUniform1f(d->glass["clearing"], bevel.clear);
     f->glUniform1f(d->glass["gloss"], bevel.gloss);
     const QVector3D ior = refractiveIndices(bevel.abbeNumber);
     f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
