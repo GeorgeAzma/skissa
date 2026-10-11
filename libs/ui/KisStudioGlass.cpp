@@ -996,6 +996,38 @@ void setQmlGlass(QWidget *widget, bool on)
     }
 }
 const char *const seeThroughProperty = "studioGlassSeeThrough";
+/// A list whose viewport it no longer fills: to be filled again when its panel is solid again
+const char *const unfilledViewProperty = "studioGlassUnfilledView";
+
+/**
+ * A list in a see-through panel lies on the glass, as the rest of the panel
+ * does: its viewport not filled with the base color (a lighter box with
+ * square corners); its rows, selected or hovered, are painted all the same
+ */
+void setListOnGlass(QAbstractItemView *view, bool on)
+{
+    QWidget *viewport = view->viewport();
+    if (!viewport) return;
+    if (on && viewport->autoFillBackground()) {
+        viewport->setAutoFillBackground(false);
+        view->setProperty(unfilledViewProperty, true);
+        viewport->update();
+    } else if (!on && view->property(unfilledViewProperty).toBool()) {
+        viewport->setAutoFillBackground(true);
+        view->setProperty(unfilledViewProperty, false);
+        viewport->update();
+    }
+}
+
+/// Whether \p widget is in a see-through panel (in its window: a dropdown's list is a window of its own)
+bool inSeeThrough(const QWidget *widget)
+{
+    for (const QWidget *w = widget; w; w = w->parentWidget()) {
+        if (w->property(seeThroughProperty).toBool()) return true;
+        if (w->isWindow()) break;
+    }
+    return false;
+}
 
 } // namespace
 
@@ -1026,6 +1058,10 @@ void KisStudioGlass::setSeeThrough(QWidget *widget, bool on)
         }
         widget->setPalette(palette);
         setQmlGlass(widget, true);
+        // its lists on the glass (those made later as they are first shown: see MenuGlass)
+        Q_FOREACH (QAbstractItemView *view, widget->findChildren<QAbstractItemView *>()) {
+            if (view->window() == widget->window()) setListOnGlass(view, true);
+        }
         // a dropdown's list is a window of its own, but given its box's palette: it stays solid
         Q_FOREACH (QComboBox *box, widget->findChildren<QComboBox *>()) {
             QWidget *popup = box->view() ? box->view()->window() : nullptr;
@@ -1042,6 +1078,9 @@ void KisStudioGlass::setSeeThrough(QWidget *widget, bool on)
         }
         widget->setProperty(savedPaletteProperty, QVariant());
         setQmlGlass(widget, false);
+        Q_FOREACH (QAbstractItemView *view, widget->findChildren<QAbstractItemView *>()) {
+            if (!inSeeThrough(view)) setListOnGlass(view, false);
+        }
     }
 }
 
@@ -1128,6 +1167,13 @@ protected:
     {
         if (event->type() != QEvent::Polish && event->type() != QEvent::Paint) {
             return false;
+        }
+        // a list first shown in a see-through panel lies on the glass (see KisStudioGlass::setSeeThrough)
+        if (event->type() == QEvent::Polish) {
+            if (auto *view = qobject_cast<QAbstractItemView *>(watched)) {
+                if (inSeeThrough(view)) setListOnGlass(view, true);
+                return false;
+            }
         }
         QMenu *menu = qobject_cast<QMenu *>(watched);
         if (!menu) {

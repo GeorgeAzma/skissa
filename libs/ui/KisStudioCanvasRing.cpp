@@ -24,6 +24,7 @@
 #include "KisResourceServerProvider.h"
 #include "KisStrokeLog.h"
 #include "KisStudioBrushPicker.h"
+#include "KisStudioGlass.h"
 #include "KisStudioMotion.h"
 #include "KisViewManager.h"
 #include "canvas/kis_canvas2.h"
@@ -337,27 +338,26 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    const QPalette pal = palette();
+    QColor line = pal.color(QPalette::WindowText);
+    line.setAlphaF(0.1);
+    const QColor accent = pal.color(QPalette::Highlight);
+
+    // the plate: glass, as the panels are, with a soft shadow around it. As large as it is grown so far,
+    // where the canvas draws its glass (a square's corners as round as half its side are a circle)
+    const qreal plate = (plateRadius - 6) * m_scale;
+    const QRectF plateRect(m_center - QPointF(plate, plate), QSizeF(2 * plate, 2 * plate));
+    KisStudioGlass::paintShadow(painter, plateRect, plate, 8, 26, 3);
+    painter.save();
+    const QPainterPath plateShape = KisStudioGlass::paint(painter, this, plateRect, plate);
+    painter.restore();
+    KisStudioGlass::paintBorder(painter, this, plateShape, line);
+
     if (m_scale < 1.0) {
         painter.translate(m_center);
         painter.scale(m_scale, m_scale);
         painter.translate(-m_center);
     }
-    const QPalette pal = palette();
-    QColor plate = pal.color(QPalette::Window);
-    plate.setAlphaF(0.92);
-    QColor line = pal.color(QPalette::WindowText);
-    line.setAlphaF(0.1);
-    const QColor accent = pal.color(QPalette::Highlight);
-
-    // the plate, with a soft shadow
-    for (int i = 6; i > 0; i -= 2) {
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(0, 0, 0, 14));
-        painter.drawEllipse(m_center + QPointF(0, 3), plateRadius - 6 + i, plateRadius - 6 + i);
-    }
-    painter.setBrush(plate);
-    painter.setPen(QPen(line, 1));
-    painter.drawEllipse(m_center, plateRadius - 6, plateRadius - 6);
 
     // the direction being flicked towards
     if (m_hover >= 0 && m_hover < m_slots.size()) {
