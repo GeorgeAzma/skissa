@@ -17,6 +17,7 @@
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QHBoxLayout>
+#include <QStyleOption>
 #include <QIdentityProxyModel>
 #include <QSignalBlocker>
 #include <QKeyEvent>
@@ -192,6 +193,18 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
     layout->setSpacing(0);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(d->comboBox, 1);
+
+    // never narrower than the tag shown (beside the search, which takes what it leaves)
+    auto fit = [this]() {
+        QStyleOptionComboBox option;
+        option.initFrom(d->comboBox);
+        option.frame = false;
+        int text = d->comboBox->fontMetrics().horizontalAdvance(d->comboBox->currentText());
+        if (!d->comboBox->itemIcon(d->comboBox->currentIndex()).isNull()) text += d->comboBox->iconSize().width() + 4;
+        d->comboBox->setMinimumWidth(qMin(220, d->comboBox->style()->sizeFromContents(QStyle::CT_ComboBox, &option, QSize(text, d->comboBox->height()), d->comboBox).width()));
+    };
+    connect(d->comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, fit);
+    QTimer::singleShot(0, this, fit);
 
     d->undoButton = new QToolButton(this);
     d->undoButton->setAutoRaise(true);

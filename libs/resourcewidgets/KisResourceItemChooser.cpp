@@ -727,14 +727,17 @@ void KisResourceItemChooser::applyVerticalLayout()
     KisResourceItemChooserSync *chooserSync = KisResourceItemChooserSync::instance();
     d->view->setItemSize(QSize(chooserSync->baseLength(), chooserSync->baseLength()));
 
+    // the tag and the search over the items, on one line: the search takes what the tag leaves
     QGridLayout* thisLayout = dynamic_cast<QGridLayout*>(layout());
     thisLayout->addWidget(d->tagManager->tagChooserWidget(), 0, 0);
-    thisLayout->addWidget(d->viewModeButton, 0, 1);
-    thisLayout->addWidget(d->storagePopupButton, 0, 2);
-    thisLayout->addWidget(d->resourcesSplitter, 1, 0, 1, 3);
+    thisLayout->addWidget(d->tagManager->tagFilterWidget(), 0, 1);
+    thisLayout->addWidget(d->viewModeButton, 0, 2);
+    thisLayout->addWidget(d->storagePopupButton, 0, 3);
+    thisLayout->setColumnStretch(0, 0);
+    thisLayout->setColumnStretch(1, 1);
+    thisLayout->addWidget(d->resourcesSplitter, 1, 0, 1, 4);
     thisLayout->setRowStretch(1, 1);
-    thisLayout->addWidget(d->tagManager->tagFilterWidget(), 2, 0, 1, 3);
-    thisLayout->addWidget(d->importExportBtns, 3, 0, 1, 3);
+    thisLayout->addWidget(d->importExportBtns, 2, 0, 1, 4);
 
     d->viewModeButton->setVisible(d->showViewModeBtn);
     d->storagePopupButton->setVisible(d->showStoragePopupBtn);
@@ -788,6 +791,8 @@ void KisResourceItemChooser::changeLayoutBasedOnSize()
             thisLayout->addWidget(d->horzSplitter, 0, 0);
             thisLayout->setRowStretch(0, 2);
             thisLayout->setColumnStretch(0, 2);
+            // the search's column in the vertical layout: empty here
+            thisLayout->setColumnStretch(1, 0);
             thisLayout->setRowStretch(1, 0);
 
             d->viewModeButton->setVisible(false);
@@ -837,6 +842,8 @@ void KisResourceItemChooser::changeLayoutBasedOnSize()
             thisLayout->addWidget(d->horzSplitter, 0, 0);
             thisLayout->setRowStretch(0, 2);
             thisLayout->setColumnStretch(0, 2);
+            // the search's column in the vertical layout: empty here
+            thisLayout->setColumnStretch(1, 0);
             thisLayout->setRowStretch(1, 0);
 
             d->viewModeButton->setVisible(false);
