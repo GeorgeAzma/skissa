@@ -835,6 +835,8 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     f->glUniform1i(d->blur["source"], 0);
     f->glUniform1i(d->blur["taps"], taps);
     f->glUniform1fv(d->blur["weights"], maxTaps + 1, weights);
+    // all of it is the ambient's (the panels' blurs each keep to a place of their own)
+    f->glUniform4i(d->blur["slot"], 0, 0, smallSize.width() - 1, smallSize.height() - 1);
     d->ambientAcross->bind();
     f->glUniform2i(d->blur["direction"], 1, 0);
     f->glBindTexture(GL_TEXTURE_2D, d->ambientSmall->texture());
