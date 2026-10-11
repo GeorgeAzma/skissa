@@ -138,7 +138,20 @@ void tryInitDrMingw()
 #endif
 
 #if defined Q_OS_WIN
+#include <QAbstractButton>
 #include <QAbstractNativeEventFilter>
+#include <QDockWidget>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QMenu>
+#include <QMenuBar>
+#include <QToolButton>
+#include <QWidgetAction>
+#include <KisStudioFind.h>
+#include <kactioncollection.h>
+#include <kxmlguiclient.h>
+#include <kxmlguifactory.h>
 #include <QFile>
 #include <QPainter>
 
@@ -167,7 +180,12 @@ public:
         static const UINT keyMessage = RegisterWindowMessageW(L"KritaDevKey");
         static const UINT exportMessage = RegisterWindowMessageW(L"KritaDevExport");
         static const UINT treeMessage = RegisterWindowMessageW(L"KritaDevTree");
+        static const UINT shortcutsMessage = RegisterWindowMessageW(L"KritaDevShortcuts");
         const MSG *msg = static_cast<MSG *>(message);
+        if (msg->message == shortcutsMessage) {
+            shortcuts();
+            return true;
+        }
         if (msg->message == captureMessage) {
             capture();
             return true;
@@ -221,6 +239,83 @@ private:
         };
         std::stable_sort(windows.begin(), windows.end(), [&](QWidget *a, QWidget *b) { return layer(a) < layer(b); });
         return windows;
+    }
+
+    /**
+     * A posted "KritaDevShortcuts" message writes every action of the main
+     * window (its GUI clients' and its own) to krita-dev-shortcuts.json in
+     * TEMP: its name, text, tooltip, shortcuts, the client it is of, where it
+     * is in the menus, and the buttons that carry it (a button's own action,
+     * or the one Find made for it), with where those are
+     */
+    static void shortcuts()
+    {
+        KisMainWindow *window = KisPart::instance()->currentMainwindow();
+        if (!window) return;
+        if (KisStudioFind *find = window->studioFind()) find->registerButtons();
+
+        QHash<QAction *, QString> menuPaths;
+        std::function<void(QMenu *, const QString &)> walk = [&](QMenu *menu, const QString &path) {
+            Q_FOREACH (QAction *action, menu->actions()) {
+                const QString text = action->text().remove(QLatin1Char('&'));
+                if (action->menu()) walk(action->menu(), path + QStringLiteral(" > ") + text);
+                else if (!menuPaths.contains(action)) menuPaths.insert(action, path.mid(3));
+            }
+        };
+        Q_FOREACH (QAction *top, window->menuBar()->actions()) {
+            if (top->menu()) walk(top->menu(), QStringLiteral(" > ") + top->text().remove(QLatin1Char('&')));
+        }
+
+        // where a widget is: the panel it is in, and its named parents
+        auto whereOf = [window](QWidget *widget) {
+            QStringList parts;
+            for (QWidget *w = widget->parentWidget(); w && w != window; w = w->parentWidget()) {
+                if (auto *dock = qobject_cast<QDockWidget *>(w)) {
+                    parts.prepend(QStringLiteral("panel:") + dock->windowTitle());
+                    break;
+                }
+                if (!w->objectName().isEmpty() && !w->objectName().startsWith(QLatin1String("qt_"))) parts.prepend(w->objectName());
+            }
+            return parts.join(QLatin1Char('/'));
+        };
+        QHash<QAction *, QStringList> buttons;
+        Q_FOREACH (QAbstractButton *button, window->findChildren<QAbstractButton *>()) {
+            auto *tool = qobject_cast<QToolButton *>(button);
+            if (tool && tool->defaultAction()) {
+                buttons[tool->defaultAction()] << whereOf(button) + (button->isVisible() ? QString() : QStringLiteral(" (hidden)"));
+            }
+        }
+
+        QJsonArray rows;
+        QSet<QAction *> seen;
+        auto add = [&](QAction *action, const QString &client) {
+            if (!action || seen.contains(action) || action->isSeparator() || action->objectName().isEmpty()) return;
+            seen.insert(action);
+            QJsonObject row;
+            row[QStringLiteral("name")] = action->objectName();
+            row[QStringLiteral("text")] = action->text().remove(QLatin1Char('&'));
+            row[QStringLiteral("toolTip")] = action->toolTip();
+            row[QStringLiteral("whatsThis")] = action->whatsThis();
+            QStringList keys;
+            Q_FOREACH (const QKeySequence &key, action->shortcuts()) keys << key.toString(QKeySequence::PortableText);
+            row[QStringLiteral("shortcuts")] = QJsonArray::fromStringList(keys);
+            row[QStringLiteral("client")] = client;
+            row[QStringLiteral("menu")] = menuPaths.value(action);
+            row[QStringLiteral("buttons")] = QJsonArray::fromStringList(buttons.value(action));
+            row[QStringLiteral("checkable")] = action->isCheckable();
+            row[QStringLiteral("hasMenu")] = action->menu() != nullptr;
+            row[QStringLiteral("widgetAction")] = bool(qobject_cast<QWidgetAction *>(action) && qobject_cast<QWidgetAction *>(action)->defaultWidget());
+            rows.append(row);
+        };
+        Q_FOREACH (KisKXMLGUIClient *client, window->guiFactory()->clients()) {
+            if (!client || !client->actionCollection()) continue;
+            Q_FOREACH (QAction *action, client->actionCollection()->actions()) add(action, client->actionCollection()->componentName());
+        }
+        // the window's own (Find's for buttons, the rail's)
+        Q_FOREACH (QAction *action, window->actions()) add(action, QStringLiteral("window"));
+
+        QFile file(QDir::temp().absoluteFilePath(QStringLiteral("krita-dev-shortcuts.json")));
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(QJsonDocument(rows).toJson());
     }
 
     /**
