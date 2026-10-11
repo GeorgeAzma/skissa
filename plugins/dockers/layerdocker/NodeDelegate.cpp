@@ -439,7 +439,9 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
         p->setOpacity(0.55);
     }
 
-    const QString text = index.data(Qt::DisplayRole).toString();
+    QString text = index.data(Qt::DisplayRole).toString();
+    // being renamed: its editor shows the name
+    if (d->edit && d->edit->isVisible() && d->view->indexWidget(index) == d->edit) text.clear();
     if (d->view->property("rowControls").toBool()) {
         /**
          * The name, and by the icons what is unusual about the layer's blend
@@ -1329,8 +1331,15 @@ QWidget *NodeDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem&
     // #400357 do not override QAbstractItemDelegate::setEditorData to update editor's text
     // because replacing the text while user type is confusing
     const QString &text = index.data(Qt::DisplayRole).toString();
-    d->edit = new QLineEdit(text, parent);
+    QLineEdit *edit = new QLineEdit(text, parent);
+    d->edit = edit;
     d->edit->setFocusPolicy(Qt::StrongFocus);
+    // the name typed over where it is written: its font, no box beyond the quiet field's, the text where the name's is
+    edit->setFrame(false);
+    edit->setProperty(KisModernStyle::quietFieldProperty, true);
+    edit->setTextMargins(0, 0, 0, 0);
+    edit->setFont(parent->font());
+    edit->selectAll();
     d->edit->installEventFilter(const_cast<NodeDelegate*>(this)); //hack?
     return d->edit;
 }
@@ -1345,8 +1354,16 @@ void NodeDelegate::setModelData(QWidget *widget, QAbstractItemModel *model, cons
 
 void NodeDelegate::updateEditorGeometry(QWidget *widget, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
-    Q_UNUSED(index);
-    widget->setGeometry(option.rect);
+    // over the name only (not the thumbnail, the blend, the icons): its text where the name's is
+    KisNodeViewColorScheme scm;
+    QStyleOptionViewItem row = option;
+    row.rect.setHeight(d->rowHeight);
+    QRect rc = textRect(row, index).adjusted(scm.textMargin(), 0, -scm.textMargin(), 0);
+    const int height = qMin(rc.height(), widget->sizeHint().height() + 2);
+    rc = QRect(rc.left(), rc.top() + (rc.height() - height) / 2, rc.width(), height);
+    // the line edit's own inset before its text
+    const int inset = 2;
+    widget->setGeometry(rc.adjusted(-inset, 0, 0, 0));
 }
 
 void NodeDelegate::toggleSolo(const QModelIndex &index) {

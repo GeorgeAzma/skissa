@@ -18,6 +18,7 @@
 #include <QContextMenuEvent>
 #include <QHBoxLayout>
 #include <QStyleOption>
+#include <KisModernStyle.h>
 #include <QIdentityProxyModel>
 #include <QSignalBlocker>
 #include <QKeyEvent>
@@ -284,9 +285,15 @@ void KisTagChooserWidget::startNewTag()
         return;
     }
     // the box itself becomes the field for the name
-    auto *editor = new QLineEdit(this);
+    // over the tag and the search beside it (the line they share), as a quiet field in the tag's font
+    QWidget *line = parentWidget() ? parentWidget() : this;
+    auto *editor = new QLineEdit(line);
     editor->setPlaceholderText(i18nc("@info:placeholder", "New tag"));
-    editor->setGeometry(d->comboBox->geometry());
+    editor->setFrame(false);
+    editor->setProperty(KisModernStyle::quietFieldProperty, true);
+    editor->setFont(d->comboBox->font());
+    const QRect here(mapTo(line, QPoint()), size());
+    editor->setGeometry(QRect(here.left(), here.top(), line->width() - here.left(), here.height()));
     editor->setProperty("newTag", true);
     editor->installEventFilter(this);
     editor->show();
@@ -310,6 +317,10 @@ void KisTagChooserWidget::startRename(const QModelIndex &index)
     auto *editor = new QLineEdit(view->viewport());
     // the right click that opened it is not one for the field's own menu
     editor->setContextMenuPolicy(Qt::NoContextMenu);
+    // a quiet field in the list's font, over the tag's row
+    editor->setFrame(false);
+    editor->setProperty(KisModernStyle::quietFieldProperty, true);
+    editor->setFont(view->font());
     editor->setText(tag->name());
     editor->selectAll();
     editor->setGeometry(view->visualRect(index).adjusted(2, 1, -2, -1));
