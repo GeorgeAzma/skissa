@@ -165,6 +165,7 @@
 #include "KisStudioGlass.h"
 #include "KisTouchMode.h"
 #include "KisStudioFind.h"
+#include "KisStudioHoldKeys.h"
 #include <config-qmdiarea-always-show-subwindow-title.h>
 #include <config-qt-patches-present.h>
 #include <KisPlatformPluginInterfaceFactory.h>
@@ -523,6 +524,8 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     d->studioLayout = new KisStudioLayout(this);
     // shortcuts are changed where they are shown, menus too, in either layout
     KisStudioShortcuts::enableMenuEditing();
+    // every shortcut tapped as always, or held: a tool or a toggle while it is held
+    KisStudioHoldKeys::install(this);
     // widgets repaint as often as the screen shows, also while the mouse moves
     KisUpdatePacer::install();
     KisStudioGlass::installMenuGlass();

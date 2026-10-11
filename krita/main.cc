@@ -303,6 +303,7 @@ private:
             row[QStringLiteral("menu")] = menuPaths.value(action);
             row[QStringLiteral("buttons")] = QJsonArray::fromStringList(buttons.value(action));
             row[QStringLiteral("checkable")] = action->isCheckable();
+            row[QStringLiteral("checked")] = action->isChecked();
             row[QStringLiteral("hasMenu")] = action->menu() != nullptr;
             row[QStringLiteral("widgetAction")] = bool(qobject_cast<QWidgetAction *>(action) && qobject_cast<QWidgetAction *>(action)->defaultWidget());
             rows.append(row);

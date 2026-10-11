@@ -21,6 +21,7 @@
 #include "kis_config.h"
 #include "kis_alternate_invocation_action.h"
 #include "kis_change_primary_setting_action.h"
+#include "KisDragValueAction.h"
 #include "kis_pan_action.h"
 #include "kis_rotate_canvas_action.h"
 #include "KisPopupWidgetAction.h"
@@ -476,6 +477,7 @@ void KisInputProfileManager::Private::createActions()
     actions.append(new KisTemporaryStraightRulerAction());
     actions.append(new KisAlternateInvocationAction());
     actions.append(new KisChangePrimarySettingAction());
+    actions.append(new KisDragValueAction());
     actions.append(new KisPanAction());
     actions.append(new KisRotateCanvasAction());
     actions.append(new KisZoomAction());

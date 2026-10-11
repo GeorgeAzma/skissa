@@ -203,18 +203,25 @@ QColor mixed(const QColor &a, const QColor &b, qreal t)
                             a.blueF() + (b.blueF() - a.blueF()) * t, a.alphaF() + (b.alphaF() - a.alphaF()) * t);
 }
 
+/// What a key does, for the keyboard
+struct KeyUse {
+    QString name;
+    QIcon icon;
+    bool held {false};
+};
+
 /**
- * The keyboard, drawn: on each key what it does with the modifiers of the
- * layer shown. A click on a key tells which it was; a command dropped on
- * it is given it.
+ * The keyboard, drawn as key caps: on each key the icon of what it does with
+ * the modifiers of the layer shown (its name if it has no icon; all of them
+ * in the tooltip). A number when it does more than one thing, red when two
+ * commands want it; a bar under what is held on the canvas. A click on a key
+ * tells which it was; a command dropped on it is given it.
  */
 class KeyboardMap : public QWidget
 {
 public:
-    /// What a chord does: the commands' names, the held keys' (marked held); how many are commands
-    std::function<QStringList(int chord, bool *held, int *commandCount)> commandsOn;
-    /// The whole names, for the tooltip
-    std::function<QStringList(int chord)> fullNamesOn;
+    /// What a chord does, and how many of those are commands (more than one: they clash)
+    std::function<QVector<KeyUse>(int chord, int *commandCount)> usesOn;
     std::function<void(int chord)> clicked;
     std::function<void(const QMimeData *mime, int chord)> dropped;
     /// The chords of what is selected in the list, drawn lit
@@ -232,28 +239,30 @@ public:
 
     QSize sizeHint() const override
     {
-        return QSize(int(m_units * 44), heightForWidth(int(m_units * 44)));
+        return QSize(int(m_units * 50), heightForWidth(int(m_units * 50)));
     }
     bool hasHeightForWidth() const override { return true; }
     int heightForWidth(int width) const override
     {
-        return int(6.0 * qMin<qreal>(width / m_units, 46.0)) + 2;
+        return int(5.85 * qMin<qreal>(width / m_units, 52.0)) + 4;
     }
 
 protected:
-    qreal unit() const { return qMin<qreal>(width() / m_units, 46.0); }
+    qreal unit() const { return qMin<qreal>(width() / m_units, 52.0); }
 
     QRectF cellRect(const KeyCell &cell) const
     {
         const qreal u = unit();
         const qreal left = (width() - m_units * u) / 2;
-        return QRectF(left + cell.x * u + 1.5, cell.y * u + 1.5, cell.w * u - 3, cell.h * u - 3);
+        // the function row closer to the rest: a real keyboard's gap, not a whole row
+        const qreal y = cell.y < 0.5 ? 0 : (cell.y - 0.15) * u;
+        return QRectF(left + cell.x * u + 2, y + 2, cell.w * u - 4, cell.h * u - 5);
     }
 
     int cellAt(const QPointF &pos) const
     {
         for (int i = 0; i < m_cells.size(); i++) {
-            if (cellRect(m_cells[i]).contains(pos)) return i;
+            if (cellRect(m_cells[i]).adjusted(-2, -2, 2, 3).contains(pos)) return i;
         }
         return -1;
     }
@@ -269,71 +278,94 @@ protected:
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
         const QPalette &pal = palette();
         const QColor window = pal.color(QPalette::Window);
         const QColor text = pal.color(QPalette::WindowText);
         const QColor accent = pal.color(QPalette::Highlight);
-        QFont labelFont = font();
-        labelFont.setPointSizeF(qMax(6.5, labelFont.pointSizeF() * 0.72));
-        QFont nameFont = labelFont;
-        nameFont.setPointSizeF(qMax(6.5, labelFont.pointSizeF() * 0.95));
+        const QColor clashColor(226, 92, 92);
+        const qreal u = unit();
+        QFont legendFont = font();
+        legendFont.setPixelSize(qMax(9, int(u * 0.2)));
+        QFont nameFont = legendFont;
+        nameFont.setPixelSize(qMax(9, int(u * 0.21)));
+        QFont badgeFont = legendFont;
+        badgeFont.setPixelSize(qMax(8, int(u * 0.18)));
+        badgeFont.setBold(true);
 
         for (int i = 0; i < m_cells.size(); i++) {
             const KeyCell &cell = m_cells[i];
             const QRectF r = cellRect(cell);
             const int chord = chordAt(i);
-            bool held = false;
             int commandCount = 0;
-            const QStringList names = commandsOn ? commandsOn(chord, &held, &commandCount) : QStringList();
+            const QVector<KeyUse> uses = usesOn ? usesOn(chord, &commandCount) : QVector<KeyUse>();
             const bool modifierOn = isModifierKey(cell.key) && (layer & modifierOf(cell.key));
             const bool isLit = lit.contains(chord);
-            // two commands want it (held keys differ by the button or wheel they go with)
-            const bool clash = commandCount > 1;
+            const bool used = !uses.isEmpty();
+            const bool hovered = i == m_hover || i == m_dropTarget;
 
-            QColor fill = Qt::transparent;
-            if (cell.offHand) fill = mixed(window, QColor(214, 160, 84), 0.10);
-            if (!names.isEmpty()) fill = mixed(window, text, 0.12);
-            if (clash) fill = mixed(window, QColor(214, 82, 82), 0.35);
-            if (modifierOn) fill = mixed(window, accent, 0.55);
-            if (isLit) fill = mixed(window, text, 0.32);
-            if (i == m_hover || i == m_dropTarget) fill = mixed(fill.alpha() ? fill : window, text, 0.08);
-            QPen border(mixed(window, text, names.isEmpty() ? 0.18 : 0.28), 1);
-            if (held) border.setStyle(Qt::DashLine);
-            // what the selected command has: ringed
-            if (isLit) border = QPen(mixed(window, text, 0.85), 1.6);
-            if (i == m_dropTarget) border = QPen(accent, 2);
-            painter.setPen(border);
-            painter.setBrush(fill);
-            painter.drawPath(KisModernStyle::squircle(r, 6));
+            // the cap: its face, and under it its side, as a key stands up from the board
+            QColor face = mixed(window, text, used ? 0.15 : 0.06);
+            if (hovered) face = mixed(face, text, 0.08);
+            if (modifierOn || isLit) face = mixed(window, accent, 0.75);
+            const QColor side = mixed(face, QColor(0, 0, 0), 0.45);
+            const qreal radius = qMin<qreal>(7, r.height() * 0.18);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(side);
+            painter.drawPath(KisModernStyle::squircle(r.translated(0, 2.5), radius));
+            painter.setBrush(face);
+            painter.drawPath(KisModernStyle::squircle(r, radius));
+            if (i == m_dropTarget) {
+                painter.setPen(QPen(accent, 2));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawPath(KisModernStyle::squircle(r.adjusted(1, 1, -1, -1), radius));
+            }
 
-            QColor ink = text;
-            ink.setAlphaF(0.5);
-            painter.setPen(ink);
-            painter.setFont(labelFont);
-            painter.drawText(r.adjusted(5, 3, -4, -3), Qt::AlignLeft | Qt::AlignTop, cell.label);
-            if (!names.isEmpty()) {
-                painter.setPen(text);
-                painter.setFont(nameFont);
-                const QFontMetricsF metrics(nameFont);
-                const QRectF area = r.adjusted(4, r.height() * 0.36, -3, -1);
-                QString shown = names.first();
-                if (names.size() > 1) shown += QStringLiteral(" +%1").arg(names.size() - 1);
-                // whole words, two lines at most, the second cut short
-                const QStringList words = shown.split(QLatin1Char(' '), Qt::SkipEmptyParts);
-                QString first;
-                int used = 0;
-                while (used < words.size()) {
-                    const QString next = first.isEmpty() ? words[used] : first + QLatin1Char(' ') + words[used];
-                    if (!first.isEmpty() && metrics.horizontalAdvance(next) > area.width()) break;
-                    first = next;
-                    used++;
+            const QColor ink = (modifierOn || isLit) ? pal.color(QPalette::HighlightedText) : text;
+            QColor legendInk = ink;
+            legendInk.setAlphaF(used || modifierOn ? 0.75 : 0.42);
+            painter.setPen(legendInk);
+            painter.setFont(legendFont);
+            painter.drawText(r.adjusted(u * 0.12, u * 0.06, -u * 0.1, 0), Qt::AlignLeft | Qt::AlignTop, cell.label);
+
+            if (used) {
+                const KeyUse &first = uses.first();
+                const QRectF body = r.adjusted(u * 0.1, u * 0.3, -u * 0.1, -u * 0.08);
+                if (!first.icon.isNull()) {
+                    const qreal size = qMin(body.height(), u * 0.42);
+                    const QRectF iconRect(body.center().x() - size / 2, body.center().y() - size / 2 + u * 0.02, size, size);
+                    first.icon.paint(&painter, iconRect.toAlignedRect(), Qt::AlignCenter, isLit ? QIcon::Selected : QIcon::Normal);
+                } else {
+                    // no icon: its first word, as much as fits
+                    QColor nameInk = ink;
+                    nameInk.setAlphaF(0.9);
+                    painter.setPen(nameInk);
+                    painter.setFont(nameFont);
+                    const QFontMetricsF metrics(nameFont);
+                    const QString word = first.name.section(QLatin1Char(' '), 0, cell.w > 1.6 ? 1 : 0);
+                    painter.drawText(body, Qt::AlignHCenter | Qt::AlignVCenter, metrics.elidedText(word, Qt::ElideRight, body.width()));
                 }
-                const QString second = QStringList(words.mid(used)).join(QLatin1Char(' '));
-                painter.drawText(QRectF(area.left(), area.top(), area.width(), metrics.height()), Qt::AlignLeft,
-                                 metrics.elidedText(first, Qt::ElideRight, area.width()));
-                if (!second.isEmpty() && area.height() > metrics.height() * 1.6) {
-                    painter.drawText(QRectF(area.left(), area.top() + metrics.lineSpacing(), area.width(), metrics.height()), Qt::AlignLeft,
-                                     metrics.elidedText(second, Qt::ElideRight, area.width()));
+                // held on the canvas: a bar along its front edge
+                bool held = false;
+                for (const KeyUse &use : uses) held = held || use.held;
+                if (held) {
+                    QColor bar = ink;
+                    bar.setAlphaF(0.6);
+                    painter.setPen(Qt::NoPen);
+                    painter.setBrush(bar);
+                    painter.drawRoundedRect(QRectF(r.center().x() - u * 0.14, r.bottom() - u * 0.09, u * 0.28, 2), 1, 1);
+                }
+                // more than one: how many, red when two commands want it
+                if (uses.size() > 1) {
+                    const QString count = QString::number(uses.size());
+                    const qreal d = u * 0.3;
+                    const QRectF badge(r.right() - d - u * 0.05, r.top() + u * 0.05, d, d);
+                    painter.setPen(Qt::NoPen);
+                    painter.setBrush(commandCount > 1 ? clashColor : mixed(face, text, 0.35));
+                    painter.drawEllipse(badge);
+                    painter.setPen(commandCount > 1 ? QColor(Qt::white) : window);
+                    painter.setFont(badgeFont);
+                    painter.drawText(badge, Qt::AlignCenter, count);
                 }
             }
         }
@@ -344,12 +376,18 @@ protected:
         if (event->type() == QEvent::ToolTip) {
             auto *help = static_cast<QHelpEvent *>(event);
             const int cell = cellAt(help->pos());
-            if (cell >= 0 && fullNamesOn) {
-                const QStringList names = fullNamesOn(chordAt(cell));
+            if (cell >= 0 && usesOn) {
+                int count = 0;
+                const QVector<KeyUse> uses = usesOn(chordAt(cell), &count);
                 const QString key = isModifierKey(m_cells[cell].key) ? m_cells[cell].label
                                                                      : KisModernStyle::keyCapText(QKeySequence(chordAt(cell)));
-                QToolTip::showText(help->globalPos(), names.isEmpty() ? i18nc("@info:tooltip a key with no shortcut", "%1: free", key)
-                                                                      : key + QStringLiteral(": ") + names.join(QStringLiteral(", ")), this);
+                QStringList lines;
+                for (const KeyUse &use : uses) {
+                    lines << (use.held ? i18nc("@info:tooltip a key held on the canvas", "%1 (held)", use.name) : use.name);
+                }
+                QToolTip::showText(help->globalPos(), lines.isEmpty() ? i18nc("@info:tooltip a key with no shortcut", "%1: free", key)
+                                                                      : QStringLiteral("<b>%1</b><br>%2").arg(key.toHtmlEscaped(), lines.join(QStringLiteral("<br>")).toHtmlEscaped().replace(QStringLiteral("&lt;br&gt;"), QStringLiteral("<br>"))),
+                                   this);
             } else {
                 QToolTip::hideText();
             }
@@ -467,8 +505,11 @@ struct KisKeysPage::Private
         QTreeWidgetItem *item {nullptr};
     };
     struct Hold {
+        /// What is in the profile; none for a way to set it off that has no keys yet
         KisShortcutConfiguration *live {nullptr};
         KisShortcutConfiguration staged;
+        /// Taken off (a right click): out of the profile with OK
+        bool removed {false};
         QString title;
         QString shortTitle; ///< what it does, without its mode: for the keyboard
         bool editable {false};
@@ -685,6 +726,7 @@ struct KisKeysPage::Private
             {QStringLiteral("Temporary Straight Ruler"), i18nc("held key", "Straight line")},
             {QStringLiteral("Exposure or Gamma"), i18nc("held key", "Exposure")},
             {QStringLiteral("Touch Gestures"), i18nc("held key", "Touch")},
+            {QStringLiteral("Drag to Change"), i18nc("held key: drag to change a brush value", "Drag")},
         };
         return names.value(name, name);
     }
@@ -720,6 +762,38 @@ struct KisKeysPage::Private
             hold.title = plain ? hold.shortTitle : hold.shortTitle + QStringLiteral(" · ") + mode;
             hold.editable = config->type() == KisShortcutConfiguration::KeyCombinationType || config->type() == KisShortcutConfiguration::MouseButtonType;
             holds.append(hold);
+        }
+        /**
+         * What has no keys yet is listed too, a "+" to give it some (a held
+         * key and a drag: one with a mouse button; the actions set off by
+         * touch or a trackpad alone are left out)
+         */
+        Q_FOREACH (KisAbstractInputAction *action, KisInputProfileManager::instance()->actions()) {
+            const QList<KisShortcutConfiguration *> existing = inputProfile->shortcutsForAction(action);
+            bool pointer = existing.isEmpty();
+            Q_FOREACH (KisShortcutConfiguration *config, existing) {
+                pointer = pointer || config->type() == KisShortcutConfiguration::MouseButtonType || config->type() == KisShortcutConfiguration::KeyCombinationType;
+            }
+            if (!pointer) continue;
+            const QHash<QString, int> indexes = action->shortcutIndexes();
+            for (auto it = indexes.constBegin(); it != indexes.constEnd(); ++it) {
+                bool set = false;
+                Q_FOREACH (KisShortcutConfiguration *config, existing) set = set || int(config->mode()) == it.value();
+                if (set) continue;
+                Hold hold;
+                hold.staged.setAction(action);
+                hold.staged.setMode(uint(it.value()));
+                hold.staged.setType(KisShortcutConfiguration::MouseButtonType);
+                hold.staged.setButtons(Qt::LeftButton);
+                hold.shortTitle = heldName(action->name());
+                const QString first = action->name().section(QLatin1Char(' '), 0, 0);
+                const QString mode = it.key();
+                const bool plain = mode.isEmpty() || mode == action->name() || mode == QLatin1String("Normal")
+                    || mode == first + QLatin1String(" Mode") || mode == QLatin1String("Primary Mode");
+                hold.title = plain ? hold.shortTitle : hold.shortTitle + QStringLiteral(" · ") + mode;
+                hold.editable = true;
+                holds.append(hold);
+            }
         }
         std::sort(holds.begin(), holds.end(), [](const Hold &a, const Hold &b) { return a.title.localeAwareCompare(b.title) < 0; });
     }
@@ -794,7 +868,7 @@ struct KisKeysPage::Private
         QSet<int> chords;
         if (row >= 0 && row < commands.size()) {
             Q_FOREACH (const QKeySequence &sequence, commands[row].current) chords << chordOf(sequence);
-        } else if (row < 0 && -1 - row < holds.size()) {
+        } else if (row < 0 && -1 - row < holds.size() && !holds[-1 - row].removed) {
             if (const int chord = chordOf(holds[-1 - row].staged.keys())) chords << chord;
         }
         chords.remove(0);
@@ -844,6 +918,31 @@ struct KisKeysPage::Private
         map->update();
     }
 
+    /// What has \p chord, for the keyboard: the commands first, then what is held on the canvas
+    QVector<KeyUse> usesOn(int chord, int *commandCount) const
+    {
+        QVector<KeyUse> uses;
+        *commandCount = 0;
+        if (!chord) return uses;
+        for (const Command &command : commands) {
+            Q_FOREACH (const QKeySequence &sequence, command.current) {
+                if (sequence.count() == 1 && chordOf(sequence) == chord) {
+                    uses.append({command.title, command.action ? command.action->icon() : QIcon(), false});
+                    (*commandCount)++;
+                    break;
+                }
+            }
+        }
+        QSet<QString> heldNames;
+        for (const Hold &hold : holds) {
+            if (!hold.removed && chordOf(hold.staged.keys()) == chord && !heldNames.contains(hold.title)) {
+                heldNames.insert(hold.title);
+                uses.append({hold.title, QIcon(), true});
+            }
+        }
+        return uses;
+    }
+
     /// What has \p chord: the commands (short names, or whole) first, then the held keys
     QStringList commandsOn(int chord, bool *held, int *commandCount, bool shortNames = true) const
     {
@@ -863,7 +962,7 @@ struct KisKeysPage::Private
             }
         }
         for (const Hold &hold : holds) {
-            if (chordOf(hold.staged.keys()) == chord) {
+            if (!hold.removed && chordOf(hold.staged.keys()) == chord) {
                 const QString name = shortNames ? hold.shortTitle : hold.title;
                 if (!names.contains(name)) names << name;
                 *held = true;
@@ -907,7 +1006,22 @@ struct KisKeysPage::Private
     {
         Hold &hold = holds[index];
         hold.staged.setKeys(keys);
-        hold.changed = !(hold.staged == *hold.live);
+        hold.removed = false;
+        hold.changed = hold.live ? !(hold.staged == *hold.live) : !keys.isEmpty();
+        refresh();
+    }
+
+    /// Taken off: no keys set it off any more (a key held with no keys would be the pen alone)
+    void removeHold(int index)
+    {
+        Hold &hold = holds[index];
+        if (hold.live) {
+            hold.removed = true;
+            hold.changed = true;
+        } else {
+            hold.staged.setKeys({});
+            hold.changed = false;
+        }
         refresh();
     }
 
@@ -991,8 +1105,14 @@ struct KisKeysPage::Private
                 recAdd ? KisModernStyle::KeyCap::Recording : KisModernStyle::KeyCap::Add);
         } else {
             const Hold &hold = holds[-1 - row];
-            add(recordingThis ? i18nc("@info recording a held key", "Hold keys") : inputText(hold.staged), 0,
-                recordingThis ? KisModernStyle::KeyCap::Recording : KisModernStyle::KeyCap::Shown);
+            const bool none = hold.removed || (!hold.live && hold.staged.keys().isEmpty());
+            if (recordingThis) {
+                add(i18nc("@info recording a held key", "Hold keys"), 0, KisModernStyle::KeyCap::Recording);
+            } else if (none) {
+                add(QString(), 0, KisModernStyle::KeyCap::Add);
+            } else {
+                add(inputText(hold.staged), 0, KisModernStyle::KeyCap::Shown);
+            }
         }
         return caps;
     }
@@ -1043,6 +1163,8 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     d->savedProfile = current ? current->name() : QString();
     d->profile = d->savedProfile;
 
+    // room for the keyboard: the settings grow to it
+    setMinimumWidth(940);
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(8);
@@ -1104,7 +1226,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
         d->layerButtons << button;
     }
     layers->addStretch();
-    auto *legend = new QLabel(i18nc("@info keys page legend", "Tinted: off-hand keys · Dashed: held on the canvas"), this);
+    auto *legend = new QLabel(i18nc("@info keys page legend", "A bar: held on the canvas · Red: two commands share it"), this);
     QPalette faint = legend->palette();
     QColor ink = faint.color(QPalette::WindowText);
     ink.setAlphaF(0.6);
@@ -1114,12 +1236,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     layout->addLayout(layers);
 
     d->map = new KeyboardMap(this);
-    d->map->commandsOn = [this](int chord, bool *held, int *commandCount) { return d->commandsOn(chord, held, commandCount); };
-    d->map->fullNamesOn = [this](int chord) {
-        bool held = false;
-        int count = 0;
-        return d->commandsOn(chord, &held, &count, false);
-    };
+    d->map->usesOn = [this](int chord, int *commandCount) { return d->usesOn(chord, commandCount); };
     layout->addWidget(d->map);
 
     d->tree = new KeysTree(this);
@@ -1146,7 +1263,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
             KisModernStyle::KeyCap state = KisModernStyle::KeyCap::Shown;
             const bool recordingThis = d->recording && d->recordRow == row && (row < 0 || d->recordIndex == cap.index);
             if (recordingThis) state = KisModernStyle::KeyCap::Recording;
-            else if (cap.index == -1) state = KisModernStyle::KeyCap::Add;
+            else if (cap.index == -1 || cap.text.isEmpty()) state = KisModernStyle::KeyCap::Add;
             else if (cap.rect.contains(pointer)) state = KisModernStyle::KeyCap::Pointed;
             QPalette pal = option.palette;
             if (row < 0 && !d->holds[-1 - row].editable) {
@@ -1402,7 +1519,9 @@ bool KisKeysPage::eventFilter(QObject *watched, QEvent *event)
                     d->commands[row].current = d->defaultsOf(d->commands[row], d->scheme);
                 } else {
                     Private::Hold &hold = d->holds[-1 - row];
-                    hold.staged = *hold.live;
+                    if (hold.live) hold.staged = *hold.live;
+                    else hold.staged.setKeys({});
+                    hold.removed = false;
                     hold.changed = false;
                 }
                 d->refresh();
@@ -1414,6 +1533,7 @@ bool KisKeysPage::eventFilter(QObject *watched, QEvent *event)
                 if (mouse->button() == Qt::RightButton) {
                     d->stopRecording();
                     if (row >= 0 && cap.index >= 0) d->assignCommand(row, cap.index, QKeySequence());
+                    else if (row < 0 && d->holds[-1 - row].editable) d->removeHold(-1 - row);
                     return true;
                 }
                 if (row < 0 && !d->holds[-1 - row].editable) {
@@ -1438,7 +1558,9 @@ void KisKeysPage::setDefaults()
     d->profile = d->profileFor(d->scheme);
     d->resetHeld = true;
     for (Private::Hold &hold : d->holds) {
-        hold.staged = *hold.live;
+        if (hold.live) hold.staged = *hold.live;
+        else hold.staged.setKeys({});
+        hold.removed = false;
         hold.changed = false;
     }
     d->showNote(i18nc("@info keys page", "All keys go back to Krita's, the held ones too, when you press OK"));
@@ -1483,18 +1605,25 @@ void KisKeysPage::apply()
                 profileDir.remove(file);
             }
         }
-        input->loadProfiles();
     } else {
+        KisInputProfile *profile = input->profile(d->profile);
         bool held = false;
         for (Private::Hold &hold : d->holds) {
-            if (!hold.changed) continue;
-            *hold.live = hold.staged;
+            if (!hold.changed || !profile) continue;
+            if (hold.removed && hold.live) {
+                profile->removeShortcut(hold.live);
+                delete hold.live;
+                hold.live = nullptr;
+            } else if (hold.live) {
+                *hold.live = hold.staged;
+            } else if (!hold.staged.keys().isEmpty()) {
+                profile->addShortcut(new KisShortcutConfiguration(hold.staged));
+            }
             held = true;
         }
         if (held) input->saveProfiles();
     }
-    if (d->profile != d->savedProfile || d->resetHeld) {
-        KisConfig(false).setCurrentInputProfile(d->profile);
-        if (KisInputProfile *profile = input->profile(d->profile)) input->setCurrentProfile(profile);
-    }
+    // read again, which tells the canvases: they make their own shortcuts from the profile
+    KisConfig(false).setCurrentInputProfile(d->profile);
+    input->loadProfiles();
 }

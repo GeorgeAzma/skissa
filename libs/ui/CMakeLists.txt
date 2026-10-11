@@ -370,6 +370,7 @@ set(kritaui_LIB_SRCS
     input/kis_gamma_exposure_action.cpp
     input/KisPopupWidgetAction.cpp
     input/kis_change_primary_setting_action.cpp
+    input/KisDragValueAction.cpp
     input/kis_abstract_shortcut.cpp
     input/kis_native_gesture_shortcut.cpp
     input/kis_single_action_shortcut.cpp
@@ -453,6 +454,7 @@ set(kritaui_LIB_SRCS
     KisMainWindow.cpp
     KisStudioLayout.cpp
     KisStudioFind.cpp
+    KisStudioHoldKeys.cpp
     KisStudioCanvasHud.cpp
     KisStudioColorPanel.cpp
     KisStudioToolStrip.cpp

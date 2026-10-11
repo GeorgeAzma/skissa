@@ -29,7 +29,9 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
+#include <QElapsedTimer>
 #include <QTabletEvent>
+#include <functional>
 #include <KisModernStyle.h>
 
 namespace {
@@ -42,8 +44,12 @@ namespace {
 class LayerHover : public QWidget
 {
 public:
-    explicit LayerHover(KisCanvas2 *canvas)
+    /// What a click at a point (widget pixels) would pick
+    std::function<KisNodeSP(const QPointF &widgetPos)> picks;
+
+    explicit LayerHover(KisCanvas2 *canvas, std::function<KisNodeSP(const QPointF &)> picker)
         : QWidget(canvas->canvasWidget())
+        , picks(std::move(picker))
         , m_canvas(canvas)
     {
         setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -63,8 +69,8 @@ public:
         if (!image) {
             return;
         }
-        const QPoint imagePos = m_canvas->coordinatesConverter()->widgetToImage(widgetPos).toPoint();
-        KisNodeSP node = KisToolUtils::findNode(image->root(), imagePos, false, false);
+        KisNodeSP node = picks ? picks(widgetPos)
+                               : KisToolUtils::findNode(image->root(), m_canvas->coordinatesConverter()->widgetToImage(widgetPos).toPoint(), false, false);
         if (node != m_node) {
             m_node = node;
             m_tint = QImage();
@@ -165,6 +171,40 @@ public:
     KisSelectLayerAction *q {nullptr};
     QPointer<QWidget> hover;
     int shortcut {makeShortcut(LayerSelectionMode_TopLayer, SelectionOverrideMode_Replace)};
+
+    /**
+     * Clicking again where the last click picked a layer picks the next one
+     * down that has paint there, round to the top again: a layer under
+     * another is a few clicks away, without the layers panel
+     */
+    QPointF pressedAt;
+    QPointF lastPickAt;
+    QElapsedTimer lastPick;
+
+    static constexpr qreal againDistance = 8;
+    static constexpr qint64 againTime = 4000;
+
+    /// The layers with paint at \p imagePos, the top one first
+    KisNodeList stackAt(const QPoint &imagePos) const
+    {
+        KisImageSP image = q->inputManager()->canvas()->image();
+        KisNodeList nodes = KisToolUtils::findNodes(image->root()->firstChild(), imagePos, false, false);
+        std::reverse(nodes.begin(), nodes.end());
+        return nodes;
+    }
+
+    /// What a click at \p widgetPos picks: the top layer there, or the one under the current one when clicking again
+    KisNodeSP pickAt(const QPointF &widgetPos) const
+    {
+        KisCanvas2 *canvas = q->inputManager()->canvas();
+        if (!canvas || !canvas->image()) return KisNodeSP();
+        const KisNodeList stack = stackAt(canvas->coordinatesConverter()->widgetToImage(widgetPos).toPoint());
+        if (stack.isEmpty()) return KisNodeSP();
+        const KisNodeSP active = canvas->viewManager()->nodeManager()->activeNode();
+        const bool again = lastPick.isValid() && lastPick.elapsed() < againTime
+            && QLineF(widgetPos, lastPickAt).length() < againDistance && stack.contains(active);
+        return again ? stack[(stack.indexOf(active) + 1) % stack.size()] : stack.first();
+    }
 
     Private(KisSelectLayerAction *q)
         : q(q)
@@ -289,7 +329,7 @@ void KisSelectLayerAction::activate(int shortcut)
     // which layer a click would select, before the click
     if (KisCanvas2 *canvas = inputManager()->canvas()) {
         delete d->hover;
-        d->hover = new LayerHover(canvas);
+        d->hover = new LayerHover(canvas, [this](const QPointF &widgetPos) { return d->pickAt(widgetPos); });
     }
 }
 
@@ -337,7 +377,21 @@ void KisSelectLayerAction::inputEvent(QEvent *event)
     KisNodeList nodesToSelect;
 
     if (layerSelectionMode == LayerSelectionMode_TopLayer) {
-        KisNodeSP foundNode = KisToolUtils::findNode(inputManager()->canvas()->image()->root(), pos, false);
+        const QPointF widgetPos = eventPosF(event);
+        const bool press = event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TabletPress
+            || event->type() == QTouchEvent::TouchBegin;
+        KisNodeSP foundNode;
+        if (press) {
+            // a click: the top layer, or the next one down when clicking again where the last one picked
+            foundNode = d->pickAt(widgetPos);
+            d->pressedAt = widgetPos;
+            d->lastPickAt = widgetPos;
+            d->lastPick.restart();
+        } else if (QLineF(widgetPos, d->pressedAt).length() >= Private::againDistance) {
+            // dragged: the top layer under the pointer, as it goes
+            foundNode = KisToolUtils::findNode(inputManager()->canvas()->image()->root(), pos, false);
+            d->lastPick.invalidate();
+        }
         if (!foundNode) {
             return;
         }
@@ -407,4 +461,7 @@ void KisSelectLayerAction::inputEvent(QEvent *event)
 
     // Now select the nodes
     d->selectNodes(nodesToSelect, selectionOverrideMode, true);
+    if (auto *hover = dynamic_cast<LayerHover *>(d->hover.data())) {
+        hover->pointAt(eventPosF(event));
+    }
 }
