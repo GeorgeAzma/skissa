@@ -107,10 +107,9 @@ public:
         qreal width {0};     ///< from the edge in to where the face is flat
         qreal thickness {0}; ///< of the pane where its face is flat
         qreal lift {0};      ///< how far the pane is over the canvas
-        /// How clear the rim is, 0 to 1: polished, it shows the canvas itself bent, frosted the blur
+        /// How clear the rim is, 0 to 1: polished, it shows the canvas itself bent, frosted the blur (the bevel is
+        /// as frosted as it is thick: clear only at the rim)
         qreal polish {0};
-        /// How far into the bevel it is all clear (a share of its width), from where it turns to frost
-        qreal clear {0};
         /// How bright the light the edge catches is (0, none)
         qreal gloss {0};
         /// The glass's Abbe number: the lower, the more it spreads the colors

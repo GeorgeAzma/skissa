@@ -249,7 +249,6 @@ uniform float dither;
 uniform float veil;
 uniform vec3 bevel;
 uniform float polish;
-uniform float clearing;
 uniform float gloss;
 uniform vec3 ior;
 uniform vec4 reach;
@@ -603,17 +602,15 @@ void main()
     vec3 tintLab = toOklab(tintLight);
 
     /**
-     * How blurred what the glass shows is, d in from the rim: a pixel's worth
-     * at the rim (all polish) up to the frost's, from where it is all clear
-     * on to a frost's width into the face (the frost is wider than the bevel:
-     * grown over the bevel alone, the blur doubled from a pixel to the next,
-     * an edge), by its log, eased without a seam of any order
+     * How blurred what the glass shows is: as much as the glass is thick
+     * there. The frost is in the glass, so where the bevel rises from the rim
+     * to the face the blur grows with it, from a pixel's worth at the rim (all
+     * polish) to the frost's where the bevel is the face; the height meets the
+     * face flat, every derivative 0 (see profile), and so does the blur: the
+     * bevel's blur and the face's frost are one.
      */
     float sharpest = exp(mix(log(sigma), log(0.35), polish));
-    float rampStart = clearing * w;
-    float rampEnd = w + sigma;
-    float frosting = w > 0.5 ? seamless((d - rampStart) / max(rampEnd - rampStart, 1.0)) : 1.0;
-    float blur = exp(mix(log(sharpest), log(sigma), frosting));
+    float blur = onBevel ? max(sharpest, sigma * clamp(bend.x / max(h, 1e-3), 0.0, 1.0)) : sigma;
 
     vec3 color;
     if (onBevel) {
@@ -655,7 +652,7 @@ void main()
     } else {
         // through the light of the screen as the bevel's is (a color beyond it held at its edge): the same where they meet
         // the frost, or near the bevel what the blur is there on its way to it
-        vec3 seen = blur < sigma * 0.999 ? blurredLab(p, blur, jx, jy) : frostedLab(p);
+        vec3 seen = frostedLab(p);
         color = tinted(max(fromOklab(mix(tintLab, throughLower(seen, p), canvas)), 0.0), tintLab, strength);
     }
 
@@ -900,7 +897,7 @@ bool KisOpenGLGlass::initialize()
         && d->glass.make(glassVertexSource, glassSource,
                          {"rect", "blurred", "statistics", "shift", "slot", "restore", "power",
                           "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
-                          "beyond", "spacing", "dither", "veil", "bevel", "polish", "clearing", "gloss", "ior", "under", "decode", "reach",
+                          "beyond", "spacing", "dither", "veil", "bevel", "polish", "gloss", "ior", "under", "decode", "reach",
                           "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength", "small", "level1", "level2", "levelSigmas"})
         && d->ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
         && d->ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"});
@@ -1269,7 +1266,6 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     const KisStudioGlass::Bevel bevel = KisStudioGlass::bevel();
     f->glUniform3f(d->glass["bevel"], bevel.width * pixelRatio, bevel.thickness * pixelRatio, bevel.lift * pixelRatio);
     f->glUniform1f(d->glass["polish"], bevel.polish);
-    f->glUniform1f(d->glass["clearing"], bevel.clear);
     f->glUniform1f(d->glass["gloss"], bevel.gloss);
     const QVector3D ior = refractiveIndices(bevel.abbeNumber);
     f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
