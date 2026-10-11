@@ -1484,7 +1484,7 @@ void KisStudioFind::adjustGeometry()
     setGeometry(window.center().x() - width / 2, window.top() + int(window.height() * 0.12), width, height);
 }
 
-bool KisStudioFind::showCard(QAbstractButton *button)
+QAction *KisStudioFind::cardAction(QAbstractButton *button, QString *keyOut, QString *titleOut)
 {
     QString key;
     QString title;
@@ -1507,6 +1507,16 @@ bool KisStudioFind::showCard(QAbstractButton *button)
             }
         }
     }
+    if (keyOut) *keyOut = key;
+    if (titleOut) *titleOut = title;
+    return action;
+}
+
+bool KisStudioFind::showCard(QAbstractButton *button)
+{
+    QString key;
+    QString title;
+    QAction *action = cardAction(button, &key, &title);
     if (!action) {
         return false;
     }

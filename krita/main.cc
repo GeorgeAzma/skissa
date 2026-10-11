@@ -140,6 +140,12 @@ void tryInitDrMingw()
 #if defined Q_OS_WIN
 #include <QAbstractButton>
 #include <QAbstractNativeEventFilter>
+#include <QAbstractSpinBox>
+#include <QComboBox>
+#include <QLineEdit>
+#include <QRegularExpression>
+#include <QScrollBar>
+#include <QTabBar>
 #include <QDockWidget>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -181,7 +187,12 @@ public:
         static const UINT exportMessage = RegisterWindowMessageW(L"KritaDevExport");
         static const UINT treeMessage = RegisterWindowMessageW(L"KritaDevTree");
         static const UINT shortcutsMessage = RegisterWindowMessageW(L"KritaDevShortcuts");
+        static const UINT buttonsMessage = RegisterWindowMessageW(L"KritaDevButtons");
         const MSG *msg = static_cast<MSG *>(message);
+        if (msg->message == buttonsMessage) {
+            buttons();
+            return true;
+        }
         if (msg->message == shortcutsMessage) {
             shortcuts();
             return true;
@@ -317,6 +328,107 @@ private:
 
         QFile file(QDir::temp().absoluteFilePath(QStringLiteral("krita-dev-shortcuts.json")));
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(QJsonDocument(rows).toJson());
+    }
+
+    /**
+     * A posted "KritaDevButtons" message writes every button of the main
+     * window and of the other open windows to krita-dev-buttons.tsv in TEMP:
+     * whether a right click gives it a card (for its shortcut), and if not
+     * why not, with its class, name, title, where it is and if it is shown
+     */
+    static void buttons()
+    {
+        KisMainWindow *window = KisPart::instance()->currentMainwindow();
+        if (!window) return;
+        KisStudioFind *find = window->studioFind();
+        if (find) find->registerButtons();
+
+        QSet<QAction *> windowActions;
+        Q_FOREACH (QAction *action, window->actionCollection()->actions()) windowActions.insert(action);
+        QHash<QAction *, QString> clientOf;
+        Q_FOREACH (KisKXMLGUIClient *client, window->guiFactory()->clients()) {
+            if (!client || !client->actionCollection()) continue;
+            Q_FOREACH (QAction *action, client->actionCollection()->actions()) {
+                if (!clientOf.contains(action)) clientOf.insert(action, client->actionCollection()->componentName());
+            }
+        }
+
+        QList<QAbstractButton *> all = window->findChildren<QAbstractButton *>();
+        Q_FOREACH (QWidget *top, QApplication::topLevelWidgets()) {
+            if (top != window && top->isVisible() && top->window() != window) all += top->findChildren<QAbstractButton *>();
+        }
+        QSet<QAbstractButton *> seen;
+        static const QRegularExpression tags(QStringLiteral("<[^>]*>"));
+        auto clean = [](QString text) { return text.remove(tags).remove(QLatin1Char('&')).section(QLatin1Char('\n'), 0, 0).simplified(); };
+
+        QStringList lines;
+        lines << QStringLiteral("card\treason\tshown\tclass\tname\ttext\ttooltip\taction\twhere");
+        Q_FOREACH (QAbstractButton *button, all) {
+            if (seen.contains(button)) continue;
+            seen.insert(button);
+            QString reason;
+            QStringList path;
+            QWidget *dock = nullptr;
+            for (QWidget *w = button->parentWidget(); w; w = w->parentWidget()) {
+                if (w == window) break;
+                QString part = QString::fromLatin1(w->metaObject()->className());
+                if (!w->objectName().isEmpty() && !w->objectName().startsWith(QLatin1String("qt_"))) part += QLatin1Char('#') + w->objectName();
+                if (auto *asDock = qobject_cast<QDockWidget *>(w)) {
+                    part = QStringLiteral("panel:") + asDock->windowTitle();
+                    if (!dock) dock = asDock;
+                }
+                path.prepend(part);
+                if (reason.isEmpty()) {
+                    if (qobject_cast<QAbstractSpinBox *>(w) || qobject_cast<QComboBox *>(w) || qobject_cast<QLineEdit *>(w)
+                        || qobject_cast<QTabBar *>(w) || qobject_cast<QScrollBar *>(w) || qobject_cast<QMenu *>(w)
+                        || w == find || w->inherits("KisStudioToolRail") || w->inherits("KisStudioPicker")) {
+                        reason = QStringLiteral("inside ") + QString::fromLatin1(w->metaObject()->className());
+                    } else if (w->objectName() == QLatin1String("studioPanelStrip")) {
+                        reason = QStringLiteral("panel strip");
+                    }
+                }
+            }
+            auto *tool = qobject_cast<QToolButton *>(button);
+            QAction *action = tool ? tool->defaultAction() : nullptr;
+            const bool hasCard = find && find->cardAction(button);
+            if (hasCard) {
+                reason.clear();
+            } else if (button->window() != window) {
+                reason = QStringLiteral("own window ") + QString::fromLatin1(button->window()->metaObject()->className());
+            } else if (button->contextMenuPolicy() != Qt::DefaultContextMenu) {
+                reason = QStringLiteral("context menu policy %1").arg(int(button->contextMenuPolicy()));
+            } else if (reason.isEmpty()) {
+                if (action && !windowActions.contains(action) && clientOf.contains(action)) {
+                    reason = QStringLiteral("action of client ") + clientOf.value(action);
+                } else if (action && windowActions.contains(action) && action->objectName().isEmpty()) {
+                    reason = QStringLiteral("window action without a name");
+                } else if (!button->isVisibleTo(dock ? dock : static_cast<QWidget *>(window))) {
+                    reason = QStringLiteral("hidden");
+                } else if (clean(button->text()).isEmpty() && clean(button->toolTip()).isEmpty() && clean(button->accessibleName()).isEmpty()) {
+                    reason = QStringLiteral("no name");
+                } else {
+                    reason = QStringLiteral("other");
+                }
+            }
+            if (!hasCard && button->window() == window && button->contextMenuPolicy() == Qt::DefaultContextMenu) {
+                // its own context menu, as a right click on it would find it: a class of its own handling it
+                const QMetaObject *meta = button->metaObject();
+                if (meta->className() != QByteArray("QToolButton") && meta->className() != QByteArray("QPushButton")
+                    && meta->className() != QByteArray("QCheckBox") && meta->className() != QByteArray("QRadioButton")) {
+                    reason += QStringLiteral(" (subclass)");
+                }
+            }
+            QStringList row;
+            row << (hasCard ? QStringLiteral("yes") : QStringLiteral("no")) << reason
+                << (button->isVisible() ? QStringLiteral("shown") : QStringLiteral("hidden"))
+                << QString::fromLatin1(button->metaObject()->className()) << button->objectName() << clean(button->text())
+                << clean(button->toolTip()).left(80)
+                << (action ? action->objectName() + (clientOf.contains(action) ? QStringLiteral(" [") + clientOf.value(action) + QLatin1Char(']') : QString()) : QString())
+                << path.join(QLatin1Char('/'));
+            lines << row.join(QLatin1Char('\t'));
+        }
+        QFile file(QDir::temp().absoluteFilePath(QStringLiteral("krita-dev-buttons.tsv")));
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(lines.join(QLatin1Char('\n')).toUtf8());
     }
 
     /**
