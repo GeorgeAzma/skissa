@@ -26,6 +26,11 @@
 #include <klocalizedstring.h>
 
 #include "KisMainWindow.h"
+#include "KisPart.h"
+#include "opengl/KisOpenGLCanvasRenderer.h"
+#include <KSharedConfig>
+#include <kconfiggroup.h>
+#include <kis_icon_utils.h>
 #include "KisView.h"
 #include "canvas/kis_canvas2.h"
 #include "canvas/kis_canvas_controller.h"
@@ -138,6 +143,7 @@ struct KisStudioCanvasHud::Private
     QPointer<QWidget> progress;
 
     QToolButton *mirror {nullptr};
+    QToolButton *value {nullptr};
     QToolButton *rotation {nullptr};
     QToolButton *zoom {nullptr};
 
@@ -181,6 +187,30 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
         d->mirror->setToolButtonStyle(Qt::ToolButtonIconOnly);
     }
     layout->addWidget(d->mirror);
+
+    // the value view: the image in grays, to judge its values; given a shortcut as any command is (Find, its card)
+    auto *valueView = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_value")), i18nc("@action", "Value View"), mainWindow);
+    valueView->setObjectName(QStringLiteral("studio_value_view"));
+    valueView->setCheckable(true);
+    valueView->setToolTip(i18nc("@info:tooltip", "Value view: see the image in grays"));
+    valueView->setShortcutContext(Qt::WindowShortcut);
+    const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
+                              .readEntry(valueView->objectName(), QString());
+    if (!saved.isEmpty() && saved != QLatin1String("none")) {
+        valueView->setShortcuts(QKeySequence::listFromString(saved));
+    }
+    mainWindow->actionCollection()->addAction(valueView->objectName(), valueView);
+    connect(valueView, &QAction::toggled, this, [](bool on) {
+        KisOpenGLCanvasRenderer::setValueView(on);
+        Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
+            // all of the image drawn again: it is kept drawn, and only what changed is drawn anew
+            if (view && view->canvasBase()) view->canvasBase()->updateCanvas();
+        }
+    });
+    d->value = hudButton(this);
+    d->value->setDefaultAction(valueView);
+    d->value->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    layout->addWidget(d->value);
 
     // only there while the canvas is rotated; a click puts it straight again
     d->rotation = hudButton(this);

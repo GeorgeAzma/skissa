@@ -319,8 +319,8 @@ void KisOpenGLCanvas2::paintEvent(QPaintEvent *e)
         d->updateRect = this->rect();
     }
 
-    // the image changed or moved: the light it casts around it changed, all over (see KisStudioGlass::Surround)
-    if (KisStudioGlass::surround() == KisStudioGlass::Surround::Ambient && d->renderer->drawsGlass() && !d->renderer->wrapAroundViewingMode()
+    // the image changed or moved: the light it casts around it changed, all over (see KisStudioGlass::ambientSurround)
+    if (KisStudioGlass::ambientSurround() && d->renderer->drawsGlass() && !d->renderer->wrapAroundViewingMode()
         && !d->canvasImageDirtyRect.isEmpty()) {
         *d->updateRect = rect();
     }

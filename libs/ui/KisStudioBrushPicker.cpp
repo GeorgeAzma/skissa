@@ -873,3 +873,8 @@ QStringList KisStudioBrushPicker::yourBrushes()
 {
     return pinnedIds(brushSource(loadCatalog(), nullptr));
 }
+
+void KisStudioBrushPicker::setYourBrushes(const QStringList &presetNames)
+{
+    setPinnedIds(brushSource(loadCatalog(), nullptr), presetNames);
+}

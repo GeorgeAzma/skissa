@@ -210,6 +210,11 @@ KisPaintopBox::KisPaintopBox(KisViewManager *viewManager, QWidget *parent, const
         button->setAutoRaise(true);
         KisAction *action = m_viewManager->actionManager()->createAction(actionName);
         button->setDefaultAction(action);
+        // the mirror itself first, with its shortcut (given one by clicking its key cap, as in any menu)
+        if (!options->actions().isEmpty()) {
+            options->insertAction(options->actions().first(), action);
+            options->insertSeparator(options->actions().at(1));
+        }
         button->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(button, &QWidget::customContextMenuRequested, button, [button, options](const QPoint &pos) {
             options->popup(button->mapToGlobal(pos));

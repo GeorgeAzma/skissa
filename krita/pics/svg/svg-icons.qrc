@@ -630,6 +630,12 @@
         <file>light_studio_palette.svg</file>
         <file>dark_studio_find.svg</file>
         <file>light_studio_find.svg</file>
+        <file>dark_studio_menu.svg</file>
+        <file>light_studio_menu.svg</file>
+        <file>dark_studio_settings.svg</file>
+        <file>light_studio_settings.svg</file>
+        <file>dark_studio_value.svg</file>
+        <file>light_studio_value.svg</file>
         <file>dark_studio_more.svg</file>
         <file>light_studio_more.svg</file>
         <file>dark_zoom-fit-curve.svg</file>

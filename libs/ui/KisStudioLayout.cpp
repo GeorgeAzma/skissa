@@ -852,18 +852,19 @@ private:
 };
 
 /// Looks like a search field, opens Find Anything
-class FindField : public QAbstractButton
+/// A button of the window pill: the menu, Settings, Find
+class PillButton : public QAbstractButton
 {
 public:
-    explicit FindField(QWidget *parent)
+    PillButton(const QString &iconName, const QString &toolTip, QWidget *parent)
         : QAbstractButton(parent)
+        , m_iconName(iconName)
     {
         setCursor(Qt::PointingHandCursor);
         setFocusPolicy(Qt::NoFocus);
         setAttribute(Qt::WA_Hover);
         setFixedSize(34, 30);
-        setToolTip(i18nc("@info:tooltip", "Find tools, commands, effects, brushes, layers and settings"));
-        setAccessibleName(i18nc("@info:placeholder", "Find anything"));
+        setToolTip(toolTip);
     }
 
 protected:
@@ -880,9 +881,11 @@ protected:
             painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), 7));
         }
         const int iconSize = 18;
-        KisIconUtils::loadIcon(QStringLiteral("studio_find"))
-            .paint(&painter, QRect((width() - iconSize) / 2, (height() - iconSize) / 2, iconSize, iconSize));
+        KisIconUtils::loadIcon(m_iconName).paint(&painter, QRect((width() - iconSize) / 2, (height() - iconSize) / 2, iconSize, iconSize));
     }
+
+private:
+    QString m_iconName;
 };
 
 } // namespace
@@ -1217,6 +1220,11 @@ struct KisStudioLayout::Private
     QPointer<QToolBar> topBar;
     QPointer<QWidget> findField;
     QPointer<QAction> findFieldAction;
+    /// Before Find: the menu (what the menu bar had) and Settings
+    QPointer<QWidget> menuButton;
+    QPointer<QAction> menuButtonAction;
+    QPointer<QWidget> settingsButton;
+    QPointer<QAction> settingsButtonAction;
     /// The toolbar the find field and document button were put on
     QPointer<QToolBar> placedOnBar;
     /// Toolbar entries that duplicate the brush rail, hidden while active
@@ -1391,6 +1399,8 @@ struct KisStudioLayout::Private
     QPointer<KisStudioEffectOverlay> effectOverlay;
     KisStudioWindowFrame *frame {nullptr};
     QPointer<QAction> windowButtonsAction;
+    /// The menu button's menu
+    QPointer<QMenu> mainMenu;
     QPointer<QWidget> colorChip;
     QPointer<KisStudioToolRail> toolRail;
     QSet<QString> pinned;
@@ -1908,8 +1918,8 @@ void KisStudioLayout::leave()
         d->topBar->hide();
     }
     releaseTopBars();
-    if (d->findFieldAction) {
-        d->findFieldAction->setVisible(false);
+    for (QAction *action : {d->menuButtonAction.data(), d->settingsButtonAction.data(), d->findFieldAction.data()}) {
+        if (action) action->setVisible(false);
     }
     if (!isCanvasOnly()) {
         d->mainWindow->menuBar()->show();
@@ -2011,8 +2021,8 @@ void KisStudioLayout::normalize()
         d->toolRail->refresh();
     }
     placeFindField();
-    if (d->findFieldAction) {
-        d->findFieldAction->setVisible(!isRailHidden());
+    for (QAction *action : {d->menuButtonAction.data(), d->settingsButtonAction.data(), d->findFieldAction.data()}) {
+        if (action) action->setVisible(!isRailHidden());
     }
     if (d->windowButtonsAction) {
         d->windowButtonsAction->setVisible(d->frame && d->frame->isEnabled() && !isRailHidden());
@@ -2318,7 +2328,8 @@ KisStudioPanelColumn *KisStudioLayout::panelColumn()
         const int width = cfg.readEntry<int>(columnWidthKey, cfg.readEntry<int>(QStringLiteral("StudioLayoutRightColumnWidth"), 270));
         auto *column = new KisStudioPanelColumn(area->parentWidget(), d->panelsLeft, width);
         column->resized = [this](bool done) {
-            updateCanvasInsets();
+            // while its width is dragged the canvas stays as it is: fitting it again for each move was most of a frame
+            updateCanvasInsets(done);
             if (done && d->panelColumn) KisConfig(false).writeEntry(columnWidthKey, d->panelColumn->columnWidth());
         };
         column->moved = [this](bool left) { setPanelsSide(left); };
@@ -2394,7 +2405,7 @@ void KisStudioLayout::updateColumns()
     updateCanvasInsets();
 }
 
-void KisStudioLayout::updateCanvasInsets()
+void KisStudioLayout::updateCanvasInsets(bool views)
 {
     QMdiArea *mdi = mdiArea();
     QWidget *area = mdi ? mdi->parentWidget() : nullptr;
@@ -2429,6 +2440,9 @@ void KisStudioLayout::updateCanvasInsets()
     }
 
     // each view fits the image, and zooms and turns about the middle, of what the panels leave of it
+    if (!views) {
+        return;
+    }
     Q_FOREACH (QMdiSubWindow *subWindow, mdi->subWindowList()) {
         KisView *view = qobject_cast<KisView *>(subWindow->widget());
         KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
@@ -2748,6 +2762,7 @@ void KisStudioLayout::rebuildRailButtons()
             }
         });
         rail->insertAction(d->railSpacer, action);
+        if (QWidget *button = rail->widgetForAction(action)) button->setProperty(KisModernStyle::tabButtonProperty, true);
         d->railActions.insert(id, action);
     }
     d->railPanels = panels;
@@ -3081,8 +3096,25 @@ void KisStudioLayout::createTopBar()
     KisStudioGlass::setSeeThrough(bar, true);
     d->topBar = bar;
 
-    // Find at the end of the top bar, placed there by placeFindField()
-    auto *field = new FindField(mainWindow);
+    // the menu, Settings and Find at the end of the top bar, placed there by placeFindField()
+    auto *menuButton = new PillButton(QStringLiteral("studio_menu"), i18nc("@info:tooltip", "Menu"), mainWindow);
+    menuButton->hide();
+    connect(menuButton, &QAbstractButton::clicked, this, [this, menuButton]() { showMainMenu(menuButton); });
+    d->menuButton = menuButton;
+
+    auto *settingsButton = new PillButton(QStringLiteral("studio_settings"), i18nc("@info:tooltip", "Settings"), mainWindow);
+    settingsButton->hide();
+    connect(settingsButton, &QAbstractButton::clicked, this, [this]() {
+        if (QAction *configure = d->mainWindow->actionCollection()->action(QStringLiteral("options_configure"))) {
+            configure->setData(QVariant());
+            configure->trigger();
+        }
+    });
+    d->settingsButton = settingsButton;
+
+    auto *field = new PillButton(QStringLiteral("studio_find"),
+                                 i18nc("@info:tooltip", "Find tools, commands, effects, brushes, layers and settings"), mainWindow);
+    field->setAccessibleName(i18nc("@info:placeholder", "Find anything"));
     field->hide();
     connect(field, &QAbstractButton::clicked, this, [this]() {
         if (QAction *find = d->mainWindow->actionCollection()->action(QStringLiteral("find_anything"))) {
@@ -3170,6 +3202,39 @@ void KisStudioLayout::releaseTopBars()
     updateCanvasInsets();
 }
 
+void KisStudioLayout::showMainMenu(QWidget *button)
+{
+    /**
+     * What the menu bar had: the commands of the file first (what is needed
+     * most without a shortcut at hand), then all of the menus, as they are
+     * in the menu bar. Made again as it opens: the recent files change.
+     */
+    if (!d->mainMenu) {
+        d->mainMenu = new QMenu(d->mainWindow);
+    }
+    QMenu *menu = d->mainMenu;
+    menu->clear();
+    KisKActionCollection *actions = d->mainWindow->actionCollection();
+    auto add = [&](std::initializer_list<const char *> names) {
+        for (const char *name : names) {
+            if (QAction *action = actions->action(QLatin1String(name))) menu->addAction(action);
+        }
+        menu->addSeparator();
+    };
+    add({"file_new", "file_open", "file_open_recent"});
+    add({"file_save", "file_save_as", "file_export_file"});
+    Q_FOREACH (QAction *top, d->mainWindow->menuBar()->actions()) {
+        if (top->menu() && top->isVisible()) menu->addAction(top);
+    }
+    menu->addSeparator();
+    add({"file_quit"});
+
+    // under the button, its right edge at the button's (the button is at the window's right)
+    const QSize size = menu->sizeHint();
+    const QPoint corner = button->mapToGlobal(QPoint(button->width(), button->height() + 4));
+    menu->popup(QPoint(corner.x() - size.width(), corner.y()));
+}
+
 void KisStudioLayout::placeFindField()
 {
     /**
@@ -3182,6 +3247,15 @@ void KisStudioLayout::placeFindField()
         action->setDefaultWidget(d->documentButton);
         d->documentButtonAction = action;
         if (d->windowBar) d->windowBar->addAction(action);
+    }
+    for (auto button : {std::make_pair(d->menuButton.data(), &d->menuButtonAction),
+                         std::make_pair(d->settingsButton.data(), &d->settingsButtonAction)}) {
+        if (button.first && !*button.second) {
+            auto *action = new QWidgetAction(this);
+            action->setDefaultWidget(button.first);
+            *button.second = action;
+            if (d->windowBar) d->windowBar->addAction(action);
+        }
     }
     if (d->findField && !d->findFieldAction) {
         auto *action = new QWidgetAction(this);
@@ -3348,6 +3422,22 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 
     if (d->presetChip && watched == d->presetChip && handlePresetChip(event)) {
         return true;
+    }
+
+    // any button of the window, right clicked (or held): its card, to give it a shortcut as a tool has
+    if (event->type() == QEvent::ContextMenu) {
+        auto *button = qobject_cast<QAbstractButton *>(watched);
+        if (button && button->window() == d->mainWindow && button->contextMenuPolicy() == Qt::DefaultContextMenu) {
+            bool ownCard = false;
+            for (QWidget *w = button; w && !ownCard; w = w->parentWidget()) {
+                // these have cards of their own
+                ownCard = w->inherits("KisStudioToolRail") || w == d->rail;
+            }
+            KisStudioFind *find = d->mainWindow->studioFind();
+            if (!ownCard && find && find->showCard(button)) {
+                return true;
+            }
+        }
     }
 
     if (event->type() == QEvent::Resize && !d->settlingHeights) {

@@ -237,6 +237,8 @@ uniform float dither;
 uniform float veil;
 uniform vec3 bevel;
 uniform float polish;
+uniform float clearing;
+uniform float gloss;
 uniform vec3 ior;
 uniform vec4 reach;
 flat in float strength;
@@ -477,7 +479,7 @@ void main()
         vec2 bend = bevelOver(d, w, h);
         vec3 normal = normalize(vec3(normal2d * bend.y, 1.0));
         // polished toward the rim, it shows the canvas itself, bent; into the face, the frost, without a step
-        float clear = polish * (1.0 - smoothstep(0.0, 1.0, d / w));
+        float clear = polish * (1.0 - smoothstep(clearing, 1.0, d / w));
 
         vec3 light3 = vec3(0.0);
         for (int i = 0; i < 3; i++) {
@@ -506,6 +508,13 @@ void main()
         float faceOn = fresnel(1.0, ior.g);
         float reflected = (fresnel(normal.z, ior.g) - faceOn) / (1.0 - faceOn) * smoothstep(0.0, 0.25, -mirrored.z);
         color = mix(color, reflectedAt(mirrored, p), reflected);
+        if (gloss > 0.0) {
+            // the edge catches a light from the top left where it faces it, and faintly where it faces away
+            // (lit through the glass): only where it is steep, a thin line along the rim
+            float facing = dot(normal2d, normalize(vec2(-1.0, -1.0)));
+            float lit = facing * facing * (facing > 0.0 ? 1.0 : 0.35);
+            color += vec3(gloss * lit * pow(1.0 - normal.z, 1.5));
+        }
     } else {
         color = tintedLab(mix(tintLab, frostedLab(p), canvas), tintLab, strength);
     }
@@ -668,11 +677,11 @@ struct Program {
  * 550 and 465 nm), from its index for yellow light and its Abbe number,
  * by Cauchy's equation, n = A + B / wavelength^2
  */
-QVector3D refractiveIndices()
+QVector3D refractiveIndices(qreal abbeNumber)
 {
     const qreal nd = KisStudioGlass::refractiveIndex;
     // the spread from blue (the F line, 486.1 nm) to red (the C line, 656.3 nm)
-    const qreal spread = (nd - 1) / KisStudioGlass::abbeNumber;
+    const qreal spread = (nd - 1) / abbeNumber;
     const qreal b = spread / (1 / (0.4861 * 0.4861) - 1 / (0.6563 * 0.6563));
     const qreal a = nd - b / (0.5876 * 0.5876);
     auto at = [a, b](qreal micrometers) { return float(a + b / (micrometers * micrometers)); };
@@ -743,7 +752,7 @@ bool KisOpenGLGlass::initialize()
         && d->glass.make(glassVertexSource, glassSource,
                          {"rect", "blurred", "statistics", "restore", "power",
                           "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
-                          "beyond", "spacing", "dither", "veil", "bevel", "polish", "ior", "under", "decode", "reach"})
+                          "beyond", "spacing", "dither", "veil", "bevel", "polish", "clearing", "gloss", "ior", "under", "decode", "reach"})
         && d->ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
         && d->ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"});
     if (d->valid && KisOpenGL::supportsVAO()) {
@@ -1016,7 +1025,9 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     const KisStudioGlass::Bevel bevel = KisStudioGlass::bevel();
     f->glUniform3f(d->glass["bevel"], bevel.width * pixelRatio, bevel.thickness * pixelRatio, bevel.lift * pixelRatio);
     f->glUniform1f(d->glass["polish"], bevel.polish);
-    const QVector3D ior = refractiveIndices();
+    f->glUniform1f(d->glass["clearing"], bevel.clear);
+    f->glUniform1f(d->glass["gloss"], bevel.gloss);
+    const QVector3D ior = refractiveIndices(bevel.abbeNumber);
     f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
     f->glActiveTexture(GL_TEXTURE2);
     f->glBindTexture(GL_TEXTURE_2D, canvas);

@@ -50,6 +50,7 @@
 #include <kis_icon.h>
 #include <KisPart.h>
 #include <KisSpinBoxI18nHelper.h>
+#include <kis_slider_spin_box.h>
 #include <KoColorModelStandardIds.h>
 #include <KoColorProfile.h>
 #include <KoColorSpaceEngine.h>
@@ -399,22 +400,21 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
     m_chkBrushesAsStrokes = new QCheckBox(i18n("Show brushes as strokes"), m_chkCanvasMessages->parentWidget());
     m_chkBrushesAsStrokes->setToolTip(i18n("Brush presets show a stroke painted with each brush, beside its name, instead of its picture"));
     m_chkBrushesAsStrokes->setChecked(KisPresetStrokeThumbnails::isEnabled());
-    // panels, menus and popups of glass, or of the plain panel color
-    m_chkGlass = new QCheckBox(i18n("Glass panels"), m_chkCanvasMessages->parentWidget());
-    m_chkGlass->setToolTip(i18n("Panels, menus and popups show the canvas behind them, blurred"));
-    m_chkGlass->setChecked(KisStudioGlass::isEnabled());
-    // and how the glass over the canvas ends: a line, or a bevel that bends the canvas behind it
-    m_cmbGlassEdge = new QComboBox(m_chkCanvasMessages->parentWidget());
-    m_cmbGlassEdge->addItems({i18nc("glass edge", "Line"), i18nc("glass edge", "Subtle"), i18nc("glass edge", "Strong")});
-    m_cmbGlassEdge->setToolTip(i18n("How glass panels over the canvas end: a line, or a glass edge that bends the canvas behind it"));
-    m_cmbGlassEdge->setCurrentIndex(int(KisStudioGlass::edge()));
-    m_cmbGlassEdge->setEnabled(m_chkGlass->isChecked());
-    connect(m_chkGlass, &QCheckBox::toggled, m_cmbGlassEdge, &QWidget::setEnabled);
-    // and what is around the image: gray, black, or black lit by the image
-    m_cmbSurround = new QComboBox(m_chkCanvasMessages->parentWidget());
-    m_cmbSurround->addItems({i18nc("canvas surround", "Gray"), i18nc("canvas surround", "Black"), i18nc("canvas surround", "Ambient light")});
-    m_cmbSurround->setToolTip(i18n("Around the image: gray, black, or black lit by the image's colors"));
-    m_cmbSurround->setCurrentIndex(int(KisStudioGlass::surround()));
+    // panels, menus and popups of glass (frosted or liquid), or of the plain panel color
+    m_cmbGlass = new QComboBox(m_chkCanvasMessages->parentWidget());
+    m_cmbGlass->addItems({i18nc("glass panels", "Off"), i18nc("glass panels", "Frosted"), i18nc("glass panels", "Liquid")});
+    m_cmbGlass->setToolTip(i18n("Panels, menus and popups show the canvas behind them, blurred. "
+                                "Liquid: their edges are clearer, bend the canvas more and catch the light"));
+    m_cmbGlass->setCurrentIndex(KisStudioGlass::isEnabled() ? 1 + int(KisStudioGlass::style()) : 0);
+    // and how much its edge bends the canvas behind it (none: a line)
+    m_sldRefraction = new KisSliderSpinBox(m_chkCanvasMessages->parentWidget());
+    m_sldRefraction->setRange(0, 100);
+    m_sldRefraction->setSuffix(i18nc("percent", "%"));
+    m_sldRefraction->setToolTip(i18n("How much the edges of glass panels bend the canvas behind them. None: a line"));
+    m_sldRefraction->setValue(qRound(KisStudioGlass::refraction() * 100));
+    m_sldRefraction->setEnabled(m_cmbGlass->currentIndex() > 0);
+    connect(m_cmbGlass, QOverload<int>::of(&QComboBox::currentIndexChanged), m_sldRefraction,
+            [this](int index) { m_sldRefraction->setEnabled(index > 0); });
     // each in the row under \p anchor, in whichever layout it is in (a form, as the page is made now, or a grid)
     std::function<bool(QLayout *, QWidget *, const QString &, QWidget *)> placeUnder =
         [&](QLayout *layout, QWidget *anchor, const QString &label, QWidget *widget) {
@@ -453,9 +453,8 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
     };
     QLayout *messagesLayout = m_chkCanvasMessages->parentWidget()->layout();
     placeUnder(messagesLayout, m_chkCanvasMessages, QString(), m_chkBrushesAsStrokes);
-    placeUnder(messagesLayout, m_chkBrushesAsStrokes, QString(), m_chkGlass);
-    placeUnder(messagesLayout, m_chkGlass, i18n("Glass edge:"), m_cmbGlassEdge);
-    placeUnder(messagesLayout, m_cmbGlassEdge, i18n("Canvas surround:"), m_cmbSurround);
+    placeUnder(messagesLayout, m_chkBrushesAsStrokes, i18n("Glass:"), m_cmbGlass);
+    placeUnder(messagesLayout, m_cmbGlass, i18n("Refraction:"), m_sldRefraction);
 
     const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     QSettings kritarc(configPath + QStringLiteral("/kritadisplayrc"), QSettings::IniFormat);
@@ -916,9 +915,8 @@ void GeneralTab::setDefault()
     m_backgroundimage->setText(cfg.getMDIBackgroundImage(true));
     m_chkCanvasMessages->setChecked(cfg.showCanvasMessages(true));
     if (m_chkBrushesAsStrokes) m_chkBrushesAsStrokes->setChecked(false);
-    if (m_chkGlass) m_chkGlass->setChecked(true);
-    if (m_cmbGlassEdge) m_cmbGlassEdge->setCurrentIndex(int(KisStudioGlass::Edge::Subtle));
-    if (m_cmbSurround) m_cmbSurround->setCurrentIndex(int(KisStudioGlass::Surround::Ambient));
+    if (m_cmbGlass) m_cmbGlass->setCurrentIndex(1 + int(KisStudioGlass::Style::Frosted));
+    if (m_sldRefraction) m_sldRefraction->setValue(50);
     m_chkCompressKra->setChecked(cfg.compressKra(true));
     m_chkTrimKra->setChecked(cfg.trimKra(true));
     m_chkTrimFramesImport->setChecked(cfg.trimFramesImport(true));
@@ -1131,17 +1129,17 @@ bool GeneralTab::brushesAsStrokes()
 
 bool GeneralTab::glass()
 {
-    return m_chkGlass ? m_chkGlass->isChecked() : KisStudioGlass::isEnabled();
+    return m_cmbGlass ? m_cmbGlass->currentIndex() > 0 : KisStudioGlass::isEnabled();
 }
 
-int GeneralTab::glassEdge()
+int GeneralTab::glassStyle()
 {
-    return m_cmbGlassEdge ? m_cmbGlassEdge->currentIndex() : int(KisStudioGlass::edge());
+    return m_cmbGlass && m_cmbGlass->currentIndex() > 0 ? m_cmbGlass->currentIndex() - 1 : int(KisStudioGlass::style());
 }
 
-int GeneralTab::canvasSurround()
+qreal GeneralTab::glassRefraction()
 {
-    return m_cmbSurround ? m_cmbSurround->currentIndex() : int(KisStudioGlass::surround());
+    return m_sldRefraction ? m_sldRefraction->value() / 100.0 : KisStudioGlass::refraction();
 }
 
 bool GeneralTab::compressKra()
@@ -2840,25 +2838,15 @@ KisDlgPreferences::KisDlgPreferences(QWidget* parent, const char* name)
     addPage(page);
     m_tabletSettings = new TabletSettingsTab(vbox);
 
-    // full-screen mode
-    vbox = new KoVBox();
-    page = new KPageWidgetItem(vbox, i18nc("settings page", "Canvas-only"));
-    page->setObjectName("canvasonly");
-    page->setHeader(i18n("Canvas-only"));
-    page->setIcon(KisIconUtils::loadIcon("config-canvas-only"));
-    m_pages << page;
-    addPage(page);
-    m_fullscreenSettings = new FullscreenSettingsTab(vbox);
-
-    // Pop-up Palette
-    vbox = new KoVBox();
-    page = new KPageWidgetItem(vbox, i18n("Pop-up Palette"));
-    page->setObjectName("popuppalette");
-    page->setHeader(i18n("Pop-up Palette"));
-    page->setIcon(KisIconUtils::loadIcon("config-popup-palette"));
-    m_pages << page;
-    addPage(page);
-    m_popupPaletteSettings = new PopupPaletteTab(vbox);
+    /**
+     * Not pages: canvas-only mode is set from Find (its toggles), the pop-up
+     * palette on itself. Their tabs are kept, unshown, to load and save what
+     * they always did.
+     */
+    QWidget *unshown = new QWidget(this);
+    unshown->hide();
+    m_fullscreenSettings = new FullscreenSettingsTab(unshown);
+    m_popupPaletteSettings = new PopupPaletteTab(unshown);
 
     // Author profiles
     m_authorPage = new KoConfigAuthorPage();
@@ -2880,6 +2868,8 @@ KisDlgPreferences::KisDlgPreferences(QWidget* parent, const char* name)
     QStringList keys = preferenceSetRegistry->keys();
     keys.sort();
     Q_FOREACH(const QString &key, keys) {
+        // the advanced color selector's: its panel is set up on itself
+        if (key == QLatin1String("KisColorSelectorSettingsFactory")) continue;
         KisAbstractPreferenceSetFactory *preferenceSetFactory = preferenceSetRegistry->value(key);
         KisPreferenceSet* preferenceSet = preferenceSetFactory->createPreferenceSet();
         vbox = new KoVBox();
@@ -3179,8 +3169,8 @@ bool KisDlgPreferences::editPreferences(std::optional<PageDesc>page)
         cfg.setShowCanvasMessages(m_general->showCanvasMessages());
         KisPresetStrokeThumbnails::setEnabled(m_general->brushesAsStrokes());
         KisStudioGlass::setEnabled(m_general->glass());
-        KisStudioGlass::setEdge(KisStudioGlass::Edge(m_general->glassEdge()));
-        KisStudioGlass::setSurround(KisStudioGlass::Surround(m_general->canvasSurround()));
+        KisStudioGlass::setStyle(KisStudioGlass::Style(m_general->glassStyle()));
+        KisStudioGlass::setRefraction(m_general->glassRefraction());
         cfg.setCompressKra(m_general->compressKra());
         cfg.setTrimKra(m_general->trimKra());
         cfg.setTrimFramesImport(m_general->trimFramesImport());

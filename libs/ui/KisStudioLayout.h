@@ -103,7 +103,8 @@ private:
     void parkPanel(QDockWidget *dock);
     /// The columns shown if they have panels to show, and what is in the canvas area kept clear of them
     void updateColumns();
-    void updateCanvasInsets();
+    /// What is over the canvas area's edges told to what is placed in it, and (\p views) to the views, which fit the image again
+    void updateCanvasInsets(bool views = true);
     void resizePanel(QDockWidget *dock, int height);
     /// A panel dragged by its grip, or by its rail button, let go at \p globalPos
     void dropPanel(const QString &id, const QPoint &globalPos, bool fromRail);
@@ -137,6 +138,8 @@ private:
     /// Shows only the toolbar entries that matter to the active tool
     void updateContextBar();
     void placeFindField();
+    /// The menu of the window pill's menu button, under \p button
+    void showMainMenu(QWidget *button);
     /// The tool's bar and the brush's in a pill over the top of the canvas, and the window's in another
     void adoptTopBars();
     /// Back in the window's top row

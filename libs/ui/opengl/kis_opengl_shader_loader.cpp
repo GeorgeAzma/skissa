@@ -28,7 +28,8 @@ std::map<Uniform, const char *> KisShaderProgram::names = {
    {Texture0, "texture0"},
    {Texture1, "texture1"},
    {FixedLodLevel, "fixedLodLevel"},
-   {FragmentColor, "fragColor"}
+   {FragmentColor, "fragColor"},
+   {Grayscale, "grayscale"}
 };
 
 /**

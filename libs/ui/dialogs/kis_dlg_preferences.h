@@ -39,6 +39,7 @@ class KisInputConfigurationPage;
 class KoConfigAuthorPage;
 class KisProofingConfigModel;
 class KisFrameRateLimitModel;
+class KisSliderSpinBox;
 
 /**
  *  "General"-tab for preferences dialog
@@ -94,16 +95,16 @@ public:
     bool brushesAsStrokes();
     /// Glass panels: the canvas shows through them, blurred (KisStudioGlass::isEnabled)
     bool glass();
-    /// The edge of the glass over the canvas (KisStudioGlass::Edge)
-    int glassEdge();
-    /// What is around the image on the canvas (KisStudioGlass::Surround)
-    int canvasSurround();
+    /// Frosted or liquid (KisStudioGlass::Style)
+    int glassStyle();
+    /// How much the edge of the glass bends the canvas, 0 to 1 (KisStudioGlass::refraction)
+    qreal glassRefraction();
 
     /// Brush presets shown by what they paint (off: by their pictures)
     QPointer<QCheckBox> m_chkBrushesAsStrokes;
-    QPointer<QCheckBox> m_chkGlass;
-    QPointer<QComboBox> m_cmbGlassEdge;
-    QPointer<QComboBox> m_cmbSurround;
+    /// Off, frosted or liquid
+    QPointer<QComboBox> m_cmbGlass;
+    QPointer<KisSliderSpinBox> m_sldRefraction;
     bool compressKra();
     bool trimKra();
     bool trimFramesImport();

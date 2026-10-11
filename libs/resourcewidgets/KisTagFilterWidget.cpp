@@ -8,6 +8,7 @@
 
 #include "KisTagFilterWidget.h"
 
+#include <KisModernStyle.h>
 #include <kis_icon_utils.h>
 
 #include <QAction>
@@ -54,6 +55,12 @@ KisTagFilterWidget::KisTagFilterWidget(KisTagModel* model, QWidget* parent)
     // a magnifier says "search" without the word
     d->tagSearchLineEdit->addAction(KisIconUtils::loadIcon(QStringLiteral("studio_find")), QLineEdit::LeadingPosition);
     d->tagSearchLineEdit->setToolTip(searchTooltipMaintext);
+    // on the panel, without a box of its own until pointed at or typed in
+    d->tagSearchLineEdit->setFrame(false);
+    d->tagSearchLineEdit->setProperty(KisModernStyle::quietFieldProperty, true);
+    d->tagSearchLineEdit->setAttribute(Qt::WA_Hover);
+    d->tagSearchLineEdit->setTextMargins(2, 3, 2, 3);
+    d->tagSearchLineEdit->setPlaceholderText(i18nc("@info:placeholder", "Search"));
     d->tagSearchLineEdit->setEnabled(true);
 
     d->completer = new QCompleter(model, this);

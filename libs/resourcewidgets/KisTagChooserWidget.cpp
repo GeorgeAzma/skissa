@@ -163,6 +163,8 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
 
     d->comboBox = new QComboBox(this);
     d->comboBox->setToolTip(i18n("Tag"));
+    // on the panel, without a box of its own: a box only while pointed at
+    d->comboBox->setFrame(false);
     d->comboBox->setSizePolicy(QSizePolicy::Policy::Expanding , QSizePolicy::Policy::Fixed);
 
     // Allow the combo box to not depend on content size.

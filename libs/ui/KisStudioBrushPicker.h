@@ -42,6 +42,7 @@ public:
     static QImage strokePicture(const QString &presetName);
     /// Your brushes, in your order
     static QStringList yourBrushes();
+    static void setYourBrushes(const QStringList &presetNames);
 
 private:
     /// The strokes exist before the picker: its Source paints them

@@ -1226,8 +1226,8 @@ KisStudioColorPanel::KisStudioColorPanel()
     auto *styles = new QMenu(d->styleButton);
     auto *styleGroup = new QActionGroup(styles);
     const QList<QPair<PickerStyle, QString>> names = {
-        {PickerStyle::Ring, i18nc("@item:inmenu color picker", "Ring")},
-        {PickerStyle::Pill, i18nc("@item:inmenu color picker", "Pill")},
+        {PickerStyle::Ring, i18nc("@item:inmenu color picker: OKLCH hue ring and chroma/lightness square", "OKLCH")},
+        {PickerStyle::Pill, i18nc("@item:inmenu color picker: compact OKLCH sliders", "Sliders")},
         {PickerStyle::Hsv, i18nc("@item:inmenu color picker", "HSV")},
     };
     for (const auto &name : names) {

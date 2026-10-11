@@ -227,6 +227,20 @@ void KisOpenGLCanvasRenderer::notifyImageColorSpaceChanged(const KoColorSpace *c
     }
 }
 
+namespace {
+bool valueViewOn = false;
+}
+
+void KisOpenGLCanvasRenderer::setValueView(bool on)
+{
+    valueViewOn = on;
+}
+
+bool KisOpenGLCanvasRenderer::valueView()
+{
+    return valueViewOn;
+}
+
 void KisOpenGLCanvasRenderer::setWrapAroundViewingMode(bool value)
 {
     d->wrapAroundMode = value;
@@ -382,7 +396,7 @@ void KisOpenGLCanvasRenderer::paintCanvasOnly(const QRect &canvasImageDirtyRect,
             d->canvasFBO->release();
             // the image changed or moved: the light it casts around it too (see KisOpenGLCanvas2::paintEvent: all of it drawn again then);
             // none in wrap-around mode, where the image's copies are all around it
-            if (KisStudioGlass::surround() == KisStudioGlass::Surround::Ambient && d->glass.isValid() && !d->wrapAroundMode) {
+            if (KisStudioGlass::ambientSurround() && d->glass.isValid() && !d->wrapAroundMode) {
                 const qreal ratio = devicePixelRatioF();
                 const QTransform widgetToSurface = QTransform::fromScale(1.0, -1.0) * QTransform::fromTranslate(0, d->pixelAlignedWidgetSize.height())
                     * QTransform::fromScale(ratio, ratio);
@@ -942,6 +956,9 @@ void KisOpenGLCanvasRenderer::drawImageTiles(int firstCol, int lastCol, int firs
     modelMatrix.optimize();
     modelMatrix = projectionMatrix * modelMatrix;
     d->displayShader->setUniformValue(d->displayShader->location(Uniform::ModelViewProjection), modelMatrix);
+    if (d->displayShader->location(Uniform::Grayscale) >= 0) {
+        d->displayShader->setUniformValue(d->displayShader->location(Uniform::Grayscale), GLfloat(valueViewOn ? 1 : 0));
+    }
 
     int lastTileLodPlane = -1;
 

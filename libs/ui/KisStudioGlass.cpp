@@ -54,7 +54,10 @@
 namespace {
 
 const QString settingKey = QStringLiteral("StudioGlass");
-const QString edgeKey = QStringLiteral("StudioGlassEdge");
+const QString styleKey = QStringLiteral("StudioGlassStyle");
+const QString refractionKey = QStringLiteral("StudioGlassRefraction");
+/// Before the refraction was a share: a line, subtle or strong
+const QString oldEdgeKey = QStringLiteral("StudioGlassEdge");
 
 /// How the glass looks: soft enough that nothing in it reads as a shape, tinted enough that text on it reads
 constexpr qreal blurRadius = 26;   ///< in widget pixels
@@ -583,6 +586,21 @@ QWidget *canvasWidgetOf(QWidget *widget)
     return canvas ? canvas->canvasWidget() : nullptr;
 }
 
+/**
+ * Whether \p widget, a window of its own (a menu, a dropdown, a tooltip),
+ * opened from a solid window other than the main one (a dialog): that window
+ * is between it and the canvas, it shows none of the canvas
+ */
+bool overOtherWindow(const QWidget *widget)
+{
+    for (const QWidget *w = widget->window()->parentWidget(); w; w = w->parentWidget()) {
+        if (!w->isWindow()) continue;
+        if (qobject_cast<const KisMainWindow *>(w)) return false;
+        if (!w->testAttribute(Qt::WA_TranslucentBackground)) return true;
+    }
+    return false;
+}
+
 bool drawnByCanvas(const QWidget *canvasWidget)
 {
     return canvasWidget && canvasWidget->property(drawnByCanvasProperty).toBool();
@@ -1062,7 +1080,7 @@ void KisStudioGlass::setSeeThrough(QWidget *widget, bool on)
         Q_FOREACH (QAbstractItemView *view, widget->findChildren<QAbstractItemView *>()) {
             if (view->window() == widget->window()) setListOnGlass(view, true);
         }
-        // a dropdown's list is a window of its own, but given its box's palette: it stays solid
+        // a dropdown's list is a window of its own, but given its box's palette: its glass tinted as a menu's
         Q_FOREACH (QComboBox *box, widget->findChildren<QComboBox *>()) {
             QWidget *popup = box->view() ? box->view()->window() : nullptr;
             if (popup && popup != box->window()) popup->setPalette(QApplication::palette(box));
@@ -1099,11 +1117,35 @@ bool KisStudioGlass::isEnabled()
 }
 
 namespace {
-/// The setting, read once: the canvas draws the glass every frame
-KisStudioGlass::Edge &edgeSetting()
+/// The settings, read once: the canvas draws the glass every frame
+KisStudioGlass::Style &styleSetting()
 {
-    static KisStudioGlass::Edge edge = KisStudioGlass::Edge(qBound(0, KisConfig(true).readEntry<int>(edgeKey, int(KisStudioGlass::Edge::Subtle)), 2));
-    return edge;
+    static KisStudioGlass::Style style = KisStudioGlass::Style(qBound(0, KisConfig(true).readEntry<int>(styleKey, 0), 1));
+    return style;
+}
+
+qreal &refractionSetting()
+{
+    static qreal refraction = []() {
+        KisConfig cfg(true);
+        const qreal set = cfg.readEntry<qreal>(refractionKey, -1);
+        if (set >= 0) return qMin<qreal>(set, 1);
+        // set as it was before: a line, subtle or strong
+        static const qreal shares[] = {0, 0.5, 0.7};
+        return shares[qBound(0, cfg.readEntry<int>(oldEdgeKey, 1), 2)];
+    }();
+    return refraction;
+}
+
+/// Black around the image (see KisConfig::canvasBorderColor), kept: the canvas asks every frame
+bool &ambientSetting()
+{
+    static bool ambient = []() {
+        auto black = []() { return KisConfig(true).canvasBorderColor() == QColor(0, 0, 0); };
+        QObject::connect(KisConfigNotifier::instance(), &KisConfigNotifier::configChanged, [black]() { ambientSetting() = black(); });
+        return black();
+    }();
+    return ambient;
 }
 } // namespace
 
@@ -1112,25 +1154,19 @@ qreal KisStudioGlass::blurScale(const QSizeF &size)
     return qBound<qreal>(1, std::sqrt(qMax<qreal>(0, size.width() * size.height())) / 300, maxBlurScale);
 }
 
-KisStudioGlass::Edge KisStudioGlass::edge()
+KisStudioGlass::Style KisStudioGlass::style()
 {
-    return edgeSetting();
+    return styleSetting();
 }
 
-namespace {
-const QString surroundKey = QStringLiteral("StudioCanvasSurround");
-
-KisStudioGlass::Surround &surroundSetting()
+qreal KisStudioGlass::refraction()
 {
-    static KisStudioGlass::Surround surround =
-        KisStudioGlass::Surround(qBound(0, KisConfig(true).readEntry<int>(surroundKey, int(KisStudioGlass::Surround::Ambient)), 2));
-    return surround;
+    return refractionSetting();
 }
-} // namespace
 
-KisStudioGlass::Surround KisStudioGlass::surround()
+bool KisStudioGlass::ambientSurround()
 {
-    return surroundSetting();
+    return ambientSetting();
 }
 
 namespace {
@@ -1160,30 +1196,75 @@ void makeSeeThroughWindow(QWidget *widget)
  * which is what Qt needs for it), their background painted as a panel's
  * is, before they paint their items over it
  */
+const char *const glassDropdownProperty = "studioGlassDropdown";
+
+/**
+ * A dropdown's list, a window of its own (a combo box's, in a frame Qt makes
+ * for it; a completer's, the list itself): glass as a menu, if its window
+ * is not made yet
+ */
+void makeGlassDropdown(QWidget *popup)
+{
+    if (!popup || popup->testAttribute(Qt::WA_WState_Created) || popup->property(glassDropdownProperty).toBool()
+        || !KisStudioGlass::isEnabled() || !KisStudioGlass::seeThroughWindows()) {
+        return;
+    }
+    makeSeeThroughWindow(popup);
+    popup->setProperty(glassDropdownProperty, true);
+    // no box: its rows on the glass, clear of its round corners
+    if (auto *frame = qobject_cast<QFrame *>(popup)) frame->setFrameStyle(QFrame::NoFrame);
+    if (auto *view = qobject_cast<QAbstractItemView *>(popup)) {
+        setListOnGlass(view, true);
+    } else {
+        popup->setContentsMargins(4, 4, 4, 4);
+    }
+    Q_FOREACH (QAbstractItemView *view, popup->findChildren<QAbstractItemView *>()) setListOnGlass(view, true);
+}
+
+/// Qt's tooltip (polished as it is made, its class known by then)
+bool isTooltip(const QWidget *widget)
+{
+    return widget->windowType() == Qt::ToolTip && widget->inherits("QTipLabel");
+}
+
 class MenuGlass : public QObject
 {
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
-        if (event->type() != QEvent::Polish && event->type() != QEvent::Paint) {
+        const QEvent::Type type = event->type();
+        if (type != QEvent::Polish && type != QEvent::Paint && type != QEvent::MouseButtonPress && type != QEvent::KeyPress) {
             return false;
         }
-        // a list first shown in a see-through panel lies on the glass (see KisStudioGlass::setSeeThrough)
-        if (event->type() == QEvent::Polish) {
-            if (auto *view = qobject_cast<QAbstractItemView *>(watched)) {
-                if (inSeeThrough(view)) setListOnGlass(view, true);
-                return false;
+        QWidget *widget = qobject_cast<QWidget *>(watched);
+        if (!widget) {
+            return false;
+        }
+        if (type == QEvent::MouseButtonPress || type == QEvent::KeyPress) {
+            // a combo box about to open its list: one polished before this was installed (the panels' are) too
+            if (auto *box = qobject_cast<QComboBox *>(widget)) {
+                QWidget *popup = box->view() ? box->view()->window() : nullptr;
+                if (popup != box->window()) makeGlassDropdown(popup);
             }
-        }
-        QMenu *menu = qobject_cast<QMenu *>(watched);
-        if (!menu) {
             return false;
         }
-        if (event->type() == QEvent::Polish && !menu->testAttribute(Qt::WA_WState_Created) && KisStudioGlass::isEnabled()
-            && KisStudioGlass::seeThroughWindows()) {
-            makeSeeThroughWindow(menu);
-        } else if (event->type() == QEvent::Paint && menu->property(glassMenuProperty).toBool()) {
-            paintMenuGlass(menu, KisModernStyle::cornerRadius + 2);
+        if (type == QEvent::Polish) {
+            if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
+                // a list first shown in a see-through panel lies on the glass (see KisStudioGlass::setSeeThrough)
+                if (inSeeThrough(view)) setListOnGlass(view, true);
+                // a completer's list
+                if (view->windowType() == Qt::Popup) makeGlassDropdown(view);
+            } else if (auto *box = qobject_cast<QComboBox *>(widget)) {
+                // its list's frame is polished as it is made, before it is one: it is taken here
+                QWidget *popup = box->view() ? box->view()->window() : nullptr;
+                if (popup != box->window()) makeGlassDropdown(popup);
+            } else if ((qobject_cast<QMenu *>(widget) || isTooltip(widget)) && !widget->testAttribute(Qt::WA_WState_Created)
+                       && KisStudioGlass::isEnabled() && KisStudioGlass::seeThroughWindows()) {
+                makeSeeThroughWindow(widget);
+            }
+        } else if ((qobject_cast<QMenu *>(widget) || isTooltip(widget) || widget->property(glassDropdownProperty).toBool())
+                   && widget->property(glassMenuProperty).toBool()) {
+            paintMenuGlass(widget, KisModernStyle::cornerRadius + 2);
         }
         return false;
     }
@@ -1249,48 +1330,56 @@ void KisStudioGlass::installMenuGlass()
         // Windows fades menus in through their window's opacity, of which nothing is told: the canvas drew
         // the glass under one as faint as it was then, and did not again, and the menu showed no background
         QApplication::setEffectEnabled(Qt::UI_AnimateMenu, false);
+        // tooltips too: glass as menus are
+        QApplication::setEffectEnabled(Qt::UI_FadeTooltip, false);
+        QApplication::setEffectEnabled(Qt::UI_AnimateTooltip, false);
     }
 }
 
-void KisStudioGlass::setSurround(Surround surround)
+void KisStudioGlass::setStyle(Style style)
 {
-    if (surround == surroundSetting()) {
+    if (style == styleSetting()) {
         return;
     }
-    surroundSetting() = surround;
-    KisConfig(false).writeEntry(surroundKey, int(surround));
-    // the canvases take the color around the image again (see KisConfig::canvasBorderColor) and draw again
-    KisConfigNotifier::instance()->notifyConfigChanged();
+    styleSetting() = style;
+    KisConfig(false).writeEntry(styleKey, int(style));
     Panels::instance().repaintAll();
 }
 
-void KisStudioGlass::setEdge(Edge edge)
+void KisStudioGlass::setRefraction(qreal refraction)
 {
-    if (edge == edgeSetting()) {
+    refraction = qBound<qreal>(0, refraction, 1);
+    if (qFuzzyCompare(refraction + 1, refractionSetting() + 1)) {
         return;
     }
-    edgeSetting() = edge;
-    KisConfig(false).writeEntry(edgeKey, int(edge));
+    refractionSetting() = refraction;
+    KisConfig(false).writeEntry(refractionKey, refraction);
     Panels::instance().repaintAll();
 }
 
 KisStudioGlass::Bevel KisStudioGlass::bevel()
 {
-    // a polished rim: the canvas under it bent, clear toward the edge
-    switch (edge()) {
-    case Edge::Subtle:
-        return {16, 17, 31, 0.85};
-    case Edge::Strong:
-        return {18, 20, 36, 0.85};
-    case Edge::Line:
-        break;
+    const qreal r = refraction();
+    if (r <= 0) {
+        return {};
     }
-    return {};
+    // through three points: none, the middle of the setting, all of it
+    auto at = [r](qreal none, qreal middle, qreal all) {
+        return r < 0.5 ? none + (middle - none) * r * 2 : middle + (all - middle) * (r - 0.5) * 2;
+    };
+    // the rim fades in from nothing as the bevel does
+    const qreal fadeIn = qMin<qreal>(1, r * 2);
+    if (style() == Style::Liquid) {
+        // a thick pane, clear far into its bevel; its edge catches the light, and its colors spread
+        return {at(16, 22, 26), at(0, 24, 34), at(0, 28, 40), fadeIn, 0.55, 0.45 * fadeIn, 22};
+    }
+    // a polished rim: the canvas under it bent, clear toward the edge
+    return {at(10, 16, 20), at(0, 17, 24), at(0, 31, 44), 0.85 * fadeIn, 0, 0, 40};
 }
 
 void KisStudioGlass::paintBorder(QPainter &painter, QWidget *widget, const QPainterPath &shape, const QColor &color, qreal width)
 {
-    QWidget *canvas = isEnabled() && edge() != Edge::Line ? canvasWidgetOf(widget) : nullptr;
+    QWidget *canvas = isEnabled() && refraction() > 0 ? canvasWidgetOf(widget) : nullptr;
     if (!drawnByCanvas(canvas) || !canvas->isVisible() || !Panels::instance().isDrawn(widget)) {
         painter.strokePath(shape, QPen(color, width));
         return;
@@ -1361,6 +1450,10 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
         return edge;
     }
     const QPainterPath shape = KisModernStyle::squircle(rect, radius);
+    if (overOtherWindow(widget)) {
+        painter.fillPath(shape, window);
+        return shape;
+    }
     const bool drawn = Panels::instance().paint(widget, rect, radius);
     // under a glass window, nothing of it shows through that window's glass (what is painted on it after neither)
     const QRegion covered = Panels::instance().covered(widget);
@@ -1390,7 +1483,7 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
         over.addRect(QRectF(widget->mapFromGlobal(canvas->mapToGlobal(QPoint())), canvas->size()));
         painter.fillPath(shape.subtracted(over), window);
         // a bevel catches the light itself
-        if (edge() == Edge::Line) sheen();
+        if (refraction() <= 0) sheen();
         return shape;
     }
 

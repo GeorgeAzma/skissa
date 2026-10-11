@@ -62,7 +62,7 @@ public:
                 const QVector<Surface> &surfaces, const QRect &clip, bool canvasChanged = true);
 
     /**
-     * The ambient light of the image (see KisStudioGlass::Surround) drawn
+     * The ambient light of the image (see KisStudioGlass::ambientSurround) drawn
      * into \p canvas (the canvas as drawn, \p canvasFormat as for render())
      * around the image: \p surfaceToImage takes surface pixels to the image's
      * own coordinates, 0 to 1 across it; \p base the color around it.

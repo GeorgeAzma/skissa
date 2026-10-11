@@ -604,6 +604,9 @@ int KisModernStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
 {
     const bool touch = KisTouchMode::isActive();
     switch (metric) {
+    case PM_ToolTipLabelFrameWidth:
+        // room around a tooltip's text (its margin is this, and one more)
+        return 5;
     case PM_ScrollBarExtent:
         // a finger drags a scroll bar too
         return touch ? 16 : 10;
@@ -879,6 +882,9 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
             // their parent paints the field for them
             if (frame->lineWidth > 0) {
                 drawField(painter, option, true);
+            } else if (widget && widget->property(quietFieldProperty).toBool()
+                       && option->state & (State_MouseOver | State_HasFocus)) {
+                drawField(painter, option, true);
             }
             return;
         }
@@ -1007,6 +1013,10 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         return;
 
     case PE_PanelTipLabel:
+        // a see-through tooltip is glass, painted under it (see KisStudioGlass)
+        if (widget && widget->testAttribute(Qt::WA_TranslucentBackground)) {
+            return;
+        }
         // a round tooltip has the system's border
         if (systemRoundsWindows()) {
             painter->fillRect(option->rect, option->palette.brush(QPalette::ToolTipBase));
@@ -1348,6 +1358,38 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
 void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOptionComplex *option, QPainter *painter, const QWidget *widget) const
 {
     switch (control) {
+    case CC_ToolButton:
+        if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option);
+            tool && widget && widget->property(tabButtonProperty).toBool()) {
+            const Interaction s(option);
+            const QColor fg = tool->palette.color(QPalette::ButtonText);
+            const bool on = tool->state.testFlag(State_On);
+            if (s.hovered || s.pressed) {
+                QColor fill = fg;
+                fill.setAlphaF(s.pressed ? 0.14 : 0.08);
+                drawRounded(painter, QRectF(tool->rect).adjusted(1, 1, -1, -1), radius, fill);
+            }
+            // the icon as it is, not pushed in or lit as a checked button's
+            QStyleOptionToolButton label = *tool;
+            label.state &= ~(State_On | State_Sunken | State_MouseOver);
+            label.rect = proxy()->subControlRect(CC_ToolButton, tool, SC_ToolButton, widget);
+            painter->save();
+            painter->setOpacity(on ? 1.0 : (s.hovered ? 0.8 : 0.5));
+            proxy()->drawControl(CE_ToolButtonLabel, &label, painter, widget);
+            painter->restore();
+            if (on) {
+                const QRectF bar(tool->rect.center().x() - 5.5, tool->rect.bottom() - 2.5, 12, 2);
+                painter->save();
+                painter->setRenderHint(QPainter::Antialiasing, true);
+                painter->setPen(Qt::NoPen);
+                painter->setBrush(fg);
+                painter->drawRoundedRect(bar, 1, 1);
+                painter->restore();
+            }
+            return;
+        }
+        break;
+
     case CC_ScrollBar:
         if (const auto *bar = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
             const QColor bg = bar->palette.color(QPalette::Window);

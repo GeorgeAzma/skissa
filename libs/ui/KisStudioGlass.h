@@ -80,20 +80,27 @@ public:
     static constexpr qreal veil = 0.3;
 
     /**
-     * The edge of the glass over the canvas: a line drawn on it, or a
-     * polished bevel, the face of the pane rounding down to its edge, that
-     * bends what is behind as glass does (Snell's law, with the dispersion of
-     * the glass), reflects the canvas around it where it is steep (Fresnel)
-     * and, steepest, keeps the light inside it (total internal reflection).
-     * No gloss: it shows by what it bends.
+     * The glass over the canvas ends in a polished bevel, the face of the
+     * pane rounding down to its edge, that bends what is behind as glass
+     * does (Snell's law, with the dispersion of the glass), reflects the
+     * canvas around it where it is steep (Fresnel) and, steepest, keeps the
+     * light inside it (total internal reflection).
+     *
+     * Frosted: the rim is clear only at the very edge and shows by what it
+     * bends, no gloss. Liquid: a thicker pane, clear far into the bevel,
+     * which bends the canvas more and spreads its colors further, and its
+     * edge catches the light (from the top left, and faintly opposite).
      */
-    enum class Edge {
-        Line = 0,
-        Subtle = 1,
-        Strong = 2,
+    enum class Style {
+        Frosted = 0,
+        Liquid = 1,
     };
-    static Edge edge();
-    static void setEdge(Edge edge);
+    static Style style();
+    static void setStyle(Style style);
+
+    /// How much the bevel bends the canvas, 0 to 1; at 0 there is no bevel, the glass ends in a line
+    static qreal refraction();
+    static void setRefraction(qreal refraction);
 
     /// The bevel of the edge (all zero for a line), in widget pixels
     struct Bevel {
@@ -102,33 +109,32 @@ public:
         qreal lift {0};      ///< how far the pane is over the canvas
         /// How clear the rim is, 0 to 1: polished, it shows the canvas itself bent, frosted the blur
         qreal polish {0};
+        /// How far into the bevel it is all clear (a share of its width), from where it turns to frost
+        qreal clear {0};
+        /// How bright the light the edge catches is (0, none)
+        qreal gloss {0};
+        /// The glass's Abbe number: the lower, the more it spreads the colors
+        qreal abbeNumber {40};
     };
     static Bevel bevel();
 
     /**
-     * What is around the image on the canvas: the theme's gray, black (an
-     * OLED screen's black: the image the only light), or black lit by the
-     * image, as a screen lights the wall behind it: its colors spill out
-     * around it and fade with the distance (ambient light)
+     * What is around the image on the canvas: black lit by the image, as a
+     * screen lights the wall behind it (its colors spill out around it and
+     * fade with the distance, ambient light), unless a color other than
+     * black is chosen for it (KisConfig::canvasBorderColor)
      */
-    enum class Surround {
-        Gray = 0,
-        Black = 1,
-        Ambient = 2,
-    };
-    static Surround surround();
-    static void setSurround(Surround surround);
+    static bool ambientSurround();
     /// How far the ambient light reaches (a gaussian's sigma, widget pixels), and how strong it is next to the image
     static constexpr qreal ambientSigma = 110;
     static constexpr qreal ambientStrength = 0.5;
-    /// The glass: crown glass, its refractive index for yellow light (the sodium d line) and its Abbe number
+    /// The glass: crown glass, its refractive index for yellow light (the sodium d line)
     static constexpr qreal refractiveIndex = 1.52;
-    static constexpr qreal abbeNumber = 40;
 
     /**
      * Strokes \p shape (what paint() returned) in \p color, \p width wide:
      * \p widget's border, where the canvas does not draw a bevel instead
-     * (beyond the canvas, without OpenGL, with the edge set to a line).
+     * (beyond the canvas, without OpenGL, with no refraction).
      */
     static void paintBorder(QPainter &painter, QWidget *widget, const QPainterPath &shape, const QColor &color, qreal width = 1);
 

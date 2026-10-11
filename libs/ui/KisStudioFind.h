@@ -17,6 +17,7 @@
 #include "kritaui_export.h"
 
 class KisMainWindow;
+class QAbstractButton;
 class QKeyEvent;
 class QDockWidget;
 
@@ -67,6 +68,12 @@ protected:
 public:
     /// Every button of the window that is no action of its own gets one: for its shortcut and for Find
     void registerButtons();
+
+    /**
+     * \p button's card, beside it: its shortcut, and a place on the tools
+     * panel. False if it is no command Find knows (a button of a list, say).
+     */
+    bool showCard(QAbstractButton *button);
 
 private:
     void rebuildIndex();

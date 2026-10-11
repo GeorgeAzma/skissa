@@ -34,15 +34,6 @@
 // on glass, the canvas behind shows through already: the message itself is not see-through
 #define OSD_WINDOW_OPACITY 1.0
 
-static void addDropShadow(QWidget *widget, QColor color)
-{
-    QGraphicsDropShadowEffect *effect = new QGraphicsDropShadowEffect(widget);
-    effect->setBlurRadius(6);
-    effect->setOffset(0);
-    effect->setColor(color);
-    widget->setGraphicsEffect(effect);
-}
-
 static Qt::AlignmentFlag flagsToAlignmentFlags(int flags)
 {
     constexpr int mask = Qt::AlignLeft
@@ -78,17 +69,19 @@ KisFloatingMessage::KisFloatingMessage(const QString &message, QWidget *parent, 
     setAttribute(Qt::WA_ShowWithoutActivating);
     setAttribute(Qt::WA_TranslucentBackground, KisStudioGlass::seeThroughWindows());
 
+    // small and quiet: a note, on its pill of glass (no shadow under the text: the glass sets it off)
+    QFont font = this->font();
+    font.setPointSizeF(font.pointSizeF() * 0.9);
+    setFont(font);
     m_messageLabel = new QLabel(message, this);
     m_messageLabel->setAttribute(Qt::WA_TranslucentBackground);
+    QPalette quiet = m_messageLabel->palette();
+    QColor ink = quiet.color(QPalette::WindowText);
+    ink.setAlphaF(0.82);
+    quiet.setColor(QPalette::WindowText, ink);
+    m_messageLabel->setPalette(quiet);
     m_iconLabel = new QLabel(this);
     m_iconLabel->setAttribute(Qt::WA_TranslucentBackground);
-    {
-        int h, s, v;
-        palette().color( QPalette::Normal, QPalette::WindowText ).getHsv( &h, &s, &v );
-        const QColor shadowColor = v > 128 ? Qt::black : Qt::white;
-        addDropShadow(m_messageLabel, shadowColor);
-        addDropShadow(m_iconLabel, shadowColor);
-    }
 
     m_timer.setSingleShot( true );
     connect(&m_timer, SIGNAL(timeout()), SLOT(startFade()));
@@ -135,7 +128,7 @@ void KisFloatingMessage::showMessage()
     KisStudioGlass::changed(this);
 
     QRect rect(QPoint(), geom.size());
-    rect.adjust(m_m, m_m, -m_m, -m_m);
+    rect.adjust(horizontalPadding(), verticalPadding(), -horizontalPadding(), -verticalPadding());
     if (!m_icon.isNull()) {
         QRect r(rect);
         r.setTop((size().height() - m_scaledIcon.height() ) / 2);
@@ -160,7 +153,9 @@ void KisFloatingMessage::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 10);
+    // a pill: round all along its ends (a message of several lines, as round as one of one line)
+    const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5),
+                                                     qMin<qreal>(height(), fontMetrics().height() + 2 * verticalPadding()) / 2);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.12);
     KisStudioGlass::paintBorder(painter, this, shape, border);
@@ -217,11 +212,8 @@ QRect KisFloatingMessage::determineMetrics( const int M )
         rect.setWidth( widthIncludingImage );
     }
 
-    // expand in all directions by 2*M
-    //
-    // take care with this rect, because it must be *bigger*
-    // than the rect we paint the message in
-    rect = kisGrowRect(rect, 2 * M);
+    // around the text: a little above and below it, more at its ends, which are round
+    rect.adjust(-horizontalPadding(), -verticalPadding(), horizontalPadding(), verticalPadding());
 
 
 

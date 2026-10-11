@@ -69,6 +69,9 @@ private Q_SLOTS:
 private:
 
     QRect determineMetrics(const int M);
+    /// Around the text, from the width of an x (m_m): at its round ends, and above and below it
+    int horizontalPadding() const { return qRound(m_m * 1.4); }
+    int verticalPadding() const { return qRound(m_m * 0.5); }
 
     QString m_message;
     QImage m_icon;

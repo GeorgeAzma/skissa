@@ -861,9 +861,7 @@ void KisStudioFind::rebuildIndex()
         {i18nc("settings page", "Memory and Performance"), QStringLiteral("ram swap threads cache instant preview"), KisDlgPreferences::Performance, 0},
         {i18nc("settings page", "Canvas Display and Acceleration"), QStringLiteral("opengl renderer checkerboard border grid hdr"), KisDlgPreferences::Display, 0},
         {i18nc("settings page", "Tablet and Pressure"), QStringLiteral("wintab windows ink pen pressure curve"), KisDlgPreferences::Tablet, 0},
-        {i18nc("settings page", "Canvas-only Mode"), QStringLiteral("fullscreen hide"), KisDlgPreferences::Fullscreen, 0},
         {i18nc("settings page", "Canvas Input and Gestures"), QStringLiteral("mouse pan zoom rotate touch shortcuts"), KisDlgPreferences::Input, 0},
-        {i18nc("settings page", "Pop-up Palette"), QStringLiteral("right click favorites ring"), KisDlgPreferences::PopupPalette, 0},
     };
     Q_FOREACH (const SettingPage &page, pages) {
         QPointer<KisMainWindow> window = mainWindow;
@@ -878,6 +876,33 @@ void KisStudioFind::rebuildIndex()
                                    configure->setData(QVariantList{pageId, tab});
                                    configure->trigger();
                                }
+                           }});
+    }
+
+    // what canvas-only mode hides, each on or off here (no page of its own in the settings)
+    struct CanvasOnly {
+        QString title;
+        bool (KisConfig::*get)(bool) const;
+        void (KisConfig::*set)(bool) const;
+    };
+    const QVector<CanvasOnly> canvasOnly = {
+        {i18nc("canvas-only mode setting", "Canvas-only: hide panels"), &KisConfig::hideDockersFullscreen, &KisConfig::setHideDockersFullscreen},
+        {i18nc("canvas-only mode setting", "Canvas-only: hide menu"), &KisConfig::hideMenuFullscreen, &KisConfig::setHideMenuFullscreen},
+        {i18nc("canvas-only mode setting", "Canvas-only: hide scrollbars"), &KisConfig::hideScrollbarsFullscreen, &KisConfig::setHideScrollbarsFullscreen},
+        {i18nc("canvas-only mode setting", "Canvas-only: hide status bar"), &KisConfig::hideStatusbarFullscreen, &KisConfig::setHideStatusbarFullscreen},
+        {i18nc("canvas-only mode setting", "Canvas-only: hide title bar"), &KisConfig::hideTitlebarFullscreen, &KisConfig::setHideTitlebarFullscreen},
+        {i18nc("canvas-only mode setting", "Canvas-only: hide toolbars"), &KisConfig::hideToolbarFullscreen, &KisConfig::setHideToolbarFullscreen},
+    };
+    for (int i = 0; i < canvasOnly.size(); i++) {
+        const CanvasOnly setting = canvasOnly[i];
+        const bool on = (KisConfig(true).*setting.get)(false);
+        d->entries.append({QStringLiteral("canvasonly:%1").arg(i), Kind::Setting, setting.title,
+                           on ? i18nc("find result detail: a setting that is on", "On") : i18nc("find result detail: a setting that is off", "Off"),
+                           QStringLiteral("fullscreen canvas only mode hide settings"), QString(),
+                           KisIconUtils::loadIcon(QStringLiteral("config-canvas-only")),
+                           [setting]() {
+                               KisConfig cfg(false);
+                               (cfg.*setting.set)(!(cfg.*setting.get)(false));
                            }});
     }
 
@@ -1458,6 +1483,44 @@ void KisStudioFind::adjustGeometry()
     const int height = d->edit->sizeHint().height() + 36 + (d->list->isVisible() ? listHeight + 6 : 0) + 2 * shadowMarginOf(this);
     const QRect window = d->mainWindow->geometry();
     setGeometry(window.center().x() - width / 2, window.top() + int(window.height() * 0.12), width, height);
+}
+
+bool KisStudioFind::showCard(QAbstractButton *button)
+{
+    QString key;
+    QString title;
+    QPointer<QAction> action;
+    auto *tool = qobject_cast<QToolButton *>(button);
+    if (tool && tool->defaultAction() && !tool->defaultAction()->objectName().isEmpty()
+        && d->mainWindow->actionCollection()->action(tool->defaultAction()->objectName()) == tool->defaultAction()) {
+        // an action of the window's: its own shortcut
+        action = tool->defaultAction();
+        key = QStringLiteral("action:") + action->objectName();
+        title = cleanText(action->text());
+    } else {
+        registerButtons();
+        for (auto it = d->buttons.constBegin(); it != d->buttons.constEnd(); ++it) {
+            if (it->button == button && it->action) {
+                key = it.key();
+                title = it->title;
+                action = it->action;
+                break;
+            }
+        }
+    }
+    if (!action) {
+        return false;
+    }
+    QIcon icon = button->icon();
+    if (icon.isNull()) icon = action->icon();
+    auto *card = new KisStudioItemCard(d->mainWindow, icon, title, action);
+    if (d->setOnTools && d->isOnTools && !d->isOnTools(key)) {
+        auto set = d->setOnTools;
+        card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")), i18nc("@info:tooltip", "Pin to the tools panel"),
+                          [set, key]() { set(key, true); }});
+    }
+    card->popupBeside(button);
+    return true;
 }
 
 bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)

@@ -12,6 +12,8 @@
 #include <QVector>
 #include <QWidget>
 
+#include <functional>
+
 #include "kritaui_export.h"
 
 class KisMainWindow;
@@ -48,7 +50,18 @@ private:
 
     void open(QWidget *canvas, const QPointF &pos);
     void close();
-    /// What is under \p pos (ring coordinates): a brush (0..7), a color (100+), the middle (-2), nothing (-1)
+    /// Your first brushes, in your order, with what they paint
+    void loadSlots();
+    /// Your brushes changed here: \p change is given them all, the ring's first, in order
+    void changeBrushes(const std::function<void(QStringList &brushes)> &change);
+    /// A brush chosen from Find for slot \p index (past the last one: one more)
+    void pickBrush(int index);
+    /// What a brush's slot offers: another brush in its place, or none
+    void slotMenu(int index, const QPoint &global);
+    /**
+     * What is under \p pos (ring coordinates): a brush (0..7), an empty
+     * slot (200+), a color (100+), the middle (-2), nothing (-1)
+     */
     int targetAt(const QPointF &pos) const;
     void choose(int target);
     QPointF slotCenter(int index) const;
@@ -62,6 +75,11 @@ private:
     /// Held: the press that opened it is still down, a release on a target takes it
     bool m_held {false};
     bool m_moved {false};
+    /// Open, a brush pressed: taken when let go there, or (\p m_dragging) moved to where it is let go
+    int m_pressed {-1};
+    QPointF m_pressedAt;
+    bool m_dragging {false};
+    QPointF m_dragAt;
     int m_hover {-1};
     QPointF m_center;
     /// Growing in as it opens

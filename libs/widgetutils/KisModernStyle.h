@@ -47,6 +47,20 @@ public:
     static constexpr int cornerRadius = 5;
 
     /**
+     * A frameless line edit with this property set true is a quiet field:
+     * no box until it is pointed at or typed in (a search over a list, on a
+     * panel of its own)
+     */
+    static constexpr const char *quietFieldProperty = "studioQuietField";
+
+    /**
+     * A checkable tool button with this property set true is a tab: no fill
+     * when checked, its icon at full ink and a short bar under it; unchecked,
+     * its icon faint (a strip of panels' buttons)
+     */
+    static constexpr const char *tabButtonProperty = "studioTabButton";
+
+    /**
      * \p rect with squircle corners: each a quarter of a superellipse,
      * |x|^4 + |y|^4 = 1, whose bend eases in from the sides (a circular
      * corner's starts all at once where the side ends). A corner is as round

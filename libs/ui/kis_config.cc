@@ -1334,21 +1334,11 @@ void KisConfig::setScrollingCheckers(bool sc) const
 QColor KisConfig::canvasBorderColor(bool defaultValue) const
 {
     /**
-     * By default the area around the image is a neutral gray one step away
-     * from the panels, so that it follows the theme and stays out of the way
-     * when judging colors: lighter than the panels in dark themes, darker in
-     * light ones.
+     * By default black, lit by the image (see KisStudioGlass::ambientSurround):
+     * its colors spill out around it, as a screen lights the wall behind it.
+     * Any other color chosen is plain.
      */
-    const QColor window = qApp->palette().color(QPalette::Window);
-    const bool darkTheme = window.lightness() < 128;
-    const int gray = darkTheme ? qRound(window.lightness() + (255 - window.lightness()) * 0.10)
-                               : qRound(window.lightness() * 0.82);
-    const QColor color(gray, gray, gray);
-    // black around the image, or black lit by it (see KisStudioGlass::Surround: 0 is gray)
-    if (!defaultValue && m_cfg.readEntry<int>("StudioCanvasSurround", 2) != 0) {
-        return QColor(0, 0, 0);
-    }
-    return (defaultValue ? color : m_cfg.readEntry("canvasBorderColor", color));
+    return defaultValue ? QColor(0, 0, 0) : m_cfg.readEntry("canvasBorderColor", QColor(0, 0, 0));
 }
 
 void KisConfig::setCanvasBorderColor(const QColor& color) const

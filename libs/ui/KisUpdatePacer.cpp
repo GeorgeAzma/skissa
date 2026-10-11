@@ -462,7 +462,7 @@ private:
     qint64 m_next {0};
     qint64 m_interval {0};
     /// The clock's frames in refreshes of the screen; late frames in a row; since when frames would fit faster ones
-    int m_refreshes {2};
+    int m_refreshes {1};
     quint16 m_late {0};
     qint64 m_fastEnoughSince {0};
     /// How long frames must fit a faster rate before it is tried (longer each time it did not hold), and when it last was
