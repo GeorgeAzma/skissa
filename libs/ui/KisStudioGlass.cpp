@@ -1109,6 +1109,11 @@ void KisStudioGlass::installMenuGlass()
     if (filter) return;
     filter = new MenuGlass();
     qApp->installEventFilter(filter);
+    if (isEnabled()) {
+        // Windows fades menus in through their window's opacity, of which nothing is told: the canvas drew
+        // the glass under one as faint as it was then, and did not again, and the menu showed no background
+        QApplication::setEffectEnabled(Qt::UI_AnimateMenu, false);
+    }
 }
 
 void KisStudioGlass::setSurround(Surround surround)
