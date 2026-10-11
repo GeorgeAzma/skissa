@@ -6,6 +6,7 @@
 #include "KisStudioColorPanel.h"
 
 #include <QApplication>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QActionGroup>
 #include <QMap>
@@ -19,6 +20,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <functional>
+#include <memory>
 #include <QToolTip>
 #include <QTimer>
 #include <QStyleOption>
@@ -41,6 +43,7 @@
 #include "kis_config.h"
 #include "kis_paintop_box.h"
 #include <KisModernStyle.h>
+#include "KisStudioGlass.h"
 
 namespace {
 
@@ -739,6 +742,119 @@ private:
 /// The pickers the panel has, in the order its menu lists them
 enum class PickerStyle { Ring, Pill, Hsv };
 
+/**
+ * What a picker is, shown, not told, beside its menu as it is pointed at:
+ * every hue of HSV and of OKLCH, and under each how light it looks (as a
+ * gray). HSV's goes from near white to near black; OKLCH's stays level. The
+ * picker pointed at is the one at full strength.
+ */
+class PickerTip : public QWidget
+{
+public:
+    /// In \p window, over everything in it (as the rings are), its glass over theirs: beside the menu
+    explicit PickerTip(QWidget *window)
+        : QWidget(window)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_NoSystemBackground);
+        KisStudioGlass::setOverOverlays(this);
+        setFixedSize(tipWidth + 2 * margin, contentHeight());
+        hide();
+    }
+
+    /// For \p style, beside \p beside (the menu's rect, on the screen), level with \p row
+    void showFor(PickerStyle style, const QRect &beside, int row)
+    {
+        m_oklch = style != PickerStyle::Hsv;
+        QPoint at(beside.left() - width() - 6, row - height() / 2);
+        if (QScreen *screen = QGuiApplication::screenAt(beside.center())) {
+            const QRect area = screen->availableGeometry();
+            if (at.x() < area.left()) at.setX(beside.right() + 6);
+            at.setY(qBound(area.top(), at.y(), area.bottom() - height()));
+        }
+        move(parentWidget()->mapFromGlobal(at));
+        update();
+        show();
+        raise();
+        // the canvas draws the glass under it, where it is now
+        KisStudioGlass::changed(this);
+    }
+
+protected:
+    void hideEvent(QHideEvent *event) override
+    {
+        QWidget::hideEvent(event);
+        KisStudioGlass::changed(this);
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 9);
+        QColor line = palette().color(QPalette::WindowText);
+        line.setAlphaF(0.12);
+        KisStudioGlass::paintBorder(painter, this, shape, line);
+
+        int y = margin;
+        painter.setOpacity(m_oklch ? 0.38 : 1.0);
+        y = paintStrip(painter, y, QStringLiteral("HSV"), [](qreal h) { return QColor::fromHsvF(h / 360.0, 1.0, 1.0); });
+        y += gap;
+        painter.setOpacity(m_oklch ? 1.0 : 0.38);
+        paintStrip(painter, y, QStringLiteral("OKLCH"), [](qreal h) { return rgbFromOklch({0.75, qMin(0.13, maxChroma(0.75, h)), h}); });
+    }
+
+private:
+    int labelHeight() const
+    {
+        return QFontMetrics(KisModernStyle::textFont(font(), 0.8, QFont::DemiBold)).height();
+    }
+
+    int contentHeight() const
+    {
+        const int strip = labelHeight() + 3 + stripHeight + 3 + lightnessHeight;
+        return margin + strip + gap + strip + margin;
+    }
+
+    /// The hues, and under them how light each looks (OKLab's L as a gray): a name above
+    int paintStrip(QPainter &painter, int y, const QString &name, const std::function<QColor(qreal)> &colorAt)
+    {
+        QFont label = KisModernStyle::textFont(font(), 0.8, QFont::DemiBold);
+        label.setLetterSpacing(QFont::PercentageSpacing, 106);
+        painter.setFont(label);
+        painter.setPen(KisModernStyle::secondaryInk(palette().color(QPalette::WindowText)));
+        painter.drawText(QRect(margin, y, tipWidth, labelHeight()), Qt::AlignLeft | Qt::AlignVCenter, name);
+        y += labelHeight() + 3;
+
+        QImage hues(tipWidth, stripHeight, QImage::Format_ARGB32_Premultiplied);
+        QImage light(tipWidth, lightnessHeight, QImage::Format_ARGB32_Premultiplied);
+        for (int x = 0; x < tipWidth; x++) {
+            const QColor color = colorAt(360.0 * x / (tipWidth - 1));
+            const QColor gray = rgbFromOklch({oklchFromRgb(color).l, 0.0, 0.0});
+            for (int row = 0; row < stripHeight; row++) hues.setPixel(x, row, color.rgb());
+            for (int row = 0; row < lightnessHeight; row++) light.setPixel(x, row, gray.rgb());
+        }
+        auto put = [&](const QImage &image, int top) {
+            const QRectF area(margin, top, tipWidth, image.height());
+            painter.save();
+            painter.setClipPath(KisModernStyle::squircle(area, 3));
+            painter.drawImage(area.topLeft(), image);
+            painter.restore();
+        };
+        put(hues, y);
+        y += stripHeight + 3;
+        put(light, y);
+        return y + lightnessHeight;
+    }
+
+    static constexpr int tipWidth = 220;
+    static constexpr int margin = 10;
+    static constexpr int gap = 10;
+    static constexpr int stripHeight = 14;
+    static constexpr int lightnessHeight = 8;
+    bool m_oklch {true};
+};
+
 /// A small picture of a picker: for its menu, and the button that opens it
 static QIcon styleIcon(PickerStyle style)
 {
@@ -1054,26 +1170,39 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->styleButton->setPopupMode(QToolButton::InstantPopup);
     d->styleButton->setToolTip(i18nc("@info:tooltip", "Change the color picker"));
     auto *styles = new QMenu(d->styleButton);
-    // each picker says what it is good for, as it is pointed at
-    styles->setToolTipsVisible(true);
     auto *styleGroup = new QActionGroup(styles);
+    // each picker shown as it is pointed at, beside the menu
+    // made when first needed: in the window the panel is in then (not yet one, while it is made)
+    auto tip = std::make_shared<QPointer<PickerTip>>();
+    connect(styles, &QMenu::hovered, this, [this, styles, tip](QAction *action) {
+        if (!action || !action->data().isValid()) {
+            if (*tip) (*tip)->hide();
+            return;
+        }
+        if (!*tip || (*tip)->parentWidget() != d->styleButton->window()) {
+            delete tip->data();
+            *tip = new PickerTip(d->styleButton->window());
+        }
+        const QRect row = styles->actionGeometry(action);
+        (*tip)->showFor(PickerStyle(action->data().toInt()), QRect(styles->mapToGlobal(QPoint()), styles->size()),
+                        styles->mapToGlobal(row.center()).y());
+    });
+    connect(styles, &QMenu::aboutToHide, this, [tip]() {
+        if (*tip) (*tip)->hide();
+    });
     struct Picker {
         PickerStyle style;
         QString name;
-        QString toolTip;
     };
     const QList<Picker> names = {
-        {PickerStyle::Ring, i18nc("@item:inmenu color picker: OKLCH hue ring and chroma/lightness square", "OKLCH"),
-         i18nc("@info:tooltip", "Colors at the same lightness really look equally bright, so a yellow and a blue stay balanced when you switch hues")},
-        {PickerStyle::Pill, i18nc("@item:inmenu color picker: compact OKLCH sliders", "Sliders"),
-         i18nc("@info:tooltip", "The same OKLCH colors as three small sliders, for when the panel is short on room")},
-        {PickerStyle::Hsv, i18nc("@item:inmenu color picker", "HSV"),
-         i18nc("@info:tooltip", "The classic hue, saturation and value picker")},
+        {PickerStyle::Ring, i18nc("@item:inmenu color picker: OKLCH hue ring and chroma/lightness square", "OKLCH")},
+        {PickerStyle::Pill, i18nc("@item:inmenu color picker: compact OKLCH sliders", "Sliders")},
+        {PickerStyle::Hsv, i18nc("@item:inmenu color picker", "HSV")},
     };
     for (const auto &picker : names) {
         const auto name = qMakePair(picker.style, picker.name);
         QAction *action = styles->addAction(styleIcon(name.first), name.second);
-        action->setToolTip(picker.toolTip);
+        action->setData(int(picker.style));
         // Krita leaves icons out of menus; these are what tells the pickers apart
         action->setIconVisibleInMenu(true);
         action->setCheckable(true);
