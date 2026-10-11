@@ -259,13 +259,14 @@ float erf(float x)
     return sign(x) * y;
 }
 
-// how much of the blur at d pixels in from an edge of the canvas is of the canvas: beyond the edge
-// is the panel color. Across the edge (crossing, where the panel goes on beyond the canvas, plain)
-// none at the edge, for the glass to meet the plain panel there without a seam.
+// how much of the blur at d pixels in from an edge of the canvas is of the canvas. Where the panel
+// ends within the canvas, all of it: beyond the edge (the window's, in the studio layout) the blur
+// goes on as the canvas there (its textures are clamped), never a haze of the panel color along the
+// window's edges. Across the edge (crossing, where the panel goes on beyond the canvas, plain) none at
+// the edge, for the glass to meet the plain panel there without a seam.
 float within(float d, float crossing)
 {
-    float e = erf(d / (sigma * 1.41421356));
-    return mix(0.5 + 0.5 * e, max(e, 0.0), crossing);
+    return mix(1.0, max(erf(d / (sigma * 1.41421356)), 0.0), crossing);
 }
 
 // how far outside the shape p is, in pixels (inside, less than 0), and which way is out there:
@@ -396,12 +397,6 @@ vec2 held(vec2 q)
     return clamp(q, reach.xy, reach.zw);
 }
 
-// and in light: as it comes (made a color of the screen once, at the end: see tintedLab)
-vec3 frostAt(vec2 p)
-{
-    return max(fromOklab(frostedLab(p)), 0.0);
-}
-
 // the canvas the glass at p is held over, where the reflected ray d (z toward the viewer, down)
 // meets it: blurred, as the glass is not a mirror
 vec3 reflectedAt(vec3 d, vec2 p)
@@ -471,13 +466,16 @@ void main()
         for (int i = 0; i < 3; i++) {
             vec3 back;
             vec4 ray = trace(normal, bend.x, ior[i], back);
-            vec3 through;
+            // mixed with the panel color as the face is (in Oklab), so that where the bevel
+            // flattens into the face the two are one, without a step
+            vec3 seen;
             if (ray.z > 0.0) {
-                through = mix(tintLight, frostAt(held(p + ray.xy)), canvas);
+                seen = frostedLab(held(p + ray.xy));
             } else {
                 // reflected inside, scattered by the frost: the glass itself
-                through = mix(tintLight, frostAt(p), canvas);
+                seen = frostedLab(p);
             }
+            vec3 through = max(fromOklab(mix(tintLab, seen, canvas)), 0.0);
             light3[i] = through[i];
         }
         // thinner toward the rim, the glass tints what is behind it less (Beer-Lambert): a band along the edge, lighter
