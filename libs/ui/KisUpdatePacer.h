@@ -8,15 +8,14 @@
 #include "kritaui_export.h"
 
 /**
- * The windows with the canvas are shown on a steady frame clock while the
- * mouse or pen moves: every refresh of the screen (or every few, as long as
- * a frame takes), whatever changed, their repaints held for its frames;
- * after the last move it slows down little by little, then stops.
+ * The windows with the canvas are shown on a frame clock: their repaints
+ * held for its frames, one every refresh of the screen (or every few, as
+ * long as a frame takes), not one for each report of the mouse.
  *
- * A screen with a variable refresh rate (G-Sync, FreeSync) refreshes when a
- * frame comes: shown as unevenly as the mouse reports (only when it moves)
- * and as the canvas finishes, the pointer would stutter, and many screens
- * flicker as their rate keeps changing.
+ * And they are always composed by the desktop, as any other window is: a
+ * screen with a variable refresh rate (G-Sync, FreeSync) would otherwise
+ * take a window covering it for a game, and refresh only as Krita shows
+ * frames (48 Hz at rest), flickering as that rate changes.
  */
 class QString;
 

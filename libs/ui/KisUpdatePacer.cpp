@@ -53,6 +53,56 @@ protected:
 
 #ifdef Q_OS_WIN
 /**
+ * A pixel over the window that the desktop has to blend in (1 of 255 opaque:
+ * no one sees it), so that it composes the window always, as it does any
+ * other. A window covering a screen is handed the screen on its own
+ * otherwise ("independent flip"), and a screen with a variable refresh rate
+ * (G-Sync, FreeSync) then takes it for a game: it refreshes only as Krita
+ * shows frames (at 48 Hz at rest, at 60 if that is how fast frames come,
+ * the pointer moving as slowly), and many such screens flicker as that rate
+ * changes. Composed, the screen keeps its full rate whatever Krita does.
+ */
+class Composed : public QObject
+{
+public:
+    explicit Composed(QWidget *owner)
+        : QObject(owner)
+    {
+        static const ATOM windowClass = []() {
+            WNDCLASSW c = {};
+            c.lpfnWndProc = DefWindowProcW;
+            c.hInstance = GetModuleHandleW(nullptr);
+            c.hbrBackground = HBRUSH(GetStockObject(BLACK_BRUSH));
+            c.lpszClassName = L"KritaComposed";
+            return RegisterClassW(&c);
+        }();
+        Q_UNUSED(windowClass);
+        // owned by the window: over it, minimized and gone with it; never clicked, never focused
+        m_window = CreateWindowExW(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, L"KritaComposed", L"", WS_POPUP, 0, 0, 1, 1,
+                                   HWND(owner->winId()), nullptr, GetModuleHandleW(nullptr), nullptr);
+        // not 0: a window no one could see is left out
+        SetLayeredWindowAttributes(m_window, 0, 1, LWA_ALPHA);
+    }
+
+    ~Composed() override
+    {
+        // gone already if its window went first
+        if (IsWindow(m_window)) DestroyWindow(m_window);
+    }
+
+    /// At the window's corner, inside it (the frame of a maximized window is off the screen)
+    void place()
+    {
+        POINT corner = {0, 0};
+        ClientToScreen(HWND(static_cast<QWidget *>(parent())->winId()), &corner);
+        SetWindowPos(m_window, nullptr, corner.x, corner.y, 1, 1, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_SHOWWINDOW);
+    }
+
+private:
+    HWND m_window {nullptr};
+};
+
+/**
  * Calls back on the GUI thread at a time to within a fraction of a
  * millisecond. Qt's timers keep to the system's 15.6 ms steps whenever
  * Windows coarsens timers, which is often: this one waits on a high
@@ -157,32 +207,20 @@ private:
 QFile *frameLog = nullptr;
 QElapsedTimer *frameLogClock = nullptr;
 
-/// How long the clock keeps its rate after the last input, and to how slow it eases off after that
-constexpr qint64 holdNs = 500'000'000;
-constexpr qint64 easeEndNs = 40'000'000;
-/// After a pause, the second frame comes this long after the first, each next one 0.7 times as long, down to the clock's rate
-constexpr qint64 rampStartNs = 25'000'000;
-constexpr qreal rampStep = 0.7;
 /// How long the clock goes on after a window with the canvas is shown or sized
 constexpr qint64 settleNs = 3'000'000'000;
-/// Each frame of the ease that much longer than the one before
-constexpr qreal easeStep = 1.3;
 
 /**
  * The frame clock of the windows the canvas is in. Qt 5 shows a window
  * again whenever something in it changed: with the pointer moving, as
- * often as the mouse reports (only when it moves, so as unevenly as the
- * hand moves) and as the canvas happens to finish. A screen with a variable
- * refresh rate refreshes when a frame comes, and many get a little brighter
- * or darker as their rate changes: a rate that keeps changing flickers.
+ * often as the mouse reports (a thousand times a second, say), each frame
+ * queued behind the last for the screen, the window always behind the hand.
  *
- * So, from an input on, the window is shown on a steady clock: every
- * refresh of the screen, or every second (third...) one if a frame takes
- * longer than that, whatever changed or did not (a pixel is "changed" for
- * it), and the window's own repaints wait for the clock's next frame. The
- * first frame after a pause is shown at once. A moment after the last
- * input the clock slows down little by little, then stops: no sudden jump
- * of the rate either.
+ * So the window's repaints wait for the clock: a frame every refresh of the
+ * screen, or every second (third...) one if a frame takes longer than that.
+ * The first after a pause is shown at once; the clock stops when there is
+ * nothing to show. (The window is composed by the desktop, see Composed:
+ * the screen keeps its rate whether frames come or not.)
  */
 class Pacer : public QObject
 {
@@ -197,6 +235,13 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
         switch (event->type()) {
+        case QEvent::Move:
+            // only to keep its pixel inside it
+            if (watched->isWidgetType() && static_cast<QWidget *>(watched)->isWindow() && static_cast<QWidget *>(watched)->isVisible()
+                && watched->inherits("KisMainWindow")) {
+                composedOf(static_cast<QWidget *>(watched))->place();
+            }
+            return false;
         case QEvent::Show:
         case QEvent::Expose:
         case QEvent::Resize:
@@ -216,6 +261,7 @@ protected:
             }
             if (top) {
                 heartbeatOf(top);
+                if (top->isVisible()) composedOf(top)->place();
                 m_settleUntil = m_clock.nsecsElapsed() + settleNs;
                 wake();
             }
@@ -229,27 +275,6 @@ protected:
             m_waiting.insert(widget, widget);
             wake();
             return true;
-        }
-        case QEvent::MouseMove:
-        case QEvent::MouseButtonPress:
-        case QEvent::MouseButtonRelease:
-        case QEvent::TabletMove:
-        case QEvent::TabletPress:
-        case QEvent::TabletRelease:
-        case QEvent::Wheel:
-        case QEvent::KeyPress:
-        case QEvent::KeyRelease:
-        case QEvent::TouchBegin:
-        case QEvent::TouchUpdate:
-        case QEvent::TouchEnd: {
-            // input: one from the system is first a QWindow's, counted once, there
-            QWindow *window = qobject_cast<QWindow *>(watched);
-            QWidget *top = window ? topWidget(window) : nullptr;
-            if (!top) return false;
-            m_input = m_clock.nsecsElapsed();
-            heartbeatOf(top);
-            wake();
-            return false;
         }
         default:
             return false;
@@ -291,6 +316,13 @@ private:
         QPointer<Heartbeat> &heartbeat = m_beats[top];
         if (!heartbeat) heartbeat = new Heartbeat(top);
         return heartbeat;
+    }
+
+    Composed *composedOf(QWidget *top)
+    {
+        QPointer<Composed> &composed = m_composed[top];
+        if (!composed) composed = new Composed(top);
+        return composed;
     }
 
     /// The time of a refresh of the screen
@@ -358,8 +390,7 @@ private:
         if (m_tick.isActive()) {
             return;
         }
-        // after a pause, the first frame at once; the rate up from a screen's slowest in a few frames, not all at once
-        m_interval = rampStartNs;
+        // after a pause, the first frame at once
         m_next = m_clock.nsecsElapsed();
         m_tick.start(0);
     }
@@ -367,7 +398,7 @@ private:
     void schedule()
     {
         const qint64 now = m_clock.nsecsElapsed();
-        m_next += m_interval;
+        m_next += period();
         // fallen behind: from now on
         if (m_next < now) m_next = now;
         m_tick.start(m_next - now);
@@ -375,26 +406,18 @@ private:
 
     void tick()
     {
-        const qint64 sinceInput = m_clock.nsecsElapsed() - m_input;
-        const bool held = sinceInput < holdNs || m_clock.nsecsElapsed() < m_settleUntil;
-        const bool easing = !held && m_interval < easeEndNs;
-        if (held || easing) {
-            // the rhythm kept: a window nothing changed in is shown all the same, by its heartbeat alone
+        const bool settling = m_clock.nsecsElapsed() < m_settleUntil;
+        if (settling) {
+            // a window settling is shown whatever changed, by its heartbeat alone if nothing did
             for (auto it = m_beats.constBegin(); it != m_beats.constEnd(); ++it) {
                 if (it.value() && it.key()->isVisible() && !m_waiting.contains(it.key())) show(it.key(), it.value());
             }
-        }
-        deliver();
-
-        if (held) {
-            m_interval = qMax(period(), qint64(m_interval * rampStep));
-        } else if (easing) {
-            m_interval = qint64(m_interval * easeStep);
         } else if (m_waiting.isEmpty()) {
-            // stopped, until the next repaint or input; a slow moment before (opening a document, say) counts no more
+            // nothing came in a frame: stopped, until the next repaint; a slow moment before (opening a document, say) counts no more
             m_upWait = 500'000'000;
             return;
         }
+        deliver();
         schedule();
     }
 
@@ -455,12 +478,9 @@ private:
 
     QElapsedTimer m_clock;
     FrameTimer m_tick {[this]() { tick(); }};
-    /// When the last input came, when the next frame is due, and the time between frames
-    qint64 m_input {-holdNs * 10};
-    /// Until when a window shown or sized keeps the clock going
+    /// Until when a window shown or sized keeps the clock going; when the next frame is due
     qint64 m_settleUntil {0};
     qint64 m_next {0};
-    qint64 m_interval {0};
     /// The clock's frames in refreshes of the screen; late frames in a row; since when frames would fit faster ones
     int m_refreshes {1};
     quint16 m_late {0};
@@ -470,6 +490,7 @@ private:
     qint64 m_wentFaster {-100'000'000'000};
     qint64 m_wentSlower {-100'000'000'000};
     QHash<QWidget *, QPointer<Heartbeat>> m_beats;
+    QHash<QWidget *, QPointer<Composed>> m_composed;
     QHash<QWindow *, QPointer<QWidget>> m_tops;
     QHash<QWidget *, QPointer<QWidget>> m_waiting;
     bool m_delivering {false};
