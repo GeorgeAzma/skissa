@@ -423,6 +423,15 @@ struct CssLengthPercentage : public boost::equality_comparable<CssLengthPercenta
 
     void convertToAbsolute(const KoSvgText::FontMetrics metrics, const qreal fontSize, const UnitType percentageUnit = Em);
 
+    /**
+     * Whether convertToAbsolute() needs the font's metrics, not only the font
+     * size. Finding the metrics loads the fonts, which takes seconds the first time.
+     */
+    bool needsMetrics(const UnitType percentageUnit = Em) const {
+        const UnitType u = unit == Percentage ? percentageUnit : unit;
+        return u == Ex || u == Cap || u == Ch || u == Ic || u == Lh;
+    }
+
     bool operator==(const CssLengthPercentage & other) const {
         return qFuzzyCompare(value, other.value) && unit == other.unit;
     }

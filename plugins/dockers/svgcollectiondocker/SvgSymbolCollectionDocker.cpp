@@ -248,7 +248,6 @@ SvgSymbolCollectionDocker::SvgSymbolCollectionDocker(QWidget *parent)
         i = 0;
     }
     m_wdgSvgCollection->cmbCollections->setCurrentIndex(i);
-    collectionActivated(i);
 
     connect(m_resourceModel, SIGNAL(modelAboutToBeReset()), this, SLOT(slotResourceModelAboutToBeReset()));
     connect(m_resourceModel, SIGNAL(modelReset()), this, SLOT(slotResourceModelReset()));
@@ -331,8 +330,18 @@ void SvgSymbolCollectionDocker::slotResourceModelReset()
     clearModels();
     // setting current index will create and set the model
     m_wdgSvgCollection->cmbCollections->setCurrentIndex(indexToSet);
-    collectionActivated(indexToSet);
+    if (m_collectionLoaded) {
+        collectionActivated(indexToSet);
+    }
     m_rememberedSvgCollectionId = -1;
+}
+
+void SvgSymbolCollectionDocker::showEvent(QShowEvent *event)
+{
+    if (!m_collectionLoaded) {
+        collectionActivated(qMax(0, m_wdgSvgCollection->cmbCollections->currentIndex()));
+    }
+    QDockWidget::showEvent(event);
 }
 
 void SvgSymbolCollectionDocker::setCanvas(KoCanvasBase *canvas)
@@ -347,6 +356,7 @@ void SvgSymbolCollectionDocker::unsetCanvas()
 
 void SvgSymbolCollectionDocker::collectionActivated(int index)
 {
+    m_collectionLoaded = true;
     if (index < m_resourceModel->rowCount()) {
         SvgCollectionModel *model;
         if (m_collectionsModelsCache.contains(index)) {

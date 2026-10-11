@@ -11,6 +11,8 @@
 #include <QMap>
 #include <QRegularExpression>
 
+#include <functional>
+
 #include <fontconfig/fontconfig.h>
 
 #include <SvgGraphicContext.h>
@@ -27,7 +29,49 @@ struct KoSvgTextProperties::Private
     QMap<PropertyId, QVariant> properties;
 
     static bool isInheritable(PropertyId id);
+    /// resolveRelativeValues(), the metrics of the parent's font found only if a length needs them
+    static void resolveRelativeValues(KoSvgTextProperties &props, const std::function<KoSvgText::FontMetrics()> &parentMetrics, qreal fontSize, bool onlyFontAndLineHeight);
 };
+
+namespace {
+/// The font-relative lengths of \p properties other than the font size and line height, each with the unit its percentages are of; kept as \p visit leaves them if \p write
+template<typename Visit>
+void visitRelativeLengths(QMap<KoSvgTextProperties::PropertyId, QVariant> &properties, bool write, Visit visit)
+{
+    using Length = KoSvgText::CssLengthPercentage;
+    for (auto it = properties.begin(); it != properties.end(); it++) {
+
+        Length::UnitType percentageUnit = Length::Em;
+        if (it.key() == KoSvgTextProperties::BaselineShiftValueId) percentageUnit = Length::Lh;
+
+        if (it.key() == KoSvgTextProperties::LineHeightId) continue;
+        if (it.value().canConvert<Length>() && it.key() != KoSvgTextProperties::FontSizeId) {
+            Length length = it.value().value<Length>();
+            visit(length, percentageUnit);
+            if (write) it.value() = QVariant::fromValue(length);
+        } else if (it.value().canConvert<KoSvgText::AutoLengthPercentage>()) {
+            KoSvgText::AutoLengthPercentage val = it.value().value<KoSvgText::AutoLengthPercentage>();
+
+            if (!val.isAuto) {
+                visit(val.length, percentageUnit);
+                if (write) it.value() = QVariant::fromValue(val);
+            }
+        } else if (it.key() == KoSvgTextProperties::TabSizeId) {
+            KoSvgText::TabSizeInfo tabSize = it.value().value<KoSvgText::TabSizeInfo>();
+            if (!tabSize.isNumber) {
+                visit(tabSize.length, Length::Em);
+                if (write) it.value() = QVariant::fromValue(tabSize);
+            }
+        } else if (it.key() == KoSvgTextProperties::TextIndentId) {
+            KoSvgText::TextIndentInfo indent = it.value().value<KoSvgText::TextIndentInfo>();
+            if (indent.length.unit != Length::Percentage) {
+                visit(indent.length, Length::Em);
+            }
+            if (write) it.value() = QVariant::fromValue(indent);
+        }
+    }
+}
+} // namespace
 
 KoSvgTextProperties::KoSvgTextProperties()
     : m_d(new Private)
@@ -121,64 +165,47 @@ void KoSvgTextProperties::inheritFrom(const KoSvgTextProperties &parentPropertie
     }
 
     if (resolve) {
-        resolveRelativeValues(parentProperties.metrics(), parentProperties.fontSize().value, onlyFontAndLineHeight);
+        Private::resolveRelativeValues(*this, [&parentProperties]() { return parentProperties.metrics(); }, parentProperties.fontSize().value, onlyFontAndLineHeight);
     }
 }
 
 void KoSvgTextProperties::resolveRelativeValues(const KoSvgText::FontMetrics metrics, const qreal fontSize, bool onlyFontAndLineHeight)
 {
+    Private::resolveRelativeValues(*this, [&metrics]() { return metrics; }, fontSize, onlyFontAndLineHeight);
+}
+
+void KoSvgTextProperties::Private::resolveRelativeValues(KoSvgTextProperties &props, const std::function<KoSvgText::FontMetrics()> &parentMetrics, const qreal fontSize, bool onlyFontAndLineHeight)
+{
+    // Only the font size is needed for a length in em or pt: what stands for the metrics then
+    const KoSvgText::FontMetrics unused(12.0, true);
+
     // First resolve 'font-*' properties.
     // See https://www.w3.org/TR/css-values-4/#font-relative-lengths
-    KoSvgText::CssLengthPercentage size = this->fontSize();
-    size.convertToAbsolute(metrics, fontSize);
-    this->setFontSize(size);
+    KoSvgText::CssLengthPercentage size = props.fontSize();
+    size.convertToAbsolute(size.needsMetrics() ? parentMetrics() : unused, fontSize);
+    props.setFontSize(size);
     const qreal usedSize = size.value;
-    KoSvgText::LineHeightInfo lineHeight = this->propertyOrDefault(LineHeightId).value<KoSvgText::LineHeightInfo>();
+    KoSvgText::LineHeightInfo lineHeight = props.propertyOrDefault(LineHeightId).value<KoSvgText::LineHeightInfo>();
     if (!lineHeight.isNormal && !lineHeight.isNumber) {
         if (lineHeight.length.unit == KoSvgText::CssLengthPercentage::Lh) {
-            lineHeight.length.convertToAbsolute(metrics, fontSize, KoSvgText::CssLengthPercentage::Lh);
+            lineHeight.length.convertToAbsolute(parentMetrics(), fontSize, KoSvgText::CssLengthPercentage::Lh);
         } else if (!onlyFontAndLineHeight) {
-            lineHeight.length.convertToAbsolute(this->metrics(false), usedSize);
+            lineHeight.length.convertToAbsolute(lineHeight.length.needsMetrics() ? props.metrics(false) : unused, usedSize);
         }
-        setProperty(LineHeightId, QVariant::fromValue(lineHeight));
+        props.setProperty(LineHeightId, QVariant::fromValue(lineHeight));
     }
 
     if (onlyFontAndLineHeight) return;
 
-    const KoSvgText::FontMetrics usedMetrics = this->metrics();
+    bool metricsNeeded = false;
+    visitRelativeLengths(props.m_d->properties, false, [&metricsNeeded](const KoSvgText::CssLengthPercentage &length, KoSvgText::CssLengthPercentage::UnitType percentageUnit) {
+        metricsNeeded = metricsNeeded || length.needsMetrics(percentageUnit);
+    });
+    const KoSvgText::FontMetrics usedMetrics = metricsNeeded ? props.metrics() : unused;
 
-
-    for (auto it = this->m_d->properties.begin(); it != this->m_d->properties.end(); it++) {
-
-        KoSvgText::CssLengthPercentage::UnitType percentageUnit = KoSvgText::CssLengthPercentage::Em;
-        if (it.key() == KoSvgTextProperties::BaselineShiftValueId) percentageUnit = KoSvgText::CssLengthPercentage::Lh;
-
-        if (it.key() == LineHeightId) continue;
-        if (it.value().canConvert<KoSvgText::CssLengthPercentage>() && it.key() != KoSvgTextProperties::FontSizeId) {
-            KoSvgText::CssLengthPercentage length = it.value().value<KoSvgText::CssLengthPercentage>();
-            length.convertToAbsolute(usedMetrics, usedSize, percentageUnit);
-            it.value() = QVariant::fromValue(length);
-        } else if (it.value().canConvert<KoSvgText::AutoLengthPercentage>()) {
-            KoSvgText::AutoLengthPercentage val = it.value().value<KoSvgText::AutoLengthPercentage>();
-
-            if (!val.isAuto) {
-                val.length.convertToAbsolute(usedMetrics, usedSize, percentageUnit);
-                it.value() = QVariant::fromValue(val);
-            }
-        } else if (it.key() == KoSvgTextProperties::TabSizeId) {
-            KoSvgText::TabSizeInfo tabSize = it.value().value<KoSvgText::TabSizeInfo>();
-            if (!tabSize.isNumber) {
-                tabSize.length.convertToAbsolute(usedMetrics, usedSize);
-                it.value() = QVariant::fromValue(tabSize);
-            }
-        } else if (it.key() == KoSvgTextProperties::TextIndentId) {
-            KoSvgText::TextIndentInfo indent = it.value().value<KoSvgText::TextIndentInfo>();
-            if (indent.length.unit != KoSvgText::CssLengthPercentage::Percentage) {
-                indent.length.convertToAbsolute(usedMetrics, usedSize);
-            }
-            it.value() = QVariant::fromValue(indent);
-        }
-    }
+    visitRelativeLengths(props.m_d->properties, true, [&usedMetrics, usedSize](KoSvgText::CssLengthPercentage &length, KoSvgText::CssLengthPercentage::UnitType percentageUnit) {
+        length.convertToAbsolute(usedMetrics, usedSize, percentageUnit);
+    });
 }
 
 bool KoSvgTextProperties::inheritsProperty(KoSvgTextProperties::PropertyId id, const KoSvgTextProperties &parentProperties) const

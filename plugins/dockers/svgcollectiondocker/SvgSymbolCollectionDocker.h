@@ -71,6 +71,9 @@ public:
     void setCanvas(KoCanvasBase *canvas) override;
     void unsetCanvas() override;
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 public Q_SLOTS:
     void slotScrollerStateChanged(QScroller::State state){KisKineticScroller::updateCursor(this, state);}
 
@@ -97,6 +100,8 @@ private:
 
     KisResourceModel* m_resourceModel {0};
     int m_rememberedSvgCollectionId {-1};
+    /// The library's symbols are loaded when the docker is first shown: their text needs the fonts, which take seconds to load
+    bool m_collectionLoaded {false};
 
     KConfigGroup m_configGroup;
 };

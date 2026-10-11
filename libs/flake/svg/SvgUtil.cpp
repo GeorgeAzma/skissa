@@ -226,7 +226,8 @@ qreal SvgUtil::parseUnit(SvgGraphicsContext *gc, const KoSvgTextProperties &reso
         return 0.0;
     }
     KoSvgText::CssLengthPercentage length = parseUnitStruct(gc, unit, horiz, vert, bbox);
-    length.convertToAbsolute(resolved.metrics(), resolved.fontSize().value);
+    // a length in em or px needs only the font size, and finding the metrics loads the fonts
+    length.convertToAbsolute(length.needsMetrics() ? resolved.metrics() : KoSvgText::FontMetrics(12.0, true), resolved.fontSize().value);
 
     return length.value;
 }
