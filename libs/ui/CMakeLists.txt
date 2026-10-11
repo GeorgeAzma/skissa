@@ -796,6 +796,7 @@ endif()
 if (HAVE_X11)
     set_source_files_properties(
         opengl/KisOpenGLModeProber.cpp
+        KisStudioGlass.cpp
         PROPERTIES
         INCLUDE_DIRECTORIES "${Qt${QT_MAJOR_VERSION}Gui_PRIVATE_INCLUDE_DIRS}"
         )

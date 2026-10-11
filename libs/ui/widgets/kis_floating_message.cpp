@@ -66,11 +66,17 @@ KisFloatingMessage::KisFloatingMessage(const QString &message, QWidget *parent, 
 {
     m_icon = KisIconUtils::loadIcon("krita-branding").pixmap(256, 256).toImage();
 
+#ifdef Q_OS_WIN
     // a window of Krita's own (not a tooltip, which Windows keeps over every program): gone while Krita is minimized
-    setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint | Qt::WindowTransparentForInput);
+    const Qt::WindowType type = Qt::Tool;
+#else
+    // a tooltip, the window Wayland lets Krita place (a Qt::Tool is a toplevel there, put where the compositor likes)
+    const Qt::WindowType type = Qt::ToolTip;
+#endif
+    setWindowFlags(type | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint | Qt::WindowTransparentForInput);
     setFocusPolicy(Qt::NoFocus);
     setAttribute(Qt::WA_ShowWithoutActivating);
-    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_TranslucentBackground, KisStudioGlass::seeThroughWindows());
 
     m_messageLabel = new QLabel(message, this);
     m_messageLabel->setAttribute(Qt::WA_TranslucentBackground);

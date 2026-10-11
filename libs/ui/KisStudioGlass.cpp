@@ -44,6 +44,12 @@
 #include "kis_image.h"
 #include "kis_paint_device.h"
 #include <KisFrameRate.h>
+#include <KoConfig.h>
+
+#ifdef HAVE_X11
+#include <QGuiApplication>
+#include <qpa/qplatformnativeinterface.h>
+#endif
 
 namespace {
 
@@ -1127,7 +1133,8 @@ protected:
         if (!menu) {
             return false;
         }
-        if (event->type() == QEvent::Polish && !menu->testAttribute(Qt::WA_WState_Created) && KisStudioGlass::isEnabled()) {
+        if (event->type() == QEvent::Polish && !menu->testAttribute(Qt::WA_WState_Created) && KisStudioGlass::isEnabled()
+            && KisStudioGlass::seeThroughWindows()) {
             makeSeeThroughWindow(menu);
         } else if (event->type() == QEvent::Paint && menu->property(glassMenuProperty).toBool()) {
             paintMenuGlass(menu, KisModernStyle::cornerRadius + 2);
@@ -1158,7 +1165,7 @@ protected:
 void decoratePopupFrame(QFrame *frame, bool detached, bool holdsMenu)
 {
     static PopupFrameGlass *painter = new PopupFrameGlass();
-    const bool glass = KisStudioGlass::isEnabled() && !detached && !holdsMenu;
+    const bool glass = KisStudioGlass::isEnabled() && KisStudioGlass::seeThroughWindows() && !detached && !holdsMenu;
     if (glass) {
         makeSeeThroughWindow(frame);
         frame->installEventFilter(painter);
@@ -1252,6 +1259,32 @@ void KisStudioGlass::paintBorder(QPainter &painter, QWidget *widget, const QPain
     painter.restore();
 }
 
+bool KisStudioGlass::seeThroughWindows()
+{
+    static const bool solid = qEnvironmentVariableIntValue("KRITA_STUDIO_SOLID_WINDOWS") != 0;
+    if (solid) {
+        return false;
+    }
+#ifdef HAVE_X11
+    if (QGuiApplication::platformName() == QLatin1String("xcb")) {
+        // asked each time (a compositing manager can start or stop): Qt's xcb plugin watches _NET_WM_CM_Sn for it
+        QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+        return native && native->nativeResourceForScreen(QByteArrayLiteral("compositingEnabled"), QGuiApplication::primaryScreen());
+    }
+#endif
+    return true;
+}
+
+Qt::WindowType KisStudioGlass::popupWindowType()
+{
+#ifdef Q_OS_WIN
+    static const bool popups = qEnvironmentVariableIntValue("KRITA_STUDIO_POPUP_WINDOWS") != 0;
+    return popups ? Qt::Popup : Qt::Tool;
+#else
+    return Qt::Popup;
+#endif
+}
+
 void KisStudioGlass::setEnabled(bool on)
 {
     enabled() = on;
@@ -1267,8 +1300,15 @@ QColor KisStudioGlass::tint(const QWidget *widget)
 
 QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRectF &rect, qreal radius)
 {
-    const QPainterPath shape = KisModernStyle::squircle(rect, radius);
     const QColor window = widget->palette().color(QPalette::Window);
+    if (widget->isWindow() && !widget->testAttribute(Qt::WA_TranslucentBackground)) {
+        // a solid window of its own (see seeThroughWindows): its color to its square edges, where its border goes
+        painter.fillRect(rect, window);
+        QPainterPath edge;
+        edge.addRect(rect);
+        return edge;
+    }
+    const QPainterPath shape = KisModernStyle::squircle(rect, radius);
     const bool drawn = Panels::instance().paint(widget, rect, radius);
     // under a glass window, nothing of it shows through that window's glass (what is painted on it after neither)
     const QRegion covered = Panels::instance().covered(widget);

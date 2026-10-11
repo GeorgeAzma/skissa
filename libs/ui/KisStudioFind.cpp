@@ -446,7 +446,13 @@ public:
     }
 };
 
-constexpr int shadowMargin = 18;
+constexpr int glassShadowMargin = 18;
+
+/// Around the panel, for its shadow: none on a solid window (see KisStudioGlass::seeThroughWindows)
+int shadowMarginOf(const QWidget *window)
+{
+    return window->testAttribute(Qt::WA_TranslucentBackground) ? glassShadowMargin : 0;
+}
 constexpr int maxResults = 40;
 
 } // namespace
@@ -545,19 +551,20 @@ struct KisStudioFind::Private
 
 KisStudioFind::KisStudioFind(KisMainWindow *mainWindow)
     /**
-     * Not Qt::Popup: on Windows a translucent popup renders a black background
-     * (see KisPopupPalette). A frameless tool window with a KisPopupCloser
-     * behaves the same.
+     * On Windows not Qt::Popup: a translucent popup renders a black background
+     * there (see KisPopupPalette). A frameless tool window with a
+     * KisPopupCloser behaves the same (see KisStudioGlass::popupWindowType).
      */
-    : QFrame(mainWindow, Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
+    : QFrame(mainWindow, KisStudioGlass::popupWindowType() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
     , d(new Private)
 {
     d->mainWindow = mainWindow;
-    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_TranslucentBackground, KisStudioGlass::seeThroughWindows());
     new KisPopupCloser(this);
     setObjectName(QStringLiteral("studioFind"));
 
     auto *layout = new QVBoxLayout(this);
+    const int shadowMargin = shadowMarginOf(this);
     layout->setContentsMargins(shadowMargin + 8, shadowMargin + 8, shadowMargin + 8, shadowMargin + 8);
     layout->setSpacing(6);
 
@@ -1437,7 +1444,7 @@ void KisStudioFind::runRow(int row)
 
 void KisStudioFind::adjustGeometry()
 {
-    const int width = 640 + 2 * shadowMargin;
+    const int width = 640 + 2 * shadowMarginOf(this);
     int listHeight = 0;
     for (int row = 0; row < d->model->rowCount(); row++) {
         listHeight += d->list->sizeHintForRow(row);
@@ -1448,7 +1455,7 @@ void KisStudioFind::adjustGeometry()
     // the minimum size would only follow on the next layout pass and keep the window tall
     layout()->activate();
 
-    const int height = d->edit->sizeHint().height() + 36 + (d->list->isVisible() ? listHeight + 6 : 0) + 2 * shadowMargin;
+    const int height = d->edit->sizeHint().height() + 36 + (d->list->isVisible() ? listHeight + 6 : 0) + 2 * shadowMarginOf(this);
     const QRect window = d->mainWindow->geometry();
     setGeometry(window.center().x() - width / 2, window.top() + int(window.height() * 0.12), width, height);
 }
@@ -1598,10 +1605,11 @@ void KisStudioFind::paintEvent(QPaintEvent *)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
 
+    const int shadowMargin = shadowMarginOf(this);
     const QRectF panel = QRectF(rect()).adjusted(shadowMargin, shadowMargin, -shadowMargin, -shadowMargin);
     const qreal radius = 12;
 
-    KisStudioGlass::paintShadow(painter, panel, radius, shadowMargin, 36, 4);
+    if (shadowMargin) KisStudioGlass::paintShadow(painter, panel, radius, shadowMargin, 36, 4);
 
     // glass: what it is over still shows through
     const QPainterPath shape = KisStudioGlass::paint(painter, this, panel.adjusted(0.5, 0.5, -0.5, -0.5), radius);

@@ -43,7 +43,13 @@
 
 namespace {
 
-constexpr int shadowMargin = 14;
+constexpr int glassShadowMargin = 14;
+
+/// Around the panel, for its shadow: none on a solid window (see KisStudioGlass::seeThroughWindows)
+int shadowMarginOf(const QWidget *window)
+{
+    return window->testAttribute(Qt::WA_TranslucentBackground) ? glassShadowMargin : 0;
+}
 
 QColor mix(const QColor &a, const QColor &b, qreal t)
 {
@@ -384,17 +390,18 @@ struct KisStudioItemCard::Private
 };
 
 KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &icon, const QString &title, QAction *shortcutAction)
-    // not Qt::Popup: translucent popups render a black background on Windows
-    : QFrame(mainWindow, Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
+    // on Windows not Qt::Popup: translucent popups render a black background there (see KisStudioGlass::popupWindowType)
+    : QFrame(mainWindow, KisStudioGlass::popupWindowType() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
     , d(new Private)
 {
     d->mainWindow = mainWindow;
     d->action = shortcutAction;
-    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_TranslucentBackground, KisStudioGlass::seeThroughWindows());
     setAttribute(Qt::WA_DeleteOnClose);
     new KisPopupCloser(this);
 
     auto *layout = new QVBoxLayout(this);
+    const int shadowMargin = shadowMarginOf(this);
     layout->setContentsMargins(shadowMargin + 12, shadowMargin + 10, shadowMargin + 12, shadowMargin + 10);
     layout->setSpacing(10);
 
@@ -528,6 +535,7 @@ void KisStudioItemCard::popupBeside(QWidget *anchor)
     QScreen *screen = anchor->screen();
     const QRect available = screen ? screen->availableGeometry() : QRect(0, 0, 1920, 1080);
     const bool leftHalf = anchorRect.center().x() < available.center().x();
+    const int shadowMargin = shadowMarginOf(this);
     QPoint pos(leftHalf ? anchorRect.right() + 4 - shadowMargin + 6 : anchorRect.left() - width() + shadowMargin - 6,
                anchorRect.top() - shadowMargin);
     pos.setX(qBound(available.left(), pos.x(), available.right() - width()));
@@ -614,9 +622,10 @@ void KisStudioItemCard::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
+    const int shadowMargin = shadowMarginOf(this);
     const QRectF panel = QRectF(rect()).adjusted(shadowMargin, shadowMargin, -shadowMargin, -shadowMargin);
     const qreal radius = 12;
-    KisStudioGlass::paintShadow(painter, panel, radius, shadowMargin, 30, 3);
+    if (shadowMargin) KisStudioGlass::paintShadow(painter, panel, radius, shadowMargin, 30, 3);
     // glass: what it is over still shows through
     const QPainterPath shape = KisStudioGlass::paint(painter, this, panel.adjusted(0.5, 0.5, -0.5, -0.5), radius);
     QColor border = palette().color(QPalette::WindowText);

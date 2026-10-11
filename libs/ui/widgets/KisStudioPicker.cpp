@@ -42,7 +42,13 @@
 
 namespace {
 
-constexpr int shadowMargin = 16;
+constexpr int glassShadowMargin = 16;
+
+/// Around the panel, for its shadow: none on a solid window (see KisStudioGlass::seeThroughWindows)
+int shadowMarginOf(const QWidget *window)
+{
+    return window->testAttribute(Qt::WA_TranslucentBackground) ? glassShadowMargin : 0;
+}
 constexpr int headerHeight = 26;
 
 /// The size of one item and how many go in a row
@@ -648,8 +654,8 @@ QStringList KisStudioPicker::scrollOrder(const Source &source)
 }
 
 KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, const QSet<QString> &available, QWidget *parent)
-    // not Qt::Popup: translucent popups render a black background on Windows
-    : QFrame(parent, Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
+    // on Windows not Qt::Popup: translucent popups render a black background there (see KisStudioGlass::popupWindowType)
+    : QFrame(parent, KisStudioGlass::popupWindowType() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
     , d(new Private)
 {
     d->q = this;
@@ -658,7 +664,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     d->original = current;
     d->available = available;
     d->pinned = pinnedIds(source);
-    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_TranslucentBackground, KisStudioGlass::seeThroughWindows());
     setAttribute(Qt::WA_DeleteOnClose);
 
     d->previewTimer.setSingleShot(true);
@@ -667,6 +673,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     });
 
     auto *layout = new QVBoxLayout(this);
+    const int shadowMargin = shadowMarginOf(this);
     layout->setContentsMargins(shadowMargin + 10, shadowMargin + 10, shadowMargin + 10, shadowMargin + 8);
     layout->setSpacing(4);
 
@@ -891,6 +898,7 @@ void KisStudioPicker::pickId(const QString &id)
 void KisStudioPicker::popupBelow(QWidget *anchor)
 {
     adjustSize();
+    const int shadowMargin = shadowMarginOf(this);
     QPoint pos = anchor->mapToGlobal(QPoint(0, anchor->height())) - QPoint(shadowMargin, shadowMargin - 4);
     // past the right of the window it opens from: lined up with the anchor's right instead
     const QWidget *window = anchor->window();
@@ -905,18 +913,19 @@ void KisStudioPicker::popupNear(const QPoint &globalPos)
 {
     adjustSize();
     // the search field just above the pointer, the items under it
-    popupAt(globalPos - QPoint(width() / 2, shadowMargin + 26), nullptr);
+    popupAt(globalPos - QPoint(width() / 2, shadowMarginOf(this) + 26), nullptr);
 }
 
 void KisStudioPicker::popupLeftOf(QWidget *anchor)
 {
     adjustSize();
+    const int shadowMargin = shadowMarginOf(this);
     popupAt(anchor->mapToGlobal(QPoint(0, anchor->height())) - QPoint(width() - shadowMargin + 4, height() - shadowMargin), anchor);
 }
 
 void KisStudioPicker::popupAt(QPoint pos, QWidget *anchor)
 {
-    QScreen *screen = anchor ? anchor->screen() : QGuiApplication::screenAt(pos + QPoint(width() / 2, shadowMargin + 26));
+    QScreen *screen = anchor ? anchor->screen() : QGuiApplication::screenAt(pos + QPoint(width() / 2, shadowMarginOf(this) + 26));
     if (screen) {
         const QRect available = screen->availableGeometry();
         pos.setX(qBound(available.left(), pos.x(), available.right() - width()));
@@ -975,9 +984,10 @@ void KisStudioPicker::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
+    const int shadowMargin = shadowMarginOf(this);
     const QRectF panel = QRectF(rect()).adjusted(shadowMargin, shadowMargin, -shadowMargin, -shadowMargin);
     const qreal radius = 12;
-    KisStudioGlass::paintShadow(painter, panel, radius, shadowMargin, 34, 4);
+    if (shadowMargin) KisStudioGlass::paintShadow(painter, panel, radius, shadowMargin, 34, 4);
     // glass: what it is over still shows through
     const QPainterPath shape = KisStudioGlass::paint(painter, this, panel.adjusted(0.5, 0.5, -0.5, -0.5), radius);
     QColor border = palette().color(QPalette::WindowText);

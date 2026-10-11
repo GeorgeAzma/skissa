@@ -193,6 +193,25 @@ public:
     /// Whether glass is on (the setting); off, backgrounds are the plain panel color
     static bool isEnabled();
     static void setEnabled(bool on);
+
+    /**
+     * Whether windows of their own (menus, pickers, Find, cards, canvas
+     * messages) can be see-through. Not on X11 without a compositing manager,
+     * where what a window leaves unpainted is black: they are solid there,
+     * square and without a shadow. KRITA_STUDIO_SOLID_WINDOWS=1 makes them
+     * solid anywhere, to try that.
+     */
+    static bool seeThroughWindows();
+
+    /**
+     * The window type of a Studio window over the main window (a picker,
+     * Find, a card). Qt::Tool on Windows, where a see-through Qt::Popup
+     * renders black; elsewhere Qt::Popup, the one Wayland lets Krita place
+     * (a Qt::Tool is a toplevel there, put where the compositor likes).
+     * KRITA_STUDIO_POPUP_WINDOWS=1 makes them popups on Windows too, to try
+     * that with solid windows.
+     */
+    static Qt::WindowType popupWindowType();
 };
 
 #endif // KISSTUDIOGLASS_H
