@@ -289,7 +289,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
     if ((tool == brushToolId || tool == multiBrushToolId) && KoToolRegistry::instance()->value(multiBrushToolId)) {
         const bool multi = tool == multiBrushToolId;
         QToolButton *toggle = addButton(KisIconUtils::loadIcon(KoToolRegistry::instance()->value(multiBrushToolId)->iconName()),
-                                        i18nc("@info:tooltip", "Multibrush: paint with symmetry, mirrors and copies"));
+                                        i18nc("@info:tooltip", "Multibrush"));
         toggle->setChecked(multi);
         connect(toggle, &QToolButton::clicked, this, [multi]() {
             KoToolManager::instance()->switchToolRequested(multi ? brushToolId : multiBrushToolId);

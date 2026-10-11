@@ -216,7 +216,7 @@
       <icon>edit-find</icon>
       <text>Find Anything</text>
       <whatsThis/>
-      <toolTip>Find tools, commands, effects, brushes, layers and settings</toolTip>
+      <toolTip>Find anything</toolTip>
       <iconText>Find</iconText>
       <shortcut>Ctrl+K</shortcut>
       <isCheckable>false</isCheckable>

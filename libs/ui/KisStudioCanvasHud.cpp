@@ -193,7 +193,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     auto *valueView = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_value")), i18nc("@action", "Value View"), mainWindow);
     valueView->setObjectName(QStringLiteral("studio_value_view"));
     valueView->setCheckable(true);
-    valueView->setToolTip(i18nc("@info:tooltip", "Value view: see the image in grays"));
+    valueView->setToolTip(i18nc("@info:tooltip", "Value view"));
     valueView->setShortcutContext(Qt::WindowShortcut);
     const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
                               .readEntry(valueView->objectName(), QString());
@@ -216,7 +216,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
 
     // only there while the canvas is rotated; a click puts it straight again
     d->rotation = hudButton(this);
-    d->rotation->setToolTip(i18nc("@info:tooltip", "Rotated: click to straighten"));
+    d->rotation->setToolTip(i18nc("@info:tooltip", "Straighten"));
     connect(d->rotation, &QToolButton::clicked, this, [this]() { d->trigger("reset_canvas_rotation"); });
     layout->addWidget(d->rotation);
 
@@ -225,7 +225,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     d->zoom->setAutoRaise(true);
     d->zoom->setFocusPolicy(Qt::NoFocus);
     d->zoom->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    d->zoom->setToolTip(i18nc("@info:tooltip", "Zoom: click to fit or go back, scroll to zoom"));
+    d->zoom->setToolTip(i18nc("@info:tooltip", "Zoom (click to fit)"));
     d->zoom->installEventFilter(this);
     connect(d->zoom, &QToolButton::clicked, this, [this]() { d->trigger("toggle_zoom_to_fit"); });
     layout->addWidget(d->zoom);

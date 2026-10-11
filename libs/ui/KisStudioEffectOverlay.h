@@ -49,7 +49,6 @@ private:
     void createMask();
     void finishEditing();
     void reposition();
-    void setExpanded(bool expanded);
     /// A press, move or release on the canvas while an effect is open; true when it was used
     bool handleCanvasDrag(QEvent *event);
 

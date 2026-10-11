@@ -1044,7 +1044,7 @@ void KisStudioFind::updateCommands(const QString &query)
         }
         std::stable_sort(scored.begin(), scored.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
         if (scored.isEmpty()) {
-            auto *nothing = new QStandardItem(i18nc("@info find results", "No command is called “%1”", query));
+            auto *nothing = new QStandardItem(i18nc("@info find results", "No command “%1”", query));
             nothing->setData(true, HeaderRole);
             nothing->setData(true, MessageRole);
             nothing->setFlags(Qt::NoItemFlags);
@@ -1337,7 +1337,7 @@ void KisStudioFind::updateResults()
     }
 
     if (!query.isEmpty() && scored.isEmpty()) {
-        auto *nothing = new QStandardItem(i18nc("@info find results", "Nothing is called “%1”", query));
+        auto *nothing = new QStandardItem(i18nc("@info find results", "No results for “%1”", query));
         nothing->setData(true, HeaderRole);
         nothing->setData(true, MessageRole);
         nothing->setFlags(Qt::NoItemFlags);
@@ -1515,7 +1515,7 @@ bool KisStudioFind::showCard(QAbstractButton *button)
     auto *card = new KisStudioItemCard(d->mainWindow, icon, title, action);
     if (d->setOnTools && d->isOnTools && !d->isOnTools(key)) {
         auto set = d->setOnTools;
-        card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")), i18nc("@info:tooltip", "Pin to the tools panel"),
+        card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")), i18nc("@info:tooltip", "Pin to tools"),
                           [set, key]() { set(key, true); }});
     }
     card->popupBeside(button);
@@ -1536,7 +1536,7 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
                 if (d->setOnTools && d->isOnTools && !d->isOnTools(entry.key)) {
                     auto set = d->setOnTools;
                     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")),
-                                      i18nc("@info:tooltip", "Pin to the tools panel"),
+                                      i18nc("@info:tooltip", "Pin to tools"),
                                       [set, key = entry.key]() { set(key, true); }});
                 }
                 QWidget *anchor = new QWidget(d->list->viewport());

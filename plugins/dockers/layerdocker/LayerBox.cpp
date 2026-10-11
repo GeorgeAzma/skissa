@@ -237,8 +237,7 @@ public:
         setFocusPolicy(Qt::NoFocus);
         setContextMenuPolicy(Qt::CustomContextMenu);
         setText(i18nc("@action:button", "New layer"));
-        setToolTip(i18nc("@info:tooltip", "A layer above the selected one; right click for the other kinds. "
-                                          "Or click between two layers to put one there"));
+        setToolTip(i18nc("@info:tooltip", "New layer (right-click for other kinds)"));
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         // a finger needs more to hit
         auto fit = [this]() { setFixedHeight(KisTouchMode::isActive() ? 34 : 26); };
@@ -550,7 +549,7 @@ LayerBox::LayerBox()
     // choosing a layer takes the brush last painted with on it (KisStudioBrushMemory)
     QAction *rememberBrushes = configureMenu->addAction(i18nc("@option:check", "Layers remember their brush"));
     rememberBrushes->setCheckable(true);
-    rememberBrushes->setToolTip(i18nc("@info:tooltip", "Choosing a layer takes the brush last painted with on it"));
+    rememberBrushes->setToolTip(i18nc("@info:tooltip", "Selecting a layer restores its brush"));
     connect(configureMenu, &QMenu::aboutToShow, rememberBrushes, [rememberBrushes]() {
         QSignalBlocker blocker(rememberBrushes);
         rememberBrushes->setChecked(KisStudioBrushMemory::layersRememberBrushes());

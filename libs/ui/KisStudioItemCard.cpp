@@ -419,7 +419,7 @@ KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &ico
 
     d->keyCap = new KeyCap(this);
     d->keyCap->setVisible(shortcutAction);
-    d->keyCap->setToolTip(i18nc("@info:tooltip", "Click, then press the new shortcut. Backspace removes it."));
+    d->keyCap->setToolTip(i18nc("@info:tooltip", "Click to set shortcut"));
     connect(d->keyCap, &QAbstractButton::clicked, this, &KisStudioItemCard::startRecording);
     header->addWidget(d->keyCap);
     layout->addLayout(header);
@@ -561,7 +561,7 @@ void KisStudioItemCard::startRecording()
     }
     d->recording = true;
     d->keyCap->setRecording(true);
-    d->note->setText(i18nc("@info", "Press the new shortcut · Backspace removes it · Esc keeps it"));
+    d->note->setText(i18nc("@info", "Press keys · Backspace clears · Esc cancels"));
     d->note->show();
     adjustSize();
     activateWindow();

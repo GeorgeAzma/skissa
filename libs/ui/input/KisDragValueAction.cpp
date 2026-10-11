@@ -26,7 +26,7 @@ KisDragValueAction::KisDragValueAction()
     : KisAbstractInputAction("Drag Value")
 {
     setName(i18nc("canvas input action", "Drag to Change"));
-    setDescription(i18n("Drag sideways while the key is held to change the brush's opacity or flow"));
+    setDescription(i18n("Hold and drag to change opacity or flow"));
     QHash<QString, int> shortcuts;
     shortcuts.insert(i18nc("canvas input action mode", "Opacity"), OpacityShortcut);
     shortcuts.insert(i18nc("canvas input action mode", "Flow"), FlowShortcut);

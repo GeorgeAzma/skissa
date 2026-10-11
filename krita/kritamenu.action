@@ -1832,7 +1832,7 @@
       <icon></icon>
       <text>&amp;Studio Layout</text>
       <whatsThis></whatsThis>
-      <toolTip>Canvas-first layout with panel rails and flyout panels</toolTip>
+      <toolTip>More canvas, panels at the edges</toolTip>
       <iconText>Studio Layout</iconText>
       <activationFlags>0</activationFlags>
       <activationConditions>0</activationConditions>

@@ -545,14 +545,14 @@ public:
     {
         setMouseTracking(true);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        setToolTip(i18nc("@info:tooltip", "Recent colors: drag one into the palette to keep it"));
+        setToolTip(i18nc("@info:tooltip", "Recent colors"));
     }
 
     void setColors(const QVector<QColor> &colors, bool ofLayer = false)
     {
         m_colors = colors;
-        setToolTip(ofLayer ? i18nc("@info:tooltip", "Colors on this layer: drag one into the palette to keep it")
-                           : i18nc("@info:tooltip", "Recent colors: drag one into the palette to keep it"));
+        setToolTip(ofLayer ? i18nc("@info:tooltip", "Colors on this layer")
+                           : i18nc("@info:tooltip", "Recent colors"));
         fit();
     }
 
@@ -737,7 +737,7 @@ PaletteDockerDock::PaletteDockerDock( )
         button->hide();
         return button;
     };
-    m_undo = smallButton("edit-undo", i18nc("@info:tooltip", "Undo the last change to the palette"));
+    m_undo = smallButton("edit-undo", i18nc("@info:tooltip", "Undo"));
     m_redo = smallButton("edit-redo", i18nc("@info:tooltip", "Redo"));
     connect(m_undo, &QToolButton::clicked, this, [this]() {
         if (m_currentColorSet) m_currentColorSet->undoStack()->undo();
@@ -996,8 +996,7 @@ void PaletteDockerDock::updateHeader()
         const bool unsaved = m_paletteEditor->isModified() && isGlobal();
         const QString name = fontMetrics().elidedText(m_currentColorSet->name(), Qt::ElideMiddle, 180);
         m_paletteButton->setText(unsaved ? name + QStringLiteral(" •") : name);
-        m_paletteButton->setToolTip(unsaved ? i18nc("@info:tooltip", "Changed, saved when Krita closes. Click for other palettes, right click for this one")
-                                            : i18nc("@info:tooltip", "Click for other palettes, right click for this one"));
+        m_paletteButton->setToolTip(unsaved ? i18nc("@info:tooltip", "Unsaved changes") : QString());
     } else {
         m_paletteButton->setText(i18nc("@action:button choose a palette", "Palettes"));
         m_paletteButton->setToolTip(i18nc("@info:tooltip", "Choose a palette"));
@@ -1111,7 +1110,7 @@ void PaletteDockerDock::showSwatchCard(const QModelIndex &index, QWidget *anchor
     if (canEdit()) {
         const QPersistentModelIndex target = index;
         card->addCommand({KisIconUtils::loadIcon(QStringLiteral("format-fill-color")),
-                          i18nc("@info:tooltip", "Put the current color here"), [this, target]() {
+                          i18nc("@info:tooltip", "Set to current color"), [this, target]() {
                               if (!canEdit() || !isOccupied(target) || !m_resourceProvider) return;
                               KisSwatch replaced = m_model->getSwatch(target);
                               replaced.setColor(m_resourceProvider->fgColor());
@@ -1119,13 +1118,13 @@ void PaletteDockerDock::showSwatchCard(const QModelIndex &index, QWidget *anchor
                               updateHeader();
                           }});
         card->addCommand({KisIconUtils::loadIcon(QStringLiteral("document-edit")),
-                          i18nc("@info:tooltip", "Edit its name and color"), [this, target]() {
+                          i18nc("@info:tooltip", "Edit"), [this, target]() {
                               if (!canEdit() || !isOccupied(target)) return;
                               m_paletteEditor->modifyEntry(target);
                               updateHeader();
                           }});
         card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")),
-                          i18nc("@info:tooltip", "Remove (or drag it off the panel)"), [this, target]() {
+                          i18nc("@info:tooltip", "Remove"), [this, target]() {
                               removeSwatch(target);
                           }});
     }
@@ -1143,7 +1142,7 @@ void PaletteDockerDock::showPaletteCard()
     const bool locked = m_currentColorSet->isLocked();
     if (!locked && m_view->document()) {
         card->addCommand({KisIconUtils::loadIcon(QStringLiteral("palette-edit")),
-                          i18nc("@info:tooltip", "Edit the palette: its name, columns and groups"), [this]() {
+                          i18nc("@info:tooltip", "Edit palette"), [this]() {
                               if (!m_currentColorSet || !m_view) return;
                               KisDlgPaletteEditor dialog(m_paletteEditor.data(), m_view->mainWindowAsQWidget());
                               dialog.initialize(m_model);
@@ -1153,7 +1152,7 @@ void PaletteDockerDock::showPaletteCard()
                           }});
     }
     card->addCommand({KisIconUtils::loadIcon(locked ? QStringLiteral("locked") : QStringLiteral("unlocked")),
-                      locked ? i18nc("@info:tooltip", "Locked: click to allow changes") : i18nc("@info:tooltip", "Lock it against changes"),
+                      locked ? i18nc("@info:tooltip", "Unlock") : i18nc("@info:tooltip", "Lock"),
                       [this, locked]() {
                           if (!m_currentColorSet) return;
                           m_currentColorSet->setLocked(!locked);
@@ -1162,7 +1161,7 @@ void PaletteDockerDock::showPaletteCard()
                       true, locked});
     if (m_paletteEditor->isModified() && isGlobal()) {
         card->addCommand({KisIconUtils::loadIcon(QStringLiteral("document-save")),
-                          i18nc("@info:tooltip", "Save now (it is also saved when Krita closes)"), [this]() {
+                          i18nc("@info:tooltip", "Save"), [this]() {
                               m_paletteEditor->saveNewPaletteVersion();
                               updateHeader();
                           }});
@@ -1247,7 +1246,7 @@ void PaletteDockerDock::showRecentCard(int index, QWidget *anchor)
     }
     auto *card = new KisStudioItemCard(mainWindow, QIcon(chip), color.toQColor().name(), nullptr);
     if (canEdit()) {
-        card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")), i18nc("@info:tooltip", "Keep it in the palette"),
+        card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")), i18nc("@info:tooltip", "Add to palette"),
                           [this, color]() { addColor(color, QModelIndex()); }});
     }
     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")), i18nc("@info:tooltip", "Forget it"), [this, color]() {

@@ -348,7 +348,7 @@ public:
     {
         setFixedSize(40, 40);
         setCursor(Qt::PointingHandCursor);
-        setToolTip(i18nc("@info:tooltip", "Color (click), background color (click to swap, or X)"));
+        setToolTip(i18nc("@info:tooltip", "Colors (X swaps)"));
     }
 
     void setColors(const QColor &foreground, const QColor &background)
@@ -442,7 +442,7 @@ public:
     {
         setCursor(Qt::OpenHandCursor);
         setFixedHeight(14);
-        setToolTip(i18nc("@info:tooltip", "Drag to the other side of the canvas"));
+        setToolTip(i18nc("@info:tooltip", "Drag to switch sides"));
     }
 
 protected:
@@ -623,8 +623,8 @@ public:
             QWidget *widget = layout()->itemAt(i)->widget();
             if (widget && widget != m_grip) widget->setVisible(!tucked);
         }
-        m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Click to show the tools")
-                                  : i18nc("@info:tooltip", "Drag to the other side of the canvas, click to hide the tools"));
+        m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Show tools")
+                                  : i18nc("@info:tooltip", "Drag to switch sides, click to hide"));
         place();
     }
 
@@ -771,8 +771,8 @@ public:
     {
         m_contents->setVisible(!tucked);
         if (m_grip) {
-            m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Click to show the bar")
-                                      : i18nc("@info:tooltip", "Drag to move the window, click to hide the bar, double click to maximize"));
+            m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Show bar")
+                                      : i18nc("@info:tooltip", "Drag to move, double-click to maximize"));
         }
     }
 
@@ -1588,7 +1588,6 @@ void KisStudioLayout::enter()
     if (!mainWindow->actionCollection()->action(QStringLiteral("studio_effects"))) {
         QAction *effects = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_effects")), i18nc("@action", "Effects"), mainWindow);
         effects->setObjectName(QStringLiteral("studio_effects"));
-        effects->setToolTip(i18nc("@info:tooltip", "All the effects, with yours first"));
         const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
                                   .readEntry(effects->objectName(), QString());
         if (!saved.isEmpty() && saved != QLatin1String("none")) {
@@ -1604,12 +1603,11 @@ void KisStudioLayout::enter()
 
     /**
      * All the brushes, yours first: from the brush picture in the top bar,
-     * from Find ("Pick a Brush"), or its shortcut, where the pointer is.
+     * from Find ("Brushes"), or its shortcut, where the pointer is.
      */
     if (!mainWindow->actionCollection()->action(QStringLiteral("studio_brush_picker"))) {
-        QAction *brushes = new QAction(KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), i18nc("@action", "Pick a Brush"), mainWindow);
+        QAction *brushes = new QAction(KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), i18nc("@action", "Brushes"), mainWindow);
         brushes->setObjectName(QStringLiteral("studio_brush_picker"));
-        brushes->setToolTip(i18nc("@info:tooltip", "All the brushes, with yours first"));
         const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
                                   .readEntry(brushes->objectName(), QString());
         if (!saved.isEmpty() && saved != QLatin1String("none")) {
@@ -1636,8 +1634,7 @@ void KisStudioLayout::enter()
         d->presetChip = paintopBox->presetChip();
         if (d->presetChip) {
             d->presetChipToolTip = d->presetChip->toolTip();
-            d->presetChip->setToolTip(i18nc("@info:tooltip", "Brushes: click to pick one, scroll to go through yours, "
-                                                             "right click for the brush presets to manage them"));
+            d->presetChip->setToolTip(i18nc("@info:tooltip", "Brushes (right-click to manage)"));
         }
     }
 
@@ -2363,8 +2360,8 @@ void KisStudioLayout::setPanelsTucked(bool tucked)
     d->panelsTucked = tucked;
     KisConfig(false).writeEntry(panelsHiddenKey, tucked);
     if (d->stripGrip) {
-        d->stripGrip->setToolTip(tucked ? i18nc("@info:tooltip", "Click to show the panels")
-                                        : i18nc("@info:tooltip", "Drag to the other side of the canvas, click to hide the panels"));
+        d->stripGrip->setToolTip(tucked ? i18nc("@info:tooltip", "Show panels")
+                                        : i18nc("@info:tooltip", "Drag to switch sides, click to hide"));
     }
     updateColumns();
 }
@@ -2833,7 +2830,7 @@ void KisStudioLayout::showRailContextMenu(const QPoint &pos)
     // the rail itself: panels are added with "+", so only putting it back is left
     auto *card = new KisStudioItemCard(d->mainWindow, KisIconUtils::loadIcon(QStringLiteral("studio_more")),
                                        i18nc("@title panels rail", "Panels"), nullptr);
-    card->addCommand({KisIconUtils::loadIcon(QStringLiteral("view-refresh")), i18nc("@info:tooltip", "Put back the default panels"),
+    card->addCommand({KisIconUtils::loadIcon(QStringLiteral("view-refresh")), i18nc("@info:tooltip", "Reset panels"),
                       [this]() { setRailPanels(defaultRailPanels()); }});
     auto *anchor = new QWidget(d->rail);
     anchor->setGeometry(QRect(pos, QSize(1, 1)));
@@ -2863,7 +2860,7 @@ void KisStudioLayout::showPanelCard(const QString &id, QWidget *anchor)
     // the panel's card: its shortcut, pinning it next to the canvas, taking it off the rail
     auto *card = new KisStudioItemCard(d->mainWindow, KisIconUtils::loadIcon(railIconName(id)),
                                        dock->windowTitle(), dock->toggleViewAction());
-    card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")), i18nc("@info:tooltip", "Take off the rail (or drag its button onto the canvas)"),
+    card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")), i18nc("@info:tooltip", "Remove"),
                       [this, id]() { takeOffRail(id); }});
     card->popupBeside(anchor);
 }
@@ -3085,8 +3082,8 @@ void KisStudioLayout::createTopBar()
             }
             auto *scrubber = new KisStudioScrubber(entry.second,
                                                    entry.second == KisStudioScrubber::Kind::Size
-                                                       ? i18nc("@info:tooltip", "Brush size: drag sideways, scroll, or double click to type")
-                                                       : i18nc("@info:tooltip", "Opacity: drag sideways, scroll, or double click to type"),
+                                                       ? i18nc("@info:tooltip", "Brush size")
+                                                       : i18nc("@info:tooltip", "Opacity"),
                                                    values);
             scrubber->setRange(entry.second == KisStudioScrubber::Kind::Size ? qMax(source->minimum(), 1.0) : source->minimum(),
                                source->maximum());
@@ -3131,7 +3128,7 @@ void KisStudioLayout::createTopBar()
     d->settingsButton = settingsButton;
 
     auto *field = new PillButton(QStringLiteral("studio_find"),
-                                 i18nc("@info:tooltip", "Find tools, commands, effects, brushes, layers and settings"), mainWindow);
+                                 i18nc("@info:tooltip", "Find anything"), mainWindow);
     field->setAccessibleName(i18nc("@info:placeholder", "Find anything"));
     field->hide();
     connect(field, &QAbstractButton::clicked, this, [this]() {

@@ -205,7 +205,7 @@ void KisStudioCanvasRing::pickBrush(int index)
     if (!find) return;
     close();
     QPointer<KisStudioCanvasRing> self(this);
-    find->pick(i18nc("@info:placeholder", "Pick a brush for the ring"), [self, index](const QString &key) {
+    find->pick(i18nc("@info:placeholder", "Add to ring"), [self, index](const QString &key) {
         if (!self || !key.startsWith(QLatin1String("brush:"))) return;
         const QString name = key.mid(6);
         self->changeBrushes([index, &name](QStringList &brushes) {

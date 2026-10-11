@@ -1158,17 +1158,17 @@ KisStudioColorPanel::KisStudioColorPanel()
     row->setSpacing(6);
     d->currentRow = new Swatches(22, contents);
     d->currentRow->setFixedWidth(22 * 2 + 4);
-    d->currentRow->setToolTip(i18nc("@info:tooltip", "Current color, and the one before it (click to go back)"));
+    d->currentRow->setToolTip(i18nc("@info:tooltip", "Current and previous color"));
     row->addWidget(d->currentRow);
     d->recentRow = new Swatches(16, contents);
-    d->recentRow->setToolTip(i18nc("@info:tooltip", "Colors painted with lately, by hue"));
+    d->recentRow->setToolTip(i18nc("@info:tooltip", "Recent colors"));
     row->addWidget(d->recentRow, 1, Qt::AlignVCenter);
     d->styleButton = new StyleButton(contents);
     d->styleButton->setAutoRaise(true);
     d->styleButton->setFocusPolicy(Qt::NoFocus);
     d->styleButton->setIconSize(QSize(18, 18));
     d->styleButton->setPopupMode(QToolButton::InstantPopup);
-    d->styleButton->setToolTip(i18nc("@info:tooltip", "Change the color picker"));
+    d->styleButton->setToolTip(i18nc("@info:tooltip", "Picker style"));
     auto *styles = new QMenu(d->styleButton);
     auto *styleGroup = new QActionGroup(styles);
     // each picker shown as it is pointed at, beside the menu

@@ -198,6 +198,62 @@ QVector<KeyCell> keyboardLayout()
     return cells;
 }
 
+QColor mixed(const QColor &a, const QColor &b, qreal t);
+
+/// A key's mark and what it means: a bar along its front edge (held on the canvas), a red badge (two commands want it)
+class KeyLegend : public QWidget
+{
+public:
+    enum Mark { Held, Clash };
+
+    KeyLegend(Mark mark, const QString &text, QWidget *parent)
+        : QWidget(parent)
+        , m_mark(mark)
+        , m_text(text)
+    {
+        setToolTip(mark == Held ? i18nc("@info:tooltip", "Held on the canvas") : i18nc("@info:tooltip", "Two commands on one key"));
+    }
+
+    QSize sizeHint() const override
+    {
+        return QSize(cap + 6 + fontMetrics().horizontalAdvance(m_text) + 10, qMax(cap + 3, fontMetrics().height()));
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QColor window = palette().color(QPalette::Window);
+        const QColor text = palette().color(QPalette::WindowText);
+        const QRectF r(0.5, (height() - cap - 2.5) / 2.0, cap, cap);
+        const QColor face = mixed(window, text, 0.15);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(mixed(face, QColor(0, 0, 0), 0.45));
+        painter.drawPath(KisModernStyle::squircle(r.translated(0, 2.5), 4));
+        painter.setBrush(face);
+        painter.drawPath(KisModernStyle::squircle(r, 4));
+        if (m_mark == Held) {
+            QColor bar = text;
+            bar.setAlphaF(0.6);
+            painter.setBrush(bar);
+            painter.drawRoundedRect(QRectF(r.center().x() - 4, r.bottom() - 4, 8, 2), 1, 1);
+        } else {
+            painter.setBrush(QColor(226, 92, 92));
+            painter.drawEllipse(QRectF(r.right() - 8, r.top() + 2, 6, 6));
+        }
+        QColor ink = text;
+        ink.setAlphaF(0.6);
+        painter.setPen(ink);
+        painter.drawText(QRectF(cap + 6, 0, width() - cap - 6, height()), Qt::AlignLeft | Qt::AlignVCenter, m_text);
+    }
+
+private:
+    static constexpr int cap = 18;
+    Mark m_mark;
+    QString m_text;
+};
+
 QColor mixed(const QColor &a, const QColor &b, qreal t)
 {
     return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t, a.greenF() + (b.greenF() - a.greenF()) * t,
@@ -553,7 +609,7 @@ struct KisKeysPage::Private
 
     QString hint() const
     {
-        return i18nc("@info keys page", "Click a key cap to change it, right click to remove it. Drag a command onto the keyboard to give it that key.");
+        return i18nc("@info keys page", "Drag commands onto keys · right-click a key to clear it");
     }
 
     void showNote(const QString &text)
@@ -1043,8 +1099,8 @@ struct KisKeysPage::Private
         pendingModifier = 0;
         tree->setFocus();
         tree->grabKeyboard();
-        showNote(row < 0 ? i18nc("@info keys page", "Hold the keys for it and let go. Esc keeps it as it was.")
-                         : i18nc("@info keys page", "Press the new keys. Esc keeps the old ones, Backspace removes them."));
+        showNote(row < 0 ? i18nc("@info keys page", "Hold the keys, then release · Esc cancels")
+                         : i18nc("@info keys page", "Press keys · Backspace clears · Esc cancels"));
         tree->viewport()->update();
     }
 
@@ -1182,7 +1238,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     bar->addWidget(d->search, 1);
     d->pressKeys = new QToolButton(this);
     d->pressKeys->setText(i18nc("@action:button keys page: find by pressing keys", "Press keys"));
-    d->pressKeys->setToolTip(i18nc("@info:tooltip", "Find what a key does: press it"));
+    d->pressKeys->setToolTip(i18nc("@info:tooltip", "Press a key to look it up"));
     d->pressKeys->setCheckable(true);
     bar->addWidget(d->pressKeys);
     d->changedOnly = new QToolButton(this);
@@ -1192,7 +1248,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     // a ring of your own: made, and its key asked for at once
     auto *newRing = new QToolButton(this);
     newRing->setText(i18nc("@action:button keys page", "New ring"));
-    newRing->setToolTip(i18nc("@info:tooltip", "A ring of your own on a key: tap it to open, hold it and point to pick. Add what goes on it on the ring"));
+    newRing->setToolTip(i18nc("@info:tooltip", "Ring on a key: tap to open, hold and point to pick"));
     bar->addWidget(newRing);
     connect(newRing, &QToolButton::clicked, this, [this]() {
         KisStudioRings *rings = d->mainWindow ? d->mainWindow->studioRings() : nullptr;
@@ -1224,7 +1280,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     }
     Q_FOREACH (const QString &name, schemeNames) d->startFrom->addItem(d->schemeTitle(name), name);
     d->startFrom->setCurrentIndex(qMax(0, d->startFrom->findData(d->scheme)));
-    d->startFrom->setToolTip(i18nc("@info:tooltip", "A set of keys to start from, the keys held on the canvas too"));
+    d->startFrom->setToolTip(i18nc("@info:tooltip", "Preset"));
     bar->addWidget(d->startFrom);
     layout->addLayout(bar);
 
@@ -1247,18 +1303,14 @@ KisKeysPage::KisKeysPage(QWidget *parent)
         button->setAutoRaise(true);
         button->setProperty(KisModernStyle::tabButtonProperty, true);
         button->setProperty("layer", int(entry.second));
-        button->setToolTip(i18nc("@info:tooltip", "What the keys do with these held (or hold them)"));
+        button->setToolTip(i18nc("@info:tooltip", "Modifiers"));
         layers->addWidget(button);
         d->layerButtons << button;
     }
     layers->addStretch();
-    auto *legend = new QLabel(i18nc("@info keys page legend", "A bar: held on the canvas · Red: two commands share it"), this);
-    QPalette faint = legend->palette();
-    QColor ink = faint.color(QPalette::WindowText);
-    ink.setAlphaF(0.6);
-    faint.setColor(QPalette::WindowText, ink);
-    legend->setPalette(faint);
-    layers->addWidget(legend);
+    // what the marks on the keys mean, drawn as the keys draw them
+    layers->addWidget(new KeyLegend(KeyLegend::Held, i18nc("@info keys page legend: a key held on the canvas", "Held"), this));
+    layers->addWidget(new KeyLegend(KeyLegend::Clash, i18nc("@info keys page legend: two commands on one key", "Conflict"), this));
     layout->addLayout(layers);
 
     d->map = new KeyboardMap(this);
@@ -1323,6 +1375,10 @@ KisKeysPage::KisKeysPage(QWidget *parent)
 
     d->note = new QLabel(this);
     d->note->setWordWrap(true);
+    QPalette faint = d->note->palette();
+    QColor faintInk = faint.color(QPalette::WindowText);
+    faintInk.setAlphaF(0.6);
+    faint.setColor(QPalette::WindowText, faintInk);
     d->note->setPalette(faint);
     layout->addWidget(d->note);
     d->noteTimer.setSingleShot(true);
@@ -1360,7 +1416,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
         bool held = false;
         int count = 0;
         if (d->keyFilter && d->commandsOn(chord, &held, &count).isEmpty()) {
-            d->showNote(i18nc("@info keys page", "%1 is free: drag a command onto it", KisModernStyle::keyCapText(QKeySequence(chord))));
+            d->showNote(i18nc("@info keys page", "%1 is free", KisModernStyle::keyCapText(QKeySequence(chord))));
         }
     };
     d->map->dropped = [this](const QMimeData *mime, int chord) {
@@ -1410,7 +1466,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
         }
         d->collectHolds();
         d->rebuildHoldItems();
-        d->showNote(i18nc("@info keys page", "Started from %1: %2 commands changed. Cancel keeps your keys.", d->schemeTitle(name), changes));
+        d->showNote(i18nc("@info keys page", "%2 changed from %1", d->schemeTitle(name), changes));
         d->refresh();
     });
 }
@@ -1589,7 +1645,7 @@ void KisKeysPage::setDefaults()
         hold.removed = false;
         hold.changed = false;
     }
-    d->showNote(i18nc("@info keys page", "All keys go back to Krita's, the held ones too, when you press OK"));
+    d->showNote(i18nc("@info keys page", "Resets all keys on OK"));
     d->refresh();
 }
 

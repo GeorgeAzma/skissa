@@ -170,7 +170,7 @@ protected:
         QPointer<CommandRing> self(this);
         const QString id = m_id;
         const QPoint at = m_global;
-        find->pick(i18nc("@info:placeholder", "Pick something for the ring"), [self, id, index, at](const QString &key) {
+        find->pick(i18nc("@info:placeholder", "Add to ring"), [self, id, index, at](const QString &key) {
             if (!self) return;
             QStringList items = self->m_rings->items(id);
             const int already = items.indexOf(key);

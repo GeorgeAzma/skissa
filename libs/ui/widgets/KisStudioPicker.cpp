@@ -696,7 +696,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     auto *footer = new QHBoxLayout();
     d->footer = footer;
     footer->setContentsMargins(8, 2, 4, 0);
-    d->hint = new QLabel(i18nc("@info", "Drag to reorder, the star adds or removes"), this);
+    d->hint = new QLabel(i18nc("@info", "Drag to reorder · ★ to favorite"), this);
     QPalette hintPalette = d->hint->palette();
     hintPalette.setColor(QPalette::WindowText, KisModernStyle::secondaryInk(hintPalette.color(QPalette::WindowText)));
     d->hint->setPalette(hintPalette);

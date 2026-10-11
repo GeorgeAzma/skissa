@@ -77,7 +77,7 @@ KisCompositeOpComboBox::KisCompositeOpComboBox(bool limitToLayerStyles, QWidget*
     setSizeAdjustPolicy(AdjustToContents);
     m_view->setResizeMode(QListView::Adjust);
 
-    setToolTip(limitToLayerStyles ? i18n("Blending Mode") : i18nc("@info:tooltip", "Blend mode: click, scroll, or drag sideways"));
+    setToolTip(limitToLayerStyles ? i18n("Blending Mode") : i18nc("@info:tooltip", "Blend mode"));
 
     setModel(m_model);
     setView(m_view);

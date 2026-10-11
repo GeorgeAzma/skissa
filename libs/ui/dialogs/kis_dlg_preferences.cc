@@ -399,19 +399,17 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
 
     // under the canvas messages: brushes by what they paint, an extra look that costs a little to make
     m_chkBrushesAsStrokes = new QCheckBox(i18n("Show brushes as strokes"), m_chkCanvasMessages->parentWidget());
-    m_chkBrushesAsStrokes->setToolTip(i18n("Brush presets show a stroke painted with each brush, beside its name, instead of its picture"));
     m_chkBrushesAsStrokes->setChecked(KisPresetStrokeThumbnails::isEnabled());
     // panels, menus and popups of glass (frosted or liquid), or of the plain panel color
     m_cmbGlass = new QComboBox(m_chkCanvasMessages->parentWidget());
     m_cmbGlass->addItems({i18nc("glass panels", "Off"), i18nc("glass panels", "Frosted"), i18nc("glass panels", "Liquid")});
-    m_cmbGlass->setToolTip(i18n("Panels, menus and popups show the canvas behind them, blurred. "
-                                "Liquid: their edges are clearer, bend the canvas more and catch the light"));
+    m_cmbGlass->setToolTip(i18n("Liquid: sharper edges, more refraction"));
     m_cmbGlass->setCurrentIndex(KisStudioGlass::isEnabled() ? 1 + int(KisStudioGlass::style()) : 0);
     // and how much its edge bends the canvas behind it (none: a line)
     m_sldRefraction = new KisSliderSpinBox(m_chkCanvasMessages->parentWidget());
     m_sldRefraction->setRange(0, 100);
     m_sldRefraction->setSuffix(i18nc("percent", "%"));
-    m_sldRefraction->setToolTip(i18n("How much the edges of glass panels bend the canvas behind them. None: a line"));
+    m_sldRefraction->setToolTip(i18n("Edge refraction"));
     m_sldRefraction->setValue(qRound(KisStudioGlass::refraction() * 100));
     m_sldRefraction->setEnabled(m_cmbGlass->currentIndex() > 0);
     connect(m_cmbGlass, QOverload<int>::of(&QComboBox::currentIndexChanged), m_sldRefraction,

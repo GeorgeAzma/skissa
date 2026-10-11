@@ -96,7 +96,7 @@ QVector<ToolSlot> toolSlots()
          {QStringLiteral("KisToolSelectRectangular"), QStringLiteral("KisToolSelectElliptical"), QStringLiteral("KisToolSelectOutline"),
           QStringLiteral("KisToolSelectPolygonal"), QStringLiteral("KisToolSelectContiguous"), QStringLiteral("KisToolSelectSimilar"),
           QStringLiteral("KisToolSelectMagnetic"), QStringLiteral("KisToolSelectPath")}},
-        {QStringLiteral("move"), i18nc("@info:tooltip tool slot", "Move and Transform"), QStringLiteral("studio_move"), BrushMode::None,
+        {QStringLiteral("move"), i18nc("@info:tooltip tool slot", "Transform"), QStringLiteral("studio_move"), BrushMode::None,
          {QStringLiteral("KritaTransform/KisToolMove"), QStringLiteral("KisToolTransform"), QStringLiteral("KisToolCrop"),
           QStringLiteral("InteractionTool")}},
         {QStringLiteral("fill"), i18nc("@info:tooltip tool slot", "Fill"), QStringLiteral("studio_fill"), BrushMode::None,
@@ -108,7 +108,7 @@ QVector<ToolSlot> toolSlots()
           QStringLiteral("PathTool"), QStringLiteral("KarbonCalligraphyTool"), QStringLiteral("KritaShape/KisToolKnife")}},
         {QStringLiteral("text"), i18nc("@info:tooltip tool slot", "Text"), QStringLiteral("studio_text"), BrushMode::None,
          {QStringLiteral("SvgTextTool")}},
-        {QStringLiteral("guides"), i18nc("@info:tooltip tool slot", "Guides and References"), QStringLiteral("studio_guides"), BrushMode::None,
+        {QStringLiteral("guides"), i18nc("@info:tooltip tool slot", "Guides"), QStringLiteral("studio_guides"), BrushMode::None,
          {QStringLiteral("KisAssistantTool"), QStringLiteral("ToolReferenceImages"), QStringLiteral("KritaShape/KisToolMeasure")}},
     };
 }
@@ -247,7 +247,7 @@ public:
         setFixedSize(40, name.isEmpty() ? 14 : 20);
         setAttribute(Qt::WA_Hover);
         setCursor(Qt::PointingHandCursor);
-        setToolTip(name.isEmpty() ? i18nc("@info:tooltip", "Space: click to name the group below it, drag it off to remove it")
+        setToolTip(name.isEmpty() ? i18nc("@info:tooltip", "Gap: click to name, drag off to remove")
                                   : name);
     }
 
@@ -424,7 +424,7 @@ public:
         setAttribute(Qt::WA_Hover);
         setFocusPolicy(Qt::NoFocus);
         setCursor(Qt::PointingHandCursor);
-        setToolTip(i18nc("@info:tooltip", "Add a tool, an effect or anything else (or drag one here from Find)"));
+        setToolTip(i18nc("@info:tooltip", "Add"));
     }
 
 protected:
@@ -841,7 +841,7 @@ void KisStudioToolRail::mouseMoveEvent(QMouseEvent *event)
     if (d->hoverGap >= 0) {
         showIndicator(d->hoverGap, 1);
         setCursor(Qt::PointingHandCursor);
-        setToolTip(i18nc("@info:tooltip", "Click to put a space here"));
+        setToolTip(i18nc("@info:tooltip", "Add gap"));
     } else {
         d->indicator->hide();
         unsetCursor();
@@ -1033,7 +1033,7 @@ void KisStudioToolRail::showCard(int index)
         }
         if (!hiddenHere.isEmpty()) {
             card->addCommand({KisIconUtils::loadIcon(QStringLiteral("visible")),
-                              i18nc("@info:tooltip", "Show the %1 hidden variants", hiddenHere.size()),
+                              i18nc("@info:tooltip", "%1 more", hiddenHere.size()),
                               [this, hiddenHere]() {
                                   Q_FOREACH (const QString &toolId, hiddenHere) d->hidden.remove(toolId);
                                   KisConfig(false).writeEntry(hiddenKey, QStringList(d->hidden.values()));
@@ -1049,14 +1049,14 @@ void KisStudioToolRail::showCard(int index)
 
     // what clicking between two buttons does, for fingers that cannot hit the gap
     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")),
-                      i18nc("@info:tooltip", "Add a space above it (or click between two buttons)"),
+                      i18nc("@info:tooltip", "Add gap above"),
                       [this, index]() {
                           QStringList items = d->items;
                           items.insert(qBound(0, index, items.size()), spacePrefix);
                           QTimer::singleShot(0, this, [this, items]() { setItems(items); });
                       }});
     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")),
-                      i18nc("@info:tooltip", "Take off the rail (or drag it off)"),
+                      i18nc("@info:tooltip", "Remove"),
                       [this, index, key]() {
                           QStringList items = d->items;
                           if (index < items.size() && items[index] == key) items.removeAt(index);
@@ -1087,7 +1087,7 @@ void KisStudioToolRail::showRestoreCard(const QPoint &globalPos)
         card->setChoices(choices);
     }
     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("view-refresh")),
-                      i18nc("@info:tooltip", "Put back the default tools and variants"),
+                      i18nc("@info:tooltip", "Reset tools"),
                       [this]() {
                           d->hidden.clear();
                           KisConfig(false).writeEntry(hiddenKey, QStringList());
