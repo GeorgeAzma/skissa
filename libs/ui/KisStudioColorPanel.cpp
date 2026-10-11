@@ -736,168 +736,6 @@ private:
 
 } // namespace
 
-/**
- * What OKLCH is, shown rather than told: every hue at one HSV value, and at
- * one OKLCH lightness, each over a band of how light it looks. HSV's band
- * goes from near white (yellow) to near black (blue); OKLCH's stays even,
- * which is why its steps are even and its picks keep their lightness.
- */
-class ModelTip : public QWidget
-{
-public:
-    static void showFor(QWidget *owner, const QPoint &globalPos)
-    {
-        static QPointer<ModelTip> shown;
-        if (shown) shown->close();
-        shown = new ModelTip(owner);
-        shown->adjustSize();
-        // below the pointer, kept on the screen
-        QPoint at = globalPos + QPoint(-shown->width() / 2, 22);
-        if (QScreen *screen = owner->screen()) {
-            const QRect area = screen->availableGeometry();
-            at.setX(qBound(area.left() + 4, at.x(), area.right() - shown->width() - 4));
-            if (at.y() + shown->height() > area.bottom()) at.setY(globalPos.y() - shown->height() - 12);
-        }
-        shown->move(at);
-        shown->show();
-    }
-
-    QSize sizeHint() const override
-    {
-        return QSize(tipWidth, contentHeight());
-    }
-
-protected:
-    bool eventFilter(QObject *watched, QEvent *event) override
-    {
-        if (watched == m_owner && (event->type() == QEvent::Leave || event->type() == QEvent::MouseButtonPress
-                                   || event->type() == QEvent::Hide || event->type() == QEvent::WindowDeactivate)) {
-            close();
-        }
-        return QWidget::eventFilter(watched, event);
-    }
-
-    void paintEvent(QPaintEvent *) override
-    {
-        QPainter painter(this);
-        QStyleOption option;
-        option.initFrom(this);
-        style()->drawPrimitive(QStyle::PE_PanelTipLabel, &option, &painter, this);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-
-        const QColor ink = palette().color(QPalette::ToolTipText);
-        const QColor faint = KisModernStyle::secondaryInk(ink);
-        int y = margin;
-        QFont bold = font();
-        bold.setWeight(QFont::DemiBold);
-        painter.setFont(bold);
-        painter.setPen(ink);
-        const QRect titleRect(margin, y, tipWidth - 2 * margin, QFontMetrics(bold).height());
-        painter.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, title());
-        y += titleRect.height() + 4;
-
-        painter.setFont(font());
-        const QRect textRect(margin, y, tipWidth - 2 * margin, textHeight());
-        painter.drawText(textRect, Qt::TextWordWrap | Qt::AlignLeft | Qt::AlignTop, text());
-        y += textRect.height() + 10;
-
-        y = paintStrip(painter, y, QStringLiteral("HSV"), [](qreal h) { return QColor::fromHsvF(h / 360.0, 1.0, 1.0); });
-        y += 8;
-        y = paintStrip(painter, y, QStringLiteral("OKLCH"), [](qreal h) {
-            return rgbFromOklch({0.75, qMin(0.13, maxChroma(0.75, h)), h});
-        });
-        y += 8;
-
-        QFont small = font();
-        small.setPointSizeF(small.pointSizeF() * 0.9);
-        painter.setFont(small);
-        painter.setPen(faint);
-        painter.drawText(QRect(margin, y, tipWidth - 2 * margin, QFontMetrics(small).height()), Qt::AlignLeft | Qt::AlignVCenter,
-                         i18nc("@info:tooltip", "Click to choose the picker"));
-    }
-
-private:
-    explicit ModelTip(QWidget *owner)
-        : QWidget(nullptr, Qt::ToolTip | Qt::FramelessWindowHint)
-        , m_owner(owner)
-    {
-        setAttribute(Qt::WA_DeleteOnClose);
-        setAttribute(Qt::WA_ShowWithoutActivating);
-        setPalette(QToolTip::palette());
-        setFont(QToolTip::font());
-        owner->installEventFilter(this);
-        // a tooltip goes by itself
-        QTimer::singleShot(12000, this, &QWidget::close);
-    }
-
-    static QString title()
-    {
-        return i18nc("@info:tooltip", "OKLCH: color as the eye sees it");
-    }
-
-    static QString text()
-    {
-        return i18nc("@info:tooltip", "Hues at one lightness look equally light, so steps look even and a new hue keeps its lightness. "
-                                      "HSV's full yellow is far lighter than its full blue.");
-    }
-
-    int textHeight() const
-    {
-        return QFontMetrics(font()).boundingRect(QRect(0, 0, tipWidth - 2 * margin, 1000), Qt::TextWordWrap, text()).height();
-    }
-
-    int contentHeight() const
-    {
-        const QFontMetrics metrics(font());
-        QFont small = font();
-        small.setPointSizeF(small.pointSizeF() * 0.9);
-        const int strip = metrics.height() + 2 + stripHeight + 3 + lightnessHeight;
-        return margin + metrics.height() + 4 + textHeight() + 10 + strip + 8 + strip + 8 + QFontMetrics(small).height() + margin;
-    }
-
-    /// The hues, and under them how light each looks (OKLab's L as a gray): a name above
-    int paintStrip(QPainter &painter, int y, const QString &name, const std::function<QColor(qreal)> &colorAt)
-    {
-        // caps set small: the face's small cut at semibold (bold that small clots), a little apart
-        QFont label = KisModernStyle::textFont(font(), 0.8, QFont::DemiBold);
-        label.setLetterSpacing(QFont::PercentageSpacing, 106);
-        const QColor faint = KisModernStyle::secondaryInk(palette().color(QPalette::ToolTipText));
-        painter.setFont(label);
-        painter.setPen(faint);
-        const int labelHeight = QFontMetrics(font()).height();
-        painter.drawText(QRect(margin, y, tipWidth - 2 * margin, labelHeight), Qt::AlignLeft | Qt::AlignBottom, name);
-        y += labelHeight + 2;
-
-        const int w = tipWidth - 2 * margin;
-        QImage hues(w, stripHeight, QImage::Format_ARGB32_Premultiplied);
-        QImage light(w, lightnessHeight, QImage::Format_ARGB32_Premultiplied);
-        for (int x = 0; x < w; x++) {
-            const QColor color = colorAt(360.0 * x / qMax(1, w - 1));
-            const qreal l = oklchFromRgb(color).l;
-            const QColor gray = rgbFromOklch({l, 0.0, 0.0});
-            for (int row = 0; row < stripHeight; row++) hues.setPixel(x, row, color.rgb());
-            for (int row = 0; row < lightnessHeight; row++) light.setPixel(x, row, gray.rgb());
-        }
-        auto put = [&](const QImage &image, int top) {
-            const QRectF area(margin, top, w, image.height());
-            painter.save();
-            painter.setClipPath(KisModernStyle::squircle(area, 3));
-            painter.drawImage(area.topLeft(), image);
-            painter.restore();
-        };
-        put(hues, y);
-        y += stripHeight + 3;
-        put(light, y);
-        return y + lightnessHeight;
-    }
-
-    static constexpr int tipWidth = 300;
-    static constexpr int margin = 10;
-    static constexpr int stripHeight = 16;
-    static constexpr int lightnessHeight = 7;
-    QWidget *m_owner;
-};
-
 /// The pickers the panel has, in the order its menu lists them
 enum class PickerStyle { Ring, Pill, Hsv };
 
@@ -980,20 +818,11 @@ static QIcon styleIcon(PickerStyle style)
     return QIcon(QPixmap::fromImage(image));
 }
 
-/// Opens the menu of pickers; its tooltip shows what OKLCH is
+/// Opens the menu of pickers
 class StyleButton : public QToolButton
 {
 public:
     using QToolButton::QToolButton;
-
-    bool event(QEvent *event) override
-    {
-        if (event->type() == QEvent::ToolTip) {
-            ModelTip::showFor(this, static_cast<QHelpEvent *>(event)->globalPos());
-            return true;
-        }
-        return QToolButton::event(event);
-    }
 };
 
 /// The hex code: faint while it is only shown, full strength while it is typed in
@@ -1223,15 +1052,28 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->styleButton->setFocusPolicy(Qt::NoFocus);
     d->styleButton->setIconSize(QSize(18, 18));
     d->styleButton->setPopupMode(QToolButton::InstantPopup);
+    d->styleButton->setToolTip(i18nc("@info:tooltip", "Change the color picker"));
     auto *styles = new QMenu(d->styleButton);
+    // each picker says what it is good for, as it is pointed at
+    styles->setToolTipsVisible(true);
     auto *styleGroup = new QActionGroup(styles);
-    const QList<QPair<PickerStyle, QString>> names = {
-        {PickerStyle::Ring, i18nc("@item:inmenu color picker: OKLCH hue ring and chroma/lightness square", "OKLCH")},
-        {PickerStyle::Pill, i18nc("@item:inmenu color picker: compact OKLCH sliders", "Sliders")},
-        {PickerStyle::Hsv, i18nc("@item:inmenu color picker", "HSV")},
+    struct Picker {
+        PickerStyle style;
+        QString name;
+        QString toolTip;
     };
-    for (const auto &name : names) {
+    const QList<Picker> names = {
+        {PickerStyle::Ring, i18nc("@item:inmenu color picker: OKLCH hue ring and chroma/lightness square", "OKLCH"),
+         i18nc("@info:tooltip", "Colors at the same lightness really look equally bright, so a yellow and a blue stay balanced when you switch hues")},
+        {PickerStyle::Pill, i18nc("@item:inmenu color picker: compact OKLCH sliders", "Sliders"),
+         i18nc("@info:tooltip", "The same OKLCH colors as three small sliders, for when the panel is short on room")},
+        {PickerStyle::Hsv, i18nc("@item:inmenu color picker", "HSV"),
+         i18nc("@info:tooltip", "The classic hue, saturation and value picker")},
+    };
+    for (const auto &picker : names) {
+        const auto name = qMakePair(picker.style, picker.name);
         QAction *action = styles->addAction(styleIcon(name.first), name.second);
+        action->setToolTip(picker.toolTip);
         // Krita leaves icons out of menus; these are what tells the pickers apart
         action->setIconVisibleInMenu(true);
         action->setCheckable(true);
