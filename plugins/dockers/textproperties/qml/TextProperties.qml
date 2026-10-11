@@ -35,7 +35,8 @@ Control {
     }
     palette: pal.palette;
     background: Rectangle {
-        color: palette.window;
+        // in a panel of glass, the glass
+        color: pal.glass ? "transparent" : palette.window;
     }
 
     function setProperties() {

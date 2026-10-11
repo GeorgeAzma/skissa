@@ -41,6 +41,8 @@ KisQQuickWidget::KisQQuickWidget(QWidget *parent): QQuickWidget(parent)
 #endif
 
     engine()->rootContext()->setContextProperty("mainWindow", parent);
+    // not glass until it is made so (see event())
+    engine()->rootContext()->setContextProperty("studioGlass", false);
     engine()->rootContext()->setContextObject(new KLocalizedContext(parent));
 
     // Clear color is the 'default background color', which, in qwidget context is the window bg.
@@ -110,7 +112,27 @@ void KisQQuickWidget::connectMinimumWidthToRootObject()
 
 void KisQQuickWidget::updatePaletteFromConfig()
 {
-    setClearColor(palette().window().color());
+    setClearColor(property(glassProperty).toBool() ? QColor(Qt::transparent) : palette().window().color());
+}
+
+const char *const KisQQuickWidget::glassProperty = "studioGlassQml";
+
+bool KisQQuickWidget::event(QEvent *event)
+{
+    if (event->type() == QEvent::DynamicPropertyChange
+        && static_cast<QDynamicPropertyChangeEvent *>(event)->propertyName() == glassProperty) {
+        const bool glass = property(glassProperty).toBool();
+        /**
+         * See-through, the glass under it showing where its QML draws
+         * nothing: a QQuickWidget is only that drawn over the rest of the
+         * window, not under it (where it would show through nothing)
+         */
+        setAttribute(Qt::WA_AlwaysStackOnTop, glass);
+        updatePaletteFromConfig();
+        engine()->rootContext()->setContextProperty("studioGlass", glass);
+        update();
+    }
+    return QQuickWidget::event(event);
 }
 
 void KisQQuickWidget::setMinimumHeightFromRoot()

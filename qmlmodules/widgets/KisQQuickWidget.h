@@ -39,6 +39,17 @@ public:
      * but then for width.
      */
     void connectMinimumWidthToRootObject();
+
+    /**
+     * The dynamic property, set on it by what holds it (KisStudioGlass), that
+     * makes it glass: drawn see-through, over the rest of its window, its QML
+     * told by "studioGlass" in its context (see ThemedControl.qml)
+     */
+    static const char *const glassProperty;
+
+protected:
+    bool event(QEvent *event) override;
+
 private Q_SLOTS:
     void updatePaletteFromConfig();
 

@@ -952,6 +952,18 @@ QColor veilFor(const QColor &color, const QColor &under)
 }
 
 const char *const savedPaletteProperty = "studioGlassSavedPalette";
+
+/**
+ * The QML in \p widget glass too, or not: its QML views (KisQQuickWidget,
+ * whose glassProperty this is) drawn see-through, their fields and buttons
+ * veils as the widgets' are
+ */
+void setQmlGlass(QWidget *widget, bool on)
+{
+    Q_FOREACH (QWidget *child, widget->findChildren<QWidget *>()) {
+        if (child->inherits("KisQQuickWidget")) child->setProperty("studioGlassQml", on);
+    }
+}
 const char *const seeThroughProperty = "studioGlassSeeThrough";
 
 } // namespace
@@ -982,6 +994,7 @@ void KisStudioGlass::setSeeThrough(QWidget *widget, bool on)
             palette.setColor(group, QPalette::Window, window);
         }
         widget->setPalette(palette);
+        setQmlGlass(widget, true);
         // a dropdown's list is a window of its own, but given its box's palette: it stays solid
         Q_FOREACH (QComboBox *box, widget->findChildren<QComboBox *>()) {
             QWidget *popup = box->view() ? box->view()->window() : nullptr;
@@ -997,6 +1010,7 @@ void KisStudioGlass::setSeeThrough(QWidget *widget, bool on)
             widget->setAttribute(Qt::WA_SetPalette, false);
         }
         widget->setProperty(savedPaletteProperty, QVariant());
+        setQmlGlass(widget, false);
     }
 }
 

@@ -21,6 +21,27 @@ Control {
     // There doesn't seem to be any relevant difference between inactive and active, so we don't bother distinguishing between them.
     property int colorGroup: enabled? SystemPalette.Active: SystemPalette.Disabled;
 
+    /*
+      In a panel of glass (KisQQuickWidget, made so by KisStudioGlass): the fields are veils of
+      white or black, as the widgets there are (KisStudioGlass::veilFor), the glass seen through
+      them. The window color stays: popups are drawn with it.
+      */
+    property bool glass: typeof studioGlass !== "undefined" && studioGlass;
+
+    // white or black, as opaque as it takes over the window's color to make c's lightness (a little more, at least)
+    function lightness(c) {
+        // HSL's, as QColor::lightnessF (the color type here has no lightness of its own)
+        return (Math.max(c.r, c.g, c.b) + Math.min(c.r, c.g, c.b)) / 2;
+    }
+    function veil(c) {
+        const l = lightness(c);
+        const u = lightness(theme.window.backgroundColor);
+        const lighter = l >= u;
+        const room = lighter ? 1 - u : u;
+        const amount = room > 0 ? Math.min(1, Math.max(0.04, Math.abs(l - u) / room)) : 0;
+        return lighter ? Qt.rgba(1, 1, 1, amount) : Qt.rgba(0, 0, 0, amount);
+    }
+
     property Kis.Theme theme: Kis.Theme {
         window.state: colorGroup;
         view.state: colorGroup;
@@ -37,8 +58,9 @@ Control {
         }
     }
 
-    palette.alternateBase: theme.view.alternateBackgroundColor;
-    palette.base: theme.view.backgroundColor;
+    palette.alternateBase: glass ? veil(theme.view.alternateBackgroundColor) : theme.view.alternateBackgroundColor;
+    palette.base: glass ? veil(theme.view.backgroundColor) : theme.view.backgroundColor;
+    // not the button color: the style makes the buttons' from it lighter and darker, which in Qt 5 makes a veil opaque
     palette.button: theme.button.backgroundColor;
     palette.buttonText: theme.button.textColor;
     palette.dark: theme.window.darkShadeColor;
