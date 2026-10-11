@@ -94,8 +94,6 @@ public:
     enum class Style {
         Frosted = 0,
         Liquid = 1,
-        /// No frost: each panel one clear superellipse dome, the canvas bent all over it
-        Clear = 2,
     };
     static Style style();
     static void setStyle(Style style);
