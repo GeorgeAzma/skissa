@@ -125,6 +125,8 @@ void KisFloatingMessage::showMessage()
     QRect geom = determineMetrics(fontMetrics().horizontalAdvance('x'));
     setGeometry(geom);
     setWindowOpacity(OSD_WINDOW_OPACITY);
+    // shown again while it faded: the canvas draws its glass as opaque again
+    KisStudioGlass::changed(this);
 
     QRect rect(QPoint(), geom.size());
     rect.adjust(m_m, m_m, -m_m, -m_m);
@@ -281,6 +283,8 @@ void KisFloatingMessage::removeMessage()
 void KisFloatingMessage::updateOpacity(int value)
 {
     setWindowOpacity(OSD_WINDOW_OPACITY / 100.0 * (100 - value));
+    // the glass under it fades with it
+    KisStudioGlass::changed(this);
 }
 
 void KisFloatingMessage::widgetDeleted()
