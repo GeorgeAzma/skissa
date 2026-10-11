@@ -598,6 +598,19 @@ bool overOtherWindow(const QWidget *widget)
         if (qobject_cast<const KisMainWindow *>(w)) return false;
         if (!w->testAttribute(Qt::WA_TranslucentBackground)) return true;
     }
+    /**
+     * A window of no window's (Qt's tooltips on Windows are the desktop's):
+     * over a dialog when the dialog is the one in use there, and under it
+     */
+    const QWidget *window = widget->window();
+    if (window->isWindow() && (window->windowType() == Qt::ToolTip || window->windowType() == Qt::Popup || window->windowType() == Qt::Tool)) {
+        QWidget *active = QApplication::activeModalWidget();
+        if (!active) active = QApplication::activeWindow();
+        if (active && active != window && !qobject_cast<KisMainWindow *>(active) && !active->testAttribute(Qt::WA_TranslucentBackground)
+            && active->frameGeometry().intersects(QRect(window->mapToGlobal(QPoint()), window->size()))) {
+            return true;
+        }
+    }
     return false;
 }
 
