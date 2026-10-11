@@ -324,6 +324,8 @@ void KisFilterManager::apply(KisFilterConfigurationSP _filterConfig)
     {
         KConfigGroup group( KSharedConfig::openConfig(), "filterdialog");
         strategy->setForceLodModeIfPossible(group.readEntry("forceLodMode", true));
+    // at full resolution, a coarse pass first (shown at once), then the full one in its place
+    strategy->setProgressivePreview(true);
     }
 
     d->currentStrokeId =

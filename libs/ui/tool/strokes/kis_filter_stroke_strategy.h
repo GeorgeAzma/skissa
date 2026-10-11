@@ -77,6 +77,15 @@ public:
     using ExternalCancelUpdatesStorageSP = QSharedPointer<ExternalCancelUpdatesStorage>;
 
 public:
+    /**
+     * A preview: a coarse pass first (the filter on the image made a few
+     * times smaller, scaled back up), shown at once, then the pass at full
+     * resolution in its place. For filters that work on fewer pixels the
+     * same (supportsLevelOfDetail) and need pixels around each (a blur, not
+     * a curve: those are as fast at full resolution), over a large region.
+     */
+    void setProgressivePreview(bool progressive);
+
     KisFilterStrokeStrategy(KisFilterSP filter,
                             KisFilterConfigurationSP filterConfig,
                             KisResourcesSnapshotSP resources);
