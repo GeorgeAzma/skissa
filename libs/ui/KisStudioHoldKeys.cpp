@@ -10,7 +10,6 @@
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QPointer>
-#include <QWidgetAction>
 
 #include <KoToolManager.h>
 #include <kactioncollection.h>
@@ -40,7 +39,30 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
         const QEvent::Type type = event->type();
-        if (type != QEvent::ShortcutOverride && type != QEvent::KeyRelease) {
+        switch (type) {
+        case QEvent::MouseButtonPress:
+        case QEvent::TabletPress:
+            // used while held: held, however short
+            if (m_pressedKey) m_used = true;
+            m_pointerDown = true;
+            return false;
+        case QEvent::MouseButtonRelease:
+        case QEvent::TabletRelease:
+            m_pointerDown = false;
+            // let go of mid-stroke: given back once the stroke is done
+            if (m_revertPending) {
+                m_revertPending = false;
+                revert();
+            }
+            return false;
+        case QEvent::WindowDeactivate:
+            // another application: its release will not come here
+            if (watched == m_mainWindow && m_pressedKey) released(0);
+            return false;
+        case QEvent::ShortcutOverride:
+        case QEvent::KeyRelease:
+            break;
+        default:
             return false;
         }
         auto *key = static_cast<QKeyEvent *>(event);
@@ -60,16 +82,38 @@ protected:
             if (action->isCheckable()) action->setAutoRepeat(false);
             m_pressedKey = key->key();
             m_since.restart();
+            m_pressedAt = key->timestamp();
+            m_used = false;
+            m_revertPending = false;
             m_action = action;
             m_wasChecked = action->isChecked();
             m_toolBefore = KoToolManager::instance()->activeToolId();
             return false;
         }
 
-        // let go: held, what it turned on lasts no longer
-        if (key->key() != m_pressedKey) return false;
+        if (key->key() == m_pressedKey) released(key->timestamp());
+        return false;
+    }
+
+private:
+    /// The key let go of at \p timestamp (0: not known): held, what it turned on lasts no longer
+    void released(ulong timestamp)
+    {
         m_pressedKey = 0;
-        if (!m_action || m_since.elapsed() < KisStudioHoldKeys::holdTime) return false;
+        if (!m_action) return;
+        // by the keys' own times: a slow action run by the press does not make a tap a hold
+        const qint64 down = timestamp && m_pressedAt ? qint64(timestamp - m_pressedAt) : m_since.elapsed();
+        if (!m_used && down < KisStudioHoldKeys::holdTime) return;
+        if (m_pointerDown) {
+            m_revertPending = true;
+            return;
+        }
+        revert();
+    }
+
+    void revert()
+    {
+        if (!m_action) return;
         const QString tool = KoToolManager::instance()->activeToolId();
         if (!m_toolBefore.isEmpty() && tool != m_toolBefore) {
             // the tool it gave, given back
@@ -77,10 +121,8 @@ protected:
         } else if (m_action->isCheckable() && m_action->isChecked() != m_wasChecked) {
             m_action->trigger();
         }
-        return false;
     }
 
-private:
     /// The action of the window whose shortcut \p sequence is (of one key and its modifiers)
     QAction *actionFor(const QKeySequence &sequence) const
     {
@@ -106,6 +148,11 @@ private:
     KisMainWindow *m_mainWindow {nullptr};
     int m_pressedKey {0};
     QElapsedTimer m_since;
+    ulong m_pressedAt {0};
+    /// The pointer pressed while the key was down
+    bool m_used {false};
+    bool m_pointerDown {false};
+    bool m_revertPending {false};
     QPointer<QAction> m_action;
     bool m_wasChecked {false};
     QString m_toolBefore;

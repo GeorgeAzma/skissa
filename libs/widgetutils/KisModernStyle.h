@@ -128,6 +128,9 @@ public:
      */
     static QAction *shortcutTarget(QAction *entry);
 
+    /// After a drag that nothing took (Qt::IgnoreAction): given up on with Esc, the button still held, not let go of somewhere
+    static bool dragCancelled();
+
     using QProxyStyle::polish;
     void polish(QWidget *widget) override;
 

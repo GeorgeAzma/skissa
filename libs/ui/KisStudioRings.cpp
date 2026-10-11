@@ -223,7 +223,7 @@ protected:
 
     bool eventFilter(QObject *watched, QEvent *event) override
     {
-        if (!isVisible()) return false;
+        if (!KisStudioMotion::isShown(this)) return false;
         const QEvent::Type type = event->type();
         if (type == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
             closeRing();
@@ -534,7 +534,7 @@ void KisStudioRings::open(const QString &id)
         const QKeySequence shortcut = action->shortcut();
         if (!shortcut.isEmpty()) key = shortcut[0] & ~int(Qt::KeyboardModifierMask);
     }
-    if (d->ring->isVisible() && d->ring->ringId() == id) {
+    if (KisStudioMotion::isShown(d->ring) && d->ring->ringId() == id) {
         d->ring->closeRing();
         return;
     }

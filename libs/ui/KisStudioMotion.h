@@ -21,6 +21,8 @@ namespace KisStudioMotion
 KRITAUI_EXPORT void showFaded(QWidget *widget);
 /// Fades \p widget out, then hides it; shown again meanwhile, it stays
 KRITAUI_EXPORT void hideFaded(QWidget *widget);
+/// Visible and not fading out: fading, it is gone already for the pointer, which reaches what is under it
+KRITAUI_EXPORT bool isShown(const QWidget *widget);
 }
 
 #endif // KISSTUDIOMOTION_H

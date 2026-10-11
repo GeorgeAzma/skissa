@@ -408,6 +408,12 @@ struct KisStudioEffectOverlay::Private
     KisViewManager *viewManager() const { return mainWindow->viewManager(); }
     KisFilterManager *filterManager() const { return viewManager() ? viewManager()->filterManager() : nullptr; }
     bool maskPossible() const { return node && filter && !node->inherits("KisMask") && filter->supportsAdjustmentLayers(); }
+    /// The document it was opened on is still the one shown
+    bool current() const
+    {
+        KisViewManager *view = viewManager();
+        return node && view && view->image() && node->image().data() == view->image().data();
+    }
 
     void setCursor(bool on)
     {
@@ -492,6 +498,10 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     if (KisViewManager *viewManager = mainWindow->viewManager()) {
         connect(viewManager->nodeManager(), &KisNodeManager::sigNodeActivated, this, [this](KisNodeSP node) {
             if (isVisible() && node != d->node) reject();
+        });
+        // also when the last document closes (no other becomes active then)
+        connect(viewManager, &KisViewManager::viewChanged, this, [this]() {
+            if (isVisible() && !d->current()) reject();
         });
     }
     hide();
@@ -581,7 +591,7 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
 void KisStudioEffectOverlay::startApplying()
 {
     KisFilterManager *filterManager = d->filterManager();
-    if (!d->selector || !filterManager || !d->preview->isChecked()) {
+    if (!d->selector || !filterManager || !d->preview->isChecked() || !d->current()) {
         return;
     }
     KisFilterConfigurationSP config = d->selector->configuration();
@@ -598,6 +608,10 @@ void KisStudioEffectOverlay::accept()
 {
     KisFilterManager *filterManager = d->filterManager();
     if (!isVisible() || !filterManager) {
+        return;
+    }
+    if (!d->current()) {
+        reject();
         return;
     }
     // editable: a filter mask instead of new pixels
@@ -808,7 +822,9 @@ bool KisStudioEffectOverlay::eventFilter(QObject *watched, QEvent *event)
         auto *key = static_cast<QKeyEvent *>(event);
         QWidget *focus = QApplication::focusWidget();
         const bool inPanel = focus && (focus == this || isAncestorOf(focus));
-        if (!inPanel && (watched == focus || (!focus && watched == window()))) {
+        // not in a dialog or another window
+        const bool here = focus ? focus->window() == window() : watched == window();
+        if (!inPanel && here && (watched == focus || !focus)) {
             if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
                 accept();
                 return true;

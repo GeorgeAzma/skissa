@@ -77,6 +77,8 @@
 #include "KisStudioScrubber.h"
 #include "KisStudioToolStrip.h"
 #include "KisStudioWindowFrame.h"
+#include "KisWelcomePageWidget.h"
+#include "kis_selection_actions_panel_button.h"
 #include "kis_canvas_resource_provider.h"
 #include "canvas/kis_canvas_controller.h"
 #include "KisStudioToolRail.h"
@@ -406,6 +408,7 @@ public:
         setToolButtonStyle(Qt::ToolButtonTextOnly);
         setPopupMode(QToolButton::InstantPopup);
         setToolTip(i18nc("@info:tooltip", "Open documents"));
+        setObjectName(QStringLiteral("studio_documents"));
     }
 };
 
@@ -1864,6 +1867,9 @@ void KisStudioLayout::leave()
     if (d->hud) {
         d->hud->setActive(false);
     }
+    if (auto *welcome = d->mainWindow->findChild<KisWelcomePageWidget *>()) {
+        welcome->setContentsMargins(QMargins());
+    }
     d->mainWindow->setProperty("studioLayoutActive", false);
     if (d->frame) {
         d->frame->setEnabled(false);
@@ -2405,6 +2411,21 @@ void KisStudioLayout::parkPanel(QDockWidget *dock)
     dock->hide();
 }
 
+void KisStudioLayout::placeWelcomePage()
+{
+    auto *welcome = d->mainWindow->findChild<KisWelcomePageWidget *>();
+    QWidget *rail = d->brushRail;
+    if (!welcome || !rail) return;
+    QMargins room;
+    if (rail->isVisible()) {
+        const QRect at(rail->mapTo(d->mainWindow, QPoint()), rail->size());
+        const QRect page(welcome->mapTo(d->mainWindow, QPoint()), welcome->size());
+        if (at.center().x() < page.center().x()) room.setLeft(qMax(0, at.right() + 13 - page.left()));
+        else room.setRight(qMax(0, page.right() + 13 - at.left()));
+    }
+    if (welcome->contentsMargins() != room) welcome->setContentsMargins(room);
+}
+
 void KisStudioLayout::updateColumns()
 {
     KisStudioPanelColumn *column = d->panelColumn;
@@ -2520,6 +2541,12 @@ void KisStudioLayout::gripClicked(const QString &id)
         if (dock == d->flyout) closeFlyout();
         return;
     }
+    // a fold still moving (a quick second click): at its end first, so that this one starts from a settled panel
+    const QString foldName = QStringLiteral("studioFold_") + id;
+    if (auto *running = findChild<QVariantAnimation *>(foldName, Qt::FindDirectChildrenOnly)) {
+        running->setObjectName(QString());
+        if (running->state() == QAbstractAnimation::Running) running->setCurrentTime(running->duration());
+    }
     // next to the canvas: folded to a line with its name, or back, in a moment
     const bool fold = !d->folded.contains(id);
     if (fold) {
@@ -2551,6 +2578,7 @@ void KisStudioLayout::gripClicked(const QString &id)
         dock->setMaximumHeight(from);
     }
     auto *animation = new QVariantAnimation(this);
+    animation->setObjectName(foldName);
     animation->setStartValue(from);
     animation->setEndValue(to);
     // fast at first, easing into place: no wind-up, no overshoot
@@ -2576,7 +2604,13 @@ void KisStudioLayout::gripClicked(const QString &id)
                 resizePanel(target, to);
             }
         }
-        QTimer::singleShot(0, this, [this]() { d->settlingHeights = false; });
+        QTimer::singleShot(0, this, [this]() {
+            // another panel still folding: still settling
+            Q_FOREACH (QVariantAnimation *other, findChildren<QVariantAnimation *>(QString(), Qt::FindDirectChildrenOnly)) {
+                if (other->objectName().startsWith(QLatin1String("studioFold_")) && other->state() == QAbstractAnimation::Running) return;
+            }
+            d->settlingHeights = false;
+        });
     });
     animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
@@ -3431,6 +3465,11 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
         }
     }
 
+    if (watched == d->brushRail && d->brushRail) {
+        const QEvent::Type type = event->type();
+        if (type == QEvent::Move || type == QEvent::Resize || type == QEvent::Show || type == QEvent::Hide) placeWelcomePage();
+    }
+
     if (handleRailDrag(watched, event)) {
         return true;
     }
@@ -3442,7 +3481,9 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
     // any button of the window, right clicked (or held): its card, to give it a shortcut as a tool has
     if (event->type() == QEvent::ContextMenu) {
         auto *button = qobject_cast<QAbstractButton *>(watched);
-        if (button && button->window() == d->mainWindow && button->contextMenuPolicy() == Qt::DefaultContextMenu) {
+        // the canvas's selection bar has a menu of its own
+        if (button && button->window() == d->mainWindow && button->contextMenuPolicy() == Qt::DefaultContextMenu
+            && !dynamic_cast<KisSelectionActionsPanelButton *>(button)) {
             bool ownCard = false;
             for (QWidget *w = button; w && !ownCard; w = w->parentWidget()) {
                 // these have cards of their own
@@ -3464,10 +3505,6 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
     }
 
     switch (event->type()) {
-    case QEvent::Paint: {
-        break;
-    }
-
     case QEvent::MouseButtonPress:
     case QEvent::TabletPress:
         // clicking anywhere else in the window closes the flyout, the

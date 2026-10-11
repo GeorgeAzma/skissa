@@ -502,7 +502,7 @@ private:
 
         // let go outside the panel: taken out of the palette
         QWidget *panel = parentWidget() ? parentWidget() : this;
-        if (result == Qt::IgnoreAction && !panel->rect().contains(panel->mapFromGlobal(QCursor::pos()))) {
+        if (result == Qt::IgnoreAction && !KisModernStyle::dragCancelled() && !panel->rect().contains(panel->mapFromGlobal(QCursor::pos()))) {
             QTimer::singleShot(0, this, [this, from]() {
                 if (draggedOff && from.isValid()) draggedOff(from);
             });

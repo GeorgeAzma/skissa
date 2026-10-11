@@ -15,6 +15,20 @@
 namespace {
 
 const char *const fadingOutProperty = "studioFadingOut";
+const char *const clickThroughProperty = "studioFadeClickThrough";
+
+/// While it fades out, a press goes to what is under it (a window's own, the system's)
+void setClickThrough(QWidget *widget, bool on)
+{
+    if (widget->isWindow()) return;
+    if (on && !widget->testAttribute(Qt::WA_TransparentForMouseEvents)) {
+        widget->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        widget->setProperty(clickThroughProperty, true);
+    } else if (!on && widget->property(clickThroughProperty).toBool()) {
+        widget->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+        widget->setProperty(clickThroughProperty, false);
+    }
+}
 
 /// The fade running on a widget, so that a new one replaces it and starts where it was
 QVariantAnimation *runningFade(QWidget *widget)
@@ -65,15 +79,10 @@ bool canFade(QWidget *widget)
     return widget->isWindow() || !widget->graphicsEffect() || qobject_cast<QGraphicsOpacityEffect *>(widget->graphicsEffect());
 }
 
-/// A window rises this far into its place as it fades in
-constexpr int rise = 6;
-
-void fade(QWidget *widget, qreal to, int duration, QEasingCurve::Type curve, bool hideAtEnd, bool rising = false)
+void fade(QWidget *widget, qreal to, int duration, QEasingCurve::Type curve, bool hideAtEnd)
 {
     delete runningFade(widget);
     const qreal from = currentOpacity(widget);
-    // where it ends up: it starts a little below, and rises with the fade
-    const QPoint place = widget->pos();
 
     auto *animation = new QVariantAnimation(widget);
     animation->setObjectName(QStringLiteral("studioFade"));
@@ -83,16 +92,15 @@ void fade(QWidget *widget, qreal to, int duration, QEasingCurve::Type curve, boo
     animation->setDuration(qMax(1, qRound(duration * qAbs(to - from))));
     animation->setEasingCurve(curve);
     QPointer<QWidget> target = widget;
-    QObject::connect(animation, &QVariantAnimation::valueChanged, widget, [target, rising, place](const QVariant &value) {
-        if (!target) return;
-        setOpacity(target, value.toReal());
-        if (rising) target->move(place + QPoint(0, qRound(rise * (1.0 - value.toReal()))));
+    QObject::connect(animation, &QVariantAnimation::valueChanged, widget, [target](const QVariant &value) {
+        if (target) setOpacity(target, value.toReal());
     });
     QObject::connect(animation, &QVariantAnimation::finished, widget, [target, hideAtEnd]() {
         if (!target) return;
         if (hideAtEnd) {
             target->hide();
             target->setProperty(fadingOutProperty, false);
+            setClickThrough(target, false);
         }
         settle(target);
     });
@@ -111,6 +119,7 @@ void KisStudioMotion::showFaded(QWidget *widget)
         return;
     }
     widget->setProperty(fadingOutProperty, false);
+    setClickThrough(widget, false);
     if (!canFade(widget)) {
         widget->show();
         return;
@@ -138,5 +147,11 @@ void KisStudioMotion::hideFaded(QWidget *widget)
         return;
     }
     widget->setProperty(fadingOutProperty, true);
+    setClickThrough(widget, true);
     fade(widget, 0.0, 80, QEasingCurve::InCubic, true);
+}
+
+bool KisStudioMotion::isShown(const QWidget *widget)
+{
+    return widget && widget->isVisible() && !widget->property(fadingOutProperty).toBool();
 }

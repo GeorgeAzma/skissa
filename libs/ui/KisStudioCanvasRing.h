@@ -39,7 +39,6 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
-    void hideEvent(QHideEvent *event) override;
 
 private:
     struct Slot {
@@ -84,6 +83,10 @@ private:
     QPointF m_center;
     /// Growing in as it opens
     qreal m_scale {1.0};
+    /// The canvas it opened on: gone or another one shown, it closes
+    QPointer<QWidget> m_canvas;
+    /// The button whose press closed it: its release is eaten too
+    Qt::MouseButton m_eatRelease {Qt::NoButton};
 };
 
 #endif // KISSTUDIOCANVASRING_H

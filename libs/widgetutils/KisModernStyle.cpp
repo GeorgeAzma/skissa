@@ -546,6 +546,16 @@ void KisModernStyle::drawKeyCap(QPainter *painter, const QRectF &rect, const QFo
     painter->restore();
 }
 
+bool KisModernStyle::dragCancelled()
+{
+#ifdef Q_OS_WIN
+    // the system's drag loop takes Esc itself, and Qt's idea of the buttons is from before the drag
+    return GetAsyncKeyState(GetSystemMetrics(SM_SWAPBUTTON) ? VK_RBUTTON : VK_LBUTTON) & 0x8000;
+#else
+    return QGuiApplication::mouseButtons() & Qt::LeftButton;
+#endif
+}
+
 QAction *KisModernStyle::shortcutTarget(QAction *entry)
 {
     if (!entry || entry->isSeparator() || entry->menu()) {

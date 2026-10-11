@@ -33,6 +33,7 @@
 #include <kconfiggroup.h>
 #include <kis_icon_utils.h>
 #include "KisView.h"
+#include "KisViewManager.h"
 #include "canvas/kis_canvas2.h"
 #include "canvas/kis_canvas_controller.h"
 #include "canvas/kis_coordinates_converter.h"
@@ -148,7 +149,6 @@ struct KisStudioCanvasHud::Private
     QToolButton *rotation {nullptr};
     QToolButton *zoom {nullptr};
 
-    QPointer<KisView> view;
     QList<QMetaObject::Connection> viewConnections;
 
     QAction *action(const char *name) const
@@ -183,6 +183,8 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     layout->addWidget(d->progressBox);
 
     d->mirror = hudButton(this);
+    // named: their text changes, and Find keeps a button (its shortcut, its place on the rail) by its name
+    d->mirror->setObjectName(QStringLiteral("studio_hud_mirror"));
     if (QAction *mirror = d->action("mirror_canvas")) {
         d->mirror->setDefaultAction(mirror);
         d->mirror->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -203,6 +205,11 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     mainWindow->actionCollection()->addAction(valueView->objectName(), valueView);
     connect(valueView, &QAction::toggled, this, [](bool on) {
         KisOpenGLUpdateInfoBuilder::setValueView(on);
+        // one view of values for all the windows: their buttons say so
+        Q_FOREACH (QPointer<KisMainWindow> window, KisPart::instance()->mainWindows()) {
+            QAction *other = window ? window->actionCollection()->action(QStringLiteral("studio_value_view")) : nullptr;
+            if (other) other->setChecked(on);
+        }
         Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
             // drawn again: the grays are made as the canvas draws the image (one frame), the textures as they are
             KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
@@ -216,12 +223,14 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
 
     // only there while the canvas is rotated; a click puts it straight again
     d->rotation = hudButton(this);
+    d->rotation->setObjectName(QStringLiteral("studio_hud_rotation"));
     d->rotation->setToolTip(i18nc("@info:tooltip", "Straighten"));
     connect(d->rotation, &QToolButton::clicked, this, [this]() { d->trigger("reset_canvas_rotation"); });
     layout->addWidget(d->rotation);
 
     // no menu: a click flips between fitting the window and the last zoom, the wheel zooms
     d->zoom = new ZoomButton(this);
+    d->zoom->setObjectName(QStringLiteral("studio_hud_zoom"));
     d->zoom->setAutoRaise(true);
     d->zoom->setFocusPolicy(Qt::NoFocus);
     d->zoom->setToolButtonStyle(Qt::ToolButtonTextOnly);
@@ -232,6 +241,10 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
 
     parentWidget()->installEventFilter(this);
     connect(mainWindow, &KisMainWindow::activeViewChanged, this, &KisStudioCanvasHud::viewChanged);
+    // the last document closed: no view becomes active, the view manager says so
+    if (KisViewManager *viewManager = mainWindow->viewManager()) {
+        connect(viewManager, &KisViewManager::viewChanged, this, &KisStudioCanvasHud::viewChanged);
+    }
     hide();
 }
 
@@ -260,6 +273,8 @@ void KisStudioCanvasHud::setActive(bool active)
             }
         }
     } else {
+        // its button gone with the studio layout: the grays go too
+        if (d->value && d->value->defaultAction()) d->value->defaultAction()->setChecked(false);
         if (d->progress && statusBar) {
             if (QProgressBar *bar = d->progress->findChild<QProgressBar *>()) {
                 bar->removeEventFilter(this);
@@ -281,8 +296,9 @@ void KisStudioCanvasHud::viewChanged()
     }
     d->viewConnections.clear();
 
-    KisView *view = d->mainWindow->activeView();
-    d->view = view;
+    // the window's active view is still the closing one as the last document closes: the view manager's is none
+    KisViewManager *viewManager = d->mainWindow->viewManager();
+    KisView *view = viewManager && viewManager->canvasBase() ? d->mainWindow->activeView() : nullptr;
     if (!view || !d->active) {
         hide();
         return;

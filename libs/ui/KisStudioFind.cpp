@@ -1085,6 +1085,7 @@ void KisStudioFind::registerButtons()
     }
     static const QRegularExpression tags(QStringLiteral("<[^>]*>"));
     QHash<QString, int> seen;
+    QSet<QString> registered;
     const KConfigGroup shortcuts(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"));
 
     Q_FOREACH (QAbstractButton *button, mainWindow->findChildren<QAbstractButton *>()) {
@@ -1129,6 +1130,7 @@ void KisStudioFind::registerButtons()
         const int count = seen.value(key, 0);
         seen.insert(key, count + 1);
         if (count > 0) key += QLatin1Char('#') + QString::number(count);
+        registered.insert(key);
 
         Private::Button &entry = d->buttons[key];
         entry.button = button;
@@ -1144,7 +1146,6 @@ void KisStudioFind::registerButtons()
             if (!saved.isEmpty() && saved != QLatin1String("none")) {
                 action->setShortcuts(QKeySequence::listFromString(saved));
             }
-            QPointer<QAbstractButton> target = button;
             connect(action, &QAction::triggered, this, [this, key]() {
                 const Private::Button entry = d->buttons.value(key);
                 QAbstractButton *button = entry.button;
@@ -1168,6 +1169,17 @@ void KisStudioFind::registerButtons()
             entry.action = action;
         }
         entry.action->setText(title);
+    }
+    // a button whose text changed is one button, not one more under each of its texts
+    QSet<QAbstractButton *> current;
+    Q_FOREACH (const QString &key, registered) current.insert(d->buttons.value(key).button);
+    for (auto it = d->buttons.begin(); it != d->buttons.end();) {
+        if (!registered.contains(it.key()) && it->button && current.contains(it->button)) {
+            delete it->action.data();
+            it = d->buttons.erase(it);
+        } else {
+            ++it;
+        }
     }
 }
 

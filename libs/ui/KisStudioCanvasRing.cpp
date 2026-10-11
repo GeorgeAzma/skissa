@@ -148,6 +148,8 @@ void KisStudioCanvasRing::open(QWidget *canvas, const QPointF &pos)
     move(m_mainWindow->mapFromGlobal(canvas->mapToGlobal((at - QPointF(half.width(), half.height())).toPoint())));
     m_center = QPointF(half.width(), half.height());
 
+    m_canvas = canvas;
+    m_eatRelease = Qt::NoButton;
     m_held = true;
     m_moved = false;
     m_hover = -1;
@@ -286,30 +288,44 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
     case QEvent::TabletRelease:
     case QEvent::KeyPress:
         break;
+    case QEvent::WindowDeactivate:
+        // another application: it is not left open behind
+        if (watched == m_mainWindow && KisStudioMotion::isShown(this)) close();
+        return false;
     default:
         return false;
     }
+    const bool shown = KisStudioMotion::isShown(this);
+    if (type == QEvent::KeyPress && shown && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+        close();
+        return true;
+    }
+
     KisViewManager *view = m_mainWindow->viewManager();
     KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
     QWidget *canvasWidget = canvas ? canvas->canvasWidget() : nullptr;
-    if (!canvasWidget) {
+    if (shown && canvasWidget != m_canvas) {
+        // its document closed, or another one is shown
+        close();
         return false;
     }
-
-    if (type == QEvent::KeyPress && isVisible() && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
-        close();
-        return true;
+    if (!canvasWidget) {
+        return false;
     }
 
     const bool onCanvas = watched == canvasWidget;
     const bool onRing = watched == this;
     if (!onCanvas && !onRing) {
+        // a press elsewhere in the window (a panel, a bar) closes it, and is that place's
+        const bool anyPress = type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick || type == QEvent::TabletPress;
+        if (shown && anyPress && watched->isWidgetType() && static_cast<QWidget *>(watched)->window() == m_mainWindow) close();
         return false;
     }
 
     // where, which button, held where
     QPointF global;
     Qt::MouseButton button = Qt::NoButton;
+    Qt::MouseButtons buttons = Qt::NoButton;
     Qt::KeyboardModifiers modifiers;
     bool press = false, move = false, release = false;
     switch (type) {
@@ -320,6 +336,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
         auto *mouse = static_cast<QMouseEvent *>(event);
         global = mouse->globalPos();
         button = mouse->button();
+        buttons = mouse->buttons();
         modifiers = mouse->modifiers();
         press = type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick;
         move = type == QEvent::MouseMove;
@@ -332,6 +349,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
         auto *tablet = static_cast<QTabletEvent *>(event);
         global = tablet->globalPosF();
         button = tablet->button();
+        buttons = tablet->buttons();
         modifiers = tablet->modifiers();
         press = type == QEvent::TabletPress;
         move = type == QEvent::TabletMove;
@@ -342,9 +360,19 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
         return false;
     }
 
-    if (!isVisible()) {
-        // a right press on the canvas with a painting tool opens it there
-        if (onCanvas && press && button == Qt::RightButton && modifiers == Qt::NoModifier && paintToolActive()) {
+    // the release of the press that closed it: not the canvas's either, as the press was not
+    if (release && m_eatRelease != Qt::NoButton && button == m_eatRelease) {
+        m_eatRelease = Qt::NoButton;
+        event->accept();
+        return true;
+    }
+    if (!shown) {
+        /**
+         * A right press on the canvas with a painting tool opens it there; not
+         * one while painting (another button down): the stroke goes on
+         */
+        if (onCanvas && press && button == Qt::RightButton && buttons == Qt::RightButton && modifiers == Qt::NoModifier
+            && paintToolActive()) {
             open(canvasWidget, canvasWidget->mapFromGlobal(global.toPoint()));
             event->accept();
             return true;
@@ -414,19 +442,14 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
         } else if (button == Qt::RightButton && target >= 0 && target < m_slots.size()) {
             slotMenu(target, global.toPoint());
         } else {
-            // elsewhere, or the right button again: closed, and that press is not a stroke
+            // elsewhere, or the right button again: closed, and that press (and its release) is not a stroke
             close();
+            m_eatRelease = button;
         }
         event->accept();
         return true;
     }
     return false;
-}
-
-void KisStudioCanvasRing::hideEvent(QHideEvent *event)
-{
-    QWidget::hideEvent(event);
-    // in the window, not in a view: a closed view does not take it with it
 }
 
 void KisStudioCanvasRing::paintEvent(QPaintEvent *)
