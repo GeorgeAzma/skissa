@@ -587,16 +587,16 @@ QWidget *canvasWidgetOf(QWidget *widget)
 }
 
 /**
- * Whether \p widget, a window of its own (a menu, a dropdown, a tooltip),
- * opened from a solid window other than the main one (a dialog): that window
- * is between it and the canvas, it shows none of the canvas
+ * The solid window other than the main one (a dialog) that \p widget, a
+ * window of its own (a menu, a dropdown, a tooltip), is over, if it is: that
+ * window is between it and the canvas, it shows none of the canvas
  */
-bool overOtherWindow(const QWidget *widget)
+QWidget *windowBehind(const QWidget *widget)
 {
-    for (const QWidget *w = widget->window()->parentWidget(); w; w = w->parentWidget()) {
+    for (QWidget *w = widget->window()->parentWidget(); w; w = w->parentWidget()) {
         if (!w->isWindow()) continue;
-        if (qobject_cast<const KisMainWindow *>(w)) return false;
-        if (!w->testAttribute(Qt::WA_TranslucentBackground)) return true;
+        if (qobject_cast<const KisMainWindow *>(w)) return nullptr;
+        if (!w->testAttribute(Qt::WA_TranslucentBackground)) return w;
     }
     /**
      * A window of no window's (Qt's tooltips on Windows are the desktop's):
@@ -608,10 +608,36 @@ bool overOtherWindow(const QWidget *widget)
         if (!active) active = QApplication::activeWindow();
         if (active && active != window && !qobject_cast<KisMainWindow *>(active) && !active->testAttribute(Qt::WA_TranslucentBackground)
             && active->frameGeometry().intersects(QRect(window->mapToGlobal(QPoint()), window->size()))) {
-            return true;
+            return active;
         }
     }
-    return false;
+    return nullptr;
+}
+
+/**
+ * The glass of \p widget's \p rect over \p behind, a solid window: what
+ * of that window is there, blurred and tinted as the canvas' glass is
+ * (from a quarter of its pixels: the blur hides it). Null where nothing
+ * of it is there.
+ */
+QImage glassOverWindow(QWidget *widget, const QRect &rect, QWidget *behind)
+{
+    // as far around as the blur takes in
+    const int reach = qCeil(blurRadius);
+    const QRect global(widget->mapToGlobal(rect.topLeft()), rect.size());
+    const QRect around = QRect(behind->mapFromGlobal(global.topLeft()), global.size()).adjusted(-reach, -reach, reach, reach) & behind->rect();
+    if (around.isEmpty()) return QImage();
+    QImage seen = behind->grab(around).toImage().convertToFormat(QImage::Format_RGB32);
+    if (seen.isNull()) return QImage();
+    const QSize small = (QSizeF(around.size()) * sampleScale).toSize().expandedTo(QSize(1, 1));
+    seen = blurred(seen.scaled(small, Qt::IgnoreAspectRatio, Qt::SmoothTransformation), qMax(1, qRound(blurRadius * sampleScale)));
+    const QColor tint = widget->palette().color(QPalette::Window);
+    const qreal contrast = qBound(0.0, qAbs(lightness(seen) - tint.lightnessF()), 1.0);
+    seen = tinted(seen, tint, KisStudioGlass::tintOverDark + (KisStudioGlass::tintOverBright - KisStudioGlass::tintOverDark) * contrast);
+    // only the part under the rect, at the rect's size
+    const QRect inside = QRect(behind->mapFromGlobal(global.topLeft()), global.size());
+    const QRectF part(QPointF(inside.topLeft() - around.topLeft()) * sampleScale, QSizeF(inside.size()) * sampleScale);
+    return seen.copy(part.toAlignedRect()).scaled(rect.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 }
 
 bool drawnByCanvas(const QWidget *canvasWidget)
@@ -1274,6 +1300,12 @@ protected:
             } else if ((qobject_cast<QMenu *>(widget) || isTooltip(widget)) && !widget->testAttribute(Qt::WA_WState_Created)
                        && KisStudioGlass::isEnabled() && KisStudioGlass::seeThroughWindows()) {
                 makeSeeThroughWindow(widget);
+                if (isTooltip(widget)) {
+                    // tinted as a menu's glass is, not with the tooltip's near black: one glass for every popup
+                    QPalette palette = widget->palette();
+                    palette.setColor(QPalette::Window, QApplication::palette().color(QPalette::Window));
+                    widget->setPalette(palette);
+                }
             }
         } else if ((qobject_cast<QMenu *>(widget) || isTooltip(widget) || widget->property(glassDropdownProperty).toBool())
                    && widget->property(glassMenuProperty).toBool()) {
@@ -1463,8 +1495,18 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
         return edge;
     }
     const QPainterPath shape = KisModernStyle::squircle(rect, radius);
-    if (overOtherWindow(widget)) {
-        painter.fillPath(shape, window);
+    if (QWidget *behind = windowBehind(widget)) {
+        // over a dialog: glass of the dialog
+        const QImage glass = isEnabled() ? glassOverWindow(widget, rect.toAlignedRect(), behind) : QImage();
+        if (glass.isNull()) {
+            painter.fillPath(shape, window);
+        } else {
+            painter.save();
+            painter.setClipPath(shape, Qt::IntersectClip);
+            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            painter.drawImage(rect.toAlignedRect(), glass);
+            painter.restore();
+        }
         return shape;
     }
     const bool drawn = Panels::instance().paint(widget, rect, radius);
