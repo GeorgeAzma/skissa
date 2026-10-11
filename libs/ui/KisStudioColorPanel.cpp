@@ -683,7 +683,7 @@ private:
         QFont label = KisModernStyle::textFont(font(), 0.8, QFont::DemiBold);
         label.setLetterSpacing(QFont::PercentageSpacing, 106);
         QColor faint = palette().color(QPalette::ToolTipText);
-        faint.setAlphaF(0.55);
+        faint.setAlphaF(0.65);
         painter.setFont(label);
         painter.setPen(faint);
         const int labelHeight = QFontMetrics(font()).height();

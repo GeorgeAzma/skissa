@@ -345,7 +345,7 @@ public:
         const QPalette &pal = option.palette;
         const QColor text = pal.color(QPalette::Text);
         QColor dim = text;
-        dim.setAlphaF(0.55);
+        dim.setAlphaF(0.65);
         const QRect r = option.rect;
 
         if (index.data(MessageRole).toBool()) {

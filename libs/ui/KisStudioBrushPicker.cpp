@@ -515,7 +515,8 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
         painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
         QColor dim = palette().color(QPalette::WindowText);
-        dim.setAlphaF(0.45);
+        // faint, but readable on glass over a bright canvas
+        dim.setAlphaF(0.62);
 
         // which way is what
         QFont small = font();

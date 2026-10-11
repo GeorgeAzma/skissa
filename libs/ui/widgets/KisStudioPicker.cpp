@@ -208,7 +208,8 @@ protected:
         const QPalette &pal = palette();
         const bool tiles = m_d->source.tiles;
         QColor dim = pal.color(QPalette::WindowText);
-        dim.setAlphaF(0.5);
+        // faint, but readable on glass over a bright canvas
+        dim.setAlphaF(0.62);
 
         QFont headerFont = font();
         headerFont.setPointSizeF(headerFont.pointSizeF() * 0.8);
@@ -264,7 +265,7 @@ protected:
                     painter.drawText(badge, Qt::AlignCenter, number);
                 } else {
                     QColor numberInk = pal.color(QPalette::WindowText);
-                    numberInk.setAlphaF(0.35);
+                    numberInk.setAlphaF(0.5);
                     painter.setPen(numberInk);
                     painter.drawText(QRect(item.rect.left() + 2, item.rect.top(), 18, item.rect.height()),
                                      Qt::AlignRight | Qt::AlignVCenter, number);
@@ -693,7 +694,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     d->hint = new QLabel(i18nc("@info", "Drag to reorder, the star adds or removes"), this);
     QPalette hintPalette = d->hint->palette();
     QColor hintInk = hintPalette.color(QPalette::WindowText);
-    hintInk.setAlphaF(0.45);
+    hintInk.setAlphaF(0.62);
     hintPalette.setColor(QPalette::WindowText, hintInk);
     d->hint->setPalette(hintPalette);
     footer->addWidget(d->hint, 1);
