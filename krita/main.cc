@@ -435,7 +435,9 @@ private:
         case 11: button = Qt::MiddleButton; type = QEvent::MouseButtonRelease; buttons &= ~button; break;
         case 5:
         case 6:
-            QWindowSystemInterface::handleWheelEvent(window, local, nativeGlobal, QPoint(), QPoint(0, action == 5 ? 120 : -120));
+            // with the modifiers held through "KritaDevKey" (e.g. Ctrl+wheel)
+            QWindowSystemInterface::handleWheelEvent(window, local, nativeGlobal, QPoint(), QPoint(0, action == 5 ? 120 : -120),
+                                                     QGuiApplication::keyboardModifiers());
             return;
         case 7:
         case 8:

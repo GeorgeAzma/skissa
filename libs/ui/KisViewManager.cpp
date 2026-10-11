@@ -368,7 +368,8 @@ KisViewManager::~KisViewManager()
         cfg.writeKoColors("LastColorHistory", canvasResourceProvider()->colorHistoryColors());
     }
 
-    cfg.writeEntry("baseLength", KisResourceItemChooserSync::instance()->baseLength());
+    // the size preset thumbnails were zoomed to, where it is read again (KisPresetChooser)
+    cfg.setPresetIconSize(KisResourceItemChooserSync::instance()->baseLength());
     cfg.writeEntry("CanvasOnlyActive", false); // We never restart in CanvasOnlyMode
     delete d;
 }

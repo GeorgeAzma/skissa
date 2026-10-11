@@ -246,6 +246,11 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
     connect(KisConfigNotifier::instance(), SIGNAL(configChanged()),
             SLOT(notifyConfigChanged()));
 
+    // the size the thumbnails were zoomed to (Ctrl+wheel), kept as it changes: for the next run too
+    setIconSize(KisConfig(true).presetIconSize());
+    connect(KisResourceItemChooserSync::instance(), &KisResourceItemChooserSync::baseLengthChanged, this, [this]() {
+        saveIconSize();
+    });
 
     notifyConfigChanged();
 }
@@ -274,7 +279,6 @@ void KisPresetChooser::notifyConfigChanged()
 {
     KisConfig cfg(true);
     m_delegate->setUseDirtyPresets(cfg.useDirtyPresets());
-    setIconSize(cfg.presetIconSize());
     if (m_delegate->strokes() != KisPresetStrokeThumbnails::isEnabled()) {
         updateViewSettings();
     }
