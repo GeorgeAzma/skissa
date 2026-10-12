@@ -519,14 +519,16 @@ vec3 throughLower(vec3 lab, vec2 p)
 
 /**
  * The light the image casts on the glass beside it: the image glows, and in
- * the dark around it that is the only light there is. Its nearest edge
- * lights the glass, in that edge's colors (the glow's light there), less the
- * further away it is: the bevel where it faces the image catches it as the
- * rim of a glass does, and the frost scatters a little of it all over. None
- * over the image, where there is light enough.
+ * the dark around it that is the only light there is. The rim catches it
+ * where it faces the image, only where the bevel is steep enough to reflect
+ * it (Fresnel): a thin edge of light in the colors of the image's nearest
+ * edge, fainter the further away that is. None over the image.
  */
 vec3 imageLightAt(vec2 p, vec3 normal, vec2 normal2d, bool onBevel)
 {
+    if (!onBevel) {
+        return vec3(0.0);
+    }
     vec3 u = toImage * vec3(p, 1.0);
     vec3 n = fromImage * vec3(clamp(u.xy / u.z, 0.0, 1.0), 1.0);
     vec2 q = n.xy / n.z;
@@ -546,13 +548,10 @@ vec3 imageLightAt(vec2 p, vec3 normal, vec2 normal2d, bool onBevel)
     vec4 m = mix(mix(a, b, f.x), mix(c, e, f.x), f.y);
     vec3 light = m.rgb / max(m.a, 1e-4);
     float falloff = 1.0 / (1.0 + (dist / imageLightReach) * (dist / imageLightReach));
-    vec2 toward = (q - p) / dist;
-    float rim = 0.0;
-    if (onBevel) {
-        float facing = max(dot(normal2d, toward), 0.0);
-        rim = facing * facing * pow(1.0 - normal.z, 0.7);
-    }
-    return light * falloff * (0.9 * rim + 0.1) * smoothstep(0.0, 24.0, dist);
+    float facing = max(dot(normal2d, (q - p) / dist), 0.0);
+    float faceOn = fresnel(1.0, ior.g);
+    float edge = (fresnel(normal.z, ior.g) - faceOn) / (1.0 - faceOn);
+    return light * falloff * 0.45 * facing * edge * smoothstep(0.0, 24.0, dist);
 }
 
 void main()
