@@ -96,7 +96,7 @@ const QString panelsKey = QStringLiteral("StudioLayoutPanels");
 const QString pinnedKey = QStringLiteral("StudioLayoutPinnedPanels");
 /// Pinned panels on the left of the canvas instead of the right
 const QString leftKey = QStringLiteral("StudioLayoutLeftPanels");
-/// How close to the left window edge a dropped panel button pins its panel there
+/// How close to the canvas edge a dropped panel button pins its panel there
 const int leftDropZone = 140;
 /// The heights of pinned panels, as "id=height", so that a short panel stays short
 const QString heightsKey = QStringLiteral("StudioLayoutPanelHeights");
@@ -828,7 +828,6 @@ private:
     QWidget *m_contents {nullptr};
 };
 
-/// Looks like a search field, opens Find Anything
 /// A button of the window pill: the menu, Settings, Find
 class PillButton : public QAbstractButton
 {
@@ -1226,9 +1225,9 @@ struct KisStudioLayout::Private
     bool active {false};
 
     QPointer<QToolBar> rail;
-    /// Brush size and opacity on the left edge
+    /// The tool rail over the canvas, with the color chip under its tools
     QPointer<QWidget> brushRail;
-    /// Replaces the menu bar with a single menu button while a document is open
+    /// The tool's bar (its chip, its options, size and opacity), in the top pill
     QPointer<QToolBar> topBar;
     QPointer<QWidget> findField;
     QPointer<QAction> findFieldAction;
@@ -1239,7 +1238,7 @@ struct KisStudioLayout::Private
     QPointer<QAction> settingsButtonAction;
     /// The toolbar the find field and document button were put on
     QPointer<QToolBar> placedOnBar;
-    /// Toolbar entries that duplicate the brush rail, hidden while active
+    /// Toolbar entries that duplicate the top bar's scrubbers, hidden while active
     QList<QPointer<QAction>> hiddenToolbarActions;
     /// Toolbar entries shown only for the tools they matter to
     QList<QPointer<QAction>> contextActions;
@@ -1629,7 +1628,7 @@ void KisStudioLayout::enter()
         }
     }
 
-    // the brush rail already has the size and opacity sliders
+    // the top bar's scrubbers are the size and opacity sliders
     KisConfig cfg(true);
     for (int i = 1; i <= 5; i++) {
         const QString slider = cfg.toolbarSlider(i);
@@ -3130,7 +3129,7 @@ void KisStudioLayout::createTopBar()
     KisStudioGlass::setSeeThrough(bar, true);
     d->topBar = bar;
 
-    // the menu, Settings and Find at the end of the top bar, placed there by placeFindField()
+    // the menu, Settings and Find on the window pill, placed there by placeFindField()
     auto *menuButton = new PillButton(QStringLiteral("studio_menu"), i18nc("@info:tooltip", "Menu"), mainWindow);
     menuButton->hide();
     connect(menuButton, &QAbstractButton::clicked, this, [this, menuButton]() { showMainMenu(menuButton); });

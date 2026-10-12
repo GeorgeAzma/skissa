@@ -24,8 +24,8 @@ class QMdiArea;
  * It doesn't replace Krita's dockers, it only changes how they are
  * presented, so every docker, workspace and canvas observer keeps working:
  *
- *  - the toolbox sits on the left edge without a title bar
- *  - a rail of panel buttons sits on the right edge
+ *  - the tools are on a rail over the canvas's edge (Krita's toolbox is hidden)
+ *  - a strip of panel buttons heads the pinned panels
  *  - an unpinned panel opens as a flyout floating over the edge of the
  *    canvas and closes when you click anywhere else in the window
  *  - pinned panels stack in a pill of glass over the canvas's edge, on the
