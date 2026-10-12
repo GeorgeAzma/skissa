@@ -5,7 +5,6 @@
  */
 #include "KisStudioItemCard.h"
 #include "KisStudioGlass.h"
-#include <QPainterPath>
 
 #include <QAbstractButton>
 #include <QAction>
@@ -349,6 +348,15 @@ void KisStudioShortcuts::enableMenuEditing()
     qApp->installEventFilter(editor);
     // for the style: menus draw the "+" of entries that can be given a shortcut
     qApp->setProperty("kisMenuShortcutsEditable", true);
+}
+
+void KisStudioShortcuts::restore(QAction *action)
+{
+    const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
+                              .readEntry(action->objectName(), QString());
+    if (!saved.isEmpty() && saved != QLatin1String("none")) {
+        action->setShortcuts(QKeySequence::listFromString(saved));
+    }
 }
 
 QString KisStudioShortcuts::assign(KisMainWindow *mainWindow, QAction *action, const QKeySequence &sequence)

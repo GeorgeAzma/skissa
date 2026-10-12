@@ -27,10 +27,8 @@
 
 #include "KisMainWindow.h"
 #include "KisPart.h"
+#include "KisStudioItemCard.h"
 #include "opengl/KisOpenGLUpdateInfoBuilder.h"
-#include "kis_image.h"
-#include <KSharedConfig>
-#include <kconfiggroup.h>
 #include <kis_icon_utils.h>
 #include "KisView.h"
 #include "KisViewManager.h"
@@ -197,11 +195,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     valueView->setCheckable(true);
     valueView->setToolTip(i18nc("@info:tooltip", "Value view"));
     valueView->setShortcutContext(Qt::WindowShortcut);
-    const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
-                              .readEntry(valueView->objectName(), QString());
-    if (!saved.isEmpty() && saved != QLatin1String("none")) {
-        valueView->setShortcuts(QKeySequence::listFromString(saved));
-    }
+    KisStudioShortcuts::restore(valueView);
     mainWindow->actionCollection()->addAction(valueView->objectName(), valueView);
     connect(valueView, &QAction::toggled, this, [](bool on) {
         KisOpenGLUpdateInfoBuilder::setValueView(on);

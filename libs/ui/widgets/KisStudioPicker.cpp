@@ -916,13 +916,6 @@ void KisStudioPicker::popupNear(const QPoint &globalPos)
     popupAt(globalPos - QPoint(width() / 2, shadowMarginOf(this) + 26), nullptr);
 }
 
-void KisStudioPicker::popupLeftOf(QWidget *anchor)
-{
-    adjustSize();
-    const int shadowMargin = shadowMarginOf(this);
-    popupAt(anchor->mapToGlobal(QPoint(0, anchor->height())) - QPoint(width() - shadowMargin + 4, height() - shadowMargin), anchor);
-}
-
 void KisStudioPicker::popupAt(QPoint pos, QWidget *anchor)
 {
     QScreen *screen = anchor ? anchor->screen() : QGuiApplication::screenAt(pos + QPoint(width() / 2, shadowMarginOf(this) + 26));

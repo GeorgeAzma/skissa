@@ -375,16 +375,6 @@ KisBlendModePicker::KisBlendModePicker(const QString &current, const QSet<QStrin
     });
 }
 
-QStringList KisBlendModePicker::pinnedModes()
-{
-    return pinnedIds(source());
-}
-
-void KisBlendModePicker::setPinnedModes(const QStringList &ids)
-{
-    setPinnedIds(source(), ids);
-}
-
 QStringList KisBlendModePicker::scrollOrder()
 {
     return KisStudioPicker::scrollOrder(source());

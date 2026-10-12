@@ -7,11 +7,9 @@
 
 #include <QApplication>
 #include <QMouseEvent>
-#include <QRegularExpression>
 #include <QTabletEvent>
 #include <QtMath>
 
-#include <KoToolManager.h>
 #include <klocalizedstring.h>
 
 #include "KisMainWindow.h"
@@ -35,23 +33,6 @@
 namespace {
 
 const QString settingKey = QStringLiteral("StudioLayersRememberBrushes");
-
-/// The tools that paint with the brush: the ones a brush taken from the canvas or a layer is for
-bool paintToolActive()
-{
-    static const QStringList tools = {
-        QStringLiteral("KritaShape/KisToolBrush"), QStringLiteral("KritaShape/KisToolDyna"),
-        QStringLiteral("KritaShape/KisToolMultiBrush"), QStringLiteral("KritaShape/KisToolLine"),
-    };
-    return tools.contains(KoToolManager::instance()->activeToolId());
-}
-
-/// "d) Ink-2 Fineliner" -> "Ink-2 Fineliner"
-QString titleOf(const QString &brush)
-{
-    static const QRegularExpression sortPrefix(QStringLiteral("^[a-z]\\)\\s+"));
-    return QString(brush).remove(sortPrefix);
-}
 
 /// The canvas input profile gives Alt+click to something already (a color sampler, as in Photoshop's): it stays that
 bool altClickTaken()
@@ -97,7 +78,7 @@ void KisStudioBrushMemory::setLayersRememberBrushes(bool on)
 void KisStudioBrushMemory::layerChosen(KisNodeSP node)
 {
     KisViewManager *view = m_mainWindow->viewManager();
-    if (!node || !view || !layersRememberBrushes() || !paintToolActive()) {
+    if (!node || !view || !layersRememberBrushes() || !KisStudioBrushPicker::paintToolActive()) {
         return;
     }
     KisStrokeLog::Stroke stroke;
@@ -113,7 +94,7 @@ void KisStudioBrushMemory::layerChosen(KisNodeSP node)
     if (resources->currentPreset() && resources->currentPreset()->name() == stroke.brush) {
         resources->setSize(stroke.brushSize);
         view->showFloatingMessage(i18nc("@info a brush taken from the layer just chosen, %1 its name", "%1 · this layer's brush",
-                                        titleOf(stroke.brush)),
+                                        KisStudioBrushPicker::title(stroke.brush)),
                                   KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), 1600, KisFloatingMessage::Low);
     }
 }
@@ -139,13 +120,13 @@ bool KisStudioBrushMemory::pickAt(const QPointF &widgetPos)
     if (!resources || !resources->currentPreset() || resources->currentPreset()->name() != stroke.brush) {
         // the brush is gone (removed, renamed): nothing taken, but what it was is said
         view->showFloatingMessage(i18nc("@info a brush found on the canvas that is no longer there, %1 its name", "%1 · not found",
-                                        titleOf(stroke.brush)),
+                                        KisStudioBrushPicker::title(stroke.brush)),
                                   KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), 1400, KisFloatingMessage::Low);
         return true;
     }
     resources->setSize(stroke.brushSize);
     view->showFloatingMessage(i18nc("@info a brush taken from the canvas, %1 its name, %2 its size", "%1 · %2 px",
-                                    titleOf(stroke.brush), QString::number(stroke.brushSize, 'f', stroke.brushSize < 10 ? 1 : 0)),
+                                    KisStudioBrushPicker::title(stroke.brush), QString::number(stroke.brushSize, 'f', stroke.brushSize < 10 ? 1 : 0)),
                               KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), 1400, KisFloatingMessage::Low);
     return true;
 }
@@ -190,7 +171,7 @@ bool KisStudioBrushMemory::eventFilter(QObject *watched, QEvent *event)
         modifiers = mouse->modifiers();
     }
     // Alt alone, with a tool that paints: never a dab, whether there is a brush to take or not
-    if (modifiers != Qt::AltModifier || !paintToolActive() || altClickTaken()) {
+    if (modifiers != Qt::AltModifier || !KisStudioBrushPicker::paintToolActive() || altClickTaken()) {
         return false;
     }
     if (!pickAt(pos)) {

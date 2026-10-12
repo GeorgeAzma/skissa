@@ -5,12 +5,9 @@
  */
 #include "KisStudioEffectsPicker.h"
 
-#include <QLinearGradient>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QPainter>
-#include <QPainterPath>
-#include <QRadialGradient>
 #include <QTimer>
 #include <QtConcurrent>
 

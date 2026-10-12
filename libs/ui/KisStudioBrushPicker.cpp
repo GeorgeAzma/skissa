@@ -30,6 +30,7 @@
 #include <KisTagModel.h>
 #include <KoCanvasResourceProvider.h>
 #include <KoColorSpaceRegistry.h>
+#include <KoToolManager.h>
 #include <klocalizedstring.h>
 
 #include "KisMainWindow.h"
@@ -171,8 +172,6 @@ std::shared_ptr<Catalog> loadCatalog()
 {
     auto catalog = std::make_shared<Catalog>();
     KisResourceModel model(ResourceType::PaintOpPresets);
-    // the bundled presets sort themselves with "b) ", which is noise here
-    static const QRegularExpression sortPrefix(QStringLiteral("^[a-z]\\)\\s+"));
     for (int row = 0; row < model.rowCount(); row++) {
         const QModelIndex index = model.index(row, 0);
         Brush brush;
@@ -181,7 +180,7 @@ std::shared_ptr<Catalog> loadCatalog()
             continue;
         }
         brush.md5 = index.data(Qt::UserRole + KisAbstractResourceModel::MD5).toString();
-        brush.title = QString(brush.name).remove(sortPrefix).replace(QLatin1Char('_'), QLatin1Char(' '));
+        brush.title = KisStudioBrushPicker::title(brush.name).replace(QLatin1Char('_'), QLatin1Char(' '));
         brush.tags = index.data(Qt::UserRole + KisAbstractResourceModel::Tags).toStringList();
         brush.engine = index.data(Qt::UserRole + KisAbstractResourceModel::MetaData).toMap().value(QStringLiteral("paintopid")).toString();
         brush.icon = index.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>();
@@ -573,8 +572,7 @@ protected:
             big.moveLeft(qBound(0, big.left(), width() - big.width()));
             big.moveTop(qBound(18, big.top(), height() - big.height() - 20));
             paintCell(painter, big, m_hover, true);
-            static const QRegularExpression sortPrefix(QStringLiteral("^[a-z]\\)\\s+"));
-            const QString name = QString(m_hover).remove(sortPrefix);
+            const QString name = KisStudioBrushPicker::title(m_hover);
             QFont bold = font();
             bold.setBold(true);
             painter.setFont(bold);
@@ -910,6 +908,21 @@ void KisStudioBrushPicker::use(KisViewManager *view, const QString &presetName)
 QImage KisStudioBrushPicker::strokePicture(const QString &presetName)
 {
     return latestStrokes().value(presetName);
+}
+
+QString KisStudioBrushPicker::title(const QString &presetName)
+{
+    static const QRegularExpression sortPrefix(QStringLiteral("^[a-z]\\)\\s+"));
+    return QString(presetName).remove(sortPrefix);
+}
+
+bool KisStudioBrushPicker::paintToolActive()
+{
+    static const QStringList tools = {
+        QStringLiteral("KritaShape/KisToolBrush"), QStringLiteral("KritaShape/KisToolDyna"),
+        QStringLiteral("KritaShape/KisToolMultiBrush"), QStringLiteral("KritaShape/KisToolLine"),
+    };
+    return tools.contains(KoToolManager::instance()->activeToolId());
 }
 
 QStringList KisStudioBrushPicker::yourBrushes()

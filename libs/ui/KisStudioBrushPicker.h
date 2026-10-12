@@ -40,6 +40,10 @@ public:
     static void use(KisViewManager *view, const QString &presetName);
     /// A stroke the brush painted for the picker, if it painted one yet (in whatever color it was then)
     static QImage strokePicture(const QString &presetName);
+    /// "d) Ink-2 Fineliner" -> "Ink-2 Fineliner": without the prefix the bundled presets sort themselves with
+    static QString title(const QString &presetName);
+    /// The active tool paints with the brush: a brush taken from the canvas or a layer, the canvas ring, are for it
+    static bool paintToolActive();
     /// Your brushes, in your order
     static QStringList yourBrushes();
     static void setYourBrushes(const QStringList &presetNames);

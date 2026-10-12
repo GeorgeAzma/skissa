@@ -56,9 +56,6 @@ public:
     /// A stroke of \p color over the image
     static Pictures brushPictures(KisImageSP image, const QSize &size, const QColor &color);
 
-    /// Your modes, in your order
-    static QStringList pinnedModes();
-    static void setPinnedModes(const QStringList &ids);
     /// What scrolling steps through: your modes, then all the others as the picker shows them
     static QStringList scrollOrder();
 

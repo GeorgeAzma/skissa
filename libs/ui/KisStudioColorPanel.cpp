@@ -21,11 +21,7 @@
 #include <QVBoxLayout>
 #include <functional>
 #include <memory>
-#include <QToolTip>
-#include <QTimer>
-#include <QStyleOption>
 #include <QScreen>
-#include <QHelpEvent>
 
 #include <KoCanvasBase.h>
 #include <KoCanvasResourceProvider.h>
@@ -939,13 +935,6 @@ static QIcon styleIcon(PickerStyle style)
     return QIcon(QPixmap::fromImage(image));
 }
 
-/// Opens the menu of pickers
-class StyleButton : public QToolButton
-{
-public:
-    using QToolButton::QToolButton;
-};
-
 /// The hex code: faint while it is only shown, full strength while it is typed in
 class HexField : public QLineEdit
 {
@@ -1168,7 +1157,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->recentRow = new Swatches(16, contents);
     d->recentRow->setToolTip(i18nc("@info:tooltip", "Recent colors"));
     row->addWidget(d->recentRow, 1, Qt::AlignVCenter);
-    d->styleButton = new StyleButton(contents);
+    d->styleButton = new QToolButton(contents);
     d->styleButton->setAutoRaise(true);
     d->styleButton->setFocusPolicy(Qt::NoFocus);
     d->styleButton->setIconSize(QSize(18, 18));

@@ -18,7 +18,6 @@
 #include <QLineEdit>
 #include <QKeyEvent>
 #include <QValidator>
-#include <QScreen>
 #include <QMimeData>
 #include <QPainter>
 #include <QPointer>
@@ -27,13 +26,11 @@
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
-#include <KSharedConfig>
 #include <KoCanvasController.h>
 #include <KoToolFactoryBase.h>
 #include <KoToolManager.h>
 #include <KoToolRegistry.h>
 #include <kactioncollection.h>
-#include <kconfiggroup.h>
 #include <klocalizedstring.h>
 #include <KisResourceModel.h>
 
@@ -524,11 +521,7 @@ struct KisStudioToolRail::Private
             own = new QAction(title, mainWindow);
             own->setObjectName(name);
             own->setShortcutContext(Qt::WindowShortcut);
-            const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
-                                      .readEntry(name, QString());
-            if (!saved.isEmpty() && saved != QLatin1String("none")) {
-                own->setShortcuts(QKeySequence::listFromString(saved));
-            }
+            KisStudioShortcuts::restore(own);
             mainWindow->addAction(own);
             QObject::connect(own, &QAction::triggered, mainWindow, std::move(run));
         }

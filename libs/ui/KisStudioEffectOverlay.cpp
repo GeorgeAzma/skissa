@@ -25,7 +25,6 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QTabletEvent>
-#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 

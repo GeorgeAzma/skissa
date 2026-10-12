@@ -22,13 +22,11 @@
 #include <functional>
 #include <QHash>
 #include <QKeyEvent>
-#include <QLabel>
 #include <QMenu>
 #include <QMdiArea>
 #include <QMdiSubWindow>
 #include <QStatusBar>
 #include <QMenuBar>
-#include <QTabBar>
 #include <QMouseEvent>
 #include <QTabletEvent>
 #include <QWheelEvent>
@@ -49,8 +47,6 @@
 #include <QWidgetAction>
 
 #include <kactioncollection.h>
-#include <kconfiggroup.h>
-#include <KSharedConfig>
 #include <klocalizedstring.h>
 
 #include "KisDocument.h"
@@ -86,7 +82,6 @@
 #include "kis_paintop_box.h"
 #include "kis_slider_spin_box.h"
 #include "kis_workspace_resource.h"
-#include "KisUiFont.h"
 #include "KisModernStyle.h"
 #include "KisTouchMode.h"
 #include "kis_config.h"
@@ -1418,7 +1413,6 @@ struct KisStudioLayout::Private
     QPointer<QAction> windowButtonsAction;
     /// The menu button's menu
     QPointer<QMenu> mainMenu;
-    QPointer<QWidget> colorChip;
     QPointer<KisStudioToolRail> toolRail;
     QSet<QString> pinned;
 
@@ -1563,11 +1557,7 @@ void KisStudioLayout::enter()
         QAction *toggle = dock->toggleViewAction();
         if (toggle->objectName().isEmpty()) {
             toggle->setObjectName(QStringLiteral("studio_panel_") + dock->objectName());
-            const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
-                                      .readEntry(toggle->objectName(), QString());
-            if (!saved.isEmpty() && saved != QLatin1String("none")) {
-                toggle->setShortcuts(QKeySequence::listFromString(saved));
-            }
+            KisStudioShortcuts::restore(toggle);
             mainWindow->addAction(toggle);
         }
 
@@ -1587,11 +1577,7 @@ void KisStudioLayout::enter()
     if (!mainWindow->actionCollection()->action(QStringLiteral("studio_effects"))) {
         QAction *effects = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_effects")), i18nc("@action", "Effects"), mainWindow);
         effects->setObjectName(QStringLiteral("studio_effects"));
-        const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
-                                  .readEntry(effects->objectName(), QString());
-        if (!saved.isEmpty() && saved != QLatin1String("none")) {
-            effects->setShortcuts(QKeySequence::listFromString(saved));
-        }
+        KisStudioShortcuts::restore(effects);
         mainWindow->actionCollection()->addAction(effects->objectName(), effects);
         mainWindow->addAction(effects);
         connect(effects, &QAction::triggered, mainWindow, [mainWindow]() {
@@ -1607,11 +1593,7 @@ void KisStudioLayout::enter()
     if (!mainWindow->actionCollection()->action(QStringLiteral("studio_brush_picker"))) {
         QAction *brushes = new QAction(KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), i18nc("@action", "Brushes"), mainWindow);
         brushes->setObjectName(QStringLiteral("studio_brush_picker"));
-        const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
-                                  .readEntry(brushes->objectName(), QString());
-        if (!saved.isEmpty() && saved != QLatin1String("none")) {
-            brushes->setShortcuts(QKeySequence::listFromString(saved));
-        }
+        KisStudioShortcuts::restore(brushes);
         mainWindow->actionCollection()->addAction(brushes->objectName(), brushes);
         mainWindow->addAction(brushes);
         connect(brushes, &QAction::triggered, mainWindow, [mainWindow]() {
@@ -3060,7 +3042,6 @@ void KisStudioLayout::createBrushRail()
             }
         };
         layout->addWidget(chip, 0, Qt::AlignHCenter);
-        d->colorChip = chip;
     }
 
     toolRail->addBottomWidget(contents);

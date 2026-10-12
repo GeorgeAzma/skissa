@@ -5,7 +5,6 @@
  */
 #include "KisStudioFind.h"
 #include "KisStudioGlass.h"
-#include <QPainterPath>
 
 #include "widgets/KisPopupCloser.h"
 
@@ -36,11 +35,8 @@
 #include <QComboBox>
 #include <QScrollBar>
 #include <QTabBar>
-#include <QTextDocument>
 #include <QToolButton>
 
-#include <KSharedConfig>
-#include <kconfiggroup.h>
 
 #include <cmath>
 
@@ -59,6 +55,7 @@
 #include "KisStudioMotion.h"
 #include "kis_floating_message.h"
 #include "KisTouchMode.h"
+#include "KisStudioBrushPicker.h"
 #include "KisStudioItemCard.h"
 #include "KisStudioToolRail.h"
 #include "KisNodeActivationActionCreatorVisitor.h"
@@ -789,9 +786,7 @@ void KisStudioFind::rebuildIndex()
             const QString name = index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString();
             const QString md5 = index.data(Qt::UserRole + KisAbstractResourceModel::MD5).toString();
             const int resourceId = index.data(Qt::UserRole + KisAbstractResourceModel::Id).toInt();
-            // the bundled presets sort themselves with "b) ", which is noise here
-            static const QRegularExpression sortPrefix(QStringLiteral("^[a-z]\\)\\s+"));
-            const QString title = QString(name).remove(sortPrefix);
+            const QString title = KisStudioBrushPicker::title(name);
             d->entries.append({QStringLiteral("brush:") + name, Kind::Brush, title, QString(),
                                index.data(Qt::UserRole + KisAbstractResourceModel::Tags).toStringList().join(QLatin1Char(' ')),
                                QString(), QIcon(),
@@ -1086,7 +1081,6 @@ void KisStudioFind::registerButtons()
     static const QRegularExpression tags(QStringLiteral("<[^>]*>"));
     QHash<QString, int> seen;
     QSet<QString> registered;
-    const KConfigGroup shortcuts(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"));
 
     Q_FOREACH (QAbstractButton *button, mainWindow->findChildren<QAbstractButton *>()) {
         auto *tool = qobject_cast<QToolButton *>(button);
@@ -1142,10 +1136,7 @@ void KisStudioFind::registerButtons()
             name.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_]")), QStringLiteral("_"));
             auto *action = new QAction(title, mainWindow);
             action->setObjectName(QStringLiteral("studio_button_") + name);
-            const QString saved = shortcuts.readEntry(action->objectName(), QString());
-            if (!saved.isEmpty() && saved != QLatin1String("none")) {
-                action->setShortcuts(QKeySequence::listFromString(saved));
-            }
+            KisStudioShortcuts::restore(action);
             connect(action, &QAction::triggered, this, [this, key]() {
                 const Private::Button entry = d->buttons.value(key);
                 QAbstractButton *button = entry.button;
@@ -1277,12 +1268,10 @@ void KisStudioFind::updateResults()
         if (scored.size() > 8) {
             scored.resize(8);
         }
-        auto addHeader = [this](const QString &title) { appendHeader(title); };
-        auto addEntry = [this](int index, const QString &detail) { appendResult(index, detail); };
         if (!scored.isEmpty()) {
-            addHeader(i18nc("@title find results", "Recent"));
+            appendHeader(i18nc("@title find results", "Recent"));
             Q_FOREACH (const Scored &s, scored) {
-                addEntry(s.entry, kindTitle(d->entries[s.entry].kind));
+                appendResult(s.entry, kindTitle(d->entries[s.entry].kind));
             }
         }
         // what the main menu had: the document's commands
@@ -1298,9 +1287,9 @@ void KisStudioFind::updateResults()
             }
         }
         if (!document.isEmpty()) {
-            addHeader(i18nc("@title find results", "Document"));
+            appendHeader(i18nc("@title find results", "Document"));
             Q_FOREACH (int index, document) {
-                addEntry(index, QString());
+                appendResult(index, QString());
             }
         }
         for (Kind kind : {Kind::Effect, Kind::Tool}) {
@@ -1311,9 +1300,9 @@ void KisStudioFind::updateResults()
             std::sort(all.begin(), all.end(), [this](int a, int b) {
                 return d->entries[a].title.localeAwareCompare(d->entries[b].title) < 0;
             });
-            addHeader(kindTitle(kind));
+            appendHeader(kindTitle(kind));
             Q_FOREACH (int index, all) {
-                addEntry(index, d->entries[index].detail);
+                appendResult(index, d->entries[index].detail);
             }
         }
         for (int row = 0; row < d->model->rowCount(); row++) {
@@ -1356,20 +1345,8 @@ void KisStudioFind::updateResults()
         d->model->appendRow(nothing);
     }
 
-    if (query.isEmpty() && !browsing && !scored.isEmpty()) {
-        auto *header = new QStandardItem(i18nc("@title find results", "Recent"));
-        header->setData(true, HeaderRole);
-        header->setFlags(Qt::NoItemFlags);
-        d->model->appendRow(header);
-    }
-
     Q_FOREACH (Kind kind, kindOrder) {
-        if (!query.isEmpty() || browsing) {
-            auto *header = new QStandardItem(kindTitle(kind));
-            header->setData(true, HeaderRole);
-            header->setFlags(Qt::NoItemFlags);
-            d->model->appendRow(header);
-        }
+        appendHeader(kindTitle(kind));
         Q_FOREACH (int index, groups[int(kind)]) {
             const Entry &entry = d->entries[index];
             appendResult(index, query.isEmpty() ? kindTitle(entry.kind) + (entry.detail.isEmpty() ? QString() : QStringLiteral(" · ") + entry.detail)

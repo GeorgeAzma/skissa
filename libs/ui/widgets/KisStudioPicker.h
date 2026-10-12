@@ -89,8 +89,6 @@ public:
 
     void popupBelow(QWidget *anchor);
     void popupNear(const QPoint &globalPos);
-    /// To the left of \p anchor, their bottoms lined up: e.g. from a button on the right edge
-    void popupLeftOf(QWidget *anchor);
     /// Paints the previews again, e.g. when one more of them is ready
     void updatePreviews();
 

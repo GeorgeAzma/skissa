@@ -11,14 +11,11 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
-#include <QRegularExpression>
 #include <QTabletEvent>
-#include <QTimer>
 #include <QVariantAnimation>
 #include <QtMath>
 
 #include <KoColor.h>
-#include <KoToolManager.h>
 #include <klocalizedstring.h>
 
 #include "KisMainWindow.h"
@@ -50,16 +47,6 @@ constexpr qreal middleRadius = 26;
 constexpr qreal flick = 24;
 /// A brush pressed and moved this far: dragged to another slot
 constexpr qreal dragStart = 6;
-
-/// The tools that paint with the brush: the ring is theirs; the others keep their own right click
-bool paintToolActive()
-{
-    static const QStringList tools = {
-        QStringLiteral("KritaShape/KisToolBrush"), QStringLiteral("KritaShape/KisToolDyna"),
-        QStringLiteral("KritaShape/KisToolMultiBrush"), QStringLiteral("KritaShape/KisToolLine"),
-    };
-    return tools.contains(KoToolManager::instance()->activeToolId());
-}
 
 } // namespace
 
@@ -176,11 +163,10 @@ void KisStudioCanvasRing::open(QWidget *canvas, const QPointF &pos)
 void KisStudioCanvasRing::loadSlots()
 {
     m_slots.clear();
-    static const QRegularExpression sortPrefix(QStringLiteral("^[a-z]\\)\\s+"));
     Q_FOREACH (const QString &name, KisStudioBrushPicker::yourBrushes().mid(0, ringBrushes)) {
         Slot slot;
         slot.brush = name;
-        slot.title = QString(name).remove(sortPrefix);
+        slot.title = KisStudioBrushPicker::title(name);
         slot.picture = KisStudioBrushPicker::strokePicture(name);
         if (slot.picture.isNull()) {
             if (KisPaintOpPresetSP preset = KisResourceServerProvider::instance()->paintOpPresetServer()->resource(QString(), QString(), name)) {
@@ -372,7 +358,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
          * one while painting (another button down): the stroke goes on
          */
         if (onCanvas && press && button == Qt::RightButton && buttons == Qt::RightButton && modifiers == Qt::NoModifier
-            && paintToolActive()) {
+            && KisStudioBrushPicker::paintToolActive()) {
             open(canvasWidget, canvasWidget->mapFromGlobal(global.toPoint()));
             event->accept();
             return true;

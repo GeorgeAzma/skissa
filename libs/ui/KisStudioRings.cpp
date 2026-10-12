@@ -31,6 +31,7 @@
 #include "KisStudioFind.h"
 #include "KisStudioGlass.h"
 #include "KisStudioHoldKeys.h"
+#include "KisStudioItemCard.h"
 #include "KisStudioMotion.h"
 #include "kis_config.h"
 
@@ -464,9 +465,7 @@ QAction *KisStudioRings::makeAction(const QString &id)
     action->setShortcutContext(Qt::WindowShortcut);
     // a ring opens once for a held key, not again for its repeats
     action->setAutoRepeat(false);
-    const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
-                              .readEntry(action->objectName(), QString());
-    if (!saved.isEmpty() && saved != QLatin1String("none")) action->setShortcuts(QKeySequence::listFromString(saved));
+    KisStudioShortcuts::restore(action);
     d->mainWindow->actionCollection()->addAction(action->objectName(), action);
     connect(action, &QAction::triggered, this, [this, id]() { open(id); });
     d->actions.insert(id, action);

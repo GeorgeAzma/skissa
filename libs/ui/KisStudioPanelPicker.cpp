@@ -10,7 +10,6 @@
 #include <QDockWidget>
 #include <QHash>
 #include <QPainter>
-#include <QPainterPath>
 #include <QPointer>
 #include <QRegularExpression>
 #include <QSet>
@@ -19,7 +18,6 @@
 #include <klocalizedstring.h>
 
 #include "KisMainWindow.h"
-#include "kis_config.h"
 
 namespace {
 

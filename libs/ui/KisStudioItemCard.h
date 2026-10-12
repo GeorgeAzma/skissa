@@ -36,6 +36,9 @@ void paintBadge(QPainter &painter, const QRect &rect, const QString &text, const
  */
 QString assign(KisMainWindow *mainWindow, QAction *action, const QKeySequence &sequence);
 
+/// Gives \p action the shortcut saved for its name, if one was
+void restore(QAction *action);
+
 /// Lets every menu's shortcuts be changed in place (once, for the whole application)
 KRITAUI_EXPORT void enableMenuEditing();
 
