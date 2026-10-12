@@ -1146,6 +1146,13 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
             if (m_opacityPress.isValid() && (mouse->buttons() & Qt::LeftButton) && handleOpacityDrag(mouse->pos(), mouse->modifiers() & Qt::ShiftModifier)) {
                 return true;
             }
+            // its release went elsewhere (a window that came up under the pointer): the drag is over
+            if (!(mouse->buttons() & Qt::LeftButton) && (m_opacityScrubbing || m_opacityPress.isValid())) {
+                m_opacityScrubbing = false;
+                m_opacityPress = QModelIndex();
+                m_opacityScrub->hide();
+                view->viewport()->unsetCursor();
+            }
             int y = 0;
             // a mouse only: touch adds layers from the strip or the menu
             const QModelIndex gap = (mouse->buttons() == Qt::NoButton && mouse->source() == Qt::MouseEventNotSynthesized)

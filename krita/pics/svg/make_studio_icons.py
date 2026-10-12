@@ -115,9 +115,25 @@ LOCK_BODY_SOLID = (sq(5, 10.5, 14, 10, 2.6)
 # shown: solid, its pupil cut out of it (hidden, it is drawn in line and crossed out); a ring for the iris blurs at row size
 EYE = solid('M2.8 12C4.6 8.2 8 5.8 12 5.8s7.4 2.4 9.2 6.2c-1.8 3.8-5.2 6.2-9.2 6.2S4.6 15.8 2.8 12Z' + hole_circle(12, 12, 3.3))
 CHECKER = (sq(3, 3, 11, 11, 2.6) + '<path d="M3.6 3.6h4.9v4.9H3.6zM8.5 8.5h4.9v4.9H8.5z" fill="INK" stroke="none" opacity="0.55"/>')
-# alpha lock: a padlock, its body a checkerboard (the transparency it keeps); locked, the checks solid
-ALPHA_BODY = sq(5, 10.5, 14, 10, 2.6)
-ALPHA_CHECKS = 'M6.6 12.1H12v3.4H6.6zM12 15.5h5.4v3.4H12z'
+
+
+def checks(x, y, w, h, cols, rows, inset):
+    """A checkerboard's dark squares inside a box (path data), the top left one dark"""
+    cw, ch = (w - 2 * inset) / cols, (h - 2 * inset) / rows
+    d = []
+    for j in range(rows):
+        for i in range(cols):
+            if (i + j) % 2 == 0:
+                d.append('M%s %sh%sv%sh%sz' % (f(x + inset + i * cw), f(y + inset + j * ch), f(cw), f(ch), f(-cw)))
+    return ''.join(d)
+
+
+# alpha lock: a checkerboard (the transparency it keeps) in a squircle; locked, the checkerboard is a padlock's body, solid
+ALPHA_FREE = (sq(3.5, 3.5, 17, 17, 4)
+              + '<path d="%s" fill="INK" stroke="none" opacity="0.55"/>' % checks(3.5, 3.5, 17, 17, 3, 3, 1.7))
+ALPHA_LOCKED = (sq(4, 10.5, 16, 10.5, 3)
+                + '<path d="%s" fill="INK" stroke="none"/>' % checks(4, 10.5, 16, 10.5, 3, 2, 1.6)
+                + p('M8 10.5V7.5a4 4 0 0 1 8 0v3'))
 
 
 def mirror(vertical, on=False):
@@ -180,10 +196,8 @@ ICONS = {
     'pressure_off': (p('M15.5 2.8 21.2 8.5 14.6 15.1 10.4 15.8 9.7 13.6 8.9 11.4Z') + p('M13.7 4.6l5.7 5.7')
                      + p('M2.6 21h7.4') + p('M3 3l18 18')),
     'brush_settings': p('M3.5 7h10M17.5 7h3M3.5 12h3M10.5 12h10M3.5 17h12M19.5 17h1') + c(15.5, 7, 2) + c(8.5, 12, 2) + c(17.5, 17, 2),
-    'alpha_lock': (ALPHA_BODY + '<path d="%s" fill="INK" stroke="none"/>' % ALPHA_CHECKS
-                   + p('M8 10.5V7.5a4 4 0 0 1 8 0v3')),
-    'alpha_unlock': (ALPHA_BODY + '<path d="%s" fill="INK" stroke="none" opacity="0.6"/>' % ALPHA_CHECKS
-                     + p('M8 10.5V7.5a4 4 0 0 1 7.8-1.2')),
+    'alpha_lock': ALPHA_LOCKED,
+    'alpha_unlock': ALPHA_FREE,
     'reload': p('M3.5 12a8.5 8.5 0 1 0 2.9-6.4L3.5 8.3') + p('M3.5 3.5v4.8h4.8'),
     'mirror_x': mirror(False),
     'mirror_y': mirror(True),

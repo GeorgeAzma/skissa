@@ -1286,18 +1286,31 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
         }
     }
     else if (event->type() == QEvent::ToolTip) {
-        if (!KisConfig(true).hidePopups()) {
-            QHelpEvent *helpEvent = static_cast<QHelpEvent*>(event);
-
-            auto hoveredProperty = d->propForMousePos(index, helpEvent->pos(), option);
-            if (hoveredProperty &&
-                    (hoveredProperty->id == KisLayerPropertiesIcons::layerError.id() ||
-                     hoveredProperty->id == KisLayerPropertiesIcons::layerColorSpaceMismatch.id())) {
-                QToolTip::showText(helpEvent->globalPos(), hoveredProperty->state.toString(), d->view);
-            } else {
-                d->tip.showTip(helpEvent->pos(), option, index);
-            }
+        // the thumbnail shown larger; each switch says what it is and how it is set; nothing else
+        QHelpEvent *helpEvent = static_cast<QHelpEvent*>(event);
+        const QPoint pos = helpEvent->pos();
+        if (index.column() != NodeView::VISIBILITY_COL && thumbnailClickRect(option, index).contains(pos)) {
+            QToolTip::hideText();
+            d->tip.showTip(pos, option, index);
+            return true;
         }
+        d->tip.hide();
+        auto said = [](const KisBaseNode::Property &property) {
+            if (!property.isMutable) return QStringLiteral("%1: %2").arg(property.name, property.state.toString());
+            return property.state.toBool() ? i18nc("a layer's switch that is on, %1 its name", "%1: on", property.name)
+                                           : i18nc("a layer's switch that is off, %1 its name", "%1: off", property.name);
+        };
+        QString text;
+        KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
+        if (index.column() == NodeView::VISIBILITY_COL) {
+            if (OptionalProperty visibility = d->findVisibilityProperty(props)) text = said(*visibility);
+        } else if (auto hovered = d->propForMousePos(index, pos, option)) {
+            text = (hovered->id == KisLayerPropertiesIcons::layerError.id() || hovered->id == KisLayerPropertiesIcons::layerColorSpaceMismatch.id())
+                ? hovered->state.toString()
+                : said(*hovered);
+        }
+        if (text.isEmpty()) QToolTip::hideText();
+        else QToolTip::showText(helpEvent->globalPos(), text, d->view);
         return true;
     }
 
