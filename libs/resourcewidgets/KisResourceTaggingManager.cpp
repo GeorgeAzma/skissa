@@ -66,11 +66,11 @@ KisResourceTaggingManager::KisResourceTaggingManager(QString resourceType, KisTa
     d->tagChooser = new KisTagChooserWidget(d->tagModel, resourceType, parent);
     d->tagFilter = new KisTagFilterWidget(d->tagModel, parent);
 
-    d->model->setFilterInCurrentTag(d->tagFilter->isFilterByTagChecked());
+    // a search stays within the chosen tag
+    d->model->setFilterInCurrentTag(true);
 
     connect(d->tagChooser, SIGNAL(sigTagChosen(KisTagSP)), this, SLOT(tagChooserIndexChanged(KisTagSP)));
 
-    connect(d->tagFilter, SIGNAL(filterByTagChanged(bool)), this, SLOT(slotFilterByTagChanged(bool)));
     connect(d->tagFilter, SIGNAL(filterTextChanged(QString)), this, SLOT(tagSearchLineEditTextChanged(QString)));
 
     connect(d->tagChooser, SIGNAL(sigTagChosen(KisTagSP)), d->tagFilter, SLOT(clear()));
@@ -100,11 +100,6 @@ void KisResourceTaggingManager::tagChooserIndexChanged(const KisTagSP tag)
 void KisResourceTaggingManager::tagSearchLineEditTextChanged(const QString& lineEditText)
 {
     d->model->setSearchText(lineEditText);
-}
-
-void KisResourceTaggingManager::slotFilterByTagChanged(const bool filterByTag)
-{
-    d->model->setFilterInCurrentTag(filterByTag);
 }
 
 void KisResourceTaggingManager::contextMenuRequested(KoResourceSP resource, QPoint pos)

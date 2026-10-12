@@ -412,20 +412,6 @@ set(kritaui_LIB_SRCS
     input/kis_input_profile_manager.cpp
     input/kis_input_profile.cpp
     input/kis_shortcut_configuration.cpp
-    input/config/kis_input_configuration_page.cpp
-    input/config/kis_edit_profiles_dialog.cpp
-    input/config/kis_input_profile_model.cpp
-    input/config/kis_input_configuration_page_item.cpp
-    input/config/kis_action_shortcuts_model.cpp
-    input/config/kis_input_type_delegate.cpp
-    input/config/kis_input_mode_delegate.cpp
-    input/config/kis_input_button.cpp
-    input/config/kis_input_editor_delegate.cpp
-    input/config/kis_mouse_input_editor.cpp
-    input/config/kis_wheel_input_editor.cpp
-    input/config/kis_key_input_editor.cpp
-    input/config/KisGestureSelector.cpp
-    input/config/KisNativeGestureSelector.cpp
     processing/fill_processing_visitor.cpp
     processing/KisEncloseAndFillProcessingVisitor.cpp
     canvas/kis_mirror_axis.cpp
@@ -622,7 +608,6 @@ ki18n_wrap_ui(kritaui_LIB_SRCS
 
     forms/wdgaboutapplication.ui
     forms/wdgdlgpngimport.ui
-    forms/wdgfullscreensettings.ui
     forms/wdgsegmentgradienteditor.ui
     forms/wdggeneralsettings.ui
     forms/wdgperformancesettings.ui
@@ -670,7 +655,6 @@ ki18n_wrap_ui(kritaui_LIB_SRCS
     forms/wdgchangeclonesource.ui
     forms/koDocumentInfoAboutWidget.ui
     forms/koDocumentInfoAuthorWidget.ui
-    forms/WdgPopupPaletteSettings.ui
     forms/wdgMissingColorProfile.ui
     forms/wdgPasteFormat.ui
     forms/wdgconvertcolorspace.ui
@@ -680,12 +664,6 @@ ki18n_wrap_ui(kritaui_LIB_SRCS
     dialogs/kis_delayed_save_dialog.ui
     dialogs/kis_dlg_hlg_import.ui
     dialogs/KisRecoverNamedAutosaveDialog.ui
-    input/config/kis_input_configuration_page.ui
-    input/config/kis_edit_profiles_dialog.ui
-    input/config/kis_input_configuration_page_item.ui
-    input/config/kis_mouse_input_editor.ui
-    input/config/kis_wheel_input_editor.ui
-    input/config/kis_key_input_editor.ui
 
     layerstyles/wdgBevelAndEmboss.ui
     layerstyles/wdgblendingoptions.ui

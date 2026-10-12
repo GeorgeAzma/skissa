@@ -14,9 +14,6 @@
 
 #include <QBitmap>
 #include <QCheckBox>
-#include <QGridLayout>
-#include <QFormLayout>
-#include <functional>
 #include <QComboBox>
 #include <QClipboard>
 #include <QCursor>
@@ -25,7 +22,6 @@
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QGroupBox>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
@@ -76,7 +72,6 @@
 #include "KisProofingConfiguration.h"
 #include "KisProofingConfigModel.h"
 #include "KoColorConversionTransformation.h"
-#include "kis_action_registry.h"
 #include <kis_image.h>
 #include <KisSqueezedComboBox.h>
 #include "kis_cie_tongue_widget.h"
@@ -110,7 +105,6 @@
 #include <kis_cubic_curve.h>
 #include <kis_signals_blocker.h>
 
-#include "input/config/kis_input_configuration_page.h"
 #include "KisKeysPage.h"
 #include "input/wintab/drawpile_tablettester/tablettester.h"
 
@@ -397,16 +391,15 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
 
     m_chkCanvasMessages->setChecked(cfg.showCanvasMessages());
 
-    // under the canvas messages: brushes by what they paint, an extra look that costs a little to make
-    m_chkBrushesAsStrokes = new QCheckBox(i18n("Show brushes as strokes"), m_chkCanvasMessages->parentWidget());
+    // under the canvas messages: brushes as strokes, and the glass of panels, menus and popups
+    QWidget *messagesBox = m_chkCanvasMessages->parentWidget();
+    m_chkBrushesAsStrokes = new QCheckBox(i18n("Show brushes as strokes"), messagesBox);
     m_chkBrushesAsStrokes->setChecked(KisPresetStrokeThumbnails::isEnabled());
-    // panels, menus and popups of glass (frosted or liquid), or of the plain panel color
-    m_cmbGlass = new QComboBox(m_chkCanvasMessages->parentWidget());
+    m_cmbGlass = new QComboBox(messagesBox);
     m_cmbGlass->addItems({i18nc("glass panels", "Off"), i18nc("glass panels", "Frosted"), i18nc("glass panels", "Liquid")});
     m_cmbGlass->setToolTip(i18n("Liquid: sharper edges, more refraction"));
     m_cmbGlass->setCurrentIndex(KisStudioGlass::isEnabled() ? 1 + int(KisStudioGlass::style()) : 0);
-    // and how much its edge bends the canvas behind it (none: a line)
-    m_sldRefraction = new KisSliderSpinBox(m_chkCanvasMessages->parentWidget());
+    m_sldRefraction = new KisSliderSpinBox(messagesBox);
     m_sldRefraction->setRange(0, 100);
     m_sldRefraction->setSuffix(i18nc("percent", "%"));
     m_sldRefraction->setToolTip(i18n("Edge refraction"));
@@ -414,46 +407,16 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
     m_sldRefraction->setEnabled(m_cmbGlass->currentIndex() > 0);
     connect(m_cmbGlass, QOverload<int>::of(&QComboBox::currentIndexChanged), m_sldRefraction,
             [this](int index) { m_sldRefraction->setEnabled(index > 0); });
-    // each in the row under \p anchor, in whichever layout it is in (a form, as the page is made now, or a grid)
-    std::function<bool(QLayout *, QWidget *, const QString &, QWidget *)> placeUnder =
-        [&](QLayout *layout, QWidget *anchor, const QString &label, QWidget *widget) {
-        if (!layout) return false;
-        if (auto *form = qobject_cast<QFormLayout *>(layout)) {
-            int row;
-            QFormLayout::ItemRole role;
-            form->getWidgetPosition(anchor, &row, &role);
-            if (row >= 0) {
-                form->insertRow(row + 1, label, widget);
-                return true;
-            }
-        } else if (auto *grid = qobject_cast<QGridLayout *>(layout)) {
-            const int at = grid->indexOf(anchor);
-            if (at >= 0) {
-                int row, column, rowSpan, columnSpan;
-                grid->getItemPosition(at, &row, &column, &rowSpan, &columnSpan);
-                if (label.isEmpty()) {
-                    grid->addWidget(widget, grid->rowCount(), column);
-                } else {
-                    QWidget *line = new QWidget(widget->parentWidget());
-                    QHBoxLayout *box = new QHBoxLayout(line);
-                    box->setContentsMargins(0, 0, 0, 0);
-                    box->addWidget(new QLabel(label, line));
-                    box->addWidget(widget);
-                    box->addStretch();
-                    grid->addWidget(line, grid->rowCount(), column);
-                }
-                return true;
-            }
+    if (auto *form = qobject_cast<QFormLayout *>(messagesBox->layout())) {
+        int row = -1;
+        QFormLayout::ItemRole role;
+        form->getWidgetPosition(m_chkCanvasMessages, &row, &role);
+        if (row >= 0) {
+            form->insertRow(row + 1, QString(), m_chkBrushesAsStrokes);
+            form->insertRow(row + 2, i18n("Glass:"), m_cmbGlass);
+            form->insertRow(row + 3, i18n("Refraction:"), m_sldRefraction);
         }
-        for (int i = 0; i < layout->count(); i++) {
-            if (placeUnder(layout->itemAt(i)->layout(), anchor, label, widget)) return true;
-        }
-        return false;
-    };
-    QLayout *messagesLayout = m_chkCanvasMessages->parentWidget()->layout();
-    placeUnder(messagesLayout, m_chkCanvasMessages, QString(), m_chkBrushesAsStrokes);
-    placeUnder(messagesLayout, m_chkBrushesAsStrokes, i18n("Glass:"), m_cmbGlass);
-    placeUnder(messagesLayout, m_cmbGlass, i18n("Refraction:"), m_sldRefraction);
+    }
 
     const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     QSettings kritarc(configPath + QStringLiteral("/kritadisplayrc"), QSettings::IniFormat);
@@ -913,9 +876,9 @@ void GeneralTab::setDefault()
     m_mdiColor->setColor(mdiColor);
     m_backgroundimage->setText(cfg.getMDIBackgroundImage(true));
     m_chkCanvasMessages->setChecked(cfg.showCanvasMessages(true));
-    if (m_chkBrushesAsStrokes) m_chkBrushesAsStrokes->setChecked(false);
-    if (m_cmbGlass) m_cmbGlass->setCurrentIndex(1 + int(KisStudioGlass::Style::Frosted));
-    if (m_sldRefraction) m_sldRefraction->setValue(50);
+    m_chkBrushesAsStrokes->setChecked(false);
+    m_cmbGlass->setCurrentIndex(1 + int(KisStudioGlass::Style::Frosted));
+    m_sldRefraction->setValue(50);
     m_chkCompressKra->setChecked(cfg.compressKra(true));
     m_chkTrimKra->setChecked(cfg.trimKra(true));
     m_chkTrimFramesImport->setChecked(cfg.trimFramesImport(true));
@@ -1123,22 +1086,22 @@ bool GeneralTab::showCanvasMessages()
 
 bool GeneralTab::brushesAsStrokes()
 {
-    return m_chkBrushesAsStrokes && m_chkBrushesAsStrokes->isChecked();
+    return m_chkBrushesAsStrokes->isChecked();
 }
 
 bool GeneralTab::glass()
 {
-    return m_cmbGlass ? m_cmbGlass->currentIndex() > 0 : KisStudioGlass::isEnabled();
+    return m_cmbGlass->currentIndex() > 0;
 }
 
 int GeneralTab::glassStyle()
 {
-    return m_cmbGlass && m_cmbGlass->currentIndex() > 0 ? m_cmbGlass->currentIndex() - 1 : int(KisStudioGlass::style());
+    return m_cmbGlass->currentIndex() > 0 ? m_cmbGlass->currentIndex() - 1 : int(KisStudioGlass::style());
 }
 
 qreal GeneralTab::glassRefraction()
 {
-    return m_sldRefraction ? m_sldRefraction->value() / 100.0 : KisStudioGlass::refraction();
+    return m_sldRefraction->value() / 100.0;
 }
 
 bool GeneralTab::compressKra()
@@ -1325,57 +1288,6 @@ void GeneralTab::updateTouchPressureSensitivityEnabled(int touchPainting)
     chkTouchPressureSensitivity->setEnabled(touchPainting != int(KisConfig::TOUCH_PAINTING_DISABLED));
 }
 
-
-#include "kactioncollection.h"
-#include "KisActionsSnapshot.h"
-
-ShortcutSettingsTab::ShortcutSettingsTab(QWidget *parent, const char *name)
-    : QWidget(parent)
-{
-    setObjectName(name);
-
-    QGridLayout * l = new QGridLayout(this);
-    l->setContentsMargins(0, 0, 0, 0);
-    m_page = new WdgShortcutSettings(this);
-    l->addWidget(m_page, 0, 0);
-
-
-    m_snapshot.reset(new KisActionsSnapshot);
-
-    KisKActionCollection *collection =
-        KisPart::instance()->currentMainwindow()->actionCollection();
-
-    Q_FOREACH (QAction *action, collection->actions()) {
-        m_snapshot->addAction(action->objectName(), action);
-    }
-
-    QMap<QString, KisKActionCollection*> sortedCollections =
-        m_snapshot->actionCollections();
-
-    for (auto it = sortedCollections.constBegin(); it != sortedCollections.constEnd(); ++it) {
-        m_page->addCollection(it.value(), it.key());
-    }
-}
-
-ShortcutSettingsTab::~ShortcutSettingsTab()
-{
-}
-
-void ShortcutSettingsTab::setDefault()
-{
-    m_page->allDefault();
-}
-
-void ShortcutSettingsTab::saveChanges()
-{
-    m_page->save();
-    KisActionRegistry::instance()->settingsPageSaved();
-}
-
-void ShortcutSettingsTab::cancelChanges()
-{
-    m_page->undo();
-}
 
 ColorSettingsTab::ColorSettingsTab(QWidget *parent, const char *name)
     : QWidget(parent)
@@ -2648,114 +2560,6 @@ void DisplaySettingsTab::slotPreferredSurfaceFormatChanged(int index)
 }
 
 //---------------------------------------------------------------------------------------------------
-FullscreenSettingsTab::FullscreenSettingsTab(QWidget* parent) : WdgFullscreenSettingsBase(parent)
-{
-    KisConfig cfg(true);
-
-    chkDockers->setChecked(cfg.hideDockersFullscreen());
-    chkMenu->setChecked(cfg.hideMenuFullscreen());
-    chkScrollbars->setChecked(cfg.hideScrollbarsFullscreen());
-    chkStatusbar->setChecked(cfg.hideStatusbarFullscreen());
-    chkTitlebar->setChecked(cfg.hideTitlebarFullscreen());
-    chkToolbar->setChecked(cfg.hideToolbarFullscreen());
-
-}
-
-void FullscreenSettingsTab::setDefault()
-{
-    KisConfig cfg(true);
-    chkDockers->setChecked(cfg.hideDockersFullscreen(true));
-    chkMenu->setChecked(cfg.hideMenuFullscreen(true));
-    chkScrollbars->setChecked(cfg.hideScrollbarsFullscreen(true));
-    chkStatusbar->setChecked(cfg.hideStatusbarFullscreen(true));
-    chkTitlebar->setChecked(cfg.hideTitlebarFullscreen(true));
-    chkToolbar->setChecked(cfg.hideToolbarFullscreen(true));
-}
-
-
-//---------------------------------------------------------------------------------------------------
-
-namespace PopupPaletteTabPrivate {
-static const QStringList allowedColorHistorySortingValues({"none", "hsv"});
-}
-
-PopupPaletteTab::PopupPaletteTab(QWidget *parent, const char *name)
-    : WdgPopupPaletteSettingsBase(parent, name)
-{
-    using namespace PopupPaletteTabPrivate;
-
-    load();
-
-    connect(chkShowColorHistory, SIGNAL(toggled(bool)), cmbColorHistorySorting, SLOT(setEnabled(bool)));
-    connect(chkShowColorHistory, SIGNAL(toggled(bool)), lblColorHistorySorting, SLOT(setEnabled(bool)));
-    connect(cmbSelectorType, SIGNAL(currentIndexChanged(int)), this, SLOT(slotSelectorTypeChanged(int)));
-    KIS_SAFE_ASSERT_RECOVER_NOOP(cmbColorHistorySorting->count() == allowedColorHistorySortingValues.size());
-}
-
-void PopupPaletteTab::load()
-{
-    using namespace PopupPaletteTabPrivate;
-
-    KisConfig config(true);
-    sbNumPresets->setValue(config.favoritePresets());
-    sbPaletteSize->setValue(config.readEntry("popuppalette/size", 385));
-    sbSelectorSize->setValue(config.readEntry("popuppalette/selectorSize", 140));
-    cmbSelectorType->setCurrentIndex(config.readEntry<bool>("popuppalette/usevisualcolorselector", false) ? 1 : 0);
-    chkShowColorHistory->setChecked(config.readEntry("popuppalette/showColorHistory", true));
-    chkShowRotationTrack->setChecked(config.readEntry("popuppalette/showRotationTrack", true));
-    chkUseDynamicSlotCount->setChecked(config.readEntry("popuppalette/useDynamicSlotCount", true));
-    grpFixTriangleRotation->setChecked(config.readEntry("popuppalette/fixTriangleRotation", false));
-    sbTriangleRotationAngle->setValue(config.readEntry("popuppalette/triangleRotationAngle", 0));
-
-    QString currentSorting = config.readEntry("popuppalette/colorHistorySorting", QString("hsv"));
-    if (!allowedColorHistorySortingValues.contains(currentSorting)) {
-        currentSorting = "hsv";
-    }
-    cmbColorHistorySorting->setCurrentIndex(allowedColorHistorySortingValues.indexOf(currentSorting));
-    cmbColorHistorySorting->setEnabled(chkShowColorHistory->isChecked());
-    lblColorHistorySorting->setEnabled(chkShowColorHistory->isChecked());
-    grpFixTriangleRotation->setEnabled(!cmbSelectorType->currentIndex());
-}
-
-void PopupPaletteTab::save()
-{
-    using namespace PopupPaletteTabPrivate;
-
-    KisConfig config(true);
-    config.setFavoritePresets(sbNumPresets->value());
-    config.writeEntry("popuppalette/size", sbPaletteSize->value());
-    config.writeEntry("popuppalette/selectorSize", sbSelectorSize->value());
-    config.writeEntry<bool>("popuppalette/usevisualcolorselector", cmbSelectorType->currentIndex() > 0);
-    config.writeEntry<bool>("popuppalette/showColorHistory", chkShowColorHistory->isChecked());
-    config.writeEntry<bool>("popuppalette/showRotationTrack", chkShowRotationTrack->isChecked());
-    config.writeEntry<bool>("popuppalette/useDynamicSlotCount", chkUseDynamicSlotCount->isChecked());
-    config.writeEntry("popuppalette/colorHistorySorting",
-                      allowedColorHistorySortingValues[cmbColorHistorySorting->currentIndex()]);
-    config.writeEntry<bool>("popuppalette/fixTriangleRotation", grpFixTriangleRotation->isChecked());
-    config.writeEntry("popuppalette/triangleRotationAngle", sbTriangleRotationAngle->value());
-}
-
-void PopupPaletteTab::setDefault()
-{
-    KisConfig config(true);
-    sbNumPresets->setValue(config.favoritePresets(true));
-    sbPaletteSize->setValue(385);
-    sbSelectorSize->setValue(140);
-    cmbSelectorType->setCurrentIndex(0);
-    chkShowColorHistory->setChecked(true);
-    chkShowRotationTrack->setChecked(true);
-    chkUseDynamicSlotCount->setChecked(true);
-    cmbColorHistorySorting->setEnabled(chkShowColorHistory->isChecked());
-    lblColorHistorySorting->setEnabled(chkShowColorHistory->isChecked());
-    grpFixTriangleRotation->setChecked(false);
-    sbTriangleRotationAngle->setValue(0);
-}
-
-void PopupPaletteTab::slotSelectorTypeChanged(int index) {
-    grpFixTriangleRotation->setEnabled(!index);
-}
-
-//---------------------------------------------------------------------------------------------------
 
 KisDlgPreferences::KisDlgPreferences(QWidget* parent, const char* name)
     : KPageDialog(parent)
@@ -2825,16 +2629,6 @@ KisDlgPreferences::KisDlgPreferences(QWidget* parent, const char* name)
     m_pages << page;
     addPage(page);
     m_tabletSettings = new TabletSettingsTab(vbox);
-
-    /**
-     * Not pages: canvas-only mode is set from Find (its toggles), the pop-up
-     * palette on itself. Their tabs are kept, unshown, to load and save what
-     * they always did.
-     */
-    QWidget *unshown = new QWidget(this);
-    unshown->hide();
-    m_fullscreenSettings = new FullscreenSettingsTab(unshown);
-    m_popupPaletteSettings = new PopupPaletteTab(unshown);
 
     // Author profiles
     m_authorPage = new KoConfigAuthorPage();
@@ -2940,12 +2734,6 @@ void KisDlgPreferences::slotDefault()
     else if (currentPage()->objectName() == "tablet") {
         m_tabletSettings->setDefault();
     }
-    else if (currentPage()->objectName() == "canvasonly") {
-        m_fullscreenSettings->setDefault();
-    }
-    else if (currentPage()->objectName() == "popuppalette") {
-        m_popupPaletteSettings->setDefault();
-    }
 }
 
 KPageWidgetItem *KisDlgPreferences::getPage(Page page_enum)
@@ -2970,15 +2758,13 @@ KPageWidgetItem *KisDlgPreferences::getPage(Page page_enum)
     case Tablet:
         name = "tablet";
         break;
-    case Fullscreen:
-        name = "canvasonly";
-        break;
     case Input:
         name = "keys";
         break;
+    case Fullscreen:
     case PopupPalette:
-        name = "popuppalette";
-        break;
+        // no pages: canvas-only mode is set in Settings, the pop-up palette has none
+        return nullptr;
     }
 
     Q_FOREACH (KPageWidgetItem *page, m_pages) {
@@ -3321,19 +3107,11 @@ bool KisDlgPreferences::editPreferences(std::optional<PageDesc>page)
         cfg.setShowSingleChannelAsColor(m_displaySettings->chkChannelsAsColor->isChecked());
         cfg.setHidePopups(m_displaySettings->chkHidePopups->isChecked());
 
-        cfg.setHideDockersFullscreen(m_fullscreenSettings->chkDockers->checkState());
-        cfg.setHideMenuFullscreen(m_fullscreenSettings->chkMenu->checkState());
-        cfg.setHideScrollbarsFullscreen(m_fullscreenSettings->chkScrollbars->checkState());
-        cfg.setHideStatusbarFullscreen(m_fullscreenSettings->chkStatusbar->checkState());
-        cfg.setHideTitlebarFullscreen(m_fullscreenSettings->chkTitlebar->checkState());
-        cfg.setHideToolbarFullscreen(m_fullscreenSettings->chkToolbar->checkState());
-
         cfg.setCursorMainColor(m_general->cursorColorButton->color().toQColor());
         cfg.setEraserCursorMainColor(m_general->eraserCursorColorButton->color().toQColor());
         cfg.setPixelGridColor(m_displaySettings->pixelGridColorButton->color().toQColor());
         cfg.setPixelGridDrawingThreshold(m_displaySettings->pixelGridDrawingThresholdBox->value() / 100);
 
-        m_popupPaletteSettings->save();
         m_authorPage->apply();
 
         cfg.logImportantSettings();

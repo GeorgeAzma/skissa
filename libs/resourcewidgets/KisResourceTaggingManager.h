@@ -94,13 +94,6 @@ private Q_SLOTS:
     /// It updates the filter in the filter proxy model.
     ///
     void tagSearchLineEditTextChanged(const QString &lineEditText);
-    ///
-    /// \brief slotFilterByTagChanged slot for the "filter by tag" checkbox being checked or unchecked by the user
-    /// \param filterByTag current state of the checkbox
-    ///
-    /// It updates the filter in the filter proxy model to honor the "filter by tag" setting correctly.
-    ///
-    void slotFilterByTagChanged(const bool filterByTag);
 
 private:
 

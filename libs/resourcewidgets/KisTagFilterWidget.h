@@ -21,17 +21,13 @@ public:
     explicit KisTagFilterWidget(KisTagModel* model, QWidget* parent);
     ~KisTagFilterWidget() override;
 
-    bool isFilterByTagChecked();
-
 public Q_SLOTS:
     void clear();
 
 Q_SIGNALS:
     void filterTextChanged(const QString &filterText);
-    void filterByTagChanged(const bool filterByTag);
 private Q_SLOTS:
     void onTextChanged(const QString &lineEditText);
-    void slotFilterByTagChanged(int filterByTag);
 private:
     class Private;
     Private* const d;

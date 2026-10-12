@@ -29,13 +29,9 @@
 #include "ui_wdgcolorsettings.h"
 #include "ui_wdgtabletsettings.h"
 #include "ui_wdgperformancesettings.h"
-#include "ui_wdgfullscreensettings.h"
-#include "ui_WdgPopupPaletteSettings.h"
-#include "KisShortcutsDialog.h"
 #include "KisCumulativeUndoData.h"
 
 class KoID;
-class KisInputConfigurationPage;
 class KoConfigAuthorPage;
 class KisProofingConfigModel;
 class KisFrameRateLimitModel;
@@ -94,18 +90,15 @@ public:
     int mdiMode();
     bool showCanvasMessages();
     bool brushesAsStrokes();
-    /// Glass panels: the canvas shows through them, blurred (KisStudioGlass::isEnabled)
     bool glass();
-    /// Frosted or liquid (KisStudioGlass::Style)
+    /// KisStudioGlass::Style
     int glassStyle();
-    /// How much the edge of the glass bends the canvas, 0 to 1 (KisStudioGlass::refraction)
     qreal glassRefraction();
 
-    /// Brush presets shown by what they paint (off: by their pictures)
-    QPointer<QCheckBox> m_chkBrushesAsStrokes;
+    QCheckBox *m_chkBrushesAsStrokes {nullptr};
     /// Off, frosted or liquid
-    QPointer<QComboBox> m_cmbGlass;
-    QPointer<KisSliderSpinBox> m_sldRefraction;
+    QComboBox *m_cmbGlass {nullptr};
+    KisSliderSpinBox *m_sldRefraction {nullptr};
     bool compressKra();
     bool trimKra();
     bool trimFramesImport();
@@ -153,45 +146,6 @@ private Q_SLOTS:
 public:
     QButtonGroup m_pasteFormatGroup;
     KisCumulativeUndoData m_cumulativeUndoData;
-};
-
-
-
-/**
- *  "Shortcuts" tab for preferences dialog
- */
-
-class WdgShortcutSettings : public KisShortcutsDialog
-{
-    Q_OBJECT
-
-public:
-    WdgShortcutSettings(QWidget *parent)
-        : KisShortcutsDialog(KisShortcutsEditor::AllActions,
-                             KisShortcutsEditor::LetterShortcutsAllowed,
-                             parent)
-    { }
-};
-
-class KisActionsSnapshot;
-
-class ShortcutSettingsTab : public QWidget
-{
-    Q_OBJECT
-
-public:
-
-    ShortcutSettingsTab(QWidget *parent = 0, const char *name = 0);
-    ~ShortcutSettingsTab() override;
-
-public:
-    void setDefault();
-    WdgShortcutSettings  *m_page;
-    QScopedPointer<KisActionsSnapshot> m_snapshot;
-
-public Q_SLOTS:
-    void saveChanges();
-    void cancelChanges();
 };
 
 
@@ -362,62 +316,6 @@ public:
 //=======================
 
 /**
- *  Full screen settings tab for preferences dialog
- */
-
-class WdgFullscreenSettingsBase : public QWidget, public Ui::WdgFullscreenSettings
-{
-    Q_OBJECT
-
-public:
-    WdgFullscreenSettingsBase(QWidget *parent) : QWidget(parent) {
-        setupUi(this);
-    }
-};
-
-class FullscreenSettingsTab : public WdgFullscreenSettingsBase
-{
-    Q_OBJECT
-public:
-    FullscreenSettingsTab(QWidget *parent);
-public:
-    void setDefault();
-};
-
-//=======================
-
-/**
-  * "Pop-up Palette"-tab for preferences dialog
- */
-
-class WdgPopupPaletteSettingsBase : public QWidget, public Ui::WdgPopupPaletteSettings
-{
-    Q_OBJECT
-
-public:
-    WdgPopupPaletteSettingsBase(QWidget *parent, const char *name) : QWidget(parent) {
-        setObjectName(name); setupUi(this);
-    }
-};
-
-class PopupPaletteTab : public WdgPopupPaletteSettingsBase
-{
-    Q_OBJECT
-
-public:
-    PopupPaletteTab(QWidget *parent = 0, const char *name = 0);
-
-    void load();
-    void save();
-    void setDefault();
-protected Q_SLOTS:
-    void slotSelectorTypeChanged(int index);
-};
-
-//=======================
-
-
-/**
  *  Preferences dialog of KImageShop^WKrayon^WKrita
  */
 class KisDlgPreferences : public KPageDialog
@@ -486,8 +384,6 @@ private:
     PerformanceTab *m_performanceSettings;
     DisplaySettingsTab  *m_displaySettings;
     TabletSettingsTab *m_tabletSettings;
-    FullscreenSettingsTab *m_fullscreenSettings;
-    PopupPaletteTab *m_popupPaletteSettings;
     KoConfigAuthorPage *m_authorPage;
 
     QList<KPageWidgetItem*> m_pages;

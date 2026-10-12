@@ -15,50 +15,28 @@
 #include <QGridLayout>
 #include <QLineEdit>
 #include <QCompleter>
-#include <QCheckBox>
 
 #include <klocalizedstring.h>
-
-#include <KoIcon.h>
-
-#include <kis_debug.h>
-#include <kconfig.h>
-#include <ksharedconfig.h>
-#include <kconfiggroup.h>
 
 class KisTagFilterWidget::Private
 {
 public:
     QLineEdit *tagSearchLineEdit;
-    QGridLayout *filterBarLayout;
     QCompleter *completer;
-    QCheckBox *filterByTagCheckbox;
-
-    QString configGroup {"resources"};
-    QString configName {"filterByTagChecked"};
-
 };
 
 KisTagFilterWidget::KisTagFilterWidget(KisTagModel* model, QWidget* parent)
     : QWidget(parent)
     , d(new Private())
 {
-    QString searchTooltipMaintext = i18nc(
-            "@info:tooltip",
-            "<p>Enter search terms to filter by name</p>");
-
     QGridLayout* filterBarLayout = new QGridLayout(this);
-
 
     d->tagSearchLineEdit = new QLineEdit(this);
     d->tagSearchLineEdit->setClearButtonEnabled(true);
-    // a magnifier says "search" without the word
     d->tagSearchLineEdit->addAction(KisIconUtils::loadIcon(QStringLiteral("studio_find")), QLineEdit::LeadingPosition);
-    d->tagSearchLineEdit->setToolTip(searchTooltipMaintext);
-    // on the panel, without a box of its own until pointed at or typed in
+    d->tagSearchLineEdit->setToolTip(i18nc("@info:tooltip", "<p>Enter search terms to filter by name</p>"));
     d->tagSearchLineEdit->setFrame(false);
     d->tagSearchLineEdit->setProperty(KisModernStyle::quietFieldProperty, true);
-    d->tagSearchLineEdit->setAttribute(Qt::WA_Hover);
     d->tagSearchLineEdit->setTextMargins(2, 3, 2, 3);
     d->tagSearchLineEdit->setPlaceholderText(i18nc("@info:placeholder", "Search"));
     d->tagSearchLineEdit->setEnabled(true);
@@ -72,19 +50,8 @@ KisTagFilterWidget::KisTagFilterWidget(KisTagModel* model, QWidget* parent)
     filterBarLayout->setColumnStretch(0, 1);
     filterBarLayout->addWidget(d->tagSearchLineEdit, 0, 0);
 
-    d->filterByTagCheckbox = new QCheckBox(this);
-    d->filterByTagCheckbox->setText(i18nc("It appears in the checkbox next to the filter box "
-                                          "in resources dockers; must be short.", "Filter in Tag"));
-
-    // searching stays within the chosen tag; "All" searches everything
-    d->filterByTagCheckbox->setChecked(true);
-
-
-    filterBarLayout->addWidget(d->filterByTagCheckbox, 0, 1);
-    d->filterByTagCheckbox->hide();
     connect(d->tagSearchLineEdit, SIGNAL(textChanged(QString)),
             this, SLOT(onTextChanged(QString)));
-    connect(d->filterByTagCheckbox, SIGNAL(stateChanged(int)), this, SLOT(slotFilterByTagChanged(int)));
 }
 
 KisTagFilterWidget::~KisTagFilterWidget()
@@ -97,20 +64,7 @@ void KisTagFilterWidget::clear()
     d->tagSearchLineEdit->clear();
 }
 
-bool KisTagFilterWidget::isFilterByTagChecked()
-{
-    return d->filterByTagCheckbox->isChecked();
-}
-
-
 void KisTagFilterWidget::onTextChanged(const QString& lineEditText)
 {
     Q_EMIT filterTextChanged(lineEditText);
-}
-
-void KisTagFilterWidget::slotFilterByTagChanged(int filterByTag)
-{
-    Q_EMIT filterByTagChanged(filterByTag == Qt::Checked);
-    KConfigGroup cfg = KSharedConfig::openConfig()->group(d->configGroup);
-    cfg.writeEntry(d->configName, filterByTag == Qt::Checked);
 }
