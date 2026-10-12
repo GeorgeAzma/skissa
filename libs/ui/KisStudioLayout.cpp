@@ -1246,6 +1246,8 @@ struct KisStudioLayout::Private
     QPointer<FlyoutWindow> flyoutWindow;
     QPointer<QWidget> flyoutAnchor;
     QPointer<QToolButton> toolChip;
+    /// The flyout is to be fitted to its contents again
+    bool flyoutRefit {false};
     QPointer<QAction> toolChipAction;
     QPointer<KisStudioToolStrip> toolStrip;
     QPointer<QAction> toolStripAction;
@@ -1567,6 +1569,9 @@ void KisStudioLayout::enter()
     }
 
     qApp->installEventFilter(this);
+    if (KisCanvasResourceProvider *resources = viewManager ? viewManager->canvasResourceProvider() : nullptr) {
+        d->connections << connect(resources, &KisCanvasResourceProvider::sigPaintOpPresetChanged, this, [this]() { updateToolChip(); });
+    }
     d->connections << connect(KoToolManager::instance(), &KoToolManager::changedTool, this,
                               [this](KoCanvasController *controller) {
                                   if (KisStudioToolRail::isOwnController(d->mainWindow, controller)) updateContextBar();
@@ -3197,6 +3202,32 @@ void KisStudioLayout::placeWindowButtons()
     }
 }
 
+void KisStudioLayout::updateToolChip()
+{
+    if (!d->toolChip) {
+        return;
+    }
+    const QString tool = KoToolManager::instance()->activeToolId();
+    KoToolFactoryBase *factory = KoToolRegistry::instance()->value(tool);
+    if (d->toolChipAction) {
+        d->toolChipAction->setVisible(factory && !isRailHidden());
+    }
+    if (!factory) {
+        return;
+    }
+    d->toolChip->setIcon(KisIconUtils::loadIcon(factory->iconName()));
+    // a brush tool is the brush it paints with; the tool by its icon, and its name on hover
+    const bool brushTool = tool == QLatin1String("KritaShape/KisToolBrush") || tool == QLatin1String("KritaShape/KisToolDyna")
+        || tool == QLatin1String("KritaShape/KisToolMultiBrush");
+    KisViewManager *view = d->mainWindow->viewManager();
+    KisCanvasResourceProvider *resources = view ? view->canvasResourceProvider() : nullptr;
+    const QString brush = brushTool && resources && resources->currentPreset() ? KisStudioBrushPicker::title(resources->currentPreset()->name()) : QString();
+    const QString toolName = KisStudioToolRail::toolName(factory);
+    d->toolChip->setText(brush.isEmpty() ? toolName : brush);
+    d->toolChip->setToolTip(brush.isEmpty() ? i18nc("@info:tooltip", "Tool options") : i18nc("@info:tooltip tool chip: the tool, its options", "%1 options", toolName));
+    d->toolChip->updateGeometry();
+}
+
 void KisStudioLayout::updateContextBar()
 {
     if (!d->active) {
@@ -3236,16 +3267,7 @@ void KisStudioLayout::updateContextBar()
     if (d->brushValuesAction) {
         d->brushValuesAction->setVisible(paints && !isRailHidden());
     }
-    if (d->toolChip) {
-        KoToolFactoryBase *factory = KoToolRegistry::instance()->value(tool);
-        if (d->toolChipAction) {
-            d->toolChipAction->setVisible(factory && !isRailHidden());
-        }
-        if (factory) {
-            d->toolChip->setIcon(KisIconUtils::loadIcon(factory->iconName()));
-            d->toolChip->setText(KisStudioToolRail::toolName(factory));
-        }
-    }
+    updateToolChip();
     if (d->flyout && d->flyoutAnchor) {
         // the new tool's options arrive later, in another size
         QTimer::singleShot(0, this, &KisStudioLayout::positionFlyout);
@@ -3333,6 +3355,18 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
         if (type == QEvent::Move || type == QEvent::Resize || type == QEvent::Show || type == QEvent::Hide) {
             placeWelcomePage();
             placeWindowHandle();
+        }
+    }
+
+    // an open flyout's contents grew or shrank (options shown by a checkbox): it fits them again, once
+    if (event->type() == QEvent::LayoutRequest && d->flyout && !d->flyoutRefit) {
+        auto *widget = qobject_cast<QWidget *>(watched);
+        if (widget && d->flyout->isAncestorOf(widget)) {
+            d->flyoutRefit = true;
+            QTimer::singleShot(0, this, [this]() {
+                d->flyoutRefit = false;
+                positionFlyout();
+            });
         }
     }
 

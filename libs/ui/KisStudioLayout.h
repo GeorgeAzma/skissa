@@ -119,6 +119,8 @@ private:
     void createTopBar();
     /// Shows only the toolbar entries that matter to the active tool
     void updateContextBar();
+    /// The tool chip: the brush's name for the brush tools, else the tool's
+    void updateToolChip();
     /// The document, menu, Settings, Find and window buttons on the window pill
     void placeWindowButtons();
     void showMainMenu(QWidget *button);
