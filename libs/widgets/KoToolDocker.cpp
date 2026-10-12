@@ -152,7 +152,7 @@ KoToolDocker::KoToolDocker(QWidget *parent)
 
     d->housekeeperWidget = new QWidget();
     d->housekeeperLayout = new QGridLayout;
-    d->housekeeperLayout->setContentsMargins(4,4,4,0);
+    d->housekeeperLayout->setContentsMargins(8, 6, 8, 6);
     d->housekeeperLayout->setSizeConstraint(QLayout::SetMinAndMaxSize);
     d->housekeeperMainLayout =
         new QBoxLayout(QBoxLayout::TopToBottom, d->housekeeperWidget);

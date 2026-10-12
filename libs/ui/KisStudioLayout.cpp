@@ -2206,9 +2206,16 @@ void KisStudioLayout::positionFlyout()
     const int width = qMax(0, qMin(qBound(260, contentsWidth + 2, 420), area.width() - 2 * margin));
 
     if (d->flyoutAnchor) {
-        // right below what opened it, only as tall as its contents
-        const int left = qMax(area.left() + margin, d->flyoutAnchor->mapToGlobal(QPoint(0, 0)).x());
-        const int height = qBound(160, contentsHeight, area.height() - 2 * margin);
+        // right below what opened it, only as tall as its contents, beside the tool rail rather than over it
+        int left = qMax(area.left() + margin, d->flyoutAnchor->mapToGlobal(QPoint(0, 0)).x());
+        if (QWidget *rail = d->brushRail; rail && rail->isVisible()) {
+            const QRect at(rail->mapToGlobal(QPoint()), rail->size());
+            if (at.left() < left + width && at.right() >= left) {
+                left = at.center().x() < area.center().x() ? at.right() + 1 + margin : at.left() - margin - width;
+            }
+        }
+        left = qBound(area.left() + margin, left, area.right() + 1 - margin - width);
+        const int height = qBound(80, contentsHeight, area.height() - 2 * margin);
         placeFlyout(QRect(left, area.top() + margin, width, height));
         return;
     }
