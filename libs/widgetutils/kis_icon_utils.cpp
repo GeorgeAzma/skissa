@@ -139,6 +139,16 @@ QIcon loadIcon(const QString &requestedName)
     for (const QString &resname : names) {
         if (QFile(resname).exists()) {
             QIcon icon(resname);
+            // a Studio icon's solid drawing, for when its button is on (a panel shown)
+            if (name.startsWith(QLatin1String("studio_")) && resname.endsWith(QLatin1String(".svg"))) {
+                const QString on = resname.left(resname.size() - 4) + QStringLiteral("_on.svg");
+                if (QFile(on).exists()) {
+                    for (QIcon::Mode mode : {QIcon::Normal, QIcon::Active, QIcon::Selected}) {
+                        icon.addFile(resname, QSize(), mode, QIcon::Off);
+                        icon.addFile(on, QSize(), mode, QIcon::On);
+                    }
+                }
+            }
             s_icons.insert(icon.cacheKey(), name);
             s_cache.insert(name, icon);
             return icon;

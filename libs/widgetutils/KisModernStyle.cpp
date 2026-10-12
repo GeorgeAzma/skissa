@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisModernStyle.h"
+#include <QWindow>
 #include "KisTouchMode.h"
 
 #include <QApplication>
@@ -1429,7 +1430,15 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
             label.rect = proxy()->subControlRect(CC_ToolButton, tool, SC_ToolButton, widget);
             painter->save();
             painter->setOpacity(on ? 1.0 : (s.hovered ? 0.8 : 0.5));
-            proxy()->drawControl(CE_ToolButtonLabel, &label, painter, widget);
+            if (on && !tool->icon.isNull() && tool->toolButtonStyle == Qt::ToolButtonIconOnly) {
+                // on: its drawing for on (solid, where it has one; see KisIconUtils), in place, not pushed in
+                QWindow *window = widget->window()->windowHandle();
+                const QPixmap pixmap = window ? tool->icon.pixmap(window, tool->iconSize, QIcon::Normal, QIcon::On)
+                                              : tool->icon.pixmap(tool->iconSize, QIcon::Normal, QIcon::On);
+                proxy()->drawItemPixmap(painter, label.rect, Qt::AlignCenter, pixmap);
+            } else {
+                proxy()->drawControl(CE_ToolButtonLabel, &label, painter, widget);
+            }
             painter->restore();
             if (on) {
                 const QRectF bar(tool->rect.center().x() - 5.5, tool->rect.bottom() - 2.5, 12, 2);

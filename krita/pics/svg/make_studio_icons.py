@@ -8,8 +8,10 @@ time (the tools, the top bar, the panels, a layer's switches).
 
   - a 24 px grid, the drawing within 2.5..21.5
   - 1.75 px lines with round ends and joins, nothing filled but small marks;
-    a switch that is on is solid where it is off drawn in line (locked, the
-    eye's pupil, clipped), so its state reads at a glance
+    a switch that is on is solid where it is off drawn in line (locked, a
+    visible layer's eye, clipped, alpha locked), so its state reads at a glance
+  - a button's icon with an <name>_on drawing is that drawing while the button
+    is on (a panel shown): KisIconUtils gives it to the icon as its On state
   - rounded corners are superellipse corners (as everywhere in Studio), not arcs
 
 Each icon is written as dark_studio_<name>.svg (for light themes) and
@@ -69,6 +71,21 @@ def box(x, y, w, h):
     return '<rect x="%s" y="%s" width="%s" height="%s" rx="0.6" fill="INK" stroke="none"/>' % (f(x), f(y), f(w), f(h))
 
 
+def hole_circle(cx, cy, r):
+    """A circle as a subpath, to cut out of a solid shape (fill-rule evenodd)"""
+    return 'M%s %sa%s %s 0 1 0 %s 0a%s %s 0 1 0 %s 0Z' % (f(cx - r), f(cy), f(r), f(r), f(2 * r), f(r), f(r), f(-2 * r))
+
+
+def solid(d):
+    """A solid shape, its subpaths cut out of it (evenodd), its edge drawn in line as the others' are"""
+    return '<path d="%s" fill="INK" fill-rule="evenodd"/>' % d
+
+
+def outline_of(shape):
+    """The path data of a shape made by sq() (or p())"""
+    return shape[9:-3]
+
+
 def dashed(shape, dash='2.4 2.6'):
     return shape.replace('/>', ' stroke-dasharray="%s"/>' % dash, 1)
 
@@ -95,13 +112,17 @@ LOCK_BODY = sq(5, 10.5, 14, 10, 2.6) + dot(12, 15.5, 1.3)
 LOCK_BODY_SOLID = (sq(5, 10.5, 14, 10, 2.6)
                    + '<path d="%s M12 13.9a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2Z" fill="INK" fill-rule="evenodd" stroke="none"/>'
                    % sq(5, 10.5, 14, 10, 2.6)[9:-3])
-# open, its pupil solid: shown (hidden, it is crossed out and has none)
-EYE = p('M2.8 12C4.6 8.2 8 5.8 12 5.8s7.4 2.4 9.2 6.2c-1.8 3.8-5.2 6.2-9.2 6.2S4.6 15.8 2.8 12Z') + dot(12, 12, 3.6)
+# shown: solid, its pupil cut out of it (hidden, it is drawn in line and crossed out); a ring for the iris blurs at row size
+EYE = solid('M2.8 12C4.6 8.2 8 5.8 12 5.8s7.4 2.4 9.2 6.2c-1.8 3.8-5.2 6.2-9.2 6.2S4.6 15.8 2.8 12Z' + hole_circle(12, 12, 3.3))
 CHECKER = (sq(3, 3, 11, 11, 2.6) + '<path d="M3.6 3.6h4.9v4.9H3.6zM8.5 8.5h4.9v4.9H8.5z" fill="INK" stroke="none" opacity="0.55"/>')
+# alpha lock: a padlock, its body a checkerboard (the transparency it keeps); locked, the checks solid
+ALPHA_BODY = sq(5, 10.5, 14, 10, 2.6)
+ALPHA_CHECKS = 'M6.6 12.1H12v3.4H6.6zM12 15.5h5.4v3.4H12z'
 
 
-def mirror(vertical):
-    g = p('M12 2.5v2.4M12 8v2.4M12 13.6V16M12 19.1v2.4') + p('M9 6.5 3.5 17H9Z') + '<path d="M15 6.5 20.5 17H15Z" fill="INK" stroke-linejoin="round"/>'
+def mirror(vertical, on=False):
+    left = '<path d="M9 6.5 3.5 17H9Z" fill="INK" stroke-linejoin="round"/>' if on else p('M9 6.5 3.5 17H9Z')
+    g = p('M12 2.5v2.4M12 8v2.4M12 13.6V16M12 19.1v2.4') + left + '<path d="M15 6.5 20.5 17H15Z" fill="INK" stroke-linejoin="round"/>'
     # across the other axis: the same drawing, its x and y swapped (turned, it would point like a play button)
     return '<g transform="matrix(0 1 1 0 0 0)">%s</g>' % g if vertical else g
 
@@ -158,11 +179,15 @@ ICONS = {
     'pressure_off': (p('M15.5 2.8 21.2 8.5 14.6 15.1 10.4 15.8 9.7 13.6 8.9 11.4Z') + p('M13.7 4.6l5.7 5.7')
                      + p('M2.6 21h7.4') + p('M3 3l18 18')),
     'brush_settings': p('M3.5 7h10M17.5 7h3M3.5 12h3M10.5 12h10M3.5 17h12M19.5 17h1') + c(15.5, 7, 2) + c(8.5, 12, 2) + c(17.5, 17, 2),
-    'alpha_lock': CHECKER + sq(13.5, 14, 8, 7, 1.6).replace('/>', ' fill="INK"/>') + p('M15.2 14v-1.6a2.3 2.3 0 0 1 4.6 0V14'),
-    'alpha_unlock': CHECKER + sq(13.5, 14, 8, 7, 1.6) + p('M15.2 14v-1.6a2.3 2.3 0 0 1 4.5-.7'),
+    'alpha_lock': (ALPHA_BODY + '<path d="%s" fill="INK" stroke="none"/>' % ALPHA_CHECKS
+                   + p('M8 10.5V7.5a4 4 0 0 1 8 0v3')),
+    'alpha_unlock': (ALPHA_BODY + '<path d="%s" fill="INK" stroke="none" opacity="0.6"/>' % ALPHA_CHECKS
+                     + p('M8 10.5V7.5a4 4 0 0 1 7.8-1.2')),
     'reload': p('M3.5 12a8.5 8.5 0 1 0 2.9-6.4L3.5 8.3') + p('M3.5 3.5v4.8h4.8'),
     'mirror_x': mirror(False),
     'mirror_y': mirror(True),
+    'mirror_x_on': mirror(False, True),
+    'mirror_y_on': mirror(True, True),
     'wrap': p('M16.5 3.5 20 7l-3.5 3.5') + p('M4 11V9.5a2.5 2.5 0 0 1 2.5-2.5H20') + p('M7.5 20.5 4 17l3.5-3.5') + p('M20 13v1.5a2.5 2.5 0 0 1-2.5 2.5H4'),
 
     # ---- a layer's switches
@@ -183,6 +208,17 @@ ICONS = {
                 + p('M10.5 18.2 4.1 8.9a1.9 1.9 0 0 1 .5-2.6l5.9-4')),
     'history': p('M3.5 12a8.5 8.5 0 1 0 2.9-6.4L3.5 8.3') + p('M3.5 3.5v4.8h4.8') + p('M12 7.5V12l3 2'),
     'tool_options': p('M7 3.5v3M7 10.5v10M12 3.5v10M12 17.5v3M17 3.5v6M17 13.5v7') + c(7, 8.5, 2) + c(12, 15.5, 2) + c(17, 11.5, 2),
+
+    # ---- the panels, shown (see KisIconUtils: a button's On state)
+    'layers_on': (solid('M12 3.5 20.5 8 12 12.5 3.5 8Z') + p('M3.5 12 12 16.5 20.5 12') + p('M3.5 16 12 20.5 20.5 16')),
+    'color_on': solid('M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.8-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3Z'
+                      + hole_circle(7.5, 11, 1.7) + hole_circle(9.5, 7, 1.7) + hole_circle(14.5, 7, 1.7) + hole_circle(17, 10.8, 1.7)),
+    'brushes_on': ''.join(solid(outline_of(sq(x, y, 7.2, 7.2, 2))) for x, y in ((3.5, 3.5), (13.3, 3.5), (3.5, 13.3), (13.3, 13.3))),
+    'palette_on': (solid(outline_of(sq(10.5, 3, 9, 18, 2.6)) + 'M10.5 8.4h9v1.2h-9ZM10.5 13.9h9v1.2h-9Z' + hole_circle(15, 17.8, 1.3))
+                   + p('M10.5 18.2 4.1 8.9a1.9 1.9 0 0 1 .5-2.6l5.9-4')),
+    'history_on': (p('M3.5 12a8.5 8.5 0 1 0 2.9-6.4L3.5 8.3') + p('M3.5 3.5v4.8h4.8')
+                   + '<path d="%sM11.3 6.6h1.4v4.7l2.7 1.8-.8 1.2-3.3-2.2Z" fill="INK" fill-rule="evenodd" stroke="none"/>' % hole_circle(12, 12, 5.9).replace('M6.1 12', 'M6.1 12', 1)),
+    'tool_options_on': p('M7 3.5v3M7 10.5v10M12 3.5v10M12 17.5v3M17 3.5v6M17 13.5v7') + dot(7, 8.5, 2.6) + dot(12, 15.5, 2.6) + dot(17, 11.5, 2.6),
     'find': c(10.5, 10.5, 7) + p('m20.5 20.5-5-5'),
     'more': dot(5.5, 12, 1.6) + dot(12, 12, 1.6) + dot(18.5, 12, 1.6),
 
