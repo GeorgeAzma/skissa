@@ -1301,22 +1301,34 @@ QString KUndo2QStack::text(int idx) const
     are treated as one command. The default value is 0, which means that there is no
     limit.
 
-    This property may only be set when the undo stack is empty, since setting it on a
-    non-empty stack might delete the command at the current index. Calling setUndoLimit()
-    on a non-empty stack prints a warning and does nothing.
+    Lowering it on a non-empty stack deletes the oldest commands that are over it, never
+    one that can be redone: those go with the next command pushed.
 */
 
 void KUndo2QStack::setUndoLimit(int limit)
 {
-    if (!m_command_list.isEmpty()) {
-        qWarning("KUndo2QStack::setUndoLimit(): an undo limit can only be set when the stack is empty");
-        return;
-    }
-
     if (limit == m_undo_limit)
         return;
     m_undo_limit = limit;
-    checkUndoLimit();
+    // while a macro is recorded, the next push or endMacro() keeps the limit
+    if (m_undo_limit <= 0 || !m_macro_stack.isEmpty())
+        return;
+
+    const int drop = qMin(m_command_list.count() - m_undo_limit, m_index);
+    if (drop <= 0)
+        return;
+    const bool wasClean = isClean();
+    for (int i = 0; i < drop; ++i)
+        delete m_command_list.takeFirst();
+    m_index -= drop;
+    if (m_clean_index != -1)
+        m_clean_index = m_clean_index < drop ? -1 : m_clean_index - drop;
+
+    Q_EMIT indexChanged(m_index);
+    Q_EMIT canUndoChanged(canUndo());
+    Q_EMIT undoTextChanged(undoText());
+    if (wasClean != isClean())
+        Q_EMIT cleanChanged(isClean());
 }
 
 int KUndo2QStack::undoLimit() const

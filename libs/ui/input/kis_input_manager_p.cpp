@@ -8,6 +8,7 @@
 
 #include <QMap>
 #include <QApplication>
+#include <QComboBox>
 #include <QScopedPointer>
 #include <QTimer>
 #include <QtGlobal>
@@ -174,6 +175,18 @@ bool isInputWidget(QWidget *w)
     return false;
 }
 
+/// Where text is typed: the pointer resting on the canvas doesn't take the keys from it, only a click there does
+bool isTextInput(QWidget *w)
+{
+    if (!w) return false;
+    if (w->inherits("QLineEdit") || w->inherits("QAbstractSpinBox") || w->inherits("QTextEdit") || w->inherits("QPlainTextEdit")
+        || w->inherits("QKeySequenceEdit")) {
+        return true;
+    }
+    auto *combo = qobject_cast<QComboBox *>(w);
+    return combo && combo->isEditable();
+}
+
 bool KisInputManager::Private::CanvasSwitcher::eventFilter(QObject* object, QEvent* event )
 {
     if (canvasResolver.contains(object)) {
@@ -247,7 +260,7 @@ bool KisInputManager::Private::CanvasSwitcher::eventFilter(QObject* object, QEve
         case QEvent::TabletMove: {
             QWidget *widget = static_cast<QWidget*>(object);
 
-            if (!widget->hasFocus()) {
+            if (!widget->hasFocus() && !isTextInput(QApplication::focusWidget())) {
                 const int delay =
                     isInputWidget(QApplication::focusWidget()) ?
                     InputWidgetsThreshold : OtherWidgetsThreshold;
