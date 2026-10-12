@@ -51,9 +51,12 @@ constexpr qreal dragStart = 6;
 } // namespace
 
 KisStudioCanvasRing::KisStudioCanvasRing(KisMainWindow *mainWindow)
-    : QWidget(nullptr)
+    // in the window (gone with it, its event filter too), over everything in it: the panels, the rail, the top
+    // bars; its glass over theirs, not in the canvas, which they lie over
+    : QWidget(mainWindow)
     , m_mainWindow(mainWindow)
 {
+    KisStudioGlass::setOverOverlays(this);
     setAttribute(Qt::WA_NoSystemBackground);
     setMouseTracking(true);
     setFixedSize(int(2 * plateRadius + 8), int(2 * plateRadius + 8));
@@ -109,15 +112,6 @@ void KisStudioCanvasRing::open(QWidget *canvas, const QPointF &pos)
     if (!view || !resources) {
         return;
     }
-    /**
-     * In the window, over everything in it (the panels, the rail, the top
-     * bars), its glass over theirs: not in the canvas, which they lie over
-     */
-    if (parentWidget() != m_mainWindow) {
-        setParent(m_mainWindow);
-        KisStudioGlass::setOverOverlays(this);
-    }
-
     loadSlots();
     // the colors painted on the layer, around them
     m_colors.clear();

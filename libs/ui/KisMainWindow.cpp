@@ -275,6 +275,8 @@ public:
     KisAction *toggleDockerTitleBars {nullptr};
     KisAction *toggleStudioLayout {nullptr};
     KisStudioLayout *studioLayout {nullptr};
+    /// The panels' font as last set (see configChanged)
+    QFont dockFont;
     KisStudioFind *studioFind {nullptr};
     KisStudioRings *studioRings {nullptr};
     KisAction *findAnything {nullptr};
@@ -3018,13 +3020,14 @@ void KisMainWindow::configChanged()
 
     d->mdiArea->update();
 
-    qApp->setFont(KisUiFont::normalFont());
-
-    Q_FOREACH (QObject* widget, children()) {
-        if (widget->inherits("QDockWidget")) {
-            QDockWidget* dw = static_cast<QDockWidget*>(widget);
-            dw->setFont(KisUiFont::dockFont());
-        }
+    // only when they changed: each lays the windows out again, and this runs at every change of a setting
+    const QFont font = KisUiFont::normalFont();
+    if (qApp->font() != font) qApp->setFont(font);
+    const QFont dockFont = KisUiFont::dockFont();
+    if (d->dockFont != dockFont) {
+        d->dockFont = dockFont;
+        // all of them, also the ones the studio layout holds elsewhere than in the window
+        Q_FOREACH (QDockWidget *dock, dockWidgets()) dock->setFont(dockFont);
     }
 
     // the view mode and the status bar were just reset from the config

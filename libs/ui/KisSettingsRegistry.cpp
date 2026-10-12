@@ -240,7 +240,23 @@ QVector<Setting> describeAll()
         all << strokes;
 
         all << color(QStringLiteral("canvasBorderColor"), QColor(0, 0, 0), i18nc("setting", "Around the image"));
-        all << toggle(QStringLiteral("use_custom_system_font"), false, i18nc("setting", "Own interface font"));
+        Setting ownFont = toggle(QStringLiteral("use_custom_system_font"), false, i18nc("setting", "Own interface font"));
+        // on: the font used now, to change from; off: the system's again, nothing left set
+        ownFont.written = [](const QVariant &value) {
+            KisSettingsRegistry *r = KisSettingsRegistry::instance();
+            if (!value.toBool()) {
+                r->reset(QStringLiteral("custom_system_font"));
+                r->reset(QStringLiteral("custom_font_size"));
+                return;
+            }
+            if (r->value(QStringLiteral("custom_system_font")).toString().isEmpty()) {
+                r->setValue(QStringLiteral("custom_system_font"), qApp->font().family());
+            }
+            if (r->value(QStringLiteral("custom_font_size")).toInt() < 7) {
+                r->setValue(QStringLiteral("custom_font_size"), qBound(7, qApp->font().pointSize(), 30));
+            }
+        };
+        all << ownFont;
         Setting family = text(QStringLiteral("custom_system_font"), QLatin1String(""), i18nc("setting", "Interface font"), R::Machine);
         all << family;
         all << number(QStringLiteral("custom_font_size"), -1, -1, 72, i18nc("setting", "Interface font size"));
@@ -297,8 +313,8 @@ QVector<Setting> describeAll()
                        {2, i18nc("sampler ring position", "Above left")}, {3, i18nc("sampler ring position", "Above right")}},
                       i18nc("setting", "Sampler ring position"));
 
-        all << color(QStringLiteral("checkerscolor"), QColor(220, 220, 220), i18nc("setting", "Checkerboard light squares"));
-        all << color(QStringLiteral("checkerscolor2"), QColor(255, 255, 255), i18nc("setting", "Checkerboard dark squares"));
+        all << color(QStringLiteral("checkerscolor"), QColor(220, 220, 220), i18nc("setting", "Checkerboard squares"));
+        all << color(QStringLiteral("checkerscolor2"), QColor(255, 255, 255), i18nc("setting", "Checkerboard other squares"));
         all << number(QStringLiteral("checksize"), 32, 1, 256, i18nc("setting", "Checkerboard size"));
         all << toggle(QStringLiteral("scrollingcheckers"), false, i18nc("setting", "Checkerboard moves with the image"));
         all << color(QStringLiteral("pixelGridColor"), QColor(255, 255, 255), i18nc("setting", "Pixel grid color"));
@@ -536,7 +552,7 @@ QVector<Setting> describeAll()
         all << number(QStringLiteral("frameRenderingClones"), qMax(1, KisImageConfig(true).maxNumberOfThreads() / 2), 1, threads,
                       i18nc("setting", "Frames rendered at once"), R::Machine);
         all << number(QStringLiteral("frameRenderingTimeout"), 30000, 5000, 600000, i18nc("setting", "Frame rendering timeout"));
-        all << toggle(QStringLiteral("detectFpsLimit"), true, i18nc("setting", "Frame rate of the screen"), R::NewViews);
+        all << toggle(QStringLiteral("detectFpsLimit"), true, i18nc("setting", "Match the screen's frame rate"), R::NewViews);
         all << number(QStringLiteral("fpsLimit"), 100, 1, 1000, i18nc("setting", "Frame rate limit"), R::NewViews);
         all << toggle(QStringLiteral("useOnDiskAnimationCacheSwapping"), true, i18nc("setting", "Animation cache on disk"));
         all << toggle(QStringLiteral("useAnimationCacheFrameSizeLimit"), true, i18nc("setting", "Smaller cached frames"));
@@ -594,7 +610,7 @@ KisSettingsRegistry::KisSettingsRegistry()
 
     // Krita is told once for what is written together (a slider dragged), soon enough to follow it live
     d->notify.setSingleShot(true);
-    d->notify.setInterval(30);
+    d->notify.setInterval(60);
     connect(&d->notify, &QTimer::timeout, this, &KisSettingsRegistry::notifyNow);
     // and kritarc is written once the changes stop: rewriting it is not free, nor safe to do often
     d->sync.setSingleShot(true);
