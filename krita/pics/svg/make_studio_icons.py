@@ -7,7 +7,9 @@ The Studio icons: one drawing language for the icons that are in sight all the
 time (the tools, the top bar, the panels, a layer's switches).
 
   - a 24 px grid, the drawing within 2.5..21.5
-  - 1.75 px lines with round ends and joins, nothing filled but small marks
+  - 1.75 px lines with round ends and joins, nothing filled but small marks;
+    a switch that is on is solid where it is off drawn in line (locked, the
+    eye's pupil, clipped), so its state reads at a glance
   - rounded corners are superellipse corners (as everywhere in Studio), not arcs
 
 Each icon is written as dark_studio_<name>.svg (for light themes) and
@@ -89,7 +91,12 @@ SELECT_RECT = (p('M3.5 8V6.9a3.4 3.4 0 0 1 3.4-3.4H8') + p('M16 3.5h1.1a3.4 3.4 
                + p('M20.5 16v1.1a3.4 3.4 0 0 1-3.4 3.4H16') + p('M8 20.5H6.9a3.4 3.4 0 0 1-3.4-3.4V16')
                + p('M10.8 3.5h2.4') + p('M20.5 10.8v2.4') + p('M10.8 20.5h2.4') + p('M3.5 10.8v2.4'))
 LOCK_BODY = sq(5, 10.5, 14, 10, 2.6) + dot(12, 15.5, 1.3)
-EYE = p('M2.8 12C4.6 8.2 8 5.8 12 5.8s7.4 2.4 9.2 6.2c-1.8 3.8-5.2 6.2-9.2 6.2S4.6 15.8 2.8 12Z') + c(12, 12, 3)
+# locked: the body solid, its keyhole cut out of it
+LOCK_BODY_SOLID = (sq(5, 10.5, 14, 10, 2.6)
+                   + '<path d="%s M12 13.9a1.6 1.6 0 1 0 0 3.2a1.6 1.6 0 1 0 0-3.2Z" fill="INK" fill-rule="evenodd" stroke="none"/>'
+                   % sq(5, 10.5, 14, 10, 2.6)[9:-3])
+# open, its pupil solid: shown (hidden, it is crossed out and has none)
+EYE = p('M2.8 12C4.6 8.2 8 5.8 12 5.8s7.4 2.4 9.2 6.2c-1.8 3.8-5.2 6.2-9.2 6.2S4.6 15.8 2.8 12Z') + dot(12, 12, 3.6)
 CHECKER = (sq(3, 3, 11, 11, 2.6) + '<path d="M3.6 3.6h4.9v4.9H3.6zM8.5 8.5h4.9v4.9H8.5z" fill="INK" stroke="none" opacity="0.55"/>')
 
 
@@ -151,7 +158,7 @@ ICONS = {
     'pressure_off': (p('M15.5 2.8 21.2 8.5 14.6 15.1 10.4 15.8 9.7 13.6 8.9 11.4Z') + p('M13.7 4.6l5.7 5.7')
                      + p('M2.6 21h7.4') + p('M3 3l18 18')),
     'brush_settings': p('M3.5 7h10M17.5 7h3M3.5 12h3M10.5 12h10M3.5 17h12M19.5 17h1') + c(15.5, 7, 2) + c(8.5, 12, 2) + c(17.5, 17, 2),
-    'alpha_lock': CHECKER + sq(13.5, 14, 8, 7, 1.6) + p('M15.2 14v-1.6a2.3 2.3 0 0 1 4.6 0V14'),
+    'alpha_lock': CHECKER + sq(13.5, 14, 8, 7, 1.6).replace('/>', ' fill="INK"/>') + p('M15.2 14v-1.6a2.3 2.3 0 0 1 4.6 0V14'),
     'alpha_unlock': CHECKER + sq(13.5, 14, 8, 7, 1.6) + p('M15.2 14v-1.6a2.3 2.3 0 0 1 4.5-.7'),
     'reload': p('M3.5 12a8.5 8.5 0 1 0 2.9-6.4L3.5 8.3') + p('M3.5 3.5v4.8h4.8'),
     'mirror_x': mirror(False),
@@ -161,9 +168,11 @@ ICONS = {
     # ---- a layer's switches
     'visible': EYE,
     'hidden': p('M9.9 6c.7-.1 1.4-.2 2.1-.2 4 0 7.4 2.4 9.2 6.2-.6 1.3-1.4 2.4-2.3 3.3M14.1 14.1a3 3 0 0 1-4.2-4.2M17 17c-1.4.8-3.1 1.2-5 1.2-4 0-7.4-2.4-9.2-6.2.9-1.9 2.2-3.5 3.9-4.6') + p('M3.5 3.5l17 17'),
-    'locked': LOCK_BODY + p('M8 10.5V7.5a4 4 0 0 1 8 0v3'),
+    'locked': LOCK_BODY_SOLID + p('M8 10.5V7.5a4 4 0 0 1 8 0v3'),
     'unlocked': LOCK_BODY + p('M8 10.5V7.5a4 4 0 0 1 7.8-1.2'),
     'clip': p('M6.5 3.5v8.5a4 4 0 0 0 4 4h9') + p('M16.5 13l3 3-3 3'),
+    # on: its arrowhead solid
+    'clip_on': p('M6.5 3.5v8.5a4 4 0 0 0 4 4h8') + '<path d="M16 12.2 20.5 16 16 19.8Z" fill="INK"/>',
 
     # ---- panels
     'layers': p('M12 3.5 20.5 8 12 12.5 3.5 8Z') + p('M3.5 12 12 16.5 20.5 12') + p('M3.5 16 12 20.5 20.5 16'),

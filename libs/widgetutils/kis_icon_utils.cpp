@@ -86,7 +86,8 @@ static QString studioIcon(const QString &name)
         {QStringLiteral("layer-unlocked"), QStringLiteral("studio_unlocked")},
         {QStringLiteral("transparency-locked"), QStringLiteral("studio_alpha_lock")},
         {QStringLiteral("transparency-unlocked"), QStringLiteral("studio_alpha_unlock")},
-        {QStringLiteral("transparency-disabled"), QStringLiteral("studio_clip")},
+        // inherit alpha on (Krita's names are the other way round)
+        {QStringLiteral("transparency-disabled"), QStringLiteral("studio_clip_on")},
         {QStringLiteral("transparency-enabled"), QStringLiteral("studio_clip")},
         // commands
         {QStringLiteral("list-add"), QStringLiteral("studio_add")},
