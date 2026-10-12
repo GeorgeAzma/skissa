@@ -720,24 +720,35 @@ int KisImageConfig::maxMaskingBrushSize() const
     return qMin(15000, 3 * maxBrushSize());
 }
 
-bool KisImageConfig::renameMergedLayers(bool defaultValue) const
+QString KisImageConfig::layerNameKey(LayerNaming kind, bool before)
 {
-    return defaultValue ? true : m_config.readEntry("renameMergedLayers", true);
+    static const char *const kinds[] = {"Copy", "Pasted", "Merged"};
+    return QStringLiteral("layerName%1%2").arg(QLatin1String(kinds[kind]), before ? QStringLiteral("Before") : QStringLiteral("After"));
 }
 
-void KisImageConfig::setRenameMergedLayers(bool value)
+QString KisImageConfig::defaultLayerNameAffix(LayerNaming kind, bool before)
 {
-    m_config.writeEntry("renameMergedLayers", value);
+    switch (kind) {
+    case CopiedLayer: return before ? i18n("Copy of") : QString();
+    case PastedLayer: return before ? QString() : i18n("(pasted)");
+    case MergedLayer: return before ? QString() : i18n("Merged");
+    }
+    return QString();
 }
 
-bool KisImageConfig::renameDuplicatedLayers(bool defaultValue) const
+QString KisImageConfig::layerNameAffix(LayerNaming kind, bool before) const
 {
-    return defaultValue ? true : m_config.readEntry("renameDuplicatedLayers", true);
+    return m_config.readEntry(layerNameKey(kind, before), defaultLayerNameAffix(kind, before)).trimmed();
 }
 
-void KisImageConfig::setRenameDuplicatedLayers(bool value)
+QString KisImageConfig::layerName(LayerNaming kind, const QString &name) const
 {
-    m_config.writeEntry("renameDuplicatedLayers", value);
+    const QString before = layerNameAffix(kind, true);
+    QString result = name;
+    if (!before.isEmpty() && !result.startsWith(before)) result = before + QLatin1Char(' ') + result;
+    const QString after = layerNameAffix(kind, false);
+    if (!after.isEmpty() && !result.endsWith(after)) result = result + QLatin1Char(' ') + after;
+    return result;
 }
 
 QString KisImageConfig::exportConfigurationXML(const QString &exportConfigId, bool defaultValue) const

@@ -16,7 +16,10 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QFile>
+#include <QFileInfo>
 #include <QFontComboBox>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -50,6 +53,7 @@
 
 #include <KoColor.h>
 #include <KoColorSpaceRegistry.h>
+#include <KoColorSpaceEngine.h>
 #include <KoConfigAuthorPage.h>
 #include <KoFileDialog.h>
 #include <KoResourcePaths.h>
@@ -60,12 +64,13 @@
 #include "KisSettingsTransfer.h"
 #include "KisStudioGlass.h"
 #include "KisStudioMotion.h"
+#include "KisStudioTheme.h"
 #include "widgets/KisStudioPicker.h"
 #include "KisViewManager.h"
 #include "KisView.h"
 #include "kis_canvas2.h"
 #include "dialogs/KisKeysPage.h"
-#include "dialogs/kis_dlg_preferences.h"
+#include "KisPlatformPluginInterfaceFactory.h"
 #include "kis_color_button.h"
 #include "kis_config.h"
 #include "kis_config_notifier.h"
@@ -87,6 +92,7 @@ namespace {
 
 using R = KisSettingsRegistry;
 using Setting = KisSettingsRegistry::Setting;
+using Kind = KisSettingsRegistry::Kind;
 
 const QString cardMime = QStringLiteral("application/x-krita-settings-card");
 /// Your sections and Quick (JSON); see UserSections
@@ -525,6 +531,9 @@ struct Number {
 struct Builder {
     QWidget *card {nullptr};
     QVBoxLayout *layout {nullptr};
+    /// The card's title and the line it is on
+    QLabel *title {nullptr};
+    QHBoxLayout *header {nullptr};
     KisMainWindow *window {nullptr};
     QVector<std::function<void()>> refresh;
 
@@ -762,6 +771,24 @@ struct Builder {
         return label;
     }
 
+    /// What the card is about, said on hover over its title, an (i) beside it
+    void explain(const QString &text)
+    {
+        if (!title || text.isEmpty()) return;
+        const QString before = title->toolTip();
+        title->setToolTip(before.isEmpty() ? text : before + QStringLiteral("\n\n") + text);
+        if (!title->property("explained").toBool()) {
+            title->setProperty("explained", true);
+            auto *info = new QLabel(card);
+            info->setPixmap(KisIconUtils::loadIcon(QStringLiteral("studio_info")).pixmap(12, 12));
+            header->insertWidget(header->indexOf(title) + 1, info);
+            info->setToolTip(title->toolTip());
+            title->setProperty("explainedMark", QVariant::fromValue<QObject *>(info));
+        } else if (auto *info = qobject_cast<QLabel *>(title->property("explainedMark").value<QObject *>())) {
+            info->setToolTip(title->toolTip());
+        }
+    }
+
     /// \p widget shown only while \p when holds
     void showWhen(QWidget *widget, std::function<bool()> when)
     {
@@ -819,29 +846,6 @@ struct SchemeLook {
     QColor window, view, text, selection, button;
 };
 
-SchemeLook schemeLook(const QString &name)
-{
-    // read once: the files don't change while Krita runs
-    static QHash<QString, SchemeLook> looks;
-    const auto known = looks.constFind(name);
-    if (known != looks.constEnd()) return *known;
-    QStringList files = KoResourcePaths::findAllAssets("data", QStringLiteral("color-schemes/*.colors"));
-    files += KoResourcePaths::findAllAssets("genericdata", QStringLiteral("color-schemes/*.colors"));
-    Q_FOREACH (const QString &file, files) {
-        KConfig scheme(file, KConfig::SimpleConfig);
-        if (scheme.group("General").readEntry("Name", QFileInfo(file).completeBaseName()) != name) continue;
-        SchemeLook look;
-        look.window = scheme.group("Colors:Window").readEntry("BackgroundNormal", QColor(60, 60, 60));
-        look.text = scheme.group("Colors:Window").readEntry("ForegroundNormal", QColor(220, 220, 220));
-        look.view = scheme.group("Colors:View").readEntry("BackgroundNormal", look.window);
-        look.selection = scheme.group("Colors:Selection").readEntry("BackgroundNormal", QColor(80, 120, 200));
-        look.button = scheme.group("Colors:Button").readEntry("BackgroundNormal", look.window);
-        looks.insert(name, look);
-        return look;
-    }
-    return {QColor(60, 60, 60), QColor(40, 40, 40), QColor(220, 220, 220), QColor(90, 90, 90), QColor(70, 70, 70)};
-}
-
 /// A tiny window in \p look's colors
 void paintScheme(QPainter &painter, const QRectF &r, const SchemeLook &look)
 {
@@ -880,15 +884,6 @@ void paintSurround(QPainter &painter, const QRectF &r, const QColor &around, boo
     painter.drawImage(image, sample);
 }
 
-/// The Preferences dialog, at \p page ({page, tab}) if given
-void openClassic(KisMainWindow *window, const QVariant &page = QVariant())
-{
-    QAction *configure = window ? window->actionCollection()->action(QStringLiteral("options_configure")) : nullptr;
-    if (!configure) return;
-    configure->setData(page);
-    configure->trigger();
-}
-
 QVector<CardDef> makeCards()
 {
     QVector<CardDef> cards;
@@ -896,44 +891,61 @@ QVector<CardDef> makeCards()
                         std::function<void(Builder &)> build) {
         cards << CardDef{QStringLiteral("%1.%2").arg(section, id), section, title, settings, aliases, build, QString()};
     };
-    /// A card that is one switch
-    auto addToggle = [&cards](const QString &section, const QString &id, const QString &title, const QString &setting, const QString &aliases,
-                              const QString &note = QString()) {
-        cards << CardDef{QStringLiteral("%1.%2").arg(section, id), section, title, {setting}, aliases,
-                         [note](Builder &b) {
-                             if (!note.isEmpty()) b.note(note);
-                         },
-                         setting};
+    /// A card that is one switch, explained as its setting is
+    auto addToggle = [&cards](const QString &section, const QString &id, const QString &title, const QString &setting, const QString &aliases) {
+        cards << CardDef{QStringLiteral("%1.%2").arg(section, id), section, title, {setting}, aliases, std::function<void(Builder &)>(), setting};
     };
 
     // ---- appearance
-    add(QStringLiteral("appearance"), QStringLiteral("theme"), i18nc("settings card", "Theme"), {QStringLiteral("[theme] Theme")},
-        QStringLiteral("dark light colors color scheme palette"), [](Builder &b) {
-            const Setting *s = R::instance()->setting(QStringLiteral("[theme] Theme"));
-            const QVector<R::Choice> themes = R::instance()->choices(*s);
+    add(QStringLiteral("appearance"), QStringLiteral("theme"), i18nc("settings card", "Theme"),
+        {QStringLiteral("[theme] Theme"), QStringLiteral("[StudioTheme] Lightness"), QStringLiteral("[StudioTheme] Tint"),
+         QStringLiteral("[StudioTheme] TintAmount"), QStringLiteral("[StudioTheme] UseAccent"), QStringLiteral("[StudioTheme] Accent"),
+         QStringLiteral("[StudioTheme] Contrast")},
+        QStringLiteral("dark light colors color scheme palette accent tint contrast lightness"), [](Builder &b) {
+            b.explain(i18nc("@info:tooltip", "Start from a preset, then make it yours: every choice below changes the theme."));
+            // the presets, each pictured in its own colors
+            const QVector<KisStudioTheme::Preset> presets = KisStudioTheme::presets();
             QVector<Tiles::Tile> tiles;
-            Q_FOREACH (const R::Choice &theme, themes) {
-                const SchemeLook look = schemeLook(theme.text);
-                tiles << Tiles::Tile{theme.text, [look](QPainter &painter, const QRectF &r) { paintScheme(painter, r, look); }};
+            Q_FOREACH (const KisStudioTheme::Preset &preset, presets) {
+                const KisStudioTheme::Look l = KisStudioTheme::look(preset.params);
+                const SchemeLook look{l.window, l.view, l.text, l.selection, l.button};
+                tiles << Tiles::Tile{preset.name, [look](QPainter &painter, const QRectF &r) { paintScheme(painter, r, look); }};
             }
-            auto *picker = new Tiles(tiles, QSize(128, 72), b.card);
-            auto current = [themes]() {
-                const QVariant value = R::instance()->value(QStringLiteral("[theme] Theme"));
-                for (int i = 0; i < themes.size(); i++) {
-                    if (themes[i].value == value) return i;
+            auto *picker = new Tiles(tiles, QSize(96, 56), b.card);
+            picker->picked = [presets](int i) { KisStudioTheme::apply(presets[i].params); };
+            b.follow([picker, presets]() {
+                int current = -1;
+                if (R::instance()->value(QStringLiteral("[theme] Theme")).toString() == KisStudioTheme::schemeName()) {
+                    const KisStudioTheme::Params now = KisStudioTheme::current();
+                    for (int i = 0; i < presets.size() && current < 0; i++) {
+                        if (presets[i].params == now) current = i;
+                    }
                 }
-                return -1;
-            };
-            picker->picked = [themes](int i) { R::instance()->setValue(QStringLiteral("[theme] Theme"), themes[i].value); };
-            b.follow([picker, current]() { picker->setCurrent(current()); });
+                picker->setCurrent(current);
+            });
             b.layout->addWidget(picker);
+            // the choices it is made of; costly to take, so taken when a slider is let go
+            Number lightness(i18nc("theme", "Lightness"), 100, 0, QStringLiteral("%"));
+            lightness.onRelease = true;
+            b.number(QStringLiteral("[StudioTheme] Lightness"), lightness);
+            b.color(QStringLiteral("[StudioTheme] Tint"), false, i18nc("theme", "Tint"));
+            Number amount(i18nc("theme", "Tint strength"), 100, 0, QStringLiteral("%"));
+            amount.onRelease = true;
+            b.number(QStringLiteral("[StudioTheme] TintAmount"), amount);
+            b.toggle(QStringLiteral("[StudioTheme] UseAccent"), i18nc("theme", "Accent color"));
+            b.showWhen(b.color(QStringLiteral("[StudioTheme] Accent"), false, i18nc("theme", "Accent")), b.isOn(QStringLiteral("[StudioTheme] UseAccent")));
+            Number contrast(i18nc("theme", "Contrast"), 100, 0, QStringLiteral("%"));
+            contrast.onRelease = true;
+            b.number(QStringLiteral("[StudioTheme] Contrast"), contrast);
         });
     add(QStringLiteral("appearance"), QStringLiteral("glass"), i18nc("settings card", "Glass"),
-        {QStringLiteral("StudioGlass"), QStringLiteral("StudioGlassRefraction")},
-        QStringLiteral("transparency blur frosted refraction see-through panels edge bends the canvas"), [](Builder &b) {
+        {QStringLiteral("StudioGlass"), QStringLiteral("StudioGlassBlur"), QStringLiteral("StudioGlassOpacity"), QStringLiteral("StudioGlassRefraction")},
+        QStringLiteral("transparency blur frosted opacity tint refraction see-through panels edge bends the canvas"), [](Builder &b) {
             b.toggle(QStringLiteral("StudioGlass"), i18nc("glass", "Panels of glass"));
-            b.showWhen(b.number(QStringLiteral("StudioGlassRefraction"), {i18nc("glass", "Edge bends the canvas"), 100, 0, QStringLiteral("%")}),
-                       b.isOn(QStringLiteral("StudioGlass")));
+            const auto on = b.isOn(QStringLiteral("StudioGlass"));
+            b.showWhen(b.number(QStringLiteral("StudioGlassBlur"), {i18nc("glass", "Blur"), 100, 0, QStringLiteral("%")}), on);
+            b.showWhen(b.number(QStringLiteral("StudioGlassOpacity"), {i18nc("glass", "Opacity"), 100, 0, QStringLiteral("%")}), on);
+            b.showWhen(b.number(QStringLiteral("StudioGlassRefraction"), {i18nc("glass", "Edge bends the canvas"), 100, 0, QStringLiteral("%")}), on);
         });
     add(QStringLiteral("appearance"), QStringLiteral("surround"), i18nc("settings card", "Around the image"), {QStringLiteral("canvasBorderColor")},
         QStringLiteral("canvas border background color ambient glow"), [](Builder &b) {
@@ -955,7 +967,7 @@ QVector<CardDef> makeCards()
             });
             b.layout->addWidget(picker);
             b.showWhen(b.color(QStringLiteral("canvasBorderColor"), false, i18nc("around the image", "Color")), [current]() { return current() == 1; });
-            b.note(i18nc("@info", "Glow: the picture's colors light the dark around it."));
+            b.explain(i18nc("@info:tooltip", "Glow: the picture's colors light the dark around it. Color: one color all around."));
         });
     add(QStringLiteral("appearance"), QStringLiteral("font"), i18nc("settings card", "Interface font"),
         {QStringLiteral("use_custom_system_font"), QStringLiteral("custom_system_font"), QStringLiteral("custom_font_size")},
@@ -1073,7 +1085,7 @@ QVector<CardDef> makeCards()
             QObject::connect(curve, &KisCurveWidget::curveChanged, b.card,
                              [](const KisCubicCurve &c) { R::instance()->setValue(QStringLiteral("tabletPressureCurve"), c.toString()); });
             b.layout->addWidget(curve);
-            b.note(i18nc("@info", "Across: how hard you press. Up: how much it paints."));
+            b.explain(i18nc("@info:tooltip", "Across: how hard you press. Up: how much it paints."));
         });
     add(QStringLiteral("pen"), QStringLiteral("tablet"), i18nc("settings card", "Tablet"),
         {QStringLiteral("kritadisplayrc useWin8PointerInput"), QStringLiteral("useRightMiddleTabletButtonWorkaround")},
@@ -1133,7 +1145,6 @@ QVector<CardDef> makeCards()
             Number steps(i18nc("undo", "Steps"), 1, 0, QString(), 5);
             steps.onRelease = true;
             b.number(QStringLiteral("undoStackLimit"), steps);
-            b.note(i18nc("@info", "Changing the steps clears the undo history of open images."));
             b.toggle(QStringLiteral("useCumulativeUndoRedo"));
         });
     add(QStringLiteral("tools"), QStringLiteral("layers"), i18nc("settings card", "Layers"),
@@ -1142,8 +1153,46 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("StudioLayersRememberBrushes"));
             b.toggle(QStringLiteral("ConvertToImageColorSpaceOnImport"));
         });
+    add(QStringLiteral("tools"), QStringLiteral("layernames"), i18nc("settings card", "Layer names"),
+        {KisImageConfig::layerNameKey(KisImageConfig::CopiedLayer, true), KisImageConfig::layerNameKey(KisImageConfig::CopiedLayer, false),
+         KisImageConfig::layerNameKey(KisImageConfig::PastedLayer, true), KisImageConfig::layerNameKey(KisImageConfig::PastedLayer, false),
+         KisImageConfig::layerNameKey(KisImageConfig::MergedLayer, true), KisImageConfig::layerNameKey(KisImageConfig::MergedLayer, false)},
+        QStringLiteral("copy of duplicate pasted merged rename prefix suffix naming"), [](Builder &b) {
+            b.explain(i18nc("@info:tooltip", "The words a copied, pasted or merged layer gets around the name it comes from. Empty: none."));
+            // [words before] Layer [words after], as the name will read
+            auto *grid = new QGridLayout();
+            grid->setHorizontalSpacing(6);
+            grid->setVerticalSpacing(4);
+            const QString kinds[] = {i18nc("layer names", "Copy"), i18nc("layer names", "Pasted"), i18nc("layer names", "Merged")};
+            for (KisImageConfig::LayerNaming kind : {KisImageConfig::CopiedLayer, KisImageConfig::PastedLayer, KisImageConfig::MergedLayer}) {
+                grid->addWidget(new QLabel(kinds[kind], b.card), kind, 0);
+                for (bool before : {true, false}) {
+                    const QString id = KisImageConfig::layerNameKey(kind, before);
+                    auto *edit = new QLineEdit(b.card);
+                    edit->setPlaceholderText(before ? i18nc("layer names: no words", "none") : i18nc("layer names: no words", "none"));
+                    edit->setAlignment(before ? Qt::AlignRight : Qt::AlignLeft);
+                    edit->setMaximumWidth(110);
+                    QObject::connect(edit, &QLineEdit::editingFinished, b.card, [edit, id]() {
+                        if (!R::instance()->setValue(id, edit->text().trimmed())) edit->setText(R::instance()->value(id).toString());
+                    });
+                    b.follow([edit, id]() {
+                        if (!edit->hasFocus()) edit->setText(R::instance()->value(id).toString());
+                    });
+                    grid->addWidget(edit, kind, before ? 1 : 3);
+                }
+                // the name it comes from, as a chip
+                auto *name = new QLabel(i18nc("a layer's name, in an example", "Layer"), b.card);
+                name->setAlignment(Qt::AlignCenter);
+                name->setContentsMargins(8, 2, 8, 2);
+                name->setStyleSheet(QStringLiteral("QLabel { border-radius: 6px; background: palette(highlight); color: palette(highlighted-text); }"));
+                grid->addWidget(name, kind, 2);
+            }
+            grid->setColumnStretch(1, 1);
+            grid->setColumnStretch(3, 1);
+            b.layout->addLayout(grid);
+        });
     addToggle(QStringLiteral("tools"), QStringLiteral("effects"), i18nc("settings card", "Effects stay editable"), QStringLiteral("StudioEffectsEditable"),
-              QStringLiteral("filter mask editable effects"), i18nc("@info", "On: an effect becomes a filter mask you can change later."));
+              QStringLiteral("filter mask editable effects"));
     add(QStringLiteral("tools"), QStringLiteral("animation"), i18nc("settings card", "Animation"),
         {QStringLiteral("autoPinLayers"), QStringLiteral("adaptivePlaybackRange"), QStringLiteral("autoZoomTimelineToPlaybackRange")},
         QStringLiteral("timeline playback keyframes"), [](Builder &b) {
@@ -1191,12 +1240,11 @@ QVector<CardDef> makeCards()
             b.showWhen(b.number(QStringLiteral("numberofbackupfiles")), on);
         });
     add(QStringLiteral("files"), QStringLiteral("saving"), i18nc("settings card", "Saving"),
-        {QStringLiteral("defaultExportMimeType"), QStringLiteral("compressLayersInKra"), QStringLiteral("UseZip64"), QStringLiteral("TrimKra")},
+        {QStringLiteral("defaultExportMimeType"), QStringLiteral("compressLayersInKra"), QStringLiteral("TrimKra")},
         QStringLiteral("kra compression zip64 export format trim"), [](Builder &b) {
             b.choice(QStringLiteral("defaultExportMimeType"));
             b.toggle(QStringLiteral("compressLayersInKra"));
             b.toggle(QStringLiteral("TrimKra"));
-            b.toggle(QStringLiteral("UseZip64"));
         });
     add(QStringLiteral("files"), QStringLiteral("pasting"), i18nc("settings card", "Pasting from other apps"),
         {QStringLiteral("pasteFormat"), QStringLiteral("pasteBehaviour")}, QStringLiteral("clipboard paste drop browser take"), [](Builder &b) {
@@ -1239,7 +1287,6 @@ QVector<CardDef> makeCards()
     add(QStringLiteral("files"), QStringLiteral("resources"), i18nc("settings card", "Resource folder"), {QStringLiteral("ResourceDirectory")},
         QStringLiteral("resources bundles brushes location data folder"), [](Builder &b) {
             b.folder(QStringLiteral("ResourceDirectory"));
-            b.note(i18nc("@info", "Brushes, palettes, bundles and the rest are kept there."));
         });
 
     // ---- color
@@ -1248,7 +1295,6 @@ QVector<CardDef> makeCards()
         [](Builder &b) {
             b.toggle(QStringLiteral("useDefaultColorSpace"));
             b.showWhen(b.choice(QStringLiteral("workingColorSpace"), i18nc("new images", "Model")), b.isOn(QStringLiteral("useDefaultColorSpace")));
-            b.note(i18nc("@info", "Off: new images take the last one used."));
         });
     add(QStringLiteral("color"), QStringLiteral("display"), i18nc("settings card", "Display"),
         {QStringLiteral("renderIntent"), QStringLiteral("useBlackPointCompensation"), QStringLiteral("allowLCMSOptimization")},
@@ -1262,16 +1308,60 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("colorsettings/forcepalettecolors"));
             b.choice(QStringLiteral("ExrDefaultColorProfile"), i18nc("color", "EXR files"));
         });
-    add(QStringLiteral("color"), QStringLiteral("more"), i18nc("settings card", "Screens and proofing"), {},
-        QStringLiteral("monitor profile screen soft proofing hdr icc"), [](Builder &b) {
-            b.note(i18nc("@info", "Each screen's profile, soft proofing for new images and HDR are in the full settings."));
-            KisMainWindow *window = b.window;
-            b.buttons({qMakePair(i18nc("@action:button", "Screen profiles"),
-                                 std::function<void()>([window]() { openClassic(window, QVariantList{KisDlgPreferences::Color, KisDlgPreferences::DisplayTab}); })),
-                       qMakePair(i18nc("@action:button", "Soft proofing"),
-                                 std::function<void()>([window]() { openClassic(window, QVariantList{KisDlgPreferences::Color, KisDlgPreferences::SoftProofing}); })),
-                       qMakePair(i18nc("@action:button", "HDR"),
-                                 std::function<void()>([window]() { openClassic(window, QVariantList{KisDlgPreferences::Display, KisDlgPreferences::HDR}); }))});
+    {
+        // each screen's profile (or how the system is handed the canvas), and the window's format
+        QStringList screenSettings;
+        Q_FOREACH (const Setting &s, R::instance()->settings()) {
+            if (s.id.startsWith(QLatin1String("monitorProfile screen")) || s.id == QLatin1String("enableCanvasSurfaceColorSpaceManagement")
+                || s.id == QLatin1String("canvasSurfaceColorSpaceManagementMode") || s.id == QLatin1String("canvasSurfaceBitDepthMode")
+                || s.id == QLatin1String("kritadisplayrc rootSurfaceFormat")) {
+                screenSettings << s.id;
+            }
+        }
+        add(QStringLiteral("color"), QStringLiteral("screens"), i18nc("settings card", "Screens"), screenSettings,
+            QStringLiteral("monitor profile screen display icc hdr calibration surface"), [screenSettings](Builder &b) {
+                b.explain(i18nc("@info:tooltip", "The color profile of each screen, as calibrated: what makes the canvas show its colors right."));
+                const bool osManaged = KisPlatformPluginInterfaceFactory::instance()->surfaceColorManagedByOS();
+                Q_FOREACH (const QString &id, screenSettings) {
+                    if (id == QLatin1String("canvasSurfaceColorSpaceManagementMode") || id == QLatin1String("canvasSurfaceBitDepthMode")) {
+                        b.showWhen(b.choice(id), b.isOn(QStringLiteral("enableCanvasSurfaceColorSpaceManagement")));
+                    } else if (R::instance()->setting(id)->kind == Kind::Toggle) {
+                        b.toggle(id);
+                    } else {
+                        b.choice(id);
+                    }
+                }
+                if (!osManaged) {
+                    QWidget *card = b.card;
+                    b.button(i18nc("@action:button", "Add profiles"), [card]() {
+                        KoFileDialog dialog(card, KoFileDialog::OpenFiles, QStringLiteral("OpenDocumentICC"));
+                        dialog.setCaption(i18nc("@title:window", "Add Color Profiles"));
+                        dialog.setDefaultDir(QStandardPaths::writableLocation(QStandardPaths::HomeLocation));
+                        dialog.setMimeTypeFilters({QStringLiteral("application/vnd.iccprofile")}, QStringLiteral("application/vnd.iccprofile"));
+                        KoColorSpaceEngine *icc = KoColorSpaceEngineRegistry::instance()->get(QStringLiteral("icc"));
+                        if (!icc) return;
+                        const QString saveLocation = KoResourcePaths::saveLocation("icc_profiles");
+                        Q_FOREACH (const QString &file, dialog.filenames()) {
+                            const QString target = saveLocation + QFileInfo(file).fileName();
+                            if (QFile::copy(file, target)) icc->addProfile(target);
+                        }
+                        // the new ones among the choices, every card's
+                        R::instance()->refreshChoices();
+                        Q_EMIT R::instance()->valueChanged(QString());
+                    });
+                }
+            });
+    }
+    add(QStringLiteral("color"), QStringLiteral("proofing"), i18nc("settings card", "Soft proofing"),
+        {QStringLiteral("defaultProofingProfileName"), QStringLiteral("defaultProofingConversionIntent"), QStringLiteral("defaultProofingBlackpointCompensation"),
+         QStringLiteral("defaultProofingDisplayMode"), QStringLiteral("defaultProofingGamutwarning")},
+        QStringLiteral("soft proofing print preview gamut warning paper cmyk printer"), [](Builder &b) {
+            b.explain(i18nc("@info:tooltip", "How new images are proofed: shown as they would print (View > Soft Proofing)."));
+            b.choice(QStringLiteral("defaultProofingProfileName"), i18nc("proofing", "Profile"));
+            b.choice(QStringLiteral("defaultProofingConversionIntent"), i18nc("proofing", "Intent"));
+            b.toggle(QStringLiteral("defaultProofingBlackpointCompensation"), i18nc("proofing", "Black point compensation"));
+            b.choice(QStringLiteral("defaultProofingDisplayMode"), i18nc("proofing", "White"));
+            b.color(QStringLiteral("defaultProofingGamutwarning"), false, i18nc("proofing", "Out of gamut"));
         });
 
     // ---- speed
@@ -1283,7 +1373,7 @@ QVector<CardDef> makeCards()
         {QStringLiteral("memoryHardLimitPercent"), QStringLiteral("memorySoftLimitPercent"), QStringLiteral("maxSwapSize"), QStringLiteral("swaplocation")},
         QStringLiteral("ram swap disk limit"), [](Builder &b) {
             const int ram = KisImageConfig::totalRAM();
-            b.note(i18nc("@info", "This computer has %1 GB.", QLocale().toString(ram / 1024.0, 'f', 1)));
+            b.explain(i18nc("@info:tooltip", "This computer has %1 GB.", QLocale().toString(ram / 1024.0, 'f', 1)));
             b.number(QStringLiteral("memoryHardLimitPercent"), {QString(), 1, 0, QStringLiteral("%")});
             b.number(QStringLiteral("memorySoftLimitPercent"), {QString(), 1, 0, QStringLiteral("%")});
             b.number(QStringLiteral("maxSwapSize"), {QString(), 1.0 / 1024, 0, i18nc("unit", " GB")});
@@ -1474,6 +1564,8 @@ public:
         header->setSpacing(6);
         m_title = titleLabel(def.title, this);
         header->addWidget(m_title);
+        m_builder.title = m_title;
+        m_builder.header = header;
         m_mark = new QLabel(QStringLiteral("●"), this);
         QPalette palette = m_mark->palette();
         palette.setColor(QPalette::WindowText, palette.color(QPalette::Link));
@@ -1497,6 +1589,7 @@ public:
         header->addWidget(m_more);
         layout->addLayout(header);
         if (def.build) def.build(m_builder);
+        if (const Setting *s = def.toggleId.isEmpty() ? nullptr : R::instance()->setting(def.toggleId)) m_builder.explain(s->help);
 
         connect(R::instance(), &R::valueChanged, this, [this]() { refresh(); });
         connect(KisConfigNotifier::instance(), &KisConfigNotifier::configChanged, this, [this]() { refresh(); });
@@ -2655,8 +2748,6 @@ struct KisStudioSettings::Private
             to = menu.addAction(i18nc("@action:inmenu", "Give Krita these settings"));
             if (KisSettingsTransfer::kritaBackupTime().isValid()) restore = menu.addAction(i18nc("@action:inmenu", "Restore Krita's settings"));
         }
-        menu.addSeparator();
-        QAction *classic = menu.addAction(i18nc("@action:inmenu", "Full settings"));
         QAction *chosen = menu.exec(anchor->mapToGlobal(QPoint(0, anchor->height())));
         if (!chosen) return;
         if (chosen == exportAction) exportFile();
@@ -2664,10 +2755,6 @@ struct KisStudioSettings::Private
         else if (chosen == from) fromKrita();
         else if (chosen == to) toKrita();
         else if (chosen == restore) restoreKrita();
-        else if (chosen == classic) {
-            q->hide();
-            openClassic(mainWindow);
-        }
     }
 };
 
@@ -2907,60 +2994,6 @@ QVector<KisStudioSettings::CardInfo> KisStudioSettings::cardInfos()
         }
     }
     return infos;
-}
-
-QVariant KisStudioSettings::classicPage(const QString &cardId)
-{
-    using P = KisDlgPreferences;
-    if (cardId == keysSection) return QVariantList{int(P::Shortucts), 0};
-    // the dialog's page of each card's settings, for when the studio layout is off
-    static const QHash<QString, QPair<int, int>> pages = {
-        {QStringLiteral("appearance.theme"), {P::General, P::Window}},
-        {QStringLiteral("appearance.glass"), {P::General, P::Window}},
-        {QStringLiteral("appearance.surround"), {P::Display, P::CanvasDecoration}},
-        {QStringLiteral("appearance.font"), {P::General, P::Window}},
-        {QStringLiteral("appearance.brushes"), {P::General, P::Window}},
-        {QStringLiteral("appearance.screen"), {P::General, P::Window}},
-        {QStringLiteral("canvas.cursor"), {P::General, P::Cursor}},
-        {QStringLiteral("canvas.eraser"), {P::General, P::Cursor}},
-        {QStringLiteral("canvas.sampler"), {P::General, P::Cursor}},
-        {QStringLiteral("canvas.checkerboard"), {P::Display, P::CanvasDecoration}},
-        {QStringLiteral("canvas.pixelgrid"), {P::Display, P::CanvasDecoration}},
-        {QStringLiteral("canvas.selection"), {P::Display, P::CanvasDecoration}},
-        {QStringLiteral("canvas.zoom"), {P::General, P::Tools}},
-        {QStringLiteral("canvas.drawing"), {P::Display, P::CanvasAcceleration}},
-        {QStringLiteral("canvas.messages"), {P::General, P::Window}},
-        {QStringLiteral("pen.pressure"), {P::Tablet, 0}},
-        {QStringLiteral("pen.tablet"), {P::Tablet, 0}},
-        {QStringLiteral("pen.tilt"), {P::Tablet, 0}},
-        {QStringLiteral("pen.touch"), {P::General, P::Tools}},
-        {QStringLiteral("pen.kinetic"), {P::General, P::MiscellaneousGeneral}},
-        {QStringLiteral("tools.selecting"), {P::General, P::Tools}},
-        {QStringLiteral("tools.preview"), {P::Performance, P::InstantPreview}},
-        {QStringLiteral("tools.undo"), {P::General, P::MiscellaneousGeneral}},
-        {QStringLiteral("tools.layers"), {P::General, P::MiscellaneousGeneral}},
-        {QStringLiteral("tools.animation"), {P::General, P::Animation}},
-        {QStringLiteral("tools.brushengine"), {P::General, P::Tools}},
-        {QStringLiteral("files.autosave"), {P::General, P::File}},
-        {QStringLiteral("files.backup"), {P::General, P::File}},
-        {QStringLiteral("files.saving"), {P::General, P::File}},
-        {QStringLiteral("files.pasting"), {P::General, P::Pasting}},
-        {QStringLiteral("files.sessions"), {P::General, P::MiscellaneousGeneral}},
-        {QStringLiteral("files.resources"), {P::General, P::Resources}},
-        {QStringLiteral("color.newimages"), {P::Color, P::GeneralColor}},
-        {QStringLiteral("color.display"), {P::Color, P::DisplayTab}},
-        {QStringLiteral("color.misc"), {P::Color, P::GeneralColor}},
-        {QStringLiteral("color.more"), {P::Color, P::DisplayTab}},
-        {QStringLiteral("speed.renderer"), {P::Display, P::CanvasAcceleration}},
-        {QStringLiteral("speed.memory"), {P::Performance, P::GeneralPerformance}},
-        {QStringLiteral("speed.threads"), {P::Performance, P::Advanced}},
-        {QStringLiteral("speed.framerate"), {P::Performance, P::Advanced}},
-        {QStringLiteral("speed.animationcache"), {P::Performance, P::AnimationCache}},
-        {QStringLiteral("speed.diagnostics"), {P::Performance, P::Advanced}},
-    };
-    const auto it = pages.constFind(cardId);
-    if (it == pages.constEnd()) return QVariant();
-    return QVariantList{it->first, it->second};
 }
 
 bool KisStudioSettings::flip(const QString &settingId)

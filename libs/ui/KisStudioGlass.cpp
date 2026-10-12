@@ -54,6 +54,8 @@ namespace {
 
 const QString settingKey = QStringLiteral("StudioGlass");
 const QString refractionKey = QStringLiteral("StudioGlassRefraction");
+const QString blurKey = QStringLiteral("StudioGlassBlur");
+const QString opacityKey = QStringLiteral("StudioGlassOpacity");
 /// The older setting: a line, subtle or strong
 const QString oldEdgeKey = QStringLiteral("StudioGlassEdge");
 
@@ -66,7 +68,6 @@ const char *const overOverlaysProperty = "studioGlassOverOverlays";
 const char *const savedPaletteProperty = "studioGlassSavedPalette";
 const char *const seeThroughProperty = "studioGlassSeeThrough";
 const char *const unfilledViewProperty = "studioGlassUnfilledView";
-const char *const reapplyPendingProperty = "studioGlassReapplyPending";
 const char *const glassMenuProperty = "studioGlassMenu";
 const char *const glassDropdownProperty = "studioGlassDropdown";
 
@@ -252,7 +253,7 @@ qreal lightness(const QImage &image)
 QImage tintedForText(const QImage &image, const QColor &tint)
 {
     const qreal contrast = qBound(0.0, qAbs(lightness(image) - tint.lightnessF()), 1.0);
-    return tinted(image, tint, KisStudioGlass::tintOverDark + (KisStudioGlass::tintOverBright - KisStudioGlass::tintOverDark) * contrast);
+    return tinted(image, tint, KisStudioGlass::tintOverDark() + (KisStudioGlass::tintOverBright() - KisStudioGlass::tintOverDark()) * contrast);
 }
 
 // ------------------------------------------------------------ where the canvas is
@@ -299,7 +300,7 @@ struct Scene {
 /// What is behind \p canvasRect (canvas widget pixels), blurred
 QImage render(const Scene &scene, const QRect &canvasRect, const QColor &outside)
 {
-    const qreal radius = blurRadius * KisStudioGlass::blurScale(canvasRect.size());
+    const qreal radius = blurRadius * KisStudioGlass::blur() * KisStudioGlass::blurScale(canvasRect.size());
     // the blur's reach around it included, so the edges blur as the middle does
     const int pad = qCeil(radius);
     const QRect area = canvasRect.adjusted(-pad, -pad, pad, pad);
@@ -354,6 +355,14 @@ public:
 
     /// The canvas behind \p rect of \p widget, blurred and tinted; null if there is none
     Entry backdrop(QWidget *widget, const QRect &rect);
+
+    /// Made again as asked for: how the glass looks changed
+    void clear()
+    {
+        m_cache.clear();
+        m_again.clear();
+        m_epoch++;
+    }
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
@@ -456,7 +465,7 @@ void Engine::refresh()
     QRect changed;
     if (!m_imageChanged.isEmpty() && m_canvasWidget) {
         const QRect inWidget = m_transform.mapRect(QRectF(m_imageChanged)).toAlignedRect();
-        const int reach = qCeil(blurRadius * KisStudioGlass::maxBlurScale);
+        const int reach = qCeil(blurRadius * KisStudioGlass::blur() * KisStudioGlass::maxBlurScale);
         changed = QRect(m_canvasWidget->mapToGlobal(inWidget.topLeft()), inWidget.size()).adjusted(-reach, -reach, reach, reach);
     }
     m_imageChanged = QRect();
@@ -599,7 +608,7 @@ QWidget *windowBehind(const QWidget *widget)
 /// The glass of \p widget's \p rect over the solid window \p behind; null where none of it is there
 QImage glassOverWindow(QWidget *widget, const QRect &rect, QWidget *behind)
 {
-    const int reach = qCeil(blurRadius);
+    const int reach = qCeil(blurRadius * KisStudioGlass::blur());
     const QRect global(widget->mapToGlobal(rect.topLeft()), rect.size());
     const QRect inside(behind->mapFromGlobal(global.topLeft()), global.size());
     const QRect around = inside.adjusted(-reach, -reach, reach, reach) & behind->rect();
@@ -607,7 +616,7 @@ QImage glassOverWindow(QWidget *widget, const QRect &rect, QWidget *behind)
     QImage seen = behind->grab(around).toImage().convertToFormat(QImage::Format_RGB32);
     if (seen.isNull()) return QImage();
     const QSize small = (QSizeF(around.size()) * sampleScale).toSize().expandedTo(QSize(1, 1));
-    seen = blurred(seen.scaled(small, Qt::IgnoreAspectRatio, Qt::SmoothTransformation), qMax(1, qRound(blurRadius * sampleScale)));
+    seen = blurred(seen.scaled(small, Qt::IgnoreAspectRatio, Qt::SmoothTransformation), qMax(1, qRound(blurRadius * KisStudioGlass::blur() * sampleScale)));
     seen = tintedForText(seen, widget->palette().color(QPalette::Window));
     const QRectF part(QPointF(inside.topLeft() - around.topLeft()) * sampleScale, QSizeF(inside.size()) * sampleScale);
     return seen.copy(part.toAlignedRect()).scaled(rect.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
@@ -1015,7 +1024,10 @@ QWidget *dropdownOf(QComboBox *box)
     return popup != box->window() ? popup : nullptr;
 }
 
-/// Remakes a see-through widget's veils from the new colors when the theme changes
+/**
+ * Remakes the see-through widgets' veils from the new colors when the theme changes. Qt tells only windows
+ * that the application's palette changed; a panel with a palette of its own is told here, after the veils
+ */
 class ThemeFollower : public QObject
 {
 public:
@@ -1025,22 +1037,46 @@ public:
         return follower;
     }
 
-protected:
-    bool eventFilter(QObject *watched, QEvent *event) override
+    void follow(QWidget *widget)
     {
-        QWidget *widget = static_cast<QWidget *>(watched);
-        if (event->type() == QEvent::ApplicationPaletteChange && !widget->property(reapplyPendingProperty).toBool()) {
-            widget->setProperty(reapplyPendingProperty, true);
-            // once every widget has taken the new palette
-            QTimer::singleShot(0, widget, [widget]() {
-                widget->setProperty(reapplyPendingProperty, QVariant());
-                if (!widget->property(seeThroughProperty).toBool()) return;
-                KisStudioGlass::setSeeThrough(widget, false);
-                KisStudioGlass::setSeeThrough(widget, true);
-            });
-        }
-        return false;
+        if (!m_widgets.contains(widget)) m_widgets.append(widget);
     }
+
+    void forget(QWidget *widget)
+    {
+        m_widgets.removeAll(widget);
+    }
+
+private:
+    ThemeFollower()
+    {
+        // once every widget has taken the new palette
+        connect(qApp, &QGuiApplication::paletteChanged, this, [this]() {
+            if (!m_pending) {
+                m_pending = true;
+                QTimer::singleShot(0, this, [this]() { reapply(); });
+            }
+        });
+    }
+
+    void reapply()
+    {
+        m_pending = false;
+        const QList<QPointer<QWidget>> widgets = m_widgets;
+        for (const QPointer<QWidget> &widget : widgets) {
+            if (!widget || !widget->property(seeThroughProperty).toBool()) continue;
+            // made again from the new theme's colors: a palette saved before is the old theme's
+            widget->setProperty(savedPaletteProperty, QVariant());
+            KisStudioGlass::setSeeThrough(widget, false);
+            KisStudioGlass::setSeeThrough(widget, true);
+            QEvent changed(QEvent::ApplicationPaletteChange);
+            QCoreApplication::sendEvent(widget, &changed);
+        }
+        m_widgets.removeAll(QPointer<QWidget>());
+    }
+
+    QList<QPointer<QWidget>> m_widgets;
+    bool m_pending {false};
 };
 
 } // namespace
@@ -1073,9 +1109,9 @@ void KisStudioGlass::setSeeThrough(QWidget *widget, bool on)
         Q_FOREACH (QComboBox *box, widget->findChildren<QComboBox *>()) {
             if (QWidget *popup = dropdownOf(box)) popup->setPalette(QApplication::palette(box));
         }
-        widget->installEventFilter(ThemeFollower::instance());
+        ThemeFollower::instance()->follow(widget);
     } else {
-        widget->removeEventFilter(ThemeFollower::instance());
+        ThemeFollower::instance()->forget(widget);
         const QVariant saved = widget->property(savedPaletteProperty);
         if (saved.isValid()) {
             widget->setPalette(saved.value<QPalette>());
@@ -1098,6 +1134,18 @@ bool &enabled()
 {
     static bool on = KisConfig(true).readEntry<bool>(settingKey, true);
     return on;
+}
+
+qreal &blurSetting()
+{
+    static qreal blur = qBound<qreal>(0.25, KisConfig(true).readEntry<qreal>(blurKey, 1.0), 2.0);
+    return blur;
+}
+
+qreal &opacitySetting()
+{
+    static qreal opacity = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(opacityKey, 0.7), 1.0);
+    return opacity;
 }
 
 qreal &refractionSetting()
@@ -1320,6 +1368,54 @@ qreal KisStudioGlass::refraction()
     return refractionSetting();
 }
 
+qreal KisStudioGlass::blurSigma()
+{
+    return 18 * blur();
+}
+
+qreal KisStudioGlass::tintOverDark()
+{
+    // as Krita comes (0.7): 0.56 over a dark canvas, 0.84 over a bright one; solid at 1, clear at 0
+    const qreal o = opacity();
+    return o <= 0.7 ? 0.8 * o : 0.56 + 0.44 * (o - 0.7) / 0.3;
+}
+
+qreal KisStudioGlass::tintOverBright()
+{
+    const qreal o = opacity();
+    return o <= 0.7 ? 1.2 * o : 0.84 + 0.16 * (o - 0.7) / 0.3;
+}
+
+qreal KisStudioGlass::blur()
+{
+    return blurSetting();
+}
+
+void KisStudioGlass::setBlur(qreal blur)
+{
+    blur = qBound<qreal>(0.25, blur, 2.0);
+    if (qFuzzyCompare(blur, blurSetting())) return;
+    blurSetting() = blur;
+    KisConfig(false).writeEntry(blurKey, blur);
+    Engine::instance().clear();
+    Panels::instance().repaintAll();
+}
+
+qreal KisStudioGlass::opacity()
+{
+    return opacitySetting();
+}
+
+void KisStudioGlass::setOpacity(qreal opacity)
+{
+    opacity = qBound<qreal>(0, opacity, 1.0);
+    if (qFuzzyCompare(opacity + 1, opacitySetting() + 1)) return;
+    opacitySetting() = opacity;
+    KisConfig(false).writeEntry(opacityKey, opacity);
+    Engine::instance().clear();
+    Panels::instance().repaintAll();
+}
+
 void KisStudioGlass::setRefraction(qreal refraction)
 {
     refraction = qBound<qreal>(0, refraction, 1);
@@ -1419,7 +1515,9 @@ Qt::WindowType KisStudioGlass::popupWindowType()
 
 QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRectF &rect, qreal radius)
 {
-    const QColor window = widget->palette().color(QPalette::Window);
+    // see-through widgets keep their color with no alpha (setSeeThrough): solid, it is that color
+    QColor window = widget->palette().color(QPalette::Window);
+    window.setAlpha(255);
     if (widget->isWindow() && !widget->testAttribute(Qt::WA_TranslucentBackground)) {
         // a solid window (see seeThroughWindows): square, its color to the edges
         painter.fillRect(rect, window);

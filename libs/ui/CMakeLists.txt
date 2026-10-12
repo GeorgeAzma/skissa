@@ -61,7 +61,6 @@ set(kritaui_LIB_SRCS
     dialogs/kis_dlg_image_properties.cc
     dialogs/kis_dlg_layer_properties.cc
     dialogs/kis_dlg_paste_format.cpp
-    dialogs/kis_dlg_preferences.cc
     dialogs/KisKeysPage.cpp
     dialogs/slider_and_spin_box_sync.cpp
     dialogs/kis_dlg_layer_style.cpp
@@ -459,6 +458,7 @@ set(kritaui_LIB_SRCS
     KisStudioGlass.cpp
     KisStudioBrushPicker.cpp
     KisStudioBrushMemory.cpp
+    KisStudioTheme.cpp
     KisStudioCanvasRing.cpp
     KisOpenPane.cpp
     KisPart.cpp
@@ -608,20 +608,13 @@ ki18n_wrap_ui(kritaui_LIB_SRCS
     forms/wdgaboutapplication.ui
     forms/wdgdlgpngimport.ui
     forms/wdgsegmentgradienteditor.ui
-    forms/wdggeneralsettings.ui
-    forms/wdgperformancesettings.ui
     forms/wdggenerators.ui
     forms/wdgbookmarkedconfigurationseditor.ui
-    forms/wdgapplyprofile.ui
     forms/wdgcustompattern.ui
     forms/wdglayerproperties.ui
-    forms/wdgcolorsettings.ui
-    forms/wdgtabletsettings.ui
     forms/wdgcolorspaceselector.ui
     forms/wdgcolorspaceselectoradvanced.ui
-    forms/wdgdisplaysettings.ui
     forms/wdgproofingoptions.ui
-    forms/kis_matrix_widget.ui
     forms/wdggeometryoptions.ui
     forms/wdgnewimage.ui
     forms/wdgimageproperties.ui
@@ -635,8 +628,6 @@ ki18n_wrap_ui(kritaui_LIB_SRCS
     forms/wdgdlgfilelayer.ui
     forms/wdgfilterselector.ui
     forms/wdgfilternodecreation.ui
-    forms/wdgnodequerypatheditor.ui
-    forms/wdgpresetselectorstrip.ui
     forms/wdgsavebrushpreset.ui
     forms/wdgpreseticonlibrary.ui
     forms/wdgrectangleconstraints.ui
@@ -755,11 +746,9 @@ if(WIN32)
     # Private headers are needed for:
     #    * KisDlgCustomTabletResolution
     #    * KisScreenInformationAdapter
-    #    * dialogs/kis_dlg_preferences.cc
     set_source_files_properties(
         dialogs/KisDlgCustomTabletResolution.cpp
         opengl/KisScreenInformationAdapter.cpp
-        dialogs/kis_dlg_preferences.cc # for WinTab switching API
         kis_config.cc # for logging the WinTab API
         PROPERTIES
         INCLUDE_DIRECTORIES "${Qt${QT_MAJOR_VERSION}Gui_PRIVATE_INCLUDE_DIRS}"

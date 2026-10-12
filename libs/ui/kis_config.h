@@ -402,7 +402,6 @@ public:
         IIM_No
     };
     IconsInMenu iconsInMenu(bool defaultValue = false) const;
-    void setIconsInMenu(IconsInMenu value);
 
     bool saveSessionOnQuit(bool defaultValue) const;
     void setSaveSessionOnQuit(bool value);
@@ -588,8 +587,6 @@ public:
     bool showSingleChannelAsColor(bool defaultValue = false) const;
     void setShowSingleChannelAsColor(bool asColor);
 
-    bool hidePopups(bool defaultValue = false) const;
-    void setHidePopups(bool hidePopups);
 
     int numDefaultLayers(bool defaultValue = false) const;
     void setNumDefaultLayers(int num);
@@ -841,14 +838,10 @@ public:
     static RootSurfaceFormat rootSurfaceFormat(QSettings *displayrc, bool defaultValue = false);
     static void setRootSurfaceFormat(QSettings *displayrc, RootSurfaceFormat value);
 
-    bool useZip64(bool defaultValue = false) const;
-    void setUseZip64(bool value);
 
     bool convertLayerColorSpaceInProperties(bool defaultValue = false) const;
     void setConvertLayerColorSpaceInProperties(bool value);
 
-    bool renamePastedLayers(bool defaultValue = false) const;
-    void setRenamePastedLayers(bool value);
 
     enum LayerInfoTextStyle {
         INFOTEXT_NONE = 0,

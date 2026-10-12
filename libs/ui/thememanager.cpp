@@ -93,6 +93,10 @@ QString ThemeManager::currentThemeName() const
 {
     //qDebug() << "getting current themename";
     QString themeName;
+    // as set: a scheme made since (KisStudioTheme) is not in the menu
+    if (!d->currentThemeName.isEmpty()) {
+        return d->currentThemeName;
+    }
     if (d->themeMenuAction && d->themeMenuActionGroup) {
 
         QAction* action = d->themeMenuActionGroup->checkedAction();
@@ -119,6 +123,8 @@ void ThemeManager::setCurrentTheme(const QString& name)
 {
     //qDebug() << "setCurrentTheme();" << d->currentThemeName << "to" << name;
     d->currentThemeName = name;
+    // a scheme written since (KisStudioTheme)
+    if (!d->themeMap.contains(name)) populateThemeMap();
 
     if (d->themeMenuAction  && d->themeMenuActionGroup) {
         QList<QAction*> list = d->themeMenuActionGroup->actions();
@@ -128,6 +134,12 @@ void ThemeManager::setCurrentTheme(const QString& name)
             }
         }
     }
+    slotChangePalette();
+}
+
+void ThemeManager::reload()
+{
+    populateThemeMap();
     slotChangePalette();
 }
 
@@ -215,8 +227,10 @@ void ThemeManager::populateThemeMenu()
     delete d->themeMenuActionGroup;
 
     d->themeMenuActionGroup = new QActionGroup(d->themeMenuAction);
-    connect(d->themeMenuActionGroup, SIGNAL(triggered(QAction*)),
-            this, SLOT(slotChangePalette()));
+    connect(d->themeMenuActionGroup, &QActionGroup::triggered, this, [this](QAction *action) {
+        d->currentThemeName = action->text().remove('&');
+        slotChangePalette();
+    });
 
     QAction * action;
     QStringList schemeFiles = KoResourcePaths::findAllAssets("data", "color-schemes/*.colors");

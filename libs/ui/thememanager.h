@@ -48,6 +48,8 @@ public:
 
     QString currentThemeName() const;
     void    setCurrentTheme(const QString& name);
+    /// The color schemes looked for again and the current one taken again (its file was rewritten)
+    void    reload();
 
     void    setThemeMenuAction(KActionMenu* const action);
     void    registerThemeActions(KisKActionCollection *actionCollection);

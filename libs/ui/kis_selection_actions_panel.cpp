@@ -8,7 +8,6 @@
 #include "kis_selection_actions_panel.h"
 
 #include "KoCanvasController.h"
-#include "dialogs/kis_dlg_preferences.h"
 #include "kis_action.h"
 #include "kis_action_manager.h"
 #include "kis_config_notifier.h"
@@ -839,7 +838,7 @@ void KisSelectionActionsPanel::configureSelectionActionsPanel()
 {
     KisAction *a = d->m_viewManager->actionManager()->actionByName("options_configure");
 
-    a->setData(QList<QVariant>({KisDlgPreferences::Page::General, KisDlgPreferences::GeneralTabs::Tools}));
+    a->setData(QStringLiteral("canvas.selection"));
 
     a->trigger();
 }

@@ -84,6 +84,8 @@ public:
 
     const QVector<Setting> &settings() const;
     const Setting *setting(const QString &id) const;
+    /// Choices known only at run time are looked for again (a color profile was installed)
+    void refreshChoices();
 
     QVariant value(const QString &id) const;
     QVariant defaultValue(const QString &id) const;

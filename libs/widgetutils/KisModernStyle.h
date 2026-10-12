@@ -92,6 +92,7 @@ public:
     void polish(QWidget *widget) override;
 
     int pixelMetric(PixelMetric metric, const QStyleOption *option = nullptr, const QWidget *widget = nullptr) const override;
+    QRect subElementRect(SubElement element, const QStyleOption *option, const QWidget *widget = nullptr) const override;
     int styleHint(StyleHint hint, const QStyleOption *option = nullptr, const QWidget *widget = nullptr, QStyleHintReturn *returnData = nullptr) const override;
     /// Message boxes' icons: a flat round mark instead of the glossy triangle
     QIcon standardIcon(StandardPixmap standardIcon, const QStyleOption *option = nullptr, const QWidget *widget = nullptr) const override;

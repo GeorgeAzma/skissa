@@ -24,8 +24,8 @@ class QWidget;
 class KRITAUI_EXPORT KisStudioGlass
 {
 public:
-    /// Blur sigma over small glass (a pill), widget pixels
-    static constexpr qreal blurSigma = 18;
+    /// Blur sigma over small glass (a pill), widget pixels, as frosted as the setting makes it
+    static qreal blurSigma();
     /// Larger glass blurs up to this many times wider, so tall panels show no shapes
     static constexpr qreal maxBlurScale = 2.0;
     /// Blur multiplier for glass of \p size: grows with the square root of its area
@@ -35,8 +35,15 @@ public:
     /// Power mean of Oklab lightness in the blur: 1 averages as seen, ~3 as light
     static constexpr qreal lightnessPower = 1.5;
     /// Tint strength over a dark and over a bright canvas
-    static constexpr qreal tintOverDark = 0.56;
-    static constexpr qreal tintOverBright = 0.84;
+    static qreal tintOverDark();
+    static qreal tintOverBright();
+
+    /// How frosted the glass is: 0.25 nearly clear to 2, 1 as Krita comes
+    static qreal blur();
+    static void setBlur(qreal blur);
+    /// How strongly the panel color covers what is behind: 0 none to 1 solid, 0.7 as Krita comes
+    static qreal opacity();
+    static void setOpacity(qreal opacity);
     /**
      * The frost's color is the mean of Oklab's a and b, where hues that disagree cancel: of the chroma lost
      * so, this share is restored as far as they agree (never more than the colors behind have)

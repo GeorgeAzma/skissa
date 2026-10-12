@@ -322,7 +322,12 @@ private:
             if (widget->testAttribute(Qt::WA_TranslucentBackground)) line += QStringLiteral(" translucent");
             if (widget->testAttribute(Qt::WA_NoSystemBackground)) line += QStringLiteral(" nosysbg");
             if (widget->testAttribute(Qt::WA_OpaquePaintEvent)) line += QStringLiteral(" opaque");
+            if (widget->testAttribute(Qt::WA_SetPalette)) line += QStringLiteral(" ownpalette");
+            line += QStringLiteral(" window=%1 text=%2").arg(widget->palette().color(QPalette::Window).name(QColor::HexArgb),
+                                                             widget->palette().color(QPalette::ButtonText).name());
             if (widget->autoFillBackground()) line += QStringLiteral(" autofill");
+            if (widget == QApplication::focusWidget()) line += QStringLiteral(" FOCUS");
+            if (widget == QWidget::keyboardGrabber()) line += QStringLiteral(" KEYGRAB");
             if (widget->graphicsEffect()) line += QStringLiteral(" effect");
             if (widget->windowOpacity() < 1.0) line += QStringLiteral(" opacity=%1").arg(widget->windowOpacity());
             if (!widget->mask().isEmpty()) {

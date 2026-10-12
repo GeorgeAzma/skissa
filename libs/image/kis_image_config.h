@@ -146,10 +146,14 @@ public:
 
     int maxMaskingBrushSize() const;
 
-    bool renameMergedLayers(bool defaultValue = false) const;
-    void setRenameMergedLayers(bool value);
-    bool renameDuplicatedLayers(bool defaultValue = false) const;
-    void setRenameDuplicatedLayers(bool value);
+    /// A layer named after another: a copy, one pasted, layers merged
+    enum LayerNaming { CopiedLayer, PastedLayer, MergedLayer };
+    /// The words put before and after the name it is named after (none: nothing put there)
+    static QString layerNameKey(LayerNaming kind, bool before);
+    static QString defaultLayerNameAffix(LayerNaming kind, bool before);
+    QString layerNameAffix(LayerNaming kind, bool before) const;
+    /// \p name with the words of \p kind around it, not twice
+    QString layerName(LayerNaming kind, const QString &name) const;
 
     template<class T>
     void writeEntry(const QString& name, const T& value) {

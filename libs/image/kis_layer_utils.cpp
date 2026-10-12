@@ -624,13 +624,7 @@ namespace Private {
         void populateChildCommands() override {
             QString mergedLayerName;
             if (m_name.isEmpty()){
-                const QString mergedLayerSuffix = i18n("Merged");
-                mergedLayerName = m_info->mergedNodes.first()->name();
-
-                if (KisImageConfig(true).renameMergedLayers() && !mergedLayerName.endsWith(mergedLayerSuffix)) {
-                    mergedLayerName = QString("%1 %2")
-                        .arg(mergedLayerName).arg(mergedLayerSuffix);
-                }
+                mergedLayerName = KisImageConfig(true).layerName(KisImageConfig::MergedLayer, m_info->mergedNodes.first()->name());
             } else {
                 mergedLayerName = m_name;
             }
@@ -1756,14 +1750,8 @@ namespace Private {
 
     void addCopyOfNameTag(KisNodeSP node)
     {
-        if (!KisImageConfig(true).renameDuplicatedLayers()) { return; }
-
-        const QString prefix = i18n("Copy of");
-        QString newName = node->name();
-        if (!newName.startsWith(prefix)) {
-            newName = QString("%1 %2").arg(prefix).arg(newName);
-            node->setName(newName);
-        }
+        const QString newName = KisImageConfig(true).layerName(KisImageConfig::CopiedLayer, node->name());
+        if (newName != node->name()) node->setName(newName);
     }
 
     KisNodeList findNodesWithProps(KisNodeSP root, const KoProperties &props, bool excludeRoot)

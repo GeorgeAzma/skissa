@@ -33,7 +33,9 @@
 #include "KisMainWindow.h"
 #include "KisMimeDatabase.h"
 #include "KisPart.h"
+#include "KisPlatformPluginInterfaceFactory.h"
 #include "KisStudioGlass.h"
+#include "KisStudioTheme.h"
 #include "KisView.h"
 #include "KisViewManager.h"
 #include "KisImageConfigNotifier.h"
@@ -48,6 +50,7 @@
 #include "widgets/KisPresetStrokeThumbnails.h"
 
 #include "config-high-dpi-scale-factor-rounding-policy.h"
+#include <config-hdr.h>
 
 #include <cmath>
 
@@ -216,6 +219,12 @@ QVector<Choice> themes()
 QHash<QString, QString> explanations()
 {
     return {
+        {QStringLiteral("[StudioTheme] Lightness"), i18nc("@info:tooltip", "How light the window is: from near black to near white.")},
+        {QStringLiteral("[StudioTheme] TintAmount"), i18nc("@info:tooltip", "How much of the tint's hue the window's grays take.")},
+        {QStringLiteral("[StudioTheme] UseAccent"), i18nc("@info:tooltip", "Chosen items, focus and links in a color of their own, not gray.")},
+        {QStringLiteral("[StudioTheme] Contrast"), i18nc("@info:tooltip", "How strongly text stands out from the window.")},
+        {QStringLiteral("StudioGlassBlur"), i18nc("@info:tooltip", "How much the glass blurs what is behind it.")},
+        {QStringLiteral("StudioGlassOpacity"), i18nc("@info:tooltip", "How much the panel color covers what is behind: none, to solid.")},
         {QStringLiteral("StudioGlassRefraction"), i18nc("@info:tooltip", "How much a panel's edge bends the picture under it, as the rim of a lens does.")},
         {QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"),
          i18nc("@info:tooltip",
@@ -246,10 +255,11 @@ QHash<QString, QString> explanations()
         {QStringLiteral("[KisToolTransform] forceLodMode"), i18nc("@info:tooltip", "While you transform on a large image, a quick lower-resolution preview; the full result follows.")},
         {QStringLiteral("[KritaTransform/KisToolMove] forceLodMode"), i18nc("@info:tooltip", "While you move on a large image, a quick lower-resolution preview; the full result follows.")},
         {QStringLiteral("useCumulativeUndoRedo"), i18nc("@info:tooltip", "Older quick strokes are merged into one undo step each, so the undo history reaches further back.")},
+        {QStringLiteral("StudioEffectsEditable"), i18nc("@info:tooltip", "An effect is added as a filter mask you can change or remove later, not painted into the layer.")},
+        {QStringLiteral("ResourceDirectory"), i18nc("@info:tooltip", "Where brushes, palettes, bundles and the rest are kept.")},
         {QStringLiteral("StudioLayersRememberBrushes"), i18nc("@info:tooltip", "Choosing a layer picks the brush last used on it.")},
         {QStringLiteral("ConvertToImageColorSpaceOnImport"), i18nc("@info:tooltip", "Layers imported from files are converted to the image's color space instead of keeping their own.")},
         {QStringLiteral("compressLayersInKra"), i18nc("@info:tooltip", "Layers are compressed harder in .kra files: smaller files that take longer to save and open.")},
-        {QStringLiteral("UseZip64"), i18nc("@info:tooltip", "Needed to save .kra files over 4 GB. Krita before 4.2 can't open them.")},
         {QStringLiteral("TrimKra"), i18nc("@info:tooltip", "Paint outside the canvas is cut off when saving: smaller files, but what was moved off the canvas is lost.")},
         {QStringLiteral("pasteFormat"), i18nc("@info:tooltip", "An image pasted from a browser can be the original file (downloaded again), the copy the browser kept, or the picture as pasted.")},
         {QStringLiteral("pasteBehaviour"), i18nc("@info:tooltip", "Images pasted from other apps usually say nothing of their colors: they are taken as sRGB, as your screen's colors, or you are asked.")},
@@ -269,7 +279,29 @@ QHash<QString, QString> explanations()
          i18nc("@info:tooltip",
                "Converts colors a little faster and a little less exactly. Turn it off for linear light and wide color spaces, where "
                "it can show as banding.")},
+        {QStringLiteral("defaultProofingProfileName"),
+         i18nc("@info:tooltip", "The printer, paper or screen to proof for: new images are shown as they would come out there (View > Soft Proofing).")},
+        {QStringLiteral("defaultProofingConversionIntent"),
+         i18nc("@info:tooltip",
+               "How colors the printer can't reach are brought into what it can.\n"
+               "Perceptual: all colors move together, keeping how they relate.\n"
+               "Relative: colors it can print stay exact; the rest move to the nearest it can.\n"
+               "Saturation: keeps colors vivid; hues may shift.\n"
+               "Absolute: as Relative, keeping the image's white.")},
+        {QStringLiteral("defaultProofingBlackpointCompensation"),
+         i18nc("@info:tooltip", "The image's darkest black becomes the printer's darkest black: shadows keep their detail.")},
+        {QStringLiteral("defaultProofingDisplayMode"),
+         i18nc("@info:tooltip", "Paper white: the paper's white and the ink's black are shown as they are, duller than the screen's, as on a real print.\n"
+               "Screen white: the screen's white stands for the paper's.")},
+        {QStringLiteral("defaultProofingGamutwarning"), i18nc("@info:tooltip", "Colors the printer can't reach are painted this color while gamut warnings are on (View > Out of Gamut Warnings).")},
         {QStringLiteral("colorsettings/forcepalettecolors"), i18nc("@info:tooltip", "Picked colors snap to the nearest color of the palette in use.")},
+        {QStringLiteral("enableCanvasSurfaceColorSpaceManagement"),
+         i18nc("@info:tooltip", "The canvas gets a surface of its own whose colors the system manages: colors beyond sRGB and paper white proofing. "
+               "It may be slower on some computers.")},
+        {QStringLiteral("canvasSurfaceColorSpaceManagementMode"), i18nc("@info:tooltip", "The color space the canvas is handed to the system in. Leave it as the system prefers unless you know why.")},
+        {QStringLiteral("canvasSurfaceBitDepthMode"), i18nc("@info:tooltip", "10 bit is needed for HDR.")},
+        {QStringLiteral("kritadisplayrc rootSurfaceFormat"),
+         i18nc("@info:tooltip", "The format the window is drawn in. An HDR format shows HDR images in full on an HDR screen, with HDR turned on in the system.")},
         {QStringLiteral("ExrDefaultColorProfile"), i18nc("@info:tooltip", "EXR files usually say nothing of their colors: the profile they are opened in.")},
         {QStringLiteral("kritadisplayrc OpenGLRenderer"),
          i18nc("@info:tooltip",
@@ -289,6 +321,59 @@ QHash<QString, QString> explanations()
     };
 }
 
+/// The color models a proof can be in, printers' first
+const QVector<KoID> &proofingModels()
+{
+    static const QVector<KoID> models {CMYKAColorModelID, GrayAColorModelID, RGBAColorModelID, LABAColorModelID};
+    return models;
+}
+
+/// The profiles new images can be proofed with: a printer's, by color model
+QVector<Choice> proofingProfiles()
+{
+    QVector<Choice> profiles;
+    QStringList seen;
+    KoColorSpaceRegistry *registry = KoColorSpaceRegistry::instance();
+    Q_FOREACH (const KoID &model, proofingModels()) {
+        QStringList names;
+        Q_FOREACH (const KoColorProfile *profile, registry->profilesFor(registry->colorSpaceId(model, Integer16BitsColorDepthID))) {
+            if (profile && !seen.contains(profile->name())) names << profile->name();
+        }
+        names.removeDuplicates();
+        names.sort(Qt::CaseInsensitive);
+        seen << names;
+        Q_FOREACH (const QString &name, names) profiles << Choice{name, name};
+    }
+    return profiles;
+}
+
+/// The profile's color model and depth go with it; the depth stays if the model has it
+void proofWith(const QString &profileName)
+{
+    KoColorSpaceRegistry *registry = KoColorSpaceRegistry::instance();
+    KConfigGroup g = KSharedConfig::openConfig()->group(QString());
+    Q_FOREACH (const KoID &model, proofingModels()) {
+        Q_FOREACH (const KoColorProfile *profile, registry->profilesFor(registry->colorSpaceId(model, Integer16BitsColorDepthID))) {
+            if (!profile || profile->name() != profileName) continue;
+            const QString depth = g.readEntry("defaultProofingProfileDepth", Integer8BitsColorDepthID.id());
+            g.writeEntry("defaultProofingProfileModel", model.id());
+            if (registry->colorSpaceId(model.id(), depth).isEmpty()) g.writeEntry("defaultProofingProfileDepth", Integer16BitsColorDepthID.id());
+            return;
+        }
+    }
+}
+
+/// The profiles a screen can have
+QVector<Choice> displayProfiles()
+{
+    QVector<Choice> profiles;
+    Q_FOREACH (const KoColorProfile *profile, KoColorSpaceRegistry::instance()->profilesFor(QStringLiteral("RGBA"))) {
+        if (profile->isSuitableForDisplay()) profiles << Choice{profile->name(), profile->name()};
+    }
+    std::sort(profiles.begin(), profiles.end(), [](const Choice &a, const Choice &b) { return a.text.compare(b.text, Qt::CaseInsensitive) < 0; });
+    return profiles;
+}
+
 QVector<Setting> describeAll()
 {
     using R = KisSettingsRegistry;
@@ -299,6 +384,20 @@ QVector<Setting> describeAll()
         Setting theme = grouped(choice(QStringLiteral("Theme"), QStringLiteral("Krita Studio Dark"), {}, i18nc("setting", "Theme"), R::Fork), QStringLiteral("theme"));
         theme.dynamicChoices = themes;
         all << theme;
+        {
+            // the theme made of choices (KisStudioTheme): any of them changed, it is made again and taken
+            const QString themeGroup = QStringLiteral("StudioTheme");
+            auto made = [](Setting s) {
+                s.written = [](const QVariant &) { KisStudioTheme::apply(KisStudioTheme::current()); };
+                return s;
+            };
+            all << made(grouped(number(QStringLiteral("Lightness"), 0.252, 0.05, 0.98, i18nc("setting", "Theme lightness"), R::Fork), themeGroup));
+            all << made(grouped(color(QStringLiteral("Tint"), QColor(Qt::gray), i18nc("setting", "Theme tint"), R::Fork), themeGroup));
+            all << made(grouped(number(QStringLiteral("TintAmount"), 0.0, 0, 1, i18nc("setting", "Theme tint strength"), R::Fork), themeGroup));
+            all << made(grouped(toggle(QStringLiteral("UseAccent"), false, i18nc("setting", "Theme accent"), R::Fork), themeGroup));
+            all << made(grouped(color(QStringLiteral("Accent"), QColor(92, 124, 250), i18nc("setting", "Theme accent color"), R::Fork), themeGroup));
+            all << made(grouped(number(QStringLiteral("Contrast"), 1.0, 0.6, 1.3, i18nc("setting", "Theme contrast"), R::Fork), themeGroup));
+        }
 
         Setting glass = toggle(QStringLiteral("StudioGlass"), true, i18nc("setting", "Glass"), R::Fork);
         glass.read = []() { return KisStudioGlass::isEnabled(); };
@@ -308,6 +407,14 @@ QVector<Setting> describeAll()
         refraction.read = []() { return KisStudioGlass::refraction(); };
         refraction.write = [](const QVariant &value) { KisStudioGlass::setRefraction(value.toReal()); };
         all << refraction;
+        Setting blur = number(QStringLiteral("StudioGlassBlur"), 1.0, 0.25, 2.0, i18nc("setting", "Glass blur"), R::Fork);
+        blur.read = []() { return KisStudioGlass::blur(); };
+        blur.write = [](const QVariant &value) { KisStudioGlass::setBlur(value.toReal()); };
+        all << blur;
+        Setting opacity = number(QStringLiteral("StudioGlassOpacity"), 0.7, 0, 1, i18nc("setting", "Glass opacity"), R::Fork);
+        opacity.read = []() { return KisStudioGlass::opacity(); };
+        opacity.write = [](const QVariant &value) { KisStudioGlass::setOpacity(value.toReal()); };
+        all << opacity;
 
         Setting strokes = toggle(QStringLiteral("PresetStrokeThumbnails"), false, i18nc("setting", "Brushes as strokes"), R::Fork);
         strokes.read = []() { return KisPresetStrokeThumbnails::isEnabled(); };
@@ -451,6 +558,18 @@ QVector<Setting> describeAll()
         all << number(QStringLiteral("undoStackLimit"), 200, 0, 1000, i18nc("setting", "Undo steps"));
         all << toggle(QStringLiteral("useCumulativeUndoRedo"), false, i18nc("setting", "Merge strokes in undo"));
         all << toggle(QStringLiteral("ConvertToImageColorSpaceOnImport"), false, i18nc("setting", "Imported layers take the image's colors"));
+        {
+            using C = KisImageConfig;
+            const QString labels[] = {i18nc("setting", "Copies' names"), i18nc("setting", "Pasted layers' names"), i18nc("setting", "Merged layers' names")};
+            for (C::LayerNaming kind : {C::CopiedLayer, C::PastedLayer, C::MergedLayer}) {
+                for (bool before : {true, false}) {
+                    Setting words = text(C::layerNameKey(kind, before), C::defaultLayerNameAffix(kind, before),
+                                         labels[kind] + QStringLiteral(" · ") + (before ? i18nc("words of a layer name", "before") : i18nc("words of a layer name", "after")));
+                    words.valid = [](const QVariant &value) { return value.toString().size() <= 40; };
+                    all << words;
+                }
+            }
+        }
         all << toggle(QStringLiteral("StudioLayersRememberBrushes"), true, i18nc("setting", "Layers remember their brush"), R::Fork);
         all << toggle(QStringLiteral("StudioEffectsEditable"), true, i18nc("setting", "Effects stay editable"), R::Fork);
         all << toggle(QStringLiteral("autoPinLayers"), true, i18nc("setting", "Pin new layers to the timeline"));
@@ -472,7 +591,6 @@ QVector<Setting> describeAll()
                       i18nc("setting", "Backups go"));
         all << number(QStringLiteral("numberofbackupfiles"), 1, 1, 99, i18nc("setting", "Backups kept"));
         all << toggle(QStringLiteral("compressLayersInKra"), false, i18nc("setting", "Smaller .kra files"));
-        all << toggle(QStringLiteral("UseZip64"), false, i18nc("setting", "Files over 4 GB"));
         all << toggle(QStringLiteral("TrimKra"), false, i18nc("setting", "Trim layers when saving"));
         // none chosen yet is PNG, as Krita takes it
         Setting exportType = choice(QStringLiteral("defaultExportMimeType"), QStringLiteral("image/png"), {}, i18nc("setting", "Export as"));
@@ -534,6 +652,94 @@ QVector<Setting> describeAll()
                              {}, i18nc("setting", "Profile of EXR files"));
         exr.dynamicChoices = rgbProfiles;
         all << exr;
+
+        // how new images are proofed
+        {
+            auto proofingChanged = [](const QVariant &) { KisImageConfigNotifier::instance()->notifyGlobalProofingConfigChanged(); };
+            Setting profile = choice(QStringLiteral("defaultProofingProfileName"), QStringLiteral("Chemical proof"), {}, i18nc("setting", "Proofing profile"));
+            profile.dynamicChoices = proofingProfiles;
+            profile.written = [proofingChanged](const QVariant &value) {
+                proofWith(value.toString());
+                proofingChanged(value);
+            };
+            all << profile;
+            Setting intent = choice(QStringLiteral("defaultProofingConversionIntent"), 1,
+                                    {{0, i18nc("rendering intent", "Perceptual")}, {1, i18nc("rendering intent", "Relative")},
+                                     {2, i18nc("rendering intent", "Saturation")}, {3, i18nc("rendering intent", "Absolute")}},
+                                    i18nc("setting", "Proofing intent"));
+            intent.written = proofingChanged;
+            all << intent;
+            Setting black = toggle(QStringLiteral("defaultProofingBlackpointCompensation"), true, i18nc("setting", "Proofing black point compensation"));
+            black.written = proofingChanged;
+            all << black;
+            // the custom mode the old dialog had reads as Paper
+            Setting paper = choice(QStringLiteral("defaultProofingDisplayMode"), 1,
+                                   {{0, i18nc("proofing display", "Screen white")}, {1, i18nc("proofing display", "Paper white")}},
+                                   i18nc("setting", "Proof's white"));
+            paper.written = proofingChanged;
+            all << paper;
+            Setting warning = color(QStringLiteral("defaultProofingGamutwarning"), Qt::green, i18nc("setting", "Out of gamut"));
+            warning.written = proofingChanged;
+            all << warning;
+        }
+
+        // the screens: each one's profile, or, where the system manages the colors, how the canvas is handed to it
+        const bool osManaged = KisPlatformPluginInterfaceFactory::instance()->surfaceColorManagedByOS();
+        if (!osManaged) {
+            const QList<QScreen *> screens = QGuiApplication::screens();
+            for (int i = 0; i < screens.size(); i++) {
+                const QString name = screens[i]->model().trimmed().isEmpty() ? screens[i]->name() : screens[i]->model().trimmed();
+                Setting monitor = choice(QStringLiteral("monitorProfile"), QStringLiteral("sRGB-elle-V2-srgbtrc.icc"), {},
+                                         i18nc("setting: a screen's color profile, %1 its number, %2 its name", "Screen %1 (%2)", i + 1, name), R::Machine);
+                monitor.id = QStringLiteral("monitorProfile screen %1").arg(i);
+                monitor.dynamicChoices = displayProfiles;
+                monitor.read = [i]() { return KisConfig(true).monitorProfile(i); };
+                monitor.write = [i](const QVariant &value) { KisConfig(false).setMonitorProfile(i, value.toString()); };
+                all << monitor;
+            }
+        } else {
+            Setting managed = toggle(QStringLiteral("enableCanvasSurfaceColorSpaceManagement"), false, i18nc("setting", "Color-managed canvas"), R::Machine);
+            managed.read = []() { return KisConfig(true).enableCanvasSurfaceColorSpaceManagement(); };
+            managed.write = [](const QVariant &value) { KisConfig(false).setEnableCanvasSurfaceColorSpaceManagement(value.toBool()); };
+            all << managed;
+            using Mode = KisConfig::CanvasSurfaceMode;
+            Setting mode = choice(QStringLiteral("canvasSurfaceColorSpaceManagementMode"), int(Mode::Preferred),
+                                  {{int(Mode::Preferred), i18nc("canvas surface", "As the system prefers")}, {int(Mode::Rec709g22), i18nc("canvas surface", "Rec. 709, gamma 2.2")},
+                                   {int(Mode::Rec709g10), i18nc("canvas surface", "Rec. 709, linear")}, {int(Mode::Rec2020pq), i18nc("canvas surface", "Rec. 2020 PQ")},
+                                   {int(Mode::Unmanaged), i18nc("canvas surface", "Unmanaged (testing)")}},
+                                  i18nc("setting", "Canvas color space"), R::Machine);
+            mode.read = []() { return int(KisConfig(true).canvasSurfaceColorSpaceManagementMode()); };
+            mode.write = [](const QVariant &value) { KisConfig(false).setCanvasSurfaceColorSpaceManagementMode(Mode(value.toInt())); };
+            all << mode;
+            using Depth = KisConfig::CanvasSurfaceBitDepthMode;
+            Setting depth = choice(QStringLiteral("canvasSurfaceBitDepthMode"), int(Depth::DepthAuto),
+                                   {{int(Depth::DepthAuto), i18nc("canvas surface depth", "Auto")}, {int(Depth::Depth8Bit), i18nc("canvas surface depth", "8 bit")},
+                                    {int(Depth::Depth10Bit), i18nc("canvas surface depth", "10 bit")}},
+                                   i18nc("setting", "Canvas bit depth"), R::Machine | R::Restart);
+            depth.read = []() { return int(KisConfig(true).canvasSurfaceBitDepthMode()); };
+            depth.write = [](const QVariant &value) { KisConfig(false).setCanvasSurfaceBitDepthMode(Depth(value.toInt())); };
+            all << depth;
+        }
+#ifdef HAVE_HDR
+        // where the system manages the colors, it sets the window's format too
+        if (!osManaged) {
+            Setting format = choice(QStringLiteral("rootSurfaceFormat"), int(KisConfig::BT709_G22),
+                                    {{int(KisConfig::BT709_G22), i18nc("screen format", "sRGB, 8 bit")},
+                                     {int(KisConfig::BT2020_PQ), i18nc("screen format", "HDR: Rec. 2020 PQ, 10 bit")},
+                                     {int(KisConfig::BT709_G10), i18nc("screen format", "HDR: Rec. 709 linear, 16 bit")}},
+                                    i18nc("setting", "Window format"), R::Machine | R::Restart);
+            format.id = QStringLiteral("kritadisplayrc rootSurfaceFormat");
+            format.read = []() {
+                QSettings settings(displayrcPath(), QSettings::IniFormat);
+                return int(KisConfig::rootSurfaceFormat(&settings));
+            };
+            format.write = [](const QVariant &value) {
+                QSettings settings(displayrcPath(), QSettings::IniFormat);
+                KisConfig::setRootSurfaceFormat(&settings, KisConfig::RootSurfaceFormat(value.toInt()));
+            };
+            all << format;
+        }
+#endif
     }
 
     // speed
@@ -589,7 +795,7 @@ QVector<Setting> describeAll()
  */
 void forgetRetired()
 {
-    constexpr int version = 1;
+    constexpr int version = 2;
     KConfigGroup top = KSharedConfig::openConfig()->group(QString());
     if (top.readEntry("StudioRetiredSettings", 0) >= version) return;
     const char *const keys[] = {
@@ -603,7 +809,8 @@ void forgetRetired()
         "renameMergedLayers", "renamePastedLayers", "renameDuplicatedLayers", "ShowRootLayer", "autosavefileshidden", "backupfilesuffix",
         "TrimFramesImport", "useOpenGLTextureBuffer", "assistantsDrawMode", "frameRenderingTimeout", "useAnimationCacheFrameSizeLimit",
         "animationCacheFrameSizeLimit", "useAnimationCacheRegionOfInterest", "animationCacheRegionOfInterestMargin",
-        "enableOpenGLFramerateLogging", "enableBrushSpeedLogging", "enableProgressReporting", "enablePerfLog",
+        "enableOpenGLFramerateLogging", "enableBrushSpeedLogging", "enableProgressReporting", "enablePerfLog", "UseZip64",
+        "forcedDpiForQtFontBugWorkaround",
     };
     for (const char *key : keys) top.deleteEntry(key);
     KSharedConfig::openConfig()->group(QStringLiteral("KisToolTransform")).deleteEntry("useOverlayPreviewStyle");
@@ -673,6 +880,11 @@ const Setting *KisSettingsRegistry::setting(const QString &id) const
 {
     const auto it = d->index.constFind(id);
     return it == d->index.constEnd() ? nullptr : &d->settings[*it];
+}
+
+void KisSettingsRegistry::refreshChoices()
+{
+    d->foundChoices.clear();
 }
 
 QVector<Choice> KisSettingsRegistry::choices(const Setting &setting) const

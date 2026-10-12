@@ -109,7 +109,6 @@ void KisConfig::logImportantSettings() const
     KisUsageLogger::writeSysInfo(QString("  Use Win8 Pointer Input: %1").arg(useWin8PointerInput() ? "true" : "false"));
     KisUsageLogger::writeSysInfo(QString("  Use RightMiddleTabletButton Workaround: %1").arg(useRightMiddleTabletButtonWorkaround() ? "true" : "false"));
     KisUsageLogger::writeSysInfo(QString("  Levels of Detail Enabled: %1").arg(levelOfDetailEnabled() ? "true" : "false"));
-    KisUsageLogger::writeSysInfo(QString("  Use Zip64: %1").arg(useZip64() ? "true" : "false"));
 
     KisUsageLogger::writeSysInfo("\n");
 
@@ -311,68 +310,13 @@ void KisConfig::setUseDefaultColorSpace(bool value) const
 
 // brush cursor settings
 
-void cleanOldCursorStyleKeys(KConfigGroup &cfg)
-{
-    if (cfg.hasKey("newCursorStyle") &&
-        cfg.hasKey("newOutlineStyle")) {
-
-        cfg.deleteEntry("cursorStyleDef");
-    }
-}
-
 CursorStyle KisConfig::newCursorStyle(bool defaultValue) const
 {
     if (defaultValue) {
         return CURSOR_STYLE_NO_CURSOR;
     }
-
-
-    int style = m_cfg.readEntry("newCursorStyle", int(-1));
-
-    if (style < 0) {
-        // old style format
-        style = m_cfg.readEntry("cursorStyleDef", int(OLD_CURSOR_STYLE_OUTLINE));
-
-        switch (style) {
-        case OLD_CURSOR_STYLE_TOOLICON:
-            style = CURSOR_STYLE_TOOLICON;
-            break;
-        case OLD_CURSOR_STYLE_CROSSHAIR:
-        case OLD_CURSOR_STYLE_OUTLINE_CENTER_CROSS:
-            style = CURSOR_STYLE_CROSSHAIR;
-            break;
-        case OLD_CURSOR_STYLE_POINTER:
-            style = CURSOR_STYLE_POINTER;
-            break;
-        case OLD_CURSOR_STYLE_OUTLINE:
-        case OLD_CURSOR_STYLE_NO_CURSOR:
-            style = CURSOR_STYLE_NO_CURSOR;
-            break;
-        case OLD_CURSOR_STYLE_SMALL_ROUND:
-        case OLD_CURSOR_STYLE_OUTLINE_CENTER_DOT:
-            style = CURSOR_STYLE_SMALL_ROUND;
-            break;
-        case OLD_CURSOR_STYLE_TRIANGLE_RIGHTHANDED:
-        case OLD_CURSOR_STYLE_OUTLINE_TRIANGLE_RIGHTHANDED:
-            style = CURSOR_STYLE_TRIANGLE_RIGHTHANDED;
-            break;
-        case OLD_CURSOR_STYLE_TRIANGLE_LEFTHANDED:
-        case OLD_CURSOR_STYLE_OUTLINE_TRIANGLE_LEFTHANDED:
-            style = CURSOR_STYLE_TRIANGLE_LEFTHANDED;
-            break;
-        default:
-            style = -1;
-        }
-    }
-
-    cleanOldCursorStyleKeys(m_cfg);
-
-    // compatibility with future versions
-    if (style < 0 || style >= N_CURSOR_STYLE_SIZE) {
-        style = CURSOR_STYLE_NO_CURSOR;
-    }
-
-    return (CursorStyle) style;
+    const int style = m_cfg.readEntry("newCursorStyle", int(CURSOR_STYLE_NO_CURSOR));
+    return style < 0 || style >= N_CURSOR_STYLE_SIZE ? CURSOR_STYLE_NO_CURSOR : CursorStyle(style);
 }
 
 void KisConfig::setNewCursorStyle(CursorStyle style)
@@ -397,43 +341,8 @@ OutlineStyle KisConfig::newOutlineStyle(bool defaultValue) const
     if (defaultValue) {
         return OUTLINE_FULL;
     }
-
-    int style = m_cfg.readEntry("newOutlineStyle", int(-1));
-
-    if (style < 0) {
-        // old style format
-        style = m_cfg.readEntry("cursorStyleDef", int(OLD_CURSOR_STYLE_OUTLINE));
-
-        switch (style) {
-        case OLD_CURSOR_STYLE_TOOLICON:
-        case OLD_CURSOR_STYLE_CROSSHAIR:
-        case OLD_CURSOR_STYLE_POINTER:
-        case OLD_CURSOR_STYLE_NO_CURSOR:
-        case OLD_CURSOR_STYLE_SMALL_ROUND:
-        case OLD_CURSOR_STYLE_TRIANGLE_RIGHTHANDED:
-        case OLD_CURSOR_STYLE_TRIANGLE_LEFTHANDED:
-            style = OUTLINE_NONE;
-            break;
-        case OLD_CURSOR_STYLE_OUTLINE:
-        case OLD_CURSOR_STYLE_OUTLINE_CENTER_DOT:
-        case OLD_CURSOR_STYLE_OUTLINE_CENTER_CROSS:
-        case OLD_CURSOR_STYLE_OUTLINE_TRIANGLE_RIGHTHANDED:
-        case OLD_CURSOR_STYLE_OUTLINE_TRIANGLE_LEFTHANDED:
-            style = OUTLINE_FULL;
-            break;
-        default:
-            style = -1;
-        }
-    }
-
-    cleanOldCursorStyleKeys(m_cfg);
-
-    // compatibility with future versions
-    if (style < 0 || style >= N_OUTLINE_STYLE_SIZE) {
-        style = OUTLINE_FULL;
-    }
-
-    return (OutlineStyle) style;
+    const int style = m_cfg.readEntry("newOutlineStyle", int(OUTLINE_FULL));
+    return style < 0 || style >= N_OUTLINE_STYLE_SIZE ? OUTLINE_FULL : OutlineStyle(style);
 }
 
 void KisConfig::setNewOutlineStyle(OutlineStyle style)
@@ -761,7 +670,6 @@ void KisConfig::setCanvasSurfaceColorSpaceManagementMode(KisConfig::CanvasSurfac
     m_cfg.writeEntry("canvasSurfaceColorSpaceManagementMode", modeStr);
 }
 
-
 KisConfig::CanvasSurfaceBitDepthMode KisConfig::canvasSurfaceBitDepthMode(QSettings *settings, bool defaultValue)
 {
     QString modeStr = defaultValue ? "auto" : settings->value("canvasSurfaceBitDepthMode", "auto").toString();
@@ -827,7 +735,6 @@ KisConfig::CanvasSurfaceBitDepthMode KisConfig::effectiveCanvasSurfaceBitDepthMo
 
     return mode;
 }
-
 
 QString KisConfig::monitorProfile(int screen) const
 {
@@ -938,7 +845,6 @@ void KisConfig::setPrinterColorSpace(const QString & printerColorSpace) const
     m_cfg.writeEntry("printerColorSpace", printerColorSpace);
 }
 
-
 QString KisConfig::printerProfile(bool defaultValue) const
 {
     return (defaultValue ? "" : m_cfg.readEntry("printerProfile", ""));
@@ -948,7 +854,6 @@ void KisConfig::setPrinterProfile(const QString & printerProfile) const
 {
     m_cfg.writeEntry("printerProfile", printerProfile);
 }
-
 
 bool KisConfig::useBlackPointCompensation(bool defaultValue) const
 {
@@ -1491,10 +1396,6 @@ KisConfig::IconsInMenu KisConfig::iconsInMenu(bool defaultValue) const
     int value = defaultValue ? IIM_Default : m_cfg.readEntry("iconsInMenu", (int)IIM_Default);
     return (KisConfig::IconsInMenu)value;
 }
-void KisConfig::setIconsInMenu(IconsInMenu value)
-{
-    m_cfg.writeEntry("iconsInMenu", (int)value);
-}
 
 bool KisConfig::saveSessionOnQuit(bool defaultValue) const
 {
@@ -1605,7 +1506,6 @@ void KisConfig::setToolOptionsPopupDetached(bool detached) const
 {
     m_cfg.writeEntry("ToolOptionsPopupDetached", detached);
 }
-
 
 bool KisConfig::paintopPopupDetached(bool defaultValue) const
 {
@@ -1852,7 +1752,6 @@ void KisConfig::setClicklessSpacePan(const bool toggle) const
 {
     m_cfg.writeEntry("clicklessSpacePan", toggle);
 }
-
 
 bool KisConfig::hideDockersFullscreen(bool defaultValue) const
 {
@@ -2188,16 +2087,6 @@ bool KisConfig::showSingleChannelAsColor(bool defaultValue) const
 void KisConfig::setShowSingleChannelAsColor(bool asColor)
 {
     m_cfg.writeEntry("showSingleChannelAsColor", asColor);
-}
-
-bool KisConfig::hidePopups(bool defaultValue) const
-{
-    return (defaultValue ? false : m_cfg.readEntry("hidePopups", false));
-}
-
-void KisConfig::setHidePopups(bool hidePopups)
-{
-    m_cfg.writeEntry("hidePopups", hidePopups);
 }
 
 int KisConfig::numDefaultLayers(bool defaultValue) const
@@ -2922,16 +2811,6 @@ void KisConfig::setRootSurfaceFormat(QSettings *displayrc, KisConfig::RootSurfac
     displayrc->setValue("rootSurfaceFormat", textValue);
 }
 
-bool KisConfig::useZip64(bool defaultValue) const
-{
-    return defaultValue ? false : m_cfg.readEntry("UseZip64", false);
-}
-
-void KisConfig::setUseZip64(bool value)
-{
-    m_cfg.writeEntry("UseZip64", value);
-}
-
 bool KisConfig::convertLayerColorSpaceInProperties(bool defaultValue) const
 {
     return defaultValue ? true : m_cfg.readEntry("convertLayerColorSpaceInProperties", true);
@@ -2940,16 +2819,6 @@ bool KisConfig::convertLayerColorSpaceInProperties(bool defaultValue) const
 void KisConfig::setConvertLayerColorSpaceInProperties(bool value)
 {
     m_cfg.writeEntry("convertLayerColorSpaceInProperties", value);
-}
-
-bool KisConfig::renamePastedLayers(bool defaultValue) const
-{
-    return defaultValue ? true : m_cfg.readEntry("renamePastedLayers", true);
-}
-
-void KisConfig::setRenamePastedLayers(bool value)
-{
-    m_cfg.writeEntry("renamePastedLayers", value);
 }
 
 KisConfig::LayerInfoTextStyle KisConfig::layerInfoTextStyle(bool defaultValue) const

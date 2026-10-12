@@ -607,6 +607,17 @@ void KisModernStyle::polish(QWidget *widget)
     }
 }
 
+QRect KisModernStyle::subElementRect(SubElement element, const QStyleOption *option, const QWidget *widget) const
+{
+    QRect r = QProxyStyle::subElementRect(element, option, widget);
+    if (element == SE_LineEditContents) {
+        // a field's text, and its cursor when empty, clear of the rounded border
+        const auto *frame = qstyleoption_cast<const QStyleOptionFrame *>(option);
+        if (frame && frame->lineWidth > 0) r.adjust(4, 0, -4, 0);
+    }
+    return r;
+}
+
 int KisModernStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const
 {
     const bool touch = KisTouchMode::isActive();
@@ -1377,15 +1388,6 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
                 proxy()->drawControl(CE_ToolButtonLabel, &label, painter, widget);
             }
             painter->restore();
-            if (on) {
-                const QRectF bar(tool->rect.center().x() - 5.5, tool->rect.bottom() - 2.5, 12, 2);
-                painter->save();
-                painter->setRenderHint(QPainter::Antialiasing, true);
-                painter->setPen(Qt::NoPen);
-                painter->setBrush(fg);
-                painter->drawRoundedRect(bar, 1, 1);
-                painter->restore();
-            }
             return;
         }
         break;

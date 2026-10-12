@@ -6,6 +6,8 @@
 
 #include "KisPasteActionFactories.h"
 
+#include <kis_image_config.h>
+
 #include "kis_config.h"
 #include "kis_image.h"
 #include "KisViewManager.h"
@@ -294,9 +296,7 @@ void KisPasteActionFactory::run(Flags flags, KisViewManager *view)
         }
 
         KisImportCatcher::adaptClipToImageColorSpace(clip, image);
-        bool renamePastedLayers = KisConfig(true).renamePastedLayers();
-        QString pastedLayerName = renamePastedLayers ? image->nextLayerName() + " " + i18n("(pasted)") :
-                                                       image->nextLayerName();
+        const QString pastedLayerName = KisImageConfig(true).layerName(KisImageConfig::PastedLayer, image->nextLayerName());
         KisPaintLayerSP newLayer = new KisPaintLayer(image.data(),
                                                      pastedLayerName,
                                                      OPACITY_OPAQUE_U8);
@@ -395,9 +395,7 @@ void KisPasteNewActionFactory::run(KisViewManager *viewManager)
                                     rect.height(),
                                     clip->colorSpace(),
                                     i18n("Pasted"));
-    bool renamePastedLayers = KisConfig(true).renamePastedLayers();
-    QString pastedLayerName = renamePastedLayers ? image->nextLayerName() + " " + i18n("(pasted)") :
-                                                   image->nextLayerName();
+    const QString pastedLayerName = KisImageConfig(true).layerName(KisImageConfig::PastedLayer, image->nextLayerName());
     KisPaintLayerSP layer =
             new KisPaintLayer(image.data(), pastedLayerName,
                               OPACITY_OPAQUE_U8, clip->colorSpace());

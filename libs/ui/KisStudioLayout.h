@@ -29,6 +29,8 @@ class KRITAUI_EXPORT KisStudioLayout : public QObject
     Q_OBJECT
 public:
     explicit KisStudioLayout(KisMainWindow *mainWindow);
+    /// The settings panel, made the first time it is needed
+    void ensureSettings();
     ~KisStudioLayout() override;
 
     /// Enabled in kritarc (the default)

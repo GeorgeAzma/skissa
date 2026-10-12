@@ -807,6 +807,7 @@ struct KisOpenGLGlass::Private : Programs
     KisOpenGLGpuTiming timing {QStringLiteral("glass gpu:"), {QStringLiteral("shrink"), QStringLiteral("blur"), QStringLiteral("draw")}};
     QSize blurredViewport;
     qreal blurredRatio {0};
+    qreal blurredAmount {0};
 
     /// At least \p size: grown only (as panels come and go, their places take more or less of it)
     void ensureSize(const QSize &size)
@@ -963,7 +964,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
 qreal KisOpenGLGlass::reach()
 {
     // the widest gaussian, and the pixels made one in the smaller canvas
-    return 3 * KisStudioGlass::blurSigma * KisStudioGlass::maxBlurScale + 8;
+    return 3 * KisStudioGlass::blurSigma() * KisStudioGlass::maxBlurScale + 8;
 }
 
 void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewport, qreal pixelRatio,
@@ -1042,7 +1043,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
             if (r.isEmpty()) continue;
             Region &region = regions[i];
             region.area = QRect(QPoint(r.left() / factor, r.top() / factor), QPoint(r.right() / factor + 1, r.bottom() / factor + 1)) & smallWhole;
-            region.wide = kernel(KisStudioGlass::blurSigma * scaleOf(surfaces[i]));
+            region.wide = kernel(KisStudioGlass::blurSigma() * scaleOf(surfaces[i]));
             region.around = region.area.adjusted(-region.wide.taps, -region.wide.taps, region.wide.taps, region.wide.taps) & smallWhole;
             if (next.x() + region.around.width() > smallSize.width()) {
                 next = QPoint(0, next.y() + rowHeight);
@@ -1082,10 +1083,12 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     // only the brush outline moved, say: what is behind the glass is what was blurred last time
     QVector<QRectF> rects;
     for (const Surface &surface : surfaces) rects << surface.rect;
-    const bool blurAgain = canvasChanged || rects != d->blurredFor || viewport != d->blurredViewport || pixelRatio != d->blurredRatio;
+    const bool blurAgain = canvasChanged || rects != d->blurredFor || viewport != d->blurredViewport || pixelRatio != d->blurredRatio
+        || KisStudioGlass::blur() != d->blurredAmount;
     d->blurredFor = rects;
     d->blurredViewport = viewport;
     d->blurredRatio = pixelRatio;
+    d->blurredAmount = KisStudioGlass::blur();
 
     // only those that are on the canvas, when what is behind them changed
     QVector<Region> blurring;
@@ -1153,7 +1156,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1f(d->glass["restore"], KisStudioGlass::restore);
     f->glUniform1f(d->glass["power"], KisStudioGlass::lightnessPower);
     f->glUniform1f(d->glass["factor"], factor);
-    f->glUniform2f(d->glass["tintStrength"], KisStudioGlass::tintOverDark, KisStudioGlass::tintOverBright);
+    f->glUniform2f(d->glass["tintStrength"], KisStudioGlass::tintOverDark(), KisStudioGlass::tintOverBright());
     f->glUniform1f(d->glass["veil"], KisStudioGlass::veil);
     f->glUniform2f(d->glass["viewport"], viewport.width(), viewport.height());
     f->glUniform1f(d->glass["dither"], dither);
@@ -1163,7 +1166,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1f(d->glass["clearing"], bevel.clear);
     const QVector3D ior = refractiveIndices(bevel.abbeNumber);
     f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
-    f->glUniform1f(d->glass["lowerStrength"], float(0.5 * (KisStudioGlass::tintOverDark + KisStudioGlass::tintOverBright)));
+    f->glUniform1f(d->glass["lowerStrength"], float(0.5 * (KisStudioGlass::tintOverDark() + KisStudioGlass::tintOverBright())));
     f->glActiveTexture(GL_TEXTURE2);
     f->glBindTexture(GL_TEXTURE_2D, canvas);
     f->glActiveTexture(GL_TEXTURE1);
@@ -1189,8 +1192,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glUniform1f(d->glass["tintLightness"], float(std::cbrt(luminance)));
         f->glUniform1f(d->glass["opacity"], surface.opacity);
         const qreal scale = scaleOf(surface);
-        f->glUniform1f(d->glass["sigma"], KisStudioGlass::blurSigma * scale * pixelRatio);
-        f->glUniform1f(d->glass["spacing"], 2 * KisStudioGlass::blurSigma * scale * pixelRatio);
+        f->glUniform1f(d->glass["sigma"], KisStudioGlass::blurSigma() * scale * pixelRatio);
+        f->glUniform1f(d->glass["spacing"], 2 * KisStudioGlass::blurSigma() * scale * pixelRatio);
         // the sides it goes on beyond the canvas on: left, right, bottom, top
         f->glUniform4f(d->glass["beyond"], r.left() < 0, r.right() > viewport.width(), r.top() < 0, r.bottom() > viewport.height());
         const QRectF reach = r.adjusted(-rimReach, -rimReach, rimReach, rimReach) & QRectF(whole).adjusted(0.5, 0.5, -0.5, -0.5);

@@ -23,7 +23,6 @@
 
 #include <kis_config.h>
 #include <kis_config_notifier.h>
-#include <dialogs/kis_dlg_preferences.h>
 #include <QSignalBlocker>
 
 namespace
@@ -105,17 +104,14 @@ void KisToolColorSampler::slotSetPreviewStyleComboBoxFromConfig()
 {
     if (m_optionsWidget) {
         QSignalBlocker blocker(m_optionsWidget->cmbPreviewStyle);
-        GeneralTab::setColorSamplerPreviewStyleIndexByValue(m_optionsWidget->cmbPreviewStyle,
-                                                            KisConfig(true).colorSamplerPreviewStyle());
+        m_optionsWidget->cmbPreviewStyle->setCurrentIndex(int(KisConfig(true).colorSamplerPreviewStyle()));
     }
 }
 
 void KisToolColorSampler::slotSetPreviewStyleConfigFromComboBox()
 {
     if (m_optionsWidget) {
-        KisConfig::ColorSamplerPreviewStyle style =
-            GeneralTab::getColorSamplerPreviewStyleValue(m_optionsWidget->cmbPreviewStyle);
-        KisConfig(false).setColorSamplerPreviewStyle(style);
+        KisConfig(false).setColorSamplerPreviewStyle(KisConfig::ColorSamplerPreviewStyle(m_optionsWidget->cmbPreviewStyle->currentIndex()));
     }
 }
 
@@ -299,7 +295,14 @@ QWidget* KisToolColorSampler::createOptionWidget()
     specialSpacer->setFixedSize(0, 0);
     m_optionsWidget->layout()->addWidget(specialSpacer);
 
-    GeneralTab::setColorSamplerPreviewStyleItems(m_optionsWidget->cmbPreviewStyle);
+    // in KisConfig::ColorSamplerPreviewStyle's order
+    m_optionsWidget->cmbPreviewStyle->addItems({
+        i18nc("Preview option for no color sampler", "None"),
+        i18nc("Preview option for a circular/ring-shaped color sampler", "Circle"),
+        i18nc("Preview option for a rectangular color sampler left of the cursor", "Rectangle Left"),
+        i18nc("Preview option for a rectangular color sampler right of the cursor", "Rectangle Right"),
+        i18nc("Preview option for a rectangular color sampler above the cursor", "Rectangle Above"),
+    });
     connect(KisConfigNotifier::instance(),
             &KisConfigNotifier::sigColorSamplerPreviewStyleChanged,
             this,

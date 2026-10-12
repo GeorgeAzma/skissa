@@ -1485,7 +1485,6 @@ void KisViewManager::openResourcesDirectory()
         QMessageBox mbox(qApp->activeWindow());
         mbox.setIcon(QMessageBox::Information);
         mbox.setWindowTitle(i18nc("@title:window resource folder", "Open Resource Folder"));
-        // Similar text is also used in kis_dlg_preferences.cc
 
         mbox.setText(i18nc("@info resource folder",
             "<p>You are using the Microsoft Store package version of Krita. "

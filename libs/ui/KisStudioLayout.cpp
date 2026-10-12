@@ -705,14 +705,22 @@ public:
         QLayout *contents = m_contents->layout();
         const int at = m_grip ? index - 1 : index;
         static_cast<QHBoxLayout *>(contents)->insertWidget(qBound(0, at, contents->count()), widget);
+        keepHeight();
     }
 
     QWidget *contents() const { return m_contents; }
     TopGrip *grip() const { return m_grip; }
 
+    /// Tucked away to its grip, the bar is as tall as it is open: the window handle and what is below stay put
+    void keepHeight()
+    {
+        if (m_grip) m_grip->setFixedHeight(qMax(30, m_contents->sizeHint().height()));
+    }
+
     void setTucked(bool tucked)
     {
         m_contents->setVisible(!tucked);
+        keepHeight();
         if (m_grip) {
             m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Show bar")
                                       : i18nc("@info:tooltip", "Drag to move, double-click to maximize"));
@@ -3009,18 +3017,7 @@ void KisStudioLayout::adoptTopBars()
     if (!d->windowHandle) {
         d->windowHandle = new WindowHandle(area);
     }
-    if (!d->settings) {
-        d->settings = new KisStudioSettings(d->mainWindow, area);
-        // under the window pill, at the right, as tall as the canvas allows
-        d->settings->setPlacement([this, area](const QSize &wanted) {
-            const int margin = TopPill::margin;
-            const QRect pill = d->windowPill && d->windowPill->isVisible() ? d->windowPill->geometry() : QRect(area->width() - margin, margin, 0, 0);
-            const int top = pill.bottom() + 1 + margin;
-            const int width = qMin(wanted.width(), area->width() - 2 * margin);
-            const int right = pill.isEmpty() ? area->width() - margin : pill.right() + 1;
-            return QRect(qMax(margin, right - width), top, width, qMax(120, area->height() - top - margin));
-        });
-    }
+    ensureSettings();
     if (!d->topPill) {
         d->topPill = new TopPill(area, false);
         d->topPill->changed = [self = QPointer<KisStudioLayout>(this)]() { if (self) self->updateCanvasInsets(); };
@@ -3109,18 +3106,34 @@ void KisStudioLayout::releaseTopBars()
     updateCanvasInsets();
 }
 
-void KisStudioLayout::openSettings(const QString &cardId, bool toggle)
+void KisStudioLayout::ensureSettings()
 {
-    if (d->settings && d->active) {
-        if (toggle && d->settings->isVisible() && cardId.isEmpty()) d->settings->hide();
-        else d->settings->open(cardId);
+    QMdiArea *mdi = mdiArea();
+    QWidget *area = mdi ? mdi->parentWidget() : nullptr;
+    if (d->settings || !area) {
         return;
     }
-    // the dialog, at the card's page
-    if (QAction *configure = d->mainWindow->actionCollection()->action(QStringLiteral("options_configure"))) {
-        configure->setData(KisStudioSettings::classicPage(cardId));
-        configure->trigger();
+    d->settings = new KisStudioSettings(d->mainWindow, area);
+    // under the window pill, at the right, as tall as the canvas allows
+    d->settings->setPlacement([this, area](const QSize &wanted) {
+        const int margin = TopPill::margin;
+        const QRect pill = d->windowPill && d->windowPill->isVisible() ? d->windowPill->geometry() : QRect(area->width() - margin, margin, 0, 0);
+        const int top = pill.bottom() + 1 + margin;
+        const int width = qMin(wanted.width(), area->width() - 2 * margin);
+        const int right = pill.isEmpty() ? area->width() - margin : pill.right() + 1;
+        return QRect(qMax(margin, right - width), top, width, qMax(120, area->height() - top - margin));
+    });
+}
+
+void KisStudioLayout::openSettings(const QString &cardId, bool toggle)
+{
+    // with the studio layout off too: there are no other settings
+    ensureSettings();
+    if (!d->settings) {
+        return;
     }
+    if (toggle && d->settings->isVisible() && cardId.isEmpty()) d->settings->hide();
+    else d->settings->open(cardId);
 }
 
 void KisStudioLayout::showMainMenu(QWidget *button)

@@ -48,8 +48,6 @@ public:
     static QVector<CardInfo> cardInfos();
     /// A card's switch flipped from elsewhere (Find)
     static bool flip(const QString &settingId);
-    /// The Preferences dialog's page with \p cardId's settings ({page, tab}, as options_configure takes it); invalid if none
-    static QVariant classicPage(const QString &cardId);
 
     void reposition();
     /// A short message at its foot, for a few seconds

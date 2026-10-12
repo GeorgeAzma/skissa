@@ -110,7 +110,6 @@
 #include <brushengine/kis_paintop_settings.h>
 #include "dialogs/kis_about_application.h"
 #include "dialogs/kis_delayed_save_dialog.h"
-#include "dialogs/kis_dlg_preferences.h"
 #include "kis_action_manager.h"
 #include "KisApplication.h"
 #include "kis_canvas2.h"
@@ -391,6 +390,8 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     KConfigGroup group( KSharedConfig::openConfig(), "theme");
 #ifndef Q_OS_HAIKU
     d->themeManager = new Digikam::ThemeManager(group.readEntry("Theme", "Krita Studio Dark"), this);
+    // as the window starts: taken again only when it changes
+    d->appliedTheme = group.readEntry("Theme", "Krita Studio Dark") + QLatin1Char('#') + QString::number(group.readEntry("Revision", 0));
 #endif
     d->windowStateConfig = KSharedConfig::openConfig()->group("MainWindow");
 
@@ -910,51 +911,11 @@ void KisMainWindow::showView(KisView *imageView, QMdiSubWindow *subwin)
 
 void KisMainWindow::slotPreferences()
 {
-    std::optional<KisDlgPreferences::PageDesc>page = std::nullopt;
-
-    KisAction* action = d->actionManager()->actionByName("options_configure");
-    QVariant data  = action->data();
-    if (data.userType() == QMetaType::QVariantList) {
-        // Reset the data first
-        action->setData(QVariant());
-        QList<QVariant> list = data.toList();
-
-        Q_ASSERT(list.length() == 2);
-        Q_ASSERT(list[0].userType() == QMetaType::Int);
-        Q_ASSERT(list[1].userType() == QMetaType::Int);
-
-        KisDlgPreferences::Page p = (KisDlgPreferences::Page)list[0].toInt();
-        int t = list[1].toInt();
-        page = KisDlgPreferences::PageDesc{p, t};
-    }
-
-    QScopedPointer<KisDlgPreferences> dlgPreferences(new KisDlgPreferences(this));
-
-    if (dlgPreferences->editPreferences(page)) {
-        KisConfigNotifier::instance()->notifyConfigChanged();
-        KisConfigNotifier::instance()->notifyPixelGridModeChanged();
-        KisImageConfigNotifier::instance()->notifyConfigChanged();
-
-        // XXX: should this be changed for the views in other windows as well?
-        Q_FOREACH (QPointer<KisView> koview, KisPart::instance()->views()) {
-            KisViewManager *view = qobject_cast<KisViewManager*>(koview);
-            if (view) {
-                // Update the settings for all nodes -- they don't query
-                // KisConfig directly because they need the settings during
-                // compositing, and they don't connect to the config notifier
-                // because nodes are not QObjects (because only one base class
-                // can be a QObject).
-                KisNode* node = dynamic_cast<KisNode*>(view->image()->rootLayer().data());
-                if (node) {
-                    node->updateSettings();
-                }
-            }
-
-        }
-        updateWindowMenu();
-
-        d->viewManager->showHideScrollbars();
-    }
+    // Settings, at a card if the action carries its id
+    KisAction *action = d->actionManager()->actionByName("options_configure");
+    const QString card = action->data().toString();
+    action->setData(QVariant());
+    d->studioLayout->openSettings(card);
 }
 
 void KisMainWindow::updateTheme()
@@ -982,16 +943,31 @@ void KisMainWindow::updateTheme()
     // Update toolbars
     {
         Q_FOREACH (KisToolBar* aToolBar, toolBars()) {
-            QObjectList objects;
-            objects.append(aToolBar);
+            QList<QPair<QObject *, bool>> objects;
+            objects.append({aToolBar, false});
             while (!objects.isEmpty()) {
-                QWidget* widget = qobject_cast<QWidget*>(objects.takeFirst());
+                const QPair<QObject *, bool> next = objects.takeFirst();
+                QWidget* widget = qobject_cast<QWidget*>(next.first);
                 if (widget) {
-                    objects.append(widget->children());
-                    widget->setPalette(qApp->palette());
+                    // a see-through bar keeps its veils (KisStudioGlass makes them again for the theme), and what is on it takes them
+                    const bool seeThrough = next.second || widget->property("studioGlassSeeThrough").toBool();
+                    Q_FOREACH (QObject *child, widget->children()) objects.append({child, seeThrough});
+                    if (!seeThrough) {
+                        widget->setPalette(qApp->palette());
+                    } else if (next.second && widget->testAttribute(Qt::WA_SetPalette)) {
+                        widget->setPalette(QPalette());
+                    }
                 }
             }
         }
+    }
+
+    // the studio's bars, rail and panels are not toolbars: their buttons' icons follow too
+    QObjectList objects = children();
+    while (!objects.isEmpty()) {
+        QObject *object = objects.takeFirst();
+        objects.append(object->children());
+        KisIconUtils::updateIconCommon(object);
     }
 }
 
@@ -999,10 +975,10 @@ void KisMainWindow::slotThemeChanged()
 {
     KConfigGroup group(KSharedConfig::openConfig(), "theme");
 #ifndef Q_OS_HAIKU
-    if (group.readEntry("Theme", "") == d->themeManager->currentThemeName()) return;
-
-    // save theme changes instantly
-    group.writeEntry("Theme", d->themeManager->currentThemeName());
+    // save theme changes instantly; Settings writes it first, the icons and bars still follow
+    if (group.readEntry("Theme", "") != d->themeManager->currentThemeName()) {
+        group.writeEntry("Theme", d->themeManager->currentThemeName());
+    }
 #endif
     updateTheme();
 
@@ -2993,9 +2969,13 @@ void KisMainWindow::configChanged()
 #ifndef Q_OS_HAIKU
     // only when it changed: reapplying the palette at every setting change is slow
     const QString theme = group.readEntry("Theme", "Krita Studio Dark");
-    if (theme != d->appliedTheme) {
-        d->appliedTheme = theme;
-        d->themeManager->setCurrentTheme(theme);
+    // a theme made of choices (KisStudioTheme) keeps its name when changed: its revision tells
+    const QString applied = theme + QLatin1Char('#') + QString::number(group.readEntry("Revision", 0));
+    if (applied != d->appliedTheme) {
+        const bool rewritten = !d->appliedTheme.isEmpty() && d->appliedTheme.section(QLatin1Char('#'), 0, 0) == theme;
+        d->appliedTheme = applied;
+        if (rewritten) d->themeManager->reload();
+        else d->themeManager->setCurrentTheme(theme);
     }
 #endif
     d->actionManager()->updateGUI();
@@ -3313,7 +3293,9 @@ void KisMainWindow::applyToolBarLayout()
 {
     Q_FOREACH (KisToolBar *toolBar, toolBars()) {
         toolBar->layout()->setSpacing(4);
-        toolBar->setStyleSheet("QToolBar { border: none }"); // has a border in "Fusion" style that people don't like
+        // has a border in "Fusion" style that people don't like; the modern style draws none, and a style sheet
+        // would keep what is on the bar from taking a new theme's palette
+        if (!qobject_cast<KisModernStyle *>(qApp->style())) toolBar->setStyleSheet("QToolBar { border: none }");
 
         // Hide text for buttons with an icon in the toolbar
         Q_FOREACH (QAction *ac, toolBar->actions()){
