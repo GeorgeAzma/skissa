@@ -215,15 +215,6 @@ public:
 };
 
 template<typename _impl>
-class KoOptimizedCompositeOpAlphaDarkenHard128
-    : public KoOptimizedCompositeOpAlphaDarken128Impl<_impl, KoAlphaDarkenParamsWrapperHard>
-{
-public:
-    KoOptimizedCompositeOpAlphaDarkenHard128(const KoColorSpace* cs)
-        : KoOptimizedCompositeOpAlphaDarken128Impl<_impl, KoAlphaDarkenParamsWrapperHard>(cs) {}
-};
-
-template<typename _impl>
 class KoOptimizedCompositeOpAlphaDarkenCreamy128
     : public KoOptimizedCompositeOpAlphaDarken128Impl<_impl, KoAlphaDarkenParamsWrapperCreamy>
 {
@@ -249,15 +240,6 @@ public:
             KoStreamedMath<_impl>::template genericComposite64<false, true, AlphaDarkenCompositor128<quint16, ParamsWrapper> >(params);
         }
     }
-};
-
-template<typename _impl>
-class KoOptimizedCompositeOpAlphaDarkenHardU64
-    : public KoOptimizedCompositeOpAlphaDarkenU64Impl<_impl, KoAlphaDarkenParamsWrapperHard>
-{
-public:
-    KoOptimizedCompositeOpAlphaDarkenHardU64(const KoColorSpace* cs)
-        : KoOptimizedCompositeOpAlphaDarkenU64Impl<_impl, KoAlphaDarkenParamsWrapperHard>(cs) {}
 };
 
 template<typename _impl>

@@ -7,13 +7,6 @@
 #include "KoOptimizedCompositeOpFactoryPerArch.h"
 #include "KoOptimizedCompositeOpFactory.h"
 
-KoCompositeOp* KoOptimizedCompositeOpFactory::createAlphaDarkenOpHard32(const KoColorSpace *cs)
-{
-    return createOptimizedClass<
-        KoOptimizedCompositeOpFactoryPerArch<
-            KoOptimizedCompositeOpAlphaDarkenHard32>>(cs);
-}
-
 KoCompositeOp* KoOptimizedCompositeOpFactory::createAlphaDarkenOpCreamy32(const KoColorSpace *cs)
 {
     return createOptimizedClass<
@@ -31,13 +24,6 @@ KoCompositeOp* KoOptimizedCompositeOpFactory::createCopyOp32(const KoColorSpace 
     return createOptimizedClass<KoOptimizedCompositeOpFactoryPerArch<KoOptimizedCompositeOpCopy32> >(cs);
 }
 
-KoCompositeOp* KoOptimizedCompositeOpFactory::createAlphaDarkenOpHard128(const KoColorSpace *cs)
-{
-    return createOptimizedClass<
-        KoOptimizedCompositeOpFactoryPerArch<
-            KoOptimizedCompositeOpAlphaDarkenHard128>>(cs);
-}
-
 KoCompositeOp* KoOptimizedCompositeOpFactory::createAlphaDarkenOpCreamy128(const KoColorSpace *cs)
 {
     return createOptimizedClass<
@@ -53,13 +39,6 @@ KoCompositeOp* KoOptimizedCompositeOpFactory::createOverOp128(const KoColorSpace
 KoCompositeOp* KoOptimizedCompositeOpFactory::createCopyOp128(const KoColorSpace *cs)
 {
     return createOptimizedClass<KoOptimizedCompositeOpFactoryPerArch<KoOptimizedCompositeOpCopy128> >(cs);
-}
-
-KoCompositeOp* KoOptimizedCompositeOpFactory::createAlphaDarkenOpHardU64(const KoColorSpace *cs)
-{
-    return createOptimizedClass<
-        KoOptimizedCompositeOpFactoryPerArch<
-            KoOptimizedCompositeOpAlphaDarkenHardU64>>(cs);
 }
 
 KoCompositeOp* KoOptimizedCompositeOpFactory::createAlphaDarkenOpCreamyU64(const KoColorSpace *cs)

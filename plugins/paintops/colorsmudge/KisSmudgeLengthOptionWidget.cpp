@@ -53,13 +53,10 @@ KisSmudgeLengthOptionWidget::KisSmudgeLengthOptionWidget(lager::cursor<KisSmudge
     m_d->cmbSmudgeMode->addItem("dulling-placeholder" , KisSmudgeLengthOptionData::DULLING_MODE);
 
     QCheckBox *chkSmearAlpha = new QCheckBox(page);
-    QCheckBox *chkUseNewEngine = new QCheckBox(page);
 
     QFormLayout *formLayout = new QFormLayout();
     formLayout->addRow(i18n("Smudge mode:"), m_d->cmbSmudgeMode);
     formLayout->addRow(i18n("Smear alpha:"), chkSmearAlpha);
-    formLayout->addRow(i18n("Use new smudge algorithm:"), chkUseNewEngine);
-    formLayout->addRow(new QLabel(i18n("(required for Color Image, Lightness Map, and Gradient Map brushes)")));
 
     QVBoxLayout *pageLayout = new QVBoxLayout(page);
     pageLayout->setContentsMargins(0, 0, 0, 0);
@@ -71,7 +68,6 @@ KisSmudgeLengthOptionWidget::KisSmudgeLengthOptionWidget(lager::cursor<KisSmudge
 
     connectControl(m_d->cmbSmudgeMode, &m_d->model, "mode");
     connectControl(chkSmearAlpha, &m_d->model, "smearAlpha");
-    connectControlState(chkUseNewEngine, &m_d->model, "useNewEngineState", "useNewEngine");
 
     m_d->isBrushPierced.bind(std::bind(&KisSmudgeLengthOptionWidget::updateBrushPierced, this, std::placeholders::_1));
     m_d->model.optionData.bind(std::bind(&KisSmudgeLengthOptionWidget::emitSettingChanged, this));

@@ -44,11 +44,7 @@ template<class Traits>
 struct OptimizedOpsSelector
 {
     static KoCompositeOp* createAlphaDarkenOp(const KoColorSpace *cs) {
-        if (useCreamyAlphaDarken()) {
-            return new KoCompositeOpAlphaDarken<Traits, KoAlphaDarkenParamsWrapperCreamy>(cs);
-        } else {
-            return new KoCompositeOpAlphaDarken<Traits, KoAlphaDarkenParamsWrapperHard>(cs);
-        }
+        return new KoCompositeOpAlphaDarken<Traits, KoAlphaDarkenParamsWrapperCreamy>(cs);
     }
     static KoCompositeOp* createOverOp(const KoColorSpace *cs) {
         return new KoCompositeOpOver<Traits>(cs);
@@ -63,9 +59,7 @@ template<>
 struct OptimizedOpsSelector<KoBgrU8Traits>
 {
     static KoCompositeOp* createAlphaDarkenOp(const KoColorSpace *cs) {
-        return useCreamyAlphaDarken() ?
-            KoOptimizedCompositeOpFactory::createAlphaDarkenOpCreamy32(cs) :
-            KoOptimizedCompositeOpFactory::createAlphaDarkenOpHard32(cs);
+        return KoOptimizedCompositeOpFactory::createAlphaDarkenOpCreamy32(cs);
     }
     static KoCompositeOp* createOverOp(const KoColorSpace *cs) {
         return KoOptimizedCompositeOpFactory::createOverOp32(cs);
@@ -80,9 +74,7 @@ template<>
 struct OptimizedOpsSelector<KoLabU8Traits>
 {
     static KoCompositeOp* createAlphaDarkenOp(const KoColorSpace *cs) {
-        return useCreamyAlphaDarken() ?
-            KoOptimizedCompositeOpFactory::createAlphaDarkenOpCreamy32(cs) :
-            KoOptimizedCompositeOpFactory::createAlphaDarkenOpHard32(cs);
+        return KoOptimizedCompositeOpFactory::createAlphaDarkenOpCreamy32(cs);
     }
     static KoCompositeOp* createOverOp(const KoColorSpace *cs) {
         return KoOptimizedCompositeOpFactory::createOverOp32(cs);
@@ -96,10 +88,7 @@ template<>
 struct OptimizedOpsSelector<KoRgbF32Traits>
 {
     static KoCompositeOp* createAlphaDarkenOp(const KoColorSpace *cs) {
-        return useCreamyAlphaDarken() ?
-            KoOptimizedCompositeOpFactory::createAlphaDarkenOpCreamy128(cs) :
-            KoOptimizedCompositeOpFactory::createAlphaDarkenOpHard128(cs);
-
+        return KoOptimizedCompositeOpFactory::createAlphaDarkenOpCreamy128(cs);
     }
     static KoCompositeOp* createOverOp(const KoColorSpace *cs) {
         return KoOptimizedCompositeOpFactory::createOverOp128(cs);
@@ -113,10 +102,7 @@ template<>
 struct OptimizedOpsSelector<KoBgrU16Traits>
 {
     static KoCompositeOp* createAlphaDarkenOp(const KoColorSpace *cs) {
-        return useCreamyAlphaDarken() ?
-            KoOptimizedCompositeOpFactory::createAlphaDarkenOpCreamyU64(cs) :
-            KoOptimizedCompositeOpFactory::createAlphaDarkenOpHardU64(cs);
-
+        return KoOptimizedCompositeOpFactory::createAlphaDarkenOpCreamyU64(cs);
     }
     static KoCompositeOp* createOverOp(const KoColorSpace *cs) {
         return KoOptimizedCompositeOpFactory::createOverOpU64(cs);

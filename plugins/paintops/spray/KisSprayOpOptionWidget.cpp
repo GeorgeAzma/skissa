@@ -79,7 +79,7 @@ public:
 		radialDistCombo->setToolTip(i18n("Select how the particles are distributed as a function of the distance from the center of the spray area."));
 
 
-		centerBiasedPolarDistanceBox->setToolTip(i18n("Activates the old behavior where the particles are more accumulated towards the center of the spray area."));
+		centerBiasedPolarDistanceBox->hide();
 
 		stdDeviationRadialDistSpin->setPrefix(i18n("Standard deviation: "));
 		stdDeviationRadialDistSpin->setRange(0.01, 1.0, 2);
@@ -226,7 +226,6 @@ KisSprayOpOptionWidget::KisSprayOpOptionWidget(lager::cursor<KisSprayOpOptionDat
 	
     
     connectControl(widget->curveRadialDistSpin, &m_d->model, "radialDistributionCurveRepeat");
-    connectControl(widget->centerBiasedPolarDistanceBox, &m_d->model, "radialDistributionCenterBiased");
     
     widget->jitterMovementSpin->setEnabled(m_d->model.jitterMovement());
     connect(&m_d->model, &KisSprayOpOptionModel::jitterMovementChanged, widget->jitterMovementSpin, &KisDoubleSliderSpinBox::setEnabled);

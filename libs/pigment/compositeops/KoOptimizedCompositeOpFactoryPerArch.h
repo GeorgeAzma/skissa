@@ -16,20 +16,14 @@ class KoColorSpace;
 template<typename _impl>
 class KoOptimizedCompositeOpAlphaDarkenCreamy32;
 
-template<typename _impl>
-class KoOptimizedCompositeOpAlphaDarkenHard32;
 
 template<typename _impl>
 class KoOptimizedCompositeOpOver32;
 
-template<typename _impl>
-class KoOptimizedCompositeOpAlphaDarkenHard128;
 
 template<typename _impl>
 class KoOptimizedCompositeOpAlphaDarkenCreamy128;
 
-template<typename _impl>
-class KoOptimizedCompositeOpAlphaDarkenHardU64;
 
 template<typename _impl>
 class KoOptimizedCompositeOpAlphaDarkenCreamyU64;

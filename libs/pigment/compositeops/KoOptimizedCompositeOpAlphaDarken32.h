@@ -237,16 +237,6 @@ public:
 };
 
 template<typename _impl = xsimd::current_arch>
-class KoOptimizedCompositeOpAlphaDarkenHard32 :
-        public KoOptimizedCompositeOpAlphaDarken32Impl<_impl, KoAlphaDarkenParamsWrapperHard>
-{
-public:
-    KoOptimizedCompositeOpAlphaDarkenHard32(const KoColorSpace *cs)
-        : KoOptimizedCompositeOpAlphaDarken32Impl<_impl, KoAlphaDarkenParamsWrapperHard>(cs) {
-    }
-};
-
-template<typename _impl = xsimd::current_arch>
 class KoOptimizedCompositeOpAlphaDarkenCreamy32 :
         public KoOptimizedCompositeOpAlphaDarken32Impl<_impl, KoAlphaDarkenParamsWrapperCreamy>
 {

@@ -56,7 +56,6 @@ set(kritapigment_SRCS
     colorspaces/KoSimpleColorSpaceEngine.cpp
     compositeops/KoOptimizedCompositeOpFactory.cpp
     compositeops/KoOptimizedCompositeOpFactoryPerArch_Scalar.cpp
-    compositeops/KoAlphaDarkenParamsWrapper.cpp
     compositeops/KoColorSpaceBlendingPolicy.cpp
     ${__per_arch_factory_objs}
     ${__per_arch_alpha_applicator_factory_objs}

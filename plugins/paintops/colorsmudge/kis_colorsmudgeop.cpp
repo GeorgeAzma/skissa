@@ -28,7 +28,6 @@
 #include "KisColorSmudgeStrategyWithOverlay.h"
 #include "KisColorSmudgeStrategyMask.h"
 #include "KisColorSmudgeStrategyStamp.h"
-#include "KisColorSmudgeStrategyMaskLegacy.h"
 
 struct ColorSmudgeInterstrokeDataFactory : public KisInterstrokeDataFactory
 {
@@ -69,9 +68,6 @@ KisColorSmudgeOp::KisColorSmudgeOp(const KisPaintOpSettingsSP settings, KisPaint
 
     m_gradient = painter->gradient();
 
-    // useNewEngine should be true if brushApplication is not ALPHAMASK
-    KIS_SAFE_ASSERT_RECOVER_NOOP(m_brush->brushApplication() == ALPHAMASK || m_smudgeRateOption.useNewEngine());
-
     const bool useSmearAlpha = m_smudgeRateOption.smearAlpha();
     const bool useDullingMode = m_smudgeRateOption.mode() == KisSmudgeLengthOptionData::DULLING_MODE;
     const bool useOverlayMode = m_overlayModeData.isChecked;
@@ -88,26 +84,19 @@ KisColorSmudgeOp::KisColorSmudgeOp(const KisPaintOpSettingsSP settings, KisPaint
                                                              useSmearAlpha,
                                                              useDullingMode,
                                                              thicknessMode));
-    } else if (m_smudgeRateOption.useNewEngine() &&
-               m_brush->brushApplication() == ALPHAMASK) {
+    } else if (m_brush->brushApplication() == ALPHAMASK) {
         m_strategy.reset(new KisColorSmudgeStrategyMask(painter,
                                                         image,
                                                         useSmearAlpha,
                                                         useDullingMode,
                                                         useOverlayMode));
-    } else if (m_brush->brushApplication() == IMAGESTAMP ||
-               m_brush->brushApplication() == GRADIENTMAP) {
+    } else {
+        // a color image or a gradient map
         m_strategy.reset(new KisColorSmudgeStrategyStamp(painter,
                                                          image,
                                                          useSmearAlpha,
                                                          useDullingMode,
                                                          useOverlayMode));
-    } else {
-        m_strategy.reset(new KisColorSmudgeStrategyMaskLegacy(painter,
-                                                              image,
-                                                              useSmearAlpha,
-                                                              useDullingMode,
-                                                              useOverlayMode));
     }
 
     m_strategy->initializePainting();

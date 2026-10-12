@@ -11,7 +11,8 @@ bool KisSmudgeLengthOptionMixInImpl::read(const KisPropertiesConfiguration *sett
 {
     mode = (Mode)setting->getInt("SmudgeRateMode", SMEARING_MODE);
     smearAlpha = setting->getBool("SmudgeRateSmearAlpha", true);
-    useNewEngine = setting->getBool("SmudgeRateUseNewEngine", false);
+    // the smudge engine of Krita 5 always; presets of before it paint with it too
+    useNewEngine = true;
 
     return true;
 }

@@ -53,7 +53,8 @@ bool KisSprayOpOptionData::read(const KisPropertiesConfiguration *settings)
         radialDistributionClusteringAmount = settings->getDouble(SPRAY_RADIAL_DISTRIBUTION_CLUSTERING_AMOUNT, 0.0);
         radialDistributionCurve = settings->getString(SPRAY_RADIAL_DISTRIBUTION_CURVE, DEFAULT_CURVE_STRING);
         radialDistributionCurveRepeat = settings->getInt(SPRAY_RADIAL_DISTRIBUTION_CURVE_REPEAT, 1);
-        radialDistributionCenterBiased = settings->getBool(SPRAY_RADIAL_DISTRIBUTION_CENTER_BIASED, true);
+        // the spread of Krita 5 always, not the old one biased to the center
+        radialDistributionCenterBiased = false;
     }
     return true;
 }

@@ -10,35 +10,6 @@
 #include <KoCompositeOp.h>
 #include "KoColorSpaceMaths.h"
 
-bool KRITAPIGMENT_EXPORT useCreamyAlphaDarken();
-
-struct KoAlphaDarkenParamsWrapperHard {
-    KoAlphaDarkenParamsWrapperHard(const KoCompositeOp::ParameterInfo& params)
-        : opacity(params.flow * params.opacity),
-          flow(params.flow),
-          averageOpacity(params.flow * (*params.lastOpacity))
-    {
-    }
-    float opacity;
-    float flow;
-    float averageOpacity;
-
-    template <typename T>
-    static inline T calculateZeroFlowAlpha(T srcAlpha, T dstAlpha, T normCoeff) {
-        return srcAlpha + dstAlpha - srcAlpha * dstAlpha * normCoeff;
-    }
-
-    template <typename T>
-    static inline T calculateZeroFlowAlpha(T srcAlpha, T dstAlpha) {
-        return srcAlpha + dstAlpha - srcAlpha * dstAlpha;
-    }
-
-    template<typename channels_type>
-    static inline channels_type calculateZeroFlowAlphaLegacy(channels_type srcAlpha, channels_type dstAlpha) {
-        return Arithmetic::unionShapeOpacity(srcAlpha, dstAlpha);
-    }
-};
-
 
 struct KoAlphaDarkenParamsWrapperCreamy {
     KoAlphaDarkenParamsWrapperCreamy(const KoCompositeOp::ParameterInfo& params)
