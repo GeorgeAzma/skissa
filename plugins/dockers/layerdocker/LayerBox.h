@@ -158,7 +158,8 @@ private:
     /// The row under the line between two rows at \p pos, if it is near one; \p gapY is the line
     QModelIndex gapAt(const QPoint &pos, int *gapY) const;
     /// A drag on a row: sideways, its layer's opacity; true while it is that
-    bool handleOpacityDrag(const QPoint &pos);
+    /// \p fine (Shift held): a quarter as fast
+    bool handleOpacityDrag(const QPoint &pos, bool fine);
     inline void addActionToMenu(QMenu *menu, const QString &id);
     /// A short entry in \p menu for the action (by \p label, its shortcut beside it); none if \p onlyIfEnabled and it is not
     QAction *addMenuEntry(QMenu *menu, QAction *action, const QString &label, bool onlyIfEnabled = false);
@@ -224,6 +225,7 @@ private:
     bool m_opacityScrubbing {false};
     KisNodeSP m_opacityNode;
     qreal m_opacityStart {100};
+    bool m_opacityFine {false};
     QWidget *m_opacityScrub {nullptr};
     /// The list's settings: thumbnail size, indentation, info text
     QMenu *m_configureMenu {nullptr};

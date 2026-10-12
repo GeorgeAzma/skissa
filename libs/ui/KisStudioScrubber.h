@@ -62,6 +62,8 @@ private:
     int m_pressX {0};
     bool m_dragging {false};
     bool m_moved {false};
+    /// Shift held: a quarter as fast, from where it was when Shift changed
+    bool m_fine {false};
     QLineEdit *m_editor {nullptr};
 };
 

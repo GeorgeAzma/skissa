@@ -399,6 +399,7 @@ struct KisStudioEffectOverlay::Private
     QPointer<ValuePill> pill;
     bool dragging {false};
     QPointF dragStart;
+    bool fine {false};
     /// The second setting follows the first by itself
     bool secondLinked {false};
     bool cursorSet {false};
@@ -729,11 +730,14 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
     bool press = false;
     bool move = false;
     bool release = false;
+    // Shift: fine, a quarter as fast
+    const Qt::KeyboardModifiers modifiers = static_cast<QInputEvent *>(event)->modifiers();
+    const bool plain = modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier;
     switch (event->type()) {
     case QEvent::MouseButtonPress:
     case QEvent::MouseButtonDblClick: {
         auto *mouse = static_cast<QMouseEvent *>(event);
-        if (mouse->button() != Qt::LeftButton || mouse->modifiers() != Qt::NoModifier) return false;
+        if (mouse->button() != Qt::LeftButton || !plain) return false;
         pos = mouse->localPos();
         press = true;
         break;
@@ -749,7 +753,7 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
         break;
     case QEvent::TabletPress: {
         auto *tablet = static_cast<QTabletEvent *>(event);
-        if (tablet->button() != Qt::LeftButton || tablet->modifiers() != Qt::NoModifier) return false;
+        if (tablet->button() != Qt::LeftButton || !plain) return false;
         pos = tablet->posF();
         press = true;
         break;
@@ -766,9 +770,11 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
         return false;
     }
 
+    const bool fine = modifiers & Qt::ShiftModifier;
     if (press) {
         if (d->spaceHeld || d->knobs.isEmpty()) return false;
         d->dragging = true;
+        d->fine = fine;
         d->dragStart = pos;
         d->secondLinked = false;
         for (Knob &knob : d->knobs) {
@@ -782,8 +788,15 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
         return false;
     }
     if (move) {
+        if (fine != d->fine) {
+            // on from where they are, at the other speed
+            d->fine = fine;
+            d->dragStart = pos;
+            for (Knob &knob : d->knobs) knob.start = knob.value();
+        }
         // sideways the first setting, up and down (up is more) the second
-        const QPointF delta = pos - d->dragStart;
+        const QPointF moved = pos - d->dragStart;
+        const QPointF delta = moved * (fine ? 0.25 : 1.0);
         QStringList shown;
         const Knob &first = d->knobs[0];
         if (first.widget) {
@@ -793,10 +806,10 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
         if (d->knobs.size() > 1 && d->knobs[1].widget) {
             const Knob &second = d->knobs[1];
             // linked to the first (e.g. both radii of a blur): it follows, the drag does not set it too
-            if (!d->secondLinked && second.value() != second.start && qAbs(delta.y()) <= 6) {
+            if (!d->secondLinked && second.value() != second.start && qAbs(moved.y()) <= 6) {
                 d->secondLinked = true;
             }
-            if (!d->secondLinked && qAbs(delta.y()) > 6) {
+            if (!d->secondLinked && qAbs(moved.y()) > 6) {
                 second.setValue(second.start - delta.y() * second.span / dragForWholeRange);
                 shown << QStringLiteral("%1 %2").arg(second.label, second.text());
             }

@@ -144,6 +144,7 @@ void KisStudioScrubber::mousePressEvent(QMouseEvent *event)
     }
     m_dragging = true;
     m_moved = false;
+    m_fine = event->modifiers() & Qt::ShiftModifier;
     m_pressX = eventX(event);
     m_pressValue = m_value;
     update();
@@ -155,10 +156,17 @@ void KisStudioScrubber::mouseMoveEvent(QMouseEvent *event)
         QWidget::mouseMoveEvent(event);
         return;
     }
-    const int dx = eventX(event) - m_pressX;
-    if (qAbs(dx) > 2) {
+    const bool fine = event->modifiers() & Qt::ShiftModifier;
+    if (fine != m_fine) {
+        // the value goes on from where it is, at the other speed
+        m_fine = fine;
+        m_pressX = eventX(event);
+        m_pressValue = m_value;
+    }
+    if (qAbs(eventX(event) - m_pressX) > 2) {
         m_moved = true;
     }
+    const qreal dx = (eventX(event) - m_pressX) * (fine ? 0.25 : 1.0);
     if (m_kind == Kind::Size) {
         // 100 px of drag doubles or halves the size
         m_value = bounded(m_pressValue * std::pow(2.0, dx / 100.0));

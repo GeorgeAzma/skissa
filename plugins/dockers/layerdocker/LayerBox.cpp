@@ -1213,7 +1213,7 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
             break;
         case QEvent::MouseMove: {
             auto *mouse = static_cast<QMouseEvent *>(event);
-            if (m_opacityPress.isValid() && (mouse->buttons() & Qt::LeftButton) && handleOpacityDrag(mouse->pos())) {
+            if (m_opacityPress.isValid() && (mouse->buttons() & Qt::LeftButton) && handleOpacityDrag(mouse->pos(), mouse->modifiers() & Qt::ShiftModifier)) {
                 return true;
             }
             int y = 0;
@@ -1296,9 +1296,15 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
     return QDockWidget::eventFilter(watched, event);
 }
 
-bool LayerBox::handleOpacityDrag(const QPoint &pos)
+bool LayerBox::handleOpacityDrag(const QPoint &pos, bool fine)
 {
     NodeView *view = m_wdgLayerBox->listLayers;
+    if (m_opacityScrubbing && fine != m_opacityFine) {
+        // on from where it is, at the other speed
+        m_opacityStart = m_newOpacity;
+        m_opacityPressPos = pos;
+    }
+    m_opacityFine = fine;
     const QPoint delta = pos - m_opacityPressPos;
     if (!m_opacityScrubbing) {
         if (delta.manhattanLength() < QApplication::startDragDistance()) {
@@ -1320,7 +1326,7 @@ bool LayerBox::handleOpacityDrag(const QPoint &pos)
     }
     // the row's width is all of it, from where it was
     const QRect row = view->visualRect(m_opacityPress);
-    const qreal percent = qBound(0.0, m_opacityStart + delta.x() * 100.0 / qMax(80, view->viewport()->width() - row.left()), 100.0);
+    const qreal percent = qBound(0.0, m_opacityStart + (fine ? 0.25 : 1.0) * delta.x() * 100.0 / qMax(80, view->viewport()->width() - row.left()), 100.0);
     m_newOpacity = percent;
     m_changedOpacityNode = m_opacityNode;
     m_nodeOpacityCompressor.start();
