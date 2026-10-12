@@ -303,6 +303,14 @@ QHash<QString, QStringList> aliasTable()
         {"action:canvassize", i18nc("@info find aliases, comma separated", "canvas size, resize canvas")},
         {"action:view_show_canvas_only", i18nc("@info find aliases, comma separated", "full screen, focus mode, hide interface")},
         {"action:zoom_to_100pct", i18nc("@info find aliases, comma separated", "actual pixels, actual size")},
+        {"action:preserve_alpha", i18nc("@info find aliases, comma separated", "alpha lock, lock alpha, lock transparency, lock transparent pixels")},
+        {"action:create_quick_clipping_group", i18nc("@info find aliases, comma separated", "clipping mask, clip to layer below")},
+        {"action:layer_style", i18nc("@info find aliases, comma separated", "layer effects, drop shadow, outer glow, stroke")},
+        {"action:copy_merged", i18nc("@info find aliases, comma separated", "copy visible")},
+        {"action:isolate_active_layer", i18nc("@info find aliases, comma separated", "solo layer")},
+        {"action:wrap_around_mode", i18nc("@info find aliases, comma separated", "tile, seamless, pattern")},
+        {"action:hmirror_action", i18nc("@info find aliases, comma separated", "symmetry")},
+        {"action:fill_selection_foreground_color", i18nc("@info find aliases, comma separated", "fill")},
     };
     QHash<QString, QStringList> aliases;
     for (const auto &entry : table) {

@@ -17,6 +17,10 @@
 #include <QThreadPool>
 #include <QApplication>
 #include <QScreen>
+#include <KoColor.h>
+#include <kis_icon_utils.h>
+#include <KoCanvasResourceProvider.h>
+#include <QElapsedTimer>
 
 #include <Eigen/Core>
 
@@ -65,6 +69,36 @@ bool snapsTemporaryStraightRuler(const KisTemporaryPaintConstraint &constraint,
 bool hasLockedValidTemporaryStraightRuler(const std::optional<KisTemporaryPaintConstraint> &constraint)
 {
     return constraint && constraint->isLocked() && constraint->hasValidLine();
+}
+
+/**
+ * A stroke that starts where it can change nothing says why on the canvas
+ * (not again for a few seconds): outside the selection, or on nothing with
+ * the alpha locked. It still runs: it may go on to where it does paint.
+ */
+void explainNothingPainted(KisCanvas2 *canvas, KisNodeSP node, const QPoint &pixel)
+{
+    static QElapsedTimer said;
+    if (!canvas || !node || !canvas->image() || (said.isValid() && said.elapsed() < 4000)) return;
+    KisPaintLayer *layer = dynamic_cast<KisPaintLayer *>(node.data());
+    // the selection a stroke is limited to, found as the stroke finds it
+    KisSelectionSP selection = canvas->image()->globalSelection();
+    if (KisLayer *asLayer = dynamic_cast<KisLayer *>(node.data())) selection = asLayer->selection();
+    QString why;
+    KoColor at;
+    if (selection && selection->projection()->pixel(pixel.x(), pixel.y(), &at) && at.opacityU8() == OPACITY_TRANSPARENT_U8) {
+        why = i18nc("@info on the canvas: a stroke started where the selection leaves nothing to paint", "Outside the selection");
+    } else if (layer && layer->paintDevice()) {
+        KoCanvasResourceProvider *resources = canvas->resourceManager();
+        const bool erasing = resources->resource(KoCanvasResource::EraserMode).toBool();
+        const bool alphaLocked = layer->alphaLocked() || (!erasing && resources->resource(KoCanvasResource::GlobalAlphaLock).toBool());
+        if (alphaLocked && !erasing && layer->paintDevice()->pixel(pixel.x(), pixel.y(), &at) && at.opacityU8() == OPACITY_TRANSPARENT_U8) {
+            why = i18nc("@info on the canvas: alpha locked, and the stroke started on a transparent pixel", "Alpha locked: nothing here");
+        }
+    }
+    if (why.isEmpty()) return;
+    said.restart();
+    canvas->viewManager()->showFloatingMessage(why, KisIconUtils::loadIcon(QStringLiteral("object-locked")));
 }
 }
 
@@ -349,6 +383,7 @@ void KisToolFreehand::beginPrimaryAction(KoPointerEvent *event)
     KisCanvas2 *canvas2 = dynamic_cast<KisCanvas2 *>(canvas());
     if (canvas2) {
         canvas2->viewManager()->disableControls();
+        explainNothingPainted(canvas2, currentNode(), convertToPixelCoord(event).toPoint());
     }
 
     initStroke(event);
