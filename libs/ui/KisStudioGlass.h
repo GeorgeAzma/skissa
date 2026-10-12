@@ -37,16 +37,13 @@ public:
     /// Tint strength over a dark and over a bright canvas
     static constexpr qreal tintOverDark = 0.56;
     static constexpr qreal tintOverBright = 0.84;
+    /**
+     * The frost's color is the mean of Oklab's a and b, where hues that disagree cancel: of the chroma lost
+     * so, this share is restored as far as they agree (never more than the colors behind have)
+     */
+    static constexpr qreal restore = 0.5;
     /// Share of the tint that veils what is behind (its chroma is otherwise kept)
     static constexpr qreal veil = 0.3;
-
-    /// Frosted: clear only at the very rim. Liquid: thicker, clear deeper into the bevel, glossy edge.
-    enum class Style {
-        Frosted = 0,
-        Liquid = 1,
-    };
-    static Style style();
-    static void setStyle(Style style);
 
     /// How much the edge bevel bends the canvas, 0 (a plain line) to 1
     static qreal refraction();
@@ -59,7 +56,6 @@ public:
         qreal lift {0};      ///< gap between the pane and the canvas
         qreal polish {0};    ///< 0 frosted, 1 clear at the rim
         qreal clear {0};     ///< share of the bevel that is fully clear
-        qreal gloss {0};     ///< brightness of the light the edge catches
         qreal abbeNumber {40}; ///< dispersion: lower spreads colors more
     };
     static Bevel bevel();

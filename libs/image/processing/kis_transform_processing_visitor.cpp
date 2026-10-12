@@ -36,7 +36,6 @@
 #include <kis_transform_mask_params_interface.h>
 
 #include "KisSimpleModifyTransformMaskCommand.h"
-#include "KisStrokeLog.h"
 
 
 KisTransformProcessingVisitor::
@@ -59,7 +58,6 @@ KisTransformProcessingVisitor(qreal  xscale, qreal  yscale,
 void KisTransformProcessingVisitor::setSelection(KisSelectionSP selection)
 {
     m_selectionHelper.setSelection(selection);
-    m_selectionBefore = selection ? new KisSelection(*selection) : KisSelectionSP();
 }
 
 KUndo2Command *KisTransformProcessingVisitor::createInitCommand()
@@ -79,22 +77,8 @@ void KisTransformProcessingVisitor::visit(KisNode *node, KisUndoAdapter *undoAda
 
 void KisTransformProcessingVisitor::visit(KisPaintLayer *layer, KisUndoAdapter *undoAdapter)
 {
-    const QPoint offsetBefore(layer->paintDevice()->x(), layer->paintDevice()->y());
     transformPaintDevice(layer->paintDevice(), undoAdapter, ProgressHelper(layer));
-    moveStrokes(layer, offsetBefore, undoAdapter);
     transformClones(layer, undoAdapter);
-}
-
-void KisTransformProcessingVisitor::moveStrokes(KisNode *node, const QPoint &offsetBefore, KisUndoAdapter *adapter)
-{
-    // a quarter turn, or a flip, moves the device itself too
-    KisTransformWorker tw(node->paintDevice(), m_sx, m_sy, m_shearx, m_sheary, m_angle, m_tx, m_ty, 0, m_filter);
-    const QTransform transform = tw.transform();
-    KisStrokeLog::Move move = KisStrokeLog::moveIn(m_selectionBefore, [transform](const QPointF &point) { return transform.map(point); });
-    move.offsetBefore = offsetBefore;
-    if (KUndo2Command *strokes = KisStrokeLog::mapCommand(node, move)) {
-        adapter->addCommand(strokes);
-    }
 }
 
 void KisTransformProcessingVisitor::visit(KisGroupLayer *layer, KisUndoAdapter *undoAdapter)
@@ -167,10 +151,7 @@ void KisTransformProcessingVisitor::visit(KisTransformMask *mask, KisUndoAdapter
 
 void KisTransformProcessingVisitor::visit(KisTransparencyMask *mask, KisUndoAdapter *undoAdapter)
 {
-    KisPaintDeviceSP device = mask->paintDevice();
-    const QPoint offsetBefore = device ? QPoint(device->x(), device->y()) : QPoint();
     transformSelection(mask->selection(), undoAdapter, ProgressHelper(mask));
-    if (device) moveStrokes(mask, offsetBefore, undoAdapter);
 }
 
 void KisTransformProcessingVisitor::visit(KisSelectionMask *mask, KisUndoAdapter *undoAdapter)

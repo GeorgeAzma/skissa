@@ -15,7 +15,6 @@
 #include <KoCompositeOpRegistry.h>
 #include "KisAnimAutoKey.h"
 #include "kis_undo_adapter.h"
-#include <KisStrokeLog.h>
 
 
 FillProcessingVisitor::FillProcessingVisitor(KisPaintDeviceSP refPaintDevice,
@@ -60,9 +59,7 @@ void FillProcessingVisitor::visitNodeWithPaintDevice(KisNode *node, KisUndoAdapt
     if (!m_progressHelper) {
         m_progressHelper.reset(new ProgressHelper(node));
     }
-    m_node = node;
     fillPaintDevice(device, undoAdapter);
-    m_node.clear();
 }
 
 void FillProcessingVisitor::visitColorizeMask(KisColorizeMask *mask, KisUndoAdapter *undoAdapter)
@@ -150,24 +147,6 @@ void FillProcessingVisitor::selectionFill(KisPaintDeviceSP device, const QRect &
     }
 
     painter.endTransaction(undoAdapter);
-
-    coverStrokes(device, m_selection, fillRect_, undoAdapter);
-}
-
-void FillProcessingVisitor::coverStrokes(KisPaintDeviceSP device, KisSelectionSP filled, const QRect &rect, KisUndoAdapter *undoAdapter)
-{
-    // nothing painted with a brush to cover: no outline worked out
-    if (!m_node || device != m_node->paintDevice() || m_node->strokeLog().isEmpty()) {
-        return;
-    }
-    KisStrokeLog::Stroke cover;
-    cover.area = filled ? KisStrokeLog::outlineOf(filled) : QVector<QPolygon>{QPolygon(rect)};
-    if (cover.area.isEmpty()) {
-        return;
-    }
-    if (KUndo2Command *command = KisStrokeLog::addCommand(m_node, {cover})) {
-        undoAdapter->addCommand(command);
-    }
 }
 
 void FillProcessingVisitor::normalFill(KisPaintDeviceSP device, const QRect &fillRect, const QPoint &seedPoint, KisUndoAdapter *undoAdapter)
@@ -211,10 +190,6 @@ void FillProcessingVisitor::normalFill(KisPaintDeviceSP device, const QRect &fil
     }
 
     fillPainter.endTransaction(undoAdapter);
-
-    if (KisSelectionSP filled = fillPainter.filledArea()) {
-        coverStrokes(device, filled, QRect(), undoAdapter);
-    }
 
     if (m_outDirtyRect) {
         QVector<QRect> dirtyRects = fillPainter.takeDirtyRegion();

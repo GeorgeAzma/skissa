@@ -6,7 +6,6 @@
 
 #include "kis_transform_utils.h"
 
-#include <algorithm>
 #include <cmath>
 #include <QPainterPath>
 #include <QTransform>
@@ -23,9 +22,6 @@
 #include <kis_warptransform_worker.h>
 #include <kis_cage_transform_worker.h>
 #include <kis_liquify_transform_worker.h>
-#include <kis_green_coordinates_math.h>
-#include <KisStrokeLog.h>
-#include <KisBezierTransformMesh.h>
 
 #include "commands_new/kis_saved_commands.h"
 #include "kis_transform_mask.h"
@@ -272,89 +268,6 @@ KisTransformWorker KisTransformUtils::createTransformWorker(const ToolTransformA
     // ENTER_FUNCTION() << ppVar(m.finalTransform() - transformWorker.transform());
 
     return transformWorker;
-}
-
-std::function<QPointF(const QPointF &)> KisTransformUtils::pointMapper(const ToolTransformArgs &config)
-{
-    switch (config.mode()) {
-    case ToolTransformArgs::WARP: {
-        const QVector<QPointF> from = config.origPoints();
-        const QVector<QPointF> to = config.transfPoints();
-        const qreal alpha = config.alpha();
-        auto math = config.warpType() == KisWarpTransformWorker::AFFINE_TRANSFORM ? &KisWarpTransformWorker::affineTransformMath
-            : config.warpType() == KisWarpTransformWorker::SIMILITUDE_TRANSFORM   ? &KisWarpTransformWorker::similitudeTransformMath
-                                                                                  : &KisWarpTransformWorker::rigidTransformMath;
-        if (from.isEmpty()) return [](const QPointF &point) { return point; };
-        return [from, to, alpha, math](const QPointF &point) { return math(point, from, to, alpha); };
-    }
-    case ToolTransformArgs::CAGE: {
-        const QVector<QPointF> from = config.origPoints();
-        const QVector<QPointF> to = config.transfPoints();
-        const QPolygonF cage(from);
-        // only what is in the cage moves, as the cage moves it
-        return [from, to, cage](const QPointF &point) {
-            if (from.size() < 3 || !cage.containsPoint(point, Qt::OddEvenFill)) return point;
-            KisGreenCoordinatesMath math;
-            math.precalculateGreenCoordinates(from, {point});
-            math.generateTransformedCageNormals(to);
-            return math.transformedPoint(0, to);
-        };
-    }
-    case ToolTransformArgs::LIQUIFY: {
-        KisLiquifyTransformWorker *worker = config.liquifyWorker();
-        if (!worker) return [](const QPointF &point) { return point; };
-        // the worker's grid: a point moves as the corners of its cell do
-        const QSize grid = worker->gridSize();
-        const QVector<QPointF> from = worker->originalPoints();
-        const QVector<QPointF> to = worker->transformedPoints();
-        if (grid.width() < 2 || grid.height() < 2 || from.size() != grid.width() * grid.height() || to.size() != from.size()) {
-            return [](const QPointF &point) { return point; };
-        }
-        QVector<qreal> columns, rows;
-        for (int i = 0; i < grid.width(); i++) columns << from[i].x();
-        for (int j = 0; j < grid.height(); j++) rows << from[j * grid.width()].y();
-        return [grid, to, columns, rows](const QPointF &point) {
-            if (point.x() < columns.first() || point.x() > columns.last() || point.y() < rows.first() || point.y() > rows.last()) {
-                return point;
-            }
-            // the cell it is in
-            const int i = qBound(0, int(std::upper_bound(columns.begin(), columns.end(), point.x()) - columns.begin()) - 1, grid.width() - 2);
-            const int j = qBound(0, int(std::upper_bound(rows.begin(), rows.end(), point.y()) - rows.begin()) - 1, grid.height() - 2);
-            const qreal fx = (point.x() - columns[i]) / qMax(1e-9, columns[i + 1] - columns[i]);
-            const qreal fy = (point.y() - rows[j]) / qMax(1e-9, rows[j + 1] - rows[j]);
-            const int k = j * grid.width() + i;
-            const QPointF top = to[k] + fx * (to[k + 1] - to[k]);
-            const QPointF bottom = to[k + grid.width()] + fx * (to[k + grid.width() + 1] - to[k + grid.width()]);
-            return top + fy * (bottom - top);
-        };
-    }
-    case ToolTransformArgs::MESH: {
-        const KisBezierTransformMesh *mesh = config.meshTransform();
-        if (!mesh) return [](const QPointF &point) { return point; };
-        QVector<KisBezierPatch> patches;
-        for (auto it = mesh->constBeginPatches(); it != mesh->constEndPatches(); ++it) patches << *it;
-        return [patches](const QPointF &point) {
-            Q_FOREACH (const KisBezierPatch &patch, patches) {
-                const QRectF rect = patch.originalRect;
-                if (rect.width() <= 0 || rect.height() <= 0 || point.x() < rect.left() || point.x() > rect.right()
-                    || point.y() < rect.top() || point.y() > rect.bottom()) {
-                    continue;
-                }
-                return patch.localToGlobal(QPointF((point.x() - rect.left()) / rect.width(), (point.y() - rect.top()) / rect.height()));
-            }
-            return point;
-        };
-    }
-    default: {
-        const QTransform transform = MatricesPack(config).finalTransform();
-        return [transform](const QPointF &point) { return transform.map(point); };
-    }
-    }
-}
-
-KUndo2Command *KisTransformUtils::strokeLogCommand(KisNodeSP node, const ToolTransformArgs &config, KisSelectionSP selectionBefore)
-{
-    return KisStrokeLog::mapCommand(node, KisStrokeLog::moveIn(selectionBefore, pointMapper(config)));
 }
 
 void KisTransformUtils::transformDevice(const ToolTransformArgs &config,

@@ -395,25 +395,22 @@ GeneralTab::GeneralTab(QWidget *_parent, const char *_name)
     QWidget *messagesBox = m_chkCanvasMessages->parentWidget();
     m_chkBrushesAsStrokes = new QCheckBox(i18n("Show brushes as strokes"), messagesBox);
     m_chkBrushesAsStrokes->setChecked(KisPresetStrokeThumbnails::isEnabled());
-    m_cmbGlass = new QComboBox(messagesBox);
-    m_cmbGlass->addItems({i18nc("glass panels", "Off"), i18nc("glass panels", "Frosted"), i18nc("glass panels", "Liquid")});
-    m_cmbGlass->setToolTip(i18n("Liquid: sharper edges, more refraction"));
-    m_cmbGlass->setCurrentIndex(KisStudioGlass::isEnabled() ? 1 + int(KisStudioGlass::style()) : 0);
+    m_chkGlass = new QCheckBox(i18n("Panels of glass"), messagesBox);
+    m_chkGlass->setChecked(KisStudioGlass::isEnabled());
     m_sldRefraction = new KisSliderSpinBox(messagesBox);
     m_sldRefraction->setRange(0, 100);
     m_sldRefraction->setSuffix(i18nc("percent", "%"));
     m_sldRefraction->setToolTip(i18n("Edge refraction"));
     m_sldRefraction->setValue(qRound(KisStudioGlass::refraction() * 100));
-    m_sldRefraction->setEnabled(m_cmbGlass->currentIndex() > 0);
-    connect(m_cmbGlass, QOverload<int>::of(&QComboBox::currentIndexChanged), m_sldRefraction,
-            [this](int index) { m_sldRefraction->setEnabled(index > 0); });
+    m_sldRefraction->setEnabled(m_chkGlass->isChecked());
+    connect(m_chkGlass, &QCheckBox::toggled, m_sldRefraction, &QWidget::setEnabled);
     if (auto *form = qobject_cast<QFormLayout *>(messagesBox->layout())) {
         int row = -1;
         QFormLayout::ItemRole role;
         form->getWidgetPosition(m_chkCanvasMessages, &row, &role);
         if (row >= 0) {
             form->insertRow(row + 1, QString(), m_chkBrushesAsStrokes);
-            form->insertRow(row + 2, i18n("Glass:"), m_cmbGlass);
+            form->insertRow(row + 2, QString(), m_chkGlass);
             form->insertRow(row + 3, i18n("Refraction:"), m_sldRefraction);
         }
     }
@@ -877,7 +874,7 @@ void GeneralTab::setDefault()
     m_backgroundimage->setText(cfg.getMDIBackgroundImage(true));
     m_chkCanvasMessages->setChecked(cfg.showCanvasMessages(true));
     m_chkBrushesAsStrokes->setChecked(false);
-    m_cmbGlass->setCurrentIndex(1 + int(KisStudioGlass::Style::Frosted));
+    m_chkGlass->setChecked(true);
     m_sldRefraction->setValue(50);
     m_chkCompressKra->setChecked(cfg.compressKra(true));
     m_chkTrimKra->setChecked(cfg.trimKra(true));
@@ -1091,12 +1088,7 @@ bool GeneralTab::brushesAsStrokes()
 
 bool GeneralTab::glass()
 {
-    return m_cmbGlass->currentIndex() > 0;
-}
-
-int GeneralTab::glassStyle()
-{
-    return m_cmbGlass->currentIndex() > 0 ? m_cmbGlass->currentIndex() - 1 : int(KisStudioGlass::style());
+    return m_chkGlass->isChecked();
 }
 
 qreal GeneralTab::glassRefraction()
@@ -2938,7 +2930,6 @@ bool KisDlgPreferences::editPreferences(std::optional<PageDesc>page)
         cfg.setShowCanvasMessages(m_general->showCanvasMessages());
         KisPresetStrokeThumbnails::setEnabled(m_general->brushesAsStrokes());
         KisStudioGlass::setEnabled(m_general->glass());
-        KisStudioGlass::setStyle(KisStudioGlass::Style(m_general->glassStyle()));
         KisStudioGlass::setRefraction(m_general->glassRefraction());
         cfg.setCompressKra(m_general->compressKra());
         cfg.setTrimKra(m_general->trimKra());

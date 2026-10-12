@@ -5,7 +5,6 @@
  */
 
 #include "kis_layer_utils.h"
-#include "KisStrokeLog.h"
 
 #include <algorithm>
 
@@ -753,18 +752,6 @@ namespace Private {
 
     private:
         MergeMultipleInfoSP m_info;
-    };
-
-    /// Which brush painted what on the merged layers, for the layer they make (see KisStrokeLog)
-    struct MergeStrokeLogs : public KisCommandUtils::AggregateCommand {
-        MergeStrokeLogs(MergeDownInfoBaseSP info) : m_info(info) {}
-
-        void populateChildCommands() override {
-            addCommand(KisStrokeLog::mergeCommand(m_info->dstNode, m_info->allSrcNodes()));
-        }
-
-    private:
-        MergeDownInfoBaseSP m_info;
     };
 
     struct MergeMetaData : public KUndo2Command {
@@ -1563,7 +1550,6 @@ namespace Private {
                 applicator.applyCommand(new RefreshHiddenAreas(info));
                 applicator.applyCommand(new RefreshDelayedUpdateLayers(info), KisStrokeJobData::BARRIER);
                 applicator.applyCommand(new MergeLayers(info, false), KisStrokeJobData::BARRIER);
-                applicator.applyCommand(new MergeStrokeLogs(info), KisStrokeJobData::BARRIER);
             }
 
             applicator.applyCommand(new MergeMetaData(info, strategy), KisStrokeJobData::BARRIER);
@@ -2052,7 +2038,6 @@ namespace Private {
                 applicator.applyCommand(new RefreshHiddenAreas(info));
                 applicator.applyCommand(new RefreshDelayedUpdateLayers(info), KisStrokeJobData::BARRIER);
                 applicator.applyCommand(new MergeLayersMultiple(info), KisStrokeJobData::BARRIER);
-                applicator.applyCommand(new MergeStrokeLogs(info), KisStrokeJobData::BARRIER);
             }
 
             //applicator.applyCommand(new MergeMetaData(info, strategy), KisStrokeJobData::BARRIER);

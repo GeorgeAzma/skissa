@@ -16,9 +16,9 @@ class QOpenGLFramebufferObject;
 class QTransform;
 
 /**
- * The glass of the panels over the canvas (see KisStudioGlass), drawn on the GPU from the canvas FBO.
- * The blur reads a pyramid of levels, each half the size and twice the blur of the last, mixed in Oklab;
- * the edge is a refracting bevel (KisStudioGlass::Bevel).
+ * The glass of the panels over the canvas (see KisStudioGlass), drawn on the GPU from the canvas FBO:
+ * the canvas made a few times smaller, blurred in Oklab under each panel, tinted; the edge a refracting
+ * bevel (KisStudioGlass::Bevel).
  */
 class KisOpenGLGlass
 {
@@ -36,7 +36,7 @@ public:
     KisOpenGLGlass();
     ~KisOpenGLGlass();
 
-    /// Compiles the shaders; false without OpenGL 3 or OpenGL ES 3
+    /// Compiles the shaders (once for all the canvases); false without OpenGL 3 or OpenGL ES 3
     bool initialize();
     bool isValid() const;
 

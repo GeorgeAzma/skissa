@@ -15,7 +15,6 @@
 
 class KoCanvasResourceProvider;
 class KisStrokesFacade;
-class KisStrokeRecorder;
 
 class KRITAUI_EXPORT KisFigurePaintingToolHelper
 {
@@ -49,16 +48,10 @@ private:
                           KisToolShapeUtils::FillStyle fillStyle,
                           QTransform fillTransform);
 
-    /// What is painted, for the node's stroke log: started with the first shape, when the overrides are set
-    KisStrokeRecorder *recorder();
-
 private:
     KisStrokeId m_strokeId;
     KisResourcesSnapshotSP m_resources;
     KisStrokesFacade *m_strokesFacade;
-    QSharedPointer<KisStrokeRecorder> m_recorder;
-    bool m_brushOutline {false};
-    bool m_filled {false};
 };
 
 #endif /* __KIS_FIGURE_PAINTING_TOOL_HELPER_H */

@@ -53,7 +53,6 @@
 namespace {
 
 const QString settingKey = QStringLiteral("StudioGlass");
-const QString styleKey = QStringLiteral("StudioGlassStyle");
 const QString refractionKey = QStringLiteral("StudioGlassRefraction");
 /// The older setting: a line, subtle or strong
 const QString oldEdgeKey = QStringLiteral("StudioGlassEdge");
@@ -188,8 +187,8 @@ QImage blurred(const QImage &source, int radius)
 {
     const QImage image = source.convertToFormat(QImage::Format_RGB32);
     const int w = image.width(), h = image.height();
-    // weighted lightness to the power, weighted a and b, and the weight
-    enum { L, Weight, A, Bb, Count };
+    // weighted lightness to the power, weighted a and b, weighted chroma, and the weight
+    enum { L, Weight, A, Bb, Chroma, Count };
     const float power = float(KisStudioGlass::lightnessPower);
     std::vector<float> channels[Count];
     for (auto &channel : channels) channel.resize(size_t(w) * h);
@@ -199,11 +198,13 @@ QImage blurred(const QImage &source, int radius)
         for (int x = 0; x < w; x++) {
             const size_t i = size_t(y) * w + x;
             const Lab lab = toOklab(linear[qRed(line[x])], linear[qGreen(line[x])], linear[qBlue(line[x])]);
-            const float weight = 1.0f + float(KisStudioGlass::salience) * std::hypot(lab.a, lab.b);
+            const float chroma = std::hypot(lab.a, lab.b);
+            const float weight = 1.0f + float(KisStudioGlass::salience) * chroma;
             channels[L][i] = std::pow(qMax(0.0f, lab.l), power) * weight;
             channels[Weight][i] = weight;
             channels[A][i] = lab.a * weight;
             channels[Bb][i] = lab.b * weight;
+            channels[Chroma][i] = chroma * weight;
         }
     }
     // three passes share the variance
@@ -215,6 +216,7 @@ QImage blurred(const QImage &source, int radius)
             for (int x = 0; x < w; x++) boxLine(channels[c].data() + x, h, w, box, scratch);
         }
     }
+    const float restore = float(KisStudioGlass::restore);
     QImage result(w, h, QImage::Format_RGB32);
     for (int y = 0; y < h; y++) {
         QRgb *line = reinterpret_cast<QRgb *>(result.scanLine(y));
@@ -222,7 +224,10 @@ QImage blurred(const QImage &source, int radius)
             const size_t i = size_t(y) * w + x;
             const float weight = qMax(1e-6f, channels[Weight][i]);
             const float l = std::pow(qMax(0.0f, channels[L][i] / weight), 1.0f / power);
-            const std::array<float, 3> c = inGamut({qBound(0.0f, l, 1.0f), channels[A][i] / weight, channels[Bb][i] / weight});
+            const float a = channels[A][i] / weight, b = channels[Bb][i] / weight;
+            const float agree = qBound(0.0f, std::hypot(a, b) / qMax(1e-4f, channels[Chroma][i] / weight), 1.0f);
+            const float gain = 1.0f + restore * (1.0f - agree);
+            const std::array<float, 3> c = inGamut({qBound(0.0f, l, 1.0f), a * gain, b * gain});
             line[x] = qRgb(toSrgb(c[0]), toSrgb(c[1]), toSrgb(c[2]));
         }
     }
@@ -1095,12 +1100,6 @@ bool &enabled()
     return on;
 }
 
-KisStudioGlass::Style &styleSetting()
-{
-    static KisStudioGlass::Style style = KisStudioGlass::Style(qBound(0, KisConfig(true).readEntry<int>(styleKey, 0), 1));
-    return style;
-}
-
 qreal &refractionSetting()
 {
     static qreal refraction = []() {
@@ -1316,21 +1315,6 @@ qreal KisStudioGlass::blurScale(const QSizeF &size)
     return qBound<qreal>(1, std::sqrt(qMax<qreal>(0, size.width() * size.height())) / 300, maxBlurScale);
 }
 
-KisStudioGlass::Style KisStudioGlass::style()
-{
-    return styleSetting();
-}
-
-void KisStudioGlass::setStyle(Style style)
-{
-    if (style == styleSetting()) {
-        return;
-    }
-    styleSetting() = style;
-    KisConfig(false).writeEntry(styleKey, int(style));
-    Panels::instance().repaintAll();
-}
-
 qreal KisStudioGlass::refraction()
 {
     return refractionSetting();
@@ -1362,11 +1346,9 @@ KisStudioGlass::Bevel KisStudioGlass::bevel()
     auto at = [r](qreal none, qreal middle, qreal all) {
         return r < 0.5 ? none + (middle - none) * r * 2 : middle + (all - middle) * (r - 0.5) * 2;
     };
+    // a polished rim, clear over its outer third, then into the frost
     const qreal fadeIn = qMin<qreal>(1, r * 2);
-    if (style() == Style::Liquid) {
-        return {at(16, 22, 26), at(0, 24, 34), at(0, 28, 40), fadeIn, 0.55, 0.45 * fadeIn, 22};
-    }
-    return {at(10, 16, 20), at(0, 17, 24), at(0, 31, 44), 0.85 * fadeIn, 0.35, 0, 40};
+    return {at(10, 16, 20), at(0, 17, 24), at(0, 31, 44), 0.85 * fadeIn, 0.35, 40};
 }
 
 void KisStudioGlass::setOverOverlays(QWidget *panel)

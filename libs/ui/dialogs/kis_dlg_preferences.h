@@ -91,13 +91,11 @@ public:
     bool showCanvasMessages();
     bool brushesAsStrokes();
     bool glass();
-    /// KisStudioGlass::Style
-    int glassStyle();
     qreal glassRefraction();
 
     QCheckBox *m_chkBrushesAsStrokes {nullptr};
     /// Off, frosted or liquid
-    QComboBox *m_cmbGlass {nullptr};
+    QCheckBox *m_chkGlass {nullptr};
     KisSliderSpinBox *m_sldRefraction {nullptr};
     bool compressKra();
     bool trimKra();
