@@ -26,6 +26,8 @@
 #include "kis_paintop_registry.h"
 #include "kis_paintop_preset.h"
 #include "kis_paintop_settings.h"
+#include <KisStrokeLog.h>
+#include <KoCompositeOpRegistry.h>
 
 #include <commands_new/kis_saved_commands.h>
 #include "kis_command_utils.h"
@@ -419,9 +421,15 @@ void KisPainterBasedStrokeStrategy::finishStrokeCallback()
         wrapper->addCommand(m_autokeyCommand.release());
     }
 
-    // which brush painted what: done and undone with the paint
-    if (m_recorder) {
-        if (KUndo2Command *record = KisStrokeLog::addCommand(node, m_recorder->strokes())) {
+    // the brush and color it painted with: done and undone with the paint
+    KisPaintOpPresetSP preset = m_logsBrush ? m_resources->currentPaintOpPreset() : KisPaintOpPresetSP();
+    if (preset) {
+        KisStrokeLog::Stroke stroke;
+        stroke.brush = preset->name();
+        stroke.brushSize = preset->settings() ? float(preset->settings()->paintOpSize()) : 0.0f;
+        stroke.color = m_resources->currentFgColor().toQColor().rgba();
+        stroke.erasing = m_resources->compositeOpId() == COMPOSITE_ERASE;
+        if (KUndo2Command *record = KisStrokeLog::addCommand(node, {stroke})) {
             KisCommandUtils::CompositeCommand *wrapper = new KisCommandUtils::CompositeCommand(parentCommand.data());
             wrapper->addCommand(record);
         }
@@ -476,9 +484,9 @@ void KisPainterBasedStrokeStrategy::finishStrokeCallback()
 
 }
 
-void KisPainterBasedStrokeStrategy::setStrokeRecorder(KisStrokeRecorderSP recorder)
+void KisPainterBasedStrokeStrategy::setLogsBrush(bool on)
 {
-    m_recorder = recorder;
+    m_logsBrush = on;
 }
 
 void KisPainterBasedStrokeStrategy::cancelStrokeCallback()

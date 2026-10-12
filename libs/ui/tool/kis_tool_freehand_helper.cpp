@@ -36,7 +36,6 @@
 #include "KisAsynchronousStrokeUpdateHelper.h"
 #include "kis_canvas_resource_provider.h"
 #include <KisOptimizedBrushOutline.h>
-#include "KisStrokeRecorder.h"
 
 #include <math.h>
 
@@ -105,8 +104,6 @@ struct KisToolFreehandHelper::Private
     // drawing the brush outline or starting a stroke.
     KisPaintOpUtils::PositionHistory lastCursorPos;
 
-    // what the stroke paints, for the node's stroke log (which brush painted what)
-    KisStrokeRecorderSP recorder;
 
     // Stabilizer data
     bool usingStabilizer;
@@ -345,13 +342,7 @@ void KisToolFreehandHelper::initPaintImpl(qreal startAngle,
                                    FreehandStrokeStrategy::SupportsContinuedInterstrokeData |
                                    FreehandStrokeStrategy::SupportsTimedMergeId);
 
-    // the brush as the canvas shows it: its outline tells how wide it paints at a pressure
-    m_d->recorder.reset(new KisStrokeRecorder());
-    m_d->recorder->start(m_d->resources,
-                         m_d->resourceManager
-                             ? m_d->resourceManager->resource(KoCanvasResource::CurrentPaintOpPreset).value<KisPaintOpPresetSP>()
-                             : KisPaintOpPresetSP());
-    stroke->setStrokeRecorder(m_d->recorder);
+    stroke->setLogsBrush(true);
 
     m_d->strokeId = m_d->strokesFacade->startStroke(stroke);
 
@@ -755,11 +746,6 @@ void KisToolFreehandHelper::endPaint()
     m_d->strokesFacade->addJob(m_d->strokeId,
        new KisAsynchronousStrokeUpdateHelper::UpdateData(true));
 
-    if (m_d->recorder) {
-        m_d->recorder->finish();
-        m_d->recorder.clear();
-    }
-
     m_d->strokesFacade->endStroke(m_d->strokeId);
     m_d->strokeId.clear();
     m_d->infoBuilder->reset();
@@ -792,7 +778,6 @@ void KisToolFreehandHelper::cancelPaint()
 
     m_d->strokesFacade->cancelStroke(m_d->strokeId);
     m_d->strokeId.clear();
-    m_d->recorder.clear();
 
 }
 
@@ -1036,7 +1021,6 @@ void KisToolFreehandHelper::paintAt(int strokeInfoId,
                                     const KisPaintInformation &pi)
 {
     updateCurrentBrushPosition(pi.pos());
-    if (m_d->recorder) m_d->recorder->addPoint(strokeInfoId, pi);
     m_d->hasPaintAtLeastOnce = true;
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId, pi));
@@ -1048,7 +1032,6 @@ void KisToolFreehandHelper::paintLine(int strokeInfoId,
                                       const KisPaintInformation &pi2)
 {
     updateCurrentBrushPosition(pi2.pos());
-    if (m_d->recorder) m_d->recorder->addLine(strokeInfoId, pi1, pi2);
     m_d->hasPaintAtLeastOnce = true;
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId, pi1, pi2));
@@ -1087,7 +1070,6 @@ void KisToolFreehandHelper::paintBezierCurve(int strokeInfoId,
     paintLine(tpi1, tpi2);
 #endif
 
-    if (m_d->recorder) m_d->recorder->addCurve(strokeInfoId, pi1, control1, control2, pi2);
     m_d->hasPaintAtLeastOnce = true;
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId,

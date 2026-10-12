@@ -10,7 +10,6 @@
 #include <QMutexLocker>
 #include <QElapsedTimer>
 #include "kundo2commandextradata.h"
-#include "kis_selection.h"
 
 #include "kis_node_progress_proxy.h"
 
@@ -72,8 +71,6 @@ struct InplaceTransformStrokeStrategy::Private
     bool forceReset;
     KisNodeList rootNodes;
     KisSelectionSP selection;
-    /// The selection as it was before the transform moved it: what moves the strokes in it
-    KisSelectionSP selectionBefore;
     KisPaintDeviceSP externalSource;
     KisNodeSP imageRoot;
     int currentTime = -1; // NOTE: initialized asynchronously in initStrokeCallback!
@@ -163,7 +160,6 @@ InplaceTransformStrokeStrategy::InplaceTransformStrokeStrategy(ToolTransformArgs
     m_d->forceReset = forceReset;
     m_d->rootNodes = rootNodes;
     m_d->selection = selection;
-    if (selection) m_d->selectionBefore = new KisSelection(*selection);
     m_d->externalSource = externalSource;
     m_d->updatesFacade = updatesFacade;
     m_d->undoFacade = undoFacade;
@@ -1109,21 +1105,6 @@ void InplaceTransformStrokeStrategy::finishAction(QVector<KisStrokeJobData *> &m
         if (m_d->pendingUpdateArgs) {
             mutatedJobs << new BarrierUpdateData(true);
         }
-    }
-
-    /**
-     * The layers' strokes (see KisStrokeLog) go where their paint went: once,
-     * with the transform as it is applied, not with every preview of it
-     */
-    if (!m_d->externalSource) {
-        KritaUtils::addJobBarrier(mutatedJobs, [this]() {
-            Q_FOREACH (KisNodeSP node, m_d->processedNodes) {
-                if (!node->paintDevice() || dynamic_cast<KisExternalLayer *>(node.data())) continue;
-                if (KUndo2Command *strokes = KisTransformUtils::strokeLogCommand(node, m_d->currentTransformArgs, m_d->selectionBefore)) {
-                    executeAndAddCommand(strokes, Transform, KisStrokeJobData::CONCURRENT);
-                }
-            }
-        });
     }
 
     mutatedJobs << new UpdateTransformData(m_d->currentTransformArgs,

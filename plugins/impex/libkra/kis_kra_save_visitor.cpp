@@ -437,18 +437,10 @@ bool KisKraSaveVisitor::saveIccProfile(KisNode *node, const KoColorProfile *prof
 
 void KisKraSaveVisitor::saveStrokeLog(KisNode *node)
 {
-    KisPaintDeviceSP device = node->paintDevice();
-    if (!device || node->strokeLog().isEmpty()) {
+    if (!node->paintDevice() || node->strokeLog().isEmpty()) {
         return;
     }
-    // frame ids are not kept in the file: a frame is saved as the time of its keyframe
-    KisRasterKeyframeChannel *channel = device->keyframeChannel();
-    const QByteArray data = node->strokeLog().save([channel](int frame) {
-        if (!channel) return -1;
-        // what was painted before there were frames is in the first one
-        const QSet<int> times = channel->timesForFrameID(qMax(0, frame));
-        return times.isEmpty() ? -2 : *std::min_element(times.begin(), times.end());
-    });
+    const QByteArray data = node->strokeLog().save();
     if (!data.isEmpty() && m_store->open(getLocation(node, DOT_STROKES))) {
         m_store->write(data);
         m_store->close();

@@ -740,19 +740,13 @@ bool KisKraLoadVisitor::loadMetaData(KisNode* node)
 
 void KisKraLoadVisitor::loadStrokeLog(KisNode *node)
 {
-    KisPaintDeviceSP device = node->paintDevice();
     const QString location = getLocation(node, DOT_STROKES);
-    if (!device || !m_store->hasFile(location) || !m_store->open(location)) {
+    if (!node->paintDevice() || !m_store->hasFile(location) || !m_store->open(location)) {
         return;
     }
     const QByteArray data = m_store->read(m_store->size());
     m_store->close();
-    // a frame by the time of its keyframe
-    KisRasterKeyframeChannel *channel = device->keyframeChannel();
-    node->strokeLog().load(data, [channel](int time) {
-        KisRasterKeyframeSP keyframe = channel ? channel->keyframeAt<KisRasterKeyframe>(time) : KisRasterKeyframeSP();
-        return keyframe ? keyframe->frameID() : -1;
-    });
+    node->strokeLog().load(data);
 }
 
 bool KisKraLoadVisitor::loadSelection(const QString& location, KisSelectionSP dstSelection)

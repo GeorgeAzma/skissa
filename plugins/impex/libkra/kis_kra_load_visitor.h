@@ -70,7 +70,7 @@ private:
     const KoColorProfile* loadProfile(const QString& location, const QString &colorModelId, const QString &colorDepthId);
     void fixOldFilterConfigurations(KisFilterConfigurationSP kfc);
     bool loadMetaData(KisNode* node);
-    /// Which brush painted what on it (see KisStrokeLog), once its frames are loaded
+    /// The brushes and colors it was painted with (see KisStrokeLog)
     void loadStrokeLog(KisNode *node);
     void initSelectionForMask(KisMask *mask);
     bool loadSelection(const QString& location, KisSelectionSP dstSelection);
