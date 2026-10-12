@@ -32,6 +32,8 @@
 #include <kis_icon_utils.h>
 #include "KisView.h"
 #include "KisViewManager.h"
+#include <tuple>
+#include "kis_selection_manager.h"
 #include "canvas/kis_canvas2.h"
 #include "canvas/kis_canvas_controller.h"
 #include "canvas/kis_coordinates_converter.h"
@@ -142,6 +144,16 @@ struct KisStudioCanvasHud::Private
     QWidget *progressBox {nullptr};
     QPointer<QWidget> progress;
 
+    /// Modes that change what a stroke does, or hide what it is limited to: there while on, a click turns one off
+    struct Badge {
+        QToolButton *button {nullptr};
+        QPointer<QAction> action;
+    };
+    Badge alphaLock;
+    Badge mirrorX;
+    Badge mirrorY;
+    QToolButton *selectionHidden {nullptr};
+
     QToolButton *mirror {nullptr};
     QToolButton *value {nullptr};
     QToolButton *rotation {nullptr};
@@ -179,6 +191,38 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     progressLayout->setContentsMargins(0, 0, 4, 0);
     d->progressBox->hide();
     layout->addWidget(d->progressBox);
+
+    // the badges, before the view's own buttons; each a toggle shown on, as its action is
+    for (auto [badge, name, tip] : {std::make_tuple(&d->alphaLock, "preserve_alpha", i18nc("@info:tooltip", "Alpha locked")),
+                                    std::make_tuple(&d->mirrorX, "hmirror_action", i18nc("@info:tooltip", "Mirrored painting, across")),
+                                    std::make_tuple(&d->mirrorY, "vmirror_action", i18nc("@info:tooltip", "Mirrored painting, up and down"))}) {
+        badge->action = d->action(name);
+        badge->button = hudButton(this);
+        badge->button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        badge->button->setCheckable(true);
+        badge->button->setChecked(true);
+        badge->button->setToolTip(tip);
+        badge->button->hide();
+        if (QAction *action = badge->action) {
+            badge->button->setIcon(action->icon());
+            connect(badge->button, &QToolButton::clicked, action, [action]() { if (action->isChecked()) action->trigger(); });
+            connect(action, &QAction::toggled, this, &KisStudioCanvasHud::updateBadges);
+        }
+        layout->addWidget(badge->button);
+    }
+    d->selectionHidden = hudButton(this);
+    d->selectionHidden->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    d->selectionHidden->setCheckable(true);
+    d->selectionHidden->setChecked(true);
+    d->selectionHidden->setToolTip(i18nc("@info:tooltip", "Selection outline hidden"));
+    d->selectionHidden->hide();
+    if (QAction *show = d->action("toggle_display_selection")) d->selectionHidden->setIcon(show->icon());
+    connect(d->selectionHidden, &QToolButton::clicked, this, [this]() { d->trigger("toggle_display_selection"); });
+    layout->addWidget(d->selectionHidden);
+    if (KisSelectionManager *selections = mainWindow->viewManager() ? mainWindow->viewManager()->selectionManager() : nullptr) {
+        connect(selections, &KisSelectionManager::currentSelectionChanged, this, &KisStudioCanvasHud::updateBadges);
+        connect(selections, &KisSelectionManager::displaySelectionChanged, this, &KisStudioCanvasHud::updateBadges);
+    }
 
     d->mirror = hudButton(this);
     // named: their text changes, and Find keeps a button (its shortcut, its place on the rail) by its name
@@ -310,9 +354,26 @@ void KisStudioCanvasHud::viewChanged()
         updateRotation(canvas->rotationAngle());
     }
 
+    updateBadges();
     show();
     raise();
     reposition();
+}
+
+void KisStudioCanvasHud::updateBadges()
+{
+    bool changed = false;
+    auto showIf = [&changed](QToolButton *button, bool on) {
+        if (button->isVisibleTo(button->parentWidget()) == on) return;
+        button->setVisible(on);
+        changed = true;
+    };
+    for (const Private::Badge *badge : {&d->alphaLock, &d->mirrorX, &d->mirrorY}) {
+        showIf(badge->button, badge->action && badge->action->isChecked());
+    }
+    KisSelectionManager *selections = d->mainWindow->viewManager() ? d->mainWindow->viewManager()->selectionManager() : nullptr;
+    showIf(d->selectionHidden, selections && selections->haveAnySelectionWithPixels() && !selections->displaySelection());
+    if (changed && isVisible()) reposition();
 }
 
 void KisStudioCanvasHud::updateZoom(qreal zoom)

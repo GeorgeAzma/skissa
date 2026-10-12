@@ -36,6 +36,8 @@ protected:
 
 private:
     void viewChanged();
+    /// The badges of the modes on now: shown, the others not
+    void updateBadges();
     void updateZoom(qreal zoom);
     void updateRotation(qreal angle);
     void reposition();
