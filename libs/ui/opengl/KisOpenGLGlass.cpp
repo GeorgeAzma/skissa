@@ -14,6 +14,7 @@
 #include <QOpenGLShaderProgram>
 #include <QOpenGLVertexArrayObject>
 #include <QSharedPointer>
+#include <QPolygonF>
 #include <QTransform>
 #include <QVector3D>
 #include <QtMath>
@@ -247,6 +248,13 @@ uniform float polish;
 uniform float clearing;
 uniform vec3 ior;
 uniform vec4 reach;
+// the image's light (the glow's): where the image is, and its light around it, blurred
+uniform bool imageLit;
+uniform mat3 toImage;
+uniform mat3 fromImage;
+uniform sampler2D imageLight;
+uniform float imageLightFactor;
+uniform float imageLightReach;
 // the glass under this one (a menu over a panel): its shape, its corners, its tint (Oklab), how strongly it tints
 uniform int lowerCount;
 uniform vec4 lowerShape[4];
@@ -509,6 +517,44 @@ vec3 throughLower(vec3 lab, vec2 p)
     return lab;
 }
 
+/**
+ * The light the image casts on the glass beside it: the image glows, and in
+ * the dark around it that is the only light there is. Its nearest edge
+ * lights the glass, in that edge's colors (the glow's light there), less the
+ * further away it is: the bevel where it faces the image catches it as the
+ * rim of a glass does, and the frost scatters a little of it all over. None
+ * over the image, where there is light enough.
+ */
+vec3 imageLightAt(vec2 p, vec3 normal, vec2 normal2d, bool onBevel)
+{
+    vec3 u = toImage * vec3(p, 1.0);
+    vec3 n = fromImage * vec3(clamp(u.xy / u.z, 0.0, 1.0), 1.0);
+    vec2 q = n.xy / n.z;
+    float dist = length(q - p);
+    if (dist < 1.0) {
+        return vec3(0.0);
+    }
+    // the glow at the edge, bilinear (its texture is small, its light smooth)
+    vec2 t = q / imageLightFactor - 0.5;
+    ivec2 i = ivec2(floor(t));
+    vec2 f = t - floor(t);
+    ivec2 last = textureSize(imageLight, 0) - 1;
+    vec4 a = weighted(texelFetch(imageLight, clamp(i, ivec2(0), last), 0));
+    vec4 b = weighted(texelFetch(imageLight, clamp(i + ivec2(1, 0), ivec2(0), last), 0));
+    vec4 c = weighted(texelFetch(imageLight, clamp(i + ivec2(0, 1), ivec2(0), last), 0));
+    vec4 e = weighted(texelFetch(imageLight, clamp(i + ivec2(1, 1), ivec2(0), last), 0));
+    vec4 m = mix(mix(a, b, f.x), mix(c, e, f.x), f.y);
+    vec3 light = m.rgb / max(m.a, 1e-4);
+    float falloff = 1.0 / (1.0 + (dist / imageLightReach) * (dist / imageLightReach));
+    vec2 toward = (q - p) / dist;
+    float rim = 0.0;
+    if (onBevel) {
+        float facing = max(dot(normal2d, toward), 0.0);
+        rim = facing * facing * pow(1.0 - normal.z, 0.7);
+    }
+    return light * falloff * (0.9 * rim + 0.1) * smoothstep(0.0, 24.0, dist);
+}
+
 void main()
 {
     vec2 p = gl_FragCoord.xy;
@@ -573,6 +619,9 @@ void main()
         color = mix(color, reflectedAt(mirrored, p), reflected);
     } else {
         color = tintedLab(mix(tintLab, throughLower(frostedLab(p), p), canvas), tintLab, strength);
+    }
+    if (imageLit) {
+        color += imageLightAt(p, normal, normal2d, onBevel);
     }
 
     /**
@@ -760,6 +809,7 @@ struct Programs {
                           {"rect", "blurred", "statistics", "shift", "slot", "restore", "power",
                            "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
                            "beyond", "spacing", "dither", "veil", "bevel", "polish", "clearing", "ior", "under", "decode", "reach",
+                           "imageLit", "toImage", "fromImage", "imageLight", "imageLightFactor", "imageLightReach",
                            "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"})
             && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
             && ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"});
@@ -793,6 +843,9 @@ struct KisOpenGLGlass::Private : Programs
     QScopedPointer<QOpenGLFramebufferObject> ambientSmall;
     QScopedPointer<QOpenGLFramebufferObject> ambientAcross;
     QScopedPointer<QOpenGLFramebufferObject> ambientBlurred;
+    /// Where the image was when the ambient light was made last (unit square to surface), and how much smaller it is
+    QTransform imageToSurface;
+    int ambientFactor {0};
     QOpenGLVertexArrayObject vao;
     /// The canvas made small; blurred across; then down; and its Oklab statistics, the same
     QScopedPointer<QOpenGLFramebufferObject> small;
@@ -892,6 +945,8 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
             fbo->reset(new QOpenGLFramebufferObject(smallSize, QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, d->keptFormat));
         }
     }
+    d->imageToSurface = surfaceToImage.inverted();
+    d->ambientFactor = factor;
     const qreal sigma = KisStudioGlass::ambientSigma * pixelRatio / factor;
     const int taps = qBound(1, qCeil(3 * sigma), maxTaps);
     float weights[maxTaps + 1] = {};
@@ -1167,6 +1222,25 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1f(d->glass["clearing"], bevel.clear);
     const QVector3D ior = refractiveIndices(bevel.abbeNumber);
     f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
+    // the image's light, where the glow is made (and so where it is known)
+    const bool imageLit = KisStudioGlass::ambientSurround() && d->ambientBlurred && d->ambientFactor > 0;
+    f->glUniform1i(d->glass["imageLit"], imageLit);
+    if (imageLit) {
+        setMatrix(f, d->glass["toImage"], d->imageToSurface.inverted());
+        setMatrix(f, d->glass["fromImage"], d->imageToSurface);
+        f->glUniform1i(d->glass["imageLight"], 3);
+        f->glUniform1f(d->glass["imageLightFactor"], d->ambientFactor);
+        // a larger image is a larger light: it reaches as far as it is large, and some more
+        const QPolygonF image = d->imageToSurface.map(QPolygonF(QRectF(0, 0, 1, 1)));
+        qreal area = 0;
+        for (int i = 0; i < image.size(); i++) {
+            const QPointF a = image[i], b = image[(i + 1) % image.size()];
+            area += a.x() * b.y() - b.x() * a.y();
+        }
+        f->glUniform1f(d->glass["imageLightReach"], float(std::sqrt(std::abs(area) / 2) + 160 * pixelRatio));
+        f->glActiveTexture(GL_TEXTURE3);
+        f->glBindTexture(GL_TEXTURE_2D, d->ambientBlurred->texture());
+    }
     f->glUniform1f(d->glass["lowerStrength"], float(0.5 * (KisStudioGlass::tintOverDark() + KisStudioGlass::tintOverBright())));
     f->glActiveTexture(GL_TEXTURE2);
     f->glBindTexture(GL_TEXTURE_2D, canvas);
@@ -1228,6 +1302,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     d->timing.mark();
     f->glDisable(GL_BLEND);
     f->glDisable(GL_SCISSOR_TEST);
+    f->glActiveTexture(GL_TEXTURE3);
+    f->glBindTexture(GL_TEXTURE_2D, 0);
     f->glActiveTexture(GL_TEXTURE2);
     f->glBindTexture(GL_TEXTURE_2D, 0);
     f->glActiveTexture(GL_TEXTURE1);
