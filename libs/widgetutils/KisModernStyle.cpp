@@ -551,6 +551,7 @@ int KisModernStyle::wheelSteps(const QWheelEvent *event, QObject *receiver)
 {
     const char *const restProperty = "studioWheelRest";
     const int delta = event->angleDelta().y();
+    if (!delta) return 0;
     int rest = receiver->property(restProperty).toInt();
     // the other way: what was left over the first way is not a part of it
     if ((rest < 0) != (delta < 0)) rest = 0;
@@ -560,7 +561,7 @@ int KisModernStyle::wheelSteps(const QWheelEvent *event, QObject *receiver)
     return steps;
 }
 
-bool KisModernStyle::dragCancelled()
+bool KisModernStyle::pointerHeld()
 {
 #ifdef Q_OS_WIN
     // the system's drag loop takes Esc itself, and Qt's idea of the buttons is from before the drag

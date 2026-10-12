@@ -38,6 +38,7 @@
 #include <kis_painter.h>
 #include <brushengine/kis_paintop.h>
 #include <kis_selection.h>
+#include <kis_selection_mask.h>
 #include <brushengine/kis_paintop_preset.h>
 #include <brushengine/KisOptimizedBrushOutline.h>
 
@@ -83,7 +84,13 @@ void explainNothingPainted(KisCanvas2 *canvas, KisNodeSP node, const QPoint &pix
     KisPaintLayer *layer = dynamic_cast<KisPaintLayer *>(node.data());
     // the selection a stroke is limited to, found as the stroke finds it
     KisSelectionSP selection = canvas->image()->globalSelection();
-    if (KisLayer *asLayer = dynamic_cast<KisLayer *>(node.data())) selection = asLayer->selection();
+    if (KisLayer *asLayer = dynamic_cast<KisLayer *>(node.data())) {
+        selection = asLayer->selection();
+    } else if (auto *mask = dynamic_cast<KisSelectionMask *>(node.data()); mask && mask->selection() == selection) {
+        selection = nullptr;
+    }
+    // a vector layer's stroke is a shape, which no selection cuts
+    if (!node->inherits("KisPaintLayer") && !node->inherits("KisMask")) selection = nullptr;
     QString why;
     KoColor at;
     if (selection && selection->projection()->pixel(pixel.x(), pixel.y(), &at) && at.opacityU8() == OPACITY_TRANSPARENT_U8) {

@@ -868,7 +868,7 @@ void KisStudioToolRail::startDrag(int index, QWidget *source, const QPixmap &pix
         drag->setPixmap(pixmap);
     }
     // dropped anywhere but on the rail: it is taken off the rail (Esc: it stays)
-    if (drag->exec(Qt::MoveAction) == Qt::IgnoreAction && !KisModernStyle::dragCancelled()) {
+    if (drag->exec(Qt::MoveAction) == Qt::IgnoreAction && !KisModernStyle::pointerHeld()) {
         QStringList items = d->items;
         if (index < items.size() && items[index] == dragged) {
             items.removeAt(index);

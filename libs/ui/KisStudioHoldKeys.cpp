@@ -18,6 +18,7 @@
 #include <kxmlguifactory.h>
 
 #include "KisMainWindow.h"
+#include <KisModernStyle.h>
 
 namespace
 {
@@ -108,6 +109,8 @@ private:
         // by the keys' own times: a slow action run by the press does not make a tap a hold
         const qint64 down = timestamp && m_pressedAt ? qint64(timestamp - m_pressedAt) : m_since.elapsed();
         if (!m_used && down < KisStudioHoldKeys::holdTime) return;
+        // a release missed (a drag and drop takes it) is not a stroke going on
+        m_pointerDown = m_pointerDown && KisModernStyle::pointerHeld();
         if (m_pointerDown) {
             m_revertPending = true;
             return;

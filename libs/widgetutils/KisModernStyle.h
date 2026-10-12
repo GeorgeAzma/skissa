@@ -137,8 +137,12 @@ public:
      */
     static int wheelSteps(const QWheelEvent *event, QObject *receiver);
 
-    /// After a drag that nothing took (Qt::IgnoreAction): given up on with Esc, the button still held, not let go of somewhere
-    static bool dragCancelled();
+    /**
+     * The left button (or the pen) is down now, as the system has it: also
+     * where Qt missed its release (a drag's own loop takes it). After a drag
+     * nothing took (Qt::IgnoreAction): still down, it was given up on with Esc.
+     */
+    static bool pointerHeld();
 
     using QProxyStyle::polish;
     void polish(QWidget *widget) override;

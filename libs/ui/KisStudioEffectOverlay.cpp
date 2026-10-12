@@ -732,6 +732,18 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
     bool press = false;
     bool move = false;
     bool release = false;
+    switch (event->type()) {
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonDblClick:
+    case QEvent::MouseMove:
+    case QEvent::MouseButtonRelease:
+    case QEvent::TabletPress:
+    case QEvent::TabletMove:
+    case QEvent::TabletRelease:
+        break;
+    default:
+        return false;
+    }
     // Shift: fine, a quarter as fast
     const Qt::KeyboardModifiers modifiers = static_cast<QInputEvent *>(event)->modifiers();
     const bool plain = modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier;

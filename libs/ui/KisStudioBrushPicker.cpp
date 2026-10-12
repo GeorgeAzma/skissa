@@ -765,6 +765,7 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
             if (!stroke.isNull()) strokes->made.insert(job.id, stroke);
             if (!mask.isNull()) strokes->madeMasks.insert(job.id, mask);
             strokes->spent << job;
+            job = Job();
         }
         strokes->finished = true;
         // what the jobs hold (presets, an image) let go of in the GUI thread, also once the picker is gone
