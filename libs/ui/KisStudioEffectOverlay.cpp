@@ -39,6 +39,7 @@
 #include <kis_slider_spin_box.h>
 
 #include "KisMainWindow.h"
+#include "KisStudioGlass.h"
 #include "KisStudioMotion.h"
 #include "KisStudioEffectsPicker.h"
 #include "KisViewManager.h"
@@ -479,13 +480,17 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     header->addWidget(apply);
     layout->addLayout(header);
 
-
     d->scroll = new QScrollArea(this);
     d->scroll->setFrameShape(QFrame::NoFrame);
     d->scroll->setWidgetResizable(true);
     d->scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     d->scroll->viewport()->setAutoFillBackground(false);
     layout->addWidget(d->scroll, 1);
+    // on the glass: fields and buttons veiled lighter or darker, not boxes of the panel's color
+    for (QWidget *widget : {static_cast<QWidget *>(d->preview), static_cast<QWidget *>(d->editable),
+                            static_cast<QWidget *>(cancel), static_cast<QWidget *>(apply), static_cast<QWidget *>(d->scroll)}) {
+        KisStudioGlass::setSeeThrough(widget, true);
+    }
 
     connect(&d->compressor, &KisSignalCompressor::timeout, this, &KisStudioEffectOverlay::startApplying);
     parentWidget()->installEventFilter(this);
@@ -859,11 +864,9 @@ void KisStudioEffectOverlay::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    QColor background = palette().color(QPalette::Window);
-    background.setAlphaF(0.95);
+    // glass, as the rails and pills over the canvas are
+    const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.14);
-    painter.setPen(QPen(border, 1));
-    painter.setBrush(background);
-    painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14));
+    KisStudioGlass::paintBorder(painter, this, shape, border);
 }
