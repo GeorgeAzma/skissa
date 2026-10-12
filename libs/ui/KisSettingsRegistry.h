@@ -62,6 +62,7 @@ public:
         qreal max {0};
         QVector<Choice> choices;
         QString label; ///< its name in lists (an import's changes, Find)
+        QString help;  ///< what it does, if more than its name says: shown on hover
         bool alpha {false}; ///< a Color that can be see-through; the others are opaque
         /// More than the kind says (a text's format); for a Choice with choices only known at run time, the choices
         std::function<bool(const QVariant &value)> valid;

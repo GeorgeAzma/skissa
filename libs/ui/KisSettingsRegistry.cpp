@@ -212,6 +212,83 @@ QVector<Choice> themes()
     return themes;
 }
 
+/// What the settings that aren't plain from their names do: shown on hover
+QHash<QString, QString> explanations()
+{
+    return {
+        {QStringLiteral("StudioGlassRefraction"), i18nc("@info:tooltip", "How much a panel's edge bends the picture under it, as the rim of a lens does.")},
+        {QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"),
+         i18nc("@info:tooltip",
+               "At a screen scale like 125% or 150%, the interface is drawn at exactly that size. Off, it is rounded to 100% or 200%: "
+               "crisper lines, but a little too small or too large.")},
+        {QStringLiteral("newOutlineStyle"), i18nc("@info:tooltip", "The outline shows where the brush paints: a circle of its size, or its actual shape.")},
+        {QStringLiteral("newCursorStyle"), i18nc("@info:tooltip", "A mark at the pen's tip, besides the outline.")},
+        {QStringLiteral("colorSamplerPreviewCircleExtraCirclesEnabled"), i18nc("@info:tooltip", "The ring shows the color you had before next to the one under the pointer.")},
+        {QStringLiteral("pixelGridDrawingThreshold"), i18nc("@info:tooltip", "Lines between the pixels appear from this zoom on.")},
+        {QStringLiteral("showSingleChannelAsColor"), i18nc("@info:tooltip", "When the Channels panel shows one channel alone, it is shown in its color instead of gray.")},
+        {QStringLiteral("zoomSteps"), i18nc("@info:tooltip", "How many zoom steps it takes to double the size.")},
+        {QStringLiteral("OpenGLFilterMode"),
+         i18nc("@info:tooltip",
+               "How the image is scaled on screen when zoomed. Nearest: sharp square pixels, best for pixel art. Bilinear: smooth, "
+               "fastest. Trilinear: smooth, and calmer when zoomed out. High quality: the sharpest smooth result.")},
+        {QStringLiteral("kritadisplayrc useWin8PointerInput"),
+         i18nc("@info:tooltip",
+               "How Krita reads the pen. On: Windows Ink, built into Windows. Off: WinTab, the tablet maker's driver. If pressure "
+               "or tilt misbehave, try the other.")},
+        {QStringLiteral("useRightMiddleTabletButtonWorkaround"), i18nc("@info:tooltip", "For tablets whose pen buttons do nothing in Krita: their clicks are read as mouse clicks.")},
+        {QStringLiteral("tiltDirectionOffset"), i18nc("@info:tooltip", "Turns the direction the pen's tilt is read in, e.g. for a tablet used rotated or left-handed.")},
+        {QStringLiteral("touchPainting"), i18nc("@info:tooltip", "Auto: a finger paints only when there is no pen. On: a finger always paints. Off: a finger only moves and zooms the canvas.")},
+        {QStringLiteral("longPressEnabled"), i18nc("@info:tooltip", "Holding a finger still opens the context menu, as a right-click does.")},
+        {QStringLiteral("KineticScrollingEnabled"), i18nc("@info:tooltip", "Lists keep scrolling after a flick, slowing down.")},
+        {QStringLiteral("switchSelectionCtrlAlt"), i18nc("@info:tooltip", "Ctrl and Alt change how a new selection combines with the old one (add or subtract): this swaps which does which.")},
+        {QStringLiteral("maximumBrushSize"), i18nc("@info:tooltip", "The largest size the brush size slider reaches. Very large brushes paint slowly.")},
+        {QStringLiteral("[filterdialog] forceLodMode"), i18nc("@info:tooltip", "While you adjust an effect on a large image, a quick lower-resolution preview; the full result follows.")},
+        {QStringLiteral("[KisToolTransform] forceLodMode"), i18nc("@info:tooltip", "While you transform on a large image, a quick lower-resolution preview; the full result follows.")},
+        {QStringLiteral("[KritaTransform/KisToolMove] forceLodMode"), i18nc("@info:tooltip", "While you move on a large image, a quick lower-resolution preview; the full result follows.")},
+        {QStringLiteral("useCumulativeUndoRedo"), i18nc("@info:tooltip", "Older quick strokes are merged into one undo step each, so the undo history reaches further back.")},
+        {QStringLiteral("StudioLayersRememberBrushes"), i18nc("@info:tooltip", "Choosing a layer picks the brush last used on it.")},
+        {QStringLiteral("ConvertToImageColorSpaceOnImport"), i18nc("@info:tooltip", "Layers imported from files are converted to the image's color space instead of keeping their own.")},
+        {QStringLiteral("compressLayersInKra"), i18nc("@info:tooltip", "Layers are compressed harder in .kra files: smaller files that take longer to save and open.")},
+        {QStringLiteral("UseZip64"), i18nc("@info:tooltip", "Needed to save .kra files over 4 GB. Krita before 4.2 can't open them.")},
+        {QStringLiteral("TrimKra"), i18nc("@info:tooltip", "Paint outside the canvas is cut off when saving: smaller files, but what was moved off the canvas is lost.")},
+        {QStringLiteral("pasteFormat"), i18nc("@info:tooltip", "An image pasted from a browser can be the original file (downloaded again), the copy the browser kept, or the picture as pasted.")},
+        {QStringLiteral("pasteBehaviour"), i18nc("@info:tooltip", "Images pasted from other apps usually say nothing of their colors: they are taken as sRGB, as your screen's colors, or you are asked.")},
+        {QStringLiteral("useDefaultColorSpace"), i18nc("@info:tooltip", "New images start in the color model chosen here, not in the one used last.")},
+        {QStringLiteral("renderIntent"),
+         i18nc("@info:tooltip",
+               "How colors the screen can't show are brought into what it can.\n"
+               "Perceptual: all colors move together, keeping how they relate; smooth, a little less vivid.\n"
+               "Relative: colors the screen can show stay exact; the rest move to the nearest it can.\n"
+               "Saturation: keeps colors vivid; hues may shift. For charts more than pictures.\n"
+               "Absolute: as Relative, but white stays the image's white (for proofing paper).")},
+        {QStringLiteral("useBlackPointCompensation"),
+         i18nc("@info:tooltip",
+               "The image's darkest black is shown as the screen's darkest black: shadows keep their detail instead of being crushed "
+               "or looking gray.")},
+        {QStringLiteral("allowLCMSOptimization"),
+         i18nc("@info:tooltip",
+               "Converts colors a little faster and a little less exactly. Turn it off for linear light and wide color spaces, where "
+               "it can show as banding.")},
+        {QStringLiteral("colorsettings/forcepalettecolors"), i18nc("@info:tooltip", "Picked colors snap to the nearest color of the palette in use.")},
+        {QStringLiteral("ExrDefaultColorProfile"), i18nc("@info:tooltip", "EXR files usually say nothing of their colors: the profile they are opened in.")},
+        {QStringLiteral("kritadisplayrc OpenGLRenderer"),
+         i18nc("@info:tooltip",
+               "What draws the canvas on the graphics card. Auto picks the best for this computer; change it only if the canvas is "
+               "slow, flickers or shows wrong colors.")},
+        {QStringLiteral("memoryHardLimitPercent"), i18nc("@info:tooltip", "The share of this computer's memory images may use. Past it, Krita works from the swap file on disk.")},
+        {QStringLiteral("memorySoftLimitPercent"), i18nc("@info:tooltip", "Past this share of memory, older undo steps move to disk.")},
+        {QStringLiteral("maxSwapSize"), i18nc("@info:tooltip", "The most disk space Krita takes when images don't fit in memory.")},
+        {QStringLiteral("swaplocation"), i18nc("@info:tooltip", "Where on disk Krita keeps what doesn't fit in memory. A fast drive is best.")},
+        {QStringLiteral("maxNumberOfThreads"), i18nc("@info:tooltip", "How many processor threads Krita paints and runs effects with.")},
+        {QStringLiteral("frameRenderingClones"), i18nc("@info:tooltip", "Animation frames rendered at once: more is faster, and takes more memory.")},
+        {QStringLiteral("detectFpsLimit"), i18nc("@info:tooltip", "The canvas redraws as often as the screen refreshes.")},
+        {QStringLiteral("calculateAnimationCacheInBackground"), i18nc("@info:tooltip", "Frames are made ready for playback while you work.")},
+        {QStringLiteral("useOnDiskAnimationCacheSwapping"), i18nc("@info:tooltip", "Cached frames that don't fit in memory go to disk instead of being dropped.")},
+        {QStringLiteral("disableAVXOptimizations"), i18nc("@info:tooltip", "Only if Krita crashes when painting: paints without this processor's AVX instructions, slower.")},
+        {QStringLiteral("amdDisableVectorWorkaround"), i18nc("@info:tooltip", "Only if Krita crashes when painting: paints without vector instructions, much slower.")},
+    };
+}
+
 QVector<Setting> describeAll()
 {
     using R = KisSettingsRegistry;
@@ -227,12 +304,6 @@ QVector<Setting> describeAll()
         glass.read = []() { return KisStudioGlass::isEnabled(); };
         glass.write = [](const QVariant &value) { KisStudioGlass::setEnabled(value.toBool()); };
         all << glass;
-        Setting style = choice(QStringLiteral("StudioGlassStyle"), 0,
-                               {{0, i18nc("glass style", "Frosted")}, {1, i18nc("glass style", "Liquid")}},
-                               i18nc("setting", "Glass style"), R::Fork);
-        style.read = []() { return int(KisStudioGlass::style()); };
-        style.write = [](const QVariant &value) { KisStudioGlass::setStyle(KisStudioGlass::Style(value.toInt())); };
-        all << style;
         Setting refraction = number(QStringLiteral("StudioGlassRefraction"), 0.5, 0, 1, i18nc("setting", "Glass refraction"), R::Fork);
         refraction.read = []() { return KisStudioGlass::refraction(); };
         refraction.write = [](const QVariant &value) { KisStudioGlass::setRefraction(value.toReal()); };
@@ -264,10 +335,6 @@ QVector<Setting> describeAll()
         all << text(QStringLiteral("custom_system_font"), QLatin1String(""), i18nc("setting", "Interface font"), R::Machine);
         all << number(QStringLiteral("custom_font_size"), -1, -1, 72, i18nc("setting", "Interface font size"));
         all << toggle(QStringLiteral("showOnCanvasMessages"), true, i18nc("setting", "Messages on the canvas"), R::NewViews);
-        all << choice(QStringLiteral("iconsInMenu"), 0,
-                      {{0, i18nc("icons in menus", "Default")}, {1, i18nc("icons in menus", "Shown")}, {2, i18nc("icons in menus", "Hidden")}},
-                      i18nc("setting", "Icons in menus"), R::Restart);
-        all << inDisplayrc(toggle(QStringLiteral("EnableHiDPI"), true, i18nc("setting", "Sharp on high-DPI screens"), R::Machine | R::Restart));
 #if defined(Q_OS_WIN) && defined(HAVE_HIGH_DPI_SCALE_FACTOR_ROUNDING_POLICY)
         all << inDisplayrc(toggle(QStringLiteral("EnableHiDPIFractionalScaling"), false, i18nc("setting", "Fractional scaling"), R::Machine | R::Restart));
 #endif
@@ -284,7 +351,6 @@ QVector<Setting> describeAll()
                                           {2, i18nc("brush outline", "Brush")}, {3, i18nc("brush outline", "With tilt")}};
         all << choice(QStringLiteral("newOutlineStyle"), 2, outlines, i18nc("setting", "Brush outline"));
         all << toggle(QStringLiteral("ShowOutlineWhilePainting"), true, i18nc("setting", "Outline while painting"));
-        all << toggle(QStringLiteral("forceAlwaysFullSizedOutline"), false, i18nc("setting", "Outline at full size"));
         all << color(QStringLiteral("cursorMaincColor"), QColor(255, 0, 255), i18nc("setting", "Outline color"));
         all << toggle(QStringLiteral("separateEraserCursor"), false, i18nc("setting", "Eraser has its own cursor"));
         all << choice(QStringLiteral("eraserCursorStyle"), 9,
@@ -295,7 +361,6 @@ QVector<Setting> describeAll()
                       i18nc("setting", "Eraser cursor"));
         all << choice(QStringLiteral("eraserOutlineStyle"), 2, outlines, i18nc("setting", "Eraser outline"));
         all << toggle(QStringLiteral("ShowEraserOutlineWhilePainting"), true, i18nc("setting", "Eraser outline while painting"));
-        all << toggle(QStringLiteral("forceAlwaysFullSizedEraserOutline"), false, i18nc("setting", "Eraser outline at full size"));
         all << color(QStringLiteral("eraserCursorMaincColor"), QColor(128, 255, 128), i18nc("setting", "Eraser outline color"));
 
         Setting sampler = choice(QStringLiteral("colorSamplerPreviewStyle"), 1,
@@ -306,20 +371,13 @@ QVector<Setting> describeAll()
         sampler.written = [](const QVariant &) { KisConfigNotifier::instance()->notifyColorSamplerPreviewStyleChanged(); };
         all << sampler;
         all << number(QStringLiteral("colorSamplerPreviewCircleDiameter"), 180, 1, 400, i18nc("setting", "Sampler ring size"));
-        all << number(QStringLiteral("colorSamplerPreviewCircleThickness"), 12.0, 1, 50, i18nc("setting", "Sampler ring thickness"));
-        all << toggle(QStringLiteral("colorSamplerPreviewCircleOutlineEnabled"), true, i18nc("setting", "Sampler ring outline"));
         all << toggle(QStringLiteral("colorSamplerPreviewCircleExtraCirclesEnabled"), true, i18nc("setting", "Sampler ring comparison"));
         all << toggle(QStringLiteral("colorSamplerZoomPreviewEnabled"), false, i18nc("setting", "Sampler magnifier"));
         all << number(QStringLiteral("colorSamplerZoomPreviewScale"), 10.0, 1, 50, i18nc("setting", "Sampler magnification"));
-        all << choice(QStringLiteral("colorSamplerPreviewCirclePosition"), 0,
-                      {{0, i18nc("sampler ring position", "Center")}, {1, i18nc("sampler ring position", "Above")},
-                       {2, i18nc("sampler ring position", "Above left")}, {3, i18nc("sampler ring position", "Above right")}},
-                      i18nc("setting", "Sampler ring position"));
 
         all << color(QStringLiteral("checkerscolor"), QColor(220, 220, 220), i18nc("setting", "Checkerboard squares"));
         all << color(QStringLiteral("checkerscolor2"), QColor(255, 255, 255), i18nc("setting", "Checkerboard other squares"));
         all << number(QStringLiteral("checksize"), 32, 1, 256, i18nc("setting", "Checkerboard size"));
-        all << toggle(QStringLiteral("scrollingcheckers"), false, i18nc("setting", "Checkerboard moves with the image"));
         all << color(QStringLiteral("pixelGridColor"), QColor(255, 255, 255), i18nc("setting", "Pixel grid color"));
         Setting grid = number(QStringLiteral("pixelGridDrawingThreshold"), 24.0, 0, 99.99, i18nc("setting", "Pixel grid from"));
         grid.format = [](const QVariant &value) { return i18nc("zoom", "%1%", qRound(value.toDouble() * 100)); };
@@ -328,10 +386,7 @@ QVector<Setting> describeAll()
         Setting mask = color(QStringLiteral("selectionOverlayMaskColor"), QColor(255, 0, 0, 128), i18nc("setting", "Selection mask color"));
         mask.alpha = true;
         all << mask;
-        all << toggle(QStringLiteral("AntialiasSelectionOutline"), false, i18nc("setting", "Smooth selection outline"));
         all << toggle(QStringLiteral("selectionActionBar"), true, i18nc("setting", "Selection actions bar"));
-        all << toggle(QStringLiteral("antialiascurves"), true, i18nc("setting", "Smooth curves"));
-        all << toggle(QStringLiteral("hidePopups"), false, i18nc("setting", "No layer thumbnail popup"));
         Setting channels = toggle(QStringLiteral("showSingleChannelAsColor"), false, i18nc("setting", "Channels in color"));
         // read as the canvas is drawn: what is drawn already is drawn again
         channels.written = [](const QVariant &) {
@@ -342,19 +397,10 @@ QVector<Setting> describeAll()
         all << channels;
         all << number(QStringLiteral("zoomSteps"), 2, 1, 32, i18nc("setting", "Zoom steps"), R::NewViews);
         all << toggle(QStringLiteral("zoomHorizontal"), false, i18nc("setting", "Zoom by dragging sideways"));
-        all << number(QStringLiteral("zoomMarginSize"), 0, 0, 1024, i18nc("setting", "Margin when fit"));
         all << choice(QStringLiteral("OpenGLFilterMode"), 3,
                       {{0, i18nc("canvas scaling", "Nearest")}, {1, i18nc("canvas scaling", "Bilinear")},
                        {2, i18nc("canvas scaling", "Trilinear")}, {3, i18nc("canvas scaling", "High quality")}},
                       i18nc("setting", "Scaling"), R::Machine);
-        for (const auto &hide : {std::make_pair("hideMenuFullScreen", i18nc("setting", "Canvas only hides the menu")),
-                                 std::make_pair("hideToolbarFullscreen", i18nc("setting", "Canvas only hides toolbars")),
-                                 std::make_pair("hideDockersFullScreen", i18nc("setting", "Canvas only hides panels")),
-                                 std::make_pair("hideScrollbarsFullScreen", i18nc("setting", "Canvas only hides scrollbars")),
-                                 std::make_pair("hideTitleBarFullscreen", i18nc("setting", "Canvas only is full screen")),
-                                 std::make_pair("hideStatusbarFullScreen", i18nc("setting", "Canvas only hides the status bar"))}) {
-            all << toggle(QLatin1String(hide.first), true, hide.second);
-        }
     }
 
     // the pen
@@ -380,14 +426,8 @@ QVector<Setting> describeAll()
 #ifdef Q_OS_WIN
         all << inDisplayrc(toggle(QStringLiteral("useWin8PointerInput"), false, i18nc("setting", "Windows Ink"), R::Machine | R::Restart));
 #endif
-        all << toggle(QStringLiteral("useTimestampsForBrushSpeed"), false, i18nc("setting", "Driver timestamps for speed"));
-        all << number(QStringLiteral("maxAllowedSpeedValue"), 30, 1, 100, i18nc("setting", "Fastest brush speed"));
-        all << number(QStringLiteral("speedValueSmoothing"), 3, 3, 100, i18nc("setting", "Speed smoothing"));
         all << number(QStringLiteral("tiltDirectionOffset"), 0, -180, 180, i18nc("setting", "Tilt direction offset"));
         all << toggle(QStringLiteral("useRightMiddleTabletButtonWorkaround"), false, i18nc("setting", "Pen buttons as mouse clicks"), R::Restart);
-#ifdef Q_OS_WIN
-        all << toggle(QStringLiteral("ignoreHighFunctionKeys"), true, i18nc("setting", "Ignore F13 to F24"));
-#endif
         Setting touch = choice(QStringLiteral("touchPainting"), 0,
                                {{0, i18nc("touch painting", "Auto")}, {1, i18nc("touch painting", "On")}, {2, i18nc("touch painting", "Off")}},
                                i18nc("setting", "Painting with a finger"));
@@ -398,12 +438,6 @@ QVector<Setting> describeAll()
         longPress.written = [](const QVariant &value) { KisConfigNotifier::instance()->notifyLongPressChanged(value.toBool()); };
         all << longPress;
         all << toggle(QStringLiteral("KineticScrollingEnabled"), true, i18nc("setting", "Kinetic scrolling"), R::Restart);
-        all << choice(QStringLiteral("KineticScrollingGesture"), KisConfig(true).kineticScrollingGesture(true),
-                      {{0, i18nc("kinetic scrolling gesture", "Finger")}, {1, i18nc("kinetic scrolling gesture", "Drag")},
-                       {2, i18nc("kinetic scrolling gesture", "Middle drag")}},
-                      i18nc("setting", "Kinetic scrolling with"), R::Restart);
-        all << number(QStringLiteral("KineticScrollingSensitivity"), 75, 0, 100, i18nc("setting", "Kinetic scrolling sensitivity"), R::Restart);
-        all << toggle(QStringLiteral("KineticScrollingHideScrollbar"), false, i18nc("setting", "Kinetic scrolling hides scrollbars"), R::Restart);
     }
 
     // tools, layers, undo
@@ -411,23 +445,12 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("switchSelectionCtrlAlt"), false, i18nc("setting", "Swap Ctrl and Alt for selections"));
         all << toggle(QStringLiteral("activateTransformToolAfterPaste"), false, i18nc("setting", "Transform after pasting"));
         all << number(QStringLiteral("maximumBrushSize"), 1000, 100, 10000, i18nc("setting", "Largest brush"), R::Restart);
-        all << toggle(QStringLiteral("useCreamyAlphaDarken"), true, i18nc("setting", "Creamy flow"), R::Restart);
-        all << toggle(QStringLiteral("useSubtractiveBlendingForCmykColorSpaces"), true, i18nc("setting", "Subtractive CMYK blending"), R::Restart);
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in effects")), QStringLiteral("filterdialog"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in Transform")), QStringLiteral("KisToolTransform"));
-        all << grouped(toggle(QStringLiteral("useOverlayPreviewStyle"), false, i18nc("setting", "Transform previews over the layers")), QStringLiteral("KisToolTransform"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), false, i18nc("setting", "Instant preview in Move")), QStringLiteral("KritaTransform/KisToolMove"));
         all << number(QStringLiteral("undoStackLimit"), 200, 0, 1000, i18nc("setting", "Undo steps"));
         all << toggle(QStringLiteral("useCumulativeUndoRedo"), false, i18nc("setting", "Merge strokes in undo"));
-        all << number(QStringLiteral("cumulativeUndoMergeTimeout"), 5000, 3000, 600000, i18nc("setting", "Merge strokes older than"));
-        all << number(QStringLiteral("cumulativeUndoExcludeFromMerge"), 10, 1, 1000, i18nc("setting", "Keep the last strokes apart"));
-        all << number(QStringLiteral("cumulativeUndoMaxGroupSeparation"), 1000, 300, 60000, i18nc("setting", "Merge strokes closer than"));
-        all << number(QStringLiteral("cumulativeUndoMaxGroupDuration"), 5000, 300, 600000, i18nc("setting", "Longest merged group"));
-        all << toggle(QStringLiteral("renameMergedLayers"), true, i18nc("setting", "Name merged groups \"Merged\""));
-        all << toggle(QStringLiteral("renamePastedLayers"), true, i18nc("setting", "Name pasted layers \"(pasted)\""));
-        all << toggle(QStringLiteral("renameDuplicatedLayers"), true, i18nc("setting", "Name copies \"Copy of\""));
         all << toggle(QStringLiteral("ConvertToImageColorSpaceOnImport"), false, i18nc("setting", "Imported layers take the image's colors"));
-        all << toggle(QStringLiteral("ShowRootLayer"), false, i18nc("setting", "Show the root layer"));
         all << toggle(QStringLiteral("StudioLayersRememberBrushes"), true, i18nc("setting", "Layers remember their brush"), R::Fork);
         all << toggle(QStringLiteral("StudioEffectsEditable"), true, i18nc("setting", "Effects stay editable"), R::Fork);
         all << toggle(QStringLiteral("autoPinLayers"), true, i18nc("setting", "Pin new layers to the timeline"));
@@ -442,27 +465,15 @@ QVector<Setting> describeAll()
             return value.toInt() <= 0 ? i18nc("autosave", "Off") : i18nc("autosave interval", "Every %1 min", qMax(1, value.toInt() / 60));
         };
         all << autosave;
-        all << toggle(QStringLiteral("autosavefileshidden"), true, i18nc("setting", "Hidden autosave files"));
         all << toggle(QStringLiteral("CreateBackupFile"), true, i18nc("setting", "Backup when saving"));
         all << choice(QStringLiteral("backupfilelocation"), 0,
                       {{0, i18nc("backup location", "Beside the file")}, {1, i18nc("backup location", "Home folder")},
                        {2, i18nc("backup location", "Temporary folder")}},
                       i18nc("setting", "Backups go"));
-        Setting suffix = text(QStringLiteral("backupfilesuffix"), QStringLiteral("~"), i18nc("setting", "Backup suffix"));
-        suffix.valid = [](const QVariant &value) {
-            const QString s = value.toString();
-            if (s.isEmpty() || s.size() > 10) return false;
-            for (const QChar c : s) {
-                if (c.isDigit() || c == QLatin1Char('/') || c == QLatin1Char('\\') || c == QLatin1Char(':') || c == QLatin1Char(';') || c.isSpace()) return false;
-            }
-            return true;
-        };
-        all << suffix;
         all << number(QStringLiteral("numberofbackupfiles"), 1, 1, 99, i18nc("setting", "Backups kept"));
         all << toggle(QStringLiteral("compressLayersInKra"), false, i18nc("setting", "Smaller .kra files"));
         all << toggle(QStringLiteral("UseZip64"), false, i18nc("setting", "Files over 4 GB"));
         all << toggle(QStringLiteral("TrimKra"), false, i18nc("setting", "Trim layers when saving"));
-        all << toggle(QStringLiteral("TrimFramesImport"), false, i18nc("setting", "Trim imported frames"));
         // none chosen yet is PNG, as Krita takes it
         Setting exportType = choice(QStringLiteral("defaultExportMimeType"), QStringLiteral("image/png"), {}, i18nc("setting", "Export as"));
         exportType.dynamicChoices = exportTypes;
@@ -545,21 +556,6 @@ QVector<Setting> describeAll()
             return now.toString() != none && now.toString() != startup.toString();
         };
         all << renderer;
-        all << toggle(QStringLiteral("useOpenGLTextureBuffer"), true, i18nc("setting", "Texture buffer"), R::Machine);
-        Setting assistants = choice(QStringLiteral("assistantsDrawMode"), 0,
-                                    {{0, i18nc("assistants drawing", "Direct")}, {1, i18nc("assistants drawing", "Cached")}, {2, i18nc("assistants drawing", "Large cache")}},
-                                    i18nc("setting", "Assistants are drawn"), R::Machine);
-        // the cache KisOpenGL::initialize() makes room for at the start, or Qt's own
-        assistants.written = [](const QVariant &value) {
-            int limit = 10240;
-            if (value.toInt() == KisConfig::ASSISTANTS_DRAW_MODE_LARGE_PIXMAP_CACHE) {
-                const QScreen *screen = QGuiApplication::primaryScreen();
-                const QSize size = screen->size() * screen->devicePixelRatio();
-                limit = qMax(20 * 1024, 2048 + 5 * 4 * size.width() * size.height() / 1024);
-            }
-            QPixmapCache::setCacheLimit(limit);
-        };
-        all << assistants;
         all << number(QStringLiteral("memoryHardLimitPercent"), 50.0, 1, 100, i18nc("setting", "Memory for images"), R::Machine | R::Restart);
         all << number(QStringLiteral("memorySoftLimitPercent"), 2.0, 0, 50, i18nc("setting", "Undo goes to disk after"), R::Machine | R::Restart);
         all << number(QStringLiteral("maxSwapSize"), 4096, 1024, 65536, i18nc("setting", "Swap file limit"), R::Machine | R::Restart);
@@ -573,26 +569,48 @@ QVector<Setting> describeAll()
         Setting clones = number(QStringLiteral("frameRenderingClones"), halfTheThreads(), 1, threads, i18nc("setting", "Frames rendered at once"), R::Machine);
         clones.fallbackNow = halfTheThreads;
         all << clones;
-        all << number(QStringLiteral("frameRenderingTimeout"), 30000, 5000, 600000, i18nc("setting", "Frame rendering timeout"));
         all << toggle(QStringLiteral("detectFpsLimit"), true, i18nc("setting", "Match the screen's frame rate"), R::NewViews);
         all << number(QStringLiteral("fpsLimit"), 100, 1, 1000, i18nc("setting", "Frame rate limit"), R::NewViews);
         all << toggle(QStringLiteral("useOnDiskAnimationCacheSwapping"), true, i18nc("setting", "Animation cache on disk"));
-        all << toggle(QStringLiteral("useAnimationCacheFrameSizeLimit"), true, i18nc("setting", "Smaller cached frames"));
-        all << number(QStringLiteral("animationCacheFrameSizeLimit"), 2500, 256, 10000, i18nc("setting", "Cached frame size"));
-        all << toggle(QStringLiteral("useAnimationCacheRegionOfInterest"), true, i18nc("setting", "Cache only what's shown"));
-        all << number(QStringLiteral("animationCacheRegionOfInterestMargin"), 0.25, 0.01, 1, i18nc("setting", "Cached margin"));
         all << toggle(QStringLiteral("calculateAnimationCacheInBackground"), true, i18nc("setting", "Cache in the background"));
-        all << toggle(QStringLiteral("enableOpenGLFramerateLogging"), false, i18nc("setting", "Log the frame rate"));
-        all << toggle(QStringLiteral("enableBrushSpeedLogging"), false, i18nc("setting", "Log brush speed"));
-        all << toggle(QStringLiteral("enableProgressReporting"), true, i18nc("setting", "Report progress"), R::NewViews);
-        all << toggle(QStringLiteral("enablePerfLog"), false, i18nc("setting", "Performance log"), R::Restart);
 #ifdef Q_OS_WIN
         all << toggle(QStringLiteral("disableAVXOptimizations"), false, i18nc("setting", "No AVX"), R::Machine | R::Restart);
 #endif
         all << toggle(QStringLiteral("amdDisableVectorWorkaround"), false, i18nc("setting", "No vector instructions"), R::Machine | R::Restart);
-        all << inDisplayrc(toggle(QStringLiteral("LogUsage"), true, i18nc("setting", "Log for bug reports"), R::Restart));
     }
+    const QHash<QString, QString> help = explanations();
+    for (Setting &s : all) s.help = help.value(s.id);
     return all;
+}
+
+/**
+ * Settings there are no more of: Krita's defaults always. Once, what was set of them is let go, so that none
+ * is left changed where it can no longer be seen.
+ */
+void forgetRetired()
+{
+    constexpr int version = 1;
+    KConfigGroup top = KSharedConfig::openConfig()->group(QString());
+    if (top.readEntry("StudioRetiredSettings", 0) >= version) return;
+    const char *const keys[] = {
+        "StudioGlassStyle", "iconsInMenu", "forceAlwaysFullSizedOutline", "forceAlwaysFullSizedEraserOutline",
+        "colorSamplerPreviewCircleThickness", "colorSamplerPreviewCircleOutlineEnabled", "colorSamplerPreviewCirclePosition",
+        "scrollingcheckers", "AntialiasSelectionOutline", "antialiascurves", "hidePopups", "zoomMarginSize", "hideMenuFullScreen",
+        "hideToolbarFullscreen", "hideDockersFullScreen", "hideScrollbarsFullScreen", "hideTitleBarFullscreen", "hideStatusbarFullScreen",
+        "useTimestampsForBrushSpeed", "maxAllowedSpeedValue", "speedValueSmoothing", "ignoreHighFunctionKeys", "KineticScrollingGesture",
+        "KineticScrollingSensitivity", "KineticScrollingHideScrollbar", "useCreamyAlphaDarken", "useSubtractiveBlendingForCmykColorSpaces",
+        "cumulativeUndoMergeTimeout", "cumulativeUndoExcludeFromMerge", "cumulativeUndoMaxGroupSeparation", "cumulativeUndoMaxGroupDuration",
+        "renameMergedLayers", "renamePastedLayers", "renameDuplicatedLayers", "ShowRootLayer", "autosavefileshidden", "backupfilesuffix",
+        "TrimFramesImport", "useOpenGLTextureBuffer", "assistantsDrawMode", "frameRenderingTimeout", "useAnimationCacheFrameSizeLimit",
+        "animationCacheFrameSizeLimit", "useAnimationCacheRegionOfInterest", "animationCacheRegionOfInterestMargin",
+        "enableOpenGLFramerateLogging", "enableBrushSpeedLogging", "enableProgressReporting", "enablePerfLog",
+    };
+    for (const char *key : keys) top.deleteEntry(key);
+    KSharedConfig::openConfig()->group(QStringLiteral("KisToolTransform")).deleteEntry("useOverlayPreviewStyle");
+    QSettings display(displayrcPath(), QSettings::IniFormat);
+    display.remove(QStringLiteral("EnableHiDPI"));
+    display.remove(QStringLiteral("LogUsage"));
+    top.writeEntry("StudioRetiredSettings", version);
 }
 
 QVariant fallbackOf(const Setting &s)
@@ -626,6 +644,7 @@ KisSettingsRegistry *KisSettingsRegistry::instance()
 KisSettingsRegistry::KisSettingsRegistry()
     : d(new Private)
 {
+    forgetRetired();
     d->settings = describeAll();
     for (int i = 0; i < d->settings.size(); i++) {
         d->index.insert(d->settings[i].id, i);

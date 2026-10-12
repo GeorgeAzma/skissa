@@ -581,35 +581,19 @@ int matchScore(const QString &query, const QString &text)
 
 QImage KisStudioPicker::samplePicture(const QSize &size)
 {
-    QImage image(size, QImage::Format_ARGB32);
-    QPainter painter(&image);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    const QRectF r(QPointF(0, 0), QSizeF(size));
-    QLinearGradient sky(r.topLeft(), r.bottomLeft());
-    sky.setColorAt(0.0, QColor(72, 104, 168));
-    sky.setColorAt(0.6, QColor(226, 160, 122));
-    sky.setColorAt(1.0, QColor(244, 214, 168));
-    painter.fillRect(r, sky);
-    QRadialGradient sun(QPointF(r.width() * 0.68, r.height() * 0.38), r.height() * 0.3);
-    sun.setColorAt(0.0, QColor(255, 246, 214));
-    sun.setColorAt(0.45, QColor(255, 210, 120, 230));
-    sun.setColorAt(1.0, QColor(255, 180, 90, 0));
-    painter.fillRect(r, sun);
-    QPainterPath hills;
-    hills.moveTo(0, r.height() * 0.72);
-    hills.cubicTo(r.width() * 0.25, r.height() * 0.5, r.width() * 0.45, r.height() * 0.86, r.width() * 0.7, r.height() * 0.66);
-    hills.cubicTo(r.width() * 0.85, r.height() * 0.56, r.width() * 0.95, r.height() * 0.7, r.width(), r.height() * 0.64);
-    hills.lineTo(r.width(), r.height());
-    hills.lineTo(0, r.height());
-    hills.closeSubpath();
-    painter.fillPath(hills, QColor(46, 70, 62));
-    // fine dark lines, for effects on edges and detail
-    painter.setPen(QPen(QColor(24, 30, 36), qMax(1.0, r.height() / 48)));
-    for (int i = 0; i < 5; i++) {
-        const qreal x = r.width() * (0.12 + 0.06 * i);
-        painter.drawLine(QPointF(x, r.height() * 0.62), QPointF(x + r.width() * 0.03, r.height() * (0.3 + 0.04 * i)));
+    // Krita's splash art, read once at a size enough for any sample
+    static const QImage art = []() {
+        QImage image(QStringLiteral(":/splash/0.png"));
+        if (image.isNull()) image.load(QStringLiteral(":/splash/hd.jpg"));
+        return image.isNull() ? image : image.scaledToWidth(640, Qt::SmoothTransformation).convertToFormat(QImage::Format_ARGB32);
+    }();
+    if (art.isNull()) {
+        QImage plain(size, QImage::Format_ARGB32);
+        plain.fill(QColor(128, 128, 128));
+        return plain;
     }
-    return image;
+    const QImage covering = art.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    return covering.copy((covering.width() - size.width()) / 2, (covering.height() - size.height()) / 2, size.width(), size.height());
 }
 
 bool KisStudioPicker::isFlat(const QImage &image)

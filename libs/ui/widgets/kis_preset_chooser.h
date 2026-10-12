@@ -67,6 +67,8 @@ Q_SIGNALS:
 
 public Q_SLOTS:
     void updateViewSettings();
+    /// Stroke rows, shorter than the zoom: the name is on the stroke
+    void compactStrokeRows();
 
     /// sets the icon size. Used by slider in view menu
     void setIconSize(int newSize);

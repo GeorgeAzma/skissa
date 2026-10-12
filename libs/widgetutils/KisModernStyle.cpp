@@ -1299,28 +1299,6 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
             const QRectF shape = QRectF(tab->rect).adjusted(1.5, 2, -1.5, -2);
             if (selected) {
                 drawRounded(painter, shape, radius, mix(bg, fg, 0.13));
-
-                // accent marker on the edge facing the contents
-                const qreal inset = radius;
-                QRectF marker;
-                switch (tab->shape) {
-                case QTabBar::RoundedSouth:
-                case QTabBar::TriangularSouth:
-                    marker = QRectF(shape.left() + inset, shape.top(), shape.width() - 2 * inset, 2);
-                    break;
-                case QTabBar::RoundedWest:
-                case QTabBar::TriangularWest:
-                    marker = QRectF(shape.right() - 2, shape.top() + inset, 2, shape.height() - 2 * inset);
-                    break;
-                case QTabBar::RoundedEast:
-                case QTabBar::TriangularEast:
-                    marker = QRectF(shape.left(), shape.top() + inset, 2, shape.height() - 2 * inset);
-                    break;
-                default:
-                    marker = QRectF(shape.left() + inset, shape.bottom() - 2, shape.width() - 2 * inset, 2);
-                    break;
-                }
-                drawRounded(painter, marker, 1, pal.color(QPalette::Highlight));
             } else if (s.hovered) {
                 drawRounded(painter, shape, radius, mix(bg, fg, 0.06));
             }

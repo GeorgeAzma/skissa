@@ -12,6 +12,8 @@
 
 #include <QVBoxLayout>
 #include <QPainter>
+#include <QPainterPath>
+#include <QFontMetricsF>
 #include <QAbstractItemDelegate>
 #include <QStyleOptionViewItem>
 #include <QSortFilterProxyModel>
@@ -174,7 +176,6 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
         painter->drawPath(KisModernStyle::squircle(row, radius));
     }
 
-    const QRectF art = row.adjusted(row.width() * 0.42, 2, -4, -2);
     QImage stroke;
     if (m_strokes) {
         QColor strokeInk = ink;
@@ -183,27 +184,40 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
                                                                index.data(Qt::UserRole + KisAbstractResourceModel::MD5).toString(),
                                                                strokeInk);
     }
+    const QString name = index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString().replace("_", " ");
+    QColor text = ink;
+    text.setAlphaF(selected ? 1.0 : 0.82);
+    painter->setFont(option.font);
+
     if (!stroke.isNull()) {
-        const QSizeF fitted = QSizeF(stroke.size()).scaled(art.size(), Qt::KeepAspectRatio);
-        const QRectF target(art.center() - QPointF(fitted.width(), fitted.height()) / 2, fitted);
-        painter->drawImage(target, stroke);
+        // the stroke across the whole row, its name over its start: one line, ringed in the panel's color to read on it
+        const QRectF art = row.adjusted(4, 2, -4, -2);
+        const QSizeF fitted = QSizeF(stroke.size()).scaled(art.size(), Qt::KeepAspectRatioByExpanding);
+        painter->save();
+        painter->setClipRect(art);
+        painter->drawImage(QRectF(art.center() - QPointF(fitted.width(), fitted.height()) / 2, fitted), stroke);
+        painter->restore();
+        const QFontMetricsF metrics(option.font);
+        const QString shown = metrics.elidedText(name, Qt::ElideRight, row.width() * 0.7);
+        QPainterPath path;
+        path.addText(QPointF(row.left() + 8, row.center().y() + (metrics.ascent() - metrics.descent()) / 2), option.font, shown);
+        QColor halo = option.palette.color(QPalette::Window);
+        halo.setAlphaF(0.85);
+        painter->strokePath(path, QPen(halo, 3.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter->fillPath(path, text);
         if (dirty) {
             marks(QRectF(row.right() - 12, row.top(), 12, 12));
         }
     } else {
+        const QRectF art = row.adjusted(row.width() * 0.42, 2, -4, -2);
         const qreal side = qMin(art.height(), row.height() - 8);
         const QRectF tile(art.right() - side, row.center().y() - side / 2, side, side);
         picture(tile, qMax<qreal>(4.0, side * 0.18));
         marks(tile);
+        painter->setPen(text);
+        const QRectF textRect = QRectF(row.left() + 8, row.top(), row.width() * 0.42 - 10, row.height());
+        painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, name);
     }
-
-    const QString name = index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString().replace("_", " ");
-    painter->setFont(option.font);
-    QColor text = ink;
-    text.setAlphaF(selected ? 1.0 : 0.82);
-    painter->setPen(text);
-    const QRectF textRect = QRectF(row.left() + 8, row.top(), row.width() * 0.42 - 10, row.height());
-    painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, name);
     painter->restore();
 }
 
@@ -246,6 +260,7 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
     setIconSize(KisConfig(true).presetIconSize());
     connect(KisResourceItemChooserSync::instance(), &KisResourceItemChooserSync::baseLengthChanged, this, [this]() {
         saveIconSize();
+        if (m_delegate->strokes()) compactStrokeRows();
     });
 
     notifyConfigChanged();
@@ -311,8 +326,11 @@ void KisPresetChooser::updateViewSettings()
     if (strokes) {
         m_chooser->setListViewMode(ListViewMode::Detail);
         m_delegate->setShowText(true);
+        compactStrokeRows();
         return;
     }
+    // back from strokes: rows as tall as the zoom again
+    m_chooser->setRowHeight(iconSize());
     switch (m_mode) {
     case ViewMode::THUMBNAIL: {
         m_chooser->setListViewMode(ListViewMode::IconGrid);
@@ -355,6 +373,12 @@ void KisPresetChooser::setPresetFilter(const QString& paintOpId)
     }
     m_chooser->tagFilterModel()->setMetaDataFilter(metaDataFilter);
     updateViewSettings();
+}
+
+void KisPresetChooser::compactStrokeRows()
+{
+    // the name lies on the stroke: a row needs only the stroke's height
+    m_chooser->setRowHeight(qMax(28, qRound(iconSize() * 0.6)));
 }
 
 void KisPresetChooser::setIconSize(int newSize)

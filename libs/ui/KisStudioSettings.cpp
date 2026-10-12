@@ -568,10 +568,18 @@ struct Builder {
         line->addWidget(text, 1);
         if (const Setting *s = id.isEmpty() ? nullptr : registry()->setting(id)) {
             QStringList notes;
+            if (!s->help.isEmpty()) notes << s->help;
             if (s->flags & R::Restart) notes << i18nc("@info:tooltip", "After a restart");
             if (s->flags & R::NewViews) notes << i18nc("@info:tooltip", "For images opened from now on");
             if (s->flags & R::Machine) notes << i18nc("@info:tooltip", "About this computer: not exported");
-            if (!notes.isEmpty()) text->setToolTip(notes.join(QLatin1Char('\n')));
+            if (!notes.isEmpty()) text->setToolTip(notes.join(QStringLiteral("\n\n")));
+            // explained on hover: a mark says so
+            if (!s->help.isEmpty()) {
+                auto *info = new QLabel(row);
+                info->setPixmap(KisIconUtils::loadIcon(QStringLiteral("studio_info")).pixmap(12, 12));
+                info->setToolTip(text->toolTip());
+                line->insertWidget(1, info);
+            }
             if (s->flags & R::Restart) {
                 auto *mark = new QLabel(row);
                 mark->setPixmap(KisIconUtils::loadIcon(QStringLiteral("studio_refresh")).pixmap(12, 12));
@@ -851,38 +859,6 @@ void paintScheme(QPainter &painter, const QRectF &r, const SchemeLook &look)
     }
 }
 
-/// The sample picture with a pill of glass over it, as \p style (-1: no glass) makes it
-void paintGlassSample(QPainter &painter, const QRectF &r, int style, const QColor &window)
-{
-    static const QImage sample = KisStudioPicker::samplePicture(QSize(240, 140));
-    painter.drawImage(r, sample);
-    const QRectF pill(r.left() + r.width() * 0.14, r.top() + r.height() * 0.3, r.width() * 0.72, r.height() * 0.4);
-    const QPainterPath shape = KisModernStyle::squircle(pill, pill.height() / 2);
-    if (style < 0) {
-        painter.fillPath(shape, window);
-    } else {
-        // what is behind, blurred by scaling it down
-        painter.save();
-        painter.setClipPath(shape);
-        const QRectF source(QPointF((pill.left() - r.left()) / r.width() * sample.width(), (pill.top() - r.top()) / r.height() * sample.height()),
-                            QSizeF(pill.width() / r.width() * sample.width(), pill.height() / r.height() * sample.height()));
-        const QImage behind = sample.copy(source.toAlignedRect()).scaled(8, 4, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-        painter.drawImage(pill, behind);
-        QColor tint = window;
-        tint.setAlphaF(style == 0 ? 0.62 : 0.45);
-        painter.fillPath(shape, tint);
-        painter.restore();
-        // the edge: frosted only a line, liquid catches the light
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(255, 255, 255, style == 0 ? 40 : 150), style == 0 ? 1 : 1.6));
-        painter.drawPath(shape);
-    }
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(255, 255, 255, 200));
-    painter.drawRoundedRect(QRectF(pill.left() + pill.height() * 0.5, pill.center().y() - 2, pill.width() * 0.45, 4), 2, 2);
-}
-
 /// The sample picture on what is around it: \p glow its colors lighting black, as on the canvas
 void paintSurround(QPainter &painter, const QRectF &r, const QColor &around, bool glow)
 {
@@ -953,53 +929,32 @@ QVector<CardDef> makeCards()
             b.layout->addWidget(picker);
         });
     add(QStringLiteral("appearance"), QStringLiteral("glass"), i18nc("settings card", "Glass"),
-        {QStringLiteral("StudioGlass"), QStringLiteral("StudioGlassStyle"), QStringLiteral("StudioGlassRefraction")},
-        QStringLiteral("transparency blur frosted liquid refraction see-through panels edge bends the canvas"), [](Builder &b) {
-            // as the panels are without glass (the card's own is see-through)
-            QColor window = qApp->palette().color(QPalette::Window);
-            window.setAlpha(255);
-            auto *picker = new Tiles({{i18nc("glass", "Off"), [window](QPainter &p, const QRectF &r) { paintGlassSample(p, r, -1, window); }},
-                                      {i18nc("glass", "Frosted"), [window](QPainter &p, const QRectF &r) { paintGlassSample(p, r, 0, window); }},
-                                      {i18nc("glass", "Liquid"), [window](QPainter &p, const QRectF &r) { paintGlassSample(p, r, 1, window); }}},
-                                     QSize(128, 72), b.card);
-            auto current = []() {
-                R *r = R::instance();
-                return r->value(QStringLiteral("StudioGlass")).toBool() ? 1 + r->value(QStringLiteral("StudioGlassStyle")).toInt() : 0;
-            };
-            picker->picked = [](int i) {
-                R *r = R::instance();
-                if (i > 0) r->setValue(QStringLiteral("StudioGlassStyle"), i - 1);
-                r->setValue(QStringLiteral("StudioGlass"), i > 0);
-            };
-            b.follow([picker, current]() { picker->setCurrent(current()); });
-            b.layout->addWidget(picker);
+        {QStringLiteral("StudioGlass"), QStringLiteral("StudioGlassRefraction")},
+        QStringLiteral("transparency blur frosted refraction see-through panels edge bends the canvas"), [](Builder &b) {
+            b.toggle(QStringLiteral("StudioGlass"), i18nc("glass", "Panels of glass"));
             b.showWhen(b.number(QStringLiteral("StudioGlassRefraction"), {i18nc("glass", "Edge bends the canvas"), 100, 0, QStringLiteral("%")}),
                        b.isOn(QStringLiteral("StudioGlass")));
         });
     add(QStringLiteral("appearance"), QStringLiteral("surround"), i18nc("settings card", "Around the image"), {QStringLiteral("canvasBorderColor")},
-        QStringLiteral("canvas border background color ambient glow gray"), [](Builder &b) {
-            const QColor gray(128, 128, 128);
+        QStringLiteral("canvas border background color ambient glow"), [](Builder &b) {
             auto *picker = new Tiles({{i18nc("around the image", "Glow"), [](QPainter &p, const QRectF &r) { paintSurround(p, r, Qt::black, true); }},
-                                      {i18nc("around the image", "Gray"), [gray](QPainter &p, const QRectF &r) { paintSurround(p, r, gray, false); }},
                                       {i18nc("around the image", "Color"), [](QPainter &p, const QRectF &r) {
-                                           paintSurround(p, r, R::instance()->value(QStringLiteral("canvasBorderColor")).value<QColor>(), false);
+                                           // the color it is, or the one it would take (black is the glow)
+                                           const QColor c = R::instance()->value(QStringLiteral("canvasBorderColor")).value<QColor>();
+                                           paintSurround(p, r, c == QColor(Qt::black) ? QColor(48, 48, 52) : c, false);
                                        }}},
                                      QSize(128, 72), b.card);
-            auto current = [gray]() {
-                const QColor c = R::instance()->value(QStringLiteral("canvasBorderColor")).value<QColor>();
-                return c == QColor(Qt::black) ? 0 : c == gray ? 1 : 2;
-            };
-            picker->picked = [gray](int i) {
-                if (i == 0) R::instance()->setValue(QStringLiteral("canvasBorderColor"), QColor(Qt::black));
-                else if (i == 1) R::instance()->setValue(QStringLiteral("canvasBorderColor"), gray);
-                else R::instance()->setValue(QStringLiteral("canvasBorderColor"), QColor(48, 48, 52));
+            // black is the glow (KisStudioGlass::ambientSurround)
+            auto current = []() { return R::instance()->value(QStringLiteral("canvasBorderColor")).value<QColor>() == QColor(Qt::black) ? 0 : 1; };
+            picker->picked = [](int i) {
+                R::instance()->setValue(QStringLiteral("canvasBorderColor"), i == 0 ? QColor(Qt::black) : QColor(48, 48, 52));
             };
             b.follow([picker, current]() {
                 picker->setCurrent(current());
                 picker->update();
             });
             b.layout->addWidget(picker);
-            b.showWhen(b.color(QStringLiteral("canvasBorderColor"), false, i18nc("around the image", "Color")), [current]() { return current() == 2; });
+            b.showWhen(b.color(QStringLiteral("canvasBorderColor"), false, i18nc("around the image", "Color")), [current]() { return current() == 1; });
             b.note(i18nc("@info", "Glow: the picture's colors light the dark around it."));
         });
     add(QStringLiteral("appearance"), QStringLiteral("font"), i18nc("settings card", "Interface font"),
@@ -1031,62 +986,50 @@ QVector<CardDef> makeCards()
         QStringLiteral("brush thumbnails strokes presets"), [](Builder &b) {
             b.toggle(QStringLiteral("PresetStrokeThumbnails"), i18nc("setting", "Show brushes as strokes"));
         });
-    add(QStringLiteral("appearance"), QStringLiteral("screen"), i18nc("settings card", "Screen"),
-        {QStringLiteral("kritadisplayrc EnableHiDPI"), QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"), QStringLiteral("iconsInMenu")},
-        QStringLiteral("hidpi scaling dpi retina menus icons"), [](Builder &b) {
-            b.toggle(QStringLiteral("kritadisplayrc EnableHiDPI"));
-            if (R::instance()->setting(QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"))) {
-                b.showWhen(b.toggle(QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling")), b.isOn(QStringLiteral("kritadisplayrc EnableHiDPI")));
-            }
-            b.choice(QStringLiteral("iconsInMenu"));
-        });
+    if (R::instance()->setting(QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"))) {
+        addToggle(QStringLiteral("appearance"), QStringLiteral("screen"), i18nc("settings card", "Fractional scaling"),
+                  QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"), QStringLiteral("hidpi scaling dpi screen scale 125% 150%"));
+    }
 
     // ---- canvas
     add(QStringLiteral("canvas"), QStringLiteral("cursor"), i18nc("settings card", "Brush cursor"),
-        {QStringLiteral("newCursorStyle"), QStringLiteral("newOutlineStyle"), QStringLiteral("ShowOutlineWhilePainting"),
-         QStringLiteral("forceAlwaysFullSizedOutline"), QStringLiteral("cursorMaincColor")},
-        QStringLiteral("pointer outline crosshair color while painting full size"), [](Builder &b) {
+        {QStringLiteral("newCursorStyle"), QStringLiteral("newOutlineStyle"), QStringLiteral("ShowOutlineWhilePainting"), QStringLiteral("cursorMaincColor")},
+        QStringLiteral("pointer outline crosshair color while painting"), [](Builder &b) {
             b.choice(QStringLiteral("newOutlineStyle"), i18nc("brush cursor", "Outline"));
             b.choice(QStringLiteral("newCursorStyle"), i18nc("brush cursor", "Pointer"));
             b.toggle(QStringLiteral("ShowOutlineWhilePainting"));
-            b.toggle(QStringLiteral("forceAlwaysFullSizedOutline"));
             b.color(QStringLiteral("cursorMaincColor"));
         });
     add(QStringLiteral("canvas"), QStringLiteral("eraser"), i18nc("settings card", "Eraser cursor"),
         {QStringLiteral("separateEraserCursor"), QStringLiteral("eraserCursorStyle"), QStringLiteral("eraserOutlineStyle"),
-         QStringLiteral("ShowEraserOutlineWhilePainting"), QStringLiteral("forceAlwaysFullSizedEraserOutline"), QStringLiteral("eraserCursorMaincColor")},
+         QStringLiteral("ShowEraserOutlineWhilePainting"), QStringLiteral("eraserCursorMaincColor")},
         QStringLiteral("pointer outline"), [](Builder &b) {
             b.toggle(QStringLiteral("separateEraserCursor"));
             const auto on = b.isOn(QStringLiteral("separateEraserCursor"));
             b.showWhen(b.choice(QStringLiteral("eraserOutlineStyle"), i18nc("brush cursor", "Outline")), on);
             b.showWhen(b.choice(QStringLiteral("eraserCursorStyle"), i18nc("brush cursor", "Pointer")), on);
             b.showWhen(b.toggle(QStringLiteral("ShowEraserOutlineWhilePainting"), i18nc("setting", "Outline while painting")), on);
-            b.showWhen(b.toggle(QStringLiteral("forceAlwaysFullSizedEraserOutline"), i18nc("setting", "Outline at full size")), on);
             b.showWhen(b.color(QStringLiteral("eraserCursorMaincColor"), false, i18nc("setting", "Outline color")), on);
         });
     add(QStringLiteral("canvas"), QStringLiteral("sampler"), i18nc("settings card", "Color sampler"),
-        {QStringLiteral("colorSamplerPreviewStyle"), QStringLiteral("colorSamplerPreviewCircleDiameter"), QStringLiteral("colorSamplerPreviewCircleThickness"),
-         QStringLiteral("colorSamplerPreviewCircleOutlineEnabled"), QStringLiteral("colorSamplerPreviewCircleExtraCirclesEnabled"),
-         QStringLiteral("colorSamplerZoomPreviewEnabled"), QStringLiteral("colorSamplerZoomPreviewScale"), QStringLiteral("colorSamplerPreviewCirclePosition")},
-        QStringLiteral("eyedropper picker preview ring size thickness magnifier magnification show the old color too ring at"), [](Builder &b) {
+        {QStringLiteral("colorSamplerPreviewStyle"), QStringLiteral("colorSamplerPreviewCircleDiameter"),
+         QStringLiteral("colorSamplerPreviewCircleExtraCirclesEnabled"), QStringLiteral("colorSamplerZoomPreviewEnabled"),
+         QStringLiteral("colorSamplerZoomPreviewScale")},
+        QStringLiteral("eyedropper picker preview ring size magnifier magnification show the old color too"), [](Builder &b) {
             b.choice(QStringLiteral("colorSamplerPreviewStyle"), i18nc("color sampler", "Preview"));
             auto ring = []() { return R::instance()->value(QStringLiteral("colorSamplerPreviewStyle")).toInt() == 1; };
             b.showWhen(b.number(QStringLiteral("colorSamplerPreviewCircleDiameter"), {i18nc("color sampler", "Ring size"), 1, 0, i18nc("unit", " px")}), ring);
-            b.showWhen(b.number(QStringLiteral("colorSamplerPreviewCircleThickness"), {i18nc("color sampler", "Thickness"), 1, 0, QStringLiteral("%")}), ring);
-            b.showWhen(b.toggle(QStringLiteral("colorSamplerPreviewCircleOutlineEnabled"), i18nc("color sampler", "Outline")), ring);
             b.showWhen(b.toggle(QStringLiteral("colorSamplerPreviewCircleExtraCirclesEnabled"), i18nc("color sampler", "Show the old color too")), ring);
             b.showWhen(b.toggle(QStringLiteral("colorSamplerZoomPreviewEnabled"), i18nc("color sampler", "Magnifier")), ring);
             auto magnified = [ring]() { return ring() && R::instance()->value(QStringLiteral("colorSamplerZoomPreviewEnabled")).toBool(); };
             b.showWhen(b.number(QStringLiteral("colorSamplerZoomPreviewScale"), {i18nc("color sampler", "Magnification"), 1, 0, QStringLiteral("x")}), magnified);
-            b.showWhen(b.choice(QStringLiteral("colorSamplerPreviewCirclePosition"), i18nc("color sampler", "Ring at")), magnified);
         });
     add(QStringLiteral("canvas"), QStringLiteral("checkerboard"), i18nc("settings card", "Checkerboard"),
-        {QStringLiteral("checkerscolor"), QStringLiteral("checkerscolor2"), QStringLiteral("checksize"), QStringLiteral("scrollingcheckers")},
-        QStringLiteral("transparency checkers background transparent squares other squares size moves with the image"), [](Builder &b) {
+        {QStringLiteral("checkerscolor"), QStringLiteral("checkerscolor2"), QStringLiteral("checksize")},
+        QStringLiteral("transparency checkers background transparent squares other squares size"), [](Builder &b) {
             b.color(QStringLiteral("checkerscolor"), false, i18nc("checkerboard", "Squares"));
             b.color(QStringLiteral("checkerscolor2"), false, i18nc("checkerboard", "Other squares"));
             b.number(QStringLiteral("checksize"), {i18nc("checkerboard", "Size"), 1, 0, i18nc("unit", " px")});
-            b.toggle(QStringLiteral("scrollingcheckers"), i18nc("checkerboard", "Moves with the image"));
         });
     add(QStringLiteral("canvas"), QStringLiteral("pixelgrid"), i18nc("settings card", "Pixel grid"),
         {QStringLiteral("pixelGridColor"), QStringLiteral("pixelGridDrawingThreshold")}, QStringLiteral("grid pixels zoom color shown from zoom"), [](Builder &b) {
@@ -1094,43 +1037,26 @@ QVector<CardDef> makeCards()
             b.number(QStringLiteral("pixelGridDrawingThreshold"), {i18nc("pixel grid", "Shown from zoom"), 100, 0, QStringLiteral("%"), 100});
         });
     add(QStringLiteral("canvas"), QStringLiteral("selection"), i18nc("settings card", "Selection"),
-        {QStringLiteral("selectionOutlineOpacity"), QStringLiteral("selectionOverlayMaskColor"), QStringLiteral("AntialiasSelectionOutline"),
-         QStringLiteral("selectionActionBar")},
-        QStringLiteral("marching ants outline mask overlay color smooth outline actions bar"), [](Builder &b) {
+        {QStringLiteral("selectionOutlineOpacity"), QStringLiteral("selectionOverlayMaskColor"), QStringLiteral("selectionActionBar")},
+        QStringLiteral("marching ants outline mask overlay color actions bar"), [](Builder &b) {
             b.number(QStringLiteral("selectionOutlineOpacity"), {i18nc("selection", "Outline"), 100, 0, QStringLiteral("%")});
-            b.toggle(QStringLiteral("AntialiasSelectionOutline"), i18nc("selection", "Smooth outline"));
             b.color(QStringLiteral("selectionOverlayMaskColor"), true, i18nc("selection", "Mask color"));
             b.toggle(QStringLiteral("selectionActionBar"), i18nc("selection", "Actions bar"));
         });
     add(QStringLiteral("canvas"), QStringLiteral("zoom"), i18nc("settings card", "Zoom"),
-        {QStringLiteral("zoomSteps"), QStringLiteral("zoomHorizontal"), QStringLiteral("zoomMarginSize")}, QStringLiteral("zooming margin fit steps per doubling dragging sideways"),
+        {QStringLiteral("zoomSteps"), QStringLiteral("zoomHorizontal")}, QStringLiteral("zooming steps per doubling dragging sideways"),
         [](Builder &b) {
             b.number(QStringLiteral("zoomSteps"), {i18nc("zoom", "Steps per doubling")});
             b.toggle(QStringLiteral("zoomHorizontal"));
-            b.number(QStringLiteral("zoomMarginSize"), {i18nc("zoom", "Margin when fit"), 1, 0, i18nc("unit", " px")});
         });
     add(QStringLiteral("canvas"), QStringLiteral("drawing"), i18nc("settings card", "Drawing"),
-        {QStringLiteral("OpenGLFilterMode"), QStringLiteral("antialiascurves"), QStringLiteral("showSingleChannelAsColor")},
-        QStringLiteral("scaling filtering smooth antialiasing channels"), [](Builder &b) {
+        {QStringLiteral("OpenGLFilterMode"), QStringLiteral("showSingleChannelAsColor")},
+        QStringLiteral("scaling filtering smooth pixel art nearest channels"), [](Builder &b) {
             b.choice(QStringLiteral("OpenGLFilterMode"), i18nc("canvas", "Scaling"));
-            b.toggle(QStringLiteral("antialiascurves"));
             b.toggle(QStringLiteral("showSingleChannelAsColor"));
         });
     addToggle(QStringLiteral("canvas"), QStringLiteral("messages"), i18nc("settings card", "Messages on the canvas"),
               QStringLiteral("showOnCanvasMessages"), QStringLiteral("notifications floating messages popups"));
-    add(QStringLiteral("canvas"), QStringLiteral("canvasonly"), i18nc("settings card", "Canvas only"),
-        {QStringLiteral("hideMenuFullScreen"), QStringLiteral("hideToolbarFullscreen"), QStringLiteral("hideDockersFullScreen"),
-         QStringLiteral("hideScrollbarsFullScreen"), QStringLiteral("hideTitleBarFullscreen"), QStringLiteral("hideStatusbarFullScreen")},
-        QStringLiteral("fullscreen full screen focus mode hide"), [](Builder &b) {
-            b.note(i18nc("@info", "What Canvas only hides:"));
-            b.toggle(QStringLiteral("hideDockersFullScreen"), i18nc("canvas only", "Panels"));
-            b.toggle(QStringLiteral("hideToolbarFullscreen"), i18nc("canvas only", "Toolbars"));
-            b.toggle(QStringLiteral("hideMenuFullScreen"), i18nc("canvas only", "Menu"));
-            b.toggle(QStringLiteral("hideScrollbarsFullScreen"), i18nc("canvas only", "Scrollbars"));
-            b.toggle(QStringLiteral("hideStatusbarFullScreen"), i18nc("canvas only", "Status bar"));
-            b.toggle(QStringLiteral("hideTitleBarFullscreen"), i18nc("canvas only", "Title bar (full screen)"));
-        });
-
     // ---- pen
     add(QStringLiteral("pen"), QStringLiteral("pressure"), i18nc("settings card", "Pressure"), {QStringLiteral("tabletPressureCurve")},
         QStringLiteral("pressure curve tablet stylus sensitivity"), [](Builder &b) {
@@ -1150,14 +1076,12 @@ QVector<CardDef> makeCards()
             b.note(i18nc("@info", "Across: how hard you press. Up: how much it paints."));
         });
     add(QStringLiteral("pen"), QStringLiteral("tablet"), i18nc("settings card", "Tablet"),
-        {QStringLiteral("kritadisplayrc useWin8PointerInput"), QStringLiteral("useRightMiddleTabletButtonWorkaround"), QStringLiteral("ignoreHighFunctionKeys")},
+        {QStringLiteral("kritadisplayrc useWin8PointerInput"), QStringLiteral("useRightMiddleTabletButtonWorkaround")},
         QStringLiteral("wintab windows ink pointer api driver tester buttons"), [](Builder &b) {
             if (R::instance()->setting(QStringLiteral("kritadisplayrc useWin8PointerInput"))) {
                 b.toggle(QStringLiteral("kritadisplayrc useWin8PointerInput"));
-                b.note(i18nc("@info", "Off: WinTab, the tablet's own driver."));
             }
             b.toggle(QStringLiteral("useRightMiddleTabletButtonWorkaround"));
-            if (R::instance()->setting(QStringLiteral("ignoreHighFunctionKeys"))) b.toggle(QStringLiteral("ignoreHighFunctionKeys"));
             KisMainWindow *window = b.window;
             QVector<QPair<QString, std::function<void()>>> buttons;
             buttons << qMakePair(i18nc("@action:button", "Test the pen"), std::function<void()>([window]() {
@@ -1173,13 +1097,6 @@ QVector<CardDef> makeCards()
 #endif
             b.buttons(buttons);
         });
-    add(QStringLiteral("pen"), QStringLiteral("speed"), i18nc("settings card", "Brush speed"),
-        {QStringLiteral("useTimestampsForBrushSpeed"), QStringLiteral("maxAllowedSpeedValue"), QStringLiteral("speedValueSmoothing")},
-        QStringLiteral("velocity timestamps smoothing"), [](Builder &b) {
-            b.number(QStringLiteral("maxAllowedSpeedValue"), {QString(), 1, 0, i18nc("unit", " px/ms")});
-            b.number(QStringLiteral("speedValueSmoothing"), {QString(), 1, 0, i18nc("unit: samples", " samples")});
-            b.toggle(QStringLiteral("useTimestampsForBrushSpeed"));
-        });
     add(QStringLiteral("pen"), QStringLiteral("tilt"), i18nc("settings card", "Tilt"), {QStringLiteral("tiltDirectionOffset")},
         QStringLiteral("tilt angle direction offset"), [](Builder &b) {
             // kept clockwise, shown counterclockwise as angles are
@@ -1193,16 +1110,8 @@ QVector<CardDef> makeCards()
                        []() { return R::instance()->value(QStringLiteral("touchPainting")).toInt() != 2; });
             b.toggle(QStringLiteral("longPressEnabled"));
         });
-    add(QStringLiteral("pen"), QStringLiteral("kinetic"), i18nc("settings card", "Kinetic scrolling"),
-        {QStringLiteral("KineticScrollingEnabled"), QStringLiteral("KineticScrollingGesture"), QStringLiteral("KineticScrollingSensitivity"),
-         QStringLiteral("KineticScrollingHideScrollbar")},
-        QStringLiteral("scrolling flick inertia with sensitivity hides scrollbars"), [](Builder &b) {
-            b.toggle(QStringLiteral("KineticScrollingEnabled"), i18nc("kinetic scrolling", "On"));
-            const auto on = b.isOn(QStringLiteral("KineticScrollingEnabled"));
-            b.showWhen(b.choice(QStringLiteral("KineticScrollingGesture"), i18nc("kinetic scrolling", "With")), on);
-            b.showWhen(b.number(QStringLiteral("KineticScrollingSensitivity"), {i18nc("kinetic scrolling", "Sensitivity")}), on);
-            b.showWhen(b.toggle(QStringLiteral("KineticScrollingHideScrollbar"), i18nc("kinetic scrolling", "Hides scrollbars")), on);
-        });
+    addToggle(QStringLiteral("pen"), QStringLiteral("kinetic"), i18nc("settings card", "Kinetic scrolling"), QStringLiteral("KineticScrollingEnabled"),
+              QStringLiteral("scrolling flick inertia"));
 
     // ---- tools
     add(QStringLiteral("tools"), QStringLiteral("selecting"), i18nc("settings card", "Selecting and pasting"),
@@ -1212,41 +1121,26 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("activateTransformToolAfterPaste"));
         });
     add(QStringLiteral("tools"), QStringLiteral("preview"), i18nc("settings card", "Instant preview"),
-        {QStringLiteral("[filterdialog] forceLodMode"), QStringLiteral("[KisToolTransform] forceLodMode"), QStringLiteral("[KritaTransform/KisToolMove] forceLodMode"),
-         QStringLiteral("[KisToolTransform] useOverlayPreviewStyle")},
+        {QStringLiteral("[filterdialog] forceLodMode"), QStringLiteral("[KisToolTransform] forceLodMode"), QStringLiteral("[KritaTransform/KisToolMove] forceLodMode")},
         QStringLiteral("lod level of detail preview fast effects transform move"), [](Builder &b) {
-            b.note(i18nc("@info", "A quick, rougher preview while you adjust, on large images."));
             b.toggle(QStringLiteral("[filterdialog] forceLodMode"), i18nc("instant preview", "Effects"));
             b.toggle(QStringLiteral("[KisToolTransform] forceLodMode"), i18nc("instant preview", "Transform"));
             b.toggle(QStringLiteral("[KritaTransform/KisToolMove] forceLodMode"), i18nc("instant preview", "Move"));
-            b.toggle(QStringLiteral("[KisToolTransform] useOverlayPreviewStyle"));
         });
     add(QStringLiteral("tools"), QStringLiteral("undo"), i18nc("settings card", "Undo"),
-        {QStringLiteral("undoStackLimit"), QStringLiteral("useCumulativeUndoRedo"), QStringLiteral("cumulativeUndoMergeTimeout"),
-         QStringLiteral("cumulativeUndoExcludeFromMerge"), QStringLiteral("cumulativeUndoMaxGroupSeparation"), QStringLiteral("cumulativeUndoMaxGroupDuration")},
+        {QStringLiteral("undoStackLimit"), QStringLiteral("useCumulativeUndoRedo")},
         QStringLiteral("history redo steps cumulative merge strokes"), [](Builder &b) {
             Number steps(i18nc("undo", "Steps"), 1, 0, QString(), 5);
             steps.onRelease = true;
             b.number(QStringLiteral("undoStackLimit"), steps);
             b.note(i18nc("@info", "Changing the steps clears the undo history of open images."));
             b.toggle(QStringLiteral("useCumulativeUndoRedo"));
-            const auto on = b.isOn(QStringLiteral("useCumulativeUndoRedo"));
-            b.showWhen(b.number(QStringLiteral("cumulativeUndoMergeTimeout"), {QString(), 0.001, 1, i18nc("unit", " s")}), on);
-            b.showWhen(b.number(QStringLiteral("cumulativeUndoExcludeFromMerge")), on);
-            b.showWhen(b.number(QStringLiteral("cumulativeUndoMaxGroupSeparation"), {QString(), 0.001, 1, i18nc("unit", " s"), 0.1}), on);
-            b.showWhen(b.number(QStringLiteral("cumulativeUndoMaxGroupDuration"), {QString(), 0.001, 1, i18nc("unit", " s")}), on);
         });
     add(QStringLiteral("tools"), QStringLiteral("layers"), i18nc("settings card", "Layers"),
-        {QStringLiteral("StudioLayersRememberBrushes"), QStringLiteral("renameMergedLayers"), QStringLiteral("renamePastedLayers"),
-         QStringLiteral("renameDuplicatedLayers"), QStringLiteral("ConvertToImageColorSpaceOnImport"), QStringLiteral("hidePopups"), QStringLiteral("ShowRootLayer")},
-        QStringLiteral("names naming thumbnail import root"), [](Builder &b) {
+        {QStringLiteral("StudioLayersRememberBrushes"), QStringLiteral("ConvertToImageColorSpaceOnImport")},
+        QStringLiteral("brush import color space"), [](Builder &b) {
             b.toggle(QStringLiteral("StudioLayersRememberBrushes"));
-            b.toggle(QStringLiteral("renameDuplicatedLayers"));
-            b.toggle(QStringLiteral("renamePastedLayers"));
-            b.toggle(QStringLiteral("renameMergedLayers"));
             b.toggle(QStringLiteral("ConvertToImageColorSpaceOnImport"));
-            b.toggle(QStringLiteral("hidePopups"));
-            b.toggle(QStringLiteral("ShowRootLayer"));
         });
     addToggle(QStringLiteral("tools"), QStringLiteral("effects"), i18nc("settings card", "Effects stay editable"), QStringLiteral("StudioEffectsEditable"),
               QStringLiteral("filter mask editable effects"), i18nc("@info", "On: an effect becomes a filter mask you can change later."));
@@ -1258,17 +1152,13 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("autoZoomTimelineToPlaybackRange"));
         });
     add(QStringLiteral("tools"), QStringLiteral("brushengine"), i18nc("settings card", "Painting"),
-        {QStringLiteral("maximumBrushSize"), QStringLiteral("useCreamyAlphaDarken"), QStringLiteral("useSubtractiveBlendingForCmykColorSpaces")},
-        QStringLiteral("brush size flow creamy hard cmyk blending compatibility"), [](Builder &b) {
+        {QStringLiteral("maximumBrushSize")}, QStringLiteral("brush size largest"), [](Builder &b) {
             b.number(QStringLiteral("maximumBrushSize"), {QString(), 1, 0, i18nc("unit", " px"), 100});
-            b.toggle(QStringLiteral("useCreamyAlphaDarken"));
-            b.note(i18nc("@info", "Off: flow as in Krita 4.1 and before."));
-            b.toggle(QStringLiteral("useSubtractiveBlendingForCmykColorSpaces"));
         });
 
     // ---- files
     add(QStringLiteral("files"), QStringLiteral("autosave"), i18nc("settings card", "Autosave"),
-        {QStringLiteral("AutoSaveInterval"), QStringLiteral("autosavefileshidden")}, QStringLiteral("auto save recovery crash interval every minutes"), [](Builder &b) {
+        {QStringLiteral("AutoSaveInterval")}, QStringLiteral("auto save recovery crash interval every minutes"), [](Builder &b) {
             auto *on = new Switch(b.card);
             auto *minutes = quietSlider<KisSliderSpinBox>(b.card);
             minutes->setRange(1, 1440);
@@ -1291,28 +1181,22 @@ QVector<CardDef> makeCards()
             b.row(i18nc("autosave", "On"), on, QStringLiteral("AutoSaveInterval"));
             auto saving = []() { return R::instance()->value(QStringLiteral("AutoSaveInterval")).toInt() > 0; };
             b.showWhen(b.row(i18nc("autosave", "Every"), minutes), saving);
-            b.showWhen(b.toggle(QStringLiteral("autosavefileshidden")), saving);
         });
     add(QStringLiteral("files"), QStringLiteral("backup"), i18nc("settings card", "Backups"),
-        {QStringLiteral("CreateBackupFile"), QStringLiteral("backupfilelocation"), QStringLiteral("backupfilesuffix"), QStringLiteral("numberofbackupfiles")},
-        QStringLiteral("backup copy old version suffix"), [](Builder &b) {
+        {QStringLiteral("CreateBackupFile"), QStringLiteral("backupfilelocation"), QStringLiteral("numberofbackupfiles")},
+        QStringLiteral("backup copy old version"), [](Builder &b) {
             b.toggle(QStringLiteral("CreateBackupFile"));
             const auto on = b.isOn(QStringLiteral("CreateBackupFile"));
             b.showWhen(b.choice(QStringLiteral("backupfilelocation")), on);
             b.showWhen(b.number(QStringLiteral("numberofbackupfiles")), on);
-            b.showWhen(b.text(QStringLiteral("backupfilesuffix")), on);
         });
     add(QStringLiteral("files"), QStringLiteral("saving"), i18nc("settings card", "Saving"),
-        {QStringLiteral("defaultExportMimeType"), QStringLiteral("compressLayersInKra"), QStringLiteral("UseZip64"), QStringLiteral("TrimKra"),
-         QStringLiteral("TrimFramesImport")},
+        {QStringLiteral("defaultExportMimeType"), QStringLiteral("compressLayersInKra"), QStringLiteral("UseZip64"), QStringLiteral("TrimKra")},
         QStringLiteral("kra compression zip64 export format trim"), [](Builder &b) {
             b.choice(QStringLiteral("defaultExportMimeType"));
             b.toggle(QStringLiteral("compressLayersInKra"));
-            b.note(i18nc("@info", "Smaller files take longer to save and open."));
             b.toggle(QStringLiteral("TrimKra"));
-            b.toggle(QStringLiteral("TrimFramesImport"));
             b.toggle(QStringLiteral("UseZip64"));
-            b.note(i18nc("@info", "Krita before 4.2 can't open those."));
         });
     add(QStringLiteral("files"), QStringLiteral("pasting"), i18nc("settings card", "Pasting from other apps"),
         {QStringLiteral("pasteFormat"), QStringLiteral("pasteBehaviour")}, QStringLiteral("clipboard paste drop browser take"), [](Builder &b) {
@@ -1372,7 +1256,6 @@ QVector<CardDef> makeCards()
             b.choice(QStringLiteral("renderIntent"), i18nc("display", "Intent"));
             b.toggle(QStringLiteral("useBlackPointCompensation"));
             b.toggle(QStringLiteral("allowLCMSOptimization"));
-            b.note(i18nc("@info", "Turn off for linear light, RGB or XYZ."));
         });
     add(QStringLiteral("color"), QStringLiteral("misc"), i18nc("settings card", "Palettes and EXR"),
         {QStringLiteral("colorsettings/forcepalettecolors"), QStringLiteral("ExrDefaultColorProfile")}, QStringLiteral("palette exr profile"), [](Builder &b) {
@@ -1393,11 +1276,8 @@ QVector<CardDef> makeCards()
 
     // ---- speed
     add(QStringLiteral("speed"), QStringLiteral("renderer"), i18nc("settings card", "Drawing the canvas"),
-        {QStringLiteral("kritadisplayrc OpenGLRenderer"), QStringLiteral("useOpenGLTextureBuffer"), QStringLiteral("assistantsDrawMode")},
-        QStringLiteral("opengl angle direct3d renderer gpu acceleration graphics"), [](Builder &b) {
+        {QStringLiteral("kritadisplayrc OpenGLRenderer")}, QStringLiteral("opengl angle direct3d renderer gpu acceleration graphics"), [](Builder &b) {
             b.choice(QStringLiteral("kritadisplayrc OpenGLRenderer"));
-            b.toggle(QStringLiteral("useOpenGLTextureBuffer"));
-            b.choice(QStringLiteral("assistantsDrawMode"));
         });
     add(QStringLiteral("speed"), QStringLiteral("memory"), i18nc("settings card", "Memory"),
         {QStringLiteral("memoryHardLimitPercent"), QStringLiteral("memorySoftLimitPercent"), QStringLiteral("maxSwapSize"), QStringLiteral("swaplocation")},
@@ -1410,13 +1290,12 @@ QVector<CardDef> makeCards()
             b.folder(QStringLiteral("swaplocation"));
         });
     add(QStringLiteral("speed"), QStringLiteral("threads"), i18nc("settings card", "Processor"),
-        {QStringLiteral("maxNumberOfThreads"), QStringLiteral("frameRenderingClones"), QStringLiteral("frameRenderingTimeout")},
+        {QStringLiteral("maxNumberOfThreads"), QStringLiteral("frameRenderingClones")},
         QStringLiteral("cpu threads cores rendering frames"), [](Builder &b) {
             Number threads;
             threads.onRelease = true;
             b.number(QStringLiteral("maxNumberOfThreads"), threads);
             b.number(QStringLiteral("frameRenderingClones"), threads);
-            b.number(QStringLiteral("frameRenderingTimeout"), {QString(), 0.001, 0, i18nc("unit", " s")});
         });
     add(QStringLiteral("speed"), QStringLiteral("framerate"), i18nc("settings card", "Frame rate"),
         {QStringLiteral("detectFpsLimit"), QStringLiteral("fpsLimit")}, QStringLiteral("fps refresh hz"), [](Builder &b) {
@@ -1425,36 +1304,16 @@ QVector<CardDef> makeCards()
                        []() { return !R::instance()->value(QStringLiteral("detectFpsLimit")).toBool(); });
         });
     add(QStringLiteral("speed"), QStringLiteral("animationcache"), i18nc("settings card", "Animation cache"),
-        {QStringLiteral("useOnDiskAnimationCacheSwapping"), QStringLiteral("useAnimationCacheFrameSizeLimit"), QStringLiteral("animationCacheFrameSizeLimit"),
-         QStringLiteral("useAnimationCacheRegionOfInterest"), QStringLiteral("animationCacheRegionOfInterestMargin"),
-         QStringLiteral("calculateAnimationCacheInBackground")},
-        QStringLiteral("playback frames cache"), [](Builder &b) {
+        {QStringLiteral("calculateAnimationCacheInBackground"), QStringLiteral("useOnDiskAnimationCacheSwapping")}, QStringLiteral("playback frames cache"),
+        [](Builder &b) {
             b.toggle(QStringLiteral("calculateAnimationCacheInBackground"));
             b.toggle(QStringLiteral("useOnDiskAnimationCacheSwapping"));
-            b.toggle(QStringLiteral("useAnimationCacheFrameSizeLimit"));
-            Number frameSize(QString(), 1, 0, i18nc("unit", " px"));
-            frameSize.onRelease = true;
-            b.showWhen(b.number(QStringLiteral("animationCacheFrameSizeLimit"), frameSize),
-                       b.isOn(QStringLiteral("useAnimationCacheFrameSizeLimit")));
-            b.toggle(QStringLiteral("useAnimationCacheRegionOfInterest"));
-            Number margin(QString(), 100, 0, QStringLiteral("%"));
-            margin.onRelease = true;
-            b.showWhen(b.number(QStringLiteral("animationCacheRegionOfInterestMargin"), margin),
-                       b.isOn(QStringLiteral("useAnimationCacheRegionOfInterest")));
         });
-    add(QStringLiteral("speed"), QStringLiteral("diagnostics"), i18nc("settings card", "Diagnostics"),
-        {QStringLiteral("kritadisplayrc LogUsage"), QStringLiteral("enableProgressReporting"), QStringLiteral("enableOpenGLFramerateLogging"),
-         QStringLiteral("enableBrushSpeedLogging"), QStringLiteral("enablePerfLog"), QStringLiteral("disableAVXOptimizations"),
-         QStringLiteral("amdDisableVectorWorkaround")},
-        QStringLiteral("logging debug log avx vector bug report"), [](Builder &b) {
-            b.toggle(QStringLiteral("kritadisplayrc LogUsage"));
-            b.toggle(QStringLiteral("enableProgressReporting"));
-            b.toggle(QStringLiteral("enableOpenGLFramerateLogging"));
-            b.toggle(QStringLiteral("enableBrushSpeedLogging"));
-            b.toggle(QStringLiteral("enablePerfLog"));
+    add(QStringLiteral("speed"), QStringLiteral("diagnostics"), i18nc("settings card", "If Krita crashes when painting"),
+        {QStringLiteral("disableAVXOptimizations"), QStringLiteral("amdDisableVectorWorkaround")}, QStringLiteral("crash avx vector instructions workaround"),
+        [](Builder &b) {
             if (R::instance()->setting(QStringLiteral("disableAVXOptimizations"))) b.toggle(QStringLiteral("disableAVXOptimizations"));
             b.toggle(QStringLiteral("amdDisableVectorWorkaround"));
-            b.note(i18nc("@info", "Turn vector instructions off only if Krita crashes when painting."));
         });
 
     // settings this build doesn't have (another platform's) are left out of the cards
@@ -3073,7 +2932,6 @@ QVariant KisStudioSettings::classicPage(const QString &cardId)
         {QStringLiteral("canvas.messages"), {P::General, P::Window}},
         {QStringLiteral("pen.pressure"), {P::Tablet, 0}},
         {QStringLiteral("pen.tablet"), {P::Tablet, 0}},
-        {QStringLiteral("pen.speed"), {P::Tablet, 0}},
         {QStringLiteral("pen.tilt"), {P::Tablet, 0}},
         {QStringLiteral("pen.touch"), {P::General, P::Tools}},
         {QStringLiteral("pen.kinetic"), {P::General, P::MiscellaneousGeneral}},
