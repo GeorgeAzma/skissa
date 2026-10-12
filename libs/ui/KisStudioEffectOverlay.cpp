@@ -25,6 +25,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QTabletEvent>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -251,6 +252,23 @@ QVector<Knob> findKnobs(QWidget *root, bool *simple)
  * steppers, sliders as quiet ones (a line with the number after it, their
  * names in the secondary ink); a few numbers (\p simple) laid out tightly.
  */
+/**
+ * The scroll areas of an effect's settings as tall as what they hold, up to
+ * a point: no taller either (a scroll area asks for room for its scroll
+ * bars, more than a row of settings)
+ */
+void fitScrolls(QWidget *root)
+{
+    Q_FOREACH (QScrollArea *scroll, root->findChildren<QScrollArea *>()) {
+        if (!scroll->widget()) continue;
+        const int held = scroll->widget()->sizeHint().height();
+        const int height = qMin(400, held);
+        if (scroll->minimumHeight() != height) scroll->setMinimumHeight(height);
+        const int most = held > 400 ? QWIDGETSIZE_MAX : height;
+        if (scroll->maximumHeight() != most) scroll->setMaximumHeight(most);
+    }
+}
+
 void styleSettings(QWidget *root, bool simple)
 {
     // nested layouts too: a widget only knows its top one
@@ -312,10 +330,9 @@ void styleSettings(QWidget *root, bool simple)
     Q_FOREACH (QScrollArea *scroll, root->findChildren<QScrollArea *>()) {
         scroll->setFrameShape(QFrame::NoFrame);
         scroll->viewport()->setAutoFillBackground(false);
-        if (!scroll->widget()) continue;
-        scroll->widget()->setAutoFillBackground(false);
-        scroll->setMinimumHeight(qMin(400, scroll->widget()->sizeHint().height()));
+        if (scroll->widget()) scroll->widget()->setAutoFillBackground(false);
     }
+    fitScrolls(root);
     root->setMinimumSize(0, 0);
 }
 
@@ -568,6 +585,11 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
     }
     styleSettings(selector, d->simple);
     selector->adjustSize();
+    // a scroll area takes what it holds growing or shrinking itself: told there too
+    selector->installEventFilter(this);
+    Q_FOREACH (QScrollArea *scroll, selector->findChildren<QScrollArea *>()) {
+        if (scroll->widget()) scroll->widget()->installEventFilter(this);
+    }
     reposition();
 
     if (!d->knobs.isEmpty()) {
@@ -840,6 +862,15 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
 
 bool KisStudioEffectOverlay::eventFilter(QObject *watched, QEvent *event)
 {
+    // the settings grew or shrank (a row shown or hidden): the panel as tall as they are now
+    if (event->type() == QEvent::LayoutRequest && d->selector && isVisible()
+        && (watched == d->selector || d->selector->isAncestorOf(qobject_cast<QWidget *>(watched)))) {
+        QTimer::singleShot(0, this, [this]() {
+            if (!d->selector) return;
+            fitScrolls(d->selector);
+            reposition();
+        });
+    }
     if (watched == parentWidget() && event->type() == QEvent::Resize && isVisible()) {
         reposition();
     }

@@ -45,6 +45,7 @@ KisWdgGaussianBlur::KisWdgGaussianBlur(bool usedForMasks, QWidget * parent) : Ki
     connect(m_widget->aspectButton, SIGNAL(keepAspectRatioChanged(bool)), this, SLOT(aspectLockChanged(bool)));
     connect(m_widget->horizontalRadius, SIGNAL(valueChanged(qreal)), SIGNAL(sigConfigurationItemChanged()));
     connect(m_widget->verticalRadius, SIGNAL(valueChanged(qreal)), SIGNAL(sigConfigurationItemChanged()));
+    showRows();
 }
 
 KisWdgGaussianBlur::~KisWdgGaussianBlur()
@@ -106,5 +107,18 @@ void KisWdgGaussianBlur::aspectLockChanged(bool v)
     if (v) {
         m_widget->verticalRadius->setValue( m_widget->horizontalRadius->value() );
     }
+    showRows();
+}
+
+void KisWdgGaussianBlur::showRows()
+{
+    const bool linked = m_widget->aspectButton->keepAspectRatio();
+    m_widget->label_2->setVisible(!linked);
+    m_widget->verticalRadius->setVisible(!linked);
+    // with a colon where the label had one (a dialog's), without where it was taken off (the effect panel's)
+    const bool colon = m_widget->label->text().endsWith(QLatin1Char(':'));
+    const QString name = linked ? i18nc("@label:slider the gaussian blur radius, both ways", "Radius")
+                                : i18nc("@label:slider", "Horizontal Radius");
+    m_widget->label->setText(colon ? name + QLatin1Char(':') : name);
 }
 
