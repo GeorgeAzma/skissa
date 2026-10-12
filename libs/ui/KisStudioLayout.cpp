@@ -773,8 +773,16 @@ public:
     void place()
     {
         QWidget *area = parentWidget();
-        move(m_right ? area->width() - margin - width() : margin, margin);
+        move(m_right ? area->width() - margin - width() : margin + m_leftInset, margin);
         raise();
+    }
+
+    /// Room left of it (the window's handle in the corner)
+    void setLeftInset(int inset)
+    {
+        if (inset == m_leftInset) return;
+        m_leftInset = inset;
+        place();
     }
 
     /**
@@ -824,8 +832,42 @@ protected:
 
 private:
     bool m_right {false};
+    int m_leftInset {0};
     TopGrip *m_grip {nullptr};
     QWidget *m_contents {nullptr};
+};
+
+/**
+ * The window's handle, in the top left corner: what a title bar is to the
+ * system there (dragged, the window moves and snaps; double clicked, it is
+ * maximized; right clicked, the window's menu), with no title bar. Over the
+ * tool rail, as wide as it: the rail's cap, between it and the top bar.
+ */
+class WindowHandle : public QWidget
+{
+public:
+    explicit WindowHandle(QWidget *canvasArea)
+        : QWidget(canvasArea)
+    {
+        setObjectName(QStringLiteral("studioWindowHandle"));
+        setProperty(captionProperty, true);
+        hide();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12);
+        QColor border = palette().color(QPalette::WindowText);
+        border.setAlphaF(0.12);
+        KisStudioGlass::paintBorder(painter, this, shape, border);
+        // the application's mark: whose window this is
+        const int side = qMin(20, qMin(width(), height()) - 12);
+        painter.setOpacity(0.85);
+        QApplication::windowIcon().paint(&painter, QRect(QPoint(), QSize(side, side)).translated(rect().center() - QPoint(side / 2, side / 2)));
+    }
 };
 
 /// A button of the window pill: the menu, Settings, Find
@@ -1227,6 +1269,7 @@ struct KisStudioLayout::Private
     QPointer<QToolBar> rail;
     /// The tool rail over the canvas, with the color chip under its tools
     QPointer<QWidget> brushRail;
+    QPointer<QWidget> windowHandle;
     /// The tool's bar (its chip, its options, size and opacity), in the top pill
     QPointer<QToolBar> topBar;
     QPointer<QWidget> findField;
@@ -2428,6 +2471,7 @@ void KisStudioLayout::updateColumns()
 
 void KisStudioLayout::updateCanvasInsets(bool views)
 {
+    placeWindowHandle();
     QMdiArea *mdi = mdiArea();
     QWidget *area = mdi ? mdi->parentWidget() : nullptr;
     if (!area) {
@@ -3166,6 +3210,9 @@ void KisStudioLayout::adoptTopBars()
     if (!area) {
         return;
     }
+    if (!d->windowHandle) {
+        d->windowHandle = new WindowHandle(area);
+    }
     if (!d->topPill) {
         d->topPill = new TopPill(area, false);
         d->topPill->changed = [self = QPointer<KisStudioLayout>(this)]() { if (self) self->updateCanvasInsets(); };
@@ -3214,11 +3261,30 @@ void KisStudioLayout::adoptTopBars()
     const bool shown = d->active && !isRailHidden();
     d->topPill->setVisible(shown);
     d->windowPill->setVisible(shown);
+    d->windowHandle->setVisible(shown);
     if (shown) {
         d->topPill->place();
         d->windowPill->place();
     }
     updateCanvasInsets();
+}
+
+void KisStudioLayout::placeWindowHandle()
+{
+    QWidget *handle = d->windowHandle;
+    TopPill *pill = d->topPill;
+    if (!handle || !pill) return;
+    const int height = pill->height();
+    QRect place(TopPill::margin, TopPill::margin, height, height);
+    // over the tool rail on the left, as wide as it: its cap
+    QWidget *rail = d->brushRail;
+    if (rail && rail->isVisible() && rail->parentWidget() == handle->parentWidget() && rail->x() < rail->parentWidget()->width() / 2) {
+        place.setLeft(rail->x());
+        place.setWidth(rail->width());
+    }
+    if (handle->geometry() != place) handle->setGeometry(place);
+    handle->raise();
+    pill->setLeftInset(handle->isVisible() ? place.right() + 1 : 0);
 }
 
 void KisStudioLayout::releaseTopBars()
@@ -3234,6 +3300,7 @@ void KisStudioLayout::releaseTopBars()
     }
     if (d->topPill) d->topPill->hide();
     if (d->windowPill) d->windowPill->hide();
+    if (d->windowHandle) d->windowHandle->hide();
     updateCanvasInsets();
 }
 
@@ -3452,7 +3519,10 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 
     if (watched == d->brushRail && d->brushRail) {
         const QEvent::Type type = event->type();
-        if (type == QEvent::Move || type == QEvent::Resize || type == QEvent::Show || type == QEvent::Hide) placeWelcomePage();
+        if (type == QEvent::Move || type == QEvent::Resize || type == QEvent::Show || type == QEvent::Hide) {
+            placeWelcomePage();
+            placeWindowHandle();
+        }
     }
 
     if (handleRailDrag(watched, event)) {

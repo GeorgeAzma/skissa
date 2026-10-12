@@ -147,6 +147,8 @@ private:
     void syncRail();
     /// The start page (no document open) clear of the tool rail over it
     void placeWelcomePage();
+    /// The window's handle in the top left corner, the top bar after it
+    void placeWindowHandle();
 
     struct Private;
     const std::unique_ptr<Private> d;
