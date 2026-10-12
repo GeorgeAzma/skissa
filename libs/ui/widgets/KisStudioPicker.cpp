@@ -154,8 +154,11 @@ struct KisStudioPicker::Private
     void point(int index)
     {
         if (index == highlighted) return;
+        // only the two that changed are painted again, not every item of a long list
+        for (int i : {highlighted, index}) {
+            if (i >= 0 && i < items.size()) grid->update(items[i].rect);
+        }
         highlighted = index;
-        grid->update();
         previewTimer.stop();
         if (index < 0 || !isAvailable(items[index].id)) return;
         if (source.previewDelay <= 0) {
@@ -207,7 +210,7 @@ public:
     }
 
 protected:
-    void paintEvent(QPaintEvent *) override
+    void paintEvent(QPaintEvent *event) override
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
@@ -231,6 +234,7 @@ protected:
 
         for (int i = 0; i < m_d->items.size(); i++) {
             const Item &item = m_d->items[i];
+            if (!event->rect().intersects(item.rect)) continue;
             const bool current = item.id == m_d->original;
             const bool highlighted = i == m_d->highlighted && m_dragging < 0;
             const bool enabled = m_d->isAvailable(item.id);
