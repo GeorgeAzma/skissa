@@ -248,8 +248,8 @@ QVector<Knob> findKnobs(QWidget *root, bool *simple)
 
 /**
  * An effect's settings as the panel's own, not a dialog's: no margins or
- * steppers; a few numbers (\p simple) as quiet sliders, a line with the
- * number after it, their names on the left in the secondary ink.
+ * steppers, sliders as quiet ones (a line with the number after it, their
+ * names in the secondary ink); a few numbers (\p simple) laid out tightly.
  */
 void styleSettings(QWidget *root, bool simple)
 {
@@ -288,7 +288,7 @@ void styleSettings(QWidget *root, bool simple)
         if (auto *box = qobject_cast<QAbstractSpinBox *>(widget)) {
             box->setButtonSymbols(QAbstractSpinBox::NoButtons);
         }
-        if (!simple) continue;
+        // sliders as the panel's own everywhere, not boxes: a line with the number after it
         if (qobject_cast<KisSliderSpinBox *>(widget) || qobject_cast<KisDoubleSliderSpinBox *>(widget)) {
             auto *box = static_cast<QAbstractSpinBox *>(widget);
             box->setFrame(false);
@@ -714,7 +714,9 @@ void KisStudioEffectOverlay::reposition()
         return;
     }
     const QSize area = parentWidget()->size();
-    const int width = qMin(520, area.width() - 40);
+    // as wide as the effect's settings ask, at least as a few sliders want
+    const int wanted = d->selector ? d->selector->sizeHint().width() + 32 : 0;
+    const int width = qMin(qMax(520, wanted), area.width() - 40);
     const int contents = d->selector ? d->selector->sizeHint().height() : 0;
     const int height = qMin(46 + contents + (contents ? 14 : 0), int(area.height() * 0.55));
     // in the middle of what the pinned panels over the canvas leave of it

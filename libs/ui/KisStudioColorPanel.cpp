@@ -13,6 +13,8 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QWheelEvent>
+#include <QElapsedTimer>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
@@ -439,12 +441,26 @@ protected:
     void mousePressEvent(QMouseEvent *event) override
     {
         if (started) started();
-        if (picked) picked(positionAt(event->pos().x()));
+        // on the knob: taken where it is, moved from there; elsewhere: there
+        const qreal offset = event->pos().x() - knobX(m_marker);
+        m_grab = qAbs(offset) <= height() / 2.0 ? offset : 0.0;
+        if (picked) picked(positionAt(event->pos().x() - m_grab));
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if ((event->buttons() & Qt::LeftButton) && picked) picked(positionAt(event->pos().x()));
+        if ((event->buttons() & Qt::LeftButton) && picked) picked(positionAt(event->pos().x() - m_grab));
+    }
+
+    void wheelEvent(QWheelEvent *event) override
+    {
+        // a notch a hundredth of the track; the color before a run of notches is the one gone back to
+        if (const int steps = KisModernStyle::wheelSteps(event, this)) {
+            if (started && (!m_lastWheel.isValid() || m_lastWheel.elapsed() > 600)) started();
+            m_lastWheel.restart();
+            if (picked) picked(qBound(0.0, m_marker + steps * 0.01, 1.0));
+        }
+        event->accept();
     }
 
 private:
@@ -454,6 +470,8 @@ private:
 
     QString m_key;
     qreal m_marker {0.0};
+    qreal m_grab {0.0};
+    QElapsedTimer m_lastWheel;
     qreal m_edge {-1.0};
     QColor m_knob;
     QImage m_image;

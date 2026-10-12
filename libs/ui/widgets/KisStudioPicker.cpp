@@ -967,6 +967,17 @@ bool KisStudioPicker::eventFilter(QObject *watched, QEvent *event)
             close();
             return true;
         default:
+            // a digit with nothing typed yet: the one of yours its badge has (0 the tenth)
+            if (d->search->text().isEmpty() && !(key->modifiers() & ~Qt::KeypadModifier) && key->key() >= Qt::Key_0
+                && key->key() <= Qt::Key_9) {
+                const int order = key->key() == Qt::Key_0 ? 9 : key->key() - Qt::Key_1;
+                for (int i = 0; i < count; i++) {
+                    if (d->items[i].order == order) {
+                        d->pick(i);
+                        return true;
+                    }
+                }
+            }
             break;
         }
     }
