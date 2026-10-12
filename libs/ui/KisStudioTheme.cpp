@@ -98,8 +98,9 @@ Colors colorsOf(const Params &p)
         c.selection = p.accent;
         c.decoration = p.accent;
     } else {
-        // a gray: lighter than the window when dark, darker when light
-        c.selection = bg(dark ? w + 0.21 : 0.31);
+        // a gray, lighter than the window when dark, darker when light: tinted as the text is, not as the
+        // backgrounds (it fills sliders, checks and lines, which the tint is not for)
+        c.selection = fromOklab({dark ? w + 0.21 : 0.31, ta * 0.3, tb * 0.3});
         c.decoration = c.text;
     }
     c.selectionText = toOklab(c.selection).l < 0.68 ? QColor(250, 250, 250) : QColor(24, 24, 24);
