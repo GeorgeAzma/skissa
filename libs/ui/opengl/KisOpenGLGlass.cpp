@@ -32,8 +32,9 @@
 
 namespace {
 
-/// The most the blur reaches either way, in the small pixels it is made in
-constexpr int maxTaps = 32;
+/// The most the blur reaches either way, in the small pixels it is made in: three sigma of the widest
+/// (the most frosted, over the largest panel), or it is cut short and blurs as a box would
+constexpr int maxTaps = 64;
 
 /// A strip of four corners, of rect (x0, y0, x1, y1, in clip coordinates)
 const char *const quadSource = R"(
@@ -143,7 +144,7 @@ uniform sampler2D source;
 uniform ivec4 slot;
 uniform ivec2 direction;
 uniform int taps;
-uniform float weights[33];
+uniform float weights[65];
 
 vec4 at(ivec2 p)
 {

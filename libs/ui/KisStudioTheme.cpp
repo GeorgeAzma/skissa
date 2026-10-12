@@ -71,10 +71,10 @@ struct Colors {
 Colors colorsOf(const Params &p)
 {
     const bool dark = p.lightness < 0.5;
-    // the tint's hue, a little of it: backgrounds stay quiet
+    // the tint's hue: at full strength backgrounds clearly of it, still quieter than the accent
     const Lab tint = toOklab(p.tint.isValid() ? p.tint : QColor(Qt::gray));
     const qreal chroma = std::hypot(tint.a, tint.b);
-    const qreal reach = 0.045 * qBound<qreal>(0, p.tintAmount, 1);
+    const qreal reach = 0.11 * qBound<qreal>(0, p.tintAmount, 1);
     const qreal ta = chroma > 1e-4 ? tint.a / chroma * reach : 0;
     const qreal tb = chroma > 1e-4 ? tint.b / chroma * reach : 0;
     auto bg = [&](qreal l) { return fromOklab({qBound<qreal>(0, l, 1), ta, tb}); };
@@ -185,12 +185,12 @@ QVector<Preset> presets()
     return {
         {i18nc("theme preset", "Dark"), params(0.252, Qt::gray, 0, QColor())},
         {i18nc("theme preset", "Darker"), params(0.17, Qt::gray, 0, QColor())},
-        {i18nc("theme preset", "Graphite"), params(0.36, QColor(70, 110, 170), 0.35, QColor())},
-        {i18nc("theme preset", "Night"), params(0.22, QColor(60, 90, 200), 0.7, QColor(92, 124, 250))},
-        {i18nc("theme preset", "Moss"), params(0.24, QColor(80, 140, 90), 0.6, QColor(104, 170, 116))},
+        {i18nc("theme preset", "Graphite"), params(0.36, QColor(70, 110, 170), 0.18, QColor())},
+        {i18nc("theme preset", "Night"), params(0.22, QColor(60, 90, 200), 0.4, QColor(92, 124, 250))},
+        {i18nc("theme preset", "Moss"), params(0.24, QColor(80, 140, 90), 0.33, QColor(104, 170, 116))},
         {i18nc("theme preset", "Light"), params(0.955, Qt::gray, 0, QColor())},
-        {i18nc("theme preset", "Paper"), params(0.93, QColor(214, 170, 120), 0.6, QColor(176, 106, 50))},
-        {i18nc("theme preset", "Sky"), params(0.94, QColor(110, 150, 220), 0.5, QColor(50, 110, 210))},
+        {i18nc("theme preset", "Paper"), params(0.93, QColor(214, 170, 120), 0.3, QColor(176, 106, 50))},
+        {i18nc("theme preset", "Sky"), params(0.94, QColor(110, 150, 220), 0.25, QColor(50, 110, 210))},
     };
 }
 
@@ -226,6 +226,14 @@ void apply(const Params &params)
 QString schemeName()
 {
     return QStringLiteral("Krita Studio");
+}
+
+void remake()
+{
+    static bool done = false;
+    if (done) return;
+    done = true;
+    if (KSharedConfig::openConfig()->group("theme").readEntry("Theme", QString()) == schemeName()) writeScheme(current());
 }
 
 Look look(const Params &params)

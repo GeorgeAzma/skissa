@@ -272,6 +272,15 @@ bool KisStudioWindowFrame::handleNativeEvent(void *message, void *resultPointer)
         setResult(!fullScreen && m_isCaption && m_isCaption(local) ? HTCAPTION : HTCLIENT);
         return true;
     }
+    case WM_NCRBUTTONDOWN:
+    case WM_NCRBUTTONDBLCLK:
+    case WM_NCRBUTTONUP:
+        // the edges resize with the left button only; a right click on the caption still opens the window menu
+        if (msg->wParam >= HTLEFT && msg->wParam <= HTBOTTOMRIGHT) {
+            setResult(0);
+            return true;
+        }
+        return false;
     default:
         return false;
     }

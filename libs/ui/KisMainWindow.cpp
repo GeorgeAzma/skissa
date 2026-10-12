@@ -60,6 +60,7 @@
 #include "dialogs/KisDlgCreateNewDocument.h"
 #include "kis_selection_manager.h"
 #include "kis_icon_utils.h"
+#include "KisStudioTheme.h"
 #include <krecentfilesaction.h>
 #include "krita_utils.h"
 #include <ktoggleaction.h>
@@ -389,6 +390,7 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     d->viewManager = new KisViewManager(this, actionCollection());
     KConfigGroup group( KSharedConfig::openConfig(), "theme");
 #ifndef Q_OS_HAIKU
+    KisStudioTheme::remake();
     d->themeManager = new Digikam::ThemeManager(group.readEntry("Theme", "Krita Studio Dark"), this);
     // as the window starts: taken again only when it changes
     d->appliedTheme = group.readEntry("Theme", "Krita Studio Dark") + QLatin1Char('#') + QString::number(group.readEntry("Revision", 0));

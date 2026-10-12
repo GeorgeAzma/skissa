@@ -47,6 +47,9 @@ KRITAUI_EXPORT void apply(const Params &params);
 
 /// The theme's name among the color schemes
 KRITAUI_EXPORT QString schemeName();
+/// Makes the scheme again from the settings, if it is the one in use: once a run, before it is read (how its
+/// colors are made may have changed since it was written)
+KRITAUI_EXPORT void remake();
 
 /// The colors \p params give, for a picture of them: window, field, text, accent, button
 struct Look {
