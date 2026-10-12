@@ -62,6 +62,8 @@ public:
 
     /// Shows a panel the studio way: pinned panels docked, others as a flyout
     void showPanel(QDockWidget *dock);
+    /// Settings, at \p cardId if given (\p toggle: closed if it is open); the dialog without the studio layout
+    void openSettings(const QString &cardId = QString(), bool toggle = false);
 
     bool eventFilter(QObject *watched, QEvent *event) override;
 

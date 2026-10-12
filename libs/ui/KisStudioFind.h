@@ -39,6 +39,8 @@ public:
 
     /// How a panel gets shown, e.g. as a studio layout flyout
     void setPanelOpener(std::function<void(QDockWidget *)> opener);
+    /// How a setting's card gets shown (see KisStudioSettings)
+    void setSettingsOpener(std::function<void(const QString &cardId)> opener);
     /// Whether a result is on the tools panel, and how it goes on or off it (its pin, its card)
     void setTools(std::function<bool(const QString &key)> isOnTools, std::function<void(const QString &key, bool on)> setOnTools);
 

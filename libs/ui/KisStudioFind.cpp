@@ -62,7 +62,8 @@
 #include "KisResourceServerProvider.h"
 #include "KisView.h"
 #include "KisViewManager.h"
-#include "dialogs/kis_dlg_preferences.h"
+#include "KisSettingsRegistry.h"
+#include "KisStudioSettings.h"
 #include "kis_canvas_resource_provider.h"
 #include "kis_config.h"
 #include "kis_filter_registry.h"
@@ -200,7 +201,14 @@ enum Roles {
     PinnedRole,   ///< it is on the tools panel
     ShortcutEditableRole, ///< its shortcut can be changed here (a click on its key cap)
     RecordingRole,        ///< its key cap waits for the new shortcut
+    SwitchRole,           ///< a setting that is on or off: its switch, flipped by a click
 };
+
+/// The switch of a setting's row, at its right end
+QRect switchRect(const QRect &row)
+{
+    return QRect(row.right() - 14 - 34, row.center().y() - 10, 34, 20);
+}
 
 /// The pin of a result row, at its right end: puts the result on the tools panel, or takes it off
 QRect pinRect(const QRect &row)
@@ -250,6 +258,8 @@ struct Entry {
     QPointer<QAction> action; ///< what has its shortcut, if anything does
     /// Makes the icon when it is first shown, if it is costly to make (a brush's thumbnail, read and decoded)
     mutable std::function<QIcon()> makeIcon;
+    /// A setting that is on or off (see KisSettingsRegistry): its row has a switch
+    QString toggleId;
 
     const QIcon &shownIcon() const
     {
@@ -393,6 +403,22 @@ public:
         }
 
         int right = r.right() - 14;
+        // a setting's switch, as in Settings
+        const QVariant on = index.data(SwitchRole);
+        if (on.isValid()) {
+            const QRectF track = switchRect(r);
+            // as Settings draws them: a bright track with a dark knob when on
+            QColor fill = text;
+            fill.setAlphaF(on.toBool() ? 0.9 : 0.22);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(fill);
+            painter->drawRoundedRect(track, 10, 10);
+            QColor knob = on.toBool() ? pal.color(QPalette::Window) : text;
+            knob.setAlpha(on.toBool() ? 255 : 242);
+            painter->setBrush(knob);
+            painter->drawEllipse(QPointF(track.left() + (on.toBool() ? 24 : 10), track.center().y()), 7, 7);
+            right = int(track.left()) - 10;
+        }
         // the pin: on the pointed at row, always when pinned, and on every row for a finger
         if (index.data(PinnableRole).toBool()) {
             const bool pinned = index.data(PinnedRole).toBool();
@@ -466,6 +492,7 @@ struct KisStudioFind::Private
 {
     KisMainWindow *mainWindow {nullptr};
     std::function<void(QDockWidget *)> openPanel;
+    std::function<void(const QString &cardId)> openSettings;
 
     QLineEdit *edit {nullptr};
     QListView *list {nullptr};
@@ -479,6 +506,7 @@ struct KisStudioFind::Private
     std::function<void(const QString &key, bool on)> setOnTools;
     /// The pin pressed, released on it to toggle
     QPersistentModelIndex pinPress;
+    QPersistentModelIndex switchPress;
     /// The result whose key cap waits for its new shortcut
     QPersistentModelIndex recording;
     bool capPress {false};
@@ -608,6 +636,11 @@ KisStudioFind::KisStudioFind(KisMainWindow *mainWindow)
 }
 
 KisStudioFind::~KisStudioFind() = default;
+
+void KisStudioFind::setSettingsOpener(std::function<void(const QString &cardId)> opener)
+{
+    d->openSettings = opener;
+}
 
 void KisStudioFind::setPanelOpener(std::function<void(QDockWidget *)> opener)
 {
@@ -843,69 +876,17 @@ void KisStudioFind::rebuildIndex()
         }
     }
 
-    // settings pages
-    struct SettingPage {
-        QString title;
-        QString keywords;
-        KisDlgPreferences::Page page;
-        int tab;
-    };
-    const QVector<SettingPage> pages = {
-        {i18nc("settings page", "Autosave and Backups"), QStringLiteral("file handling compression export"), KisDlgPreferences::General, KisDlgPreferences::File},
-        {i18nc("settings page", "Pasting"), QStringLiteral("clipboard"), KisDlgPreferences::General, KisDlgPreferences::Pasting},
-        {i18nc("settings page", "Window and Interface"), QStringLiteral("tabs subwindows font hidpi scaling"), KisDlgPreferences::General, KisDlgPreferences::Window},
-        {i18nc("settings page", "Brush Cursor"), QStringLiteral("outline pointer crosshair"), KisDlgPreferences::General, KisDlgPreferences::Cursor},
-        {i18nc("settings page", "Tool Behavior"), QStringLiteral("tool options zoom steps touch painting selection actions bar"), KisDlgPreferences::General, KisDlgPreferences::Tools},
-        {i18nc("settings page", "Animation"), QStringLiteral("timeline playback"), KisDlgPreferences::General, KisDlgPreferences::Animation},
-        {i18nc("settings page", "Resource Folder"), QStringLiteral("resources bundles location"), KisDlgPreferences::General, KisDlgPreferences::Resources},
-        {i18nc("settings page", "Startup, Undo and Miscellaneous"), QStringLiteral("session undo stack layer naming"), KisDlgPreferences::General, KisDlgPreferences::MiscellaneousGeneral},
-        {i18nc("settings page", "Keys and Shortcuts"), QStringLiteral("keyboard hotkeys keybindings canvas input mouse pan zoom rotate gestures held"), KisDlgPreferences::Shortucts, 0},
-        {i18nc("settings page", "Color Management"), QStringLiteral("profile icc monitor display soft proofing"), KisDlgPreferences::Color, 0},
-        {i18nc("settings page", "Memory and Performance"), QStringLiteral("ram swap threads cache instant preview"), KisDlgPreferences::Performance, 0},
-        {i18nc("settings page", "Canvas Display and Acceleration"), QStringLiteral("opengl renderer checkerboard border grid hdr"), KisDlgPreferences::Display, 0},
-        {i18nc("settings page", "Tablet and Pressure"), QStringLiteral("wintab windows ink pen pressure curve"), KisDlgPreferences::Tablet, 0},
-    };
-    Q_FOREACH (const SettingPage &page, pages) {
-        QPointer<KisMainWindow> window = mainWindow;
-        const int pageId = page.page;
-        const int tab = page.tab;
-        d->entries.append({QStringLiteral("setting:%1:%2").arg(pageId).arg(tab), Kind::Setting, page.title,
-                           i18nc("find result detail", "Settings"), page.keywords + QStringLiteral(" preferences configure"),
-                           QString(), KisIconUtils::loadIcon(QStringLiteral("configure-thicker")),
-                           [window, pageId, tab]() {
-                               if (!window) return;
-                               if (QAction *configure = window->actionCollection()->action(QStringLiteral("options_configure"))) {
-                                   configure->setData(QVariantList{pageId, tab});
-                                   configure->trigger();
-                               }
-                           }});
-    }
-
-    // what canvas-only mode hides, each on or off here (no page of its own in the settings)
-    struct CanvasOnly {
-        QString title;
-        bool (KisConfig::*get)(bool) const;
-        void (KisConfig::*set)(bool) const;
-    };
-    const QVector<CanvasOnly> canvasOnly = {
-        {i18nc("canvas-only mode setting", "Canvas-only: hide panels"), &KisConfig::hideDockersFullscreen, &KisConfig::setHideDockersFullscreen},
-        {i18nc("canvas-only mode setting", "Canvas-only: hide menu"), &KisConfig::hideMenuFullscreen, &KisConfig::setHideMenuFullscreen},
-        {i18nc("canvas-only mode setting", "Canvas-only: hide scrollbars"), &KisConfig::hideScrollbarsFullscreen, &KisConfig::setHideScrollbarsFullscreen},
-        {i18nc("canvas-only mode setting", "Canvas-only: hide status bar"), &KisConfig::hideStatusbarFullscreen, &KisConfig::setHideStatusbarFullscreen},
-        {i18nc("canvas-only mode setting", "Canvas-only: hide title bar"), &KisConfig::hideTitlebarFullscreen, &KisConfig::setHideTitlebarFullscreen},
-        {i18nc("canvas-only mode setting", "Canvas-only: hide toolbars"), &KisConfig::hideToolbarFullscreen, &KisConfig::setHideToolbarFullscreen},
-    };
-    for (int i = 0; i < canvasOnly.size(); i++) {
-        const CanvasOnly setting = canvasOnly[i];
-        const bool on = (KisConfig(true).*setting.get)(false);
-        d->entries.append({QStringLiteral("canvasonly:%1").arg(i), Kind::Setting, setting.title,
-                           on ? i18nc("find result detail: a setting that is on", "On") : i18nc("find result detail: a setting that is off", "Off"),
-                           QStringLiteral("fullscreen canvas only mode hide settings"), QString(),
-                           KisIconUtils::loadIcon(QStringLiteral("config-canvas-only")),
-                           [setting]() {
-                               KisConfig cfg(false);
-                               (cfg.*setting.set)(!(cfg.*setting.get)(false));
-                           }});
+    // settings, each card of them; one that is a switch is flipped right in its row
+    Q_FOREACH (const KisStudioSettings::CardInfo &card, KisStudioSettings::cardInfos()) {
+        QPointer<KisStudioFind> self = this;
+        const QString id = card.id;
+        const QString key = QStringLiteral("settings:") + card.id + (card.toggleId.isEmpty() ? QString() : QStringLiteral("/") + card.toggleId);
+        Entry entry{key, Kind::Setting, card.title, card.section,
+                    card.keywords + QStringLiteral(" settings preferences configure"), QString(),
+                    KisIconUtils::loadIcon(QStringLiteral("studio_settings")),
+                    [self, id]() { if (self && self->d->openSettings) self->d->openSettings(id); }};
+        entry.toggleId = card.toggleId;
+        d->entries.append(entry);
     }
 
     // workspaces
@@ -956,6 +937,7 @@ void KisStudioFind::appendResult(int index, const QString &detail)
             || entry.kind == Kind::Panel || entry.kind == Kind::Brush);
     item->setData(pinnable, PinnableRole);
     item->setData(pinnable && d->isOnTools(entry.key), PinnedRole);
+    if (!entry.toggleId.isEmpty() && !d->picker) item->setData(KisSettingsRegistry::instance()->value(entry.toggleId).toBool(), SwitchRole);
     item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
     d->model->appendRow(item);
 }
@@ -1546,6 +1528,10 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
         if ((event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick)
             && mouse->button() == Qt::LeftButton) {
             const QModelIndex at = d->list->indexAt(mouse->pos());
+            if (at.data(SwitchRole).isValid() && switchRect(d->list->visualRect(at)).adjusted(-4, -6, 4, 6).contains(mouse->pos())) {
+                d->switchPress = at;
+                return true;
+            }
             if (at.data(PinnableRole).toBool() && pinRect(d->list->visualRect(at)).adjusted(-4, -4, 4, 4).contains(mouse->pos())) {
                 d->pinPress = at;
                 return true;
@@ -1560,6 +1546,17 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
                 d->capPress = true;
                 return true;
             }
+        }
+        if (event->type() == QEvent::MouseButtonRelease && d->switchPress.isValid()) {
+            const QModelIndex at = d->switchPress;
+            d->switchPress = QModelIndex();
+            const int index = at.data(EntryRole).toInt();
+            if (d->list->indexAt(mouse->pos()) == at && index >= 0 && index < d->entries.size()) {
+                const QString id = d->entries[index].toggleId;
+                KisStudioSettings::flip(id);
+                d->model->setData(at, KisSettingsRegistry::instance()->value(id).toBool(), SwitchRole);
+            }
+            return true;
         }
         if (event->type() == QEvent::MouseButtonRelease && d->capPress) {
             d->capPress = false;

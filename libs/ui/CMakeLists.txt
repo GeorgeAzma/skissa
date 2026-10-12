@@ -454,6 +454,9 @@ set(kritaui_LIB_SRCS
     KisMainWindow.cpp
     KisStudioLayout.cpp
     KisStudioFind.cpp
+    KisStudioSettings.cpp
+    KisSettingsRegistry.cpp
+    KisSettingsTransfer.cpp
     KisStudioHoldKeys.cpp
     KisStudioRings.cpp
     KisStudioCanvasHud.cpp

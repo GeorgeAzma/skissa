@@ -535,6 +535,7 @@ KisMainWindow::KisMainWindow(QUuid uuid)
 
     d->studioFind = new KisStudioFind(this);
     d->studioFind->setPanelOpener([this](QDockWidget *dock) { d->studioLayout->showPanel(dock); });
+    d->studioFind->setSettingsOpener([this](const QString &cardId) { d->studioLayout->openSettings(cardId); });
     d->studioRings = new KisStudioRings(this);
     // a new ring of your own, from Find or the menu: opened, for what goes on it
     QAction *newRing = actionCollection()->addAction(QStringLiteral("studio_ring_new"));
@@ -2955,11 +2956,18 @@ void KisMainWindow::configChanged()
 {
     KisConfig cfg(true);
     QMdiArea::ViewMode viewMode = (QMdiArea::ViewMode)cfg.readEntry<int>("mdi_viewmode", (int)QMdiArea::TabbedView);
-    d->mdiArea->setViewMode(viewMode);
+    /**
+     * The studio layout keeps the documents as it wants them (see
+     * KisStudioLayout::adoptDocuments): switched to tabs and back at every
+     * change of a setting, they flickered, and took the focus from what had
+     * it (Find, whose switch a setting was changed by).
+     */
+    const bool studio = d->studioLayout && d->studioLayout->isActive();
+    if (!studio) d->mdiArea->setViewMode(viewMode);
     //Do it here to avoid the wrong icon briefly flashing
     customizeTabBar();
 
-    Q_FOREACH (QMdiSubWindow *subwin, d->mdiArea->subWindowList()) {
+    Q_FOREACH (QMdiSubWindow *subwin, studio ? QList<QMdiSubWindow *>() : d->mdiArea->subWindowList()) {
         subwin->setOption(QMdiSubWindow::RubberBandMove, cfg.readEntry<int>("mdi_rubberband", cfg.useOpenGL()));
         subwin->setOption(QMdiSubWindow::RubberBandResize, cfg.readEntry<int>("mdi_rubberband", cfg.useOpenGL()));
         if (viewMode == QMdiArea::TabbedView) {

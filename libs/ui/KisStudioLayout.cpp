@@ -57,6 +57,8 @@
 #include "KisStudioBrushPicker.h"
 #include "KisStudioEffectsPicker.h"
 #include "KisStudioPanelPicker.h"
+#include "KisSettingsRegistry.h"
+#include "KisStudioSettings.h"
 #include "KisStudioGlass.h"
 #include <QPainterPath>
 #include "KisView.h"
@@ -874,6 +876,9 @@ protected:
 class PillButton : public QAbstractButton
 {
 public:
+    /// A right click (or a long press) on it
+    std::function<void()> contextClicked;
+
     PillButton(const QString &iconName, const QString &toolTip, QWidget *parent)
         : QAbstractButton(parent)
         , m_iconName(iconName)
@@ -900,6 +905,16 @@ protected:
         }
         const int iconSize = 18;
         KisIconUtils::loadIcon(m_iconName).paint(&painter, QRect((width() - iconSize) / 2, (height() - iconSize) / 2, iconSize, iconSize));
+    }
+
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        if (!contextClicked) {
+            QAbstractButton::contextMenuEvent(event);
+            return;
+        }
+        event->accept();
+        contextClicked();
     }
 
 private:
@@ -1279,6 +1294,8 @@ struct KisStudioLayout::Private
     QPointer<QAction> menuButtonAction;
     QPointer<QWidget> settingsButton;
     QPointer<QAction> settingsButtonAction;
+    /// Settings, under its button
+    QPointer<KisStudioSettings> settings;
     /// The toolbar the find field and document button were put on
     QPointer<QToolBar> placedOnBar;
     /// Toolbar entries that duplicate the top bar's scrubbers, hidden while active
@@ -1473,6 +1490,8 @@ KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
     , d(new Private)
 {
     d->mainWindow = mainWindow;
+    // what the settings were at the start: a change since to one that waits for a restart is pending
+    KisSettingsRegistry::instance();
 
     // a resize ends when the pointer lets go of the separator; save once it has
     d->heightSave = new QTimer(this);
@@ -3183,12 +3202,12 @@ void KisStudioLayout::createTopBar()
 
     auto *settingsButton = new PillButton(QStringLiteral("studio_settings"), i18nc("@info:tooltip", "Settings"), mainWindow);
     settingsButton->hide();
-    connect(settingsButton, &QAbstractButton::clicked, this, [this]() {
-        if (QAction *configure = d->mainWindow->actionCollection()->action(QStringLiteral("options_configure"))) {
-            configure->setData(QVariant());
-            configure->trigger();
-        }
-    });
+    settingsButton->setToolTip(i18nc("@info:tooltip", "Settings · right click: Quick"));
+    settingsButton->setProperty("ownContextMenu", true);
+    connect(settingsButton, &QAbstractButton::clicked, this, [this]() { openSettings(QString(), true); });
+    settingsButton->contextClicked = [this, settingsButton]() {
+        if (d->settings && d->active) d->settings->showQuick(settingsButton);
+    };
     d->settingsButton = settingsButton;
 
     auto *field = new PillButton(QStringLiteral("studio_find"),
@@ -3212,6 +3231,18 @@ void KisStudioLayout::adoptTopBars()
     }
     if (!d->windowHandle) {
         d->windowHandle = new WindowHandle(area);
+    }
+    if (!d->settings) {
+        d->settings = new KisStudioSettings(d->mainWindow, area);
+        // under the window pill, at the right, as tall as the canvas lets it be
+        d->settings->setPlacement([this, area](const QSize &wanted) {
+            const int margin = TopPill::margin;
+            const QRect pill = d->windowPill && d->windowPill->isVisible() ? d->windowPill->geometry() : QRect(area->width() - margin, margin, 0, 0);
+            const int top = pill.bottom() + 1 + margin;
+            const int width = qMin(wanted.width(), area->width() - 2 * margin);
+            const int right = pill.isEmpty() ? area->width() - margin : pill.right() + 1;
+            return QRect(qMax(margin, right - width), top, width, qMax(120, area->height() - top - margin));
+        });
     }
     if (!d->topPill) {
         d->topPill = new TopPill(area, false);
@@ -3301,7 +3332,22 @@ void KisStudioLayout::releaseTopBars()
     if (d->topPill) d->topPill->hide();
     if (d->windowPill) d->windowPill->hide();
     if (d->windowHandle) d->windowHandle->hide();
+    if (d->settings) d->settings->hide();
     updateCanvasInsets();
+}
+
+void KisStudioLayout::openSettings(const QString &cardId, bool toggle)
+{
+    if (d->settings && d->active) {
+        if (toggle && d->settings->isVisible() && cardId.isEmpty()) d->settings->hide();
+        else d->settings->open(cardId);
+        return;
+    }
+    // without the studio layout: the dialog, at the card's page
+    if (QAction *configure = d->mainWindow->actionCollection()->action(QStringLiteral("options_configure"))) {
+        configure->setData(KisStudioSettings::classicPage(cardId));
+        configure->trigger();
+    }
 }
 
 void KisStudioLayout::showMainMenu(QWidget *button)
@@ -3541,8 +3587,8 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
             && !dynamic_cast<KisSelectionActionsPanelButton *>(button)) {
             bool ownCard = false;
             for (QWidget *w = button; w && !ownCard; w = w->parentWidget()) {
-                // these have cards of their own
-                ownCard = w->inherits("KisStudioToolRail") || w == d->rail;
+                // these have cards (or menus) of their own
+                ownCard = w->inherits("KisStudioToolRail") || w == d->rail || w->property("ownContextMenu").toBool();
             }
             KisStudioFind *find = d->mainWindow->studioFind();
             if (!ownCard && find && find->showCard(button)) {
