@@ -10,6 +10,7 @@
 #include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QPointer>
+#include <QTimer>
 
 #include <KoToolManager.h>
 #include <kactioncollection.h>
@@ -88,6 +89,9 @@ protected:
             m_action = action;
             m_wasChecked = action->isChecked();
             m_toolBefore = KoToolManager::instance()->activeToolId();
+            // the tool the key gives, once its action has run on the press
+            m_toolGiven.clear();
+            QTimer::singleShot(0, this, [this]() { m_toolGiven = KoToolManager::instance()->activeToolId(); });
             return false;
         }
 
@@ -116,8 +120,9 @@ private:
         if (!m_action) return;
         const QString tool = KoToolManager::instance()->activeToolId();
         if (!m_toolBefore.isEmpty() && tool != m_toolBefore) {
-            // the tool it gave, given back
-            KoToolManager::instance()->switchToolRequested(m_toolBefore);
+            // the tool it gave, given back; one picked meanwhile by other means stays
+            const bool givenKnown = !m_toolGiven.isEmpty() && m_toolGiven != m_toolBefore;
+            if (!givenKnown || tool == m_toolGiven) KoToolManager::instance()->switchToolRequested(m_toolBefore);
         } else if (m_action->isCheckable() && m_action->isChecked() != m_wasChecked) {
             m_action->trigger();
         }
@@ -156,6 +161,7 @@ private:
     QPointer<QAction> m_action;
     bool m_wasChecked {false};
     QString m_toolBefore;
+    QString m_toolGiven;
 };
 
 } // namespace
