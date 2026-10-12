@@ -162,6 +162,41 @@ void main()
 }
 )";
 
+const char *const shapeSource = R"(
+// how far outside a shape (its middle and half its size, s; its corners, c) p is, in pixels (inside,
+// less than 0), and which way is out there: its squircle corners are each a quarter of a
+// superellipse, |x|^n + |y|^n = reach^n
+float outsideOf(vec2 p, vec4 shape, vec2 corner, out vec2 normal)
+{
+    vec2 from = p - shape.xy;
+    vec2 side = vec2(from.x < 0.0 ? -1.0 : 1.0, from.y < 0.0 ? -1.0 : 1.0);
+    vec2 q = abs(from) - (shape.zw - corner.x);
+    if (q.x <= 0.0 || q.y <= 0.0) {
+        normal = q.x > q.y ? vec2(side.x, 0.0) : vec2(0.0, side.y);
+        return max(q.x, q.y) - corner.x;
+    }
+    float n = corner.y;
+    vec2 a = pow(q, vec2(n));
+    float f = pow(a.x + a.y, 1.0 / n);
+    // the distance to f = reach, about: f over how fast it grows
+    vec2 gradient = pow(q / f, vec2(n - 1.0));
+    normal = normalize(gradient) * side;
+    return (f - corner.x) / length(gradient);
+}
+
+// the bevel d pixels in from the rim, w wide, h thick: its height over the underside, and its
+// slope. A quarter of a superellipse of exponent 4: steep at the rim, flat where the face is,
+// without a crease there
+vec2 profile(float d, float w, float h)
+{
+    float u = 1.0 - clamp(d / w, 0.0, 1.0);
+    float u3 = u * u * u;
+    float k = max(1.0 - u3 * u, 1e-5);
+    return vec2(h * pow(k, 0.25), h / w * u3 * pow(k, -0.75));
+}
+
+)";
+
 /**
  * A glass panel's quad, and how strongly it is tinted: as much as what is
  * behind the whole panel needs, for what is on it to read (a bright canvas
@@ -284,42 +319,10 @@ float within(float d, float crossing)
     return mix(1.0, max(erf(d / (sigma * 1.41421356)), 0.0), crossing);
 }
 
-// how far outside a shape (its middle and half its size, s; its corners, c) p is, in pixels (inside,
-// less than 0), and which way is out there: its squircle corners are each a quarter of a
-// superellipse, |x|^n + |y|^n = reach^n
-float outsideOf(vec2 p, vec4 shape, vec2 corner, out vec2 normal)
-{
-    vec2 from = p - shape.xy;
-    vec2 side = vec2(from.x < 0.0 ? -1.0 : 1.0, from.y < 0.0 ? -1.0 : 1.0);
-    vec2 q = abs(from) - (shape.zw - corner.x);
-    if (q.x <= 0.0 || q.y <= 0.0) {
-        normal = q.x > q.y ? vec2(side.x, 0.0) : vec2(0.0, side.y);
-        return max(q.x, q.y) - corner.x;
-    }
-    float n = corner.y;
-    vec2 a = pow(q, vec2(n));
-    float f = pow(a.x + a.y, 1.0 / n);
-    // the distance to f = reach, about: f over how fast it grows
-    vec2 gradient = pow(q / f, vec2(n - 1.0));
-    normal = normalize(gradient) * side;
-    return (f - corner.x) / length(gradient);
-}
-
 // of this glass' own shape
 float outside(vec2 p, out vec2 normal)
 {
     return outsideOf(p, shape, corner, normal);
-}
-
-// the bevel d pixels in from the rim, w wide, h thick: its height over the underside, and its
-// slope. A quarter of a superellipse of exponent 4: steep at the rim, flat where the face is,
-// without a crease there
-vec2 profile(float d, float w, float h)
-{
-    float u = 1.0 - clamp(d / w, 0.0, 1.0);
-    float u3 = u * u * u;
-    float k = max(1.0 - u3 * u, 1e-5);
-    return vec2(h * pow(k, 0.25), h / w * u3 * pow(k, -0.75));
 }
 
 // the bevel over the pixel d in from the edge: its height there and its slope over all of the pixel
@@ -600,6 +603,76 @@ void main()
 )";
 
 /**
+ * Caustics: a lamp at the top left shines through each panel, held over the
+ * canvas, so the light that went through it lands shifted toward the bottom
+ * right, partly beside the panel. The flat face passes it evenly; the bevel,
+ * a lens that gathers, squeezes the light through it into a narrower band
+ * where the panel's light ends: a bright line there, each color bent its own
+ * way (a prism's fringe). Light is followed through the glass as the eye's
+ * rays are (see trace): into the face, down to the flat underside, out of it
+ * and across the gap. Only what is more than the lamp alone gives is
+ * screened over what is drawn; the panels are drawn over it.
+ */
+const char *const causticSource = R"(
+uniform vec4 shape;
+uniform vec2 corner;
+uniform vec3 bevel;
+uniform vec3 ior;
+uniform vec3 lamp;
+uniform vec3 light;
+uniform bool encode;
+
+void main()
+{
+    vec2 p = gl_FragCoord.xy;
+    vec2 out2d;
+    float t = outsideOf(p, shape, corner, out2d);
+    if (t <= 0.0) {
+        discard;
+    }
+    float w = min(bevel.x, min(corner.x, min(shape.z, shape.w)));
+    if (w < 0.5) {
+        discard;
+    }
+    float h = bevel.y * w / max(bevel.x, 1e-3);
+    // how far out the light through the flat face lands, past where it went in: so far, the panel's light, and
+    // beyond, the lamp's own; between them, the bevel's
+    float straight = dot(lamp.xy, out2d) / max(-lamp.z, 1e-3) * (h + bevel.z);
+    float even = (t < straight - w ? 1.0 : 0.0) + (t > straight ? 1.0 : 0.0);
+    // the bevel in steps across its width, each a strip of light; where the strips crowd, the line
+    const int steps = 40;
+    float dx = w / float(steps);
+    vec3 gathered = vec3(0.0);
+    for (int c = 0; c < 3; c++) {
+        float sum = 0.0;
+        float before = -1e6;
+        for (int k = 0; k < steps; k++) {
+            float x = (float(k) + 0.5) * dx;
+            vec2 bend = profile(x, w, h);
+            vec3 normal = normalize(vec3(out2d * bend.y, 1.0));
+            vec3 r = refract(lamp, normal, 1.0 / ior[c]);
+            if (r.z >= 0.0) continue;
+            vec2 offset = r.xy / -r.z * bend.x;
+            vec3 o = refract(r, vec3(0.0, 0.0, 1.0), ior[c]);
+            if (o.z >= 0.0) continue;
+            offset += o.xy / -o.z * bevel.z;
+            // how far past the rim it lands, from the strip's own place x in from it; each strip as wide as
+            // the gap to the one before, so that strips spread apart still make an even band
+            float landing = dot(offset, out2d) - x;
+            float width = clamp(abs(landing - before), 0.7, 8.0);
+            before = landing;
+            float e = (landing - t) / width;
+            sum += dx * exp(-0.5 * e * e) / (width * 2.5066283);
+        }
+        gathered[c] = max(sum + even - 1.0, 0.0);
+    }
+    // fading with how far it lands, as light spreads
+    vec3 added = light * gathered * exp(-t / (2.0 * w));
+    fragColor = vec4(encode ? toSrgb(added) : added, 1.0);
+}
+)";
+
+/**
  * The ambient light: the canvas made sixteen times smaller (every other pixel
  * of each 16 x 16), only where the image is (toImage takes a pixel to the
  * image's own coordinates, 0 to 1 across it): its light, in linear, and how
@@ -748,19 +821,23 @@ struct Programs {
     Program shrink;
     Program blur;
     Program glass;
+    Program caustic;
     Program ambientShrink;
     Program ambient;
     bool valid {false};
 
     void make()
     {
+        static const QByteArray glassFragment = QByteArray(shapeSource) + glassSource;
+        static const QByteArray causticFragment = QByteArray(shapeSource) + causticSource;
         valid = shrink.make(quadSource, shrinkSource, {"rect", "source", "shift", "factor", "decode", "salience", "power", "statistics"})
             && blur.make(quadSource, blurSource, {"rect", "source", "slot", "direction", "taps", "weights"})
-            && glass.make(glassVertexSource, glassSource,
+            && glass.make(glassVertexSource, glassFragment.constData(),
                           {"rect", "blurred", "statistics", "shift", "slot", "restore", "power",
                            "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
                            "beyond", "spacing", "dither", "veil", "bevel", "polish", "clearing", "ior", "under", "decode", "reach",
                            "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"})
+            && caustic.make(quadSource, causticFragment.constData(), {"rect", "shape", "corner", "bevel", "ior", "lamp", "light", "encode"})
             && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
             && ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"});
     }
@@ -1143,11 +1220,45 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     }
 
     d->timing.mark();
-    // the glass, over what is drawn
     f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(target));
     f->glViewport(0, 0, viewport.width(), viewport.height());
-    scissor(drawn);
+    const KisStudioGlass::Bevel bevel = KisStudioGlass::bevel();
+    const QVector3D ior = refractiveIndices(bevel.abbeNumber);
     f->glEnable(GL_BLEND);
+
+    // the caustics, added beside the panels
+    if (bevel.width > 0) {
+        // the lamp: up and to the left, its light going down to the bottom right (y is up here)
+        const QVector3D lamp = QVector3D(0.42f, -0.42f, -1.0f).normalized();
+        const qreal tilt = std::hypot(lamp.x(), lamp.y()) / -lamp.z();
+        const qreal margin = (bevel.width + (bevel.thickness + bevel.lift) * (tilt + 0.6)) * pixelRatio + 4;
+        QRect around;
+        for (const Surface &surface : surfaces) around |= surface.rect.adjusted(-margin, -margin, margin, margin).toAlignedRect();
+        scissor((clip.isEmpty() ? whole : clip & whole) & around);
+        // screened over what is there: bright on a dark canvas, faint on a light one, never burnt out to white
+        f->glBlendFuncSeparate(GL_ONE_MINUS_DST_COLOR, GL_ONE, GL_ZERO, GL_ONE);
+        d->caustic->bind();
+        f->glUniform3f(d->caustic["bevel"], bevel.width * pixelRatio, bevel.thickness * pixelRatio, bevel.lift * pixelRatio);
+        f->glUniform3f(d->caustic["ior"], ior.x(), ior.y(), ior.z());
+        f->glUniform3f(d->caustic["lamp"], lamp.x(), lamp.y(), lamp.z());
+        // a warm lamp, its light at the line about a tenth of white's
+        f->glUniform3f(d->caustic["light"], 0.11f, 0.105f, 0.095f);
+        f->glUniform1i(d->caustic["encode"], !linearCanvas);
+        for (int i = 0; i < surfaces.size(); i++) {
+            const Surface &surface = surfaces[i];
+            if (surface.opacity <= 0 || regions[i].around.isEmpty()) continue;
+            const QRectF r = surface.rect;
+            const QRectF quad = r.adjusted(-margin, -margin, margin, margin);
+            f->glUniform4f(d->caustic["rect"], quad.left() / viewport.width() * 2 - 1, quad.top() / viewport.height() * 2 - 1,
+                           quad.right() / viewport.width() * 2 - 1, quad.bottom() / viewport.height() * 2 - 1);
+            f->glUniform4f(d->caustic["shape"], r.center().x(), r.center().y(), r.width() / 2, r.height() / 2);
+            f->glUniform2f(d->caustic["corner"], surface.reach, surface.exponent);
+            f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        }
+    }
+
+    // the glass, over what is drawn
+    scissor(drawn);
     f->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
     d->glass->bind();
     f->glUniform1i(d->glass["blurred"], 0);
@@ -1161,11 +1272,9 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1f(d->glass["veil"], KisStudioGlass::veil);
     f->glUniform2f(d->glass["viewport"], viewport.width(), viewport.height());
     f->glUniform1f(d->glass["dither"], dither);
-    const KisStudioGlass::Bevel bevel = KisStudioGlass::bevel();
     f->glUniform3f(d->glass["bevel"], bevel.width * pixelRatio, bevel.thickness * pixelRatio, bevel.lift * pixelRatio);
     f->glUniform1f(d->glass["polish"], bevel.polish);
     f->glUniform1f(d->glass["clearing"], bevel.clear);
-    const QVector3D ior = refractiveIndices(bevel.abbeNumber);
     f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
     f->glUniform1f(d->glass["lowerStrength"], float(0.5 * (KisStudioGlass::tintOverDark() + KisStudioGlass::tintOverBright())));
     f->glActiveTexture(GL_TEXTURE2);
