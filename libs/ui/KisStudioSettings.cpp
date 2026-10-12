@@ -110,6 +110,18 @@ struct Busy {
     ~Busy() { cardsBusy--; }
 };
 
+/// A dialog a card opened (a color's) is up: rebuilding would close it, as if canceled
+bool cardDialogOpen()
+{
+    Q_FOREACH (QWidget *top, QApplication::topLevelWidgets()) {
+        if (!qobject_cast<QDialog *>(top) || !top->isVisible()) continue;
+        for (QWidget *w = top->parentWidget(); w; w = w->parentWidget()) {
+            if (w->objectName() == QLatin1String("studioSettingsCard")) return true;
+        }
+    }
+    return false;
+}
+
 constexpr int railWidth = 150;
 constexpr int bodyWidth = 470;
 constexpr int quickWidth = 430;
@@ -1596,11 +1608,25 @@ public:
         refresh();
     }
 
+    ~Card() override
+    {
+        // what goes with it can still speak (a color dialog closing sets the color back): not to a card half gone
+        Q_FOREACH (QWidget *child, findChildren<QWidget *>()) child->blockSignals(true);
+        disconnect(R::instance(), nullptr, this, nullptr);
+        disconnect(KisConfigNotifier::instance(), nullptr, this, nullptr);
+    }
+
     const CardDef &def() const { return m_def; }
 
     void refresh()
     {
-        for (const auto &f : m_builder.refresh) f();
+        // one of them can end up rebuilding the cards, this one too
+        const QPointer<Card> alive(this);
+        const QVector<std::function<void()>> followers = m_builder.refresh;
+        for (const auto &f : followers) {
+            f();
+            if (!alive) return;
+        }
         m_mark->setVisible(cardChanged(m_def));
     }
 
@@ -2108,7 +2134,7 @@ public:
 
     void rebuild()
     {
-        if (cardsBusy) {
+        if (cardsBusy || cardDialogOpen()) {
             QTimer::singleShot(50, this, [this]() { rebuild(); });
             return;
         }
@@ -2453,8 +2479,8 @@ struct KisStudioSettings::Private
     /// The cards of what is shown now
     void rebuild()
     {
-        if (cardsBusy) {
-            // once the card's drag or menu is over
+        if (cardsBusy || cardDialogOpen()) {
+            // once the card's drag, menu or dialog is over
             QTimer::singleShot(50, q, [this]() { rebuild(); });
             return;
         }
