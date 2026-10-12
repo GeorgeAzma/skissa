@@ -209,6 +209,8 @@ private:
     KisNodeSP m_previewNode;
     KisImageWSP m_previewImage;
     QString m_previewOriginalOp;
+    /// The mode hovered while the image was busy: tried again until it shows
+    QString m_pendingPreviewOp;
     KisNodeWSP m_savedNodeBeforeEditSelectionMode;
     KisSignalAutoConnectionsStore m_activeNodeConnections;
     QScopedPointer<KisScreenMigrationTracker> m_screenMigrationTracker;

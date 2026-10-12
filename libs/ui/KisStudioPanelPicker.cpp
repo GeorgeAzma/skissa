@@ -208,7 +208,7 @@ static KisStudioPicker::Source panelsSource(std::shared_ptr<KisStudioPanelPicker
     source.tiles = true;
     source.tileSize = tileSize;
     source.yoursTitle = i18nc("panels group: the ones on the rail", "On the rail");
-    source.searchPlaceholder = i18nc("@info:placeholder", "Search all panels");
+    source.searchPlaceholder = i18nc("@info:placeholder", "Search panels");
     // the number goes in later: %1 passes through
     source.allLabel = i18nc("@action:button %1 is a number", "All %1 panels", QStringLiteral("%1"));
     return source;

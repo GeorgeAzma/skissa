@@ -359,7 +359,7 @@ KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures)
         };
     }
     source.yoursTitle = i18nc("blend mode group", "Your modes");
-    source.searchPlaceholder = i18nc("@info:placeholder", "Search all %1 blend modes", allOps().size());
+    source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 blend modes", allOps().size());
     // the number goes in later: %1 passes through
     source.allLabel = i18nc("@action:button %1 is a number", "All %1 modes", QStringLiteral("%1"));
     return source;

@@ -496,10 +496,6 @@ public:
         : DragGrip(parent)
     {
         setProperty("studioTapGrip", true);
-        m_tap.setSingleShot(true);
-        // a tap waits for a second click, which makes it a double click
-        m_tap.setInterval(QApplication::doubleClickInterval());
-        QObject::connect(&m_tap, &QTimer::timeout, this, [this]() { if (tapped) tapped(); });
     }
 
 protected:
@@ -519,7 +515,6 @@ protected:
         if (!m_pressed || !(event->buttons() & Qt::LeftButton)) return;
         if ((globalMousePos(event) - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
         m_pressed = false;
-        m_tap.stop();
         QWidget *top = window();
         // the system moves the window, as by a title bar (a full screen one stays)
         if (!top->isFullScreen() && top->windowHandle()) top->windowHandle()->startSystemMove();
@@ -533,13 +528,15 @@ protected:
             m_doubleClicked = false;
             return;
         }
-        if (rect().contains(event->pos())) m_tap.start();
+        // at once, not after waiting to see whether a second click comes
+        if (rect().contains(event->pos()) && tapped) tapped();
     }
 
     void mouseDoubleClickEvent(QMouseEvent *event) override
     {
         if (event->button() != Qt::LeftButton) return;
-        m_tap.stop();
+        // the first click's tap taken back
+        if (tapped) tapped();
         m_pressed = true;
         m_doubleClicked = true;
         QWidget *top = window();
@@ -549,7 +546,6 @@ protected:
     }
 
 private:
-    QTimer m_tap;
     QPoint m_pressPos;
     bool m_pressed {false};
     bool m_doubleClicked {false};
@@ -1629,6 +1625,8 @@ void KisStudioLayout::enter()
     if (!d->canvasRing) {
         d->canvasRing = new KisStudioCanvasRing(mainWindow);
     }
+    // the brushes (a tenth of a second to read) ready before the first right press or brush chip scroll needs them
+    QTimer::singleShot(3000, this, []() { KisStudioBrushPicker::yourBrushes(); });
     // the buttons' shortcuts work from the start, not only once Find was opened
     QTimer::singleShot(0, this, [this]() {
         if (KisStudioFind *find = d->mainWindow->studioFind()) find->registerButtons();

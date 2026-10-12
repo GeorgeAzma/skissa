@@ -219,10 +219,10 @@ KisStudioPicker::Source effectsSource(KisMainWindow *mainWindow, std::shared_ptr
     };
     source.recent = []() { return KisConfig(true).readEntry<QStringList>(recentKey, QStringList()); };
     source.tiles = true;
-    // making the canvas preview is slow for some: only once the pointer rests
-    source.previewDelay = 280;
+    // only once the pointer rests on one, not for each it passes (a coarse preview shows within a frame or two)
+    source.previewDelay = 150;
     source.yoursTitle = i18nc("effect group", "Your effects");
-    source.searchPlaceholder = i18nc("@info:placeholder", "Search all %1 effects", ids.size());
+    source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 effects", ids.size());
     // the number goes in later: %1 passes through
     source.allLabel = i18nc("@action:button %1 is a number", "All %1 effects", QStringLiteral("%1"));
     return source;

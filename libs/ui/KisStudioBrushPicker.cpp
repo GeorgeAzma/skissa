@@ -5,6 +5,7 @@
  */
 #include "KisStudioBrushPicker.h"
 
+#include <QApplication>
 #include <QElapsedTimer>
 #include <QFuture>
 #include <QMutex>
@@ -22,6 +23,8 @@
 
 #include <KisGlobalResourcesInterface.h>
 #include <KisResourceModel.h>
+#include <KisResourceModelProvider.h>
+#include <KisTagResourceModel.h>
 #include <KisResourceTypes.h>
 #include <KisTagFilterResourceProxyModel.h>
 #include <KisTagModel.h>
@@ -192,6 +195,29 @@ std::shared_ptr<Catalog> loadCatalog()
     return catalog;
 }
 
+/// The catalog, made again only once the brushes or their tags changed (a ring, a scroll on the brush chip, need it at once)
+std::shared_ptr<Catalog> catalog()
+{
+    static std::shared_ptr<Catalog> cached;
+    static bool watching = false;
+    if (!watching) {
+        watching = true;
+        const auto drop = []() { cached.reset(); };
+        const QList<QAbstractItemModel *> models{KisResourceModelProvider::resourceModel(ResourceType::PaintOpPresets),
+                                                 KisResourceModelProvider::tagResourceModel(ResourceType::PaintOpPresets)};
+        Q_FOREACH (QAbstractItemModel *model, models) {
+            if (!model) continue;
+            QObject::connect(model, &QAbstractItemModel::modelReset, qApp, drop);
+            QObject::connect(model, &QAbstractItemModel::layoutChanged, qApp, drop);
+            QObject::connect(model, &QAbstractItemModel::rowsInserted, qApp, drop);
+            QObject::connect(model, &QAbstractItemModel::rowsRemoved, qApp, drop);
+            QObject::connect(model, &QAbstractItemModel::dataChanged, qApp, drop);
+        }
+    }
+    if (!cached) cached = loadCatalog();
+    return cached;
+}
+
 /// Yours until you change them: the pop-up palette's favorites, or a few for every kind of work
 QStringList initialBrushes()
 {
@@ -226,7 +252,7 @@ QColor paperFor(const QColor &paint)
 std::shared_ptr<KisStudioBrushStrokes> makeStrokes()
 {
     auto strokes = std::make_shared<KisStudioBrushStrokes>();
-    strokes->catalog = loadCatalog();
+    strokes->catalog = catalog();
     return strokes;
 }
 
@@ -479,7 +505,16 @@ protected:
         const int columns = width() / cellWidth;
         const int rows = (height() - 22) / cellHeight;
         QVector<QVector<QString>> taken(rows, QVector<QString>(columns));
-        m_cells.clear();
+        // pointed at: none moves under the pointer (a click would take another), the new ones go where there is room
+        const bool keep = underMouse() && !m_cells.isEmpty();
+        if (keep) {
+            for (auto it = m_cells.constBegin(); it != m_cells.constEnd(); ++it) {
+                const int x = it->x() / cellWidth, y = (it->y() - 18) / cellHeight;
+                if (x >= 0 && y >= 0 && x < columns && y < rows) taken[y][x] = it.key();
+            }
+        } else {
+            m_cells.clear();
+        }
 
         // yours first, in your order: their places are the most exact
         QStringList order;
@@ -489,6 +524,7 @@ protected:
 
         const qreal n = qMax(1, ids.size() - 1);
         Q_FOREACH (const QString &id, order) {
+            if (keep && m_cells.contains(id)) continue;
             const int cx = qRound(bySoft.indexOf(id) / n * (columns - 1));
             const int cy = qRound(byTexture.indexOf(id) / n * (rows - 1));
             // the nearest free cell, ring by ring
@@ -601,6 +637,8 @@ protected:
     void leaveEvent(QEvent *) override
     {
         m_hover.clear();
+        // placed again, each where it belongs among all of them
+        m_placedFor = -1;
         update();
     }
 
@@ -731,6 +769,12 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
             strokes->spent << job;
         }
         strokes->finished = true;
+        // what the jobs hold (presets, an image) let go of in the GUI thread, also once the picker is gone
+        QMetaObject::invokeMethod(qApp, [strokes]() {
+            QMutexLocker locker(&strokes->mutex);
+            strokes->queue.clear();
+            strokes->spent.clear();
+        }, Qt::QueuedConnection);
     });
 
     d->feed.setInterval(0);
@@ -818,9 +862,8 @@ void KisStudioBrushPicker::Private::feedSome()
 
 KisStudioBrushPicker::~KisStudioBrushPicker()
 {
-    // the worker stops after the brush it is painting; what it holds goes here, in the GUI thread
+    // the worker stops after the brush it is painting, not waited for: it hands what it holds back to the GUI thread
     d->strokes->cancelled = true;
-    d->worker.waitForFinished();
     QMutexLocker locker(&d->strokes->mutex);
     d->strokes->queue.clear();
     d->strokes->spent.clear();
@@ -839,7 +882,7 @@ void KisStudioBrushPicker::recordUse(const QString &presetName)
 
 QString KisStudioBrushPicker::neighbour(KisMainWindow *, const QString &current, int step)
 {
-    const QStringList yours = pinnedIds(brushSource(loadCatalog(), nullptr));
+    const QStringList yours = pinnedIds(brushSource(catalog(), nullptr));
     if (yours.isEmpty()) {
         return QString();
     }
@@ -871,10 +914,10 @@ QImage KisStudioBrushPicker::strokePicture(const QString &presetName)
 
 QStringList KisStudioBrushPicker::yourBrushes()
 {
-    return pinnedIds(brushSource(loadCatalog(), nullptr));
+    return pinnedIds(brushSource(catalog(), nullptr));
 }
 
 void KisStudioBrushPicker::setYourBrushes(const QStringList &presetNames)
 {
-    setPinnedIds(brushSource(loadCatalog(), nullptr), presetNames);
+    setPinnedIds(brushSource(catalog(), nullptr), presetNames);
 }

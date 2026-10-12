@@ -1405,14 +1405,23 @@ void LayerBox::slotPreviewBlendMode(const QString &id)
             m_previewOriginalOp = m_activeNode->compositeOpId();
         }
         // the merge threads read the op: change it only while they are stopped,
-        // and skip a hover rather than wait for a heavy update to finish
+        // and try again in a moment rather than wait for a heavy update to finish
         KisImageSP image = m_previewImage;
-        if (m_previewNode->compositeOpId() != id && image && image->tryBarrierLock()) {
-            m_previewNode->setCompositeOpId(id);
-            image->unlock();
-            m_previewNode->setDirty();
+        m_pendingPreviewOp.clear();
+        if (m_previewNode->compositeOpId() != id && image) {
+            if (image->tryBarrierLock()) {
+                m_previewNode->setCompositeOpId(id);
+                image->unlock();
+                m_previewNode->setDirty();
+            } else {
+                m_pendingPreviewOp = id;
+                QTimer::singleShot(16, this, [this, id]() {
+                    if (m_pendingPreviewOp == id) slotPreviewBlendMode(id);
+                });
+            }
         }
     } else if (m_previewNode) {
+        m_pendingPreviewOp.clear();
         // the image the preview was made in, even if another one is shown now
         KisImageSP image = m_previewImage;
         if (m_previewNode->compositeOpId() != m_previewOriginalOp && image) {
