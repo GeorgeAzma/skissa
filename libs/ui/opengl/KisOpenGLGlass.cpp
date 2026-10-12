@@ -14,6 +14,7 @@
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
 #include <QOpenGLVertexArrayObject>
+#include <QSharedPointer>
 #include <QTransform>
 #include <QVector3D>
 #include <QVector4D>
@@ -155,21 +156,28 @@ void main()
 }
 )";
 
-/// A level from the one before at half size: an 8 x 8 gaussian in 4 x 4 bilinear reads (offsets, weights)
+/**
+ * A level from the one before at half size: an 8 x 8 gaussian in 4 x 4 bilinear reads (offsets, weights).
+ * The one before is at from (origin, size) in source, this one at to in what is drawn into.
+ */
 const char *const halveSource = R"(
 uniform sampler2D source;
+uniform vec4 from;
+uniform vec2 to;
 uniform vec4 taps;
 
 void main()
 {
     vec2 size = vec2(textureSize(source, 0));
-    vec2 middle = 2.0 * floor(gl_FragCoord.xy) + 1.0;
+    vec2 middle = 2.0 * floor(gl_FragCoord.xy - to) + 1.0;
     vec4 offsets = vec4(-taps.y, -taps.x, taps.x, taps.y);
     vec4 weights = vec4(taps.w, taps.z, taps.z, taps.w);
     vec4 sum = vec4(0.0);
     for (int y = 0; y < 4; y++) {
         for (int x = 0; x < 4; x++) {
-            sum += weights[x] * weights[y] * textureLod(source, (middle + vec2(offsets[x], offsets[y])) / size, 0.0);
+            // clamped to the level's edges, as if it were a texture of its own
+            vec2 at = clamp(middle + vec2(offsets[x], offsets[y]), vec2(0.5), from.zw - 0.5);
+            sum += weights[x] * weights[y] * textureLod(source, (from.xy + at) / size, 0.0);
         }
     }
     fragColor = sum;
@@ -178,22 +186,28 @@ void main()
 
 /// Reads a level through a cubic B-spline; a blur of any width mixes the two nearest levels by rise()
 const char *const levelsSource = R"(
-uniform sampler2D level0;
-uniform sampler2D level1;
-uniform sampler2D level2;
-uniform sampler2D level3;
-uniform sampler2D level4;
-uniform sampler2D level5;
-uniform sampler2D level6;
-uniform sampler2D level7;
+// the levels, the even ones in one texture and the odd ones in another, each at levelRect (origin, size)
+uniform sampler2D evenLevels;
+uniform sampler2D oddLevels;
+uniform vec4 levelRect[8];
 uniform float levelLambda[8];
 uniform int levelCount;
 uniform float power;
 
-vec4 bspline(sampler2D level, vec2 q, float scale)
+// level k read bilinearly at t (its pixels), clamped to its edges as if it were a texture of its own
+vec4 readLevel(int k, vec2 t)
 {
-    vec2 size = vec2(textureSize(level, 0));
-    vec2 t = q * scale - 0.5;
+    vec4 r = levelRect[k];
+    vec2 at = r.xy + clamp(t, vec2(0.5), r.zw - 0.5);
+    return (k & 1) == 0 ? textureLod(evenLevels, at / vec2(textureSize(evenLevels, 0)), 0.0)
+                        : textureLod(oddLevels, at / vec2(textureSize(oddLevels, 0)), 0.0);
+}
+
+// level k at q (surface pixels) through a cubic B-spline, in four bilinear reads
+vec4 levelAt(int k, vec2 q)
+{
+    int size = 1 << k;
+    vec2 t = q / float(size) - 0.5;
     vec2 i = floor(t);
     vec2 f = t - i;
     vec2 g = 1.0 - f;
@@ -202,22 +216,10 @@ vec4 bspline(sampler2D level, vec2 q, float scale)
     vec2 w3 = f * f * f / 6.0;
     vec2 a = w0 + w1;
     vec2 b = 1.0 - a;
-    vec2 at0 = (i - 0.5 + w1 / a) / size;
-    vec2 at1 = (i + 1.5 + w3 / max(b, 1e-6)) / size;
-    return a.y * (a.x * textureLod(level, at0, 0.0) + b.x * textureLod(level, vec2(at1.x, at0.y), 0.0))
-        + b.y * (a.x * textureLod(level, vec2(at0.x, at1.y), 0.0) + b.x * textureLod(level, at1, 0.0));
-}
-
-vec4 levelAt(int k, vec2 q)
-{
-    if (k <= 0) return bspline(level0, q, 1.0);
-    if (k == 1) return bspline(level1, q, 0.5);
-    if (k == 2) return bspline(level2, q, 0.25);
-    if (k == 3) return bspline(level3, q, 0.125);
-    if (k == 4) return bspline(level4, q, 0.0625);
-    if (k == 5) return bspline(level5, q, 0.03125);
-    if (k == 6) return bspline(level6, q, 0.015625);
-    return bspline(level7, q, 0.0078125);
+    vec2 at0 = i - 0.5 + w1 / a;
+    vec2 at1 = i + 1.5 + w3 / max(b, 1e-6);
+    return a.y * (a.x * readLevel(k, at0) + b.x * readLevel(k, vec2(at1.x, at0.y)))
+        + b.y * (a.x * readLevel(k, vec2(at0.x, at1.y)) + b.x * readLevel(k, at1));
 }
 
 // the canvas at q (surface pixels) blurred as a gaussian of sigma 2^lambda (pixels) blurs it, in Oklab
@@ -229,7 +231,8 @@ vec3 seenAt(vec2 q, float lambda)
         if (i < levelCount - 1 && lambda >= levelLambda[i]) k = i;
     }
     float s = rise((lambda - levelLambda[k]) / (levelLambda[k + 1] - levelLambda[k]));
-    vec4 m = s < 1e-6 ? levelAt(k, q) : s > 1.0 - 1e-6 ? levelAt(k + 1, q) : mix(levelAt(k, q), levelAt(k + 1, q), s);
+    vec4 m = levelAt(s > 1.0 - 1e-6 ? k + 1 : k, q);
+    if (s >= 1e-6 && s <= 1.0 - 1e-6) m = mix(m, levelAt(k + 1, q), s);
     return vec3(pow(max(m.x / max(m.a, 1e-5), 0.0), 1.0 / power), m.yz / max(m.a, 1e-5) - 0.5);
 }
 )";
@@ -269,15 +272,13 @@ void main()
 
     // mean lightness behind, from the widest level on a grid as fine as the blur (12 x 12 at most): no flicker
     ivec2 count = clamp(ivec2(ceil(2.0 * shape.zw / spacing)), ivec2(1), ivec2(12));
-    float scale = exp2(-float(levelCount - 1));
+    int widest = levelCount - 1;
+    int size = 1 << widest;
     vec4 sum = vec4(0.0);
     for (int y = 0; y < count.y; y++) {
         for (int x = 0; x < count.x; x++) {
             vec2 q = shape.xy + shape.zw * (2.0 * (vec2(x, y) + 0.5) / vec2(count) - 1.0);
-            vec4 m = levelCount > 7 ? textureLod(level7, q * scale / vec2(textureSize(level7, 0)), 0.0)
-                : levelCount > 6 ? textureLod(level6, q * scale / vec2(textureSize(level6, 0)), 0.0)
-                : levelCount > 5 ? textureLod(level5, q * scale / vec2(textureSize(level5, 0)), 0.0)
-                : textureLod(level4, q * scale / vec2(textureSize(level4, 0)), 0.0);
+            vec4 m = readLevel(widest, q / float(size));
             sum += vec4(pow(max(m.x / max(m.a, 1e-5), 0.0), 1.0 / power), 0.0, 0.0, 1.0);
         }
     }
@@ -461,26 +462,34 @@ void main()
     }
     float seenLambda = 0.5 * log2(sigma2 + 0.25 * squeeze * squeeze);
 
-    vec3 light;
-    if (b.y > 0.0) {
-        for (int i = 0; i < 3; i++) {
-            vec2 q = p - normal2d * bend(b.y, b.x, ior[i]);
-            light[i] = max(fromOklab(mix(tintLab, throughLower(seenAt(q, seenLambda), q, sigma), canvas)), 0.0)[i];
-        }
-    } else {
-        light = max(fromOklab(mix(tintLab, throughLower(seenAt(p, seenLambda), p, sigma), canvas)), 0.0);
+    // where steep, the face reflects the canvas around the panel (Fresnel), as frosted as the face, from r
+    float c = inversesqrt(1.0 + b.y * b.y);
+    float s = b.y * c;
+    float down = 1.0 - 2.0 * c * c;
+    vec2 r = p + normal2d * (2.0 * c * s) * (b.x + bevel.z) * inversesqrt(down * down + 0.25);
+
+    // the rays: on the face one straight through; on the bevel one per color (dispersion), then the reflected
+    // one. A loop whose count is known only when drawing: its body is compiled once, not once per ray (the
+    // Direct3D compiler under ANGLE takes seconds over every copy)
+    int rays = b.y > 0.0 ? 4 : 1;
+    vec3 light = vec3(0.0);
+    vec3 mirrored = vec3(0.0);
+    for (int i = 0; i < rays; i++) {
+        bool reflection = i == 3;
+        vec2 q = reflection ? r : b.y > 0.0 ? p - normal2d * bend(b.y, b.x, ior[i]) : p;
+        vec3 lab = seenAt(q, reflection ? frostLambda : seenLambda);
+        if (!reflection) lab = mix(tintLab, throughLower(lab, q, sigma), canvas);
+        vec3 seen = max(fromOklab(lab), 0.0);
+        if (reflection) mirrored = seen;
+        else if (rays == 1) light = seen;
+        else light[i] = seen[i];
     }
     // thinner toward the rim, the glass tints less (Beer-Lambert): a band along the edge
     vec3 color = tintedLab(toOklab(light), tintLab, strength * mix(0.3, 1.0, bevelled ? b.x / h : 1.0));
     if (b.y > 0.0) {
-        // where steep, the face reflects the canvas around the panel (Fresnel), as frosted as the face
-        float c = inversesqrt(1.0 + b.y * b.y);
-        float s = b.y * c;
-        float down = 1.0 - 2.0 * c * c;
         float faceOn = fresnel(1.0, ior.g);
         float reflected = (fresnel(c, ior.g) - faceOn) / (1.0 - faceOn) * rise(4.0 * down);
-        vec2 r = p + normal2d * (2.0 * c * s) * (b.x + bevel.z) * inversesqrt(down * down + 0.25);
-        color = mix(color, max(fromOklab(seenAt(r, frostLambda)), 0.0), reflected);
+        color = mix(color, mirrored, reflected);
         if (gloss > 0.0) {
             // light from the top left on the steep rim, faintly on the far side too
             float facing = dot(normal2d, normalize(vec2(-1.0, -1.0)));
@@ -594,7 +603,7 @@ QOpenGLShaderProgram *compile(const char *vertex, const char *fragment, const ch
 
 /// A program and its uniform locations
 struct Program {
-    QScopedPointer<QOpenGLShaderProgram> program;
+    QSharedPointer<QOpenGLShaderProgram> program;
     QHash<QByteArray, int> locations;
 
     bool make(const char *vertex, const char *fragment, const QList<QByteArray> &uniforms, const char *shared = "")
@@ -608,6 +617,53 @@ struct Program {
     int operator[](const char *uniform) const { return locations.value(QByteArray(uniform), -1); }
     QOpenGLShaderProgram *operator->() const { return program.data(); }
 };
+
+/// All the glass's programs
+struct Programs {
+    Program weigh;
+    Program shrink;
+    Program halve;
+    Program glass;
+    Program blur;
+    Program ambientShrink;
+    Program ambient;
+    bool valid {false};
+
+    void make()
+    {
+        valid = weigh.make(quadSource, weighSource, {"rect", "source", "decode", "salience", "power"}, weighingSource)
+            && shrink.make(quadSource, shrinkSource, {"rect", "source", "decode", "salience", "power"}, weighingSource)
+            && halve.make(quadSource, halveSource, {"rect", "source", "from", "to", "taps"})
+            && glass.make(glassVertexSource, glassSource,
+                          {"evenLevels", "oddLevels", "levelRect", "levelLambda", "levelCount", "power", "rect", "shape", "corner",
+                           "tintLab", "tintLightness", "tintStrength", "opacity", "viewport", "beyond", "spacing", "dither", "veil",
+                           "bevel", "polish", "clearing", "gloss", "ior", "under", "decode", "frostLambda", "frostSigma",
+                           "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"},
+                          levelsSource)
+            && blur.make(quadSource, blurSource, {"rect", "source", "direction", "taps", "weights"})
+            && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
+            && ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"});
+    }
+};
+
+/**
+ * The programs of the contexts sharing their objects (all of Krita's canvases): compiled once, not for every
+ * canvas, as the glass's own takes a while. A child of their group, gone with it.
+ */
+struct SharedPrograms : public QObject {
+    Programs programs;
+};
+
+const Programs &programsOf(QOpenGLContextGroup *group)
+{
+    for (QObject *child : group->children()) {
+        if (auto *shared = dynamic_cast<SharedPrograms *>(child)) return shared->programs;
+    }
+    auto *shared = new SharedPrograms;
+    shared->programs.make();
+    shared->setParent(group);
+    return shared->programs;
+}
 
 /// The refractive index for red, green and blue (610, 550, 465 nm) by Cauchy's equation, from n_d and the Abbe number
 QVector3D refractiveIndices(qreal abbeNumber)
@@ -683,44 +739,79 @@ QVector<QRect> merged(QVector<QRect> rects)
 
 } // namespace
 
-struct KisOpenGLGlass::Private
+struct KisOpenGLGlass::Private : Programs
 {
-    Program weigh;
-    Program shrink;
-    Program halve;
-    Program glass;
-    Program blur;
-    Program ambientShrink;
-    Program ambient;
     /// Ambient light: shrunk, blurred across, then down
     QScopedPointer<QOpenGLFramebufferObject> ambientSmall;
     QScopedPointer<QOpenGLFramebufferObject> ambientAcross;
     QScopedPointer<QOpenGLFramebufferObject> ambientBlurred;
     QOpenGLVertexArrayObject vao;
-    /// The blur levels, and the areas last made of the fine and the coarse ones
-    QScopedPointer<QOpenGLFramebufferObject> levels[maxLevels];
+    /**
+     * The blur levels: the even ones in one texture, the odd ones in another, as each is made from the one
+     * before (a texture is never read while drawn into). The first of each in the corner, the rest beside it
+     * one above another, a pixel apart; clear where no level is, so a read just past one adds nothing.
+     */
+    QScopedPointer<QOpenGLFramebufferObject> evenLevels;
+    QScopedPointer<QOpenGLFramebufferObject> oddLevels;
+    QRect levelRect[maxLevels];
+    QSize levelsFor;
     QScopedPointer<QOpenGLFramebufferObject> shrunk;
+    /// The areas last made of the fine and the coarse levels
     QVector<QRect> fineMade;
     QVector<QRect> coarseMade;
     int madeCount {0};
     KisOpenGLGpuTiming timing {QStringLiteral("glass gpu:"), {QStringLiteral("levels"), QStringLiteral("draw")}};
-    bool valid {false};
 
-    void ensureLevels(QOpenGLFunctions *f, const QSize &size)
+    QOpenGLFramebufferObject *levelsOf(int k) const
     {
-        if (levels[0] && levels[0]->size() == size) {
-            return;
+        return (k & 1) ? oddLevels.data() : evenLevels.data();
+    }
+
+    /// False if the levels for \p size can't be made (too large a texture)
+    bool ensureLevels(QOpenGLFunctions *f, const QSize &size)
+    {
+        if (evenLevels && levelsFor == size) {
+            return evenLevels->isValid() && oddLevels->isValid() && shrunk->isValid();
         }
+        levelsFor = size;
+        QSize atlas[2];
+        int below[2] = {0, 0};
         for (int k = 0; k < maxLevels; k++) {
             const QSize levelSize(qMax(1, (size.width() + (1 << k) - 1) >> k), qMax(1, (size.height() + (1 << k) - 1) >> k));
-            levels[k].reset(new QOpenGLFramebufferObject(levelSize, QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, GL_RGBA16F));
-            filterLinearly(f, levels[k]->texture());
+            const int kind = k & 1;
+            if (k < 2) {
+                levelRect[k] = QRect(QPoint(), levelSize);
+            } else {
+                levelRect[k] = QRect(QPoint(levelRect[kind].width() + 1, below[kind]), levelSize);
+                below[kind] += levelSize.height() + 1;
+            }
+            atlas[kind] = atlas[kind].expandedTo(QSize(levelRect[k].right() + 1, levelRect[k].bottom() + 1));
         }
-        shrunk.reset(new QOpenGLFramebufferObject(levels[fineLevels - 1]->size(), QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, GL_RGBA16F));
+        GLint target = 0;
+        f->glGetIntegerv(GL_FRAMEBUFFER_BINDING, &target);
+        GLfloat clearColor[4];
+        f->glGetFloatv(GL_COLOR_CLEAR_VALUE, clearColor);
+        const GLboolean scissored = f->glIsEnabled(GL_SCISSOR_TEST);
+        f->glDisable(GL_SCISSOR_TEST);
+        f->glClearColor(0, 0, 0, 0);
+        for (int kind = 0; kind < 2; kind++) {
+            QScopedPointer<QOpenGLFramebufferObject> &levels = kind ? oddLevels : evenLevels;
+            levels.reset(new QOpenGLFramebufferObject(atlas[kind], QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, GL_RGBA16F));
+            if (levels->isValid()) {
+                filterLinearly(f, levels->texture());
+                levels->bind();
+                f->glClear(GL_COLOR_BUFFER_BIT);
+            }
+        }
+        shrunk.reset(new QOpenGLFramebufferObject(levelRect[fineLevels - 1].size(), QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, GL_RGBA16F));
         filterLinearly(f, shrunk->texture());
+        f->glClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
+        if (scissored) f->glEnable(GL_SCISSOR_TEST);
+        f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(target));
         fineMade.clear();
         coarseMade.clear();
         madeCount = 0;
+        return evenLevels->isValid() && oddLevels->isValid() && shrunk->isValid();
     }
 };
 
@@ -742,21 +833,7 @@ bool KisOpenGLGlass::initialize()
     if (context->isOpenGLES() && !context->hasExtension("GL_EXT_color_buffer_half_float") && !context->hasExtension("GL_EXT_color_buffer_float")) {
         return false;
     }
-    QList<QByteArray> levelUniforms {"levelLambda", "levelCount", "power"};
-    for (int k = 0; k < maxLevels; k++) levelUniforms << QByteArray("level") + QByteArray::number(k);
-    d->valid = d->weigh.make(quadSource, weighSource, {"rect", "source", "decode", "salience", "power"}, weighingSource)
-        && d->shrink.make(quadSource, shrinkSource, {"rect", "source", "decode", "salience", "power"}, weighingSource)
-        && d->halve.make(quadSource, halveSource, {"rect", "source", "taps"})
-        && d->glass.make(glassVertexSource, glassSource,
-                         levelUniforms
-                             + QList<QByteArray>{"rect", "shape", "corner", "tintLab", "tintLightness", "tintStrength", "opacity", "viewport",
-                                                 "beyond", "spacing", "dither", "veil", "bevel", "polish", "clearing", "gloss", "ior", "under",
-                                                 "decode", "frostLambda", "frostSigma", "lowerCount", "lowerShape", "lowerCorner", "lowerTint",
-                                                 "lowerStrength"},
-                         levelsSource)
-        && d->blur.make(quadSource, blurSource, {"rect", "source", "direction", "taps", "weights"})
-        && d->ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
-        && d->ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"});
+    static_cast<Programs &>(*d) = programsOf(context->shareGroup());
     if (d->valid && KisOpenGL::supportsVAO()) {
         d->vao.create();
     }
@@ -943,7 +1020,9 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     GLint target = 0;
     f->glGetIntegerv(GL_FRAMEBUFFER_BINDING, &target);
-    d->ensureLevels(f, viewport);
+    if (!d->ensureLevels(f, viewport)) {
+        return;
+    }
     if (d->vao.isCreated()) d->vao.bind();
     f->glDisable(GL_BLEND);
     f->glEnable(GL_SCISSOR_TEST);
@@ -959,13 +1038,13 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     };
     const bool again = canvasChanged || count > d->madeCount || !madeAlready(fine, d->fineMade) || !madeAlready(coarse, d->coarseMade);
     if (again) {
-        // into level k from source, in areas (canvas pixels)
-        auto draw = [&](QOpenGLFramebufferObject *into, int k, GLuint source, const QVector<QRect> &areas) {
+        // level k (its size) at place in into, from source, in areas (canvas pixels)
+        auto draw = [&](QOpenGLFramebufferObject *into, const QRect &place, int k, GLuint source, const QVector<QRect> &areas) {
             into->bind();
-            f->glViewport(0, 0, into->width(), into->height());
+            f->glViewport(place.x(), place.y(), place.width(), place.height());
             f->glBindTexture(GL_TEXTURE_2D, source);
             for (const QRect &a : areas) {
-                scissor(QRect(QPoint(a.left() >> k, a.top() >> k), QPoint(a.right() >> k, a.bottom() >> k)));
+                scissor(QRect(QPoint(a.left() >> k, a.top() >> k), QPoint(a.right() >> k, a.bottom() >> k)).translated(place.topLeft()));
                 f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
             }
         };
@@ -977,10 +1056,11 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
             f->glUniform1f((*program)["salience"], KisStudioGlass::salience);
             f->glUniform1f((*program)["power"], KisStudioGlass::lightnessPower);
         }
+        // level 0 is in the corner: weighSource's pixels are the canvas's
         d->weigh->bind();
-        draw(d->levels[0].data(), 0, canvas, fine);
+        draw(d->levelsOf(0), d->levelRect[0], 0, canvas, fine);
         d->shrink->bind();
-        draw(d->shrunk.data(), fineLevels - 1, canvas, coarse);
+        draw(d->shrunk.data(), QRect(QPoint(), d->shrunk->size()), fineLevels - 1, canvas, coarse);
         // each level from the one before (the first coarse one from the shrunk canvas)
         static const QVector4D fromCanvas = halvingTaps(4 * levelVariance);
         static const QVector4D fromLevel = halvingTaps(4 * levelVariance - levelVariance);
@@ -991,8 +1071,12 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         for (int k = 1; k < count; k++) {
             const QVector4D taps = k == 1 ? fromCanvas : k == fineLevels ? fromShrunk : fromLevel;
             f->glUniform4f(d->halve["taps"], taps.x(), taps.y(), taps.z(), taps.w());
-            const GLuint source = k == fineLevels ? d->shrunk->texture() : d->levels[k - 1]->texture();
-            draw(d->levels[k].data(), k, source, k < fineLevels ? fine : coarse);
+            const bool fromShrunkCanvas = k == fineLevels;
+            const QRect from = fromShrunkCanvas ? QRect(QPoint(), d->shrunk->size()) : d->levelRect[k - 1];
+            f->glUniform4f(d->halve["from"], from.x(), from.y(), from.width(), from.height());
+            f->glUniform2f(d->halve["to"], d->levelRect[k].x(), d->levelRect[k].y());
+            const GLuint source = fromShrunkCanvas ? d->shrunk->texture() : d->levelsOf(k - 1)->texture();
+            draw(d->levelsOf(k), d->levelRect[k], k, source, k < fineLevels ? fine : coarse);
         }
         d->fineMade = fine;
         d->coarseMade = coarse;
@@ -1008,15 +1092,23 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
     d->glass->bind();
     float lambdas[maxLevels] = {};
+    GLfloat rects[4 * maxLevels] = {};
     for (int k = 0; k < maxLevels; k++) {
         lambdas[k] = float(std::log2(levelSigma(k)));
-        f->glUniform1i(d->glass[QByteArray(QByteArray("level") + QByteArray::number(k)).constData()], k);
-        f->glActiveTexture(GLenum(GL_TEXTURE0 + k));
-        f->glBindTexture(GL_TEXTURE_2D, d->levels[qMin(k, count - 1)]->texture());
+        const QRect &r = d->levelRect[k];
+        const GLfloat rect[4] = {GLfloat(r.x()), GLfloat(r.y()), GLfloat(r.width()), GLfloat(r.height())};
+        std::copy(rect, rect + 4, rects + 4 * k);
     }
-    f->glActiveTexture(GLenum(GL_TEXTURE0 + maxLevels));
+    f->glActiveTexture(GL_TEXTURE0);
+    f->glBindTexture(GL_TEXTURE_2D, d->evenLevels->texture());
+    f->glActiveTexture(GL_TEXTURE1);
+    f->glBindTexture(GL_TEXTURE_2D, d->oddLevels->texture());
+    f->glActiveTexture(GL_TEXTURE2);
     f->glBindTexture(GL_TEXTURE_2D, canvas);
-    f->glUniform1i(d->glass["under"], maxLevels);
+    f->glUniform1i(d->glass["evenLevels"], 0);
+    f->glUniform1i(d->glass["oddLevels"], 1);
+    f->glUniform1i(d->glass["under"], 2);
+    f->glUniform4fv(d->glass["levelRect"], maxLevels, rects);
     f->glUniform1fv(d->glass["levelLambda"], maxLevels, lambdas);
     f->glUniform1i(d->glass["levelCount"], count);
     f->glUniform1i(d->glass["decode"], !linearCanvas);
@@ -1082,8 +1174,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     d->timing.mark();
     f->glDisable(GL_BLEND);
     f->glDisable(GL_SCISSOR_TEST);
-    for (int k = maxLevels; k >= 0; k--) {
-        f->glActiveTexture(GLenum(GL_TEXTURE0 + k));
+    for (int unit = 2; unit >= 0; unit--) {
+        f->glActiveTexture(GLenum(GL_TEXTURE0 + unit));
         f->glBindTexture(GL_TEXTURE_2D, 0);
     }
     d->glass->release();
