@@ -53,6 +53,7 @@ if(WIN32)
     set(kritaglobal_LIB_SRCS
         ${kritaglobal_LIB_SRCS}
         KisWindowsPackageUtils.cpp
+        KisDevSampler.cpp
     )
 endif(WIN32)
 
