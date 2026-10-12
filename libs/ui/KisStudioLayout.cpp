@@ -2959,14 +2959,16 @@ bool KisStudioLayout::handleRailDrag(QObject *watched, QEvent *event)
         const bool wasActive = drag.active;
         const QString id = drag.id;
         int target = drag.targetIndex;
-        drag.button->setDown(false);
+        QPointer<QToolButton> button = drag.button;
         drag = Private::RailDrag();
         if (d->dropIndicator) {
             d->dropIndicator->hide();
         }
         if (!wasActive) {
-            return false; // a plain click
+            // a plain click: the button, still down, takes its release as one
+            return false;
         }
+        button->setDown(false);
 
         const QPoint release = globalMousePos(static_cast<QMouseEvent *>(event));
         d->hidePanelDrop();
