@@ -10,6 +10,10 @@
 [Change Primary Setting]
 0={0;2;[1000020];1;0;0}
 
+[Drag Value]
+0={0;2;[4f];1;0;0}
+1={1;2;[49];1;0;0}
+
 [Exposure or Gamma]
 0={0;2;[59];1;0;0}
 

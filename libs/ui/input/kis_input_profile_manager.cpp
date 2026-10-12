@@ -6,6 +6,8 @@
  */
 
 #include "kis_input_profile_manager.h"
+#include <algorithm>
+#include <QFileInfo>
 #include "kis_input_profile.h"
 
 #include <QMap>
@@ -310,8 +312,33 @@ KisInputProfile* KisInputProfileManager::loadProfileInternal(const QString &full
     // the profile must be already converted by this point
     KIS_SAFE_ASSERT_RECOVER_NOOP(version == PROFILE_VERSION);
 
+    /**
+     * The actions the profile was saved knowing (written since this list was):
+     * one it never knew, newer than it, gets the bundled profile's shortcuts
+     * for it, unless taken; one it knew and has none for was left without.
+     */
+    const QStringList known = config.group("General").readEntry("actions", QStringList());
+    QList<KisShortcutConfiguration *> newer;
+    QScopedPointer<KConfig> bundled;
+    Q_FOREACH (const QString &candidate, KoResourcePaths::findAllAssets("data", QStringLiteral("input/") + QFileInfo(fullPath).fileName())) {
+        if (QFileInfo(candidate) != QFileInfo(fullPath)) {
+            bundled.reset(new KConfig(candidate, KConfig::SimpleConfig));
+            break;
+        }
+    }
+
     Q_FOREACH (KisAbstractInputAction *action, d->actions) {
         if (!config.hasGroup(action->id())) {
+            if (known.contains(action->id()) || !bundled || !bundled->hasGroup(action->id())) continue;
+            Q_FOREACH (const QString &entry, bundled->group(action->id()).entryMap()) {
+                auto *shortcut = new KisShortcutConfiguration;
+                shortcut->setAction(action);
+                if (shortcut->unserialize(entry)) {
+                    newer.append(shortcut);
+                } else {
+                    delete shortcut;
+                }
+            }
             continue;
         }
 
@@ -326,6 +353,17 @@ KisInputProfile* KisInputProfileManager::loadProfileInternal(const QString &full
             } else {
                 delete shortcut;
             }
+        }
+    }
+
+    // what the profile gives its own actions stays theirs
+    Q_FOREACH (KisShortcutConfiguration *shortcut, newer) {
+        const bool taken = std::any_of(loadedShortcuts.cbegin(), loadedShortcuts.cend(),
+                                       [shortcut](const KisShortcutConfiguration *other) { return *other == *shortcut; });
+        if (taken) {
+            delete shortcut;
+        } else {
+            loadedShortcuts.append(shortcut);
         }
     }
 
@@ -404,6 +442,10 @@ void KisInputProfileManager::saveProfile(KisInputProfile *profile, QString stora
 
     config.group("General").writeEntry("name", profile->name());
     config.group("General").writeEntry("version", PROFILE_VERSION);
+    // the actions it knows: an action without shortcuts here was left so, not unknown (see loadProfileInternal)
+    QStringList actionIds;
+    Q_FOREACH (KisAbstractInputAction *action, d->actions) actionIds << action->id();
+    config.group("General").writeEntry("actions", actionIds);
 
     Q_FOREACH(KisAbstractInputAction * action, d->actions) {
         KConfigGroup grp = config.group(action->id());
