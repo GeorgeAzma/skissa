@@ -80,15 +80,12 @@ public:
 
     using ExternalCancelUpdatesStorageSP = QSharedPointer<ExternalCancelUpdatesStorage>;
 
-    /**
-     * A progressive preview, as whoever shows it sees it: whether its coarse
-     * pass is shown yet (the next settings can be sent then), and its full
-     * pass let start at once (otherwise it waits for the settings to settle)
-     */
+    /// A progressive preview's state, shared with whoever shows it
     struct PreviewHandle {
+        /// set once the coarse pass is shown: the next settings can be sent then
         QAtomicInt coarseShown;
 
-        /// the full pass started now, not waiting any more (the dialog's OK)
+        /// starts the full pass now instead of waiting for the settings to settle
         void release()
         {
             QMutexLocker l(&mutex);
@@ -105,12 +102,8 @@ public:
 
 public:
     /**
-     * A preview: a coarse pass first (the filter on the image made a few
-     * times smaller, scaled back up), shown at once, then the pass at full
-     * resolution in its place, once the settings stay the same a moment.
-     * For filters that work on fewer pixels the same (supportsLevelOfDetail)
-     * and need pixels around each (a blur, not a curve: those are as fast
-     * at full resolution), over a large region.
+     * For large regions and filters that read neighbouring pixels: a coarse pass (the filter on a
+     * downscaled copy) shown at once, replaced by the full pass once the settings settle.
      */
     PreviewHandleSP setProgressivePreview(bool progressive);
 
@@ -131,7 +124,6 @@ public:
     void doStrokeCallback(KisStrokeJobData *data) override;
     void cancelStrokeCallback() override;
     void finishStrokeCallback() override;
-    /// a preview's settle wait and full pass stopped, for the next settings
     void tryCancelCurrentStrokeJobAsync() override;
 
     KisStrokeStrategy* createLodClone(int levelOfDetail) override;

@@ -38,20 +38,10 @@ public:
 
     void toggleSolo(const QModelIndex &index);
 
-    /// How much taller than its content a row is (none: the selected layer's blend mode and opacity are in its row)
-    int extraHeight(const QModelIndex &index) const;
-
-    /**
-     * Where in \p row (the layer's cell) the selected layer's blend mode and
-     * opacity are: by its icons, as wide as the view's "rowControlsWidth"
-     */
+    /// Where in \p row (the layer's cell) the current layer's blend mode and opacity controls go
     QRect inlineControlsRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const;
 
-    /**
-     * Rows tall enough for two lines (big thumbnails): the name and the
-     * icons on the first, the blend mode and opacity on the second, under
-     * the name, the opacity as long as the row
-     */
+    /// Rows tall enough for two lines: the name and icons, then the blend mode and opacity
     bool isTall() const;
 
     void slotUpdateIcon();
@@ -72,7 +62,6 @@ private:
     void drawProgressBar(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
 
     void drawColorLabel(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
-    void drawFrame(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
 
     QRect thumbnailClickRect(const QStyleOptionViewItem &option, const QModelIndex &index) const;
     void drawThumbnail(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
@@ -86,7 +75,7 @@ private:
     void drawVisibilityIcon(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
 
     QRect decorationClickRect(const QStyleOptionViewItem &option, const QModelIndex &index) const;
-    /// Whether the row shows its layer's type (not for a plain paint layer)
+    /// Whether the row shows its layer's type icon (not for a plain paint layer)
     bool showsDecoration(const QModelIndex &index) const;
     void drawDecoration(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
     void drawExpandButton(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;

@@ -68,7 +68,7 @@ public:
         m_useDirtyPresets = value;
     }
 
-    /// In rows, what each brush paints rather than its picture
+    /// Rows show what each brush paints rather than its picture
     void setStrokes(bool strokes) {
         m_strokes = strokes;
     }
@@ -102,13 +102,10 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
     const QColor accent = option.palette.color(QPalette::Highlight);
     const QColor ink = option.palette.color(QPalette::Text);
 
-    /**
-     * Each brush a rounded tile with room around it, the chosen one ringed
-     * in the accent color (a fill over the picture would change its colors).
-     */
+    // the chosen tile is ringed: a fill over the picture would change its colors
     auto ring = [&](const QRectF &tile, qreal radius) {
         if (selected) {
-            // in the text's color (white on a dark panel): seen at a glance whatever the picture's colors
+            // in the text's color: seen at a glance whatever the picture's colors
             painter->setPen(QPen(ink, 2.25));
             painter->setBrush(Qt::NoBrush);
             painter->drawPath(KisModernStyle::squircle(tile.adjusted(-2.5, -2.5, 2.5, 2.5), radius + 2.5));
@@ -134,7 +131,7 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
             painter->drawImage(tile.topLeft(), preview);
         }
         painter->restore();
-        // a hairline, so that a light picture keeps its edge on a light panel
+        // a light picture keeps its edge on a light panel
         QColor edge = ink;
         edge.setAlphaF(0.12);
         painter->setPen(QPen(edge, 1));
@@ -166,7 +163,7 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
         return;
     }
 
-    // a row: the name, and what the brush paints (or its picture)
+    // a row: the name, then the stroke (or the picture)
     const QRectF row = QRectF(option.rect).adjusted(3, 2, -3, -2);
     const qreal radius = 8;
     if (selected || hovered) {
@@ -238,7 +235,6 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
 
     m_mode = ViewMode::THUMBNAIL;
 
-    // a stroke made later: shown when it is ready
     connect(KisPresetStrokeThumbnails::instance(), &KisPresetStrokeThumbnails::changed, this, [this]() {
         if (m_delegate->strokes()) m_chooser->itemView()->viewport()->update();
     });
@@ -246,7 +242,7 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
     connect(KisConfigNotifier::instance(), SIGNAL(configChanged()),
             SLOT(notifyConfigChanged()));
 
-    // the size the thumbnails were zoomed to (Ctrl+wheel), kept as it changes: for the next run too
+    // the size the thumbnails were zoomed to (Ctrl+wheel), kept for the next run
     setIconSize(KisConfig(true).presetIconSize());
     connect(KisResourceItemChooserSync::instance(), &KisResourceItemChooserSync::baseLengthChanged, this, [this]() {
         saveIconSize();
@@ -310,7 +306,6 @@ void KisPresetChooser::slotCurrentPresetChanged()
 
 void KisPresetChooser::updateViewSettings()
 {
-    // brushes as strokes: in rows, the stroke beside the name
     const bool strokes = KisPresetStrokeThumbnails::isEnabled();
     m_delegate->setStrokes(strokes);
     if (strokes) {

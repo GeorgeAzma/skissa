@@ -4,14 +4,12 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "KisUpdatePacer.h"
+#include "kis_filter_stroke_strategy.h"
+
 #include <QElapsedTimer>
 #include <cmath>
-#include <kis_painter.h>
+#include "KisUpdatePacer.h"
 #include <kis_lod_transform_base.h>
-#include <kis_filter_strategy.h>
-#include <kis_transform_worker.h>
-#include "kis_filter_stroke_strategy.h"
 
 #include <filter/kis_filter.h>
 #include <filter/kis_filter_configuration.h>
@@ -67,20 +65,18 @@ struct KisFilterStrokeStrategy::Private {
     QRect nextExternalUpdateRect;
     bool hasBeenLodCloned = false;
 
-    /// A preview: a coarse pass first (see setProgressivePreview)
-    bool progressive = false;
+    /// Set for a progressive preview (see setProgressivePreview)
     KisFilterStrokeStrategy::PreviewHandleSP preview;
-    /// the full pass's progress, interrupted on cancelling
     QMutex progressMutex;
     QWeakPointer<KisProcessingVisitor::ProgressHelper> progress;
-    /// the coarse pass being written to the target (its scaling up), reverted if cancelled then
+    /// The coarse pass while it is being written to the target
     QScopedPointer<KisTransaction> coarseWriting;
-    /// The coarse pass written to the target, not in the history: undone before the full pass is written, or on cancelling
+    /// The coarse pass written to the target, not in the history: undone before the full pass is written or on cancel
     QSharedPointer<KUndo2Command> coarse;
 };
 
 namespace {
-/// The bounds of a device as it is a level of detail smaller: what a filter reads to scale its sizes to it (KisLodTransformScalar)
+/// The bounds of a device a level of detail smaller: filters scale their sizes by it (KisLodTransformScalar)
 class LodBounds : public KisDefaultBoundsBase
 {
 public:
@@ -102,11 +98,7 @@ private:
     int m_lod;
 };
 
-/**
- * The level a coarse pass is made at, or 0 for none worth it: the region
- * about half a megapixel then, and the pixels around each a filter reads
- * few enough (a large blur made as small as it needs, its cost a small one's)
- */
+/// The level of detail of a coarse pass (about half a megapixel), or 0 when it isn't worth it
 int coarseLevel(KisFilterSP filter, const KisFilterConfigurationSP &config, const QRect &rect)
 {
     const qreal pixels = qreal(rect.width()) * rect.height();
@@ -121,12 +113,7 @@ int coarseLevel(KisFilterSP filter, const KisFilterConfigurationSP &config, cons
     return lod;
 }
 
-/**
- * \p patch of a device \p scale times larger than \p in (its pixels \p from),
- * bilinear: each pixel the mix of the four small ones around it, a row of
- * the small ones mixed first, then along it. For channels all of one plain
- * type (8, 16 bit, float), mixed as numbers.
- */
+/// Bilinear upscale of \p in (covering \p from) by \p scale into \p patch, for channels all of plain type T
 template <typename T>
 void upscaleBilinear(const quint8 *in, const QRect &from, quint8 *out, const QRect &patch, int channels, int scale)
 {
@@ -170,7 +157,6 @@ void upscaleBilinear(const quint8 *in, const QRect &from, quint8 *out, const QRe
 
 KisFilterStrokeStrategy::PreviewHandleSP KisFilterStrokeStrategy::setProgressivePreview(bool progressive)
 {
-    m_d->progressive = progressive;
     m_d->preview = progressive ? PreviewHandleSP(new PreviewHandle) : PreviewHandleSP();
     return m_d->preview;
 }
@@ -371,7 +357,6 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                 }
             }
 
-            // the full pass: its patches processed, after which the next job writes them
             auto startFull = [this, shared, progress]() {
                 // Filter device needs a transaction to prevent grid-patch artifacts from multithreaded read/write.
                 shared->filterDeviceTransaction.reset(new KisTransaction(shared->filterDevice));
@@ -407,15 +392,9 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                 runnableJobsInterface()->addRunnableJobs(processJobs);
             };
 
-            /**
-             * A preview, at full resolution, of a large region: first the
-             * filter on the source made a few times smaller (box averaged,
-             * as Krita's instant preview makes it, its sizes scaled to it),
-             * scaled back up and shown; the full pass takes its place when it
-             * is done (see m_d->coarse). Its filter and its scaling up run in
-             * patches, on all the threads, as the full pass does.
-             */
-            const int lod = m_d->progressive && m_d->levelOfDetail == 0 && !shared->shouldSwitchTime()
+            // a progressive preview of a large region: the filter on a downscaled copy, upscaled and
+            // shown first; the full pass replaces it once the settings settle
+            const int lod = m_d->preview && m_d->levelOfDetail == 0 && !shared->shouldSwitchTime()
                 ? coarseLevel(shared->filter(), shared->filterConfig(), shared->processRect) : 0;
             if (lod <= 0 || shared->processRect.isEmpty()) {
                 startFull();
@@ -439,25 +418,19 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
             const QRect aligned = KisLodTransformBase::alignedRect(shared->processRect, lod);
             const QRect needed = KisLodTransformBase::alignedRect(shared->filter()->neededRect(aligned, shared->filterConfig().data(), 0), lod);
             const QRect smallRect = KisLodTransformBase::scaledRect(aligned, lod);
-            // scaled up into the target itself, or with a selection, a device of its own copied through it
-            if (shared->selection()) {
+            // upscaled into the target itself, or through a device of its own with a selection or another color space
+            if (shared->selection() || *space != *shared->targetDevice()->colorSpace()) {
                 coarse->up = new KisPaintDevice(space);
                 coarse->up->setDefaultPixel(shared->filterDevice->defaultPixel());
             }
 
             QVector<KisRunnableStrokeJobData*> coarseJobs;
-            /**
-             * Made small in strips, on all the threads (each a whole number
-             * of the small image's tiles high); smaller than a quarter, a
-             * quarter first (as many strips), then the rest from it.
-             */
+            // downscaled in strips of whole tile rows, in parallel; below a quarter, from a quarter-size copy
             {
                 const int first = qMin(lod, 2);
                 KisPaintDeviceSP quarter = lod > first ? new KisPaintDevice(space) : coarse->small;
                 const int strip = 64 << first;
-                // what is outside the source is its default pixel, in the small one as well
                 const QRect source = needed & KisLodTransformBase::alignedRect(shared->filterDevice->extent(), lod);
-                // on the small one's tile rows, no two strips writing one tile
                 for (int y = source.top() - (source.top() % strip + strip) % strip; y <= source.bottom(); y += strip) {
                     const QRect part = QRect(source.left(), y, source.width(), strip) & source;
                     addJobConcurrent(coarseJobs, [shared, quarter, part, first]() {
@@ -471,12 +444,11 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                 }
                 addJobSequential(coarseJobs, [coarse]() {
                     coarse->filterStart = coarse->time.elapsed();
-                    // as the full pass: read what it is, not what a patch beside it already wrote
+                    // patches read the unfiltered pixels, not what a neighbor already wrote
                     coarse->smallTransaction.reset(new KisTransaction(coarse->small));
                 });
             }
             const QSize patchSize = KritaUtils::optimalPatchSize();
-            // the small image in patches its size: as many as the full one has
             const QSize smallPatch(qMax(64, patchSize.width() >> lod), qMax(64, patchSize.height() >> lod));
             if (shared->filter()->supportsThreading()) {
                 Q_FOREACH (const QRect &patch, KritaUtils::splitRectIntoPatches(smallRect, smallPatch)) {
@@ -496,7 +468,6 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                 coarse->smallTransaction.reset();
                 m_d->coarseWriting.reset(new KisTransaction(shared->targetDevice()));
             });
-            // back up to full resolution, bilinear: each pixel the mix of the four small ones around it
             Q_FOREACH (const QRect &patch, KritaUtils::splitRectIntoPatches(shared->processRect, patchSize)) {
                 if (patch.isEmpty()) continue;
                 addJobConcurrent(coarseJobs, [shared, coarse, patch, lod]() {
@@ -509,16 +480,13 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                     QVector<quint8> in(from.width() * from.height() * pixelSize);
                     coarse->small->readBytes(in.data(), from);
                     QVector<quint8> out(patch.width() * patch.height() * pixelSize);
-                    KoMixColorsOp *mix = cs->mixColorsOp();
-                    const quint8 *colors[4];
-                    qint16 weights[4];
-                    // channels all of one plain type (8, 16 bit, float): each mixed as a number, not through the color space
+                    KisPaintDeviceSP target = coarse->up ? coarse->up : shared->targetDevice();
+                    // channels all of one plain type: mixed as numbers, not through the color space
                     const QList<KoChannelInfo *> channels = cs->channels();
                     const KoChannelInfo::enumChannelValueType type = channels.first()->channelValueType();
                     bool plain = type == KoChannelInfo::UINT8 || type == KoChannelInfo::UINT16 || type == KoChannelInfo::FLOAT32;
                     Q_FOREACH (const KoChannelInfo *channel, channels) plain &= channel->channelValueType() == type;
                     const int count = channels.size();
-                    KisPaintDeviceSP target = coarse->up ? coarse->up : shared->targetDevice();
                     if (plain && count * int(channels.first()->size()) == pixelSize) {
                         if (type == KoChannelInfo::UINT8) {
                             upscaleBilinear<quint8>(in.constData(), from, out.data(), patch, count, scale);
@@ -530,23 +498,9 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                         target->writeBytes(out.constData(), patch);
                         return;
                     }
-                    auto blend = [&](quint8 *dst, const qreal w[4]) {
-                        for (int c = 0; c < count; c++) {
-                            if (type == KoChannelInfo::UINT8) {
-                                qreal v = 0;
-                                for (int k = 0; k < 4; k++) v += w[k] * colors[k][c];
-                                dst[c] = quint8(qBound(0.0, v + 0.5, 255.0));
-                            } else if (type == KoChannelInfo::UINT16) {
-                                qreal v = 0;
-                                for (int k = 0; k < 4; k++) v += w[k] * reinterpret_cast<const quint16 *>(colors[k])[c];
-                                reinterpret_cast<quint16 *>(dst)[c] = quint16(qBound(0.0, v + 0.5, 65535.0));
-                            } else {
-                                float v = 0;
-                                for (int k = 0; k < 4; k++) v += float(w[k]) * reinterpret_cast<const float *>(colors[k])[c];
-                                reinterpret_cast<float *>(dst)[c] = v;
-                            }
-                        }
-                    };
+                    KoMixColorsOp *mix = cs->mixColorsOp();
+                    const quint8 *colors[4];
+                    qint16 weights[4];
                     for (int y = 0; y < patch.height(); y++) {
                         const qreal fy = source(patch.top() + y);
                         const int y0 = qBound(0, qFloor(fy) - from.top(), from.height() - 1);
@@ -562,11 +516,6 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                             colors[2] = in.constData() + (y1 * from.width() + x0) * pixelSize;
                             colors[3] = in.constData() + (y1 * from.width() + x1) * pixelSize;
                             quint8 *dst = out.data() + (y * patch.width() + x) * pixelSize;
-                            if (plain) {
-                                const qreal w[4] = {(1 - wx) * (1 - wy), wx * (1 - wy), (1 - wx) * wy, wx * wy};
-                                blend(dst, w);
-                                continue;
-                            }
                             weights[0] = qint16(qRound((1 - wx) * (1 - wy) * 255));
                             weights[1] = qint16(qRound(wx * (1 - wy) * 255));
                             weights[2] = qint16(qRound((1 - wx) * wy * 255));
@@ -577,7 +526,6 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                     target->writeBytes(out.constData(), patch);
                 });
             }
-            // shown, and the full pass started
             addJobSequential(coarseJobs, [this, shared, coarse, lod, startFull]() {
                 if (coarse->up) {
                     KisPainter::copyAreaOptimized(shared->processRect.topLeft(), coarse->up, shared->targetDevice(), shared->processRect, shared->selection());
@@ -591,15 +539,8 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                 }
                 if (m_d->preview) m_d->preview->coarseShown.storeRelease(1);
 
-                /**
-                 * The full pass once the settings stay the same a moment
-                 * (or OK is pressed): while they change, each coarse pass
-                 * follows the last, none of them waiting for a full pass.
-                 * The moment longer as the full pass is (about the coarse
-                 * filter's time, as many times as it has fewer pixels): a
-                 * long one, once started, is slow to stop for the next
-                 * settings (a large blur, a part of it at a time).
-                 */
+                // the full pass once the settings settle (or on release), waiting longer the slower it
+                // will be: once started, a long full pass is slow to stop for the next settings
                 const qint64 estimate = coarse->filterTime << (2 * lod);
                 const qint64 settleTime = qBound<qint64>(150, estimate / 4, 1000);
                 QVector<KisRunnableStrokeJobData*> settle;
@@ -626,17 +567,21 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
             runAndSaveCommand(toQShared(shared->filterDeviceTransaction->endAndTake()), KisStrokeJobData::BARRIER, KisStrokeJobData::NORMAL);
             shared->filterDeviceTransaction.reset();
 
-            if (!shared->filterDeviceBounds.intersects(
-                    shared->filter()->neededRect(shared->processRect, shared->filterConfig().data(), shared->levelOfDetail()))) {
-                return;
-            }
+            const bool changed = shared->filterDeviceBounds.intersects(
+                shared->filter()->neededRect(shared->processRect, shared->filterConfig().data(), shared->levelOfDetail()));
 
-            KisUpdatePacer::log(QStringLiteral("filter full pass written"));
             // the coarse pass taken back first, so that undoing this restores the source, not it
             if (m_d->coarse) {
                 m_d->coarse->undo();
                 m_d->coarse.clear();
+                if (!changed && shared->shouldRedraw()) {
+                    shared->node()->setDirty(shared->processRect);
+                }
             }
+            if (!changed) {
+                return;
+            }
+            KisUpdatePacer::log(QStringLiteral("filter full pass written"));
 
             // Make a transaction, change the target device, and "end" transaction.
             // Should be useful for undoing later.
@@ -687,7 +632,7 @@ void KisFilterStrokeStrategy::cancelStrokeCallback()
     QVector<KisStrokeJobData *> jobs;
 
     jobs << new Data(toQShared(new KisDisableDirtyRequestsCommand(m_d->updatesFacade, KisDisableDirtyRequestsCommand::INITIALIZING)));
-    // a coarse pass shown and its full pass not written yet: taken back as well
+    // a coarse pass shown but its full pass not written yet is taken back too
     addJobSequential(jobs, [this] () {
         if (m_d->coarseWriting) {
             m_d->coarseWriting->revert();

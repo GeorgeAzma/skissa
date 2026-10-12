@@ -17,6 +17,9 @@
 #include "KisViewManager.h"
 #include "kis_canvas2.h"
 #include "kis_canvas_resource_provider.h"
+#include "kis_config.h"
+#include "kis_config_notifier.h"
+#include "KisSettingsRegistry.h"
 
 #include <brushengine/kis_locked_properties_proxy.h>
 #include <brushengine/kis_locked_properties_server.h>
@@ -46,6 +49,10 @@ void KisCanvasControlsManager::setup(KisActionManager *actionManager)
     forcePaletteColors->setCheckable(true);
     forcePaletteColors->setChecked(KisConfig(true).forcePaletteColors());
     connect(forcePaletteColors, SIGNAL(toggled(bool)), SLOT(forcePaletteColors(bool)));
+    // also changed in Settings and in other windows
+    connect(KisConfigNotifier::instance(), &KisConfigNotifier::configChanged, forcePaletteColors, [forcePaletteColors]() {
+        forcePaletteColors->setChecked(KisConfig(true).forcePaletteColors());
+    });
 
     KisAction *lighterColor = actionManager->createAction("make_brush_color_lighter");
     connect(lighterColor, SIGNAL(triggered()), SLOT(makeColorLighter()));
@@ -393,5 +400,5 @@ void KisCanvasControlsManager::decreaseScatter()
 
 void KisCanvasControlsManager::forcePaletteColors(bool force)
 {
-    KisConfig(false).setForcePaletteColors(force);
+    KisSettingsRegistry::instance()->setValue(QStringLiteral("colorsettings/forcepalettecolors"), force);
 }

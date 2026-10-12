@@ -115,7 +115,7 @@ void KisWdgGaussianBlur::showRows()
     const bool linked = m_widget->aspectButton->keepAspectRatio();
     m_widget->label_2->setVisible(!linked);
     m_widget->verticalRadius->setVisible(!linked);
-    // with a colon where the label had one (a dialog's), without where it was taken off (the effect panel's)
+    // keep the label's colon only if it had one (the effect panel strips it)
     const bool colon = m_widget->label->text().endsWith(QLatin1Char(':'));
     const QString name = linked ? i18nc("@label:slider the gaussian blur radius, both ways", "Radius")
                                 : i18nc("@label:slider", "Horizontal Radius");

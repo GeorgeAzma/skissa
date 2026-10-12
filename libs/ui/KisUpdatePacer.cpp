@@ -31,7 +31,7 @@
 
 namespace
 {
-/// A pixel of the window that is "changed" to have the window shown again: nothing is drawn
+/// A pixel that is "changed" to make the window present a frame; it draws nothing
 class Heartbeat : public QWidget
 {
 public:
@@ -41,7 +41,7 @@ public:
         setAttribute(Qt::WA_TransparentForMouseEvents);
         setAttribute(Qt::WA_NoSystemBackground);
         setFocusPolicy(Qt::NoFocus);
-        // over the rest (under another widget an update could be dropped as hidden): it draws nothing
+        // on top: under another widget its update could be dropped as hidden
         setGeometry(0, 0, 1, 1);
         raise();
         show();
@@ -53,14 +53,9 @@ protected:
 
 #ifdef Q_OS_WIN
 /**
- * A pixel over the window that the desktop has to blend in (1 of 255 opaque:
- * no one sees it), so that it composes the window always, as it does any
- * other. A window covering a screen is handed the screen on its own
- * otherwise ("independent flip"), and a screen with a variable refresh rate
- * (G-Sync, FreeSync) then takes it for a game: it refreshes only as Krita
- * shows frames (at 48 Hz at rest, at 60 if that is how fast frames come,
- * the pointer moving as slowly), and many such screens flicker as that rate
- * changes. Composed, the screen keeps its full rate whatever Krita does.
+ * An invisible (alpha 1/255) pixel the compositor must blend, so it always composes the window. Otherwise
+ * a fullscreen window gets independent flip, and VRR screens then refresh only as Krita presents
+ * frames, flickering as the rate changes.
  */
 class Composed : public QObject
 {
@@ -77,20 +72,20 @@ public:
             return RegisterClassW(&c);
         }();
         Q_UNUSED(windowClass);
-        // owned by the window: over it, minimized and gone with it; never clicked, never focused
+        // owned by the window: above it, minimized and destroyed with it; never clicked or focused
         m_window = CreateWindowExW(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, L"KritaComposed", L"", WS_POPUP, 0, 0, 1, 1,
                                    HWND(owner->winId()), nullptr, GetModuleHandleW(nullptr), nullptr);
-        // not 0: a window no one could see is left out
+        // not 0: a fully transparent window is skipped by the compositor
         SetLayeredWindowAttributes(m_window, 0, 1, LWA_ALPHA);
     }
 
     ~Composed() override
     {
-        // gone already if its window went first
+        // destroyed already if its owner went first
         if (IsWindow(m_window)) DestroyWindow(m_window);
     }
 
-    /// At the window's corner, inside it (the frame of a maximized window is off the screen)
+    /// At the window's client corner (a maximized window's frame is off screen)
     void place()
     {
         POINT corner = {0, 0};
@@ -103,12 +98,9 @@ private:
 };
 
 /**
- * Calls back on the GUI thread at a time to within a fraction of a
- * millisecond. Qt's timers keep to the system's 15.6 ms steps whenever
- * Windows coarsens timers, which is often: this one waits on a high
- * resolution timer in a thread of its own, and wakes the GUI thread with a
- * message, which Windows hands over before input (Qt 5 holds its own posted
- * events back while input waits).
+ * A sub-millisecond timer calling back on the GUI thread. Qt's timers often fall to Windows' 15.6 ms
+ * steps; this one waits on a high resolution timer in its own thread and posts a window message,
+ * which Windows delivers before input (Qt 5 holds its own posted events back while input waits).
  */
 class FrameTimer
 {
@@ -128,7 +120,7 @@ public:
         Q_UNUSED(windowClass);
         m_window = CreateWindowExW(0, L"KritaFrameClock", L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, GetModuleHandleW(nullptr), nullptr);
         SetWindowLongPtrW(m_window, GWLP_USERDATA, LONG_PTR(this));
-        // high resolution where there is one (Windows 10 1803 on)
+        // high resolution from Windows 10 1803
         m_timer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
         if (!m_timer) m_timer = CreateWaitableTimerExW(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
         m_arm = CreateEventW(nullptr, FALSE, FALSE, nullptr);
@@ -183,7 +175,7 @@ private:
             WaitForSingleObject(m_arm, INFINITE);
             if (m_quit) return;
             LARGE_INTEGER due;
-            // relative, in 100 ns
+            // relative, in 100 ns units
             due.QuadPart = -qMax<qint64>(1, m_delay / 100);
             SetWaitableTimer(m_timer, &due, 0, nullptr, nullptr, FALSE);
             WaitForSingleObject(m_timer, INFINITE);
@@ -203,24 +195,18 @@ private:
     bool m_active {false};
 };
 
-/// The development frame log (see FrameLog), if there is one, and its clock
+/// The development frame log (see FrameLog) and its clock
 QFile *frameLog = nullptr;
 QElapsedTimer *frameLogClock = nullptr;
 
-/// How long the clock goes on after a window with the canvas is shown or sized
+/// How long the clock keeps running after a canvas window is shown or resized
 constexpr qint64 settleNs = 3'000'000'000;
 
 /**
- * The frame clock of the windows the canvas is in. Qt 5 shows a window
- * again whenever something in it changed: with the pointer moving, as
- * often as the mouse reports (a thousand times a second, say), each frame
- * queued behind the last for the screen, the window always behind the hand.
- *
- * So the window's repaints wait for the clock: a frame every refresh of the
- * screen, or every second (third...) one if a frame takes longer than that.
- * The first after a pause is shown at once; the clock stops when there is
- * nothing to show. (The window is composed by the desktop, see Composed:
- * the screen keeps its rate whether frames come or not.)
+ * The frame clock of the canvas windows. Qt 5 repaints a window on every change, as often as the mouse
+ * reports, queueing frames behind the pointer. Here repaints wait for the clock: one frame per refresh
+ * (or per few, if frames take longer). The first after a pause is shown at once; the clock stops when
+ * idle.
  */
 class Pacer : public QObject
 {
@@ -236,7 +222,7 @@ protected:
     {
         switch (event->type()) {
         case QEvent::Move:
-            // only to keep its pixel inside it
+            // keeps the Composed pixel inside it
             if (watched->isWidgetType() && static_cast<QWidget *>(watched)->isWindow() && static_cast<QWidget *>(watched)->isVisible()
                 && watched->inherits("KisMainWindow")) {
                 composedOf(static_cast<QWidget *>(watched))->place();
@@ -246,13 +232,8 @@ protected:
         case QEvent::Expose:
         case QEvent::Resize:
         case QEvent::WindowStateChange: {
-            /**
-             * A window with the canvas shown, uncovered, sized or maximized:
-             * frames for a while, whatever changes. As a window is shown and
-             * settles (maximized, its panels laid out and their glass drawn)
-             * frames it shows may not reach the screen, and it would show the
-             * glass only after the next input.
-             */
+            // a canvas window shown or resized: frames for a while regardless, as frames presented while it
+            // settles may not reach the screen (its glass would only show after the next input)
             QWidget *top = nullptr;
             if (QWindow *window = qobject_cast<QWindow *>(watched)) {
                 top = topWidget(window);
@@ -268,7 +249,7 @@ protected:
             return false;
         }
         case QEvent::UpdateRequest: {
-            // the window's repaint, held for the clock's next frame
+            // held for the clock's next frame
             if (m_delivering || !watched->isWidgetType()) return false;
             QWidget *widget = static_cast<QWidget *>(watched);
             if (!widget->isWindow() || !widget->inherits("KisMainWindow")) return false;
@@ -282,12 +263,7 @@ protected:
     }
 
 private:
-    /**
-     * The main window \p window is of, or none (a popup, a dialog: they show
-     * their own changes). The widget of a window is looked up once: all the
-     * widgets there are are gone through for it (QApplication::topLevelWidgets),
-     * too much for each move of the pointer.
-     */
+    /// The main window widget of \p window, or none (popups and dialogs present themselves); cached, the lookup is slow
     QWidget *topWidget(QWindow *window)
     {
         QWidget *widget = nullptr;
@@ -303,11 +279,11 @@ private:
             }
             if (widget) {
                 m_tops.insert(window, widget);
-                // a window is its widget's for as long as it is there: forgotten when it goes (another may come at its address)
+                // forgotten when destroyed: another window may reuse the address
                 connect(window, &QObject::destroyed, this, [this, window]() { m_tops.remove(window); });
             }
         }
-        // asked each time, not kept: what a widget is is only settled once it is made
+        // checked each time: a widget's class is only settled once constructed
         return widget && widget->inherits("KisMainWindow") ? widget : nullptr;
     }
 
@@ -325,12 +301,11 @@ private:
         return composed;
     }
 
-    /// The time of a refresh of the screen
+    /// One screen refresh, in ns
     qreal refresh() const
     {
         qreal rate = 60;
         for (auto it = m_beats.constBegin(); it != m_beats.constEnd(); ++it) {
-            // a window gone took its heartbeat with it
             if (it.value() && it.key()->windowHandle() && it.key()->windowHandle()->screen()) {
                 rate = it.key()->windowHandle()->screen()->refreshRate();
                 break;
@@ -339,42 +314,37 @@ private:
         return 1e9 / qBound(30.0, rate, 1000.0);
     }
 
-    /// The time of the clock's frames: as many refreshes as a frame takes (see measured())
+    /// The clock's frame period: as many refreshes as a frame takes (see measured())
     qint64 period() const
     {
         return qint64(refresh() * m_refreshes);
     }
 
     /**
-     * How long a frame took: the clock's rate follows, but it must not keep
-     * changing (that is what flickers): slower at once when frames do not
-     * fit in it (four of the last sixteen), faster again after half a second of
-     * frames well within the faster rate; each time the faster rate did not
-     * hold, after twice as long (up to eight seconds), until it has held for
-     * ten seconds
+     * Adapts the rate to how long frames take, without flapping (which flickers): slower when four of
+     * the last sixteen frames were late, faster after frames fit the faster rate for a while (0.5 s,
+     * doubling up to 8 s each time it did not hold, reset after 10 s without slowing)
      */
     void measured(qint64 took)
     {
         const qint64 now = m_clock.nsecsElapsed();
         const qreal r = refresh();
-        // the last sixteen frames, a bit for each that came late
+        // a bit per late frame of the last sixteen
         const bool late = took > r * m_refreshes * 0.95;
         m_late = quint16((m_late << 1) | (late ? 1 : 0));
         if (late) {
-            // four late of sixteen: slower (not for a hiccup of the system: each change of the rate is a step a screen may show)
             int count = 0;
             for (quint16 bits = m_late; bits; bits &= quint16(bits - 1)) count++;
             if (count >= 4 && m_refreshes < 4) {
                 m_refreshes++;
                 m_late = 0;
-                // soon after it went faster: it is waited for twice as long before the next try
+                // it had just gone faster: wait twice as long before trying again
                 m_upWait = now - m_wentFaster < 2 * m_upWait ? qMin<qint64>(m_upWait * 2, 8'000'000'000) : 500'000'000;
                 m_fastEnoughSince = now;
                 m_wentSlower = now;
             }
             return;
         }
-        // a while without slowing down: what slowed it then (opening a document, say) counts no more
         if (now - m_wentSlower > 10'000'000'000) m_upWait = 500'000'000;
         if (m_refreshes > 1 && took > r * (m_refreshes - 1) * 0.7) {
             m_fastEnoughSince = now;
@@ -399,7 +369,7 @@ private:
     {
         const qint64 now = m_clock.nsecsElapsed();
         m_next += period();
-        // fallen behind: from now on
+        // fell behind: restart from now
         if (m_next < now) m_next = now;
         m_tick.start(m_next - now);
     }
@@ -408,12 +378,12 @@ private:
     {
         const bool settling = m_clock.nsecsElapsed() < m_settleUntil;
         if (settling) {
-            // a window settling is shown whatever changed, by its heartbeat alone if nothing did
+            // a settling window is presented regardless, by its heartbeat if nothing changed
             for (auto it = m_beats.constBegin(); it != m_beats.constEnd(); ++it) {
                 if (it.value() && it.key()->isVisible() && !m_waiting.contains(it.key())) show(it.key(), it.value());
             }
         } else if (m_waiting.isEmpty()) {
-            // nothing came in a frame: stopped, until the next repaint; a slow moment before (opening a document, say) counts no more
+            // idle: stop until the next repaint
             m_upWait = 500'000'000;
             return;
         }
@@ -421,18 +391,16 @@ private:
         schedule();
     }
 
-    /// The held repaints, now
     void deliver()
     {
         const QHash<QWidget *, QPointer<QWidget>> waiting = m_waiting;
         m_waiting.clear();
         for (const QPointer<QWidget> &window : waiting) {
-            // hidden too: Qt counts on its repaint to come, and would not ask for another
+            // hidden ones too: Qt waits for this repaint before requesting another
             if (window) show(window, nullptr);
         }
     }
 
-    /// The canvas widget of \p window, if it shows one
     static QWidget *canvasOf(QWidget *window)
     {
         KisMainWindow *mainWindow = qobject_cast<KisMainWindow *>(window);
@@ -443,17 +411,9 @@ private:
     }
 
     /**
-     * \p window shown: what changed in it repainted, or (\p heartbeat) a
-     * frame of it as it is.
-     *
-     * Its canvas is drawn into a texture: if only such widgets changed, Qt
-     * draws them and puts the window together again; if anything else
-     * changed too, it repaints all of the canvas' area, every panel and
-     * button over it with it (7 ms a frame, not 1). So a frame of the window
-     * as it is is a pixel of its canvas drawn again, nothing else. (A widget
-     * of its own would be a change of the other kind, and where something
-     * opaque covers it, no frame at all.) Without a canvas, the heartbeat
-     * widget, at once.
+     * Presents \p window: its pending repaint, or with \p heartbeat an unchanged frame. An unchanged frame
+     * redraws one canvas pixel: changing only the OpenGL canvas keeps Qt from repainting every panel
+     * over it (7 ms instead of 1). Without a canvas, the heartbeat widget repaints.
      */
     void show(QWidget *window, Heartbeat *heartbeat)
     {
@@ -478,14 +438,13 @@ private:
 
     QElapsedTimer m_clock;
     FrameTimer m_tick {[this]() { tick(); }};
-    /// Until when a window shown or sized keeps the clock going; when the next frame is due
     qint64 m_settleUntil {0};
     qint64 m_next {0};
-    /// The clock's frames in refreshes of the screen; late frames in a row; since when frames would fit faster ones
+    /// Refreshes per frame; late frames bitmask; since when frames fit the faster rate
     int m_refreshes {1};
     quint16 m_late {0};
     qint64 m_fastEnoughSince {0};
-    /// How long frames must fit a faster rate before it is tried (longer each time it did not hold), and when it last was
+    /// How long frames must fit before going faster, and when the rate last changed
     qint64 m_upWait {500'000'000};
     qint64 m_wentFaster {-100'000'000'000};
     qint64 m_wentSlower {-100'000'000'000};
@@ -496,11 +455,7 @@ private:
     bool m_delivering {false};
 };
 
-/**
- * For development (KRITA_DEV_FRAMELOG=file): the pointer's moves, each
- * window drawn again and what in it (where), and each frame of the clock,
- * how long it took: to see what keeps the screen's refresh rate changing
- */
+/// For development (KRITA_DEV_FRAMELOG=file): logs pointer moves, repaints and the clock's frames
 class FrameLog : public QObject
 {
 public:
@@ -515,7 +470,7 @@ public:
         m_flush.setInterval(500);
         connect(&m_flush, &QTimer::timeout, this, [this]() { m_file.flush(); });
         m_flush.start();
-        // Qt's warnings too (QML errors among them), and on to wherever they went before
+        // Qt's warnings too (QML errors among them), still passed on
         previousHandler() = qInstallMessageHandler([](QtMsgType type, const QMessageLogContext &context, const QString &message) {
             if (type != QtDebugMsg && type != QtInfoMsg) KisUpdatePacer::log(QStringLiteral("qt ") + message);
             if (previousHandler()) previousHandler()(type, context, message);
@@ -572,10 +527,10 @@ void KisUpdatePacer::install()
 {
 #ifdef Q_OS_WIN
     static Pacer *pacer = nullptr;
-    // for development: without it, to compare
+    // for development: KRITA_DEV_NOPACER disables it, to compare
     if (pacer || (qEnvironmentVariableIsSet("KRITA_DEV_PROFILE") && qEnvironmentVariableIsSet("KRITA_DEV_NOPACER"))) return;
     pacer = new Pacer(qApp);
-    // the frame log first: installed later, it sees the repaints before the pacer holds them
+    // installed after the pacer, the frame log sees repaints before the pacer holds them
     qApp->installEventFilter(pacer);
     if (qEnvironmentVariableIsSet("KRITA_DEV_PROFILE") && qEnvironmentVariableIsSet("KRITA_DEV_FRAMELOG")) {
         qApp->installEventFilter(new FrameLog(qEnvironmentVariable("KRITA_DEV_FRAMELOG"), qApp));

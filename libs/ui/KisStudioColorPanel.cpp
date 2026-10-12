@@ -5,26 +5,30 @@
  */
 #include "KisStudioColorPanel.h"
 
+#include <QActionGroup>
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QHBoxLayout>
-#include <QActionGroup>
-#include <QMap>
 #include <QLineEdit>
+#include <QMap>
 #include <QMenu>
 #include <QMouseEvent>
-#include <QWheelEvent>
-#include <QElapsedTimer>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
 #include <QRegularExpression>
+#include <QScreen>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QWheelEvent>
+
+#include <cmath>
 #include <functional>
 #include <memory>
-#include <QScreen>
+#include <optional>
 
+#include <KoColorSpaceTraits.h>
 #include <KoCanvasBase.h>
 #include <KoCanvasResourceProvider.h>
 #include <KoCanvasResourcesIds.h>
@@ -33,15 +37,13 @@
 #include <KoDockRegistry.h>
 #include <klocalizedstring.h>
 
-#include <cmath>
-
+#include "KisStudioGlass.h"
 #include "KisViewManager.h"
 #include "canvas/kis_canvas2.h"
-#include "kis_favorite_resource_manager.h"
 #include "kis_config.h"
+#include "kis_favorite_resource_manager.h"
 #include "kis_paintop_box.h"
 #include <KisModernStyle.h>
-#include "KisStudioGlass.h"
 
 namespace {
 
@@ -94,38 +96,43 @@ void linearRgbFromOklch(const Oklch &c, qreal &r, qreal &g, qreal &b)
     b = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
 }
 
-bool inGamut(const Oklch &c)
+bool inGamut(qreal r, qreal g, qreal b)
 {
-    qreal r, g, b;
-    linearRgbFromOklch(c, r, g, b);
     const qreal e = 1e-4;
     return r >= -e && r <= 1 + e && g >= -e && g <= 1 + e && b >= -e && b <= 1 + e;
 }
 
-/// The color, or an invalid one outside sRGB: one conversion for both answers
-QColor rgbIfInGamut(const Oklch &c)
+QColor rgbFromLinear(qreal r, qreal g, qreal b)
+{
+    return QColor::fromRgbF(qBound(0.0, toGamma(r), 1.0), qBound(0.0, toGamma(g), 1.0), qBound(0.0, toGamma(b), 1.0));
+}
+
+bool inGamut(const Oklch &c)
 {
     qreal r, g, b;
     linearRgbFromOklch(c, r, g, b);
-    const qreal e = 1e-4;
-    if (r < -e || r > 1 + e || g < -e || g > 1 + e || b < -e || b > 1 + e) {
-        return QColor();
-    }
-    return QColor::fromRgbF(qBound(0.0, toGamma(r), 1.0), qBound(0.0, toGamma(g), 1.0), qBound(0.0, toGamma(b), 1.0));
+    return inGamut(r, g, b);
 }
 
 QColor rgbFromOklch(const Oklch &c)
 {
     qreal r, g, b;
     linearRgbFromOklch(c, r, g, b);
-    return QColor::fromRgbF(qBound(0.0, toGamma(r), 1.0), qBound(0.0, toGamma(g), 1.0), qBound(0.0, toGamma(b), 1.0));
+    return rgbFromLinear(r, g, b);
+}
+
+/// The color, or an invalid one outside sRGB
+QColor rgbIfInGamut(const Oklch &c)
+{
+    qreal r, g, b;
+    linearRgbFromOklch(c, r, g, b);
+    return inGamut(r, g, b) ? rgbFromLinear(r, g, b) : QColor();
 }
 
 /// The most saturated in-gamut chroma at this lightness and hue
 qreal maxChroma(qreal l, qreal h)
 {
-    // near black the channels are as small as the gamut test's tolerance, which lets any chroma pass: below
-    // this lightness the widest chroma narrows to none at black, in proportion
+    // near black the gamut test's tolerance lets any chroma pass: below this the widest chroma narrows linearly to none
     const qreal darkest = 0.12;
     if (l < darkest) {
         return l <= 0.0 ? 0.0 : maxChroma(darkest, h) * l / darkest;
@@ -139,6 +146,20 @@ qreal maxChroma(qreal l, qreal h)
     return low;
 }
 
+/// sRGB at 16 bits per channel: the pickers are finer than 8 bits
+KoColor koColorFromRgb(const QColor &rgb)
+{
+    KoColorSpaceRegistry *registry = KoColorSpaceRegistry::instance();
+    KoColor color(registry->rgb16(registry->rgb8()->profile()));
+    auto *pixel = reinterpret_cast<KoBgrU16Traits::Pixel *>(color.data());
+    const QRgba64 rgba = rgb.rgba64();
+    pixel->red = rgba.red();
+    pixel->green = rgba.green();
+    pixel->blue = rgba.blue();
+    pixel->alpha = rgba.alpha();
+    return color;
+}
+
 /// A ring that reads on any color: dark outside, light inside
 void drawMarker(QPainter &painter, const QPointF &center, qreal radius)
 {
@@ -149,7 +170,7 @@ void drawMarker(QPainter &painter, const QPointF &center, qreal radius)
     painter.drawEllipse(center, radius, radius);
 }
 
-/// A knob that shows \p fill: inside a white ring with a dark edge, so that it reads on any color
+/// A knob filled with \p fill inside a white ring with a dark edge, so that it reads on any color
 void drawKnob(QPainter &painter, const QPointF &center, qreal radius, const QColor &fill)
 {
     painter.setPen(QPen(QColor(0, 0, 0, 150), 1));
@@ -164,6 +185,12 @@ void drawKnob(QPainter &painter, const QPointF &center, qreal radius, const QCol
 QColor hueColor(qreal h)
 {
     return rgbFromOklch({0.72, qMin(0.14, maxChroma(0.72, h)), h});
+}
+
+/// The OKLCH ring's hue at \p offset from its center: degrees from the top, clockwise
+qreal oklchHueAt(const QPointF &offset)
+{
+    return std::fmod(std::atan2(offset.x(), -offset.y()) * 180.0 / M_PI + 360.0, 360.0);
 }
 
 /// Past the edge of sRGB: the nearest color there is, under a dark veil
@@ -189,22 +216,13 @@ void clipTo(QImage &image, const QPainterPath &shape)
     painter.drawImage(0, 0, mask);
 }
 
-/**
- * The OKLCH ring: the hues around a ring (their angle from the top,
- * clockwise), and inside it the square of the hue's lightness (down) and
- * chroma (across). Past the edge of sRGB the square shows the nearest color
- * there is under a veil, and the edge is drawn: what is reachable shows at
- * a glance, and its shape changes with the hue.
- */
-class OklchRing : public QWidget
+/// A ring of hues around a picker of the hue's colors: what the OKLCH and HSV pickers share
+class HueRing : public QWidget
 {
 public:
-    std::function<void(qreal hue)> huePicked;
-    /// \p x: chroma, 0..1 of the widest the square shows; \p y: 0 white .. 1 black
-    std::function<void(qreal x, qreal y)> planePicked;
     std::function<void()> started;
 
-    explicit OklchRing(QWidget *parent) : QWidget(parent)
+    explicit HueRing(QWidget *parent) : QWidget(parent)
     {
         setMinimumSize(140, 140);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -212,6 +230,90 @@ public:
         // held still, a color is being picked: no menu
         setProperty("ownLongPress", true);
     }
+
+    QSize sizeHint() const override { return QSize(240, 240); }
+
+protected:
+    enum Part { None, Ring, Inside };
+
+    virtual qreal innerRadius() const = 0;
+    virtual QRgb ringColor(const QPointF &offset) const = 0;
+    virtual Part partAt(const QPoint &pos) const = 0;
+    virtual void pick(Part part, const QPoint &pos) = 0;
+
+    QPointF center() const { return QRectF(rect()).center(); }
+    qreal outerRadius() const { return qMin(width(), height()) / 2.0 - 1; }
+    qreal distanceTo(const QPoint &pos) const
+    {
+        const QPointF offset = QPointF(pos) - center();
+        return std::hypot(offset.x(), offset.y());
+    }
+
+    void paintRing(QPainter &painter)
+    {
+        const qreal dpr = devicePixelRatioF();
+        const QSize pixels = size() * dpr;
+        if (m_ring.size() != pixels) {
+            m_ring = QImage(pixels, QImage::Format_ARGB32_Premultiplied);
+            m_ring.fill(Qt::transparent);
+            const QPointF c(pixels.width() / 2.0, pixels.height() / 2.0);
+            const qreal outer = outerRadius() * dpr;
+            const qreal inner = innerRadius() * dpr;
+            for (int y = 0; y < pixels.height(); y++) {
+                QRgb *line = reinterpret_cast<QRgb *>(m_ring.scanLine(y));
+                for (int x = 0; x < pixels.width(); x++) {
+                    const QPointF offset(x + 0.5 - c.x(), y + 0.5 - c.y());
+                    const qreal distance = std::hypot(offset.x(), offset.y());
+                    if (distance > inner - 2 && distance < outer + 2) line[x] = ringColor(offset);
+                }
+            }
+            QPainterPath ring;
+            ring.addEllipse(c, outer, outer);
+            ring.addEllipse(c, inner, inner);
+            clipTo(m_ring, ring);
+            m_ring.setDevicePixelRatio(dpr);
+        }
+        painter.drawImage(0, 0, m_ring);
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton) return;
+        m_part = partAt(event->pos());
+        if (m_part == None) return;
+        if (started) started();
+        pick(m_part, event->pos());
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (m_part != None && (event->buttons() & Qt::LeftButton)) pick(m_part, event->pos());
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton) m_part = None;
+    }
+
+private:
+    Part m_part {None};
+    QImage m_ring;
+};
+
+/**
+ * The OKLCH ring: the hues around a ring (their angle from the top,
+ * clockwise), and inside it the square of the hue's lightness (down) and
+ * chroma (across). Past the edge of sRGB the square shows the nearest color
+ * there is under a veil, and the edge is drawn.
+ */
+class OklchRing : public HueRing
+{
+public:
+    std::function<void(qreal hue)> huePicked;
+    /// \p x: chroma, 0..1 of the widest the square shows; \p y: 0 white .. 1 black
+    std::function<void(qreal x, qreal y)> planePicked;
+
+    using HueRing::HueRing;
 
     void setContents(const Oklch &color, const QColor &rgb)
     {
@@ -223,16 +325,10 @@ public:
         update();
     }
 
-    QSize sizeHint() const override { return QSize(240, 240); }
-
 protected:
     void paintEvent(QPaintEvent *) override
     {
         const qreal dpr = devicePixelRatioF();
-        const QSize pixels = size() * dpr;
-        if (m_ring.size() != pixels) {
-            m_ring = renderRing(pixels, dpr);
-        }
         const QRectF plane = square();
         const QSize planePixels = (plane.size() * dpr).toSize();
         if (m_plane.size() != planePixels) {
@@ -241,7 +337,7 @@ protected:
 
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.drawImage(0, 0, m_ring);
+        paintRing(painter);
         painter.save();
         painter.setClipPath(KisModernStyle::squircle(plane, 8));
         painter.drawImage(plane.topLeft(), m_plane);
@@ -254,89 +350,46 @@ protected:
                  8, m_rgb);
     }
 
-    void mousePressEvent(QMouseEvent *event) override
+    qreal innerRadius() const override { return outerRadius() - ringWidth(); }
+
+    QRgb ringColor(const QPointF &offset) const override
     {
-        const QPointF offset = QPointF(event->pos()) - center();
-        const qreal distance = std::hypot(offset.x(), offset.y());
-        if (distance <= outerRadius() + 2 && distance >= outerRadius() - ringWidth() - 2) {
-            m_part = Ring;
-        } else if (square().adjusted(-6, -6, 6, 6).contains(event->pos())) {
-            m_part = Plane;
-        } else {
-            m_part = None;
-            return;
+        // the hues once, every half degree
+        static const QVector<QRgb> hues = []() {
+            QVector<QRgb> hues(720);
+            for (int i = 0; i < hues.size(); i++) hues[i] = hueColor(i * 0.5).rgb();
+            return hues;
+        }();
+        return hues[qBound(0, int(oklchHueAt(offset) * 2), hues.size() - 1)];
+    }
+
+    Part partAt(const QPoint &pos) const override
+    {
+        const qreal distance = distanceTo(pos);
+        if (distance <= outerRadius() + 2 && distance >= innerRadius() - 2) return Ring;
+        if (square().adjusted(-6, -6, 6, 6).contains(pos)) return Inside;
+        return None;
+    }
+
+    void pick(Part part, const QPoint &pos) override
+    {
+        if (part == Ring) {
+            if (huePicked) huePicked(oklchHueAt(QPointF(pos) - center()));
+        } else if (planePicked) {
+            const QRectF plane = square();
+            planePicked(qBound(0.0, (pos.x() - plane.left()) / plane.width(), 1.0), qBound(0.0, (pos.y() - plane.top()) / plane.height(), 1.0));
         }
-        if (started) started();
-        pick(event->pos());
-    }
-
-    void mouseMoveEvent(QMouseEvent *event) override
-    {
-        if (event->buttons() & Qt::LeftButton) pick(event->pos());
-    }
-
-    void mouseReleaseEvent(QMouseEvent *) override
-    {
-        m_part = None;
     }
 
 private:
-    enum Part { None, Ring, Plane };
-
-    QPointF center() const { return QRectF(rect()).center(); }
-    qreal outerRadius() const { return qMin(width(), height()) / 2.0 - 1; }
     qreal ringWidth() const { return qBound(10.0, outerRadius() * 0.11, 18.0); }
 
     /// The square inside the ring, a little clear of it, on whole pixels
     QRectF square() const
     {
-        const qreal side = std::floor((outerRadius() - ringWidth() - 6) * std::sqrt(2.0));
+        const qreal side = std::floor((innerRadius() - 6) * std::sqrt(2.0));
         const QPointF c = center();
         return QRectF(std::round(c.x() - side / 2), std::round(c.y() - side / 2), side, side);
-    }
-
-    void pick(const QPoint &pos)
-    {
-        if (m_part == Ring) {
-            const QPointF offset = QPointF(pos) - center();
-            const qreal hue = std::fmod(std::atan2(offset.x(), -offset.y()) * 180.0 / M_PI + 360.0, 360.0);
-            if (huePicked) huePicked(hue);
-        } else if (m_part == Plane) {
-            const QRectF plane = square();
-            if (planePicked) {
-                planePicked(qBound(0.0, (pos.x() - plane.left()) / plane.width(), 1.0), qBound(0.0, (pos.y() - plane.top()) / plane.height(), 1.0));
-            }
-        }
-    }
-
-    QImage renderRing(const QSize &pixels, qreal dpr) const
-    {
-        // the hues once, every half degree
-        QVector<QRgb> hues(720);
-        for (int i = 0; i < hues.size(); i++) hues[i] = hueColor(i * 0.5).rgb();
-
-        QImage image(pixels, QImage::Format_ARGB32_Premultiplied);
-        image.fill(Qt::transparent);
-        const QPointF c(pixels.width() / 2.0, pixels.height() / 2.0);
-        const qreal outer = outerRadius() * dpr;
-        const qreal inner = (outerRadius() - ringWidth()) * dpr;
-        for (int y = 0; y < pixels.height(); y++) {
-            QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
-            for (int x = 0; x < pixels.width(); x++) {
-                const QPointF offset(x + 0.5 - c.x(), y + 0.5 - c.y());
-                const qreal distance = std::hypot(offset.x(), offset.y());
-                if (distance > inner - 2 && distance < outer + 2) {
-                    const qreal hue = std::fmod(std::atan2(offset.x(), -offset.y()) * 180.0 / M_PI + 360.0, 360.0);
-                    line[x] = hues[qBound(0, int(hue * 2), hues.size() - 1)];
-                }
-            }
-        }
-        QPainterPath ring;
-        ring.addEllipse(c, outer, outer);
-        ring.addEllipse(c, inner, inner);
-        clipTo(image, ring);
-        image.setDevicePixelRatio(dpr);
-        return image;
     }
 
     QImage renderPlane(const QSize &pixels, qreal dpr) const
@@ -348,7 +401,6 @@ private:
         for (int y = 0; y < pixels.height(); y++) {
             QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
             const qreal l = 1.0 - qreal(y) / qMax(1, pixels.height() - 1);
-            // the widest chroma in sRGB on this row, and the color there for past it
             const qreal widest = maxChroma(l, h);
             const QRgb past = veiled(rgbFromOklch({l, widest, h}));
             for (int x = 0; x < pixels.width(); x++) {
@@ -368,9 +420,146 @@ private:
 
     Oklch m_color {-1.0, -1.0, -1.0};
     QColor m_rgb;
-    Part m_part {None};
-    QImage m_ring;
     QImage m_plane;
+};
+
+/**
+ * Krita's classic selector, as the Advanced Color Selector draws it by
+ * default: a hue ring (red on the left) around an upright triangle with
+ * black at the top, white at the bottom left and the full hue at the bottom
+ * right. Value goes down the triangle and saturation across each row.
+ */
+class HsvWheel : public HueRing
+{
+public:
+    std::function<void(qreal hue)> huePicked;
+    std::function<void(qreal s, qreal v)> svPicked;
+
+    using HueRing::HueRing;
+
+    /// Hue, saturation and value in 0..1
+    void setContents(qreal hue, qreal s, qreal v)
+    {
+        if (hue != m_hue) {
+            m_triangle = QImage();
+        }
+        m_hue = hue;
+        m_s = s;
+        m_v = v;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        const qreal dpr = devicePixelRatioF();
+        const QSize pixels = size() * dpr;
+        if (m_triangle.size() != pixels) {
+            m_triangle = renderTriangle(pixels, dpr);
+        }
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        paintRing(painter);
+        painter.drawImage(0, 0, m_triangle);
+
+        // across the ring, as in the Advanced Color Selector: a dark line and a light one beside it
+        const qreal angle = m_hue * 2 * M_PI + M_PI;
+        const QPointF direction(std::cos(angle), std::sin(angle));
+        const QLineF across(center() + innerRadius() * direction, center() + outerRadius() * direction);
+        painter.setPen(QPen(Qt::black, 1.5));
+        painter.drawLine(across);
+        painter.setPen(QPen(Qt::white, 1.5));
+        painter.drawLine(across.translated(1.5 * QPointF(-direction.y(), direction.x())));
+        drawMarker(painter, trianglePoint(center(), triangleRadius(), m_s, m_v), 6);
+    }
+
+    /// 15% of the radius, as in the Advanced Color Selector
+    qreal innerRadius() const override { return outerRadius() * 0.85; }
+
+    QRgb ringColor(const QPointF &offset) const override
+    {
+        return QColor::fromHsvF(hueAt(offset), 1.0, 1.0).rgb();
+    }
+
+    Part partAt(const QPoint &pos) const override
+    {
+        const qreal distance = distanceTo(pos);
+        // all of the inside of the ring is the triangle's, so that its corners are easy to reach
+        return distance > outerRadius() + 2 ? None : distance < innerRadius() ? Inside : Ring;
+    }
+
+    void pick(Part part, const QPoint &pos) override
+    {
+        const QPointF c = center();
+        if (part == Ring) {
+            if (huePicked) huePicked(hueAt(QPointF(pos) - c));
+        } else if (svPicked) {
+            // outside the triangle: the nearest row, then the nearest point on it
+            const qreal r = triangleRadius();
+            const qreal v = qBound(0.0, (pos.y() - (c.y() - r)) / (1.5 * r), 1.0);
+            const qreal rowLength = v * r * std::sqrt(3.0);
+            // at the apex every saturation is black: keep the one in use
+            const qreal s = rowLength < 1.0 ? m_s : qBound(0.0, (pos.x() - (c.x() - rowLength / 2)) / rowLength, 1.0);
+            svPicked(s, v);
+        }
+    }
+
+private:
+    /// The circle the triangle's corners are on, a little inside the ring
+    qreal triangleRadius() const { return innerRadius() - 4; }
+
+    /// Red on the left, then yellow above it, as in the Advanced Color Selector
+    static qreal hueAt(const QPointF &offset)
+    {
+        return std::fmod((std::atan2(offset.y(), offset.x()) + M_PI) / (2 * M_PI), 1.0);
+    }
+
+    /// A point of the triangle with corners on a circle of radius \p r around \p c: value 0 at the apex
+    static QPointF trianglePoint(const QPointF &c, qreal r, qreal s, qreal v)
+    {
+        const qreal rowLength = v * r * std::sqrt(3.0);
+        return QPointF(c.x() - rowLength / 2 + s * rowLength, c.y() - r + v * 1.5 * r);
+    }
+
+    QImage renderTriangle(const QSize &pixels, qreal dpr) const
+    {
+        QImage image(pixels, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        const QPointF c(pixels.width() / 2.0, pixels.height() / 2.0);
+        const qreal r = triangleRadius() * dpr;
+        // HSV at one hue is v * ((1 - s) * white + s * the pure hue), in encoded RGB
+        const QColor pure = QColor::fromHsvF(m_hue, 1.0, 1.0);
+        const qreal pr = pure.redF(), pg = pure.greenF(), pb = pure.blueF();
+        const int top = qMax(0, int(c.y() - r) - 1);
+        const int bottom = qMin(pixels.height() - 1, int(c.y() + r / 2) + 1);
+        const int left = qMax(0, int(c.x() - r) - 1);
+        const int right = qMin(pixels.width() - 1, int(c.x() + r) + 1);
+        for (int y = top; y <= bottom; y++) {
+            QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+            const qreal v = qBound(0.0, (y + 0.5 - (c.y() - r)) / (1.5 * r), 1.0);
+            const qreal rowLength = v * r * std::sqrt(3.0);
+            const qreal rowStart = c.x() - rowLength / 2;
+            for (int x = left; x <= right; x++) {
+                // past the edges too, clamped, so that the antialiased edge has the edge's color
+                const qreal s = rowLength > 0 ? qBound(0.0, (x + 0.5 - rowStart) / rowLength, 1.0) : 0.0;
+                line[x] = qRgb(qRound(255 * v * (1 - s + s * pr)), qRound(255 * v * (1 - s + s * pg)), qRound(255 * v * (1 - s + s * pb)));
+            }
+        }
+        QPainterPath triangle;
+        triangle.moveTo(trianglePoint(c, r, 0, 0));
+        triangle.lineTo(trianglePoint(c, r, 1, 1));
+        triangle.lineTo(trianglePoint(c, r, 0, 1));
+        triangle.closeSubpath();
+        clipTo(image, triangle);
+        image.setDevicePixelRatio(dpr);
+        return image;
+    }
+
+    qreal m_hue {0.0};
+    qreal m_s {0.0};
+    qreal m_v {0.0};
+    QImage m_triangle;
 };
 
 /**
@@ -431,8 +620,7 @@ protected:
         }
         painter.drawImage(track, m_image);
         if (m_edge > 0.0 && m_edge < 1.0) {
-            const qreal x = knobX(m_edge);
-            painter.fillRect(QRectF(x - 0.75, 0, 1.5, height()), QColor(255, 255, 255, 200));
+            painter.fillRect(QRectF(knobX(m_edge) - 0.75, 0, 1.5, height()), QColor(255, 255, 255, 200));
         }
         painter.restore();
         drawKnob(painter, QPointF(knobX(m_marker), height() / 2.0), height() / 2.0, m_knob);
@@ -440,8 +628,9 @@ protected:
 
     void mousePressEvent(QMouseEvent *event) override
     {
+        if (event->button() != Qt::LeftButton) return;
         if (started) started();
-        // on the knob: taken where it is, moved from there; elsewhere: there
+        // on the knob: moved from where it was taken; elsewhere: jumps there
         const qreal offset = event->pos().x() - knobX(m_marker);
         m_grab = qAbs(offset) <= height() / 2.0 ? offset : 0.0;
         if (picked) picked(positionAt(event->pos().x() - m_grab));
@@ -454,7 +643,7 @@ protected:
 
     void wheelEvent(QWheelEvent *event) override
     {
-        // a notch a hundredth of the track; the color before a run of notches is the one gone back to
+        // a notch a hundredth of the track; the color before a run of notches is the previous one
         if (const int steps = KisModernStyle::wheelSteps(event, this)) {
             if (started && (!m_lastWheel.isValid() || m_lastWheel.elapsed() > 600)) started();
             m_lastWheel.restart();
@@ -464,7 +653,7 @@ protected:
     }
 
 private:
-    /// The knob stays inside the track's round ends: 0 and 1 are where it is at either end
+    /// The knob stays inside the track's round ends
     qreal knobX(qreal t) const { return height() / 2.0 + t * (width() - height()); }
     qreal positionAt(qreal x) const { return qBound(0.0, (x - height() / 2.0) / qMax(1, width() - height()), 1.0); }
 
@@ -481,7 +670,7 @@ private:
 class ColorChip : public QWidget
 {
 public:
-    explicit ColorChip(QWidget *parent) : QWidget(parent) {}
+    using QWidget::QWidget;
 
     void setColor(const QColor &color)
     {
@@ -505,213 +694,13 @@ private:
     QColor m_color;
 };
 
-/**
- * Krita's classic selector, laid out as the Advanced Color Selector draws it
- * by default: a hue ring (red on the left) around an upright triangle with
- * black at the top, white at the bottom left and the full hue at the bottom
- * right. Value goes down the triangle and saturation across each row, so
- * every color of the hue is on it exactly once.
- */
-class HsvWheel : public QWidget
-{
-public:
-    std::function<void(qreal hue)> huePicked;
-    std::function<void(qreal s, qreal v)> svPicked;
-    std::function<void()> started;
-
-    explicit HsvWheel(QWidget *parent) : QWidget(parent)
-    {
-        setMinimumSize(140, 140);
-        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-        setCursor(Qt::CrossCursor);
-        // held still, a color is being picked: no menu
-        setProperty("ownLongPress", true);
-    }
-
-    /// Hue, saturation and value in 0..1
-    void setContents(qreal hue, qreal s, qreal v)
-    {
-        if (hue != m_hue) {
-            m_triangle = QImage();
-        }
-        m_hue = hue;
-        m_s = s;
-        m_v = v;
-        update();
-    }
-
-    QSize sizeHint() const override { return QSize(240, 240); }
-
-protected:
-    void paintEvent(QPaintEvent *) override
-    {
-        const qreal dpr = devicePixelRatioF();
-        const QSize pixels = size() * dpr;
-        if (m_ring.size() != pixels) {
-            m_ring = renderRing(pixels, dpr);
-        }
-        if (m_triangle.size() != pixels) {
-            m_triangle = renderTriangle(pixels, dpr);
-        }
-
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.drawImage(0, 0, m_ring);
-        painter.drawImage(0, 0, m_triangle);
-
-        // across the ring, as in the Advanced Color Selector: a dark line and a light one beside it
-        const qreal angle = ringAngle(m_hue);
-        const QPointF direction(std::cos(angle), std::sin(angle));
-        const QLineF across(center() + innerRadius() * direction, center() + outerRadius() * direction);
-        painter.setPen(QPen(Qt::black, 1.5));
-        painter.drawLine(across);
-        painter.setPen(QPen(Qt::white, 1.5));
-        painter.drawLine(across.translated(1.5 * QPointF(-direction.y(), direction.x())));
-        drawMarker(painter, trianglePoint(center(), triangleRadius(), m_s, m_v), 6);
-    }
-
-    void mousePressEvent(QMouseEvent *event) override
-    {
-        const QPointF offset = QPointF(event->pos()) - center();
-        const qreal distance = std::hypot(offset.x(), offset.y());
-        if (distance > outerRadius() + 2) {
-            m_part = None;
-            return;
-        }
-        // all of the inside of the ring is the triangle's, so that its corners are easy to reach
-        m_part = distance < innerRadius() ? Triangle : Ring;
-        if (started) started();
-        pick(event->pos());
-    }
-
-    void mouseMoveEvent(QMouseEvent *event) override
-    {
-        if (event->buttons() & Qt::LeftButton) pick(event->pos());
-    }
-
-    void mouseReleaseEvent(QMouseEvent *) override
-    {
-        m_part = None;
-    }
-
-private:
-    enum Part { None, Ring, Triangle };
-
-    QPointF center() const { return QRectF(rect()).center(); }
-    qreal outerRadius() const { return qMin(width(), height()) / 2.0 - 1; }
-    /// 15% of the radius, as in the Advanced Color Selector
-    qreal innerRadius() const { return outerRadius() * 0.85; }
-    /// The circle the triangle's corners are on, a little inside the ring
-    qreal triangleRadius() const { return innerRadius() - 4; }
-
-    /// Where a hue is on the ring, as in the Advanced Color Selector: red on the left, yellow above it...
-    static qreal ringAngle(qreal hue) { return hue * 2 * M_PI + M_PI; }
-    static qreal hueAt(const QPointF &offset)
-    {
-        return std::fmod((std::atan2(offset.y(), offset.x()) + M_PI) / (2 * M_PI), 1.0);
-    }
-
-    /**
-     * A point of the triangle whose corners are on a circle of radius \p r
-     * around \p c: value 0 (black) is the apex and 1 the base; along a row
-     * saturation goes from 0 on the left edge to 1 on the right edge.
-     */
-    static QPointF trianglePoint(const QPointF &c, qreal r, qreal s, qreal v)
-    {
-        const qreal rowLength = v * r * std::sqrt(3.0);
-        return QPointF(c.x() - rowLength / 2 + s * rowLength, c.y() - r + v * 1.5 * r);
-    }
-
-    void pick(const QPoint &pos)
-    {
-        const QPointF c = center();
-        if (m_part == Ring) {
-            if (huePicked) huePicked(hueAt(QPointF(pos) - c));
-        } else if (m_part == Triangle) {
-            // outside the triangle: the nearest row, then the nearest point on it
-            const qreal r = triangleRadius();
-            const qreal v = qBound(0.0, (pos.y() - (c.y() - r)) / (1.5 * r), 1.0);
-            const qreal rowLength = v * r * std::sqrt(3.0);
-            // at the apex every saturation is black: keep the one in use
-            const qreal s = rowLength < 1.0 ? m_s : qBound(0.0, (pos.x() - (c.x() - rowLength / 2)) / rowLength, 1.0);
-            if (svPicked) svPicked(s, v);
-        }
-    }
-
-    QImage renderRing(const QSize &pixels, qreal dpr) const
-    {
-        QImage image(pixels, QImage::Format_ARGB32_Premultiplied);
-        image.fill(Qt::transparent);
-        const QPointF c(pixels.width() / 2.0, pixels.height() / 2.0);
-        const qreal outer = outerRadius() * dpr;
-        const qreal inner = innerRadius() * dpr;
-        for (int y = 0; y < pixels.height(); y++) {
-            QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
-            for (int x = 0; x < pixels.width(); x++) {
-                const QPointF offset(x + 0.5 - c.x(), y + 0.5 - c.y());
-                const qreal distance = std::hypot(offset.x(), offset.y());
-                if (distance > inner - 2 && distance < outer + 2) {
-                    line[x] = QColor::fromHsvF(hueAt(offset), 1.0, 1.0).rgb();
-                }
-            }
-        }
-        QPainterPath ring;
-        ring.addEllipse(c, outer, outer);
-        ring.addEllipse(c, inner, inner);
-        clipTo(image, ring);
-        image.setDevicePixelRatio(dpr);
-        return image;
-    }
-
-    QImage renderTriangle(const QSize &pixels, qreal dpr) const
-    {
-        QImage image(pixels, QImage::Format_ARGB32_Premultiplied);
-        image.fill(Qt::transparent);
-        const QPointF c(pixels.width() / 2.0, pixels.height() / 2.0);
-        const qreal r = triangleRadius() * dpr;
-        // HSV at one hue is v * ((1 - s) * white + s * the pure hue), in encoded RGB
-        const QColor pure = QColor::fromHsvF(m_hue, 1.0, 1.0);
-        const qreal pr = pure.redF(), pg = pure.greenF(), pb = pure.blueF();
-        const int top = qMax(0, int(c.y() - r) - 1);
-        const int bottom = qMin(pixels.height() - 1, int(c.y() + r / 2) + 1);
-        const int left = qMax(0, int(c.x() - r) - 1);
-        const int right = qMin(pixels.width() - 1, int(c.x() + r) + 1);
-        for (int y = top; y <= bottom; y++) {
-            QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
-            const qreal v = qBound(0.0, (y + 0.5 - (c.y() - r)) / (1.5 * r), 1.0);
-            const qreal rowLength = v * r * std::sqrt(3.0);
-            const qreal rowStart = c.x() - rowLength / 2;
-            for (int x = left; x <= right; x++) {
-                // past the edges too, clamped, so that the antialiased edge has the edge's color
-                const qreal s = rowLength > 0 ? qBound(0.0, (x + 0.5 - rowStart) / rowLength, 1.0) : 0.0;
-                line[x] = qRgb(qRound(255 * v * (1 - s + s * pr)), qRound(255 * v * (1 - s + s * pg)), qRound(255 * v * (1 - s + s * pb)));
-            }
-        }
-        QPainterPath triangle;
-        triangle.moveTo(trianglePoint(c, r, 0, 0));
-        triangle.lineTo(trianglePoint(c, r, 1, 1));
-        triangle.lineTo(trianglePoint(c, r, 0, 1));
-        triangle.closeSubpath();
-        clipTo(image, triangle);
-        image.setDevicePixelRatio(dpr);
-        return image;
-    }
-
-    qreal m_hue {0.0};
-    qreal m_s {0.0};
-    qreal m_v {0.0};
-    Part m_part {None};
-    QImage m_ring;
-    QImage m_triangle;
-};
-
 /// A row of color chips; a click picks one
 class Swatches : public QWidget
 {
 public:
     std::function<void(int index)> picked;
 
-    explicit Swatches(int chipSize, QWidget *parent) : QWidget(parent), m_chip(chipSize)
+    Swatches(int chipSize, QWidget *parent) : QWidget(parent), m_chip(chipSize)
     {
         setFixedHeight(chipSize);
     }
@@ -729,20 +718,18 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
         QColor border = palette().color(QPalette::WindowText);
         border.setAlphaF(0.18);
-        for (int i = 0; i < m_colors.size(); i++) {
-            const QRectF chip = chipRect(i);
-            if (chip.right() > width()) break;
-            painter.setPen(QPen(border, 1));
+        painter.setPen(QPen(border, 1));
+        for (int i = 0; i < shownCount(); i++) {
             painter.setBrush(m_colors[i]);
-            painter.drawPath(KisModernStyle::squircle(chip.adjusted(0.5, 0.5, -0.5, -0.5), 4));
+            painter.drawPath(KisModernStyle::squircle(chipRect(i).adjusted(0.5, 0.5, -0.5, -0.5), 4));
         }
     }
 
     void mousePressEvent(QMouseEvent *event) override
     {
-        for (int i = 0; i < m_colors.size(); i++) {
-            if (chipRect(i).right() > width()) break; // not drawn, so not clickable
-            if (chipRect(i).contains(event->pos()) && picked) {
+        if (event->button() != Qt::LeftButton || !picked) return;
+        for (int i = 0; i < shownCount(); i++) {
+            if (chipRect(i).contains(event->pos())) {
                 picked(i);
                 return;
             }
@@ -751,6 +738,8 @@ protected:
 
 private:
     QRectF chipRect(int i) const { return QRectF(i * (m_chip + 4), 0, m_chip, m_chip); }
+    /// The chips that fit
+    int shownCount() const { return qMin(int(m_colors.size()), (width() + 4) / (m_chip + 4)); }
 
     int m_chip;
     QVector<QColor> m_colors;
@@ -762,15 +751,14 @@ private:
 enum class PickerStyle { Ring, Pill, Hsv };
 
 /**
- * What a picker is, shown, not told, beside its menu as it is pointed at:
- * every hue of HSV and of OKLCH, and under each how light it looks (as a
- * gray). HSV's goes from near white to near black; OKLCH's stays level. The
- * picker pointed at is the one at full strength.
+ * What a picker is, shown beside its menu as it is pointed at: every hue of
+ * HSV and of OKLCH, and under each how light it looks. HSV's goes from near
+ * white to near black; OKLCH's stays level.
  */
 class PickerTip : public QWidget
 {
 public:
-    /// In \p window, over everything in it (as the rings are), its glass over theirs: beside the menu
+    /// In \p window, over everything in it, its glass over theirs
     explicit PickerTip(QWidget *window)
         : QWidget(window)
     {
@@ -795,7 +783,6 @@ public:
         update();
         show();
         raise();
-        // the canvas draws the glass under it, where it is now
         KisStudioGlass::changed(this);
     }
 
@@ -824,10 +811,8 @@ protected:
     }
 
 private:
-    int labelHeight() const
-    {
-        return QFontMetrics(KisModernStyle::textFont(font(), 0.8, QFont::DemiBold)).height();
-    }
+    QFont labelFont() const { return KisModernStyle::textFont(font(), 0.8, QFont::DemiBold); }
+    int labelHeight() const { return QFontMetrics(labelFont()).height(); }
 
     int contentHeight() const
     {
@@ -835,10 +820,10 @@ private:
         return margin + strip + gap + strip + margin;
     }
 
-    /// The hues, and under them how light each looks (OKLab's L as a gray): a name above
+    /// A name, the hues under it, and under them how light each looks (OKLab's L as a gray)
     int paintStrip(QPainter &painter, int y, const QString &name, const std::function<QColor(qreal)> &colorAt)
     {
-        QFont label = KisModernStyle::textFont(font(), 0.8, QFont::DemiBold);
+        QFont label = labelFont();
         label.setLetterSpacing(QFont::PercentageSpacing, 106);
         painter.setFont(label);
         painter.setPen(KisModernStyle::secondaryInk(palette().color(QPalette::WindowText)));
@@ -978,7 +963,6 @@ protected:
     void changeEvent(QEvent *event) override
     {
         QLineEdit::changeEvent(event);
-        // another theme: faded from its text color
         if (event->type() == QEvent::PaletteChange && !m_fading) fade();
     }
 
@@ -1018,26 +1002,26 @@ struct KisStudioColorPanel::Private
     QToolButton *styleButton {nullptr};
     QMap<PickerStyle, QAction *> styleActions;
 
-    /// The OKLCH ring or pill: even perceived steps; HSV: Krita's classic ring and triangle, for those used to it
     PickerStyle style {PickerStyle::Ring};
-    Oklch color;                    ///< OKLCH coordinates
-    /**
-     * The chroma last chosen: a new lightness or hue keeps as much of it as
-     * there is in sRGB there, so that it comes back where there is room again
-     */
+    Oklch color;
+    /// The chroma last chosen: a new lightness or hue keeps as much of it as there is in sRGB there
     qreal heldChroma {0.0};
-    qreal hsvHue {0.0}, hsvS {0.0}, hsvV {0.0}; ///< HSV coordinates, 0..1
+    qreal hsvHue {0.0}, hsvS {0.0}, hsvV {0.0}; ///< 0..1
+    /// The color shown, in 8 bits as the canvas reports it
     QColor current;
-    QColor previous;
+    /// The color as the canvas has it
+    KoColor currentColor;
+    std::optional<KoColor> previous;
 
-    /// Set while the panel itself sets the color, whose 8-bit echo is not a change from outside
+    /// Set while the panel itself sets the color: its echo is not a change from outside
     bool applying {false};
 
-    void applyColor(const QColor &rgb)
+    void applyColor(const KoColor &color)
     {
+        currentColor = color;
         if (!canvas || !canvas->resourceManager()) return;
         applying = true;
-        canvas->resourceManager()->setForegroundColor(KoColor(rgb, KoColorSpaceRegistry::instance()->rgb8()));
+        canvas->resourceManager()->setForegroundColor(color);
         applying = false;
     }
 
@@ -1078,31 +1062,42 @@ struct KisStudioColorPanel::Private
             wheel->setContents(hsvHue, hsvS, hsvV);
             break;
         }
-        currentRow->setColors({current, previous.isValid() ? previous : current});
+        currentRow->setColors({current, previous ? previous->toQColor() : current});
         hex->setText(current.name().mid(1).toUpper());
     }
 
-    void showColor(const QColor &rgb, bool fromOutside)
+    /// A color from elsewhere: shown, the one before it becomes the previous one (by value: it may be \c previous)
+    void showColor(KoColor color)
     {
-        // compared as the canvas keeps it, in 8 bits, so that its echo is the same color
-        const QColor rgb8 = QColor::fromRgb(rgb.rgb());
-        if (rgb8 == current) return;
-        // a drag in the panel is one change: "previous" is set when it starts, not on every move
-        if (fromOutside && current.isValid()) previous = current;
-        current = rgb8;
-        if (fromOutside) {
+        const QColor rgb = color.toQColor();
+        if (rgb != current) {
+            if (current.isValid()) previous = currentColor;
+            current = rgb;
             readCoordinates(rgb);
+            refresh();
         }
-        refresh();
+        currentColor = color;
     }
 
-    /// A change made in the panel: shown, and sent to the canvas
+    /// Shown and sent to the canvas
+    void setColor(const KoColor &color)
+    {
+        showColor(color);
+        applyColor(currentColor);
+    }
+
+    /// A change made with a picker: "previous" was set when the drag started
     void pickColor(const QColor &rgb)
     {
-        showColor(rgb, false);
         // the marker follows the pointer also where the color stays the same, e.g. along black
+        current = QColor::fromRgb(rgb.rgb());
         refresh();
-        applyColor(rgb);
+        applyColor(koColorFromRgb(rgb));
+    }
+
+    void remember()
+    {
+        if (current.isValid()) previous = currentColor;
     }
 
     void setStyle(PickerStyle picked)
@@ -1126,6 +1121,11 @@ struct KisStudioColorPanel::Private
         recentRow->setColors(colors);
     }
 };
+
+namespace {
+/// The config's name of each PickerStyle, in its order
+const QStringList styleNames = {QStringLiteral("ring"), QStringLiteral("pill"), QStringLiteral("hsv")};
+}
 
 KisStudioColorPanel::KisStudioColorPanel()
     : d(new Private)
@@ -1183,8 +1183,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->styleButton->setToolTip(i18nc("@info:tooltip", "Picker style"));
     auto *styles = new QMenu(d->styleButton);
     auto *styleGroup = new QActionGroup(styles);
-    // each picker shown as it is pointed at, beside the menu
-    // made when first needed: in the window the panel is in then (not yet one, while it is made)
+    // made when first needed, in the window the panel is in then (it has none while it is made)
     auto tip = std::make_shared<QPointer<PickerTip>>();
     connect(styles, &QMenu::hovered, this, [this, styles, tip](QAction *action) {
         if (!action || !action->data().isValid()) {
@@ -1202,29 +1201,22 @@ KisStudioColorPanel::KisStudioColorPanel()
     connect(styles, &QMenu::aboutToHide, this, [tip]() {
         if (*tip) (*tip)->hide();
     });
-    struct Picker {
-        PickerStyle style;
-        QString name;
-    };
-    const QList<Picker> names = {
+    const QList<QPair<PickerStyle, QString>> pickers = {
         {PickerStyle::Ring, i18nc("@item:inmenu color picker: OKLCH hue ring and chroma/lightness square", "OKLCH")},
         {PickerStyle::Pill, i18nc("@item:inmenu color picker: compact OKLCH sliders", "Sliders")},
         {PickerStyle::Hsv, i18nc("@item:inmenu color picker", "HSV")},
     };
-    for (const auto &picker : names) {
-        const auto name = qMakePair(picker.style, picker.name);
-        QAction *action = styles->addAction(styleIcon(name.first), name.second);
-        action->setData(int(picker.style));
+    for (const auto &picker : pickers) {
+        const PickerStyle style = picker.first;
+        QAction *action = styles->addAction(styleIcon(style), picker.second);
+        action->setData(int(style));
         // Krita leaves icons out of menus; these are what tells the pickers apart
         action->setIconVisibleInMenu(true);
         action->setCheckable(true);
         styleGroup->addAction(action);
-        d->styleActions.insert(name.first, action);
-        const PickerStyle style = name.first;
+        d->styleActions.insert(style, action);
         connect(action, &QAction::triggered, this, [this, style]() {
-            KisConfig(false).writeEntry("StudioColorStyle", style == PickerStyle::Pill ? QStringLiteral("pill")
-                                                            : style == PickerStyle::Hsv ? QStringLiteral("hsv")
-                                                                                        : QStringLiteral("ring"));
+            KisConfig(false).writeEntry("StudioColorStyle", styleNames[int(style)]);
             d->setStyle(style);
             fitHeight();
         });
@@ -1244,7 +1236,6 @@ KisStudioColorPanel::KisStudioColorPanel()
 
     setWidget(contents);
 
-    // what the tracks show
     d->lightTrack->colorAt = [this](qreal t) {
         return rgbFromOklch({t, qMin(d->heldChroma, maxChroma(t, d->color.h)), d->color.h});
     };
@@ -1255,9 +1246,7 @@ KisStudioColorPanel::KisStudioColorPanel()
         return hueColor(360.0 * t);
     };
 
-    auto remember = [this]() {
-        if (d->current.isValid()) d->previous = d->current;
-    };
+    auto remember = [this]() { d->remember(); };
     d->ring->started = remember;
     d->lightTrack->started = remember;
     d->chromaTrack->started = remember;
@@ -1299,18 +1288,12 @@ KisStudioColorPanel::KisStudioColorPanel()
         d->pickColor(QColor::fromHsvF(d->hsvHue, d->hsvS, d->hsvV));
     };
     d->currentRow->picked = [this](int index) {
-        if (index == 1 && d->previous.isValid()) {
-            // swaps, so a second click goes back
-            const QColor previous = d->previous;
-            d->showColor(previous, true);
-            d->applyColor(previous);
-        }
+        // swaps, so a second click goes back
+        if (index == 1 && d->previous) d->setColor(*d->previous);
     };
     d->recentRow->picked = [this](int index) {
         if (d->favorites && index < d->favorites->recentColorsTotal()) {
-            const QColor rgb = d->favorites->recentColorAt(index).toQColor();
-            d->showColor(rgb, true);
-            d->applyColor(rgb);
+            d->setColor(d->favorites->recentColorAt(index));
         }
     };
     connect(d->hex, &QLineEdit::editingFinished, this, [this]() {
@@ -1323,19 +1306,16 @@ KisStudioColorPanel::KisStudioColorPanel()
             d->hex->setText(d->current.name().mid(1).toUpper());
             return;
         }
-        const QColor rgb(text.startsWith(QLatin1Char('#')) ? text : QLatin1Char('#') + text);
-        d->showColor(rgb, true);
-        d->applyColor(rgb);
+        d->setColor(koColorFromRgb(QColor(text.startsWith(QLatin1Char('#')) ? text : QLatin1Char('#') + text)));
     });
 
     // the picker last chosen; before there was a choice of three, a switch between OKLCH and HSV
     KisConfig config(true);
-    const QString saved = config.readEntry<QString>("StudioColorStyle", QString());
-    PickerStyle style = config.readEntry<bool>("StudioColorHsv", false) ? PickerStyle::Hsv : PickerStyle::Ring;
-    if (saved == QLatin1String("ring")) style = PickerStyle::Ring;
-    else if (saved == QLatin1String("pill")) style = PickerStyle::Pill;
-    else if (saved == QLatin1String("hsv")) style = PickerStyle::Hsv;
-    d->showColor(Qt::black, true);
+    const int saved = styleNames.indexOf(config.readEntry<QString>("StudioColorStyle", QString()));
+    const PickerStyle style = saved >= 0 ? PickerStyle(saved)
+                              : config.readEntry<bool>("StudioColorHsv", false) ? PickerStyle::Hsv
+                                                                                : PickerStyle::Ring;
+    d->showColor(KoColor(Qt::black, KoColorSpaceRegistry::instance()->rgb8()));
     d->setStyle(style);
     fitHeight();
 }
@@ -1372,10 +1352,10 @@ void KisStudioColorPanel::setCanvas(KoCanvasBase *canvas)
     d->canvasConnections << connect(canvas->resourceManager(), &KoCanvasResourceProvider::canvasResourceChanged, this,
                                     [this](int key, const QVariant &value) {
                                         if (key == KoCanvasResource::ForegroundColor && !d->applying) {
-                                            d->showColor(value.value<KoColor>().toQColor(), true);
+                                            d->showColor(value.value<KoColor>());
                                         }
                                     });
-    d->showColor(canvas->resourceManager()->foregroundColor().toQColor(), true);
+    d->showColor(canvas->resourceManager()->foregroundColor());
 
     auto *kisCanvas = dynamic_cast<KisCanvas2 *>(canvas);
     if (kisCanvas && kisCanvas->viewManager() && kisCanvas->viewManager()->paintOpBox()) {

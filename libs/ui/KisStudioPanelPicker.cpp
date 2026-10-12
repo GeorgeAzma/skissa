@@ -14,6 +14,7 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QStandardPaths>
+#include <QtConcurrent>
 
 #include <klocalizedstring.h>
 
@@ -21,19 +22,19 @@
 
 namespace {
 
-/// The size of a tile: portrait, as panels are
+/// Portrait, as panels are
 const QSize tileSize(156, 176);
-/// A picture is kept this wide (and as tall as the panel is, in proportion): sharp in a tile on a 2x screen
+/// Sharp in a tile on a 2x screen
 constexpr int keptWidth = 300;
 
-/// Without the empty space around what is in it: most panels are mostly empty
+/// Without the empty space around the content: most panels are mostly empty
 QImage trimmed(const QImage &image)
 {
     const QImage img = image.convertToFormat(QImage::Format_ARGB32);
     if (img.isNull()) {
         return img;
     }
-    // the panel's own background, where nothing is: a bottom corner
+    // the panel's own background: a bottom corner
     const QRgb background = img.pixel(img.width() - 1, img.height() - 1);
     auto differs = [background](QRgb c) {
         return qAbs(qRed(c) - qRed(background)) + qAbs(qGreen(c) - qGreen(background)) + qAbs(qBlue(c) - qBlue(background)) > 30;
@@ -56,7 +57,7 @@ QImage trimmed(const QImage &image)
     return img.copy(QRect(QPoint(left, top), QPoint(right, bottom)).adjusted(-margin, -margin, margin, margin) & img.rect());
 }
 
-/// The pictures, by panel: in memory once made or read, and on disk between sessions
+/// The pictures by panel id: in memory, and on disk between sessions
 struct Looks {
     QHash<QString, QImage> images;
     QHash<QString, qint64> taken;
@@ -85,13 +86,12 @@ struct Looks {
         if (it != images.constEnd()) {
             return *it;
         }
-        // from an earlier session
         const QImage image = trimmed(QImage(fileOf(id)));
         images.insert(id, image);
         return image;
     }
 
-    void keep(const QString &id, const QImage &image, bool save)
+    void keep(const QString &id, const QImage &image)
     {
         if (image.isNull()) {
             return;
@@ -100,17 +100,15 @@ struct Looks {
         const QImage small = content.width() > keptWidth ? content.scaledToWidth(keptWidth, Qt::SmoothTransformation) : content;
         images.insert(id, small);
         taken.insert(id, QDateTime::currentMSecsSinceEpoch());
-        if (save && QDir().mkpath(folder())) {
-            small.save(fileOf(id), "PNG");
-        }
+        // written off the GUI thread: it runs as a panel hides
+        const QString file = fileOf(id);
+        QtConcurrent::run([small, file]() {
+            if (QDir().mkpath(folder())) small.save(file, "PNG");
+        });
     }
 };
 
-/**
- * \p look without the panel's own background (a picture taken when panels
- * were solid), for it to show on glass as the panels do now: the color at
- * its corner, taken out wherever it is. Kept, for each picture.
- */
+/// \p look with its solid background (pictures taken before panels were glass) made transparent
 QImage withoutBackground(const QImage &look)
 {
     static QHash<qint64, QImage> made;
@@ -137,28 +135,24 @@ QImage withoutBackground(const QImage &look)
     return image;
 }
 
-} // namespace
-
-/// What the picker and the tiles it draws share
-struct KisStudioPanelPickerState {
-    QPointer<KisMainWindow> mainWindow;
-    KisStudioPanelPicker::Rail rail;
-};
-
-static KisStudioPicker::Source panelsSource(std::shared_ptr<KisStudioPanelPickerState> state)
+KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioPanelPicker::Rail &rail)
 {
-    auto docks = [state]() {
+    QPointer<KisMainWindow> window = mainWindow;
+    auto docks = [window]() {
         QHash<QString, QDockWidget *> result;
-        if (!state->mainWindow) return result;
-        Q_FOREACH (QDockWidget *dock, state->mainWindow->dockWidgets()) {
-            if (!dock->objectName().isEmpty() && !dock->windowTitle().isEmpty()) result.insert(dock->objectName(), dock);
+        if (!window) return result;
+        Q_FOREACH (QDockWidget *dock, window->dockWidgets()) {
+            // the toolbox is the tool rail in the studio layout
+            if (!dock->objectName().isEmpty() && dock->objectName() != QLatin1String("ToolBox") && !dock->windowTitle().isEmpty()) {
+                result.insert(dock->objectName(), dock);
+            }
         }
         return result;
     };
 
     KisStudioPicker::Source source;
-    source.pinnedKey = state->rail.key;
-    source.initialPinned = state->rail.defaults;
+    source.pinnedKey = rail.key;
+    source.initialPinned = rail.defaults;
     source.allIds = [docks]() {
         const QHash<QString, QDockWidget *> all = docks();
         QStringList ids = all.keys();
@@ -167,9 +161,9 @@ static KisStudioPicker::Source panelsSource(std::shared_ptr<KisStudioPanelPicker
         });
         return ids;
     };
-    source.otherGroups = [source](const QStringList &pinned) {
+    source.otherGroups = [allIds = source.allIds](const QStringList &pinned) {
         KisStudioPicker::Group group{i18nc("panels group: the ones not on the rail", "More panels"), {}};
-        Q_FOREACH (const QString &id, source.allIds()) {
+        Q_FOREACH (const QString &id, allIds()) {
             if (!pinned.contains(id)) group.ids << id;
         }
         return QVector<KisStudioPicker::Group>{group};
@@ -179,11 +173,10 @@ static KisStudioPicker::Source panelsSource(std::shared_ptr<KisStudioPanelPicker
         return dock ? dock->windowTitle() : id;
     };
     source.aliases = [](const QString &id) { return QStringList{id}; };
-    source.paintPreview = [state, docks](QPainter &painter, const QRect &rect, const QString &id) {
+    source.paintPreview = [icon = rail.icon, docks](QPainter &painter, const QRect &rect, const QString &id) {
         const QImage look = Looks::instance().look(id);
         painter.save();
         if (!look.isNull()) {
-            // all of what is in it, as large as fits, on the picker's glass as a panel is on the canvas's
             const QImage onGlass = withoutBackground(look);
             const QSize fitted = onGlass.size().scaled(rect.size() - QSize(8, 8), Qt::KeepAspectRatio);
             QRect target(QPoint(0, 0), fitted);
@@ -191,14 +184,13 @@ static KisStudioPicker::Source panelsSource(std::shared_ptr<KisStudioPanelPicker
             painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
             painter.drawImage(target, onGlass);
         } else {
-            // never opened yet: its icon, until it has been (laying out a panel off screen changes it)
+            // never on screen yet (laying a panel out off screen would change it)
             painter.fillRect(rect, QColor(128, 128, 128, 40));
             if (QDockWidget *dock = docks().value(id)) {
-                const QIcon icon = state->rail.icon ? state->rail.icon(dock) : dock->windowIcon();
                 QRect iconRect(0, 0, 32, 32);
                 iconRect.moveCenter(rect.center());
                 painter.setOpacity(painter.opacity() * 0.6);
-                icon.paint(&painter, iconRect);
+                (icon ? icon(dock) : dock->windowIcon()).paint(&painter, iconRect);
             }
         }
         painter.restore();
@@ -207,53 +199,32 @@ static KisStudioPicker::Source panelsSource(std::shared_ptr<KisStudioPanelPicker
     source.tileSize = tileSize;
     source.yoursTitle = i18nc("panels group: the ones on the rail", "On the rail");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search panels");
-    // the number goes in later: %1 passes through
+    // %1 is filled in later
     source.allLabel = i18nc("@action:button %1 is a number", "All %1 panels", QStringLiteral("%1"));
     return source;
 }
 
-struct KisStudioPanelPicker::Private
-{
-    std::shared_ptr<KisStudioPanelPickerState> state;
-};
+} // namespace
 
 KisStudioPanelPicker::KisStudioPanelPicker(KisMainWindow *mainWindow, const Rail &rail)
-    : KisStudioPanelPicker([mainWindow, rail]() {
-        auto state = std::make_shared<KisStudioPanelPickerState>();
-        state->mainWindow = mainWindow;
-        state->rail = rail;
-        return state;
-    }())
+    : KisStudioPicker(panelsSource(mainWindow, rail), QString(), QSet<QString>(), mainWindow)
 {
-}
-
-KisStudioPanelPicker::KisStudioPanelPicker(std::shared_ptr<KisStudioPanelPickerState> state)
-    : KisStudioPicker(panelsSource(state), QString(), QSet<QString>(), state->mainWindow)
-    , d(new Private)
-{
-    d->state = state;
-
-    // the open ones as they are now
-    Q_FOREACH (QDockWidget *dock, state->mainWindow->dockWidgets()) {
+    Q_FOREACH (QDockWidget *dock, mainWindow->dockWidgets()) {
         if (dock->isVisible()) rememberLook(dock);
     }
-}
-
-KisStudioPanelPicker::~KisStudioPanelPicker()
-{
 }
 
 void KisStudioPanelPicker::rememberLook(QDockWidget *dock)
 {
     QWidget *content = dock ? dock->widget() : nullptr;
-    // only laid out for real, on screen (not while the window closes)
+    // only when laid out on screen (not while the window closes)
     if (!content || !dock->window() || !dock->window()->isVisible() || content->width() < 40 || content->height() < 40) {
         return;
     }
     Looks &looks = Looks::instance();
-    // not again for every flicker: a second apart at least
+    // not for every flicker
     if (QDateTime::currentMSecsSinceEpoch() - looks.taken.value(dock->objectName(), 0) < 1000) {
         return;
     }
-    looks.keep(dock->objectName(), content->grab().toImage(), true);
+    looks.keep(dock->objectName(), content->grab().toImage());
 }

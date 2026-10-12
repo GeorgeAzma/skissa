@@ -313,16 +313,25 @@ KisInputProfile* KisInputProfileManager::loadProfileInternal(const QString &full
     KIS_SAFE_ASSERT_RECOVER_NOOP(version == PROFILE_VERSION);
 
     /**
-     * The actions the profile was saved knowing (written since this list was):
-     * one it never knew, newer than it, gets the bundled profile's shortcuts
-     * for it, unless taken; one it knew and has none for was left without.
+     * An action the profile was saved without knowing gets the bundled profile's shortcuts, unless taken;
+     * one it knew and has none for was left without. Saved before the list was: it knew all but the fork's.
      */
-    const QStringList known = config.group("General").readEntry("actions", QStringList());
+    const KConfigGroup general = config.group("General");
+    QStringList known = general.readEntry("actions", QStringList());
+    if (!general.hasKey("actions")) {
+        Q_FOREACH (KisAbstractInputAction *action, d->actions) {
+            if (action->id() != QLatin1String("Drag Value")) known << action->id();
+        }
+    }
     QList<KisShortcutConfiguration *> newer;
+    // by its name: a profile is saved under a file named after it, which is not always the bundled one's
     QScopedPointer<KConfig> bundled;
-    Q_FOREACH (const QString &candidate, KoResourcePaths::findAllAssets("data", QStringLiteral("input/") + QFileInfo(fullPath).fileName())) {
-        if (QFileInfo(candidate) != QFileInfo(fullPath)) {
-            bundled.reset(new KConfig(candidate, KConfig::SimpleConfig));
+    Q_FOREACH (const QString &candidate, KoResourcePaths::findAllAssets("data", "input/*.profile", KoResourcePaths::Recursive)) {
+        if (QFileInfo(candidate) == QFileInfo(fullPath)) continue;
+        QScopedPointer<KConfig> other(new KConfig(candidate, KConfig::SimpleConfig));
+        const KConfigGroup otherGeneral = other->group("General");
+        if (otherGeneral.readEntry("name") == name && otherGeneral.readEntry("version", 0) == PROFILE_VERSION) {
+            bundled.swap(other);
             break;
         }
     }
@@ -442,7 +451,7 @@ void KisInputProfileManager::saveProfile(KisInputProfile *profile, QString stora
 
     config.group("General").writeEntry("name", profile->name());
     config.group("General").writeEntry("version", PROFILE_VERSION);
-    // the actions it knows: an action without shortcuts here was left so, not unknown (see loadProfileInternal)
+    // an action without shortcuts here was left so, not unknown (see loadProfileInternal)
     QStringList actionIds;
     Q_FOREACH (KisAbstractInputAction *action, d->actions) actionIds << action->id();
     config.group("General").writeEntry("actions", actionIds);

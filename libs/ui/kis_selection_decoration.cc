@@ -176,10 +176,14 @@ void KisSelectionDecoration::slotConfigChanged()
     KisImageConfig imageConfig(true);
     KisConfig cfg(true);
 
+    const QColor maskColor = imageConfig.selectionOverlayMaskColor();
+    const bool maskColorChanged = maskColor != m_maskColor;
     m_opacity = imageConfig.selectionOutlineOpacity();
-    m_maskColor = imageConfig.selectionOverlayMaskColor();
+    m_maskColor = maskColor;
     m_antialiasSelectionOutline = cfg.antialiasSelectionOutline();
     m_selectionActionsPanel->setEnabled(cfg.selectionActionBar());
+    // the mask's thumbnail is painted in its color
+    if (maskColorChanged && m_mode == Mask) slotStartUpdateSelection();
 }
 
 void KisSelectionDecoration::slotCanvasResourcesChanged(int key, const QVariant &v)

@@ -34,7 +34,7 @@ namespace {
 
 const QString settingKey = QStringLiteral("StudioLayersRememberBrushes");
 
-/// The canvas input profile gives Alt+click to something already (a color sampler, as in Photoshop's): it stays that
+/// The input profile gives Alt+click to something already (e.g. a color sampler): it stays that
 bool altClickTaken()
 {
     KisInputProfile *profile = KisInputProfileManager::instance()->currentProfile();
@@ -86,7 +86,6 @@ void KisStudioBrushMemory::layerChosen(KisNodeSP node)
     if (!node->strokeLog().lastBrush(&stroke) || !resources || !resources->currentPreset()) {
         return;
     }
-    // already in hand: nothing to say
     if (resources->currentPreset()->name() == stroke.brush) {
         return;
     }
@@ -107,7 +106,6 @@ bool KisStudioBrushMemory::pickAt(const QPointF &widgetPos)
     if (!canvas || !image) {
         return false;
     }
-    // the pixel under the pointer: where it is in the image (the view may be rotated, mirrored, zoomed)
     const QPointF imagePoint = canvas->coordinatesConverter()->widgetToImage(widgetPos);
     const QPoint imagePos(qFloor(imagePoint.x()), qFloor(imagePoint.y()));
     KisStrokeLog::Pick pick;
@@ -118,7 +116,7 @@ bool KisStudioBrushMemory::pickAt(const QPointF &widgetPos)
     KisStudioBrushPicker::use(view, stroke.brush);
     KisCanvasResourceProvider *resources = view->canvasResourceProvider();
     if (!resources || !resources->currentPreset() || resources->currentPreset()->name() != stroke.brush) {
-        // the brush is gone (removed, renamed): nothing taken, but what it was is said
+        // the brush is gone (removed, renamed): only its name is said
         view->showFloatingMessage(i18nc("@info a brush found on the canvas that is no longer there, %1 its name", "%1 · not found",
                                         KisStudioBrushPicker::title(stroke.brush)),
                                   KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), 1400, KisFloatingMessage::Low);
@@ -145,7 +143,6 @@ bool KisStudioBrushMemory::eventFilter(QObject *watched, QEvent *event)
         return false;
     }
 
-    // the rest of a press that took a brush
     if (m_swallowing) {
         if (type == QEvent::MouseButtonRelease || type == QEvent::TabletRelease) {
             m_swallowing = false;
@@ -170,7 +167,7 @@ bool KisStudioBrushMemory::eventFilter(QObject *watched, QEvent *event)
         pos = mouse->localPos();
         modifiers = mouse->modifiers();
     }
-    // Alt alone, with a tool that paints: never a dab, whether there is a brush to take or not
+    // Alt alone with a tool that paints: never a dab, whether there is a brush to take or not
     if (modifiers != Qt::AltModifier || !KisStudioBrushPicker::paintToolActive() || altClickTaken()) {
         return false;
     }

@@ -9,12 +9,10 @@
 class KisMainWindow;
 
 /**
- * Every shortcut, tapped or held. Tapped, it does what it always did. Held
- * (longer than a tap), what it turned on lasts while it is held: a tool's key
- * gives the tool until it is let go, then the one before is back (a spring
- * loaded tool); a toggle's key (the value view, the mirror view...) turns it
- * on while held, and off again when let go. Nothing to set: any key given to
- * a tool or a toggle works both ways.
+ * Every shortcut, tapped or held. Tapped, it does what it always did. Held,
+ * what it turned on lasts while it is held: a tool used while its key is
+ * down is put back when the key is let go (a spring loaded tool), a toggle
+ * (the mirror view...) is turned back off.
  */
 namespace KisStudioHoldKeys
 {

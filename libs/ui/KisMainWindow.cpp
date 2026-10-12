@@ -151,7 +151,6 @@
 #include <KritaVersionWrapper.h>
 #include "KisCanvasWindow.h"
 #include "kis_action.h"
-#include "KisNodeActivationActionCreatorVisitor.h"
 #include "KisUiFont.h"
 #include <KisResourceUserOperations.h>
 #include "KisRecentFilesManager.h"
@@ -275,8 +274,9 @@ public:
     KisAction *toggleDockerTitleBars {nullptr};
     KisAction *toggleStudioLayout {nullptr};
     KisStudioLayout *studioLayout {nullptr};
-    /// The panels' font as last set (see configChanged)
+    /// The panels' font and the theme as last set
     QFont dockFont;
+    QString appliedTheme;
     KisStudioFind *studioFind {nullptr};
     KisStudioRings *studioRings {nullptr};
     KisAction *findAnything {nullptr};
@@ -523,14 +523,13 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     d->canvasWindow = new KisCanvasWindow(this);
     actionCollection()->addAssociatedWidget(d->canvasWindow);
 
-    // fingers: no hover, and a long press is a right click, see KisTouchMode
     KisTouchMode::install();
     d->studioLayout = new KisStudioLayout(this);
-    // shortcuts are changed where they are shown, menus too, in either layout
+    // shortcuts are edited where they are shown, in menus too, in either layout
     KisStudioShortcuts::enableMenuEditing();
-    // every shortcut tapped as always, or held: a tool or a toggle while it is held
+    // a shortcut held down acts while it is held
     KisStudioHoldKeys::install(this);
-    // widgets repaint as often as the screen shows, also while the mouse moves
+    // repaints at the screen's rate, also while the mouse moves
     KisUpdatePacer::install();
     KisStudioGlass::installMenuGlass();
     connect(this, &KisMainWindow::restoringDone, d->studioLayout, &KisStudioLayout::normalize);
@@ -539,7 +538,7 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     d->studioFind->setPanelOpener([this](QDockWidget *dock) { d->studioLayout->showPanel(dock); });
     d->studioFind->setSettingsOpener([this](const QString &cardId) { d->studioLayout->openSettings(cardId); });
     d->studioRings = new KisStudioRings(this);
-    // a new ring of your own, from Find or the menu: opened, for what goes on it
+    // opened at once, to put things on it
     QAction *newRing = actionCollection()->addAction(QStringLiteral("studio_ring_new"));
     newRing->setText(i18nc("@action", "New Ring"));
     newRing->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_ring")));
@@ -1095,6 +1094,11 @@ void KisMainWindow::setCanvasDetached(bool detach)
     }
 #else
     if (detach == canvasDetached()) return;
+    // the studio layout's pills and panels live in the main window's canvas area
+    if (detach && d->studioLayout && d->studioLayout->isActive()) {
+        d->toggleDetachCanvas->setChecked(false);
+        return;
+    }
 
     QWidget *outgoingWidget = centralWidget() ? takeCentralWidget() : nullptr;
     QWidget *incomingWidget = d->canvasWindow->swapMainWidget(outgoingWidget);
@@ -2069,6 +2073,8 @@ void KisMainWindow::saveWindowState(bool restoreNormalState)
 bool KisMainWindow::restoreWorkspaceState(const QByteArray &state)
 {
     QByteArray oldState = saveState();
+    // the studio layout's panels have grips instead of title bars
+    const bool studio = d->studioLayout && d->studioLayout->isActive();
     const bool showTitlebars = KisConfig(false).showDockerTitleBars();
 
     // needed because otherwise the layout isn't correctly restored in some situations
@@ -2077,7 +2083,7 @@ bool KisMainWindow::restoreWorkspaceState(const QByteArray &state)
             dock->setProperty("Locked", false); // Unlock invisible dockers
             dock->toggleViewAction()->setEnabled(true);
             dock->hide();
-            if (dock->titleBarWidget() && !dock->titleBarWidget()->inherits("KisUtilityTitleBar")) {
+            if (!studio && dock->titleBarWidget() && !dock->titleBarWidget()->inherits("KisUtilityTitleBar")) {
                 dock->titleBarWidget()->setVisible(showTitlebars);
             }
         }
@@ -2087,7 +2093,7 @@ bool KisMainWindow::restoreWorkspaceState(const QByteArray &state)
 
     if (!success) {
         KXmlGuiWindow::restoreState(oldState);
-        Q_FOREACH (QDockWidget *dock, dockWidgets()) {
+        Q_FOREACH (QDockWidget *dock, studio ? QList<QDockWidget *>() : dockWidgets()) {
             if (dock->titleBarWidget() && !dock->titleBarWidget()->inherits("KisUtilityTitleBar")) {
                 dock->titleBarWidget()->setVisible(showTitlebars || dock->isFloating());
             }
@@ -2111,12 +2117,6 @@ void KisMainWindow::restoreWorkspace()
     else {
         qWarning() << "Could not retrieve resource for" << md5;
     }
-}
-
-void KisMainWindow::openCommandBar()
-{
-    // "Search Actions" is Find Anything, which searches everything the old command bar did and more
-    d->studioFind->open();
 }
 
 void KisMainWindow::slotStoragesWarning(const QString &/*location*/)
@@ -2148,8 +2148,9 @@ bool KisMainWindow::restoreWorkspace(KoResourceSP res)
 
     bool success = restoreWorkspaceState(workspace->dockerState());
 
+    const bool studio = d->studioLayout && d->studioLayout->isActive();
     const bool showTitlebars = KisConfig(false).showDockerTitleBars();
-    Q_FOREACH (QDockWidget *dock, dockWidgets()) {
+    Q_FOREACH (QDockWidget *dock, studio ? QList<QDockWidget *>() : dockWidgets()) {
         if (dock->titleBarWidget() && !dock->titleBarWidget()->inherits("KisUtilityTitleBar")) {
             dock->titleBarWidget()->setVisible(showTitlebars || dock->isFloating());
         }
@@ -2679,9 +2680,7 @@ QList<KoCanvasObserverBase*> KisMainWindow::canvasObservers() const
 void KisMainWindow::toggleDockersVisibility(bool visible, bool onWelcomePage)
 {
     if (!visible) {
-        if (d->studioLayout) {
-            d->studioLayout->closeFlyout();
-        }
+        if (d->studioLayout) d->studioLayout->closeFlyout();
         d->dockerStateBeforeHiding = saveState();
 
         Q_FOREACH (QObject* widget, children()) {
@@ -2692,17 +2691,12 @@ void KisMainWindow::toggleDockersVisibility(bool visible, bool onWelcomePage)
                 }
             }
         }
-        // the studio layout's pinned panels are not the window's docks: it hides them
-        if (d->studioLayout) {
-            d->studioLayout->normalize();
-        }
     }
     else {
         restoreState(d->dockerStateBeforeHiding);
-        if (d->studioLayout) {
-            d->studioLayout->normalize();
-        }
     }
+    // the studio layout's pinned panels are not the window's children: it hides or shows them
+    if (d->studioLayout) d->studioLayout->normalize();
 }
 
 void KisMainWindow::subWindowActivated()
@@ -2958,12 +2952,7 @@ void KisMainWindow::configChanged()
 {
     KisConfig cfg(true);
     QMdiArea::ViewMode viewMode = (QMdiArea::ViewMode)cfg.readEntry<int>("mdi_viewmode", (int)QMdiArea::TabbedView);
-    /**
-     * The studio layout keeps the documents as it wants them (see
-     * KisStudioLayout::adoptDocuments): switched to tabs and back at every
-     * change of a setting, they flickered, and took the focus from what had
-     * it (Find, whose switch a setting was changed by).
-     */
+    // the studio layout keeps its own view mode: switching here at every setting change flickered and stole focus
     const bool studio = d->studioLayout && d->studioLayout->isActive();
     if (!studio) d->mdiArea->setViewMode(viewMode);
     //Do it here to avoid the wrong icon briefly flashing
@@ -3002,7 +2991,12 @@ void KisMainWindow::configChanged()
 
     KConfigGroup group( KSharedConfig::openConfig(), "theme");
 #ifndef Q_OS_HAIKU
-    d->themeManager->setCurrentTheme(group.readEntry("Theme", "Krita Studio Dark"));
+    // only when it changed: reapplying the palette at every setting change is slow
+    const QString theme = group.readEntry("Theme", "Krita Studio Dark");
+    if (theme != d->appliedTheme) {
+        d->appliedTheme = theme;
+        d->themeManager->setCurrentTheme(theme);
+    }
 #endif
     d->actionManager()->updateGUI();
 
@@ -3020,20 +3014,18 @@ void KisMainWindow::configChanged()
 
     d->mdiArea->update();
 
-    // only when they changed: each lays the windows out again, and this runs at every change of a setting
+    // only when they changed: each relayouts the windows, and this runs at every setting change
     const QFont font = KisUiFont::normalFont();
     if (qApp->font() != font) qApp->setFont(font);
     const QFont dockFont = KisUiFont::dockFont();
     if (d->dockFont != dockFont) {
         d->dockFont = dockFont;
-        // all of them, also the ones the studio layout holds elsewhere than in the window
+        // also the panels the studio layout holds outside the window's dock areas
         Q_FOREACH (QDockWidget *dock, dockWidgets()) dock->setFont(dockFont);
     }
 
-    // the view mode and the status bar were just reset from the config
-    if (d->studioLayout) {
-        d->studioLayout->normalize();
-    }
+    // the status bar was just reset from the config
+    if (d->studioLayout) d->studioLayout->normalize();
 }
 
 KisView* KisMainWindow::newView(QObject *document, QMdiSubWindow *subWindow)
@@ -3230,7 +3222,14 @@ void KisMainWindow::createActions()
 
     d->toggleStudioLayout = actionManager->createAction("view_studio_layout");
     d->toggleStudioLayout->setChecked(KisStudioLayout::isEnabledInConfig());
-    connect(d->toggleStudioLayout, &QAction::toggled, d->studioLayout, &KisStudioLayout::setActive);
+    connect(d->toggleStudioLayout, &QAction::toggled, this, [this](bool active) {
+        d->studioLayout->setActive(active);
+        if (!active && isWelcomeScreenShown()) {
+            // the classic layout is for when a document opens; the start page keeps its look
+            d->windowStateConfig.writeEntry("State", saveState().toBase64());
+            adjustLayoutForWelcomePage();
+        }
+    });
 
     actionCollection()->addAction("settings_dockers_menu", d->dockWidgetMenu);
     actionCollection()->addAction("window", d->windowMenu);
@@ -3287,11 +3286,11 @@ void KisMainWindow::createActions()
     connect(d->showSessionManager, SIGNAL(triggered(bool)), this, SLOT(slotShowSessionManager()));
 
     d->commandBarAction = actionManager->createAction("command_bar_open");
-    // the command bar is Find limited to commands, as "> " in it
+    // Find limited to commands
     connect(d->commandBarAction, &QAction::triggered, this, [this]() { d->studioFind->open(QStringLiteral("> ")); });
 
     d->findAnything = actionManager->createAction("find_anything");
-    connect(d->findAnything, SIGNAL(triggered(bool)), this, SLOT(openCommandBar()));
+    connect(d->findAnything, &QAction::triggered, this, [this]() { d->studioFind->open(); });
 
     actionManager->createStandardAction(KStandardAction::Preferences, this, SLOT(slotPreferences()));
 
@@ -3376,10 +3375,9 @@ void KisMainWindow::showManual()
 
 void KisMainWindow::showDockerTitleBars(bool show)
 {
-    // studio panels have no title bars to show
-    const bool studioLayout = d->studioLayout && d->studioLayout->isActive();
-
-    Q_FOREACH (QDockWidget *dock, studioLayout ? QList<QDockWidget *>() : dockWidgets()) {
+    // the studio layout's panels have grips instead of title bars
+    const bool studio = d->studioLayout && d->studioLayout->isActive();
+    Q_FOREACH (QDockWidget *dock, studio ? QList<QDockWidget *>() : dockWidgets()) {
         if (dock->titleBarWidget() && !dock->titleBarWidget()->inherits("KisUtilityTitleBar")) {
             dock->titleBarWidget()->setVisible(show || dock->isFloating());
         }

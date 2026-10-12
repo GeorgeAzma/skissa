@@ -11,9 +11,8 @@
 class QWidget;
 
 /**
- * Appearing and disappearing that is seen but never waited for: about a
- * tenth of a second, fast at first. A window fades with its opacity, a
- * widget inside one with an opacity effect that is removed once done.
+ * Fading in and out in about a tenth of a second: a window by its opacity, a widget by an opacity effect
+ * that is removed once done.
  */
 namespace KisStudioMotion
 {
@@ -21,7 +20,7 @@ namespace KisStudioMotion
 KRITAUI_EXPORT void showFaded(QWidget *widget);
 /// Fades \p widget out, then hides it; shown again meanwhile, it stays
 KRITAUI_EXPORT void hideFaded(QWidget *widget);
-/// Visible and not fading out: fading, it is gone already for the pointer, which reaches what is under it
+/// Visible and not fading out (fading out, the pointer already reaches what is under it)
 KRITAUI_EXPORT bool isShown(const QWidget *widget);
 }
 

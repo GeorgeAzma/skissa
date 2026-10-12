@@ -20,21 +20,17 @@
 class KisPaintInformation;
 
 /**
- * Takes down what a stroke paints, as it is painted (in the GUI thread):
- * where the brush went and how wide it was there (with the pressure), and
- * the fills; mirrored as the canvas mirrors it, cut by the selection it is
- * painted through. The stroke's strategy keeps it in the node's
- * KisStrokeLog, as part of the stroke's undo.
+ * Records what a stroke paints, for the node's KisStrokeLog: where the
+ * brush went and how wide it was there, and the fills; mirrored as the
+ * canvas mirrors it, clipped by the selection it is painted through.
  */
 class KRITAUI_EXPORT KisStrokeRecorder
 {
 public:
     /**
-     * What is painted with: the brush, its color, the selection it paints
-     * through, the canvas's mirror. \p shownPreset is the brush as the
-     * canvas has it, whose outline (as the cursor shows it) gives the
-     * brush's width at a pressure; without it the brush is as wide
-     * everywhere as its size. Nothing is taken down before.
+     * Takes the brush, color, selection and mirroring. \p shownPreset's
+     * outline gives the brush's width at a pressure; without it the width
+     * is the brush's size. Nothing is recorded before.
      */
     void start(KisResourcesSnapshotSP resources, KisPaintOpPresetSP shownPreset = KisPaintOpPresetSP());
     bool isStarted() const { return m_started; }
@@ -64,7 +60,7 @@ private:
 
     KisPaintOpPresetSP m_shownPreset;
     KisStrokeLog::Stroke m_template;
-    /// The selection painted through: its outline is worked out with the stroke's end, away from the GUI thread
+    /// Its outline is worked out at the stroke's end, away from the GUI thread
     KisSelectionSP m_selection;
     qreal m_size {0};
     QPointF m_axesCenter;

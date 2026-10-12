@@ -217,7 +217,7 @@ QSet<quintptr> nativeDialogs()
     return list;
 }
 
-/// A system window of Krita's (the file dialog) rendered by itself: nothing else of the screen
+/// A native window of Krita's (the file dialog) rendered on its own
 QImage printWindow(quintptr handle, QString *title)
 {
     HWND h = HWND(handle);
@@ -279,7 +279,7 @@ public:
         connect(poll, &QTimer::timeout, this, [this, poll]() { tick(poll); });
         poll->start();
 
-        // Krita's own internal errors (a safe assert) show a box that waits: "Ignore", as a user would
+        // internal errors (a safe assert) show a modal box: answered "Ignore"
         auto *errors = new QTimer(this);
         errors->setInterval(500);
         connect(errors, &QTimer::timeout, this, [this]() { ignoreErrors(); });
@@ -296,7 +296,7 @@ private:
         m_log.flush();
     }
 
-    /// To a map file that earlier runs (resumed after a crash) wrote to as well
+    /// Appends to a map file, which earlier runs (resumed after a crash) may have written to
     void appendText(const QString &name, const QString &header, const QString &text)
     {
         if (text.isEmpty()) return;
@@ -345,7 +345,7 @@ private:
         return r.adjusted(-margin, -margin, margin, margin) & bounds;
     }
 
-    /// What Krita's windows show in a rectangle of the screen (only Krita's own pixels)
+    /// Krita's own windows rendered into a rectangle of the screen
     QImage composite(const QRect &region, bool tips = false)
     {
         const qreal dpr = m_win ? m_win->devicePixelRatioF() : 1.0;
@@ -366,7 +366,7 @@ private:
 
     // ---- what opens ----
 
-    /// Answers the box of an internal error with "Ignore" (its "Abort" ends Krita); true if it was one
+    /// Answers an internal error's box with "Ignore" (its "Abort" ends Krita); true if \p w was one
     bool ignoreError(QWidget *w)
     {
         auto *box = qobject_cast<QMessageBox *>(w);
@@ -399,11 +399,8 @@ private:
         if (guard && guard->isVisible()) guard->hide();
     }
 
-    /**
-     * Runs \p trigger and hands every window it opens to \p handle, then
-     * closes it: also windows of a nested event loop (a modal dialog, a menu's
-     * exec()), which are handled from within it. Returns how many opened.
-     */
+    /// Runs \p trigger, hands each window it opens (also from a nested event loop) to \p handle and
+    /// closes it; returns how many opened
     int capture(const std::function<void()> &trigger, const std::function<void(QWidget *)> &handle, int patience = 2500)
     {
         QSet<QWidget *> before;
@@ -467,7 +464,7 @@ private:
 
     // ---- menus ----
 
-    /// A menu that is open, and its submenus one by one; their items into \p map
+    /// Saves an open menu and its submenus, listing their items into \p map
     void captureMenu(QMenu *menu, const QString &section, const QString &name, const QRect &context, int depth, QString *map)
     {
         wait(60);
@@ -761,7 +758,6 @@ private:
         }
     }
 
-    /// The next control that switches pages in \p top: tabs, a KPageDialog's list, or a list in front of a stack of pages
     static int depthIn(QWidget *w, QWidget *top)
     {
         int depth = 0;
@@ -769,10 +765,8 @@ private:
         return depth;
     }
 
-    /**
-     * The outermost control that switches pages in \p top: a KPageDialog's
-     * list first, then a list in front of a stack of pages, then tabs
-     */
+    /// The outermost unexplored control that switches pages in \p top: a KPageDialog's list, a list
+    /// turning a stack of pages, or tabs (in that order)
     Pager nextPager(QWidget *top, QSet<QObject *> &explored)
     {
         Pager best;
@@ -955,7 +949,7 @@ private:
                 .arg(int(m_win->windowState())).arg(sg.x()).arg(sg.y()).arg(sg.width()).arg(sg.height());
         };
         note(geometry());
-        // the whole window on its screen (pictures are of what is on the screen)
+        // pictures are of what is on the screen
         if (QScreen *screen = m_win->screen()) {
             if (!screen->geometry().contains(m_win->geometry())) {
                 m_win->showMaximized();
@@ -993,7 +987,7 @@ private:
         writeText(QStringLiteral("done.txt"), QStringLiteral("done\n"));
     }
 
-    /// Every action, where it is in the menus, and the widgets of the window: a map, and what the dialogs part goes through
+    /// Maps every action with its menu path, and the window's widgets; the dialogs phase goes through these
     void inventory()
     {
         note(QStringLiteral("inventory"));
@@ -1092,7 +1086,7 @@ private:
         return false;
     }
 
-    /// The window's own controls (the top bar, the tool rail, the panel strip): their popups, context menus and tooltips
+    /// The popups, context menus and tooltips of the window's own controls (outside the panels)
     void chrome()
     {
         note(QStringLiteral("chrome"));
@@ -1226,7 +1220,7 @@ private:
             mouse(canvas, center, QEvent::MouseButtonPress, Qt::RightButton, Qt::RightButton);
             wait(500);
             save(section, name + QStringLiteral(" (held)"), windowShot());
-            // a tool's menu opens on release, and waits (exec): taken from within it
+            // a tool's menu opens on release and blocks in exec(): captured from within
             m_section = section;
             m_name = name;
             const QRect anchor(canvas->mapToGlobal(center) - QPoint(2, 2), QSize(4, 4));
@@ -1327,9 +1321,9 @@ private:
         note(QStringLiteral("dialogs"));
         if (m_menuOrder.isEmpty()) inventory();
         const QString section = QStringLiteral("08 dialogs");
-        // with a selection, so that what needs one is there too
+        // with a selection, which some dialogs need
         trigger("select_all", 300);
-        // menus rebuild some of their actions (recent files, themes, windows): held weakly
+        // held weakly: menus rebuild some of their actions (recent files, themes, windows)
         QList<QPointer<QAction>> list;
         Q_FOREACH (QAction *a, m_menuOrder) list << a;
         Q_FOREACH (QAction *a, m_win->actionCollection()->actions()) {
@@ -1588,21 +1582,10 @@ private:
             if (!opened && overlay) {
                 wait(1500);
                 save(section, title, windowShot(), formText(overlay));
-                // with all of its settings
-                QToolButton *expand = nullptr;
-                Q_FOREACH (QToolButton *b, overlay->findChildren<QToolButton *>()) {
-                    if (b->toolTip() == QLatin1String("All its settings") && b->isVisible() && b->isCheckable() && !b->isChecked()) expand = b;
-                }
-                if (expand) {
-                    expand->click();
-                    wait(900);
-                    save(section, title + QStringLiteral(" (all settings)"), windowShot(), formText(overlay));
-                }
                 if (step == Step::Full) {
                     QSet<QString> seenTips;
                     sweepTooltips(overlay, QStringLiteral("09 tooltips/Effects/") + fileName(label(a->text())), seenTips);
                 }
-                // dropped, as Esc does
                 QKeyEvent press(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
                 QApplication::sendEvent(overlay, &press);
                 wait(500);

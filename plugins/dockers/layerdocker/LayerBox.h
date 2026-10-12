@@ -37,8 +37,8 @@
 
 #include "kritalayerdocker_export.h"
 
-class QLabel;
 class QModelIndex;
+class OpacityScrub;
 
 typedef QList<QModelIndex> QModelIndexList;
 
@@ -127,8 +127,6 @@ private Q_SLOTS:
     void updateLayerOpMenu(const QModelIndex &index, QMenu &menu);
 
     void slotAddLayerBnClicked();
-    void slotLayerOpMenuOpened();
-    void slotLayerOpMenuClosed();
 
     void updateAvailableLabels();
     void updateLayerFiltering();
@@ -137,8 +135,6 @@ private Q_SLOTS:
     void slotSyncThumbnailIconSize();
     void slotUpdateTreeIndentation();
     void slotUpdateLayerInfoTextStyle();
-    void slotUpdateLayerInfoTextOpacity();
-    void slotUpdateUseInlineLayerInfoText();
     void slotUpdateUseLayerSelectionCheckbox();
 
     void slotImageTimeChanged(int time);
@@ -153,18 +149,17 @@ private:
     /// A new layer right above the layer at \p index
     void addLayerAbove(const QModelIndex &index);
     void startFiltering(const QString &typed);
-    /// The selected row's blend mode and opacity, in the row, under the layer
+    /// Puts the blend mode and opacity controls in the current layer's row
     void placeRowControls();
-    /// The row under the line between two rows at \p pos, if it is near one; \p gapY is the line
+    /// The row just below the line between two rows near \p pos (\p gapY is the line), if any
     QModelIndex gapAt(const QPoint &pos, int *gapY) const;
-    /// A drag on a row: sideways, its layer's opacity; true while it is that
-    /// \p fine (Shift held): a quarter as fast
+    /// A sideways drag on a row sets its opacity, a quarter as fast when \p fine; true while it does
     bool handleOpacityDrag(const QPoint &pos, bool fine);
     inline void addActionToMenu(QMenu *menu, const QString &id);
-    /// A short entry in \p menu for the action (by \p label, its shortcut beside it); none if \p onlyIfEnabled and it is not
+    /// A short entry for \p action, its shortcut beside it; none if \p onlyIfEnabled and it is disabled
     QAction *addMenuEntry(QMenu *menu, QAction *action, const QString &label, bool onlyIfEnabled = false);
     QAction *addMenuEntry(QMenu *menu, const QString &id, const QString &label, bool onlyIfEnabled = false);
-    /// "New": every kind of layer and mask (and a paint layer below the one clicked, if \p below)
+    /// "New": every kind of layer and mask, and a paint layer below the current one if \p below
     void addNewLayerMenu(QMenu *menu, bool below);
     // reimp from KisNodeManager
     qint32 convertOpacityToInt(qreal opacity);
@@ -175,7 +170,6 @@ private:
     QPointer<KisCanvas2> m_canvas;
     QScopedPointer<KisSelectionActionsAdapter> m_selectionActionsAdapter;
     QMenu *m_newLayerMenu;
-    QMenu *m_opLayerMenu;
     KisImageWSP m_image;
     QPointer<KisNodeModel> m_nodeModel;
     QPointer<KisNodeFilterProxyModel> m_filteringModel;
@@ -183,7 +177,7 @@ private:
     QPointer<KisColorLabelSelectorWidgetMenuWrapper> m_colorSelector;
     QPointer<QWidgetAction> m_colorSelectorAction;
     Ui_WdgLayerBox* m_wdgLayerBox;
-    int m_newOpacity;
+    qreal m_newOpacity {100};
     KisNodeSP m_changedOpacityNode;
 
     KisAction *m_removeAction;
@@ -194,15 +188,12 @@ private:
     KisSignalCompressor m_colorLabelCompressor;
     KisSignalCompressor m_thumbnailSizeCompressor;
     KisSignalCompressor m_treeIndentationCompressor;
-    KisSignalCompressor m_infoTextOpacityCompressor;
     KisSignalCompressor m_nodeOpacityCompressor;
 
     KisLayerFilterWidget* layerFilterWidget;
     QSlider *thumbnailSizeSlider;
     QSlider *indentationSlider;
     QComboBox *infoTextCombobox;
-    KisSliderSpinBox *infoTextOpacitySlider;
-    QCheckBox *infoTextInlineChkbox;
     QCheckBox *layerSelectionCheckBox {nullptr};
 
     KisNodeSP m_activeNode;
@@ -210,7 +201,7 @@ private:
     KisNodeSP m_previewNode;
     KisImageWSP m_previewImage;
     QString m_previewOriginalOp;
-    /// The mode hovered while the image was busy: tried again until it shows
+    /// The mode hovered while the image was busy, retried until it shows
     QString m_pendingPreviewOp;
     KisNodeWSP m_savedNodeBeforeEditSelectionMode;
     KisSignalAutoConnectionsStore m_activeNodeConnections;
@@ -219,14 +210,13 @@ private:
     QWidget *m_gapIndicator {nullptr};
     QPersistentModelIndex m_gapIndex;
     QAbstractButton *m_addStrip {nullptr};
-    /// A drag sideways on a row sets its layer's opacity
     QPersistentModelIndex m_opacityPress;
     QPoint m_opacityPressPos;
     bool m_opacityScrubbing {false};
     KisNodeSP m_opacityNode;
     qreal m_opacityStart {100};
     bool m_opacityFine {false};
-    QWidget *m_opacityScrub {nullptr};
+    OpacityScrub *m_opacityScrub {nullptr};
     /// The list's settings: thumbnail size, indentation, info text
     QMenu *m_configureMenu {nullptr};
 };

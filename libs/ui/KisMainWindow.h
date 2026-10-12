@@ -150,9 +150,9 @@ public:
 
     KisViewManager *viewManager() const;
 
-    /// Find Anything, which also knows every item the studio layout can show
+    /// Find Anything
     class KisStudioFind *studioFind() const;
-    /// Rings of your own on keys (see KisStudioRings)
+    /// Rings of your own on keys
     class KisStudioRings *studioRings() const;
 
     KisView *addViewAndNotifyLoadingCompleted(KisDocument *document,
@@ -428,8 +428,6 @@ private Q_SLOTS:
     void orientationChanged();
 
     void restoreWorkspace();
-
-    void openCommandBar();
 
     void slotStoragesWarning(const QString &location = QString());
 

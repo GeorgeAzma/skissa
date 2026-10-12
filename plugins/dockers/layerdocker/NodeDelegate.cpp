@@ -105,12 +105,6 @@ NodeDelegate::~NodeDelegate()
     delete d;
 }
 
-int NodeDelegate::extraHeight(const QModelIndex &index) const
-{
-    Q_UNUSED(index);
-    return 0;
-}
-
 /// The height of a line of a tall row (see NodeDelegate::isTall())
 static int lineHeight(const QWidget *view)
 {
@@ -120,22 +114,21 @@ static int lineHeight(const QWidget *view)
 
 bool NodeDelegate::isTall() const
 {
-    return d->view->property("rowControls").toBool() && d->rowHeight >= 2 * lineHeight(d->view) + 10;
+    return d->rowHeight >= 2 * lineHeight(d->view) + 10;
 }
 
-/// Line \p line (0, 1) of a tall row \p row, \p rowHeight high: the two together in its middle
+/// Line \p line (0 or 1) of a tall row, the two centered in it
 static QRect lineOf(const QRect &row, int rowHeight, int height, int line)
 {
     const int top = row.top() + (rowHeight - 2 * height) / 2;
     return QRect(row.left(), top + line * height, row.width(), height);
 }
 
-/// Whether \p index is the selected layer's row, with its blend mode and opacity in it
+/// Whether \p index is the current layer's row, which holds the blend mode and opacity controls
 static bool holdsControls(const QAbstractItemView *view, const QModelIndex &index)
 {
     const QModelIndex current = view->currentIndex();
-    return view->property("rowControls").toBool() && current.isValid() && current.row() == index.row()
-        && current.parent() == index.parent();
+    return current.isValid() && current.row() == index.row() && current.parent() == index.parent();
 }
 
 QRect NodeDelegate::inlineControlsRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const
@@ -145,7 +138,7 @@ QRect NodeDelegate::inlineControlsRect(const QModelIndex &index, const QRect &ro
     option.direction = direction;
     const QRect icons = iconsRect(option, index);
     if (isTall()) {
-        // the second line, under the name, to the row's end
+        // the second line, from under the name to the row's end
         KisNodeViewColorScheme scm;
         const QRect name = textRect(option, index).adjusted(scm.textMargin(), 0, -scm.textMargin(), 0);
         const QRect line = lineOf(row, d->rowHeight, lineHeight(d->view), 1);
@@ -162,19 +155,16 @@ QSize NodeDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelInd
 {
     KisNodeViewColorScheme scm;
     if (index.column() == NodeView::VISIBILITY_COL) {
-        return QSize(scm.visibilityColumnWidth(), d->rowHeight + extraHeight(index));
+        return QSize(scm.visibilityColumnWidth(), d->rowHeight);
     }
-    return QSize(option.rect.width(), d->rowHeight + extraHeight(index));
+    return QSize(option.rect.width(), d->rowHeight);
 }
 
 void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &cell, const QModelIndex &index) const
 {
     p->save();
 
-    /**
-     * The eye's cell is part of its row: selected and pointed at with it
-     * (only the layer's own cell is selectable in the model).
-     */
+    // the eye's cell is selected and hovered with its row (only the layer's own cell is selectable)
     QStyleOptionViewItem o = cell;
     if (index.column() != NodeView::DEFAULT_COL) {
         const QModelIndex main = index.sibling(index.row(), NodeView::DEFAULT_COL);
@@ -191,20 +181,17 @@ void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &cell, const QM
     {
         QStyleOptionViewItem option = getOptions(o, index);
         QStyle *style = option.widget ? option.widget->style() : QApplication::style();
-        // the selection is the weight, not the font
         option.font.setBold(false);
 
-        // a rounded highlight behind the row, the eye at its end included
+        // a rounded, translucent highlight (glass shows through it) spanning the row and its eye
         if (index.column() != NodeView::SELECTED_COL && (option.state & (QStyle::State_Selected | QStyle::State_MouseOver))) {
-            // the tint over what is behind the row, not mixed into a color of it: over glass the glass shows through
-            // a wash of the ink, as a flat button on the glass is lit: selected the most
             QColor tint = option.palette.color(QPalette::Text);
             tint.setAlphaF((option.state & QStyle::State_Selected) ? (option.state & QStyle::State_MouseOver ? 0.2 : 0.16) : 0.07);
             p->save();
             p->setRenderHint(QPainter::Antialiasing, true);
             p->setPen(Qt::NoPen);
             p->setBrush(tint);
-            // one shape over the two cells: each draws its own end of it
+            // one shape over both cells, each drawing its own end of it
             const bool eye = index.column() == NodeView::VISIBILITY_COL;
             const bool leftToRight = option.direction != Qt::RightToLeft;
             const qreal beyond = 48;
@@ -224,15 +211,8 @@ void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &cell, const QM
             option.state &= ~QStyle::State_Enabled;
         }
 
-        // the highlight takes the whole row, the layer's own content its top: the rest holds the controls
-        option.rect.setHeight(option.rect.height() - extraHeight(index));
-        QStyleOptionViewItem top = o;
-        top.rect = option.rect;
-
-        drawFrame(p, option, index);
-
         if (index.column() == NodeView::SELECTED_COL) {
-            drawSelectedButton(p, top, index, style);
+            drawSelectedButton(p, o, index, style);
         } else if (index.column() == NodeView::VISIBILITY_COL) {
             drawVisibilityIcon(p, option, index); // TODO hide when dragging
         } else {
@@ -253,10 +233,6 @@ void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &cell, const QM
 
 void NodeDelegate::drawBranches(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
-    p->save();
-    drawFrame(p, option, index);
-    p->restore();
-
     QModelIndex tmp = index.parent();
 
     // there is no indentation if we have no parent group, so don't draw a branch
@@ -326,14 +302,6 @@ void NodeDelegate::drawColorLabel(QPainter *p, const QStyleOptionViewItem &optio
     p->fillRect(optionRect, color);
 }
 
-void NodeDelegate::drawFrame(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const
-{
-    // rows are told apart by spacing and their rounded highlight, not by grid lines
-    Q_UNUSED(p);
-    Q_UNUSED(option);
-    Q_UNUSED(index);
-}
-
 QRect NodeDelegate::thumbnailClickRect(const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
     Q_UNUSED(index);
@@ -380,7 +348,7 @@ void NodeDelegate::drawThumbnail(QPainter *p, const QStyleOptionViewItem &option
     p->setBrushOrigin(offset);
     QRect imageRectLowRes = QRect(img.rect().topLeft(), img.rect().size()/devicePixelRatio);
 
-    // a rounded tile, like a picture on a phone, with a hairline around it
+    // a rounded tile with a hairline around it
     p->save();
     p->setRenderHint(QPainter::Antialiasing, true);
     QPainterPath tile;
@@ -412,7 +380,6 @@ QRect NodeDelegate::iconsRect(const QStyleOptionViewItem &option, const QModelIn
     // Move to current index
     fitRect.moveTop(option.rect.topLeft().y());
     if (isTall()) {
-        // the first line, by the name
         const QRect line = lineOf(option.rect, d->rowHeight, lineHeight(d->view), 0);
         fitRect.setTop(line.top());
         fitRect.setHeight(line.height());
@@ -445,12 +412,11 @@ QRect NodeDelegate::textRect(const QStyleOptionViewItem &option, const QModelInd
     QRect rc = QRect((option.direction == Qt::RightToLeft) ? iconRect.topRight() : (decorated ? decoRect.topRight() : decoRect.topLeft()),
                      (option.direction == Qt::RightToLeft) ? (decorated ? decoRect.bottomLeft() : decoRect.bottomRight()) : iconRect.bottomLeft());
     if (isTall()) {
-        // the name on the first line
         const QRect line = lineOf(option.rect, d->rowHeight, lineHeight(d->view), 0);
         rc.setTop(line.top());
         rc.setBottom(line.bottom());
     } else if (holdsControls(d->view, index)) {
-        // the selected layer's blend mode and opacity by its icons
+        // room for the blend mode and opacity controls by the icons
         const int controls = d->view->property("rowControlsWidth").toInt();
         if (option.direction == Qt::RightToLeft) {
             rc.setLeft(rc.left() + controls);
@@ -480,12 +446,13 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
     }
 
     QString text = index.data(Qt::DisplayRole).toString();
-    // being renamed: its editor shows the name
+    // being renamed: the editor shows the name
     if (d->edit && d->edit->isVisible() && d->view->indexWidget(index) == d->edit) text.clear();
+    const Qt::Alignment start = option.direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft;
+    const bool controls = holdsControls(d->view, index);
     if (isTall()) {
-        p->drawText(rc, (option.direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter,
-                    p->fontMetrics().elidedText(text, Qt::ElideRight, rc.width()));
-        // under it, its blend (the selected layer's, the controls to change it there instead)
+        p->drawText(rc, start | Qt::AlignVCenter, p->fontMetrics().elidedText(text, Qt::ElideRight, rc.width()));
+        // the blend mode and opacity on the second line, where the current layer has its controls instead
         QString mode;
         int opacity = -1;
         const KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
@@ -497,7 +464,7 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
                 opacity = digits.isEmpty() ? -1 : digits.toInt();
             }
         }
-        if (!holdsControls(d->view, index) && !mode.isEmpty() && opacity >= 0) {
+        if (!controls && !mode.isEmpty() && opacity >= 0) {
             const QRect line = inlineControlsRect(index, option.rect, option.direction);
             QFont small = p->font();
             small.setPointSizeF(small.pointSizeF() * 0.9);
@@ -510,7 +477,7 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
             const QRect percentRect(line.right() - percentWidth - 2, line.top(), percentWidth, line.height());
             p->drawText(modeRect, Qt::AlignLeft | Qt::AlignVCenter, mode);
             p->drawText(percentRect, Qt::AlignRight | Qt::AlignVCenter, percent);
-            // the opacity as long as the row: a hairline, filled to it, as the selected layer's slider is
+            // the opacity as a hairline filled to it, like the current layer's slider
             const QRectF track(modeRect.right() + 10, line.center().y(), percentRect.left() - modeRect.right() - 20, 2);
             if (track.width() > 8) {
                 QColor ink = option.palette.color(QPalette::Text);
@@ -526,80 +493,21 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
                 p->restore();
             }
         }
-        p->setPen(oldPen);
-        p->setOpacity(oldOpacity);
-        return;
-    }
-    if (d->view->property("rowControls").toBool()) {
-        /**
-         * The name, and by the icons what is unusual about the layer's blend
-         * (its mode, its opacity: where the selected layer has them to change)
-         */
-        const QString info = holdsControls(d->view, index) ? QString() : index.data(KisNodeModel::InfoTextRole).toString();
+    } else {
+        // the name, and by the icons what is unusual about the layer's blend (unless its controls are there)
+        const QString info = controls ? QString() : index.data(KisNodeModel::InfoTextRole).toString();
         const int infoWidth = info.isEmpty() ? 0 : p->fontMetrics().horizontalAdvance(info) + scm.textMargin() * 2;
         const QString name = p->fontMetrics().elidedText(text, Qt::ElideRight, qMax(0, rc.width() - infoWidth));
-        const Qt::Alignment start = option.direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft;
         const Qt::Alignment end = option.direction == Qt::RightToLeft ? Qt::AlignLeft : Qt::AlignRight;
         p->drawText(rc, start | Qt::AlignVCenter, name);
         if (!info.isEmpty()) {
             p->setOpacity(p->opacity() * 0.55);
             p->drawText(rc, end | Qt::AlignVCenter, p->fontMetrics().elidedText(info, Qt::ElideLeft, infoWidth));
         }
-        p->setPen(oldPen);
-        p->setOpacity(oldOpacity);
-        return;
     }
-    const QString elided = p->fontMetrics().elidedText(text, Qt::ElideRight, rc.width());
-    KisConfig cfg(true);
-    if (cfg.layerInfoTextStyle() == KisConfig::LayerInfoTextStyle::INFOTEXT_NONE) {
-        p->drawText(rc, Qt::AlignLeft | Qt::AlignVCenter, elided);
-    }
-    else {
-        const QString infoText = index.data(KisNodeModel::InfoTextRole).toString();
-        if (infoText.isEmpty()) {
-            p->drawText(rc, Qt::AlignLeft | Qt::AlignVCenter, elided);
-        } else {
-            bool useOneLine = cfg.useInlineLayerInfoText();
-            if (!useOneLine) {
-                // check whether there is enough space for two lines
-                const int textHeight = p->fontMetrics().height();
-                useOneLine = rc.height() < textHeight*2;
-            }
-
-            const int rectCenter = rc.height()/2;
-            const int nameWidth = p->fontMetrics().horizontalAdvance(elided);
-            // draw the layer name
-            if (!useOneLine) {
-                // enforce Qt::TextSingleLine because we are adding a line below it
-                p->drawText(rc.adjusted(0, 0, 0, -rectCenter), Qt::AlignLeft | Qt::AlignBottom | Qt::TextSingleLine, elided);
-            }
-            else {
-                p->drawText(rc.adjusted(0, 0, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, elided);
-            }
-            // draw the info-text
-            p->save();
-            QFont layerInfoTextFont = p->font();
-            layerInfoTextFont.setBold(false);
-            p->setFont(layerInfoTextFont);
-            if (option.state & QStyle::State_Enabled) {
-                p->setOpacity(qreal(cfg.layerInfoTextOpacity())/100);
-            }
-            if (!useOneLine) {
-                const QString infoTextElided = p->fontMetrics().elidedText(infoText, Qt::ElideRight, rc.width());
-                p->drawText(rc.adjusted(0, rectCenter, 0, 0), Qt::AlignLeft | Qt::AlignTop, infoTextElided);
-            }
-            else {
-                const QString infoTextElided = p->fontMetrics().elidedText(" "+infoText, Qt::ElideRight, rc.width()-nameWidth);
-                p->drawText(rc.adjusted(nameWidth, 0, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, infoTextElided);
-            }
-            p->restore();
-        }
-    }
-
-    p->setPen(oldPen); // restore pen settings
+    p->setPen(oldPen);
     p->setOpacity(oldOpacity);
 }
-
 QList<OptionalProperty> NodeDelegate::Private::rightmostProperties(const KisBaseNode::PropertyList &props) const
 {
     QList<OptionalProperty> list;
@@ -920,14 +828,12 @@ void NodeDelegate::drawIcons(QPainter *p, const QStyleOptionViewItem &option, co
         std::reverse(realProps.begin(), realProps.end());
     }
 
-    // a row says what is unusual about its layer; the rest shows while it is pointed at or selected
+    // only marks that are on show, the rest on hover or selection; a hidden layer shows none until hovered
     const bool pointedAt = option.state & QStyle::State_MouseOver;
     const bool revealAll = option.state & (QStyle::State_MouseOver | QStyle::State_Selected);
-    // a hidden layer is its closed eye: nothing else of it matters until it is pointed at
-    KisBaseNode::PropertyList allProps = props;
-    const OptionalProperty visibility = d->findVisibilityProperty(allProps);
+    const OptionalProperty visibility = d->findVisibilityProperty(props);
     const bool hidden = visibility && !visibility->state.toBool();
-    // the icon under the pointer, lit, on a backplate of its own
+    // the hovered icon is lit, on a plate of its own
     const QPoint pointer = d->view->viewport()->mapFromGlobal(QCursor::pos()) - rc.topLeft();
     const int slot = scm.iconSize() + 2 * scm.iconMargin() + scm.border();
     const int under = pointedAt && pointer.y() >= 0 && pointer.y() < rc.height() && pointer.x() >= 0 ? pointer.x() / slot : -1;
@@ -941,7 +847,7 @@ void NodeDelegate::drawIcons(QPainter *p, const QStyleOptionViewItem &option, co
             bool fullColor = prop->state.toBool() && option.state & QStyle::State_Enabled;
 
             const qreal oldOpacity = p->opacity(); // remember previous opacity
-            // on is a toggle pressed in: a plate under it at full ink; off is faint, bare; pointed at, a lighter plate
+            // on: a plate under it; off: faint and bare; hovered: a lighter plate
             const bool on = prop->state.toBool();
             if (on || lit) {
                 QColor plate = option.palette.color(QPalette::Text);
@@ -1006,7 +912,6 @@ QRect NodeDelegate::visibilityClickRect(const QStyleOptionViewItem &option, cons
     // Move to current index
     rc.moveCenter(option.rect.center());
     if (isTall()) {
-        // on the first line, with the name and the icons
         const QRect line = lineOf(QRect(option.rect.topLeft(), QSize(option.rect.width(), d->rowHeight)), d->rowHeight, lineHeight(d->view), 0);
         rc.setHeight(line.height());
         rc.moveTop(line.top());
@@ -1055,7 +960,7 @@ void NodeDelegate::drawVisibilityIcon(QPainter *p, const QStyleOptionViewItem &o
 
     QIcon icon = prop->state.toBool() ? prop->onIcon : prop->offIcon;
 
-    // visible is the normal case and needs no mark; a hidden layer shows its closed eye
+    // visible is the normal case: no eye unless hovered or selected
     const bool revealAll = option.state & (QStyle::State_MouseOver | QStyle::State_Selected);
     if (prop->state.toBool() && !revealAll && !prop->isInStasis) {
         return;
@@ -1093,7 +998,7 @@ void NodeDelegate::drawVisibilityIcon(QPainter *p, const QStyleOptionViewItem &o
 
 bool NodeDelegate::showsDecoration(const QModelIndex &index) const
 {
-    // a paint layer is what a layer is unless it says otherwise: its icon would only repeat that on every row
+    // a paint layer's icon would only repeat itself on every row
     const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
     static const qint64 paintLayer = KisIconUtils::loadIcon("paintLayer").cacheKey();
     return !icon.isNull() && icon.cacheKey() != paintLayer;
@@ -1278,8 +1183,7 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
 
         const bool leftButton = mouseEvent->buttons() & Qt::LeftButton;
         const bool altButton = mouseEvent->modifiers() & Qt::AltModifier;
-        // marks that are off only show on hover or selection; a pen or a finger
-        // has no hover, so its tap on another row can't hit an unseen mark
+        // marks that are off show only on hover or selection: a tap without hover can't hit an unseen one
         const bool marksShown = mouseEvent->source() == Qt::MouseEventNotSynthesized
             || d->view->selectionModel()->isRowSelected(index.row(), index.parent());
 
@@ -1309,9 +1213,11 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
         const bool thumbnailClicked = thumbnailRect.isValid() &&
             thumbnailRect.contains(mouseEvent->pos());
 
+        // without a decoration or an expand button, its place is the name's
         const QRect decorationRect = decorationClickRect(option, index);
         const bool decorationClicked = decorationRect.isValid() &&
-            decorationRect.contains(mouseEvent->pos());
+            decorationRect.contains(mouseEvent->pos()) &&
+            (showsDecoration(index) || model->hasChildren(index));
 
         const QRect filterRect = filterColorClickRect(option, index);
         const bool filterColorClicked =
@@ -1430,7 +1336,7 @@ QWidget *NodeDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem&
     QLineEdit *edit = new QLineEdit(text, parent);
     d->edit = edit;
     d->edit->setFocusPolicy(Qt::StrongFocus);
-    // the name typed over where it is written: its font, no box beyond the quiet field's, the text where the name's is
+    // typed in place: the name's font and position, a quiet field
     edit->setFrame(false);
     edit->setProperty(KisModernStyle::quietFieldProperty, true);
     edit->setTextMargins(0, 0, 0, 0);
@@ -1450,7 +1356,7 @@ void NodeDelegate::setModelData(QWidget *widget, QAbstractItemModel *model, cons
 
 void NodeDelegate::updateEditorGeometry(QWidget *widget, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
-    // over the name only (not the thumbnail, the blend, the icons): its text where the name's is
+    // over the name only, its text where the name's is
     KisNodeViewColorScheme scm;
     QStyleOptionViewItem row = option;
     row.rect.setHeight(d->rowHeight);

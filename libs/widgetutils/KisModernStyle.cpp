@@ -14,6 +14,7 @@
 #include <QAbstractSpinBox>
 #include <QComboBox>
 #include <QHeaderView>
+#include <QLineEdit>
 #include <QPainter>
 #include <QSlider>
 #include <QStyleFactory>
@@ -42,12 +43,7 @@
 
 namespace {
 
-/**
- * Asks the system for round corners on a window each time it is shown (a
- * window can get a new native handle): menus, lists and floating panels
- * the size of the system's own menus, tooltips smaller. Windows with a
- * translucent background draw their own shape and are left alone.
- */
+/// Asks Windows 11 to round a window each time it is shown (it may get a new native handle); translucent ones draw their own shape
 class RoundedCorners : public QObject
 {
 public:
@@ -87,10 +83,6 @@ private:
     }
 };
 
-} // namespace
-
-namespace {
-
 constexpr qreal radius = KisModernStyle::cornerRadius;
 
 QColor mix(const QColor &a, const QColor &b, qreal t)
@@ -101,26 +93,24 @@ QColor mix(const QColor &a, const QColor &b, qreal t)
                             a.alphaF() + (b.alphaF() - a.alphaF()) * t);
 }
 
-/// Focus rings and active indicators use the bright accent, fills the muted selection color
+/// Focus rings use the bright accent, fills the muted selection color
 QColor focusColor(const QPalette &pal)
 {
     return pal.color(QPalette::Link);
 }
 
-/**
- * The frame of the window (toolbars, rails, the menu bar) is one step darker
- * than the panels, so the panels and the canvas read as the content.
- */
+/// Toolbars and the menu bar, one step darker than the panels
 QColor chromeColor(const QPalette &pal)
 {
     const QColor window = pal.color(QPalette::Window);
     return window.lightness() < 128 ? window.darker(136) : window.darker(108);
 }
 
-/// Selected rows and menu items: the selection color mixed into the background
+/// Selected rows and menu items: the selection color mixed into the background, stronger on light themes for contrast
 QColor selectionTint(const QPalette &pal)
 {
-    return mix(pal.color(QPalette::Base), pal.color(QPalette::Highlight), 0.55);
+    const QColor base = pal.color(QPalette::Base);
+    return mix(base, pal.color(QPalette::Highlight), base.lightness() >= 128 ? 0.75 : 0.55);
 }
 
 /// A rect whose 1px outline lands exactly on the pixels of \p rect
@@ -193,11 +183,7 @@ struct Interaction {
     bool keyboardFocus;
 };
 
-/**
- * Background of push buttons and non-editable combo boxes. States are made by
- * tinting the button color towards the text color, so the same code works
- * for both dark and light themes.
- */
+/// Push buttons and non-editable combo boxes: states tint the button color toward the text color
 void drawButtonPanel(QPainter *painter, const QStyleOption *option, bool flat)
 {
     const Interaction s(option);
@@ -214,7 +200,7 @@ void drawButtonPanel(QPainter *painter, const QStyleOption *option, bool flat)
         fill = bg;
     }
 
-    // surfaces are separated by lightness, not outlines; only keyboard focus gets a ring
+    // only keyboard focus gets an outline
     QColor border;
     if (s.keyboardFocus) {
         border = focusColor(pal);
@@ -223,7 +209,7 @@ void drawButtonPanel(QPainter *painter, const QStyleOption *option, bool flat)
     drawRounded(painter, strokeRect(option->rect), radius, fill, border);
 }
 
-/// The button that Enter activates is the one filled with the selection color
+/// The default button, filled with the selection color
 void drawPrimaryButtonPanel(QPainter *painter, const QStyleOption *option)
 {
     const Interaction s(option);
@@ -238,13 +224,11 @@ void drawPrimaryButtonPanel(QPainter *painter, const QStyleOption *option)
                 s.keyboardFocus ? focusColor(pal) : QColor());
 }
 
-/// Background of text fields: line edits, spin boxes and editable combo boxes
+/// Text fields: filled like buttons, outlined only while hovered or focused
 void drawField(QPainter *painter, const QStyleOption *option, bool fill)
 {
     const Interaction s(option);
     const QPalette &pal = option->palette;
-    // fields are filled one step above the panel, like buttons, and only get
-    // an outline while hovered or focused
     const QColor bg = pal.color(QPalette::Button);
     const QColor fg = pal.color(QPalette::Text);
 
@@ -286,7 +270,7 @@ KisModernStyle::KisModernStyle()
     : QProxyStyle(QStyleFactory::create(QStringLiteral("fusion")))
 {
     setObjectName(styleName());
-    // a finger came (or went): every widget measures itself again, bigger for it
+    // touch mode changed: every widget measures itself again
     connect(KisTouchMode::instance(), &KisTouchMode::changed, this, []() {
         Q_FOREACH (QWidget *widget, QApplication::allWidgets()) {
             QEvent change(QEvent::StyleChange);
@@ -372,19 +356,18 @@ bool labelsAField(QLabel *label)
 
 void KisModernStyle::squircleCorner(qreal radius, qreal room, qreal *reach, qreal *exponent)
 {
-    // how far into the corner a curve comes, from the corner point, for a reach of 1: a circle (exponent
-    // 2) comes sqrt(2) - 1 into it; a superellipse of exponent n, sqrt(2) (1 - 2^(-1/n))
+    // how far a superellipse of exponent n and reach 1 comes into the corner: sqrt(2) (1 - 2^(-1/n))
     auto depth = [](qreal n) { return M_SQRT2 * (1 - std::pow(2.0, -1 / n)); };
     const qreal r = qBound<qreal>(0, radius, room);
     const qreal circle = (M_SQRT2 - 1) * r;
-    // the superellipse as round as a circle of the radius (as far into the corner), reaching further along the sides
+    // as far into the corner as a circle of the radius, reaching further along the sides
     constexpr qreal smooth = 4;
     if (r <= 0 || circle / depth(smooth) <= room) {
         *reach = r > 0 ? circle / depth(smooth) : 0;
         *exponent = smooth;
         return;
     }
-    // no room for that: reaching as far as there is room, less smooth, as round still; a pill is round
+    // no room: reach what there is, with a lower exponent (down to a circle: a pill stays a pill)
     *reach = room;
     *exponent = qBound<qreal>(2, -1 / std::log2(1 - circle / (room * M_SQRT2)), smooth);
 }
@@ -402,15 +385,15 @@ QPainterPath KisModernStyle::squircle(const QRectF &rect, qreal radius)
         path.addRect(rect);
         return path;
     }
-    // each corner a quarter of the superellipse |x|^n + |y|^n = 1, scaled to the reach, in short straight steps
+    // each corner a quarter of |x|^n + |y|^n = 1, scaled to the reach
     const int steps = qBound(6, qCeil(reach), 32);
     QPolygonF corner;
     for (int i = 0; i <= steps; i++) {
         const qreal t = M_PI / 2 * i / steps;
-        // (t may round past a right angle, and the power of a negative is no number)
+        // clamped: t may round past a right angle
         corner << QPointF(std::pow(qMax<qreal>(0, std::sin(t)), 2 / n), std::pow(qMax<qreal>(0, std::cos(t)), 2 / n)) * reach;
     }
-    // from the top of each corner to its side, clockwise; (x, y) of a corner point is (across, along) its sides
+    // clockwise; a corner point's (x, y) is (across, along) its sides
     struct Corner { QPointF center; QPointF across; QPointF along; };
     const Corner corners[] = {
         {rect.topRight() + QPointF(-reach, reach), {1, 0}, {0, -1}},
@@ -506,7 +489,7 @@ QSizeF KisModernStyle::keyCapSize(const QFont &font, const QString &text, KeyCap
 {
     const QFontMetricsF metrics(font);
     const QString shown = keyCapShown(text, state);
-    // a key: as wide as what is on it, never narrower than it is high
+    // never narrower than it is high
     const qreal height = metrics.height() + 4 + 1.5;
     return QSizeF(qMax(height + 2, metrics.horizontalAdvance(shown) + 12), height);
 }
@@ -528,7 +511,7 @@ void KisModernStyle::drawKeyCap(QPainter *painter, const QRectF &rect, const QFo
     const qreal r = qMin<qreal>(cornerRadius, face.height() / 2);
     painter->setPen(Qt::NoPen);
     if (state != KeyCap::Add) {
-        // a top face and a darker edge below it: a key, not a button
+        // a darker edge below the face: a key, not a button
         painter->setBrush(mix(window, Qt::black, 0.3));
         painter->drawPath(squircle(face.translated(0, 1.5), r));
     }
@@ -554,7 +537,7 @@ int KisModernStyle::wheelSteps(const QWheelEvent *event, QObject *receiver)
     const int delta = event->angleDelta().y();
     if (!delta) return 0;
     int rest = receiver->property(restProperty).toInt();
-    // the other way: what was left over the first way is not a part of it
+    // a change of direction drops the remainder
     if ((rest < 0) != (delta < 0)) rest = 0;
     rest += delta;
     const int steps = rest / 120;
@@ -598,23 +581,21 @@ void KisModernStyle::polish(QWidget *widget)
 {
     QProxyStyle::polish(widget);
 
-    // menus, drop down lists, tooltips, floating panels: the same round corners everywhere
     if (systemRoundsWindows()) {
         const Qt::WindowType type = widget->windowType();
         const bool popup = widget->isWindow() && (type == Qt::Popup || type == Qt::ToolTip || type == Qt::Tool);
-        // a panel is a window only once it floats
+        // a dock widget is a window only once it floats
         if (popup || qobject_cast<QDockWidget *>(widget)) {
             widget->installEventFilter(RoundedCorners::instance());
         }
     }
 
-    // State_MouseOver is only set for widgets that receive hover events.
-    // Fusion already enables them for buttons, sliders and scroll bars.
-    if (qobject_cast<QTabBar *>(widget) || qobject_cast<QHeaderView *>(widget)) {
+    // State_MouseOver needs hover events; Fusion enables them for buttons, sliders, scroll bars and spin boxes
+    if (qobject_cast<QTabBar *>(widget) || qobject_cast<QHeaderView *>(widget) || qobject_cast<QLineEdit *>(widget)) {
         widget->setAttribute(Qt::WA_Hover, true);
     }
 
-    // "Size:" next to its field says nothing the layout doesn't: the label and the field are a pair
+    // a label beside its field needs no colon
     if (QLabel *label = qobject_cast<QLabel *>(widget)) {
         if (label->textFormat() != Qt::RichText && labelsAField(label)) {
             static const QRegularExpression colon(QStringLiteral("\\s*[:\\x{FF1A}]\\s*$"));
@@ -631,10 +612,8 @@ int KisModernStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
     const bool touch = KisTouchMode::isActive();
     switch (metric) {
     case PM_ToolTipLabelFrameWidth:
-        // room around a tooltip's text (its margin is this, and one more)
         return 5;
     case PM_ScrollBarExtent:
-        // a finger drags a scroll bar too
         return touch ? 16 : 10;
     case PM_IndicatorWidth:
     case PM_IndicatorHeight:
@@ -667,7 +646,7 @@ int KisModernStyle::styleHint(StyleHint hint, const QStyleOption *option, const 
         // drop the list down below the box instead of covering it
         return 0;
     case SH_ComboBox_PopupFrameStyle:
-        // a round list has the system's border
+        // the system draws a round list's border
         if (systemRoundsWindows()) {
             return QFrame::NoFrame;
         }
@@ -676,7 +655,6 @@ int KisModernStyle::styleHint(StyleHint hint, const QStyleOption *option, const 
     case SH_EtchDisabledText:
         return 0;
     case SH_UnderlineShortcut:
-        // no underlined letters in every label: Alt still reaches them
         return 0;
     default:
         break;
@@ -708,7 +686,7 @@ QIcon KisModernStyle::standardIcon(StandardPixmap standardIcon, const QStyleOpti
     default:
         return QProxyStyle::standardIcon(standardIcon, option, widget);
     }
-    // a filled circle with the mark in it, at the sizes a message box asks for
+    // a filled circle with the mark in it
     QIcon icon;
     for (int size : {16, 24, 32, 48, 64, 96}) {
         QPixmap pixmap(size, size);
@@ -735,7 +713,7 @@ QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *op
 {
     QSize size = QProxyStyle::sizeFromContents(type, option, contentsSize, widget);
 
-    // with a finger: everything to press a bit bigger, so that a fingertip finds it
+    // touch mode: everything pressable a bit bigger
     if (KisTouchMode::isActive()) {
         switch (type) {
         case CT_PushButton:
@@ -768,7 +746,7 @@ QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         if (const auto *item = qstyleoption_cast<const QStyleOptionMenuItem *>(option)) {
             if (item->menuItemType != QStyleOptionMenuItem::Separator) {
                 size.rheight() += 4;
-                // room for the shortcut's key cap (or for the "+" that gives one)
+                // room for the shortcut's key cap
                 size.rwidth() += 26;
             }
         }
@@ -778,10 +756,9 @@ QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         size.rheight() += 2;
         break;
     case CT_ComboBox:
-        // Fusion reserves this space for the check mark of its menu-like
-        // popup, which is disabled by SH_ComboBox_Popup
+        // Fusion's room for the check mark of its menu-like popup, disabled by SH_ComboBox_Popup
         size.rwidth() += 10;
-        // a flat one has no chevron to make room for (see subControlRect)
+        // a flat one has no chevron (see subControlRect)
         if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
             if (!combo->frame && !combo->editable) {
                 QStyleOptionComboBox sized = *combo;
@@ -799,7 +776,7 @@ QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *op
 QRect KisModernStyle::subControlRect(ComplexControl control, const QStyleOptionComplex *option, SubControl subControl, const QWidget *widget) const
 {
     if (control == CC_ComboBox) {
-        // a flat combo box is its text, no chevron: what is pointed at fills, that it opens is plain enough
+        // a flat combo box is only its text, no chevron
         const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option);
         if (combo && !combo->frame && !combo->editable) {
             if (subControl == SC_ComboBoxArrow) return QRect();
@@ -811,7 +788,7 @@ QRect KisModernStyle::subControlRect(ComplexControl control, const QStyleOptionC
         }
     }
     if (control == CC_ScrollBar) {
-        // Same layout as QCommonStyle, but without the arrow buttons
+        // QCommonStyle's layout without the arrow buttons
         if (const auto *bar = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
             const QRect rect = bar->rect;
             const bool horizontal = bar->orientation == Qt::Horizontal;
@@ -858,16 +835,9 @@ QRect KisModernStyle::subControlRect(ComplexControl control, const QStyleOptionC
 
 void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *option, QPainter *painter, const QWidget *widget) const
 {
-    switch (element) {
-    case PE_PanelMenu:
-    case PE_FrameMenu:
-        // a menu of glass (see KisStudioGlass::installMenuGlass) has its background painted already, and its border
-        if (widget && widget->property("studioGlassMenu").toBool()) {
-            return;
-        }
-        break;
-    default:
-        break;
+    // a glass menu (see KisStudioGlass::installMenuGlass) painted its background and border already
+    if ((element == PE_PanelMenu || element == PE_FrameMenu) && widget && widget->property("studioGlassMenu").toBool()) {
+        return;
     }
 
     switch (element) {
@@ -894,16 +864,10 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         QColor fill;
         QColor border;
         if (option->state.testFlag(State_AutoRaise) && (s.checked || s.pressed || s.hovered)) {
-            /**
-             * A flat button (the tool rail's, the top bar's) on glass: lit by a
-             * wash of its ink, the glass showing through, not a gray card laid
-             * on it. On (the active tool, the eraser) the most; pressed, then
-             * pointed at, less.
-             */
+            // a flat button on glass: a wash of its ink, the glass showing through
             fill = fg;
             fill.setAlphaF(s.checked ? (s.hovered ? 0.24 : 0.2) : s.pressed ? 0.16 : 0.08);
         } else if (s.checked) {
-            // e.g. the active tool in the toolbox
             fill = mix(bg, accent, s.hovered ? 0.55 : 0.45);
             border = mix(bg, accent, 0.8);
         } else if (s.pressed) {
@@ -922,7 +886,7 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     }
 
     case PE_FrameFocusRect:
-        // Buttons and combo boxes show keyboard focus with their border
+        // buttons and combo boxes show keyboard focus with their border
         if (qobject_cast<const QAbstractButton *>(widget) || qobject_cast<const QComboBox *>(widget)) {
             return;
         }
@@ -933,8 +897,7 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
 
     case PE_PanelLineEdit:
         if (const auto *frame = qstyleoption_cast<const QStyleOptionFrame *>(option)) {
-            // Editors embedded into spin boxes and combo boxes have no frame,
-            // their parent paints the field for them
+            // an editor inside a spin box or combo box has no frame: its parent paints the field
             if (frame->lineWidth > 0) {
                 drawField(painter, option, true);
             } else if (widget && widget->property(quietFieldProperty).toBool()
@@ -1049,7 +1012,7 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         return;
 
     case PE_FrameMenu: {
-        // the system draws the border of a round menu
+        // the system draws a round menu's border
         if (systemRoundsWindows() && widget && widget->isWindow()) {
             return;
         }
@@ -1068,11 +1031,11 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         return;
 
     case PE_PanelTipLabel:
-        // a see-through tooltip is glass, painted under it (see KisStudioGlass)
+        // a see-through tooltip's glass is painted under it (see KisStudioGlass)
         if (widget && widget->testAttribute(Qt::WA_TranslucentBackground)) {
             return;
         }
-        // a round tooltip has the system's border
+        // the system draws a round tooltip's border
         if (systemRoundsWindows()) {
             painter->fillRect(option->rect, option->palette.brush(QPalette::ToolTipBase));
             return;
@@ -1086,7 +1049,6 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         painter->save();
         painter->setPen(mix(bg, fg, 0.18));
         if (option->state.testFlag(State_Horizontal)) {
-            // a separator in a horizontal toolbar is a vertical line
             const int x = r.center().x();
             painter->drawLine(x, r.top() + 4, x, r.bottom() - 4);
         } else {
@@ -1100,8 +1062,7 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     case PE_PanelItemViewRow:
         if (const auto *item = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
             if (item->state.testFlag(State_Selected)) {
-                // The selection is drawn as rounded pills by PE_PanelItemViewItem,
-                // don't fill the branch/indentation area of tree views around them
+                // PE_PanelItemViewItem draws the selection as a pill: not the tree's branch area too
                 QStyleOptionViewItem row = *item;
                 row.state.setFlag(State_Selected, false);
                 QProxyStyle::drawPrimitive(element, &row, painter, widget);
@@ -1126,8 +1087,7 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
                 ? selectionTint(item->palette)
                 : mix(item->palette.color(QPalette::Base), item->palette.color(QPalette::Text), 0.06);
 
-            // A row spanning several columns is drawn as one pill: only
-            // round the outer ends and let the inner edges run past the clip
+            // a row across several columns is one pill: inner ends run past the clip
             const qreal extend = radius + 1;
             QStyleOptionViewItem::ViewItemPosition position = item->viewItemPosition;
             if (item->direction == Qt::RightToLeft) {
@@ -1211,7 +1171,7 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
                             selectionTint(item->palette));
             }
 
-            // Fusion draws the rest as if unselected (in the selected text color), the shortcut left out
+            // Fusion draws the rest as unselected (in the selected text color), without the shortcut
             QStyleOptionMenuItem contents = *item;
             const int tab = item->text.indexOf(QLatin1Char('\t'));
             const QString shortcut = tab >= 0 ? keyCapText(item->text.mid(tab + 1)) : QString();
@@ -1225,7 +1185,7 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
             }
             QProxyStyle::drawControl(element, &contents, painter, widget);
 
-            // the shortcut as a key cap, as everywhere; one that can be changed shows it when pointed at
+            // the shortcut as a key cap; an editable one is shown pointed at
             const QMenu *menu = qobject_cast<const QMenu *>(widget);
             QAction *action = nullptr;
             if (menu) {
@@ -1287,7 +1247,7 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
 
     case CE_MenuBarEmptyArea:
     case CE_ToolBar:
-        // flat, Fusion paints a gradient here
+        // flat, not Fusion's gradient
         painter->fillRect(option->rect, chromeColor(option->palette));
         return;
 
@@ -1340,7 +1300,7 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
             if (selected) {
                 drawRounded(painter, shape, radius, mix(bg, fg, 0.13));
 
-                // accent marker on the edge that faces the tab's contents
+                // accent marker on the edge facing the contents
                 const qreal inset = radius;
                 QRectF marker;
                 switch (tab->shape) {
@@ -1369,7 +1329,6 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
         break;
 
     case CE_ProgressBarGroove:
-        // the track, as round as the field shapes (a pill when it is thin)
         drawRounded(painter, QRectF(option->rect).adjusted(0.5, 0.5, -0.5, -0.5),
                     qMin<qreal>(radius, qMin(option->rect.width(), option->rect.height()) / 2.0),
                     mix(option->palette.color(QPalette::Base), option->palette.color(QPalette::Text), 0.1));
@@ -1378,7 +1337,7 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
     case CE_ProgressBarContents:
         if (const auto *bar = qstyleoption_cast<const QStyleOptionProgressBar *>(option)) {
             if (bar->minimum == bar->maximum) {
-                break; // busy, with no amount: the base style's moving bar
+                break; // busy: the base style's moving bar
             }
             const qreal amount = qBound(0.0, qreal(bar->progress - bar->minimum) / qreal(bar->maximum - bar->minimum), 1.0);
             if (amount <= 0.0) {
@@ -1424,14 +1383,14 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
                 fill.setAlphaF(s.pressed ? 0.14 : 0.08);
                 drawRounded(painter, QRectF(tool->rect).adjusted(1, 1, -1, -1), radius, fill);
             }
-            // the icon as it is, not pushed in or lit as a checked button's
+            // the icon as is, not pushed in or lit
             QStyleOptionToolButton label = *tool;
             label.state &= ~(State_On | State_Sunken | State_MouseOver);
             label.rect = proxy()->subControlRect(CC_ToolButton, tool, SC_ToolButton, widget);
             painter->save();
             painter->setOpacity(on ? 1.0 : (s.hovered ? 0.8 : 0.5));
             if (on && !tool->icon.isNull() && tool->toolButtonStyle == Qt::ToolButtonIconOnly) {
-                // on: its drawing for on (solid, where it has one; see KisIconUtils), in place, not pushed in
+                // its On pixmap (solid, see KisIconUtils)
                 QWindow *window = widget->window()->windowHandle();
                 const QPixmap pixmap = window ? tool->icon.pixmap(window, tool->iconSize, QIcon::Normal, QIcon::On)
                                               : tool->icon.pixmap(tool->iconSize, QIcon::Normal, QIcon::On);
@@ -1463,7 +1422,7 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
             const bool dragging = enabled && bar->state.testFlag(State_Sunken)
                 && bar->activeSubControls.testFlag(SC_ScrollBarSlider);
 
-            // A thin bar that grows to the full width while hovered
+            // a thin bar, full width while hovered
             const qreal margin = 2;
             const qreal extent = horizontal ? bar->rect.height() : bar->rect.width();
             const qreal thickness = (hovered || dragging) ? extent - 2 * margin : 4;
@@ -1526,7 +1485,6 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
                 }
                 drawRounded(painter, full, track / 2, mix(bg, fg, 0.2));
 
-                // fill from the minimum to the handle
                 QRectF filled = full;
                 if (horizontal) {
                     if (slider->upsideDown) {

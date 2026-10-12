@@ -2,10 +2,10 @@
  *  LayerBox.cc - part of Krita aka Krayon aka KimageShop
  *
  *  SPDX-FileCopyrightText: 2002 Patrick Julien <freak@codepimps.org>
- *  SPDX-FileCopyrightText: 2006 GÃ¡bor Lehel <illissius@gmail.com>
+ *  SPDX-FileCopyrightText: 2006 Gábor Lehel <illissius@gmail.com>
  *  SPDX-FileCopyrightText: 2007 Thomas Zander <zander@kde.org>
  *  SPDX-FileCopyrightText: 2007 Boudewijn Rempt <boud@valdyas.org>
- *  SPDX-FileCopyrightText: 2011 JosÃ© Luis Vergara <pentalis@gmail.com>
+ *  SPDX-FileCopyrightText: 2011 José Luis Vergara <pentalis@gmail.com>
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -36,7 +36,6 @@
 #include <QCheckBox>
 #include <QVBoxLayout>
 #include <QPixmap>
-#include <QBitmap>
 #include <QList>
 #include <QMenu>
 #include <QWidgetAction>
@@ -101,7 +100,6 @@
 #include "ui_WdgLayerBox.h"
 #include "NodeView.h"
 #include "SyncButtonAndAction.h"
-#include "KisMenuStyleDontCloseOnAlt.h"
 #include "KisModernStyle.h"
 #include "KisTouchMode.h"
 #include "NodeDelegate.h"
@@ -143,8 +141,8 @@ public:
     }
 };
 
-/// The place of the list in the panel's layout: what goes above it goes there
-int listRow(Ui_WdgLayerBox *ui)
+/// The index of the list in the panel's layout, to insert rows above it
+static int listRow(Ui_WdgLayerBox *ui)
 {
     for (int i = 0; i < ui->verticalLayout->count(); i++) {
         QLayoutItem *item = ui->verticalLayout->itemAt(i);
@@ -155,7 +153,7 @@ int listRow(Ui_WdgLayerBox *ui)
     return 0;
 }
 
-/// A layer's opacity while it is dragged sideways on its row: the row fills up to it, with the number
+/// A layer's opacity while it is dragged sideways on its row: the row filled up to it, with the number
 class OpacityScrub : public QWidget
 {
 public:
@@ -189,7 +187,7 @@ protected:
         QFont font = this->font();
         font.setBold(true);
         painter.setFont(font);
-        painter.setPen(palette().color(QPalette::BrightText).isValid() ? QColor(Qt::white) : palette().color(QPalette::WindowText));
+        painter.setPen(Qt::white);
         painter.drawText(r.adjusted(0, 0, -10, 0), Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("%1%").arg(qRound(m_percent)));
     }
 
@@ -223,10 +221,7 @@ protected:
     }
 };
 
-/**
- * Above the list, what the "+" under it was: a click adds a layer above the
- * selected one, a right click (or holding it) offers the other kinds.
- */
+/// Above the list: a click adds a layer above the current one, a right click offers the other kinds
 class AddLayerStrip : public QAbstractButton
 {
 public:
@@ -239,7 +234,6 @@ public:
         setText(i18nc("@action:button", "New layer"));
         setToolTip(i18nc("@info:tooltip", "New layer (right-click for other kinds)"));
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        // a finger needs more to hit
         auto fit = [this]() { setFixedHeight(KisTouchMode::isActive() ? 34 : 26); };
         fit();
         QObject::connect(KisTouchMode::instance(), &KisTouchMode::changed, this, fit);
@@ -306,7 +300,6 @@ LayerBox::LayerBox()
     , m_colorLabelCompressor(500, KisSignalCompressor::FIRST_INACTIVE)
     , m_thumbnailSizeCompressor(100, KisSignalCompressor::FIRST_INACTIVE)
     , m_treeIndentationCompressor(100, KisSignalCompressor::FIRST_INACTIVE)
-    , m_infoTextOpacityCompressor(100, KisSignalCompressor::FIRST_INACTIVE)
     , m_nodeOpacityCompressor(KisFrameRate::frameMs(), KisSignalCompressor::FIRST_ACTIVE, KisSignalCompressor::ADDITIVE_INTERVAL)
 {
     KisConfig cfg(false);
@@ -351,12 +344,10 @@ LayerBox::LayerBox()
                                   i18nc("{n} is the number value, % is the percent sign", "{n}%"));
 
     /**
-     * The list is the panel. The selected layer's row holds its blend mode
-     * and opacity; a strip above the list adds a layer, and so does a click
-     * between two rows, right there; a layer dragged off the panel is
-     * deleted; Ctrl+wheel sizes the rows. The rest (other kinds of layer,
-     * filtering, the list's settings) is in the right click menu: no
-     * buttons under the list. Their actions stay, with their shortcuts.
+     * The list is the panel: the current layer's row holds its blend mode and opacity, a strip above
+     * the list or a click between two rows adds a layer, a layer dropped off the panel is deleted,
+     * Ctrl+wheel sizes the rows; the rest is in the context menu. The buttons under the list are
+     * hidden but kept for their actions.
      */
     {
         Ui_WdgLayerBox *ui = m_wdgLayerBox;
@@ -368,7 +359,6 @@ LayerBox::LayerBox()
         ui->verticalLayout->removeItem(ui->hbox2);
         ui->verticalLayout->removeItem(ui->opacityLayout);
         ui->verticalLayout->removeItem(ui->hbox1);
-        // emptied and taken out: nothing owns them anymore; their buttons stay, hidden, for their actions
         delete ui->hbox2;
         ui->hbox2 = nullptr;
         delete ui->opacityLayout;
@@ -380,26 +370,22 @@ LayerBox::LayerBox()
             button->hide();
         }
 
-        // room around the rows, as the other panels have around what is in them
         ui->verticalLayout->setContentsMargins(6, 2, 6, 6);
 
-        // in the selected layer's row, by its icons: see NodeDelegate::inlineControlsRect()
-        ui->listLayers->setProperty("rowControls", true);
+        // placed in the current layer's row by placeRowControls()
         m_rowControls = new QWidget(ui->listLayers->viewport());
         auto *row = new QHBoxLayout(m_rowControls);
         row->setContentsMargins(0, 3, 2, 3);
         row->setSpacing(2);
-        // flat on the row's own highlight: a box only when pointed at; as wide as its mode
         ui->cmbComposite->setFrame(false);
         row->addWidget(ui->cmbComposite);
         ui->doubleOpacity->setToolTip(i18nc("@info:tooltip", "Layer opacity"));
         ui->doubleOpacity->setButtonSymbols(QAbstractSpinBox::NoButtons);
-        // the number and a hairline of it, a slider when pointed at
         ui->doubleOpacity->setFrame(false);
         ui->doubleOpacity->setProperty(KisModernStyle::quietFieldProperty, true);
         ui->doubleOpacity->setFixedWidth(46);
         row->addWidget(ui->doubleOpacity);
-        // the row's name ends where they begin, which is as wide as the mode's name makes them
+        // as wide as the mode's name; the row's name ends where they begin
         auto fit = [this]() {
             Ui_WdgLayerBox *ui = m_wdgLayerBox;
             QStyleOptionComboBox option;
@@ -408,7 +394,7 @@ LayerBox::LayerBox()
             const QSize text(ui->cmbComposite->fontMetrics().horizontalAdvance(ui->cmbComposite->currentText()), ui->cmbComposite->height());
             const int mode = qMin(140, ui->cmbComposite->style()->sizeFromContents(QStyle::CT_ComboBox, &option, text, ui->cmbComposite).width());
             ui->cmbComposite->setFixedWidth(mode);
-            // (its width() is the new one only once the layout has run)
+            // computed, not read back: width() changes only once the layout has run
             const QMargins margins = m_rowControls->layout()->contentsMargins();
             const int width = mode + m_rowControls->layout()->spacing() + 46 + margins.left() + margins.right();
             if (ui->listLayers->property("rowControlsWidth").toInt() != width) {
@@ -420,7 +406,7 @@ LayerBox::LayerBox()
         fit();
         // once its font is the panel's
         QTimer::singleShot(0, this, fit);
-        // the layer's blend, quieter than its name next to it
+        // quieter than the layer's name
         for (QWidget *quiet : std::initializer_list<QWidget *>{ui->cmbComposite, ui->doubleOpacity}) {
             QPalette palette = quiet->palette();
             for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::Text, QPalette::WindowText}) {
@@ -437,13 +423,11 @@ LayerBox::LayerBox()
             if (m_removeAction) m_removeAction->trigger();
         });
 
-        // a click between two rows adds a layer there
-        m_opacityScrub = new OpacityScrub(m_wdgLayerBox->listLayers->viewport());
-    m_opacityScrub->hide();
-    m_gapIndicator = new GapIndicator(ui->listLayers->viewport());
+        m_opacityScrub = new OpacityScrub(ui->listLayers->viewport());
+        m_opacityScrub->hide();
+        m_gapIndicator = new GapIndicator(ui->listLayers->viewport());
         m_gapIndicator->hide();
 
-        // and so does the strip above the list: above the selected layer; other kinds on a right click
         m_addStrip = new AddLayerStrip(mainWidget);
         connect(m_addStrip, &QAbstractButton::clicked, this, &LayerBox::slotAddLayerBnClicked);
         connect(m_addStrip, &QWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
@@ -468,10 +452,6 @@ LayerBox::LayerBox()
     m_newLayerMenu = new QMenu(this);
     m_wdgLayerBox->bnAdd->setMenu(m_newLayerMenu);
     m_wdgLayerBox->bnAdd->setPopupMode(QToolButton::MenuButtonPopup);
-
-    m_opLayerMenu = new QMenu(this);
-    m_wdgLayerBox->bnProperties->setMenu(m_opLayerMenu);
-    m_wdgLayerBox->bnProperties->setPopupMode(QToolButton::MenuButtonPopup);
 
     m_nodeModel = new KisNodeModel(this, 2);
     m_filteringModel = new KisNodeFilterProxyModel(this);
@@ -524,7 +504,7 @@ LayerBox::LayerBox()
             this, &LayerBox::slotAdjustCurrentBeforeRemoveRows);
 
 
-    // filtering by name and color label: a row above the list, there while it filters
+    // filtering by name and color label: a row above the list, shown while filtering
     layerFilterWidget = new KisLayerFilterWidget(this);
     connect(layerFilterWidget, SIGNAL(filteringOptionsChanged()), this, SLOT(updateLayerFiltering()));
     connect(layerFilterWidget, &KisLayerFilterWidget::filteringOptionsChanged, this, [this]() {
@@ -543,7 +523,6 @@ LayerBox::LayerBox()
     connect(&m_colorLabelCompressor, SIGNAL(timeout()), SLOT(updateAvailableLabels()));
 
 
-    // set up the configure menu for changing thumbnail size
     QMenu* configureMenu = new QMenu(i18nc("@item:inmenu the layers list's look", "List"), this);
     configureMenu->setContentsMargins(6, 6, 6, 6);
     // choosing a layer takes the brush last painted with on it (KisStudioBrushMemory)
@@ -620,41 +599,6 @@ LayerBox::LayerBox()
     cmbboxAction->setDefaultWidget(infoTextCombobox);
     configureMenu->addAction(cmbboxAction);
     connect(infoTextCombobox, SIGNAL(currentIndexChanged(int)), SLOT(slotUpdateLayerInfoTextStyle()));
-
-    // info-text opacity slider
-    infoTextOpacitySlider = new KisSliderSpinBox(this);
-    KisSpinBoxI18nHelper::setText(infoTextOpacitySlider,
-                                  i18nc("{n} is the number value, % is the percent sign", "Opacity: {n}%"));
-    infoTextOpacitySlider->setToolTip(i18nc("@item:tooltip", "Blending info text opacity"));
-    // 55% is the opacity of nonvisible layer text
-    infoTextOpacitySlider->setRange(55, 100);
-    infoTextOpacitySlider->setMinimumSize(40, 20);
-    infoTextOpacitySlider->setSingleStep(5);
-    infoTextOpacitySlider->setPageStep(15);
-    infoTextOpacitySlider->setValue(cfg.layerInfoTextOpacity());
-    if (infoTextCombobox->currentIndex() == 0) {
-        infoTextOpacitySlider->setDisabled(true);
-    }
-
-    sliderAction= new QWidgetAction(this);
-    sliderAction->setDefaultWidget(infoTextOpacitySlider);
-    configureMenu->addAction(sliderAction);
-    connect(infoTextOpacitySlider, SIGNAL(valueChanged(int)), &m_infoTextOpacityCompressor, SLOT(start()));
-    connect(&m_infoTextOpacityCompressor, SIGNAL(timeout()), SLOT(slotUpdateLayerInfoTextOpacity()));
-
-    // info-text inline checkbox
-    infoTextInlineChkbox = new QCheckBox(i18nc("@item:inmenu Layers Docker settings, checkbox", "Inline"), this);
-    infoTextInlineChkbox->setChecked(cfg.useInlineLayerInfoText());
-    infoTextInlineChkbox->setToolTip(i18nc("@item:tooltip", "If enabled, show blending info beside layer names.\n"
-                                                            "If disabled, show below layer names (when enough space)."));
-    if (infoTextCombobox->currentIndex() == 0) {
-        infoTextInlineChkbox->setDisabled(true);
-    }
-
-    QWidgetAction *chkboxAction = new QWidgetAction(this);
-    chkboxAction->setDefaultWidget(infoTextInlineChkbox);
-    configureMenu->addAction(chkboxAction);
-    connect(infoTextInlineChkbox, SIGNAL(stateChanged(int)), SLOT(slotUpdateUseInlineLayerInfoText()));
 
     layerSelectionCheckBox = new QCheckBox(
         i18nc("@item:inmenu Layers Docker settings, checkbox", "Checkbox for Selecting Layers"), this);
@@ -740,12 +684,6 @@ void LayerBox::setViewManager(KisViewManager* kisview)
     Q_ASSERT(m_propertiesAction);
     new SyncButtonAndAction(m_propertiesAction, m_wdgLayerBox->bnProperties, this);
     connect(m_propertiesAction, SIGNAL(triggered()), this, SLOT(slotPropertiesClicked()));
-
-    connect(m_opLayerMenu, SIGNAL(aboutToShow()), this, SLOT(slotLayerOpMenuOpened()));
-
-    // It's necessary to clear the layer operations menu when it closes, else
-    // the color selector can't be shared with the right-click context menu
-    connect(m_opLayerMenu, SIGNAL(aboutToHide()), this, SLOT(slotLayerOpMenuClosed()));
 
     m_removeAction = actionManager->createAction("remove_layer");
     Q_ASSERT(m_removeAction);
@@ -1049,7 +987,6 @@ void LayerBox::slotContextMenuRequested(const QPoint &pos, const QModelIndex &in
     if (index.isValid() && !nodes.isEmpty() && activeNode) {
         updateLayerOpMenu(index, menu);
     } else {
-        // the list itself
         addMenuEntry(&menu, "add_new_paint_layer", i18nc("@action:inmenu", "New Layer"));
         addNewLayerMenu(&menu, false);
         addMenuEntry(&menu, "paste_layer_from_clipboard", i18nc("@action:inmenu", "Paste"));
@@ -1069,11 +1006,6 @@ void LayerBox::slotContextMenuRequested(const QPoint &pos, const QModelIndex &in
 
 QAction *LayerBox::addMenuEntry(QMenu *menu, QAction *action, const QString &label, bool onlyIfEnabled)
 {
-    /**
-     * A short entry for the action: its name in the fewest words (it keeps
-     * its full name elsewhere, in Find and the main menu), the shortcut
-     * beside it, and no icon (a menu is read, not looked over).
-     */
     if (!action || (onlyIfEnabled && !action->isEnabled())) return nullptr;
     QString text = label.isEmpty() ? action->text() : label;
     if (!action->shortcut().isEmpty()) {
@@ -1081,7 +1013,7 @@ QAction *LayerBox::addMenuEntry(QMenu *menu, QAction *action, const QString &lab
     }
     QAction *entry = new QAction(text, menu);
     entry->setEnabled(action->isEnabled());
-    // its shortcut is the action's: shown as a key cap, and changed there
+    // shown as a key cap; editing the shortcut edits the action's
     entry->setProperty("kisShortcutTarget", QVariant::fromValue<QObject *>(action));
     entry->setCheckable(action->isCheckable());
     entry->setChecked(action->isChecked());
@@ -1101,7 +1033,6 @@ QAction *LayerBox::addMenuEntry(QMenu *menu, const QString &id, const QString &l
 
 void LayerBox::addNewLayerMenu(QMenu *menu, bool below)
 {
-    // every kind of layer and mask: one list, not "New" and "Add" with half of it each
     QMenu *kinds = menu->addMenu(i18nc("@title:menu other kinds of layer", "New"));
     addMenuEntry(kinds, "add_new_paint_layer", i18nc("@action:inmenu", "Paint Layer"));
     if (below) {
@@ -1126,7 +1057,7 @@ void LayerBox::addNewLayerMenu(QMenu *menu, bool below)
 
 void LayerBox::addLayerBelow()
 {
-    // a new layer goes above the selected one: then one step down
+    // new layers go above the current one: then one step down
     slotAddLayerBnClicked();
     if (m_canvas) {
         if (KisAction *down = m_canvas->viewManager()->actionManager()->actionByName("move_layer_down")) {
@@ -1137,7 +1068,7 @@ void LayerBox::addLayerBelow()
 
 void LayerBox::addLayerAbove(const QModelIndex &index)
 {
-    // a new layer goes above the selected one: select the one it goes above first
+    // new layers go above the current one: make it that row
     NodeView *view = m_wdgLayerBox->listLayers;
     view->setCurrentIndex(index);
     view->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
@@ -1162,7 +1093,7 @@ void LayerBox::placeRowControls()
     }
     auto *delegate = qobject_cast<NodeDelegate *>(view->itemDelegate());
     const QRect rect = delegate ? delegate->inlineControlsRect(main, row, view->layoutDirection()) : QRect();
-    // tall rows: the opacity as long as the row; in one line, as wide as its number
+    // in tall rows the opacity slider spans the row, otherwise it is as wide as its number
     QWidget *opacity = m_wdgLayerBox->doubleOpacity;
     const bool tall = delegate && delegate->isTall();
     if (tall && opacity->maximumWidth() == 46) {
@@ -1181,7 +1112,6 @@ void LayerBox::placeRowControls()
 
 QModelIndex LayerBox::gapAt(const QPoint &pos, int *gapY) const
 {
-    // within a few pixels of the line between two rows: the row under it, which the new layer goes above
     NodeView *view = m_wdgLayerBox->listLayers;
     const QModelIndex at = static_cast<QAbstractItemView *>(view)->indexAt(pos);
     if (!at.isValid()) return QModelIndex();
@@ -1208,7 +1138,7 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
     if (watched == view->viewport()) {
         switch (event->type()) {
         case QEvent::Paint:
-            // scrolled, resized, another layer selected, rows added: the controls follow the row
+            // the controls follow the row when scrolled, resized or another layer is selected
             placeRowControls();
             break;
         case QEvent::MouseMove: {
@@ -1217,7 +1147,7 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
                 return true;
             }
             int y = 0;
-            // a mouse only: a finger has the strip and "New Layer Above/Below" in its menu
+            // a mouse only: touch adds layers from the strip or the menu
             const QModelIndex gap = (mouse->buttons() == Qt::NoButton && mouse->source() == Qt::MouseEventNotSynthesized)
                                         ? gapAt(mouse->pos(), &y) : QModelIndex();
             m_gapIndex = gap;
@@ -1245,7 +1175,7 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
                 addLayerAbove(gap);
                 return true;
             }
-            // maybe the start of a drag sideways: the layer's opacity
+            // maybe the start of an opacity drag
             m_opacityPress = mouse->button() == Qt::LeftButton ? QPersistentModelIndex(static_cast<QAbstractItemView *>(view)->indexAt(mouse->pos())) : QPersistentModelIndex();
             m_opacityPressPos = mouse->pos();
             m_opacityScrubbing = false;
@@ -1267,7 +1197,7 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
             m_opacityPress = QModelIndex();
             break;
         case QEvent::Wheel: {
-            // Ctrl+wheel: smaller or larger rows, as the list's settings set them
+            // Ctrl+wheel sizes the rows
             auto *wheel = static_cast<QWheelEvent *>(event);
             if (wheel->modifiers() & Qt::ControlModifier) {
                 const int steps = KisModernStyle::wheelSteps(wheel, watched);
@@ -1287,7 +1217,6 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
         }
     } else if (event->type() == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape
                && layerFilterWidget->isAncestorOf(qobject_cast<QWidget *>(watched))) {
-        // Escape: no filter, back to the list
         layerFilterWidget->reset();
         layerFilterWidget->hide();
         view->setFocus();
@@ -1300,7 +1229,7 @@ bool LayerBox::handleOpacityDrag(const QPoint &pos, bool fine)
 {
     NodeView *view = m_wdgLayerBox->listLayers;
     if (m_opacityScrubbing && fine != m_opacityFine) {
-        // on from where it is, at the other speed
+        // continue from the current value at the other speed
         m_opacityStart = m_newOpacity;
         m_opacityPressPos = pos;
     }
@@ -1310,7 +1239,7 @@ bool LayerBox::handleOpacityDrag(const QPoint &pos, bool fine)
         if (delta.manhattanLength() < QApplication::startDragDistance()) {
             return false;
         }
-        // mostly sideways: the opacity; anything else is the list's (moving the layer, scrolling)
+        // mostly sideways; anything else is the list's (moving the layer, scrolling)
         KisNodeSP node = m_filteringModel ? m_filteringModel->nodeFromIndex(m_opacityPress) : KisNodeSP();
         if (qAbs(delta.x()) < 2 * qAbs(delta.y()) || !node || !node->isEditable(false)) {
             m_opacityPress = QModelIndex();
@@ -1324,7 +1253,7 @@ bool LayerBox::handleOpacityDrag(const QPoint &pos, bool fine)
     if (!m_opacityNode) {
         return true;
     }
-    // the row's width is all of it, from where it was
+    // the row's width is the whole range
     const QRect row = view->visualRect(m_opacityPress);
     const qreal percent = qBound(0.0, m_opacityStart + (fine ? 0.25 : 1.0) * delta.x() * 100.0 / qMax(80, view->viewport()->width() - row.left()), 100.0);
     m_newOpacity = percent;
@@ -1335,7 +1264,7 @@ bool LayerBox::handleOpacityDrag(const QPoint &pos, bool fine)
         m_wdgLayerBox->doubleOpacity->setValue(percent);
     }
     m_opacityScrub->setGeometry(row.left(), row.top(), view->viewport()->width() - row.left(), qMin(row.height(), 30));
-    static_cast<OpacityScrub *>(m_opacityScrub)->setValue(percent);
+    m_opacityScrub->setValue(percent);
     m_opacityScrub->show();
     m_opacityScrub->raise();
     return true;
@@ -1367,18 +1296,6 @@ void LayerBox::slotPropertiesClicked()
     }
 }
 
-void LayerBox::slotLayerOpMenuOpened()
-{
-    if (!m_canvas) return;
-    updateLayerOpMenu(m_wdgLayerBox->listLayers->currentIndex(), *m_opLayerMenu);
-}
-
-void LayerBox::slotLayerOpMenuClosed()
-{
-    if (!m_canvas) return;
-    m_opLayerMenu->clear();
-}
-
 void LayerBox::slotChangeCloneSourceClicked()
 {
     if (!m_canvas) return;
@@ -1396,11 +1313,8 @@ void LayerBox::slotCompositeOpChanged(int index)
 
 void LayerBox::slotPreviewBlendMode(const QString &id)
 {
-    /**
-     * Shows a blend mode on the canvas while it is highlighted in the picker,
-     * without undo commands. The original mode is back before a picked one
-     * is applied through slotCompositeOpChanged(), which makes it one undo step.
-     */
+    // shows the mode highlighted in the picker without undo commands; the original is restored
+    // before a picked one is applied through slotCompositeOpChanged() as one undo step
     if (!id.isEmpty()) {
         if (!m_canvas || !m_activeNode || !m_activeNode->isEditable(false)) {
             return;
@@ -1410,8 +1324,8 @@ void LayerBox::slotPreviewBlendMode(const QString &id)
             m_previewImage = m_image;
             m_previewOriginalOp = m_activeNode->compositeOpId();
         }
-        // the merge threads read the op: change it only while they are stopped,
-        // and try again in a moment rather than wait for a heavy update to finish
+        // the merge threads read the op: change it only while they are stopped, retrying
+        // shortly rather than waiting for a heavy update to finish
         KisImageSP image = m_previewImage;
         m_pendingPreviewOp.clear();
         if (m_previewNode->compositeOpId() != id && image) {
@@ -1428,10 +1342,8 @@ void LayerBox::slotPreviewBlendMode(const QString &id)
         }
     } else if (m_previewNode) {
         m_pendingPreviewOp.clear();
-        // the image the preview was made in, even if another one is shown now
         KisImageSP image = m_previewImage;
         if (m_previewNode->compositeOpId() != m_previewOriginalOp && image) {
-            // the original must come back, so this one waits
             image->barrierLock();
             m_previewNode->setCompositeOpId(m_previewOriginalOp);
             image->unlock();
@@ -1756,10 +1668,7 @@ void LayerBox::updateLayerOpMenu(const QModelIndex &index, QMenu &menu) {
         return;
     }
 
-    /**
-     * What is done to layers every day, by name, at the top; the rest in a
-     * few lists by what they are about. Nothing that was here is gone.
-     */
+    // the everyday actions at the top, the rest in submenus
     addMenuEntry(&menu, "add_new_paint_layer", i18nc("@action:inmenu", "New Layer"));
     addNewLayerMenu(&menu, true);
     menu.addSeparator();
@@ -1805,11 +1714,10 @@ void LayerBox::updateLayerOpMenu(const QModelIndex &index, QMenu &menu) {
     addMenuEntry(select, "select_unlocked_layers", i18nc("@action:inmenu select layers", "Unlocked"));
     if (singleNode) {
         select->addSeparator();
-        // a selection of the layer's painted pixels (not of layers)
         addMenuEntry(select, "selectopaque", i18nc("@action:inmenu", "Opaque Pixels"));
     }
 
-    // only what can be done to this layer: the rest would be grayed lines to read past
+    // only what applies to this layer, no disabled entries
     if (singleNode) {
         QMenu *convert = menu.addMenu(i18nc("@title:menu", "Convert"));
         addMenuEntry(convert, "convert_to_paint_layer", i18nc("@action:inmenu convert to", "To Paint Layer"), true);
@@ -1918,36 +1826,6 @@ void LayerBox::slotUpdateLayerInfoTextStyle()
         return;
     }
     cfg.setLayerInfoTextStyle((KisConfig::LayerInfoTextStyle)infoTextCombobox->currentIndex());
-    m_wdgLayerBox->listLayers->slotConfigurationChanged();
-    m_wdgLayerBox->listLayers->viewport()->update();
-    if (infoTextCombobox->currentIndex() == 0) {
-        infoTextOpacitySlider->setDisabled(true);
-        infoTextInlineChkbox->setDisabled(true);
-    }
-    else {
-        infoTextOpacitySlider->setDisabled(false);
-        infoTextInlineChkbox->setDisabled(false);
-    }
-}
-
-void LayerBox::slotUpdateLayerInfoTextOpacity()
-{
-    KisConfig cfg(false);
-    if (infoTextOpacitySlider->value() == cfg.layerInfoTextOpacity()) {
-        return;
-    }
-    cfg.setLayerInfoTextOpacity(infoTextOpacitySlider->value());
-    m_wdgLayerBox->listLayers->slotConfigurationChanged();
-    m_wdgLayerBox->listLayers->viewport()->update();
-}
-
-void LayerBox::slotUpdateUseInlineLayerInfoText()
-{
-    KisConfig cfg(false);
-    if (infoTextInlineChkbox->isChecked() == cfg.useInlineLayerInfoText()) {
-        return;
-    }
-    cfg.setUseInlineLayerInfoText(infoTextInlineChkbox->isChecked());
     m_wdgLayerBox->listLayers->slotConfigurationChanged();
     m_wdgLayerBox->listLayers->viewport()->update();
 }

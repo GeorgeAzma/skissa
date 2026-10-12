@@ -19,18 +19,11 @@
 class KConfig;
 
 /**
- * Every setting Settings shows, described once: where it is kept, what it
- * holds, what it is until changed, which values are valid, and what it is
- * about (this computer only, the next start only). Everything that handles
- * settings in bulk goes through here: showing them, finding them, telling
- * which are changed, resetting them, undoing a session's changes, and
- * moving them to another Krita. A value is only ever written after it is
- * checked against its description, so a file from elsewhere (another
- * version, another computer, a hand edit) can't put a setting in a state
- * Krita doesn't expect.
- *
- * Values are what is stored (seconds, not the minutes shown; a zoom factor,
- * not the percent): the cards convert for showing.
+ * Every setting Settings shows, described once: where it is kept, its kind,
+ * default and valid values. Showing, finding, resetting, undoing and moving
+ * settings all go through here, and a value is only written once it is
+ * checked against its description. Values are as stored (seconds, a zoom
+ * factor): the cards convert them for showing.
  */
 class KRITAUI_EXPORT KisSettingsRegistry : public QObject
 {
@@ -62,6 +55,8 @@ public:
         QString key;
         Kind kind {Kind::Toggle};
         QVariant fallback; ///< what it is until changed
+        /// A default that follows other settings, instead of fallback
+        std::function<QVariant()> fallbackNow;
         int flags {0};
         qreal min {0};
         qreal max {0};

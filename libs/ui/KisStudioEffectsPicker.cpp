@@ -30,17 +30,14 @@
 #include "kis_node.h"
 #include "kis_paint_device.h"
 
-/**
- * The tiles' pictures: made in a worker thread, one effect after another,
- * from a small copy of the image; the picker collects the finished ones.
- */
+/// The tiles' pictures, made in a worker thread from a small copy of the image
 struct KisStudioEffectThumbnails {
-    QImage base;                        ///< the picture without effect, set before the worker starts
+    QImage base;                        ///< without effect, set before the worker starts
     QMutex mutex;
     QHash<QString, QImage> made;        ///< by the worker, under the mutex
     std::atomic<bool> cancelled {false};
     std::atomic<bool> finished {false};
-    QHash<QString, QImage> shown;       ///< the ones collected, used in the GUI thread only
+    QHash<QString, QImage> shown;       ///< collected, GUI thread only
 };
 
 namespace {
@@ -49,10 +46,9 @@ using Group = KisStudioPicker::Group;
 
 const QString recentKey = QStringLiteral("StudioRecentEffects");
 constexpr int recentKept = 8;
-/// The size of a tile's picture, see KisStudioPicker
+/// A default tile's picture, see KisStudioPicker
 const QSize thumbnailSize(112, 64);
 
-/// Your effects until you change them: the ones most paintings get at some point
 QStringList defaultEffects()
 {
     return {
@@ -63,7 +59,7 @@ QStringList defaultEffects()
     };
 }
 
-/// The groups of "All effects": by what an effect does, in this order
+/// By what an effect does, in this order
 QVector<QPair<QString, QString>> groupTitles()
 {
     return {
@@ -79,7 +75,7 @@ QVector<QPair<QString, QString>> groupTitles()
     };
 }
 
-/// Which group an effect is in: by what it does, or by its menu category for those not listed
+/// By what it does, or by its menu category for those not listed
 QString groupOf(const QString &id)
 {
     static const QHash<QString, QString> byId = {
@@ -146,7 +142,7 @@ QString groupOf(const QString &id)
     return QStringLiteral("other");
 }
 
-/// The image, cropped to the tiles' shape; the sample when there is nothing to see
+/// The image cropped to the tiles' shape; the sample picture when it is blank
 QImage basePicture(KisViewManager *view, const QSize &size)
 {
     QImage picture;
@@ -167,7 +163,7 @@ QImage basePicture(KisViewManager *view, const QSize &size)
 
 KisStudioPicker::Source effectsSource(KisMainWindow *mainWindow, std::shared_ptr<KisStudioEffectThumbnails> thumbnails)
 {
-    // what Find knows of every effect that can be run: its name, its other names
+    // the effects Find can run, with their names
     struct Info {
         QString title;
         QStringList aliases;
@@ -216,7 +212,7 @@ KisStudioPicker::Source effectsSource(KisMainWindow *mainWindow, std::shared_ptr
     };
     source.recent = []() { return KisConfig(true).readEntry<QStringList>(recentKey, QStringList()); };
     source.tiles = true;
-    // only once the pointer rests on one, not for each it passes (a coarse preview shows within a frame or two)
+    // not for every tile the pointer passes on its way
     source.previewDelay = 150;
     source.yoursTitle = i18nc("effect group", "Your effects");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 effects", ids.size());
@@ -238,7 +234,7 @@ struct KisStudioEffectsPicker::Private
     KisMainWindow *mainWindow {nullptr};
     std::shared_ptr<KisStudioEffectThumbnails> thumbnails;
     QTimer collect;
-    /// Whether the filter stroke running is this picker's preview, not an effect being adjusted
+    /// The running filter stroke is this picker's preview, not an effect being adjusted
     bool previewing {false};
 
     void previewOnCanvas(const QString &id);
@@ -257,8 +253,8 @@ KisStudioEffectsPicker::KisStudioEffectsPicker(KisMainWindow *mainWindow, std::s
     d->thumbnails = thumbnails;
     thumbnails->base = basePicture(mainWindow->viewManager(), thumbnailSize * mainWindow->devicePixelRatioF());
 
-    // yours first, then the recent ones, then the rest: the ones seen first are made first
-    const Source source = effectsSource(mainWindow, thumbnails);
+    // the ones seen first are made first
+    const Source &source = pickerSource();
     QStringList order = pinnedIds(source) + source.recent() + source.allIds();
     order.removeDuplicates();
     QVector<Job> jobs;
@@ -285,27 +281,27 @@ KisStudioEffectsPicker::KisStudioEffectsPicker(KisMainWindow *mainWindow, std::s
         thumbnails->finished = true;
     });
 
-    // the finished ones, a few times a second, until all are
     d->collect.setInterval(80);
     connect(&d->collect, &QTimer::timeout, this, [this]() {
-        bool any = false;
+        // read before collecting: once finished, all that was made is collected below
+        const bool finished = d->thumbnails->finished;
+        QHash<QString, QImage> made;
         {
             QMutexLocker locker(&d->thumbnails->mutex);
-            for (auto it = d->thumbnails->made.constBegin(); it != d->thumbnails->made.constEnd(); ++it) {
-                d->thumbnails->shown.insert(it.key(), it.value());
-                any = true;
-            }
-            d->thumbnails->made.clear();
+            made.swap(d->thumbnails->made);
         }
-        if (any) updatePreviews();
-        if (d->thumbnails->finished && !any) d->collect.stop();
+        for (auto it = made.constBegin(); it != made.constEnd(); ++it) {
+            d->thumbnails->shown.insert(it.key(), it.value());
+        }
+        if (!made.isEmpty()) updatePreviews();
+        if (finished) d->collect.stop();
     });
     d->collect.start();
 
     connect(this, &KisStudioPicker::sigPreview, this, [this](const QString &id) { d->previewOnCanvas(id); });
     connect(this, &KisStudioPicker::sigPicked, this, [mainWindow](const QString &id) {
         recordUse(id);
-        // as from anywhere else: adjusted in the effect panel, or applied if there is nothing to adjust
+        // as from Find: adjusted in the effect panel, or applied if there is nothing to adjust
         QTimer::singleShot(0, mainWindow, [mainWindow, id]() {
             if (KisStudioFind *find = mainWindow->studioFind()) find->run(QStringLiteral("effect:") + id);
         });
@@ -314,7 +310,7 @@ KisStudioEffectsPicker::KisStudioEffectsPicker(KisMainWindow *mainWindow, std::s
 
 KisStudioEffectsPicker::~KisStudioEffectsPicker()
 {
-    // the worker stops after the effect it is making
+    // not waited for: the worker stops after the effect it is making
     d->thumbnails->cancelled = true;
 }
 

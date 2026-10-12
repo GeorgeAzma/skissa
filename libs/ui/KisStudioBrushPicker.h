@@ -15,15 +15,10 @@ class KisViewManager;
 struct KisStudioBrushStrokes;
 
 /**
- * All the brushes (presets), to pick one and to keep your own at hand.
- *
- * Every brush is a tile with a stroke it actually painted, in your current
- * color, made in the background as the picker opens (and kept for the next
- * time). The ones used lately come first, then yours in your order (the
- * favorite brushes of the pop-up palette until you change them); "All
- * brushes" shows the rest grouped by what they are for: sketching, ink,
- * paint, blending, erasing... worked out from their names and engines, so
- * that nothing needs tagging. Searching finds names, tags and those kinds.
+ * All the brushes (presets), each a tile with a stroke it painted in the
+ * current color, made in the background and kept for the next time. The
+ * others are grouped by what they are for, worked out from their names and
+ * engines; a map shows them all by how their strokes look.
  */
 class KRITAUI_EXPORT KisStudioBrushPicker : public KisStudioPicker
 {
@@ -32,17 +27,17 @@ public:
     explicit KisStudioBrushPicker(KisMainWindow *mainWindow);
     ~KisStudioBrushPicker() override;
 
-    /// A brush was used, picked here or anywhere else: it goes first among the recent ones
+    /// A brush was used, from here or elsewhere: first among the recent ones
     static void recordUse(const QString &presetName);
     /// The next or previous one of yours after the current brush, e.g. for the wheel; empty at either end
     static QString neighbour(KisMainWindow *mainWindow, const QString &current, int step);
     /// Makes the brush with that name the current one
     static void use(KisViewManager *view, const QString &presetName);
-    /// A stroke the brush painted for the picker, if it painted one yet (in whatever color it was then)
+    /// A stroke the brush painted for the picker, if any yet (in whatever color it was then)
     static QImage strokePicture(const QString &presetName);
-    /// "d) Ink-2 Fineliner" -> "Ink-2 Fineliner": without the prefix the bundled presets sort themselves with
+    /// "d) Ink-2 Fineliner" -> "Ink-2 Fineliner": without the bundled presets' sorting prefix
     static QString title(const QString &presetName);
-    /// The active tool paints with the brush: a brush taken from the canvas or a layer, the canvas ring, are for it
+    /// Whether the active tool paints with the brush
     static bool paintToolActive();
     /// Your brushes, in your order
     static QStringList yourBrushes();

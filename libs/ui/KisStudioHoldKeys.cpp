@@ -13,20 +13,13 @@
 #include <QTimer>
 
 #include <KoToolManager.h>
-#include <kactioncollection.h>
-#include <kxmlguiclient.h>
-#include <kxmlguifactory.h>
 
 #include "KisMainWindow.h"
+#include "KisStudioItemCard.h"
 #include <KisModernStyle.h>
 
 namespace
 {
-
-bool isModifierKey(int key)
-{
-    return key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt || key == Qt::Key_Meta || key == Qt::Key_AltGr;
-}
 
 class HoldKeys : public QObject
 {
@@ -40,71 +33,83 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
-        const QEvent::Type type = event->type();
-        switch (type) {
+        switch (event->type()) {
         case QEvent::MouseButtonPress:
         case QEvent::TabletPress:
             // used while held: held, however short
             if (m_pressedKey) m_used = true;
             m_pointerDown = true;
-            return false;
+            break;
         case QEvent::MouseButtonRelease:
         case QEvent::TabletRelease:
             m_pointerDown = false;
-            // let go of mid-stroke: given back once the stroke is done
+            // let go of mid-stroke: put back once the stroke is done
             if (m_revertPending) {
                 m_revertPending = false;
                 revert();
             }
-            return false;
-        case QEvent::WindowDeactivate:
-            // another application: its release will not come here
-            if (watched == m_mainWindow && m_pressedKey) released(0);
-            return false;
-        case QEvent::ShortcutOverride:
-        case QEvent::KeyRelease:
             break;
+        case QEvent::WindowDeactivate:
+            // another application gets the release
+            if (watched == m_mainWindow && m_pressedKey) released(0);
+            break;
+        case QEvent::ShortcutOverride:
+            pressed(watched, static_cast<QKeyEvent *>(event));
+            break;
+        case QEvent::Shortcut:
+            // what the press runs, whichever form of its key matched ("!" or Shift+1)
+            if (auto *action = qobject_cast<QAction *>(watched)) {
+                if (!static_cast<QShortcutEvent *>(event)->isAmbiguous()) ran(action);
+            }
+            break;
+        case QEvent::KeyRelease: {
+            auto *key = static_cast<QKeyEvent *>(event);
+            // by its scan code too: Shift let go first makes "!" a "1"
+            const bool same = key->key() == m_pressedKey || (m_scanCode && key->nativeScanCode() == m_scanCode);
+            if (m_pressedKey && !key->isAutoRepeat() && same) released(key->timestamp());
+            break;
+        }
         default:
-            return false;
+            break;
         }
-        auto *key = static_cast<QKeyEvent *>(event);
-        if (key->isAutoRepeat() || isModifierKey(key->key())) {
-            return false;
-        }
-
-        if (type == QEvent::ShortcutOverride) {
-            // the same press goes to the focused widget and on to its parents: seen once
-            if (m_pressedKey == key->key() && m_since.isValid() && m_since.elapsed() < 50) return false;
-            auto *widget = qobject_cast<QWidget *>(watched);
-            if (!widget || widget->window() != m_mainWindow) return false;
-            QAction *action = actionFor(QKeySequence(int(key->modifiers() & ~Qt::KeypadModifier) | key->key()));
-            m_pressedKey = 0;
-            if (!action) return false;
-            // a toggle held is not flipped over and over by the key's repeats
-            if (action->isCheckable()) action->setAutoRepeat(false);
-            m_pressedKey = key->key();
-            m_since.restart();
-            m_pressedAt = key->timestamp();
-            m_used = false;
-            m_revertPending = false;
-            m_action = action;
-            m_wasChecked = action->isChecked();
-            m_toolBefore = KoToolManager::instance()->activeToolId();
-            // the tool the key gives, once its action has run on the press
-            m_toolGiven.clear();
-            QTimer::singleShot(0, this, [this]() { m_toolGiven = KoToolManager::instance()->activeToolId(); });
-            return false;
-        }
-
-        if (key->key() == m_pressedKey) released(key->timestamp());
         return false;
     }
 
 private:
-    /// The key let go of at \p timestamp (0: not known): held, what it turned on lasts no longer
+    void pressed(QObject *watched, const QKeyEvent *key)
+    {
+        if (key->isAutoRepeat() || KisStudioShortcuts::isModifierKey(key->key())) return;
+        // the same press goes to the focused widget and on to its parents: seen once
+        if (m_pressedKey == key->key() && m_since.isValid() && m_since.elapsed() < 50) return;
+        auto *widget = qobject_cast<QWidget *>(watched);
+        if (!widget || widget->window() != m_mainWindow) return;
+        m_pressedKey = key->key();
+        m_scanCode = key->nativeScanCode();
+        m_since.restart();
+        m_pressedAt = key->timestamp();
+        m_used = false;
+        m_revertPending = false;
+        m_action = nullptr;
+    }
+
+    void ran(QAction *action)
+    {
+        if (!m_pressedKey || m_action || action->menu() || m_since.elapsed() > 50) return;
+        // a toggle held is not flipped over and over by the key's repeats
+        if (action->isCheckable()) action->setAutoRepeat(false);
+        m_action = action;
+        m_wasChecked = action->isChecked();
+        m_toolBefore = KoToolManager::instance()->activeToolId();
+        // the tool the key gives, once its action has run
+        m_toolGiven.clear();
+        QTimer::singleShot(0, this, [this]() { m_toolGiven = KoToolManager::instance()->activeToolId(); });
+    }
+
+    /// The key let go of at \p timestamp (0: not known)
     void released(ulong timestamp)
     {
         m_pressedKey = 0;
+        m_scanCode = 0;
         if (!m_action) return;
         // by the keys' own times: a slow action run by the press does not make a tap a hold
         const qint64 down = timestamp && m_pressedAt ? qint64(timestamp - m_pressedAt) : m_since.elapsed();
@@ -123,38 +128,17 @@ private:
         if (!m_action) return;
         const QString tool = KoToolManager::instance()->activeToolId();
         if (!m_toolBefore.isEmpty() && tool != m_toolBefore) {
-            // the tool it gave, given back; one picked meanwhile by other means stays
+            // a tool only held, not used, was switched to; one picked meanwhile by other means stays
             const bool givenKnown = !m_toolGiven.isEmpty() && m_toolGiven != m_toolBefore;
-            if (!givenKnown || tool == m_toolGiven) KoToolManager::instance()->switchToolRequested(m_toolBefore);
+            if (m_used && (!givenKnown || tool == m_toolGiven)) KoToolManager::instance()->switchToolRequested(m_toolBefore);
         } else if (m_action->isCheckable() && m_action->isChecked() != m_wasChecked) {
             m_action->trigger();
         }
     }
 
-    /// The action of the window whose shortcut \p sequence is (of one key and its modifiers)
-    QAction *actionFor(const QKeySequence &sequence) const
-    {
-        QList<KisKActionCollection *> collections {m_mainWindow->actionCollection()};
-        if (m_mainWindow->guiFactory()) {
-            Q_FOREACH (KisKXMLGUIClient *client, m_mainWindow->guiFactory()->clients()) {
-                if (client && client->actionCollection() && !collections.contains(client->actionCollection())) {
-                    collections << client->actionCollection();
-                }
-            }
-        }
-        QList<QAction *> actions = m_mainWindow->actions();
-        Q_FOREACH (KisKActionCollection *collection, collections) actions += collection->actions();
-        Q_FOREACH (QAction *action, actions) {
-            if (!action || !action->isEnabled() || action->menu()) continue;
-            Q_FOREACH (const QKeySequence &shortcut, action->shortcuts()) {
-                if (shortcut == sequence) return action;
-            }
-        }
-        return nullptr;
-    }
-
     KisMainWindow *m_mainWindow {nullptr};
     int m_pressedKey {0};
+    quint32 m_scanCode {0};
     QElapsedTimer m_since;
     ulong m_pressedAt {0};
     /// The pointer pressed while the key was down

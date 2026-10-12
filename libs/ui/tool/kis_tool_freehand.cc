@@ -72,24 +72,21 @@ bool hasLockedValidTemporaryStraightRuler(const std::optional<KisTemporaryPaintC
     return constraint && constraint->isLocked() && constraint->hasValidLine();
 }
 
-/**
- * A stroke that starts where it can change nothing says why on the canvas
- * (not again for a few seconds): outside the selection, or on nothing with
- * the alpha locked. It still runs: it may go on to where it does paint.
- */
+/// Tells on the canvas (at most every few seconds) why a stroke starts where it paints nothing:
+/// outside the selection, or on a transparent pixel with alpha locked. The stroke still runs.
 void explainNothingPainted(KisCanvas2 *canvas, KisNodeSP node, const QPoint &pixel)
 {
     static QElapsedTimer said;
     if (!canvas || !node || !canvas->image() || (said.isValid() && said.elapsed() < 4000)) return;
     KisPaintLayer *layer = dynamic_cast<KisPaintLayer *>(node.data());
-    // the selection a stroke is limited to, found as the stroke finds it
+    // the selection the stroke is limited to, found as the stroke finds it
     KisSelectionSP selection = canvas->image()->globalSelection();
     if (KisLayer *asLayer = dynamic_cast<KisLayer *>(node.data())) {
         selection = asLayer->selection();
     } else if (auto *mask = dynamic_cast<KisSelectionMask *>(node.data()); mask && mask->selection() == selection) {
         selection = nullptr;
     }
-    // a vector layer's stroke is a shape, which no selection cuts
+    // a vector layer's stroke is a shape, which no selection clips
     if (!node->inherits("KisPaintLayer") && !node->inherits("KisMask")) selection = nullptr;
     QString why;
     KoColor at;

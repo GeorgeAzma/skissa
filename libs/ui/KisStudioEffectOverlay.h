@@ -15,17 +15,8 @@
 class KisMainWindow;
 
 /**
- * Effects without a dialog: choosing one shows it on the whole layer at
- * once, and a small panel at the bottom of the canvas. You look at the
- * picture, not at a preview box; ✓ (or Enter) keeps it, ✕ (or Esc) drops
- * it, the eye shows the layer without it.
- *
- * A drag on the canvas sets the effect's first setting (sideways) and its
- * second (up and down), with the value by the pointer, the way most
- * effects are only ever adjusted. Effects with a few number settings open
- * small, their settings a click away; the others open with all of them.
- * "Editable" (remembered) keeps the result as a filter mask instead of
- * changing the layer's pixels. The canvas can still be zoomed and panned.
+ * Effects adjusted on the canvas instead of in a dialog: a small panel over the canvas, the
+ * effect shown on the whole layer, and a drag on the canvas setting its first two numbers.
  */
 class KisStudioEffectOverlay : public QWidget
 {
@@ -46,10 +37,10 @@ protected:
 
 private:
     void startApplying();
-    void createMask();
+    void createMask(KisFilterConfigurationSP config);
     void finishEditing();
     void reposition();
-    /// A press, move or release on the canvas while an effect is open; true when it was used
+    /// True when a press, move or release on the canvas was used as a drag
     bool handleCanvasDrag(QEvent *event);
 
     struct Private;

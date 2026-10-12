@@ -19,22 +19,10 @@ class QDockWidget;
 class QMdiArea;
 
 /**
- * The canvas-first "studio" layout of the main window.
- *
- * It doesn't replace Krita's dockers, it only changes how they are
- * presented, so every docker, workspace and canvas observer keeps working:
- *
- *  - the tools are on a rail over the canvas's edge (Krita's toolbox is hidden)
- *  - a strip of panel buttons heads the pinned panels
- *  - an unpinned panel opens as a flyout floating over the edge of the
- *    canvas and closes when you click anywhere else in the window
- *  - pinned panels stack in a pill of glass over the canvas's edge, on the
- *    right or the left (dragged there by the strip of panel buttons on top
- *    of it): the canvas goes on under them
- *
- * The docks are Krita's dockers all the same. After something restores a
- * window state, call normalize() so that it is brought back to the studio
- * arrangement.
+ * The canvas-first "studio" layout of the main window: a tool rail and glass
+ * pills over the canvas, pinned panels in a column over its edge, unpinned
+ * ones as flyouts. The panels are still Krita's dockers, only presented
+ * differently; call normalize() after something restores a window state.
  */
 class KRITAUI_EXPORT KisStudioLayout : public QObject
 {
@@ -43,37 +31,32 @@ public:
     explicit KisStudioLayout(KisMainWindow *mainWindow);
     ~KisStudioLayout() override;
 
-    /// Whether the studio layout is enabled in kritarc (the default)
+    /// Enabled in kritarc (the default)
     static bool isEnabledInConfig();
 
     bool isActive() const;
-
     /// Switches between the studio layout and Krita's classic dockers
     void setActive(bool active);
 
-    /**
-     * Brings the current window state back to the studio arrangement after
-     * it has been restored from a workspace, canvas-only mode etc. Never
-     * shows a hidden panel, so it is safe while the dockers are hidden.
-     */
+    /// Brings a restored window state back to the studio arrangement; never shows a hidden panel
     void normalize();
 
     void closeFlyout();
 
-    /// Shows a panel the studio way: pinned panels docked, others as a flyout
+    /// Pinned panels in the column, others as a flyout
     void showPanel(QDockWidget *dock);
-    /// Settings, at \p cardId if given (\p toggle: closed if it is open); the dialog without the studio layout
+    /// Settings at \p cardId, closed instead if \p toggle and open; the dialog without the studio layout
     void openSettings(const QString &cardId = QString(), bool toggle = false);
 
     bool eventFilter(QObject *watched, QEvent *event) override;
 
-    /// The window's native events, for the title bar drawn by the top bar
+    /// The window's native events, for the custom title bar
     bool handleNativeEvent(void *message, void *result);
 
 private:
     void enter();
     void leave();
-    /// Clicks and the wheel on the toolbar's brush picture
+    /// Clicks and the wheel on the brush bar's preset button
     bool handlePresetChip(QEvent *event);
 
     void togglePanel(QDockWidget *dock, bool show);
@@ -85,47 +68,42 @@ private:
     void releaseDocuments();
     void updateDocumentButton();
     void positionFlyout();
-    /// The flyout where \p global (on the screen) is
-    void placeFlyout(const QRect &global);
     void setPinned(QDockWidget *dock, bool pinned);
     void savePinned();
     void arrangePinned();
     void restoreHeights();
     void saveHeights();
-    /// The pill of pinned panels over the canvas, with the panel buttons on top
     KisStudioPanelColumn *panelColumn();
-    /// The pill of pinned panels to the left side of the canvas or the right, and the tool rail
     void setPanelsSide(bool left);
     void setToolRailSide(bool left);
-    /// Hidden by a tap on their grip, or shown again: the pinned panels (not their strip), the tool rail's tools, the top bar
+    /// Hidden by a tap on their grip: the pinned panels (not their strip), the tool rail's tools, the top bar
     void setPanelsTucked(bool tucked);
     void setToolRailTucked(bool tucked);
     void setTopBarTucked(bool tucked);
-    /// Back among the window's docks, hidden: where it keeps the panels it does not show
+    /// Back among the window's docks, hidden
     void parkPanel(QDockWidget *dock);
-    /// The columns shown if they have panels to show, and what is in the canvas area kept clear of them
+    /// The column shown when it has panels, and the canvas insets
     void updateColumns();
-    /// What is over the canvas area's edges told to what is placed in it, and (\p views) to the views, which fit the image again
+    /// Tells the canvas area what covers its edges, and (\p views) refits the views
     void updateCanvasInsets(bool views = true);
-    void resizePanel(QDockWidget *dock, int height);
-    /// A panel dragged by its grip, or by its rail button, let go at \p globalPos
+    /// A panel dragged by its grip or rail button, let go at \p globalPos
     void dropPanel(const QString &id, const QPoint &globalPos, bool fromRail);
     void showPanelCard(const QString &id, QWidget *anchor);
     /// Off the rail, and closed
     void takeOffRail(const QString &id);
-    /// No longer floating, also a panel that never was in a column
+    /// No longer floating, also a panel that never was in a dock area
     void dockAway(QDockWidget *dock);
-    /// The flyout window lets go of its panel, and goes
+    /// Empties the flyout window and forgets the flyout, without parking it
     void releaseFlyout();
-    /// A click on a panel's grip: folds it (or unfolds it) next to the canvas, tucks it away over it
+    /// Folds a pinned panel to its grip or unfolds it; closes a flyout
     void gripClicked(const QString &id);
     void applyFold(QDockWidget *dock, bool fold);
 
     void dockToggled(QDockWidget *dock, bool visible);
 
-    /// The welcome page, canvas-only mode and "Show Dockers" off hide all panels
+    /// The start page, canvas-only mode and "Show Dockers" off hide all panels
     bool arePanelsHidden() const;
-    /// The rail stays visible when only the dockers are hidden
+    /// Only the start page and canvas-only mode hide the rail
     bool isRailHidden() const;
     bool isCanvasOnly() const;
 
@@ -139,17 +117,17 @@ private:
     void createTopBar();
     /// Shows only the toolbar entries that matter to the active tool
     void updateContextBar();
-    void placeFindField();
-    /// The menu of the window pill's menu button, under \p button
+    /// The document, menu, Settings, Find and window buttons on the window pill
+    void placeWindowButtons();
     void showMainMenu(QWidget *button);
-    /// The tool's bar and the brush's in a pill over the top of the canvas, and the window's in another
+    /// The tool and brush bars into the top pill; the pills shown or hidden
     void adoptTopBars();
-    /// Back in the window's top row
+    /// The brush bar back in the window's top row
     void releaseTopBars();
     void syncRail();
-    /// The start page (no document open) clear of the tool rail over it
+    /// The start page clear of the tool rail over it
     void placeWelcomePage();
-    /// The window's handle in the top left corner, the top bar after it
+    /// The window handle in the top left corner, the top pill after it
     void placeWindowHandle();
 
     struct Private;

@@ -18,6 +18,10 @@
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <windowsx.h>
+#include <shellapi.h>
+#ifndef ABM_GETAUTOHIDEBAREX
+#define ABM_GETAUTOHIDEBAREX 0x0000000b
+#endif
 #endif
 
 namespace {
@@ -28,7 +32,7 @@ enum class WindowButtonKind {
     Close,
 };
 
-/// A window button drawn with thin strokes, the close button turns red on hover
+/// Thin strokes; the close button turns red on hover
 class WindowButton : public QAbstractButton
 {
 public:
@@ -49,9 +53,8 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
-        if (watched == m_window && event->type() == QEvent::WindowStateChange) {
-            update(); // maximize and restore look different
-        }
+        // maximize and restore look different
+        if (watched == m_window && event->type() == QEvent::WindowStateChange) update();
         return QAbstractButton::eventFilter(watched, event);
     }
 
@@ -59,16 +62,18 @@ protected:
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        const QPalette &pal = palette();
-        QColor ink = pal.color(QPalette::ButtonText);
+        QColor ink = palette().color(QPalette::ButtonText);
         if (underMouse()) {
-            QColor hover = m_kind == WindowButtonKind::Close ? QColor(196, 43, 28) : ink;
-            if (m_kind != WindowButtonKind::Close) hover.setAlphaF(isDown() ? 0.16 : 0.09);
-            painter.fillRect(rect(), hover);
-            if (m_kind == WindowButtonKind::Close) ink = Qt::white;
+            if (m_kind == WindowButtonKind::Close) {
+                painter.fillRect(rect(), QColor(196, 43, 28));
+                ink = Qt::white;
+            } else {
+                QColor hover = ink;
+                hover.setAlphaF(isDown() ? 0.16 : 0.09);
+                painter.fillRect(rect(), hover);
+            }
         }
-        QPen pen(ink, 1.0);
-        painter.setPen(pen);
+        painter.setPen(QPen(ink, 1.0));
         painter.setBrush(Qt::NoBrush);
         const QPointF c = QRectF(rect()).center();
         const qreal s = 5.0;
@@ -98,7 +103,7 @@ private:
 };
 
 #ifdef Q_OS_WIN
-/// Frame metrics at the window's own DPI, where the system can tell it (Windows 10 1607+)
+/// At the window's own DPI where the system can tell it (Windows 10 1607+)
 int frameMetric(HWND hwnd, int index)
 {
     using GetDpiForWindowFn = UINT(WINAPI *)(HWND);
@@ -119,7 +124,8 @@ int frameThickness(HWND hwnd, bool vertical)
     return frameMetric(hwnd, vertical ? SM_CYFRAME : SM_CXFRAME) + frameMetric(hwnd, paddedBorder);
 }
 
-void extendFrame(HWND hwnd, bool extend)
+/// The frame extended (or not) into the client area, and the client area asked for again (WM_NCCALCSIZE)
+void applyFrame(HWND hwnd, bool extend)
 {
     // a 1 px glass edge keeps the system shadow of the borderless window
     struct Margins { int left, right, top, bottom; };
@@ -129,6 +135,34 @@ void extendFrame(HWND hwnd, bool extend)
     if (dwmExtend) {
         const Margins margins = extend ? Margins{0, 0, 1, 0} : Margins{0, 0, 0, 0};
         dwmExtend(hwnd, &margins);
+    }
+    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+/// A maximized window leaves a pixel free on the edge of an auto-hiding taskbar, which shows when the pointer reaches it
+void leaveRoomForTaskbar(HWND hwnd, RECT &rect)
+{
+    using AppBarFn = UINT_PTR(WINAPI *)(DWORD, PAPPBARDATA);
+    static HMODULE shell = LoadLibraryW(L"shell32.dll");
+    static auto appBar = shell ? reinterpret_cast<AppBarFn>(reinterpret_cast<void *>(GetProcAddress(shell, "SHAppBarMessage"))) : nullptr;
+    if (!appBar) return;
+    APPBARDATA data {};
+    data.cbSize = sizeof(data);
+    if (!(appBar(ABM_GETSTATE, &data) & ABS_AUTOHIDE)) return;
+    MONITORINFO monitor {};
+    monitor.cbSize = sizeof(monitor);
+    if (!GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor)) return;
+    for (const UINT edge : {ABE_BOTTOM, ABE_TOP, ABE_LEFT, ABE_RIGHT}) {
+        data.uEdge = edge;
+        data.rc = monitor.rcMonitor;
+        if (!appBar(ABM_GETAUTOHIDEBAREX, &data)) continue;
+        switch (edge) {
+        case ABE_BOTTOM: rect.bottom -= 1; break;
+        case ABE_TOP: rect.top += 1; break;
+        case ABE_LEFT: rect.left += 1; break;
+        default: rect.right -= 1; break;
+        }
+        return;
     }
 }
 #endif
@@ -146,36 +180,24 @@ KisStudioWindowFrame::KisStudioWindowFrame(QMainWindow *window, std::function<bo
 bool KisStudioWindowFrame::eventFilter(QObject *watched, QEvent *event)
 {
 #ifdef Q_OS_WIN
-    // a new native window (Qt recreates it for some changes) has no extended frame yet
+    // Qt recreates the native window for some changes: the new one has no extended frame yet
     if (watched == m_window && event->type() == QEvent::WinIdChange && m_enabled && m_window->internalWinId()) {
-        HWND hwnd = reinterpret_cast<HWND>(m_window->internalWinId());
-        extendFrame(hwnd, true);
-        SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        applyFrame(reinterpret_cast<HWND>(m_window->internalWinId()), true);
     }
 #endif
     return QObject::eventFilter(watched, event);
 }
 
-bool KisStudioWindowFrame::isSupported()
-{
-#ifdef Q_OS_WIN
-    return true;
-#else
-    return false;
-#endif
-}
-
 void KisStudioWindowFrame::setEnabled(bool enabled)
 {
-    if (m_enabled == enabled || !isSupported()) {
+#ifdef Q_OS_WIN
+    if (m_enabled == enabled) {
         return;
     }
     m_enabled = enabled;
-#ifdef Q_OS_WIN
-    HWND hwnd = reinterpret_cast<HWND>(m_window->winId());
-    extendFrame(hwnd, enabled);
-    // the system asks for the client area again, see WM_NCCALCSIZE below
-    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    applyFrame(reinterpret_cast<HWND>(m_window->winId()), enabled);
+#else
+    Q_UNUSED(enabled);
 #endif
 }
 
@@ -186,11 +208,7 @@ bool KisStudioWindowFrame::handleNativeEvent(void *message, void *resultPointer)
         return false;
     }
     MSG *msg = static_cast<MSG *>(message);
-    /**
-     * Not winId(): messages also arrive while the native window is being
-     * created, and winId() would create it again from inside its creation
-     * (a crash). Until it exists, the system's handling is right.
-     */
+    // not winId(): called during the native window's creation, it would create it again (a crash)
     HWND hwnd = reinterpret_cast<HWND>(m_window->internalWinId());
     if (!hwnd || msg->hwnd != hwnd) {
         return false;
@@ -209,16 +227,16 @@ bool KisStudioWindowFrame::handleNativeEvent(void *message, void *resultPointer)
         if (msg->wParam != TRUE) {
             return false;
         }
-        // the whole window is client area; maximized windows hang over the
-        // screen edge by the frame width, which stays outside
+        // all client area; a maximized window hangs over the screen edge by the frame, which stays outside
         if (IsZoomed(hwnd) && !fullScreen) {
-            auto *params = reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam);
+            RECT &rect = reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam)->rgrc[0];
             const int fx = frameThickness(hwnd, false);
             const int fy = frameThickness(hwnd, true);
-            params->rgrc[0].left += fx;
-            params->rgrc[0].right -= fx;
-            params->rgrc[0].top += fy;
-            params->rgrc[0].bottom -= fy;
+            rect.left += fx;
+            rect.right -= fx;
+            rect.top += fy;
+            rect.bottom -= fy;
+            leaveRoomForTaskbar(hwnd, rect);
         }
         setResult(0);
         return true;

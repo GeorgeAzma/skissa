@@ -8,7 +8,6 @@
 
 #include <QObject>
 #include <QPoint>
-#include <QPointer>
 
 #include <functional>
 
@@ -16,21 +15,15 @@ class QMainWindow;
 class QWidget;
 
 /**
- * The window without the system's title bar: the top bar is the title bar.
- * Its empty parts drag the window (double click maximizes, snapping works),
- * the edges still resize it, and the window buttons sit at the end of the
- * top bar. On Windows only; elsewhere nothing changes.
- *
- * The window keeps its native frame styles, so the system still animates,
- * snaps and shadows it; only the non-client area is given to the client.
+ * The window without the system's title bar (Windows only): the caption
+ * areas the layout reports drag the window, the edges still resize it, and
+ * the system still snaps, animates and shadows it.
  */
 class KisStudioWindowFrame : public QObject
 {
 public:
-    /// \p isCaption tells whether a point, in window coordinates, is free top bar
+    /// \p isCaption tells whether a point, in window coordinates, drags the window
     KisStudioWindowFrame(QMainWindow *window, std::function<bool(const QPoint &)> isCaption);
-
-    static bool isSupported();
 
     void setEnabled(bool enabled);
     bool isEnabled() const { return m_enabled; }
@@ -38,7 +31,7 @@ public:
     /// From the window's nativeEvent(): \p result is a long* in Qt 5, a qintptr* in Qt 6
     bool handleNativeEvent(void *message, void *result);
 
-    /// Minimize, maximize and close, painted like the rest of the top bar
+    /// Minimize, maximize and close
     QWidget *createButtons(QWidget *parent);
 
 protected:

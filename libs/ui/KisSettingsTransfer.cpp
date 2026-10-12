@@ -95,11 +95,27 @@ Plan plan(KConfig *source, KConfig *target, bool toKrita)
             to = registry->value(s.id);
         }
         QVariant from = target ? registry->valueIn(s, *target) : registry->value(s.id);
-        const QVariant shownFrom = from.isValid() ? from : s.fallback;
+        const QVariant shownFrom = from.isValid() ? from : registry->defaultValue(s.id);
         if (registry->sameValue(s, shownFrom, to)) continue;
         plan.changes << Change{s.id, from, to};
     }
     return plan;
+}
+
+bool fail(QString *error, const QString &message)
+{
+    if (error) *error = message;
+    return false;
+}
+
+QString notFound()
+{
+    return i18nc("@info", "Krita's settings weren't found.");
+}
+
+QString closeKritaFirst()
+{
+    return i18nc("@info", "Close Krita first: it would write its own settings over these.");
 }
 
 } // namespace
@@ -246,9 +262,9 @@ Plan planFromKrita()
 {
     const QString path = kritaSettingsPath();
     if (path.isEmpty()) {
-        Plan plan;
-        plan.error = i18nc("@info", "Krita's settings weren't found.");
-        return plan;
+        Plan p;
+        p.error = notFound();
+        return p;
     }
     KConfig krita(path, KConfig::SimpleConfig);
     return plan(&krita, nullptr, false);
@@ -258,16 +274,17 @@ Plan planToKrita()
 {
     const QString path = kritaSettingsPath();
     if (path.isEmpty()) {
-        Plan plan;
-        plan.error = i18nc("@info", "Krita's settings weren't found.");
-        return plan;
+        Plan p;
+        p.error = notFound();
+        return p;
     }
     KConfig krita(path, KConfig::SimpleConfig);
     Plan p = plan(nullptr, &krita, true);
     int forkOnly = 0;
     int machine = 0;
-    Q_FOREACH (const Setting &s, KisSettingsRegistry::instance()->settings()) {
-        if (KisSettingsRegistry::instance()->isDefault(s.id)) continue;
+    KisSettingsRegistry *registry = KisSettingsRegistry::instance();
+    Q_FOREACH (const Setting &s, registry->settings()) {
+        if (registry->isDefault(s.id)) continue;
         if (s.flags & KisSettingsRegistry::Machine) machine++;
         else if ((s.flags & KisSettingsRegistry::Fork) || !s.storedInKritarc()) forkOnly++;
     }
@@ -278,31 +295,27 @@ Plan planToKrita()
 
 bool applyToKrita(const QVector<Change> &changes, QString *error)
 {
-    auto fail = [error](const QString &message) {
-        if (error) *error = message;
-        return false;
-    };
     const QString path = kritaSettingsPath();
-    if (path.isEmpty()) return fail(i18nc("@info", "Krita's settings weren't found."));
-    if (kritaRunning()) return fail(i18nc("@info", "Close Krita first: it would write its own settings over these."));
+    if (path.isEmpty()) return fail(error, notFound());
+    if (kritaRunning()) return fail(error, closeKritaFirst());
     bool ok = false;
     const QByteArray original = readAll(path, &ok);
-    if (!ok) return fail(i18nc("@info", "Krita's settings couldn't be read."));
+    if (!ok) return fail(error, i18nc("@info", "Krita's settings couldn't be read."));
 
     // the copy to go back to: the one from before the first time, never one already changed
     const QString backup = path + backupSuffix;
     if (!QFileInfo::exists(backup)) {
         QString why;
-        if (!writeFile(backup, original, &why)) return fail(i18nc("@info", "A copy of Krita's settings couldn't be kept: %1", why));
+        if (!writeFile(backup, original, &why)) return fail(error, i18nc("@info", "A copy of Krita's settings couldn't be kept: %1", why));
         const QByteArray kept = readAll(backup, &ok);
-        if (!ok || kept != original) return fail(i18nc("@info", "A copy of Krita's settings couldn't be kept."));
+        if (!ok || kept != original) return fail(error, i18nc("@info", "A copy of Krita's settings couldn't be kept."));
     }
 
     // changed on a copy first: if anything goes wrong, Krita's file is as it was
     const QString draft = path + QStringLiteral(".krita-dev-draft");
     QFile::remove(draft);
     QString why;
-    if (!writeFile(draft, original, &why)) return fail(why);
+    if (!writeFile(draft, original, &why)) return fail(error, why);
     KisSettingsRegistry *registry = KisSettingsRegistry::instance();
     QStringList groupsBefore;
     int keysBefore = 0;
@@ -318,7 +331,7 @@ bool applyToKrita(const QVector<Change> &changes, QString *error)
         }
         if (!config.sync()) {
             QFile::remove(draft);
-            return fail(i18nc("@info", "Krita's settings couldn't be written."));
+            return fail(error, i18nc("@info", "Krita's settings couldn't be written."));
         }
     }
     // read back: every change there, and nothing else lost
@@ -334,15 +347,15 @@ bool applyToKrita(const QVector<Change> &changes, QString *error)
         }
         if (!good) {
             QFile::remove(draft);
-            return fail(i18nc("@info", "Krita's settings came out wrong, so they weren't changed."));
+            return fail(error, i18nc("@info", "Krita's settings came out wrong, so they weren't changed."));
         }
     }
     const QByteArray changed = readAll(draft, &ok);
     QFile::remove(draft);
     QFile::remove(draft + QStringLiteral(".lock"));
-    if (!ok) return fail(i18nc("@info", "Krita's settings couldn't be written."));
+    if (!ok) return fail(error, i18nc("@info", "Krita's settings couldn't be written."));
     // in one step: Krita finds either its old file or the new one, never half of one
-    if (!writeFile(path, changed, &why)) return fail(why);
+    if (!writeFile(path, changed, &why)) return fail(error, why);
     return true;
 }
 
@@ -356,22 +369,18 @@ QDateTime kritaBackupTime()
 
 bool restoreKrita(QString *error)
 {
-    auto fail = [error](const QString &message) {
-        if (error) *error = message;
-        return false;
-    };
     const QString path = kritaSettingsPath();
-    if (path.isEmpty()) return fail(i18nc("@info", "Krita's settings weren't found."));
-    if (kritaRunning()) return fail(i18nc("@info", "Close Krita first: it would write its own settings over these."));
+    if (path.isEmpty()) return fail(error, notFound());
+    if (kritaRunning()) return fail(error, closeKritaFirst());
     const QString backup = path + backupSuffix;
     bool ok = false;
     const QByteArray kept = readAll(backup, &ok);
-    if (!ok || kept.isEmpty()) return fail(i18nc("@info", "There is no copy of Krita's settings to go back to."));
+    if (!ok || kept.isEmpty()) return fail(error, i18nc("@info", "There is no copy of Krita's settings to go back to."));
     // what they were until now, should they be wanted after all
     const QByteArray current = readAll(path, &ok);
     QString why;
-    if (ok && !writeFile(path + QStringLiteral(".krita-dev-replaced"), current, &why)) return fail(why);
-    if (!writeFile(path, kept, &why)) return fail(why);
+    if (ok && !writeFile(path + QStringLiteral(".krita-dev-replaced"), current, &why)) return fail(error, why);
+    if (!writeFile(path, kept, &why)) return fail(error, why);
     QFile::remove(backup);
     return true;
 }

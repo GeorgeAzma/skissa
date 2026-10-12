@@ -31,14 +31,14 @@
 
 namespace {
 
-/// Enough to remember a long painting session on one layer, not so many that the file notices
+/// A long painting session on one layer, without making the file much bigger
 constexpr int kept = 10000;
 constexpr quint32 magic = 0x4b534c32; // "KSL2"
-/// How far from a stroke's edge a point still is on it: the rounding of the points, and of the pixel
+/// How far off a stroke's edge a point still is on it: the points and the pixel are rounded
 constexpr qreal slack = 1.5;
 /// Paint fainter than this is looked through
 constexpr qreal seen = 16.0 / 255.0;
-/// Paint at least this strong is what is seen: what is under it is not looked at
+/// Paint at least this strong hides what is under it
 constexpr qreal opaque = 0.5;
 /// Points in a selection's outline kept with the strokes painted through it
 constexpr int clipPoints = 4000;
@@ -55,7 +55,7 @@ bool sameFrame(int a, int b)
     return a == b || (a == -1 && b == 0) || (a == 0 && b == -1);
 }
 
-/// In an even number of the outlines: outside (holes are outlines too)
+/// Even-odd: holes are outlines too
 bool inside(const QVector<QPolygon> &outlines, const QPoint &point)
 {
     int count = 0;
@@ -112,8 +112,6 @@ QPolygon simplified(const QPolygon &outline, qreal tolerance)
     }
     return result;
 }
-
-// ------------------------------------------------------------ the file
 
 void writePoints(QDataStream &out, const QPolygon &points)
 {
@@ -175,9 +173,7 @@ bool readOutlines(QDataStream &in, QVector<QPolygon> *outlines)
     return true;
 }
 
-// ------------------------------------------------------------ moving with the pixels
-
-/// Outlines moved by \p shift, each selection once however many strokes were painted through it (still shared)
+/// Outlines moved by \p shift; each selection once however many strokes share it, and still shared
 QVector<QPolygon> shifted(const QVector<QPolygon> &outlines, const QPoint &shift, QHash<const void *, QVector<QPolygon>> *done)
 {
     if (outlines.isEmpty() || shift.isNull()) return outlines;
@@ -189,7 +185,7 @@ QVector<QPolygon> shifted(const QVector<QPolygon> &outlines, const QPoint &shift
     return result;
 }
 
-/// How much \p mapper stretches things around \p point: the most it stretches any way
+/// The most \p mapper stretches things any way around \p point
 qreal stretchAt(const KisStrokeLog::Mapper &mapper, const QPointF &point, const QPointF &mapped)
 {
     constexpr qreal step = 4.0;
@@ -202,7 +198,7 @@ qreal stretchAt(const KisStrokeLog::Mapper &mapper, const QPointF &point, const 
     return qSqrt((s1 + s2) / 2);
 }
 
-/// An outline with a point every \p step pixels at least: what a bending move bends along
+/// An outline with a point every \p step pixels at least, to bend with a warp
 QPolygonF densifiedOutline(const QPolygon &outline, qreal step)
 {
     QPolygonF result;
@@ -215,7 +211,7 @@ QPolygonF densifiedOutline(const QPolygon &outline, qreal step)
     return result;
 }
 
-/// Outlines moved: bent along with the move, and only as many points kept as that needs
+/// Outlines bent along with the move, then simplified
 QVector<QPolygon> mapOutlines(const QVector<QPolygon> &outlines, const QPoint &before, const QPoint &after, const KisStrokeLog::Mapper &mapper)
 {
     QVector<QPolygon> result;
@@ -229,10 +225,9 @@ QVector<QPolygon> mapOutlines(const QVector<QPolygon> &outlines, const QPoint &b
 }
 
 /**
- * A brush stroke as points every few pixels along it (image coordinates),
- * with the brush's width at each: what is tested against what moves, and
- * moved, point by point (two points far apart do not tell where a stroke
- * between them went, nor bend with a warp).
+ * A brush stroke as points every few pixels (image coordinates) with the
+ * width at each, moved point by point: two points far apart do not bend
+ * with a warp.
  */
 struct Dense {
     QVector<QPointF> points;
@@ -262,7 +257,7 @@ Dense densified(const KisStrokeLog::Stroke &stroke, const QPoint &offset)
     return dense;
 }
 
-/// Points [from, to) of a dense stroke as a stroke again, with no more points than it needs
+/// Points [from, to) of a dense stroke as a simplified stroke again
 KisStrokeLog::Stroke build(const KisStrokeLog::Stroke &stroke, const QVector<QPointF> &points, const QVector<qreal> &widths,
                            int from, int to, const QPoint &offset)
 {
@@ -281,7 +276,7 @@ KisStrokeLog::Stroke build(const KisStrokeLog::Stroke &stroke, const QVector<QPo
     return result;
 }
 
-/// Points [from, to) of a dense stroke moved: where they go, as wide as the move stretches them, cut where it tears
+/// Points [from, to) of a dense stroke moved, widened as the move stretches them, cut where it tears
 KisStrokeLog::Strokes mapBrush(const KisStrokeLog::Stroke &stroke, const Dense &dense, int from, int to, const QPoint &before,
                                const QPoint &after, const KisStrokeLog::Mapper &mapper, const KisStrokeLog::Tears &tears,
                                QHash<const void *, QVector<QPolygon>> *clips)
@@ -295,7 +290,7 @@ KisStrokeLog::Strokes mapBrush(const KisStrokeLog::Stroke &stroke, const Dense &
     }
     KisStrokeLog::Stroke moved = stroke;
     if (!stroke.clip.isEmpty()) {
-        // the selection once for all the strokes painted through it, still shared
+        // once for all the strokes painted through the selection, still shared
         const void *key = stroke.clip.constData();
         if (!clips->contains(key)) clips->insert(key, mapOutlines(stroke.clip, before, after, mapper));
         moved.clip = clips->value(key);
@@ -313,8 +308,6 @@ KisStrokeLog::Strokes mapBrush(const KisStrokeLog::Stroke &stroke, const Dense &
 }
 
 } // namespace
-
-// ------------------------------------------------------------ a stroke
 
 void KisStrokeLog::Stroke::updateBounds()
 {
@@ -355,8 +348,6 @@ bool KisStrokeLog::Stroke::covers(const QPoint &point) const
     }
     return false;
 }
-
-// ------------------------------------------------------------ the log
 
 KisStrokeLog::KisStrokeLog()
 {
@@ -418,7 +409,7 @@ void KisStrokeLog::remove(const QVector<quint64> &ids)
 {
     {
         QWriteLocker locker(&m_lock);
-        // they are the newest, as the undo of what came after is done
+        // the newest: what came after is undone already
         for (int i = m_strokes.size() - 1; i >= 0; i--) {
             if (ids.contains(m_strokes[i].id)) m_strokes.remove(i);
         }
@@ -510,7 +501,7 @@ QByteArray KisStrokeLog::save(const std::function<int(int)> &frameToTime) const
     out << magic << brushes << quint32(clips.size());
     Q_FOREACH (const QVector<QPolygon> &clip, clips) writeOutlines(out, clip);
 
-    // the time of each one's frame; -1: no frames; -2: on a frame no longer there, not kept
+    // -1: no frames; -2: on a frame no longer there, not kept
     QVector<int> times;
     int count = 0;
     Q_FOREACH (const Stroke &stroke, strokes) {
@@ -589,8 +580,6 @@ void KisStrokeLog::load(const QByteArray &compressed, const std::function<int(in
     set(strokes);
 }
 
-// ------------------------------------------------------------ the undo commands
-
 class KisStrokeLogAddCommand : public KUndo2Command
 {
 public:
@@ -623,7 +612,7 @@ public:
     void undo() override
     {
         m_node->strokeLog().remove(m_ids);
-        // the oldest ones let go to make room: back again
+        // the oldest ones dropped to make room come back
         m_node->strokeLog().restore(m_dropped);
         m_dropped.clear();
     }
@@ -648,7 +637,7 @@ public:
 
     void redo() override
     {
-        // worked out when it happens: what the strokes are by then, and the frame shown then
+        // worked out on the first redo: the strokes, and the frame shown, as they are by then
         if (m_make) {
             m_before = m_node->strokeLog().strokes();
             m_after = m_make(m_before);
@@ -743,7 +732,7 @@ KUndo2Command *KisStrokeLog::mapCommand(KisNodeSP node, const Move &move)
                 continue;
             }
             if (!stroke.isBrush()) {
-                // paint no brush made moves as a whole, if most of it is in what moves
+                // paint no brush made moves whole, if most of it is in what moves
                 int in = 0, all = 0;
                 Q_FOREACH (const QPolygon &outline, stroke.area) {
                     Q_FOREACH (const QPointF &point, densifiedOutline(outline, 8.0)) {
@@ -768,7 +757,7 @@ KUndo2Command *KisStrokeLog::mapCommand(KisNodeSP node, const Move &move)
                 moved += mapBrush(stroke, dense, 0, count, offsetBefore, offsetAfter, mapper, move.tears, &clips);
                 continue;
             }
-            // only the parts in what moves: the rest stays where it is
+            // only the parts in what moves
             QVector<bool> in(count);
             bool any = false;
             for (int i = 0; i < count; i++) {
@@ -802,7 +791,7 @@ KisStrokeLog::Move KisStrokeLog::moveIn(KisSelectionSP selection, Mapper map)
     if (!selection) {
         return move;
     }
-    // asked point by point along every stroke near it: one accessor for all of them
+    // asked point by point along every stroke: one accessor for all
     KisPixelSelectionSP pixels = selection->projection();
     QSharedPointer<KisRandomConstAccessorSP> accessor(new KisRandomConstAccessorSP(pixels->createRandomConstAccessorNG()));
     move.selected = [pixels, accessor](const QPoint &point) {
@@ -827,7 +816,7 @@ KUndo2Command *KisStrokeLog::mergeCommand(KisNodeSP target, KisNodeList sources)
         }
         const QPoint targetOffset(targetDevice->x(), targetDevice->y());
 
-        // the visible layers in them, from the bottom up: what is merged
+        // the visible layers in them, bottom up
         std::function<void(KisNodeSP)> collect = [&](KisNodeSP node) {
             if (!node->visible() || node->inherits("KisMask")) return;
             if (node->childCount() > 0 && !node->paintDevice()) {
@@ -858,7 +847,7 @@ QVector<QPolygon> KisStrokeLog::outlineOf(KisSelectionSP selection)
     if (!selection) {
         return QVector<QPolygon>();
     }
-    // the same selection for many strokes: worked out once, and kept once
+    // the same selection for many strokes: worked out and kept once
     static QMutex mutex;
     static KisSelectionWSP lastSelection;
     static int lastSequence = -1;
@@ -879,7 +868,7 @@ QVector<QPolygon> KisStrokeLog::outlineOf(KisSelectionSP selection)
     } else {
         outline = pixels->outline();
     }
-    // a pixel off is nothing; more points than are needed, taken away
+    // coarser until it is small enough to keep with every stroke
     qreal tolerance = 1.0;
     QVector<QPolygon> result;
     while (true) {
@@ -894,7 +883,7 @@ QVector<QPolygon> KisStrokeLog::outlineOf(KisSelectionSP selection)
         }
         if (points <= clipPoints) break;
         if (tolerance >= 16) {
-            // too fine to keep: where it is, roughly
+            // too detailed: its bounds
             result = {QPolygon(rect)};
             break;
         }
@@ -906,8 +895,6 @@ QVector<QPolygon> KisStrokeLog::outlineOf(KisSelectionSP selection)
     lastOutline = result;
     return result;
 }
-
-// ------------------------------------------------------------ what is seen
 
 namespace {
 
@@ -940,7 +927,7 @@ Found pickIn(KisNodeSP parent, const QPoint &imagePos, qreal opacity, KisStrokeL
         KisPaintDeviceSP device = owner ? owner->paintDevice() : KisPaintDeviceSP();
         if (device) {
             const QPoint devicePos = ownerPos - QPoint(device->x(), device->y());
-            // with the canvas wrapped around, a stroke may be a whole canvas (or more) away
+            // with wraparound, a stroke may be a whole canvas (or more) away
             QVector<QPoint> places {devicePos};
             KisDefaultBoundsBaseSP bounds = device->defaultBounds();
             if (bounds && bounds->wrapAroundMode()) {
@@ -963,7 +950,7 @@ Found pickIn(KisNodeSP parent, const QPoint &imagePos, qreal opacity, KisStrokeL
                 if (covered) return Found::Covered;
             }
         }
-        // paint no stroke is known for, that hides what is under it
+        // paint of no known stroke that hides what is under it
         if (alpha >= opaque) return Found::Covered;
     }
     return Found::Nothing;
@@ -983,7 +970,7 @@ KisStrokeLogNotifier *KisStrokeLog::notifier()
 {
     static KisStrokeLogNotifier *notifier = []() {
         auto *object = new KisStrokeLogNotifier();
-        // it lives in the main thread, whatever thread first asked for it
+        // in the main thread, whichever thread first asked for it
         if (QCoreApplication::instance()) object->moveToThread(QCoreApplication::instance()->thread());
         return object;
     }();

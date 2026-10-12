@@ -1900,7 +1900,7 @@ QString KisDocument::generateAutoSaveFileName(const QString & path) const
 
     // Using the extension allows to avoid relying on the mime magic when opening
     const QString extension (".kra");
-    QString prefix = KisConfig(true).readEntry<bool>("autosavefileshidden") ? QString(".") : QString();
+    QString prefix = KisConfig(true).readEntry<bool>("autosavefileshidden", true) ? QString(".") : QString();
     QRegularExpression autosavePattern1("^\\..+-autosave.kra$");
     QRegularExpression autosavePattern2("^.+-autosave.kra$");
 

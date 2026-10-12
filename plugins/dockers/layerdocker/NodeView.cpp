@@ -27,6 +27,7 @@
 #include <QDockWidget>
 #include <QDrag>
 #include <QMimeData>
+#include <QTimer>
 #include <QMouseEvent>
 #include <QPersistentModelIndex>
 #include <QApplication>
@@ -125,7 +126,7 @@ void NodeView::setModel(QAbstractItemModel *model)
         qWarning() << "NodeView: expected 2 model columns, got " << this->model()->columnCount();
     }
 
-    // the eye at the end of the row, with the layer's other switches; the selection box (if shown) first
+    // the selection box (if shown) first, the eye at the end of the row with the other switches
     if (header()->sectionPosition(SELECTED_COL) != 0 || header()->sectionPosition(VISIBILITY_COL) != 2) {
         header()->moveSection(header()->visualIndex(SELECTED_COL), 0);
         header()->moveSection(header()->visualIndex(VISIBILITY_COL), 2);
@@ -268,7 +269,7 @@ bool NodeView::viewportEvent(QEvent *e)
                 }
                 d->hovered = hovered;
             }
-            // within the row too: the icon pointed at is lit
+            // the hovered icon within the row is lit
             if (hovered.isValid()) {
                 viewport()->update(QRect(0, visualRect(hovered).top(), viewport()->width(), visualRect(hovered).height()));
             }
@@ -318,10 +319,6 @@ void NodeView::showContextMenu(const QPoint &globalPos, const QModelIndex &index
 void NodeView::currentChanged(const QModelIndex &current, const QModelIndex &previous)
 {
     QTreeView::currentChanged(current, previous);
-    // the selected row is taller, see NodeDelegate::extraHeight()
-    if (property("rowControls").toBool()) {
-        Q_EMIT d->delegate.sizeHintChanged(current);
-    }
     if (current != previous) {
         Q_ASSERT(!current.isValid() || current.model() == model());
         KisSignalsBlocker blocker(this);
@@ -375,8 +372,6 @@ QStyleOptionViewItem NodeView::optionForIndex(const QModelIndex &index) const
     initViewItemOption(&option);
 #endif
     option.rect = visualRect(index);
-    // clicks are on the layer's own content, at the top of a taller selected row
-    option.rect.setHeight(option.rect.height() - d->delegate.extraHeight(index));
     if (index == currentIndex())
         option.state |= QStyle::State_HasFocus;
     return option;
@@ -384,7 +379,7 @@ QStyleOptionViewItem NodeView::optionForIndex(const QModelIndex &index) const
 
 void NodeView::startDrag(Qt::DropActions supportedActions)
 {
-    // as QAbstractItemView does it, but knowing where it ends
+    // as QAbstractItemView does it, but knowing how it ends
     QModelIndexList indexes;
     Q_FOREACH (const QModelIndex &index, selectionModel()->selectedIndexes()) {
         if (index.column() == DEFAULT_COL && (index.flags() & Qt::ItemIsDragEnabled)) {
@@ -398,7 +393,6 @@ void NodeView::startDrag(Qt::DropActions supportedActions)
     DRAG_WHILE_DRAG_WORKAROUND_START();
     auto *drag = new QDrag(this);
     drag->setMimeData(data);
-    // the row as it looks, held where it was taken
     const QRect row = visualRect(indexes.first()).intersected(viewport()->rect());
     if (!row.isEmpty()) {
         drag->setPixmap(viewport()->grab(row));
@@ -413,8 +407,13 @@ void NodeView::startDrag(Qt::DropActions supportedActions)
     const Qt::DropAction result = drag->exec(supportedActions, defaultAction);
     DRAG_WHILE_DRAG_WORKAROUND_STOP();
 
-    // let go away from the panel, where nothing took it: off it goes, like anything dragged off its panel
-    if (result == Qt::IgnoreAction) {
+    if (result != Qt::IgnoreAction) {
+        return;
+    }
+    // dropped outside the panel where nothing took it: deleted. Not when cancelled with Esc, which
+    // leaves the button held (checked once the release the platform sends after a drop is processed)
+    QTimer::singleShot(0, this, [this]() {
+        if (QGuiApplication::mouseButtons() & Qt::LeftButton) return;
         QWidget *panel = this;
         while (panel->parentWidget() && !qobject_cast<QDockWidget *>(panel)) {
             panel = panel->parentWidget();
@@ -422,7 +421,7 @@ void NodeView::startDrag(Qt::DropActions supportedActions)
         if (!panel->rect().contains(panel->mapFromGlobal(QCursor::pos()))) {
             Q_EMIT draggedOff();
         }
-    }
+    });
 }
 
 QPixmap NodeView::createDragPixmap() const

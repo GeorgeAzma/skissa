@@ -161,10 +161,8 @@ void tryInitDrMingw()
 namespace
 {
 /**
- * Lets UI tests look at a development build without looking at the screen,
- * which also shows other applications: a posted "KritaDevCapture" message
- * makes Krita render its own visible windows, translucent popups included,
- * into one PNG at %KRITA_DEV_CAPTURE% (or krita-dev-capture.png in TEMP).
+ * Developer-only test hooks (KRITA_DEV_PROFILE), driven by posted window messages: KritaDevCapture,
+ * KritaDevMouse, KritaDevKey, KritaDevExport, KritaDevTree and KritaDevShortcuts. Their output goes to TEMP.
  */
 class DevCaptureFilter : public QAbstractNativeEventFilter
 {
@@ -199,7 +197,7 @@ public:
             return true;
         }
         if (msg->message == exportMessage) {
-            // the active document, as a .kra in the temp folder (krita-dev-export.kra): a file to open again
+            // the active document as krita-dev-export.kra
             KisMainWindow *window = KisPart::instance()->currentMainwindow();
             KisDocument *document = window && window->activeView() ? window->activeView()->document() : nullptr;
             if (document) {
@@ -208,7 +206,7 @@ public:
             return true;
         }
         if (msg->message == keyMessage) {
-            // the low bits: 1 only the press, 2 only the release (a key held), 0 both
+            // the low bits: 1 press only, 2 release only, 0 both
             const int bits = int(msg->lParam);
             key(int(msg->wParam), Qt::KeyboardModifiers(bits & ~0x3), bits & 0x3);
             return true;
@@ -217,11 +215,10 @@ public:
     }
 
 private:
-    /// The visible windows, the main window first and popups last, and the rectangle around them
+    /// The visible windows, bottom to top (main window first, popups last), and their bounding rectangle
     static QList<QWidget *> visibleWindows(QRect &bounds)
     {
         QList<QWidget *> windows;
-        // minimized windows too, they keep their size and render all the same
         Q_FOREACH (QWidget *window, QApplication::topLevelWidgets()) {
             if (window->isVisible()) {
                 windows << window;
@@ -241,13 +238,7 @@ private:
         return windows;
     }
 
-    /**
-     * A posted "KritaDevShortcuts" message writes every action of the main
-     * window (its GUI clients' and its own) to krita-dev-shortcuts.json in
-     * TEMP: its name, text, tooltip, shortcuts, the client it is of, where it
-     * is in the menus, and the buttons that carry it (a button's own action,
-     * or the one Find made for it), with where those are
-     */
+    /// Writes every action of the main window, with its shortcuts, menu path and buttons, to krita-dev-shortcuts.json
     static void shortcuts()
     {
         KisMainWindow *window = KisPart::instance()->currentMainwindow();
@@ -266,7 +257,7 @@ private:
             if (top->menu()) walk(top->menu(), QStringLiteral(" > ") + top->text().remove(QLatin1Char('&')));
         }
 
-        // where a widget is: the panel it is in, and its named parents
+        // the panel a widget is in and its named parents
         auto whereOf = [window](QWidget *widget) {
             QStringList parts;
             for (QWidget *w = widget->parentWidget(); w && w != window; w = w->parentWidget()) {
@@ -312,19 +303,13 @@ private:
             if (!client || !client->actionCollection()) continue;
             Q_FOREACH (QAction *action, client->actionCollection()->actions()) add(action, client->actionCollection()->componentName());
         }
-        // the window's own (Find's for buttons, the rail's)
         Q_FOREACH (QAction *action, window->actions()) add(action, QStringLiteral("window"));
 
         QFile file(QDir::temp().absoluteFilePath(QStringLiteral("krita-dev-shortcuts.json")));
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) file.write(QJsonDocument(rows).toJson());
     }
 
-    /**
-     * A posted "KritaDevTree" message writes the visible widgets of the
-     * visible windows, nested, to krita-dev-tree.txt in TEMP: class, name,
-     * where in its window, the attributes that decide how it is drawn, and
-     * for QML widgets how their scene is
-     */
+    /// Writes the visible widget tree with geometry and painting attributes to krita-dev-tree.txt
     static void tree()
     {
         QFile file(QDir::temp().absoluteFilePath(QStringLiteral("krita-dev-tree.txt")));
@@ -362,6 +347,7 @@ private:
         }
     }
 
+    /// Renders the visible windows, popups included, into one PNG at %KRITA_DEV_CAPTURE% (or krita-dev-capture.png)
     static void capture()
     {
         QRect bounds;
@@ -384,7 +370,7 @@ private:
         if (path.isEmpty()) {
             path = QDir::temp().absoluteFilePath(QStringLiteral("krita-dev-capture.png"));
         }
-        // written aside and renamed, so that a waiting reader never sees half a file
+        // written aside and renamed so a waiting reader never sees half a file
         const QString partial = path + QStringLiteral(".part");
         if (image.save(partial, "PNG")) {
             QFile::remove(path);
@@ -393,12 +379,9 @@ private:
     }
 
     /**
-     * A posted "KritaDevMouse" message is mouse input at a point of the
-     * capture image (lParam: x, y), through Qt's input queue like real input,
-     * so that grabs, hovering and popups behave as they do with a mouse. It
-     * does not move the system cursor or take the focus. wParam: 0 move,
-     * 1/2 left press/release, 3/4 right press/release, 5/6 wheel up/down,
-     * 7/8/9 a finger down/moving/up, 10/11 middle press/release (a pan).
+     * Input at a point of the capture image (lParam: x, y) through Qt's input queue, without moving the
+     * system cursor. wParam: 0 move, 1/2 left press/release, 3/4 right press/release, 5/6 wheel up/down,
+     * 7/8/9 touch down/move/up, 10/11 middle press/release.
      */
     static void mouse(int action, const QPoint &imagePos)
     {
@@ -411,7 +394,6 @@ private:
         const qreal dpr = windows.first()->devicePixelRatioF();
         const QPointF global = QPointF(bounds.topLeft()) + QPointF(imagePos) / dpr;
 
-        // the topmost window there
         QWidget *target = nullptr;
         for (int i = windows.size() - 1; i >= 0 && !target; i--) {
             if (QRectF(windows[i]->geometry()).contains(global)) target = windows[i];
@@ -420,7 +402,7 @@ private:
             return;
         }
         QWindow *window = target->windowHandle();
-        // the system's events are in the screen's pixels, Qt makes them its own (device independent) ones
+        // native events are in device pixels
         const QPointF local = QHighDpi::toNativeLocalPosition(global - QPointF(target->geometry().topLeft()), window);
         const QPointF nativeGlobal = QHighDpi::toNativePixels(global, window);
 
@@ -435,14 +417,13 @@ private:
         case 11: button = Qt::MiddleButton; type = QEvent::MouseButtonRelease; buttons &= ~button; break;
         case 5:
         case 6:
-            // with the modifiers held through "KritaDevKey" (e.g. Ctrl+wheel)
+            // with the modifiers held through "KritaDevKey"
             QWindowSystemInterface::handleWheelEvent(window, local, nativeGlobal, QPoint(), QPoint(0, action == 5 ? 120 : -120),
                                                      QGuiApplication::keyboardModifiers());
             return;
         case 7:
         case 8:
         case 9: {
-            // a finger: 7 down, 8 moving, 9 up
             static QTouchDevice *device = nullptr;
             if (!device) {
                 device = new QTouchDevice();
@@ -463,15 +444,10 @@ private:
         }
         default: break;
         }
-        // with the modifiers held through "KritaDevKey" (e.g. Alt+click)
         QWindowSystemInterface::handleMouseEvent(window, local, nativeGlobal, buttons, button, type, QGuiApplication::keyboardModifiers());
     }
 
-    /**
-     * A posted "KritaDevKey" message is a key press and release (wParam: the
-     * Qt::Key, lParam: Qt::KeyboardModifiers) for the window with the focus,
-     * or the topmost one of Krita's windows.
-     */
+    /// A key press and/or release (wParam: Qt::Key, lParam: modifiers | phase) for the focused or topmost window
     static void key(int qtKey, Qt::KeyboardModifiers modifiers, int phase = 0)
     {
         QWindow *window = QGuiApplication::focusWindow();
@@ -480,7 +456,7 @@ private:
             const QList<QWidget *> windows = visibleWindows(bounds);
             if (windows.isEmpty() || !windows.last()->windowHandle()) return;
             window = windows.last()->windowHandle();
-            // nothing active yet (never clicked): active for Qt, so that its shortcuts work
+            // activated for Qt, so that its shortcuts work
             QWindowSystemInterface::handleWindowActivated(window, Qt::OtherFocusReason);
             QCoreApplication::processEvents();
         }
@@ -608,12 +584,8 @@ extern "C" MAIN_EXPORT int MAIN_FN(int argc, char **argv)
     // Workaround a bug in QNetworkManager
     qputenv("QT_BEARER_POLL_TIMEOUT", QByteArray::number(-1));
 
-    /**
-     * KRITA_DEV_PROFILE=1 runs Krita with its own settings and resources, so
-     * that a development build never touches the profile of an installed
-     * Krita. Qt's test mode moves all the writable standard locations into
-     * "qttest" subfolders, e.g. %LOCALAPPDATA%\qttest\kritarc on Windows.
-     */
+    // KRITA_DEV_PROFILE: a development build with its own settings and resources, never an installed
+    // Krita's (Qt's test mode moves the writable locations into "qttest" subfolders)
     const bool useDevProfile = qEnvironmentVariableIsSet("KRITA_DEV_PROFILE");
     if (useDevProfile) {
         QStandardPaths::setTestModeEnabled(true);
@@ -623,7 +595,7 @@ extern "C" MAIN_EXPORT int MAIN_FN(int argc, char **argv)
     QString key = "Krita5" + QStandardPaths::writableLocation(QStandardPaths::HomeLocation).replace("/", "_");
     key = key.replace(":", "_").replace("\\","_");
     if (useDevProfile) {
-        // don't hand over to (or receive files from) a regular Krita instance
+        // not sharing a running instance with a regular Krita
         key += "_dev";
     }
 

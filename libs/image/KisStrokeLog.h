@@ -33,21 +33,15 @@ Q_SIGNALS:
     void changed();
 };
 
-
 /**
- * What brush painted what on a node: for every stroke, the brush, its
- * width along the way, its color and roughly where it went (a point every
- * so often), and where paint that is no brush's (a fill, a gradient)
- * covered it. Asked "which brush is here?" it gives the newest stroke
- * under a point, so that a brush (with its size and color) can be taken
- * from the canvas, and a layer knows the brush last used on it and the
- * colors painted on it.
+ * What brush painted what on a node: for every stroke the brush, its width
+ * along the way, its color and roughly where it went, and where paint no
+ * brush made (a fill, a gradient) covered it. It answers "which brush is
+ * here?" and "which brush was last used on this layer?".
  *
- * Kept with the node, so that it is copied, duplicated, saved and removed
- * with it, in the node's paint device coordinates (relative to the
- * device's offset), so that moving the layer moves it too. Every change
- * is an undo command, part of the change of the pixels it follows: a
- * stroke undone is gone from here too, a transform moves its strokes.
+ * Kept with the node (copied, saved and removed with it) in its paint
+ * device's coordinates. Every change is an undo command, part of the
+ * change of the pixels it follows.
  */
 class KRITAIMAGE_EXPORT KisStrokeLog
 {
@@ -100,13 +94,10 @@ public:
     QVector<QColor> colors(int count) const;
 
     /**
-     * Small: the brushes and the selections once each, every stroke as
-     * indexes into them and its points as the first one and then steps from
-     * one to the next; compressed. Frames are saved as the time of their
-     * keyframe, as frame ids are not kept in the file: \p frameToTime gives
-     * it for a frame (-1 for none: the device has no frames; -2: the frame
-     * is gone, the strokes on it are not kept), \p timeToFrame the frame
-     * at a time (-1: none).
+     * Compact: brushes and selections once each, points as steps, compressed.
+     * Frames are saved as the time of their keyframe: \p frameToTime gives it
+     * (-1: the device has no frames; -2: the frame is gone, its strokes are
+     * not kept), \p timeToFrame the frame at a time (-1: none).
      */
     QByteArray save(const std::function<int(int frame)> &frameToTime) const;
     void load(const QByteArray &data, const std::function<int(int time)> &timeToFrame);
@@ -114,7 +105,7 @@ public:
     /// The frame of \p device a stroke on it is on now (see Stroke::frame)
     static int currentFrame(KisPaintDeviceSP device);
 
-    // ------------------------------------------------------------ changes, each an undo command
+    // changes, each an undo command
 
     /// Adds strokes (image coordinates) painted on \p node now
     static KUndo2Command *addCommand(KisNodeSP node, Strokes strokes);
@@ -129,35 +120,25 @@ public:
     };
     /// What moves with a selection: its pixels selected more than half
     static Move moveIn(KisSelectionSP selection, Mapper map);
-    /// The strokes of \p node's current frame moved as \p move says
+    /// Moves the strokes of \p node's current frame
     static KUndo2Command *mapCommand(KisNodeSP node, const Move &move);
-    /// All the strokes of \p sources (bottom to top) for \p target, which they were merged into
+    /// The strokes of \p sources (bottom to top) for \p target, which they were merged into
     static KUndo2Command *mergeCommand(KisNodeSP target, KisNodeList sources);
 
-    /**
-     * The fewest of a brush's \p points (with its \p widths there) from which
-     * the stroke, its edges included, is redrawn within a tenth of its width
-     * (and half a pixel): the indexes of those kept, the ends always.
-     */
+    /// The indexes of the fewest \p points (with \p widths) that keep the stroke's edges within a tenth of its width
     static QVector<int> simplifiedPath(const QVector<QPointF> &points, const QVector<qreal> &widths);
 
     /// A selection as outlines, small enough to keep with every stroke painted through it
     static QVector<QPolygon> outlineOf(KisSelectionSP selection);
 
-    // ------------------------------------------------------------ what is seen
-
     struct Pick {
         KisNodeSP node;
         Stroke stroke;
     };
-    /**
-     * The brush stroke seen at \p imagePos: on the topmost visible layer
-     * with paint there, the newest stroke under it. False if that paint is
-     * no brush's, or there is none.
-     */
+    /// The newest brush stroke at \p imagePos on the topmost visible layer with paint there; false if no brush made that paint
     static bool pick(KisNodeSP root, const QPoint &imagePos, Pick *result);
 
-    /// Says when any log changed (e.g. for colors shown from it)
+    /// Says when any log changed
     static KisStrokeLogNotifier *notifier();
 
 private:

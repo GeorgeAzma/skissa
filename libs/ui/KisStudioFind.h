@@ -22,13 +22,10 @@ class QKeyEvent;
 class QDockWidget;
 
 /**
- * "Find anything": one search field for everything Krita can do.
- *
- * It searches tools, commands, effects, brushes, blend modes, panels, the
- * layers of the current image, workspaces and settings pages, ranks the
- * results by how well they match and by how often and how recently they
- * were used, and runs the chosen one. With an empty query it shows the
- * recently used results, so it doubles as "do that again".
+ * "Find anything": one search field for everything Krita can do (tools,
+ * commands, effects, brushes, blend modes, panels, layers, workspaces,
+ * settings), ranked by how well they match and how often and recently they
+ * were used. With nothing typed it lists the recent ones.
  */
 class KRITAUI_EXPORT KisStudioFind : public QFrame
 {
@@ -45,10 +42,7 @@ public:
     void setTools(std::function<bool(const QString &key)> isOnTools, std::function<void(const QString &key, bool on)> setOnTools);
 
     void open(const QString &text = QString());
-    /**
-     * Find as a chooser: what is chosen goes to \p picked instead of running.
-     * With nothing typed it lists every tool and effect, to choose by tapping.
-     */
+    /// Find as a chooser: what is chosen goes to \p picked instead of running
     void pick(const QString &placeholder, std::function<void(const QString &key)> picked, const QString &keyPrefix = QString());
 
     /// One thing Find knows: what the rail and the cards need to show and run it
@@ -63,19 +57,15 @@ public:
     bool item(const QString &key, Item *item);
     bool run(const QString &key);
 
+    /// Gives every button of the window that is no action of its own a hidden one: for its shortcut and for Find
+    void registerButtons();
+
+    /// Shows \p button's card beside it; false if it is no command Find knows
+    bool showCard(QAbstractButton *button);
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
-
-public:
-    /// Every button of the window that is no action of its own gets one: for its shortcut and for Find
-    void registerButtons();
-
-    /**
-     * \p button's card, beside it: its shortcut, and a place on the tools
-     * panel. False if it is no command Find knows (a button of a list, say).
-     */
-    bool showCard(QAbstractButton *button);
 
 private:
     void rebuildIndex();
@@ -84,14 +74,15 @@ private:
     void updateCommands(const QString &query);
     void appendResult(int index, const QString &detail);
     void appendHeader(const QString &title);
-    static bool isCommandKind(int kind);
+    void appendMessage(const QString &text);
+    void selectFirst();
     void moveSelection(int delta);
     void runSelected();
     void runRow(int row);
     void adjustGeometry();
     void stopRecording();
-    /// The keys pressed while a result's key cap records: its new shortcut
     void recordShortcut(QKeyEvent *event);
+    void popupCard(const QIcon &icon, const QString &title, QAction *action, const QString &key, QWidget *anchor);
 
     struct Private;
     const std::unique_ptr<Private> d;

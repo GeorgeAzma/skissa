@@ -13,19 +13,23 @@
 #include <QPainterPath>
 #include <QToolButton>
 
+#include <cmath>
+
+#include <KisModernStyle.h>
 #include <KisOptionButtonStrip.h>
 #include <KoGroupButton.h>
-#include <klocalizedstring.h>
-#include <cmath>
-#include "kis_icon_utils.h"
 #include <KoToolFactoryBase.h>
-#include <KoToolRegistry.h>
 #include <KoToolManager.h>
+#include <KoToolRegistry.h>
+#include <klocalizedstring.h>
 
+#include "kis_icon_utils.h"
 #include "widgets/kis_selection_options.h"
-#include <KisModernStyle.h>
 
 namespace {
+
+const QString brushToolId = QStringLiteral("KritaShape/KisToolBrush");
+const QString multiBrushToolId = QStringLiteral("KritaShape/KisToolMultiBrush");
 
 /// The id of the KisOptionCollectionWidget section a widget is in, e.g. "sectionAction"
 QString sectionId(QObject *object)
@@ -49,7 +53,6 @@ KisOptionButtonStrip *stripInSection(QWidget *root, const QString &section)
     return nullptr;
 }
 
-/// A small picture of what a gradient shape looks like, which no word says as well
 QIcon gradientShapeIcon(int shape, const QColor &ink, const QColor &paper)
 {
     QIcon icon;
@@ -111,7 +114,7 @@ QIcon gradientShapeIcon(int shape, const QColor &ink, const QColor &paper)
     return icon;
 }
 
-/// Two opposite arrows: the gradient runs the other way
+/// Two opposite arrows
 QIcon reverseIcon(const QColor &ink)
 {
     QIcon icon;
@@ -135,7 +138,7 @@ QIcon reverseIcon(const QColor &ink)
     return icon;
 }
 
-/// The multibrush modes as pictures: symmetry, mirror, translate, snowflake, copy translate
+/// Symmetry, mirror, translate, snowflake, copy translate
 QIcon multihandIcon(int type, const QColor &ink)
 {
     QIcon icon;
@@ -150,21 +153,21 @@ QIcon multihandIcon(int type, const QColor &ink)
         painter.setPen(pen);
         const QPointF c(10 * s, 10 * s);
         switch (type) {
-        case 0: // symmetry: spokes around a center
+        case 0: // symmetry
             for (int i = 0; i < 6; i++) {
                 const qreal a = i * M_PI / 3;
                 painter.drawLine(c + QPointF(2.5 * s * std::cos(a), 2.5 * s * std::sin(a)), c + QPointF(7.5 * s * std::cos(a), 7.5 * s * std::sin(a)));
             }
             break;
-        case 1: // mirror: a stroke and its reflection
+        case 1: // mirror
             painter.drawLine(QPointF(10 * s, 3 * s), QPointF(10 * s, 17 * s));
             painter.drawArc(QRectF(3 * s, 5 * s, 6 * s, 10 * s), 90 * 16, 180 * 16);
             painter.drawArc(QRectF(11 * s, 5 * s, 6 * s, 10 * s), 270 * 16, 180 * 16);
             break;
-        case 2: // translate: copies side by side
+        case 2: // translate
             for (int i = 0; i < 3; i++) painter.drawLine(QPointF((4 + 6 * i) * s, 6 * s), QPointF((4 + 6 * i) * s, 14 * s));
             break;
-        case 3: // snowflake: spokes with mirrored ticks
+        case 3: // snowflake
             for (int i = 0; i < 6; i++) {
                 const qreal a = i * M_PI / 3;
                 const QPointF tip = c + QPointF(7.5 * s * std::cos(a), 7.5 * s * std::sin(a));
@@ -174,7 +177,7 @@ QIcon multihandIcon(int type, const QColor &ink)
                 painter.drawLine(mid, mid + QPointF(2 * s * std::cos(a - 0.8), 2 * s * std::sin(a - 0.8)));
             }
             break;
-        default: // copy translate: two strokes
+        default: // copy translate
             painter.drawPath(KisModernStyle::squircle(QRectF(3 * s, 4 * s, 7 * s, 7 * s), 1.5 * s));
             painter.drawPath(KisModernStyle::squircle(QRectF(10 * s, 9 * s, 7 * s, 7 * s), 1.5 * s));
             break;
@@ -184,9 +187,6 @@ QIcon multihandIcon(int type, const QColor &ink)
     }
     return icon;
 }
-
-const QString brushToolId = QStringLiteral("KritaShape/KisToolBrush");
-const QString multiBrushToolId = QStringLiteral("KritaShape/KisToolMultiBrush");
 
 } // namespace
 
@@ -203,6 +203,8 @@ void KisStudioToolStrip::clear()
 {
     while (QLayoutItem *item = m_layout->takeAt(0)) {
         if (QWidget *widget = item->widget()) {
+            // not shown until it is deleted, over the new buttons
+            widget->hide();
             widget->deleteLater();
         }
         delete item;
@@ -252,7 +254,6 @@ void KisStudioToolStrip::mirrorCombo(QComboBox *combo, const QVector<int> &index
         return;
     }
     QPointer<QComboBox> target = combo;
-    QVector<QToolButton *> buttons;
     for (int i = 0; i < indexes.size(); i++) {
         const int index = indexes[i];
         if (index >= combo->count()) {
@@ -260,19 +261,16 @@ void KisStudioToolStrip::mirrorCombo(QComboBox *combo, const QVector<int> &index
         }
         QToolButton *button = addButton(icons.value(i), combo->itemText(index));
         button->setChecked(combo->currentIndex() == index);
-        connect(button, &QToolButton::clicked, this, [target, index]() {
+        connect(button, &QToolButton::clicked, this, [button, target, index]() {
             if (target) {
                 target->setCurrentIndex(index);
+                // clicking the checked one unchecked it, and the index did not change
+                button->setChecked(target->currentIndex() == index);
             }
         });
         connect(combo, QOverload<int>::of(&QComboBox::currentIndexChanged), button, [button, index](int current) {
             button->setChecked(current == index);
         });
-        buttons << button;
-    }
-    // a shape that has no button here still unchecks the others
-    if (!indexes.contains(combo->currentIndex())) {
-        Q_FOREACH (QToolButton *button, buttons) button->setChecked(false);
     }
 }
 
@@ -282,7 +280,6 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
     // full contrast: the icons are small, the shape must read at a glance
     const QColor ink = palette().color(QPalette::ButtonText);
     const QColor paper = palette().color(QPalette::Window).darker(170);
-
 
     // Brush and Multibrush are one tool: the multibrush is a toggle of the brush
     const QString tool = KoToolManager::instance()->activeToolId();
@@ -301,7 +298,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             continue;
         }
 
-        // multibrush: its modes, while it is on
+        // multibrush modes
         if (QComboBox *type = widget->findChild<QComboBox *>(QStringLiteral("multihandTypeCombobox"))) {
             QVector<int> indexes;
             QVector<QIcon> icons;
@@ -312,7 +309,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             mirrorCombo(type, indexes, icons);
         }
 
-        // transform: every mode, warp and liquify included
+        // transform modes, warp and liquify included
         if (widget->findChild<QAbstractButton *>(QStringLiteral("freeTransformButton"))) {
             addGap();
             for (const char *name : {"freeTransformButton", "perspectiveTransformButton", "warpButton",
@@ -335,7 +332,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             }
         }
 
-        // gradient: its shape, shown, and the direction
+        // gradient shape and direction
         if (QComboBox *shape = widget->findChild<QComboBox *>(QStringLiteral("shape_combo"))) {
             addGap();
             QVector<QIcon> icons;

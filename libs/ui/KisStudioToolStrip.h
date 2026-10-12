@@ -16,14 +16,9 @@ class QComboBox;
 class QToolButton;
 
 /**
- * The few options of the active tool that change from one use to the next,
- * in the top bar next to the tool chip: transform modes (warp and liquify
- * included, which were two clicks deep), selection add/subtract/intersect,
- * gradient shapes, what fill fills and with what.
- *
- * The buttons drive the tool's own option widgets instead of the tool, so
- * both always agree and the tool keeps its settings handling; the full
- * options stay one click away under the chip.
+ * The active tool's most changed options in the top bar: transform modes,
+ * selection modes, gradient shapes, what fill fills and with what. The
+ * buttons drive the tool's own option widgets, so both always agree.
  */
 class KisStudioToolStrip : public QWidget
 {
@@ -33,7 +28,6 @@ public:
 
     /// Rebuilds the strip from the option widgets the active tool just provided
     void setOptionWidgets(const QList<QPointer<QWidget>> &widgets);
-    /// Whether the active tool has anything for the strip; a toolbar decides visibility by its action
     bool hasOptions() const { return m_hasOptions; }
 
 private:

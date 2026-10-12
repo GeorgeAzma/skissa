@@ -16,20 +16,9 @@
 #include <KisTagModel.h>
 
 /**
- * \brief The KisTagChooserWidget class is responsible for all the logic
- *        that the tags combobox has in various resource choosers.
- *
- * It uses KisTagModel as a model for items in the combobox. Tags are made,
- * renamed and deleted where they are:
- * - "+" next to the box turns it into a field for the new tag's name
- *   (Enter makes it, Escape or clicking elsewhere does not);
- * - in the list, a right click on a tag (or holding a finger or pen on it)
- *   renames it in place;
- * - a tag under the pointer (every tag, while a finger is used) shows a
- *   delete button on its right; for a few seconds after, the "+" is an undo
- *   button that brings it back.
- * Tags Krita makes itself ("All", "All Untagged") cannot be renamed or deleted.
- * All the logic for adding and removing tags is done through KisTagModel.
+ * The tag combo box of resource choosers, on KisTagModel. "New tag…" in the list turns the box into
+ * a name field; a right click (or long press) renames a tag in place; a hovered tag shows a delete
+ * button, and an undo button brings it back for a few seconds. "All" and "All Untagged" are fixed.
  */
 class KRITARESOURCEWIDGETS_EXPORT KisTagChooserWidget : public QWidget
 {
@@ -109,7 +98,7 @@ private:
     void deleteTag(KisTagSP tag);
     void restoreDeletedTag();
     void startNewTag();
-    /// The tag of a row of the list (none for "New tag…")
+    /// The tag of a list row (none for "New tag…")
     KisTagSP tagAt(const QModelIndex &rowIndex) const;
     void startRename(const QModelIndex &index);
 

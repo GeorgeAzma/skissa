@@ -33,19 +33,8 @@ class RecentStrip;
 class QToolButton;
 
 /**
- * The palette: its swatches, filling the panel's width, and its name.
- *
- * - click a swatch to paint with it; the swatch of the current color has a ring
- * - "+" after the last swatch adds the current color, no questions asked
- * - drag a swatch onto another place to move it there (two swap), off the
- *   panel to remove it; undo is next to the name while there is something to undo
- * - right click or long press a swatch for its card: use the current color
- *   there, edit its name and color, remove it
- * - click the name for the other palettes, right click it to edit, lock,
- *   save or export this one
- *
- * It can be made as short as one row (the wheel scrolls a row at a time):
- * one or two rows of a palette under the brushes is a fine place for it.
+ * The palette's swatches across the panel's width, under its name and the colors last painted with. A swatch is
+ * dragged to move it, off the panel to remove it; its card (right click) edits it; "+" adds the current color.
  */
 class PaletteDockerDock : public QDockWidget, public KisMainwindowObserver, public KoResourceServerObserver<KoColorSet>
 {
@@ -88,6 +77,7 @@ private:
     /// In \p emptySlot, or a new row under the first group when it is invalid
     void addColor(const KoColor &color, const QModelIndex &emptySlot);
     void updateRecentStrip();
+    void saveRecent();
     void pickRecent(int index);
     void showRecentCard(int index, QWidget *anchor);
     void moveSwatch(const QModelIndex &from, const QModelIndex &to);
@@ -106,6 +96,8 @@ private /* member variables */:
     QVector<KoColor> m_shownRecent;
     QMetaObject::Connection m_logConnection;
     QTimer m_recentUpdate;
+    /// Not written to the config after every stroke
+    QTimer m_recentSave;
     KisPopupButton *m_paletteButton {nullptr};
     QToolButton *m_undo {nullptr};
     QToolButton *m_redo {nullptr};

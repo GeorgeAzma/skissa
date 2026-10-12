@@ -16,16 +16,8 @@
 #include "kritaui_export.h"
 
 /**
- * One color panel in perceptual coordinates.
- *
- * HSV's value is not lightness: at the same "value" yellow is far lighter
- * than blue, so HSV pickers make value structure hard to control. The
- * pickers here are OKLCH, where equal steps look like equal steps: a ring of
- * hues around the hue's square of lightness (down) and chroma (across),
- * which shows where sRGB ends (its shape changes with the hue); or, compact,
- * a track each for lightness, chroma and hue beside the color. Krita's
- * classic HSV ring and triangle is the third choice, for those used to it.
- * Below: the current and previous color and the colors last painted with.
+ * The color panel: OKLCH pickers, where equal steps look equal (a hue ring around a lightness/chroma square, or
+ * sliders), or Krita's classic HSV ring and triangle; the current, previous and recent colors under them.
  */
 class KRITAUI_EXPORT KisStudioColorPanel : public QDockWidget, public KoCanvasObserverBase
 {
@@ -39,7 +31,7 @@ public:
     void unsetCanvas() override;
 
     static QString id();
-    /// Registers the panel's factory once, before the main window creates its dockers
+    /// Once, before the main window creates its dockers
     static void registerFactory();
 
     struct Private;

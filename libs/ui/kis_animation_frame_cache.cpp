@@ -7,6 +7,7 @@
 #include "kis_animation_frame_cache.h"
 #include "kis_animation_frame_cache_p.h"
 
+#include <QGuiApplication>
 #include <QMap>
 
 #include "kis_debug.h"
@@ -22,7 +23,9 @@
 #include "KisInMemoryFrameCacheSwapper.h"
 
 #include "kis_image_config.h"
+#include "kis_config.h"
 #include "kis_config_notifier.h"
+#include "KisDisplayConfig.h"
 
 #include "opengl/kis_opengl_image_textures.h"
 
@@ -46,6 +49,7 @@ struct KisAnimationFrameCache::Private
     KisImageWSP image;
 
     QScopedPointer<KisAbstractFrameCacheSwapper> swapper;
+    QVariantList dependsOn;
     int frameSizeLimit = 777;
 
     KisOpenGLUpdateInfoSP fetchFrameDataImpl(KisImageSP image, const QRect &requestedRect, int lod);
@@ -374,17 +378,29 @@ void KisAnimationFrameCache::framesChanged(const KisTimeSpan &range, const QRect
 
 void KisAnimationFrameCache::slotConfigChanged()
 {
-    m_d->newFrames.clear();
-
     KisImageConfig cfg(true);
+    KisConfig displayCfg(true);
+    const bool onDisk = cfg.useOnDiskAnimationCacheSwapping();
+    const int frameSizeLimit = cfg.useAnimationCacheFrameSizeLimit() ? cfg.animationCacheFrameSizeLimit() : 0;
 
-    if (cfg.useOnDiskAnimationCacheSwapping()) {
+    // what the cached frames depend on, including how they were converted for the screen:
+    // any other setting changed keeps them
+    const KisDisplayConfig::Options options = KisDisplayConfig::optionsFromKisConfig(displayCfg);
+    QVariantList dependsOn {onDisk, onDisk ? cfg.swapDir() : QString(), frameSizeLimit,
+                            int(options.first), int(options.second), displayCfg.showSingleChannelAsColor()};
+    for (int screen = 0; screen < QGuiApplication::screens().size(); screen++) {
+        dependsOn << displayCfg.monitorProfile(screen);
+    }
+    if (m_d->swapper && dependsOn == m_d->dependsOn) return;
+    m_d->dependsOn = dependsOn;
+
+    m_d->newFrames.clear();
+    if (onDisk) {
         m_d->swapper.reset(new KisFrameCacheSwapper(m_d->textures->updateInfoBuilder(), cfg.swapDir()));
     } else {
         m_d->swapper.reset(new KisInMemoryFrameCacheSwapper());
     }
-
-    m_d->frameSizeLimit = cfg.useAnimationCacheFrameSizeLimit() ? cfg.animationCacheFrameSizeLimit() : 0;
+    m_d->frameSizeLimit = frameSizeLimit;
     Q_EMIT changed();
 }
 

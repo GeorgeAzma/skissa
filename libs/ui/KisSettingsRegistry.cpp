@@ -10,7 +10,10 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QLocale>
+#include <QGuiApplication>
+#include <QPixmapCache>
 #include <QPointer>
+#include <QScreen>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QThread>
@@ -35,6 +38,7 @@
 #include "KisViewManager.h"
 #include "KisImageConfigNotifier.h"
 #include "kis_config.h"
+#include "kis_canvas2.h"
 #include "kis_config_notifier.h"
 #include "kis_cubic_curve.h"
 #include "kis_image.h"
@@ -257,8 +261,7 @@ QVector<Setting> describeAll()
             }
         };
         all << ownFont;
-        Setting family = text(QStringLiteral("custom_system_font"), QLatin1String(""), i18nc("setting", "Interface font"), R::Machine);
-        all << family;
+        all << text(QStringLiteral("custom_system_font"), QLatin1String(""), i18nc("setting", "Interface font"), R::Machine);
         all << number(QStringLiteral("custom_font_size"), -1, -1, 72, i18nc("setting", "Interface font size"));
         all << toggle(QStringLiteral("showOnCanvasMessages"), true, i18nc("setting", "Messages on the canvas"), R::NewViews);
         all << choice(QStringLiteral("iconsInMenu"), 0,
@@ -329,7 +332,14 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("selectionActionBar"), true, i18nc("setting", "Selection actions bar"));
         all << toggle(QStringLiteral("antialiascurves"), true, i18nc("setting", "Smooth curves"));
         all << toggle(QStringLiteral("hidePopups"), false, i18nc("setting", "No layer thumbnail popup"));
-        all << toggle(QStringLiteral("showSingleChannelAsColor"), false, i18nc("setting", "Channels in color"));
+        Setting channels = toggle(QStringLiteral("showSingleChannelAsColor"), false, i18nc("setting", "Channels in color"));
+        // read as the canvas is drawn: what is drawn already is drawn again
+        channels.written = [](const QVariant &) {
+            Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
+                if (view && view->canvasBase()) view->canvasBase()->refetchDataFromImage();
+            }
+        };
+        all << channels;
         all << number(QStringLiteral("zoomSteps"), 2, 1, 32, i18nc("setting", "Zoom steps"), R::NewViews);
         all << toggle(QStringLiteral("zoomHorizontal"), false, i18nc("setting", "Zoom by dragging sideways"));
         all << number(QStringLiteral("zoomMarginSize"), 0, 0, 1024, i18nc("setting", "Margin when fit"));
@@ -368,8 +378,7 @@ QVector<Setting> describeAll()
         };
         all << curve;
 #ifdef Q_OS_WIN
-        Setting api = toggle(QStringLiteral("useWin8PointerInput"), false, i18nc("setting", "Windows Ink"), R::Machine | R::Restart);
-        all << inDisplayrc(api);
+        all << inDisplayrc(toggle(QStringLiteral("useWin8PointerInput"), false, i18nc("setting", "Windows Ink"), R::Machine | R::Restart));
 #endif
         all << toggle(QStringLiteral("useTimestampsForBrushSpeed"), false, i18nc("setting", "Driver timestamps for speed"));
         all << number(QStringLiteral("maxAllowedSpeedValue"), 30, 1, 100, i18nc("setting", "Fastest brush speed"));
@@ -537,9 +546,20 @@ QVector<Setting> describeAll()
         };
         all << renderer;
         all << toggle(QStringLiteral("useOpenGLTextureBuffer"), true, i18nc("setting", "Texture buffer"), R::Machine);
-        all << choice(QStringLiteral("assistantsDrawMode"), 0,
-                      {{0, i18nc("assistants drawing", "Direct")}, {1, i18nc("assistants drawing", "Cached")}, {2, i18nc("assistants drawing", "Large cache")}},
-                      i18nc("setting", "Assistants are drawn"), R::Machine);
+        Setting assistants = choice(QStringLiteral("assistantsDrawMode"), 0,
+                                    {{0, i18nc("assistants drawing", "Direct")}, {1, i18nc("assistants drawing", "Cached")}, {2, i18nc("assistants drawing", "Large cache")}},
+                                    i18nc("setting", "Assistants are drawn"), R::Machine);
+        // the cache KisOpenGL::initialize() makes room for at the start, or Qt's own
+        assistants.written = [](const QVariant &value) {
+            int limit = 10240;
+            if (value.toInt() == KisConfig::ASSISTANTS_DRAW_MODE_LARGE_PIXMAP_CACHE) {
+                const QScreen *screen = QGuiApplication::primaryScreen();
+                const QSize size = screen->size() * screen->devicePixelRatio();
+                limit = qMax(20 * 1024, 2048 + 5 * 4 * size.width() * size.height() / 1024);
+            }
+            QPixmapCache::setCacheLimit(limit);
+        };
+        all << assistants;
         all << number(QStringLiteral("memoryHardLimitPercent"), 50.0, 1, 100, i18nc("setting", "Memory for images"), R::Machine | R::Restart);
         all << number(QStringLiteral("memorySoftLimitPercent"), 2.0, 0, 50, i18nc("setting", "Undo goes to disk after"), R::Machine | R::Restart);
         all << number(QStringLiteral("maxSwapSize"), 4096, 1024, 65536, i18nc("setting", "Swap file limit"), R::Machine | R::Restart);
@@ -549,8 +569,10 @@ QVector<Setting> describeAll()
         const int threads = QThread::idealThreadCount();
         all << number(QStringLiteral("maxNumberOfThreads"), threads, 1, threads, i18nc("setting", "Processor threads"), R::Machine);
         // as Krita takes it while unset: half the threads it may use
-        all << number(QStringLiteral("frameRenderingClones"), qMax(1, KisImageConfig(true).maxNumberOfThreads() / 2), 1, threads,
-                      i18nc("setting", "Frames rendered at once"), R::Machine);
+        auto halfTheThreads = []() { return QVariant(qMax(1, KisImageConfig(true).maxNumberOfThreads() / 2)); };
+        Setting clones = number(QStringLiteral("frameRenderingClones"), halfTheThreads(), 1, threads, i18nc("setting", "Frames rendered at once"), R::Machine);
+        clones.fallbackNow = halfTheThreads;
+        all << clones;
         all << number(QStringLiteral("frameRenderingTimeout"), 30000, 5000, 600000, i18nc("setting", "Frame rendering timeout"));
         all << toggle(QStringLiteral("detectFpsLimit"), true, i18nc("setting", "Match the screen's frame rate"), R::NewViews);
         all << number(QStringLiteral("fpsLimit"), 100, 1, 1000, i18nc("setting", "Frame rate limit"), R::NewViews);
@@ -571,6 +593,11 @@ QVector<Setting> describeAll()
         all << inDisplayrc(toggle(QStringLiteral("LogUsage"), true, i18nc("setting", "Log for bug reports"), R::Restart));
     }
     return all;
+}
+
+QVariant fallbackOf(const Setting &s)
+{
+    return s.fallbackNow ? s.fallbackNow() : s.fallback;
 }
 
 } // namespace
@@ -767,23 +794,23 @@ QVariant KisSettingsRegistry::value(const QString &id) const
         raw = s->read();
     } else {
         KConfigGroup group = KSharedConfig::openConfig()->group(s->group);
-        raw = group.hasKey(s->key) ? QVariant(group.readEntry(s->key, QString())) : s->fallback;
+        raw = group.hasKey(s->key) ? QVariant(group.readEntry(s->key, QString())) : fallbackOf(*s);
     }
     // a value Krita can't have written (an old version's, a hand edit): as Krita reads it, its default
     const QVariant value = normalized(*s, raw);
-    return value.isValid() ? value : s->fallback;
+    return value.isValid() ? value : fallbackOf(*s);
 }
 
 QVariant KisSettingsRegistry::defaultValue(const QString &id) const
 {
     const Setting *s = setting(id);
-    return s ? s->fallback : QVariant();
+    return s ? fallbackOf(*s) : QVariant();
 }
 
 bool KisSettingsRegistry::isDefault(const QString &id) const
 {
     const Setting *s = setting(id);
-    return !s || sameValue(*s, value(id), s->fallback);
+    return !s || sameValue(*s, value(id), fallbackOf(*s));
 }
 
 bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
@@ -796,11 +823,10 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
     if (s->write) {
         s->write(v);
     } else {
-        KConfigGroup group = KSharedConfig::openConfig()->group(s->group);
-        if (s->kind == Kind::Color) {
-            group.writeEntry(s->key, v.value<QColor>());
+        if (s->fallbackNow && sameValue(*s, v, s->fallbackNow())) {
+            KSharedConfig::openConfig()->group(s->group).deleteEntry(s->key); // to keep following its default
         } else {
-            group.writeEntry(s->key, v);
+            writeIn(*s, *KSharedConfig::openConfig(), v);
         }
         d->sync.start();
     }
@@ -813,7 +839,7 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
 void KisSettingsRegistry::reset(const QString &id)
 {
     const Setting *s = setting(id);
-    if (s) setValue(id, s->fallback);
+    if (s) setValue(id, fallbackOf(*s));
 }
 
 QHash<QString, QVariant> KisSettingsRegistry::snapshot() const

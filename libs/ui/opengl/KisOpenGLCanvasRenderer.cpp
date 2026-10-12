@@ -66,11 +66,9 @@ static constexpr int NumberOfBuffers = 2;
 
 namespace {
 /**
- * The value view's curves for the tiles' color space \p space, probed through
- * its profile in floats (no steps of eight bits): a value of each channel to
- * its light and back, the light of each in linear sRGB, a gray in it (see
- * highq_downscale.frag). A profile is a matrix and three curves: the light of
- * a channel at a value is how much of the light it has at full.
+ * The value view's data for \p space (see highq_downscale.frag), probed through its profile in floats:
+ * each channel's value-to-light curve and its inverse, the channels' light in linear sRGB, and linear
+ * sRGB gray in the display's light. A profile is a matrix and three curves.
  */
 void valueCurvesOf(const KoColorSpace *space, QVector<float> &curves, GLfloat toLinearSrgb[9], GLfloat grayInDisplay[3], bool *linear)
 {
@@ -86,7 +84,7 @@ void valueCurvesOf(const KoColorSpace *space, QVector<float> &curves, GLfloat to
         std::fill(grayInDisplay, grayInDisplay + 3, 1.0f);
         return;
     }
-    // which channel is red, green, blue; and alpha
+    // which channels are red, green, blue and alpha
     const QList<KoChannelInfo *> channels = probe->channels();
     int index[3] = {0, 1, 2};
     int alpha = 3;
@@ -94,7 +92,7 @@ void valueCurvesOf(const KoColorSpace *space, QVector<float> &curves, GLfloat to
         if (channels[i]->channelType() == KoChannelInfo::ALPHA) alpha = i;
         else if (channels[i]->displayPosition() >= 0 && channels[i]->displayPosition() < 3) index[channels[i]->displayPosition()] = i;
     }
-    // each channel alone at each value, and at full
+    // each channel alone at each value
     const int count = 3 * samples;
     QVector<quint8> pixels(count * probe->pixelSize());
     QVector<float> values(channels.size(), 0.0f);
@@ -112,7 +110,7 @@ void valueCurvesOf(const KoColorSpace *space, QVector<float> &curves, GLfloat to
     auto at = [&](int c, int k) { return QVector3D(light[(c * samples + k) * 4], light[(c * samples + k) * 4 + 1], light[(c * samples + k) * 4 + 2]); };
     QVector3D column[3];
     for (int c = 0; c < 3; c++) column[c] = at(c, samples - 1);
-    // the curves: how much of its full light a channel has at each value
+    // the curves: a channel's share of its full light at each value
     float maxOff = 0;
     for (int c = 0; c < 3; c++) {
         const float full = QVector3D::dotProduct(column[c], column[c]);
@@ -123,7 +121,7 @@ void valueCurvesOf(const KoColorSpace *space, QVector<float> &curves, GLfloat to
         }
     }
     *linear = maxOff < 1e-3f;
-    // and back: the value of a light, sampled at the light's square root (finer in the dark)
+    // the inverse, sampled at the light's square root (finer in the dark)
     for (int c = 0; c < 3; c++) {
         int k = 0;
         for (int i = 0; i < samples; i++) {
@@ -135,7 +133,7 @@ void valueCurvesOf(const KoColorSpace *space, QVector<float> &curves, GLfloat to
             curves[(samples + i) * 4 + c] = (float(k) + f) / (samples - 1);
         }
     }
-    // the display's light to linear sRGB (column major), and a gray of linear sRGB 1 in the display's light
+    // display light to linear sRGB (column major), and the inverse applied to (1, 1, 1)
     QGenericMatrix<3, 3, float> m;
     for (int c = 0; c < 3; c++) {
         for (int r = 0; r < 3; r++) {
@@ -149,7 +147,6 @@ void valueCurvesOf(const KoColorSpace *space, QVector<float> &curves, GLfloat to
         std::fill(grayInDisplay, grayInDisplay + 3, 1.0f);
         return;
     }
-    // the inverse's rows, each summed: the inverse times (1, 1, 1)
     const float inv[3][3] = {
         {(m(1, 1) * m(2, 2) - m(1, 2) * m(2, 1)) / det, (m(0, 2) * m(2, 1) - m(0, 1) * m(2, 2)) / det, (m(0, 1) * m(1, 2) - m(0, 2) * m(1, 1)) / det},
         {(m(1, 2) * m(2, 0) - m(1, 0) * m(2, 2)) / det, (m(0, 0) * m(2, 2) - m(0, 2) * m(2, 0)) / det, (m(0, 2) * m(1, 0) - m(0, 0) * m(1, 2)) / det},
@@ -180,12 +177,11 @@ public:
     KisShaderProgram *solidColorShader{0};
 
     QScopedPointer<QOpenGLFramebufferObject> canvasFBO;
-    /// Glass over the canvas, blurred from the canvas FBO
     KisOpenGLGlass glass;
 
     bool displayShaderCompiledWithDisplayFilterSupport{false};
 
-    /// The value view's curves (see highq_downscale.frag): of which color space, their texture, its matrices
+    /// The value view's curves texture, the color space it was made for, and its matrices
     const KoColorSpace *valueSpace {nullptr};
     GLuint valueCurves {0};
     GLfloat toLinearSrgb[9] = {};
@@ -273,6 +269,10 @@ KisOpenGLCanvasRenderer::KisOpenGLCanvasRenderer(CanvasBridge *canvasBridge,
 
 KisOpenGLCanvasRenderer::~KisOpenGLCanvasRenderer()
 {
+    // the context is current here (see ~KisOpenGLCanvas2)
+    if (d->valueCurves) {
+        glDeleteTextures(1, &d->valueCurves);
+    }
     delete d;
 }
 
@@ -486,8 +486,7 @@ void KisOpenGLCanvasRenderer::paintCanvasOnly(const QRect &canvasImageDirtyRect,
             d->canvasFBO->bind();
             renderCanvasGL(canvasImageDirtyRect);
             d->canvasFBO->release();
-            // the image changed or moved: the light it casts around it too (see KisOpenGLCanvas2::paintEvent: all of it drawn again then);
-            // none in wrap-around mode, where the image's copies are all around it
+            // the light the image casts around it; none in wrap-around mode, where its copies are all around it
             if (KisStudioGlass::ambientSurround() && d->glass.isValid() && !d->wrapAroundMode) {
                 const qreal ratio = devicePixelRatioF();
                 const QTransform widgetToSurface = QTransform::fromScale(1.0, -1.0) * QTransform::fromTranslate(0, d->pixelAlignedWidgetSize.height())
@@ -520,13 +519,14 @@ void KisOpenGLCanvasRenderer::paintCanvasOnly(const QRect &canvasImageDirtyRect,
 
 bool KisOpenGLCanvasRenderer::drawsGlass() const
 {
-    // blurred from what the canvas drew, without the decorations: kept in the canvas FBO
+    // blurred from the canvas FBO, which has no decorations
     return d->canvasFBO && d->glass.isValid();
 }
 
 void KisOpenGLCanvasRenderer::paintGlass(const QVector<KisStudioGlass::Surface> &surfaces, const QRect &viewportUpdateRect, bool canvasChanged)
 {
-    if (!drawsGlass() || surfaces.isEmpty()) {
+    // called with no surfaces too: the glass must learn the canvas changed
+    if (!drawsGlass()) {
         return;
     }
     const qreal ratio = devicePixelRatioF();
@@ -949,7 +949,7 @@ void KisOpenGLCanvasRenderer::drawImage(const QRect &updateRect)
         widgetRect &= updateRect;
     }
 
-    // the value view: the grays made here, as the image is drawn (see highq_downscale.frag)
+    // the value view's grays are made as the image is drawn (see highq_downscale.frag)
     const int valueLocation = d->displayShader->uniformLocation("valueView");
     const bool valueView = valueLocation >= 0 && KisOpenGLUpdateInfoBuilder::valueView();
     if (valueLocation >= 0) d->displayShader->setUniformValue(valueLocation, GLint(valueView));

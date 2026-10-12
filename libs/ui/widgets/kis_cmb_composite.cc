@@ -244,9 +244,26 @@ void KisCompositeOpComboBox::hidePopup()
     m_allowToHidePopup = true;
 }
 
+bool KisCompositeOpComboBox::isUsable(const QString &id) const
+{
+    const QModelIndex index = m_model->indexOf(KoCompositeOpRegistry::instance().getKoID(id));
+    return index.isValid() && (index.flags() & Qt::ItemIsEnabled);
+}
+
+void KisCompositeOpComboBox::pick(const KoID &op)
+{
+    const QModelIndex index = m_model->indexOf(op);
+    if (!index.isValid()) {
+        return;
+    }
+    setCurrentIndex(index.row());
+    Q_EMIT activated(index.row());
+    Q_EMIT textActivated(op.name());
+}
+
 void KisCompositeOpComboBox::showPopup()
 {
-    // layer styles only allow a fixed subset, the plain list fits them better
+    // layer styles allow only a few modes: the plain list fits them better
     if (m_limitToLayerStyles) {
         KisSqueezedComboBox::showPopup();
         return;
@@ -264,20 +281,8 @@ void KisCompositeOpComboBox::showPopup()
     auto *picker = new KisBlendModePicker(selectedCompositeOp().id(), available, this,
                                           m_pictures ? m_pictures() : KisBlendModePicker::Pictures());
     connect(picker, &KisBlendModePicker::previewed, this, &KisCompositeOpComboBox::sigPreviewBlendMode);
-    connect(picker, &KisBlendModePicker::picked, this, [this](const KoID &op) {
-        /**
-         * Always report the pick, even when the box already shows this mode:
-         * during the preview the layers panel may have synced the box to it,
-         * while the layer itself is already back to its original mode.
-         */
-        const QModelIndex index = m_model->indexOf(op);
-        if (!index.isValid()) {
-            return;
-        }
-        setCurrentIndex(index.row());
-        Q_EMIT activated(index.row());
-        Q_EMIT textActivated(op.name());
-    });
+    // reported even when the box shows it already: the preview may have synced the box, not the layer
+    connect(picker, &KisBlendModePicker::picked, this, &KisCompositeOpComboBox::pick);
     picker->popupBelow(this);
 }
 
@@ -423,19 +428,14 @@ void KisCompositeOpComboBox::slotLuminosity()
 
 void KisCompositeOpComboBox::selectNeighbouringBlendMode(bool down)
 {
-    /**
-     * Through your modes in your order first, then on into all the others;
-     * no wrapping around, so that up always heads back to your first ones.
-     */
+    // your modes first, then the others; no wrapping, so that up always heads back to your first ones
     if (!m_limitToLayerStyles) {
         const QStringList order = KisBlendModePicker::scrollOrder();
         const int position = order.indexOf(selectedCompositeOp().id());
         if (position >= 0) {
             for (int i = position + (down ? 1 : -1); i >= 0 && i < order.size(); i += down ? 1 : -1) {
-                const KoID op = KoCompositeOpRegistry::instance().getKoID(order[i]);
-                const QModelIndex index = m_model->indexOf(op);
-                if (index.isValid() && (index.flags() & Qt::ItemIsEnabled)) {
-                    selectCompositeOp(op);
+                if (isUsable(order[i])) {
+                    selectCompositeOp(KoCompositeOpRegistry::instance().getKoID(order[i]));
                     return;
                 }
             }
@@ -486,7 +486,7 @@ void KisCompositeOpComboBox::mousePressEvent(QMouseEvent *e)
         KisSqueezedComboBox::mousePressEvent(e);
         return;
     }
-    // the picker opens on the release, unless this turns into a scrub
+    // the picker opens on the release, unless this becomes a scrub
     m_pressed = true;
     m_scrubbing = false;
     m_pressPos = e->pos();
@@ -502,7 +502,7 @@ void KisCompositeOpComboBox::mouseMoveEvent(QMouseEvent *e)
     const QPoint delta = e->pos() - m_pressPos;
     const QStringList order = KisBlendModePicker::scrollOrder();
     if (!m_scrubbing) {
-        // a scrub as soon as the pointer is clearly going sideways: a few pixels, not a drag's distance twice
+        // a scrub as soon as the pointer clearly goes sideways
         if (qAbs(delta.x()) < qMax(3, QApplication::startDragDistance() / 2) || qAbs(delta.x()) < qAbs(delta.y())) {
             return;
         }
@@ -511,14 +511,12 @@ void KisCompositeOpComboBox::mouseMoveEvent(QMouseEvent *e)
         m_scrubId.clear();
         setCursor(Qt::SizeHorCursor);
     }
-    // one mode per step of the pointer, through yours and on into the others, no wrapping; the first
-    // half a step from the press, so that it comes as soon as the ones after it
+    // a mode per step, in the order of scrolling; the first half a step from the press
     constexpr int step = 18;
     int target = qBound(0, m_scrubStart + qRound(qreal(delta.x()) / step), order.size() - 1);
     const int direction = delta.x() >= 0 ? 1 : -1;
-    for (; target >= 0 && target < order.size(); target += direction) {
-        const QModelIndex index = m_model->indexOf(KoCompositeOpRegistry::instance().getKoID(order[target]));
-        if (index.isValid() && (index.flags() & Qt::ItemIsEnabled)) break;
+    while (target >= 0 && target < order.size() && !isUsable(order[target])) {
+        target += direction;
     }
     if (target < 0 || target >= order.size() || order[target] == m_scrubId) {
         return;
@@ -543,18 +541,11 @@ void KisCompositeOpComboBox::mouseReleaseEvent(QMouseEvent *e)
         if (m_scrubId.isEmpty()) {
             return;
         }
-        // the preview ends, the mode it ended on is picked
         Q_EMIT sigPreviewBlendMode(QString());
-        const KoID op = KoCompositeOpRegistry::instance().getKoID(m_scrubId);
-        const QModelIndex index = m_model->indexOf(op);
-        if (index.isValid()) {
-            setCurrentIndex(index.row());
-            Q_EMIT activated(index.row());
-            Q_EMIT textActivated(op.name());
-        }
+        pick(KoCompositeOpRegistry::instance().getKoID(m_scrubId));
         return;
     }
-    // a click; not after a long press, which ends with a release far away
+    // a click, not a press that ended elsewhere
     if (rect().contains(e->pos())) {
         showPopup();
     }
@@ -562,7 +553,7 @@ void KisCompositeOpComboBox::mouseReleaseEvent(QMouseEvent *e)
 
 void KisCompositeOpComboBox::wheelEvent(QWheelEvent *e)
 {
-    // scrolling over the box steps through your modes, then the others, like the shortcuts
+    // your modes, then the others, like the shortcuts
     if (!m_limitToLayerStyles) {
         const int steps = KisModernStyle::wheelSteps(e, this);
         for (int i = 0; i < qAbs(steps); i++) {

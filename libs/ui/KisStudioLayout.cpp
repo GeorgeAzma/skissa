@@ -6,88 +6,88 @@
 #include "KisStudioLayout.h"
 
 #include <QAbstractButton>
+#include <QAction>
+#include <QApplication>
+#include <QDockWidget>
+#include <QFileInfo>
+#include <QFrame>
+#include <QHBoxLayout>
+#include <QHash>
+#include <QKeyEvent>
+#include <QMdiArea>
+#include <QMdiSubWindow>
+#include <QMenu>
+#include <QMenuBar>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPointer>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QSet>
+#include <QSplitter>
+#include <QSplitterHandle>
+#include <QStatusBar>
+#include <QStyleOptionToolButton>
+#include <QStylePainter>
+#include <QTabletEvent>
+#include <QTimer>
+#include <QToolBar>
+#include <QToolButton>
+#include <QVBoxLayout>
+#include <QVariantAnimation>
+#include <QWheelEvent>
+#include <QWidgetAction>
+#include <QWindow>
+
+#include <cmath>
+#include <functional>
+
 #include <KoCanvasController.h>
 #include <KoToolFactoryBase.h>
 #include <KoToolManager.h>
 #include <KoToolRegistry.h>
-#include <QAction>
-#include <cmath>
-#include <QFileInfo>
-#include <QApplication>
-#include <QDockWidget>
-#include <QFrame>
-#include <QHBoxLayout>
-#include <QVBoxLayout>
-
-#include <functional>
-#include <QHash>
-#include <QKeyEvent>
-#include <QMenu>
-#include <QMdiArea>
-#include <QMdiSubWindow>
-#include <QStatusBar>
-#include <QMenuBar>
-#include <QMouseEvent>
-#include <QTabletEvent>
-#include <QWheelEvent>
-#include <QVariantAnimation>
-#include <QPainter>
-#include <QPointer>
-#include <QScrollArea>
-#include <QScrollBar>
-#include <QSplitter>
-#include <QSplitterHandle>
-#include <QSet>
-#include <QStyleOptionToolButton>
-#include <QStylePainter>
-#include <QTimer>
-#include <QWindow>
-#include <QToolBar>
-#include <QToolButton>
-#include <QWidgetAction>
-
+#include <filter/kis_filter.h>
+#include <filter/kis_filter_configuration.h>
 #include <kactioncollection.h>
 #include <klocalizedstring.h>
 
 #include "KisDocument.h"
 #include "KisMainWindow.h"
-#include "KisStudioMotion.h"
-#include "KisStudioBrushMemory.h"
-#include "KisStudioCanvasRing.h"
-#include "KisStudioBrushPicker.h"
-#include "KisStudioEffectsPicker.h"
-#include "KisStudioPanelPicker.h"
-#include "KisSettingsRegistry.h"
-#include "KisStudioSettings.h"
-#include "KisStudioGlass.h"
-#include <QPainterPath>
-#include "KisView.h"
-#include "canvas/kis_canvas2.h"
+#include "KisModernStyle.h"
 #include "KisResourceServerProvider.h"
+#include "KisSettingsRegistry.h"
+#include "KisStudioBrushMemory.h"
+#include "KisStudioBrushPicker.h"
 #include "KisStudioCanvasHud.h"
+#include "KisStudioCanvasRing.h"
 #include "KisStudioColorPanel.h"
 #include "KisStudioEffectOverlay.h"
+#include "KisStudioEffectsPicker.h"
 #include "KisStudioFind.h"
-#include "kis_filter_manager.h"
-#include <filter/kis_filter.h>
-#include <filter/kis_filter_configuration.h>
+#include "KisStudioGlass.h"
 #include "KisStudioItemCard.h"
+#include "KisStudioMotion.h"
+#include "KisStudioPanelPicker.h"
 #include "KisStudioScrubber.h"
+#include "KisStudioSettings.h"
+#include "KisStudioToolRail.h"
 #include "KisStudioToolStrip.h"
 #include "KisStudioWindowFrame.h"
-#include "KisWelcomePageWidget.h"
-#include "kis_selection_actions_panel_button.h"
-#include "kis_canvas_resource_provider.h"
-#include "canvas/kis_canvas_controller.h"
-#include "KisStudioToolRail.h"
+#include "KisTouchMode.h"
+#include "KisView.h"
 #include "KisViewManager.h"
+#include "KisWelcomePageWidget.h"
+#include "canvas/kis_canvas2.h"
+#include "canvas/kis_canvas_controller.h"
+#include "kis_canvas_resource_provider.h"
+#include "kis_config.h"
+#include "kis_filter_manager.h"
+#include "kis_icon_utils.h"
 #include "kis_paintop_box.h"
+#include "kis_selection_actions_panel_button.h"
 #include "kis_slider_spin_box.h"
 #include "kis_workspace_resource.h"
-#include "KisModernStyle.h"
-#include "KisTouchMode.h"
-#include "kis_config.h"
-#include "kis_icon_utils.h"
 
 namespace {
 
@@ -96,32 +96,29 @@ const QString toolBoxId = QStringLiteral("ToolBox");
 const QString activeKey = QStringLiteral("StudioLayoutActive");
 const QString panelsKey = QStringLiteral("StudioLayoutPanels");
 const QString pinnedKey = QStringLiteral("StudioLayoutPinnedPanels");
-/// Pinned panels on the left of the canvas instead of the right
+/// Older configs: the pinned panels on the left of the canvas
 const QString leftKey = QStringLiteral("StudioLayoutLeftPanels");
-/// How close to the canvas edge a dropped panel button pins its panel there
-const int leftDropZone = 140;
-/// The heights of pinned panels, as "id=height", so that a short panel stays short
+/// How close to the canvas edge a dropped panel is pinned there
+const int edgeDropZone = 140;
+/// "id=height" of pinned panels
 const QString heightsKey = QStringLiteral("StudioLayoutPanelHeights");
 const QString foldedKey = QStringLiteral("StudioLayoutFoldedPanels");
-/// How wide the pill of pinned panels is, and on which side of the canvas ("left" or "right")
 const QString columnWidthKey = QStringLiteral("StudioLayoutPanelWidth");
+/// "left" or "right"
 const QString panelSideKey = QStringLiteral("StudioLayoutPanelSide");
-/// The side of the canvas the tool rail is on ("left" or "right")
 const QString toolRailSideKey = QStringLiteral("StudioLayoutToolRailSide");
-/// Hidden by a tap on their grip: the pinned panels (the strip stays), the tools of the rail, the top bar
 const QString panelsHiddenKey = QStringLiteral("StudioLayoutPanelsTucked");
 const QString toolRailHiddenKey = QStringLiteral("StudioLayoutToolRailTucked");
 const QString topBarHiddenKey = QStringLiteral("StudioLayoutTopBarTucked");
 const QString classicStateKey = QStringLiteral("StudioLayoutClassicState");
 
-/// The panels that get a button on the rail; "+" on the rail adds any other
+/// The panels on the rail by default; the tool options open from the tool chip instead
 QStringList defaultRailPanels()
 {
     return {
         QStringLiteral("KisLayerBox"),
         QStringLiteral("PresetDocker"),
         QStringLiteral("StudioColor"),
-        // not the tool options: the tool chip in the top bar opens them where the tool is
         QStringLiteral("PaletteDocker"),
         QStringLiteral("History"),
     };
@@ -151,12 +148,7 @@ QString railIconName(const QString &id)
     return icons.value(id);
 }
 
-/**
- * The top edge of a panel, where its title was: drag it to move the panel,
- * between others, to the other side of the canvas, or onto the canvas to
- * unpin it; right click it for the panel's card. A faint line says it can
- * be grabbed, stronger under the pointer.
- */
+/// A panel's title bar: dragged it moves the panel, clicked it folds it, right clicked it shows its card
 class PanelGrip : public QWidget
 {
 public:
@@ -174,7 +166,7 @@ public:
         fit();
     }
 
-    /// Folded: the panel shows only this, with its name
+    /// Folded, the panel is only this grip, with its name
     void setFolded(bool folded, const QString &title)
     {
         m_folded = folded;
@@ -190,10 +182,9 @@ public:
 protected:
     void fit()
     {
-        // a finger needs more to hold on to; folded, the name needs a line
+        // a finger needs more to hold on to
         const bool touch = KisTouchMode::isActive();
         setFixedHeight(m_folded ? (touch ? 32 : 22) : (touch ? 22 : 10));
-        // folded, the panel is only this
         auto *dock = qobject_cast<QDockWidget *>(parentWidget());
         if (m_folded && dock) dock->setMaximumHeight(height());
     }
@@ -204,7 +195,6 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
         QColor ink = palette().color(QPalette::WindowText);
         if (m_folded) {
-            // the name: a click unfolds it
             ink.setAlphaF(underMouse() ? 0.85 : 0.6);
             QFont font = this->font();
             font.setPointSizeF(font.pointSizeF() * 0.9);
@@ -256,7 +246,6 @@ protected:
         m_dragging = false;
         setCursor(Qt::OpenHandCursor);
         update();
-        // the panel may be rearranged, and this grip with it: after the release is delivered
         if (dropped) dropped(globalMousePos(event));
     }
 
@@ -274,19 +263,15 @@ private:
     QString m_title;
 };
 
-/// Where a dragged panel would go: a place in the column on one side, or none (the canvas)
+/// Where a dragged panel would go: into the column, or (column false) onto the canvas
 struct PanelDrop {
     bool column {false};
     bool left {false};
-    QString before;      ///< the panel it goes above; empty for the bottom of the column
+    QString before;      ///< the panel it goes above; empty for the bottom
     QRect indicator;     ///< in main window coordinates
 };
 
-/**
- * The first thing in the top bar: which tool the bar is about; a click opens
- * that tool's options. The rail shows the slot, this shows the variant
- * ("Contiguous Selection").
- */
+/// The active tool's name and icon at the start of the top bar; a click opens its options
 class ToolChip : public QToolButton
 {
 public:
@@ -303,7 +288,7 @@ public:
     QSize sizeHint() const override
     {
         const int icon = iconSize().width();
-        // painted by hand, so without the mnemonic the accelerator manager adds
+        // painted without the mnemonic the accelerator manager adds
         const QString label = QString(text()).remove(QLatin1Char('&'));
         return QSize(padding + icon + gap + fontMetrics().horizontalAdvance(label) + padding,
                      qMax(28, icon + 8));
@@ -332,11 +317,7 @@ private:
     static constexpr int gap = 6;
 };
 
-/**
- * The colors in use, large enough to read at a glance: the foreground as a
- * big disc, the background behind it. Clicking the foreground opens the
- * color panel, clicking the background swaps the two.
- */
+/// The foreground color over the background one: a click opens the color panel, on the background it swaps them
 class ColorChip : public QWidget
 {
 public:
@@ -394,32 +375,11 @@ private:
     QColor m_background {Qt::white};
 };
 
-/// The document's name, and every open document a click away
-class DocumentButton : public QToolButton
-{
-public:
-    explicit DocumentButton(QWidget *parent) : QToolButton(parent)
-    {
-        setAutoRaise(true);
-        setFocusPolicy(Qt::NoFocus);
-        setToolButtonStyle(Qt::ToolButtonTextOnly);
-        setPopupMode(QToolButton::InstantPopup);
-        setToolTip(i18nc("@info:tooltip", "Open documents"));
-        setObjectName(QStringLiteral("studio_documents"));
-    }
-};
-
-/**
- * The tools float over the canvas instead of taking a column of it: a panel
- * in the top left corner, as tall as what is in it. Empty, it is only a "+".
- */
-/// What lies over the canvas area's left and right edges (the pinned panels), for what is placed in it to keep clear of
+/// Properties of the canvas area: how far the pinned panels and the top pills cover its edges
 const char *const leftInsetProperty = "studioCanvasLeftInset";
 const char *const rightInsetProperty = "studioCanvasRightInset";
-
-/// How far the pills over the top of the canvas reach down: what is on the sides starts under them
 const char *const topInsetProperty = "studioCanvasTopInset";
-/// A pill whose empty space (and grip) moves the window, as a title bar
+/// On a widget whose empty space moves the window, as a title bar
 const char *const captionProperty = "studioCaption";
 
 QMargins canvasInsets(const QWidget *canvasArea)
@@ -433,7 +393,17 @@ QMargins canvasInsets(const QWidget *canvasArea)
 const char *const leftPillProperty = "studioPanelPillLeft";
 const char *const rightPillProperty = "studioPanelPillRight";
 
-/// What a dragged pill or rail is held by: a grip line; the pointer goes through to what holds it
+/// \p widget as glass with a rim of \p rim opacity
+void paintGlass(QPainter &painter, QWidget *widget, qreal radius, qreal rim)
+{
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QPainterPath shape = KisStudioGlass::paint(painter, widget, QRectF(widget->rect()).adjusted(0.5, 0.5, -0.5, -0.5), radius);
+    QColor border = widget->palette().color(QPalette::WindowText);
+    border.setAlphaF(rim);
+    KisStudioGlass::paintBorder(painter, widget, shape, border);
+}
+
+/// Six dots a pill or rail is dragged by; the mouse events go to its parent
 class DragGrip : public QWidget
 {
 public:
@@ -454,11 +424,7 @@ protected:
         ink.setAlphaF(underMouse() ? 0.6 : 0.3);
         painter.setPen(Qt::NoPen);
         painter.setBrush(ink);
-        /**
-         * Six dots, held and dragged (a line would read as a minus): three
-         * along the longer side, two across, as a handle is held. Each on a
-         * pixel's middle, so that all six look alike and none blurs.
-         */
+        // three along the longer side, two across; each on a pixel's middle so that none blurs
         const bool upright = height() > width();
         const int along = 3, across = 2;
         const qreal pitch = 5.0;
@@ -480,20 +446,15 @@ protected:
 };
 
 /**
- * The top bar's grip. Not a part of the title bar for the system (whose
- * clicks Qt never sees): a drag moves the window, a tap hides the bar (or
- * shows it again), a double click maximizes the window.
+ * The top bar's grip: a drag moves the window, a tap tucks the bar away, a
+ * double click maximizes. Not a system caption, whose clicks Qt never sees.
  */
 class TopGrip : public DragGrip
 {
 public:
     std::function<void()> tapped;
 
-    explicit TopGrip(QWidget *parent)
-        : DragGrip(parent)
-    {
-        setProperty("studioTapGrip", true);
-    }
+    using DragGrip::DragGrip;
 
 protected:
     void mousePressEvent(QMouseEvent *event) override
@@ -513,7 +474,6 @@ protected:
         if ((globalMousePos(event) - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
         m_pressed = false;
         QWidget *top = window();
-        // the system moves the window, as by a title bar (a full screen one stays)
         if (!top->isFullScreen() && top->windowHandle()) top->windowHandle()->startSystemMove();
     }
 
@@ -525,14 +485,14 @@ protected:
             m_doubleClicked = false;
             return;
         }
-        // at once, not after waiting to see whether a second click comes
+        // at once, without waiting for a second click
         if (rect().contains(event->pos()) && tapped) tapped();
     }
 
     void mouseDoubleClickEvent(QMouseEvent *event) override
     {
         if (event->button() != Qt::LeftButton) return;
-        // the first click's tap taken back
+        // undoes the first click's tap
         if (tapped) tapped();
         m_pressed = true;
         m_doubleClicked = true;
@@ -548,7 +508,7 @@ private:
     bool m_doubleClicked {false};
 };
 
-/// Between two pinned panels: nothing drawn, the glass shows; dragged, it shares their heights
+/// Between two pinned panels: invisible, the glass shows through
 class PanelSplitterHandle : public QSplitterHandle
 {
 public:
@@ -575,13 +535,12 @@ protected:
     }
 };
 
-
+/// The tool rail over the canvas's side, as tall as its tools
 class RailOverlay : public QWidget
 {
 public:
     /// Dragged by its grip and let go nearer the other side of the canvas
     std::function<void(bool left)> moved;
-    /// Its grip tapped: its tools hidden, or shown again
     std::function<void()> tapped;
 
     explicit RailOverlay(QWidget *canvasArea)
@@ -589,10 +548,8 @@ public:
     {
         setObjectName(QStringLiteral("studioToolRail"));
         auto *layout = new QVBoxLayout(this);
-        // a little room over the grip, under the rail's round top
         layout->setContentsMargins(3, 4, 3, 6);
         layout->setSpacing(6);
-        // follows its contents: adding a tool makes it taller, removing one shorter
         layout->setSizeConstraint(QLayout::SetFixedSize);
         m_grip = new DragGrip(this);
         layout->addWidget(m_grip);
@@ -606,7 +563,7 @@ public:
         place();
     }
 
-    /// Only its grip, as wide as the rail was; or all of it
+    /// Tucked, only its grip shows, as wide as the rail was
     void setTucked(bool tucked)
     {
         if (tucked && !m_tucked) m_grip->setFixedWidth(qMax(m_grip->width(), 30));
@@ -627,7 +584,7 @@ public:
     void place()
     {
         if (m_moving) return;
-        // beside the pinned panels' pill, if it is on the same side
+        // beside the pinned panels' pill and under the top pills
         QWidget *area = parentWidget();
         const int top = area->property(topInsetProperty).toInt();
         const int y = top > 0 ? top + 6 : 10;
@@ -651,7 +608,7 @@ protected:
 
     void mousePressEvent(QMouseEvent *event) override
     {
-        // by the grip (or between the tools): the rail follows the pointer, across the canvas
+        // by the grip or between the tools: the rail follows the pointer
         if (event->button() == Qt::LeftButton) {
             m_moving = true;
             m_grab = event->pos().x();
@@ -681,7 +638,6 @@ protected:
         m_moving = false;
         unsetCursor();
         if (m_onGrip && (globalMousePos(event) - m_pressPos).manhattanLength() < QApplication::startDragDistance()) {
-            // a tap on the grip, not a drag
             place();
             if (tapped) tapped();
             return;
@@ -694,12 +650,7 @@ protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        // glass: the canvas under it still shows
-        const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14);
-        QColor border = palette().color(QPalette::WindowText);
-        border.setAlphaF(m_moving ? 0.3 : 0.12);
-        KisStudioGlass::paintBorder(painter, this, shape, border);
+        paintGlass(painter, this, 14, m_moving ? 0.3 : 0.12);
     }
 
 private:
@@ -713,10 +664,9 @@ private:
 };
 
 /**
- * A pill of glass over the top of the canvas, as long as what is in it:
- * the tool, its options and the brush's (on the left), or the document,
- * Find and the window's buttons (on the right). The canvas goes on under
- * it; its grip and its empty space move the window, as a title bar would.
+ * A glass pill over the top of the canvas, as long as its contents: the tool
+ * and brush bars on the left, or the window's buttons on the right. Its empty
+ * space moves the window, as a title bar would.
  */
 class TopPill : public QWidget
 {
@@ -732,15 +682,13 @@ public:
         auto *layout = new QHBoxLayout(this);
         layout->setContentsMargins(right ? 4 : 3, 1, 4, 1);
         layout->setSpacing(0);
-        // as long as what is in it: a tool with more options makes it longer
         layout->setSizeConstraint(QLayout::SetFixedSize);
         if (!right) {
             m_grip = new TopGrip(this);
-            // upright, in the pill's round end
             m_grip->setFixedSize(22, 30);
             layout->addWidget(m_grip);
         }
-        // what it holds, hidden at once when the pill is tucked away to its grip
+        // hidden when the pill is tucked away to its grip
         m_contents = new QWidget(this);
         auto *contents = new QHBoxLayout(m_contents);
         contents->setContentsMargins(0, 0, 0, 0);
@@ -762,7 +710,6 @@ public:
     QWidget *contents() const { return m_contents; }
     TopGrip *grip() const { return m_grip; }
 
-    /// Only the grip; or all of it
     void setTucked(bool tucked)
     {
         m_contents->setVisible(!tucked);
@@ -779,7 +726,7 @@ public:
         raise();
     }
 
-    /// Room left of it (the window's handle in the corner)
+    /// Room on its left for the window handle
     void setLeftInset(int inset)
     {
         if (inset == m_leftInset) return;
@@ -787,11 +734,7 @@ public:
         place();
     }
 
-    /**
-     * Its size, or whether it is shown, changed: what is under it (the tool
-     * rail, the pinned panels) moves. Its layout sizes it only once it is
-     * laid out, after it is first placed.
-     */
+    /// Resized, shown or hidden: what is placed under it moves
     std::function<void()> changed;
 
 protected:
@@ -825,11 +768,7 @@ protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12);
-        QColor border = palette().color(QPalette::WindowText);
-        border.setAlphaF(0.12);
-        KisStudioGlass::paintBorder(painter, this, shape, border);
+        paintGlass(painter, this, 12, 0.12);
     }
 
 private:
@@ -839,12 +778,7 @@ private:
     QWidget *m_contents {nullptr};
 };
 
-/**
- * The window's handle, in the top left corner: what a title bar is to the
- * system there (dragged, the window moves and snaps; double clicked, it is
- * maximized; right clicked, the window's menu), with no title bar. Over the
- * tool rail, as wide as it: the rail's cap, between it and the top bar.
- */
+/// A system caption in the top left corner, with the application's icon: the tool rail's cap
 class WindowHandle : public QWidget
 {
 public:
@@ -860,12 +794,7 @@ protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12);
-        QColor border = palette().color(QPalette::WindowText);
-        border.setAlphaF(0.12);
-        KisStudioGlass::paintBorder(painter, this, shape, border);
-        // the application's mark: whose window this is
+        paintGlass(painter, this, 12, 0.12);
         const int side = qMin(20, qMin(width(), height()) - 12);
         painter.setOpacity(0.85);
         QApplication::windowIcon().paint(&painter, QRect(QPoint(), QSize(side, side)).translated(rect().center() - QPoint(side / 2, side / 2)));
@@ -876,7 +805,7 @@ protected:
 class PillButton : public QAbstractButton
 {
 public:
-    /// A right click (or a long press) on it
+    /// A right click or a long press
     std::function<void()> contextClicked;
 
     PillButton(const QString &iconName, const QString &toolTip, QWidget *parent)
@@ -895,9 +824,8 @@ protected:
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        const QPalette &pal = palette();
         if (underMouse()) {
-            QColor background = pal.color(QPalette::ButtonText);
+            QColor background = palette().color(QPalette::ButtonText);
             background.setAlphaF(0.09);
             painter.setPen(Qt::NoPen);
             painter.setBrush(background);
@@ -924,27 +852,23 @@ private:
 } // namespace
 
 /**
- * The pinned panels, over an edge of the canvas: a pill of glass, as the
- * rail, the canvas going on under it and showing through. On top is the
- * strip of panel buttons; with no panel shown, the pill is only that.
- * Dragged by the strip, it goes to the other side of the canvas; dragging
- * between two panels shares their heights; dragging the inner edge makes
- * it wider or narrower.
+ * The pinned panels in a glass pill over an edge of the canvas, under the
+ * strip of panel buttons. Dragged by the strip it switches sides; its inner
+ * edge sets its width.
  */
 class KisStudioPanelColumn : public QWidget
 {
 public:
     /// From the canvas area's edges
     static constexpr int margin = 6;
-    /// The inner edge, that is dragged
+    /// The dragged inner edge
     static constexpr int edge = 5;
     static constexpr int minimumColumnWidth = 220;
 
-    /// Placed again (moved, made wider or narrower), or its width dragged and let go (\p done)
+    /// Its geometry changed; \p done once a width drag is let go
     std::function<void(bool done)> resized;
     /// Dragged by its strip and let go nearer the other side of the canvas
     std::function<void(bool left)> moved;
-    /// Its strip tapped (not on a button): the panels hidden, or shown again
     std::function<void()> tapped;
 
     KisStudioPanelColumn(QWidget *canvasArea, bool left, int width)
@@ -959,12 +883,7 @@ public:
         m_layout->addWidget(m_splitter);
         updateMargins();
         setMouseTracking(true);
-        /**
-         * The inner edge, dragged: a widget of its own with its own cursor. Set
-         * on the column itself, the cursor was the panels' too (a child takes
-         * its parent's), and stayed on them when the pointer went from the
-         * edge straight onto one (it never left the column).
-         */
+        // a widget of its own: a cursor set on the column would be the panels' too
         m_grip = new QWidget(this);
         m_grip->setObjectName(QStringLiteral("studioPanelsEdge"));
         m_grip->setCursor(Qt::SizeHorCursor);
@@ -978,7 +897,6 @@ public:
     int columnWidth() const { return m_width; }
     bool isLeft() const { return m_left; }
 
-    /// The strip of panel buttons, on top
     void setStrip(QWidget *strip)
     {
         if (m_strip == strip) return;
@@ -994,7 +912,7 @@ public:
         placeGrip();
     }
 
-    /// The panels under the strip shown, or only the strip
+    /// The panels under the strip, or only the strip
     void setPanelsShown(bool shown)
     {
         m_splitter->setVisible(shown);
@@ -1012,7 +930,7 @@ public:
         return docks;
     }
 
-    /// Takes in \p docks, in this order, each shown or hidden as it was (the others are taken away by whoever wants them)
+    /// Takes \p docks in this order, each keeping its visibility
     void setPanels(const QList<QDockWidget *> &docks)
     {
         for (int i = 0; i < docks.size(); i++) {
@@ -1086,7 +1004,6 @@ protected:
                 break;
             case QEvent::MouseMove:
                 if (m_resizing) {
-                    // the inner edge follows the pointer
                     const QWidget *area = parentWidget();
                     const int x = area->mapFromGlobal(globalMousePos(static_cast<QMouseEvent *>(event))).x();
                     m_width = qBound(minimumColumnWidth, m_left ? x - margin : area->width() - margin - x,
@@ -1126,42 +1043,33 @@ protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12);
-        QColor border = palette().color(QPalette::WindowText);
-        border.setAlphaF(m_resizing || m_moving ? 0.3 : 0.12);
-        KisStudioGlass::paintBorder(painter, this, shape, border);
+        paintGlass(painter, this, 12, m_resizing || m_moving ? 0.3 : 0.12);
     }
 
     void mousePressEvent(QMouseEvent *event) override
     {
-        if (event->button() != Qt::LeftButton) {
+        // by the strip, the pill follows the pointer
+        if (event->button() != Qt::LeftButton || !m_strip || event->pos().y() > m_strip->geometry().bottom()) {
             QWidget::mousePressEvent(event);
             return;
         }
-        if (m_strip && event->pos().y() <= m_strip->geometry().bottom()) {
-            // by the strip: the pill follows the pointer, across the canvas
-            m_moving = true;
-            m_grab = event->pos().x();
-            m_pressPos = globalMousePos(event);
-            setCursor(Qt::ClosedHandCursor);
-        } else {
-            QWidget::mousePressEvent(event);
-            return;
-        }
+        m_moving = true;
+        m_grab = event->pos().x();
+        m_pressPos = globalMousePos(event);
+        setCursor(Qt::ClosedHandCursor);
         update();
         event->accept();
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        const QWidget *area = parentWidget();
-        const int x = area->mapFromGlobal(globalMousePos(event)).x();
-        if (m_moving) {
-            move(qBound(margin, x - m_grab, qMax(margin, area->width() - margin - width())), y());
+        if (!m_moving) {
+            QWidget::mouseMoveEvent(event);
             return;
         }
-        QWidget::mouseMoveEvent(event);
+        const QWidget *area = parentWidget();
+        const int x = area->mapFromGlobal(globalMousePos(event)).x();
+        move(qBound(margin, x - m_grab, qMax(margin, area->width() - margin - width())), y());
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override
@@ -1170,26 +1078,21 @@ protected:
             QWidget::mouseReleaseEvent(event);
             return;
         }
-        if (m_moving && (globalMousePos(event) - m_pressPos).manhattanLength() < QApplication::startDragDistance()) {
-            // a tap on the strip, not a drag
-            m_moving = false;
-            unsetCursor();
+        m_moving = false;
+        unsetCursor();
+        update();
+        if ((globalMousePos(event) - m_pressPos).manhattanLength() < QApplication::startDragDistance()) {
             place();
-            update();
             if (tapped) tapped();
             return;
         }
-        m_moving = false;
-        unsetCursor();
-        // the side it was let go nearer to
         const bool left = x() + width() / 2 < parentWidget()->width() / 2;
         if (left != m_left && moved) moved(left);
         else place();
-        update();
     }
 
 private:
-    /// The edge's grip over the inner edge, there only with the panels
+    /// Over the inner edge, only when the panels are shown
     void placeGrip()
     {
         m_grip->setGeometry(m_left ? width() - edge : 0, 0, edge, height());
@@ -1215,15 +1118,9 @@ private:
 };
 
 /**
- * A panel opened over the canvas: glass, the canvas under it showing
- * through. In the main window over the canvas, as the pinned panels are (a
- * window of its own could not show what renders on the GPU, QML panels: on
- * Windows a see-through window is drawn on the CPU), and over all that is
- * over the canvas: a child of the main window, not of the canvas area, where
- * the pills and rails raise themselves as they are placed.
- * Not a floating dock: the window keeps the state of its docks, a floating
- * one too, and restoring a floating panel crashes. The panel is taken out of
- * its column while it is here, and put back after.
+ * An unpinned panel opened over the canvas, in glass. A child of the main
+ * window, over the pills: a window of its own could not show QML panels, and
+ * a floating dock would be saved with the window state (restoring one crashes).
  */
 class FlyoutWindow : public QWidget
 {
@@ -1239,8 +1136,6 @@ public:
         layout->setSpacing(0);
     }
 
-    QDockWidget *panel() const { return m_panel; }
-
     void hold(QDockWidget *dock)
     {
         m_panel = dock;
@@ -1249,27 +1144,21 @@ public:
         dock->show();
     }
 
-    /// The panel let go of, see-through no more; still a child of this window until put somewhere else
-    QDockWidget *release()
+    /// Lets go of the panel, which stays a child of this window until docked elsewhere
+    void release()
     {
-        QDockWidget *dock = m_panel;
-        m_panel = nullptr;
-        if (dock) {
-            layout()->removeWidget(dock);
-            KisStudioGlass::setSeeThrough(dock, false);
+        if (m_panel) {
+            layout()->removeWidget(m_panel);
+            KisStudioGlass::setSeeThrough(m_panel, false);
         }
-        return dock;
+        m_panel = nullptr;
     }
 
 protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12);
-        QColor border = palette().color(QPalette::WindowText);
-        border.setAlphaF(0.14);
-        KisStudioGlass::paintBorder(painter, this, shape, border);
+        paintGlass(painter, this, 12, 0.14);
     }
 
 private:
@@ -1281,33 +1170,34 @@ struct KisStudioLayout::Private
     KisMainWindow *mainWindow {nullptr};
     bool active {false};
 
+    /// The strip of panel buttons heading the pinned panels
     QPointer<QToolBar> rail;
-    /// The tool rail over the canvas, with the color chip under its tools
+    QPointer<QToolButton> addPanelButton;
+    /// The tool rail, with the color chip under its tools
     QPointer<QWidget> brushRail;
+    QPointer<KisStudioToolRail> toolRail;
     QPointer<QWidget> windowHandle;
-    /// The tool's bar (its chip, its options, size and opacity), in the top pill
+    /// The tool chip, its options, size and opacity
     QPointer<QToolBar> topBar;
     QPointer<QWidget> findField;
     QPointer<QAction> findFieldAction;
-    /// Before Find: the menu (what the menu bar had) and Settings
     QPointer<QWidget> menuButton;
     QPointer<QAction> menuButtonAction;
     QPointer<QWidget> settingsButton;
     QPointer<QAction> settingsButtonAction;
-    /// Settings, under its button
     QPointer<KisStudioSettings> settings;
-    /// The toolbar the find field and document button were put on
+    QPointer<QMenu> mainMenu;
+    /// The brush bar whose menu buttons were made to open on a long press, and those buttons
     QPointer<QToolBar> placedOnBar;
-    /// Toolbar entries that duplicate the top bar's scrubbers, hidden while active
+    QList<QPointer<QToolButton>> delayedPopups;
+    /// Toolbar entries that duplicate the top bar's scrubbers
     QList<QPointer<QAction>> hiddenToolbarActions;
     /// Toolbar entries shown only for the tools they matter to
     QList<QPointer<QAction>> contextActions;
-    /// Toolbars that only duplicate the main menu or shortcuts, hidden while active
+    /// Toolbars that only duplicate the main menu or shortcuts
     QList<QPointer<QToolBar>> hiddenToolBars;
-    QSet<QString> leftPanels;
-    /// The order and sides the pinned panels were last arranged in, so that it is only redone when it changed
+    /// The side and order the pinned panels were last arranged in
     QString arrangement;
-    /// The panels on the rail, in order
     QStringList railPanels;
     QHash<QString, QAction *> railActions;
     /// Rail buttons are inserted in front of it
@@ -1322,33 +1212,59 @@ struct KisStudioLayout::Private
         int targetIndex {-1};
     } railDrag;
     QPointer<QFrame> dropIndicator;
-    /// Where a panel dragged by its grip or rail button would go, beside the canvas
+    /// Where a dragged panel would go beside the canvas
     QPointer<QFrame> panelIndicator;
 
-    /// Pinned panel heights by id, see heightsKey
+    QSet<QString> pinned;
     QHash<QString, int> heights;
-    /// Pinned panels folded to their grip, by id
     QSet<QString> folded;
     QHash<QString, QPointer<PanelGrip>> grips;
-    /// The pinned panels, over the canvas, with the panel buttons
     QPointer<KisStudioPanelColumn> panelColumn;
-    /// Over the top of the canvas: the tool's and the brush's bars, and the window's (the document, Find, its buttons)
     QPointer<TopPill> topPill;
     QPointer<TopPill> windowPill;
     QPointer<QToolBar> windowBar;
-    /// The side of the canvas the pinned panels are on, and the tool rail
     bool panelsLeft {false};
     bool toolRailLeft {true};
-    /// Tucked away by a tap on their grip
     bool panelsTucked {false};
     bool toolRailTucked {false};
     bool topBarTucked {false};
     QPointer<QWidget> stripGrip;
     QTimer *heightSave {nullptr};
-    /// Set while the panels are being arranged, whose resizing is not the user's
+    /// While the panels are arranged or folded: their resizing is not the user's
     bool settlingHeights {false};
 
-    /// The pinned panels in the order they stack in: as on the rail, then the others
+    /// The unpinned panel open over the canvas, and what it opened from (it goes below it)
+    QPointer<QDockWidget> flyout;
+    QPointer<FlyoutWindow> flyoutWindow;
+    QPointer<QWidget> flyoutAnchor;
+    QPointer<QToolButton> toolChip;
+    QPointer<QAction> toolChipAction;
+    QPointer<KisStudioToolStrip> toolStrip;
+    QPointer<QAction> toolStripAction;
+    QPointer<QAction> brushValuesAction;
+    /// The brush bar's preset button: a click opens the brush picker, the wheel steps through your brushes
+    QPointer<QWidget> presetChip;
+    QString presetChipToolTip;
+    QPointer<KisStudioBrushMemory> brushMemory;
+    QPointer<KisStudioCanvasRing> canvasRing;
+    QPointer<QToolButton> documentButton;
+    QPointer<QAction> documentButtonAction;
+    QPointer<KisStudioCanvasHud> hud;
+    QPointer<KisStudioEffectOverlay> effectOverlay;
+    KisStudioWindowFrame *frame {nullptr};
+    QPointer<QAction> windowButtonsAction;
+
+    /// A docker's title bar and features before the studio layout
+    struct ClassicDock {
+        QPointer<QWidget> titleBar;
+        QDockWidget::DockWidgetFeatures features;
+    };
+    QHash<QDockWidget *, ClassicDock> classicDocks;
+    /// Every docker but the toolbox
+    QSet<QDockWidget *> panels;
+    QVector<QMetaObject::Connection> connections;
+
+    /// The pinned panels in stacking order: as on the rail, then the others
     QStringList pinnedOrder() const
     {
         QStringList order;
@@ -1361,22 +1277,21 @@ struct KisStudioLayout::Private
         return order;
     }
 
-    /// The pinned panels shown on one side of the canvas, top to bottom
-    QList<QDockWidget *> column(bool left, const QString &without) const
+    /// The pinned panels shown in the column, top to bottom, but \p without
+    QList<QDockWidget *> column(const QString &without) const
     {
         QList<QDockWidget *> docks;
         Q_FOREACH (const QString &id, pinnedOrder()) {
             QDockWidget *dock = mainWindow->dockWidget(id);
-            if (id == without || !dock || dock == flyout || dock->isHidden() || dock->isFloating() || panelsLeft != left) {
-                continue;
+            if (id != without && dock && dock != flyout && !dock->isHidden() && !dock->isFloating()) {
+                docks << dock;
             }
-            docks << dock;
         }
         std::sort(docks.begin(), docks.end(), [this](QDockWidget *a, QDockWidget *b) { return placeOf(a).y() < placeOf(b).y(); });
         return docks;
     }
 
-    /// Where \p dock is, in main window coordinates (in a column, it is not the window's child)
+    /// In main window coordinates (a panel in the column is not the window's child)
     QRect placeOf(const QWidget *dock) const
     {
         return QRect(dock->mapTo(mainWindow, QPoint()), dock->size());
@@ -1389,37 +1304,33 @@ struct KisStudioLayout::Private
         if (!canvasArea) return drop;
         const QPoint pos = mainWindow->mapFromGlobal(globalPos);
         const QRect canvas = canvasArea->geometry();
+        const bool left = panelsLeft;
+        const QList<QDockWidget *> docks = column(moving);
+        QRect area;
+        Q_FOREACH (QDockWidget *dock, docks) {
+            area |= placeOf(dock);
+        }
+        // over the column, or near the canvas edge when it has no panels
+        const bool overColumn = !area.isEmpty() && pos.x() >= area.left() - 8 && pos.x() <= area.right() + 8;
+        const bool nearEdge = area.isEmpty() && canvas.contains(pos)
+                              && (left ? pos.x() < canvas.left() + edgeDropZone : pos.x() > canvas.right() - edgeDropZone);
+        if (!overColumn && !nearEdge) return drop;
 
-        // the side the pinned panels are on
-        for (const bool left : {panelsLeft}) {
-            const QList<QDockWidget *> docks = column(left, moving);
-            QRect area;
-            Q_FOREACH (QDockWidget *dock, docks) {
-                area |= placeOf(dock);
-            }
-            // over the column, or near the canvas edge on a side without panels
-            const bool overColumn = !area.isEmpty() && pos.x() >= area.left() - 8 && pos.x() <= area.right() + 8;
-            const bool nearEdge = area.isEmpty() && canvas.contains(pos)
-                                  && (left ? pos.x() < canvas.left() + leftDropZone : pos.x() > canvas.right() - leftDropZone);
-            if (!overColumn && !nearEdge) continue;
-
-            drop.column = true;
-            drop.left = left;
-            if (area.isEmpty()) {
-                drop.indicator = QRect(left ? canvas.left() + 2 : canvas.right() - 4, canvas.top() + 6, 3, canvas.height() - 12);
-                return drop;
-            }
-            int y = area.bottom() - 1;
-            Q_FOREACH (QDockWidget *dock, docks) {
-                if (pos.y() < placeOf(dock).center().y()) {
-                    drop.before = dock->objectName();
-                    y = placeOf(dock).top() - 1;
-                    break;
-                }
-            }
-            drop.indicator = QRect(area.left() + 4, qMax(area.top(), y - 1), area.width() - 8, 3);
+        drop.column = true;
+        drop.left = left;
+        if (area.isEmpty()) {
+            drop.indicator = QRect(left ? canvas.left() + 2 : canvas.right() - 4, canvas.top() + 6, 3, canvas.height() - 12);
             return drop;
         }
+        int y = area.bottom() - 1;
+        Q_FOREACH (QDockWidget *dock, docks) {
+            if (pos.y() < placeOf(dock).center().y()) {
+                drop.before = dock->objectName();
+                y = placeOf(dock).top() - 1;
+                break;
+            }
+        }
+        drop.indicator = QRect(area.left() + 4, qMax(area.top(), y - 1), area.width() - 8, 3);
         return drop;
     }
 
@@ -1445,44 +1356,11 @@ struct KisStudioLayout::Private
         if (panelIndicator) panelIndicator->hide();
     }
 
-    /// The unpinned panel that is currently open over the canvas
-    QPointer<QDockWidget> flyout;
-    /// Where the flyout is shown
-    QPointer<FlyoutWindow> flyoutWindow;
-    /// What the flyout opened from, if not the rail: it goes right below it
-    QPointer<QWidget> flyoutAnchor;
-    QPointer<QToolButton> toolChip;
-    QPointer<QAction> toolChipAction;
-    QPointer<KisStudioToolStrip> toolStrip;
-    QPointer<QAction> toolStripAction;
-    QPointer<QAction> brushValuesAction;
-    /// The toolbar's brush picture: a click opens the brush picker, the wheel steps through yours
-    QPointer<QWidget> presetChip;
-    /// Brushes taken from strokes (Alt+click) and from layers
-    QPointer<KisStudioBrushMemory> brushMemory;
-    /// The canvas's right click with a painting tool: your brushes in a ring
-    QPointer<KisStudioCanvasRing> canvasRing;
-    QString presetChipToolTip;
-    QPointer<QToolButton> documentButton;
-    QPointer<QAction> documentButtonAction;
-    QPointer<KisStudioCanvasHud> hud;
-    QPointer<KisStudioEffectOverlay> effectOverlay;
-    KisStudioWindowFrame *frame {nullptr};
-    QPointer<QAction> windowButtonsAction;
-    /// The menu button's menu
-    QPointer<QMenu> mainMenu;
-    QPointer<KisStudioToolRail> toolRail;
-    QSet<QString> pinned;
-
-    /// What a docker looked like before entering the studio layout
-    struct ClassicDock {
-        QPointer<QWidget> titleBar;
-        QDockWidget::DockWidgetFeatures features;
-    };
-    QHash<QDockWidget *, ClassicDock> classicDocks;
-    /// The panels the studio layout manages: every docker but the toolbox
-    QSet<QDockWidget *> panels;
-    QVector<QMetaObject::Connection> connections;
+    /// Whether \p global is on the strip of panel buttons, or near it
+    bool overStrip(const QPoint &global) const
+    {
+        return rail && QRect(rail->mapToGlobal(QPoint(0, 0)), rail->size()).adjusted(0, -12, 0, 12).contains(global);
+    }
 };
 
 KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
@@ -1490,25 +1368,29 @@ KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
     , d(new Private)
 {
     d->mainWindow = mainWindow;
-    // what the settings were at the start: a change since to one that waits for a restart is pending
+    // the settings as they were at the start: what changes later and needs a restart is pending
     KisSettingsRegistry::instance();
 
-    // a resize ends when the pointer lets go of the separator; save once it has
+    // saved once a resize has settled
     d->heightSave = new QTimer(this);
     d->heightSave->setSingleShot(true);
     d->heightSave->setInterval(400);
     connect(d->heightSave, &QTimer::timeout, this, &KisStudioLayout::saveHeights);
 
-    /**
-     * Canvas-only mode restores a saved window state when it is toggled,
-     * partly through the event queue, so normalize after it is done.
-     */
+    // canvas-only mode restores a window state partly through the event queue
     if (QAction *canvasOnly = mainWindow->actionCollection()->action(QStringLiteral("view_show_canvas_only"))) {
         connect(canvasOnly, &QAction::toggled, this, [this]() {
             closeFlyout();
             QTimer::singleShot(0, this, &KisStudioLayout::normalize);
         });
     }
+
+    connect(mainWindow, &KisMainWindow::themeChanged, this, [this]() {
+        if (!d->active) return;
+        rebuildRailButtons();
+        if (d->addPanelButton) d->addPanelButton->setIcon(KisIconUtils::loadIcon(QStringLiteral("list-add")));
+        updateContextBar();
+    });
 }
 
 KisStudioLayout::~KisStudioLayout()
@@ -1533,20 +1415,16 @@ void KisStudioLayout::setActive(bool active)
     if (d->active == active) {
         return;
     }
-
     KisConfig cfg(false);
-
-    // remember the classic layout to come back to, when switching away from it
+    // the classic layout to come back to
     if (active && !isEnabledInConfig()) {
         cfg.writeEntry(classicStateKey, d->mainWindow->saveState());
     }
     cfg.writeEntry(activeKey, active);
-
+    d->active = active;
     if (active) {
-        d->active = true;
         enter();
     } else {
-        d->active = false;
         leave();
     }
 }
@@ -1554,23 +1432,26 @@ void KisStudioLayout::setActive(bool active)
 void KisStudioLayout::enter()
 {
     KisMainWindow *mainWindow = d->mainWindow;
-    const QStringList pinned = KisConfig(true).readEntry<QStringList>(pinnedKey);
-    d->pinned = QSet<QString>(pinned.begin(), pinned.end());
-    const QStringList folded = KisConfig(true).readEntry<QStringList>(foldedKey);
-    d->folded = QSet<QString>(folded.begin(), folded.end());
-    const QStringList left = KisConfig(true).readEntry<QStringList>(leftKey);
-    d->leftPanels = QSet<QString>(left.begin(), left.end());
-    // one pill of panels: on the left if it says so, or if all the pinned panels were on the left before there was one
-    const QString panelSide = KisConfig(true).readEntry<QString>(panelSideKey, QString());
+    // the pills and panels live in the main window's canvas area
+    mainWindow->setCanvasDetached(false);
+
+    KisConfig cfg(true);
+    auto readSet = [&cfg](const QString &key) {
+        const QStringList list = cfg.readEntry<QStringList>(key);
+        return QSet<QString>(list.begin(), list.end());
+    };
+    d->pinned = readSet(pinnedKey);
+    d->folded = readSet(foldedKey);
+    const QString panelSide = cfg.readEntry<QString>(panelSideKey, QString());
     d->panelsLeft = panelSide == QLatin1String("left")
-                    || (panelSide.isEmpty() && !d->pinned.isEmpty() && d->leftPanels.contains(d->pinned));
-    d->toolRailLeft = KisConfig(true).readEntry<QString>(toolRailSideKey, QStringLiteral("left")) != QLatin1String("right");
-    d->panelsTucked = KisConfig(true).readEntry<bool>(panelsHiddenKey, false);
-    d->toolRailTucked = KisConfig(true).readEntry<bool>(toolRailHiddenKey, false);
-    d->topBarTucked = KisConfig(true).readEntry<bool>(topBarHiddenKey, false);
+                    || (panelSide.isEmpty() && !d->pinned.isEmpty() && readSet(leftKey).contains(d->pinned));
+    d->toolRailLeft = cfg.readEntry<QString>(toolRailSideKey, QStringLiteral("left")) != QLatin1String("right");
+    d->panelsTucked = cfg.readEntry<bool>(panelsHiddenKey, false);
+    d->toolRailTucked = cfg.readEntry<bool>(toolRailHiddenKey, false);
+    d->topBarTucked = cfg.readEntry<bool>(topBarHiddenKey, false);
     d->arrangement.clear();
     d->heights.clear();
-    Q_FOREACH (const QString &entry, KisConfig(true).readEntry<QStringList>(heightsKey)) {
+    Q_FOREACH (const QString &entry, cfg.readEntry<QStringList>(heightsKey)) {
         const int separator = entry.lastIndexOf(QLatin1Char('='));
         if (separator > 0) {
             d->heights.insert(entry.left(separator), entry.mid(separator + 1).toInt());
@@ -1579,8 +1460,8 @@ void KisStudioLayout::enter()
 
     Q_FOREACH (QDockWidget *dock, mainWindow->dockWidgets()) {
         QWidget *titleBar = dock->titleBarWidget();
+        // e.g. the animation timeline keeps its controls in the title bar
         if (titleBar && titleBar->inherits("KisUtilityTitleBar")) {
-            // e.g. the animation timeline keeps its controls in the title bar
             continue;
         }
 
@@ -1592,10 +1473,10 @@ void KisStudioLayout::enter()
             continue;
         }
 
-        // no title: a panel's content says what it is; its top edge moves it, and has its card
         auto *grip = new PanelGrip(dock);
         const QString id = dock->objectName();
         grip->dragged = [this, id](const QPoint &pos) { d->showPanelDrop(pos, id); };
+        // the panel may be rearranged, and its grip with it: after the release is delivered
         grip->dropped = [this, id](const QPoint &pos) {
             QTimer::singleShot(0, this, [this, id, pos]() { dropPanel(id, pos, false); });
         };
@@ -1606,7 +1487,7 @@ void KisStudioLayout::enter()
         grip->clicked = [this, id]() { gripClicked(id); };
         d->grips.insert(id, grip);
         dock->setTitleBarWidget(grip);
-        // how it looked, for the panel picker: taken as it goes off screen
+        // for the panel picker, taken as it goes off screen
         d->connections << connect(dock, &QDockWidget::visibilityChanged, this, [dock](bool visible) {
             if (!visible) KisStudioPanelPicker::rememberLook(dock);
         });
@@ -1621,7 +1502,7 @@ void KisStudioLayout::enter()
             mainWindow->addAction(toggle);
         }
 
-        d->connections << connect(dock->toggleViewAction(), &QAction::toggled, this, [this, dock](bool visible) {
+        d->connections << connect(toggle, &QAction::toggled, this, [this, dock](bool visible) {
             dockToggled(dock, visible);
         });
     }
@@ -1630,50 +1511,36 @@ void KisStudioLayout::enter()
     createBrushRail();
     createTopBar();
 
-    /**
-     * All the effects, to browse: from Find ("Effects"), its shortcut, or a
-     * button on the tools panel; it opens where the pointer is.
-     */
-    if (!mainWindow->actionCollection()->action(QStringLiteral("studio_effects"))) {
-        QAction *effects = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_effects")), i18nc("@action", "Effects"), mainWindow);
-        effects->setObjectName(QStringLiteral("studio_effects"));
-        KisStudioShortcuts::restore(effects);
-        mainWindow->actionCollection()->addAction(effects->objectName(), effects);
-        mainWindow->addAction(effects);
-        connect(effects, &QAction::triggered, mainWindow, [mainWindow]() {
-            auto *picker = new KisStudioEffectsPicker(mainWindow);
-            picker->popupNear(QCursor::pos());
-        });
-    }
-
-    /**
-     * All the brushes, yours first: from the brush picture in the top bar,
-     * from Find ("Brushes"), or its shortcut, where the pointer is.
-     */
-    if (!mainWindow->actionCollection()->action(QStringLiteral("studio_brush_picker"))) {
-        QAction *brushes = new QAction(KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), i18nc("@action", "Brushes"), mainWindow);
-        brushes->setObjectName(QStringLiteral("studio_brush_picker"));
-        KisStudioShortcuts::restore(brushes);
-        mainWindow->actionCollection()->addAction(brushes->objectName(), brushes);
-        mainWindow->addAction(brushes);
-        connect(brushes, &QAction::triggered, mainWindow, [mainWindow]() {
-            auto *picker = new KisStudioBrushPicker(mainWindow);
-            picker->popupNear(QCursor::pos());
-        });
-    }
+    // the effects and brush pickers, from Find, their shortcuts or the top bar; they open where the pointer is
+    auto addPicker = [mainWindow](const QString &name, const QString &icon, const QString &text, std::function<void()> open) {
+        if (mainWindow->actionCollection()->action(name)) return;
+        QAction *action = new QAction(KisIconUtils::loadIcon(icon), text, mainWindow);
+        action->setObjectName(name);
+        KisStudioShortcuts::restore(action);
+        mainWindow->actionCollection()->addAction(name, action);
+        mainWindow->addAction(action);
+        connect(action, &QAction::triggered, mainWindow, open);
+    };
+    addPicker(QStringLiteral("studio_effects"), QStringLiteral("studio_effects"), i18nc("@action", "Effects"), [mainWindow]() {
+        (new KisStudioEffectsPicker(mainWindow))->popupNear(QCursor::pos());
+    });
+    addPicker(QStringLiteral("studio_brush_picker"), QStringLiteral("paintop_settings_01"), i18nc("@action", "Brushes"), [mainWindow]() {
+        (new KisStudioBrushPicker(mainWindow))->popupNear(QCursor::pos());
+    });
     if (!d->brushMemory) {
         d->brushMemory = new KisStudioBrushMemory(mainWindow);
     }
     if (!d->canvasRing) {
         d->canvasRing = new KisStudioCanvasRing(mainWindow);
     }
-    // the brushes (a tenth of a second to read) ready before the first right press or brush chip scroll needs them
+    // read ahead (a tenth of a second) of the first right press or brush chip scroll
     QTimer::singleShot(3000, this, []() { KisStudioBrushPicker::yourBrushes(); });
-    // the buttons' shortcuts work from the start, not only once Find was opened
+    // the buttons' shortcuts work before Find is first opened
     QTimer::singleShot(0, this, [this]() {
         if (KisStudioFind *find = d->mainWindow->studioFind()) find->registerButtons();
     });
-    if (KisPaintopBox *paintopBox = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr) {
+    KisViewManager *viewManager = mainWindow->viewManager();
+    if (KisPaintopBox *paintopBox = viewManager ? viewManager->paintOpBox() : nullptr) {
         d->presetChip = paintopBox->presetChip();
         if (d->presetChip) {
             d->presetChipToolTip = d->presetChip->toolTip();
@@ -1681,17 +1548,7 @@ void KisStudioLayout::enter()
         }
     }
 
-    // New/Open/Save are in the main menu, undo and redo are Ctrl+Z and Ctrl+Shift+Z
-    for (const char *name : {"mainToolBar", "editToolBar"}) {
-        QToolBar *toolBar = mainWindow->findChild<QToolBar *>(QLatin1String(name), Qt::FindDirectChildrenOnly);
-        if (toolBar && !toolBar->isHidden()) {
-            toolBar->hide();
-            d->hiddenToolBars << toolBar;
-        }
-    }
-
     // the top bar's scrubbers are the size and opacity sliders
-    KisConfig cfg(true);
     for (int i = 1; i <= 5; i++) {
         const QString slider = cfg.toolbarSlider(i);
         QAction *action = mainWindow->actionCollection()->action(QStringLiteral("brushslider%1").arg(i));
@@ -1708,13 +1565,11 @@ void KisStudioLayout::enter()
                               });
     d->connections << connect(KoToolManager::instance(), &KoToolManager::toolOptionWidgetsChanged, this,
                               [this](KoCanvasController *controller, const QList<QPointer<QWidget>> &widgets) {
-                                  // with two windows, the other one's tool is not this top bar's business
-                                  if (!KisStudioToolRail::isOwnController(d->mainWindow, controller)) return;
-                                  if (d->toolStrip) {
-                                      d->toolStrip->setOptionWidgets(widgets);
-                                      if (d->toolStripAction) {
-                                          d->toolStripAction->setVisible(d->toolStrip->hasOptions() && !isRailHidden());
-                                      }
+                                  // another window's tool is not this top bar's business
+                                  if (!KisStudioToolRail::isOwnController(d->mainWindow, controller) || !d->toolStrip) return;
+                                  d->toolStrip->setOptionWidgets(widgets);
+                                  if (d->toolStripAction) {
+                                      d->toolStripAction->setVisible(d->toolStrip->hasOptions() && !isRailHidden());
                                   }
                               });
     if (QMdiArea *area = mdiArea()) {
@@ -1732,17 +1587,16 @@ void KisStudioLayout::enter()
     d->hud->setActive(true);
     mainWindow->setProperty("studioLayoutActive", true);
 
-    // the top bar is the title bar
     if (!d->frame) {
         d->frame = new KisStudioWindowFrame(mainWindow, [this](const QPoint &pos) { return isCaptionAt(pos); });
     }
-    d->frame->setEnabled(KisConfig(true).readEntry<bool>("StudioCustomTitleBar", true));
+    d->frame->setEnabled(cfg.readEntry<bool>("StudioCustomTitleBar", true));
 
     // effects are adjusted on the canvas, not in a dialog
     if (!d->effectOverlay) {
         d->effectOverlay = new KisStudioEffectOverlay(mainWindow);
     }
-    if (KisViewManager *viewManager = mainWindow->viewManager()) {
+    if (viewManager) {
         QPointer<KisStudioEffectOverlay> overlay = d->effectOverlay;
         viewManager->filterManager()->setInlineEditor({
             [overlay](KisFilterSP filter, KisFilterConfigurationSP config) { return overlay && overlay->open(filter, config); },
@@ -1751,7 +1605,7 @@ void KisStudioLayout::enter()
         });
     }
 
-    // the current tool's options, for the strip, without waiting for a tool change
+    // the current tool's options for the strip, without waiting for a tool change
     if (mainWindow->activeView()) {
         KoToolManager::instance()->initializeCurrentToolForCanvas();
     }
@@ -1769,16 +1623,16 @@ bool KisStudioLayout::isCaptionAt(const QPoint &pos) const
 {
     KisMainWindow *mainWindow = d->mainWindow;
     QWidget *widget = mainWindow->childAt(pos);
-    // in a pill over the top of the canvas: its grip, and what is empty in it, move the window; controls are for clicking
+    // in a pill: its grip and empty space move the window, its controls are for clicking
     for (QWidget *w = widget; w; w = w->parentWidget()) {
         if (w->property(captionProperty).toBool()) {
-            if (widget->property("studioTapGrip").toBool()) return false;
+            if (dynamic_cast<TopGrip *>(widget)) return false;
             return widget == w || dynamic_cast<DragGrip *>(widget) || qobject_cast<QToolBar *>(widget)
                 || QByteArray(widget->metaObject()->className()) == "QWidget";
         }
     }
     if (!widget) {
-        // between and around the top toolbars
+        // between and around the toolbars in the window's top row
         int bottom = 0;
         Q_FOREACH (QToolBar *toolBar, mainWindow->findChildren<QToolBar *>(QString(), Qt::FindDirectChildrenOnly)) {
             if (toolBar->isVisible() && mainWindow->toolBarArea(toolBar) == Qt::TopToolBarArea) {
@@ -1795,7 +1649,6 @@ bool KisStudioLayout::isCaptionAt(const QPoint &pos) const
     if (!toolBar || mainWindow->toolBarArea(toolBar) != Qt::TopToolBarArea) {
         return false;
     }
-    // the bar itself and the empty space in it drag the window; controls are for clicking
     return widget == toolBar || QByteArray(widget->metaObject()->className()) == "QWidget";
 }
 
@@ -1810,12 +1663,7 @@ void KisStudioLayout::adoptDocuments()
     if (!d->active || !area) {
         return;
     }
-    /**
-     * One document fills the canvas area without tabs or a frame; the
-     * document button in the top bar switches between several. Windows
-     * view mode with frameless maximized windows does that, where tabbed
-     * mode would keep a row of tabs for a single name.
-     */
+    // each document fills the canvas area without tabs or a frame; the document button switches between them
     if (area->viewMode() != QMdiArea::SubWindowView) {
         area->setViewMode(QMdiArea::SubWindowView);
     }
@@ -1841,7 +1689,6 @@ void KisStudioLayout::releaseDocuments()
             window->showMaximized();
         }
     }
-    // what Preferences say now, which may have changed while in the studio layout
     area->setViewMode(QMdiArea::ViewMode(KisConfig(true).readEntry<int>("mdi_viewmode", int(QMdiArea::TabbedView))));
 }
 
@@ -1862,7 +1709,6 @@ void KisStudioLayout::updateDocumentButton()
         const QString path = document->path();
         QString name = path.isEmpty() ? i18nc("a document that was never saved", "Untitled") : QFileInfo(path).fileName();
         if (document->isModified()) {
-            // a dot, like the modified marker of most editors
             name += QStringLiteral(" •");
         }
         return name;
@@ -1889,7 +1735,7 @@ void KisStudioLayout::updateDocumentButton()
             menu->addAction(action);
         }
     }
-    // one document needs no switcher; its name is in the window title
+    // one document needs no switcher
     if (d->documentButtonAction) {
         d->documentButtonAction->setVisible(windows.size() > 1 && !isRailHidden());
     }
@@ -1897,6 +1743,7 @@ void KisStudioLayout::updateDocumentButton()
 
 void KisStudioLayout::leave()
 {
+    KisMainWindow *mainWindow = d->mainWindow;
     closeFlyout();
     qApp->removeEventFilter(this);
     if (d->presetChip) {
@@ -1907,32 +1754,25 @@ void KisStudioLayout::leave()
     if (d->hud) {
         d->hud->setActive(false);
     }
-    if (auto *welcome = d->mainWindow->findChild<KisWelcomePageWidget *>()) {
+    if (auto *welcome = mainWindow->findChild<KisWelcomePageWidget *>()) {
         welcome->setContentsMargins(QMargins());
     }
-    d->mainWindow->setProperty("studioLayoutActive", false);
+    mainWindow->setProperty("studioLayoutActive", false);
     if (d->frame) {
         d->frame->setEnabled(false);
-    }
-    if (d->windowButtonsAction) {
-        d->windowButtonsAction->setVisible(false);
     }
     if (d->effectOverlay && d->effectOverlay->isVisible()) {
         d->effectOverlay->reject();
     }
-    if (KisViewManager *viewManager = d->mainWindow->viewManager()) {
+    if (KisViewManager *viewManager = mainWindow->viewManager()) {
         viewManager->filterManager()->setInlineEditor({});
-    }
-    if (d->mainWindow->viewManager()) {
-        d->mainWindow->viewManager()->showHideScrollbars();
+        viewManager->showHideScrollbars();
     }
     releaseDocuments();
-    d->mainWindow->statusBar()->setVisible(KisConfig(true).showStatusBar());
-    if (d->toolStripAction) {
-        d->toolStripAction->setVisible(false);
-    }
-    if (d->documentButtonAction) {
-        d->documentButtonAction->setVisible(false);
+    mainWindow->statusBar()->setVisible(KisConfig(true).showStatusBar());
+    for (QAction *action : {d->windowButtonsAction.data(), d->toolStripAction.data(), d->documentButtonAction.data(),
+                            d->menuButtonAction.data(), d->settingsButtonAction.data(), d->findFieldAction.data()}) {
+        if (action) action->setVisible(false);
     }
 
     Q_FOREACH (const QMetaObject::Connection &connection, d->connections) {
@@ -1945,7 +1785,6 @@ void KisStudioLayout::leave()
         QDockWidget *dock = it.key();
         applyFold(dock, false);
         QWidget *studioTitleBar = dock->titleBarWidget();
-
         dock->setTitleBarWidget(it->titleBar);
         dock->setFeatures(it->features);
         if (studioTitleBar && studioTitleBar != it->titleBar) {
@@ -1979,85 +1818,66 @@ void KisStudioLayout::leave()
         d->topBar->hide();
     }
     releaseTopBars();
-    for (QAction *action : {d->menuButtonAction.data(), d->settingsButtonAction.data(), d->findFieldAction.data()}) {
-        if (action) action->setVisible(false);
-    }
     if (!isCanvasOnly()) {
-        d->mainWindow->menuBar()->show();
+        mainWindow->menuBar()->show();
     }
-    Q_FOREACH (QAction *action, d->hiddenToolbarActions) {
-        if (action) {
-            action->setVisible(true);
-        }
+    const QList<QPointer<QAction>> hiddenActions = d->hiddenToolbarActions + d->contextActions;
+    for (QAction *action : hiddenActions) {
+        if (action) action->setVisible(true);
     }
     d->hiddenToolbarActions.clear();
-    Q_FOREACH (QAction *action, d->contextActions) {
-        if (action) {
-            action->setVisible(true);
-        }
-    }
     d->contextActions.clear();
     Q_FOREACH (QToolBar *toolBar, d->hiddenToolBars) {
-        if (toolBar) {
-            toolBar->show();
-        }
+        if (toolBar) toolBar->show();
     }
     d->hiddenToolBars.clear();
 
     KisConfig cfg(true);
     const QByteArray classicState = cfg.readEntry<QByteArray>(classicStateKey);
     if (!classicState.isEmpty()) {
-        d->mainWindow->restoreWorkspaceState(classicState);
-    } else {
-        // never used the classic layout yet, show what a fresh Krita would
-        const QString workspaceName = cfg.readEntry<QString>(QStringLiteral("CurrentWorkspace"), QStringLiteral("Default"));
-        KoResourceServer<KisWorkspaceResource> *server = KisResourceServerProvider::instance()->workspaceServer();
-        KisWorkspaceResourceSP workspace = server->resource(QString(), QString(), workspaceName);
-        if (!workspace) {
-            workspace = server->resource(QString(), QString(), QStringLiteral("Default"));
-        }
-        if (workspace) {
-            d->mainWindow->restoreWorkspace(workspace);
-        }
+        mainWindow->restoreWorkspaceState(classicState);
+        return;
+    }
+    // never in the classic layout yet: what a fresh Krita shows
+    const QString workspaceName = cfg.readEntry<QString>(QStringLiteral("CurrentWorkspace"), QStringLiteral("Default"));
+    KoResourceServer<KisWorkspaceResource> *server = KisResourceServerProvider::instance()->workspaceServer();
+    KisWorkspaceResourceSP workspace = server->resource(QString(), QString(), workspaceName);
+    if (!workspace) {
+        workspace = server->resource(QString(), QString(), QStringLiteral("Default"));
+    }
+    if (workspace) {
+        mainWindow->restoreWorkspace(workspace);
     }
 }
 
 void KisStudioLayout::normalize()
 {
-
     if (!d->active) {
         return;
     }
 
     KisMainWindow *mainWindow = d->mainWindow;
     const bool panelsHidden = arePanelsHidden();
+    const bool railHidden = isRailHidden();
+    const bool canvasOnly = isCanvasOnly();
 
-    /**
-     * The pinned panels from the config decide what is shown, not the
-     * restored state: it may come from a classic workspace or from the
-     * window state saved before the studio layout was enabled.
-     */
+    // the pinned panels decide what is shown, not a restored classic workspace or older window state
     Q_FOREACH (QDockWidget *dock, d->panels) {
         if (dock == d->flyout) {
             continue;
         }
-
-        // a flyout never outlives the moment it was opened for
+        // never left floating: restoring a floating panel crashes
         if (dock->isFloating()) {
             dock->hide();
             dockAway(dock);
         }
-
-        const bool isPinned = d->pinned.contains(dock->objectName());
-        if (isPinned) {
-            if (!panelsHidden) {
-                dock->show();
-            }
-        } else {
+        if (!d->pinned.contains(dock->objectName())) {
             dock->hide();
+        } else if (!panelsHidden) {
+            dock->show();
         }
     }
-    // the column follows the rail, whatever order a restored window state had
+    // in the rail's order, whatever order a restored state had
     d->arrangement.clear();
     arrangePinned();
     updateColumns();
@@ -2068,25 +1888,23 @@ void KisStudioLayout::normalize()
     }
 
     if (d->rail) {
-        d->rail->setVisible(!isRailHidden());
+        d->rail->setVisible(!railHidden);
     }
     if (d->brushRail) {
-        d->brushRail->setVisible(!isRailHidden());
-    }
-    if (d->topBar) {
-        d->topBar->setVisible(!isRailHidden());
+        d->brushRail->setVisible(!railHidden);
     }
     adoptTopBars();
-    // the rail's commands are known once the GUI is built, which is after the rail
+    // the rail's commands are known once the GUI is built, after the rail
     if (d->toolRail) {
         d->toolRail->refresh();
     }
-    placeFindField();
+    placeWindowButtons();
+    // on the start page too: the window pill is its title bar
     for (QAction *action : {d->menuButtonAction.data(), d->settingsButtonAction.data(), d->findFieldAction.data()}) {
-        if (action) action->setVisible(!isRailHidden());
+        if (action) action->setVisible(!canvasOnly);
     }
     if (d->windowButtonsAction) {
-        d->windowButtonsAction->setVisible(d->frame && d->frame->isEnabled() && !isRailHidden());
+        d->windowButtonsAction->setVisible(d->frame && d->frame->isEnabled() && !canvasOnly);
     }
 
     // restored window states bring these back
@@ -2099,17 +1917,16 @@ void KisStudioLayout::normalize()
             }
         }
     }
-    // canvas-only mode manages the menu bar itself, the welcome page has no top bar
-    if (!isCanvasOnly()) {
-        mainWindow->menuBar()->setVisible(mainWindow->isWelcomeScreenShown());
+    // the menu button has the menus; canvas-only mode manages the menu bar itself
+    if (!canvasOnly) {
+        mainWindow->menuBar()->hide();
     }
-
-    // what the status bar said about the view is on the canvas now, the rest is in the document properties
+    // the canvas shows what the status bar said about the view
     mainWindow->statusBar()->hide();
     adoptDocuments();
     updateDocumentButton();
     if (d->toolStripAction && d->toolStrip) {
-        d->toolStripAction->setVisible(d->toolStrip->hasOptions() && !isRailHidden());
+        d->toolStripAction->setVisible(d->toolStrip->hasOptions() && !railHidden);
     }
 
     syncRail();
@@ -2117,17 +1934,16 @@ void KisStudioLayout::normalize()
 
 void KisStudioLayout::dockToggled(QDockWidget *dock, bool visible)
 {
-
     syncRail();
     updateColumns();
 
-    if (visible && dock != d->flyout && !d->pinned.contains(dock->objectName())) {
-        /**
-         * Something else showed an unpinned panel, e.g. the Dockers menu,
-         * a shortcut or a restored workspace. Open it as a flyout, unless
-         * it has been hidden again in the meantime, which is what
-         * normalize() does after restoring a workspace.
-         */
+    if (!visible && dock == d->flyout) {
+        // hidden by its shortcut, its card or a workspace: no empty flyout left behind
+        QTimer::singleShot(0, this, [this, dock]() {
+            if (dock == d->flyout && dock->isHidden()) closeFlyout();
+        });
+    } else if (visible && dock != d->flyout && !d->pinned.contains(dock->objectName())) {
+        // shown by the Dockers menu, a shortcut or a workspace: a flyout, unless normalize() hid it again
         QTimer::singleShot(0, this, [this, dock]() {
             if (d->active && !dock->isHidden() && dock != d->flyout
                 && !d->pinned.contains(dock->objectName()) && !arePanelsHidden()) {
@@ -2157,8 +1973,6 @@ bool KisStudioLayout::isCanvasOnly() const
 void KisStudioLayout::closeFlyout()
 {
     QDockWidget *dock = d->flyout;
-    d->flyout = nullptr;
-    d->flyoutAnchor = nullptr;
     if (!dock) {
         return;
     }
@@ -2169,6 +1983,8 @@ void KisStudioLayout::closeFlyout()
 
 void KisStudioLayout::releaseFlyout()
 {
+    d->flyout = nullptr;
+    d->flyoutAnchor = nullptr;
     if (d->flyoutWindow) {
         d->flyoutWindow->release();
         d->flyoutWindow->hide();
@@ -2178,8 +1994,7 @@ void KisStudioLayout::releaseFlyout()
 void KisStudioLayout::dockAway(QDockWidget *dock)
 {
     dock->setFloating(false);
-    // a panel that never was in a column cannot be docked back by Qt: it is put in one, hidden,
-    // so that it is not left floating (and saved so: restoring a floating panel crashes Qt)
+    // Qt cannot dock back a panel that never was in a dock area: it is put in one, so that it is not saved floating
     if (dock->isFloating()) {
         const bool hidden = dock->isHidden();
         d->mainWindow->addDockWidget(Qt::RightDockWidgetArea, dock);
@@ -2199,7 +2014,6 @@ void KisStudioLayout::showPanel(QDockWidget *dock)
 
 void KisStudioLayout::togglePanel(QDockWidget *dock, bool show)
 {
-
     if (show) {
         if (d->pinned.contains(dock->objectName())) {
             if (d->panelsTucked) setPanelsTucked(false);
@@ -2222,6 +2036,7 @@ void KisStudioLayout::showFlyout(QDockWidget *dock, QWidget *anchor)
     }
     if (d->flyout == dock) {
         d->flyoutAnchor = anchor;
+        if (dock->isHidden()) dock->show();
         positionFlyout();
         d->flyoutWindow->raise();
         return;
@@ -2232,7 +2047,6 @@ void KisStudioLayout::showFlyout(QDockWidget *dock, QWidget *anchor)
     if (!d->flyoutWindow) {
         d->flyoutWindow = new FlyoutWindow(d->mainWindow);
     }
-    // out of its column (where it is hidden), into a window of glass over the canvas
     if (dock->isFloating()) dockAway(dock);
     d->mainWindow->removeDockWidget(dock);
     d->flyoutWindow->hold(dock);
@@ -2249,12 +2063,11 @@ void KisStudioLayout::positionFlyout()
         return;
     }
 
-    // a column along the right edge of the canvas, next to the pinned panels
     const QRect area = QRect(canvasArea->mapToGlobal(QPoint(0, 0)), canvasArea->size()).marginsRemoved(canvasInsets(canvasArea));
     const int margin = 6;
     int contentsWidth = d->flyout->widget() ? d->flyout->widget()->sizeHint().width() : 0;
     int contentsHeight = d->flyout->sizeHint().height();
-    // a scroll area asks for little, the flyout should fit what it scrolls
+    // a scroll area asks for little: the flyout fits what it scrolls
     QScrollArea *scroll = d->flyout->findChild<QScrollArea *>();
     if (scroll && scroll->widget()) {
         const int frame = 2 * scroll->frameWidth();
@@ -2262,11 +2075,12 @@ void KisStudioLayout::positionFlyout()
         contentsWidth = qMax(contentsWidth, scroll->widget()->sizeHint().width() + frame + scroll->verticalScrollBar()->sizeHint().width());
         contentsHeight = qMax(contentsHeight, header + scroll->widget()->sizeHint().height() + frame + 12);
     }
-    // and within the canvas area: in the main window, what goes past it is cut off
+    // within the canvas area: past it, the main window cuts it off
     const int width = qMax(0, qMin(qBound(260, contentsWidth + 2, 420), area.width() - 2 * margin));
 
+    QRect global(area.right() + 1 - margin - width, area.top() + margin, width, area.height() - 2 * margin);
     if (d->flyoutAnchor) {
-        // right below what opened it, only as tall as its contents, beside the tool rail rather than over it
+        // below what opened it, as tall as its contents, beside the tool rail rather than over it
         int left = qMax(area.left() + margin, d->flyoutAnchor->mapToGlobal(QPoint(0, 0)).x());
         if (QWidget *rail = d->brushRail; rail && rail->isVisible()) {
             const QRect at(rail->mapToGlobal(QPoint()), rail->size());
@@ -2275,16 +2089,8 @@ void KisStudioLayout::positionFlyout()
             }
         }
         left = qBound(area.left() + margin, left, area.right() + 1 - margin - width);
-        const int height = qBound(80, contentsHeight, area.height() - 2 * margin);
-        placeFlyout(QRect(left, area.top() + margin, width, height));
-        return;
+        global = QRect(left, area.top() + margin, width, qBound(80, contentsHeight, area.height() - 2 * margin));
     }
-
-    placeFlyout(QRect(area.right() + 1 - margin - width, area.top() + margin, width, area.height() - 2 * margin));
-}
-
-void KisStudioLayout::placeFlyout(const QRect &global)
-{
     QWidget *parent = d->flyoutWindow->parentWidget();
     d->flyoutWindow->setGeometry(QRect(parent->mapFromGlobal(global.topLeft()), global.size()));
 }
@@ -2298,8 +2104,7 @@ void KisStudioLayout::toggleToolOptions()
     if (d->flyout == dock) {
         closeFlyout();
     } else if (d->pinned.contains(dock->objectName())) {
-        dock->show();
-        dock->raise();
+        togglePanel(dock, true);
     } else {
         showFlyout(dock, d->toolChip);
     }
@@ -2307,14 +2112,10 @@ void KisStudioLayout::toggleToolOptions()
 
 void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
 {
-
     const QString id = dock->objectName();
-
     if (pinned) {
         d->pinned.insert(id);
         if (dock == d->flyout) {
-            d->flyout = nullptr;
-            d->flyoutAnchor = nullptr;
             releaseFlyout();
         }
         dockAway(dock);
@@ -2335,19 +2136,13 @@ void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
         d->arrangement.clear();
         arrangePinned();
     }
-
     savePinned();
     syncRail();
 }
 
 void KisStudioLayout::arrangePinned()
 {
-    /**
-     * Pinned panels stack in the order of their rail buttons, in the pill
-     * over the canvas: reordering the rail reorders them. Only redone when
-     * the order or the side changed; the heights they were given are put
-     * back after.
-     */
+    // in the rail's order; only redone when the order or the side changed
     const QStringList order = d->pinnedOrder();
     QString arrangement = d->panelsLeft ? QStringLiteral("L:") : QStringLiteral("R:");
     Q_FOREACH (const QString &id, order) {
@@ -2368,11 +2163,10 @@ void KisStudioLayout::arrangePinned()
         QDockWidget *dock = d->mainWindow->dockWidget(id);
         if (dock && dock != d->flyout) docks << dock;
     }
-    // no longer pinned: back among the window's docks, hidden
     Q_FOREACH (QDockWidget *dock, column->panels()) {
         if (!docks.contains(dock)) parkPanel(dock);
     }
-    // out of the window's dock areas, where nothing is to be (the canvas goes on under the pill)
+    // out of the window's dock areas: the canvas goes on under the pill
     Q_FOREACH (QDockWidget *dock, docks) {
         if (dock->parentWidget() != column->splitter()) {
             const bool shown = !dock->isHidden();
@@ -2393,10 +2187,11 @@ KisStudioPanelColumn *KisStudioLayout::panelColumn()
         QMdiArea *area = mdiArea();
         if (!area) return nullptr;
         KisConfig cfg(true);
+        // the older key as a fallback
         const int width = cfg.readEntry<int>(columnWidthKey, cfg.readEntry<int>(QStringLiteral("StudioLayoutRightColumnWidth"), 270));
         auto *column = new KisStudioPanelColumn(area->parentWidget(), d->panelsLeft, width);
         column->resized = [this](bool done) {
-            // while its width is dragged the canvas stays as it is: fitting it again for each move was most of a frame
+            // the views are fitted again only once a width drag ends: per move, it took most of a frame
             updateCanvasInsets(done);
             if (done && d->panelColumn) KisConfig(false).writeEntry(columnWidthKey, d->panelColumn->columnWidth());
         };
@@ -2451,7 +2246,6 @@ void KisStudioLayout::setToolRailSide(bool left)
 
 void KisStudioLayout::parkPanel(QDockWidget *dock)
 {
-    // where the window keeps the panels it does not show, and finds them again
     KisStudioGlass::setSeeThrough(dock, false);
     dock->hide();
     d->mainWindow->addDockWidget(Qt::RightDockWidgetArea, dock);
@@ -2481,7 +2275,6 @@ void KisStudioLayout::updateColumns()
         Q_FOREACH (QDockWidget *dock, column->panels()) {
             any = any || !dock->isHidden();
         }
-        // the strip is there as the rail was; the panels under it when they are shown
         column->setPanelsShown(any && !arePanelsHidden() && !d->panelsTucked);
         column->setVisible(d->active && !isRailHidden());
     }
@@ -2501,15 +2294,14 @@ void KisStudioLayout::updateCanvasInsets(bool views)
     const bool full = shown && column->panelsShown();
     const bool left = shown && column->isLeft();
     const int reach = shown ? (left ? column->geometry().right() + 1 : area->width() - column->x()) : 0;
-    // the pill, whatever it shows: what is at the top of the canvas (the tool rail) goes beside it
+    // the tool rail goes beside the pill, even when it is only its strip
     const int pillLeft = shown && left ? reach : 0;
     const int pillRight = shown && !left ? reach : 0;
-    // the pills over the top of the canvas: what is on the sides starts under them
     int top = 0;
     for (TopPill *pill : {d->topPill.data(), d->windowPill.data()}) {
         if (pill && !pill->isHidden()) top = qMax(top, pill->geometry().bottom() + 1);
     }
-    // the pill as tall as the canvas: what is at the bottom (the zoom pill) too, and the view
+    // with its panels, the pill covers the canvas's side: the zoom pill and the view keep clear of it
     const QMargins insets(full && left ? reach : 0, top, full && !left ? reach : 0, 0);
     if (canvasInsets(area) != insets || area->property(leftPillProperty).toInt() != pillLeft
         || area->property(rightPillProperty).toInt() != pillRight) {
@@ -2523,7 +2315,7 @@ void KisStudioLayout::updateCanvasInsets(bool views)
         if (d->flyout) positionFlyout();
     }
 
-    // each view fits the image, and zooms and turns about the middle, of what the panels leave of it
+    // each view fits, zooms and rotates about the part of it the pills leave free
     if (!views) {
         return;
     }
@@ -2543,7 +2335,7 @@ void KisStudioLayout::updateCanvasInsets(bool views)
 
 void KisStudioLayout::restoreHeights()
 {
-    // the column lays the panels out later: sized once it has
+    // sized once the column has laid the panels out
     d->settlingHeights = true;
     QTimer::singleShot(0, this, [this]() {
         Q_FOREACH (const QString &id, d->pinnedOrder()) {
@@ -2584,18 +2376,17 @@ void KisStudioLayout::gripClicked(const QString &id)
     if (!dock) {
         return;
     }
-    // over the canvas: tucked away, as its rail button would
+    // a flyout closes, as by its rail button
     if (!d->pinned.contains(id)) {
         if (dock == d->flyout) closeFlyout();
         return;
     }
-    // a fold still moving (a quick second click): at its end first, so that this one starts from a settled panel
+    // a fold still running (a quick second click) is finished first
     const QString foldName = QStringLiteral("studioFold_") + id;
     if (auto *running = findChild<QVariantAnimation *>(foldName, Qt::FindDirectChildrenOnly)) {
         running->setObjectName(QString());
         if (running->state() == QAbstractAnimation::Running) running->setCurrentTime(running->duration());
     }
-    // next to the canvas: folded to a line with its name, or back, in a moment
     const bool fold = !d->folded.contains(id);
     if (fold) {
         saveHeights();
@@ -2614,7 +2405,7 @@ void KisStudioLayout::gripClicked(const QString &id)
     d->settlingHeights = true;
     int to;
     if (fold) {
-        // free to shrink, the name shown at once; squeezed for good at the end
+        // free to shrink, the name shown at once; the content is squeezed at the end
         content->setProperty("studioMinHeight", content->minimumHeight());
         content->setProperty("studioMaxHeight", content->maximumHeight());
         content->setMinimumHeight(0);
@@ -2629,31 +2420,28 @@ void KisStudioLayout::gripClicked(const QString &id)
     animation->setObjectName(foldName);
     animation->setStartValue(from);
     animation->setEndValue(to);
-    // fast at first, easing into place: no wind-up, no overshoot
     animation->setDuration(220);
     animation->setEasingCurve(QEasingCurve::OutExpo);
     QPointer<QDockWidget> target = dock;
     connect(animation, &QVariantAnimation::valueChanged, this, [this, target, fold](const QVariant &value) {
         if (!target) return;
         target->setMaximumHeight(value.toInt());
-        // growing: the column hands it the space as it may take it
-        if (!fold) resizePanel(target, value.toInt());
+        if (!fold && d->panelColumn) d->panelColumn->resizePanel(target, value.toInt());
     });
     connect(animation, &QVariantAnimation::finished, this, [this, target, fold, to]() {
         if (target) {
             if (fold) {
-                // the rest of folding: the content held at no height
                 QWidget *content = target->widget();
                 content->setProperty("studioFolded", true);
                 content->setMaximumHeight(0);
                 target->setMaximumHeight(to);
             } else {
                 target->setMaximumHeight(QWIDGETSIZE_MAX);
-                resizePanel(target, to);
+                if (d->panelColumn) d->panelColumn->resizePanel(target, to);
             }
         }
         QTimer::singleShot(0, this, [this]() {
-            // another panel still folding: still settling
+            // still settling while another panel folds
             Q_FOREACH (QVariantAnimation *other, findChildren<QVariantAnimation *>(QString(), Qt::FindDirectChildrenOnly)) {
                 if (other->objectName().startsWith(QLatin1String("studioFold_")) && other->state() == QAbstractAnimation::Running) return;
             }
@@ -2661,11 +2449,6 @@ void KisStudioLayout::gripClicked(const QString &id)
         });
     });
     animation->start(QAbstractAnimation::DeleteWhenStopped);
-}
-
-void KisStudioLayout::resizePanel(QDockWidget *dock, int height)
-{
-    if (d->panelColumn) d->panelColumn->resizePanel(dock, height);
 }
 
 void KisStudioLayout::applyFold(QDockWidget *dock, bool fold)
@@ -2679,11 +2462,7 @@ void KisStudioLayout::applyFold(QDockWidget *dock, bool fold)
     if (isFolded == fold && (!grip || grip->isFolded() == fold)) {
         return;
     }
-    /**
-     * Not hidden: a dock with hidden content leaves the column, and the column
-     * narrows. Squeezed to no height instead, it keeps its width, and the dock
-     * may not grow past its grip.
-     */
+    // squeezed to no height rather than hidden: a dock with hidden content would narrow the column
     if (fold) {
         content->setProperty("studioFolded", true);
         content->setProperty("studioMinHeight", content->minimumHeight());
@@ -2712,10 +2491,8 @@ void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool
 
     if (!drop.column) {
         if (fromRail) {
-            // a rail button dropped on the canvas: off the rail, and closed
             takeOffRail(id);
         } else if (d->pinned.contains(id)) {
-            // a panel dropped on the canvas: unpinned, it opens over the canvas from the rail
             setPinned(dock, false);
         }
         return;
@@ -2724,19 +2501,16 @@ void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool
     d->pinned.insert(id);
     savePinned();
     if (dock == d->flyout) {
-        d->flyout = nullptr;
-        d->flyoutAnchor = nullptr;
         releaseFlyout();
     }
     dockAway(dock);
 
-    // stacking follows the rail: put it on the rail where the panels of that column are
+    // the column stacks in the rail's order: it goes on the rail where it goes in the column
     QStringList panels = d->railPanels;
     panels.removeAll(id);
     int at = drop.before.isEmpty() ? -1 : panels.indexOf(drop.before);
     if (at < 0) {
-        // the bottom of the column: right after its last panel
-        Q_FOREACH (QDockWidget *other, d->column(drop.left, id)) {
+        Q_FOREACH (QDockWidget *other, d->column(id)) {
             at = qMax(at, panels.indexOf(other->objectName()) + 1);
         }
     }
@@ -2761,9 +2535,8 @@ void KisStudioLayout::createRail()
 
     KisMainWindow *mainWindow = d->mainWindow;
 
-    // a strip on top of the pinned panels' pill: a few panels are open at a time, not a column of them
     QToolBar *rail = new QToolBar(i18nc("@title:window", "Panels"), mainWindow);
-    // not the name it had as a toolbar of the window: a restored window state would take it back there
+    // not the name it had as a window toolbar: a restored window state would take it back
     rail->setObjectName(QStringLiteral("studioPanelStrip"));
     rail->setMovable(false);
     rail->setFloatable(false);
@@ -2775,7 +2548,7 @@ void KisStudioLayout::createRail()
     connect(rail, &QWidget::customContextMenuRequested, this, &KisStudioLayout::showRailContextMenu);
     d->rail = rail;
 
-    // between the buttons and "+": what the pill is dragged by
+    // between the buttons and "+": the pill is dragged by it
     auto *spacer = new DragGrip(rail);
     d->stripGrip = spacer;
     spacer->setMinimumHeight(0);
@@ -2789,8 +2562,8 @@ void KisStudioLayout::createRail()
     addPanel->setIcon(KisIconUtils::loadIcon(QStringLiteral("list-add")));
     addPanel->setToolTip(i18nc("@info:tooltip", "Add a panel"));
     addPanel->setAccessibleName(addPanel->toolTip());
+    d->addPanelButton = addPanel;
     connect(addPanel, &QToolButton::clicked, this, [this, addPanel]() {
-        // every panel as it looks; the rail's first, and changed there too
         KisStudioPanelPicker::Rail rail;
         rail.key = panelsKey;
         rail.defaults = defaultRailPanels;
@@ -2804,8 +2577,8 @@ void KisStudioLayout::createRail()
             }
             showPanel(dock);
         });
+        // the rail's panels may have been starred, unstarred or reordered there
         connect(picker, &QObject::destroyed, this, [this]() {
-            // starred, unstarred or reordered there
             const QStringList panels = KisConfig(true).readEntry<QStringList>(panelsKey, defaultRailPanels());
             if (panels != d->railPanels) setRailPanels(panels);
         });
@@ -2813,7 +2586,7 @@ void KisStudioLayout::createRail()
     });
     rail->addWidget(addPanel);
 
-    // shows where a dragged rail button will go
+    // where a dragged rail button will go
     auto *indicator = new QFrame(rail);
     indicator->setFrameShape(QFrame::NoFrame);
     indicator->setAutoFillBackground(true);
@@ -2823,7 +2596,7 @@ void KisStudioLayout::createRail()
 
     d->railPanels = KisConfig(true).readEntry<QStringList>(panelsKey, defaultRailPanels());
     rebuildRailButtons();
-    // the toolbar the window had it in, the last time
+    // hidden until normalize() shows it in the column
     mainWindow->removeToolBar(rail);
     panelColumn();
 }
@@ -2853,7 +2626,7 @@ void KisStudioLayout::rebuildRailButtons()
         action->setCheckable(true);
         connect(action, &QAction::triggered, this, [this, id](bool checked) {
             if (QDockWidget *dock = d->mainWindow->dockWidget(id)) {
-                // tucked away, a panel's button brings the panels back, with it among them
+                // while tucked away, a button brings the panels back with its own among them
                 togglePanel(dock, checked || d->panelsTucked);
                 syncRail();
             }
@@ -2882,7 +2655,7 @@ QIcon KisStudioLayout::railIcon(QDockWidget *dock) const
         return KisIconUtils::loadIcon(iconName);
     }
 
-    // the first letter of the title, for panels without an icon of their own
+    // the title's first letter, for panels without an icon of their own
     const int size = 44;
     QPixmap pixmap(size, size);
     pixmap.fill(Qt::transparent);
@@ -2909,7 +2682,7 @@ void KisStudioLayout::showRailContextMenu(const QPoint &pos)
         return;
     }
 
-    // the rail itself: panels are added with "+", so only putting it back is left
+    // the strip itself: panels are added with "+", so resetting is all that is left
     auto *card = new KisStudioItemCard(d->mainWindow, KisIconUtils::loadIcon(QStringLiteral("studio_more")),
                                        i18nc("@title panels rail", "Panels"), nullptr);
     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("view-refresh")), i18nc("@info:tooltip", "Reset panels"),
@@ -2922,7 +2695,7 @@ void KisStudioLayout::showRailContextMenu(const QPoint &pos)
 
 void KisStudioLayout::takeOffRail(const QString &id)
 {
-    // off the rail, and closed: a panel stays only where it can be opened again
+    // closed too: a panel stays open only where it can be found again
     if (QDockWidget *dock = d->mainWindow->dockWidget(id)) {
         if (d->pinned.contains(id)) setPinned(dock, false);
         if (dock == d->flyout) closeFlyout();
@@ -2935,11 +2708,11 @@ void KisStudioLayout::takeOffRail(const QString &id)
 
 void KisStudioLayout::showPanelCard(const QString &id, QWidget *anchor)
 {
-    QPointer<QDockWidget> dock = d->mainWindow->dockWidget(id);
+    QDockWidget *dock = d->mainWindow->dockWidget(id);
     if (!dock) {
         return;
     }
-    // the panel's card: its shortcut, pinning it next to the canvas, taking it off the rail
+    // its shortcut, and taking it off the rail
     auto *card = new KisStudioItemCard(d->mainWindow, KisIconUtils::loadIcon(railIconName(id)),
                                        dock->windowTitle(), dock->toggleViewAction());
     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")), i18nc("@info:tooltip", "Remove"),
@@ -2982,16 +2755,16 @@ bool KisStudioLayout::handleRailDrag(QObject *watched, QEvent *event)
             drag.button->setDown(false);
         }
 
-        // off the strip: where the panel would go in the pill, or the canvas
+        // off the strip: where the panel would go in the column, or the canvas
         const QPoint global = globalMousePos(mouseEvent);
-        if (!QRect(d->rail->mapToGlobal(QPoint(0, 0)), d->rail->size()).adjusted(0, -12, 0, 12).contains(global)) {
+        if (!d->overStrip(global)) {
             if (d->dropIndicator) d->dropIndicator->hide();
             d->showPanelDrop(global, drag.id);
             return true;
         }
         d->hidePanelDrop();
 
-        // the gap between the strip's buttons that is closest to the cursor
+        // the gap between buttons closest to the pointer
         const int x = d->rail->mapFromGlobal(global).x();
         drag.targetIndex = d->railPanels.size();
         int indicatorX = 0;
@@ -3035,8 +2808,8 @@ bool KisStudioLayout::handleRailDrag(QObject *watched, QEvent *event)
 
         const QPoint release = globalMousePos(static_cast<QMouseEvent *>(event));
         d->hidePanelDrop();
-        if (!QRect(d->rail->mapToGlobal(QPoint(0, 0)), d->rail->size()).adjusted(0, -12, 0, 12).contains(release)) {
-            // beside the canvas it is pinned there, on the canvas it is taken off the rail
+        if (!d->overStrip(release)) {
+            // pinned beside the canvas, or taken off the rail on it
             QTimer::singleShot(0, this, [this, id, release]() { dropPanel(id, release, true); });
             return true;
         }
@@ -3049,7 +2822,7 @@ bool KisStudioLayout::handleRailDrag(QObject *watched, QEvent *event)
                 target--;
             }
             panels.insert(qBound(0, target, panels.size()), id);
-            // the buttons are recreated, do it after the release has been delivered
+            // the buttons are recreated: after the release is delivered
             QTimer::singleShot(0, this, [this, panels]() { setRailPanels(panels); });
         }
         return true;
@@ -3067,8 +2840,8 @@ void KisStudioLayout::createBrushRail()
     }
 
     KisMainWindow *mainWindow = d->mainWindow;
-    KisPaintopBox *paintopBox = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr;
-    if (!paintopBox) {
+    KisViewManager *viewManager = mainWindow->viewManager();
+    if (!viewManager || !viewManager->paintOpBox()) {
         return;
     }
 
@@ -3090,29 +2863,27 @@ void KisStudioLayout::createBrushRail()
     layout->setContentsMargins(0, 2, 0, 0);
     layout->setSpacing(0);
 
-    if (KisViewManager *viewManager = mainWindow->viewManager()) {
-        KisCanvasResourceProvider *resources = viewManager->canvasResourceProvider();
-        auto *chip = new ColorChip(contents);
+    KisCanvasResourceProvider *resources = viewManager->canvasResourceProvider();
+    auto *chip = new ColorChip(contents);
+    auto refresh = [chip, resources]() {
         chip->setColors(resources->fgColor().toQColor(), resources->bgColor().toQColor());
-        auto refresh = [chip, resources]() {
-            chip->setColors(resources->fgColor().toQColor(), resources->bgColor().toQColor());
-        };
-        connect(resources, &KisCanvasResourceProvider::sigFGColorChanged, chip, refresh);
-        connect(resources, &KisCanvasResourceProvider::sigBGColorChanged, chip, refresh);
-        // the colors are only known once a canvas is there
-        connect(mainWindow, &KisMainWindow::activeViewChanged, chip, refresh);
-        chip->swapColors = [resources]() {
-            const KoColor foreground = resources->fgColor();
-            resources->setFGColor(resources->bgColor());
-            resources->setBGColor(foreground);
-        };
-        chip->openColors = [this]() {
-            if (QDockWidget *colors = d->mainWindow->dockWidget(KisStudioColorPanel::id())) {
-                showPanel(colors);
-            }
-        };
-        layout->addWidget(chip, 0, Qt::AlignHCenter);
-    }
+    };
+    refresh();
+    connect(resources, &KisCanvasResourceProvider::sigFGColorChanged, chip, refresh);
+    connect(resources, &KisCanvasResourceProvider::sigBGColorChanged, chip, refresh);
+    // the colors are only known once there is a canvas
+    connect(mainWindow, &KisMainWindow::activeViewChanged, chip, refresh);
+    chip->swapColors = [resources]() {
+        const KoColor foreground = resources->fgColor();
+        resources->setFGColor(resources->bgColor());
+        resources->setBGColor(foreground);
+    };
+    chip->openColors = [this]() {
+        if (QDockWidget *colors = d->mainWindow->dockWidget(KisStudioColorPanel::id())) {
+            showPanel(colors);
+        }
+    };
+    layout->addWidget(chip, 0, Qt::AlignHCenter);
 
     toolRail->addBottomWidget(contents);
     rail->layout()->addWidget(toolRail);
@@ -3186,7 +2957,14 @@ void KisStudioLayout::createTopBar()
         d->brushValuesAction->setVisible(false);
     }
 
-    auto *documents = new DocumentButton(mainWindow);
+    // the document's name, and every open document a click away
+    auto *documents = new QToolButton(mainWindow);
+    documents->setObjectName(QStringLiteral("studio_documents"));
+    documents->setAutoRaise(true);
+    documents->setFocusPolicy(Qt::NoFocus);
+    documents->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    documents->setPopupMode(QToolButton::InstantPopup);
+    documents->setToolTip(i18nc("@info:tooltip", "Open documents"));
     documents->hide();
     documents->setMenu(new QMenu(documents));
     d->documentButton = documents;
@@ -3194,15 +2972,14 @@ void KisStudioLayout::createTopBar()
     KisStudioGlass::setSeeThrough(bar, true);
     d->topBar = bar;
 
-    // the menu, Settings and Find on the window pill, placed there by placeFindField()
+    // put on the window pill by placeWindowButtons()
     auto *menuButton = new PillButton(QStringLiteral("studio_menu"), i18nc("@info:tooltip", "Menu"), mainWindow);
     menuButton->hide();
     connect(menuButton, &QAbstractButton::clicked, this, [this, menuButton]() { showMainMenu(menuButton); });
     d->menuButton = menuButton;
 
-    auto *settingsButton = new PillButton(QStringLiteral("studio_settings"), i18nc("@info:tooltip", "Settings"), mainWindow);
+    auto *settingsButton = new PillButton(QStringLiteral("studio_settings"), i18nc("@info:tooltip", "Settings · right click: Quick"), mainWindow);
     settingsButton->hide();
-    settingsButton->setToolTip(i18nc("@info:tooltip", "Settings · right click: Quick"));
     settingsButton->setProperty("ownContextMenu", true);
     connect(settingsButton, &QAbstractButton::clicked, this, [this]() { openSettings(QString(), true); });
     settingsButton->contextClicked = [this, settingsButton]() {
@@ -3234,7 +3011,7 @@ void KisStudioLayout::adoptTopBars()
     }
     if (!d->settings) {
         d->settings = new KisStudioSettings(d->mainWindow, area);
-        // under the window pill, at the right, as tall as the canvas lets it be
+        // under the window pill, at the right, as tall as the canvas allows
         d->settings->setPlacement([this, area](const QSize &wanted) {
             const int margin = TopPill::margin;
             const QRect pill = d->windowPill && d->windowPill->isVisible() ? d->windowPill->geometry() : QRect(area->width() - margin, margin, 0, 0);
@@ -3260,17 +3037,11 @@ void KisStudioLayout::adoptTopBars()
         bar->setContextMenuPolicy(Qt::PreventContextMenu);
         KisStudioGlass::setSeeThrough(bar, true);
         d->windowPill->insert(0, bar);
-        // a toolbar is hidden until a main window shows it
-        bar->show();
         d->windowBar = bar;
     }
 
-    /**
-     * The tool's bar and the brush's (the window's, made from its GUI
-     * description) in the pill, out of the window's top row: the canvas
-     * goes on under them. A restored window state, or Configure Toolbars,
-     * may put the brush's back there; it is taken again here.
-     */
+    // the tool bar and the brush bar in the top pill; a restored window state or Configure Toolbars may take the brush bar back
+    const bool tools = d->active && !isRailHidden();
     QToolBar *brushBar = d->mainWindow->findChild<QToolBar *>(QStringLiteral("BrushesAndStuff"));
     int index = 1;
     for (QToolBar *bar : {d->topBar.data(), brushBar}) {
@@ -3283,20 +3054,18 @@ void KisStudioLayout::adoptTopBars()
         }
         index++;
     }
-    // the brush's options are always there (the tool's bar shows itself, see normalize); a toolbar is
-    // hidden until a main window shows it, and taken out of the window it is not
+    // shown after the insertion: removeToolBar() hides them, as a restored window state hides toolbars it has no place for
+    if (d->topBar) d->topBar->setVisible(tools);
     if (brushBar) brushBar->show();
-    // a restored window state hides the toolbars it finds that it has no place for
     if (d->windowBar) d->windowBar->show();
 
-    const bool shown = d->active && !isRailHidden();
-    d->topPill->setVisible(shown);
-    d->windowPill->setVisible(shown);
-    d->windowHandle->setVisible(shown);
-    if (shown) {
-        d->topPill->place();
-        d->windowPill->place();
-    }
+    // the window pill also on the start page: it is the title bar
+    const bool window = d->active && !isCanvasOnly();
+    d->topPill->setVisible(tools);
+    d->windowHandle->setVisible(tools);
+    d->windowPill->setVisible(window);
+    if (tools) d->topPill->place();
+    if (window) d->windowPill->place();
     updateCanvasInsets();
 }
 
@@ -3307,7 +3076,7 @@ void KisStudioLayout::placeWindowHandle()
     if (!handle || !pill) return;
     const int height = pill->height();
     QRect place(TopPill::margin, TopPill::margin, height, height);
-    // over the tool rail on the left, as wide as it: its cap
+    // the cap of a tool rail on the left, as wide as it
     QWidget *rail = d->brushRail;
     if (rail && rail->isVisible() && rail->parentWidget() == handle->parentWidget() && rail->x() < rail->parentWidget()->width() / 2) {
         place.setLeft(rail->x());
@@ -3320,7 +3089,6 @@ void KisStudioLayout::placeWindowHandle()
 
 void KisStudioLayout::releaseTopBars()
 {
-    // back in the window's top row, as Krita has them
     QToolBar *brushBar = d->mainWindow->findChild<QToolBar *>(QStringLiteral("BrushesAndStuff"));
     if (brushBar && brushBar->parentWidget() != d->mainWindow) {
         const bool shown = !brushBar->isHidden();
@@ -3329,6 +3097,11 @@ void KisStudioLayout::releaseTopBars()
         d->mainWindow->addToolBar(Qt::TopToolBarArea, brushBar);
         brushBar->setVisible(shown);
     }
+    for (QToolButton *button : qAsConst(d->delayedPopups)) {
+        if (button) button->setPopupMode(QToolButton::MenuButtonPopup);
+    }
+    d->delayedPopups.clear();
+    d->placedOnBar = nullptr;
     if (d->topPill) d->topPill->hide();
     if (d->windowPill) d->windowPill->hide();
     if (d->windowHandle) d->windowHandle->hide();
@@ -3343,7 +3116,7 @@ void KisStudioLayout::openSettings(const QString &cardId, bool toggle)
         else d->settings->open(cardId);
         return;
     }
-    // without the studio layout: the dialog, at the card's page
+    // the dialog, at the card's page
     if (QAction *configure = d->mainWindow->actionCollection()->action(QStringLiteral("options_configure"))) {
         configure->setData(KisStudioSettings::classicPage(cardId));
         configure->trigger();
@@ -3352,11 +3125,7 @@ void KisStudioLayout::openSettings(const QString &cardId, bool toggle)
 
 void KisStudioLayout::showMainMenu(QWidget *button)
 {
-    /**
-     * What the menu bar had: the commands of the file first (what is needed
-     * most without a shortcut at hand), then all of the menus, as they are
-     * in the menu bar. Made again as it opens: the recent files change.
-     */
+    // the file commands most needed without a shortcut, then the menu bar's menus; rebuilt for the recent files
     if (!d->mainMenu) {
         d->mainMenu = new QMenu(d->mainWindow);
     }
@@ -3377,45 +3146,28 @@ void KisStudioLayout::showMainMenu(QWidget *button)
     menu->addSeparator();
     add({"file_quit"});
 
-    // under the button, its right edge at the button's (the button is at the window's right)
+    // right-aligned under the button
     const QSize size = menu->sizeHint();
     const QPoint corner = button->mapToGlobal(QPoint(button->width(), button->height() + 4));
     menu->popup(QPoint(corner.x() - size.width(), corner.y()));
 }
 
-void KisStudioLayout::placeFindField()
+void KisStudioLayout::placeWindowButtons()
 {
-    /**
-     * The document, Find and the window's buttons, in the pill over the
-     * top right of the canvas. The actions are ours, not a toolbar's: they
-     * go on the window pill's bar once, and stay.
-     */
-    if (d->documentButton && !d->documentButtonAction) {
-        auto *action = new QWidgetAction(this);
-        action->setDefaultWidget(d->documentButton);
-        d->documentButtonAction = action;
-        if (d->windowBar) d->windowBar->addAction(action);
-    }
-    for (auto button : {std::make_pair(d->menuButton.data(), &d->menuButtonAction),
-                         std::make_pair(d->settingsButton.data(), &d->settingsButtonAction)}) {
-        if (button.first && !*button.second) {
-            auto *action = new QWidgetAction(this);
-            action->setDefaultWidget(button.first);
-            *button.second = action;
-            if (d->windowBar) d->windowBar->addAction(action);
-        }
-    }
-    if (d->findField && !d->findFieldAction) {
-        auto *action = new QWidgetAction(this);
-        action->setDefaultWidget(d->findField);
-        d->findFieldAction = action;
-        if (d->windowBar) d->windowBar->addAction(action);
-    }
+    // put on the window pill's bar once
+    auto place = [this](QWidget *widget, QPointer<QAction> &action) {
+        if (!widget || action) return;
+        auto *widgetAction = new QWidgetAction(this);
+        widgetAction->setDefaultWidget(widget);
+        action = widgetAction;
+        if (d->windowBar) d->windowBar->addAction(widgetAction);
+    };
+    place(d->documentButton, d->documentButtonAction);
+    place(d->menuButton, d->menuButtonAction);
+    place(d->settingsButton, d->settingsButtonAction);
+    place(d->findField, d->findFieldAction);
     if (d->frame && d->frame->isEnabled() && !d->windowButtonsAction) {
-        auto *action = new QWidgetAction(this);
-        action->setDefaultWidget(d->frame->createButtons(d->mainWindow));
-        d->windowButtonsAction = action;
-        if (d->windowBar) d->windowBar->addAction(action);
+        place(d->frame->createButtons(d->mainWindow), d->windowButtonsAction);
     }
 
     QToolBar *brushBar = d->mainWindow->findChild<QToolBar *>(QStringLiteral("BrushesAndStuff"));
@@ -3423,10 +3175,11 @@ void KisStudioLayout::placeFindField()
         return;
     }
     d->placedOnBar = brushBar;
-    // buttons with a menu open it on a long press instead of with a separate arrow
+    // menus open on a long press instead of by a separate arrow
     Q_FOREACH (QToolButton *button, brushBar->findChildren<QToolButton *>()) {
         if (button->menu() && button->popupMode() == QToolButton::MenuButtonPopup) {
             button->setPopupMode(QToolButton::DelayedPopup);
+            d->delayedPopups << button;
         }
     }
 }
@@ -3460,9 +3213,9 @@ void KisStudioLayout::updateContextBar()
         {"mirror_actions", paints},
         {"gradients", gradient},
         {"patterns", fills || shapeTool},
-        // on the rail, large, for every tool
+        // the color chip on the rail has the colors
         {"dual", false},
-        // set up once, not per stroke: they are in Find Anything
+        // set up once, not per stroke: they are in Find
         {"workspaces", false},
         {"select_layout", false},
     };
@@ -3481,7 +3234,7 @@ void KisStudioLayout::updateContextBar()
         }
     }
     if (d->flyout && d->flyoutAnchor) {
-        // the options of the new tool arrive after this, and have another size
+        // the new tool's options arrive later, in another size
         QTimer::singleShot(0, this, &KisStudioLayout::positionFlyout);
     }
 
@@ -3512,7 +3265,7 @@ bool KisStudioLayout::handlePresetChip(QEvent *event)
     switch (event->type()) {
     case QEvent::MouseButtonPress:
     case QEvent::MouseButtonDblClick:
-        // the picker opens on the release, as the presets did
+        // the picker opens on the release
         return static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton;
     case QEvent::MouseButtonRelease: {
         auto *mouse = static_cast<QMouseEvent *>(event);
@@ -3527,7 +3280,7 @@ bool KisStudioLayout::handlePresetChip(QEvent *event)
         return true;
     }
     case QEvent::ContextMenu:
-        // the brush presets as they were: tags, importing, editing
+        // Krita's preset popup: tags, importing, editing
         QMetaObject::invokeMethod(d->presetChip, "showPopupWidget");
         return true;
     case QEvent::Wheel: {
@@ -3554,8 +3307,7 @@ bool KisStudioLayout::handlePresetChip(QEvent *event)
 
 bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 {
-    // a flyout is for the moment it was opened for: never saved with the window as a floating panel
-    // (restoring one floating crashes Qt), so closed before the window keeps how it is laid out
+    // closed before the window state is saved: restoring a floating panel crashes Qt
     if (watched == d->mainWindow && event->type() == QEvent::Close) {
         if (d->flyout) closeFlyout();
         Q_FOREACH (QDockWidget *dock, d->mainWindow->dockWidgets()) {
@@ -3579,15 +3331,14 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
         return true;
     }
 
-    // any button of the window, right clicked (or held): its card, to give it a shortcut as a tool has
+    // any button of the window, right clicked or held: its card, to give it a shortcut
     if (event->type() == QEvent::ContextMenu) {
         auto *button = qobject_cast<QAbstractButton *>(watched);
-        // the canvas's selection bar has a menu of its own
         if (button && button->window() == d->mainWindow && button->contextMenuPolicy() == Qt::DefaultContextMenu
             && !dynamic_cast<KisSelectionActionsPanelButton *>(button)) {
             bool ownCard = false;
+            // these have cards or menus of their own, as has the canvas's selection bar
             for (QWidget *w = button; w && !ownCard; w = w->parentWidget()) {
-                // these have cards (or menus) of their own
                 ownCard = w->inherits("KisStudioToolRail") || w == d->rail || w->property("ownContextMenu").toBool();
             }
             KisStudioFind *find = d->mainWindow->studioFind();
@@ -3597,8 +3348,8 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
         }
     }
 
+    // a pinned panel resized by the user keeps that height
     if (event->type() == QEvent::Resize && !d->settlingHeights) {
-        // a pinned panel made taller or shorter keeps that height
         auto *dock = qobject_cast<QDockWidget *>(watched);
         if (dock && d->panels.contains(dock) && d->pinned.contains(dock->objectName()) && !dock->isFloating()) {
             d->heightSave->start();
@@ -3608,11 +3359,10 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
     switch (event->type()) {
     case QEvent::MouseButtonPress:
     case QEvent::TabletPress:
-        // clicking anywhere else in the window closes the flyout, the
-        // rail handles clicks on its own buttons
+        // a press anywhere else in the window closes the flyout; the rail handles its own buttons
         if (d->flyout && d->flyout->isVisible()) {
             QWidget *widget = qobject_cast<QWidget *>(watched);
-            // in the flyout (it is in the main window): where the press is, as one not taken there goes on to what holds it
+            // by position: a press not taken in the flyout goes on to what holds it
             const QPoint at = event->type() == QEvent::MouseButtonPress ? static_cast<QMouseEvent *>(event)->pos()
                                                                          : static_cast<QTabletEvent *>(event)->pos();
             const bool inFlyout = widget && d->flyoutWindow && d->flyoutWindow->isVisible()
@@ -3640,7 +3390,7 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
     case QEvent::Resize:
     case QEvent::WindowStateChange:
     case QEvent::Show:
-        // also after minimizing: a flyout placed while minimized would be far off
+        // also after minimizing: placed while minimized, it would be far off
         if (d->flyout && (watched == d->mainWindow || watched == d->mainWindow->centralWidget())) {
             QTimer::singleShot(0, this, &KisStudioLayout::positionFlyout);
         }

@@ -92,6 +92,7 @@ public:
 
     void startEditing()
     {
+        m_pressedOnQuietText = false;
         if (isEditModeActive()) {
             return;
         }
@@ -440,7 +441,7 @@ public:
             m_lineEdit->setGeometry(rect);
         }
         if (isQuiet()) {
-            // typed in where it is shown
+            // edited where the number is shown
             m_lineEdit->setAlignment(isQuietWide() ? (Qt::AlignRight | Qt::AlignVCenter) : Qt::AlignCenter);
         }
 
@@ -610,7 +611,6 @@ public:
         painter.setBrush(brush);
         painter.setPen(Qt::NoPen);
         if (qobject_cast<const KisModernStyle *>(m_q->style())) {
-            // follow the rounded frame of the field
             const qreal radius = KisModernStyle::cornerRadius - 1;
             painter.setRenderHint(QPainter::Antialiasing, true);
             painter.drawPath(KisModernStyle::squircle(rect, radius));
@@ -632,37 +632,28 @@ public:
         painter.setClipping(false);
     };
 
-    void paintGenericSliderText(QPainter &painter, const QString &text, const QRectF &rect, const QRectF &sliderRect)
+    /// The fill is neutral: one text color reads over it and the background
+    void paintGenericSliderText(QPainter &painter, const QString &text, const QRectF &rect)
     {
         QTextOption textOption(Qt::AlignAbsolute | Qt::AlignHCenter | Qt::AlignVCenter);
         textOption.setWrapMode(QTextOption::NoWrap);
-        Q_UNUSED(sliderRect);
-        // the fill is neutral, so one color reads over it and over the background
         paintSliderText(painter, text, rect, rect, m_lineEdit->palette().text().color(), textOption);
     };
 
-    /**
-     * A value, not a selection: the fill is a lighter neutral, so that a
-     * panel of sliders does not outshout the one thing that is selected.
-     */
+    /// A neutral fill: a value, not a selection
     QColor sliderFillColor() const
     {
         return KisPaintingTweaks::blendColors(m_q->palette().text().color(), m_q->palette().base().color(), 0.24);
     }
 
-    /**
-     * Quiet (KisModernStyle::quietFieldProperty, and frameless): never a box,
-     * a line as long as the value with the number by it. Pointed at, dragged
-     * or typed in, the line thickens and a knob grows at its end. For sliders
-     * among other things in a row (a layer's opacity), or in a panel.
-     */
+    /// Quiet (KisModernStyle::quietFieldProperty, frameless): a line with the number by it; hovered, it thickens and grows a knob
     bool isQuiet() const
     {
         return m_q->property(KisModernStyle::quietFieldProperty).toBool() && !m_q->hasFrame()
             && !(isSoftRangeValid() && m_softRangeViewMode == SoftRangeViewMode_ShowBothRanges);
     }
 
-    /// As wide as the widest value, so that the line does not jump as the number changes; at least as a few digits, so that lines in a column end together
+    /// The widest value's width (at least a few digits): the line neither jumps nor ends unevenly in a column
     qreal quietTextWidth() const
     {
         QString widest;
@@ -676,7 +667,7 @@ public:
                      metrics.horizontalAdvance(QStringLiteral("0000.00"))});
     }
 
-    /// Room for a line twice as long as the number: the line through the middle, the number after it; else the line under the number
+    /// Wide: the line beside the number; else under it
     bool isQuietWide() const
     {
         return m_lineEdit->width() >= 3 * quietTextWidth() + 20;
@@ -691,7 +682,7 @@ public:
         return QRectF(rect.left() + 4, rect.bottom() - thickness - 3, rect.width() - 8, thickness);
     }
 
-    /// A position on the line as on the whole field, where values are reckoned
+    /// A position on the line mapped to the whole field, where values are computed
     QPoint toSliderSpace(const QPoint &p) const
     {
         if (!isQuiet()) return p;
@@ -737,7 +728,7 @@ public:
             painter.drawEllipse(QPointF(qMax(track.left(), end), track.center().y()), radius, radius);
         }
         painter.restore();
-        if (text.isNull()) return; // typed in: the editor draws it
+        if (text.isNull()) return; // editing: the line edit draws it
         QTextOption textOption(Qt::AlignAbsolute | (wide ? Qt::AlignRight : Qt::AlignHCenter) | Qt::AlignVCenter);
         textOption.setWrapMode(QTextOption::NoWrap);
         paintSliderText(painter, text, wide ? rect.adjusted(0, 0, -2, 0) : rect.adjusted(0, -1, 0, -1), rect, ink, textOption);
@@ -755,7 +746,7 @@ public:
             const QRectF sliderRect = rect.adjusted(0, 0, -(rect.width() - slider01Width), 0);
             paintSliderRect(painter, sliderRect, highlightColor);
             if (!text.isNull()) {
-                paintGenericSliderText(painter, text, rect, sliderRect);
+                paintGenericSliderText(painter, text, rect);
             }
         } else {
             static constexpr double heightOfCollapsedSliderPlusSpace = heightOfCollapsedSlider + heightOfSpaceBetweenSliders;
@@ -859,6 +850,12 @@ public:
         }
         if (!isEditModeActive()) {
             if (e->button() == Qt::LeftButton) {
+                // a press on the number beside a wide quiet line edits it instead of jumping to the maximum
+                m_pressedOnQuietText = isQuiet() && isQuietWide() && e->pos().x() > quietTrack(0).right() + 6;
+                if (m_pressedOnQuietText) {
+                    QTimer::singleShot(0, &m_startEditingSignalProxy, SLOT(start()));
+                    return true;
+                }
                 m_lastMousePressPosition = toSliderSpace(e->pos());
                 const QPoint currentValuePosition = pointForValue(m_q->value());
                 m_relativeDraggingOffset = currentValuePosition.x() - m_lastMousePressPosition.x();
@@ -892,6 +889,10 @@ public:
             // must be blocked when dragging then we set the value here and
             // Q_EMIT a signal
             } else if (e->button() == Qt::LeftButton) {
+                if (m_pressedOnQuietText) {
+                    m_pressedOnQuietText = false;
+                    return true;
+                }
                 if (m_blockUpdateSignalOnDrag) {
                     const QPoint pos = toSliderSpace(e->pos());
                     const QPoint p(m_useRelativeDragging ? pos.x() + m_relativeDraggingOffset : pos.x(), pos.y());
@@ -918,6 +919,9 @@ public:
         }
         if (!isEditModeActive()) {
             if (e->buttons() & Qt::LeftButton) {
+                if (m_pressedOnQuietText) {
+                    return true;
+                }
                 if (!m_isDragging) {
                     m_isDragging = true;
                     updateQuietHover();
@@ -1019,7 +1023,6 @@ public:
                 case QEvent::KeyPress : return qKeyPressEvent(static_cast<QKeyEvent*>(e));
                 case QEvent::ContextMenu : return qContextMenuEvent(static_cast<QContextMenuEvent*>(e));
                 case QEvent::InputMethodQuery: return blockInputMethodQuery(static_cast<QInputMethodQueryEvent *>(e));
-                // quiet: a slider only while pointed at
                 case QEvent::Enter:
                 case QEvent::Leave:
                     updateQuietHover();
@@ -1071,6 +1074,7 @@ private:
     ValueType m_fastSliderStep {static_cast<ValueType>(5)};
     mutable ValueType m_valueBeforeEditing {static_cast<ValueType>(0)};
     bool m_isDragging {false};
+    bool m_pressedOnQuietText {false};
     bool m_useRelativeDragging {false};
     int m_relativeDraggingOffset {0};
     QPoint m_lastMousePressPosition;

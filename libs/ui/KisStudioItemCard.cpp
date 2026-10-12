@@ -13,17 +13,17 @@
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
-#include <QMimeData>
-#include <QToolTip>
-#include <QPointer>
-#include <QMouseEvent>
 #include <QMenu>
+#include <QMimeData>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPointer>
 #include <QScreen>
-#include <QTimer>
 #include <QStyle>
 #include <QStyleOption>
+#include <QTimer>
+#include <QToolTip>
 #include <QVBoxLayout>
 
 #include <KSharedConfig>
@@ -44,7 +44,7 @@ namespace {
 
 constexpr int glassShadowMargin = 14;
 
-/// Around the panel, for its shadow: none on a solid window (see KisStudioGlass::seeThroughWindows)
+/// No shadow on a solid window (see KisStudioGlass::seeThroughWindows)
 int shadowMarginOf(const QWidget *window)
 {
     return window->testAttribute(Qt::WA_TranslucentBackground) ? glassShadowMargin : 0;
@@ -54,29 +54,6 @@ QColor mix(const QColor &a, const QColor &b, qreal t)
 {
     return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t, a.greenF() + (b.greenF() - a.greenF()) * t,
                             a.blueF() + (b.blueF() - a.blueF()) * t);
-}
-
-QString cleanText(QString text)
-{
-    text.remove(QLatin1Char('&'));
-    if (text.endsWith(QStringLiteral("..."))) text.chop(3);
-    return text.trimmed();
-}
-
-QList<QAction *> allActions(KisMainWindow *mainWindow)
-{
-    // the collections, and actions added to the window directly (rail items, panels)
-    QList<QAction *> actions = mainWindow->actionCollection()->actions() + mainWindow->actions();
-    if (mainWindow->guiFactory()) {
-        Q_FOREACH (KisKXMLGUIClient *client, mainWindow->guiFactory()->clients()) {
-            if (client && client->actionCollection()) {
-                Q_FOREACH (QAction *action, client->actionCollection()->actions()) {
-                    if (!actions.contains(action)) actions << action;
-                }
-            }
-        }
-    }
-    return actions;
 }
 
 /// The shortcut as a key cap; a click records a new one
@@ -106,7 +83,6 @@ public:
 protected:
     void paintEvent(QPaintEvent *) override
     {
-        // the same key cap as every shortcut in menus and lists, only larger
         QPainter painter(this);
         using KeyCap = KisModernStyle::KeyCap;
         const KeyCap state = m_recording ? KeyCap::Recording : text().isEmpty() ? KeyCap::Add : underMouse() ? KeyCap::Pointed : KeyCap::Shown;
@@ -184,40 +160,10 @@ private:
     QPoint m_pressPos;
 };
 
-} // namespace
-
-QString KisStudioShortcuts::itemMimeType()
-{
-    return QStringLiteral("application/x-krita-studio-item");
-}
-
-QString KisStudioShortcuts::badgeText(const QKeySequence &sequence)
-{
-    return KisModernStyle::keyCapText(sequence);
-}
-
-void KisStudioShortcuts::paintBadge(QPainter &painter, const QRect &rect, const QString &text, const QPalette &palette)
-{
-    if (text.isEmpty()) {
-        return;
-    }
-    // a small key cap, in the corner of a button
-    QFont font = painter.font();
-    font.setPointSizeF(qMax(6.0, font.pointSizeF() * 0.62));
-    font.setBold(true);
-    const QFontMetricsF metrics(font);
-    const qreal height = metrics.height() + 2.5;
-    const qreal width = qMax(height, metrics.horizontalAdvance(text) + 6);
-    KisModernStyle::drawKeyCap(&painter, QRectF(rect.right() - width, rect.bottom() - height, width, height), font, text, palette);
-}
-
-namespace
-{
 /**
  * Every menu's shortcuts can be changed where they are shown: a click on a
- * shortcut's key cap (or on the "+" of an entry that has none) and the next
- * keys pressed are its new shortcut, as on a button's card. Backspace
- * removes it, Escape keeps the old one; the menu stays open.
+ * key cap (or the "+" of an entry without one) records the next keys
+ * pressed; the menu stays open.
  */
 class MenuShortcutEditor : public QObject
 {
@@ -236,9 +182,7 @@ protected:
             auto *mouse = static_cast<QMouseEvent *>(event);
             QAction *entry = menu->actionAt(mouse->pos());
             QAction *target = KisModernStyle::shortcutTarget(entry);
-            if (recording(menu)) {
-                stop(menu);
-            }
+            stop(menu);
             if (mouse->button() != Qt::LeftButton || !target || !entry->isEnabled()) {
                 return false;
             }
@@ -298,19 +242,14 @@ private:
     {
         QAction *entry = recording(menu);
         QAction *target = KisModernStyle::shortcutTarget(entry);
-        const int key = event->key();
-        if (key == Qt::Key_Shift || key == Qt::Key_Control || key == Qt::Key_Alt || key == Qt::Key_Meta
-            || key == Qt::Key_AltGr || key == 0 || key == Qt::Key_unknown) {
-            return; // a modifier alone is not a shortcut yet
-        }
-        stop(menu);
-        if (!target || key == Qt::Key_Escape) {
+        QKeySequence sequence;
+        const KisStudioShortcuts::KeyPress press = KisStudioShortcuts::recordKey(event, &sequence);
+        if (press == KisStudioShortcuts::KeyPress::Modifier) {
             return;
         }
-        QKeySequence sequence;
-        if (!((key == Qt::Key_Backspace || key == Qt::Key_Delete) && event->modifiers() == Qt::NoModifier)) {
-            const Qt::KeyboardModifiers modifiers = event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier);
-            sequence = QKeySequence(int(modifiers) | key);
+        stop(menu);
+        if (!target || press == KisStudioShortcuts::KeyPress::Cancel) {
+            return;
         }
         const QString taken = KisStudioShortcuts::assign(KisPart::instance()->currentMainwindow(), target, sequence);
         if (entry != target) {
@@ -318,7 +257,7 @@ private:
             const QString label = entry->text().section(QLatin1Char('\t'), 0, 0);
             entry->setText(sequence.isEmpty() ? label : label + QLatin1Char('\t') + sequence.toString(QKeySequence::NativeText));
         }
-        // a longer key cap makes the menu wider: as wide as it now needs, still on the screen
+        // a longer key cap makes the menu wider: kept on the screen
         QTimer::singleShot(0, menu, [menu]() {
             menu->adjustSize();
             if (QScreen *screen = menu->screen()) {
@@ -338,7 +277,87 @@ private:
 
     QPointer<QMenu> m_swallowRelease;
 };
+
 } // namespace
+
+QString KisStudioShortcuts::itemMimeType()
+{
+    return QStringLiteral("application/x-krita-studio-item");
+}
+
+QString KisStudioShortcuts::badgeText(const QKeySequence &sequence)
+{
+    return KisModernStyle::keyCapText(sequence);
+}
+
+void KisStudioShortcuts::paintBadge(QPainter &painter, const QRect &rect, const QString &text, const QPalette &palette)
+{
+    if (text.isEmpty()) {
+        return;
+    }
+    QFont font = painter.font();
+    font.setPointSizeF(qMax(6.0, font.pointSizeF() * 0.62));
+    font.setBold(true);
+    const QFontMetricsF metrics(font);
+    const qreal height = metrics.height() + 2.5;
+    const qreal width = qMax(height, metrics.horizontalAdvance(text) + 6);
+    KisModernStyle::drawKeyCap(&painter, QRectF(rect.right() - width, rect.bottom() - height, width, height), font, text, palette);
+}
+
+QList<QAction *> KisStudioShortcuts::allActions(KisMainWindow *mainWindow)
+{
+    QList<QAction *> actions = mainWindow->actionCollection()->actions() + mainWindow->actions();
+    if (mainWindow->guiFactory()) {
+        Q_FOREACH (KisKXMLGUIClient *client, mainWindow->guiFactory()->clients()) {
+            if (client && client->actionCollection()) {
+                Q_FOREACH (QAction *action, client->actionCollection()->actions()) {
+                    if (!actions.contains(action)) actions << action;
+                }
+            }
+        }
+    }
+    return actions;
+}
+
+QString KisStudioShortcuts::plainText(QString text)
+{
+    text.remove(QLatin1Char('&'));
+    text = text.trimmed();
+    while (text.endsWith(QLatin1Char('.')) || text.endsWith(QChar(0x2026))) {
+        text.chop(1);
+    }
+    return text.trimmed();
+}
+
+bool KisStudioShortcuts::isModifierKey(int key)
+{
+    return key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt || key == Qt::Key_Meta || key == Qt::Key_AltGr;
+}
+
+KisStudioShortcuts::KeyPress KisStudioShortcuts::recordKey(const QKeyEvent *event, QKeySequence *sequence)
+{
+    *sequence = QKeySequence();
+    int key = event->key();
+    if (isModifierKey(key) || key == 0 || key == Qt::Key_unknown) {
+        return KeyPress::Modifier;
+    }
+    Qt::KeyboardModifiers modifiers = event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier);
+    if (key == Qt::Key_Escape) {
+        return KeyPress::Cancel;
+    }
+    if ((key == Qt::Key_Backspace || key == Qt::Key_Delete) && !modifiers) {
+        return KeyPress::Clear;
+    }
+    if (key == Qt::Key_Backtab) {
+        key = Qt::Key_Tab;
+    }
+    const bool symbol = key > Qt::Key_Space && key < Qt::Key_Escape && !QChar::isLetter(uint(key));
+    if (symbol && !(event->modifiers() & Qt::KeypadModifier)) {
+        modifiers &= ~Qt::ShiftModifier;
+    }
+    *sequence = QKeySequence(int(modifiers) | key);
+    return KeyPress::Shortcut;
+}
 
 void KisStudioShortcuts::enableMenuEditing()
 {
@@ -374,7 +393,7 @@ QString KisStudioShortcuts::assign(KisMainWindow *mainWindow, QAction *action, c
             if (!other->objectName().isEmpty()) {
                 group.writeEntry(other->objectName(), remaining.isEmpty() ? QStringLiteral("none") : QKeySequence::listToString(remaining));
             }
-            takenFrom = cleanText(other->text());
+            takenFrom = plainText(other->text());
         }
     }
     action->setShortcut(sequence);
@@ -436,7 +455,6 @@ KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &ico
     d->choices->setSpacing(2);
     layout->addLayout(d->choices);
 
-    // what can be done with it: rows, as in a menu
     d->commands = new QVBoxLayout();
     d->commands->setSpacing(0);
     d->commands->setContentsMargins(0, 0, 0, 0);
@@ -467,7 +485,7 @@ void KisStudioItemCard::setChoices(const QVector<Choice> &choices)
             if (pick) pick();
             close();
         });
-        // dragged out of the card: it gets out of the way of the drop, then closes
+        // dragged out: out of the way of the drop, then closed
         tile->dragged = [this]() { hide(); };
         tile->dropped = [this]() { close(); };
         d->choices->addWidget(tile);
@@ -477,11 +495,7 @@ void KisStudioItemCard::setChoices(const QVector<Choice> &choices)
 
 void KisStudioItemCard::addCommand(const Command &command)
 {
-    /**
-     * A row drawn as a menu's entry is (the style draws both), named in a
-     * few words; the rest of the description ("(or drag it off)") is its
-     * tooltip. A card and a menu are the same kind of list.
-     */
+    /// A row drawn as a menu entry is; its tooltip's words after " (" are only its tooltip
     class CommandRow : public QAbstractButton
     {
     public:
@@ -574,26 +588,23 @@ void KisStudioItemCard::startRecording()
     adjustSize();
     activateWindow();
     setFocus();
-    // the shortcuts of the window must not fire while recording one
+    // the window's shortcuts must not fire while recording one
     grabKeyboard();
 }
 
-void KisStudioItemCard::finishRecording(const QKeySequence &sequence, bool clear)
+void KisStudioItemCard::finishRecording(bool assign, const QKeySequence &sequence)
 {
     releaseKeyboard();
     d->recording = false;
     d->keyCap->setRecording(false);
-    if (d->action && (clear || !sequence.isEmpty())) {
-        const QString taken = KisStudioShortcuts::assign(d->mainWindow, d->action, clear ? QKeySequence() : sequence);
+    d->note->hide();
+    if (assign && d->action) {
+        const QString taken = KisStudioShortcuts::assign(d->mainWindow, d->action, sequence);
         if (!taken.isEmpty()) {
             d->note->setText(i18nc("@info", "Taken from “%1”", taken));
             d->note->show();
             QTimer::singleShot(2200, d->note, &QWidget::hide);
-        } else {
-            d->note->hide();
         }
-    } else {
-        d->note->hide();
     }
     updateKeyCap();
     adjustSize();
@@ -609,21 +620,18 @@ void KisStudioItemCard::keyPressEvent(QKeyEvent *event)
         QFrame::keyPressEvent(event);
         return;
     }
-    const int key = event->key();
-    if (key == Qt::Key_Shift || key == Qt::Key_Control || key == Qt::Key_Alt || key == Qt::Key_Meta
-        || key == Qt::Key_AltGr || key == 0 || key == Qt::Key_unknown) {
-        return; // a modifier alone is not a shortcut yet
+    QKeySequence sequence;
+    switch (KisStudioShortcuts::recordKey(event, &sequence)) {
+    case KisStudioShortcuts::KeyPress::Modifier:
+        break;
+    case KisStudioShortcuts::KeyPress::Cancel:
+        finishRecording(false);
+        break;
+    case KisStudioShortcuts::KeyPress::Clear:
+    case KisStudioShortcuts::KeyPress::Shortcut:
+        finishRecording(true, sequence);
+        break;
     }
-    if (key == Qt::Key_Escape) {
-        finishRecording(QKeySequence(), false);
-        return;
-    }
-    if ((key == Qt::Key_Backspace || key == Qt::Key_Delete) && event->modifiers() == Qt::NoModifier) {
-        finishRecording(QKeySequence(), true);
-        return;
-    }
-    const Qt::KeyboardModifiers modifiers = event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier);
-    finishRecording(QKeySequence(int(modifiers) | key), false);
 }
 
 void KisStudioItemCard::paintEvent(QPaintEvent *)
@@ -634,7 +642,6 @@ void KisStudioItemCard::paintEvent(QPaintEvent *)
     const QRectF panel = QRectF(rect()).adjusted(shadowMargin, shadowMargin, -shadowMargin, -shadowMargin);
     const qreal radius = 12;
     if (shadowMargin) KisStudioGlass::paintShadow(painter, panel, radius, shadowMargin, 30, 3);
-    // glass: what it is over still shows through
     const QPainterPath shape = KisStudioGlass::paint(painter, this, panel.adjusted(0.5, 0.5, -0.5, -0.5), radius);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.12);

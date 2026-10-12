@@ -7,7 +7,6 @@
 
 #include <QApplication>
 #include <QElapsedTimer>
-#include <QFuture>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QPainter>
@@ -51,10 +50,9 @@
 #include <KisModernStyle.h>
 
 /**
- * The tiles' strokes: painted in a worker thread, one brush after another.
- * The GUI thread loads each brush and hands the worker a copy that needs
- * nothing from the GUI thread; the worker hands back the stroke, and the
- * copy, to be let go of in the GUI thread.
+ * The tiles' strokes, painted in a worker thread. The GUI thread loads each
+ * brush and hands the worker a self-contained copy; the worker hands back
+ * the stroke, and the copy, to be released in the GUI thread.
  */
 struct KisStudioBrushStrokes {
     struct Brush {
@@ -68,13 +66,13 @@ struct KisStudioBrushStrokes {
     };
 
     struct Catalog {
-        QStringList ids;                ///< by title
+        QStringList ids;                ///< sorted by title
         QHash<QString, Brush> brushes;
     };
 
     struct Job {
         QString id;
-        KisPaintOpPresetSP preset;      ///< a copy with its resources, at a size that fits
+        KisPaintOpPresetSP preset;      ///< a copy with its resources, sized to fit
         KisImageSP image;
         KisPaintLayerSP layer;
         KoColor paint;
@@ -84,17 +82,17 @@ struct KisStudioBrushStrokes {
         QSize size;
     };
 
-    std::shared_ptr<Catalog> catalog;   ///< all the brushes there are, as the picker opens
+    std::shared_ptr<Catalog> catalog;
     QColor paper;                       ///< behind the strokes, set before the worker starts
     QMutex mutex;
     QList<Job> queue;                   ///< for the worker, under the mutex
     QHash<QString, QImage> made;        ///< by the worker, under the mutex
-    QList<Job> spent;                   ///< painted, to be let go of in the GUI thread, under the mutex
+    QList<Job> spent;                   ///< painted, to be released in the GUI thread, under the mutex
     std::atomic<bool> cancelled {false};
     std::atomic<bool> allQueued {false};
     std::atomic<bool> finished {false};
-    QHash<QString, QImage> shown;       ///< the ones collected, used in the GUI thread only
-    /// What each stroke changed, as alpha (over a background: the difference it made): for the map
+    QHash<QString, QImage> shown;       ///< collected, GUI thread only
+    /// What each stroke changed, as alpha, for the map
     QHash<QString, QImage> madeMasks;   ///< by the worker, under the mutex
     QHash<QString, QImage> masks;       ///< collected, GUI thread only
 };
@@ -109,10 +107,10 @@ using Catalog = KisStudioBrushStrokes::Catalog;
 const QString pinnedKey = QStringLiteral("StudioBrushes");
 const QString recentKey = QStringLiteral("StudioRecentBrushes");
 constexpr int recentKept = 8;
-/// The size of a tile's picture, see KisStudioPicker
+/// A default tile's picture, see KisStudioPicker
 const QSize strokeSize(112, 64);
 
-/// The groups of "All brushes": by what a brush is for, in this order
+/// By what a brush is for, in this order
 QVector<QPair<QString, QString>> kindTitles()
 {
     return {
@@ -129,7 +127,7 @@ QVector<QPair<QString, QString>> kindTitles()
     };
 }
 
-/// What a brush is for: from the words in its name, then from its engine
+/// What a brush is for, from the words in its name, then from its engine
 QString kindOf(const QString &name, const QString &engine)
 {
     const QString n = name.toLower();
@@ -194,7 +192,7 @@ std::shared_ptr<Catalog> loadCatalog()
     return catalog;
 }
 
-/// The catalog, made again only once the brushes or their tags changed (a ring, a scroll on the brush chip, need it at once)
+/// Made again only once the brushes or their tags changed: the ring and the brush chip's wheel need it at once
 std::shared_ptr<Catalog> catalog()
 {
     static std::shared_ptr<Catalog> cached;
@@ -217,7 +215,7 @@ std::shared_ptr<Catalog> catalog()
     return cached;
 }
 
-/// Yours until you change them: the pop-up palette's favorites, or a few for every kind of work
+/// The pop-up palette's favorites, or a few for every kind of work
 QStringList initialBrushes()
 {
     QStringList names;
@@ -255,7 +253,7 @@ std::shared_ptr<KisStudioBrushStrokes> makeStrokes()
     return strokes;
 }
 
-/// @param strokes the tiles' strokes, or none when the source is not for showing
+/// @param strokes the tiles' strokes; none for a source that is not shown
 KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::shared_ptr<KisStudioBrushStrokes> strokes)
 {
     KisStudioPicker::Source source;
@@ -291,7 +289,7 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
                 painter.drawImage(rect, stroke);
                 return;
             }
-            // not painted (yet): the brush's own picture, faint
+            // not painted yet: the brush's own picture, faint
             const QImage icon = catalog->brushes.value(id).icon;
             if (!icon.isNull()) {
                 const int side = rect.height() - 8;
@@ -312,7 +310,7 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
     return source;
 }
 
-/// The brush's stroke: a wave that starts and ends light, heaviest in the middle
+/// A wave that starts and ends light, heaviest in the middle; \p mask gets what the stroke changed
 QImage paintStroke(const Job &job, QImage *mask)
 {
     KisPaintDeviceSP device = job.layer->paintDevice();
@@ -321,7 +319,7 @@ QImage paintStroke(const Job &job, QImage *mask)
     const QRect bounds(0, 0, w, h);
 
     if (job.kind == QLatin1String("blend") || job.kind == QLatin1String("effect")) {
-        // something to blend or change: bands of the color over the paper
+        // bands of color to blend or change
         KoColor band = job.paint;
         for (int i = 0; i < 4; i += 2) {
             device->fill(QRect(w * i / 4, 0, w / 4 + 1, h), band);
@@ -330,7 +328,7 @@ QImage paintStroke(const Job &job, QImage *mask)
         other.fromQColor(job.paint.toQColor().lighter(160));
         device->fill(QRect(w / 4, 0, w / 4 + 1, h), other);
     } else if (job.kind == QLatin1String("erase")) {
-        // something to erase: a wash of the color
+        // a wash to erase
         KoColor wash = job.paint;
         wash.setOpacity(0.55);
         device->fill(bounds, wash);
@@ -365,8 +363,7 @@ QImage paintStroke(const Job &job, QImage *mask)
         }
         previous = info;
     }
-    // most engines only queue their dabs while painting, for the stroke to render them in its
-    // own time; there is no stroke here: render them all now (the painter runs the jobs it makes)
+    // most engines only queue their dabs for a stroke to render; there is no stroke here
     for (int round = 0; round < 256; round++) {
         QVector<KisRunnableStrokeJobData *> jobs;
         const bool more = painter.paintOp()->doAsynchronousUpdate(jobs).second;
@@ -379,7 +376,7 @@ QImage paintStroke(const Job &job, QImage *mask)
     const QImage after = device->convertToQImage(nullptr, 0, 0, w, h).convertToFormat(QImage::Format_ARGB32);
     if (mask) {
         if (overBackground) {
-            // only what the stroke changed: the larger difference of any channel, as alpha
+            // the largest difference of any channel, as alpha
             QImage changed(w, h, QImage::Format_ARGB32);
             for (int y = 0; y < h; y++) {
                 const QRgb *a = reinterpret_cast<const QRgb *>(before.constScanLine(y));
@@ -399,40 +396,33 @@ QImage paintStroke(const Job &job, QImage *mask)
     return after;
 }
 
-/// Strokes already painted, by brush, for the color and size they were painted at
-QHash<QString, QImage> &strokeCache()
+/// Strokes already painted, kept for the next time the picker opens
+struct StrokeCache {
+    QString stamp;                      ///< the color and size they were painted at
+    QHash<QString, QImage> strokes;     ///< by md5 + name
+    QHash<QString, QImage> masks;       ///< by md5 + name
+    QHash<QString, QImage> latest;      ///< by name, whatever the color: for the canvas ring
+};
+
+StrokeCache &strokeCache()
 {
-    static QHash<QString, QImage> cache;
+    static StrokeCache cache;
     return cache;
 }
 
-/// The last stroke painted for each brush, whatever the color: for showing a brush elsewhere (the canvas ring)
-QHash<QString, QImage> &latestStrokes()
+QString currentPresetName(KisMainWindow *mainWindow)
 {
-    static QHash<QString, QImage> latest;
-    return latest;
-}
-
-/// What each cached stroke changed (see KisStudioBrushStrokes::masks), by the same keys
-QHash<QString, QImage> &maskCache()
-{
-    static QHash<QString, QImage> cache;
-    return cache;
-}
-
-QString &strokeCacheStamp()
-{
-    static QString stamp;
-    return stamp;
+    KisViewManager *view = mainWindow->viewManager();
+    KisCanvasResourceProvider *resources = view ? view->canvasResourceProvider() : nullptr;
+    return resources && resources->currentPreset() ? resources->currentPreset()->name() : QString();
 }
 
 } // namespace
 
 /**
- * All the brushes on one field, placed by how their strokes look: soft to
- * hard from left to right, smooth to textured from top to bottom, so that
- * brushes that paint alike are neighbours. Measured from the strokes as they
- * are painted; yours get their places first, the rest the nearest free one.
+ * All the brushes placed by how their strokes look: soft to hard from left
+ * to right, smooth to textured from top to bottom. Yours get their places
+ * first, the rest the nearest free cell.
  */
 class BrushMap : public QWidget
 {
@@ -446,7 +436,9 @@ public:
         , m_current(current)
     {
         setMouseTracking(true);
-        setFixedSize(496, 512);
+        // 160 brushes fit; more get rows of their own
+        const int rows = (int(strokes->catalog->ids.size()) + columns - 1) / columns;
+        setFixedSize(columns * cellWidth + 6, 512 + qMax(0, rows - 16) * cellHeight);
     }
 
 protected:
@@ -455,7 +447,7 @@ protected:
         qreal texture {0};
     };
 
-    /// How much of the stroke is half transparent (soft), and how much it changes from pixel to pixel (texture)
+    /// How much of the stroke is half transparent, and how much it changes from pixel to pixel
     static Look measure(const QImage &image)
     {
         const QImage img = image.convertToFormat(QImage::Format_ARGB32);
@@ -486,25 +478,22 @@ protected:
 
     void place()
     {
-        // the ones painted since: measured once
         for (auto it = m_strokes->shown.constBegin(); it != m_strokes->shown.constEnd(); ++it) {
             if (m_looks.contains(it.key())) continue;
-            // what the stroke itself changed, where there is a background under it
             const QImage mask = m_strokes->masks.value(it.key());
             m_looks.insert(it.key(), measure(mask.isNull() ? it.value() : mask));
         }
         if (m_looks.size() == m_placedFor) return;
         m_placedFor = m_looks.size();
 
-        // by rank on each axis: spread over the whole field
+        // by rank on each axis, to spread over the whole field
         QStringList ids = m_looks.keys();
         QStringList bySoft = ids, byTexture = ids;
         std::sort(bySoft.begin(), bySoft.end(), [this](const QString &a, const QString &b) { return m_looks[a].soft > m_looks[b].soft; });
         std::sort(byTexture.begin(), byTexture.end(), [this](const QString &a, const QString &b) { return m_looks[a].texture < m_looks[b].texture; });
-        const int columns = width() / cellWidth;
         const int rows = (height() - 22) / cellHeight;
         QVector<QVector<QString>> taken(rows, QVector<QString>(columns));
-        // pointed at: none moves under the pointer (a click would take another), the new ones go where there is room
+        // while pointed at, none moves under the pointer: the new ones go where there is room
         const bool keep = underMouse() && !m_cells.isEmpty();
         if (keep) {
             for (auto it = m_cells.constBegin(); it != m_cells.constEnd(); ++it) {
@@ -515,7 +504,7 @@ protected:
             m_cells.clear();
         }
 
-        // yours first, in your order: their places are the most exact
+        // yours first: their places are the most exact
         QStringList order;
         Q_FOREACH (const QString &id, m_yours) if (m_looks.contains(id)) order << id;
         std::sort(ids.begin(), ids.end());
@@ -526,7 +515,6 @@ protected:
             if (keep && m_cells.contains(id)) continue;
             const int cx = qRound(bySoft.indexOf(id) / n * (columns - 1));
             const int cy = qRound(byTexture.indexOf(id) / n * (rows - 1));
-            // the nearest free cell, ring by ring
             bool done = false;
             for (int r = 0; r < qMax(columns, rows) && !done; r++) {
                 for (int dy = -r; dy <= r && !done; dy++) {
@@ -551,7 +539,6 @@ protected:
         painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
         const QColor dim = KisModernStyle::secondaryInk(palette().color(QPalette::WindowText));
 
-        // which way is what
         QFont small = font();
         small.setPointSizeF(small.pointSizeF() * 0.85);
         painter.setFont(small);
@@ -564,7 +551,7 @@ protected:
             if (it.key() == m_hover) continue;
             paintCell(painter, it.value().adjusted(2, 2, -2, -2), it.key(), false);
         }
-        // the one pointed at, bigger, with its name
+        // the one pointed at: bigger, with its name
         if (m_cells.contains(m_hover)) {
             const QRect cell = m_cells.value(m_hover);
             QRect big(0, 0, cellWidth * 2.2, cellHeight * 2.2);
@@ -635,12 +622,13 @@ protected:
     void leaveEvent(QEvent *) override
     {
         m_hover.clear();
-        // placed again, each where it belongs among all of them
+        // the ones kept in place while pointed at go where they belong
         m_placedFor = -1;
         update();
     }
 
 private:
+    static constexpr int columns = 10;
     static constexpr int cellWidth = 49;
     static constexpr int cellHeight = 30;
     std::shared_ptr<KisStudioBrushStrokes> m_strokes;
@@ -664,10 +652,11 @@ struct KisStudioBrushPicker::Private
     int next {0};
     QTimer feed;
     QTimer collect;
-    QFuture<void> worker;
 
-    /// The next brushes for the worker, for a few ms at a time: loading them takes a moment
+    /// Loads the next brushes for the worker, a few ms at a time
     void feedSome();
+    /// Takes what the worker made; false if nothing
+    bool collectSome();
 };
 
 KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow)
@@ -676,12 +665,7 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow)
 }
 
 KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::shared_ptr<KisStudioBrushStrokes> strokes)
-    : KisStudioPicker(brushSource(strokes->catalog, strokes),
-                      mainWindow->viewManager() && mainWindow->viewManager()->canvasResourceProvider()
-                              && mainWindow->viewManager()->canvasResourceProvider()->currentPreset()
-                          ? mainWindow->viewManager()->canvasResourceProvider()->currentPreset()->name()
-                          : QString(),
-                      QSet<QString>(), mainWindow)
+    : KisStudioPicker(brushSource(strokes->catalog, strokes), currentPresetName(mainWindow), QSet<QString>(), mainWindow)
     , d(new Private)
 {
     d->mainWindow = mainWindow;
@@ -701,48 +685,44 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
         use(mainWindow->viewManager(), id);
     });
 
-    // all of them by how they look
-    auto *map = new BrushMap(strokes, pinnedIds(brushSource(strokes->catalog, nullptr)),
-                             mainWindow->viewManager() && mainWindow->viewManager()->canvasResourceProvider()
-                                     && mainWindow->viewManager()->canvasResourceProvider()->currentPreset()
-                                 ? mainWindow->viewManager()->canvasResourceProvider()->currentPreset()->name()
-                                 : QString(),
-                             this);
+    const Source &source = pickerSource();
+    auto *map = new BrushMap(strokes, pinnedIds(source), currentPresetName(mainWindow), this);
     map->picked = [this](const QString &id) { pickId(id); };
     addAlternateView(map, i18nc("@action:button the brushes by how they look", "Map"), QStringLiteral("StudioBrushesAsMap"));
 
     if (!resources || !resources->resourceManager()) {
-        strokes->finished = true;
         return;
     }
 
-    // painted before for this color: shown at once
+    StrokeCache &cache = strokeCache();
     const QString stamp = d->paint.toQColor().name() + QLatin1Char('@') + QString::number(d->size.width());
-    if (strokeCacheStamp() != stamp) {
-        strokeCache().clear();
-        maskCache().clear();
-        strokeCacheStamp() = stamp;
+    if (cache.stamp != stamp) {
+        cache.strokes.clear();
+        cache.masks.clear();
+        cache.stamp = stamp;
     }
 
-    // the recent ones and yours first, then the rest: the ones seen first are painted first
-    const Source source = brushSource(d->catalog, nullptr);
+    // the ones seen first are painted first
     QStringList order = source.recent() + pinnedIds(source) + d->catalog->ids;
     order.removeDuplicates();
     Q_FOREACH (const QString &id, order) {
         const Brush brush = d->catalog->brushes.value(id);
-        const QImage cached = strokeCache().value(brush.md5 + id);
+        const QImage cached = cache.strokes.value(brush.md5 + id);
         if (!cached.isNull()) {
             strokes->shown.insert(id, cached);
-            const QImage cachedMask = maskCache().value(brush.md5 + id);
+            const QImage cachedMask = cache.masks.value(brush.md5 + id);
             if (!cachedMask.isNull()) strokes->masks.insert(id, cachedMask);
         } else if (!brush.name.isEmpty()) {
             d->toQueue << id;
         }
     }
+    if (d->toQueue.isEmpty()) {
+        return;
+    }
 
     d->image = new KisImage(nullptr, d->size.width(), d->size.height(), rgb, QStringLiteral("brush strokes"));
 
-    d->worker = QtConcurrent::run([strokes]() {
+    (void)QtConcurrent::run([strokes]() {
         while (!strokes->cancelled) {
             Job job;
             bool have = false;
@@ -768,7 +748,7 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
             job = Job();
         }
         strokes->finished = true;
-        // what the jobs hold (presets, an image) let go of in the GUI thread, also once the picker is gone
+        // what the jobs hold (presets, an image) is released in the GUI thread, also once the picker is gone
         QMetaObject::invokeMethod(qApp, [strokes]() {
             QMutexLocker locker(&strokes->mutex);
             strokes->queue.clear();
@@ -780,33 +760,40 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
     connect(&d->feed, &QTimer::timeout, this, [this]() { d->feedSome(); });
     d->feed.start();
 
-    // the finished ones, a few times a second, until all are
     d->collect.setInterval(80);
     connect(&d->collect, &QTimer::timeout, this, [this]() {
-        bool any = false;
-        QList<Job> spent;
-        {
-            QMutexLocker locker(&d->strokes->mutex);
-            for (auto it = d->strokes->madeMasks.constBegin(); it != d->strokes->madeMasks.constEnd(); ++it) {
-                d->strokes->masks.insert(it.key(), it.value());
-                maskCache().insert(d->catalog->brushes.value(it.key()).md5 + it.key(), it.value());
-            }
-            d->strokes->madeMasks.clear();
-            for (auto it = d->strokes->made.constBegin(); it != d->strokes->made.constEnd(); ++it) {
-                d->strokes->shown.insert(it.key(), it.value());
-                strokeCache().insert(d->catalog->brushes.value(it.key()).md5 + it.key(), it.value());
-                latestStrokes().insert(it.key(), it.value());
-                any = true;
-            }
-            d->strokes->made.clear();
-            spent.swap(d->strokes->spent);
-        }
-        // the copies go here, in the GUI thread
-        spent.clear();
-        if (any) updatePreviews();
-        if (d->strokes->finished && !any) d->collect.stop();
+        if (d->collectSome()) updatePreviews();
     });
     d->collect.start();
+}
+
+bool KisStudioBrushPicker::Private::collectSome()
+{
+    // read before collecting: once finished, all that was made is collected below
+    const bool done = strokes->finished;
+    QHash<QString, QImage> madeStrokes;
+    QHash<QString, QImage> madeMasks;
+    QList<Job> spent;
+    {
+        QMutexLocker locker(&strokes->mutex);
+        madeStrokes.swap(strokes->made);
+        madeMasks.swap(strokes->madeMasks);
+        spent.swap(strokes->spent);
+    }
+    // the copies are released here, in the GUI thread
+    spent.clear();
+    StrokeCache &cache = strokeCache();
+    for (auto it = madeMasks.constBegin(); it != madeMasks.constEnd(); ++it) {
+        strokes->masks.insert(it.key(), it.value());
+        cache.masks.insert(catalog->brushes.value(it.key()).md5 + it.key(), it.value());
+    }
+    for (auto it = madeStrokes.constBegin(); it != madeStrokes.constEnd(); ++it) {
+        strokes->shown.insert(it.key(), it.value());
+        cache.strokes.insert(catalog->brushes.value(it.key()).md5 + it.key(), it.value());
+        cache.latest.insert(it.key(), it.value());
+    }
+    if (done) collect.stop();
+    return !madeStrokes.isEmpty();
 }
 
 void KisStudioBrushPicker::Private::feedSome()
@@ -826,7 +813,7 @@ void KisStudioBrushPicker::Private::feedSome()
     while (next < toQueue.size() && spent.elapsed() < 6) {
         const Brush brush = catalog->brushes.value(toQueue[next++]);
         KisPaintOpPresetSP preset = server->resource(brush.md5, QString(), brush.name);
-        // the clone brush paints what is elsewhere in the image: nothing to show
+        // the clone brush paints what is elsewhere in the image: nothing here
         if (!preset || !preset->valid() || !preset->settings() || brush.engine == QLatin1String("duplicate")) {
             continue;
         }
@@ -861,7 +848,7 @@ void KisStudioBrushPicker::Private::feedSome()
 
 KisStudioBrushPicker::~KisStudioBrushPicker()
 {
-    // the worker stops after the brush it is painting, not waited for: it hands what it holds back to the GUI thread
+    // not waited for: the worker stops after the brush it is painting
     d->strokes->cancelled = true;
     QMutexLocker locker(&d->strokes->mutex);
     d->strokes->queue.clear();
@@ -887,7 +874,7 @@ QString KisStudioBrushPicker::neighbour(KisMainWindow *, const QString &current,
     }
     const int index = yours.indexOf(current);
     if (index < 0) {
-        // not one of yours: into your list from its start or end
+        // into your list from its start or end
         return step > 0 ? yours.first() : yours.last();
     }
     const int to = index + step;
@@ -908,7 +895,7 @@ void KisStudioBrushPicker::use(KisViewManager *view, const QString &presetName)
 
 QImage KisStudioBrushPicker::strokePicture(const QString &presetName)
 {
-    return latestStrokes().value(presetName);
+    return strokeCache().latest.value(presetName);
 }
 
 QString KisStudioBrushPicker::title(const QString &presetName)

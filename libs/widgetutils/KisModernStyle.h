@@ -13,17 +13,9 @@
 #include <QFont>
 
 class QAction;
-
-/**
- * A flat, rounded widget style built on top of Fusion.
- *
- * Everything that is not overridden here is still painted by Fusion, so
- * metrics and layouts stay close to what Krita's widgets were designed for.
- * All colors come from the palette (i.e. the active color theme), this
- * style only changes shapes, spacing and interaction states.
- */
 class QWheelEvent;
 
+/// A flat, rounded style on top of Fusion; colors all come from the palette
 class KRITAWIDGETUTILS_EXPORT KisModernStyle : public QProxyStyle
 {
     Q_OBJECT
@@ -39,58 +31,31 @@ public:
     /// QStyleFactory::keys() with KisModernStyle prepended
     static QStringList availableStyles();
 
-    /**
-     * The name of the style that actually paints the widgets, i.e. "fusion"
-     * for KisModernStyle. Some widgets adjust their geometry based on it.
-     */
+    /// The style that actually paints the widgets ("fusion" for KisModernStyle)
     static QString underlyingStyleName(const QStyle *style);
 
     /// Corner radius of rounded controls, for widgets that paint themselves
     static constexpr int cornerRadius = 5;
 
-    /**
-     * A frameless line edit with this property set true is a quiet field:
-     * no box until it is pointed at or typed in (a search over a list, on a
-     * panel of its own)
-     */
+    /// A frameless line edit with this property is a quiet field: no box until hovered or focused
     static constexpr const char *quietFieldProperty = "studioQuietField";
 
-    /**
-     * A checkable tool button with this property set true is a tab: no fill
-     * when checked, its icon at full ink and a short bar under it; unchecked,
-     * its icon faint (a strip of panels' buttons)
-     */
+    /// A checkable tool button with this property is a tab: checked, full ink and a bar under it; else faint
     static constexpr const char *tabButtonProperty = "studioTabButton";
 
     /**
-     * \p rect with squircle corners: each a quarter of a superellipse,
-     * |x|^4 + |y|^4 = 1, whose bend eases in from the sides (a circular
-     * corner's starts all at once where the side ends). A corner is as round
-     * as a circular one of \p radius (it comes as far into the corner) and
-     * reaches further along the sides. Where the sides are too short for
-     * that, the exponent is less, down to 2, a circle: a pill stays a pill.
+     * \p rect with squircle corners (quarters of |x|^4 + |y|^4 = 1), as deep as circular ones of \p radius;
+     * on short sides the exponent drops toward 2, so a pill stays a pill
      */
     static QPainterPath squircle(const QRectF &rect, qreal radius);
 
-    /**
-     * The corners of squircle() for \p radius, the sides \p room long
-     * either way from the middle: how far along the sides a corner reaches,
-     * and the exponent of its superellipse.
-     */
+    /// squircle()'s corner reach along the sides and exponent, for half-sides \p room long
     static void squircleCorner(qreal radius, qreal room, qreal *reach, qreal *exponent);
 
-    /**
-     * Whether the system rounds popup windows (menus, lists, tooltips,
-     * floating panels) and draws their border and shadow: Windows 11. The
-     * style asks it to for every such window; they then draw no frame of
-     * their own.
-     */
+    /// Whether the system rounds and frames popup windows (Windows 11); they then draw no frame of their own
     static bool systemRoundsWindows();
 
-    /**
-     * Shortcuts look the same wherever they are listed (menus, Find, a
-     * button's card, a button's corner): a key cap, its text short ("Ctrl ⇧E").
-     */
+    /// Shortcuts are drawn as key caps everywhere, their text short ("Ctrl ⇧E")
     enum class KeyCap {
         Shown,     ///< the shortcut
         Pointed,   ///< the shortcut, under the pointer (a click records another)
@@ -101,47 +66,26 @@ public:
     /// \p nativeText as QKeySequence::NativeText writes it ("Ctrl+Shift+E")
     static QString keyCapText(const QString &nativeText);
     static QSizeF keyCapSize(const QFont &font, const QString &text, KeyCap state = KeyCap::Shown);
-    /// The key cap at the right of \p row, in the middle of its height
+    /// The key cap at the right of \p row, vertically centered
     static QRectF keyCapRect(const QRectF &row, const QFont &font, const QString &text, KeyCap state = KeyCap::Shown);
     static void drawKeyCap(QPainter *painter, const QRectF &rect, const QFont &font, const QString &text,
                            const QPalette &palette, KeyCap state = KeyCap::Shown);
     /// The smaller font of key caps in lists, from the list's font
     static QFont keyCapFont(const QFont &font);
 
-    /**
-     * \p font at \p scale times its size and of \p weight, as type is set:
-     * Segoe UI Variable (the Windows 11 face) cut for the size, small text
-     * from its Small cut (wider, more open), large from Display, and a
-     * semibold its own (not the bold Qt would take for it)
-     */
+    /// \p font scaled and weighted; Segoe UI Variable uses its optical cut (Small, Text, Display) and real semibold
     static QFont textFont(const QFont &font, qreal scale, QFont::Weight weight = QFont::Normal);
 
-    /**
-     * \p ink as secondary text is set (hints, captions, units, column
-     * labels): faint, but still readable on glass over a bright canvas
-     */
+    /// \p ink for secondary text (hints, captions, units): faint but readable on glass
     static QColor secondaryInk(QColor ink);
 
-    /**
-     * The action whose shortcut a menu entry shows: the entry itself, or
-     * the action it stands in for (its "kisShortcutTarget" property: menus
-     * may name an action in fewer words). None for what has no shortcut of
-     * its own (a submenu, a separator, an action with no name to keep it by).
-     */
+    /// The action whose shortcut a menu entry shows: itself or its "kisShortcutTarget"; none for submenus, separators, unnamed actions
     static QAction *shortcutTarget(QAction *entry);
 
-    /**
-     * The wheel's whole notches in \p event: a touchpad's or a fine wheel's
-     * small steps add up on \p receiver until they make one, so that every
-     * wheel moves things alike (a step dropped or a step each is neither)
-     */
+    /// Whole wheel notches in \p event; smaller steps (touchpads, fine wheels) accumulate on \p receiver
     static int wheelSteps(const QWheelEvent *event, QObject *receiver);
 
-    /**
-     * The left button (or the pen) is down now, as the system has it: also
-     * where Qt missed its release (a drag's own loop takes it). After a drag
-     * nothing took (Qt::IgnoreAction): still down, it was given up on with Esc.
-     */
+    /// Whether the left button (or pen) is down as the system has it, even where Qt missed the release (a drag's own loop)
     static bool pointerHeld();
 
     using QProxyStyle::polish;

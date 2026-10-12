@@ -4,22 +4,22 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioCanvasHud.h"
-#include "KisStudioGlass.h"
-#include <QPainterPath>
 
 #include <QAction>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPointer>
 #include <QProgressBar>
 #include <QStatusBar>
 #include <QStyleOptionToolButton>
 #include <QToolButton>
-#include <QtMath>
 #include <QWheelEvent>
+#include <QtMath>
 
 #include <cmath>
+#include <tuple>
 
 #include <KoCanvasController.h>
 #include <kactioncollection.h>
@@ -27,17 +27,17 @@
 
 #include "KisMainWindow.h"
 #include "KisPart.h"
-#include "KisStudioItemCard.h"
-#include "opengl/KisOpenGLUpdateInfoBuilder.h"
-#include <kis_icon_utils.h>
+#include "KisStudioGlass.h"
+#include "KisStudioItemCard.h" // KisStudioShortcuts
 #include "KisView.h"
 #include "KisViewManager.h"
-#include <tuple>
-#include "kis_selection_manager.h"
 #include "canvas/kis_canvas2.h"
 #include "canvas/kis_canvas_controller.h"
 #include "canvas/kis_coordinates_converter.h"
+#include "kis_selection_manager.h"
+#include "opengl/KisOpenGLUpdateInfoBuilder.h"
 #include <KisModernStyle.h>
+#include <kis_icon_utils.h>
 
 namespace {
 
@@ -51,11 +51,7 @@ QToolButton *hudButton(QWidget *parent)
     return button;
 }
 
-/**
- * The zoom, set as a reading: the number semibold, what it is in (the %)
- * smaller and fainter, on the number's baseline. Its digits are all as wide,
- * so the pill keeps its width as the zoom changes.
- */
+/// The zoom as a reading: the number semibold, the % smaller and fainter on its baseline
 class ZoomButton : public QToolButton
 {
 public:
@@ -144,7 +140,7 @@ struct KisStudioCanvasHud::Private
     QWidget *progressBox {nullptr};
     QPointer<QWidget> progress;
 
-    /// Modes that change what a stroke does, or hide what it is limited to: there while on, a click turns one off
+    /// A mode that changes what a stroke does: shown while on, a click turns it off
     struct Badge {
         QToolButton *button {nullptr};
         QPointer<QAction> action;
@@ -192,7 +188,6 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     d->progressBox->hide();
     layout->addWidget(d->progressBox);
 
-    // the badges, before the view's own buttons; each a toggle shown on, as its action is
     for (auto [badge, name, tip] : {std::make_tuple(&d->alphaLock, "preserve_alpha", i18nc("@info:tooltip", "Alpha locked")),
                                     std::make_tuple(&d->mirrorX, "hmirror_action", i18nc("@info:tooltip", "Mirrored painting, across")),
                                     std::make_tuple(&d->mirrorY, "vmirror_action", i18nc("@info:tooltip", "Mirrored painting, up and down"))}) {
@@ -233,7 +228,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     }
     layout->addWidget(d->mirror);
 
-    // the value view: the image in grays, to judge its values; given a shortcut as any command is (Find, its card)
+    // the image in grays, to judge its values
     auto *valueView = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_value")), i18nc("@action", "Value View"), mainWindow);
     valueView->setObjectName(QStringLiteral("studio_value_view"));
     valueView->setCheckable(true);
@@ -249,7 +244,6 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
             if (other) other->setChecked(on);
         }
         Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
-            // drawn again: the grays are made as the canvas draws the image (one frame), the textures as they are
             KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
             if (canvas) canvas->updateCanvas();
         }
@@ -297,7 +291,6 @@ void KisStudioCanvasHud::setActive(bool active)
 
     QStatusBar *statusBar = d->mainWindow->statusBar();
     if (active) {
-        // long operations report where the work is seen
         QWidget *progress = statusBar ? statusBar->findChild<QWidget *>(QStringLiteral("ProgressBar")) : nullptr;
         if (progress) {
             statusBar->removeWidget(progress);

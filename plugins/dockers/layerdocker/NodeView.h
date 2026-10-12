@@ -37,7 +37,7 @@ Q_SIGNALS:
      */
     void contextMenuRequested(const QPoint &globalPos, const QModelIndex &index);
     void selectionChanged(const QModelIndexList &);
-    /// The selected layers were dragged off the panel and let go where nothing takes them
+    /// The selected layers were dropped outside the panel, where nothing took them
     void draggedOff();
 public:
 

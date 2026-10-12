@@ -51,12 +51,9 @@ public:
     bool dragFlag, miniCtlFlag;
     KoColor foregroundColor;
     KoColor backgroundColor;
-    /// Made when first opened (see dialog()): one for each of these buttons there are, all at startup, was a good part of it
+    /// Made when first opened (see dialog()): one for each button at startup was slow
     KisDlgInternalColorSelector *colorSelectorDialog {nullptr};
-    /// What was done to the dialog before it was made, done to it when it is: the renderer it was made with
-    /// then, whether it was given another since (setDisplayRenderer), held to the painting color space (updateColorSpace)
-    QPointer<const KoColorDisplayRendererInterface> initialDisplayRenderer;
-    bool displayRendererChanged {false};
+    /// updateColorSpace() was called: a dialog made later is locked to the painting color space too
     bool colorSpaceLocked {false};
     struct ColorDialogState {
         KisSignalAutoConnectionsStore connections;
@@ -81,7 +78,6 @@ void KoDualColorButton::Private::init(KoDualColorButton *q)
         q->setMinimumSize( q->sizeHint() );
 
     q->setAcceptDrops( true );
-    initialDisplayRenderer = displayRenderer;
 }
 
 KisDlgInternalColorSelector *KoDualColorButton::Private::dialog(KoDualColorButton *q)
@@ -90,13 +86,8 @@ KisDlgInternalColorSelector *KoDualColorButton::Private::dialog(KoDualColorButto
         QString caption = i18n("Select a Color");
         KisDlgInternalColorSelector::Config config = KisDlgInternalColorSelector::Config();
         config.modal = false;
-        colorSelectorDialog = new KisDlgInternalColorSelector(q, foregroundColor, config, caption,
-                                                              initialDisplayRenderer ? initialDisplayRenderer.data() : displayRenderer.data());
+        colorSelectorDialog = new KisDlgInternalColorSelector(q, foregroundColor, config, caption, displayRenderer.data());
         connect(colorSelectorDialog, &KisDlgInternalColorSelector::finished, q, &KoDualColorButton::slotColorDialogClosed);
-        // as it would be had it been there all along
-        if (displayRendererChanged && displayRenderer) {
-            colorSelectorDialog->setDisplayRenderer(displayRenderer);
-        }
         if (colorSpaceLocked && displayRenderer) {
             colorSelectorDialog->lockUsedColorSpace(displayRenderer->getPaintingColorSpace());
         }
@@ -177,8 +168,8 @@ void KoDualColorButton::setForegroundColor(const KoColor &color)
          * The internal color selector might Q_EMIT the color of a different profile, so
          * we should break this cycling dependency somehow.
          */
-        KisSignalsBlocker b(d->dialog(this));
-        d->dialog(this)->slotColorUpdated(color);
+        KisSignalsBlocker b(d->colorSelectorDialog);
+        d->colorSelectorDialog->slotColorUpdated(color);
     }
     update();
 }
@@ -192,8 +183,8 @@ void KoDualColorButton::setBackgroundColor( const KoColor &color )
          * The internal color selector might Q_EMIT the color of a different profile, so
          * we should break this cycling dependency somehow.
          */
-        KisSignalsBlocker b(d->dialog(this));
-        d->dialog(this)->slotColorUpdated(color);
+        KisSignalsBlocker b(d->colorSelectorDialog);
+        d->colorSelectorDialog->slotColorUpdated(color);
     }
     update();
 }
@@ -214,8 +205,6 @@ void KoDualColorButton::setDisplayRenderer(const KoColorDisplayRendererInterface
 
     if (displayRenderer) {
         d->displayRenderer = displayRenderer;
-        // a dialog made later is given it then
-        d->displayRendererChanged = true;
         if (d->colorSelectorDialog) d->colorSelectorDialog->setDisplayRenderer(displayRenderer);
 
         connect(d->displayRenderer, SIGNAL(displayConfigurationChanged()), this, SLOT(updateColorSpace()));

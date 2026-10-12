@@ -17,20 +17,9 @@
 class KisMainWindow;
 
 /**
- * Settings: a glass panel over the canvas, by the button that opens it.
- *
- * Everything in it is a card (Checkerboard, Autosave, Pressure, ...), in
- * sections by what it is about; a change shows at once, the canvas beside
- * it. Cards can be pinned to Quick (a right click on the Settings button
- * shows them) and put in sections of your own, by dragging them onto the
- * sections or from a card's menu; a card stays in its own section too.
- * Typing finds any card by what it or its settings are called. What
- * differs from Krita's defaults is marked, and listed with Changed; what
- * waits for a restart says so. Undo puts back what was changed since the
- * panel opened.
- *
- * From its menu, settings go to a file and back, and to Krita itself and
- * back (see KisSettingsTransfer), each after a list of what would change.
+ * Settings: a glass panel of cards over the canvas, in sections, applied live.
+ * Cards can be pinned to Quick or put in sections of your own; settings can be
+ * found, reset, undone, and moved to a file or to Krita (KisSettingsTransfer).
  */
 class KRITAUI_EXPORT KisStudioSettings : public QWidget
 {

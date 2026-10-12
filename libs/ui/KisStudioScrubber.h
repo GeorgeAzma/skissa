@@ -13,10 +13,8 @@
 class QLineEdit;
 
 /**
- * A value you change by dragging it sideways, like the scrubbable numbers of
- * design tools: a picture of the value and the number, no label. The wheel
- * steps it, a double click types it. Sizes change by ratios (2 to 4 px feels
- * like 200 to 400 px), other values linearly.
+ * A number changed by dragging it sideways, the wheel, or typing it after a double click. Sizes change by ratios
+ * (2 to 4 px feels like 200 to 400 px), other values linearly.
  */
 class KisStudioScrubber : public QWidget
 {

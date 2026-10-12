@@ -16,6 +16,7 @@
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
@@ -75,12 +76,46 @@ QColor swatchColor(const QModelIndex &index)
     return index.data(Qt::BackgroundRole).value<QBrush>().color();
 }
 
+/// A swatch as a picture: what is dragged, a card's icon
+QPixmap swatchPixmap(const QColor &color, int size, qreal radius, qreal dpr)
+{
+    QPixmap pixmap(QSize(size, size) * dpr);
+    pixmap.setDevicePixelRatio(dpr);
+    pixmap.fill(Qt::transparent);
+    {
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setPen(QPen(QColor(0, 0, 0, 90), 1));
+        painter.setBrush(color);
+        painter.drawPath(KisModernStyle::squircle(QRectF(0.5, 0.5, size - 1, size - 1), radius));
+    }
+    return pixmap;
+}
+
+/// A swatch's color, with a ring that reads on any color when it is the one painted with, or an outline when pointed at
+void paintSwatch(QPainter &painter, const QRectF &rect, qreal radius, const QColor &color, bool current, bool hovered, const QColor &ink)
+{
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(color);
+    painter.drawPath(KisModernStyle::squircle(rect, radius));
+    painter.setBrush(Qt::NoBrush);
+    if (current) {
+        const QPainterPath ring = KisModernStyle::squircle(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius);
+        painter.setPen(QPen(QColor(0, 0, 0, 170), 3));
+        painter.drawPath(ring);
+        painter.setPen(QPen(Qt::white, 1.5));
+        painter.drawPath(ring);
+    } else if (hovered) {
+        QColor outline = ink;
+        outline.setAlphaF(0.6);
+        painter.setPen(QPen(outline, 1));
+        painter.drawPath(KisModernStyle::squircle(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius));
+    }
+}
+
 } // namespace
 
-/**
- * The swatches: the palette's columns across the panel's width, square, with
- * group names between the groups. See PaletteDockerDock for what it does.
- */
+/// The swatches: the palette's columns across the panel's width, with group names between the groups
 class PaletteGrid : public QWidget
 {
 public:
@@ -93,8 +128,8 @@ public:
     std::function<bool()> editable;
     /// The swatch size and columns once laid out, for the recent row to line up with
     std::function<void(int cell, int left, int columns)> laidOut;
-    /// A recent color dropped on an empty slot, or on the "+" (an invalid slot: a new row)
-    std::function<void(int recent, const QModelIndex &slot)> recentDropped;
+    /// A recent color (\p recent in \p source's row) dropped on an empty slot, or on the "+" (an invalid slot: a new row)
+    std::function<void(QObject *source, int recent, const QColor &color, const QModelIndex &slot)> recentDropped;
 
     PaletteGrid(KisPaletteModel *model, QWidget *parent)
         : QWidget(parent)
@@ -104,7 +139,6 @@ public:
         setAcceptDrops(true);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-        // the palette changes underneath: added, removed, moved, another one loaded
         auto changed = [this]() { relayout(); };
         QObject::connect(model, &QAbstractItemModel::dataChanged, this, changed);
         QObject::connect(model, &QAbstractItemModel::modelReset, this, changed);
@@ -136,7 +170,7 @@ public:
             return;
         }
         // as wide as the panel; very few columns would make huge swatches
-        m_cell = qBound(12, width() / columns, 36);
+        m_cell = qBound(4, width() / columns, 36);
         const int left = (width() - columns * m_cell) / 2;
         const int headerHeight = fontMetrics().height() + 6;
         const bool canAdd = editable && editable();
@@ -248,25 +282,10 @@ protected:
                 continue;
             }
             painter.setOpacity(m_dragging && cell.index == m_press ? 0.3 : 1.0);
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(swatchColor(cell.index));
-            painter.drawPath(KisModernStyle::squircle(rect, radius));
-            painter.setOpacity(1.0);
             // the color itself, not as the display shows it, as the current color is
-            if (m_model->getSwatch(cell.index).color().toQColor().rgb() == m_current) {
-                // the color painted with now: a ring that reads on any color
-                painter.setBrush(Qt::NoBrush);
-                painter.setPen(QPen(QColor(0, 0, 0, 170), 3));
-                painter.drawPath(KisModernStyle::squircle(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius));
-                painter.setPen(QPen(Qt::white, 1.5));
-                painter.drawPath(KisModernStyle::squircle(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius));
-            } else if (cell.index == m_hover && !m_dragging) {
-                QColor outline = ink;
-                outline.setAlphaF(0.6);
-                painter.setBrush(Qt::NoBrush);
-                painter.setPen(QPen(outline, 1));
-                painter.drawPath(KisModernStyle::squircle(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius));
-            }
+            const bool current = m_model->getSwatch(cell.index).color().toQColor().rgb() == m_current;
+            paintSwatch(painter, rect, radius, swatchColor(cell.index), current, cell.index == m_hover && !m_dragging, ink);
+            painter.setOpacity(1.0);
         }
 
         if (!m_plus.isNull()) {
@@ -349,7 +368,7 @@ protected:
         }
     }
 
-    // a right click, or a finger or pen held on a swatch (KisTouchMode): its card
+    // a right click, or a finger held on a swatch (KisTouchMode)
     void contextMenuEvent(QContextMenuEvent *event) override
     {
         // the card is the menu: not the main window's toolbar menu behind the panel
@@ -403,6 +422,7 @@ protected:
         m_dropRect = QRect();
         if (event->mimeData()->hasFormat(recentMimeType)) {
             const int recent = event->mimeData()->data(recentMimeType).toInt();
+            const QColor color = qvariant_cast<QColor>(event->mimeData()->colorData());
             const bool onPlus = m_plus.contains(event->pos() + QPoint(0, m_scroll));
             const QModelIndex target = onPlus ? QModelIndex(m_plusSlot) : indexAt(event->pos());
             if (!onPlus && (!target.isValid() || isOccupied(target))) {
@@ -410,8 +430,8 @@ protected:
                 return;
             }
             event->acceptProposedAction();
-            QTimer::singleShot(0, this, [this, recent, slot = QPersistentModelIndex(target)]() {
-                if (recentDropped) recentDropped(recent, slot);
+            QTimer::singleShot(0, this, [this, source = QPointer<QObject>(event->source()), recent, color, slot = QPersistentModelIndex(target)]() {
+                if (recentDropped) recentDropped(source, recent, color, slot);
             });
             return;
         }
@@ -474,22 +494,11 @@ private:
     void startDrag()
     {
         const QPersistentModelIndex from = m_press;
-        const qreal dpr = devicePixelRatioF();
-        QPixmap pixmap(QSize(m_cell, m_cell) * dpr);
-        pixmap.setDevicePixelRatio(dpr);
-        pixmap.fill(Qt::transparent);
-        {
-            QPainter painter(&pixmap);
-            painter.setRenderHint(QPainter::Antialiasing, true);
-            painter.setPen(QPen(QColor(0, 0, 0, 90), 1));
-            painter.setBrush(swatchColor(from));
-            painter.drawPath(KisModernStyle::squircle(QRectF(0.5, 0.5, m_cell - 1, m_cell - 1), 4));
-        }
         auto *drag = new QDrag(this);
         auto *mime = new QMimeData();
         mime->setData(swatchMimeType, QByteArray::number(from.row()) + ',' + QByteArray::number(from.column()));
         drag->setMimeData(mime);
-        drag->setPixmap(pixmap);
+        drag->setPixmap(swatchPixmap(swatchColor(from), m_cell, 4, devicePixelRatioF()));
         drag->setHotSpot(QPoint(m_cell / 2, m_cell / 2));
 
         m_dragging = true;
@@ -529,11 +538,7 @@ private:
     QRect m_dropRect;
 };
 
-/**
- * The colors last painted with, newest first, in one row lined up with the
- * palette's columns: a tap takes one, a drag into an empty place of the
- * palette keeps it there. Shown once something was painted.
- */
+/// The colors last painted with, newest first, lined up with the palette's columns; dragged into the palette to keep one
 class RecentStrip : public QWidget
 {
 public:
@@ -591,27 +596,13 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         const qreal radius = qMin(4.0, m_cell / 5.0);
+        const QColor ink = palette().color(QPalette::WindowText);
         for (int i = 0; i < m_colors.size() && i < m_columns; i++) {
             const QRectF rect = QRectF(m_left + i * m_cell, 0, m_cell, m_cell).adjusted(1, 1, -1, -1);
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(m_colors[i]);
-            painter.drawPath(KisModernStyle::squircle(rect, radius));
-            if (m_colors[i].rgb() == m_current) {
-                painter.setBrush(Qt::NoBrush);
-                painter.setPen(QPen(QColor(0, 0, 0, 170), 3));
-                painter.drawPath(KisModernStyle::squircle(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius));
-                painter.setPen(QPen(Qt::white, 1.5));
-                painter.drawPath(KisModernStyle::squircle(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius));
-            } else if (i == m_hover) {
-                QColor outline = palette().color(QPalette::WindowText);
-                outline.setAlphaF(0.6);
-                painter.setBrush(Qt::NoBrush);
-                painter.setPen(QPen(outline, 1));
-                painter.drawPath(KisModernStyle::squircle(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius));
-            }
+            paintSwatch(painter, rect, radius, m_colors[i], m_colors[i].rgb() == m_current, i == m_hover, ink);
         }
         // a hairline between the colors used and the palette
-        QColor line = palette().color(QPalette::WindowText);
+        QColor line = ink;
         line.setAlphaF(0.1);
         painter.setPen(QPen(line, 1));
         const int width = qMin(m_columns, 1000) * m_cell;
@@ -639,23 +630,12 @@ protected:
         // into the palette
         const int index = m_press;
         m_press = -1;
-        const qreal dpr = devicePixelRatioF();
-        QPixmap pixmap(QSize(m_cell, m_cell) * dpr);
-        pixmap.setDevicePixelRatio(dpr);
-        pixmap.fill(Qt::transparent);
-        {
-            QPainter painter(&pixmap);
-            painter.setRenderHint(QPainter::Antialiasing, true);
-            painter.setPen(QPen(QColor(0, 0, 0, 90), 1));
-            painter.setBrush(m_colors.value(index));
-            painter.drawPath(KisModernStyle::squircle(QRectF(0.5, 0.5, m_cell - 1, m_cell - 1), 4));
-        }
         auto *drag = new QDrag(this);
         auto *mime = new QMimeData();
         mime->setData(recentMimeType, QByteArray::number(index));
         mime->setColorData(m_colors.value(index));
         drag->setMimeData(mime);
-        drag->setPixmap(pixmap);
+        drag->setPixmap(swatchPixmap(m_colors.value(index), m_cell, 4, devicePixelRatioF()));
         drag->setHotSpot(QPoint(m_cell / 2, m_cell / 2));
         drag->exec(Qt::CopyAction);
     }
@@ -760,8 +740,13 @@ PaletteDockerDock::PaletteDockerDock( )
 
     m_grid = new PaletteGrid(m_model, mainWidget);
     m_grid->laidOut = [this](int cell, int left, int columns) { m_recentStrip->lineUp(cell, left, columns); };
-    m_grid->recentDropped = [this](int recent, const QModelIndex &slot) {
-        if (recent >= 0 && recent < m_shownRecent.size()) addColor(m_shownRecent[recent], slot);
+    m_grid->recentDropped = [this](QObject *source, int recent, const QColor &color, const QModelIndex &slot) {
+        // from another window's row: the color the drag carries
+        if (source == m_recentStrip && recent >= 0 && recent < m_shownRecent.size()) {
+            addColor(m_shownRecent[recent], slot);
+        } else if (color.isValid()) {
+            addColor(KoColor(color, KoColorSpaceRegistry::instance()->rgb8()), slot);
+        }
     };
     m_grid->editable = [this]() { return canEdit(); };
     m_grid->picked = [this](const QModelIndex &index) { pickSwatch(index); };
@@ -783,11 +768,14 @@ PaletteDockerDock::PaletteDockerDock( )
     connect(m_paletteChooser, SIGNAL(sigRemovePalette(KoColorSetSP)), SLOT(slotRemovePalette(KoColorSetSP)));
     connect(m_paletteChooser, SIGNAL(sigExportPalette(KoColorSetSP)), SLOT(slotExportPalette(KoColorSetSP)));
 
-    // the colors last painted with, kept between sessions
+    // the colors last painted with, kept between sessions; saved once a run of strokes is over
     Q_FOREACH (const QString &name, KisConfig(true).readEntry<QStringList>(recentKey, QStringList())) {
         const QColor color(name);
         if (color.isValid()) m_recent << KoColor(color, KoColorSpaceRegistry::instance()->rgb8());
     }
+    m_recentSave.setSingleShot(true);
+    m_recentSave.setInterval(3000);
+    connect(&m_recentSave, &QTimer::timeout, this, &PaletteDockerDock::saveRecent);
     updateRecentStrip();
 
     KisConfig cfg(true);
@@ -803,6 +791,9 @@ PaletteDockerDock::PaletteDockerDock( )
 
 PaletteDockerDock::~PaletteDockerDock()
 {
+    if (m_recentSave.isActive()) {
+        saveRecent();
+    }
     if (m_paletteEditor->isModified()) {
         m_paletteEditor->saveNewPaletteVersion();
     }
@@ -816,11 +807,9 @@ void PaletteDockerDock::setViewManager(KisViewManager* kisview)
     m_resourceProvider = kisview->canvasResourceProvider();
     connect(m_resourceProvider, SIGNAL(sigFGColorChanged(KoColor)),
             this, SLOT(slotFGColorResourceChanged(KoColor)));
-    // painted with: one of the recent colors
     connect(m_resourceProvider, &KisCanvasResourceProvider::sigFGColorUsed, this, &PaletteDockerDock::slotColorUsed);
     // another layer: its colors
     connect(kisview->nodeManager(), &KisNodeManager::sigNodeActivated, this, [this]() { updateRecentStrip(); });
-    kisview->nodeManager()->disconnect(m_model);
 }
 
 void PaletteDockerDock::unsetResourceServer()
@@ -1091,20 +1080,7 @@ void PaletteDockerDock::showSwatchCard(const QModelIndex &index, QWidget *anchor
         return;
     }
     const KisSwatch swatch = m_model->getSwatch(index);
-
-    const qreal dpr = devicePixelRatioF();
-    QPixmap chip(QSize(28, 28) * dpr);
-    chip.setDevicePixelRatio(dpr);
-    chip.fill(Qt::transparent);
-    {
-        QPainter painter(&chip);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.setPen(QPen(QColor(0, 0, 0, 90), 1));
-        painter.setBrush(swatchColor(index));
-        painter.drawPath(KisModernStyle::squircle(QRectF(0.5, 0.5, 27, 27), 6));
-    }
-
-    auto *card = new KisStudioItemCard(mainWindow, QIcon(chip),
+    auto *card = new KisStudioItemCard(mainWindow, QIcon(swatchPixmap(swatchColor(index), 28, 6, devicePixelRatioF())),
                                        swatch.name().isEmpty() ? swatchColor(index).name() : swatch.name(), nullptr);
     if (canEdit()) {
         const QPersistentModelIndex target = index;
@@ -1191,10 +1167,16 @@ void PaletteDockerDock::slotColorUsed(const KoColor &color)
     }
     m_recent.prepend(color);
     if (m_recent.size() > recentKept) m_recent.resize(recentKept);
+    m_recentSave.start();
+    updateRecentStrip();
+}
+
+void PaletteDockerDock::saveRecent()
+{
+    m_recentSave.stop();
     QStringList names;
     Q_FOREACH (const KoColor &recent, m_recent) names << recent.toQColor().name(QColor::HexArgb);
     KisConfig(false).writeEntry(recentKey, names);
-    updateRecentStrip();
 }
 
 void PaletteDockerDock::updateRecentStrip()
@@ -1232,18 +1214,8 @@ void PaletteDockerDock::showRecentCard(int index, QWidget *anchor)
         return;
     }
     const KoColor color = m_shownRecent[index];
-    const qreal dpr = devicePixelRatioF();
-    QPixmap chip(QSize(28, 28) * dpr);
-    chip.setDevicePixelRatio(dpr);
-    chip.fill(Qt::transparent);
-    {
-        QPainter painter(&chip);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.setPen(QPen(QColor(0, 0, 0, 90), 1));
-        painter.setBrush(color.toQColor());
-        painter.drawPath(KisModernStyle::squircle(QRectF(0.5, 0.5, 27, 27), 6));
-    }
-    auto *card = new KisStudioItemCard(mainWindow, QIcon(chip), color.toQColor().name(), nullptr);
+    auto *card = new KisStudioItemCard(mainWindow, QIcon(swatchPixmap(color.toQColor(), 28, 6, devicePixelRatioF())),
+                                       color.toQColor().name(), nullptr);
     if (canEdit()) {
         card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")), i18nc("@info:tooltip", "Add to palette"),
                           [this, color]() { addColor(color, QModelIndex()); }});
@@ -1255,9 +1227,7 @@ void PaletteDockerDock::showRecentCard(int index, QWidget *anchor)
                                   break;
                               }
                           }
-                          QStringList names;
-                          Q_FOREACH (const KoColor &recent, m_recent) names << recent.toQColor().name(QColor::HexArgb);
-                          KisConfig(false).writeEntry(recentKey, names);
+                          saveRecent();
                           updateRecentStrip();
                       }});
     card->popupBeside(anchor);

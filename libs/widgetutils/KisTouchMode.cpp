@@ -14,6 +14,11 @@
 #include <QTouchEvent>
 #include <QWidget>
 
+#include <kconfiggroup.h>
+#include <ksharedconfig.h>
+
+#include "kis_config_notifier.h"
+
 namespace {
 
 /// How far a finger may drift and still be holding; less than a drag, so that a drag never turns into a hold
@@ -32,6 +37,17 @@ KisTouchMode::KisTouchMode()
     m_holdTimer.setSingleShot(true);
     m_holdTimer.setInterval(longPressDelay);
     connect(&m_holdTimer, &QTimer::timeout, this, &KisTouchMode::hold);
+
+    // Krita's own long press (KisLongPressEventFilter) makes the menu then: not both
+#ifdef Q_OS_ANDROID
+    const bool longPressDefault = true;
+#else
+    const bool longPressDefault = false;
+#endif
+    m_kritaLongPress = KSharedConfig::openConfig()->group("").readEntry("longPressEnabled", longPressDefault);
+    connect(KisConfigNotifier::instance(), &KisConfigNotifier::sigLongPressChanged, this, [this](bool enabled) {
+        m_kritaLongPress = enabled;
+    });
 }
 
 KisTouchMode *KisTouchMode::instance()
@@ -81,7 +97,7 @@ bool KisTouchMode::eventFilter(QObject *watched, QEvent *event)
     case QEvent::MouseMove: {
         auto *mouse = static_cast<QMouseEvent *>(event);
         if (mouse->source() == Qt::MouseEventNotSynthesized) {
-            // a mouse that moves is being used; the same position again is not a move
+            // the same position again is not a move
             if (mouse->globalPos() != m_lastMousePos && !m_lastMousePos.isNull()) {
                 setActive(false);
             }
@@ -96,9 +112,9 @@ bool KisTouchMode::eventFilter(QObject *watched, QEvent *event)
         auto *mouse = static_cast<QMouseEvent *>(event);
         QWidget *widget = qobject_cast<QWidget *>(watched);
         m_swallowRelease = false;
-        // a finger or a pen; a mouse has a right button
-        if (widget && mouse->button() == Qt::LeftButton && mouse->source() != Qt::MouseEventNotSynthesized
-            && !m_holdTimer.isActive()) {
+        // a finger: a pen's presses are synthesized too, but it has a side button
+        if (widget && m_active && !m_kritaLongPress && mouse->button() == Qt::LeftButton
+            && mouse->source() != Qt::MouseEventNotSynthesized && !m_holdTimer.isActive()) {
             startHold(widget, mouse->globalPos());
         }
         break;

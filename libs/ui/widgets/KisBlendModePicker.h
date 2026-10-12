@@ -26,16 +26,12 @@ struct KisBlendModePictures {
 };
 
 /**
- * Picks a blend mode from your own list of them (see KisStudioPicker).
+ * Picks a blend mode from your own list of them (see KisStudioPicker),
+ * which starts with the common modes ordered by what they do.
  *
- * The list starts with about thirty common modes, ordered by what they do
- * (darken, lighten, contrast, compare, color); scrolling over a blend mode
- * box steps through it in that order, then on into all the others.
- *
- * Given Pictures, every mode is a tile with what it really does to them:
- * the layer in that mode over the layers below it, or a stroke of the
- * current color over the image; a blank canvas gets a sample picture.
- * Without, every mode shows a small swatch made with its composite op.
+ * Given Pictures, every mode is a tile showing what it does to them (the
+ * layer over the layers below, or a stroke over the image); without, a
+ * small swatch made with its composite op.
  */
 class KRITAUI_EXPORT KisBlendModePicker : public KisStudioPicker
 {
@@ -43,9 +39,7 @@ class KRITAUI_EXPORT KisBlendModePicker : public KisStudioPicker
 public:
     using Pictures = KisBlendModePictures;
 
-    /**
-     * @param available the ids that can be used in the current color space
-     */
+    /// @param available the ids that can be used in the current color space
     KisBlendModePicker(const QString &current, const QSet<QString> &available, QWidget *parent = nullptr,
                        const Pictures &pictures = Pictures());
 

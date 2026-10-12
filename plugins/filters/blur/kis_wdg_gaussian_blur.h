@@ -31,7 +31,7 @@ private Q_SLOTS:
     void aspectLockChanged(bool);
 
 private:
-    /// Linked, one radius for both: a single row
+    /// A single "Radius" row while both radii are linked
     void showRows();
 
     Ui_WdgGaussianBlur* m_widget;

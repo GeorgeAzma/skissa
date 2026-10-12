@@ -56,8 +56,9 @@ void KisStudioScrubber::setRange(qreal minimum, qreal maximum)
 
 void KisStudioScrubber::setValue(qreal value)
 {
+    // the drag owns the value until it is committed
     if (m_dragging) {
-        return; // the drag owns the value until it is committed
+        return;
     }
     m_value = bounded(value);
     update();
@@ -163,9 +164,11 @@ void KisStudioScrubber::mouseMoveEvent(QMouseEvent *event)
         m_pressX = eventX(event);
         m_pressValue = m_value;
     }
-    if (qAbs(eventX(event) - m_pressX) > 2) {
-        m_moved = true;
+    // a click's jitter changes nothing: a value shown but never committed
+    if (!m_moved && qAbs(eventX(event) - m_pressX) <= 2) {
+        return;
     }
+    m_moved = true;
     const qreal dx = (eventX(event) - m_pressX) * (fine ? 0.25 : 1.0);
     if (m_kind == Kind::Size) {
         // 100 px of drag doubles or halves the size
@@ -198,6 +201,8 @@ void KisStudioScrubber::mouseDoubleClickEvent(QMouseEvent *)
         m_editor->setFrame(false);
         m_editor->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         connect(m_editor, &QLineEdit::editingFinished, this, [this]() {
+            // hiding it takes its focus, which finishes the edit again
+            if (m_editor->isHidden()) return;
             bool ok = false;
             const qreal typed = QString(m_editor->text()).remove(QLatin1Char('%')).trimmed().toDouble(&ok);
             m_editor->hide();

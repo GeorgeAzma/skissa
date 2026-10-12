@@ -20,19 +20,12 @@
 class QPainter;
 
 /**
- * Picks one of many things (blend modes, effects) from your own list of
- * them, with everything else a click away.
- *
- * "Yours" are the ones you keep at hand, in the order you put them in, and
- * numbered: drag one to move it, star one to add it, unstar or drag it out
- * to take it off. Above them, the recently used ones that are not yours yet;
- * below, on request, all the others in groups. Typing searches all of them,
- * other names for them included. Pointing at one emits sigPreview() (after
- * a moment, for the slow kinds), so the caller can show it; a click or
- * Enter picks it, Escape or clicking elsewhere leaves things as they were.
- *
- * What is picked from is described by a Source; KisBlendModePicker and
- * KisStudioEffectsPicker are the two kinds.
+ * Picks one of many things (blend modes, effects, brushes, panels) from
+ * your own numbered list of them, reordered by dragging and starred to add;
+ * the recent ones above it, all the others in groups on request, a search
+ * over all. Pointing at one emits sigPreview(), a click or Enter picks it,
+ * Escape or a click elsewhere leaves things as they were. A Source says
+ * what is picked from.
  */
 class KRITAUI_EXPORT KisStudioPicker : public QFrame
 {
@@ -44,26 +37,24 @@ public:
     };
 
     struct Source {
-        /// Where your list is kept (kritarc)
+        /// The kritarc key of your list
         QString pinnedKey;
         /// Your list until you change it
         std::function<QStringList()> initialPinned;
-        /// Everything there is, to search and to tell valid ids
         std::function<QStringList()> allIds;
-        /// The ones that are not yours, in groups, in the order they are shown
+        /// The ones not in your list, in groups, in the order shown
         std::function<QVector<Group>(const QStringList &pinned)> otherGroups;
         std::function<QString(const QString &id)> name;
-        /// A shorter name in your list, if there is one
+        /// A shorter name for your list, optional
         std::function<QString(const QString &id)> pinnedName;
-        /// What else it is called, for searching
+        /// Other names, for searching
         std::function<QStringList(const QString &id)> aliases;
-        /// Its picture: a swatch in a row, a thumbnail in a tile
         std::function<void(QPainter &painter, const QRect &rect, const QString &id)> paintPreview;
-        /// Recently used ones, most recent first
+        /// Most recent first
         std::function<QStringList()> recent;
         /// Tiles with large previews instead of rows with swatches
         bool tiles {false};
-        /// The size of a tile, its name under its picture (none: a landscape thumbnail's)
+        /// A tile's size, name included (none: the default landscape tile)
         QSize tileSize;
         /// How long the pointer rests on one before it is previewed, in ms
         int previewDelay {0};
@@ -73,9 +64,9 @@ public:
         QString allLabel;
     };
 
-    /// A picture with a bit of everything an effect or blend mode can change, for a blank canvas
+    /// Something for an effect or a blend mode to show on, when the canvas is blank
     static QImage samplePicture(const QSize &size);
-    /// Whether a picture is one flat color (or empty): an effect or a blend mode would show nothing on it
+    /// Whether a picture is one flat color, or transparent: nothing to show an effect on
     static bool isFlat(const QImage &image);
 
     static QStringList pinnedIds(const Source &source);
@@ -89,7 +80,7 @@ public:
 
     void popupBelow(QWidget *anchor);
     void popupNear(const QPoint &globalPos);
-    /// Paints the previews again, e.g. when one more of them is ready
+    /// Paints the previews again, e.g. when more of them are ready
     void updatePreviews();
 
 Q_SIGNALS:
@@ -102,20 +93,20 @@ public:
     struct Private;
 
 protected:
-    /**
-     * Another way to see them (e.g. a map), instead of the list: a link in
-     * the footer switches; \p rememberedKey keeps which one was last shown.
-     */
+    /// Another view in the list's place (e.g. a map), switched to by a link; \p rememberedKey keeps which was shown
     void addAlternateView(QWidget *view, const QString &label, const QString &rememberedKey);
-    /// Picks as a click on an item does: says so, and closes
+    /// Picks as a click on an item does
     void pickId(const QString &id);
+    const Source &pickerSource() const;
 
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void hideEvent(QHideEvent *event) override;
 
 private:
     void popupAt(QPoint topLeft, QWidget *anchor);
+    void keepOnScreen();
 
     const std::unique_ptr<Private> d;
 };

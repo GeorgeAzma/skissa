@@ -14,15 +14,9 @@ class KisMainWindow;
 struct KisStudioEffectThumbnails;
 
 /**
- * All the effects (filters), to browse and to keep your own of at hand.
- *
- * Every effect is a tile with a small picture of your image with it applied
- * (a sample picture while the image is blank), made in the background as
- * the picker opens. Yours come first, in your order; above them the ones
- * used lately that are not yours yet; "All effects" shows the rest grouped
- * by what they do (soften, sharpen, light and tone, color...). Resting the
- * pointer on one shows it on the canvas; a click opens it to adjust, as
- * choosing it anywhere else does.
+ * All the effects (filters), each a tile showing it applied to your image,
+ * made in the background as the picker opens. Resting the pointer on one
+ * previews it on the canvas; a click opens it to adjust.
  */
 class KRITAUI_EXPORT KisStudioEffectsPicker : public KisStudioPicker
 {
@@ -31,7 +25,7 @@ public:
     explicit KisStudioEffectsPicker(KisMainWindow *mainWindow);
     ~KisStudioEffectsPicker() override;
 
-    /// An effect was used, from here or anywhere else: it goes first among the recent ones
+    /// An effect was used, from here or elsewhere: first among the recent ones
     static void recordUse(const QString &filterId);
 
 private:

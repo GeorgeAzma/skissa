@@ -50,15 +50,11 @@ constexpr qreal middleRadius = 36;
 /// A pressed slot moved this far: dragged to another
 constexpr qreal dragStart = 6;
 
-/**
- * One ring, open: its slots around the pointer. Taken by direction, as the
- * brush ring is: anywhere in a slot's eighth points at it.
- */
+/// One ring, open around the pointer; a slot is pointed at anywhere in its eighth, as on the brush ring
 class CommandRing : public QWidget
 {
 public:
     CommandRing(KisStudioRings *rings, KisMainWindow *mainWindow)
-        // in the window, over everything in it, its glass over theirs
         : QWidget(mainWindow)
         , m_rings(rings)
         , m_mainWindow(mainWindow)
@@ -78,7 +74,8 @@ public:
 
     QString ringId() const { return m_id; }
 
-    void openAt(const QString &id, const QPoint &global, bool byKey, int key)
+    /// Opens ring \p id at \p global; held while \p key (0: none) is
+    void openAt(const QString &id, const QPoint &global, int key)
     {
         m_id = id;
         m_global = global;
@@ -90,7 +87,7 @@ public:
         at.setY(qBound(half.height(), at.y(), qMax(half.height(), area->height() - half.height())));
         move(at - QPoint(half.width(), half.height()));
         m_center = QPointF(half.width(), half.height());
-        m_held = byKey;
+        m_held = key != 0;
         m_heldKey = key;
         m_since.restart();
         m_hover = -1;
@@ -182,7 +179,7 @@ protected:
                 items.append(key);
             }
             self->m_rings->setItems(id, items);
-            self->openAt(id, at, false, 0);
+            self->openAt(id, at, 0);
         });
     }
 
@@ -244,7 +241,8 @@ protected:
             return false;
         }
         // a press anywhere else closes it
-        if (type == QEvent::MouseButtonPress && watched->isWidgetType() && watched != this) {
+        if ((type == QEvent::MouseButtonPress || type == QEvent::TabletPress || type == QEvent::TouchBegin)
+            && watched->isWidgetType() && watched != this) {
             auto *widget = static_cast<QWidget *>(watched);
             if (!isAncestorOf(widget) && !qobject_cast<QMenu *>(widget)) closeRing();
         }
@@ -325,7 +323,7 @@ protected:
         painter.restore();
         KisStudioGlass::paintBorder(painter, this, shape, line);
 
-        // where the pointer goes: its eighth, faintly
+        // the eighth pointed at, faintly
         if (m_hover >= 0 && m_hover < m_slots.size() && !m_dragging) {
             QColor wedge = accent;
             wedge.setAlphaF(0.16);
@@ -468,8 +466,24 @@ QAction *KisStudioRings::makeAction(const QString &id)
     KisStudioShortcuts::restore(action);
     d->mainWindow->actionCollection()->addAction(action->objectName(), action);
     connect(action, &QAction::triggered, this, [this, id]() { open(id); });
+    action->installEventFilter(this);
     d->actions.insert(id, action);
     return action;
+}
+
+bool KisStudioRings::eventFilter(QObject *watched, QEvent *event)
+{
+    // opened by its key, not from a menu or Find: held, it picks when the key is let go
+    if (event->type() == QEvent::Shortcut && !static_cast<QShortcutEvent *>(event)->isAmbiguous()) {
+        auto *action = qobject_cast<QAction *>(watched);
+        const QString id = d->actions.key(action);
+        if (action && action->isEnabled() && !id.isEmpty()) {
+            const QKeySequence key = static_cast<QShortcutEvent *>(event)->key();
+            openRing(id, key.isEmpty() ? 0 : key[0] & ~int(Qt::KeyboardModifierMask));
+            return true;
+        }
+    }
+    return QObject::eventFilter(watched, event);
 }
 
 QAction *KisStudioRings::createRing()
@@ -526,16 +540,15 @@ void KisStudioRings::remove(const QString &id)
 
 void KisStudioRings::open(const QString &id)
 {
+    openRing(id, 0);
+}
+
+void KisStudioRings::openRing(const QString &id, int heldKey)
+{
     if (!d->ring) d->ring = new CommandRing(this, d->mainWindow);
-    // opened by its key: held, it picks when the key is let go
-    int key = 0;
-    if (QAction *action = d->actions.value(id)) {
-        const QKeySequence shortcut = action->shortcut();
-        if (!shortcut.isEmpty()) key = shortcut[0] & ~int(Qt::KeyboardModifierMask);
-    }
     if (KisStudioMotion::isShown(d->ring) && d->ring->ringId() == id) {
         d->ring->closeRing();
         return;
     }
-    d->ring->openAt(id, QCursor::pos(), key != 0, key);
+    d->ring->openAt(id, QCursor::pos(), heldKey);
 }

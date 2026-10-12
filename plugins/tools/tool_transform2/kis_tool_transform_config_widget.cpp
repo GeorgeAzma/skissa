@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 
+#include <QSignalBlocker>
 #include <QVector3D>
 #include "kis_tool_transform_config_widget.h"
 
@@ -37,19 +38,16 @@ KisToolTransformConfigWidget::KisToolTransformConfigWidget(TransformTransactionP
 {
     setupUi(this);
 
-    KConfigGroup group = KSharedConfig::openConfig()->group("KisToolTransform");
-    bool useInStackPreview = !group.readEntry("useOverlayPreviewStyle", false);
-    bool forceLodMode = group.readEntry("forceLodMode", true);
-
-    if (useInStackPreview && !forceLodMode) {
-       cmbPreviewMode->setCurrentIndex(0);
-    }
-    else if (useInStackPreview && forceLodMode) {
-        cmbPreviewMode->setCurrentIndex(1);
-    }
-    else {
-        cmbPreviewMode->setCurrentIndex(2);
-    }
+    // the preview can also be changed in Settings
+    auto loadPreviewMode = [this]() {
+        KConfigGroup group = KSharedConfig::openConfig()->group("KisToolTransform");
+        const bool overlay = group.readEntry("useOverlayPreviewStyle", false);
+        const bool forceLodMode = group.readEntry("forceLodMode", true);
+        QSignalBlocker blocker(cmbPreviewMode);
+        cmbPreviewMode->setCurrentIndex(overlay ? 2 : forceLodMode ? 1 : 0);
+    };
+    loadPreviewMode();
+    connect(KisConfigNotifier::instance(), &KisConfigNotifier::configChanged, this, loadPreviewMode);
 
     connect(cmbPreviewMode, SIGNAL(currentIndexChanged(int)), this, SLOT(slotPreviewChanged(int)));
 

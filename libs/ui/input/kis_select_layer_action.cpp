@@ -36,20 +36,14 @@
 
 namespace {
 
-/**
- * While the key is held: the layer a click would select, tinted on the
- * canvas where it has pixels, with its name by the pointer. Shown over the
- * canvas, never in the way of it.
- */
+/// While the key is held: the layer a click would pick, tinted where it has pixels, its name by the pointer
 class LayerHover : public QWidget
 {
 public:
-    /// What a click at a point (widget pixels) would pick
-    std::function<KisNodeSP(const QPointF &widgetPos)> picks;
-
-    explicit LayerHover(KisCanvas2 *canvas, std::function<KisNodeSP(const QPointF &)> picker)
+    /// \p picks: what a click at a point (widget pixels) would pick
+    LayerHover(KisCanvas2 *canvas, std::function<KisNodeSP(const QPointF &)> picks)
         : QWidget(canvas->canvasWidget())
-        , picks(std::move(picker))
+        , m_picks(std::move(picks))
         , m_canvas(canvas)
     {
         setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -65,12 +59,10 @@ public:
     void pointAt(const QPointF &widgetPos)
     {
         m_cursor = widgetPos;
-        KisImageSP image = m_canvas ? KisImageSP(m_canvas->image()) : KisImageSP();
-        if (!image) {
+        if (!m_canvas || !m_canvas->image()) {
             return;
         }
-        KisNodeSP node = picks ? picks(widgetPos)
-                               : KisToolUtils::findNode(image->root(), m_canvas->coordinatesConverter()->widgetToImage(widgetPos).toPoint(), false, false);
+        const KisNodeSP node = m_picks(widgetPos);
         if (node != m_node) {
             m_node = node;
             m_tint = QImage();
@@ -78,7 +70,7 @@ public:
             if (node && node->projection()) {
                 m_bounds = node->exactBounds();
                 if (!m_bounds.isEmpty()) {
-                    // where it has pixels, in the selection color, at a size good enough over the canvas
+                    // in the selection color, at a size good enough over the canvas
                     const QSize size = m_bounds.size().scaled(QSize(480, 480), Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
                     QImage alpha = node->projection()->createThumbnailUncached(size.width(), size.height(), m_bounds)
                                        .convertToFormat(QImage::Format_ARGB32);
@@ -156,6 +148,7 @@ protected:
     }
 
 private:
+    std::function<KisNodeSP(const QPointF &)> m_picks;
     QPointer<KisCanvas2> m_canvas;
     KisNodeSP m_node;
     QRect m_bounds;
@@ -169,14 +162,10 @@ class KisSelectLayerAction::Private
 {
 public:
     KisSelectLayerAction *q {nullptr};
-    QPointer<QWidget> hover;
+    QPointer<LayerHover> hover;
     int shortcut {makeShortcut(LayerSelectionMode_TopLayer, SelectionOverrideMode_Replace)};
 
-    /**
-     * Clicking again where the last click picked a layer picks the next one
-     * down that has paint there, round to the top again: a layer under
-     * another is a few clicks away, without the layers panel
-     */
+    /// Clicking again where the last click picked a layer picks the next one down with paint there
     QPointF pressedAt;
     QPointF lastPickAt;
     QElapsedTimer lastPick;
@@ -326,7 +315,7 @@ void KisSelectLayerAction::activate(int shortcut)
 {
     QApplication::setOverrideCursor(KisCursor::pickLayerCursor());
     delete d->hover;
-    // which layer a click would select, before the click (all of them, or a menu, is not one layer)
+    // which layer a click would pick, shown before the click (not for all of them, or a menu)
     KisCanvas2 *canvas = inputManager()->canvas();
     if (canvas && Private::layerSelectionMode(shortcut) == LayerSelectionMode_TopLayer) {
         d->hover = new LayerHover(canvas, [this](const QPointF &widgetPos) { return d->pickAt(widgetPos); });
@@ -461,7 +450,7 @@ void KisSelectLayerAction::inputEvent(QEvent *event)
 
     // Now select the nodes
     d->selectNodes(nodesToSelect, selectionOverrideMode, true);
-    if (auto *hover = dynamic_cast<LayerHover *>(d->hover.data())) {
-        hover->pointAt(eventPosF(event));
+    if (d->hover) {
+        d->hover->pointAt(eventPosF(event));
     }
 }

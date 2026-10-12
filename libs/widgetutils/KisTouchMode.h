@@ -16,18 +16,10 @@
 class QWidget;
 
 /**
- * Fingers, as opposed to a mouse or a pen.
+ * Fingers, as opposed to a mouse or a pen: a finger on the screen turns it on, the mouse moving or a pen near
+ * turns it off. A finger does not hover, so widgets show what is otherwise shown under the pointer while it is on.
  *
- * A finger does not hover, so what the UI shows only under the pointer has
- * to be there while a finger is in use: widgets ask isActive() when they
- * paint and listen to changed(). A finger on the screen turns it on; the
- * mouse moving, or a pen coming near the tablet, turns it off again.
- *
- * And a finger or a pen held still on a widget for half a second is a right
- * click there: the widget gets a context menu event (a card, a menu, a
- * rename...), and the press that started it does not become a click. A
- * widget that does something else on a long press (moving the item held,
- * say) sets the property ownLongPress to true, and is left alone.
+ * A finger held still on a widget is a right click there, unless the widget sets the property ownLongPress.
  */
 class KRITAWIDGETUTILS_EXPORT KisTouchMode : public QObject
 {
@@ -55,6 +47,8 @@ private:
 
     bool m_active {false};
     QPoint m_lastMousePos;
+    /// Krita's own long press is on: it makes the context menu instead
+    bool m_kritaLongPress {false};
 
     QTimer m_holdTimer;
     QPointer<QWidget> m_holdWidget;

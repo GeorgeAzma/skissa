@@ -46,13 +46,13 @@
 
 namespace {
 
-/// Where a tag's delete button is, in its row of the list
+/// A tag's delete button in its list row
 QRect deleteButtonRect(const QRect &row)
 {
     return QRect(row.right() - 24, row.center().y() - 9, 18, 18);
 }
 
-/// The list's rows, with a delete button on the tag under the pointer
+/// List rows with a delete button on the hovered tag (on every tag in touch mode)
 class TagItemDelegate : public QStyledItemDelegate
 {
 public:
@@ -63,7 +63,6 @@ public:
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
     {
         QStyledItemDelegate::paint(painter, option, index);
-        // the list makes the row under the pointer the current one; a finger points at none, so all show it
         const bool pointed = option.state & (QStyle::State_MouseOver | QStyle::State_Selected);
         if ((pointed || KisTouchMode::isActive()) && deletable && deletable(index)) {
             koIcon("edit-delete").paint(painter, deleteButtonRect(option.rect).adjusted(1, 1, -1, -1));
@@ -71,7 +70,7 @@ public:
     }
 };
 
-/// The tags, and last a row that starts a new one: making a tag is where the tags are chosen
+/// The tags, and a last "New tag…" row
 class NewTagRow : public QIdentityProxyModel
 {
 public:
@@ -82,8 +81,7 @@ public:
         return sourceModel() ? sourceModel()->rowCount() : 0;
     }
 
-    /// The row it adds: made here with no pointer, where the tags' rows carry their source's (not asking for
-    /// its parent, which asks this)
+    /// The added row's index has no internal pointer; the tags' rows carry their source's
     bool isNewTag(const QModelIndex &index) const
     {
         return index.isValid() && index.model() == this && !index.internalPointer() && index.row() == newTagRow();
@@ -142,14 +140,15 @@ class Q_DECL_HIDDEN KisTagChooserWidget::Private
 {
 public:
     QComboBox *comboBox;
-    /// The tags, and "New tag…" last
     NewTagRow *rows;
-    /// The tag chosen before "New tag…" was
+    /// The tag chosen before "New tag…" was picked
     int lastIndex {0};
     QToolButton *undoButton;
     QTimer undoTimeout;
     KisTagSP deletedTag;
     QPointer<QLineEdit> editor;
+    /// The list was closed in this turn of the event loop: a change of the tag now was picked in it
+    bool listJustClosed {false};
     KisTagModel *model;
     KisTagSP cachedTag;
     QString resourceType;
@@ -160,12 +159,10 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
     , d(new Private)
 {
     d->resourceType = resourceType;
-    // one row: the list under it takes the height
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
     d->comboBox = new QComboBox(this);
     d->comboBox->setToolTip(i18n("Tag"));
-    // on the panel, without a box of its own: a box only while pointed at
     d->comboBox->setFrame(false);
     d->comboBox->setSizePolicy(QSizePolicy::Policy::Expanding , QSizePolicy::Policy::Fixed);
 
@@ -183,7 +180,7 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
 
     d->model = model;
 
-    // the list: a delete button on the tag under the pointer, a right click renames
+    // in the list, a delete button on the hovered tag; a right click renames
     auto *delegate = new TagItemDelegate(d->comboBox->view());
     delegate->deletable = [this](const QModelIndex &index) { return isUserTag(tagAt(index)); };
     d->comboBox->view()->setItemDelegate(delegate);
@@ -195,7 +192,7 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(d->comboBox, 1);
 
-    // never narrower than the tag shown (beside the search, which takes what it leaves)
+    // never narrower than the tag shown; the search beside takes the rest
     auto fit = [this]() {
         QStyleOptionComboBox option;
         option.initFrom(d->comboBox);
@@ -213,7 +210,6 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
     connect(d->undoButton, &QToolButton::clicked, this, &KisTagChooserWidget::restoreDeletedTag);
     layout->addWidget(d->undoButton);
 
-    // the undo is offered for a little while
     d->undoTimeout.setSingleShot(true);
     d->undoTimeout.setInterval(8000);
     connect(&d->undoTimeout, &QTimer::timeout, this, [this]() {
@@ -226,10 +222,8 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
 
     connect(d->comboBox, SIGNAL(currentIndexChanged(int)),
             this, SLOT(tagChanged(int)));
-    // "New tag…" picked: the box becomes the field for the new one's name
-    connect(d->comboBox, QOverload<int>::of(&QComboBox::activated), this, [this](int index) {
-        if (index == d->rows->newTagRow()) QTimer::singleShot(0, this, &KisTagChooserWidget::startNewTag);
-    });
+    // the list closes just before what was picked in it is made current (see tagChanged)
+    d->comboBox->view()->window()->installEventFilter(this);
 
     // Workaround for handling tag selection deselection when model resets.
     // Occurs when model changes under the user e.g. +/- a resource storage.
@@ -284,8 +278,7 @@ void KisTagChooserWidget::startNewTag()
     if (d->editor) {
         return;
     }
-    // the box itself becomes the field for the name
-    // over the tag and the search beside it (the line they share), as a quiet field in the tag's font
+    // a quiet field over the tag and the search beside it, in the tag's font
     QWidget *line = parentWidget() ? parentWidget() : this;
     auto *editor = new QLineEdit(line);
     editor->setPlaceholderText(i18nc("@info:placeholder", "New tag"));
@@ -315,9 +308,8 @@ void KisTagChooserWidget::startRename(const QModelIndex &index)
     }
     QAbstractItemView *view = d->comboBox->view();
     auto *editor = new QLineEdit(view->viewport());
-    // the right click that opened it is not one for the field's own menu
+    // the right click that opened it must not open the field's own menu
     editor->setContextMenuPolicy(Qt::NoContextMenu);
-    // a quiet field in the list's font, over the tag's row
     editor->setFrame(false);
     editor->setProperty(KisModernStyle::quietFieldProperty, true);
     editor->setFont(view->font());
@@ -333,10 +325,10 @@ void KisTagChooserWidget::startRename(const QModelIndex &index)
 
 bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
 {
-    // typing a tag's name, new or renamed: Enter keeps it, Escape or clicking elsewhere does not
+    // a tag name being typed: Enter keeps it, Escape or clicking elsewhere drops it
     if (d->editor && watched == d->editor) {
         if (event->type() == QEvent::ShortcutOverride) {
-            // the list's popup takes Return and Escape on their way up, before the field sees them
+            // the list's popup would take Return and Escape before the field sees them
             const int key = static_cast<QKeyEvent *>(event)->key();
             if (key == Qt::Key_Return || key == Qt::Key_Enter || key == Qt::Key_Escape) {
                 event->accept();
@@ -368,11 +360,17 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
         return false;
     }
 
+    if (watched == d->comboBox->view()->window() && event->type() == QEvent::Hide) {
+        d->listJustClosed = true;
+        QTimer::singleShot(0, this, [this]() { d->listJustClosed = false; });
+        return false;
+    }
+
     if (watched == d->comboBox->view()->viewport()) {
         QAbstractItemView *view = d->comboBox->view();
         switch (event->type()) {
         case QEvent::ContextMenu: {
-            // a right click, or a finger or pen held on a tag (KisTouchMode): rename it there
+            // a right click, or a long press in touch mode: rename in place
             const QModelIndex index = view->indexAt(static_cast<QContextMenuEvent *>(event)->pos());
             if (index.isValid()) startRename(index);
             return true;
@@ -386,13 +384,13 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
                 break;
             }
             if (mouse->button() == Qt::RightButton) {
-                // not a choice: the context menu event that follows renames
+                // the context menu event that follows renames
                 return true;
             }
             KisTagSP tag = tagAt(index);
             if (mouse->button() == Qt::LeftButton && isUserTag(tag)
                 && deleteButtonRect(view->visualRect(index)).contains(mouse->pos())) {
-                // the list stays open: the other tags are still there to choose from
+                // the list stays open
                 if (event->type() == QEvent::MouseButtonRelease) deleteTag(tag);
                 return true;
             }
@@ -408,9 +406,14 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
 void KisTagChooserWidget::tagChanged(int tagIndex)
 {
     if (tagIndex == d->rows->newTagRow()) {
-        // not a tag: the one chosen before stays (chosen by the user, a name is asked for, see activated)
-        QSignalBlocker blocker(d->comboBox);
-        d->comboBox->setCurrentIndex(qMin(d->lastIndex, d->rows->newTagRow() - 1));
+        // not a tag: the one chosen before stays; picked from the list, the box becomes the field for the name
+        {
+            QSignalBlocker blocker(d->comboBox);
+            d->comboBox->setCurrentIndex(qMin(d->lastIndex, d->rows->newTagRow() - 1));
+        }
+        if (d->listJustClosed) {
+            QTimer::singleShot(0, this, &KisTagChooserWidget::startNewTag);
+        }
         return;
     }
     if (tagIndex >= 0) {

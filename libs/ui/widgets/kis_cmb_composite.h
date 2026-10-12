@@ -50,7 +50,7 @@ public:
 
     void hidePopup() override;
 
-    /// Shows the blend modes grouped by intent instead of the plain list
+    /// The blend mode picker instead of the plain list, but for layer styles
     void showPopup() override;
 
     void validate(const KoColorSpace *cs);
@@ -62,22 +62,18 @@ public:
     void wheelEvent(QWheelEvent *e) override;
     void keyPressEvent(QKeyEvent *e) override;
 
-    /// What the picker's tiles show the modes doing to, made when it opens; without, small swatches
+    /// What the picker's tiles show the modes doing, made when it opens; without, small swatches
     void setPreviewPictures(std::function<KisBlendModePicker::Pictures()> pictures);
 
 protected:
-    /// A press and a drag sideways steps through the modes, previewing them; a click opens the picker
+    /// A drag sideways steps through the modes, previewing them; a click opens the picker
     void mousePressEvent(QMouseEvent *e) override;
     void mouseMoveEvent(QMouseEvent *e) override;
     void mouseReleaseEvent(QMouseEvent *e) override;
 
 public:
 Q_SIGNALS:
-    /**
-     * A mode is highlighted in the popup and can be previewed, e.g. on the
-     * active layer; an empty id means the preview is over and the original
-     * mode should be shown again (a picked mode then comes via activated())
-     */
+    /// A mode to preview, e.g. on the active layer; empty when the preview is over (a pick then comes via activated())
     void sigPreviewBlendMode(const QString &id);
 
 private Q_SLOTS:
@@ -115,6 +111,10 @@ private Q_SLOTS:
 
 private:
     void selectNeighbouringBlendMode(bool down);
+    /// Whether the mode can be chosen in the current color space
+    bool isUsable(const QString &id) const;
+    /// Chooses it as the user would in the list
+    void pick(const KoID &op);
 
 private:
     KisSortedCompositeOpListModel *m_model;
@@ -122,7 +122,7 @@ private:
     bool m_allowToHidePopup;
     bool m_limitToLayerStyles {false};
     std::function<KisBlendModePicker::Pictures()> m_pictures;
-    /// Pressed, not yet released: a click or a scrub
+    /// A click or a scrub, until released
     bool m_pressed {false};
     bool m_scrubbing {false};
     QPoint m_pressPos;

@@ -17,15 +17,11 @@ class KisMainWindow;
 class QAction;
 
 /**
- * Rings of your own: up to eight of anything Find knows (tools, commands,
- * effects, brushes, panels...) around the pointer, on a key.
- *
- * A ring is a command (its key is given on the Keys page, in Find, on a
- * card): tapped, it opens and stays for a click; held, it is open while the
- * key is, and letting go picks what the pointer went towards. What is on it
- * is changed on it, as on the brush ring: dragged to swap, a right click to
- * replace or remove, an empty slot's "+" to add; a right click in its middle
- * renames it or deletes it.
+ * Rings of your own: up to eight of anything Find knows around the pointer,
+ * on a key. Tapped, a ring stays open for a click; held, letting go picks
+ * what the pointer went towards. Slots are dragged to swap, right clicked to
+ * replace or remove, added with an empty slot's "+"; a right click in the
+ * middle renames or deletes the ring.
  */
 class KRITAUI_EXPORT KisStudioRings : public QObject
 {
@@ -44,13 +40,17 @@ public:
     void rename(const QString &id, const QString &name);
     void remove(const QString &id);
 
-    /// Opens ring \p id at the pointer
+    /// Opens ring \p id at the pointer (or closes it if it is open)
     void open(const QString &id);
 
     static constexpr int slotCount = 8;
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private:
     QAction *makeAction(const QString &id);
+    void openRing(const QString &id, int heldKey);
 
     struct Private;
     const std::unique_ptr<Private> d;

@@ -19,12 +19,14 @@
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPlainTextEdit>
 #include <QPointer>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSlider>
 #include <QSpinBox>
 #include <QTabletEvent>
+#include <QTextEdit>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -62,14 +64,20 @@ const QString editableKey = QStringLiteral("StudioEffectsEditable");
 /// A drag this long goes through a setting's whole (usual) range
 constexpr qreal dragForWholeRange = 500.0;
 
-QToolButton *roundButton(const QString &glyph, const QString &toolTip, QWidget *parent)
+QToolButton *headerButton(QWidget *parent, const QString &toolTip)
 {
     auto *button = new QToolButton(parent);
-    button->setText(glyph);
     button->setToolTip(toolTip);
     button->setAutoRaise(true);
     button->setFocusPolicy(Qt::NoFocus);
     button->setFixedSize(34, 30);
+    return button;
+}
+
+QToolButton *glyphButton(const QString &glyph, const QString &toolTip, QWidget *parent)
+{
+    QToolButton *button = headerButton(parent, toolTip);
+    button->setText(glyph);
     QFont font = button->font();
     font.setPointSizeF(font.pointSizeF() * 1.2);
     button->setFont(font);
@@ -78,13 +86,16 @@ QToolButton *roundButton(const QString &glyph, const QString &toolTip, QWidget *
 
 QToolButton *iconButton(const QString &icon, const QString &toolTip, QWidget *parent)
 {
-    auto *button = new QToolButton(parent);
+    QToolButton *button = headerButton(parent, toolTip);
     button->setIcon(KisIconUtils::loadIcon(icon));
-    button->setToolTip(toolTip);
-    button->setAutoRaise(true);
-    button->setFocusPolicy(Qt::NoFocus);
-    button->setFixedSize(34, 30);
     return button;
+}
+
+bool isTextInput(QWidget *widget)
+{
+    if (auto *combo = qobject_cast<QComboBox *>(widget)) return combo->isEditable();
+    return qobject_cast<QLineEdit *>(widget) || qobject_cast<QAbstractSpinBox *>(widget)
+        || qobject_cast<QTextEdit *>(widget) || qobject_cast<QPlainTextEdit *>(widget);
 }
 
 /// One number setting of an effect that a drag on the canvas sets
@@ -103,7 +114,7 @@ struct Knob {
     }
     void setValue(qreal value) const
     {
-        // Krita's slider spin boxes keep their own state: through their own setValue
+        // Krita's slider spin boxes keep their own state: through their own (non-virtual) setValue
         if (auto *box = qobject_cast<KisDoubleSliderSpinBox *>(widget)) box->setValue(value);
         else if (auto *box = qobject_cast<KisSliderSpinBox *>(widget)) box->setValue(qRound(value));
         else if (auto *box = qobject_cast<QDoubleSpinBox *>(widget)) box->setValue(value);
@@ -120,15 +131,18 @@ struct Knob {
     }
 };
 
+template<class T>
+qreal softSpan(QWidget *widget)
+{
+    auto *slider = qobject_cast<T *>(widget);
+    return slider ? slider->softMaximum() - slider->softMinimum() : 0;
+}
+
 /// The usual range of a setting: the soft range of Krita's sliders, else the whole one, not absurdly wide
 qreal usualSpan(QWidget *widget)
 {
-    if (auto *slider = qobject_cast<KisDoubleSliderSpinBox *>(widget)) {
-        if (slider->softMaximum() > slider->softMinimum()) return slider->softMaximum() - slider->softMinimum();
-    }
-    if (auto *slider = qobject_cast<KisSliderSpinBox *>(widget)) {
-        if (slider->softMaximum() > slider->softMinimum()) return slider->softMaximum() - slider->softMinimum();
-    }
+    const qreal soft = qMax(softSpan<KisDoubleSliderSpinBox>(widget), softSpan<KisSliderSpinBox>(widget));
+    if (soft > 0) return soft;
     qreal span = 100;
     if (auto *box = qobject_cast<QDoubleSpinBox *>(widget)) span = box->maximum() - box->minimum();
     else if (auto *box = qobject_cast<QSpinBox *>(widget)) span = box->maximum() - box->minimum();
@@ -204,9 +218,8 @@ QString labelFor(QWidget *widget, QWidget *root)
 }
 
 /**
- * The settings a drag on the canvas sets: the first two number settings,
- * top to bottom; and whether the effect is simple, i.e. made of a few
- * numbers (and a switch or two), so that the panel can open small.
+ * Whether the effect is simple (a few numbers and switches, so the panel opens small),
+ * and if so the settings a drag on the canvas sets: its first two numbers, top to bottom.
  */
 QVector<Knob> findKnobs(QWidget *root, bool *simple)
 {
@@ -215,7 +228,6 @@ QVector<Knob> findKnobs(QWidget *root, bool *simple)
     int switches = 0;
     Q_FOREACH (QWidget *widget, root->findChildren<QWidget *>()) {
         if (!widget->isVisibleTo(root) || !widget->isEnabled()) continue;
-        // the parts of a spin box are not settings of their own
         if (qobject_cast<QAbstractSpinBox *>(widget->parentWidget())) continue;
         if (qobject_cast<QSpinBox *>(widget) || qobject_cast<QDoubleSpinBox *>(widget) || qobject_cast<QSlider *>(widget)) {
             numbers << widget;
@@ -225,18 +237,18 @@ QVector<Knob> findKnobs(QWidget *root, bool *simple)
             others++;
         } else if (!qobject_cast<QLabel *>(widget) && !qobject_cast<QScrollBar *>(widget) && !qobject_cast<QLineEdit *>(widget)
                    && (widget->focusPolicy() & Qt::ClickFocus) && widget->findChildren<QWidget *>().isEmpty()) {
-            // a curve, a gradient, levels: something to work on, not a number
+            // a curve, a gradient, levels: worked on in the panel, a drag would set something arbitrary
             others++;
         }
     }
+    *simple = !numbers.isEmpty() && numbers.size() <= 3 && others == 0 && switches <= 3;
+    if (!*simple) return {};
+
     std::stable_sort(numbers.begin(), numbers.end(), [root](QWidget *a, QWidget *b) {
         const QPoint pa = a->mapTo(root, QPoint(0, 0));
         const QPoint pb = b->mapTo(root, QPoint(0, 0));
         return pa.y() != pb.y() ? pa.y() < pb.y() : pa.x() < pb.x();
     });
-    if (simple) {
-        *simple = !numbers.isEmpty() && numbers.size() <= 3 && others == 0 && switches <= 3;
-    }
     QVector<Knob> knobs;
     for (int i = 0; i < numbers.size() && knobs.size() < 2; i++) {
         Knob knob;
@@ -247,16 +259,7 @@ QVector<Knob> findKnobs(QWidget *root, bool *simple)
     return knobs;
 }
 
-/**
- * An effect's settings as the panel's own, not a dialog's: no margins or
- * steppers, sliders as quiet ones (a line with the number after it, their
- * names in the secondary ink); a few numbers (\p simple) laid out tightly.
- */
-/**
- * The scroll areas of an effect's settings as tall as what they hold, up to
- * a point: no taller either (a scroll area asks for room for its scroll
- * bars, more than a row of settings)
- */
+/// Scroll areas as tall as what they hold, up to 400 (a scroll area asks for room for its scroll bars)
 void fitScrolls(QWidget *root)
 {
     Q_FOREACH (QScrollArea *scroll, root->findChildren<QScrollArea *>()) {
@@ -269,6 +272,7 @@ void fitScrolls(QWidget *root)
     }
 }
 
+/// An effect's settings as the panel's own: no margins or steppers, quiet sliders; \p simple ones laid out tightly
 void styleSettings(QWidget *root, bool simple)
 {
     // nested layouts too: a widget only knows its top one
@@ -292,7 +296,6 @@ void styleSettings(QWidget *root, bool simple)
             if (QLayout *inner = item->layout()) {
                 tidy(inner, true);
             } else if (QSpacerItem *spacer = item->spacerItem(); spacer && simple) {
-                // a dialog's breathing room: the panel is as tall as what is in it
                 spacer->changeSize(0, 0, spacer->sizePolicy().horizontalPolicy(), spacer->sizePolicy().verticalPolicy());
             }
         }
@@ -306,7 +309,6 @@ void styleSettings(QWidget *root, bool simple)
         if (auto *box = qobject_cast<QAbstractSpinBox *>(widget)) {
             box->setButtonSymbols(QAbstractSpinBox::NoButtons);
         }
-        // sliders as the panel's own everywhere, not boxes: a line with the number after it
         if (qobject_cast<KisSliderSpinBox *>(widget) || qobject_cast<KisDoubleSliderSpinBox *>(widget)) {
             auto *box = static_cast<QAbstractSpinBox *>(widget);
             box->setFrame(false);
@@ -323,7 +325,6 @@ void styleSettings(QWidget *root, bool simple)
             }
         }
     }
-    // no panel within the panel (a scroll area fills what it holds), and only as tall as what is now in it
     root->setAutoFillBackground(false);
     // sizes cached before the effect's own widget was put in are stale
     Q_FOREACH (QWidget *widget, root->findChildren<QWidget *>()) widget->updateGeometry();
@@ -349,9 +350,7 @@ public:
     void showAt(const QPoint &pos, const QString &text)
     {
         m_text = text;
-        QFont font = this->font();
-        font.setBold(true);
-        const QFontMetrics metrics(font);
+        const QFontMetrics metrics(boldFont());
         const QSize size(metrics.horizontalAdvance(text) + 22, metrics.height() + 12);
         QPoint place = pos + QPoint(18, -size.height() - 10);
         if (place.x() + size.width() > parentWidget()->width() - 4) place.setX(pos.x() - size.width() - 18);
@@ -372,14 +371,19 @@ protected:
         painter.setPen(Qt::NoPen);
         painter.setBrush(background);
         painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), height() / 2.0));
-        QFont font = this->font();
-        font.setBold(true);
-        painter.setFont(font);
+        painter.setFont(boldFont());
         painter.setPen(palette().color(QPalette::WindowText));
         painter.drawText(rect(), Qt::AlignCenter, m_text);
     }
 
 private:
+    QFont boldFont() const
+    {
+        QFont bold = font();
+        bold.setBold(true);
+        return bold;
+    }
+
     QString m_text;
 };
 
@@ -409,7 +413,6 @@ struct KisStudioEffectOverlay::Private
     /// No painting while an effect is being adjusted, only zooming and panning
     QScopedPointer<KisInputActionGroupsMaskGuard> guard;
 
-    /// The settings a drag on the canvas sets
     QVector<Knob> knobs;
     bool simple {false};
     QPointer<QWidget> canvasWidget;
@@ -417,7 +420,7 @@ struct KisStudioEffectOverlay::Private
     bool dragging {false};
     QPointF dragStart;
     bool fine {false};
-    /// The second setting follows the first by itself
+    /// The second setting follows the first by itself (e.g. both radii of a blur)
     bool secondLinked {false};
     bool cursorSet {false};
     /// Space held: the canvas pans, the drag is not the effect's
@@ -465,7 +468,6 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     d->title->setFont(titleFont);
     header->addWidget(d->title, 1);
 
-
     // the layer without it, and back: what the dialog's Preview box did
     d->preview = iconButton(QStringLiteral("visible"), i18nc("@info:tooltip", "Preview"), this);
     d->preview->setCheckable(true);
@@ -483,17 +485,15 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     });
     header->addWidget(d->preview);
 
-    // kept as a filter mask, to change or remove later; remembered
     d->editable = iconButton(QStringLiteral("filterMask"), i18nc("@info:tooltip", "Keep editable (filter mask)"), this);
     d->editable->setCheckable(true);
-    d->editable->setChecked(KisConfig(true).readEntry<bool>(editableKey, true));
     connect(d->editable, &QToolButton::toggled, this, [](bool on) { KisConfig(false).writeEntry(editableKey, on); });
     header->addWidget(d->editable);
 
-    QToolButton *cancel = roundButton(QStringLiteral("✕"), i18nc("@info:tooltip", "Cancel (Esc)"), this);
+    QToolButton *cancel = glyphButton(QStringLiteral("✕"), i18nc("@info:tooltip", "Cancel (Esc)"), this);
     connect(cancel, &QToolButton::clicked, this, &KisStudioEffectOverlay::reject);
     header->addWidget(cancel);
-    QToolButton *apply = roundButton(QStringLiteral("✓"), i18nc("@info:tooltip", "Apply (Enter)"), this);
+    QToolButton *apply = glyphButton(QStringLiteral("✓"), i18nc("@info:tooltip", "Apply (Enter)"), this);
     connect(apply, &QToolButton::clicked, this, &KisStudioEffectOverlay::accept);
     header->addWidget(apply);
     layout->addLayout(header);
@@ -504,7 +504,6 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     d->scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     d->scroll->viewport()->setAutoFillBackground(false);
     layout->addWidget(d->scroll, 1);
-    // on the glass: fields and buttons veiled lighter or darker, not boxes of the panel's color
     for (QWidget *widget : {static_cast<QWidget *>(d->preview), static_cast<QWidget *>(d->editable),
                             static_cast<QWidget *>(cancel), static_cast<QWidget *>(apply), static_cast<QWidget *>(d->scroll)}) {
         KisStudioGlass::setSeeThrough(widget, true);
@@ -543,7 +542,6 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
         return false;
     }
 
-    // another effect replaces the one being adjusted
     if (isVisible()) {
         reject();
     }
@@ -570,6 +568,11 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
 
     d->title->setText(filter->name());
     d->icon->setPixmap(KisIconUtils::loadIcon(QStringLiteral("studio_effects")).pixmap(18, 18));
+    {
+        // read each time: Settings may have changed it
+        QSignalBlocker blocker(d->editable);
+        d->editable->setChecked(KisConfig(true).readEntry<bool>(editableKey, true));
+    }
     d->editable->setVisible(d->maskPossible());
     {
         QSignalBlocker blocker(d->preview);
@@ -577,12 +580,7 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
         d->preview->setIcon(KisIconUtils::loadIcon(QStringLiteral("visible")));
     }
 
-    // what a drag on the canvas sets; a few numbers only: the panel opens small
     d->knobs = findKnobs(selector, &d->simple);
-    // a curve or levels are worked on in the panel: a drag would set something arbitrary
-    if (!d->simple) {
-        d->knobs.clear();
-    }
     styleSettings(selector, d->simple);
     selector->adjustSize();
     // a scroll area takes what it holds growing or shrinking itself: told there too
@@ -608,7 +606,6 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
     d->guard.reset(new KisInputActionGroupsMaskGuard(viewManager->canvasBase()->inputActionGroupsMaskInterface(),
                                                      ViewTransformActionGroup));
     KisStudioMotion::showFaded(this);
-    raise();
     reposition();
     setFocus();
     startApplying();
@@ -625,8 +622,8 @@ void KisStudioEffectOverlay::startApplying()
     if (!config) {
         return;
     }
-    if (d->node && d->node->inherits("KisPaintLayer")) {
-        config->setChannelFlags(qobject_cast<KisPaintLayer *>(d->node.data())->channelLockFlags());
+    if (auto *layer = qobject_cast<KisPaintLayer *>(d->node.data())) {
+        config->setChannelFlags(layer->channelLockFlags());
     }
     filterManager->apply(config);
 }
@@ -641,17 +638,21 @@ void KisStudioEffectOverlay::accept()
         reject();
         return;
     }
-    // editable: a filter mask instead of new pixels
-    if (d->editable->isChecked() && d->maskPossible()) {
-        createMask();
-        return;
+    if (d->editable->isChecked() && d->maskPossible() && d->selector) {
+        KisFilterConfigurationSP config = d->selector->configuration();
+        if (config && d->filter->configurationAllowedForMask(config)) {
+            createMask(config);
+            return;
+        }
     }
+    // a change not applied yet is applied now, else the last preview is kept
+    const bool pending = d->compressor.isActive();
     d->compressor.stop();
     if (!d->preview->isChecked()) {
         QSignalBlocker blocker(d->preview);
         d->preview->setChecked(true);
     }
-    if (!filterManager->isStrokeRunning()) {
+    if (pending || !filterManager->isStrokeRunning()) {
         startApplying();
     }
     if (filterManager->isStrokeRunning()) {
@@ -676,16 +677,12 @@ void KisStudioEffectOverlay::reject()
     finishEditing();
 }
 
-void KisStudioEffectOverlay::createMask()
+void KisStudioEffectOverlay::createMask(KisFilterConfigurationSP config)
 {
     KisViewManager *viewManager = d->viewManager();
     KisFilterManager *filterManager = d->filterManager();
-    if (!viewManager || !filterManager || !d->selector || !d->node || d->node->inherits("KisMask")) {
-        return;
-    }
-    KisFilterConfigurationSP config = d->selector->configuration();
     KisLayer *layer = qobject_cast<KisLayer *>(d->node.data());
-    if (!config || !layer) {
+    if (!viewManager || !filterManager || !layer) {
         return;
     }
     d->compressor.stop();
@@ -751,64 +748,34 @@ void KisStudioEffectOverlay::reposition()
 bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
 {
     QPointF pos;
-    bool press = false;
-    bool move = false;
-    bool release = false;
+    Qt::MouseButton button = Qt::NoButton;
     switch (event->type()) {
     case QEvent::MouseButtonPress:
     case QEvent::MouseButtonDblClick:
     case QEvent::MouseMove:
     case QEvent::MouseButtonRelease:
+        pos = static_cast<QMouseEvent *>(event)->localPos();
+        button = static_cast<QMouseEvent *>(event)->button();
+        break;
     case QEvent::TabletPress:
     case QEvent::TabletMove:
     case QEvent::TabletRelease:
+        pos = static_cast<QTabletEvent *>(event)->posF();
+        button = static_cast<QTabletEvent *>(event)->button();
         break;
     default:
         return false;
     }
+    const QEvent::Type type = event->type();
+    const bool press = type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick || type == QEvent::TabletPress;
+    const bool release = type == QEvent::MouseButtonRelease || type == QEvent::TabletRelease;
     // Shift: fine, a quarter as fast
     const Qt::KeyboardModifiers modifiers = static_cast<QInputEvent *>(event)->modifiers();
-    const bool plain = modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier;
-    switch (event->type()) {
-    case QEvent::MouseButtonPress:
-    case QEvent::MouseButtonDblClick: {
-        auto *mouse = static_cast<QMouseEvent *>(event);
-        if (mouse->button() != Qt::LeftButton || !plain) return false;
-        pos = mouse->localPos();
-        press = true;
-        break;
-    }
-    case QEvent::MouseMove:
-        pos = static_cast<QMouseEvent *>(event)->localPos();
-        move = true;
-        break;
-    case QEvent::MouseButtonRelease:
-        if (static_cast<QMouseEvent *>(event)->button() != Qt::LeftButton) return false;
-        pos = static_cast<QMouseEvent *>(event)->localPos();
-        release = true;
-        break;
-    case QEvent::TabletPress: {
-        auto *tablet = static_cast<QTabletEvent *>(event);
-        if (tablet->button() != Qt::LeftButton || !plain) return false;
-        pos = tablet->posF();
-        press = true;
-        break;
-    }
-    case QEvent::TabletMove:
-        pos = static_cast<QTabletEvent *>(event)->posF();
-        move = true;
-        break;
-    case QEvent::TabletRelease:
-        pos = static_cast<QTabletEvent *>(event)->posF();
-        release = true;
-        break;
-    default:
-        return false;
-    }
-
     const bool fine = modifiers & Qt::ShiftModifier;
+
     if (press) {
-        if (d->spaceHeld || d->knobs.isEmpty()) return false;
+        const bool plain = modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier;
+        if (button != Qt::LeftButton || !plain || d->spaceHeld || d->knobs.isEmpty()) return false;
         d->dragging = true;
         d->fine = fine;
         d->dragStart = pos;
@@ -820,10 +787,13 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
         event->accept();
         return true;
     }
-    if (!d->dragging) {
+    if (!d->dragging || (release && button != Qt::LeftButton)) {
         return false;
     }
-    if (move) {
+    if (release) {
+        d->dragging = false;
+        if (d->pill) d->pill->hide();
+    } else {
         if (fine != d->fine) {
             // on from where they are, at the other speed
             d->fine = fine;
@@ -841,7 +811,7 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
         }
         if (d->knobs.size() > 1 && d->knobs[1].widget) {
             const Knob &second = d->knobs[1];
-            // linked to the first (e.g. both radii of a blur): it follows, the drag does not set it too
+            // it moved by itself before the drag went up or down: it follows the first
             if (!d->secondLinked && second.value() != second.start && qAbs(moved.y()) <= 6) {
                 d->secondLinked = true;
             }
@@ -851,10 +821,6 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
             }
         }
         if (d->pill) d->pill->showAt(pos.toPoint(), shown.join(QStringLiteral("   ")));
-    }
-    if (release) {
-        d->dragging = false;
-        if (d->pill) d->pill->hide();
     }
     event->accept();
     return true;
@@ -879,14 +845,14 @@ bool KisStudioEffectOverlay::eventFilter(QObject *watched, QEvent *event)
         if (event->type() == QEvent::Leave && !d->dragging) d->setCursor(false);
         if (handleCanvasDrag(event)) return true;
     }
-    // Enter keeps it, Esc drops it, also when the focus is on the canvas (but not in a field of the panel)
+    // Enter keeps it, Esc drops it wherever the focus is, except in a field (of the panel, a docker...)
     if (event->type() == QEvent::KeyPress && isVisible()) {
         auto *key = static_cast<QKeyEvent *>(event);
         QWidget *focus = QApplication::focusWidget();
         const bool inPanel = focus && (focus == this || isAncestorOf(focus));
         // not in a dialog or another window
         const bool here = focus ? focus->window() == window() : watched == window();
-        if (!inPanel && here && (watched == focus || !focus)) {
+        if (!inPanel && here && (watched == focus || !focus) && !(focus && isTextInput(focus))) {
             if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
                 accept();
                 return true;
@@ -922,7 +888,6 @@ void KisStudioEffectOverlay::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    // glass, as the rails and pills over the canvas are
     const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 14);
     QColor border = palette().color(QPalette::WindowText);
     border.setAlphaF(0.14);

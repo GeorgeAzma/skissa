@@ -88,7 +88,7 @@ void fade(QWidget *widget, qreal to, int duration, QEasingCurve::Type curve, boo
     animation->setObjectName(QStringLiteral("studioFade"));
     animation->setStartValue(from);
     animation->setEndValue(to);
-    // the time of the whole way, for the part of it that is left
+    // the part of the way that is left, in its part of the time
     animation->setDuration(qMax(1, qRound(duration * qAbs(to - from))));
     animation->setEasingCurve(curve);
     QPointer<QWidget> target = widget;
@@ -129,11 +129,7 @@ void KisStudioMotion::showFaded(QWidget *widget)
         setOpacity(widget, 0.0);
         widget->show();
     }
-    /**
-     * It only fades in, in its place: a glass window that moved as it did hid
-     * what is under it anew each frame (each panel there painted again whole),
-     * frames too slow for its glass to keep up with it
-     */
+    // only a fade, no motion: glass that moves repaints everything under it every frame
     fade(widget, 1.0, 120, QEasingCurve::OutCubic, false);
 }
 

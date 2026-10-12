@@ -16,19 +16,10 @@
 #include "kritaui_export.h"
 
 /**
- * Settings moved between Kritas: to a file and back, and from this Krita
- * to Krita itself (another installation, its own settings) and back.
- *
- * Only the settings KisSettingsRegistry describes move, and only as they
- * are valid where they arrive; what is about one computer (paths, the
- * renderer, memory) stays. Nothing is applied before it is shown: a plan
- * lists each change, from what to what, and what was left out and why.
- *
- * Krita's settings are changed on top of what they are (only the settings
- * changed here, the rest as they were), never while that Krita runs, after
- * a copy of them is kept (once: the one from before the first time), and
- * written whole or not at all: to a new file first, checked, then put in
- * place of the old in one step.
+ * Settings moved between Kritas: to a file and back, and to Krita itself
+ * (another installation) and back. Only KisSettingsRegistry's settings move,
+ * validated, and never this computer's own. A plan lists every change before
+ * it is applied; Krita's file is backed up once and replaced in one step.
  */
 namespace KisSettingsTransfer
 {

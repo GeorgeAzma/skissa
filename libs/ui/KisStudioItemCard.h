@@ -18,6 +18,7 @@
 
 class KisMainWindow;
 class QAction;
+class QKeyEvent;
 class QPainter;
 
 /// Shortcuts the studio layout shows on its buttons and lets you change in place
@@ -29,11 +30,7 @@ QString badgeText(const QKeySequence &sequence);
 /// A small key cap in the bottom right corner of \p rect
 void paintBadge(QPainter &painter, const QRect &rect, const QString &text, const QPalette &palette);
 
-/**
- * Gives \p action the \p sequence (empty: no shortcut), saved like the
- * shortcuts dialog saves them. Another action that had it loses it; its
- * name is returned so the user can be told.
- */
+/// Gives \p action \p sequence (empty: none) and saves it; returns the name of the action that lost it, if any
 QString assign(KisMainWindow *mainWindow, QAction *action, const QKeySequence &sequence);
 
 /// Gives \p action the shortcut saved for its name, if one was
@@ -44,13 +41,33 @@ KRITAUI_EXPORT void enableMenuEditing();
 
 /// The mime type of an item dragged around the studio layout; the data is the item's key
 QString itemMimeType();
+
+/// Every action of the window: its collections' and the ones added to it directly
+QList<QAction *> allActions(KisMainWindow *mainWindow);
+
+/// "&Gaussian Blur..." -> "Gaussian Blur"
+QString plainText(QString text);
+
+bool isModifierKey(int key);
+
+enum class KeyPress {
+    Modifier, ///< a modifier alone: not a shortcut yet
+    Cancel,   ///< Escape
+    Clear,    ///< Backspace or Delete alone
+    Shortcut,
+};
+
+/**
+ * What \p event means while a shortcut is recorded, the shortcut in \p sequence.
+ * A symbol typed with Shift keeps no Shift: Qt fires "!" for Shift+1, never "Shift+!".
+ */
+KeyPress recordKey(const QKeyEvent *event, QKeySequence *sequence);
 }
 
 /**
- * What a long press or right click on a button shows: what the button is,
- * its shortcut as a key cap that records a new one when clicked, its
- * variants if it has some, and what can be done with it (pin, remove...).
- * One card for every kind of button, so there is one thing to learn.
+ * What a long press or right click on a button shows: what it is, its
+ * shortcut as a key cap that records a new one when clicked, its variants,
+ * and what can be done with it (pin, remove...).
  */
 class KRITAUI_EXPORT KisStudioItemCard : public QFrame
 {
@@ -89,7 +106,8 @@ protected:
 
 private:
     void startRecording();
-    void finishRecording(const QKeySequence &sequence, bool clear);
+    /// Ends recording; with \p assign, \p sequence becomes the shortcut
+    void finishRecording(bool assign, const QKeySequence &sequence = QKeySequence());
     void updateKeyCap();
 
     struct Private;

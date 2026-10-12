@@ -271,6 +271,8 @@ public:
         }
     };
     std::optional<CanvasOnlyOptions> canvasOnlyOptions;
+    /// The options canvas-only mode was entered with: leaving undoes those, even if they changed since
+    std::optional<CanvasOnlyOptions> canvasOnlyEntryOptions;
     QPoint canvasOnlyOffsetCompensation;
     bool inCanvasOnlyMode{false};
 
@@ -368,7 +370,7 @@ KisViewManager::~KisViewManager()
         cfg.writeKoColors("LastColorHistory", canvasResourceProvider()->colorHistoryColors());
     }
 
-    // the size preset thumbnails were zoomed to, where it is read again (KisPresetChooser)
+    // the presets' zoom, read again by KisPresetChooser
     cfg.setPresetIconSize(KisResourceItemChooserSync::instance()->baseLength());
     cfg.writeEntry("CanvasOnlyActive", false); // We never restart in CanvasOnlyMode
     delete d;
@@ -1252,7 +1254,9 @@ void KisViewManager::switchCanvasOnly(bool toggled)
     d->inCanvasOnlyMode = toggled;
     updateCanvasOnlyActionState();
 
-    KisViewManagerPrivate::CanvasOnlyOptions options(cfg);
+    const KisViewManagerPrivate::CanvasOnlyOptions options =
+        !toggled && d->canvasOnlyEntryOptions ? *d->canvasOnlyEntryOptions : KisViewManagerPrivate::CanvasOnlyOptions(cfg);
+    d->canvasOnlyEntryOptions = options;
 
     if (toggled) {
         d->canvasStateInNormalMode = qtMainWindow()->saveState();

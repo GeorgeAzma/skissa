@@ -7,6 +7,7 @@
 #define KISSTUDIOCANVASRING_H
 
 #include <QColor>
+#include <QElapsedTimer>
 #include <QImage>
 #include <QPointer>
 #include <QVector>
@@ -19,15 +20,8 @@
 class KisMainWindow;
 
 /**
- * The canvas's right click (or a pen's side button) with a painting tool:
- * a ring around the pointer with your first eight brushes, each where it
- * always is (the first at the top, then clockwise), the colors painted on
- * the layer around them, and the current color in the middle.
- *
- * Press, move towards a brush and let go: it is taken, without looking,
- * once the places are known. A click without moving leaves the ring open
- * to choose from with a click; Esc or a click elsewhere closes it; the
- * middle opens all the brushes.
+ * A right press on the canvas with a painting tool: your first eight brushes around the pointer, the layer's colors
+ * around them. Flick towards a brush and let go to take it; a click without moving leaves it open to click in.
  */
 class KRITAUI_EXPORT KisStudioCanvasRing : public QWidget
 {
@@ -49,18 +43,13 @@ private:
 
     void open(QWidget *canvas, const QPointF &pos);
     void close();
-    /// Your first brushes, in your order, with what they paint
     void loadSlots();
-    /// Your brushes changed here: \p change is given them all, the ring's first, in order
+    /// \p change is given all your brushes, the ring's first
     void changeBrushes(const std::function<void(QStringList &brushes)> &change);
-    /// A brush chosen from Find for slot \p index (past the last one: one more)
+    /// A brush chosen in Find for slot \p index (past the last one: one more)
     void pickBrush(int index);
-    /// What a brush's slot offers: another brush in its place, or none
     void slotMenu(int index, const QPoint &global);
-    /**
-     * What is under \p pos (ring coordinates): a brush (0..7), an empty
-     * slot (200+), a color (100+), the middle (-2), nothing (-1)
-     */
+    /// Under \p pos: a brush (0..7), an empty slot (200+), a color (100+), the middle (-2), nothing (-1)
     int targetAt(const QPointF &pos) const;
     void choose(int target);
     QPointF slotCenter(int index) const;
@@ -71,10 +60,12 @@ private:
     QVector<QColor> m_colors;
     QColor m_current;
     QString m_currentBrush;
-    /// Held: the press that opened it is still down, a release on a target takes it
+    /// The press that opened it is still down: a release on a target takes it
     bool m_held {false};
     bool m_moved {false};
-    /// Open, a brush pressed: taken when let go there, or (\p m_dragging) moved to where it is let go
+    /// Where the press that opened it was: off the center near the canvas's edges
+    QPointF m_openedAt;
+    /// A brush pressed: taken when let go there, or (\p m_dragging) moved to where it is let go
     int m_pressed {-1};
     QPointF m_pressedAt;
     bool m_dragging {false};
@@ -87,6 +78,8 @@ private:
     QPointer<QWidget> m_canvas;
     /// The button whose press closed it: its release is eaten too
     Qt::MouseButton m_eatRelease {Qt::NoButton};
+    /// Since a click chose something and closed it: a second click of a double click is eaten
+    QElapsedTimer m_closedByClick;
 };
 
 #endif // KISSTUDIOCANVASRING_H

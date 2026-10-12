@@ -36,11 +36,11 @@ namespace
 {
 const QString settingKey = QStringLiteral("PresetStrokeThumbnails");
 
-/// The strokes' size, in pixels: a wide strip, scaled down where it is shown
+/// A wide strip, scaled down where it is shown
 constexpr int strokeWidth = 320;
 constexpr int strokeHeight = 88;
 
-/// Says when the strokes before it are done (it runs after them)
+/// Says when the strokes before it are done
 class DoneStroke : public QObject, public KisSimpleStrokeStrategy
 {
     Q_OBJECT
@@ -79,7 +79,7 @@ struct KisPresetStrokeThumbnails::Private {
     };
 
     QHash<QString, QImage> made;
-    /// Asked for and made nothing (or failed): the picture is shown for them
+    /// Made nothing, or failed: their picture is shown instead
     QSet<QString> nothing;
     QList<Request> queue;
     QSet<QString> queued;
@@ -87,6 +87,8 @@ struct KisPresetStrokeThumbnails::Private {
     KisImageSP image;
     KisPaintLayerSP layer;
     Request current;
+    /// Which request a done signal is for: one given up on may still finish
+    quint64 serial {0};
     bool busy {false};
     QTimer watchdog;
 };
@@ -100,7 +102,7 @@ KisPresetStrokeThumbnails *KisPresetStrokeThumbnails::instance()
 KisPresetStrokeThumbnails::KisPresetStrokeThumbnails()
     : d(new Private)
 {
-    // an engine that never finishes: given up on, and the next one painted on a fresh image
+    // an engine that never finishes is given up on, the next one painted on a fresh image
     d->watchdog.setSingleShot(true);
     d->watchdog.setInterval(6000);
     connect(&d->watchdog, &QTimer::timeout, this, [this]() {
@@ -159,7 +161,7 @@ void KisPresetStrokeThumbnails::next()
                                                   ? window->viewManager()->canvasResourceProvider()->resourceManager()
                                                   : nullptr;
         if (!resources) {
-            // no window yet: asked again when the chooser is painted next
+            // no window yet: asked again when the chooser is next painted
             d->queued.clear();
             d->queue.clear();
             return;
@@ -209,8 +211,11 @@ void KisPresetStrokeThumbnails::next()
         d->busy = true;
         d->watchdog.start();
 
+        const quint64 serial = ++d->serial;
         DoneStroke *done = new DoneStroke();
-        connect(done, &DoneStroke::done, this, &KisPresetStrokeThumbnails::finished, Qt::QueuedConnection);
+        connect(done, &DoneStroke::done, this, [this, serial]() {
+            if (serial == d->serial) finished();
+        }, Qt::QueuedConnection);
         d->image->endStroke(d->image->startStroke(done));
     }
 }
@@ -222,7 +227,7 @@ void KisPresetStrokeThumbnails::finished()
     d->busy = false;
 
     const QImage painted = d->layer->paintDevice()->convertToQImage(nullptr, d->image->bounds());
-    // nothing painted (a smudge on nothing): its picture says more
+    // nothing painted (a smudge on nothing): its picture shows instead
     bool any = false;
     for (int y = 0; y < painted.height() && !any; y += 2) {
         const QRgb *line = reinterpret_cast<const QRgb *>(painted.constScanLine(y));

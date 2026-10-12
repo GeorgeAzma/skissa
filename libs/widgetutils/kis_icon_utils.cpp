@@ -27,12 +27,7 @@ namespace KisIconUtils
 static QMap<QString, QIcon> s_cache;
 static QMap<qint64, QString> s_icons;
 
-/**
- * Krita's icons drawn again in the Studio icons' one language (see
- * krita/pics/svg/make_studio_icons.py): the ones in sight all the time,
- * the tools, the top bar's switches, a layer's switches. Every place that
- * asks for one of these names gets the new drawing.
- */
+/// Krita icon names redrawn as Studio icons (see krita/pics/svg/make_studio_icons.py)
 static QString studioIcon(const QString &name)
 {
     static const QHash<QString, QString> icons = {
@@ -100,21 +95,20 @@ static QString studioIcon(const QString &name)
     return icons.value(name);
 }
 
-QIcon loadIcon(const QString &requestedName)
+QIcon loadIcon(const QString &name)
 {
-    QMap<QString, QIcon>::const_iterator cached = s_cache.constFind(requestedName);
+    QMap<QString, QIcon>::const_iterator cached = s_cache.constFind(name);
     if (cached != s_cache.constEnd()) {
         return cached.value();
     }
-    const QString studio = studioIcon(requestedName);
+    const QString studio = studioIcon(name);
     if (!studio.isEmpty()) {
-        // kept under the name it was asked by, so that a theme change finds it again
+        // cached under the requested name, so a theme change reloads it by that name
         QIcon icon = loadIcon(studio);
-        s_icons.insert(icon.cacheKey(), requestedName);
-        s_cache.insert(requestedName, icon);
+        s_icons.insert(icon.cacheKey(), name);
+        s_cache.insert(name, icon);
         return icon;
     }
-    const QString &name = requestedName;
 
     // try load themed icon
     const char * const prefix = useDarkIcons() ? "dark_" : "light_";
@@ -139,7 +133,7 @@ QIcon loadIcon(const QString &requestedName)
     for (const QString &resname : names) {
         if (QFile(resname).exists()) {
             QIcon icon(resname);
-            // a Studio icon's solid drawing, for when its button is on (a panel shown)
+            // a Studio icon's solid "_on" drawing, for checked buttons
             if (name.startsWith(QLatin1String("studio_")) && resname.endsWith(QLatin1String(".svg"))) {
                 const QString on = resname.left(resname.size() - 4) + QStringLiteral("_on.svg");
                 if (QFile(on).exists()) {
