@@ -1270,7 +1270,7 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
             // Ctrl+wheel: smaller or larger rows, as the list's settings set them
             auto *wheel = static_cast<QWheelEvent *>(event);
             if (wheel->modifiers() & Qt::ControlModifier) {
-                const int steps = wheel->angleDelta().y() / 120;
+                const int steps = KisModernStyle::wheelSteps(wheel, watched);
                 if (steps) thumbnailSizeSlider->setValue(thumbnailSizeSlider->value() + 5 * steps);
                 return true;
             }

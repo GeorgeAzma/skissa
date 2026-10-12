@@ -210,9 +210,9 @@ void KisStudioScrubber::mouseDoubleClickEvent(QMouseEvent *)
 
 void KisStudioScrubber::wheelEvent(QWheelEvent *event)
 {
-    const int steps = event->angleDelta().y() / 120;
+    const int steps = KisModernStyle::wheelSteps(event, this);
     if (!steps) {
-        event->ignore();
+        event->accept();
         return;
     }
     if (m_kind == Kind::Size) {

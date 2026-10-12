@@ -8,6 +8,8 @@
  */
 
 #include "kis_cmb_composite.h"
+
+#include <KisModernStyle.h>
 #include "KisBlendModePicker.h"
 
 #include <KoCompositeOp.h>
@@ -562,9 +564,9 @@ void KisCompositeOpComboBox::wheelEvent(QWheelEvent *e)
 {
     // scrolling over the box steps through your modes, then the others, like the shortcuts
     if (!m_limitToLayerStyles) {
-        const int delta = e->angleDelta().y();
-        if (delta != 0) {
-            selectNeighbouringBlendMode(delta < 0);
+        const int steps = KisModernStyle::wheelSteps(e, this);
+        for (int i = 0; i < qAbs(steps); i++) {
+            selectNeighbouringBlendMode(steps < 0);
         }
         e->accept();
         return;
@@ -580,8 +582,9 @@ void KisCompositeOpComboBox::wheelEvent(QWheelEvent *e)
     initStyleOption(&opt);
 
     if (style()->styleHint(QStyle::SH_ComboBox_AllowWheelScrolling, &opt, this)) {
-        if (e->angleDelta().y() != 0) {
-            selectNeighbouringBlendMode(e->angleDelta().y() < 0);
+        const int steps = KisModernStyle::wheelSteps(e, this);
+        for (int i = 0; i < qAbs(steps); i++) {
+            selectNeighbouringBlendMode(steps < 0);
         }
 
         e->accept();

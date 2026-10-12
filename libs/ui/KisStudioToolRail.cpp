@@ -199,9 +199,8 @@ protected:
 
     void wheelEvent(QWheelEvent *event) override
     {
-        const int steps = event->angleDelta().y() / 120;
-        if (steps && onWheel) {
-            onWheel(-steps);
+        if (onWheel) {
+            if (const int steps = KisModernStyle::wheelSteps(event, this)) onWheel(-steps);
             event->accept();
             return;
         }

@@ -25,6 +25,7 @@
 #include <QGridLayout>
 #include <QFormLayout>
 #include <QTabBar>
+#include <QWheelEvent>
 #include <QDockWidget>
 #include <QEvent>
 #include <QFrame>
@@ -544,6 +545,19 @@ void KisModernStyle::drawKeyCap(QPainter *painter, const QRectF &rect, const QFo
     painter->setFont(font);
     painter->drawText(face, Qt::AlignCenter, keyCapShown(text, state));
     painter->restore();
+}
+
+int KisModernStyle::wheelSteps(const QWheelEvent *event, QObject *receiver)
+{
+    const char *const restProperty = "studioWheelRest";
+    const int delta = event->angleDelta().y();
+    int rest = receiver->property(restProperty).toInt();
+    // the other way: what was left over the first way is not a part of it
+    if ((rest < 0) != (delta < 0)) rest = 0;
+    rest += delta;
+    const int steps = rest / 120;
+    receiver->setProperty(restProperty, rest - steps * 120);
+    return steps;
 }
 
 bool KisModernStyle::dragCancelled()

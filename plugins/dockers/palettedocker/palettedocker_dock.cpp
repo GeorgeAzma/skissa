@@ -290,10 +290,9 @@ protected:
 
     void wheelEvent(QWheelEvent *event) override
     {
-        const int steps = event->angleDelta().y() / 120;
-        if (steps && m_contentHeight > height()) {
+        if (m_contentHeight > height()) {
             // a row at a time, so that a short panel shows whole rows
-            setScroll(m_scroll - steps * m_cell);
+            if (const int steps = KisModernStyle::wheelSteps(event, this)) setScroll(m_scroll - steps * m_cell);
             event->accept();
             return;
         }

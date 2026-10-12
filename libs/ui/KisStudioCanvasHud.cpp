@@ -350,8 +350,9 @@ bool KisStudioCanvasHud::eventFilter(QObject *watched, QEvent *event)
     if (watched == parentWidget() && (event->type() == QEvent::Resize || event->type() == QEvent::LayoutRequest)) {
         reposition();
     } else if (watched == d->zoom && event->type() == QEvent::Wheel) {
-        const int steps = static_cast<QWheelEvent *>(event)->angleDelta().y();
-        if (steps) {
+        // a notch a zoom step, however fine the wheel
+        const int steps = KisModernStyle::wheelSteps(static_cast<QWheelEvent *>(event), watched);
+        for (int i = 0; i < qAbs(steps); i++) {
             d->trigger(steps > 0 ? "view_zoom_in" : "view_zoom_out");
         }
         return true;

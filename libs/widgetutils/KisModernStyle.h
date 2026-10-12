@@ -22,6 +22,8 @@ class QAction;
  * All colors come from the palette (i.e. the active color theme), this
  * style only changes shapes, spacing and interaction states.
  */
+class QWheelEvent;
+
 class KRITAWIDGETUTILS_EXPORT KisModernStyle : public QProxyStyle
 {
     Q_OBJECT
@@ -127,6 +129,13 @@ public:
      * its own (a submenu, a separator, an action with no name to keep it by).
      */
     static QAction *shortcutTarget(QAction *entry);
+
+    /**
+     * The wheel's whole notches in \p event: a touchpad's or a fine wheel's
+     * small steps add up on \p receiver until they make one, so that every
+     * wheel moves things alike (a step dropped or a step each is neither)
+     */
+    static int wheelSteps(const QWheelEvent *event, QObject *receiver);
 
     /// After a drag that nothing took (Qt::IgnoreAction): given up on with Esc, the button still held, not let go of somewhere
     static bool dragCancelled();

@@ -1404,7 +1404,6 @@ struct KisStudioLayout::Private
     /// The canvas's right click with a painting tool: your brushes in a ring
     QPointer<KisStudioCanvasRing> canvasRing;
     QString presetChipToolTip;
-    int presetWheel {0};
     QPointer<QToolButton> documentButton;
     QPointer<QAction> documentButtonAction;
     QPointer<KisStudioCanvasHud> hud;
@@ -3419,12 +3418,11 @@ bool KisStudioLayout::handlePresetChip(QEvent *event)
         return true;
     case QEvent::Wheel: {
         // a notch is one brush; a touchpad's small steps add up to one
-        d->presetWheel += static_cast<QWheelEvent *>(event)->angleDelta().y();
-        if (qAbs(d->presetWheel) < 120) {
+        const int steps = KisModernStyle::wheelSteps(static_cast<QWheelEvent *>(event), d->presetChip);
+        if (!steps) {
             return true;
         }
-        const int step = d->presetWheel < 0 ? 1 : -1;
-        d->presetWheel = 0;
+        const int step = steps < 0 ? 1 : -1;
         KisViewManager *view = d->mainWindow->viewManager();
         KisCanvasResourceProvider *resources = view ? view->canvasResourceProvider() : nullptr;
         if (resources && resources->currentPreset()) {
