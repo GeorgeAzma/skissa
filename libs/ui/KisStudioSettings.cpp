@@ -631,6 +631,9 @@ struct Builder {
             slider->setSingleStep(look.step);
             control = bindSlider(slider, id, look);
         }
+        // a right click puts it back as Krita comes
+        const QVariant fallback = registry()->defaultValue(id);
+        if (fallback.isValid()) control->setProperty("kisDefaultValue", fallback.toDouble() * look.scale);
         return row(look.label.isEmpty() ? s->label : look.label, control, id);
     }
 

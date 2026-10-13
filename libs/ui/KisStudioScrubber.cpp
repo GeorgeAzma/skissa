@@ -6,6 +6,7 @@
 #include "KisStudioScrubber.h"
 
 #include <QLineEdit>
+#include <QContextMenuEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -219,6 +220,16 @@ void KisStudioScrubber::mouseDoubleClickEvent(QMouseEvent *)
     m_editor->selectAll();
     m_editor->setFocus();
     update();
+}
+
+void KisStudioScrubber::contextMenuEvent(QContextMenuEvent *event)
+{
+    if (!qIsNaN(m_default)) {
+        commit(m_default);
+        event->accept();
+        return;
+    }
+    QWidget::contextMenuEvent(event);
 }
 
 void KisStudioScrubber::wheelEvent(QWheelEvent *event)

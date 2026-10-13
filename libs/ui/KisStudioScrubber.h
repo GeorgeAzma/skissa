@@ -7,6 +7,7 @@
 #define KISSTUDIOSCRUBBER_H
 
 #include <QWidget>
+#include <QtNumeric>
 
 #include <functional>
 
@@ -31,6 +32,8 @@ public:
     /// Shows a value without emitting valueCommitted()
     void setValue(qreal value);
     qreal value() const { return m_value; }
+    /// What a right click puts it back to (NAN: nothing)
+    void setDefaultValue(qreal value) { m_default = value; }
 
     QSize sizeHint() const override;
 
@@ -47,7 +50,11 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
     bool event(QEvent *event) override;
 
+protected:
+    void contextMenuEvent(QContextMenuEvent *event) override;
+
 private:
+    qreal m_default {qQNaN()};
     qreal bounded(qreal value) const;
     QString text() const;
     void commit(qreal value);

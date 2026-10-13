@@ -880,6 +880,13 @@ public:
             // Releasing the right mouse button makes the lineedit enter
             // the edition mode if we are not editing
             if (e->button() == Qt::RightButton) {
+                // a slider that knows its default goes back to it (see KisSliderSpinBox::defaultValueProperty);
+                // one that does not starts editing
+                const QVariant fallback = m_q->property("kisDefaultValue");
+                if (fallback.isValid()) {
+                    setValue(fallback.value<ValueType>(), false, true);
+                    return true;
+                }
                 // If we call startEditing() right from the eventFilter(),
                 // then the mouse release event will be somehow be passed
                 // to Qt further and generate ContextEvent on Windows.
