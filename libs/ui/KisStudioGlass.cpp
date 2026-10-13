@@ -1592,10 +1592,15 @@ void KisStudioGlass::installMenuGlass()
     filter = new MenuGlass();
     qApp->installEventFilter(filter);
     KisPopupButton::setFrameDecorator(decoratePopupFrame);
-    // tooltips made before, such as the item tooltips of resource lists, were polished without the filter
+    // menus and tooltips made before, such as the item tooltips of resource lists, were polished without the filter
     if (isEnabled() && seeThroughWindows()) {
         Q_FOREACH (QWidget *widget, QApplication::allWidgets()) {
-            if (isTooltip(widget) && !widget->testAttribute(Qt::WA_WState_Created)) makeGlassTooltip(widget);
+            if (widget->testAttribute(Qt::WA_WState_Created)) continue;
+            if (isTooltip(widget)) {
+                makeGlassTooltip(widget);
+            } else if (qobject_cast<QMenu *>(widget)) {
+                makeSeeThroughWindow(widget);
+            }
         }
     }
     if (isEnabled()) {
