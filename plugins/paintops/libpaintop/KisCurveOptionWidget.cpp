@@ -60,6 +60,7 @@ struct KisCurveOptionWidget::Private
     {}
 
     KisCurveOptionModel model;
+    bool noPenCheckbox {false};
 };
 
 KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommon> optionData,
@@ -139,7 +140,10 @@ KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommo
                                              KisCurveOptionInputControlsStrategyFactory inputControlsFactory,
                                              KisCurveOptionRangeControlsStrategyFactory rangeControlsFactory,
                                              Flags flags)
-    : KisPaintOpOption(optionData->id.name(), category, optionData.zoom(rowCheckedLens), enabledLink)
+    : KisPaintOpOption(optionData->id.name(), category,
+                       (flags & NoPenCheckbox) ? lager::cursor<bool>(optionData[&KisCurveOptionDataCommon::isChecked])
+                                                 : lager::cursor<bool>(optionData.zoom(rowCheckedLens)),
+                       enabledLink)
     , m_widget(new QWidget)
     , m_curveOptionWidget(new Ui_WdgCurveOption2())
     , m_d(new Private(optionData, enabledLink, strengthRangeReader,
@@ -150,6 +154,7 @@ KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommo
 
     setObjectName("KisCurveOptionWidget");
 
+    m_d->noPenCheckbox = flags & NoPenCheckbox;
     m_curveOptionWidget->setupUi(m_widget);
     m_curveOptionWidget->sensorSelector->setOptionDataCursor(m_d->model.optionData);
 
@@ -305,7 +310,7 @@ void KisCurveOptionWidget::readOptionSetting(const KisPropertiesConfigurationSP 
 bool KisCurveOptionWidget::isCheckable() const
 {
     // one that is always on is checked when the pen changes it
-    return true;
+    return !m_d->noPenCheckbox || m_d->model.isCheckable();
 }
 
 std::optional<KisPaintOpOption::RowValue> KisCurveOptionWidget::ownRowValue() const

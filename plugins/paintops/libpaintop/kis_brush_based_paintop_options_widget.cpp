@@ -40,10 +40,16 @@ void KisBrushBasedPaintopOptionWidget::paintOpOptionAdded(KisPaintOpOption *opti
     if (!size || size->category() != KisPaintOpOption::GENERAL || m_sizeOption) return;
     m_sizeOption = size;
     lager::cursor<qreal> diameter = m_brushOption->brushSize();
+    // the largest size it paints: the diameter, times the Size strength while Size is on (an older
+    // preset's; the strength has no slider of its own any more). Nothing in the preset is changed for it.
+    auto share = [size]() {
+        const qreal strength = size->strength().get();
+        return size->isChecked() && strength > 0.0 ? strength : 1.0;
+    };
     size->setRowValueSource(
-        [diameter]() -> std::optional<KisPaintOpOption::RowValue> {
+        [diameter, share]() -> std::optional<KisPaintOpOption::RowValue> {
             KisPaintOpOption::RowValue value;
-            value.value = diameter.get();
+            value.value = diameter.get() * share();
             value.minimum = 1.0;
             value.maximum = KisImageConfig(true).maxBrushSize();
             value.decimals = value.value < 10.0 ? 1 : 0;
@@ -52,22 +58,9 @@ void KisBrushBasedPaintopOptionWidget::paintOpOptionAdded(KisPaintOpOption *opti
             value.appliesUnchecked = true;
             return value;
         },
-        [diameter](qreal value) mutable { diameter.set(value); });
+        [diameter, share](qreal value) mutable { diameter.set(value / share()); });
     connect(m_brushOption, &KisPaintOpOption::sigSettingChanged, size, &KisPaintOpOption::notifyRowValueChanged);
-}
-
-void KisBrushBasedPaintopOptionWidget::setConfiguration(const KisPropertiesConfigurationSP config)
-{
-    KisPaintOpSettingsWidget::setConfiguration(config);
-
-    // the Size row is the diameter: a Size strength of an older preset becomes part of it
-    if (!m_sizeOption) return;
-    lager::cursor<qreal> strength = m_sizeOption->strength();
-    if (strength.get() > 0.0 && strength.get() < 1.0 - 1e-6) {
-        lager::cursor<qreal> diameter = m_brushOption->brushSize();
-        diameter.set(diameter.get() * strength.get());
-        strength.set(1.0);
-    }
+    connect(size, &KisPaintOpOption::sigSettingChanged, size, &KisPaintOpOption::notifyRowValueChanged);
 }
 
 KisBrushOptionWidget *KisBrushBasedPaintopOptionWidget::brushOptionWidget() const

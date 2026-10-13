@@ -128,14 +128,25 @@ bool KisStudioSymmetry::isOn(KisKActionCollection *actions)
 void KisStudioSymmetry::setOn(KisKActionCollection *actions, bool on)
 {
     KisStudioSymmetry *symmetry = instance();
+    // mirrored axes turned on or off elsewhere (the toolbar, a shortcut): what is on now is what comes back
+    QAction *acrossAction = mirrorAction(actions, true);
+    QAction *downAction = mirrorAction(actions, false);
+    const bool acrossOn = acrossAction && acrossAction->isChecked();
+    const bool downOn = downAction && downAction->isChecked();
+    if (!on && (acrossOn || downOn)) symmetry->setMirrorAxes(acrossOn, downOn);
+
     const bool mirror = on && symmetry->mode() == Mirror;
-    setChecked(mirrorAction(actions, true), mirror && symmetry->mirrorAcross());
-    setChecked(mirrorAction(actions, false), mirror && symmetry->mirrorDown());
-    // radial and tile are the brush's: the Multibrush tool
+    setChecked(acrossAction, mirror && symmetry->mirrorAcross());
+    setChecked(downAction, mirror && symmetry->mirrorDown());
+    // radial and tile are the brush's: the Multibrush tool, and back to the tool it came from
+    static QString toolBefore;
     const QString tool = KoToolManager::instance()->activeToolId();
     if (on && !mirror) {
-        if (tool != multiBrushTool) KoToolManager::instance()->switchToolRequested(multiBrushTool);
+        if (tool != multiBrushTool) {
+            toolBefore = tool;
+            KoToolManager::instance()->switchToolRequested(multiBrushTool);
+        }
     } else if (tool == multiBrushTool) {
-        KoToolManager::instance()->switchToolRequested(brushTool);
+        KoToolManager::instance()->switchToolRequested(toolBefore.isEmpty() ? brushTool : toolBefore);
     }
 }

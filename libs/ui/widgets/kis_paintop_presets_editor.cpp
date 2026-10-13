@@ -205,11 +205,8 @@ KisPaintOpPresetsEditor::KisPaintOpPresetsEditor(KisCanvasResourceProvider * res
     m_d->uiWdgPaintOpPresetSettings.showScratchpadButton->setCheckable(true);
     m_d->uiWdgPaintOpPresetSettings.showScratchpadButton->setChecked(cfg.scratchpadVisible());
 
-    QMenu *viewOptionsMenu = new QMenu(this);
-    QAction *detachBrushEditorAction = viewOptionsMenu->addAction(i18n("Detach Brush Editor"));
-    detachBrushEditorAction->setCheckable(true);
-    detachBrushEditorAction->setChecked(cfg.paintopPopupDetached());
-    m_d->uiWdgPaintOpPresetSettings.viewOptionButton->setMenu(viewOptionsMenu);
+    // its only item was Detach: the popup's pin keeps it open now
+    m_d->uiWdgPaintOpPresetSettings.viewOptionButton->hide();
 
     // Connections
     connect(m_d->uiWdgPaintOpPresetSettings.paintPresetIcon, SIGNAL(clicked()),
@@ -231,9 +228,6 @@ KisPaintOpPresetsEditor::KisPaintOpPresetsEditor(KisCanvasResourceProvider * res
 
     connect(m_d->uiWdgPaintOpPresetSettings.showScratchpadButton, SIGNAL(clicked(bool)),
             this, SLOT(slotSwitchScratchpad(bool)));
-
-    connect(detachBrushEditorAction, SIGNAL(toggled(bool)),
-            this, SLOT(slotToggleDetach(bool)));
 
     connect(m_d->uiWdgPaintOpPresetSettings.eraseScratchPad, SIGNAL(clicked()),
             m_d->uiWdgPaintOpPresetSettings.scratchPad, SLOT(fillDefault()));

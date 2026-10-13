@@ -524,9 +524,11 @@ struct KisStudioFind::Private
         usage.clear();
         const QStringList stored = KisConfig(true).readEntry<QStringList>(QStringLiteral("StudioFindUsage"));
         Q_FOREACH (const QString &line, stored) {
-            const QStringList parts = line.split(QLatin1Char('|'));
-            if (parts.size() == 3) {
-                usage.insert(parts[0], {parts[1].toInt(), parts[2].toLongLong()});
+            // key|count|time; the key itself may hold a '|' (a brush's name): the last two are the numbers
+            const int second = line.lastIndexOf(QLatin1Char('|'));
+            const int first = second > 0 ? line.lastIndexOf(QLatin1Char('|'), second - 1) : -1;
+            if (first > 0) {
+                usage.insert(line.left(first), {line.mid(first + 1, second - first - 1).toInt(), line.mid(second + 1).toLongLong()});
             }
         }
     }

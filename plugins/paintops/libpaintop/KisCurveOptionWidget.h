@@ -29,6 +29,8 @@ public:
         SupportsCommonCurve = 0x1,
         SupportsCurveMode = 0x2,
         UseFloatingPointStrength = 0x4,
+        /// One always on keeps no checkbox on its row for the pen (MyPaint: its pen off drops the input curves when saved)
+        NoPenCheckbox = 0x8,
     };
 
     Q_DECLARE_FLAGS(Flags, Flag)

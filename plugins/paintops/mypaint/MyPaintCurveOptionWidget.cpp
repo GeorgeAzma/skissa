@@ -47,7 +47,7 @@ MyPaintCurveOptionWidget::MyPaintCurveOptionWidget(lager::cursor<MyPaintCurveOpt
                             MyPaintCurveRangeModel::factory(maxYRange, yValueSuffix),
                             KisCurveOptionInputControlsStrategyDouble::factory(),
                             MyPaintCurveOptionRangeControlsStrategy::factory(),
-                            UseFloatingPointStrength)
+                            UseFloatingPointStrength | NoPenCheckbox)
     , m_d(new Private(optionData))
 {
     m_curveOptionWidget->curveWidget->setGlobalPointConstrain(KisCurveWidget::PointConstrain_AlwaysCorner);

@@ -142,7 +142,8 @@ public:
     QComboBox *comboBox;
     NewTagRow *rows;
     /// The tag chosen before "New tag…" was picked
-    int lastIndex {0};
+    /// The tag chosen before "New tag": followed as tags are added, removed or sorted
+    QPersistentModelIndex lastTag;
     QToolButton *undoButton;
     QTimer undoTimeout;
     KisTagSP deletedTag;
@@ -409,7 +410,8 @@ void KisTagChooserWidget::tagChanged(int tagIndex)
         // not a tag: the one chosen before stays; picked from the list, the box becomes the field for the name
         {
             QSignalBlocker blocker(d->comboBox);
-            d->comboBox->setCurrentIndex(qMin(d->lastIndex, d->rows->newTagRow() - 1));
+            const int last = d->lastTag.isValid() ? d->lastTag.row() : 0;
+            d->comboBox->setCurrentIndex(qMin(last, d->rows->newTagRow() - 1));
         }
         if (d->listJustClosed) {
             QTimer::singleShot(0, this, &KisTagChooserWidget::startNewTag);
@@ -417,7 +419,7 @@ void KisTagChooserWidget::tagChanged(int tagIndex)
         return;
     }
     if (tagIndex >= 0) {
-        d->lastIndex = tagIndex;
+        d->lastTag = QPersistentModelIndex(d->comboBox->model()->index(tagIndex, d->comboBox->modelColumn(), d->comboBox->rootModelIndex()));
         KisTagSP tag = currentlySelectedTag();
         KConfigGroup group =  KSharedConfig::openConfig()->group("SelectedTags");
         group.writeEntry(d->resourceType, currentlySelectedTag()->url());

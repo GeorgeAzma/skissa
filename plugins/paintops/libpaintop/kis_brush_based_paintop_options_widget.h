@@ -26,8 +26,6 @@ public:
 
     lager::reader<qreal> effectiveBrushSize() const override;
 
-    void setConfiguration(const KisPropertiesConfigurationSP config) override;
-
 protected:
     KisBrushOptionWidget *brushOptionWidget() const;
     /// The Size row is the tip's diameter

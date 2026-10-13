@@ -62,7 +62,12 @@ public:
         }
     }
 
-    void add(QWidget *strip) { m_strips << strip; }
+    void add(QWidget *strip)
+    {
+        // the strips of closed editors let go
+        m_strips.removeAll(QPointer<QWidget>());
+        m_strips << strip;
+    }
 
 private:
     static KConfigGroup group() { return KSharedConfig::openConfig()->group("SavedCurves"); }
@@ -216,9 +221,12 @@ void KisCurvePresetStrip::mousePressEvent(QMouseEvent *event)
         return;
     }
     if (m_current.isEmpty()) return;
+    // already there, built in or saved (the same points written another way too)
+    Q_FOREACH (const Entry &entry, list) {
+        if (KisCubicCurve(entry.curve) == KisCubicCurve(m_current)) return;
+    }
     QStringList names = Saved::instance().names();
     QStringList curves = Saved::instance().curves();
-    if (curves.contains(m_current)) return;
     while (names.size() < curves.size()) names << QString();
     names << i18nc("a saved curve's name", "Curve %1", curves.size() + 1);
     curves << m_current;
