@@ -38,6 +38,8 @@ public:
                               bool isStrokeStarted);
 
     qreal pressureToCurve(qreal pressure);
+    /// The pressure the stroke being painted gets from the pen's \p pressure (the curve, or the pressure switch)
+    qreal strokePressure(qreal pressure);
 
     void reset();
 

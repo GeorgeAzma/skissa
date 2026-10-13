@@ -181,6 +181,12 @@ qreal KisPaintingInformationBuilder::pressureToCurve(qreal pressure)
     return KisCubicCurve::interpolateLinear(pressure, m_pressureSamples);
 }
 
+qreal KisPaintingInformationBuilder::strokePressure(qreal pressure)
+{
+    // as createPaintingInformation() does
+    return !m_pressureDisabled ? 1.0 : pressureToCurve(pressure);
+}
+
 void KisPaintingInformationBuilder::reset()
 {
     m_speedSmoother->clear();

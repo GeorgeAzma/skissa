@@ -405,9 +405,11 @@ void KisToolFreehand::beginPrimaryAction(KoPointerEvent *event)
     m_shapeSnapped = false;
     m_shapePoints.clear();
     m_shapePressures.clear();
-    if (m_snapsToShapes && KisSettingsRegistry::instance()->value(QStringLiteral("StrokeShapeSnap")).toBool()) {
+    // not while an assistant or the straight ruler guides the stroke: the shape would leave the guide
+    if (m_snapsToShapes && KisSettingsRegistry::instance()->value(QStringLiteral("StrokeShapeSnap")).toBool() && !m_assistant
+        && !temporaryStraightRulerActive()) {
         m_shapePoints << convertToPixelCoord(event);
-        m_shapePressures << event->pressure();
+        m_shapePressures << m_infoBuilder->strokePressure(event->pressure());
         m_shapeHoldPos = event->pos();
         m_shapeHold.start();
     }
@@ -429,7 +431,7 @@ void KisToolFreehand::continuePrimaryAction(KoPointerEvent *event)
 
     if (!m_shapePoints.isEmpty()) {
         m_shapePoints << convertToPixelCoord(event);
-        m_shapePressures << event->pressure();
+        m_shapePressures << m_infoBuilder->strokePressure(event->pressure());
         // a hand holding still still trembles a little
         if (QLineF(event->pos(), m_shapeHoldPos).length() > 3) {
             m_shapeHoldPos = event->pos();
