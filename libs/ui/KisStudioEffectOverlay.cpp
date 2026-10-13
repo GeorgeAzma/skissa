@@ -70,7 +70,7 @@ QToolButton *headerButton(QWidget *parent, const QString &toolTip)
     button->setToolTip(toolTip);
     button->setAutoRaise(true);
     button->setFocusPolicy(Qt::NoFocus);
-    button->setFixedSize(34, 30);
+    button->setFixedSize(28, 26);
     return button;
 }
 
@@ -423,6 +423,11 @@ struct KisStudioEffectOverlay::Private
     /// The second setting follows the first by itself (e.g. both radii of a blur)
     bool secondLinked {false};
     bool cursorSet {false};
+    /// Where it was dragged to by its title, from where it is put by itself; and the drag, under way
+    QPoint moved;
+    bool moving {false};
+    QPoint moveGrab;
+    int headerBottom {0};
     /// Space held: the canvas pans, the drag is not the effect's
     bool spaceHeld {false};
 
@@ -458,14 +463,17 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     layout->setSpacing(4);
 
     auto *header = new QHBoxLayout();
-    header->setSpacing(4);
+    header->setSpacing(2);
     d->icon = new QLabel(this);
+    // the title bar is the panel's own, to drag it by
+    d->icon->setAttribute(Qt::WA_TransparentForMouseEvents);
     header->addWidget(d->icon);
     header->addSpacing(4);
     d->title = new QLabel(this);
     QFont titleFont = d->title->font();
     titleFont.setWeight(QFont::DemiBold);
     d->title->setFont(titleFont);
+    d->title->setAttribute(Qt::WA_TransparentForMouseEvents);
     header->addWidget(d->title, 1);
 
     // the layer without it, and back: what the dialog's Preview box did
@@ -490,6 +498,7 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     connect(d->editable, &QToolButton::toggled, this, [](bool on) { KisConfig(false).writeEntry(editableKey, on); });
     header->addWidget(d->editable);
 
+    header->addSpacing(6);
     QToolButton *cancel = glyphButton(QStringLiteral("✕"), i18nc("@info:tooltip", "Cancel (Esc)"), this);
     connect(cancel, &QToolButton::clicked, this, &KisStudioEffectOverlay::reject);
     header->addWidget(cancel);
@@ -741,7 +750,13 @@ void KisStudioEffectOverlay::reposition()
     // in the middle of what the pinned panels over the canvas leave of it
     const int left = parentWidget()->property("studioCanvasLeftInset").toInt();
     const int right = parentWidget()->property("studioCanvasRightInset").toInt();
-    setGeometry(left + (area.width() - left - right - width) / 2, area.height() - height - 54, width, height);
+    QRect place(left + (area.width() - left - right - width) / 2, area.height() - height - 54, width, height);
+    place.translate(d->moved);
+    // never dragged out of reach: its title stays in the window
+    place.moveLeft(qBound(-width + 80, place.left(), area.width() - 80));
+    place.moveTop(qBound(0, place.top(), area.height() - 40));
+    setGeometry(place);
+    d->headerBottom = d->scroll ? d->scroll->geometry().top() : 40;
     raise();
 }
 
@@ -882,6 +897,40 @@ void KisStudioEffectOverlay::keyPressEvent(QKeyEvent *event)
         return;
     }
     QWidget::keyPressEvent(event);
+}
+
+void KisStudioEffectOverlay::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton && event->pos().y() < qMax(d->headerBottom, 30)) {
+        d->moving = true;
+        d->moveGrab = event->globalPos() - d->moved;
+        setCursor(Qt::ClosedHandCursor);
+        event->accept();
+        return;
+    }
+    QWidget::mousePressEvent(event);
+}
+
+void KisStudioEffectOverlay::mouseMoveEvent(QMouseEvent *event)
+{
+    if (d->moving) {
+        d->moved = event->globalPos() - d->moveGrab;
+        reposition();
+        event->accept();
+        return;
+    }
+    QWidget::mouseMoveEvent(event);
+}
+
+void KisStudioEffectOverlay::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (d->moving && event->button() == Qt::LeftButton) {
+        d->moving = false;
+        unsetCursor();
+        event->accept();
+        return;
+    }
+    QWidget::mouseReleaseEvent(event);
 }
 
 void KisStudioEffectOverlay::paintEvent(QPaintEvent *)
