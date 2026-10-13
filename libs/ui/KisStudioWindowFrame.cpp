@@ -12,6 +12,8 @@
 #include <QPainter>
 
 
+#include <klocalizedstring.h>
+
 #include <KisModernStyle.h>
 
 #ifdef Q_OS_WIN
@@ -42,6 +44,12 @@ public:
         setFocusPolicy(Qt::NoFocus);
         setAttribute(Qt::WA_Hover);
         window->installEventFilter(this);
+        // no tooltip, as their glyphs are what every window has; named for screen readers and scripts
+        switch (kind) {
+        case WindowButtonKind::Minimize: setObjectName(QStringLiteral("studio_window_minimize")); setAccessibleName(i18nc("@action:button", "Minimize")); break;
+        case WindowButtonKind::Maximize: setObjectName(QStringLiteral("studio_window_maximize")); setAccessibleName(i18nc("@action:button", "Maximize")); break;
+        case WindowButtonKind::Close: setObjectName(QStringLiteral("studio_window_close")); setAccessibleName(i18nc("@action:button", "Close")); break;
+        }
     }
 
 protected:

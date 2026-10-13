@@ -1095,7 +1095,7 @@ private:
                                               QRegularExpression::CaseInsensitiveOption);
         sweepButtons(m_win, QStringLiteral("04 popups/Window"), QString(), [this](QAbstractButton *b) {
             if (insideDock(b)) return false;
-            const QString text = b->toolTip() + QLatin1Char(' ') + b->text() + QLatin1Char(' ') + b->objectName();
+            const QString text = b->toolTip() + QLatin1Char(' ') + b->text() + QLatin1Char(' ') + b->objectName() + QLatin1Char(' ') + b->accessibleName();
             return !risky.match(text).hasMatch();
         });
         QSet<QString> seenMenus;
