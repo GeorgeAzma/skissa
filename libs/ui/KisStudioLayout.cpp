@@ -2121,6 +2121,11 @@ void KisStudioLayout::positionFlyout()
     const int width = qMax(0, qMin(qBound(260, contentsWidth + 2, 420), area.width() - 2 * margin));
 
     QRect global(area.right() + 1 - margin - width, area.top() + margin, width, area.height() - 2 * margin);
+    // below the panel icons when nothing is pinned beside them, so another panel is still a click away
+    if (KisStudioPanelColumn *column = d->panelColumn; column && column->isVisible()) {
+        const QRect strip(column->mapToGlobal(QPoint()), column->size());
+        if (strip.intersects(global)) global.setTop(strip.bottom() + 1 + margin);
+    }
     if (d->flyoutAnchor) {
         // below what opened it, as tall as its contents, beside the tool rail rather than over it
         int left = qMax(area.left() + margin, d->flyoutAnchor->mapToGlobal(QPoint(0, 0)).x());
