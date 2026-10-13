@@ -595,8 +595,10 @@ QVector<Setting> describeAll()
         all << choice(QStringLiteral("pasteBehaviour"), 2,
                       {{0, i18nc("pasted colors", "sRGB")}, {1, i18nc("pasted colors", "The screen's")}, {2, i18nc("pasted colors", "Ask")}},
                       i18nc("setting", "Pasted colors are"));
-        all << choice(QStringLiteral("sessionOnStartup"), 0,
-                      {{0, i18nc("on start", "New window")}, {1, i18nc("on start", "Last session")}, {2, i18nc("on start", "Sessions")}},
+        // 3, the last image, is Studio's own (see KisApplication::start)
+        all << choice(QStringLiteral("sessionOnStartup"), 3,
+                      {{3, i18nc("on start", "Last image")}, {0, i18nc("on start", "Start page")}, {1, i18nc("on start", "Last session")},
+                       {2, i18nc("on start", "Sessions")}},
                       i18nc("setting", "On start"));
         all << toggle(QStringLiteral("saveSessionOnQuit"), false, i18nc("setting", "Save the session on quit"));
         bool nativeDialogs = false;
@@ -776,7 +778,7 @@ QVector<Setting> describeAll()
  */
 void forgetRetired()
 {
-    constexpr int version = 3;
+    constexpr int version = 4;
     KConfigGroup top = KSharedConfig::openConfig()->group(QString());
     if (top.readEntry("StudioRetiredSettings", 0) >= version) return;
     const char *const keys[] = {
@@ -795,6 +797,8 @@ void forgetRetired()
         "calculateAnimationCacheInBackground", "disableAVXOptimizations", "amdDisableVectorWorkaround",
     };
     for (const char *key : keys) top.deleteEntry(key);
+    // Krita wrote its start page as the choice whether it was chosen or not: Studio opens the last image instead
+    if (top.readEntry("StudioRetiredSettings", 0) < 4 && top.readEntry("sessionOnStartup", 0) == 0) top.deleteEntry("sessionOnStartup");
     KSharedConfig::openConfig()->group(QStringLiteral("StudioTheme")).deleteEntry("Contrast");
     KSharedConfig::openConfig()->group(QStringLiteral("KisToolTransform")).deleteEntry("useOverlayPreviewStyle");
     QSettings display(displayrcPath(), QSettings::IniFormat);

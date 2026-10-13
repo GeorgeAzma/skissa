@@ -27,6 +27,7 @@
 #include <QScreen>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QLocale>
 #include <QMessageBox>
 #include <QProcessEnvironment>
@@ -58,6 +59,7 @@
 #include "KisMainWindow.h"
 #include "KisAutoSaveRecoveryDialog.h"
 #include "KisPart.h"
+#include "KisRecentFilesManager.h"
 #include <kis_icon.h>
 #include "kis_splash_screen.h"
 #include "kis_config.h"
@@ -844,6 +846,18 @@ bool KisApplication::start(const KisApplicationArguments &args)
         hideSplashScreen();
         Q_FOREACH(QString fileName, d->earlyFileOpenEvents) {
             d->mainWindow->openDocument(fileName, QFlags<KisMainWindow::OpenFlag>());
+        }
+    }
+
+    // nothing opened, nothing to recover: the image worked on last, the start page only when there is none
+    const bool openLast = KSharedConfig::openConfig()->group(QString()).readEntry("sessionOnStartup", 3) == 3;
+    if (openLast && d->mainWindow && !d->batchRun && KisPart::instance()->documents().isEmpty()) {
+        const QList<QUrl> recent = KisRecentFilesManager::instance()->recentUrlsLatestFirst();
+        for (const QUrl &url : recent) {
+            if (!url.isLocalFile() || !QFileInfo(url.toLocalFile()).isFile()) continue;
+            hideSplashScreen();
+            d->mainWindow->openDocument(url.toLocalFile(), KisMainWindow::None);
+            break;
         }
     }
 
