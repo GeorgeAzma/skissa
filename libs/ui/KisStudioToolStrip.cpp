@@ -11,25 +11,40 @@
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QPainterPath>
+#include <QButtonGroup>
+#include <QLabel>
+#include <QMenu>
+#include <QSpinBox>
 #include <QToolButton>
+#include <QVBoxLayout>
+#include <QWidgetAction>
 
+#include <algorithm>
 #include <cmath>
 
 #include <KisModernStyle.h>
 #include <KisOptionButtonStrip.h>
 #include <KoGroupButton.h>
-#include <KoToolFactoryBase.h>
 #include <KoToolManager.h>
-#include <KoToolRegistry.h>
+#include <kactioncollection.h>
 #include <klocalizedstring.h>
 
+#include "KisStudioSymmetry.h"
 #include "kis_icon_utils.h"
 #include "widgets/kis_selection_options.h"
 
 namespace {
 
-const QString brushToolId = QStringLiteral("KritaShape/KisToolBrush");
-const QString multiBrushToolId = QStringLiteral("KritaShape/KisToolMultiBrush");
+/// The tools that paint with the brush: symmetry is theirs
+bool paintsWithBrush(const QString &tool)
+{
+    static const QStringList tools = {QStringLiteral("KritaShape/KisToolBrush"), QStringLiteral("KritaShape/KisToolDyna"),
+                                      QStringLiteral("KritaShape/KisToolMultiBrush"), QStringLiteral("KritaShape/KisToolLine"),
+                                      QStringLiteral("KritaShape/KisToolRectangle"), QStringLiteral("KritaShape/KisToolEllipse"),
+                                      QStringLiteral("KisToolPolygon"), QStringLiteral("KisToolPolyline"), QStringLiteral("KisToolPath"),
+                                      QStringLiteral("KisToolPencil")};
+    return tools.contains(tool);
+}
 
 /// The id of the KisOptionCollectionWidget section a widget is in, e.g. "sectionAction"
 QString sectionId(QObject *object)
@@ -138,8 +153,8 @@ QIcon reverseIcon(const QColor &ink)
     return icon;
 }
 
-/// Symmetry, mirror, translate, snowflake, copy translate
-QIcon multihandIcon(int type, const QColor &ink)
+/// The symmetry modes: mirror, radial, tile
+QIcon symmetryIcon(int mode, const QColor &ink)
 {
     QIcon icon;
     for (int size : {20, 40}) {
@@ -152,34 +167,22 @@ QIcon multihandIcon(int type, const QColor &ink)
         pen.setCapStyle(Qt::RoundCap);
         painter.setPen(pen);
         const QPointF c(10 * s, 10 * s);
-        switch (type) {
-        case 0: // symmetry
+        switch (mode) {
+        case KisStudioSymmetry::Mirror:
+            painter.drawLine(QPointF(10 * s, 3 * s), QPointF(10 * s, 17 * s));
+            painter.drawArc(QRectF(3 * s, 5 * s, 6 * s, 10 * s), 90 * 16, 180 * 16);
+            painter.drawArc(QRectF(11 * s, 5 * s, 6 * s, 10 * s), 270 * 16, 180 * 16);
+            break;
+        case KisStudioSymmetry::Radial:
             for (int i = 0; i < 6; i++) {
                 const qreal a = i * M_PI / 3;
                 painter.drawLine(c + QPointF(2.5 * s * std::cos(a), 2.5 * s * std::sin(a)), c + QPointF(7.5 * s * std::cos(a), 7.5 * s * std::sin(a)));
             }
             break;
-        case 1: // mirror
-            painter.drawLine(QPointF(10 * s, 3 * s), QPointF(10 * s, 17 * s));
-            painter.drawArc(QRectF(3 * s, 5 * s, 6 * s, 10 * s), 90 * 16, 180 * 16);
-            painter.drawArc(QRectF(11 * s, 5 * s, 6 * s, 10 * s), 270 * 16, 180 * 16);
-            break;
-        case 2: // translate
-            for (int i = 0; i < 3; i++) painter.drawLine(QPointF((4 + 6 * i) * s, 6 * s), QPointF((4 + 6 * i) * s, 14 * s));
-            break;
-        case 3: // snowflake
-            for (int i = 0; i < 6; i++) {
-                const qreal a = i * M_PI / 3;
-                const QPointF tip = c + QPointF(7.5 * s * std::cos(a), 7.5 * s * std::sin(a));
-                painter.drawLine(c, tip);
-                const QPointF mid = c + QPointF(5 * s * std::cos(a), 5 * s * std::sin(a));
-                painter.drawLine(mid, mid + QPointF(2 * s * std::cos(a + 0.8), 2 * s * std::sin(a + 0.8)));
-                painter.drawLine(mid, mid + QPointF(2 * s * std::cos(a - 0.8), 2 * s * std::sin(a - 0.8)));
+        default:
+            for (int i = 0; i < 4; i++) {
+                painter.drawPath(KisModernStyle::squircle(QRectF((3.5 + 7 * (i % 2)) * s, (3.5 + 7 * (i / 2)) * s, 6 * s, 6 * s), 1.4 * s));
             }
-            break;
-        default: // copy translate
-            painter.drawPath(KisModernStyle::squircle(QRectF(3 * s, 4 * s, 7 * s, 7 * s), 1.5 * s));
-            painter.drawPath(KisModernStyle::squircle(QRectF(10 * s, 9 * s, 7 * s, 7 * s), 1.5 * s));
             break;
         }
         painter.end();
@@ -274,6 +277,157 @@ void KisStudioToolStrip::mirrorCombo(QComboBox *combo, const QVector<int> &index
     }
 }
 
+QMenu *KisStudioToolStrip::symmetryMenu()
+{
+    if (m_symmetryMenu) {
+        return m_symmetryMenu;
+    }
+    // the strip's, not a button's: the buttons are made again when the tool changes, which a mode can do
+    m_symmetryMenu = new QMenu(this);
+    auto *panel = new QWidget(m_symmetryMenu);
+    auto *layout = new QVBoxLayout(panel);
+    layout->setContentsMargins(10, 8, 10, 8);
+    layout->setSpacing(8);
+    KisStudioSymmetry *symmetry = KisStudioSymmetry::instance();
+    // the menu's own text color: its glass, not the bar's
+    const QColor ink = m_symmetryMenu->palette().color(QPalette::WindowText);
+
+    auto toggle = [panel](const QIcon &icon, const QString &text) {
+        auto *button = new QToolButton(panel);
+        button->setCheckable(true);
+        button->setAutoRaise(true);
+        button->setIcon(icon);
+        button->setIconSize(QSize(20, 20));
+        button->setText(text);
+        button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+        button->setFocusPolicy(Qt::NoFocus);
+        return button;
+    };
+    auto row = [](QWidget *parent, const QString &label, QWidget *control) {
+        auto *line = new QWidget(parent);
+        auto *lineLayout = new QHBoxLayout(line);
+        lineLayout->setContentsMargins(0, 0, 0, 0);
+        lineLayout->addWidget(new QLabel(label, line));
+        lineLayout->addStretch(1);
+        lineLayout->addWidget(control);
+        return line;
+    };
+
+    // the mode: picking one turns symmetry on in it
+    auto *modes = new QHBoxLayout();
+    modes->setSpacing(2);
+    auto *modeGroup = new QButtonGroup(panel);
+    const QStringList modeNames = {i18nc("symmetry mode", "Mirror"), i18nc("symmetry mode", "Radial"), i18nc("symmetry mode", "Tile")};
+    for (int mode = KisStudioSymmetry::Mirror; mode <= KisStudioSymmetry::Tile; mode++) {
+        QToolButton *button = toggle(symmetryIcon(mode, ink), modeNames[mode]);
+        modeGroup->addButton(button, mode);
+        modes->addWidget(button);
+    }
+    layout->addLayout(modes);
+
+    // mirror: which axes (Krita's mirror axes, moved and turned on the canvas)
+    auto *mirrorPage = new QWidget(panel);
+    auto *mirrorLayout = new QHBoxLayout(mirrorPage);
+    mirrorLayout->setContentsMargins(0, 0, 0, 0);
+    QAction *acrossAction = m_actions ? m_actions->action(QStringLiteral("hmirror_action")) : nullptr;
+    QAction *downAction = m_actions ? m_actions->action(QStringLiteral("vmirror_action")) : nullptr;
+    QToolButton *across = toggle(acrossAction ? acrossAction->icon() : QIcon(), i18nc("mirror axis", "Across"));
+    QToolButton *down = toggle(downAction ? downAction->icon() : QIcon(), i18nc("mirror axis", "Up and down"));
+    mirrorLayout->addWidget(across);
+    mirrorLayout->addWidget(down);
+    mirrorLayout->addStretch(1);
+    layout->addWidget(mirrorPage);
+
+    // radial: how many, and mirrored between
+    auto *radialPage = new QWidget(panel);
+    auto *radialLayout = new QVBoxLayout(radialPage);
+    radialLayout->setContentsMargins(0, 0, 0, 0);
+    auto *copies = new QSpinBox(radialPage);
+    copies->setRange(2, KisStudioSymmetry::maximumCopies);
+    radialLayout->addWidget(row(radialPage, i18nc("radial symmetry", "Copies"), copies));
+    auto *mirrored = new QCheckBox(i18nc("radial symmetry", "Mirrored, as a kaleidoscope"), radialPage);
+    radialLayout->addWidget(mirrored);
+    layout->addWidget(radialPage);
+
+    // tile: how far apart
+    auto *tilePage = new QWidget(panel);
+    auto *tileLayout = new QVBoxLayout(tilePage);
+    tileLayout->setContentsMargins(0, 0, 0, 0);
+    auto spacingBox = [tilePage]() {
+        auto *box = new QSpinBox(tilePage);
+        box->setRange(0, 20000);
+        box->setSingleStep(10);
+        box->setSuffix(i18nc("pixels", " px"));
+        box->setSpecialValueText(i18nc("tile spacing of 0", "None"));
+        return box;
+    };
+    QSpinBox *spacingX = spacingBox();
+    QSpinBox *spacingY = spacingBox();
+    tileLayout->addWidget(row(tilePage, i18nc("tile spacing", "Across"), spacingX));
+    tileLayout->addWidget(row(tilePage, i18nc("tile spacing", "Down"), spacingY));
+    layout->addWidget(tilePage);
+
+    // the pages one size, the hint three lines: the menu need not grow as they change (it would not)
+    const int pageHeight = std::max({mirrorPage->sizeHint().height(), radialPage->sizeHint().height(), tilePage->sizeHint().height()});
+    for (QWidget *page : {mirrorPage, radialPage, tilePage}) {
+        page->setFixedHeight(pageHeight);
+    }
+    auto *hint = new QLabel(panel);
+    hint->setWordWrap(true);
+    hint->setFixedWidth(240);
+    hint->setFixedHeight(3 * hint->fontMetrics().lineSpacing() + 2);
+    hint->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    QPalette dim = hint->palette();
+    dim.setColor(QPalette::WindowText, KisModernStyle::secondaryInk(dim.color(QPalette::WindowText)));
+    hint->setPalette(dim);
+    layout->addWidget(hint);
+
+    auto *action = new QWidgetAction(m_symmetryMenu);
+    action->setDefaultWidget(panel);
+    m_symmetryMenu->addAction(action);
+
+    // what is set now, every time it opens and as it changes
+    auto show = [=]() {
+        const int mode = symmetry->mode();
+        if (QAbstractButton *button = modeGroup->button(mode)) button->setChecked(true);
+        mirrorPage->setVisible(mode == KisStudioSymmetry::Mirror);
+        radialPage->setVisible(mode == KisStudioSymmetry::Radial);
+        tilePage->setVisible(mode == KisStudioSymmetry::Tile);
+        across->setChecked(symmetry->mirrorAcross());
+        down->setChecked(symmetry->mirrorDown());
+        const QSignalBlocker blockCopies(copies), blockMirrored(mirrored), blockX(spacingX), blockY(spacingY);
+        copies->setValue(symmetry->copies());
+        mirrored->setChecked(symmetry->mirrored());
+        spacingX->setValue(symmetry->spacing().width());
+        spacingY->setValue(symmetry->spacing().height());
+        hint->setText(mode == KisStudioSymmetry::Mirror
+                          ? i18nc("@info", "Drag the axes on the canvas to move or turn them. Works with every brush tool.")
+                      : mode == KisStudioSymmetry::Radial
+                          ? i18nc("@info", "Drag the center to move it, the dot to turn. Double-click the center to reset.")
+                          : i18nc("@info", "Each stroke repeats across the image, or the selection, at this spacing."));
+    };
+    connect(m_symmetryMenu, &QMenu::aboutToShow, panel, show);
+    connect(modeGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), panel, [this, symmetry, show](int mode) {
+        symmetry->setMode(KisStudioSymmetry::Mode(mode));
+        KisStudioSymmetry::setOn(m_actions, true);
+        show();
+    });
+    auto axes = [this, symmetry, across, down]() {
+        symmetry->setMirrorAxes(across->isChecked(), down->isChecked());
+        if (symmetry->mode() == KisStudioSymmetry::Mirror) KisStudioSymmetry::setOn(m_actions, true);
+        across->setChecked(symmetry->mirrorAcross());
+        down->setChecked(symmetry->mirrorDown());
+    };
+    connect(across, &QToolButton::clicked, panel, axes);
+    connect(down, &QToolButton::clicked, panel, axes);
+    connect(copies, QOverload<int>::of(&QSpinBox::valueChanged), panel, [symmetry](int value) { symmetry->setCopies(value); });
+    connect(mirrored, &QCheckBox::toggled, panel, [symmetry](bool on) { symmetry->setMirrored(on); });
+    auto spacing = [symmetry, spacingX, spacingY]() { symmetry->setSpacing(QSize(spacingX->value(), spacingY->value())); };
+    connect(spacingX, QOverload<int>::of(&QSpinBox::valueChanged), panel, spacing);
+    connect(spacingY, QOverload<int>::of(&QSpinBox::valueChanged), panel, spacing);
+    return m_symmetryMenu;
+}
+
 void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widgets)
 {
     clear();
@@ -281,32 +435,31 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
     const QColor ink = palette().color(QPalette::ButtonText);
     const QColor paper = palette().color(QPalette::Window).darker(170);
 
-    // Brush and Multibrush are one tool: the multibrush is a toggle of the brush
-    const QString tool = KoToolManager::instance()->activeToolId();
-    if ((tool == brushToolId || tool == multiBrushToolId) && KoToolRegistry::instance()->value(multiBrushToolId)) {
-        const bool multi = tool == multiBrushToolId;
-        QToolButton *toggle = addButton(KisIconUtils::loadIcon(KoToolRegistry::instance()->value(multiBrushToolId)->iconName()),
-                                        i18nc("@info:tooltip", "Multibrush"));
-        toggle->setChecked(multi);
-        connect(toggle, &QToolButton::clicked, this, [multi]() {
-            KoToolManager::instance()->switchToolRequested(multi ? brushToolId : multiBrushToolId);
+    // symmetry: on and off by a click, its modes on a long press or a right click
+    if (paintsWithBrush(KoToolManager::instance()->activeToolId()) && m_actions) {
+        QToolButton *symmetry = addButton(KisIconUtils::loadIcon(QStringLiteral("krita_tool_multihand")),
+                                          i18nc("@info:tooltip", "Symmetry (hold or right-click for its modes)"));
+        symmetry->setChecked(KisStudioSymmetry::isOn(m_actions));
+        symmetry->setMenu(symmetryMenu());
+        symmetry->setPopupMode(QToolButton::DelayedPopup);
+        symmetry->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(symmetry, &QToolButton::customContextMenuRequested, this, [this, symmetry]() {
+            symmetryMenu()->popup(symmetry->mapToGlobal(QPoint(0, symmetry->height())));
         });
+        connect(symmetry, &QToolButton::clicked, this, [this, symmetry]() {
+            KisStudioSymmetry::setOn(m_actions, !KisStudioSymmetry::isOn(m_actions));
+            symmetry->setChecked(KisStudioSymmetry::isOn(m_actions));
+        });
+        for (const char *name : {"hmirror_action", "vmirror_action"}) {
+            if (QAction *mirror = m_actions->action(QLatin1String(name))) {
+                connect(mirror, &QAction::toggled, symmetry, [this, symmetry]() { symmetry->setChecked(KisStudioSymmetry::isOn(m_actions)); });
+            }
+        }
     }
 
     Q_FOREACH (const QPointer<QWidget> &widget, widgets) {
         if (!widget) {
             continue;
-        }
-
-        // multibrush modes
-        if (QComboBox *type = widget->findChild<QComboBox *>(QStringLiteral("multihandTypeCombobox"))) {
-            QVector<int> indexes;
-            QVector<QIcon> icons;
-            for (int i = 0; i < qMin(type->count(), 5); i++) {
-                indexes << i;
-                icons << multihandIcon(i, ink);
-            }
-            mirrorCombo(type, indexes, icons);
         }
 
         // transform modes, warp and liquify included

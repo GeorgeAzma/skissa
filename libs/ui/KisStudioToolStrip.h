@@ -10,7 +10,9 @@
 #include <QPointer>
 #include <QWidget>
 
+class KisKActionCollection;
 class QAbstractButton;
+class QMenu;
 class QHBoxLayout;
 class QComboBox;
 class QToolButton;
@@ -29,6 +31,8 @@ public:
     /// Rebuilds the strip from the option widgets the active tool just provided
     void setOptionWidgets(const QList<QPointer<QWidget>> &widgets);
     bool hasOptions() const { return m_hasOptions; }
+    /// The window's actions: symmetry turns its mirror axes on and off
+    void setActions(KisKActionCollection *actions) { m_actions = actions; }
 
 private:
     void clear();
@@ -37,9 +41,13 @@ private:
     /// A button of ours that presses \p source and follows its checked state
     void mirror(QAbstractButton *source, const QIcon &icon = QIcon());
     void mirrorCombo(QComboBox *combo, const QVector<int> &indexes, const QVector<QIcon> &icons);
+    /// Symmetry's modes and their settings
+    QMenu *symmetryMenu();
 
     QHBoxLayout *m_layout {nullptr};
     bool m_hasOptions {false};
+    KisKActionCollection *m_actions {nullptr};
+    QPointer<QMenu> m_symmetryMenu;
 };
 
 #endif // KISSTUDIOTOOLSTRIP_H

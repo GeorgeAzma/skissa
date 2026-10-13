@@ -459,6 +459,7 @@ set(kritaui_LIB_SRCS
     KisStudioBrushPicker.cpp
     KisStudioBrushMemory.cpp
     KisStudioTheme.cpp
+    KisStudioSymmetry.cpp
     KisStudioCanvasRing.cpp
     KisOpenPane.cpp
     KisPart.cpp

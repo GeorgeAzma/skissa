@@ -2928,6 +2928,7 @@ void KisStudioLayout::createTopBar()
     d->toolChip = toolChip;
 
     auto *strip = new KisStudioToolStrip(bar);
+    strip->setActions(mainWindow->actionCollection());
     d->toolStripAction = bar->addWidget(strip);
     d->toolStripAction->setVisible(false);
     d->toolStrip = strip;
@@ -3254,7 +3255,8 @@ void KisStudioLayout::updateContextBar()
         {"paintops", paints},
         {"paintop_options", paints},
         {"composite_actions", paints},
-        {"mirror_actions", paints},
+        // in Symmetry, on the tool strip
+        {"mirror_actions", false},
         {"gradients", gradient},
         {"patterns", fills || shapeTool},
         // the color chip on the rail has the colors
