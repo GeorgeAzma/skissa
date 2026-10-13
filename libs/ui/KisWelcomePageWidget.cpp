@@ -189,9 +189,11 @@ KisWelcomePageWidget::KisWelcomePageWidget(QWidget *parent)
     initDonations();
 #endif
 
-    // configure the News area
-    KisConfig cfg(true);
-    m_networkIsAllowed = cfg.readEntry<bool>("FetchNews", false);
+    // the news are krita.org's, not this app's: no news column, and nothing fetched for one
+    m_networkIsAllowed = false;
+    newsTitleLabel->hide();
+    btnNewsOptions->hide();
+    newsFrame->hide();
 
 
 #ifdef ENABLE_UPDATERS
