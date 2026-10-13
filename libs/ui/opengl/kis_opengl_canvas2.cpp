@@ -285,6 +285,7 @@ void KisOpenGLCanvas2::paintGL()
         KisUpdatePacer::log(line);
     }
     d->renderer->paintGlass(surfaces, updateRect, !canvasImageDirtyRect.isEmpty());
+    if (d->renderer->drawsGlass()) KisStudioGlass::drewGlassOver(this, updateRect);
 
     d->repaintDbg.paint(this, updateRect.isEmpty() ? rect() : updateRect);
 

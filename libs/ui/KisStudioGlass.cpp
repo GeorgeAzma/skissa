@@ -872,7 +872,7 @@ public:
         }
     }
 
-    /// The panels over \p canvasWidget in stacking order; they are marked drawn from now on
+    /// The panels over \p canvasWidget in stacking order
     QVector<KisStudioGlass::Surface> over(const QWidget *canvasWidget)
     {
         QVector<KisStudioGlass::Surface> surfaces;
@@ -892,15 +892,36 @@ public:
                 // one fading in from nothing stays solid until its glass is there
                 continue;
             }
-            if (!panel.drawn) {
-                panel.drawn = true;
-                // see-through only after the frame with its glass is out
-                QMetaObject::invokeMethod(widget, QOverload<>::of(&QWidget::update), Qt::QueuedConnection);
-            }
             const QPointF offset = widget->mapToGlobal(QPoint()) - canvasOrigin;
             surfaces.append({panel.rect.translated(offset), panel.radius, widget->palette().color(QPalette::Window), opacity});
         }
         return surfaces;
+    }
+
+    /**
+     * \p canvasWidget drew a frame over \p painted (empty: all of it): the panels it drew whole are
+     * see-through from now on. One drawn only in part (a frame for the brush outline) stays solid, and
+     * the canvas draws it whole next: else it would show the canvas without its glass until the canvas
+     * happened to redraw there.
+     */
+    void drewOver(QWidget *canvasWidget, const QRect &painted)
+    {
+        const QPoint canvasOrigin = canvasWidget->mapToGlobal(QPoint());
+        for (auto it = m_panels.begin(); it != m_panels.end(); ++it) {
+            QWidget *widget = it.key();
+            Panel &panel = it.value();
+            if (panel.drawn || !widget->isVisible() || canvasWidgetOf(widget) != canvasWidget || opacityOf(widget) <= 0) {
+                continue;
+            }
+            const QRect area = panel.rect.translated(widget->mapToGlobal(QPoint()) - canvasOrigin).toAlignedRect() & canvasWidget->rect();
+            if (painted.isEmpty() || painted.contains(area)) {
+                panel.drawn = true;
+                // see-through only after the frame with its glass is out
+                QMetaObject::invokeMethod(widget, QOverload<>::of(&QWidget::update), Qt::QueuedConnection);
+            } else if (!area.isEmpty()) {
+                canvasWidget->update(area);
+            }
+        }
     }
 
     void addCanvas(QWidget *canvas)
@@ -1694,6 +1715,11 @@ void KisStudioGlass::paintShadow(QPainter &painter, const QRectF &panel, qreal r
     painter.drawImage(origin + QPointF(0, drop * 0.5), shadowImage(panel.size(), radius, margin, margin / 3.2, 0.20 * strength, ratio));
     painter.drawImage(origin + QPointF(0, 1), shadowImage(panel.size(), radius, margin, 1.6, 0.16 * strength, ratio));
     painter.restore();
+}
+
+void KisStudioGlass::drewGlassOver(QWidget *canvasWidget, const QRect &painted)
+{
+    Panels::instance().drewOver(canvasWidget, painted);
 }
 
 QVector<KisStudioGlass::Surface> KisStudioGlass::surfacesOver(const QWidget *canvasWidget)

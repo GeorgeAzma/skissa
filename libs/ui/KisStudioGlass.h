@@ -96,6 +96,8 @@ public:
 
     /// The glass panels over \p canvasWidget, for it to draw
     static QVector<Surface> surfacesOver(const QWidget *canvasWidget);
+    /// \p canvasWidget drew the glass in \p painted (empty: everywhere): panels it covered whole show it now
+    static void drewGlassOver(QWidget *canvasWidget, const QRect &painted);
 
     /// Whether \p canvasWidget draws the glass of the panels over it (then they paint only their content)
     static void setDrawnByCanvas(QWidget *canvasWidget, bool on);
