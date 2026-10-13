@@ -63,6 +63,8 @@ public:
      * on short sides the exponent drops toward 2, so a pill stays a pill
      */
     static QPainterPath squircle(const QRectF &rect, qreal radius);
+    /// The radius that makes squircle() of a square \p side long the whole |x|^4 + |y|^4 = 1, no straight part
+    static qreal fullSquircleRadius(qreal side);
 
     /**
      * The one way things move: an exponential decay toward where they go, quick at first and settling

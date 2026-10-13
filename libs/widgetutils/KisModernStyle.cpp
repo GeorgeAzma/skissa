@@ -372,6 +372,12 @@ void KisModernStyle::squircleCorner(qreal radius, qreal room, qreal *reach, qrea
     *exponent = qBound<qreal>(2, -1 / std::log2(1 - circle / (room * M_SQRT2)), smooth);
 }
 
+qreal KisModernStyle::fullSquircleRadius(qreal side)
+{
+    // a corner's reach is its circle's depth over the superellipse's (see squircleCorner); the reach, half the side
+    return side / 2 * M_SQRT2 * (1 - std::pow(2.0, -1 / 4.0)) / (M_SQRT2 - 1);
+}
+
 QEasingCurve KisModernStyle::motionCurve()
 {
     // 1 - e^(-kt), scaled to reach 1 at the end: most of the way in the first third
@@ -952,7 +958,8 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         if (s.keyboardFocus) {
             border = marked ? fg : accent;
         }
-        drawRounded(painter, box, 3, marked ? accent : bg, border);
+        // a true squircle: small and square, the shape reads whole
+        drawRounded(painter, box, fullSquircleRadius(box.width()), marked ? accent : bg, border);
 
         auto at = [&](qreal x, qreal y) {
             return QPointF(box.left() + box.width() * x, box.top() + box.height() * y);
