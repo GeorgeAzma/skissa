@@ -73,6 +73,7 @@ static QString studioIcon(const QString &name)
         {QStringLiteral("symmetry-horizontal"), QStringLiteral("studio_mirror_x")},
         {QStringLiteral("symmetry-vertical"), QStringLiteral("studio_mirror_y")},
         {QStringLiteral("wraparound"), QStringLiteral("studio_wrap")},
+        {QStringLiteral("mirror-view"), QStringLiteral("studio_mirror_view")},
         {QStringLiteral("edit-find"), QStringLiteral("studio_find")},
         // a layer's switches
         {QStringLiteral("visible"), QStringLiteral("studio_visible")},
