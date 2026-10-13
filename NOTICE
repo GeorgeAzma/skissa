@@ -1,0 +1,20 @@
+Krita Studio
+
+An independent fork of Krita (https://krita.org, https://invent.kde.org/graphics/krita),
+modified by GeorgeAzma since 2026. The changes are in this repository's git history,
+on the modern-style branch.
+
+Not affiliated with or endorsed by the Stichting Krita Foundation or KDE.
+Krita is a trademark of the Stichting Krita Foundation.
+
+License: GPL-3.0-or-later, like Krita (see COPYING and LICENSES/). Every file keeps its
+own copyright and license header; Krita's authors are credited in the About dialog.
+
+Artwork shown in the README: "Kiki Paints Over the Waves" by Tyson Tan, Krita's splash
+art, CC BY-SA 4.0 (https://tysontan.com/gallery/gallery-mascots/kiki-splash-2026/),
+shown inside the app's interface. The sunset picture was drawn for the README.
+
+Release builds bundle third-party libraries (Qt, KDE Frameworks, FFmpeg, Python and
+others) under their own licenses; their license texts are in the release's share/licenses
+and doc folders, and their sources are listed at
+https://invent.kde.org/packaging/krita-deps-management.

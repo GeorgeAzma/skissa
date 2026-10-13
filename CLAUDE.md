@@ -67,11 +67,12 @@ A map, so you know where things are and how they think. Files are in `libs/ui/` 
   - Captures (`window->grab()`) re-render popups, so they never show first-frame glass bugs.
 - **Effects on the canvas** (`KisStudioEffectOverlay`, `KisFilterManager::setInlineEditor`): any filter previews live on the layer with a small draggable glass panel. Enter keeps it, Esc drops it, the mask button keeps it editable.
 - **Brush editor rows** (`kis_paintop_option`, `kis_paintop_settings_widget`, `kis_categorized_item_delegate`, `plugins/paintops/libpaintop`):
-  - Each option's row shows its strength (`KisPaintOpOption::RowValue`): drag it, double-click to type. A value at 100% is hidden until hover.
+  - Each option's row shows its strength (`KisPaintOpOption::RowValue`): drag it, double-click to type, right-click for the brush's value from when it was picked (`rememberRowValues`). A value at 100% is hidden until hover. Locking an option is its lock icon.
   - The Size row is the brush diameter.
   - "The pen is on" means a sensor is ticked. There is no Enable Pen Settings checkbox (`rowCheckedLens`, `sensorsLens`). Opacity and Flow get a row checkbox for the pen. MyPaint rows don't, because MyPaint drops input curves when saved with the pen off.
   - Saved curves (`KisCurvePresetStrip`) are global, stored in `[SavedCurves]`, and renamed inline.
 - **Symmetry** (`KisStudioSymmetry`, `plugins/tools/basictools/kis_tool_multihand`): one button with Mirror/Radial/Tile modes. Radial and Tile use the Multibrush tool and return to the previous tool. Handles are drawn with `paintToolOutline`.
+- **Its own folders** (`libs/global/KisProfile`): nothing is shared with a regular Krita on the same computer. Config files and logs live in `<LocalAppData>/<name>/` (`KisProfile::configFile`), resources and other app data in `<AppData>/<name>/krita` (the Qt organization name), autosaves of unsaved images in `<Temp>/<name>`; the single-instance key differs. Any new file the fork writes goes through `KisProfile`, never a bare `QStandardPaths::GenericConfigLocation` or `"kritarc"`. Krita's files are only ever read (Take Krita's settings), never written. The dev profile keeps its old layout inside `qttest`; `KRITA_DEV_APART=1` runs the new layout there for testing.
 - **Small systems:**
   - Empty lists say why they're empty (`KisStudioEmptyStates`).
   - The brush tooltip is a card showing the other picture (stroke or icon), tags and location (`resourcewidgets/KisIconToolTip`).
@@ -97,6 +98,13 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - `KRITA_DEV_TOUR=<folder>` runs `krita/KisDevTour.cpp`, which photographs the whole UI. `KRITA_DEV_FRAMELOG` and `KRITA_DEV_SAMPLE` are for performance work.
 - **The test image** is `C:\code\krita-deps\sunset.png` (the default in `launchdev.ps1`); `glass-test.jpg` is the Krita artwork.
 
+## Legal and credit
+
+- Never use Krita's name or logo as this app's name or icon. "An independent fork of Krita" in plain text is fine, with the not-affiliated line (README, NOTICE, About dialog).
+- Keep every copyright and SPDX header; new files get the owner's header (`GeorgeAzma`). GPL-3.0 section 5a: the modification notice stays in README, NOTICE and the About dialog.
+- Credit art by author, title and license: the Kiki splash is Tyson Tan's, CC BY-SA 4.0. Only use images whose source is known.
+- A release zip ships the third-party license texts and points to the dependencies' sources, and each release links its exact git tag.
+
 ## Code style
 
 - Match Krita's style: 4 spaces, the file's brace style, `i18nc` with a context for every user-visible string.
@@ -106,11 +114,11 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 
 ## Open questions and known issues
 
-- **The settings folder is shared with a regular Krita** outside the dev profile (same `kritarc`, `kritadisplayrc` and `input/`). The fork's retired-settings cleanup and new defaults then leak into the owner's upstream Krita and back. The recommended fix is giving the fork its own app id and folder by default (see the untracked `KRITA-MODERN.md`), with Take Krita's settings for the first run. It's not decided yet; ask before doing it.
+- **The name "Krita Studio" is a placeholder and must change before release.** Krita's trademark policy only lets "substantially unmodified" builds use the name, and "Krita Studio" was a real commercial Krita edition (KO GmbH, 2013). "Kritany" also contains the mark. The owner picks the new name; then change `KisProfile::name()` (it also names the folders), the README, NOTICE, the About dialog, theme names ("Krita Studio Dark"…) and the window title, and replace the app icon and splash branding.
+- Take Krita's settings copies settings only, not the user's own brushes and bundles from Krita's resource folder.
 - **Pre-5.0 brush engine paths were removed** (legacy smudge, spray center bias, hard flow). Old presets that used them paint slightly differently.
 - **G'MIC-Qt isn't built** in `krita-deps`; only the bridge plugin is. The idea on the table is wrapping the useful G'MIC filters as native effects.
 - **Ideas the owner liked:** shader-based custom filters in the effect panel (Shadertoy-style GLSL; the sliders come from uniforms), and a brush editor redesign around a tip/mask/texture stack and a dynamics grid (sensors × properties).
-- Right-click on a brush editor row opens Krita's Lock menu instead of resetting the value (principle 5).
 
 ## Lessons (append, newest last)
 
@@ -119,3 +127,4 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - Count only deliberate input as "the user is working": pen hover sends moves all the time.
 - When a feature writes test data into the profile, prefer the UI (with the panel's Undo) over editing files.
 - Public text (README, release notes) is shown, not told: a clip or screenshot per feature, a line of words at most, plain first-person voice. Bold lead-ins, feature lists and comparison tables read as machine-written to the owner.
+- After a build, check the installed DLL's time: an install can silently keep the old one when the dev Krita was still running.

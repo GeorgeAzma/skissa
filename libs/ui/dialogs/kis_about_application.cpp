@@ -19,6 +19,7 @@
 #include "kis_splash_screen.h"
 #include "ui_wdgaboutapplication.h"
 #include <KisPortingUtils.h>
+#include <KisProfile.h>
 
 #ifdef Q_OS_MACOS
 #include "libs/macosutils/KisMacosEntitlements.h"
@@ -37,7 +38,7 @@ public:
 KisAboutApplication::KisAboutApplication(QWidget *parent)
     : KoDialog(parent)
 {
-    setWindowTitle(i18n("About Krita"));
+    setWindowTitle(i18nc("@title:window", "About %1", KisProfile::name()));
     setButtons(KoDialog::Close);
 
     WdgAboutApplication *wdgTab = new WdgAboutApplication(this);
@@ -47,7 +48,13 @@ KisAboutApplication::KisAboutApplication(QWidget *parent)
     QStringList lblLinksText;
     lblLinksText    << "<html>"
                     << "<head/>"
-                    << "<body><table style=\"width:100%\" cellpadding=\"30\"><tr><td>"
+                    << "<body>"
+                    // a modified Krita says so (GPL-3.0 section 5a), and that it isn't Krita's own
+                    << i18nc("@info", "<p align=\"center\">%1 is an independent fork of Krita, modified by GeorgeAzma since 2026. "
+                                      "It isn't made or endorsed by the Krita Foundation or KDE. "
+                                      "<a href=\"https://github.com/GeorgeAzma\"><span style=\" text-decoration: underline;\">Source code</span></a></p>",
+                             KisProfile::name())
+                    << "<table style=\"width:100%\" cellpadding=\"30\"><tr><td>"
                     << i18n("<p><b>Using Krita</b></p>");
 
 #ifdef Q_OS_MACOS
