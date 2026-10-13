@@ -27,17 +27,18 @@ KisWdgGaussianBlur::KisWdgGaussianBlur(bool usedForMasks, QWidget * parent) : Ki
 
     const qreal maxRadius = usedForMasks ? 100.0 : 1000.0;
 
-    m_widget->horizontalRadius->setRange(0.0, maxRadius, 2);
-    m_widget->horizontalRadius->setSingleStep(0.2);
-    m_widget->horizontalRadius->setValue(0.5);
+    // whole pixels: a fraction of a pixel of blur isn't something to tune
+    m_widget->horizontalRadius->setRange(0.0, maxRadius, 0);
+    m_widget->horizontalRadius->setSingleStep(1.0);
+    m_widget->horizontalRadius->setValue(1.0);
     m_widget->horizontalRadius->setExponentRatio(3.0);
     m_widget->horizontalRadius->setSuffix(i18n(" px"));
 
     connect(m_widget->horizontalRadius, SIGNAL(valueChanged(qreal)), this, SLOT(horizontalRadiusChanged(qreal)));
 
-    m_widget->verticalRadius->setRange(0.0, maxRadius, 2);
-    m_widget->verticalRadius->setSingleStep(0.2);
-    m_widget->verticalRadius->setValue(0.5);
+    m_widget->verticalRadius->setRange(0.0, maxRadius, 0);
+    m_widget->verticalRadius->setSingleStep(1.0);
+    m_widget->verticalRadius->setValue(1.0);
     m_widget->verticalRadius->setExponentRatio(3.0);
     m_widget->verticalRadius->setSuffix(i18n(" px"));
     connect(m_widget->verticalRadius, SIGNAL(valueChanged(qreal)), this, SLOT(verticalRadiusChanged(qreal)));
