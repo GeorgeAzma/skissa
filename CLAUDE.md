@@ -93,6 +93,7 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - **The shell sees a stale copy of `%LOCALAPPDATA%`** (the desktop app is an MSIX package). To read or edit the real dev `kritarc`, copy it with a WMI-launched process (`Invoke-CimMethod Win32_Process Create`), and edit it only while the dev Krita is closed.
 - **Back up the dev profile before a test writes to it,** and restore exactly what was there. The owner also works in the dev build; tests have overwritten their saved curves and theme before.
 - **It's fine to close the dev Krita** (unsaved changes and all) to rebuild. Only kill processes whose path is under `C:\code\krita-deps`.
+- **README clips:** `devtools\rec.py` (Python, Pillow) drives the app and captures frames; save them as animated WebP (sharper and smaller than GIF). A capture takes ~1 s, so clips are stop-motion with chosen frame times.
 - `KRITA_DEV_TOUR=<folder>` runs `krita/KisDevTour.cpp`, which photographs the whole UI. `KRITA_DEV_FRAMELOG` and `KRITA_DEV_SAMPLE` are for performance work.
 - **The test image** is `C:\code\krita-deps\sunset.png` (the default in `launchdev.ps1`); `glass-test.jpg` is the Krita artwork.
 
@@ -109,7 +110,7 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - **Pre-5.0 brush engine paths were removed** (legacy smudge, spray center bias, hard flow). Old presets that used them paint slightly differently.
 - **G'MIC-Qt isn't built** in `krita-deps`; only the bridge plugin is. The idea on the table is wrapping the useful G'MIC filters as native effects.
 - **Ideas the owner liked:** shader-based custom filters in the effect panel (Shadertoy-style GLSL; the sliders come from uniforms), and a brush editor redesign around a tip/mask/texture stack and a dynamics grid (sensors × properties).
-- Grey helper text that's left to remove: the blend mode picker's footer ("Drag to reorder · ★ to favorite").
+- Right-click on a brush editor row opens Krita's Lock menu instead of resetting the value (principle 5).
 
 ## Lessons (append, newest last)
 
@@ -117,3 +118,4 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - A setting the fork stops showing must still be read correctly, or be migrated. Deleting a key upstream still reads is a bug.
 - Count only deliberate input as "the user is working": pen hover sends moves all the time.
 - When a feature writes test data into the profile, prefer the UI (with the panel's Undo) over editing files.
+- Public text (README, release notes) is shown, not told: a clip or screenshot per feature, a line of words at most, plain first-person voice. Bold lead-ins, feature lists and comparison tables read as machine-written to the owner.
