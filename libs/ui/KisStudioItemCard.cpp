@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioItemCard.h"
+#include <KisProfile.h>
 #include "KisStudioGlass.h"
 
 #include <QAbstractButton>
@@ -371,7 +372,7 @@ void KisStudioShortcuts::enableMenuEditing()
 
 void KisStudioShortcuts::restore(QAction *action)
 {
-    const QString saved = KConfigGroup(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"))
+    const QString saved = KConfigGroup(KSharedConfig::openConfig(KisProfile::configFile(QStringLiteral("kritashortcutsrc"))), QStringLiteral("Shortcuts"))
                               .readEntry(action->objectName(), QString());
     if (!saved.isEmpty() && saved != QLatin1String("none")) {
         action->setShortcuts(QKeySequence::listFromString(saved));
@@ -380,7 +381,7 @@ void KisStudioShortcuts::restore(QAction *action)
 
 QString KisStudioShortcuts::assign(KisMainWindow *mainWindow, QAction *action, const QKeySequence &sequence)
 {
-    KConfigGroup group(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"));
+    KConfigGroup group(KSharedConfig::openConfig(KisProfile::configFile(QStringLiteral("kritashortcutsrc"))), QStringLiteral("Shortcuts"));
     QString takenFrom;
     if (!sequence.isEmpty()) {
         Q_FOREACH (QAction *other, allActions(mainWindow)) {

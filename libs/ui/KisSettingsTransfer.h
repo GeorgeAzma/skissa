@@ -52,13 +52,9 @@ KRITAUI_EXPORT QString kritaSettingsPath();
 KRITAUI_EXPORT bool kritaRunning();
 /// The changes taking Krita's settings would make here
 KRITAUI_EXPORT Plan planFromKrita();
-/// The changes giving Krita these settings would make there
-KRITAUI_EXPORT Plan planToKrita();
-/// Writes \p changes into Krita's kritarc; on failure returns false and leaves it untouched
-KRITAUI_EXPORT bool applyToKrita(const QVector<Change> &changes, QString *error);
-/// When the backup of Krita's original kritarc was made; invalid if there is none
+/// When a backup of Krita's original kritarc was made; invalid if there is none
 KRITAUI_EXPORT QDateTime kritaBackupTime();
-/// Restores Krita's kritarc from the backup made before it was first changed
+/// Restores Krita's kritarc from that backup
 KRITAUI_EXPORT bool restoreKrita(QString *error);
 
 } // namespace KisSettingsTransfer

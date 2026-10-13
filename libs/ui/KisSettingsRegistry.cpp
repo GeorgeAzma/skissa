@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisSettingsRegistry.h"
+#include <KisProfile.h>
 
 #include <QApplication>
 #include <QColor>
@@ -111,7 +112,7 @@ Setting grouped(Setting s, const QString &group)
 
 QString displayrcPath()
 {
-    return QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/kritadisplayrc");
+    return KisProfile::configFile(QStringLiteral("kritadisplayrc"));
 }
 
 /// Stores \p s in kritadisplayrc, which is read at startup before kritarc

@@ -2691,29 +2691,6 @@ struct KisStudioSettings::Private
                  [this](const QVector<KisSettingsTransfer::Change> &chosen, bool) { applyHere(chosen, QByteArray()); });
     }
 
-    void toKrita()
-    {
-        R::instance()->flush();
-        const KisSettingsTransfer::Plan plan = KisSettingsTransfer::planToKrita();
-        const QDateTime kept = KisSettingsTransfer::kritaBackupTime();
-        const QString explanation = kept.isValid()
-            ? i18nc("@info", "Only these change in Krita; its other settings stay. Its settings from before %1 are kept, for Restore Krita's settings.",
-                    QLocale().toString(kept, QLocale::ShortFormat))
-            : i18nc("@info", "Only these change in Krita; its other settings stay. A copy of its settings is kept first, for Restore Krita's settings.");
-        showPlan(plan, i18nc("@title", "These settings, in Krita"), explanation, i18nc("@action:button", "Give them"),
-                 [this](const QVector<KisSettingsTransfer::Change> &chosen, bool) {
-                     QString error;
-                     if (chosen.isEmpty()) {
-                         rebuild();
-                     } else if (KisSettingsTransfer::applyToKrita(chosen, &error)) {
-                         q->say(i18ncp("@info", "Krita has %1 more of your settings.", "Krita has %1 more of your settings.", chosen.size()));
-                         rebuild();
-                     } else {
-                         q->say(error);
-                     }
-                 });
-    }
-
     void restoreKrita()
     {
         QString error;
@@ -2730,12 +2707,11 @@ struct KisStudioSettings::Private
         QAction *exportAction = menu.addAction(i18nc("@action:inmenu", "Export settings"));
         QAction *importAction = menu.addAction(i18nc("@action:inmenu", "Import settings"));
         QAction *from = nullptr;
-        QAction *to = nullptr;
         QAction *restore = nullptr;
+        // Krita's settings are only read here; Restore puts back a copy of them, when one was kept
         if (!KisSettingsTransfer::kritaSettingsPath().isEmpty()) {
             menu.addSeparator();
             from = menu.addAction(i18nc("@action:inmenu", "Take Krita's settings"));
-            to = menu.addAction(i18nc("@action:inmenu", "Give Krita these settings"));
             if (KisSettingsTransfer::kritaBackupTime().isValid()) restore = menu.addAction(i18nc("@action:inmenu", "Restore Krita's settings"));
         }
         QAction *chosen = menu.exec(anchor->mapToGlobal(QPoint(0, anchor->height())));
@@ -2743,7 +2719,6 @@ struct KisStudioSettings::Private
         if (chosen == exportAction) exportFile();
         else if (chosen == importAction) importFile();
         else if (chosen == from) fromKrita();
-        else if (chosen == to) toKrita();
         else if (chosen == restore) restoreKrita();
     }
 };

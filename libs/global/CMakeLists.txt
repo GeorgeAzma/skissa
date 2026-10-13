@@ -30,6 +30,7 @@ set(kritaglobal_LIB_SRCS
     kis_config_notifier.cpp
     KisDeleteLaterWrapper.cpp
     KisUsageLogger.cpp
+    KisProfile.cpp
     KisFileUtils.cpp
     KisSignalMapper.cpp
     KisRegion.cpp

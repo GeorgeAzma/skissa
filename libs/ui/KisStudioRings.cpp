@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioRings.h"
+#include <KisProfile.h>
 
 #include <QAction>
 #include <QApplication>
@@ -530,7 +531,7 @@ void KisStudioRings::remove(const QString &id)
     cfg.writeEntry(ringsKey, ids);
     KSharedConfig::openConfig()->group(QString()).deleteEntry(itemsKey(id));
     KSharedConfig::openConfig()->group(QString()).deleteEntry(nameKey(id));
-    KConfigGroup shortcuts(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"));
+    KConfigGroup shortcuts(KSharedConfig::openConfig(KisProfile::configFile(QStringLiteral("kritashortcutsrc"))), QStringLiteral("Shortcuts"));
     shortcuts.deleteEntry(actionName(id));
     if (QAction *action = d->actions.take(id)) {
         d->mainWindow->actionCollection()->takeAction(action);

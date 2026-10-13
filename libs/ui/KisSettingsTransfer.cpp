@@ -23,6 +23,7 @@
 #include <KritaVersionWrapper.h>
 
 #include "KisSettingsRegistry.h"
+#include <KisProfile.h>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -75,26 +76,16 @@ QByteArray readAll(const QString &path, bool *ok)
     return *ok ? file.readAll() : QByteArray();
 }
 
-/// Lists the changes that copying settings from \p source to \p target would make.
-/// A null config stands for this instance's own settings.
-Plan plan(KConfig *source, KConfig *target, bool toKrita)
+/// Lists the changes that taking the settings in \p source would make here
+Plan plan(KConfig *source)
 {
     Plan plan;
     KisSettingsRegistry *registry = KisSettingsRegistry::instance();
     Q_FOREACH (const Setting &s, registry->settings()) {
-        if (s.flags & KisSettingsRegistry::Machine) continue;
-        if (toKrita && ((s.flags & KisSettingsRegistry::Fork) || !s.storedInKritarc())) continue;
-        if (!toKrita && source && !s.storedInKritarc()) continue;
-        QVariant to;
-        if (source) {
-            to = registry->valueIn(s, *source);
-            if (!to.isValid()) continue; // not set in the source
-        } else {
-            // Only settings changed here are given; the rest stay as the target has them
-            if (registry->isDefault(s.id)) continue;
-            to = registry->value(s.id);
-        }
-        QVariant from = target ? registry->valueIn(s, *target) : registry->value(s.id);
+        if ((s.flags & KisSettingsRegistry::Machine) || !s.storedInKritarc()) continue;
+        const QVariant to = registry->valueIn(s, *source);
+        if (!to.isValid()) continue; // not set in the source
+        const QVariant from = registry->value(s.id);
         const QVariant shownFrom = from.isValid() ? from : registry->defaultValue(s.id);
         if (registry->sameValue(s, shownFrom, to)) continue;
         plan.changes << Change{s.id, from, to};
@@ -191,7 +182,10 @@ Plan planImport(const QByteArray &data)
 QString kritaSettingsPath()
 {
     QString path = qEnvironmentVariable("KRITA_DEV_KRITA_SETTINGS");
-    if (path.isEmpty()) {
+    if (path.isEmpty() && KisProfile::isApart()) {
+        // a regular Krita's kritarc is loose in the config folder, where the fork has its own folder
+        path = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/kritarc");
+    } else if (path.isEmpty()) {
         // The dev build runs in Qt's test mode with its own profile (see KRITA_DEV_PROFILE);
         // the regular kritarc is where the config folder would be outside test mode.
         if (!QStandardPaths::isTestModeEnabled()) return QString();
@@ -210,7 +204,7 @@ QString kritaSettingsPath()
         }
         path = own + QStringLiteral("/kritarc");
     }
-    const QString mine = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/kritarc");
+    const QString mine = KisProfile::configFile(QStringLiteral("kritarc"));
     if (samePath(path) == samePath(mine)) return QString();
     return QFileInfo::exists(path) ? path : QString();
 }
@@ -265,96 +259,7 @@ Plan planFromKrita()
         return p;
     }
     KConfig krita(path, KConfig::SimpleConfig);
-    return plan(&krita, nullptr, false);
-}
-
-Plan planToKrita()
-{
-    const QString path = kritaSettingsPath();
-    if (path.isEmpty()) {
-        Plan p;
-        p.error = notFound();
-        return p;
-    }
-    KConfig krita(path, KConfig::SimpleConfig);
-    Plan p = plan(nullptr, &krita, true);
-    int forkOnly = 0;
-    int machine = 0;
-    KisSettingsRegistry *registry = KisSettingsRegistry::instance();
-    Q_FOREACH (const Setting &s, registry->settings()) {
-        if (registry->isDefault(s.id)) continue;
-        if (s.flags & KisSettingsRegistry::Machine) machine++;
-        else if ((s.flags & KisSettingsRegistry::Fork) || !s.storedInKritarc()) forkOnly++;
-    }
-    if (forkOnly) p.skipped << i18ncp("@info", "%1 setting Krita doesn't have", "%1 settings Krita doesn't have", forkOnly);
-    if (machine) p.skipped << i18ncp("@info", "%1 setting about this computer", "%1 settings about this computer", machine);
-    return p;
-}
-
-bool applyToKrita(const QVector<Change> &changes, QString *error)
-{
-    const QString path = kritaSettingsPath();
-    if (path.isEmpty()) return fail(error, notFound());
-    if (kritaRunning()) return fail(error, closeKritaFirst());
-    bool ok = false;
-    const QByteArray original = readAll(path, &ok);
-    if (!ok) return fail(error, i18nc("@info", "Krita's settings couldn't be read."));
-
-    // Back up the original only once, so the backup is never an already changed file
-    const QString backup = path + backupSuffix;
-    if (!QFileInfo::exists(backup)) {
-        QString why;
-        if (!writeFile(backup, original, &why)) return fail(error, i18nc("@info", "A copy of Krita's settings couldn't be kept: %1", why));
-        const QByteArray kept = readAll(backup, &ok);
-        if (!ok || kept != original) return fail(error, i18nc("@info", "A copy of Krita's settings couldn't be kept."));
-    }
-
-    // Work on a draft copy so Krita's file stays intact if anything goes wrong
-    const QString draft = path + QStringLiteral(".krita-dev-draft");
-    QFile::remove(draft);
-    QString why;
-    if (!writeFile(draft, original, &why)) return fail(error, why);
-    KisSettingsRegistry *registry = KisSettingsRegistry::instance();
-    QStringList groupsBefore;
-    int keysBefore = 0;
-    {
-        KConfig before(draft, KConfig::SimpleConfig);
-        groupsBefore = before.groupList();
-        keysBefore = before.group(QString()).keyList().size();
-    }
-    {
-        KConfig config(draft, KConfig::SimpleConfig);
-        Q_FOREACH (const Change &change, changes) {
-            if (const Setting *s = registry->setting(change.id)) registry->writeIn(*s, config, change.to);
-        }
-        if (!config.sync()) {
-            QFile::remove(draft);
-            return fail(error, i18nc("@info", "Krita's settings couldn't be written."));
-        }
-    }
-    // Read the draft back: every change must be there and nothing else lost
-    {
-        KConfig check(draft, KConfig::SimpleConfig);
-        bool good = check.group(QString()).keyList().size() >= keysBefore;
-        Q_FOREACH (const QString &group, groupsBefore) {
-            good = good && check.hasGroup(group);
-        }
-        Q_FOREACH (const Change &change, changes) {
-            const Setting *s = registry->setting(change.id);
-            good = good && s && registry->sameValue(*s, registry->valueIn(*s, check), change.to);
-        }
-        if (!good) {
-            QFile::remove(draft);
-            return fail(error, i18nc("@info", "Krita's settings came out wrong, so they weren't changed."));
-        }
-    }
-    const QByteArray changed = readAll(draft, &ok);
-    QFile::remove(draft);
-    QFile::remove(draft + QStringLiteral(".lock"));
-    if (!ok) return fail(error, i18nc("@info", "Krita's settings couldn't be written."));
-    // Replace atomically: Krita sees either the old file or the new one, never half of one
-    if (!writeFile(path, changed, &why)) return fail(error, why);
-    return true;
+    return plan(&krita);
 }
 
 QDateTime kritaBackupTime()

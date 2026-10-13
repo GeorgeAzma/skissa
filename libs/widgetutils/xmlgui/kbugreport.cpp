@@ -5,6 +5,7 @@
 */
 
 #include "kbugreport.h"
+#include <KisProfile.h>
 
 #include <QProcess>
 #include <QCoreApplication>
@@ -169,7 +170,7 @@ KisKBugReport::KisKBugReport(const KAboutData &aboutData, QWidget *_parent)
     lay->addSpacing(10);
 
     QByteArray additionalInformation;
-    QFile sysinfo(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/krita-sysinfo.log");
+    QFile sysinfo(KisProfile::configFile(QStringLiteral("krita-sysinfo.log")));
     if (sysinfo.open(QFile::ReadOnly)) {
         additionalInformation += sysinfo.readAll();
         sysinfo.close();
@@ -177,7 +178,7 @@ KisKBugReport::KisKBugReport(const KAboutData &aboutData, QWidget *_parent)
 
     additionalInformation += "\n---------------------\n";
 
-    QFile log(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/krita.log");
+    QFile log(KisProfile::configFile(QStringLiteral("krita.log")));
     if (log.open(QFile::ReadOnly)) {
         additionalInformation += log.readAll();
         log.close();
@@ -185,7 +186,7 @@ KisKBugReport::KisKBugReport(const KAboutData &aboutData, QWidget *_parent)
 
     additionalInformation += "\n---------------------\n";
 
-    QFile crashes(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/kritacrash.log");
+    QFile crashes(KisProfile::configFile(QStringLiteral("kritacrash.log")));
     if (crashes.open(QFile::ReadOnly)) {
         additionalInformation += crashes.readAll();
         crashes.close();

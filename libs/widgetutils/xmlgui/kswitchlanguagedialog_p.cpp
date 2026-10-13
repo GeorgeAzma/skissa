@@ -7,6 +7,7 @@
  */
 
 #include <QApplication>
+#include <KisProfile.h>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QLayout>
@@ -45,12 +46,7 @@ typedef QSharedPointer<QSettings> QSettingsPtr;
 
 static QSettingsPtr localeOverridesSettings()
 {
-    const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    const QDir configDir(configPath);
-    if (!configDir.exists()) {
-        configDir.mkpath(QStringLiteral("."));
-    }
-    return QSettingsPtr(new QSettings(configPath + QStringLiteral("/klanguageoverridesrc"), QSettings::IniFormat));
+    return QSettingsPtr(new QSettings(KisProfile::configFile(QStringLiteral("klanguageoverridesrc")), QSettings::IniFormat));
 }
 
 static QByteArray getApplicationSpecificLanguage(const QByteArray &defaultCode = QByteArray())

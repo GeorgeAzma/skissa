@@ -11,6 +11,7 @@
 #include <kwidgetitemdelegate.h>
 #include <klocalizedstring.h>
 #include <KisKineticScroller.h>
+#include <KisProfile.h>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -274,8 +275,9 @@ QStringList KisAutoSaveRecoveryDialog::recoverableFiles()
 QString KisAutoSaveRecoveryDialog::autoSaveLocation()
 {
 #if defined(Q_OS_WIN)
-    // On Windows, use the temp location (https://bugs.kde.org/show_bug.cgi?id=314921)
-    return QDir::tempPath();
+    // On Windows, use the temp location (https://bugs.kde.org/show_bug.cgi?id=314921), in a folder of
+    // the fork's own: a regular Krita's autosaves there are never offered here, nor removed when declined
+    return KisProfile::tempFolder();
 #elif defined(Q_OS_ANDROID)
     QString path = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation).append("/krita-backup");
     if (!QDir(path).exists()) {
@@ -285,6 +287,12 @@ QString KisAutoSaveRecoveryDialog::autoSaveLocation()
 #else
     // On Linux, use a temp file in $HOME then. Mark it with the pid so two instances don't overwrite each other's
     // autosave file
+    if (KisProfile::isApart()) {
+        // the fork's own app data folder, apart from a regular Krita's autosaves in $HOME
+        const QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + QStringLiteral("/autosave");
+        QDir().mkpath(path);
+        return path;
+    }
     return QDir::homePath();
 #endif
 }

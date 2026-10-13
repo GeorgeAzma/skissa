@@ -16,6 +16,8 @@
 */
 
 #include <KLocalizedTranslator>
+#include <KisProfile.h>
+#include <KConfig>
 #include <QByteArray>
 #include <QDate>
 #include <QDir>
@@ -129,8 +131,7 @@ void tryInitDrMingw()
         return;
     }
 
-    // Set the log file path to %LocalAppData%\kritacrash.log
-    const QString logFile = QDir(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)).absoluteFilePath("kritacrash.log");
+    const QString logFile = KisProfile::configFile(QStringLiteral("kritacrash.log"));
     const QByteArray logFilePath = QDir::toNativeSeparators(logFile).toLocal8Bit();
     myExcHndlSetLogFileNameA(logFilePath.data());
 }
@@ -520,8 +521,7 @@ Java_org_krita_android_JNIWrappers_saveState(JNIEnv* /*env*/,
         doc->autoSaveOnPause();
     }
 
-    const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    QSettings kritarc(configPath + QStringLiteral("/kritadisplayrc"), QSettings::IniFormat);
+    QSettings kritarc(KisProfile::configFile(QStringLiteral("kritadisplayrc")), QSettings::IniFormat);
     kritarc.setValue("canvasState", "OPENGL_SUCCESS");
 }
 
@@ -595,13 +595,17 @@ extern "C" MAIN_EXPORT int MAIN_FN(int argc, char **argv)
     if (useDevProfile) {
         QStandardPaths::setTestModeEnabled(true);
     }
+    // kritarc in the fork's own config folder, never a regular Krita's (see KisProfile)
+    KConfig::setMainConfigName(KisProfile::configFile(QStringLiteral("kritarc")));
 
     // A per-user unique string, without /, because QLocalServer cannot use names with a / in it
     QString key = "Krita5" + QStandardPaths::writableLocation(QStandardPaths::HomeLocation).replace("/", "_");
     key = key.replace(":", "_").replace("\\","_");
+    // never handing files to a running regular Krita
     if (useDevProfile) {
-        // not sharing a running instance with a regular Krita
         key += "_dev";
+    } else {
+        key += QLatin1Char('_') + KisProfile::name().remove(QLatin1Char(' '));
     }
 
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts, true);
@@ -717,8 +721,7 @@ extern "C" MAIN_EXPORT int MAIN_FN(int argc, char **argv)
     }
 #endif
 
-    const QDir configPath(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation));
-    QSettings kritarc(configPath.absoluteFilePath("kritadisplayrc"), QSettings::IniFormat);
+    QSettings kritarc(KisProfile::configFile(QStringLiteral("kritadisplayrc")), QSettings::IniFormat);
 
     // KFI18N is broken on Android. See kswitchlanguagedialog_p.cpp for details.
     // If/when removing this, also remove the matching logic from there!
@@ -735,7 +738,7 @@ extern "C" MAIN_EXPORT int MAIN_FN(int argc, char **argv)
         QCoreApplication app(argc, argv);
         Q_UNUSED(app);
         root = KoResourcePaths::getApplicationRoot();
-        QSettings languageoverride(configPath.absoluteFilePath("klanguageoverridesrc"), QSettings::IniFormat);
+        QSettings languageoverride(KisProfile::configFile(QStringLiteral("klanguageoverridesrc")), QSettings::IniFormat);
         languageoverride.beginGroup("Language");
         language = languageoverride.value(qAppName(), "").toString();
     }
@@ -1099,6 +1102,8 @@ if (!qEnvironmentVariableIsEmpty("KRITA_OPENGL_DEBUG")) {
     KIS_SAFE_ASSERT_RECOVER(app.organizationName().isEmpty()) {
         app.setOrganizationName("");
     }
+    // the fork's own resources and app data (an organization folder of its own)
+    KisProfile::apply();
 
 #ifdef Q_OS_WIN
     QDir appdir(KoResourcePaths::getApplicationRoot());
@@ -1241,7 +1246,7 @@ if (!qEnvironmentVariableIsEmpty("KRITA_OPENGL_DEBUG")) {
     int state = KisApplication::exec();
 
     {
-        QSettings kritarc(configPath.absoluteFilePath("kritadisplayrc"), QSettings::IniFormat);
+        QSettings kritarc(KisProfile::configFile(QStringLiteral("kritadisplayrc")), QSettings::IniFormat);
         kritarc.setValue("canvasState", "OPENGL_SUCCESS");
     }
 

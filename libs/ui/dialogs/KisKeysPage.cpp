@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisKeysPage.h"
+#include <KisProfile.h>
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -1593,7 +1594,7 @@ void KisKeysPage::apply()
     }
 
     // Store only the shortcuts that differ from the scheme
-    KConfigGroup custom(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"));
+    KConfigGroup custom(KSharedConfig::openConfig(KisProfile::configFile(QStringLiteral("kritashortcutsrc"))), QStringLiteral("Shortcuts"));
     for (const Private::Command &command : d->commands) {
         if (command.registered && command.current == d->defaultsOf(command, d->scheme)) {
             custom.deleteEntry(command.id);

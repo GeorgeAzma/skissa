@@ -6,6 +6,7 @@
  */
 
 #include <tuple>
+#include <KisProfile.h>
 
 #include <boost/optional.hpp>
 
@@ -315,7 +316,7 @@ void KisOpenGL::initializeContext(QOpenGLContext *ctx)
         g_glInvalidateBufferData = (PFNGLINVALIDATEBUFFERDATAPROC)ctx->getProcAddress("glInvalidateBufferData");
     }
 
-    QFile log(QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/krita-opengl.txt");
+    QFile log(KisProfile::tempFolder() + QStringLiteral("/krita-opengl.txt"));
     if (log.open(QFile::WriteOnly)) {
         QString vendor((const char*)f->glGetString(GL_VENDOR));
         log.write(vendor.toLatin1());
@@ -461,15 +462,13 @@ KisOpenGL::OpenGLRenderers KisOpenGL::getSupportedOpenGLRenderers()
 
 KisOpenGL::OpenGLRenderer KisOpenGL::getUserPreferredOpenGLRendererConfig()
 {
-    const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    QSettings kritarc(configPath + QStringLiteral("/kritadisplayrc"), QSettings::IniFormat);
+    QSettings kritarc(KisProfile::configFile(QStringLiteral("kritadisplayrc")), QSettings::IniFormat);
     return convertConfigToOpenGLRenderer(kritarc.value("OpenGLRenderer", "auto").toString());
 }
 
 void KisOpenGL::setUserPreferredOpenGLRendererConfig(KisOpenGL::OpenGLRenderer renderer)
 {
-    const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    QSettings kritarc(configPath + QStringLiteral("/kritadisplayrc"), QSettings::IniFormat);
+    QSettings kritarc(KisProfile::configFile(QStringLiteral("kritadisplayrc")), QSettings::IniFormat);
     kritarc.setValue("OpenGLRenderer", KisOpenGL::convertOpenGLRendererToConfig(renderer));
 }
 
