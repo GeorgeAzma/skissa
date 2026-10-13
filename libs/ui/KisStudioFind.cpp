@@ -27,6 +27,7 @@
 #include <QStandardItemModel>
 #include <QStyledItemDelegate>
 #include <QTimer>
+#include <QTextDocument>
 #include <QToolTip>
 #include <QVBoxLayout>
 #include <QWidgetAction>
@@ -1020,8 +1021,60 @@ void KisStudioFind::updateCommands(const QString &query)
  * found like commands, given shortcuts on their cards. Their key is where
  * they are: the panel, the named widgets on the way, the button.
  */
+namespace
+{
+/**
+ * A button's tooltip names its shortcut, whichever it has: its own action's, or the
+ * one given to the button itself (see registerButtons), after what it does and
+ * quieter.
+ */
+class ShortcutTips : public QObject
+{
+public:
+    std::function<QKeySequence(QAbstractButton *)> shortcutOf;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() != QEvent::ToolTip) return false;
+        auto *button = qobject_cast<QAbstractButton *>(watched);
+        if (!button || button->toolTip().isEmpty() || !shortcutOf) return false;
+        const QKeySequence keys = shortcutOf(button);
+        if (keys.isEmpty()) return false;
+        const QString text = keys.toString(QKeySequence::NativeText);
+        // Krita's own actions name it already, in parentheses: said the same way as the others
+        QString plain = button->toolTip();
+        const QString named = QStringLiteral(" (%1)").arg(text);
+        if (plain.endsWith(named)) plain.chop(named.size());
+        else if (plain.contains(text)) return false;
+        const QString tip = Qt::mightBeRichText(plain) ? plain : plain.toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br>"));
+        // the keys quieter than what the button does
+        const QColor ink = QToolTip::palette().color(QPalette::ToolTipText);
+        const QString quiet = QStringLiteral("rgba(%1,%2,%3,0.55)").arg(ink.red()).arg(ink.green()).arg(ink.blue());
+        QToolTip::showText(static_cast<QHelpEvent *>(event)->globalPos(),
+                           QStringLiteral("%1&nbsp;&nbsp;&nbsp;<span style=\"color:%2\">%3</span>").arg(tip, quiet, text.toHtmlEscaped()), button);
+        return true;
+    }
+};
+} // namespace
+
 void KisStudioFind::registerButtons()
 {
+    static ShortcutTips *tips = nullptr;
+    if (!tips) {
+        tips = new ShortcutTips();
+        tips->setParent(qApp);
+        qApp->installEventFilter(tips);
+    }
+    tips->shortcutOf = [self = QPointer<KisStudioFind>(this)](QAbstractButton *button) {
+        auto *tool = qobject_cast<QToolButton *>(button);
+        if (tool && tool->defaultAction()) return tool->defaultAction()->shortcut();
+        if (!self) return QKeySequence();
+        for (auto it = self->d->buttons.constBegin(); it != self->d->buttons.constEnd(); ++it) {
+            if (it->button == button && it->action) return it->action->shortcut();
+        }
+        return QKeySequence();
+    };
     KisMainWindow *mainWindow = d->mainWindow;
     // the buttons of Krita's own actions are found as those
     QSet<QAction *> known;
