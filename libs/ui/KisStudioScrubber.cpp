@@ -102,7 +102,7 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
     if (underMouse() || m_dragging) {
         painter.setPen(Qt::NoPen);
         painter.setBrush(mix(window, text, m_dragging ? 0.16 : 0.09));
-        painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 2, -1, -2), 7));
+        painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 2, -1, -2), KisModernStyle::tileRadius));
     }
 
     const QRectF icon(8, (height() - iconSize) / 2.0, iconSize, iconSize);

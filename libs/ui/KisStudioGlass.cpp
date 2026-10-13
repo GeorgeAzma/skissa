@@ -1203,7 +1203,7 @@ void makeGlassDropdown(QWidget *popup)
     if (auto *view = qobject_cast<QAbstractItemView *>(popup)) {
         setListOnGlass(view, true);
     } else {
-        popup->setContentsMargins(4, 4, 4, 4);
+        popup->setContentsMargins(KisModernStyle::space1, KisModernStyle::space1, KisModernStyle::space1, KisModernStyle::space1);
     }
     Q_FOREACH (QAbstractItemView *view, popup->findChildren<QAbstractItemView *>()) setListOnGlass(view, true);
 }

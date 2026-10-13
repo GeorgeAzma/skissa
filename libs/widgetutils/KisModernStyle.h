@@ -38,6 +38,20 @@ public:
     /// Corner radius of rounded controls, for widgets that paint themselves
     static constexpr int cornerRadius = 5;
 
+    /**
+     * The one spacing scale: a hairline between the buttons of one group, then steps of four. Margins and
+     * spacings are these and nothing else.
+     */
+    static constexpr int hairline = 2;
+    static constexpr int space1 = 4;
+    static constexpr int space2 = 8;
+    static constexpr int space3 = 12;
+    static constexpr int space4 = 16;
+    /// Corner radii by size: a control's (cornerRadius), a tile's or chip's, a card's, a panel's
+    static constexpr int tileRadius = 8;
+    static constexpr int cardRadius = 10;
+    static constexpr int panelRadius = 14;
+
     /// A frameless line edit with this property is a quiet field: no box until hovered or focused
     static constexpr const char *quietFieldProperty = "studioQuietField";
 

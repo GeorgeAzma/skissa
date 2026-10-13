@@ -198,8 +198,8 @@ KisStudioToolStrip::KisStudioToolStrip(QWidget *parent)
 {
     setObjectName(QStringLiteral("studioToolStrip"));
     m_layout = new QHBoxLayout(this);
-    m_layout->setContentsMargins(4, 0, 4, 0);
-    m_layout->setSpacing(2);
+    m_layout->setContentsMargins(KisModernStyle::space1, 0, KisModernStyle::space1, 0);
+    m_layout->setSpacing(KisModernStyle::hairline);
 }
 
 void KisStudioToolStrip::clear()
@@ -287,8 +287,8 @@ QMenu *KisStudioToolStrip::symmetryMenu()
     auto *panel = new QWidget(m_symmetryMenu);
     panel->setFixedWidth(230);
     auto *layout = new QVBoxLayout(panel);
-    layout->setContentsMargins(10, 8, 10, 8);
-    layout->setSpacing(8);
+    layout->setContentsMargins(KisModernStyle::space3, KisModernStyle::space2, KisModernStyle::space3, KisModernStyle::space2);
+    layout->setSpacing(KisModernStyle::space2);
     KisStudioSymmetry *symmetry = KisStudioSymmetry::instance();
     // the menu's own text color: its glass, not the bar's
     const QColor ink = m_symmetryMenu->palette().color(QPalette::WindowText);
@@ -319,7 +319,7 @@ QMenu *KisStudioToolStrip::symmetryMenu()
 
     // the mode: picking one turns symmetry on in it
     auto *modes = new QHBoxLayout();
-    modes->setSpacing(2);
+    modes->setSpacing(KisModernStyle::hairline);
     auto *modeGroup = new QButtonGroup(panel);
     const QStringList modeNames = {i18nc("symmetry mode", "Mirror"), i18nc("symmetry mode", "Radial"), i18nc("symmetry mode", "Tile")};
     const QStringList modeTips = {
@@ -343,7 +343,7 @@ QMenu *KisStudioToolStrip::symmetryMenu()
     QAction *downAction = m_actions ? m_actions->action(QStringLiteral("vmirror_action")) : nullptr;
     QToolButton *across = toggle(acrossAction ? acrossAction->icon() : QIcon(), i18nc("mirror axis", "Across"));
     QToolButton *down = toggle(downAction ? downAction->icon() : QIcon(), i18nc("mirror axis", "Down"));
-    mirrorLayout->setSpacing(2);
+    mirrorLayout->setSpacing(KisModernStyle::hairline);
     mirrorLayout->addWidget(across);
     mirrorLayout->addWidget(down);
     layout->addWidget(mirrorPage);

@@ -119,7 +119,7 @@ protected:
             painter.setPen(Qt::NoPen);
             painter.setBrush(m_choice.current ? mix(pal.color(QPalette::Window), pal.color(QPalette::Highlight), 0.55)
                                               : mix(pal.color(QPalette::Window), pal.color(QPalette::ButtonText), 0.1));
-            painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), 8));
+            painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), KisModernStyle::tileRadius));
         }
         m_choice.icon.paint(&painter, QRect(9, 9, 22, 22));
         if (m_choice.action && !m_choice.action->shortcut().isEmpty()) {
@@ -430,10 +430,10 @@ KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &ico
     auto *layout = new QVBoxLayout(this);
     const int shadowMargin = shadowMarginOf(this);
     layout->setContentsMargins(shadowMargin + 12, shadowMargin + 10, shadowMargin + 12, shadowMargin + 10);
-    layout->setSpacing(10);
+    layout->setSpacing(KisModernStyle::space3);
 
     auto *header = new QHBoxLayout();
-    header->setSpacing(10);
+    header->setSpacing(KisModernStyle::space3);
     auto *iconLabel = new QLabel(this);
     iconLabel->setPixmap(icon.pixmap(QSize(28, 28)));
     header->addWidget(iconLabel);
@@ -452,7 +452,7 @@ KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &ico
     layout->addLayout(header);
 
     d->choices = new QHBoxLayout();
-    d->choices->setSpacing(2);
+    d->choices->setSpacing(KisModernStyle::hairline);
     layout->addLayout(d->choices);
 
     d->commands = new QVBoxLayout();

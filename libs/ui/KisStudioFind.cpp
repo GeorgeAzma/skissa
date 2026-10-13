@@ -376,13 +376,13 @@ public:
                 pal.color(QPalette::Base).blueF() * 0.45 + pal.color(QPalette::Highlight).blueF() * 0.55);
             painter->setPen(Qt::NoPen);
             painter->setBrush(tint);
-            painter->drawPath(KisModernStyle::squircle(QRectF(r).adjusted(4, 1, -4, -1), 7));
+            painter->drawPath(KisModernStyle::squircle(QRectF(r).adjusted(4, 1, -4, -1), KisModernStyle::tileRadius));
         }
 
         const QRectF tile(r.left() + 12, r.top() + 6, 28, 28);
         painter->setPen(Qt::NoPen);
         painter->setBrush(pal.color(QPalette::Button));
-        painter->drawPath(KisModernStyle::squircle(tile, 6));
+        painter->drawPath(KisModernStyle::squircle(tile, KisModernStyle::tileRadius));
         const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
         if (!icon.isNull()) {
             icon.paint(painter, tile.adjusted(5, 5, -5, -5).toRect());
@@ -577,7 +577,7 @@ KisStudioFind::KisStudioFind(KisMainWindow *mainWindow)
     auto *layout = new QVBoxLayout(this);
     const int shadowMargin = shadowMarginOf(this);
     layout->setContentsMargins(shadowMargin + 8, shadowMargin + 8, shadowMargin + 8, shadowMargin + 8);
-    layout->setSpacing(6);
+    layout->setSpacing(KisModernStyle::space2);
 
     d->edit = new QLineEdit(this);
     d->edit->setPlaceholderText(i18nc("@info:placeholder", "Find anything, or > for commands"));

@@ -295,7 +295,7 @@ QWidget *KisStudioWindowFrame::createButtons(QWidget *parent)
 {
     auto *buttons = new QWidget(parent);
     auto *layout = new QHBoxLayout(buttons);
-    layout->setContentsMargins(6, 0, 0, 0);
+    layout->setContentsMargins(KisModernStyle::space2, 0, 0, 0);
     layout->setSpacing(0);
 
     auto *minimize = new WindowButton(WindowButtonKind::Minimize, m_window, buttons);

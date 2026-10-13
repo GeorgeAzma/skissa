@@ -552,8 +552,8 @@ public:
     {
         setObjectName(QStringLiteral("studioToolRail"));
         auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(3, 4, 3, 6);
-        layout->setSpacing(6);
+        layout->setContentsMargins(KisModernStyle::space1, KisModernStyle::space1, KisModernStyle::space1, KisModernStyle::space2);
+        layout->setSpacing(KisModernStyle::space2);
         layout->setSizeConstraint(QLayout::SetFixedSize);
         m_grip = new DragGrip(this);
         layout->addWidget(m_grip);
@@ -841,7 +841,7 @@ protected:
             background.setAlphaF(0.09);
             painter.setPen(Qt::NoPen);
             painter.setBrush(background);
-            painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), 7));
+            painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), KisModernStyle::tileRadius));
         }
         const int iconSize = 18;
         KisIconUtils::loadIcon(m_iconName).paint(&painter, QRect((width() - iconSize) / 2, (height() - iconSize) / 2, iconSize, iconSize));
@@ -2685,7 +2685,7 @@ QIcon KisStudioLayout::railIcon(QDockWidget *dock) const
     painter.setRenderHint(QPainter::Antialiasing, true);
     const QColor color = d->rail ? d->rail->palette().color(QPalette::ButtonText) : QColor(Qt::gray);
     painter.setPen(QPen(color, 3));
-    painter.drawPath(KisModernStyle::squircle(QRectF(3, 3, size - 6, size - 6), 9));
+    painter.drawPath(KisModernStyle::squircle(QRectF(3, 3, size - 6, size - 6), KisModernStyle::cardRadius));
     QFont font = painter.font();
     font.setPixelSize(24);
     font.setBold(true);
@@ -2882,7 +2882,7 @@ void KisStudioLayout::createBrushRail()
 
     auto *contents = new QWidget(rail);
     auto *layout = new QVBoxLayout(contents);
-    layout->setContentsMargins(0, 2, 0, 0);
+    layout->setContentsMargins(0, KisModernStyle::hairline, 0, 0);
     layout->setSpacing(0);
 
     KisCanvasResourceProvider *resources = viewManager->canvasResourceProvider();
@@ -2946,8 +2946,8 @@ void KisStudioLayout::createTopBar()
     if (KisPaintopBox *paintopBox = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr) {
         auto *values = new QWidget(bar);
         auto *valuesLayout = new QHBoxLayout(values);
-        valuesLayout->setContentsMargins(6, 0, 0, 0);
-        valuesLayout->setSpacing(2);
+        valuesLayout->setContentsMargins(KisModernStyle::space2, 0, 0, 0);
+        valuesLayout->setSpacing(KisModernStyle::hairline);
         const QVector<QPair<QString, KisStudioScrubber::Kind>> scrubbers = {
             {QStringLiteral("size"), KisStudioScrubber::Kind::Size},
             {QStringLiteral("opacity"), KisStudioScrubber::Kind::Opacity},

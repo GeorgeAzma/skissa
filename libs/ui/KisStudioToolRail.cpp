@@ -592,12 +592,12 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     setMouseTracking(true);
 
     d->layout = new QVBoxLayout(this);
-    d->layout->setContentsMargins(4, 4, 4, 4);
-    d->layout->setSpacing(4);
+    d->layout->setContentsMargins(KisModernStyle::space1, KisModernStyle::space1, KisModernStyle::space1, KisModernStyle::space1);
+    d->layout->setSpacing(KisModernStyle::space1);
     d->itemsLayout = new QVBoxLayout();
     d->itemsLayout->setContentsMargins(0, 0, 0, 0);
     // room for a click between two items, which adds a space
-    d->itemsLayout->setSpacing(5);
+    d->itemsLayout->setSpacing(KisModernStyle::space1);
     d->layout->addLayout(d->itemsLayout);
 
     d->plus = new PlusButton(this);

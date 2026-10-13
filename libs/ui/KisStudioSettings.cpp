@@ -429,7 +429,7 @@ protected:
             const QRectF picture(cell.left() + 1, cell.top() + 1, tile.width() - 2, tile.height() - 2);
             painter.save();
             QPainterPath clip;
-            clip.addPath(KisModernStyle::squircle(picture, 8));
+            clip.addPath(KisModernStyle::squircle(picture, KisModernStyle::tileRadius));
             painter.setClipPath(clip);
             if (m_tiles[i].paint) m_tiles[i].paint(painter, picture);
             painter.restore();
@@ -438,7 +438,7 @@ protected:
             painter.setPen(QPen(current ? (hasFocus() ? palette().color(QPalette::Highlight) : palette().color(QPalette::Link))
                                         : ink(this, i == m_hovered ? 0.35 : 0.14),
                                 current ? 2 : 1));
-            painter.drawPath(KisModernStyle::squircle(picture.adjusted(-0.5, -0.5, 0.5, 0.5), 8));
+            painter.drawPath(KisModernStyle::squircle(picture.adjusted(-0.5, -0.5, 0.5, 0.5), KisModernStyle::tileRadius));
             painter.setPen(current ? palette().color(QPalette::WindowText) : KisModernStyle::secondaryInk(palette().color(QPalette::WindowText)));
             const QRect text(cell.left(), cell.top() + tile.height() + 2, cell.width(), 22);
             painter.drawText(text, Qt::AlignHCenter | Qt::AlignVCenter, fontMetrics().elidedText(m_tiles[i].name, Qt::ElideRight, text.width()));
@@ -583,7 +583,7 @@ struct Builder {
         // the label's line: the label, and the mark of one that waits for a restart
         auto *line = controlBelow ? new QHBoxLayout() : static_cast<QHBoxLayout *>(box);
         if (controlBelow) {
-            line->setSpacing(10);
+            line->setSpacing(KisModernStyle::space3);
             box->addLayout(line);
         }
         line->addWidget(text, 1);
@@ -761,7 +761,7 @@ struct Builder {
     {
         auto *holder = new QWidget(card);
         auto *line = new QHBoxLayout(holder);
-        line->setContentsMargins(0, 2, 0, 2);
+        line->setContentsMargins(0, KisModernStyle::hairline, 0, KisModernStyle::hairline);
         for (const auto &entry : list) {
             auto *button = new QPushButton(entry.first, holder);
             QObject::connect(button, &QPushButton::clicked, card, entry.second);
@@ -1177,7 +1177,7 @@ QVector<CardDef> makeCards()
                 // the name it comes from, as a chip
                 auto *name = new QLabel(i18nc("a layer's name, in an example", "Layer"), b.card);
                 name->setAlignment(Qt::AlignCenter);
-                name->setContentsMargins(8, 2, 8, 2);
+                name->setContentsMargins(KisModernStyle::space2, KisModernStyle::hairline, KisModernStyle::space2, KisModernStyle::hairline);
                 name->setStyleSheet(QStringLiteral("QLabel { border-radius: 6px; background: palette(highlight); color: palette(highlighted-text); }"));
                 grid->addWidget(name, kind, 2);
             }
@@ -1532,14 +1532,14 @@ public:
     {
         setObjectName(QStringLiteral("studioSettingsCard"));
         auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(12, 8, 10, 10);
-        layout->setSpacing(2);
+        layout->setContentsMargins(KisModernStyle::space3, KisModernStyle::space2, KisModernStyle::space3, KisModernStyle::space3);
+        layout->setSpacing(KisModernStyle::hairline);
         m_builder.card = this;
         m_builder.layout = layout;
         m_builder.window = window;
 
         auto *header = new QHBoxLayout();
-        header->setSpacing(6);
+        header->setSpacing(KisModernStyle::space2);
         m_title = titleLabel(def.title, this);
         header->addWidget(m_title);
         m_builder.title = m_title;
@@ -1620,13 +1620,13 @@ protected:
         painter.setPen(Qt::NoPen);
         painter.setBrush(fill);
         const QRectF r = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-        painter.drawPath(KisModernStyle::squircle(r, 10));
+        painter.drawPath(KisModernStyle::squircle(r, KisModernStyle::cardRadius));
         if (m_flash > 0) {
             QColor link = palette().color(QPalette::Link);
             link.setAlphaF(0.9 * m_flash);
             painter.setBrush(Qt::NoBrush);
             painter.setPen(QPen(link, 1.5));
-            painter.drawPath(KisModernStyle::squircle(r.adjusted(0.5, 0.5, -0.5, -0.5), 10));
+            painter.drawPath(KisModernStyle::squircle(r.adjusted(0.5, 0.5, -0.5, -0.5), KisModernStyle::cardRadius));
         }
     }
 
@@ -1686,8 +1686,8 @@ public:
         : QWidget(parent)
     {
         m_layout = new QVBoxLayout(this);
-        m_layout->setContentsMargins(0, 0, 4, 8);
-        m_layout->setSpacing(8);
+        m_layout->setContentsMargins(0, 0, KisModernStyle::space1, KisModernStyle::space2);
+        m_layout->setSpacing(KisModernStyle::space2);
     }
 
     QVBoxLayout *box() const { return m_layout; }
@@ -1705,7 +1705,7 @@ public:
         QPalette palette = label->palette();
         palette.setColor(QPalette::WindowText, KisModernStyle::secondaryInk(palette.color(QPalette::WindowText)));
         label->setPalette(palette);
-        label->setContentsMargins(4, 8, 0, 0);
+        label->setContentsMargins(KisModernStyle::space1, KisModernStyle::space2, 0, 0);
         m_layout->addWidget(label);
     }
 
@@ -1875,7 +1875,7 @@ protected:
             if (current || i == m_hovered || target) {
                 painter.setPen(target ? QPen(palette().color(QPalette::Link), 1.5) : Qt::NoPen);
                 painter.setBrush(ink(this, current ? 0.13 : 0.06));
-                painter.drawPath(KisModernStyle::squircle(QRectF(item.rect).adjusted(0.5, 0.5, -0.5, -0.5), 8));
+                painter.drawPath(KisModernStyle::squircle(QRectF(item.rect).adjusted(0.5, 0.5, -0.5, -0.5), KisModernStyle::tileRadius));
             }
             const QRect iconRect(item.rect.left() + 8, item.rect.center().y() - 8, 16, 16);
             painter.setOpacity(current ? 1.0 : 0.8);
@@ -2058,7 +2058,7 @@ public:
         const int margin = shadowMargin();
         auto *layout = new QVBoxLayout(this);
         layout->setContentsMargins(margin + 10, margin + 8, margin + 10, margin + 10);
-        layout->setSpacing(6);
+        layout->setSpacing(KisModernStyle::space2);
         auto *header = new QHBoxLayout();
         header->addWidget(titleLabel(i18nc("settings section", "Quick"), this), 1);
         auto *all = new QPushButton(i18nc("@action:button", "All settings"), this);
@@ -2576,7 +2576,7 @@ struct KisStudioSettings::Private
         delete review->layout();
         Q_FOREACH (QWidget *child, review->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) child->deleteLater();
         auto *layout = new QVBoxLayout(review);
-        layout->setContentsMargins(0, 0, 4, 0);
+        layout->setContentsMargins(0, 0, KisModernStyle::space1, 0);
         layout->addWidget(titleLabel(title, review));
         if (!explanation.isEmpty()) layout->addWidget(dimLabel(explanation, review));
         auto *list = new QScrollArea(review);
@@ -2586,7 +2586,7 @@ struct KisStudioSettings::Private
         auto *rows = new QWidget(list);
         rows->setAutoFillBackground(false);
         auto *rowsLayout = new QVBoxLayout(rows);
-        rowsLayout->setContentsMargins(0, 4, 0, 4);
+        rowsLayout->setContentsMargins(0, KisModernStyle::space1, 0, KisModernStyle::space1);
         QVector<QPair<QCheckBox *, KisSettingsTransfer::Change>> boxes;
         Q_FOREACH (const KisSettingsTransfer::Change &change, plan.changes) {
             const Setting *s = R::instance()->setting(change.id);
@@ -2767,8 +2767,8 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
     hide();
 
     auto *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(6, 8, 8, 8);
-    layout->setSpacing(6);
+    layout->setContentsMargins(KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2);
+    layout->setSpacing(KisModernStyle::space2);
 
     d->rail = new Rail(this);
     auto *railScroll = new QScrollArea(this);
@@ -2786,9 +2786,9 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
     d->rail->menuRequested = [this](const QString &id, const QPoint &pos) { d->railMenu(id, pos); };
 
     auto *body = new QVBoxLayout();
-    body->setSpacing(6);
+    body->setSpacing(KisModernStyle::space2);
     auto *header = new QHBoxLayout();
-    header->setSpacing(4);
+    header->setSpacing(KisModernStyle::space1);
     d->search = new QLineEdit(this);
     d->search->setPlaceholderText(i18nc("@info:placeholder", "Find a setting"));
     d->search->setClearButtonEnabled(true);

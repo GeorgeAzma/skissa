@@ -459,11 +459,11 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     setFocusPolicy(Qt::StrongFocus);
 
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(14, 8, 10, 10);
-    layout->setSpacing(4);
+    layout->setContentsMargins(KisModernStyle::space4, KisModernStyle::space2, KisModernStyle::space3, KisModernStyle::space3);
+    layout->setSpacing(KisModernStyle::space1);
 
     auto *header = new QHBoxLayout();
-    header->setSpacing(2);
+    header->setSpacing(KisModernStyle::hairline);
     d->icon = new QLabel(this);
     // the title bar is the panel's own, to drag it by
     d->icon->setAttribute(Qt::WA_TransparentForMouseEvents);

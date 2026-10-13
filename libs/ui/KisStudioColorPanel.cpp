@@ -339,7 +339,7 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
         paintRing(painter);
         painter.save();
-        painter.setClipPath(KisModernStyle::squircle(plane, 8));
+        painter.setClipPath(KisModernStyle::squircle(plane, KisModernStyle::tileRadius));
         painter.drawImage(plane.topLeft(), m_plane);
         painter.restore();
 
@@ -687,7 +687,7 @@ protected:
         border.setAlphaF(0.22);
         painter.setPen(QPen(border, 1));
         painter.setBrush(m_color);
-        painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12));
+        painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), KisModernStyle::panelRadius));
     }
 
 private:
@@ -1134,8 +1134,8 @@ KisStudioColorPanel::KisStudioColorPanel()
 
     auto *contents = new QWidget(this);
     auto *layout = new QVBoxLayout(contents);
-    layout->setContentsMargins(8, 6, 8, 6);
-    layout->setSpacing(6);
+    layout->setContentsMargins(KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2);
+    layout->setSpacing(KisModernStyle::space2);
 
     d->ring = new OklchRing(contents);
     layout->addWidget(d->ring, 1);
@@ -1144,13 +1144,13 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->pill = new QWidget(contents);
     d->pill->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     auto *pillLayout = new QHBoxLayout(d->pill);
-    pillLayout->setContentsMargins(0, 2, 0, 2);
-    pillLayout->setSpacing(10);
+    pillLayout->setContentsMargins(0, KisModernStyle::hairline, 0, KisModernStyle::hairline);
+    pillLayout->setSpacing(KisModernStyle::space3);
     d->chip = new ColorChip(d->pill);
     d->chip->setFixedWidth(48);
     pillLayout->addWidget(d->chip);
     auto *tracks = new QVBoxLayout();
-    tracks->setSpacing(6);
+    tracks->setSpacing(KisModernStyle::space2);
     d->lightTrack = new Track(18, d->pill);
     d->lightTrack->setToolTip(i18nc("@info:tooltip", "Lightness"));
     d->chromaTrack = new Track(18, d->pill);
@@ -1167,7 +1167,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     layout->addWidget(d->wheel, 1);
 
     auto *row = new QHBoxLayout();
-    row->setSpacing(6);
+    row->setSpacing(KisModernStyle::space2);
     d->currentRow = new Swatches(22, contents);
     d->currentRow->setFixedWidth(22 * 2 + 4);
     d->currentRow->setToolTip(i18nc("@info:tooltip", "Current and previous color"));

@@ -179,12 +179,12 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     setAttribute(Qt::WA_TranslucentBackground);
 
     auto *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(6, 3, 6, 3);
-    layout->setSpacing(2);
+    layout->setContentsMargins(KisModernStyle::space2, KisModernStyle::space1, KisModernStyle::space2, KisModernStyle::space1);
+    layout->setSpacing(KisModernStyle::hairline);
 
     d->progressBox = new QWidget(this);
     auto *progressLayout = new QHBoxLayout(d->progressBox);
-    progressLayout->setContentsMargins(0, 0, 4, 0);
+    progressLayout->setContentsMargins(0, 0, KisModernStyle::space1, 0);
     d->progressBox->hide();
     layout->addWidget(d->progressBox);
 
