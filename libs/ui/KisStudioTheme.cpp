@@ -5,6 +5,8 @@
  */
 #include "KisStudioTheme.h"
 
+#include "KisSettingsRegistry.h"
+
 #include <cmath>
 
 #include <QDir>
@@ -214,6 +216,8 @@ void apply(const Params &params)
     g.writeEntry("UseAccent", params.accent.isValid());
     if (params.accent.isValid()) g.writeEntry("Accent", params.accent);
     writeScheme(params);
+    // the theme made may be a new file: the themes to choose from are looked for again
+    KisSettingsRegistry::instance()->refreshChoices();
     // the window takes it on the next settings change: its name, and that it was made again
     KConfigGroup theme = KSharedConfig::openConfig()->group("theme");
     theme.writeEntry("Theme", schemeName());

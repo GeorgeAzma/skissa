@@ -780,17 +780,29 @@ void forgetRetired()
         "renameMergedLayers", "renamePastedLayers", "renameDuplicatedLayers", "ShowRootLayer", "autosavefileshidden", "backupfilesuffix",
         "TrimFramesImport", "useOpenGLTextureBuffer", "assistantsDrawMode", "frameRenderingTimeout", "useAnimationCacheFrameSizeLimit",
         "animationCacheFrameSizeLimit", "useAnimationCacheRegionOfInterest", "animationCacheRegionOfInterestMargin",
-        "enableOpenGLFramerateLogging", "enableBrushSpeedLogging", "enableProgressReporting", "enablePerfLog", "UseZip64",
+        "enableOpenGLFramerateLogging", "enableBrushSpeedLogging", "enableProgressReporting", "enablePerfLog",
         "forcedDpiForQtFontBugWorkaround", "memorySoftLimitPercent", "maxSwapSize", "swaplocation", "useOnDiskAnimationCacheSwapping",
         "calculateAnimationCacheInBackground", "disableAVXOptimizations", "amdDisableVectorWorkaround",
     };
+    // Krita's "don't rename copied/pasted/merged layers" lives on as no words around their names
+    const struct { const char *old; KisImageConfig::LayerNaming kind; } renames[] = {
+        {"renameDuplicatedLayers", KisImageConfig::CopiedLayer},
+        {"renamePastedLayers", KisImageConfig::PastedLayer},
+        {"renameMergedLayers", KisImageConfig::MergedLayer},
+    };
+    for (const auto &rename : renames) {
+        if (!top.hasKey(rename.old) || top.readEntry(rename.old, true)) continue;
+        for (bool before : {true, false}) {
+            const QString key = KisImageConfig::layerNameKey(rename.kind, before);
+            if (!top.hasKey(key)) top.writeEntry(key, QString());
+        }
+    }
     for (const char *key : keys) top.deleteEntry(key);
     // Krita wrote its start page as the choice whether it was chosen or not: Studio opens the last image instead
     if (top.readEntry("StudioRetiredSettings", 0) < 4 && top.readEntry("sessionOnStartup", 0) == 0) top.deleteEntry("sessionOnStartup");
     // the same for the sampler's magnifier, off as Krita came, on now
     if (top.readEntry("StudioRetiredSettings", 0) < 5 && !top.readEntry("colorSamplerZoomPreviewEnabled", true)) top.deleteEntry("colorSamplerZoomPreviewEnabled");
     KSharedConfig::openConfig()->group(QStringLiteral("StudioTheme")).deleteEntry("Contrast");
-    KSharedConfig::openConfig()->group(QStringLiteral("KisToolTransform")).deleteEntry("useOverlayPreviewStyle");
     QSettings display(displayrcPath(), QSettings::IniFormat);
     display.remove(QStringLiteral("EnableHiDPI"));
     display.remove(QStringLiteral("LogUsage"));

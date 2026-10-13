@@ -652,6 +652,8 @@ struct Builder {
         using Value = decltype(slider->value());
         const qreal scale = look.scale;
         slider->setBlockUpdateSignalOnDrag(look.onRelease);
+        // typed, too: the number once it is all there (Enter or leaving the field), not each digit
+        slider->setKeyboardTracking(!look.onRelease);
         if (!look.suffix.isEmpty()) slider->setSuffix(look.suffix);
         follow([slider, id, scale]() {
             const qreal shown = R::instance()->value(id).toDouble() * scale;

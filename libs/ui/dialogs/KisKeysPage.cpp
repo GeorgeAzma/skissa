@@ -9,6 +9,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDir>
+#include <QRegularExpression>
 #include <QDrag>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -1631,12 +1632,27 @@ void KisKeysPage::apply()
     // the keys held on the canvas
     KisInputProfileManager *input = KisInputProfileManager::instance();
     if (d->resetHeld) {
+        // this profile's own copy goes (Krita's installed one is read again); other profiles are left alone
         QDir profileDir(KoResourcePaths::saveLocation("data", "input/", false));
-        if (profileDir.exists()) {
-            Q_FOREACH (const QString &file, profileDir.entryList(QStringList() << QStringLiteral("*.profile"), QDir::Files | QDir::NoDotAndDotDot)) {
-                profileDir.remove(file);
+        const QString file = d->profile.toLower().remove(QRegularExpression(QStringLiteral("[^a-z0-9]"))) + QStringLiteral(".profile");
+        if (profileDir.exists(file)) profileDir.remove(file);
+        input->loadProfiles();
+        // keys held changed after the reset: onto the profile as installed
+        KisInputProfile *fresh = input->profile(d->profile);
+        bool held = false;
+        for (Private::Hold &hold : d->holds) {
+            if (!hold.changed || !fresh || !hold.staged.action()) continue;
+            Q_FOREACH (KisShortcutConfiguration *old, fresh->shortcutsForAction(hold.staged.action())) {
+                if (old->mode() == hold.staged.mode()) {
+                    fresh->removeShortcut(old);
+                    delete old;
+                }
             }
+            if (!hold.removed && !hold.staged.keys().isEmpty()) fresh->addShortcut(new KisShortcutConfiguration(hold.staged));
+            held = true;
         }
+        if (held) input->saveProfiles();
+        d->resetHeld = false;
     } else {
         KisInputProfile *profile = input->profile(d->profile);
         bool held = false;
