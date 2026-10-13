@@ -558,7 +558,7 @@ QVector<Setting> describeAll()
 
     // Files
     {
-        Setting autosave = number(QStringLiteral("AutoSaveInterval"), 300, 0, 86400, i18nc("setting", "Autosave"));
+        Setting autosave = number(QStringLiteral("AutoSaveInterval"), 120, 0, 86400, i18nc("setting", "Autosave"));
         autosave.format = [](const QVariant &value) {
             return value.toInt() <= 0 ? i18nc("autosave", "Off") : i18nc("autosave interval", "Every %1 min", qMax(1, value.toInt() / 60));
         };

@@ -20,6 +20,10 @@
 #include <QTextBrowser>
 #include <QCheckBox>
 #include <QSaveFile>
+#include <QThread>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 #include <QGroupBox>
 #include <QFuture>
 #include <QtConcurrentRun>
@@ -924,14 +928,33 @@ KisImportExportErrorCode KisImportExportManager::doExportImpl(const QString &loc
 #else
             file.flush();
             file.close();
-            QFile target(location);
-            if (target.exists()) {
-                // There should already be a .kra~ backup
-                target.remove();
+#ifdef Q_OS_WIN
+            // Copy the new file beside the old one, then swap it in: the old file stays whole until the
+            // new one is complete on the disk. A cloud folder may hold the file a moment, so try again.
+            const QString sibling = location + QStringLiteral(".saving");
+            QFile::remove(sibling);
+            bool swapped = false;
+            if (file.copy(sibling)) {
+                for (int attempt = 0; attempt < 5 && !swapped; attempt++) {
+                    if (attempt) QThread::msleep(100);
+                    swapped = MoveFileExW(reinterpret_cast<LPCWSTR>(QDir::toNativeSeparators(sibling).utf16()),
+                                          reinterpret_cast<LPCWSTR>(QDir::toNativeSeparators(location).utf16()),
+                                          MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+                }
+                if (!swapped) QFile::remove(sibling);
             }
-            if (!file.copy(location)) {
-                file.setAutoRemove(false);
-                return KisImportExportErrorCannotWrite(file.error());
+            if (!swapped)
+#endif
+            {
+                QFile target(location);
+                if (target.exists()) {
+                    // There should already be a .kra~ backup
+                    target.remove();
+                }
+                if (!file.copy(location)) {
+                    file.setAutoRemove(false);
+                    return KisImportExportErrorCannotWrite(file.error());
+                }
             }
 #endif
         }
