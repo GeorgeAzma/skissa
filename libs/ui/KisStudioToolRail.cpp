@@ -8,6 +8,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QContextMenuEvent>
+#include <QDateTime>
 #include <QDrag>
 #include <QDragEnterEvent>
 #include <QFrame>
@@ -153,7 +154,7 @@ public:
         setFocusPolicy(Qt::NoFocus);
     }
 
-    std::function<void()> onCard;
+    std::function<void(bool touch)> onCard;
     std::function<void(int steps)> onWheel;
     bool hasVariants {false};
     QPointer<QAction> shortcutAction;
@@ -172,7 +173,8 @@ protected:
     void contextMenuEvent(QContextMenuEvent *event) override
     {
         event->accept();
-        if (onCard) onCard();
+        const bool touch = QDateTime::currentMSecsSinceEpoch() - qApp->property("longPressAt").toLongLong() < 1000;
+        if (onCard) onCard(touch);
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
@@ -936,7 +938,7 @@ void KisStudioToolRail::rebuild()
         button->setAccessibleName(title);
         button->hasVariants = variants;
         button->shortcutAction = d->shortcutActionFor(key);
-        button->onCard = [this, index]() { showCard(index); };
+        button->onCard = [this, index](bool touch) { showCard(index, touch); };
         button->onDrag = [this, index, button, icon]() { startDrag(index, button, icon.pixmap(32, 32)); };
         connect(button, &QToolButton::clicked, this, [this, index]() { runItem(index); });
         if (variants) {
@@ -979,7 +981,7 @@ void KisStudioToolRail::runItem(int index)
     updateActiveSlot();
 }
 
-void KisStudioToolRail::showCard(int index)
+void KisStudioToolRail::showCard(int index, bool touch)
 {
     const int widgetIndex = d->widgetItem.indexOf(index);
     if (widgetIndex < 0) {
@@ -1039,13 +1041,15 @@ void KisStudioToolRail::showCard(int index)
     }
 
     // same as clicking between two buttons, for touch where the gap is hard to hit
-    card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")),
-                      i18nc("@info:tooltip", "Add gap above"),
-                      [this, index]() {
-                          QStringList items = d->items;
-                          items.insert(qBound(0, index, items.size()), spacePrefix);
-                          QTimer::singleShot(0, this, [this, items]() { setItems(items); });
-                      }});
+    if (touch) {
+        card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")),
+                          i18nc("@info:tooltip", "Add gap above"),
+                          [this, index]() {
+                              QStringList items = d->items;
+                              items.insert(qBound(0, index, items.size()), spacePrefix);
+                              QTimer::singleShot(0, this, [this, items]() { setItems(items); });
+                          }});
+    }
     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("edit-delete")),
                       i18nc("@info:tooltip", "Remove"),
                       [this, index, key]() {

@@ -71,7 +71,8 @@ private:
     void startDrag(int index, QWidget *source, const QPixmap &pixmap);
     void setItems(const QStringList &items);
     int dropIndex(int y) const;
-    void showCard(int index);
+    /// \p touch: opened by a long press, so it offers what a pointer does by clicking between items
+    void showCard(int index, bool touch = false);
     void showRestoreCard(const QPoint &globalPos);
     void runItem(int index);
 

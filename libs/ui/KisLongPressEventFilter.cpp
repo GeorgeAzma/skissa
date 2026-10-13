@@ -2,6 +2,7 @@
 #include "KisLongPressEventFilter.h"
 #include <KisKineticScroller.h>
 #include <QAbstractButton>
+#include <QDateTime>
 #include <QAbstractScrollArea>
 #include <QAbstractSlider>
 #include <QAbstractSpinBox>
@@ -175,6 +176,8 @@ void KisLongPressEventFilter::triggerLongPress()
                                      Qt::NoModifier);
             qApp->sendEvent(target, &releaseEvent);
         }
+        // lets a context menu tell a long press from a right click
+        qApp->setProperty("longPressAt", QDateTime::currentMSecsSinceEpoch());
         qApp->postEvent(target, new QContextMenuEvent(QContextMenuEvent::Mouse, m_pressLocalPos, m_pressGlobalPos));
     }
 }
