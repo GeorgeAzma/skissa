@@ -1423,11 +1423,13 @@ void KisViewManager::switchCanvasOnly(bool toggled)
             });
         }
 
-               // show a fading heads-up display about the shortcut to go back
-        showFloatingMessage(i18n("Going into Canvas-Only mode.\nPress %1 to go back.",
-                                 actionCollection()->action("view_show_canvas_only")->shortcut().toString(QKeySequence::NativeText)), QIcon(),
-                            2000,
-                            KisFloatingMessage::Low);
+        // show a fading heads-up display about the shortcut to go back; in the Studio layout the bars come back at the canvas's edges
+        if (!main->property("studioLayoutActive").toBool()) {
+            showFloatingMessage(i18n("Going into Canvas-Only mode.\nPress %1 to go back.",
+                                     actionCollection()->action("view_show_canvas_only")->shortcut().toString(QKeySequence::NativeText)), QIcon(),
+                                2000,
+                                KisFloatingMessage::Low);
+        }
     }
     else {
         if (!d->canvasStateInNormalMode.isEmpty()) {

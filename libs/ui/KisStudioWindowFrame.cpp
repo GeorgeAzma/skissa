@@ -11,7 +11,6 @@
 #include <QMainWindow>
 #include <QPainter>
 
-#include <klocalizedstring.h>
 
 #include <KisModernStyle.h>
 
@@ -43,11 +42,6 @@ public:
         setFocusPolicy(Qt::NoFocus);
         setAttribute(Qt::WA_Hover);
         window->installEventFilter(this);
-        switch (kind) {
-        case WindowButtonKind::Minimize: setToolTip(i18nc("@info:tooltip", "Minimize")); break;
-        case WindowButtonKind::Maximize: setToolTip(i18nc("@info:tooltip", "Maximize")); break;
-        case WindowButtonKind::Close: setToolTip(i18nc("@info:tooltip", "Close")); break;
-        }
     }
 
 protected:
@@ -139,8 +133,9 @@ void applyFrame(HWND hwnd, bool extend)
     SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
-/// Leaves a 1 px gap on an auto-hiding taskbar's edge so the pointer can still reveal it over a maximized window
-void leaveRoomForTaskbar(HWND hwnd, RECT &rect)
+/// Leaves a gap on an auto-hiding taskbar's edge so the pointer can still reveal it over a maximized window
+/// (Windows takes a window that covers the whole screen for a full-screen one, and keeps the taskbar under it)
+void leaveRoomForTaskbar(RECT &rect)
 {
     using AppBarFn = UINT_PTR(WINAPI *)(DWORD, PAPPBARDATA);
     static HMODULE shell = LoadLibraryW(L"shell32.dll");
@@ -151,16 +146,16 @@ void leaveRoomForTaskbar(HWND hwnd, RECT &rect)
     if (!(appBar(ABM_GETSTATE, &data) & ABS_AUTOHIDE)) return;
     MONITORINFO monitor {};
     monitor.cbSize = sizeof(monitor);
-    if (!GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor)) return;
+    if (!GetMonitorInfoW(MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST), &monitor)) return;
     for (const UINT edge : {ABE_BOTTOM, ABE_TOP, ABE_LEFT, ABE_RIGHT}) {
         data.uEdge = edge;
         data.rc = monitor.rcMonitor;
         if (!appBar(ABM_GETAUTOHIDEBAREX, &data)) continue;
         switch (edge) {
-        case ABE_BOTTOM: rect.bottom -= 1; break;
-        case ABE_TOP: rect.top += 1; break;
-        case ABE_LEFT: rect.left += 1; break;
-        default: rect.right -= 1; break;
+        case ABE_BOTTOM: rect.bottom -= 2; break;
+        case ABE_TOP: rect.top += 2; break;
+        case ABE_LEFT: rect.left += 2; break;
+        default: rect.right -= 2; break;
         }
         return;
     }
@@ -186,6 +181,23 @@ bool KisStudioWindowFrame::eventFilter(QObject *watched, QEvent *event)
     }
 #endif
     return QObject::eventFilter(watched, event);
+}
+
+void KisStudioWindowFrame::setTransitionsEnabled(bool enabled)
+{
+#ifdef Q_OS_WIN
+    using DwmSetAttributeFn = HRESULT(WINAPI *)(HWND, DWORD, LPCVOID, DWORD);
+    static HMODULE dwm = LoadLibraryW(L"dwmapi.dll");
+    static auto dwmSetAttribute = dwm ? reinterpret_cast<DwmSetAttributeFn>(reinterpret_cast<void *>(GetProcAddress(dwm, "DwmSetWindowAttribute"))) : nullptr;
+    HWND hwnd = reinterpret_cast<HWND>(m_window->internalWinId());
+    if (dwmSetAttribute && hwnd) {
+        constexpr DWORD transitionsForceDisabled = 3; // DWMWA_TRANSITIONS_FORCEDISABLED
+        const BOOL disabled = !enabled;
+        dwmSetAttribute(hwnd, transitionsForceDisabled, &disabled, sizeof(disabled));
+    }
+#else
+    Q_UNUSED(enabled);
+#endif
 }
 
 void KisStudioWindowFrame::setEnabled(bool enabled)
@@ -227,16 +239,20 @@ bool KisStudioWindowFrame::handleNativeEvent(void *message, void *resultPointer)
         if (msg->wParam != TRUE) {
             return false;
         }
-        // the whole window is client area; a maximized window overhangs the screen by its frame, so trim that
-        if (IsZoomed(hwnd) && !fullScreen) {
+        // the whole window is client area; a maximized window overhangs the screen by its frame, so trim that.
+        // Asks Windows, not Qt: leaving full screen, Qt still reports it while the window is maximized again
+        if (IsZoomed(hwnd)) {
             RECT &rect = reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam)->rgrc[0];
-            const int fx = frameThickness(hwnd, false);
-            const int fy = frameThickness(hwnd, true);
-            rect.left += fx;
-            rect.right -= fx;
-            rect.top += fy;
-            rect.bottom -= fy;
-            leaveRoomForTaskbar(hwnd, rect);
+            // the screen's work area, however far the window's styles make it overhang
+            MONITORINFO monitor {};
+            monitor.cbSize = sizeof(monitor);
+            if (GetMonitorInfoW(MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST), &monitor)) {
+                rect.left = qMax(rect.left, monitor.rcWork.left);
+                rect.top = qMax(rect.top, monitor.rcWork.top);
+                rect.right = qMin(rect.right, monitor.rcWork.right);
+                rect.bottom = qMin(rect.bottom, monitor.rcWork.bottom);
+            }
+            leaveRoomForTaskbar(rect);
         }
         setResult(0);
         return true;

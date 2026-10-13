@@ -34,7 +34,6 @@ KisTagFilterWidget::KisTagFilterWidget(KisTagModel* model, QWidget* parent)
     d->tagSearchLineEdit = new QLineEdit(this);
     d->tagSearchLineEdit->setClearButtonEnabled(true);
     d->tagSearchLineEdit->addAction(KisIconUtils::loadIcon(QStringLiteral("studio_find")), QLineEdit::LeadingPosition);
-    d->tagSearchLineEdit->setToolTip(i18nc("@info:tooltip", "<p>Enter search terms to filter by name</p>"));
     d->tagSearchLineEdit->setFrame(false);
     d->tagSearchLineEdit->setProperty(KisModernStyle::quietFieldProperty, true);
     d->tagSearchLineEdit->setTextMargins(2, 3, 2, 3);

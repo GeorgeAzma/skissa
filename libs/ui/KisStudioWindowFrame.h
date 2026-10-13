@@ -26,6 +26,8 @@ public:
     KisStudioWindowFrame(QMainWindow *window, std::function<bool(const QPoint &)> isCaption);
 
     void setEnabled(bool enabled);
+    /// Windows' animations between window states (maximize, restore…)
+    void setTransitionsEnabled(bool enabled);
     bool isEnabled() const { return m_enabled; }
 
     /// Call from the window's nativeEvent(); \p result is a long* in Qt 5 and a qintptr* in Qt 6.

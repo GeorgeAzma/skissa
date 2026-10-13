@@ -272,6 +272,9 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     layout->addWidget(d->zoom);
 
     parentWidget()->installEventFilter(this);
+    if (QAction *canvasOnly = d->action("view_show_canvas_only")) {
+        connect(canvasOnly, &QAction::toggled, this, &KisStudioCanvasHud::viewChanged);
+    }
     connect(mainWindow, &KisMainWindow::activeViewChanged, this, &KisStudioCanvasHud::viewChanged);
     // when the last document closes no view becomes active; only the view manager reports it
     if (KisViewManager *viewManager = mainWindow->viewManager()) {
@@ -330,7 +333,9 @@ void KisStudioCanvasHud::viewChanged()
     // while the last document closes the window's active view is still set, but the view manager has none
     KisViewManager *viewManager = d->mainWindow->viewManager();
     KisView *view = viewManager && viewManager->canvasBase() ? d->mainWindow->activeView() : nullptr;
-    if (!view || !d->active) {
+    // canvas-only means only the canvas
+    QAction *canvasOnly = d->action("view_show_canvas_only");
+    if (!view || !d->active || (canvasOnly && canvasOnly->isChecked())) {
         hide();
         return;
     }

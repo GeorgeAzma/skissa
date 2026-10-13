@@ -1030,10 +1030,16 @@ protected:
     {
         if (event->type() != QEvent::ToolTip) return false;
         auto *button = qobject_cast<QAbstractButton *>(watched);
-        if (!button || button->toolTip().isEmpty() || !shortcutOf) return false;
+        if (!button || !shortcutOf) return false;
+        const bool keyOnly = button->toolTip().isEmpty() && button->property("keyOnlyTip").toBool();
+        if (button->toolTip().isEmpty() && !keyOnly) return false;
         const QKeySequence keys = shortcutOf(button);
         if (keys.isEmpty()) return false;
         const QString text = keys.toString(QKeySequence::NativeText);
+        if (keyOnly) {
+            QToolTip::showText(static_cast<QHelpEvent *>(event)->globalPos(), text, button);
+            return true;
+        }
         // Krita's own actions already append it in parentheses; replace that so all tooltips look alike
         QString plain = button->toolTip();
         const QString named = QStringLiteral(" (%1)").arg(text);
@@ -1067,6 +1073,12 @@ void KisStudioFind::registerButtons()
         auto *tool = qobject_cast<QToolButton *>(button);
         if (tool && tool->defaultAction()) return tool->defaultAction()->shortcut();
         if (!self) return QKeySequence();
+        // a button that runs one of the window's actions
+        const QString runs = button->property("runsAction").toString();
+        if (!runs.isEmpty()) {
+            QAction *action = self->d->mainWindow->actionCollection()->action(runs);
+            return action ? action->shortcut() : QKeySequence();
+        }
         for (auto it = self->d->buttons.constBegin(); it != self->d->buttons.constEnd(); ++it) {
             if (it->button == button && it->action) return it->action->shortcut();
         }

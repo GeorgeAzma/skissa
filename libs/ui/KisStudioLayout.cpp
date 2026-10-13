@@ -1416,10 +1416,18 @@ KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
 
     // canvas-only mode restores the window state partly through the event queue, so normalize afterwards
     if (QAction *canvasOnly = mainWindow->actionCollection()->action(QStringLiteral("view_show_canvas_only"))) {
-        connect(canvasOnly, &QAction::toggled, this, [this]() {
+        connect(canvasOnly, &QAction::toggled, this, [this](bool on) {
             closeFlyout();
             d->peeking.clear();
             QTimer::singleShot(0, this, &KisStudioLayout::normalize);
+            // full screen and back without Windows animating the window from its restored size
+            if (d->frame && d->active) {
+                if (on) {
+                    d->frame->setTransitionsEnabled(false);
+                } else {
+                    QTimer::singleShot(600, d->frame, [frame = d->frame]() { if (frame) frame->setTransitionsEnabled(true); });
+                }
+            }
         });
     }
 
@@ -3029,7 +3037,7 @@ void KisStudioLayout::createTopBar()
     d->topBar = bar;
 
     // placed on the window pill by placeWindowButtons()
-    auto *menuButton = new PillButton(QStringLiteral("studio_menu"), i18nc("@info:tooltip", "Menu"), mainWindow);
+    auto *menuButton = new PillButton(QStringLiteral("studio_menu"), QString(), mainWindow);
     menuButton->hide();
     connect(menuButton, &QAbstractButton::clicked, this, [this, menuButton]() { showMainMenu(menuButton); });
     d->menuButton = menuButton;
@@ -3043,8 +3051,10 @@ void KisStudioLayout::createTopBar()
     };
     d->settingsButton = settingsButton;
 
-    auto *field = new PillButton(QStringLiteral("studio_find"),
-                                 i18nc("@info:tooltip", "Find anything"), mainWindow);
+    auto *field = new PillButton(QStringLiteral("studio_find"), QString(), mainWindow);
+    // its key is all its tooltip says
+    field->setProperty("keyOnlyTip", true);
+    field->setProperty("runsAction", QStringLiteral("find_anything"));
     field->setAccessibleName(i18nc("@info:placeholder", "Find anything"));
     field->hide();
     connect(field, &QAbstractButton::clicked, this, [this]() {
