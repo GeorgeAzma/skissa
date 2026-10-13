@@ -64,10 +64,6 @@ public:
     KisCanvasResourceProvider* resourceProvider;
     KisImageWSP image;
 
-    QImage horizontalHandleIcon;
-    QImage verticalHandleIcon;
-    QImage horizontalIcon;
-    QImage verticalIcon;
 
     QRectF horizontalHandle;
     QRectF verticalHandle;
@@ -96,10 +92,6 @@ KisMirrorAxis::KisMirrorAxis(KisCanvasResourceProvider* provider, QPointer<KisVi
 
     d->config.setMirrorHorizontal(d->resourceProvider->mirrorHorizontal());
     d->config.setMirrorVertical(d->resourceProvider->mirrorVertical());
-    d->horizontalIcon = KisIconUtils::loadIcon("mirrorAxis-HorizontalMove").pixmap(d->config.handleSize(), QIcon::Normal, QIcon::On).toImage();
-    d->verticalIcon = KisIconUtils::loadIcon("mirrorAxis-VerticalMove").pixmap(d->config.handleSize(), QIcon::Normal, QIcon::On).toImage();
-    d->horizontalHandleIcon = KisIconUtils::loadIcon("transform-move").pixmap(d->config.handleSize(), QIcon::Normal, QIcon::On).toImage();
-    d->verticalHandleIcon = KisIconUtils::loadIcon("transform-move").pixmap(d->config.handleSize(), QIcon::Normal, QIcon::On).toImage();
     setVisible(d->config.mirrorHorizontal() || d->config.mirrorVertical());
 
     d->image = parent->canvasBase()->image();
@@ -118,10 +110,6 @@ void KisMirrorAxis::setHandleSize(float newSize)
 {
     if(d->config.handleSize() != newSize) {
         d->config.setHandleSize(newSize);
-        d->horizontalIcon = KisIconUtils::loadIcon("symmetry-horizontal").pixmap(d->config.handleSize(), QIcon::Normal, QIcon::On).toImage();
-        d->verticalIcon = KisIconUtils::loadIcon("symmetry-vertical").pixmap(d->config.handleSize(), QIcon::Normal, QIcon::On).toImage();
-        d->horizontalHandleIcon = KisIconUtils::loadIcon("transform-move").pixmap(d->config.handleSize(), QIcon::Normal, QIcon::On).toImage();
-        d->verticalHandleIcon = KisIconUtils::loadIcon("transform-move").pixmap(d->config.handleSize(), QIcon::Normal, QIcon::On).toImage();
         d->minHandlePosition = d->sideMargin + newSize;
         Q_EMIT handleSizeChanged();
         Q_EMIT sigConfigChanged();
@@ -140,20 +128,16 @@ void KisMirrorAxis::drawDecoration(QPainter& gc, const QRectF& updateArea, const
 
     gc.save();
 
-    KoColor c;
-    c.fromQColor(QColor(0, 0, 0, 64));
-
-    QPen pen1(canvas->displayRendererInterface()->convertColorToDisplayColorSpace(c), 2 * decorationThickness(), Qt::DashDotDotLine, Qt::RoundCap, Qt::RoundJoin);
-    pen1.setCosmetic(true);
-    QPen pen2 = pen1;
-    c.fromQColor(QColor(0, 0, 0, 128));
-    pen2.setColor(canvas->displayRendererInterface()->convertColorToDisplayColorSpace(c));
-    pen2.setStyle(Qt::SolidLine);
-    QPen pen3 = pen2;
-    pen3.setWidth(1 * decorationThickness());
-    gc.setPen(pen3);
-    c.fromQColor(Qt::white);
-    gc.setBrush(canvas->displayRendererInterface()->convertColorToDisplayColorSpace(c));
+    auto display = [canvas](const QColor &color) {
+        KoColor c;
+        c.fromQColor(color);
+        return canvas->displayRendererInterface()->convertColorToDisplayColorSpace(c);
+    };
+    // a thin line over a soft dark one: seen on light and dark paint alike, without hiding it
+    QPen halo(display(QColor(0, 0, 0, 70)), 3 * decorationThickness(), Qt::SolidLine, Qt::RoundCap);
+    halo.setCosmetic(true);
+    QPen line(display(QColor(255, 255, 255, 190)), decorationThickness(), Qt::SolidLine, Qt::RoundCap);
+    line.setCosmetic(true);
     gc.setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
 
     QOpenGLContext *ctx = QOpenGLContext::currentContext();
@@ -171,33 +155,29 @@ void KisMirrorAxis::drawDecoration(QPainter& gc, const QRectF& updateArea, const
         }
     }
 
-    float halfHandleSize = d->config.handleSize() / 2;
+    // the handle is grabbed over all of handleSize, drawn as a small dot on the line
+    const float halfHandleSize = d->config.handleSize() / 2;
+    const qreal dotRadius = 5.5 * decorationThickness();
+    auto drawAxis = [&](const QLineF &axis, const QRectF &handle, bool locked) {
+        gc.setPen(halo);
+        gc.drawLine(axis);
+        gc.setPen(line);
+        gc.drawLine(axis);
+        if (locked) return;
+        gc.setPen(QPen(display(QColor(0, 0, 0, 150)), 1.5 * decorationThickness()));
+        gc.setBrush(display(QColor(255, 255, 255, 235)));
+        gc.drawEllipse(handle.center(), dotRadius, dotRadius);
+    };
 
     const qreal dpr = canvas->canvasWidget()->devicePixelRatioF();
     d->recomputeVisibleAxes(QRect(gc.viewport().topLeft() / dpr, gc.viewport().size() / dpr));
 
     if(d->config.mirrorHorizontal() && !d->config.hideHorizontalDecoration()) {
         if (!d->horizontalAxis.isNull()) {
-            // QPointF horizontalIndicatorCenter = d->horizontalAxis.unitVector().pointAt(15);
-            // QRectF horizontalIndicator = QRectF(horizontalIndicatorCenter.x() - halfHandleSize, horizontalIndicatorCenter.y() - halfHandleSize, d->config.handleSize(), d->config.handleSize());
-
             float horizontalHandlePosition = qBound<float>(d->minHandlePosition, d->config.horizontalHandlePosition(), d->horizontalAxis.length() - d->minHandlePosition);
             QPointF horizontalHandleCenter = d->horizontalAxis.unitVector().pointAt(horizontalHandlePosition);
             d->horizontalHandle = QRectF(horizontalHandleCenter.x() - halfHandleSize, horizontalHandleCenter.y() - halfHandleSize, d->config.handleSize(), d->config.handleSize());
-
-            gc.setPen(pen1);
-            gc.drawLine(d->horizontalAxis);
-
-            // gc.drawEllipse(horizontalIndicator);
-            //  gc.drawPixmap(horizontalIndicator.adjusted(5, 5, -5, -5).toRect(), d->horizontalIcon);
-
-            // don't draw the handles if we are locking the axis for movement
-            if (!d->config.lockHorizontal()) {
-                gc.setPen(pen2);
-                gc.drawEllipse(d->horizontalHandle);
-                gc.drawImage(d->horizontalHandle.adjusted(5, 5, -5, -5).toRect(), canvas->displayRendererInterface()->convertImageToDisplayColorSpace(d->horizontalIcon));
-            }
-
+            drawAxis(d->horizontalAxis, d->horizontalHandle, d->config.lockHorizontal());
         } else {
             d->horizontalHandle = QRectF();
         }
@@ -205,25 +185,10 @@ void KisMirrorAxis::drawDecoration(QPainter& gc, const QRectF& updateArea, const
 
     if(d->config.mirrorVertical() && !d->config.hideVerticalDecoration()) {
         if (!d->verticalAxis.isNull()) {
-
-            gc.setPen(pen1);
-            gc.drawLine(d->verticalAxis);
-
-
-            // QPointF verticalIndicatorCenter = d->verticalAxis.unitVector().pointAt(15);
-            // QRectF verticalIndicator = QRectF(verticalIndicatorCenter.x() - halfHandleSize, verticalIndicatorCenter.y() - halfHandleSize, d->config.handleSize(), d->config.handleSize());
-
             float verticalHandlePosition = qBound<float>(d->minHandlePosition, d->config.verticalHandlePosition(), d->verticalAxis.length() - d->minHandlePosition);
             QPointF verticalHandleCenter = d->verticalAxis.unitVector().pointAt(verticalHandlePosition);
             d->verticalHandle = QRectF(verticalHandleCenter.x() - halfHandleSize, verticalHandleCenter.y() - halfHandleSize, d->config.handleSize(), d->config.handleSize());
-
-            // don't draw the handles if we are locking the axis for movement
-            if (!d->config.lockVertical()) {
-                gc.setPen(pen2);
-                gc.drawEllipse(d->verticalHandle);
-                gc.drawImage(d->verticalHandle.adjusted(5, 5, -5, -5).toRect(), canvas->displayRendererInterface()->convertImageToDisplayColorSpace(d->verticalIcon));
-            }
-
+            drawAxis(d->verticalAxis, d->verticalHandle, d->config.lockVertical());
         } else {
             d->verticalHandle = QRectF();
         }

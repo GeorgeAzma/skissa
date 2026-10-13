@@ -14,6 +14,7 @@
 #include <QButtonGroup>
 #include <QLabel>
 #include <QMenu>
+#include <QPushButton>
 #include <QSpinBox>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -332,10 +333,20 @@ QMenu *KisStudioToolStrip::symmetryMenu()
     QAction *acrossAction = m_actions ? m_actions->action(QStringLiteral("hmirror_action")) : nullptr;
     QAction *downAction = m_actions ? m_actions->action(QStringLiteral("vmirror_action")) : nullptr;
     QToolButton *across = toggle(acrossAction ? acrossAction->icon() : QIcon(), i18nc("mirror axis", "Across"));
-    QToolButton *down = toggle(downAction ? downAction->icon() : QIcon(), i18nc("mirror axis", "Up and down"));
+    QToolButton *down = toggle(downAction ? downAction->icon() : QIcon(), i18nc("mirror axis", "Down"));
     mirrorLayout->addWidget(across);
     mirrorLayout->addWidget(down);
     mirrorLayout->addStretch(1);
+    // the axes back in the middle of the image: dragged off the screen, they cannot be grabbed
+    auto *center = new QPushButton(i18nc("@action:button mirror axes", "Center"), mirrorPage);
+    center->setFocusPolicy(Qt::NoFocus);
+    center->setToolTip(i18nc("@info:tooltip", "Put the mirror axes back in the middle of the image"));
+    mirrorLayout->addWidget(center, 0, Qt::AlignVCenter);
+    connect(center, &QPushButton::clicked, mirrorPage, [this]() {
+        for (const char *name : {"mirrorX-moveToCenter", "mirrorY-moveToCenter"}) {
+            if (QAction *action = m_actions ? m_actions->action(QLatin1String(name)) : nullptr) action->trigger();
+        }
+    });
     layout->addWidget(mirrorPage);
 
     // radial: how many, and mirrored between
@@ -401,7 +412,7 @@ QMenu *KisStudioToolStrip::symmetryMenu()
         spacingX->setValue(symmetry->spacing().width());
         spacingY->setValue(symmetry->spacing().height());
         hint->setText(mode == KisStudioSymmetry::Mirror
-                          ? i18nc("@info", "Drag the axes on the canvas to move or turn them. Works with every brush tool.")
+                          ? i18nc("@info", "Drag the dot on an axis to move it. Works with every brush tool.")
                       : mode == KisStudioSymmetry::Radial
                           ? i18nc("@info", "Drag the center to move it, the dot to turn. Double-click the center to reset.")
                           : i18nc("@info", "Each stroke repeats across the image, or the selection, at this spacing."));
