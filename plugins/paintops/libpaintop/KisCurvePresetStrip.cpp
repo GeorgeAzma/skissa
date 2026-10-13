@@ -74,7 +74,10 @@ KisCurvePresetStrip::KisCurvePresetStrip(QWidget *parent)
     setMouseTracking(true);
     setAttribute(Qt::WA_Hover);
     setCursor(Qt::PointingHandCursor);
-    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    // as wide as there is room, as many rows as the curves take
+    QSizePolicy policy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    policy.setHeightForWidth(true);
+    setSizePolicy(policy);
     Saved::instance().add(this);
 }
 
@@ -100,9 +103,27 @@ QVector<KisCurvePresetStrip::Entry> KisCurvePresetStrip::entries() const
     return list;
 }
 
+int KisCurvePresetStrip::columns(int width)
+{
+    return qMax(1, (width + gap) / (tileSize + gap));
+}
+
 QRect KisCurvePresetStrip::tile(int i) const
 {
-    return QRect(i * (tileSize + gap), 0, tileSize, tileSize);
+    const int perRow = columns(width());
+    return QRect(i % perRow * (tileSize + gap), i / perRow * (tileSize + gap), tileSize, tileSize);
+}
+
+int KisCurvePresetStrip::heightForWidth(int width) const
+{
+    const int count = entries().size() + 1;
+    const int rows = (count + columns(width) - 1) / columns(width);
+    return rows * tileSize + (rows - 1) * gap;
+}
+
+QSize KisCurvePresetStrip::minimumSizeHint() const
+{
+    return QSize(tileSize, tileSize);
 }
 
 int KisCurvePresetStrip::at(const QPoint &pos) const
@@ -116,8 +137,10 @@ int KisCurvePresetStrip::at(const QPoint &pos) const
 
 QSize KisCurvePresetStrip::sizeHint() const
 {
-    const int count = entries().size() + 1;
-    return QSize(count * tileSize + (count - 1) * gap, tileSize);
+    // a row of up to eight; wider when there is room
+    const int count = qMin(entries().size() + 1, 8);
+    const int width = count * tileSize + (count - 1) * gap;
+    return QSize(width, heightForWidth(width));
 }
 
 void KisCurvePresetStrip::paintEvent(QPaintEvent *)

@@ -25,6 +25,9 @@ public:
     void setCurrent(const QString &curve);
 
     QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
+    bool hasHeightForWidth() const override { return true; }
+    int heightForWidth(int width) const override;
 
 Q_SIGNALS:
     void picked(const QString &curve);
@@ -47,6 +50,8 @@ private:
     /// The tile at \p pos: an entry's index, the + (entries' count) or -1
     int at(const QPoint &pos) const;
     QRect tile(int i) const;
+    /// Tiles in a row \p width wide: as many as fit, the rest on the rows below
+    static int columns(int width);
 
     QString m_current;
     int m_hovered {-1};
