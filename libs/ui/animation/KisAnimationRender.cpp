@@ -5,6 +5,7 @@
  */
 
 #include "KisAnimationRender.h"
+#include <KisProfile.h>
 
 #include <QFile>
 #include <QFileInfo>
@@ -110,7 +111,7 @@ bool KisAnimationRender::render(KisDocument *doc, KisViewManager *viewManager, K
 
             qWarning() << type <<"requires width and height to be even, resize and try again!";
             doc->setErrorMessage(i18n("%1 requires width and height to be even numbers.  Please resize or crop the image before exporting.", type));
-            QMessageBox::critical(qApp->activeWindow(), i18nc("@title:window", "Krita"), i18n("Could not render animation:\n%1", doc->errorMessage()));
+            QMessageBox::critical(qApp->activeWindow(), KisProfile::name(), i18n("Could not render animation:\n%1", doc->errorMessage()));
 
             return false;
         }
@@ -196,7 +197,7 @@ bool KisAnimationRender::render(KisDocument *doc, KisViewManager *viewManager, K
                 }
 
                 if (!exportResult.isOk()) {
-                    QMessageBox::critical(qApp->activeWindow(), i18nc("@title:window", "Krita"), i18n("Could not render animation:\n%1", exportResult.errorMessage()));
+                    QMessageBox::critical(qApp->activeWindow(), KisProfile::name(), i18n("Could not render animation:\n%1", exportResult.errorMessage()));
 
                     delayReturnSuccess = false; // Delay return to clean up exported frames.
                 }

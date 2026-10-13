@@ -6,6 +6,7 @@
  */
 
 #include "kis_clipboard.h"
+#include <KisProfile.h>
 
 #include <QApplication>
 #include <QBuffer>
@@ -774,7 +775,7 @@ KisPaintDeviceSP KisClipboard::fetchImageByURL(const QUrl &originalUrl) const
         if (!mimes.contains(type)) {
             QString msg = KisImportExportErrorCode(ImportExportCodes::FileFormatNotSupported).errorMessage();
             QMessageBox::warning(KisPart::instance()->currentMainwindow(),
-                                 i18nc("@title:window", "Krita"),
+                                 KisProfile::name(),
                                  i18n("Could not open %2.\nReason: %1.", msg, url.toDisplayString()));
             return result;
         }

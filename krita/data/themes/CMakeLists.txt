@@ -10,8 +10,8 @@ if (FOUNDATION_BUILD)
 endif()
 
 install(FILES
-KritaStudioDark.colors
-KritaStudioLight.colors
+SkissaDark.colors
+SkissaLight.colors
 KritaNeutral.colors
 KritaBlender.colors
 KritaBright.colors

@@ -14,7 +14,7 @@ namespace KisProfile
 
 QString name()
 {
-    return QStringLiteral("Krita Studio");
+    return QStringLiteral("Skissa");
 }
 
 bool isApart()

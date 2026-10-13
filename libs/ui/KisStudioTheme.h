@@ -15,7 +15,7 @@
 /**
  * A theme generated from a few parameters (lightness, tint and accent) instead
  * of picked from scheme files. The colors are written to a color scheme,
- * KritaStudioTheme.colors in the user's data folder, which the window then uses.
+ * SkissaTheme.colors in the user's data folder, which the window then uses.
  */
 namespace KisStudioTheme
 {

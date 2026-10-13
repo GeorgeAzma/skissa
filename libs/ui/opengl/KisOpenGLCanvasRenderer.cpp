@@ -6,6 +6,7 @@
  */
 
 #include "KoColorDisplayRendererInterface.h"
+#include <KisProfile.h>
 #define GL_GLEXT_PROTOTYPES
 
 #include "opengl/KisOpenGLCanvasRenderer.h"
@@ -443,7 +444,7 @@ void KisOpenGLCanvasRenderer::reportFailedShaderCompilation(const QString &conte
 
     qDebug() << "Shader Compilation Failure: " << context;
     // TODO: Should do something else when using QtQuick2
-    QMessageBox::critical(qApp->activeWindow(), i18nc("@title:window", "Krita"),
+    QMessageBox::critical(qApp->activeWindow(), KisProfile::name(),
                           i18n("Krita could not initialize the OpenGL canvas:\n\n%1\n\n Krita will disable OpenGL and close now.", context),
                           QMessageBox::Close);
 

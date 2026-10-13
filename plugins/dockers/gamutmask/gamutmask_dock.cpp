@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "gamutmask_dock.h"
+#include <KisProfile.h>
 
 #include <kis_debug.h>
 
@@ -290,7 +291,7 @@ int GamutMaskDock::getUserFeedback(QString text, QString informativeText,
                                    QMessageBox::Icon severity)
 {
     QMessageBox msgBox;
-    msgBox.setWindowTitle(i18nc("@title:window", "Krita"));
+    msgBox.setWindowTitle(KisProfile::name());
     msgBox.setText(QString("<p><b>%1</b></p>").arg(text));
     msgBox.setInformativeText(informativeText);
     msgBox.setStandardButtons(buttons);

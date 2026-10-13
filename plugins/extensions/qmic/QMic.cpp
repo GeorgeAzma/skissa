@@ -6,6 +6,7 @@
  */
 
 #include "QMic.h"
+#include <KisProfile.h>
 
 #include <QApplication>
 #include <QMessageBox>
@@ -51,7 +52,7 @@ void QMic::slotQMic(bool again)
     // find the krita-gmic-qt plugin
     const QList<KoJsonTrader::Plugin> offers = KoJsonTrader::instance()->query("Krita/GMic", QString());
     if (offers.isEmpty()) {
-        QMessageBox::warning(qApp->activeWindow(), i18nc("@title:window", "Krita"), i18n("The GMic plugin is not installed or could not be loaded."));
+        QMessageBox::warning(qApp->activeWindow(), KisProfile::name(), i18n("The GMic plugin is not installed or could not be loaded."));
         return;
     }
 
@@ -76,7 +77,7 @@ void QMic::slotQMic(bool again)
     }
 
     if (!plugin) {
-        QMessageBox::warning(qApp->activeWindow(), i18nc("@title:window", "Krita"), i18n("Krita cannot launch the gmic-qt plugin. No bundled library found."));
+        QMessageBox::warning(qApp->activeWindow(), KisProfile::name(), i18n("Krita cannot launch the gmic-qt plugin. No bundled library found."));
         return;
     }
 

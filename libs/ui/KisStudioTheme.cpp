@@ -95,7 +95,10 @@ Colors colorsOf(const Params &p)
     c.inactive = fromOklab({w + (textL - w) * 0.5, ta * 0.5, tb * 0.5});
     if (p.accent.isValid()) {
         c.selection = p.accent;
-        c.decoration = p.accent;
+        // links and focus lines are ink on the window: the accent's hue at a lightness that reads
+        Lab ink = toOklab(p.accent);
+        ink.l = dark ? qMax<qreal>(ink.l, 0.78) : qMin<qreal>(ink.l, 0.45);
+        c.decoration = fromOklab(ink);
     } else {
         // A gray that contrasts with the window. It fills sliders, checks and lines, so it takes
         // the faint tint of the text rather than the stronger one of the backgrounds.
@@ -108,7 +111,7 @@ Colors colorsOf(const Params &p)
 
 QString schemePath()
 {
-    return KoResourcePaths::saveLocation("data", QStringLiteral("color-schemes/"), true) + QStringLiteral("KritaStudioTheme.colors");
+    return KoResourcePaths::saveLocation("data", QStringLiteral("color-schemes/"), true) + QStringLiteral("SkissaTheme.colors");
 }
 
 void writeScheme(const Params &p)
@@ -225,7 +228,7 @@ void apply(const Params &params)
 
 QString schemeName()
 {
-    return QStringLiteral("Krita Studio");
+    return QStringLiteral("Skissa");
 }
 
 void remake()
@@ -233,7 +236,12 @@ void remake()
     static bool done = false;
     if (done) return;
     done = true;
-    if (KSharedConfig::openConfig()->group("theme").readEntry("Theme", QString()) == schemeName()) writeScheme(current());
+    KConfigGroup theme = KSharedConfig::openConfig()->group("theme");
+    // themes from builds named Krita Studio
+    const QString stored = theme.readEntry("Theme", QString());
+    if (stored.startsWith(QLatin1String("Krita Studio"))) theme.writeEntry("Theme", QString(schemeName() + stored.mid(12)));
+    QFile::remove(KoResourcePaths::saveLocation("data", QStringLiteral("color-schemes/"), true) + QStringLiteral("KritaStudioTheme.colors"));
+    if (theme.readEntry("Theme", QString()) == schemeName()) writeScheme(current());
 }
 
 Look look(const Params &params)

@@ -358,7 +358,7 @@ QVector<Setting> describeAll()
 
     // Appearance
     {
-        Setting theme = grouped(choice(QStringLiteral("Theme"), QStringLiteral("Krita Studio Dark"), {}, i18nc("setting", "Theme"), R::Fork), QStringLiteral("theme"));
+        Setting theme = grouped(choice(QStringLiteral("Theme"), QStringLiteral("Skissa Dark"), {}, i18nc("setting", "Theme"), R::Fork), QStringLiteral("theme"));
         theme.dynamicChoices = themes;
         all << theme;
         {

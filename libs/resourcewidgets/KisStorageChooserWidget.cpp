@@ -5,6 +5,7 @@
  */
 
 #include <QAbstractItemView>
+#include <KisProfile.h>
 #include <QPainter>
 #include <QApplication>
 #include <QStyle>
@@ -176,7 +177,7 @@ void KisStorageChooserWidget::activated(const QModelIndex &index)
     }
 
     if (!warning.isEmpty()) {
-        QMessageBox::critical(qApp->activeWindow(), i18nc("@title:window", "Krita"), warning);
+        QMessageBox::critical(qApp->activeWindow(), KisProfile::name(), warning);
     }
 
     repaint(); // this helps the chooser widget update the active state checkbox. The first checkbox doesn't repaint correctly without it

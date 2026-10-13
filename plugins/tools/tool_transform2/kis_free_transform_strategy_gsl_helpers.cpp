@@ -5,6 +5,7 @@
  */
 
 #include "kis_free_transform_strategy_gsl_helpers.h"
+#include <KisProfile.h>
 
 #include "tool_transform_args.h"
 #include "kis_transform_utils.h"
@@ -434,7 +435,7 @@ namespace GSL
     void warnNoGSL()
     {
         QMessageBox::warning(qApp->activeWindow(),
-                             i18nc("@title:window", "Krita"),
+                             KisProfile::name(),
                              i18n("Krita was built without the support "
                                   "of GNU Scientific Library, so you cannot scale "
                                   "the selection with handles. Please compile "

@@ -5,6 +5,7 @@
  *
  */
 #include "KisRemoteFileFetcher.h"
+#include <KisProfile.h>
 
 #include <QApplication>
 #include <QDebug>
@@ -37,7 +38,7 @@ bool KisRemoteFileFetcher::fetchFile(const QUrl &remote, QIODevice *io)
 
     if (remote.scheme() != "data") {
         QMessageBox msgBox;
-        msgBox.setWindowTitle(i18nc("@title:window", "Krita"));
+        msgBox.setWindowTitle(KisProfile::name());
         msgBox.setIcon(QMessageBox::Question);
         msgBox.setText(i18nc("Fetching remote image",
                              "Do you want to download the image from %1?\nClick \"Show Details\" to view the full link "
@@ -61,7 +62,7 @@ bool KisRemoteFileFetcher::fetchFile(const QUrl &remote, QIODevice *io)
     QLocale loc;
 
     QProgressDialog progress;
-    progress.setWindowTitle(i18nc("@title:window", "Krita"));
+    progress.setWindowTitle(KisProfile::name());
     progress.setLabelText(i18nc("Fetching remote image", "Downloading image from %1...").arg(remote.host()));
     progress.setMinimum(0);
     progress.setMaximum(0);
@@ -88,7 +89,7 @@ bool KisRemoteFileFetcher::fetchFile(const QUrl &remote, QIODevice *io)
 
     if (m_reply->error() != QNetworkReply::NoError) {
         QMessageBox msgBox;
-        msgBox.setWindowTitle(i18nc("@title:window", "Krita"));
+        msgBox.setWindowTitle(KisProfile::name());
         msgBox.setIcon(QMessageBox::Critical);
         msgBox.setText(i18nc("Fetching remote image", "Could not download %1.").arg(remote.toDisplayString()));
         msgBox.setDetailedText(m_reply->errorString());

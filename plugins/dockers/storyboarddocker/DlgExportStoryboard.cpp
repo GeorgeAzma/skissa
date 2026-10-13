@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: LGPL-2.0-or-later
  */
 #include "DlgExportStoryboard.h"
+#include <KisProfile.h>
 #include "StoryboardModel.h"
 
 #include "KoFileDialog.h"
@@ -182,10 +183,10 @@ void DlgExportStoryboard::slotExportClicked()
 {
     if (m_page->exportPathFileRequester->fileName().isEmpty()) {
         if (m_format == ExportFormat::PDF) {
-            QMessageBox::warning(this, i18nc("@title:window", "Krita"), i18n("Please enter a file name to export to."));
+            QMessageBox::warning(this, KisProfile::name(), i18n("Please enter a file name to export to."));
         }
         else {
-            QMessageBox::warning(this, i18nc("@title:window", "Krita"), i18n("Please enter a directory to export to."));
+            QMessageBox::warning(this, KisProfile::name(), i18n("Please enter a directory to export to."));
         }
         return;
     }
@@ -194,7 +195,7 @@ void DlgExportStoryboard::slotExportClicked()
 
         QDir dir(m_page->exportPathFileRequester->fileName());
         if (!dir.exists()) {
-            QMessageBox::warning(this, i18nc("@title:window", "Krita"), i18n("Please enter an existing directory."));
+            QMessageBox::warning(this, KisProfile::name(), i18n("Please enter an existing directory."));
             return;
         }
 
@@ -221,12 +222,12 @@ void DlgExportStoryboard::slotExportClicked()
     }
 
     if (layoutSpecifiedBySvgFile() && m_page->svgTemplatePathFileRequester->fileName().isEmpty()) {
-        QMessageBox::warning(this, i18nc("@title:window", "Krita"), i18n("Please choose svg file to specify the layout for exporting."));
+        QMessageBox::warning(this, KisProfile::name(), i18n("Please choose svg file to specify the layout for exporting."));
         return;
     }
     QFileInfo fi(m_page->svgTemplatePathFileRequester->fileName());
     if (layoutSpecifiedBySvgFile() && !fi.exists()) {
-        QMessageBox::warning(this, i18nc("@title:window", "Krita"), i18n("The SVG file to specify layout doesn't exist. Please choose an existing SVG file."));
+        QMessageBox::warning(this, KisProfile::name(), i18n("The SVG file to specify layout doesn't exist. Please choose an existing SVG file."));
         return;
     }
 

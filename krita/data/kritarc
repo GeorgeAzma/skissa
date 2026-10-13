@@ -359,7 +359,7 @@ ShowCustomDocumentWidgetByDefault=true
 LastReturnType=Custom Document
 
 [theme]
-Theme=Krita Studio Dark
+Theme=Skissa Dark
 
 [python]
 enable_colorspace=true

@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisReferenceImageCollection.h"
+#include <KisProfile.h>
 
 #include <QIODevice>
 #include <QMessageBox>
@@ -92,7 +93,7 @@ bool KisReferenceImageCollection::load(QIODevice *io)
     if (!failures.isEmpty()) {
         QMessageBox::warning(
                 0,
-                i18nc("@title:window", "Krita"),
+                KisProfile::name(),
                 i18n("The following reference images could not be loaded:\n%1", failures.join('\n')),
                 QMessageBox::Ok, QMessageBox::Ok
         );

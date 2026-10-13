@@ -5,6 +5,7 @@
  */
 
 #include "kis_tablet_debugger.h"
+#include <KisProfile.h>
 
 #include <QEvent>
 #include <QMessageBox>
@@ -118,7 +119,7 @@ KisTabletDebugger* KisTabletDebugger::instance()
 void KisTabletDebugger::toggleDebugging()
 {
     m_debugEnabled = !m_debugEnabled;
-    QMessageBox::information(qApp->activeWindow(), i18nc("@title:window", "Krita"), m_debugEnabled ?
+    QMessageBox::information(qApp->activeWindow(), KisProfile::name(), m_debugEnabled ?
                              i18n("Tablet Event Logging Enabled") :
                              i18n("Tablet Event Logging Disabled"));
     if (m_debugEnabled) {

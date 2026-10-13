@@ -115,7 +115,7 @@ static constexpr KStandardActionInfo g_rgActionInfo[] = {
     { WhatsThis,     KStandardShortcut::WhatsThis, "help_whats_this", QT_TRANSLATE_NOOP("KStandardActions", "What's &This?"), {}, "help-contextual" },
     { ReportBug,     KStandardShortcut::ReportBug, "help_report_bug", QT_TRANSLATE_NOOP("KStandardActions", "&Report Bug..."), {}, "tools-report-bug" },
     { SwitchApplicationLanguage, KStandardShortcut::SwitchApplicationLanguage, "switch_application_language", QT_TRANSLATE_NOOP("KStandardActions", "Switch Application &Language..."), {}, "preferences-desktop-locale" },
-    { AboutApp,      KStandardShortcut::AccelNone, "help_about_app", QT_TRANSLATE_NOOP("KStandardActions", "&About Krita"), {}, nullptr },
+    { AboutApp,      KStandardShortcut::AccelNone, "help_about_app", QT_TRANSLATE_NOOP("KStandardActions", "&About Skissa"), {}, nullptr },
     { AboutKDE,      KStandardShortcut::AccelNone, "help_about_kde", QT_TRANSLATE_NOOP("KStandardActions", "About &KDE"), {}, "kde" },
     { ActionNone,    KStandardShortcut::AccelNone, {}, {}, {}, {} },
     };

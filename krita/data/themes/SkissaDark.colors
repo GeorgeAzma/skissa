@@ -110,8 +110,8 @@ ForegroundPositive=118,199,136
 ForegroundVisited=226,226,226
 
 [General]
-ColorScheme=Krita Studio Dark
-Name=Krita Studio Dark
+ColorScheme=Skissa Dark
+Name=Skissa Dark
 shadeSortColumn=false
 
 [KDE]

@@ -5,6 +5,7 @@
  */
 
 #include "kis_custom_pattern.h"
+#include <KisProfile.h>
 
 #include <KoResourceServerProvider.h>
 #include <resources/KoPattern.h>
@@ -123,7 +124,7 @@ void KisCustomPattern::slotAddPredefined()
     bool overwrite = false;
     if (fi.exists()) {
         if (hadToChangeFilename) { // if not, the File Dialog would show the warning
-            if (QMessageBox::warning(this,  i18nc("@title:window", "Krita"), i18n("This pattern already exists. Do you want to overwrite it?"), QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
+            if (QMessageBox::warning(this,  KisProfile::name(), i18n("This pattern already exists. Do you want to overwrite it?"), QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
                 overwrite = true;
             }
         } else { // the File Dialog showed the warning and the user said "yeah fine"

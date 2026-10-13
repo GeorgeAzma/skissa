@@ -1,8 +1,10 @@
-# Krita Studio
+<img src="docs/readme/icon.png" width="64" alt="">
+
+# Skissa
 
 Krita with a cleaner, more visual interface. Same brushes, same engine, same `.kra` files.
 
-![Krita Studio](docs/readme/hero.jpg)
+![Skissa](docs/readme/hero.jpg)
 
 I paint in Krita every day and wanted it to feel more like the tablet apps: the canvas gets the screen, and everything else shows up when you need it.
 

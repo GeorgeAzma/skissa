@@ -5,6 +5,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "kis_splash_screen.h"
+#include <KisProfile.h>
 
 #include <QApplication>
 #include <QScreen>
@@ -43,7 +44,7 @@ KisSplashScreen::KisSplashScreen(int height, QWidget *parent, Qt::WindowFlags f)
     : QWidget(parent, f)
       , m_versionHtml(qApp->applicationVersion().toHtmlEscaped())
 {
-    setWindowTitle(i18n("Krita"));
+    setWindowTitle(KisProfile::name());
 #ifndef Q_OS_MACOS
     setWindowIcon(KisIconUtils::loadIcon("krita-branding"));
 #endif

@@ -7,6 +7,7 @@
  */
 
 #include "KisWelcomePageWidget.h"
+#include <KisProfile.h>
 #include "KisRecentDocumentsModelWrapper.h"
 #include <QDesktopServices>
 #include <QMimeData>
@@ -727,7 +728,7 @@ void KisWelcomePageWidget::slotSetUpdateStatus(KisUpdaterStatus updateStatus)
 
 void KisWelcomePageWidget::slotShowUpdaterErrorDetails()
 {
-    QMessageBox::warning(qApp->activeWindow(), i18nc("@title:window", "Krita"), m_updaterStatus.updaterOutput());
+    QMessageBox::warning(qApp->activeWindow(), KisProfile::name(), m_updaterStatus.updaterOutput());
 }
 
 void KisWelcomePageWidget::updateVersionUpdaterFrame()

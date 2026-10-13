@@ -5,6 +5,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "kis_dlg_layer_style.h"
+#include <KisProfile.h>
 
 #include <QBuffer>
 #include <QCheckBox>
@@ -398,7 +399,7 @@ void KisDlgLayerStyle::slotLoadStyle()
             if (!storage->valid()) {
                 qWarning() << "Attempted to import an invalid layer style library!" << filename;
                 QMessageBox::warning(this,
-                                     i18nc("@title:window", "Krita"),
+                                     KisProfile::name(),
                                      i18n("Could not load layer style library %1.", filename));
                 return;
             }

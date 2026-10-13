@@ -6,6 +6,7 @@
 
 
 #include "LogDockerDock.h"
+#include <KisProfile.h>
 
 #include <QHBoxLayout>
 #include <QScrollBar>
@@ -223,7 +224,7 @@ void LogDockerDock::saveLog()
             f.write(txtLogViewer->document()->toPlainText().toUtf8());
             f.close();
         } else {
-            QMessageBox::warning(this, i18nc("@title:window", "Krita"),
+            QMessageBox::warning(this, KisProfile::name(),
                 i18n("Could not save %1.\nReason: %2.", f.fileName(), f.errorString()));
         }
     }

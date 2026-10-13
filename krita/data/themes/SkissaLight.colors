@@ -110,8 +110,8 @@ ForegroundPositive=52,143,79
 ForegroundVisited=40,40,40
 
 [General]
-ColorScheme=Krita Studio Light
-Name=Krita Studio Light
+ColorScheme=Skissa Light
+Name=Skissa Light
 shadeSortColumn=false
 
 [KDE]

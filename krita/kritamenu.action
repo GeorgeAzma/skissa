@@ -1962,10 +1962,10 @@
     </Action>
     <Action name="help_about_app">
       <icon>krita</icon>
-      <text>&amp;About Krita</text>
+      <text>&amp;About Skissa</text>
       <whatsThis></whatsThis>
-      <toolTip>About Krita</toolTip>
-      <iconText>About Krita</iconText>
+      <toolTip>About Skissa</toolTip>
+      <iconText>About Skissa</iconText>
       <shortcut></shortcut>
       <isCheckable>false</isCheckable>
       <statusTip></statusTip>

@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: LGPL-2.0-or-later
  */
 #include "dlg_bundle_manager.h"
+#include <KisProfile.h>
 
 #include "resourcemanager.h"
 #include "dlg_create_bundle.h"
@@ -203,12 +204,12 @@ void DlgBundleManager::done(int res)
 
         if (!mw->checkPaintOpAvailable()) {
             warning += i18n("\nThere are no brush presets available. Please enable a bundle that has presets before continuing.\nIf there are no bundles, please import a bundle before continuing.");
-            QMessageBox::critical(this, i18nc("@title:window", "Krita"), warning);
+            QMessageBox::critical(this, KisProfile::name(), warning);
             return;
         }
 
         if (!mw->checkActiveBundlesAvailable()) {
-            QMessageBox::warning(this, i18nc("@title:window", "Krita"), warning + i18n("\nOnly your local resources are available."));
+            QMessageBox::warning(this, KisProfile::name(), warning + i18n("\nOnly your local resources are available."));
         }
     }
     KoDialog::done(res);
@@ -235,7 +236,7 @@ void DlgBundleManager::addBundle()
                     cursorLock.unlock();
                     qWarning() << "Attempted to import an invalid bundle!" << filename;
                     QMessageBox::warning(this,
-                                         i18nc("@title:window", "Krita"),
+                                         KisProfile::name(),
                                          i18n("Could not load bundle %1.", filename));
                     continue;
                 }
@@ -301,7 +302,7 @@ void DlgBundleManager::editBundle()
                     qApp->restoreOverrideCursor();
                     qWarning() << "Attempted to edit an invalid bundle!" << filename;
                     QMessageBox::warning(this,
-                                         i18nc("@title:window", "Krita"),
+                                         KisProfile::name(),
                                          i18n("Could not load bundle %1.", filename));
                     qApp->setOverrideCursor(Qt::BusyCursor);
                     continue;
@@ -369,12 +370,12 @@ void DlgBundleManager::toggleBundle()
             button(KoDialog::Close)->setEnabled(false);
 
             warning += i18n("\nThere are no brush presets available. Please enable a bundle that has presets before continuing.\nIf there are no bundles, please import a bundle before continuing.");
-            QMessageBox::critical(this, i18nc("@title:window", "Krita"), warning);
+            QMessageBox::critical(this, KisProfile::name(), warning);
             return;
         }
 
         if (!mw->checkActiveBundlesAvailable()) {
-            QMessageBox::warning(this, i18nc("@title:window", "Krita"), warning + i18n("\nOnly your local resources are available."));
+            QMessageBox::warning(this, KisProfile::name(), warning + i18n("\nOnly your local resources are available."));
         }
     }
     button(KoDialog::Close)->setEnabled(true);

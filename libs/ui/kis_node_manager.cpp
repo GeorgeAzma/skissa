@@ -5,6 +5,7 @@
  */
 
 #include "kis_node_manager.h"
+#include <KisProfile.h>
 
 #include <QStandardPaths>
 #include <QMessageBox>
@@ -1316,7 +1317,7 @@ void KisNodeManager::Private::saveDeviceAsImage(KisPaintDeviceSP device,
 
     if (!doc->exportDocumentSync(filename, mimefilter.toLatin1())) {
         QMessageBox::warning(qApp->activeWindow(),
-                             i18nc("@title:window", "Krita"),
+                             KisProfile::name(),
                              i18n("Could not save the layer. %1", doc->errorMessage().toUtf8().data()),
                              QMessageBox::Ok);
 
@@ -1379,7 +1380,7 @@ void KisNodeManager::saveVectorLayerAsImage()
 
     SvgWriter writer(shapes);
     if (!writer.save(filename, sizeInPt, true)) {
-        QMessageBox::warning(qApp->activeWindow(), i18nc("@title:window", "Krita"), i18n("Could not save to svg: %1", filename));
+        QMessageBox::warning(qApp->activeWindow(), KisProfile::name(), i18n("Could not save to svg: %1", filename));
     }
 }
 

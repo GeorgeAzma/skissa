@@ -8,6 +8,7 @@
 */
 
 #include <KisTemplateCreateDia.h>
+#include <KisProfile.h>
 
 #include <QFile>
 #include <QLabel>
@@ -281,7 +282,7 @@ void KisTemplateCreateDia::slotOk() {
         KisTemplate *existingTemplate=group->find(d->m_name->text());
         if (existingTemplate && !existingTemplate->isHidden()) {
             if (QMessageBox::warning(this,
-                                     i18nc("@title:window", "Krita"),
+                                     KisProfile::name(),
                                      i18n("Do you really want to overwrite the existing '%1' template?", existingTemplate->name()),
                                      QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes) == QMessageBox::Yes) {
                 group->add(t, true);
@@ -387,7 +388,7 @@ void KisTemplateCreateDia::slotSelect() {
     }
     QImage image(fn);
     if (image.isNull()) {
-        QMessageBox::warning(this, i18nc("@title:window", "Krita"), i18n("%1 is not a valid image file!", fn));
+        QMessageBox::warning(this, KisProfile::name(), i18n("%1 is not a valid image file!", fn));
     }
     d->m_customFile = fn;
     d->m_customPixmap = QPixmap();

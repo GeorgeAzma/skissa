@@ -5,6 +5,7 @@
  */
 
 #include "KisReferenceImage.h"
+#include <KisProfile.h>
 #include "KoColorProfile.h"
 #include "KoColorSpaceRegistry.h"
 
@@ -194,7 +195,7 @@ KisReferenceImage * KisReferenceImage::fromFile(const QString &filename, const K
         delete reference;
 
         if (parent) {
-            QMessageBox::critical(parent, i18nc("@title:window", "Krita"), i18n("Could not load %1.", filename));
+            QMessageBox::critical(parent, KisProfile::name(), i18n("Could not load %1.", filename));
         }
 
         return nullptr;
