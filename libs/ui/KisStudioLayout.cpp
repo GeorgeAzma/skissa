@@ -70,6 +70,7 @@
 #include "KisStudioFind.h"
 #include "KisStudioGlass.h"
 #include "KisStudioItemCard.h"
+#include "KisStudioEmptyStates.h"
 #include "KisStudioMotion.h"
 #include "KisStudioPanelPicker.h"
 #include "KisStudioScrubber.h"
@@ -1575,6 +1576,7 @@ void KisStudioLayout::enter()
     }
 
     qApp->installEventFilter(this);
+    KisStudioEmptyStates::install();
     if (KisCanvasResourceProvider *resources = viewManager ? viewManager->canvasResourceProvider() : nullptr) {
         d->connections << connect(resources, &KisCanvasResourceProvider::sigPaintOpPresetChanged, this, [this]() { updateToolChip(); });
     }
