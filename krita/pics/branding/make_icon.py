@@ -5,25 +5,27 @@
 #  SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Draws the app icon: one pencil stroke, an S, with nothing behind it.
-#   light_krita-branding.svgz  light S, for dark themes (in the app, and the splash)
+#   light_krita-branding.svgz  white S with a soft shadow, for dark themes (in the app, and the splash)
 #   dark_krita-branding.svgz   ink S, for light themes (Krita names icons by their own color)
 #   sc-apps-krita.svgz, *-apps-krita.png, krita.ico
-#                              a colored S that reads on dark and light alike, for places that
-#                              can't follow the theme (the .exe in the file browser, Start, shortcuts)
+#                              the white S again, for places that can't follow the theme (the .exe in
+#                              the file browser, Start, shortcuts); small sizes get a stronger shadow
+#                              so it still reads on light backgrounds
 # into every branding folder, so no build shows Krita's logo, and the .kra file icons (a page with
 # the S) into ../mimetypes. Needs Pillow.
 
+import base64
 import gzip
+import io
 import math
 import os
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 SIZE = 1024
 GROW = 1.22             # the S fills the icon; there's no tile around it
 INK = (38, 35, 32)
-LIGHT = (240, 234, 222)
-STATIC = (236, 98, 78)
+LIGHT = (250, 248, 244)
 PAGE = (252, 250, 246)
 PAGE_EDGE = (205, 190, 165)
 FOLD = (232, 220, 199)
@@ -79,10 +81,18 @@ def stroke(n=240):
     return left + cap(n, True) + right[::-1] + cap(0, False)
 
 
-def svg(fill):
+def svg(fill, shade=False):
     d = 'M' + ' L'.join('%.1f %.1f' % p for p in stroke()) + ' Z'
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{SIZE}" height="{SIZE}" viewBox="0 0 {SIZE} {SIZE}">\n'
-            f' <path d="{d}" fill="rgb{fill}"/>\n</svg>\n').encode()
+    under = ''
+    if shade:
+        # Qt's SVG has no blur, so the shadow is a picture; it's soft anyway, so a small one will do
+        buf = io.BytesIO()
+        shadow(SIZE).resize((256, 256), Image.LANCZOS).save(buf, 'PNG', optimize=True)
+        under = (f' <image width="{SIZE}" height="{SIZE}" '
+                 f'xlink:href="data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}"/>\n')
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+            f'width="{SIZE}" height="{SIZE}" viewBox="0 0 {SIZE} {SIZE}">\n'
+            f'{under} <path d="{d}" fill="rgb{fill}"/>\n</svg>\n').encode()
 
 
 def render(fill, scale=4):
@@ -90,6 +100,22 @@ def render(fill, scale=4):
     img = Image.new('RGBA', (big, big), (0, 0, 0, 0))
     ImageDraw.Draw(img).polygon([(x * scale, y * scale) for x, y in stroke(480)], fill=fill + (255,))
     return img.resize((SIZE, SIZE), Image.LANCZOS)
+
+
+def shadow(size):
+    """The soft shadow under the S, for an icon shown at size pixels: never thinner than a pixel there."""
+    px = SIZE / size
+    dy, blur = max(14, 1.0 * px), max(22, 1.1 * px)
+    alpha = 0.55 if size >= 64 else 0.9
+    a = render((0, 0, 0)).getchannel('A').point(lambda v: int(v * alpha))
+    a = ImageChops.offset(a, 0, round(dy)).filter(ImageFilter.GaussianBlur(blur))
+    img = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
+    img.putalpha(a)
+    return img
+
+
+def shaded(size):
+    return Image.alpha_composite(shadow(size), render(LIGHT)).resize((size, size), Image.LANCZOS)
 
 
 def document(scale=4):
@@ -112,14 +138,13 @@ def write_svgz(path, data):
 
 
 def main():
-    static = render(STATIC)
-    pngs = {s: static.resize((s, s), Image.LANCZOS) for s in PNG_SIZES}
+    pngs = {s: shaded(s) for s in PNG_SIZES}
     ico = [pngs[s] for s in ICO_SIZES]
     ico[-1].save(os.path.join(HERE, 'krita.ico'), sizes=[(s, s) for s in ICO_SIZES], append_images=ico[:-1])
     for branding in BRANDINGS:
         folder = os.path.join(HERE, branding)
-        write_svgz(os.path.join(folder, 'sc-apps-krita.svgz'), svg(STATIC))
-        write_svgz(os.path.join(folder, 'light_krita-branding.svgz'), svg(LIGHT))
+        write_svgz(os.path.join(folder, 'sc-apps-krita.svgz'), svg(LIGHT, True))
+        write_svgz(os.path.join(folder, 'light_krita-branding.svgz'), svg(LIGHT, True))
         write_svgz(os.path.join(folder, 'dark_krita-branding.svgz'), svg(INK))
         for s, im in pngs.items():
             im.save(os.path.join(folder, '%d-apps-krita.png' % s), optimize=True)
