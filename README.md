@@ -1,125 +1,89 @@
-![Picture](https://krita.org/images/krita-logo-light.svg)
+# Krita Studio
 
-| CI Name     | Master | Stable | Release |
-| ------------------- | ---------------- | ------ | ------- |
-| Pipeline | [![pipeline status](https://invent.kde.org/graphics/krita/badges/master/pipeline.svg)](https://invent.kde.org/graphics/krita/-/commits/master) | [![pipeline status](https://invent.kde.org/graphics/krita/badges/krita/5.2/pipeline.svg)](https://invent.kde.org/graphics/krita/-/commits/krita/5.2) | [![Latest Release](https://invent.kde.org/graphics/krita/-/badges/release.svg)](https://invent.kde.org/graphics/krita/-/releases) |
+A calmer, more visual Krita. Same brushes, same files and the same paint engine underneath, with a lot less hunting through menus and dialogs.
 
-Note: Nightly builds are not covered by this table atm
+![Krita Studio](docs/readme/hero.jpg)
 
-Krita is a free and open source digital painting application. It is for artists who want to create professional work from start to end. Krita is used by comic book artists, illustrators, concept artists, matte and texture painters and in the digital VFX industry.
+This is a personal fork of [Krita](https://krita.org). I paint in Krita every day and wanted it to feel as easy as the tablet apps without losing anything that makes Krita great. So the interface was rebuilt around one idea: **the canvas comes first, and everything else shows up when you need it.**
 
-If you are reading this on GitHub, be aware that this is just a mirror. Our real code repository is provided by KDE: https://invent.kde.org/graphics/krita.git
+## What feels different
 
-![Picture](https://krita.org/images/hero-image-50.webp)
+### The canvas gets the screen
 
-### Repository Status
+Tools on the left, panels on the right, and the top bar only shows what the current tool needs. There's no menu bar, status bar or scroll bars. Panels slide out over the edge of the canvas and get out of the way again.
 
-For branch: `master`
+Krita's 37 tools fit into 9 slots grouped by what you want to do: **Paint, Blend, Erase, Select, Move, Fill, Shape, Text, Guides.** Each slot remembers the variant you used last.
 
-| Freeze type    | Status                                                               |
-|----------------|----------------------------------------------------------------------|
-| Feature Freeze | features are allowed                                                 |
-| String Freeze  | strings are allowed                                                  |
+### Find anything
 
+Press **Ctrl+K** and type. Tools, effects, brushes, blend modes, layers, settings and every old menu command are all in one place. It speaks other apps' language too: "lasso", "magic wand", "eyedropper" or "healing brush" find the Krita version.
 
-### User Manual
-https://docs.krita.org/en/user_manual.html
+![Find anything](docs/readme/find.jpg)
 
-### Development Notes and Build Instructions
+### Effects right on the canvas
 
-Please follow [the online documentation](https://docs.krita.org/en/untranslatable_pages/building_krita.html).
+Pick an effect and it previews live on your whole image, with its sliders in a small panel at the bottom. Enter keeps it, Esc drops it, or keep it editable for later.
 
-Other developer guides, notes and wiki:
+![An effect previewing live on the canvas](docs/readme/effects.jpg)
 
-https://docs.krita.org/en/untranslatable_pages.html
+### Blend modes you can see
 
-Apidox:
+Every blend mode is a tiny preview of what it'll actually do to your picture. The everyday ones are up front, and all 138 are one search away.
 
-https://api.kde.org/legacy/krita/html/index.html
+![Blend modes as previews](docs/readme/blend-modes.jpg)
 
-### Bugs and Wishes
+### Brush settings you drag
 
-https://bugs.kde.org/buglist.cgi?bug_status=UNCONFIRMED&bug_status=CONFIRMED&bug_status=ASSIGNED&bug_status=REOPENED&list_id=1315444&product=krita&query_format=advanced
+Each setting in the brush editor shows its value on its own row: drag sideways to change it, double-click to type a number. Pressure curves come as little pictures, and you can save your own and reuse them in any brush.
 
-### Discussion Forum
+![The brush editor](docs/readme/brush-editor.jpg)
 
-* https://krita-artists.org/
+### Symmetry in one button
 
-### IRC channel
+Mirror, radial or tiled. The handles sit on the canvas, so you drag the center where you want it instead of typing numbers.
 
-Most of the developers hang out here. If you are interested in helping with the project this is a great place to start.
+![Symmetry](docs/readme/symmetry.jpg)
 
-libera.chat, #krita
+### Glass, and themes that are yours
 
-### Project Website
+Panels are frosted glass with a bit of edge refraction, so your painting keeps showing through. Pick a theme, or mix your own from a lightness, a tint and an accent color.
 
-https://www.krita.org
+![Dark, Moss, Light and Paper themes](docs/readme/themes.jpg)
 
-### Nightly builds
+### Small things that add up
 
-#### Unstable
+- **Right-click** any slider to put it back to its default.
+- Hover a button to see its shortcut; right-click it to change the shortcut.
+- **Ctrl+Z** undoes settings too, in the same history as your painting.
+- Autosave waits until you pause, so it never hitches mid-stroke.
+- Krita opens the image you were working on last.
+- All settings live in one searchable panel with short, plain tooltips.
 
-* https://cdn.kde.org/ci-builds/graphics/krita/master/
+![Settings](docs/readme/settings.jpg)
 
-#### Stable
+## Old Krita vs Studio
 
-* https://cdn.kde.org/ci-builds/graphics/krita/krita-5.2/
+| | Krita | Krita Studio |
+|---|---|---|
+| Tools on screen | 37 | 9 slots, variants inside |
+| Menus | 266 commands in 11 menus | **Ctrl+K** and a small ☰ menu |
+| Blend modes | a list of 138 | previews, everyday ones first |
+| Effects | dialogs | live on the canvas |
+| Brush settings | sliders on separate pages | values on the rows, drag to change |
+| Settings | 10 dialog pages | one panel, searchable, undoable |
 
-#### Developers builds
+## It's still Krita
 
-##### Linux build with debug symbols in Qt and Krita
+It opens and saves `.kra` files as usual and uses your brushes, resources and plugins. If you ever want the classic layout back, press **Ctrl+K** and turn off **Studio Layout**.
 
-1) Go to Jobs section of Krita's CI: https://invent.kde.org/graphics/krita/-/jobs
-2) Search for the latest `linux-debug-weekly` job
-3) Enter the job and click on Artifacts->Browse
-4) Download the AppImage
+Heads-up: for now it uses the same settings folder as a regular Krita install, so the two share settings.
 
-##### Linux build with ASAN in Qt and Krita
+## Get it
 
-1) Go to Jobs section of Krita's CI: https://invent.kde.org/graphics/krita/-/jobs
-2) Search for the latest `linux-asan-weekly` job
-3) Enter the job and click on Artifacts->Browse
-4) Download the AppImage
-5) Set up environment variable for ASAN:
-    ```bash
-        export ASAN_OPTIONS=new_delete_type_mismatch=0:detect_leaks=0
-    ```
-6) Run the AppImage in the modified environment
+**Windows:** download the latest zip from [Releases](../../releases), unzip it anywhere and run `bin\krita.exe`. There's no installer and nothing to uninstall.
 
-##### Windows build with ASAN in Qt and Krita
+**Build it yourself:** it builds exactly like Krita. Follow Krita's [build guide](https://docs.krita.org/en/untranslatable_pages/building_krita.html) with this repository.
 
-1) Go to Jobs section of Krita's CI: https://invent.kde.org/graphics/krita/-/jobs
-2) Search for the latest `windows-asan-weekly` job
-3) Enter the job and click on Artifacts->Browse
-4) Download the .zip file
-5) Open terminal
-6) Set up environment variable for ASAN:
-    ```
-        set ASAN_OPTIONS=new_delete_type_mismatch=0:detect_leaks=0
-    ```
-7) Change working directory to `c:\path\where\you\downloaded\krita-5.3.0-prealpha-git12345\bin`.
-   That is important, otherwise ASAN will not be able to locate llvm-symbolizer.exe and the
-   backtraces generated by ASAN will not contain proper symbols.
-    ```
-        cd c:\path\where\you\downloaded\krita-5.3.0-prealpha-git12345\bin
-    ```
-8) Run krita
-    ```
-        krita.com
-    ```
+## Credits
 
-### License
-
-Krita as a whole is licensed under the GNU Public License, Version 3. Individual files may have a different, but compatible license.
-
-### AI Moratorium
-
-Since the Krita developer community cannot currently find consensus on whether the use of AI tools to assist development is acceptable or not, we have decided to put a moratorium on the use of these tools until October 2026. 
-
-The reason for pushing this off to October are:
-
-1) if we'd allow the use of AI in development right now, the backlash from our users and supporters will be furious.
-2) KDE as a whole does not have a policy in place, and if our policy would conflict with KDE's we'd potentially have to revert contributions made with AI
-3) The development of AI itself might change for the better or the worse in the next period. Microsoft is already backtracking from their CoPilot brand. Acceptance of AI can change for better or worse. The environmental impact of AI could lessen.
-
-Until we make a decision, the use of AI when working on Krita is not allowed.
+Built on [Krita](https://krita.org) by the KDE community and the Krita Foundation, and licensed the same way (GPL-3.0-or-later). The sunset was drawn for these screenshots; the character artwork is Krita's.
