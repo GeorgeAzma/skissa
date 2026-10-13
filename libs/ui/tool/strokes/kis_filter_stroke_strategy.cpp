@@ -7,6 +7,7 @@
 #include "kis_filter_stroke_strategy.h"
 
 #include <QElapsedTimer>
+#include <KoUpdater.h>
 #include <cmath>
 #include "KisUpdatePacer.h"
 #include <kis_lod_transform_base.h>
@@ -454,12 +455,15 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                 Q_FOREACH (const QRect &patch, KritaUtils::splitRectIntoPatches(smallRect, smallPatch)) {
                     if (patch.isEmpty()) continue;
                     addJobConcurrent(coarseJobs, [shared, coarse, patch]() {
-                        shared->filter()->processImpl(coarse->small, patch, shared->filterConfig().data(), nullptr);
+                        // filters expect an updater; the coarse pass reports no progress
+                        KoDummyUpdaterHolder updater;
+                        shared->filter()->processImpl(coarse->small, patch, shared->filterConfig().data(), updater.updater());
                     });
                 }
             } else {
                 addJobSequential(coarseJobs, [shared, coarse, smallRect]() {
-                    shared->filter()->processImpl(coarse->small, smallRect, shared->filterConfig().data(), nullptr);
+                    KoDummyUpdaterHolder updater;
+                    shared->filter()->processImpl(coarse->small, smallRect, shared->filterConfig().data(), updater.updater());
                 });
             }
             addJobSequential(coarseJobs, [this, shared, coarse]() {
