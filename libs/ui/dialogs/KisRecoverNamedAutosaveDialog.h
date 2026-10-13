@@ -52,6 +52,9 @@ public:
      */
     ~KisRecoverNamedAutosaveDialog() override;
 
+    /// Esc and closing the window keep neither version
+    void reject() override;
+
 private Q_SLOTS:
     /**
      * @brief slotOkRequested sets the correct result of the dialog in case the user pressed OK button and closes the dialog

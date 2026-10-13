@@ -7,7 +7,14 @@
 #include "KisRecoverNamedAutosaveDialog.h"
 #include "ui_KisRecoverNamedAutosaveDialog.h"
 
+#include <QDate>
+#include <QFileInfo>
+#include <QHBoxLayout>
+#include <QLocale>
 #include <QThread>
+#include <QToolButton>
+
+#include <KisModernStyle.h>
 
 #include "kis_debug.h"
 #include "kis_image.h"
@@ -48,6 +55,43 @@ KisRecoverNamedAutosaveDialog::KisRecoverNamedAutosaveDialog(QWidget *parent, QS
 
     ui->rbOpenAutosave->setChecked(true); // it should be selected by default
 
+    // the two versions side by side, as pictures with their times: a click opens that one, Esc keeps neither
+    setWindowTitle(QFileInfo(mainFile).fileName());
+    for (QWidget *old : {static_cast<QWidget *>(ui->lblExplanation), static_cast<QWidget *>(ui->rbOpenAutosave),
+                         static_cast<QWidget *>(ui->rbDiscardAutosave), static_cast<QWidget *>(ui->btOk), static_cast<QWidget *>(ui->btCancel)}) {
+        old->hide();
+    }
+    auto *choices = new QHBoxLayout();
+    choices->setSpacing(KisModernStyle::space3);
+    const QSize picture(240, 180);
+    auto choice = [&](const QString &file, const QString &what, QRadioButton *radio) {
+        auto *button = new QToolButton(this);
+        button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+        button->setAutoRaise(true);
+        button->setIconSize(picture);
+        QIcon icon;
+        if (KisFileIconCreator().createFileIcon(file, icon, devicePixelRatioF(), picture)) button->setIcon(icon);
+        const QDateTime saved = QFileInfo(file).lastModified();
+        const QString when = saved.date() == QDate::currentDate() ? QLocale().toString(saved.time(), QLocale::ShortFormat)
+                                                                 : QLocale().toString(saved, QLocale::ShortFormat);
+        button->setText(what + QLatin1Char('\n') + when);
+        connect(button, &QToolButton::clicked, this, [this, radio]() {
+            radio->setChecked(true);
+            slotOkRequested();
+        });
+        choices->addWidget(button);
+        return button;
+    };
+    choice(autosaveFile, i18nc("recovering an image: its autosave", "Autosave"), ui->rbOpenAutosave)->setFocus();
+    QToolButton *main = choice(mainFile, i18nc("recovering an image: the file as last saved", "Saved file"), ui->rbDiscardAutosave);
+    main->setToolTip(i18nc("@info:tooltip", "The autosave is deleted"));
+    static_cast<QBoxLayout *>(layout())->insertLayout(0, choices);
+}
+
+void KisRecoverNamedAutosaveDialog::reject()
+{
+    // a rejected dialog's result would be 0, which is OpenAutosave
+    done(Cancel);
 }
 
 KisRecoverNamedAutosaveDialog::~KisRecoverNamedAutosaveDialog()
