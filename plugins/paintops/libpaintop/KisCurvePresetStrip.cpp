@@ -202,7 +202,8 @@ void KisCurvePresetStrip::mousePressEvent(QMouseEvent *event)
 void KisCurvePresetStrip::contextMenuEvent(QContextMenuEvent *event)
 {
     const QVector<Entry> list = entries();
-    const int i = at(event->pos());
+    // from where on screen: inside a popup, the event's own position can be its window's
+    const int i = at(mapFromGlobal(event->globalPos()));
     if (i < 0 || i >= list.size() || !list[i].saved) return;
     const int index = i - (list.size() - Saved::instance().curves().size());
 
@@ -232,7 +233,7 @@ bool KisCurvePresetStrip::event(QEvent *event)
     if (event->type() == QEvent::ToolTip) {
         auto *help = static_cast<QHelpEvent *>(event);
         const QVector<Entry> list = entries();
-        const int i = at(help->pos());
+        const int i = at(mapFromGlobal(help->globalPos()));
         if (i < 0) {
             QToolTip::hideText();
         } else {
