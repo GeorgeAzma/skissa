@@ -9,6 +9,7 @@
 #include "kis_paintop_option.h"
 #include "kis_paintop_options_model.h"
 
+#include <QHash>
 #include <QHBoxLayout>
 #include <QList>
 #include <QStackedWidget>
@@ -26,6 +27,7 @@
 #include <brushengine/kis_paintop_preset.h>
 #include <kis_cmb_composite.h>
 #include <kis_categorized_item_delegate.h>
+#include <kis_categorized_list_view.h>
 #include <brushengine/kis_locked_properties_server.h>
 #include <brushengine/kis_locked_properties_proxy.h>
 #include <brushengine/kis_locked_properties.h>
@@ -54,6 +56,7 @@ struct KisPaintOpSettingsWidget::Private
     bool scrubbing {false};
     bool scrubFine {false};
     QPointer<QLineEdit> valueEditor;
+    QHash<KisPaintOpOption *, qreal> pickedValues;
 
     KisPaintOpOption *optionAt(const QModelIndex &index) const
     {
@@ -264,6 +267,16 @@ void KisPaintOpSettingsWidget::setCanvasResourcesInterface(KoCanvasResourcesInte
     }
 }
 
+void KisPaintOpSettingsWidget::rememberRowValues()
+{
+    m_d->pickedValues.clear();
+    Q_FOREACH (KisPaintOpOption *option, m_d->paintOpOptions) {
+        if (const std::optional<KisPaintOpOption::RowValue> value = option->rowValue()) {
+            m_d->pickedValues.insert(option, value->value);
+        }
+    }
+}
+
 void KisPaintOpSettingsWidget::changePage(const QModelIndex& index)
 {
     KisOptionInfo info;
@@ -380,6 +393,13 @@ bool KisPaintOpSettingsWidget::eventFilter(QObject *obj, QEvent *event)
                     m_d->scrubFrom = m_d->optionAt(index)->rowValue()->value;
                     m_d->scrubFine = mouse->modifiers() & Qt::ShiftModifier;
                 }
+            } else if (mouse->button() == Qt::RightButton) {
+                const QModelIndex index = m_d->optionsList->indexAt(mouse->pos());
+                if (m_d->valueAt(index, mouse->pos())) {
+                    KisPaintOpOption *option = m_d->optionAt(index);
+                    if (m_d->pickedValues.contains(option)) option->setRowValue(m_d->pickedValues.value(option));
+                    return true;
+                }
             }
             break;
         case QEvent::MouseMove:
@@ -396,6 +416,9 @@ bool KisPaintOpSettingsWidget::eventFilter(QObject *obj, QEvent *event)
                 const QModelIndex index = m_d->optionsList->indexAt(mouse->pos());
                 if (m_d->valueAt(index, mouse->pos())) {
                     m_d->optionsList->viewport()->setCursor(Qt::SizeHorCursor);
+                } else if (index.data(__CategorizedListModelBase::isLockableRole).toBool()
+                           && m_d->optionsList->isOnLock(index, mouse->pos())) {
+                    m_d->optionsList->viewport()->setCursor(Qt::PointingHandCursor);
                 } else {
                     m_d->optionsList->viewport()->unsetCursor();
                 }

@@ -143,32 +143,26 @@ void KisCategorizedListView::mousePressEvent(QMouseEvent* event)
 
 
 
-    if (event->button() == Qt::RightButton){
-
-        QMenu menu(this);
-
-        if(index.data(__CategorizedListModelBase::isLockableRole).toBool() && index.isValid()) {
-
-            bool locked = index.data(__CategorizedListModelBase::isLockedRole).toBool();
-
-            QIcon icon = locked ? KisIconUtils::loadIcon("unlocked") : KisIconUtils::loadIcon("locked");
-
-            // Add an empty section so there's a bit more space before users accidentally press lock
-            // See https://bugs.kde.org/show_bug.cgi?id=447367
-            menu.addSection("     ");
-
-            QAction* action1 = menu.addAction(icon, locked ? i18n("Unlock (restore settings from preset)")
-                                                           : i18n("Lock"));
-
-            connect(action1, SIGNAL(triggered()), this, SIGNAL(rightClickedMenuDropSettingsTriggered()));
-
-            if (locked){
-                QAction* action2 = menu.addAction(icon, i18n("Unlock (keep current settings)"));
-                connect(action2, SIGNAL(triggered()), this, SIGNAL(rightClickedMenuSaveSettingsTriggered()));
-            }
-            menu.exec(event->globalPos());
+    // the lock at the row's end: a click locks, and unlocking asks what to keep
+    if (index.isValid() && index.data(__CategorizedListModelBase::isLockableRole).toBool() && isOnLock(index, event->pos())) {
+        if (!index.data(__CategorizedListModelBase::isLockedRole).toBool()) {
+            Q_EMIT rightClickedMenuDropSettingsTriggered();
+            return;
         }
+        QMenu menu(this);
+        const QIcon icon = KisIconUtils::loadIcon("unlocked");
+        QAction *keep = menu.addAction(icon, i18nc("brush option lock", "Unlock, keep these settings"));
+        connect(keep, SIGNAL(triggered()), this, SIGNAL(rightClickedMenuSaveSettingsTriggered()));
+        QAction *restore = menu.addAction(icon, i18nc("brush option lock", "Unlock, back to the brush's"));
+        connect(restore, SIGNAL(triggered()), this, SIGNAL(rightClickedMenuDropSettingsTriggered()));
+        menu.exec(event->globalPos());
     }
+}
+
+bool KisCategorizedListView::isOnLock(const QModelIndex &index, const QPoint &pos) const
+{
+    const QRect row = visualRect(index);
+    return row.contains(pos) && pos.x() >= viewport()->width() - row.height() - 4;
 }
 
 void KisCategorizedListView::mouseReleaseEvent(QMouseEvent* event)

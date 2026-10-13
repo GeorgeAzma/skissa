@@ -22,6 +22,8 @@ public:
 
     QSize sizeHint() const override;
     void setCompositeBoxControl(bool value);
+    /// Whether \p pos is on the lock at the end of \p index's row
+    bool isOnLock(const QModelIndex &index, const QPoint &pos) const;
 
 Q_SIGNALS:
     void sigCategoryToggled(const QModelIndex& index, bool toggled);

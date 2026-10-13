@@ -51,6 +51,7 @@
 #include <kis_image.h>
 #include <kis_node.h>
 #include <brushengine/kis_paintop_config_widget.h>
+#include <kis_paintop_settings_widget.h>
 #include <kis_action.h>
 
 #include "kis_canvas2.h"
@@ -734,6 +735,9 @@ void KisPaintopBox::setCurrentPaintop(KisPaintOpPresetSP preset)
 
     m_presetsEditor->setPaintOpSettingsWidget(m_optionWidget);
     m_presetsEditor->readOptionSetting(preset->settings());
+    if (auto *settingsWidget = dynamic_cast<KisPaintOpSettingsWidget *>(m_optionWidget)) {
+        settingsWidget->rememberRowValues();
+    }
 
     m_resourceProvider->setPaintOpPreset(preset);
 

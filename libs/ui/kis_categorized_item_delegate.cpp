@@ -52,11 +52,11 @@ void KisCategorizedItemDelegate::paint(QPainter* painter, const QStyleOptionView
             p.setCompositionMode(QPainter::CompositionMode_Source);
 
 
-            // make unlocked icons more hidden
+            // an open lock is faint, clearer while the pointer is on its row
             if (locked) {
                 p.setOpacity(1.0);
             } else {
-                p.setOpacity(0.14);
+                p.setOpacity(option.state & QStyle::State_MouseOver ? 0.5 : 0.14);
             }
 
             p.drawPixmap(0, 0, icon.pixmap(iconSize, QIcon::Normal) );

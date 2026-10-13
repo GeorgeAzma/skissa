@@ -51,6 +51,9 @@ public:
     void setResourcesInterface(KisResourcesInterfaceSP resourcesInterface) override;
     void setCanvasResourcesInterface(KoCanvasResourcesInterfaceSP canvasResourcesInterface) override;
 
+    /// Keeps each row's value as the brush is picked: a right click on the row goes back to it
+    void rememberRowValues();
+
 private Q_SLOTS:
 
     void changePage(const QModelIndex&);
