@@ -77,6 +77,7 @@ const char *const glassMenuProperty = "studioGlassMenu";
 const char *const glassDropdownProperty = "studioGlassDropdown";
 const char *const glassDialogProperty = "studioGlassDialog";
 const char *const glassDialogDoneProperty = "studioGlassDialogDone";
+const char *const movableProperty = "studioMovableByBackground";
 
 // ------------------------------------------------------------ color
 
@@ -1259,7 +1260,7 @@ protected:
         auto *widget = qobject_cast<QWidget *>(watched);
         if (!widget) return false;
         QWidget *dialog = widget->window();
-        if (!dialog->property(glassDialogProperty).toBool()) return false;
+        if (!dialog->property(glassDialogProperty).toBool() && !dialog->property(movableProperty).toBool()) return false;
         switch (event->type()) {
         case QEvent::MouseButtonPress: {
             auto *mouse = static_cast<QMouseEvent *>(event);
@@ -1296,9 +1297,25 @@ private:
     bool m_moving {false};
 };
 
+DialogMover *dialogMover()
+{
+    static DialogMover *mover = new DialogMover();
+    return mover;
+}
+
 bool isTooltip(const QWidget *widget)
 {
-    return widget->windowType() == Qt::ToolTip && widget->inherits("QTipLabel");
+    // Qt's own, and the item tooltips of resource lists (brushes, patterns…)
+    return widget->windowType() == Qt::ToolTip && (widget->inherits("QTipLabel") || widget->inherits("KoItemToolTip"));
+}
+
+void makeGlassTooltip(QWidget *tooltip)
+{
+    makeSeeThroughWindow(tooltip);
+    // Tint it like a menu rather than with the near-black tooltip color.
+    QPalette palette = tooltip->palette();
+    palette.setColor(QPalette::Window, QApplication::palette().color(QPalette::Window));
+    tooltip->setPalette(palette);
 }
 
 /// Makes menus, tooltips, dropdowns and dialogs glass as they are polished, and paints their glass.
@@ -1339,7 +1356,7 @@ protected:
                 makeGlassDropdown(dropdownOf(box));
             } else if (widget->property(glassDialogProperty).toBool() && !widget->property(glassDialogDoneProperty).toBool()) {
                 // A glass panel over the canvas, dragged by its background.
-                static DialogMover *mover = new DialogMover();
+                DialogMover *mover = dialogMover();
                 widget->setProperty(glassDialogDoneProperty, true);
                 widget->setContentsMargins(KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2);
                 widget->installEventFilter(mover);
@@ -1347,12 +1364,10 @@ protected:
                 KisStudioGlass::setSeeThrough(widget, true);
             } else if ((qobject_cast<QMenu *>(widget) || isTooltip(widget)) && !widget->testAttribute(Qt::WA_WState_Created)
                        && KisStudioGlass::isEnabled() && KisStudioGlass::seeThroughWindows()) {
-                makeSeeThroughWindow(widget);
                 if (isTooltip(widget)) {
-                    // Tint it like a menu rather than with the near-black tooltip color.
-                    QPalette palette = widget->palette();
-                    palette.setColor(QPalette::Window, QApplication::palette().color(QPalette::Window));
-                    widget->setPalette(palette);
+                    makeGlassTooltip(widget);
+                } else {
+                    makeSeeThroughWindow(widget);
                 }
             }
         } else if (widget->property(glassDialogProperty).toBool() && widget->property(glassMenuProperty).toBool()) {
@@ -1385,6 +1400,7 @@ void decoratePopupFrame(QFrame *frame, bool detached, bool holdsMenu)
     if (glass) {
         makeSeeThroughWindow(frame);
         frame->installEventFilter(painter);
+        KisStudioGlass::setMovableByBackground(frame);
         frame->setFrameStyle(QFrame::NoFrame);
         // When pinned, leave a strip at the top for dragging and the pin button.
         frame->layout()->setContentsMargins(8, detached ? 30 : 8, 8, 8);
@@ -1451,6 +1467,13 @@ QImage shadowImage(const QSizeF &panel, qreal radius, int margin, qreal sigma, q
 }
 
 } // namespace
+
+void KisStudioGlass::setMovableByBackground(QWidget *window)
+{
+    window->setProperty(movableProperty, true);
+    window->installEventFilter(dialogMover());
+    Q_FOREACH (QWidget *child, window->findChildren<QWidget *>()) child->installEventFilter(dialogMover());
+}
 
 bool KisStudioGlass::isEnabled()
 {
@@ -1569,6 +1592,12 @@ void KisStudioGlass::installMenuGlass()
     filter = new MenuGlass();
     qApp->installEventFilter(filter);
     KisPopupButton::setFrameDecorator(decoratePopupFrame);
+    // tooltips made before, such as the item tooltips of resource lists, were polished without the filter
+    if (isEnabled() && seeThroughWindows()) {
+        Q_FOREACH (QWidget *widget, QApplication::allWidgets()) {
+            if (isTooltip(widget) && !widget->testAttribute(Qt::WA_WState_Created)) makeGlassTooltip(widget);
+        }
+    }
     if (isEnabled()) {
         // Windows fades menus and tooltips in through the window opacity without notifying Qt, so the
         // canvas would draw their glass only once, at the faint initial opacity.

@@ -918,6 +918,7 @@ void KisStudioPicker::popupAt(QPoint pos, QWidget *anchor)
 {
     QScreen *screen = anchor ? anchor->screen() : QGuiApplication::screenAt(pos + QPoint(width() / 2, shadowMarginOf(this) + 26));
     move(onScreen(pos, size(), screen));
+    KisStudioGlass::setMovableByBackground(this);
     new KisPopupCloser(this, anchor);
     KisStudioMotion::showFaded(this);
     raise();

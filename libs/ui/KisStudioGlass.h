@@ -111,6 +111,9 @@ public:
      */
     static void setSeeThrough(QWidget *widget, bool on);
 
+    /// Lets \p window be dragged by its background, labels and plain frames
+    static void setMovableByBackground(QWidget *window);
+
     /// Makes menus, tooltips and dropdowns created from now on glass windows.
     static void installMenuGlass();
 

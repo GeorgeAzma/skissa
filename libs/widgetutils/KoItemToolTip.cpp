@@ -90,6 +90,9 @@ void KoItemToolTip::updatePosition(const QPoint &pos, const QStyleOptionViewItem
     // compositor will place the window incorrectly!
     resize(size);
 
+    // polished before its window exists, so the style can still make it translucent
+    ensurePolished();
+
     // make sure that all the platform-specific structures for the window
     // are created (i.e. QWaylandWindow) before trying to request them
     // via `windowHandle()->handle()`
@@ -159,7 +162,10 @@ void KoItemToolTip::paintEvent(QPaintEvent*)
 {
     QPainter p(this);
     d->document->drawContents(&p, rect());
-    p.drawRect(0, 0, width() - 1, height() - 1);
+    // a see-through tooltip has its glass and edge drawn for it
+    if (!testAttribute(Qt::WA_TranslucentBackground)) {
+        p.drawRect(0, 0, width() - 1, height() - 1);
+    }
 }
 
 bool KoItemToolTip::eventFilter(QObject *object, QEvent *event)
