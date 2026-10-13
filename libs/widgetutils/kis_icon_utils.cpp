@@ -43,6 +43,7 @@ static QString studioIcon(const QString &name)
         {QStringLiteral("krita_draw_path"), QStringLiteral("studio_path")},
         {QStringLiteral("krita_tool_freehandvector"), QStringLiteral("studio_freehand_path")},
         {QStringLiteral("krita_tool_color_fill"), QStringLiteral("studio_fill")},
+        {QStringLiteral("format-fill-color"), QStringLiteral("studio_fill")},
         {QStringLiteral("krita_tool_gradient"), QStringLiteral("studio_gradient")},
         {QStringLiteral("krita_tool_enclose_and_fill"), QStringLiteral("studio_enclose")},
         {QStringLiteral("krita_tool_color_sampler"), QStringLiteral("studio_sampler")},

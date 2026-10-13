@@ -13,6 +13,8 @@
 #include <QTime>
 #include <QPainter>
 #include <QPainterPath>
+
+#include <KisModernStyle.h>
 #include <functional>
 
 #include "KoChannelInfo.h"
@@ -123,8 +125,15 @@ void HistogramDockerWidget::paintEvent(QPaintEvent *event)
 
         QLabel::paintEvent(event);
         QPainter painter(this);
-        painter.fillRect(0, 0, this->width(), this->height(), this->palette().dark().color());
-        painter.setPen(this->palette().light().color());
+        // a faint tile of ink, so it sits on any theme and on glass
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QColor tile = palette().color(QPalette::WindowText);
+        tile.setAlphaF(0.06);
+        painter.fillPath(KisModernStyle::squircle(QRectF(rect()), KisModernStyle::tileRadius), tile);
+        painter.setRenderHint(QPainter::Antialiasing, false);
+        QColor grid = palette().color(QPalette::WindowText);
+        grid.setAlphaF(0.14);
+        painter.setPen(grid);
 
         const int gridHeight = this->height() - painter.fontMetrics().height();
 
@@ -133,7 +142,9 @@ void HistogramDockerWidget::paintEvent(QPaintEvent *event)
         QMap<float, float> horGrid = m_logarithmic? calculateLogGridLines(this->width(), m_maximumValue): calculateLinearGridLines(this->width(), m_maximumValue);
         Q_FOREACH (float k, horGrid.keys()) {
             float i = horGrid.value(k);
+            painter.setPen(grid);
             painter.drawLine(qRound(i), 0, qRound(i), gridHeight);
+            painter.setPen(KisModernStyle::secondaryInk(palette().color(QPalette::WindowText)));
             painter.drawText(QPointF(qRound(i), this->height()-2), QString::number(k));
         }
 
@@ -156,6 +167,7 @@ void HistogramDockerWidget::paintEvent(QPaintEvent *event)
         }
 
         QMap<float, float> vertGrid = m_logarithmic? calculateLogGridLines(gridHeight, highest): calculateLinearGridLines(gridHeight, highest);
+        painter.setPen(grid);
         Q_FOREACH (float k, vertGrid.keys()) {
             float i = vertGrid.value(k);
             painter.drawLine(0., gridHeight -i, this->width(), gridHeight -i);
