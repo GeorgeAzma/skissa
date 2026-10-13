@@ -157,6 +157,7 @@
 #include "KisWidgetConnectionUtils.h"
 #include "KisToolBarStateModel.h"
 #include "KisModernStyle.h"
+#include "utils/KisRecentFileIconCache.h"
 #include "KisStudioColorPanel.h"
 #include "KisStudioLayout.h"
 #include "KisStudioItemCard.h"
@@ -1173,7 +1174,32 @@ bool KisMainWindow::openDocumentInternal(const QString &path, OpenFlags flags)
         openFlags |= KisDocument::RecoveryFile;
     }
 
+    // opening a large file takes a while, all of it here: its picture meanwhile, if one is known (a recent file's)
+    QScopedPointer<QWidget> preview;
+    if (!(flags & (BatchMode | Import)) && isVisible()) {
+        const QIcon icon = KisRecentFileIconCache::instance()->getOrQueueFileIcon(QUrl::fromLocalFile(path));
+        if (!icon.isNull()) {
+            preview.reset(new QLabel(this));
+            auto *label = static_cast<QLabel *>(preview.data());
+            const QRect area = centralWidget() ? QRect(centralWidget()->mapTo(this, QPoint()), centralWidget()->size()) : rect();
+            const QSize size = (area.size() * 0.6).boundedTo(QSize(900, 700));
+            QPixmap picture = icon.pixmap(size);
+            QPainter dim(&picture);
+            dim.fillRect(picture.rect(), QColor(0, 0, 0, 60));
+            dim.end();
+            label->setPixmap(picture);
+            label->setAlignment(Qt::AlignCenter);
+            label->setGeometry(area);
+            label->setAutoFillBackground(true);
+            label->show();
+            label->raise();
+            label->repaint();
+            qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
+        }
+    }
+
     bool openRet = !(flags & Import) ? newdoc->openPath(path, openFlags) : newdoc->importDocument(path);
+    preview.reset();
 
     if (!openRet) {
         delete newdoc;
