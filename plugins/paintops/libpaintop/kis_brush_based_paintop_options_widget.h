@@ -14,6 +14,7 @@
 #include "KisBrushOptionWidgetFlags.h"
 
 class KisBrushOptionWidget;
+class KisSizeOptionWidget;
 
 class PAINTOP_EXPORT KisBrushBasedPaintopOptionWidget : public KisPaintOpSettingsWidget
 {
@@ -25,11 +26,16 @@ public:
 
     lager::reader<qreal> effectiveBrushSize() const override;
 
+    void setConfiguration(const KisPropertiesConfigurationSP config) override;
+
 protected:
     KisBrushOptionWidget *brushOptionWidget() const;
+    /// The Size row is the tip's diameter
+    void paintOpOptionAdded(KisPaintOpOption *option) override;
 
 private:
     KisBrushOptionWidget *m_brushOption;
+    KisSizeOptionWidget *m_sizeOption {nullptr};
 };
 
 #endif // KIS_BRUSH_BASED_PAINTOP_OPTIONS_WIDGET_H

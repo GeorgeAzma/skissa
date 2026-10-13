@@ -22,7 +22,11 @@ public:
     void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
     QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 
+    /// Where a row's value is shown and dragged: behind its name
+    static QRect valueRect(const QStyleOptionViewItem &option, const QModelIndex &index);
+
 private:
+    void paintValue(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index, qreal fraction, bool number) const;
     void paintTriangle(QPainter* painter, qint32 x, qint32 y, qint32 size, bool rotate) const;
     mutable qint32 m_minimumItemHeight;
 };

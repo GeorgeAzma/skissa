@@ -25,6 +25,23 @@
 #include <KisCurveRangeModel.h>
 #include <KisCurveOptionInputControlsStrategy.h>
 
+namespace
+{
+/// The row's checkbox: the option on or off, or for one that is always on (Opacity, Flow), whether the pen changes it
+auto rowCheckedLens = lager::lenses::getset(
+    [](const KisCurveOptionDataCommon &data) -> bool {
+        return data.isCheckable ? data.isChecked : data.useCurve;
+    },
+    [](KisCurveOptionDataCommon data, bool checked) -> KisCurveOptionDataCommon {
+        if (data.isCheckable) {
+            data.isChecked = checked;
+        } else {
+            data.useCurve = checked;
+        }
+        return data;
+    });
+} // namespace
+
 struct KisCurveOptionWidget::Private
 {
     Private(lager::cursor<KisCurveOptionDataCommon> optionData,
@@ -115,7 +132,7 @@ KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommo
                                              KisCurveOptionInputControlsStrategyFactory inputControlsFactory,
                                              KisCurveOptionRangeControlsStrategyFactory rangeControlsFactory,
                                              Flags flags)
-    : KisPaintOpOption(optionData->id.name(), category, optionData[&KisCurveOptionDataCommon::isChecked], enabledLink)
+    : KisPaintOpOption(optionData->id.name(), category, optionData.zoom(rowCheckedLens), enabledLink)
     , m_widget(new QWidget)
     , m_curveOptionWidget(new Ui_WdgCurveOption2())
     , m_d(new Private(optionData, enabledLink, strengthRangeReader,
@@ -203,12 +220,16 @@ KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommo
                     KisSignalsBlocker b(m_curveOptionWidget->strengthSlider);
                     m_curveOptionWidget->strengthSlider->setRange(min, max, useFloatingPointStrength ? 2 : 0);
                     m_curveOptionWidget->strengthSlider->setValue(value);
+                    notifyRowValueChanged();
                 }));
+    // the strength is the option's row in the list, dragged there
+    m_curveOptionWidget->strengthSlider->setVisible(false);
 
     connectControl(m_curveOptionWidget->curveWidget, &m_d->model, "displayedCurve");
 
+    // no sensor ticked is the pen off: no switch of its own
     m_d->model.LAGER_QT(useCurve).bind(std::bind(&KisCurveOptionWidget::setCurveWidgetsEnabled, this, std::placeholders::_1));
-    connectControl(m_curveOptionWidget->checkBoxUseCurve, &m_d->model, "useCurve");
+    m_curveOptionWidget->checkBoxUseCurve->setVisible(false);
 
     if (flags & SupportsCommonCurve) {
         connectControl(m_curveOptionWidget->checkBoxUseSameCurve, &m_d->model, "useSameCurve");
@@ -245,7 +266,26 @@ void KisCurveOptionWidget::readOptionSetting(const KisPropertiesConfigurationSP 
 
 bool KisCurveOptionWidget::isCheckable() const
 {
-    return m_d->model.isCheckable();
+    // one that is always on is checked when the pen changes it
+    return true;
+}
+
+std::optional<KisPaintOpOption::RowValue> KisCurveOptionWidget::ownRowValue() const
+{
+    const KisDoubleSliderSpinBox *slider = m_curveOptionWidget->strengthSlider;
+    RowValue value;
+    value.value = slider->value();
+    value.minimum = slider->minimum();
+    value.maximum = slider->maximum();
+    value.decimals = slider->decimals();
+    value.suffix = slider->suffix();
+    value.appliesUnchecked = !m_d->model.isCheckable();
+    return value;
+}
+
+void KisCurveOptionWidget::setOwnRowValue(qreal value)
+{
+    m_d->model.setstrengthValueDenorm(value);
 }
 
 lager::cursor<qreal> KisCurveOptionWidget::strengthValueDenorm()

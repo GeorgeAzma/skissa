@@ -129,6 +129,11 @@ lager::reader<qreal> KisBrushOptionWidget::effectiveBrushSize() const
     return m_d->commonBrushSizeData;
 }
 
+lager::cursor<qreal> KisBrushOptionWidget::brushSize() const
+{
+    return m_d->commonBrushSizeData;
+}
+
 lager::reader<BrushData> KisBrushOptionWidget::bakedBrushData() const
 {
     return lager::with(m_d->brushData, m_d->commonBrushSizeData)

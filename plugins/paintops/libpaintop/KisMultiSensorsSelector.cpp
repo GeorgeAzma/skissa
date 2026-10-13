@@ -28,8 +28,9 @@ auto sensorsLens = lager::lenses::getset(
         KisMultiSensorsModel::MultiSensorData sensors;
         sensors.reserve(srcSensors.size());
 
+        // the pen off (useCurve) shows as no sensor ticked
         Q_FOREACH(const KisSensorData* srcSensor, srcSensors) {
-            sensors.emplace_back(srcSensor->id, srcSensor->isActive);
+            sensors.emplace_back(srcSensor->id, srcSensor->isActive && data.useCurve);
         }
         return sensors;
     },
@@ -37,6 +38,13 @@ auto sensorsLens = lager::lenses::getset(
         std::vector<KisSensorData*> parentSensors = data.sensors();
 
         KIS_SAFE_ASSERT_RECOVER_RETURN_VALUE(parentSensors.size() == sensors.size(), data);
+
+        // none ticked: the pen off, keeping the sensors it had for when it is on again
+        if (std::none_of(sensors.begin(), sensors.end(), [](const auto &sensor) { return sensor.second; })) {
+            data.useCurve = false;
+            return data;
+        }
+        data.useCurve = true;
 
         auto parentIt = parentSensors.begin();
         auto it = sensors.begin();

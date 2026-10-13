@@ -16,6 +16,9 @@
 #include <lager/reader.hpp>
 #include <lager/cursor.hpp>
 
+#include <functional>
+#include <optional>
+
 class QWidget;
 class QString;
 class KisPaintopLodLimitations;
@@ -86,8 +89,31 @@ public:
     virtual void lodLimitations(KisPaintopLodLimitations *l) const;
     OptionalLodLimitationsReader effectiveLodLimitations() const;
 
+    /// What the option's row in the list shows and is dragged to change: its strength
+    struct RowValue {
+        qreal value {0.0};
+        qreal minimum {0.0};
+        qreal maximum {1.0};
+        int decimals {0};
+        QString suffix;
+        /// A size: shown and dragged by ratios, as the top bar's
+        bool size {false};
+        /// Used while the row is unchecked too (Opacity: the checkbox is only the pen's)
+        bool appliesUnchecked {false};
+    };
+
+    /// None for an option whose row has no value
+    std::optional<RowValue> rowValue() const;
+    void setRowValue(qreal value);
+    /// Another value for the row than its own (the Size row is the brush's diameter); an empty \p get: its own again
+    void setRowValueSource(std::function<std::optional<RowValue>()> get, std::function<void(qreal)> set);
+    /// Says the row's value changed, for a value of another source
+    void notifyRowValueChanged();
+
 protected:
     virtual OptionalLodLimitationsReader lodLimitationsReader() const;
+    virtual std::optional<RowValue> ownRowValue() const;
+    virtual void setOwnRowValue(qreal value);
     void setConfigurationPage(QWidget *page);
 
     KisResourcesInterfaceSP resourcesInterface() const;
@@ -126,6 +152,7 @@ Q_SIGNALS:
      */
     void sigCheckedChanged(bool value);
     void sigEnabledChanged(bool value);
+    void sigRowValueChanged();
 
 private:
     void slotEnablePageWidget(bool value);

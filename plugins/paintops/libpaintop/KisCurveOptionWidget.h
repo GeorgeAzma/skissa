@@ -85,6 +85,9 @@ public:
     void show();
 
 protected:
+    std::optional<RowValue> ownRowValue() const override;
+    void setOwnRowValue(qreal value) override;
+
     lager::cursor<qreal> strengthValueDenorm();
 
     void setCurveWidgetsEnabled(bool value);

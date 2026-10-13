@@ -19,6 +19,7 @@
 #include <KoIcon.h>
 
 #include <kis_icon.h>
+#include <KisModernStyle.h>
 #include "kis_debug.h"
 
 KisCategorizedItemDelegate::KisCategorizedItemDelegate(QObject *parent)
@@ -73,8 +74,16 @@ void KisCategorizedItemDelegate::paint(QPainter* painter, const QStyleOptionView
 
         }
 
+        // the value under the name, its number after it
+        const QVariant fraction = index.data(__CategorizedListModelBase::ValueFractionRole);
+        if (fraction.isValid()) {
+            paintValue(painter, sovi, index, fraction.toReal(), false);
+        }
         QStyledItemDelegate::paint(painter, sovi, index);
         painter->setOpacity(1);
+        if (fraction.isValid()) {
+            paintValue(painter, sovi, index, fraction.toReal(), true);
+        }
     }
     else {
         QPalette palette = QApplication::palette();
@@ -124,6 +133,56 @@ QSize KisCategorizedItemDelegate::sizeHint(const QStyleOptionViewItem& option, c
     }
 
     return QSize(width, m_minimumItemHeight);
+}
+
+QRect KisCategorizedItemDelegate::valueRect(const QStyleOptionViewItem &option, const QModelIndex &index)
+{
+    QStyleOptionViewItem opt(option);
+    opt.index = index;
+    opt.features |= QStyleOptionViewItem::HasDisplay;
+    if (index.flags() & Qt::ItemIsUserCheckable) opt.features |= QStyleOptionViewItem::HasCheckIndicator;
+    opt.text = index.data(Qt::DisplayRole).toString();
+    const QStyle *style = opt.widget ? opt.widget->style() : QApplication::style();
+    // from where the name starts to the row's end (styles may give only the name's width)
+    QRect rect = style->subElementRect(QStyle::SE_ItemViewItemText, &opt, opt.widget);
+    rect.setRight(option.rect.right() - KisModernStyle::space1);
+    // what follows the name: the lock, at the row's end
+    if (index.data(__CategorizedListModelBase::isLockableRole).toBool()) {
+        rect.setRight(option.rect.right() - option.rect.height() - KisModernStyle::space1);
+    }
+    return rect.adjusted(0, 2, 0, -2);
+}
+
+void KisCategorizedItemDelegate::paintValue(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index, qreal fraction, bool number) const
+{
+    const QRect rect = valueRect(option, index);
+    const bool applies = index.data(__CategorizedListModelBase::ValueAppliesRole).toBool();
+    const QColor ink = option.palette.color(QPalette::Text);
+
+    painter->save();
+    if (number) {
+        painter->setPen(applies ? ink : KisModernStyle::secondaryInk(ink));
+        painter->drawText(rect.adjusted(0, 0, -KisModernStyle::space1, 0), Qt::AlignRight | Qt::AlignVCenter,
+                          index.data(__CategorizedListModelBase::ValueTextRole).toString());
+        painter->restore();
+        return;
+    }
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    // the value fills the row as a layer's opacity does its
+    QColor track = ink;
+    track.setAlphaF(applies ? 0.05 : 0.025);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(track);
+    const qreal radius = KisModernStyle::cornerRadius;
+    painter->drawRoundedRect(QRectF(rect), radius, radius);
+    if (applies && fraction > 0) {
+        QColor fill = ink;
+        fill.setAlphaF(0.16);
+        painter->setClipRect(QRectF(rect.left(), rect.top(), rect.width() * fraction, rect.height()));
+        painter->setBrush(fill);
+        painter->drawRoundedRect(QRectF(rect), radius, radius);
+    }
+    painter->restore();
 }
 
 void KisCategorizedItemDelegate::paintTriangle(QPainter* painter, qint32 x, qint32 y, qint32 size, bool rotate) const

@@ -22,7 +22,11 @@ public:
         SortRole           = Qt::UserRole + 3,
         isLockedRole       = Qt::UserRole + 4,
         isLockableRole     = Qt::UserRole + 5,
-        isToggledRole      = Qt::UserRole + 6
+        isToggledRole      = Qt::UserRole + 6,
+        /// A value on the row: where it is between its ends (0 to 1), as text, and whether it is used now
+        ValueFractionRole  = Qt::UserRole + 7,
+        ValueTextRole      = Qt::UserRole + 8,
+        ValueAppliesRole   = Qt::UserRole + 9
     };
 
 public:

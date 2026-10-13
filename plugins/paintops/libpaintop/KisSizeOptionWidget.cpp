@@ -12,9 +12,11 @@ struct KisSizeOptionWidget::Private
 {
     Private(lager::cursor<KisSizeOptionData> optionData)
         : lodLimitations(optionData.map(std::mem_fn(&KisSizeOptionData::lodLimitations)))
+        , strength(optionData.zoom(kislager::lenses::to_base<KisCurveOptionDataCommon>)[&KisCurveOptionDataCommon::strengthValue])
     {}
 
     lager::reader<KisPaintopLodLimitations> lodLimitations;
+    lager::cursor<qreal> strength;
 };
 
 KisSizeOptionWidget::KisSizeOptionWidget(lager::cursor<KisSizeOptionData> optionData)
@@ -30,6 +32,11 @@ KisSizeOptionWidget::KisSizeOptionWidget(lager::cursor<KisSizeOptionData> option
 
 KisSizeOptionWidget::~KisSizeOptionWidget()
 {
+}
+
+lager::cursor<qreal> KisSizeOptionWidget::strength() const
+{
+    return m_d->strength;
 }
 
 KisPaintOpOption::OptionalLodLimitationsReader KisSizeOptionWidget::lodLimitationsReader() const

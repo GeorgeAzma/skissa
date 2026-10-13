@@ -42,6 +42,8 @@ public:
 
     lager::reader<bool> lightnessModeEnabled() const;
     lager::reader<qreal> effectiveBrushSize() const;
+    /// The tip's diameter, in px, set as the top bar's size is
+    lager::cursor<qreal> brushSize() const;
     lager::reader<KisBrushModel::BrushData> bakedBrushData() const;
 
 protected:

@@ -7,6 +7,9 @@
 
 #include "kis_paintop_options_model.h"
 
+#include <QLocale>
+#include <QtMath>
+
 #include <klocalizedstring.h>
 
 
@@ -54,6 +57,8 @@ void KisPaintOpOptionListModel::addPaintOpOption(KisPaintOpOption *option, int w
     item->setEnabled(option->isEnabled());
     connect(option, &KisPaintOpOption::sigEnabledChanged,
             &m_stateSignalsMapper, qOverload<>(&QSignalMapper::map));
+    connect(option, &KisPaintOpOption::sigRowValueChanged,
+            &m_stateSignalsMapper, qOverload<>(&QSignalMapper::map));
     m_stateSignalsMapper.setMapping(option, categoriesMapper()->rowFromItem(item));
 
     categoriesMapper()->expandAllCategories();
@@ -61,6 +66,25 @@ void KisPaintOpOptionListModel::addPaintOpOption(KisPaintOpOption *option, int w
 
 QVariant KisPaintOpOptionListModel::data(const QModelIndex& idx, int role) const
 {
+    if (idx.isValid() && (role == ValueFractionRole || role == ValueTextRole || role == ValueAppliesRole)) {
+        DataItem *item = categoriesMapper()->itemFromRow(idx.row());
+        // an option this brush can't use now has no value to show
+        if (!item || item->isCategory() || !item->data()->option || !item->isEnabled()) return QVariant();
+        const std::optional<KisPaintOpOption::RowValue> value = item->data()->option->rowValue();
+        if (!value || value->maximum <= value->minimum) return QVariant();
+        if (role == ValueFractionRole) {
+            // sizes by ratios: 10 px is as far from 1 px as 100 px is from 10 px
+            if (value->size && value->minimum > 0) {
+                return qBound(0.0, std::log(qMax(value->value, value->minimum) / value->minimum) / std::log(value->maximum / value->minimum), 1.0);
+            }
+            return qBound(0.0, (value->value - value->minimum) / (value->maximum - value->minimum), 1.0);
+        }
+        if (role == ValueTextRole) {
+            const QString number = QLocale().toString(value->value, 'f', value->decimals);
+            return value->suffix.isEmpty() ? number : number + value->suffix;
+        }
+        return value->appliesUnchecked || !item->isCheckable() || item->isChecked();
+    }
     return BaseOptionCategorizedListModel::data(idx, role);
 }
 

@@ -54,15 +54,9 @@ bool KisMultiSensorsModel::setData(const QModelIndex &index, const QVariant &val
     if (role == Qt::CheckStateRole) {
         const bool checked = (value.toInt() == Qt::Checked);
 
+        // the last one unticked too: the pen no longer changes the option
         m_d->sensorsData.update([index, checked] (MultiSensorData sensors) {
-            const int numActiveSensors =
-                    std::count_if(sensors.begin(), sensors.end(),
-                                  std::mem_fn(&SensorData::second));
-
-            // we don't allow unchecking of the last sensor (but why?)
-            if (checked || numActiveSensors > 1 ) {
-                sensors[index.row()].second = checked;
-            }
+            sensors[index.row()].second = checked;
             return sensors;
         });
         result = true;

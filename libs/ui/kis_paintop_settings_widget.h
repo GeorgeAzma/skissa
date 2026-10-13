@@ -62,9 +62,13 @@ private Q_SLOTS:
 protected:
     void addPaintOpOption(KisPaintOpOption *option, QString category);
     virtual void notifyPageChanged();
+    /// Called for each option as it is added: a subclass may give its row another value
+    virtual void paintOpOptionAdded(KisPaintOpOption *option);
     bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
+    /// Types a row's value over it
+    void editRowValue(const QModelIndex &index);
     
     struct Private;
     Private* const m_d;

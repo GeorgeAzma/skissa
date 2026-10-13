@@ -37,6 +37,9 @@ public:
 
     KisResourcesInterfaceSP resourcesInterface;
     KoCanvasResourcesInterfaceSP canvasResourcesInterface;
+
+    std::function<std::optional<RowValue>()> rowValueGet;
+    std::function<void(qreal)> rowValueSet;
 };
 
 KisPaintOpOption::KisPaintOpOption(const QString &label, PaintopCategory category, bool checked)
@@ -148,6 +151,42 @@ KisPaintOpOption::OptionalLodLimitationsReader KisPaintOpOption::lodLimitationsR
 {
     // no limitations by default
     return std::nullopt;
+}
+
+std::optional<KisPaintOpOption::RowValue> KisPaintOpOption::rowValue() const
+{
+    return m_d->rowValueGet ? m_d->rowValueGet() : ownRowValue();
+}
+
+void KisPaintOpOption::setRowValue(qreal value)
+{
+    if (m_d->rowValueGet) {
+        if (m_d->rowValueSet) m_d->rowValueSet(value);
+    } else {
+        setOwnRowValue(value);
+    }
+}
+
+void KisPaintOpOption::setRowValueSource(std::function<std::optional<RowValue>()> get, std::function<void(qreal)> set)
+{
+    m_d->rowValueGet = get;
+    m_d->rowValueSet = set;
+    notifyRowValueChanged();
+}
+
+void KisPaintOpOption::notifyRowValueChanged()
+{
+    Q_EMIT sigRowValueChanged();
+}
+
+std::optional<KisPaintOpOption::RowValue> KisPaintOpOption::ownRowValue() const
+{
+    return std::nullopt;
+}
+
+void KisPaintOpOption::setOwnRowValue(qreal value)
+{
+    Q_UNUSED(value);
 }
 
 KisPaintOpOption::PaintopCategory KisPaintOpOption::category() const

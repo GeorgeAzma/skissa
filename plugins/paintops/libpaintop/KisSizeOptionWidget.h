@@ -21,6 +21,9 @@ public:
 
     OptionalLodLimitationsReader lodLimitationsReader() const override;
 
+    /// How much of the diameter the pen may use at most (0 to 1)
+    lager::cursor<qreal> strength() const;
+
 private:
     struct Private;
     const QScopedPointer<Private> m_d;
