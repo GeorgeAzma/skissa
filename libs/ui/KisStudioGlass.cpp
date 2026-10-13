@@ -1655,6 +1655,12 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
         QPainterPath over;
         over.addRect(QRectF(widget->mapFromGlobal(canvas->mapToGlobal(QPoint())), canvas->size()));
         painter.fillPath(shape.subtracted(over), window);
+        if (widget->isWindow()) {
+            // never quite clear: Windows lets the pointer through a window's clear pixels, to the canvas and its blank cursor
+            QColor catcher = window;
+            catcher.setAlpha(1);
+            painter.fillPath(shape.intersected(over), catcher);
+        }
         // a bevel catches the light itself
         if (refraction() <= 0) sheen();
         return shape;
