@@ -13,6 +13,11 @@
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QComboBox>
+#include <QAbstractScrollArea>
+#include <QMouseEvent>
+#include <QLabel>
+#include <QGroupBox>
+#include <QDialog>
 #include <QEvent>
 #include <QFrame>
 #include <QGraphicsOpacityEffect>
@@ -1208,6 +1213,69 @@ void makeGlassDropdown(QWidget *popup)
     Q_FOREACH (QAbstractItemView *view, popup->findChildren<QAbstractItemView *>()) setListOnGlass(view, true);
 }
 
+const char *const glassDialogProperty = "studioGlassDialog";
+
+/// A dialog of the window that becomes a glass panel over it: not the system's own (files, colors, fonts)
+bool becomesPanel(QWidget *widget)
+{
+    auto *dialog = qobject_cast<QDialog *>(widget);
+    if (!dialog || dialog->testAttribute(Qt::WA_WState_Created) || !KisStudioGlass::isEnabled() || !KisStudioGlass::seeThroughWindows()) {
+        return false;
+    }
+    if (dialog->inherits("QFileDialog") || dialog->inherits("QColorDialog") || dialog->inherits("QFontDialog") || dialog->inherits("QPrintDialog")) {
+        return false;
+    }
+    // over the main window, not one of its own
+    QWidget *parent = dialog->parentWidget();
+    return parent && parent->window()->inherits("KisMainWindow");
+}
+
+/// Dragged from anywhere that is not a control: it has no title bar of its own
+class DialogMover : public QObject
+{
+public:
+    QPoint grab;
+    bool moving {false};
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        auto *widget = qobject_cast<QWidget *>(watched);
+        if (!widget) return false;
+        QWidget *dialog = widget->window();
+        if (!dialog->property(glassDialogProperty).toBool()) return false;
+        switch (event->type()) {
+        case QEvent::MouseButtonPress: {
+            auto *mouse = static_cast<QMouseEvent *>(event);
+            // on the dialog, a label or a box: what nothing else takes
+            const bool background = widget == dialog || qobject_cast<QLabel *>(widget) || qobject_cast<QGroupBox *>(widget)
+                || widget->metaObject() == &QWidget::staticMetaObject || qobject_cast<QFrame *>(widget) && !qobject_cast<QAbstractScrollArea *>(widget);
+            if (mouse->button() == Qt::LeftButton && background) {
+                moving = true;
+                grab = mouse->globalPos() - dialog->frameGeometry().topLeft();
+                return true;
+            }
+            break;
+        }
+        case QEvent::MouseMove:
+            if (moving) {
+                dialog->move(static_cast<QMouseEvent *>(event)->globalPos() - grab);
+                return true;
+            }
+            break;
+        case QEvent::MouseButtonRelease:
+            if (moving) {
+                moving = false;
+                return true;
+            }
+            break;
+        default:
+            break;
+        }
+        return false;
+    }
+};
+
 bool isTooltip(const QWidget *widget)
 {
     return widget->windowType() == Qt::ToolTip && widget->inherits("QTipLabel");
@@ -1220,6 +1288,16 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
         const QEvent::Type type = event->type();
+        // a dialog is given its window before it is polished: it is made a panel as its constructor adds its first child
+        if (type == QEvent::ChildAdded) {
+            auto *dialog = qobject_cast<QDialog *>(watched);
+            if (dialog && !dialog->property(glassDialogProperty).isValid()) {
+                const bool panel = becomesPanel(dialog);
+                dialog->setProperty(glassDialogProperty, panel);
+                if (panel) makeSeeThroughWindow(dialog);
+            }
+            return false;
+        }
         if (type != QEvent::Polish && type != QEvent::Paint && type != QEvent::MouseButtonPress && type != QEvent::KeyPress) {
             return false;
         }
@@ -1239,6 +1317,14 @@ protected:
                 if (view->windowType() == Qt::Popup) makeGlassDropdown(view);
             } else if (auto *box = qobject_cast<QComboBox *>(widget)) {
                 makeGlassDropdown(dropdownOf(box));
+            } else if (widget->property(glassDialogProperty).toBool() && !widget->property("studioGlassDialogDone").toBool()) {
+                // a panel over the canvas, not a window of the system's: glass, moved by its background
+                static DialogMover *mover = new DialogMover();
+                widget->setProperty("studioGlassDialogDone", true);
+                widget->setContentsMargins(KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2);
+                widget->installEventFilter(mover);
+                Q_FOREACH (QWidget *child, widget->findChildren<QWidget *>()) child->installEventFilter(mover);
+                KisStudioGlass::setSeeThrough(widget, true);
             } else if ((qobject_cast<QMenu *>(widget) || isTooltip(widget)) && !widget->testAttribute(Qt::WA_WState_Created)
                        && KisStudioGlass::isEnabled() && KisStudioGlass::seeThroughWindows()) {
                 makeSeeThroughWindow(widget);
@@ -1249,6 +1335,8 @@ protected:
                     widget->setPalette(palette);
                 }
             }
+        } else if (widget->property(glassDialogProperty).toBool() && widget->property(glassMenuProperty).toBool()) {
+            paintMenuGlass(widget, KisModernStyle::panelRadius);
         } else if ((qobject_cast<QMenu *>(widget) || isTooltip(widget) || widget->property(glassDropdownProperty).toBool())
                    && widget->property(glassMenuProperty).toBool()) {
             paintMenuGlass(widget, KisModernStyle::cornerRadius + 2);
