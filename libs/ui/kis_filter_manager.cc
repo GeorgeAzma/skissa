@@ -388,6 +388,9 @@ void KisFilterManager::finish()
     if (KisImageSP strokeImage = d->strokeImage) {
         strokeImage->endStroke(d->currentStrokeId);
     }
+    // ended: the stroke lives on until its last job is done, and cancelling it then would undo the effect
+    d->currentStrokeId.clear();
+    d->strokeImage = KisImageWSP();
 
     KisFilterSP filter = KisFilterRegistry::instance()->value(d->currentlyAppliedConfiguration->name());
     if (filter->bookmarkManager()) {

@@ -397,7 +397,10 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
 
             // a progressive preview of a large region: the filter on a downscaled copy, upscaled and
             // shown first; the full pass replaces it once the settings settle
-            const int lod = m_d->preview && m_d->levelOfDetail == 0 && !shared->shouldSwitchTime()
+            // not for a layer that was moved (downscaling needs the copies at the same offset), nor when a
+            // zoomed-out preview was shown already and this is the result being made
+            const int lod = m_d->preview && m_d->levelOfDetail == 0 && !shared->shouldSwitchTime() && !m_d->hasBeenLodCloned
+                    && !shared->filterDevice->x() && !shared->filterDevice->y()
                 ? qMin(coarseLevel(shared->filter(), shared->filterConfig(), shared->processRect), m_d->coarsestLevel) : 0;
             if (lod <= 0 || shared->processRect.isEmpty()) {
                 startFull();
@@ -555,8 +558,11 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                         QMutexLocker l(&m_d->preview->mutex);
                         QElapsedTimer waited;
                         waited.start();
-                        while (!m_d->preview->released && !m_d->preview->cancelled && waited.elapsed() < settleTime) {
-                            m_d->preview->wake.wait(&m_d->preview->mutex, settleTime - waited.elapsed());
+                        while (!m_d->preview->released && !m_d->preview->cancelled) {
+                            // once: read twice, it could come out negative, which waits forever
+                            const qint64 remaining = settleTime - waited.elapsed();
+                            if (remaining <= 0) break;
+                            m_d->preview->wake.wait(&m_d->preview->mutex, static_cast<unsigned long>(remaining));
                         }
                         if (m_d->preview->cancelled) return;
                     }
