@@ -1242,14 +1242,17 @@ QVector<CardDef> makeCards()
         });
     add(QStringLiteral("files"), QStringLiteral("author"), i18nc("settings card", "Author"), {}, QStringLiteral("name profile contact metadata nickname"),
         [](Builder &b) {
-            QLabel *who = b.note(QString());
-            b.follow([who]() {
+            // who documents are saved by, on the button that changes it
+            auto *who = new QPushButton(b.card);
+            who->setToolTip(i18nc("@info:tooltip", "The name saved in documents"));
+            auto showActive = [who]() {
                 const QString active = KSharedConfig::openConfig()->group("Author").readEntry("active-profile", QString());
-                who->setText(active.isEmpty() ? i18nc("@info", "Documents are saved without an author's name.")
-                                              : i18nc("@info", "Documents are saved by %1.", active));
-            });
+                who->setText(active.isEmpty() ? i18nc("author", "None") : active);
+            };
+            b.follow(showActive);
+            b.row(i18nc("author", "Saved by"), who);
             KisMainWindow *window = b.window;
-            b.button(i18nc("@action:button", "Edit authors"), [window]() {
+            QObject::connect(who, &QPushButton::clicked, b.card, [window, showActive]() {
                 QDialog dialog(window);
                 dialog.setWindowTitle(i18nc("@title:window", "Authors"));
                 auto *layout = new QVBoxLayout(&dialog);
@@ -1263,6 +1266,7 @@ QVector<CardDef> makeCards()
                     page->apply();
                     // the File menu's list of authors
                     KisConfigNotifier::instance()->notifyConfigChanged();
+                    showActive();
                 }
             });
         });
