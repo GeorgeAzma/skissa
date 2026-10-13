@@ -593,14 +593,7 @@ struct Builder {
             if (s->flags & R::Restart) notes << i18nc("@info:tooltip", "After a restart");
             if (s->flags & R::NewViews) notes << i18nc("@info:tooltip", "For images opened from now on");
             if (s->flags & R::Machine) notes << i18nc("@info:tooltip", "About this computer: not exported");
-            if (!notes.isEmpty()) text->setToolTip(notes.join(QStringLiteral("\n\n")));
-            // explained on hover: a mark says so
-            if (!s->help.isEmpty()) {
-                auto *info = new QLabel(row);
-                info->setPixmap(KisIconUtils::loadIcon(QStringLiteral("studio_info")).pixmap(12, 12));
-                info->setToolTip(text->toolTip());
-                line->insertWidget(1, info);
-            }
+            if (!notes.isEmpty()) row->setToolTip(notes.join(QStringLiteral("\n\n")));
             if (s->flags & R::Restart) {
                 auto *mark = new QLabel(row);
                 mark->setPixmap(KisIconUtils::loadIcon(QStringLiteral("studio_refresh")).pixmap(12, 12));
@@ -783,22 +776,12 @@ struct Builder {
         return label;
     }
 
-    /// What the card is about, said on hover over its title, an (i) beside it
+    /// What the card is about, said on hover over its title
     void explain(const QString &text)
     {
         if (!title || text.isEmpty()) return;
         const QString before = title->toolTip();
         title->setToolTip(before.isEmpty() ? text : before + QStringLiteral("\n\n") + text);
-        if (!title->property("explained").toBool()) {
-            title->setProperty("explained", true);
-            auto *info = new QLabel(card);
-            info->setPixmap(KisIconUtils::loadIcon(QStringLiteral("studio_info")).pixmap(12, 12));
-            header->insertWidget(header->indexOf(title) + 1, info);
-            info->setToolTip(title->toolTip());
-            title->setProperty("explainedMark", QVariant::fromValue<QObject *>(info));
-        } else if (auto *info = qobject_cast<QLabel *>(title->property("explainedMark").value<QObject *>())) {
-            info->setToolTip(title->toolTip());
-        }
     }
 
     /// \p widget shown only while \p when holds
@@ -911,8 +894,7 @@ QVector<CardDef> makeCards()
     // ---- appearance
     add(QStringLiteral("appearance"), QStringLiteral("theme"), i18nc("settings card", "Theme"),
         {QStringLiteral("[theme] Theme"), QStringLiteral("[StudioTheme] Lightness"), QStringLiteral("[StudioTheme] Tint"),
-         QStringLiteral("[StudioTheme] TintAmount"), QStringLiteral("[StudioTheme] UseAccent"), QStringLiteral("[StudioTheme] Accent"),
-         QStringLiteral("[StudioTheme] Contrast")},
+         QStringLiteral("[StudioTheme] TintAmount"), QStringLiteral("[StudioTheme] UseAccent"), QStringLiteral("[StudioTheme] Accent")},
         QStringLiteral("dark light colors color scheme palette accent tint contrast lightness"), [](Builder &b) {
             b.explain(i18nc("@info:tooltip", "Start from a preset, then make it yours: every choice below changes the theme."));
             // the presets, each pictured in its own colors
@@ -946,9 +928,6 @@ QVector<CardDef> makeCards()
             b.number(QStringLiteral("[StudioTheme] TintAmount"), amount);
             b.toggle(QStringLiteral("[StudioTheme] UseAccent"), i18nc("theme", "Accent color"));
             b.showWhen(b.color(QStringLiteral("[StudioTheme] Accent"), false, i18nc("theme", "Accent")), b.isOn(QStringLiteral("[StudioTheme] UseAccent")));
-            Number contrast(i18nc("theme", "Contrast"), 100, 0, QStringLiteral("%"));
-            contrast.onRelease = true;
-            b.number(QStringLiteral("[StudioTheme] Contrast"), contrast);
         });
     add(QStringLiteral("appearance"), QStringLiteral("glass"), i18nc("settings card", "Glass"),
         {QStringLiteral("StudioGlass"), QStringLiteral("StudioGlassBlur"), QStringLiteral("StudioGlassOpacity"), QStringLiteral("StudioGlassRefraction")},
@@ -957,7 +936,7 @@ QVector<CardDef> makeCards()
             const auto on = b.isOn(QStringLiteral("StudioGlass"));
             b.showWhen(b.number(QStringLiteral("StudioGlassBlur"), {i18nc("glass", "Blur"), 100, 0, QStringLiteral("%")}), on);
             b.showWhen(b.number(QStringLiteral("StudioGlassOpacity"), {i18nc("glass", "Opacity"), 100, 0, QStringLiteral("%")}), on);
-            b.showWhen(b.number(QStringLiteral("StudioGlassRefraction"), {i18nc("glass", "Edge bends the canvas"), 100, 0, QStringLiteral("%")}), on);
+            b.showWhen(b.number(QStringLiteral("StudioGlassRefraction"), {i18nc("glass", "Edge refraction"), 100, 0, QStringLiteral("%")}), on);
         });
     add(QStringLiteral("appearance"), QStringLiteral("surround"), i18nc("settings card", "Around the image"), {QStringLiteral("canvasBorderColor")},
         QStringLiteral("canvas border background color ambient glow"), [](Builder &b) {
@@ -1382,14 +1361,10 @@ QVector<CardDef> makeCards()
             b.choice(QStringLiteral("kritadisplayrc OpenGLRenderer"));
         });
     add(QStringLiteral("speed"), QStringLiteral("memory"), i18nc("settings card", "Memory"),
-        {QStringLiteral("memoryHardLimitPercent"), QStringLiteral("memorySoftLimitPercent"), QStringLiteral("maxSwapSize"), QStringLiteral("swaplocation")},
-        QStringLiteral("ram swap disk limit"), [](Builder &b) {
+        {QStringLiteral("memoryHardLimitPercent")}, QStringLiteral("ram limit"), [](Builder &b) {
             const int ram = KisImageConfig::totalRAM();
             b.explain(i18nc("@info:tooltip", "This computer has %1 GB.", QLocale().toString(ram / 1024.0, 'f', 1)));
             b.number(QStringLiteral("memoryHardLimitPercent"), {QString(), 1, 0, QStringLiteral("%")});
-            b.number(QStringLiteral("memorySoftLimitPercent"), {QString(), 1, 0, QStringLiteral("%")});
-            b.number(QStringLiteral("maxSwapSize"), {QString(), 1.0 / 1024, 0, i18nc("unit", " GB")});
-            b.folder(QStringLiteral("swaplocation"));
         });
     add(QStringLiteral("speed"), QStringLiteral("threads"), i18nc("settings card", "Processor"),
         {QStringLiteral("maxNumberOfThreads"), QStringLiteral("frameRenderingClones")},
@@ -1404,18 +1379,6 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("detectFpsLimit"));
             b.showWhen(b.number(QStringLiteral("fpsLimit"), {QString(), 1, 0, i18nc("unit", " fps")}),
                        []() { return !R::instance()->value(QStringLiteral("detectFpsLimit")).toBool(); });
-        });
-    add(QStringLiteral("speed"), QStringLiteral("animationcache"), i18nc("settings card", "Animation cache"),
-        {QStringLiteral("calculateAnimationCacheInBackground"), QStringLiteral("useOnDiskAnimationCacheSwapping")}, QStringLiteral("playback frames cache"),
-        [](Builder &b) {
-            b.toggle(QStringLiteral("calculateAnimationCacheInBackground"));
-            b.toggle(QStringLiteral("useOnDiskAnimationCacheSwapping"));
-        });
-    add(QStringLiteral("speed"), QStringLiteral("diagnostics"), i18nc("settings card", "If Krita crashes when painting"),
-        {QStringLiteral("disableAVXOptimizations"), QStringLiteral("amdDisableVectorWorkaround")}, QStringLiteral("crash avx vector instructions workaround"),
-        [](Builder &b) {
-            if (R::instance()->setting(QStringLiteral("disableAVXOptimizations"))) b.toggle(QStringLiteral("disableAVXOptimizations"));
-            b.toggle(QStringLiteral("amdDisableVectorWorkaround"));
         });
 
     // settings this build doesn't have (another platform's) are left out of the cards

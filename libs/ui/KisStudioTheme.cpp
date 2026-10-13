@@ -89,9 +89,8 @@ Colors colorsOf(const Params &p)
     c.buttonAlt = bg(w + (dark ? 0.09 : -0.04));
     c.header = bg(w - (dark ? 0.05 : 0.06));
     c.tooltip = bg(w + (dark ? 0.13 : 0.03));
-    // text toward black or white, as strongly as the contrast says
-    const qreal target = dark ? 0.94 : 0.2;
-    const qreal textL = w + (target - w) * qBound<qreal>(0.6, p.contrast, 1.3);
+    // text toward white, or black
+    const qreal textL = dark ? 0.94 : 0.2;
     c.text = fromOklab({qBound<qreal>(0, textL, 1), ta * 0.3, tb * 0.3});
     c.inactive = fromOklab({w + (textL - w) * 0.5, ta * 0.5, tb * 0.5});
     if (p.accent.isValid()) {
@@ -170,7 +169,7 @@ void writeScheme(const Params &p)
 bool Params::operator==(const Params &other) const
 {
     return qFuzzyCompare(lightness + 1, other.lightness + 1) && tint == other.tint && qFuzzyCompare(tintAmount + 1, other.tintAmount + 1)
-        && accent == other.accent && qFuzzyCompare(contrast + 1, other.contrast + 1);
+        && accent == other.accent;
 }
 
 QVector<Preset> presets()
@@ -203,7 +202,6 @@ Params current()
     p.tint = g.readEntry("Tint", QColor(Qt::gray));
     p.tintAmount = qBound<qreal>(0, g.readEntry("TintAmount", p.tintAmount), 1);
     p.accent = g.readEntry("UseAccent", false) ? g.readEntry("Accent", QColor(92, 124, 250)) : QColor();
-    p.contrast = qBound<qreal>(0.6, g.readEntry("Contrast", p.contrast), 1.3);
     return p;
 }
 
@@ -215,7 +213,6 @@ void apply(const Params &params)
     g.writeEntry("TintAmount", params.tintAmount);
     g.writeEntry("UseAccent", params.accent.isValid());
     if (params.accent.isValid()) g.writeEntry("Accent", params.accent);
-    g.writeEntry("Contrast", params.contrast);
     writeScheme(params);
     // the window takes it on the next settings change: its name, and that it was made again
     KConfigGroup theme = KSharedConfig::openConfig()->group("theme");

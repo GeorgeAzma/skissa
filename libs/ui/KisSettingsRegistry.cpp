@@ -222,7 +222,6 @@ QHash<QString, QString> explanations()
         {QStringLiteral("[StudioTheme] Lightness"), i18nc("@info:tooltip", "How light the window is: from near black to near white.")},
         {QStringLiteral("[StudioTheme] TintAmount"), i18nc("@info:tooltip", "How much of the tint's hue the window's grays take.")},
         {QStringLiteral("[StudioTheme] UseAccent"), i18nc("@info:tooltip", "Chosen items, focus and links in a color of their own, not gray.")},
-        {QStringLiteral("[StudioTheme] Contrast"), i18nc("@info:tooltip", "How strongly text stands out from the window.")},
         {QStringLiteral("StudioGlassBlur"), i18nc("@info:tooltip", "How much the glass blurs what is behind it.")},
         {QStringLiteral("StudioGlassOpacity"), i18nc("@info:tooltip", "How much the panel color covers what is behind: none, to solid.")},
         {QStringLiteral("StudioGlassRefraction"), i18nc("@info:tooltip", "How much a panel's edge bends the picture under it, as the rim of a lens does.")},
@@ -308,16 +307,9 @@ QHash<QString, QString> explanations()
                "What draws the canvas on the graphics card. Auto picks the best for this computer; change it only if the canvas is "
                "slow, flickers or shows wrong colors.")},
         {QStringLiteral("memoryHardLimitPercent"), i18nc("@info:tooltip", "The share of this computer's memory images may use. Past it, Krita works from the swap file on disk.")},
-        {QStringLiteral("memorySoftLimitPercent"), i18nc("@info:tooltip", "Past this share of memory, older undo steps move to disk.")},
-        {QStringLiteral("maxSwapSize"), i18nc("@info:tooltip", "The most disk space Krita takes when images don't fit in memory.")},
-        {QStringLiteral("swaplocation"), i18nc("@info:tooltip", "Where on disk Krita keeps what doesn't fit in memory. A fast drive is best.")},
         {QStringLiteral("maxNumberOfThreads"), i18nc("@info:tooltip", "How many processor threads Krita paints and runs effects with.")},
         {QStringLiteral("frameRenderingClones"), i18nc("@info:tooltip", "Animation frames rendered at once: more is faster, and takes more memory.")},
         {QStringLiteral("detectFpsLimit"), i18nc("@info:tooltip", "The canvas redraws as often as the screen refreshes.")},
-        {QStringLiteral("calculateAnimationCacheInBackground"), i18nc("@info:tooltip", "Frames are made ready for playback while you work.")},
-        {QStringLiteral("useOnDiskAnimationCacheSwapping"), i18nc("@info:tooltip", "Cached frames that don't fit in memory go to disk instead of being dropped.")},
-        {QStringLiteral("disableAVXOptimizations"), i18nc("@info:tooltip", "Only if Krita crashes when painting: paints without this processor's AVX instructions, slower.")},
-        {QStringLiteral("amdDisableVectorWorkaround"), i18nc("@info:tooltip", "Only if Krita crashes when painting: paints without vector instructions, much slower.")},
     };
 }
 
@@ -396,7 +388,6 @@ QVector<Setting> describeAll()
             all << made(grouped(number(QStringLiteral("TintAmount"), 0.0, 0, 1, i18nc("setting", "Theme tint strength"), R::Fork), themeGroup));
             all << made(grouped(toggle(QStringLiteral("UseAccent"), false, i18nc("setting", "Theme accent"), R::Fork), themeGroup));
             all << made(grouped(color(QStringLiteral("Accent"), QColor(92, 124, 250), i18nc("setting", "Theme accent color"), R::Fork), themeGroup));
-            all << made(grouped(number(QStringLiteral("Contrast"), 1.0, 0.6, 1.3, i18nc("setting", "Theme contrast"), R::Fork), themeGroup));
         }
 
         Setting glass = toggle(QStringLiteral("StudioGlass"), true, i18nc("setting", "Glass"), R::Fork);
@@ -763,11 +754,6 @@ QVector<Setting> describeAll()
         };
         all << renderer;
         all << number(QStringLiteral("memoryHardLimitPercent"), 50.0, 1, 100, i18nc("setting", "Memory for images"), R::Machine | R::Restart);
-        all << number(QStringLiteral("memorySoftLimitPercent"), 2.0, 0, 50, i18nc("setting", "Undo goes to disk after"), R::Machine | R::Restart);
-        all << number(QStringLiteral("maxSwapSize"), 4096, 1024, 65536, i18nc("setting", "Swap file limit"), R::Machine | R::Restart);
-        Setting swap = text(QStringLiteral("swaplocation"), KisImageConfig(true).swapDir(true), i18nc("setting", "Swap folder"), R::Machine | R::Restart);
-        swap.valid = writableFolder;
-        all << swap;
         const int threads = QThread::idealThreadCount();
         all << number(QStringLiteral("maxNumberOfThreads"), threads, 1, threads, i18nc("setting", "Processor threads"), R::Machine);
         // as Krita takes it while unset: half the threads it may use
@@ -777,12 +763,6 @@ QVector<Setting> describeAll()
         all << clones;
         all << toggle(QStringLiteral("detectFpsLimit"), true, i18nc("setting", "Match the screen's frame rate"), R::NewViews);
         all << number(QStringLiteral("fpsLimit"), 100, 1, 1000, i18nc("setting", "Frame rate limit"), R::NewViews);
-        all << toggle(QStringLiteral("useOnDiskAnimationCacheSwapping"), true, i18nc("setting", "Animation cache on disk"));
-        all << toggle(QStringLiteral("calculateAnimationCacheInBackground"), true, i18nc("setting", "Cache in the background"));
-#ifdef Q_OS_WIN
-        all << toggle(QStringLiteral("disableAVXOptimizations"), false, i18nc("setting", "No AVX"), R::Machine | R::Restart);
-#endif
-        all << toggle(QStringLiteral("amdDisableVectorWorkaround"), false, i18nc("setting", "No vector instructions"), R::Machine | R::Restart);
     }
     const QHash<QString, QString> help = explanations();
     for (Setting &s : all) s.help = help.value(s.id);
@@ -795,7 +775,7 @@ QVector<Setting> describeAll()
  */
 void forgetRetired()
 {
-    constexpr int version = 2;
+    constexpr int version = 3;
     KConfigGroup top = KSharedConfig::openConfig()->group(QString());
     if (top.readEntry("StudioRetiredSettings", 0) >= version) return;
     const char *const keys[] = {
@@ -810,9 +790,11 @@ void forgetRetired()
         "TrimFramesImport", "useOpenGLTextureBuffer", "assistantsDrawMode", "frameRenderingTimeout", "useAnimationCacheFrameSizeLimit",
         "animationCacheFrameSizeLimit", "useAnimationCacheRegionOfInterest", "animationCacheRegionOfInterestMargin",
         "enableOpenGLFramerateLogging", "enableBrushSpeedLogging", "enableProgressReporting", "enablePerfLog", "UseZip64",
-        "forcedDpiForQtFontBugWorkaround",
+        "forcedDpiForQtFontBugWorkaround", "memorySoftLimitPercent", "maxSwapSize", "swaplocation", "useOnDiskAnimationCacheSwapping",
+        "calculateAnimationCacheInBackground", "disableAVXOptimizations", "amdDisableVectorWorkaround",
     };
     for (const char *key : keys) top.deleteEntry(key);
+    KSharedConfig::openConfig()->group(QStringLiteral("StudioTheme")).deleteEntry("Contrast");
     KSharedConfig::openConfig()->group(QStringLiteral("KisToolTransform")).deleteEntry("useOverlayPreviewStyle");
     QSettings display(displayrcPath(), QSettings::IniFormat);
     display.remove(QStringLiteral("EnableHiDPI"));

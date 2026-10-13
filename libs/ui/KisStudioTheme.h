@@ -27,7 +27,6 @@ struct Params {
     QColor tint {Qt::gray};    ///< the hue the window takes
     qreal tintAmount {0};      ///< how much of it, 0 none to 1
     QColor accent;             ///< what is chosen; invalid: a gray as the window's
-    qreal contrast {1};        ///< of text, 0.6 soft to 1.3 strong
 
     bool operator==(const Params &other) const;
     bool operator!=(const Params &other) const { return !(*this == other); }

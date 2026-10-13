@@ -104,11 +104,6 @@ BRUSH = (p('M12.6 10.4 18.7 4.3a2 2 0 0 1 2.9 2.9l-6.1 6.1') + p('M12.6 10.4l3 3
          + p('M11.3 11.7c-2.4 0-4.2 1.6-4.5 4-.2 1.7-1.1 2.9-2.9 3.5 2.3 1.3 5.1 1.4 7.1.3 2-1.1 2.9-3.3 2.4-5.4'))
 
 
-def placed(body, x, y, k, turn=0, mirror=False, tip=(4.4, 19.6)):
-    """A drawing made smaller (k), turned and maybe mirrored, its point tip put at (x, y); its lines as wide as the others."""
-    return ('<g transform="translate(%s %s) rotate(%s) scale(%s %s) translate(%s %s)" stroke-width="%s">%s</g>'
-            % (f(x), f(y), f(turn), f(-k if mirror else k), f(k), f(-tip[0]), f(-tip[1]), f(STROKE / k), body))
-
 
 ERASER = (p('M8.6 20.5 3.9 15.8a2 2 0 0 1 0-2.8l9.3-9.3a2 2 0 0 1 2.8 0l4.4 4.4a2 2 0 0 1 0 2.8L11.4 20.5Z')
           + p('M8.6 8.5l7.4 7.4') + p('M8.6 20.5H20'))
@@ -177,8 +172,8 @@ ICONS = {
     'path': p('M4 19C6 9 14 17 20 5') + p('M4 19 8.5 12.5M20 5l-4.7 4') + box(2.6, 17.6, 2.8, 2.8) + box(18.6, 3.6, 2.8, 2.8) + dot(8.5, 12.5, 1.4) + dot(15.3, 9, 1.4),
     'freehand_path': p('M3.5 16c2-6 5-8 7-5s1.5 7 4 6.5 3-6 6-9') + box(2.2, 14.6, 2.8, 2.8) + box(19.1, 7.1, 2.8, 2.8),
     'dyna': BRUSH + p('M3 4.5h5M3 8h3.5M3 11.5h2'),
-    # two brushes painting as one, mirrored across the axis
-    'multihand': placed(BRUSH, 12.9, 19.4, 0.62, -15) + placed(BRUSH, 11.1, 19.4, 0.62, 15, True) + p('M12 2.5v2.4M12 8v2.4'),
+    # a shape and its reflection: symmetry
+    'multihand': p('M12 3.5v17') + p('M9 5.5a6.5 6.5 0 0 0 0 13Z') + '<path d="M15 5.5a6.5 6.5 0 0 1 0 13Z" fill="INK"/>',
     'gradient': (sq(3.5, 3.5, 17, 17, 3.4) + '<path d="M10.5 3.5H6.9a3.4 3.4 0 0 0-3.4 3.4v10.2a3.4 3.4 0 0 0 3.4 3.4h3.6Z" fill="INK" stroke="none"/>'
                  + dot(13.2, 6.5, 1.15) + dot(13.2, 10.2, 1.15) + dot(13.2, 13.8, 1.15) + dot(13.2, 17.5, 1.15)
                  + dot(16.6, 8.3, 0.75) + dot(16.6, 12, 0.75) + dot(16.6, 15.7, 0.75)),
@@ -191,7 +186,6 @@ ICONS = {
     'measure': ('<g transform="rotate(-45 12 12)">%s</g>' % (sq(1.5, 8.5, 21, 7, 1.6) + p('M6 8.5v3M10 8.5v2M14 8.5v3M18 8.5v2'))),
     'reference': sq(3.5, 5, 17, 14.5, 2.6) + p('M3.8 16.5 9 11.5l3.5 3.5 2.5-2.5 5.2 5') + dot(15.5, 9.5, 1.5),
     'pointer': p('M5 3.5 11 20.5l2.4-7 7.1-2.4Z'),
-    'info': c(12, 12, 8.5) + p('M12 11v5.5') + dot(12, 7.6, 1.25),
     'calligraphy': (p('M12.5 3.5 20.5 11.5 15 17l-5.5 1.5-6 3 3-6L8 10Z') + p('M3.5 20.5l5-5') + c(10, 14, 1.5)),
     'select_ellipse': dashed('<ellipse cx="12" cy="12" rx="8.5" ry="7"/>', '2.6 2.4'),
     'select_polygon': dashed(p('M12 3.5 20.5 9.7 17.3 19.7H6.7L3.5 9.7Z'), '2.6 2.4'),
