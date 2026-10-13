@@ -14,12 +14,12 @@
 class QWidget;
 
 /**
- * Closes a frameless tool window the way a popup closes: on a press
- * anywhere outside of it, or when it loses the focus it had. (Qt::Popup
- * can't be translucent on Windows, so the popups here are tool windows.)
+ * Gives a frameless tool window popup behaviour: it closes on a press outside
+ * it or when it loses focus. Used because Qt::Popup windows can't be
+ * translucent on Windows.
  *
- * A press on \p anchor only closes the popup, so that the button that
- * opened it toggles it instead of opening it again.
+ * A press on \p anchor is swallowed after closing, so the button that opened
+ * the popup toggles it rather than reopening it.
  */
 class KRITAUI_EXPORT KisPopupCloser : public QObject
 {

@@ -17,24 +17,24 @@ class QDockWidget;
 class KisMainWindow;
 
 /**
- * Every panel, as it last looked on screen (kept between sessions). The
- * panels on the rail come first; starring or reordering them changes the rail.
+ * Picks panels by a snapshot of how each last looked on screen, cached between
+ * sessions. Panels on the rail come first; starring or reordering them updates the rail.
  */
 class KRITAUI_EXPORT KisStudioPanelPicker : public KisStudioPicker
 {
     Q_OBJECT
 public:
     struct Rail {
-        /// The kritarc key of the rail's panels
+        /// The kritarc key that stores the rail's panels
         QString key;
         std::function<QStringList()> defaults;
-        /// Shown for a panel with no picture yet
+        /// Icon for a panel that has no snapshot yet
         std::function<QIcon(QDockWidget *dock)> icon;
     };
 
     KisStudioPanelPicker(KisMainWindow *mainWindow, const Rail &rail);
 
-    /// Keeps how the panel looks now (call while it is on screen)
+    /// Takes a snapshot of \p dock; call while it is on screen.
     static void rememberLook(QDockWidget *dock);
 };
 

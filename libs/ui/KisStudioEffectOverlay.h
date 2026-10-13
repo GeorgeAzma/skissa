@@ -15,8 +15,8 @@
 class KisMainWindow;
 
 /**
- * Effects adjusted on the canvas instead of in a dialog: a small panel over the canvas, the
- * effect shown on the whole layer, and a drag on the canvas setting its first two numbers.
+ * Adjusts an effect on the canvas instead of in a dialog: a small panel floats over the canvas,
+ * the effect is previewed on the whole layer, and dragging on the canvas sets its first two numbers.
  */
 class KisStudioEffectOverlay : public QWidget
 {
@@ -25,7 +25,7 @@ public:
     explicit KisStudioEffectOverlay(KisMainWindow *mainWindow);
     ~KisStudioEffectOverlay() override;
 
-    /// Starts editing \p filter; false if it can't be (the dialog is used then)
+    /// Starts editing \p filter; returns false if that isn't possible, so that the dialog can be used instead.
     bool open(KisFilterSP filter, KisFilterConfigurationSP overrideDefaultConfig);
     void accept();
     void reject();
@@ -34,7 +34,7 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
-    /// Dragged by its title bar
+    /// The panel is moved by dragging its title bar
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
@@ -44,7 +44,7 @@ private:
     void createMask(KisFilterConfigurationSP config);
     void finishEditing();
     void reposition();
-    /// True when a press, move or release on the canvas was used as a drag
+    /// Returns true if a press, move or release on the canvas was consumed as a drag
     bool handleCanvasDrag(QEvent *event);
 
     struct Private;

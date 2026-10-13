@@ -17,64 +17,64 @@ class QPainter;
 class QWidget;
 
 /**
- * Frosted glass for what lies over the canvas: the artwork behind, blurred and tinted.
- * The OpenGL canvas draws it on the GPU (KisOpenGLGlass); elsewhere it is made here on the CPU.
- * Where there is no canvas behind, it is the plain panel color.
+ * Frosted glass backgrounds for panels over the canvas: the artwork behind, blurred and tinted.
+ * The OpenGL canvas draws it on the GPU (KisOpenGLGlass); otherwise it is rendered here on the CPU.
+ * Where there is no canvas behind, the plain panel color is used.
  */
 class KRITAUI_EXPORT KisStudioGlass
 {
 public:
-    /// Blur sigma over small glass (a pill), widget pixels, as frosted as the setting makes it
+    /// Blur sigma for small glass such as a pill, in widget pixels, scaled by the blur setting.
     static qreal blurSigma();
-    /// Larger glass blurs up to this many times wider, so tall panels show no shapes
+    /// Larger glass blurs up to this many times wider, so no shapes show through tall panels.
     static constexpr qreal maxBlurScale = 2.0;
-    /// Blur multiplier for glass of \p size: grows with the square root of its area
+    /// Blur multiplier for glass of \p size; grows with the square root of its area.
     static qreal blurScale(const QSizeF &size);
-    /// Saturated colors weigh up to 1 + salience times a gray in the (Oklab) blur
+    /// In the Oklab blur, saturated colors weigh up to 1 + salience times as much as gray.
     static constexpr qreal salience = 1.0;
-    /// Power mean of Oklab lightness in the blur: 1 averages as seen, ~3 as light
+    /// Power mean exponent for Oklab lightness in the blur: 1 averages perceptually, ~3 like light.
     static constexpr qreal lightnessPower = 1.5;
-    /// Tint strength over a dark and over a bright canvas
+    /// Tint strength over a dark and over a bright canvas.
     static qreal tintOverDark();
     static qreal tintOverBright();
 
-    /// How frosted the glass is: 0.25 nearly clear to 2, 1 as Krita comes
+    /// How frosted the glass is, from 0.25 (nearly clear) to 2. Defaults to 1.
     static qreal blur();
     static void setBlur(qreal blur);
-    /// How strongly the panel color covers what is behind: 0 none to 1 solid, 0.7 as Krita comes
+    /// How strongly the panel color covers what is behind, from 0 to 1 (solid). Defaults to 0.7.
     static qreal opacity();
     static void setOpacity(qreal opacity);
     /**
-     * The frost's color is the mean of Oklab's a and b, where hues that disagree cancel: of the chroma lost
-     * so, this share is restored as far as they agree (never more than the colors behind have)
+     * Averaging Oklab a and b lets opposing hues cancel out. This share of the lost chroma is restored,
+     * never exceeding the chroma of the colors behind.
      */
     static constexpr qreal restore = 0.5;
-    /// Share of the tint that veils what is behind (its chroma is otherwise kept)
+    /// Share of the tint that veils the chroma of what is behind.
     static constexpr qreal veil = 0.3;
 
-    /// How much the edge bevel bends the canvas, 0 (a plain line) to 1
+    /// How much the edge bevel bends the canvas, from 0 (a plain line) to 1.
     static qreal refraction();
     static void setRefraction(qreal refraction);
 
-    /// The edge bevel, widget pixels (all zero for a line)
+    /// The edge bevel in widget pixels; all zero for a plain line.
     struct Bevel {
-        qreal width {0};     ///< from the edge in to the flat face
-        qreal thickness {0}; ///< of the pane at the flat face
-        qreal lift {0};      ///< gap between the pane and the canvas
-        qreal polish {0};    ///< 0 frosted, 1 clear at the rim
-        qreal clear {0};     ///< share of the bevel that is fully clear
+        qreal width {0};       ///< from the edge in to the flat face
+        qreal thickness {0};   ///< of the pane at the flat face
+        qreal lift {0};        ///< gap between the pane and the canvas
+        qreal polish {0};      ///< 0 frosted, 1 clear at the rim
+        qreal clear {0};       ///< share of the bevel that is fully clear
         qreal abbeNumber {40}; ///< dispersion: lower spreads colors more
     };
     static Bevel bevel();
 
-    /// Whether the canvas around the image is lit by the image (only when the border color is black)
+    /// Whether the image casts an ambient glow on the canvas around it (only with a black border color).
     static bool ambientSurround();
     static constexpr qreal ambientSigma = 110; ///< widget pixels
     static constexpr qreal ambientStrength = 0.5;
-    /// Crown glass, at the sodium d line
+    /// Crown glass at the sodium d line.
     static constexpr qreal refractiveIndex = 1.52;
 
-    /// Strokes \p shape as \p widget's border, except where the canvas draws a bevel instead
+    /// Strokes \p shape as \p widget's border, except where the canvas draws a bevel instead.
     static void paintBorder(QPainter &painter, QWidget *widget, const QPainterPath &shape, const QColor &color, qreal width = 1);
 
     /**
@@ -83,10 +83,10 @@ public:
      */
     static QPainterPath paint(QPainter &painter, QWidget *widget, const QRectF &rect, qreal radius);
 
-    /// A soft shadow around \p panel, outside it only: \p margin wide, \p darkness alpha, \p drop lower
+    /// Paints a soft shadow outside \p panel, \p margin wide, with \p darkness alpha, offset down by \p drop.
     static void paintShadow(QPainter &painter, const QRectF &panel, qreal radius, int margin, int darkness, int drop);
 
-    /// A glass panel over a canvas, in the canvas widget's coordinates
+    /// A glass panel over a canvas, in the canvas widget's coordinates.
     struct Surface {
         QRectF rect;
         qreal radius;
@@ -94,43 +94,43 @@ public:
         qreal opacity;
     };
 
-    /// The glass panels over \p canvasWidget, for it to draw
+    /// The glass panels \p canvasWidget has to draw.
     static QVector<Surface> surfacesOver(const QWidget *canvasWidget);
-    /// \p canvasWidget drew the glass in \p painted (empty: everywhere): panels it covered whole show it now
+    /// Reports that \p canvasWidget drew the glass in \p painted (empty means everywhere).
     static void drewGlassOver(QWidget *canvasWidget, const QRect &painted);
 
-    /// Whether \p canvasWidget draws the glass of the panels over it (then they paint only their content)
+    /// Sets whether \p canvasWidget draws the glass of the panels over it, so they paint only their content.
     static void setDrawnByCanvas(QWidget *canvasWidget, bool on);
 
-    /// \p widget (a glass panel, or what holds one) changed how it shows, e.g. faded: the canvas redraws
+    /// Call when \p widget (a glass panel or its container) changes appearance, e.g. fades, so the canvas redraws.
     static void changed(QWidget *widget);
 
     /**
-     * Makes \p widget's surfaces see-through, its fields veils, for a glass background; or (\p on false)
-     * restores them. Follows theme changes while on. Its menus and dropdowns are left alone.
+     * Makes \p widget's background see-through and its fields translucent veils for a glass background,
+     * or restores them. Follows theme changes while on. Menus and dropdowns are not affected.
      */
     static void setSeeThrough(QWidget *widget, bool on);
 
-    /// Menus, tooltips and dropdowns become glass windows from now on
+    /// Makes menus, tooltips and dropdowns created from now on glass windows.
     static void installMenuGlass();
 
-    /// \p panel, in the canvas' window, is over the other overlays there: it hides what it covers
+    /// Marks \p panel, in the canvas' window, as above the other overlays there, hiding what it covers.
     static void setOverOverlays(QWidget *panel);
 
-    /// The setting; off, backgrounds are the plain panel color
+    /// The glass setting. When off, backgrounds use the plain panel color.
     static bool isEnabled();
     static void setEnabled(bool on);
 
     /**
-     * Whether windows of their own can be see-through: not on X11 without a compositor.
+     * Whether top-level windows can be see-through; not on X11 without a compositor.
      * KRITA_STUDIO_SOLID_WINDOWS=1 forces solid windows.
      */
     static bool seeThroughWindows();
 
     /**
-     * Window type of Studio popups over the main window: Qt::Tool on Windows (a see-through Qt::Popup
-     * renders black there), Qt::Popup elsewhere (Wayland only lets popups be placed).
-     * KRITA_STUDIO_POPUP_WINDOWS=1 uses popups on Windows too.
+     * Window type of Studio popups over the main window: Qt::Tool on Windows, where a translucent Qt::Popup
+     * renders black, and Qt::Popup elsewhere, since Wayland only lets popups be positioned.
+     * KRITA_STUDIO_POPUP_WINDOWS=1 uses Qt::Popup on Windows too.
      */
     static Qt::WindowType popupWindowType();
 };

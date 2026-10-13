@@ -16,49 +16,49 @@
 #include "kritaui_export.h"
 
 /**
- * Settings moved between Kritas: to a file and back, and to Krita itself
- * (another installation) and back. Only KisSettingsRegistry's settings move,
- * validated, and never this computer's own. A plan lists every change before
- * it is applied; Krita's file is backed up once and replaced in one step.
+ * Moves settings to and from a file, and to and from a regular Krita installation.
+ * Only validated KisSettingsRegistry settings are transferred, never machine-specific
+ * ones. A Plan lists every change before it is applied; Krita's kritarc is backed up
+ * once and always replaced atomically.
  */
 namespace KisSettingsTransfer
 {
 
 struct Change {
     QString id;
-    QVariant from; ///< invalid: not set there
+    QVariant from; ///< invalid if not set in the target
     QVariant to;
 };
 
 struct Plan {
     QVector<Change> changes;
-    /// What is not moved and why, one line each
+    /// What is not transferred and why, one line each
     QStringList skipped;
     QString error;
-    /// Your sections and Quick, from a file (empty if it has none)
+    /// The user's sections and Quick from an imported file, empty if it has none
     QByteArray sections;
 };
 
-/// The settings that differ from Krita's defaults (this computer's left out), and your sections, as JSON
+/// The non-default, non-machine settings and the user's sections, as JSON
 KRITAUI_EXPORT QByteArray exportSettings();
-/// Writes \p data to \p path whole or not at all
+/// Writes \p data to \p path atomically
 KRITAUI_EXPORT bool writeFile(const QString &path, const QByteArray &data, QString *error);
-/// What importing \p data (from exportSettings()) would change here
+/// The changes importing \p data (from exportSettings()) would make here
 KRITAUI_EXPORT Plan planImport(const QByteArray &data);
 
-/// Krita's own settings file (kritarc), the one Krita uses when it isn't this one; empty if there is none
+/// The regular Krita installation's kritarc, or empty if there is none or it is this instance's own
 KRITAUI_EXPORT QString kritaSettingsPath();
-/// Whether Krita (another than this one) is running now
+/// Whether another Krita process is running
 KRITAUI_EXPORT bool kritaRunning();
-/// What taking Krita's settings would change here
+/// The changes taking Krita's settings would make here
 KRITAUI_EXPORT Plan planFromKrita();
-/// What giving Krita this one's settings would change there
+/// The changes giving Krita these settings would make there
 KRITAUI_EXPORT Plan planToKrita();
-/// Writes \p changes into Krita's settings; false (and nothing changed) on any trouble
+/// Writes \p changes into Krita's kritarc; on failure returns false and leaves it untouched
 KRITAUI_EXPORT bool applyToKrita(const QVector<Change> &changes, QString *error);
-/// When the copy of Krita's settings from before was kept; invalid if there is none
+/// When the backup of Krita's original kritarc was made; invalid if there is none
 KRITAUI_EXPORT QDateTime kritaBackupTime();
-/// Puts back Krita's settings as they were before this one first changed them
+/// Restores Krita's kritarc from the backup made before it was first changed
 KRITAUI_EXPORT bool restoreKrita(QString *error);
 
 } // namespace KisSettingsTransfer

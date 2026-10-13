@@ -11,7 +11,6 @@
 #include "ui_wdgcurveoption2.h"
 #include "widgets/kis_curve_widget.h"
 #include "kis_global.h"
-#include "kis_icon_utils.h"
 
 #include <kis_signals_blocker.h>
 #include <KisCurveOptionModel.h>
@@ -34,7 +33,7 @@
 
 namespace
 {
-/// The row's checkbox: the option on or off, or for one that is always on (Opacity, Flow), whether the pen changes it
+/// The option row's checkbox: toggles the option, or for always-on options (Opacity, Flow) whether the pen affects it
 auto rowCheckedLens = lager::lenses::getset(
     [](const KisCurveOptionDataCommon &data) -> bool {
         return data.isCheckable ? data.isChecked : data.useCurve;
@@ -126,7 +125,7 @@ KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommo
                                                         curveValueSuffix),
                             KisCurveOptionInputControlsStrategyInt::factory(),
                             {},
-                            SupportsCommonCurve | SupportsCurveMode)
+                            SupportsCommonCurve)
 {
 }
 
@@ -178,7 +177,7 @@ KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommo
 
     setConfigurationPage(m_widget);
 
-    // the eraser's own size or opacity, where size and opacity are set (not the masked brush's)
+    // Separate eraser size/opacity toggles on the main Size and Opacity pages (not the masked brush's)
     const QString optionId = optionData->id.id();
     if (optionData->prefix.isEmpty() && category == KisPaintOpOption::GENERAL
         && (optionId == QLatin1String("Size") || optionId == QLatin1String("Opacity"))) {
@@ -200,7 +199,7 @@ KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommo
             else cfg.setUseEraserBrushOpacity(on);
             KisConfigNotifier::instance()->notifyConfigChanged();
         });
-        // usable with the option off too: only the pen's part follows its checkbox
+        // Keep the eraser toggle usable while the option is off; only the pen part follows the checkbox
         auto *page = new QWidget();
         auto *column = new QVBoxLayout(page);
         column->setContentsMargins(0, 0, 0, 0);
@@ -236,13 +235,6 @@ KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommo
 
     updateThemedIcons();
 
-    // curves picked at a click: Linear, Soft, Firm and your own, each drawn as it is
-    for (QWidget *old : {static_cast<QWidget *>(m_curveOptionWidget->linearCurveButton), static_cast<QWidget *>(m_curveOptionWidget->revLinearButton),
-                         static_cast<QWidget *>(m_curveOptionWidget->jCurveButton), static_cast<QWidget *>(m_curveOptionWidget->lCurveButton),
-                         static_cast<QWidget *>(m_curveOptionWidget->sCurveButton), static_cast<QWidget *>(m_curveOptionWidget->reverseSCurveButton),
-                         static_cast<QWidget *>(m_curveOptionWidget->uCurveButton), static_cast<QWidget *>(m_curveOptionWidget->revUCurveButton)}) {
-        old->setVisible(false);
-    }
     auto *presets = new KisCurvePresetStrip(m_widget);
     m_curveOptionWidget->horizontalLayout_2->insertWidget(0, presets);
     connect(presets, &KisCurvePresetStrip::picked, &m_d->model, &KisCurveOptionModel::setdisplayedCurve);
@@ -268,24 +260,19 @@ KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommo
                     m_curveOptionWidget->strengthSlider->setValue(value);
                     notifyRowValueChanged();
                 }));
-    // the strength is the option's row in the list, dragged there
+    // The strength is edited by dragging the option's row in the list
     m_curveOptionWidget->strengthSlider->setVisible(false);
 
     connectControl(m_curveOptionWidget->curveWidget, &m_d->model, "displayedCurve");
 
-    // no sensor ticked is the pen off: no switch of its own
+    // Unticking every sensor turns the pen off, so there is no separate switch for it
     m_d->model.LAGER_QT(useCurve).bind(std::bind(&KisCurveOptionWidget::setCurveWidgetsEnabled, this, std::placeholders::_1));
-    m_curveOptionWidget->checkBoxUseCurve->setVisible(false);
 
     if (flags & SupportsCommonCurve) {
         connectControl(m_curveOptionWidget->checkBoxUseSameCurve, &m_d->model, "useSameCurve");
     } else {
         m_curveOptionWidget->checkBoxUseSameCurve->setVisible(false);
     }
-
-    // the sensors' curves multiply: a preset combining them otherwise keeps its way, with no choice shown
-    m_curveOptionWidget->curveMode->setVisible(false);
-    m_curveOptionWidget->lblCurveMode->setVisible(false);
 
     m_d->model.optionData.bind(std::bind(&KisCurveOptionWidget::emitSettingChanged, this));
 }
@@ -309,7 +296,7 @@ void KisCurveOptionWidget::readOptionSetting(const KisPropertiesConfigurationSP 
 
 bool KisCurveOptionWidget::isCheckable() const
 {
-    // one that is always on is checked when the pen changes it
+    // An always-on option is checked when the pen affects it
     return !m_d->noPenCheckbox || m_d->model.isCheckable();
 }
 
@@ -347,34 +334,12 @@ void KisCurveOptionWidget::setCurveWidgetsEnabled(bool value)
     m_curveOptionWidget->label_ymin->setEnabled(value);
     m_curveOptionWidget->intInPlaceholder->setEnabled(value);
     m_curveOptionWidget->intOutPlaceholder->setEnabled(value);
-
-    m_curveOptionWidget->linearCurveButton->setEnabled(value);
-    m_curveOptionWidget->revLinearButton->setEnabled(value);
-    m_curveOptionWidget->jCurveButton->setEnabled(value);
-    m_curveOptionWidget->lCurveButton->setEnabled(value);
-    m_curveOptionWidget->revUCurveButton->setEnabled(value);
-    m_curveOptionWidget->reverseSCurveButton->setEnabled(value);
-    m_curveOptionWidget->uCurveButton->setEnabled(value);
-    m_curveOptionWidget->sCurveButton->setEnabled(value);
-
-    m_curveOptionWidget->curveMode->setEnabled(value);
-    m_curveOptionWidget->lblCurveMode->setEnabled(value);
-
 }
 
 QWidget* KisCurveOptionWidget::curveWidget()
 {
     return m_widget;
 }
-
-
-
-
-
-
-
-
-
 
 void KisCurveOptionWidget::updateThemedIcons()
 {

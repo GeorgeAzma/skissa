@@ -6,16 +6,16 @@
 #include "KisCurvePresetStrip.h"
 
 #include <QContextMenuEvent>
-
-#include <memory>
 #include <QHelpEvent>
 #include <QLineEdit>
-#include <QShortcut>
 #include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
+#include <QShortcut>
 #include <QToolTip>
+
+#include <memory>
 
 #include <KConfigGroup>
 #include <KSharedConfig>
@@ -35,7 +35,7 @@ QString curveOf(const QList<QPointF> &points)
     return KisCubicCurve(points).toString();
 }
 
-/// The curves saved, in every brush setting; strips change together
+/// The saved curves, shared by all brush options; keeps every open strip in sync
 class Saved : public QObject
 {
 public:
@@ -64,7 +64,7 @@ public:
 
     void add(QWidget *strip)
     {
-        // the strips of closed editors let go
+        // Drop strips that have been destroyed
         m_strips.removeAll(QPointer<QWidget>());
         m_strips << strip;
     }
@@ -82,7 +82,7 @@ KisCurvePresetStrip::KisCurvePresetStrip(QWidget *parent)
     setMouseTracking(true);
     setAttribute(Qt::WA_Hover);
     setCursor(Qt::PointingHandCursor);
-    // as wide as there is room, as many rows as the curves take
+    // Take the available width and wrap onto as many rows as needed
     QSizePolicy policy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     policy.setHeightForWidth(true);
     setSizePolicy(policy);
@@ -145,7 +145,7 @@ int KisCurvePresetStrip::at(const QPoint &pos) const
 
 QSize KisCurvePresetStrip::sizeHint() const
 {
-    // a row of up to eight; wider when there is room
+    // One row of up to eight tiles; wider when there is room
     const int count = qMin(entries().size() + 1, 8);
     const int width = count * tileSize + (count - 1) * gap;
     return QSize(width, heightForWidth(width));
@@ -171,14 +171,14 @@ void KisCurvePresetStrip::paintEvent(QPaintEvent *)
         painter.drawRoundedRect(r, KisModernStyle::cornerRadius, KisModernStyle::cornerRadius);
 
         if (i == list.size()) {
-            // +: the curve being edited, saved
+            // "+" tile: saves the curve being edited
             painter.setPen(QPen(KisModernStyle::secondaryInk(ink), 1.4, Qt::SolidLine, Qt::RoundCap));
             const QPointF c = r.center();
             painter.drawLine(c - QPointF(5, 0), c + QPointF(5, 0));
             painter.drawLine(c - QPointF(0, 5), c + QPointF(0, 5));
             continue;
         }
-        // the curve itself, as it shapes the value
+        // Plot of the curve
         const KisCubicCurve curve(list[i].curve);
         const QRectF plot = r.adjusted(5, 5, -5, -5);
         QPainterPath path;
@@ -221,7 +221,7 @@ void KisCurvePresetStrip::mousePressEvent(QMouseEvent *event)
         return;
     }
     if (m_current.isEmpty()) return;
-    // already there, built in or saved (the same points written another way too)
+    // Skip curves that already exist, comparing points rather than strings
     Q_FOREACH (const Entry &entry, list) {
         if (KisCubicCurve(entry.curve) == KisCubicCurve(m_current)) return;
     }
@@ -236,7 +236,7 @@ void KisCurvePresetStrip::mousePressEvent(QMouseEvent *event)
 void KisCurvePresetStrip::contextMenuEvent(QContextMenuEvent *event)
 {
     const QVector<Entry> list = entries();
-    // from where on screen: inside a popup, the event's own position can be its window's
+    // Use the global position: inside a popup, event->pos() may be relative to the window
     const int i = at(mapFromGlobal(event->globalPos()));
     if (i < 0 || i >= list.size() || !list[i].saved) return;
     const int index = i - (list.size() - Saved::instance().curves().size());
@@ -249,9 +249,9 @@ void KisCurvePresetStrip::contextMenuEvent(QContextMenuEvent *event)
     QStringList curves = Saved::instance().curves();
     while (names.size() < curves.size()) names << QString();
     if (chosen == rename) {
-        // typed over the tile itself; Enter or a click elsewhere keeps it, Escape doesn't
+        // Edit the name in place over the tile; Enter or clicking elsewhere commits, Escape cancels
         auto *edit = new QLineEdit(names[index], this);
-        // solid: the tiles under it don't show through
+        // Opaque, so the tiles underneath don't show through
         QPalette solid = edit->palette();
         QColor base = palette().color(QPalette::Window);
         base.setAlpha(255);

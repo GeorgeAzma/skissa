@@ -13,9 +13,9 @@
 #include <QVector>
 
 /**
- * For development (KRITA_DEV_FRAMELOG): GPU time per drawing stage, written to stderr. Elapsed-time
- * queries (ARB_timer_query, or EXT_disjoint_timer_query on ES), read a frame later without waiting.
- * Qt's own helper needs OpenGL 3.3, which Krita does not request.
+ * Development aid (KRITA_DEV_FRAMELOG): writes the GPU time of each drawing stage to stderr. Uses
+ * timer queries (ARB_timer_query, or EXT_disjoint_timer_query on ES) read a frame later to avoid
+ * stalling. Qt's QOpenGLTimerQuery needs OpenGL 3.3, which Krita does not request.
  */
 class KisOpenGLGpuTiming
 {
@@ -32,7 +32,7 @@ public:
         return on;
     }
 
-    /// Before the first stage; writes the last frame's times once the GPU has them
+    /// Call before the first stage. Prints the previous frame's times once they are available.
     void begin()
     {
         m_recording = false;
@@ -48,7 +48,7 @@ public:
                 line += QStringLiteral(" %1 %2").arg(m_stages[i]).arg(elapsed / 1000);
             }
             fprintf(stderr, "%s us\n", qPrintable(line));
-            // stderr is buffered when it goes to a file
+            // stderr is buffered when redirected to a file.
             fflush(stderr);
             m_pending = false;
         }
@@ -57,7 +57,7 @@ public:
         m_stage = 0;
     }
 
-    /// After each stage
+    /// Call after each stage.
     void mark()
     {
         if (!m_recording) return;

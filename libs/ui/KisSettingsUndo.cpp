@@ -20,7 +20,7 @@
 namespace
 {
 
-/// Who was undone, latest last: the order Redo goes back through
+/// What each undo took back, most recent last; Redo walks it backwards.
 enum class Source { Settings, Document };
 QVector<Source> &undone()
 {
@@ -28,7 +28,8 @@ QVector<Source> &undone()
     return list;
 }
 
-/// How long ago \p stack's latest step ended, in ms (a step is timed by the time of day only)
+/// Milliseconds since \p stack's latest command ended, or -1 if there is none.
+/// Commands only record the time of day, so a negative difference wraps past midnight.
 qint64 documentAge(KUndo2Stack *stack)
 {
     const KUndo2Command *last = stack->index() > 0 ? stack->command(stack->index() - 1) : nullptr;
@@ -46,6 +47,14 @@ void tell(const QString &text)
     if (window && window->viewManager()) window->viewManager()->showFloatingMessage(text, QIcon(), 1500);
 }
 
+bool redoSettings(KisSettingsRegistry *settings)
+{
+    const QString name = settings->redoName();
+    settings->redoChange();
+    tell(i18nc("@info:status a setting's change redone", "Redo: %1", name));
+    return true;
+}
+
 } // namespace
 
 bool KisSettingsUndo::undoInstead(KUndo2Stack *stack)
@@ -53,7 +62,7 @@ bool KisSettingsUndo::undoInstead(KUndo2Stack *stack)
     KisSettingsRegistry *settings = KisSettingsRegistry::instance();
     const qint64 settingsAge = settings->undoAge();
     const qint64 docAge = documentAge(stack);
-    // the settings' change is the later one, or the document has nothing to undo
+    // Undo the settings change if it is newer, or if the document has nothing to undo
     if (settingsAge >= 0 && (docAge < 0 || settingsAge < docAge)) {
         const QString name = settings->undoName();
         if (settings->undoChange()) {
@@ -69,22 +78,13 @@ bool KisSettingsUndo::undoInstead(KUndo2Stack *stack)
 bool KisSettingsUndo::redoInstead(KUndo2Stack *stack)
 {
     KisSettingsRegistry *settings = KisSettingsRegistry::instance();
-    // what was taken back last, of what can still be done again (a new change ends a redo of its own kind)
+    // Redo the most recently undone source that can still be redone; a new change
+    // in either history clears that history's redo steps.
     while (!undone().isEmpty()) {
         const Source source = undone().takeLast();
-        if (source == Source::Settings && settings->canRedoChange()) {
-            const QString name = settings->redoName();
-            settings->redoChange();
-            tell(i18nc("@info:status a setting's change redone", "Redo: %1", name));
-            return true;
-        }
+        if (source == Source::Settings && settings->canRedoChange()) return redoSettings(settings);
         if (source == Source::Document && stack->canRedo()) return false;
     }
-    if (!stack->canRedo() && settings->canRedoChange()) {
-        const QString name = settings->redoName();
-        settings->redoChange();
-        tell(i18nc("@info:status a setting's change redone", "Redo: %1", name));
-        return true;
-    }
+    if (!stack->canRedo() && settings->canRedoChange()) return redoSettings(settings);
     return false;
 }

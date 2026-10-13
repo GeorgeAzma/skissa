@@ -14,9 +14,9 @@ class KisMainWindow;
 struct KisStudioEffectThumbnails;
 
 /**
- * All the effects (filters), each a tile showing it applied to your image,
- * made in the background as the picker opens. Resting the pointer on one
- * previews it on the canvas; a click opens it to adjust.
+ * Picks an effect (filter) from tiles that show each one applied to the image,
+ * rendered in the background as the picker opens. Hovering a tile previews the
+ * effect on the canvas; a click opens it for adjusting.
  */
 class KRITAUI_EXPORT KisStudioEffectsPicker : public KisStudioPicker
 {
@@ -25,11 +25,11 @@ public:
     explicit KisStudioEffectsPicker(KisMainWindow *mainWindow);
     ~KisStudioEffectsPicker() override;
 
-    /// An effect was used, from here or elsewhere: first among the recent ones
+    /// Moves \p filterId to the front of the recent effects; call whenever an effect is used.
     static void recordUse(const QString &filterId);
 
 private:
-    /// The thumbnails exist before the picker: its Source paints them
+    /// The thumbnails must exist before the base class is built, since its Source paints them
     KisStudioEffectsPicker(KisMainWindow *mainWindow, std::shared_ptr<KisStudioEffectThumbnails> thumbnails);
 
     struct Private;

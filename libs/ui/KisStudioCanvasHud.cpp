@@ -51,7 +51,7 @@ QToolButton *hudButton(QWidget *parent)
     return button;
 }
 
-/// The zoom as a reading: the number semibold, the % smaller and fainter on its baseline
+/// Shows the zoom as a semibold number with a smaller, fainter % on the same baseline
 class ZoomButton : public QToolButton
 {
 public:
@@ -77,7 +77,7 @@ protected:
         const QFont unit = unitFont();
         const QFontMetricsF numberMetrics(number);
         const QFontMetricsF unitMetrics(unit);
-        // the line centered as a number is: by its digits' height, not the font's
+        // center on the digits' height rather than the font's
         const qreal baseline = rect().center().y() + 0.5 + numberMetrics.capHeight() / 2;
         qreal x = (width() - textWidth(number, unit)) / 2;
         QColor ink = palette().color(QPalette::ButtonText);
@@ -96,7 +96,7 @@ private:
         bool number;
     };
 
-    /// The text in runs of the number (digits, its separators) and the rest
+    /// Splits the text into number runs (digits and separators) and the rest
     QList<Run> runs() const
     {
         QList<Run> runs;
@@ -140,7 +140,7 @@ struct KisStudioCanvasHud::Private
     QWidget *progressBox {nullptr};
     QPointer<QWidget> progress;
 
-    /// A mode that changes what a stroke does: shown while on, a click turns it off
+    /// A mode that changes what a stroke does; shown while on, and a click turns it off
     struct Badge {
         QToolButton *button {nullptr};
         QPointer<QAction> action;
@@ -220,7 +220,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     }
 
     d->mirror = hudButton(this);
-    // named: their text changes, and Find keeps a button (its shortcut, its place on the rail) by its name
+    // named because their text changes, and Find tracks a button (its shortcut, its place on the rail) by name
     d->mirror->setObjectName(QStringLiteral("studio_hud_mirror"));
     if (QAction *mirror = d->action("mirror_canvas")) {
         d->mirror->setDefaultAction(mirror);
@@ -228,7 +228,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     }
     layout->addWidget(d->mirror);
 
-    // the image in grays, to judge its values
+    // shows the image in grayscale, to judge its values
     auto *valueView = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_value")), i18nc("@action", "Value View"), mainWindow);
     valueView->setObjectName(QStringLiteral("studio_value_view"));
     valueView->setCheckable(true);
@@ -238,7 +238,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     mainWindow->actionCollection()->addAction(valueView->objectName(), valueView);
     connect(valueView, &QAction::toggled, this, [](bool on) {
         KisOpenGLUpdateInfoBuilder::setValueView(on);
-        // one view of values for all the windows: their buttons say so
+        // value view applies to every window, so keep all their buttons in sync
         Q_FOREACH (QPointer<KisMainWindow> window, KisPart::instance()->mainWindows()) {
             QAction *other = window ? window->actionCollection()->action(QStringLiteral("studio_value_view")) : nullptr;
             if (other) other->setChecked(on);
@@ -253,14 +253,14 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     d->value->setToolButtonStyle(Qt::ToolButtonIconOnly);
     layout->addWidget(d->value);
 
-    // only there while the canvas is rotated; a click puts it straight again
+    // shown only while the canvas is rotated; a click resets the rotation
     d->rotation = hudButton(this);
     d->rotation->setObjectName(QStringLiteral("studio_hud_rotation"));
     d->rotation->setToolTip(i18nc("@info:tooltip", "Straighten"));
     connect(d->rotation, &QToolButton::clicked, this, [this]() { d->trigger("reset_canvas_rotation"); });
     layout->addWidget(d->rotation);
 
-    // no menu: a click flips between fitting the window and the last zoom, the wheel zooms
+    // no menu: a click toggles between fit-to-window and the last zoom, the wheel zooms
     d->zoom = new ZoomButton(this);
     d->zoom->setObjectName(QStringLiteral("studio_hud_zoom"));
     d->zoom->setAutoRaise(true);
@@ -273,7 +273,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
 
     parentWidget()->installEventFilter(this);
     connect(mainWindow, &KisMainWindow::activeViewChanged, this, &KisStudioCanvasHud::viewChanged);
-    // the last document closed: no view becomes active, the view manager says so
+    // when the last document closes no view becomes active; only the view manager reports it
     if (KisViewManager *viewManager = mainWindow->viewManager()) {
         connect(viewManager, &KisViewManager::viewChanged, this, &KisStudioCanvasHud::viewChanged);
     }
@@ -297,14 +297,14 @@ void KisStudioCanvasHud::setActive(bool active)
             d->progressBox->layout()->addWidget(progress);
             progress->show();
             d->progress = progress;
-            // the bar shows and hides itself; the box only takes room while it is there
+            // the bar shows and hides itself; the box only takes space while the bar is visible
             if (QProgressBar *bar = progress->findChild<QProgressBar *>()) {
                 bar->installEventFilter(this);
                 d->progressBox->setVisible(!bar->isHidden());
             }
         }
     } else {
-        // its button gone with the studio layout: the grays go too
+        // the value view button leaves with the Studio layout, so value view is turned off
         if (d->value && d->value->defaultAction()) d->value->defaultAction()->setChecked(false);
         if (d->progress && statusBar) {
             if (QProgressBar *bar = d->progress->findChild<QProgressBar *>()) {
@@ -327,7 +327,7 @@ void KisStudioCanvasHud::viewChanged()
     }
     d->viewConnections.clear();
 
-    // the window's active view is still the closing one as the last document closes: the view manager's is none
+    // while the last document closes the window's active view is still set, but the view manager has none
     KisViewManager *viewManager = d->mainWindow->viewManager();
     KisView *view = viewManager && viewManager->canvasBase() ? d->mainWindow->activeView() : nullptr;
     if (!view || !d->active) {
@@ -393,7 +393,7 @@ void KisStudioCanvasHud::reposition()
     }
     adjustSize();
     const int margin = 10;
-    // left of the pinned panels over the canvas, if there are
+    // stay left of any panels pinned over the canvas
     const int right = parentWidget()->property("studioCanvasRightInset").toInt();
     move(parentWidget()->width() - right - width() - margin, parentWidget()->height() - height() - margin);
     raise();
@@ -404,7 +404,7 @@ bool KisStudioCanvasHud::eventFilter(QObject *watched, QEvent *event)
     if (watched == parentWidget() && (event->type() == QEvent::Resize || event->type() == QEvent::LayoutRequest)) {
         reposition();
     } else if (watched == d->zoom && event->type() == QEvent::Wheel) {
-        // a notch a zoom step, however fine the wheel
+        // one zoom step per wheel notch, however fine the wheel
         const int steps = KisModernStyle::wheelSteps(static_cast<QWheelEvent *>(event), watched);
         for (int i = 0; i < qAbs(steps); i++) {
             d->trigger(steps > 0 ? "view_zoom_in" : "view_zoom_out");
@@ -412,7 +412,7 @@ bool KisStudioCanvasHud::eventFilter(QObject *watched, QEvent *event)
         return true;
     } else if (qobject_cast<QProgressBar *>(watched)
                && (event->type() == QEvent::ShowToParent || event->type() == QEvent::HideToParent)) {
-        // ShowToParent: Show itself only arrives while the box is already visible
+        // ShowToParent, because Show only arrives while the box is already visible
         d->progressBox->setVisible(event->type() == QEvent::ShowToParent);
         reposition();
     }

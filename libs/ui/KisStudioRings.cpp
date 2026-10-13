@@ -47,10 +47,10 @@ constexpr qreal plateRadius = 150;
 constexpr qreal slotDistance = 96;
 constexpr qreal slotRadius = 28;
 constexpr qreal middleRadius = 36;
-/// A pressed slot moved this far: dragged to another
+/// Distance a pressed slot must move to start dragging it
 constexpr qreal dragStart = 6;
 
-/// One ring, open around the pointer; a slot is pointed at anywhere in its eighth, as on the brush ring
+/// A ring open around the pointer; like the canvas brush ring, each slot is hit anywhere in its sector
 class CommandRing : public QWidget
 {
 public:
@@ -74,7 +74,7 @@ public:
 
     QString ringId() const { return m_id; }
 
-    /// Opens ring \p id at \p global; held while \p key (0: none) is
+    /// Opens ring \p id at \p global, held for as long as \p key is down (0 if not opened by a key)
     void openAt(const QString &id, const QPoint &global, int key)
     {
         m_id = id;
@@ -136,7 +136,7 @@ protected:
         return m_center + slotDistance * QPointF(qCos(angle), qSin(angle));
     }
 
-    /// The slot pointed at (an empty one: 100 + its index), the middle (-2), nothing (-1)
+    /// The slot at \p pos (100 + index for an empty one), the middle (-2) or nothing (-1)
     int targetAt(const QPointF &pos) const
     {
         const QPointF delta = pos - m_center;
@@ -159,7 +159,7 @@ protected:
         });
     }
 
-    /// A slot's new content from Find; the ring opens again to show it
+    /// Lets the user pick new content for a slot in Find, then reopens the ring
     void pickFor(int index)
     {
         KisStudioFind *find = m_mainWindow->studioFind();
@@ -227,7 +227,7 @@ protected:
             closeRing();
             return true;
         }
-        // its key let go: held, what the pointer went towards; tapped, it stays for a click
+        // On key release: if held, run what the pointer moved towards; if tapped, stay open for a click
         if (type == QEvent::KeyRelease && m_held && m_heldKey) {
             auto *key = static_cast<QKeyEvent *>(event);
             if (!key->isAutoRepeat() && key->key() == m_heldKey) {
@@ -240,7 +240,7 @@ protected:
             }
             return false;
         }
-        // a press anywhere else closes it
+        // A press anywhere else closes the ring
         if ((type == QEvent::MouseButtonPress || type == QEvent::TabletPress || type == QEvent::TouchBegin)
             && watched->isWidgetType() && watched != this) {
             auto *widget = static_cast<QWidget *>(watched);
@@ -272,7 +272,7 @@ protected:
         }
         if (event->button() != Qt::LeftButton) return;
         if (target >= 0 && target < m_slots.size()) {
-            // taken when let go, unless dragged to another slot
+            // Run on release, unless dragged to another slot
             m_pressed = target;
             m_pressedAt = event->localPos();
             m_dragAt = m_pressedAt;
@@ -295,7 +295,7 @@ protected:
         }
         m_dragging = false;
         if (to >= 0 && to != from) {
-            // let go on another slot: they change places; on an empty one, it goes last
+            // Dropped on another slot: swap them; on an empty slot: move to the end
             QStringList items = m_rings->items(m_id);
             if (to >= 100 && from < items.size()) items.append(items.takeAt(from));
             else if (from < items.size() && to < items.size()) items.swapItemsAt(from, to);
@@ -323,7 +323,7 @@ protected:
         painter.restore();
         KisStudioGlass::paintBorder(painter, this, shape, line);
 
-        // the eighth pointed at, faintly
+        // Highlight the hovered sector
         if (m_hover >= 0 && m_hover < m_slots.size() && !m_dragging) {
             QColor wedge = accent;
             wedge.setAlphaF(0.16);
@@ -340,7 +340,7 @@ protected:
         for (int i = 0; i < KisStudioRings::slotCount; i++) {
             const QPointF c = slotCenter(i);
             if (i >= m_slots.size()) {
-                // empty: a "+" to add something
+                // Empty slot: a "+" for adding an item
                 QColor faint = text;
                 faint.setAlphaF(m_hover == 100 + i ? 0.6 : 0.22);
                 painter.setBrush(Qt::NoBrush);
@@ -373,7 +373,7 @@ protected:
             drawContent(painter, m_slots[m_pressed], m_dragAt, slotRadius - 3);
         }
 
-        // in the middle its name; under it, what is pointed at
+        // The ring's name in the middle, and the hovered item's name below it
         QFont font = this->font();
         QFont small = font;
         small.setPointSizeF(font.pointSizeF() * 0.85);
@@ -408,7 +408,7 @@ protected:
             slot.icon.paint(&painter, QRect(int(c.x() - size / 2.0), int(c.y() - size / 2.0), size, size));
             return;
         }
-        // no icon: its first letters
+        // No icon: show the initials of the title
         QFont font = this->font();
         font.setBold(true);
         painter.setFont(font);
@@ -461,7 +461,7 @@ QAction *KisStudioRings::makeAction(const QString &id)
     auto *action = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_ring")), name(id), d->mainWindow);
     action->setObjectName(actionName(id));
     action->setShortcutContext(Qt::WindowShortcut);
-    // a ring opens once for a held key, not again for its repeats
+    // Open once per key press, not on auto-repeat
     action->setAutoRepeat(false);
     KisStudioShortcuts::restore(action);
     d->mainWindow->actionCollection()->addAction(action->objectName(), action);
@@ -473,7 +473,7 @@ QAction *KisStudioRings::makeAction(const QString &id)
 
 bool KisStudioRings::eventFilter(QObject *watched, QEvent *event)
 {
-    // opened by its key, not from a menu or Find: held, it picks when the key is let go
+    // Opened by its shortcut (not a menu or Find): remember the key so releasing it can select
     if (event->type() == QEvent::Shortcut && !static_cast<QShortcutEvent *>(event)->isAmbiguous()) {
         auto *action = qobject_cast<QAction *>(watched);
         const QString id = d->actions.key(action);

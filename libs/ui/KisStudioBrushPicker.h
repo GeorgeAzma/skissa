@@ -15,10 +15,10 @@ class KisViewManager;
 struct KisStudioBrushStrokes;
 
 /**
- * All the brushes (presets), each a tile with a stroke it painted in the
- * current color, made in the background and kept for the next time. The
- * others are grouped by what they are for, worked out from their names and
- * engines; a map shows them all by how their strokes look.
+ * Picker for brush presets. Each tile shows a sample stroke in the current
+ * color, rendered in the background and cached between openings. Brushes that
+ * aren't pinned are grouped by purpose, guessed from their names and engines.
+ * An alternate map view lays all brushes out by how their strokes look.
  */
 class KRITAUI_EXPORT KisStudioBrushPicker : public KisStudioPicker
 {
@@ -27,24 +27,24 @@ public:
     explicit KisStudioBrushPicker(KisMainWindow *mainWindow);
     ~KisStudioBrushPicker() override;
 
-    /// A brush was used, from here or elsewhere: first among the recent ones
+    /// Moves \p presetName to the front of the recently used brushes
     static void recordUse(const QString &presetName);
-    /// The next or previous one of yours after the current brush, e.g. for the wheel; empty at either end
+    /// The pinned brush \p step places from \p current (e.g. for the mouse wheel); empty past either end
     static QString neighbour(KisMainWindow *mainWindow, const QString &current, int step);
-    /// Makes the brush with that name the current one
+    /// Makes the preset named \p presetName the current brush
     static void use(KisViewManager *view, const QString &presetName);
-    /// A stroke the brush painted for the picker, if any yet (in whatever color it was then)
+    /// The last sample stroke rendered for this brush, in whatever color it was painted; may be null
     static QImage strokePicture(const QString &presetName);
-    /// "d) Ink-2 Fineliner" -> "Ink-2 Fineliner": without the bundled presets' sorting prefix
+    /// Strips the bundled presets' sorting prefix: "d) Ink-2 Fineliner" -> "Ink-2 Fineliner"
     static QString title(const QString &presetName);
-    /// Whether the active tool paints with the brush
+    /// Whether the active tool paints with the current brush preset
     static bool paintToolActive();
-    /// Your brushes, in your order
+    /// The user's pinned brushes, in their order
     static QStringList yourBrushes();
     static void setYourBrushes(const QStringList &presetNames);
 
 private:
-    /// The strokes exist before the picker: its Source paints them
+    /// The strokes are created first because the picker's Source needs them
     KisStudioBrushPicker(KisMainWindow *mainWindow, std::shared_ptr<KisStudioBrushStrokes> strokes);
 
     struct Private;

@@ -9,7 +9,7 @@
 
 #include <cmath>
 
-#include <QDir>
+#include <QFile>
 
 #include <KConfig>
 #include <KConfigGroup>
@@ -64,7 +64,6 @@ QColor fromOklab(Lab lab)
 
 const char *const group = "StudioTheme";
 
-/// Every color of the scheme
 struct Colors {
     QColor window, windowAlt, view, viewAlt, button, buttonAlt, header, tooltip;
     QColor text, inactive, selection, selectionText, decoration;
@@ -73,7 +72,7 @@ struct Colors {
 Colors colorsOf(const Params &p)
 {
     const bool dark = p.lightness < 0.5;
-    // the tint's hue: at full strength backgrounds clearly of it, still quieter than the accent
+    // At full strength the tint clearly colors the backgrounds but stays quieter than the accent
     const Lab tint = toOklab(p.tint.isValid() ? p.tint : QColor(Qt::gray));
     const qreal chroma = std::hypot(tint.a, tint.b);
     const qreal reach = 0.11 * qBound<qreal>(0, p.tintAmount, 1);
@@ -91,7 +90,6 @@ Colors colorsOf(const Params &p)
     c.buttonAlt = bg(w + (dark ? 0.09 : -0.04));
     c.header = bg(w - (dark ? 0.05 : 0.06));
     c.tooltip = bg(w + (dark ? 0.13 : 0.03));
-    // text toward white, or black
     const qreal textL = dark ? 0.94 : 0.2;
     c.text = fromOklab({qBound<qreal>(0, textL, 1), ta * 0.3, tb * 0.3});
     c.inactive = fromOklab({w + (textL - w) * 0.5, ta * 0.5, tb * 0.5});
@@ -99,8 +97,8 @@ Colors colorsOf(const Params &p)
         c.selection = p.accent;
         c.decoration = p.accent;
     } else {
-        // a gray, lighter than the window when dark, darker when light: tinted as the text is, not as the
-        // backgrounds (it fills sliders, checks and lines, which the tint is not for)
+        // A gray that contrasts with the window. It fills sliders, checks and lines, so it takes
+        // the faint tint of the text rather than the stronger one of the backgrounds.
         c.selection = fromOklab({dark ? w + 0.21 : 0.31, ta * 0.3, tb * 0.3});
         c.decoration = c.text;
     }
@@ -216,9 +214,9 @@ void apply(const Params &params)
     g.writeEntry("UseAccent", params.accent.isValid());
     if (params.accent.isValid()) g.writeEntry("Accent", params.accent);
     writeScheme(params);
-    // the theme made may be a new file: the themes to choose from are looked for again
+    // The scheme file may be new, so the list of themes has to be scanned again
     KisSettingsRegistry::instance()->refreshChoices();
-    // the window takes it on the next settings change: its name, and that it was made again
+    // Bumping the revision makes the window reload the scheme even when its name is unchanged
     KConfigGroup theme = KSharedConfig::openConfig()->group("theme");
     theme.writeEntry("Theme", schemeName());
     theme.writeEntry("Revision", theme.readEntry("Revision", 0) + 1);

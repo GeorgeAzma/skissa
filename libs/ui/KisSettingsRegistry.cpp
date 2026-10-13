@@ -7,12 +7,10 @@
 
 #include <QApplication>
 #include <QColor>
-#include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QLocale>
 #include <QGuiApplication>
-#include <QPixmapCache>
 #include <QPointer>
 #include <QScreen>
 #include <QSettings>
@@ -103,7 +101,7 @@ Setting text(const QString &key, const QString &fallback, const QString &label, 
     return make(Kind::Text, key, fallback, label, flags);
 }
 
-/// In a group of kritarc of its own
+/// Moves \p s into its own kritarc group; its id becomes "[group] key"
 Setting grouped(Setting s, const QString &group)
 {
     s.group = group;
@@ -116,7 +114,7 @@ QString displayrcPath()
     return QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/kritadisplayrc");
 }
 
-/// Kept in kritadisplayrc (read before Krita's own settings are, at the start)
+/// Stores \p s in kritadisplayrc, which is read at startup before kritarc
 Setting inDisplayrc(Setting s)
 {
     const QString key = s.key;
@@ -216,7 +214,7 @@ QVector<Choice> themes()
     return themes;
 }
 
-/// What the settings that aren't plain from their names do: shown on hover
+/// Tooltips for settings whose names don't fully explain them
 QHash<QString, QString> explanations()
 {
     return {
@@ -299,14 +297,14 @@ QHash<QString, QString> explanations()
     };
 }
 
-/// The color models a proof can be in, printers' first
+/// Color models available for proofing, print models first
 const QVector<KoID> &proofingModels()
 {
     static const QVector<KoID> models {CMYKAColorModelID, GrayAColorModelID, RGBAColorModelID, LABAColorModelID};
     return models;
 }
 
-/// The profiles new images can be proofed with: a printer's, by color model
+/// Profiles new images can be proofed with, grouped by color model
 QVector<Choice> proofingProfiles()
 {
     QVector<Choice> profiles;
@@ -325,7 +323,7 @@ QVector<Choice> proofingProfiles()
     return profiles;
 }
 
-/// The profile's color model and depth go with it; the depth stays if the model has it
+/// Also stores the profile's color model, switching to 16-bit if the model lacks the current depth
 void proofWith(const QString &profileName)
 {
     KoColorSpaceRegistry *registry = KoColorSpaceRegistry::instance();
@@ -341,7 +339,7 @@ void proofWith(const QString &profileName)
     }
 }
 
-/// The profiles a screen can have
+/// Profiles suitable for a display
 QVector<Choice> displayProfiles()
 {
     QVector<Choice> profiles;
@@ -357,13 +355,13 @@ QVector<Setting> describeAll()
     using R = KisSettingsRegistry;
     QVector<Setting> all;
 
-    // the window, its looks
+    // Appearance
     {
         Setting theme = grouped(choice(QStringLiteral("Theme"), QStringLiteral("Krita Studio Dark"), {}, i18nc("setting", "Theme"), R::Fork), QStringLiteral("theme"));
         theme.dynamicChoices = themes;
         all << theme;
         {
-            // the theme made of choices (KisStudioTheme): any of them changed, it is made again and taken
+            // Theme parameters (KisStudioTheme): changing any of them regenerates and applies the theme
             const QString themeGroup = QStringLiteral("StudioTheme");
             auto made = [](Setting s) {
                 s.written = [](const QVariant &) { KisStudioTheme::apply(KisStudioTheme::current()); };
@@ -400,7 +398,7 @@ QVector<Setting> describeAll()
 
         all << color(QStringLiteral("canvasBorderColor"), QColor(0, 0, 0), i18nc("setting", "Around the image"));
         Setting ownFont = toggle(QStringLiteral("use_custom_system_font"), false, i18nc("setting", "Own interface font"));
-        // on: the font used now, to change from; off: the system's again, nothing left set
+        // Turning it on starts from the current font; turning it off clears both and uses the system font
         ownFont.written = [](const QVariant &value) {
             KisSettingsRegistry *r = KisSettingsRegistry::instance();
             if (!value.toBool()) {
@@ -424,7 +422,7 @@ QVector<Setting> describeAll()
 #endif
     }
 
-    // the canvas
+    // Canvas
     {
         all << choice(QStringLiteral("newCursorStyle"), 0,
                       {{0, i18nc("cursor", "None")}, {1, i18nc("cursor", "Tool icon")}, {2, i18nc("cursor", "Arrow")},
@@ -472,7 +470,7 @@ QVector<Setting> describeAll()
         all << mask;
         all << toggle(QStringLiteral("selectionActionBar"), true, i18nc("setting", "Selection actions bar"));
         Setting channels = toggle(QStringLiteral("showSingleChannelAsColor"), false, i18nc("setting", "Channels in color"));
-        // read as the canvas is drawn: what is drawn already is drawn again
+        // The canvas reads this while drawing, so redraw what is already there
         channels.written = [](const QVariant &) {
             Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
                 if (view && view->canvasBase()) view->canvasBase()->refetchDataFromImage();
@@ -487,7 +485,7 @@ QVector<Setting> describeAll()
                       i18nc("setting", "Scaling"), R::Machine);
     }
 
-    // the pen
+    // Pen
     {
         Setting curve = text(QStringLiteral("tabletPressureCurve"), QStringLiteral("0,0;1,1;"), i18nc("setting", "Pressure"));
         curve.format = [](const QVariant &value) {
@@ -524,7 +522,7 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("KineticScrollingEnabled"), true, i18nc("setting", "Kinetic scrolling"), R::Restart);
     }
 
-    // tools, layers, undo
+    // Tools, layers and undo
     {
         all << toggle(QStringLiteral("switchSelectionCtrlAlt"), false, i18nc("setting", "Swap Ctrl and Alt for selections"));
         all << toggle(QStringLiteral("activateTransformToolAfterPaste"), false, i18nc("setting", "Transform after pasting"));
@@ -557,7 +555,7 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("autoZoomTimelineToPlaybackRange"), true, i18nc("setting", "Timeline zooms to the playback range"));
     }
 
-    // files
+    // Files
     {
         Setting autosave = number(QStringLiteral("AutoSaveInterval"), 300, 0, 86400, i18nc("setting", "Autosave"));
         autosave.format = [](const QVariant &value) {
@@ -572,7 +570,7 @@ QVector<Setting> describeAll()
         all << number(QStringLiteral("numberofbackupfiles"), 1, 1, 99, i18nc("setting", "Backups kept"));
         all << toggle(QStringLiteral("compressLayersInKra"), false, i18nc("setting", "Smaller .kra files"));
         all << toggle(QStringLiteral("TrimKra"), false, i18nc("setting", "Trim layers when saving"));
-        // none chosen yet is PNG, as Krita takes it
+        // Krita treats an unset export type as PNG
         Setting exportType = choice(QStringLiteral("defaultExportMimeType"), QStringLiteral("image/png"), {}, i18nc("setting", "Export as"));
         exportType.dynamicChoices = exportTypes;
         all << exportType;
@@ -583,7 +581,7 @@ QVector<Setting> describeAll()
         all << choice(QStringLiteral("pasteBehaviour"), 2,
                       {{0, i18nc("pasted colors", "sRGB")}, {1, i18nc("pasted colors", "The screen's")}, {2, i18nc("pasted colors", "Ask")}},
                       i18nc("setting", "Pasted colors are"));
-        // 3, the last image, is Studio's own (see KisApplication::start)
+        // 3 (Last image) exists only in this fork (see KisApplication::start)
         all << choice(QStringLiteral("sessionOnStartup"), 3,
                       {{3, i18nc("on start", "Last image")}, {0, i18nc("on start", "Start page")}, {1, i18nc("on start", "Last session")},
                        {2, i18nc("on start", "Sessions")}},
@@ -603,10 +601,10 @@ QVector<Setting> describeAll()
         all << resources;
     }
 
-    // color
+    // Color
     {
         auto newImageColors = [](const QString &space) {
-            // what the new image dialog reads
+            // Stored where the new image dialog reads them
             KoColorSpaceRegistry *registry = KoColorSpaceRegistry::instance();
             KisConfig cfg(false);
             cfg.defColorModel(registry->colorSpaceColorModelId(space).id());
@@ -635,7 +633,7 @@ QVector<Setting> describeAll()
         exr.dynamicChoices = rgbProfiles;
         all << exr;
 
-        // how new images are proofed
+        // Proofing defaults for new images
         {
             auto proofingChanged = [](const QVariant &) { KisImageConfigNotifier::instance()->notifyGlobalProofingConfigChanged(); };
             Setting profile = choice(QStringLiteral("defaultProofingProfileName"), QStringLiteral("Chemical proof"), {}, i18nc("setting", "Proofing profile"));
@@ -654,7 +652,7 @@ QVector<Setting> describeAll()
             Setting black = toggle(QStringLiteral("defaultProofingBlackpointCompensation"), true, i18nc("setting", "Proofing black point compensation"));
             black.written = proofingChanged;
             all << black;
-            // the custom mode the old dialog had reads as Paper
+            // The old dialog's custom mode shows as Paper white
             Setting paper = choice(QStringLiteral("defaultProofingDisplayMode"), 1,
                                    {{0, i18nc("proofing display", "Screen white")}, {1, i18nc("proofing display", "Paper white")}},
                                    i18nc("setting", "Proof's white"));
@@ -665,7 +663,7 @@ QVector<Setting> describeAll()
             all << warning;
         }
 
-        // the screens: each one's profile, or, where the system manages the colors, how the canvas is handed to it
+        // A profile per screen, or the canvas surface options when the system manages color
         const bool osManaged = KisPlatformPluginInterfaceFactory::instance()->surfaceColorManagedByOS();
         if (!osManaged) {
             const QList<QScreen *> screens = QGuiApplication::screens();
@@ -703,7 +701,7 @@ QVector<Setting> describeAll()
             all << depth;
         }
 #ifdef HAVE_HDR
-        // where the system manages the colors, it sets the window's format too
+        // When the system manages color, it sets the window format too
         if (!osManaged) {
             Setting format = choice(QStringLiteral("rootSurfaceFormat"), int(KisConfig::BT709_G22),
                                     {{int(KisConfig::BT709_G22), i18nc("screen format", "sRGB, 8 bit")},
@@ -724,7 +722,7 @@ QVector<Setting> describeAll()
 #endif
     }
 
-    // speed
+    // Performance
     {
         Setting renderer = choice(QStringLiteral("OpenGLRenderer"), KisOpenGL::convertOpenGLRendererToConfig(KisOpenGL::RendererAuto), {},
                                   i18nc("setting", "Renderer"), R::Machine | R::Restart);
@@ -734,11 +732,11 @@ QVector<Setting> describeAll()
         renderer.write = [](const QVariant &value) {
             const KisOpenGL::OpenGLRenderer before = KisOpenGL::getUserPreferredOpenGLRendererConfig();
             const KisOpenGL::OpenGLRenderer after = KisOpenGL::convertConfigToOpenGLRenderer(value.toString());
-            // on again: the canvas tries OpenGL once more, even if it failed before
+            // Re-enabling acceleration makes the canvas try OpenGL again, even if it failed before
             if (before == KisOpenGL::RendererNone && after != KisOpenGL::RendererNone) KisConfig(false).setCanvasState(QStringLiteral("TRY_OPENGL"));
             KisOpenGL::setUserPreferredOpenGLRendererConfig(after);
         };
-        // off works at once (the canvas is drawn without OpenGL); another one at the next start
+        // Turning acceleration off takes effect at once; any other switch needs a restart
         renderer.waitsForRestart = [](const QVariant &startup, const QVariant &now) {
             const QString none = KisOpenGL::convertOpenGLRendererToConfig(KisOpenGL::RendererNone);
             return now.toString() != none && now.toString() != startup.toString();
@@ -747,7 +745,7 @@ QVector<Setting> describeAll()
         all << number(QStringLiteral("memoryHardLimitPercent"), 50.0, 1, 100, i18nc("setting", "Memory for images"), R::Machine | R::Restart);
         const int threads = QThread::idealThreadCount();
         all << number(QStringLiteral("maxNumberOfThreads"), threads, 1, threads, i18nc("setting", "Processor threads"), R::Machine);
-        // as Krita takes it while unset: half the threads it may use
+        // Krita's default while unset: half the allowed threads
         auto halfTheThreads = []() { return QVariant(qMax(1, KisImageConfig(true).maxNumberOfThreads() / 2)); };
         Setting clones = number(QStringLiteral("frameRenderingClones"), halfTheThreads(), 1, threads, i18nc("setting", "Frames rendered at once"), R::Machine);
         clones.fallbackNow = halfTheThreads;
@@ -761,8 +759,8 @@ QVector<Setting> describeAll()
 }
 
 /**
- * Settings there are no more of: Krita's defaults always. Once, what was set of them is let go, so that none
- * is left changed where it can no longer be seen.
+ * Deletes the stored values of settings that are no longer shown, so they fall back to Krita's
+ * defaults instead of staying changed out of sight. Runs once per \c version.
  */
 void forgetRetired()
 {
@@ -784,7 +782,7 @@ void forgetRetired()
         "forcedDpiForQtFontBugWorkaround", "memorySoftLimitPercent", "maxSwapSize", "swaplocation", "useOnDiskAnimationCacheSwapping",
         "calculateAnimationCacheInBackground", "disableAVXOptimizations", "amdDisableVectorWorkaround",
     };
-    // Krita's "don't rename copied/pasted/merged layers" lives on as no words around their names
+    // Krita's "don't rename copied/pasted/merged layers" options become empty name affixes
     const struct { const char *old; KisImageConfig::LayerNaming kind; } renames[] = {
         {"renameDuplicatedLayers", KisImageConfig::CopiedLayer},
         {"renamePastedLayers", KisImageConfig::PastedLayer},
@@ -798,9 +796,9 @@ void forgetRetired()
         }
     }
     for (const char *key : keys) top.deleteEntry(key);
-    // Krita wrote its start page as the choice whether it was chosen or not: Studio opens the last image instead
+    // Krita always wrote the start page choice, chosen or not; drop it so the last image opens instead
     if (top.readEntry("StudioRetiredSettings", 0) < 4 && top.readEntry("sessionOnStartup", 0) == 0) top.deleteEntry("sessionOnStartup");
-    // the same for the sampler's magnifier, off as Krita came, on now
+    // Likewise for the sampler magnifier, which upstream Krita defaults to off
     if (top.readEntry("StudioRetiredSettings", 0) < 5 && !top.readEntry("colorSamplerZoomPreviewEnabled", true)) top.deleteEntry("colorSamplerZoomPreviewEnabled");
     KSharedConfig::openConfig()->group(QStringLiteral("StudioTheme")).deleteEntry("Contrast");
     QSettings display(displayrcPath(), QSettings::IniFormat);
@@ -821,7 +819,7 @@ struct KisSettingsRegistry::Private
     QVector<Setting> settings;
     QHash<QString, int> index;
     QHash<QString, QVariant> startup;
-    /// Choices known only at run time (themes, file types, profiles): found once, they don't change while Krita runs
+    /// Cached run-time choices (themes, file types, profiles), cleared by refreshChoices()
     QHash<QString, QVector<Choice>> foundChoices;
     QTimer notify;
     QTimer sync;
@@ -834,7 +832,7 @@ struct KisSettingsRegistry::Private
     };
     QVector<Change> undo;
     QVector<Change> redo;
-    /// Undoing or redoing: what is written is not a change of its own
+    /// Set while undoing or redoing, so the write isn't recorded as a new change
     bool replaying {false};
 };
 
@@ -856,16 +854,16 @@ KisSettingsRegistry::KisSettingsRegistry()
     for (int i = 0; i < d->settings.size(); i++) {
         d->index.insert(d->settings[i].id, i);
     }
-    // what Krita runs with: a change from it to a setting that waits for a restart is pending
+    // Values at startup, to tell which restart-only changes are still pending
     Q_FOREACH (const Setting &s, d->settings) {
         if (s.flags & Restart) d->startup.insert(s.id, value(s.id));
     }
 
-    // Krita is told once for what is written together (a slider dragged), soon enough to follow it live
+    // Notify Krita once per burst of changes (a slider drag), still soon enough to follow live
     d->notify.setSingleShot(true);
     d->notify.setInterval(60);
     connect(&d->notify, &QTimer::timeout, this, &KisSettingsRegistry::notifyNow);
-    // and kritarc is written once the changes stop: rewriting it is not free, nor safe to do often
+    // Write kritarc only once the changes stop: rewriting it is costly and not safe to do often
     d->sync.setSingleShot(true);
     d->sync.setInterval(800);
     connect(&d->sync, &QTimer::timeout, this, []() { KSharedConfig::openConfig()->sync(); });
@@ -920,7 +918,7 @@ QString KisSettingsRegistry::display(const Setting &setting, const QVariant &val
 QVariant KisSettingsRegistry::normalized(const Setting &setting, const QVariant &value) const
 {
     if (!value.isValid()) return QVariant();
-    // an empty text is one (a Qt 5 QString() is "null"), nothing else is
+    // Only Text accepts a null value, since Qt 5 treats an empty QString() as null
     if (value.isNull() && setting.kind != Kind::Text) return QVariant();
     QVariant result;
     switch (setting.kind) {
@@ -957,7 +955,7 @@ QVariant KisSettingsRegistry::normalized(const Setting &setting, const QVariant 
             wanted = value.toString();
         }
         if (!wanted.isValid()) break;
-        // its default is valid also when it isn't listed (yet)
+        // The default is valid even when it isn't among the choices (yet)
         if (wanted == setting.fallback) {
             result = wanted;
             break;
@@ -1027,7 +1025,7 @@ QVariant KisSettingsRegistry::value(const QString &id) const
         KConfigGroup group = KSharedConfig::openConfig()->group(s->group);
         raw = group.hasKey(s->key) ? QVariant(group.readEntry(s->key, QString())) : fallbackOf(*s);
     }
-    // a value Krita can't have written (an old version's, a hand edit): as Krita reads it, its default
+    // An invalid stored value (an old version's, a hand edit) reads as the default, as in Krita
     const QVariant value = normalized(*s, raw);
     return value.isValid() ? value : fallbackOf(*s);
 }
@@ -1053,7 +1051,7 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
     const QVariant before = value(id);
     if (sameValue(*s, v, before)) return true;
     if (!d->replaying) {
-        // a slider dragged, a value typed and fixed: one change
+        // Merge quick successive changes of one setting (a slider drag, typing) into one step
         if (!d->undo.isEmpty() && d->undo.last().id == id && d->undo.last().made.elapsed() < 1500) {
             d->undo.last().after = v;
         } else {
@@ -1068,7 +1066,7 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
         s->write(v);
     } else {
         if (s->fallbackNow && sameValue(*s, v, s->fallbackNow())) {
-            KSharedConfig::openConfig()->group(s->group).deleteEntry(s->key); // to keep following its default
+            KSharedConfig::openConfig()->group(s->group).deleteEntry(s->key); // so it keeps following its default
         } else {
             writeIn(*s, *KSharedConfig::openConfig(), v);
         }
@@ -1121,7 +1119,7 @@ bool KisSettingsRegistry::redoChange()
     d->replaying = true;
     setValue(change.id, change.after);
     d->replaying = false;
-    // done again: as recent as it is now, for Undo to weigh against the document's steps
+    // A redone change counts as new when Undo weighs it against the document's steps
     change.made.restart();
     d->undo << change;
     return true;
@@ -1165,7 +1163,7 @@ void KisSettingsRegistry::notifyNow()
     KisConfigNotifier::instance()->notifyConfigChanged();
     KisConfigNotifier::instance()->notifyPixelGridModeChanged();
     KisImageConfigNotifier::instance()->notifyConfigChanged();
-    // layers keep some settings for compositing, without listening for changes
+    // Layers cache some settings for compositing and don't listen for changes
     Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
         if (view && view->image()) view->image()->rootLayer()->updateSettings();
     }

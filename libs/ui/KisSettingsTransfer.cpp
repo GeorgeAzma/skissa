@@ -10,7 +10,6 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
@@ -37,7 +36,7 @@ namespace KisSettingsTransfer
 namespace {
 
 const QString formatName = QStringLiteral("krita-settings");
-/// Your sections and Quick (see KisStudioSettings), moved with the settings
+/// The user's own sections and Quick (see KisStudioSettings), transferred along with the settings
 const QString sectionsKey = QStringLiteral("StudioSettingsSections");
 const QString backupSuffix = QStringLiteral(".before-krita-dev");
 
@@ -76,7 +75,8 @@ QByteArray readAll(const QString &path, bool *ok)
     return *ok ? file.readAll() : QByteArray();
 }
 
-/// Plans moving the settings from \p source (or this Krita's, if null) to \p target (or this Krita's)
+/// Lists the changes that copying settings from \p source to \p target would make.
+/// A null config stands for this instance's own settings.
 Plan plan(KConfig *source, KConfig *target, bool toKrita)
 {
     Plan plan;
@@ -88,9 +88,9 @@ Plan plan(KConfig *source, KConfig *target, bool toKrita)
         QVariant to;
         if (source) {
             to = registry->valueIn(s, *source);
-            if (!to.isValid()) continue; // not set there: nothing to take
+            if (!to.isValid()) continue; // not set in the source
         } else {
-            // only what was changed here: the rest stays as Krita has it
+            // Only settings changed here are given; the rest stay as the target has them
             if (registry->isDefault(s.id)) continue;
             to = registry->value(s.id);
         }
@@ -143,10 +143,7 @@ QByteArray exportSettings()
 bool writeFile(const QString &path, const QByteArray &data, QString *error)
 {
     QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size() || !file.commit()) {
-        if (error) *error = file.errorString();
-        return false;
-    }
+    if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size() || !file.commit()) return fail(error, file.errorString());
     return true;
 }
 
@@ -184,7 +181,7 @@ Plan planImport(const QByteArray &data)
         const QVariant from = registry->value(s->id);
         if (!registry->sameValue(*s, from, to)) plan.changes << Change{s->id, from, to};
     }
-    // what is at its default there isn't in the file: changed here, it is kept
+    // Settings missing from the file were at their default there; they are left as they are here
     if (root.value(QStringLiteral("sections")).isObject()) {
         plan.sections = QJsonDocument(root.value(QStringLiteral("sections")).toObject()).toJson(QJsonDocument::Compact);
     }
@@ -195,7 +192,8 @@ QString kritaSettingsPath()
 {
     QString path = qEnvironmentVariable("KRITA_DEV_KRITA_SETTINGS");
     if (path.isEmpty()) {
-        // this one runs with a profile of its own (Qt's test mode, see KRITA_DEV_PROFILE): Krita's is where it would be without
+        // The dev build runs in Qt's test mode with its own profile (see KRITA_DEV_PROFILE);
+        // the regular kritarc is where the config folder would be outside test mode.
         if (!QStandardPaths::isTestModeEnabled()) return QString();
         QString own = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation));
         if (own.endsWith(QLatin1String("/qttest"))) {
@@ -223,13 +221,13 @@ bool kritaRunning()
     const QString self = samePath(QCoreApplication::applicationFilePath());
     const DWORD ownId = GetCurrentProcessId();
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snapshot == INVALID_HANDLE_VALUE) return true; // can't tell: as if it were
+    if (snapshot == INVALID_HANDLE_VALUE) return true; // can't tell, so assume it is
     bool running = false;
     PROCESSENTRY32W entry;
     entry.dwSize = sizeof(entry);
     for (BOOL more = Process32FirstW(snapshot, &entry); more && !running; more = Process32NextW(snapshot, &entry)) {
         if (entry.th32ProcessID == ownId || _wcsicmp(entry.szExeFile, L"krita.exe") != 0) continue;
-        // another krita.exe: Krita, unless it is this one's build running again
+        // Another krita.exe counts unless it is this same executable running twice
         HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID);
         if (!process) {
             running = true;
@@ -302,7 +300,7 @@ bool applyToKrita(const QVector<Change> &changes, QString *error)
     const QByteArray original = readAll(path, &ok);
     if (!ok) return fail(error, i18nc("@info", "Krita's settings couldn't be read."));
 
-    // the copy to go back to: the one from before the first time, never one already changed
+    // Back up the original only once, so the backup is never an already changed file
     const QString backup = path + backupSuffix;
     if (!QFileInfo::exists(backup)) {
         QString why;
@@ -311,7 +309,7 @@ bool applyToKrita(const QVector<Change> &changes, QString *error)
         if (!ok || kept != original) return fail(error, i18nc("@info", "A copy of Krita's settings couldn't be kept."));
     }
 
-    // changed on a copy first: if anything goes wrong, Krita's file is as it was
+    // Work on a draft copy so Krita's file stays intact if anything goes wrong
     const QString draft = path + QStringLiteral(".krita-dev-draft");
     QFile::remove(draft);
     QString why;
@@ -334,7 +332,7 @@ bool applyToKrita(const QVector<Change> &changes, QString *error)
             return fail(error, i18nc("@info", "Krita's settings couldn't be written."));
         }
     }
-    // read back: every change there, and nothing else lost
+    // Read the draft back: every change must be there and nothing else lost
     {
         KConfig check(draft, KConfig::SimpleConfig);
         bool good = check.group(QString()).keyList().size() >= keysBefore;
@@ -354,7 +352,7 @@ bool applyToKrita(const QVector<Change> &changes, QString *error)
     QFile::remove(draft);
     QFile::remove(draft + QStringLiteral(".lock"));
     if (!ok) return fail(error, i18nc("@info", "Krita's settings couldn't be written."));
-    // in one step: Krita finds either its old file or the new one, never half of one
+    // Replace atomically: Krita sees either the old file or the new one, never half of one
     if (!writeFile(path, changed, &why)) return fail(error, why);
     return true;
 }
@@ -376,7 +374,7 @@ bool restoreKrita(QString *error)
     bool ok = false;
     const QByteArray kept = readAll(backup, &ok);
     if (!ok || kept.isEmpty()) return fail(error, i18nc("@info", "There is no copy of Krita's settings to go back to."));
-    // what they were until now, should they be wanted after all
+    // Keep the current file in case it is wanted after all
     const QByteArray current = readAll(path, &ok);
     QString why;
     if (ok && !writeFile(path + QStringLiteral(".krita-dev-replaced"), current, &why)) return fail(error, why);

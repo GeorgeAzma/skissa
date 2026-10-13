@@ -9,17 +9,17 @@
 class KisMainWindow;
 
 /**
- * Every shortcut, tapped or held. Tapped, it does what it always did. Held,
- * what it turned on lasts while it is held: a tool used while its key is
- * down is put back when the key is let go (a spring loaded tool), a toggle
- * (the mirror view...) is turned back off.
+ * Lets every shortcut be tapped or held. A tap works as usual. Holding the key
+ * makes the effect temporary: a tool used while its key is down is switched
+ * back on release (a spring-loaded tool), and a toggle such as the mirror view
+ * is turned back off.
  */
 namespace KisStudioHoldKeys
 {
-/// For the shortcuts of \p mainWindow's actions (once per window)
+/// Handles the shortcuts of \p mainWindow's actions; call once per window.
 void install(KisMainWindow *mainWindow);
 
-/// How long a key is down before it counts as held, not tapped (milliseconds)
+/// How long a key must be down to count as held rather than tapped, in milliseconds
 constexpr int holdTime = 350;
 }
 

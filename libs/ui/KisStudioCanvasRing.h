@@ -20,8 +20,9 @@
 class KisMainWindow;
 
 /**
- * A right press on the canvas with a painting tool: your first eight brushes around the pointer, the layer's colors
- * around them. Flick towards a brush and let go to take it; a click without moving leaves it open to click in.
+ * Radial menu opened by a right press on the canvas with a painting tool: the first eight pinned brushes around
+ * the pointer, ringed by the colors used on the current layer. Flick towards a brush and release to select it;
+ * a click without moving keeps the ring open for clicking.
  */
 class KRITAUI_EXPORT KisStudioCanvasRing : public QWidget
 {
@@ -44,12 +45,12 @@ private:
     void open(QWidget *canvas, const QPointF &pos);
     void close();
     void loadSlots();
-    /// \p change is given all your brushes, the ring's first
+    /// Applies \p change to the pinned brushes (the ring shows the first ones) and saves them
     void changeBrushes(const std::function<void(QStringList &brushes)> &change);
-    /// A brush chosen in Find for slot \p index (past the last one: one more)
+    /// Lets the user pick a brush in Find for slot \p index; an index past the end appends one
     void pickBrush(int index);
     void slotMenu(int index, const QPoint &global);
-    /// Under \p pos: a brush (0..7), an empty slot (200+), a color (100+), the middle (-2), nothing (-1)
+    /// What is at \p pos: a brush (0..7), a color (100+), an empty slot (200+), the middle (-2) or nothing (-1)
     int targetAt(const QPointF &pos) const;
     void choose(int target);
     QPointF slotCenter(int index) const;
@@ -60,25 +61,25 @@ private:
     QVector<QColor> m_colors;
     QColor m_current;
     QString m_currentBrush;
-    /// The press that opened it is still down: a release on a target takes it
+    /// The press that opened the ring is still down; releasing over a target selects it
     bool m_held {false};
     bool m_moved {false};
-    /// Where the press that opened it was: off the center near the canvas's edges
+    /// Where the opening press was; off-center when the ring was pushed in from the canvas edges
     QPointF m_openedAt;
-    /// A brush pressed: taken when let go there, or (\p m_dragging) moved to where it is let go
+    /// The pressed brush: selected on release, or moved to another slot if m_dragging
     int m_pressed {-1};
     QPointF m_pressedAt;
     bool m_dragging {false};
     QPointF m_dragAt;
     int m_hover {-1};
     QPointF m_center;
-    /// Growing in as it opens
+    /// Scale for the opening animation
     qreal m_scale {1.0};
-    /// The canvas it opened on: gone or another one shown, it closes
+    /// The canvas the ring opened on; the ring closes if it goes away or another canvas is shown
     QPointer<QWidget> m_canvas;
-    /// The button whose press closed it: its release is eaten too
+    /// Button whose press closed the ring; its release is swallowed too
     Qt::MouseButton m_eatRelease {Qt::NoButton};
-    /// Since a click chose something and closed it: a second click of a double click is eaten
+    /// Started when a click selects something, so the second click of a double click can be swallowed
     QElapsedTimer m_closedByClick;
 };
 

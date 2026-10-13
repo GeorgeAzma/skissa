@@ -11,9 +11,9 @@
 #include <kritapaintop_export.h>
 
 /**
- * Curves to pick at a click, each drawn as it is: Linear, Soft and Firm, then the curves you saved
- * (+ saves the one being edited; a right click renames or deletes one). The saved ones are the same
- * in every brush setting.
+ * A strip of curve presets, each drawn as a small plot: Linear, Soft and Firm, followed by the user's
+ * saved curves. The "+" tile saves the curve being edited; right click renames or deletes a saved one.
+ * Saved curves are shared by all brush options.
  */
 class PAINTOP_EXPORT KisCurvePresetStrip : public QWidget
 {
@@ -21,7 +21,7 @@ class PAINTOP_EXPORT KisCurvePresetStrip : public QWidget
 public:
     explicit KisCurvePresetStrip(QWidget *parent = nullptr);
 
-    /// The curve being edited: what + saves, and the tile shown as chosen
+    /// The curve being edited: saved by "+" and highlighted if it matches a tile
     void setCurrent(const QString &curve);
 
     QSize sizeHint() const override;
@@ -47,10 +47,10 @@ private:
         bool saved {false};
     };
     QVector<Entry> entries() const;
-    /// The tile at \p pos: an entry's index, the + (entries' count) or -1
+    /// The tile at \p pos: an entry's index, the entry count for \"+\", or -1
     int at(const QPoint &pos) const;
     QRect tile(int i) const;
-    /// Tiles in a row \p width wide: as many as fit, the rest on the rows below
+    /// Number of tiles that fit in a row \p width wide
     static int columns(int width);
 
     QString m_current;

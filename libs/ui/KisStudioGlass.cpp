@@ -11,36 +11,36 @@
 #include <vector>
 
 #include <QAbstractItemView>
+#include <QAbstractScrollArea>
 #include <QApplication>
 #include <QComboBox>
-#include <QAbstractScrollArea>
-#include <QMouseEvent>
-#include <QLabel>
-#include <QGroupBox>
 #include <QDialog>
 #include <QEvent>
 #include <QFrame>
 #include <QGraphicsOpacityEffect>
+#include <QGroupBox>
 #include <QHash>
+#include <QLabel>
 #include <QLayout>
 #include <QLinearGradient>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
 #include <QRegion>
 #include <QSet>
 #include <QThreadPool>
-#include <QtMath>
 #include <QTimer>
 #include <QWidget>
+#include <QtMath>
 
 #include "KisMainWindow.h"
-#include "KisUpdatePacer.h"
-#include "KisPart.h"
-#include "KisViewManager.h"
 #include "KisModernStyle.h"
+#include "KisPart.h"
 #include "KisPopupButton.h"
+#include "KisUpdatePacer.h"
+#include "KisViewManager.h"
 #include "canvas/kis_canvas2.h"
 #include "kis_config.h"
 #include "kis_config_notifier.h"
@@ -61,11 +61,11 @@ const QString settingKey = QStringLiteral("StudioGlass");
 const QString refractionKey = QStringLiteral("StudioGlassRefraction");
 const QString blurKey = QStringLiteral("StudioGlassBlur");
 const QString opacityKey = QStringLiteral("StudioGlassOpacity");
-/// The older setting: a line, subtle or strong
+/// The legacy edge setting (line, subtle or strong), read when no refraction is set.
 const QString oldEdgeKey = QStringLiteral("StudioGlassEdge");
 
 constexpr qreal blurRadius = 26;    ///< widget pixels
-constexpr qreal sampleScale = 0.25; ///< the CPU glass is made at a quarter resolution: the blur hides it
+constexpr qreal sampleScale = 0.25; ///< CPU glass renders at quarter resolution; the blur hides it
 
 const char *const drawnByCanvasProperty = "studioGlassDrawnByCanvas";
 const char *const maskedProperty = "studioGlassMasked";
@@ -75,6 +75,8 @@ const char *const seeThroughProperty = "studioGlassSeeThrough";
 const char *const unfilledViewProperty = "studioGlassUnfilledView";
 const char *const glassMenuProperty = "studioGlassMenu";
 const char *const glassDropdownProperty = "studioGlassDropdown";
+const char *const glassDialogProperty = "studioGlassDialog";
+const char *const glassDialogDoneProperty = "studioGlassDialogDone";
 
 // ------------------------------------------------------------ color
 
@@ -132,7 +134,7 @@ std::array<float, 3> fromOklab(const Lab &c)
             -0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s};
 }
 
-/// \p c with its chroma lowered until it fits the screen's gamut
+/// \p c with its chroma reduced until it fits in the sRGB gamut.
 std::array<float, 3> inGamut(const Lab &c)
 {
     auto inside = [](const std::array<float, 3> &rgb) {
@@ -149,7 +151,7 @@ std::array<float, 3> inGamut(const Lab &c)
     return fromOklab({c.l, c.a * lo, c.b * lo});
 }
 
-/// \p image (sRGB) through glass tinted \p tint, \p strength strong; as the GPU glass tints
+/// \p image (sRGB) seen through glass tinted with \p tint at \p strength, matching the GPU glass.
 QImage tinted(const QImage &image, const QColor &tint, qreal strength)
 {
     const auto &linear = toLinear();
@@ -163,7 +165,7 @@ QImage tinted(const QImage &image, const QColor &tint, qreal strength)
         for (int x = 0; x < image.width(); x++) {
             const Lab b = toOklab(linear[qRed(in[x])], linear[qGreen(in[x])], linear[qBlue(in[x])]);
             const float l = qBound(0.0f, b.l + (t.l - b.l) * s, 1.0f);
-            // chroma kept, veiled by the light the glass scatters (all of it where the glass lightens)
+            // Keep the chroma, veiled by light the glass scatters (fully where the glass lightens).
             const float lighter = qBound(0.0f, (l - b.l + 0.02f) / 0.08f, 1.0f);
             const float scattered = s * (veil + (1.0f - veil) * lighter * lighter * (3 - 2 * lighter));
             const std::array<float, 3> c = inGamut({l, b.a * (1 - scattered) + t.a * scattered, b.b * (1 - scattered) + t.b * scattered});
@@ -173,7 +175,7 @@ QImage tinted(const QImage &image, const QColor &tint, qreal strength)
     return result;
 }
 
-/// One box blur pass along \p count values \p stride apart, the edges repeated
+/// One box blur pass over \p count values \p stride apart, clamping at the edges.
 void boxLine(float *data, int count, int stride, int radius, std::vector<float> &scratch)
 {
     if (radius <= 0 || count <= 1) return;
@@ -188,12 +190,12 @@ void boxLine(float *data, int count, int stride, int radius, std::vector<float> 
     for (int i = 0; i < count; i++) data[i * stride] = scratch[i];
 }
 
-/// Blurred about as a gaussian of \p radius (three box passes), mixed in Oklab as the GPU glass mixes
+/// Approximates a gaussian blur of \p radius with three box passes, mixing in Oklab like the GPU glass.
 QImage blurred(const QImage &source, int radius)
 {
     const QImage image = source.convertToFormat(QImage::Format_RGB32);
     const int w = image.width(), h = image.height();
-    // weighted lightness to the power, weighted a and b, weighted chroma, and the weight
+    // Weighted lightness power, the weight, weighted a and b, and weighted chroma.
     enum { L, Weight, A, Bb, Chroma, Count };
     const float power = float(KisStudioGlass::lightnessPower);
     std::vector<float> channels[Count];
@@ -213,7 +215,7 @@ QImage blurred(const QImage &source, int radius)
             channels[Chroma][i] = chroma * weight;
         }
     }
-    // three passes share the variance
+    // Three passes share the variance.
     const int box = qMax(1, int(std::lround(radius / std::sqrt(3.0))));
     std::vector<float> scratch;
     for (int c = 0; c < Count; c++) {
@@ -240,7 +242,7 @@ QImage blurred(const QImage &source, int radius)
     return result;
 }
 
-/// Mean perceived lightness of \p image, 0 to 1
+/// Mean perceived lightness of \p image, 0 to 1.
 qreal lightness(const QImage &image)
 {
     if (image.isNull()) return 0;
@@ -254,7 +256,7 @@ qreal lightness(const QImage &image)
     return count ? sum / count : 0;
 }
 
-/// \p image tinted by \p tint as strongly as what is behind needs for text to read
+/// \p image tinted by \p tint just strongly enough for text on it to stay readable.
 QImage tintedForText(const QImage &image, const QColor &tint)
 {
     const qreal contrast = qBound(0.0, qAbs(lightness(image) - tint.lightnessF()), 1.0);
@@ -291,22 +293,22 @@ bool drawnByCanvas(const QWidget *canvasWidget)
 
 // ------------------------------------------------------------ glass made on the CPU
 
-/// What a backdrop is made from: taken on the GUI thread, rendered on any
+/// Inputs for a backdrop: captured on the GUI thread, rendered on any thread.
 struct Scene {
     KisPaintDeviceSP projection;
     QRect imageBounds;
     QTransform toWidget;
     qreal zoom {1};
     QSize canvasSize;
-    QColor border;      ///< the canvas around the image
-    QColor transparent; ///< the checkers' middle, where the image is see-through
+    QColor border;      ///< the canvas color around the image
+    QColor transparent; ///< the average checker color, for transparent image areas
 };
 
-/// What is behind \p canvasRect (canvas widget pixels), blurred
+/// What is behind \p canvasRect (canvas widget pixels), blurred.
 QImage render(const Scene &scene, const QRect &canvasRect, const QColor &outside)
 {
     const qreal radius = blurRadius * KisStudioGlass::blur() * KisStudioGlass::blurScale(canvasRect.size());
-    // the blur's reach around it included, so the edges blur as the middle does
+    // Include the blur's reach so the edges blur like the middle.
     const int pad = qCeil(radius);
     const QRect area = canvasRect.adjusted(-pad, -pad, pad, pad);
     const QSize size(qMax(1, qCeil(area.width() * sampleScale)), qMax(1, qCeil(area.height() * sampleScale)));
@@ -322,7 +324,7 @@ QImage render(const Scene &scene, const QRect &canvasRect, const QColor &outside
     if (scene.projection) {
         const QRect imageArea = scene.toWidget.inverted().mapRect(QRectF(area)).toAlignedRect() & scene.imageBounds;
         if (!imageArea.isEmpty()) {
-            // at about the resolution it is drawn at here
+            // At roughly the resolution it is drawn at here.
             const QSize thumbSize(qBound(1, qCeil(imageArea.width() * scene.zoom * sampleScale), imageArea.width()),
                                   qBound(1, qCeil(imageArea.height() * scene.zoom * sampleScale), imageArea.height()));
             KisPaintDeviceSP projection = scene.projection;
@@ -340,15 +342,15 @@ QImage render(const Scene &scene, const QRect &canvasRect, const QColor &outside
 }
 
 /**
- * Keeps the backdrop of each glass widget not over an OpenGL canvas and remakes it when the canvas
- * changes under it. A widget's first backdrop is made at once, later ones in the background.
+ * Caches the backdrop of each glass widget that is not over an OpenGL canvas, and re-renders it when
+ * the canvas under it changes. The first backdrop is rendered immediately, later ones in the background.
  */
 class Engine : public QObject
 {
 public:
     struct Entry {
-        QRect rect;       ///< what of the widget is glass
-        QRect globalRect; ///< where that was on screen when made
+        QRect rect;       ///< the part of the widget that is glass
+        QRect globalRect; ///< where it was on screen when rendered
         QImage image;
     };
 
@@ -358,10 +360,10 @@ public:
         return *engine;
     }
 
-    /// The canvas behind \p rect of \p widget, blurred and tinted; null if there is none
+    /// The canvas behind \p rect of \p widget, blurred and tinted; a null image if there is none.
     Entry backdrop(QWidget *widget, const QRect &rect);
 
-    /// Made again as asked for: how the glass looks changed
+    /// Drops all backdrops after the glass settings change.
     void clear()
     {
         m_cache.clear();
@@ -397,7 +399,7 @@ private:
     KisImageWSP m_image;
     QMetaObject::Connection m_imageConnection;
     QMetaObject::Connection m_viewConnection;
-    /// Changed since the last refresh, image pixels
+    /// Image area changed since the last refresh, in image pixels.
     QRect m_imageChanged;
     QTransform m_transform;
     QSize m_canvasSize;
@@ -407,9 +409,9 @@ private:
     QSet<QWidget *> m_watched;
     QThreadPool m_pool;
     QSet<QWidget *> m_rendering;
-    /// Changed again while rendering
+    /// Widgets that changed again while rendering.
     QSet<QWidget *> m_again;
-    /// Bumped per canvas followed: backdrops made for another one are dropped
+    /// Bumped whenever the backdrops become stale, so renders in flight are dropped.
     int m_epoch {0};
 };
 
@@ -436,9 +438,7 @@ void Engine::follow(KisCanvas2 *canvas)
             if (!m_refresh.isActive()) m_refresh.start();
         });
     }
-    m_cache.clear();
-    m_again.clear();
-    m_epoch++;
+    clear();
 }
 
 void Engine::watch(QWidget *widget)
@@ -456,7 +456,7 @@ void Engine::watch(QWidget *widget)
 
 void Engine::refresh()
 {
-    // the view moved: all glass is remade; the image changed: only the glass near the change
+    // If the view moved, re-render all glass; if the image changed, only the glass near the change.
     bool moved = false;
     if (m_canvas && m_canvasWidget) {
         const QTransform transform = m_canvas->coordinatesConverter()->imageToWidgetTransform();
@@ -486,7 +486,7 @@ void Engine::refresh()
         if (widget->isVisible()) {
             renderLater(widget);
         } else {
-            // remade when shown again
+            // Re-rendered when shown again.
             m_cache.erase(it);
         }
     }
@@ -542,7 +542,7 @@ void Engine::renderLater(QWidget *widget)
     m_rendering.insert(widget);
     m_pool.start([this, scene = scene(), rect, globalRect, canvasRect, outside, widget, guard, epoch]() mutable {
         const Entry entry = makeEntry(scene, rect, globalRect, canvasRect, outside);
-        // the projection is released on the GUI thread
+        // Release the projection on the GUI thread.
         QMetaObject::invokeMethod(this, [this, widget, guard, epoch, entry, projection = std::move(scene.projection)]() {
             rendered(widget, guard, epoch, entry);
         }, Qt::QueuedConnection);
@@ -554,7 +554,7 @@ void Engine::rendered(QWidget *widget, const QPointer<QWidget> &guard, int epoch
     m_rendering.remove(widget);
     const bool again = m_again.remove(widget);
     auto it = m_cache.find(widget);
-    // gone, another canvas, or resized meanwhile
+    // Drop it if the widget is gone, the canvas changed, or it was resized meanwhile.
     if (!guard || epoch != m_epoch || it == m_cache.end() || it->rect.size() != entry.rect.size()) {
         return;
     }
@@ -575,21 +575,21 @@ Engine::Entry Engine::backdrop(QWidget *widget, const QRect &rect)
     const QRect globalRect(widget->mapToGlobal(rect.topLeft()), rect.size());
     auto it = m_cache.find(widget);
     if (it != m_cache.end() && it->rect.size() == rect.size()) {
-        // moved: remade in the background, the old one shown meanwhile
+        // Moved: re-render in the background and show the old one meanwhile.
         if (it->globalRect != globalRect) {
             it->rect = rect;
             renderLater(widget);
         }
         return *it;
     }
-    // new, or resized: made now
+    // New or resized: render now.
     const QRect canvasRect(m_canvasWidget->mapFromGlobal(globalRect.topLeft()), globalRect.size());
     const Entry entry = makeEntry(scene(), rect, globalRect, canvasRect, widget->palette().color(QPalette::Window));
     m_cache.insert(widget, entry);
     return entry;
 }
 
-/// The solid dialog that \p widget (a window of its own: a menu, a tooltip) is over, if any
+/// The solid dialog that \p widget's window (a menu or tooltip) is over, if any.
 QWidget *windowBehind(const QWidget *widget)
 {
     for (QWidget *w = widget->window()->parentWidget(); w; w = w->parentWidget()) {
@@ -597,7 +597,7 @@ QWidget *windowBehind(const QWidget *widget)
         if (qobject_cast<const KisMainWindow *>(w)) return nullptr;
         if (!w->testAttribute(Qt::WA_TranslucentBackground)) return w;
     }
-    // a parentless popup (Qt's tooltips on Windows) is over the active dialog it overlaps
+    // A parentless popup (Qt's tooltips on Windows) is over the active dialog it overlaps.
     const QWidget *window = widget->window();
     if (window->isWindow() && (window->windowType() == Qt::ToolTip || window->windowType() == Qt::Popup || window->windowType() == Qt::Tool)) {
         QWidget *active = QApplication::activeModalWidget();
@@ -610,7 +610,7 @@ QWidget *windowBehind(const QWidget *widget)
     return nullptr;
 }
 
-/// The glass of \p widget's \p rect over the solid window \p behind; null where none of it is there
+/// The glass for \p rect of \p widget over the solid window \p behind; null if they don't overlap.
 QImage glassOverWindow(QWidget *widget, const QRect &rect, QWidget *behind)
 {
     const int reach = qCeil(blurRadius * KisStudioGlass::blur());
@@ -629,7 +629,7 @@ QImage glassOverWindow(QWidget *widget, const QRect &rect, QWidget *behind)
 
 // ------------------------------------------------------------ glass drawn by the canvas
 
-/// Whether \p a paints before (under) \p b, both in one window
+/// Whether \p a paints before (under) \p b; both must be in the same window.
 bool paintedBefore(const QWidget *a, const QWidget *b)
 {
     if (a == b || b->isAncestorOf(a)) return false;
@@ -645,7 +645,7 @@ bool paintedBefore(const QWidget *a, const QWidget *b)
     return false;
 }
 
-/// What lies over \p canvas in its window (the tool rail, the zoom pill)
+/// The widgets over \p canvas in its window, such as the tool rail and the zoom pill.
 QList<QWidget *> overlaysOf(QWidget *canvas)
 {
     QList<QWidget *> overlays;
@@ -655,7 +655,7 @@ QList<QWidget *> overlaysOf(QWidget *canvas)
         if (w && !w->isWindow() && canvasRect.intersects(QRect(w->mapToGlobal(QPoint()), w->size()))) overlays << w;
     };
     for (QObject *child : canvas->children()) add(child);
-    // siblings stacked after it or after what holds it
+    // Siblings stacked above the canvas or above its ancestors.
     for (QWidget *w = canvas; !w->isWindow() && w->parentWidget(); w = w->parentWidget()) {
         const QObjectList &siblings = w->parentWidget()->children();
         for (int i = siblings.indexOf(w) + 1; i < siblings.size(); i++) add(siblings[i]);
@@ -663,16 +663,16 @@ QList<QWidget *> overlaysOf(QWidget *canvas)
     return overlays;
 }
 
-/// The glass panels over canvases that draw their glass themselves
+/// Tracks the glass panels over canvases that draw the glass themselves.
 class Panels : public QObject
 {
 public:
     struct Panel {
         QRectF rect;
         qreal radius {0};
-        /// The canvas has drawn its glass since it was shown; until then it paints the plain panel color
+        /// The canvas has drawn its glass since it was shown; until then the panel is solid.
         bool drawn {false};
-        /// Where a glass window over it covers it (its coordinates): nothing of it is painted there
+        /// The part covered by a glass window above it, in its own coordinates; not painted.
         QRegion covered;
     };
 
@@ -682,7 +682,7 @@ public:
         return *panels;
     }
 
-    /// \p widget is glass in \p rect; returns whether the canvas has drawn its glass yet
+    /// Registers \p rect of \p widget as glass. Returns whether the canvas has drawn its glass yet.
     bool paint(QWidget *widget, const QRectF &rect, qreal radius)
     {
         auto it = m_panels.find(widget);
@@ -707,7 +707,7 @@ public:
         return it->drawn;
     }
 
-    /// \p widget is no longer glass
+    /// Unregisters \p widget.
     void forget(QWidget *widget)
     {
         if (!m_panels.remove(widget)) {
@@ -724,9 +724,9 @@ public:
     }
 
     /**
-     * changed(), once painting is done: Qt drops a canvas update requested while the window
-     * paints, so a panel shown with its window would get its glass only where the canvas
-     * happened to redraw next.
+     * Calls changed() once painting is done. Qt drops canvas updates requested while the window
+     * paints, so a panel shown with its window would otherwise get its glass only where the canvas
+     * happens to redraw next.
      */
     void changedAfterPainting(QWidget *widget)
     {
@@ -762,7 +762,7 @@ public:
         return m_panels.value(widget).covered;
     }
 
-    /// \p widget, or a panel in its window, changed how it shows: the canvases under them redraw
+    /// Redraws the canvases under \p widget and the other panels in its window.
     void changed(QWidget *widget)
     {
         KisUpdatePacer::log(QStringLiteral("glass changed ") + QString::fromLatin1(widget->metaObject()->className()) + QLatin1Char(' ') + widget->objectName());
@@ -781,13 +781,13 @@ public:
     }
 
     /**
-     * The canvas draws all glass under all panels, so the content of a lower panel would show
-     * through the glass of a window above it. Mask the canvas' overlays and the content of glass
-     * windows where a higher glass window (or a panel set over the overlays) covers them.
+     * The canvas draws the glass of all panels at once, so a lower panel's content would show through
+     * the glass of a window above it. Masks the canvas' overlays and the content of glass windows
+     * wherever a higher glass window (or a panel set over the overlays) covers them.
      */
     void hideUnderWindows(QWidget *canvas)
     {
-        // the glass over the rest, lowest first, and their shapes on screen
+        // Glass above the overlays, lowest first, and their shapes on screen.
         QList<QWidget *> windows;
         for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
             QWidget *panel = it.key();
@@ -833,7 +833,7 @@ public:
             }
             hide(content, above);
         }
-        // no longer under one
+        // Unmask panels that are no longer covered.
         for (auto it = m_panels.begin(); it != m_panels.end(); ++it) {
             if (!windows.contains(it.key()) && !it->covered.isEmpty()) {
                 it->covered = QRegion();
@@ -843,13 +843,13 @@ public:
         }
     }
 
-    /// \p widgets masked out where \p region (global) is
+    /// Masks \p widgets out where they intersect \p region (global coordinates).
     static void hide(const QList<QWidget *> &widgets, const QRegion &region)
     {
         for (QWidget *w : widgets) {
             const bool masked = w->property(maskedProperty).toBool();
             if (!masked && !w->mask().isEmpty()) {
-                // a mask of its own: left alone
+                // Leave widgets with their own mask alone.
                 continue;
             }
             const QRegion hidden = region.translated(-w->mapToGlobal(QPoint())) & w->rect();
@@ -862,7 +862,7 @@ public:
             }
             QRegion shown = QRegion(w->rect()) - hidden;
             if (shown.isEmpty()) {
-                // an empty mask means no mask: one pixel outside it instead
+                // An empty mask means no mask, so use one pixel outside instead.
                 shown = QRegion(-1, -1, 1, 1);
             }
             if (!masked || w->mask() != shown) {
@@ -872,7 +872,7 @@ public:
         }
     }
 
-    /// The panels over \p canvasWidget in stacking order
+    /// The panels over \p canvasWidget in stacking order.
     QVector<KisStudioGlass::Surface> over(const QWidget *canvasWidget)
     {
         QVector<KisStudioGlass::Surface> surfaces;
@@ -889,7 +889,7 @@ public:
             }
             const qreal opacity = opacityOf(widget);
             if (opacity <= 0) {
-                // one fading in from nothing stays solid until its glass is there
+                // A panel fading in from zero stays solid until its glass is drawn.
                 continue;
             }
             const QPointF offset = widget->mapToGlobal(QPoint()) - canvasOrigin;
@@ -899,10 +899,9 @@ public:
     }
 
     /**
-     * \p canvasWidget drew a frame over \p painted (empty: all of it): the panels it drew whole are
-     * see-through from now on. One drawn only in part (a frame for the brush outline) stays solid, and
-     * the canvas draws it whole next: else it would show the canvas without its glass until the canvas
-     * happened to redraw there.
+     * \p canvasWidget drew a frame over \p painted (empty means all of it). Panels it covered fully become
+     * see-through. A panel drawn only in part (e.g. a brush outline update) stays solid and the canvas is
+     * asked to redraw all of it; otherwise it would show the canvas without glass until the next redraw.
      */
     void drewOver(QWidget *canvasWidget, const QRect &painted)
     {
@@ -916,7 +915,7 @@ public:
             const QRect area = panel.rect.translated(widget->mapToGlobal(QPoint()) - canvasOrigin).toAlignedRect() & canvasWidget->rect();
             if (painted.isEmpty() || painted.contains(area)) {
                 panel.drawn = true;
-                // see-through only after the frame with its glass is out
+                // Turn see-through only after the frame with its glass is presented.
                 QMetaObject::invokeMethod(widget, QOverload<>::of(&QWidget::update), Qt::QueuedConnection);
             } else if (!area.isEmpty()) {
                 canvasWidget->update(area);
@@ -942,14 +941,14 @@ protected:
         QWidget *widget = static_cast<QWidget *>(watched);
         switch (event->type()) {
         case QEvent::Hide:
-            // shown again, it is plain until the canvas draws its glass
+            // When shown again it is solid until the canvas draws its glass.
             for (auto it = m_panels.begin(); it != m_panels.end(); ++it) {
                 if (it.key() == watched || it.key()->window() == watched) it->drawn = false;
             }
             changed(widget);
             break;
         case QEvent::Show:
-            // a window shown later is over those shown before
+            // A window shown later stacks above those shown before.
             if (widget->isWindow()) m_shown.insert(widget, ++m_shownCount);
             changed(widget);
             break;
@@ -966,7 +965,7 @@ protected:
     }
 
 private:
-    /// Its window's opacity times its opacity effects'
+    /// The window opacity multiplied by any opacity effects.
     static qreal opacityOf(QWidget *widget)
     {
         qreal opacity = widget->window()->windowOpacity();
@@ -979,7 +978,8 @@ private:
         return opacity;
     }
 
-    /// Panels in the canvas' window under windows of their own; in one window in paint order; windows as shown
+    /// Stacking order: panels in the canvas' window first, then other windows in the order they were shown;
+    /// paint order within one window.
     bool below(QWidget *a, QWidget *b, const QWidget *canvas) const
     {
         const bool aOwn = a->window() != canvas->window(), bOwn = b->window() != canvas->window();
@@ -996,7 +996,7 @@ private:
 
 // ------------------------------------------------------------ see-through panels
 
-/// White or black, as opaque as it takes over \p under to reach \p color's lightness (a little at least)
+/// White or black, just opaque enough over \p under to reach \p color's lightness (minimum 0.04).
 QColor veilFor(const QColor &color, const QColor &under)
 {
     const qreal c = color.lightnessF();
@@ -1009,7 +1009,7 @@ QColor veilFor(const QColor &color, const QColor &under)
     return veil;
 }
 
-/// Its QML views (KisQQuickWidget) drawn see-through too
+/// Makes the QML views (KisQQuickWidget) in \p widget see-through as well.
 void setQmlGlass(QWidget *widget, bool on)
 {
     Q_FOREACH (QWidget *child, widget->findChildren<QWidget *>()) {
@@ -1017,7 +1017,7 @@ void setQmlGlass(QWidget *widget, bool on)
     }
 }
 
-/// A list on a see-through panel does not fill its viewport
+/// A list on a see-through panel does not fill its viewport.
 void setListOnGlass(QAbstractItemView *view, bool on)
 {
     QWidget *viewport = view->viewport();
@@ -1033,7 +1033,7 @@ void setListOnGlass(QAbstractItemView *view, bool on)
     }
 }
 
-/// Whether \p widget is in a see-through panel of its own window
+/// Whether \p widget is inside a see-through panel within its window.
 bool inSeeThrough(const QWidget *widget)
 {
     for (const QWidget *w = widget; w; w = w->parentWidget()) {
@@ -1043,7 +1043,7 @@ bool inSeeThrough(const QWidget *widget)
     return false;
 }
 
-/// A combo box's dropdown list window, if it is one of its own
+/// A combo box's dropdown window, if it is a separate window.
 QWidget *dropdownOf(QComboBox *box)
 {
     QWidget *popup = box->view() ? box->view()->window() : nullptr;
@@ -1051,8 +1051,8 @@ QWidget *dropdownOf(QComboBox *box)
 }
 
 /**
- * Remakes the see-through widgets' veils from the new colors when the theme changes. Qt tells only windows
- * that the application's palette changed; a panel with a palette of its own is told here, after the veils
+ * Rebuilds the see-through widgets' veils from the new colors when the theme changes. Qt only notifies
+ * windows of application palette changes, so panels with their own palette are notified here.
  */
 class ThemeFollower : public QObject
 {
@@ -1076,7 +1076,7 @@ public:
 private:
     ThemeFollower()
     {
-        // once every widget has taken the new palette
+        // Deferred until every widget has the new palette.
         connect(qApp, &QGuiApplication::paletteChanged, this, [this]() {
             if (!m_pending) {
                 m_pending = true;
@@ -1091,7 +1091,7 @@ private:
         const QList<QPointer<QWidget>> widgets = m_widgets;
         for (const QPointer<QWidget> &widget : widgets) {
             if (!widget || !widget->property(seeThroughProperty).toBool()) continue;
-            // made again from the new theme's colors: a palette saved before is the old theme's
+            // Rebuild from the new theme; a saved palette belongs to the old one.
             widget->setProperty(savedPaletteProperty, QVariant());
             KisStudioGlass::setSeeThrough(widget, false);
             KisStudioGlass::setSeeThrough(widget, true);
@@ -1115,7 +1115,7 @@ void KisStudioGlass::setSeeThrough(QWidget *widget, bool on)
     widget->setProperty(seeThroughProperty, on);
     if (on) {
         widget->setProperty(savedPaletteProperty, widget->testAttribute(Qt::WA_SetPalette) ? QVariant::fromValue(widget->palette()) : QVariant());
-        // fields and buttons become veils of white or black: as light or dark as before, without muting the glass's colors
+        // Fields and buttons become white or black veils, as light or dark as before without muting the glass.
         QPalette palette = widget->palette();
         for (QPalette::ColorGroup group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
             QColor window = palette.color(group, QPalette::Window);
@@ -1127,11 +1127,11 @@ void KisStudioGlass::setSeeThrough(QWidget *widget, bool on)
         }
         widget->setPalette(palette);
         setQmlGlass(widget, true);
-        // lists made later are handled as they are polished (see MenuGlass)
+        // Lists created later are handled when polished (see MenuGlass).
         Q_FOREACH (QAbstractItemView *view, widget->findChildren<QAbstractItemView *>()) {
             if (view->window() == widget->window()) setListOnGlass(view, true);
         }
-        // a dropdown is a window of its own: tinted as a menu, with the box's own palette
+        // A dropdown is a separate window, tinted like a menu with the box's own palette.
         Q_FOREACH (QComboBox *box, widget->findChildren<QComboBox *>()) {
             if (QWidget *popup = dropdownOf(box)) popup->setPalette(QApplication::palette(box));
         }
@@ -1155,7 +1155,7 @@ void KisStudioGlass::setSeeThrough(QWidget *widget, bool on)
 
 namespace {
 
-// read once: glass is painted often and drawn every frame
+// Settings are cached because glass is painted often and drawn every frame.
 bool &enabled()
 {
     static bool on = KisConfig(true).readEntry<bool>(settingKey, true);
@@ -1196,7 +1196,7 @@ bool &ambientSetting()
     return ambient;
 }
 
-/// \p widget's background painted as a panel's, with its border
+/// Paints \p widget's background as a glass panel with a border.
 void paintMenuGlass(QWidget *widget, qreal radius)
 {
     QPainter painter(widget);
@@ -1207,7 +1207,7 @@ void paintMenuGlass(QWidget *widget, qreal radius)
     KisStudioGlass::paintBorder(painter, widget, shape, border);
 }
 
-/// Must happen before the native window exists. Frameless: Windows makes only those see-through.
+/// Must be called before the native window exists. Frameless, since Windows only makes those see-through.
 void makeSeeThroughWindow(QWidget *widget)
 {
     widget->overrideWindowFlags(widget->windowFlags() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint);
@@ -1215,7 +1215,7 @@ void makeSeeThroughWindow(QWidget *widget)
     widget->setProperty(glassMenuProperty, true);
 }
 
-/// A dropdown list's window (a combo box's frame, or a completer's list) made glass, if not created yet
+/// Makes a dropdown window (a combo box's frame or a completer's list) glass, if not created yet.
 void makeGlassDropdown(QWidget *popup)
 {
     if (!popup || popup->testAttribute(Qt::WA_WState_Created) || popup->property(glassDropdownProperty).toBool()
@@ -1224,7 +1224,7 @@ void makeGlassDropdown(QWidget *popup)
     }
     makeSeeThroughWindow(popup);
     popup->setProperty(glassDropdownProperty, true);
-    // rows on the glass, clear of its round corners
+    // Rows sit directly on the glass, inset from its rounded corners.
     if (auto *frame = qobject_cast<QFrame *>(popup)) frame->setFrameStyle(QFrame::NoFrame);
     if (auto *view = qobject_cast<QAbstractItemView *>(popup)) {
         setListOnGlass(view, true);
@@ -1234,9 +1234,8 @@ void makeGlassDropdown(QWidget *popup)
     Q_FOREACH (QAbstractItemView *view, popup->findChildren<QAbstractItemView *>()) setListOnGlass(view, true);
 }
 
-const char *const glassDialogProperty = "studioGlassDialog";
-
-/// A dialog of the window that becomes a glass panel over it: not the system's own (files, colors, fonts)
+/// Whether \p widget is a dialog over the main window that should become a glass panel. Standard dialogs
+/// (files, colors, fonts, printing) stay as they are.
 bool becomesPanel(QWidget *widget)
 {
     auto *dialog = qobject_cast<QDialog *>(widget);
@@ -1246,18 +1245,14 @@ bool becomesPanel(QWidget *widget)
     if (dialog->inherits("QFileDialog") || dialog->inherits("QColorDialog") || dialog->inherits("QFontDialog") || dialog->inherits("QPrintDialog")) {
         return false;
     }
-    // over the main window, not one of its own
+    // Only dialogs over the main window, not over another dialog.
     QWidget *parent = dialog->parentWidget();
     return parent && parent->window()->inherits("KisMainWindow");
 }
 
-/// Dragged from anywhere that is not a control: it has no title bar of its own
+/// Lets a frameless glass dialog be dragged by any part that is not a control.
 class DialogMover : public QObject
 {
-public:
-    QPoint grab;
-    bool moving {false};
-
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
@@ -1268,25 +1263,25 @@ protected:
         switch (event->type()) {
         case QEvent::MouseButtonPress: {
             auto *mouse = static_cast<QMouseEvent *>(event);
-            // on the dialog, a label or a box: what nothing else takes
+            // Presses on the background, labels, group boxes or plain frames start a drag.
             const bool background = widget == dialog || qobject_cast<QLabel *>(widget) || qobject_cast<QGroupBox *>(widget)
                 || widget->metaObject() == &QWidget::staticMetaObject || qobject_cast<QFrame *>(widget) && !qobject_cast<QAbstractScrollArea *>(widget);
             if (mouse->button() == Qt::LeftButton && background) {
-                moving = true;
-                grab = mouse->globalPos() - dialog->frameGeometry().topLeft();
+                m_moving = true;
+                m_grab = mouse->globalPos() - dialog->frameGeometry().topLeft();
                 return true;
             }
             break;
         }
         case QEvent::MouseMove:
-            if (moving) {
-                dialog->move(static_cast<QMouseEvent *>(event)->globalPos() - grab);
+            if (m_moving) {
+                dialog->move(static_cast<QMouseEvent *>(event)->globalPos() - m_grab);
                 return true;
             }
             break;
         case QEvent::MouseButtonRelease:
-            if (moving) {
-                moving = false;
+            if (m_moving) {
+                m_moving = false;
                 return true;
             }
             break;
@@ -1295,6 +1290,10 @@ protected:
         }
         return false;
     }
+
+private:
+    QPoint m_grab;
+    bool m_moving {false};
 };
 
 bool isTooltip(const QWidget *widget)
@@ -1302,14 +1301,14 @@ bool isTooltip(const QWidget *widget)
     return widget->windowType() == Qt::ToolTip && widget->inherits("QTipLabel");
 }
 
-/// Makes menus, tooltips and dropdowns glass as they are polished, and paints their glass
+/// Makes menus, tooltips, dropdowns and dialogs glass as they are polished, and paints their glass.
 class MenuGlass : public QObject
 {
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
         const QEvent::Type type = event->type();
-        // a dialog is given its window before it is polished: it is made a panel as its constructor adds its first child
+        // A dialog's native window can be created before it is polished, so decide when its first child is added.
         if (type == QEvent::ChildAdded) {
             auto *dialog = qobject_cast<QDialog *>(watched);
             if (dialog && !dialog->property(glassDialogProperty).isValid()) {
@@ -1327,21 +1326,21 @@ protected:
             return false;
         }
         if (type == QEvent::MouseButtonPress || type == QEvent::KeyPress) {
-            // a combo box polished before this was installed, about to open its list
+            // A combo box polished before this filter was installed, about to open its list.
             if (auto *box = qobject_cast<QComboBox *>(widget)) makeGlassDropdown(dropdownOf(box));
             return false;
         }
         if (type == QEvent::Polish) {
             if (auto *view = qobject_cast<QAbstractItemView *>(widget)) {
                 if (inSeeThrough(view)) setListOnGlass(view, true);
-                // a completer's list
+                // A completer's list.
                 if (view->windowType() == Qt::Popup) makeGlassDropdown(view);
             } else if (auto *box = qobject_cast<QComboBox *>(widget)) {
                 makeGlassDropdown(dropdownOf(box));
-            } else if (widget->property(glassDialogProperty).toBool() && !widget->property("studioGlassDialogDone").toBool()) {
-                // a panel over the canvas, not a window of the system's: glass, moved by its background
+            } else if (widget->property(glassDialogProperty).toBool() && !widget->property(glassDialogDoneProperty).toBool()) {
+                // A glass panel over the canvas, dragged by its background.
                 static DialogMover *mover = new DialogMover();
-                widget->setProperty("studioGlassDialogDone", true);
+                widget->setProperty(glassDialogDoneProperty, true);
                 widget->setContentsMargins(KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2);
                 widget->installEventFilter(mover);
                 Q_FOREACH (QWidget *child, widget->findChildren<QWidget *>()) child->installEventFilter(mover);
@@ -1350,7 +1349,7 @@ protected:
                        && KisStudioGlass::isEnabled() && KisStudioGlass::seeThroughWindows()) {
                 makeSeeThroughWindow(widget);
                 if (isTooltip(widget)) {
-                    // tinted as menus are, not with the tooltip's near black
+                    // Tint it like a menu rather than with the near-black tooltip color.
                     QPalette palette = widget->palette();
                     palette.setColor(QPalette::Window, QApplication::palette().color(QPalette::Window));
                     widget->setPalette(palette);
@@ -1378,7 +1377,7 @@ protected:
     }
 };
 
-/// KisPopupButton's popup made glass as its window is (re)made, pinned (detached) too
+/// Makes KisPopupButton's popup glass whenever its window is (re)created, including when pinned.
 void decoratePopupFrame(QFrame *frame, bool detached, bool holdsMenu)
 {
     static PopupFrameGlass *painter = new PopupFrameGlass();
@@ -1387,22 +1386,22 @@ void decoratePopupFrame(QFrame *frame, bool detached, bool holdsMenu)
         makeSeeThroughWindow(frame);
         frame->installEventFilter(painter);
         frame->setFrameStyle(QFrame::NoFrame);
-        // pinned, a strip at the top to move it by, and its pin
+        // When pinned, leave a strip at the top for dragging and the pin button.
         frame->layout()->setContentsMargins(8, detached ? 30 : 8, 8, 8);
     } else {
-        // window flags and frame are restored by KisPopupButton itself
+        // KisPopupButton restores the window flags and frame itself.
         frame->setAttribute(Qt::WA_TranslucentBackground, false);
         frame->setProperty(glassMenuProperty, false);
         frame->removeEventFilter(painter);
         Panels::instance().forget(frame);
     }
-    // the frame keeps its color: the glass is tinted with it
+    // The frame keeps its color, which tints the glass.
     Q_FOREACH (QWidget *content, frame->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
         KisStudioGlass::setSeeThrough(content, glass);
     }
 }
 
-/// A squircle's shadow (alpha of black): gaussian-blurred, \p strength at most, dithered; cached per size
+/// A squircle's shadow as black with alpha: gaussian-blurred, at most \p strength, dithered and cached.
 QImage shadowImage(const QSizeF &panel, qreal radius, int margin, qreal sigma, qreal strength, qreal ratio)
 {
     static QHash<QString, QImage> cache;
@@ -1435,7 +1434,7 @@ QImage shadowImage(const QSizeF &panel, qreal radius, int margin, qreal sigma, q
         for (int x = 0; x < w; x++) boxLine(alpha.data() + x, h, w, box, scratch);
     }
 
-    // a 4 x 4 ordered dither keeps the long faint tail from banding
+    // A 4x4 ordered dither keeps the long faint tail from banding.
     static const float bayer[4][4] = {{0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}};
     QImage image(size, QImage::Format_ARGB32_Premultiplied);
     for (int y = 0; y < h; y++) {
@@ -1485,7 +1484,7 @@ qreal KisStudioGlass::blurSigma()
 
 qreal KisStudioGlass::tintOverDark()
 {
-    // as Krita comes (0.7): 0.56 over a dark canvas, 0.84 over a bright one; solid at 1, clear at 0
+    // At the default opacity (0.7): 0.56 over a dark canvas, 0.84 over a bright one; solid at 1, clear at 0.
     const qreal o = opacity();
     return o <= 0.7 ? 0.8 * o : 0.56 + 0.44 * (o - 0.7) / 0.3;
 }
@@ -1548,11 +1547,11 @@ KisStudioGlass::Bevel KisStudioGlass::bevel()
     if (r <= 0) {
         return {};
     }
-    // through three points: none, the middle of the setting, all of it
+    // Interpolates through the values at refraction 0, 0.5 and 1.
     auto at = [r](qreal none, qreal middle, qreal all) {
         return r < 0.5 ? none + (middle - none) * r * 2 : middle + (all - middle) * (r - 0.5) * 2;
     };
-    // a polished rim, clear over its outer third, then into the frost
+    // A polished rim, clear over its outer third, fading into the frost.
     const qreal fadeIn = qMin<qreal>(1, r * 2);
     return {at(10, 16, 20), at(0, 17, 24), at(0, 31, 44), 0.85 * fadeIn, 0.35, 40};
 }
@@ -1571,8 +1570,8 @@ void KisStudioGlass::installMenuGlass()
     qApp->installEventFilter(filter);
     KisPopupButton::setFrameDecorator(decoratePopupFrame);
     if (isEnabled()) {
-        // Windows fades menus and tooltips in through the window opacity without telling: the canvas
-        // drew their glass at the faint start opacity and never again
+        // Windows fades menus and tooltips in through the window opacity without notifying Qt, so the
+        // canvas would draw their glass only once, at the faint initial opacity.
         QApplication::setEffectEnabled(Qt::UI_AnimateMenu, false);
         QApplication::setEffectEnabled(Qt::UI_FadeTooltip, false);
         QApplication::setEffectEnabled(Qt::UI_AnimateTooltip, false);
@@ -1586,7 +1585,7 @@ void KisStudioGlass::paintBorder(QPainter &painter, QWidget *widget, const QPain
         painter.strokePath(shape, QPen(color, width));
         return;
     }
-    // the canvas draws a bevel over it: the line only beyond the canvas
+    // The canvas draws a bevel instead, so only stroke the part outside the canvas.
     QPainterPath beyond;
     beyond.addRect(QRectF(widget->rect()).adjusted(-width, -width, width, width));
     QPainterPath over;
@@ -1605,7 +1604,7 @@ bool KisStudioGlass::seeThroughWindows()
     }
 #ifdef HAVE_X11
     if (QGuiApplication::platformName() == QLatin1String("xcb")) {
-        // asked each time: a compositor can start or stop
+        // Checked every time, since a compositor can start or stop.
         QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
         return native && native->nativeResourceForScreen(QByteArrayLiteral("compositingEnabled"), QGuiApplication::primaryScreen());
     }
@@ -1625,11 +1624,11 @@ Qt::WindowType KisStudioGlass::popupWindowType()
 
 QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRectF &rect, qreal radius)
 {
-    // see-through widgets keep their color with no alpha (setSeeThrough): solid, it is that color
+    // See-through widgets keep their color with zero alpha (see setSeeThrough), so restore it for solid fills.
     QColor window = widget->palette().color(QPalette::Window);
     window.setAlpha(255);
     if (widget->isWindow() && !widget->testAttribute(Qt::WA_TranslucentBackground)) {
-        // a solid window (see seeThroughWindows): square, its color to the edges
+        // A solid window (see seeThroughWindows): square, filled to the edges.
         painter.fillRect(rect, window);
         QPainterPath edge;
         edge.addRect(rect);
@@ -1655,7 +1654,7 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
         painter.setClipRegion(QRegion(widget->rect()) - covered, Qt::IntersectClip);
     }
 
-    // light catching the top edge, faintly
+    // A faint highlight along the top edge.
     auto sheen = [&]() {
         const QRectF bounds = shape.boundingRect();
         QLinearGradient gradient(bounds.topLeft(), QPointF(bounds.left(), bounds.top() + qMin<qreal>(28, bounds.height())));
@@ -1667,22 +1666,22 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
     QWidget *canvas = isEnabled() ? canvasWidgetOf(widget) : nullptr;
     if (drawnByCanvas(canvas) && canvas->isVisible()) {
         if (!drawn) {
-            // solid until the canvas has drawn the glass under it
+            // Solid until the canvas has drawn the glass under it.
             painter.fillPath(shape, window);
             sheen();
             return shape;
         }
-        // the canvas draws the glass; beyond the canvas it is the panel color
+        // The canvas draws the glass; outside the canvas use the panel color.
         QPainterPath over;
         over.addRect(QRectF(widget->mapFromGlobal(canvas->mapToGlobal(QPoint())), canvas->size()));
         painter.fillPath(shape.subtracted(over), window);
         if (widget->isWindow()) {
-            // never quite clear: Windows lets the pointer through a window's clear pixels, to the canvas and its blank cursor
+            // Never fully clear: Windows passes the pointer through fully transparent pixels to the canvas below.
             QColor catcher = window;
             catcher.setAlpha(1);
             painter.fillPath(shape.intersected(over), catcher);
         }
-        // a bevel catches the light itself
+        // A bevel provides its own highlight.
         if (refraction() <= 0) sheen();
         return shape;
     }
@@ -1704,7 +1703,7 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
 
 void KisStudioGlass::paintShadow(QPainter &painter, const QRectF &panel, qreal radius, int margin, int darkness, int drop)
 {
-    // a wide faint shadow all around and a tight one at the edge, slightly lower
+    // A wide faint shadow all around and a tight one at the edge, slightly lower.
     const qreal ratio = painter.device() ? painter.device()->devicePixelRatioF() : 1.0;
     const qreal strength = darkness / 36.0;
     painter.save();

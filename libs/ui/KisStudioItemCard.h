@@ -21,28 +21,28 @@ class QAction;
 class QKeyEvent;
 class QPainter;
 
-/// Shortcuts the studio layout shows on its buttons and lets you change in place
+/// Helpers for shortcuts shown on studio buttons and edited in place
 namespace KisStudioShortcuts
 {
-/// "Ctrl+Shift+K" -> "Ctrl ⇧K": short enough for a badge in a button corner
+/// Compact form for a badge in a button corner: "Ctrl+Shift+K" -> "Ctrl ⇧K"
 QString badgeText(const QKeySequence &sequence);
 
-/// A small key cap in the bottom right corner of \p rect
+/// Paints a small key cap in the bottom right corner of \p rect
 void paintBadge(QPainter &painter, const QRect &rect, const QString &text, const QPalette &palette);
 
-/// Gives \p action \p sequence (empty: none) and saves it; returns the name of the action that lost it, if any
+/// Sets and saves \p sequence (empty clears it) as \p action's shortcut; returns the name of the action it was taken from, if any
 QString assign(KisMainWindow *mainWindow, QAction *action, const QKeySequence &sequence);
 
-/// Gives \p action the shortcut saved for its name, if one was
+/// Applies the shortcut saved for \p action, if there is one
 void restore(QAction *action);
 
-/// Lets every menu's shortcuts be changed in place (once, for the whole application)
+/// Makes shortcuts editable directly in every menu; installed once for the whole application
 KRITAUI_EXPORT void enableMenuEditing();
 
-/// The mime type of an item dragged around the studio layout; the data is the item's key
+/// Mime type for items dragged around the studio layout; the data is the item's key
 QString itemMimeType();
 
-/// Every action of the window: its collections' and the ones added to it directly
+/// All of the window's actions: those in its action collections plus those added directly
 QList<QAction *> allActions(KisMainWindow *mainWindow);
 
 /// "&Gaussian Blur..." -> "Gaussian Blur"
@@ -51,36 +51,36 @@ QString plainText(QString text);
 bool isModifierKey(int key);
 
 enum class KeyPress {
-    Modifier, ///< a modifier alone: not a shortcut yet
+    Modifier, ///< only a modifier so far
     Cancel,   ///< Escape
     Clear,    ///< Backspace or Delete alone
     Shortcut,
 };
 
 /**
- * What \p event means while a shortcut is recorded, the shortcut in \p sequence.
- * A symbol typed with Shift keeps no Shift: Qt fires "!" for Shift+1, never "Shift+!".
+ * Interprets \p event while recording a shortcut and stores the result in \p sequence.
+ * Shift is dropped from symbols, since Qt reports Shift+1 as "!" rather than "Shift+!".
  */
 KeyPress recordKey(const QKeyEvent *event, QKeySequence *sequence);
 }
 
 /**
- * What a long press or right click on a button shows: what it is, its
- * shortcut as a key cap that records a new one when clicked, its variants,
- * and what can be done with it (pin, remove...).
+ * Popup shown on a long press or right click on a studio button: its title,
+ * its shortcut as a clickable key cap that records a new one, its variants,
+ * and commands such as pin or remove.
  */
 class KRITAUI_EXPORT KisStudioItemCard : public QFrame
 {
     Q_OBJECT
 public:
     struct Choice {
-        QString key;           ///< the item key, so that a choice can be dragged out as an item
+        QString key;           ///< item key, so the choice can be dragged out as an item
         QIcon icon;
         QString title;
-        QAction *action {nullptr}; ///< for the shortcut badge
+        QAction *action {nullptr}; ///< shown as a shortcut badge
         bool current {false};
         std::function<void()> pick;
-        std::function<void()> hide; ///< offered on right click, if set
+        std::function<void()> hide; ///< run on right click, if set
     };
 
     struct Command {
@@ -97,7 +97,7 @@ public:
     void setChoices(const QVector<Choice> &choices);
     void addCommand(const Command &command);
 
-    /// Shows the card next to \p anchor: to its right for the left rail, to its left for the right one
+    /// Shows the card beside \p anchor, on whichever side faces the middle of the screen
     void popupBeside(QWidget *anchor);
 
 protected:
@@ -106,7 +106,7 @@ protected:
 
 private:
     void startRecording();
-    /// Ends recording; with \p assign, \p sequence becomes the shortcut
+    /// Stops recording; if \p assign is set, \p sequence becomes the new shortcut
     void finishRecording(bool assign, const QKeySequence &sequence = QKeySequence());
     void updateKeyCap();
 

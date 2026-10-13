@@ -15,11 +15,11 @@ class KoCanvasController;
 class KoToolFactoryBase;
 
 /**
- * The tool rail: tool slots grouped by what you want to do (each remembers
- * the variant used last), and anything else from Find dragged onto it or
- * added with its "+". A click between two buttons adds a space, a click on
- * a space names it; drag a button along the rail to move it, off to remove
- * it; a long press or right click shows its card (shortcut, variants).
+ * The tool rail: tool slots grouped by task, each remembering the variant used
+ * last, plus anything from Find dragged onto it or added with its "+". Click
+ * between two buttons to add a gap and click a gap to name it. Drag a button
+ * along the rail to move it, or off it to remove it. A long press or right
+ * click shows the button's card (shortcut, variants).
  */
 class KisStudioToolRail : public QWidget
 {
@@ -28,19 +28,19 @@ public:
     explicit KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent = nullptr);
     ~KisStudioToolRail() override;
 
-    /// Widgets below the tools, e.g. the color chip
+    /// Adds a widget below the tools, e.g. the color chip
     void addBottomWidget(QWidget *widget);
 
-    /// Puts an item (a Find key) at the end, if it isn't there yet
+    /// Appends the item with Find key \p key, unless it is already on the rail
     void addItem(const QString &key);
     bool hasItem(const QString &key) const;
     void removeItem(const QString &key);
-    /// Builds the buttons again, e.g. once the commands they stand for exist
+    /// Rebuilds the buttons, e.g. once the commands they represent exist
     void refresh();
 
     /// "Rectangular Selection Tool" -> "Rectangular Selection"
     static QString toolName(KoToolFactoryBase *factory);
-    /// Whether \p controller is the one of this window's active view: tool signals are global
+    /// Whether \p controller belongs to this window's active view; tool signals are global
     static bool isOwnController(KisMainWindow *mainWindow, KoCanvasController *controller);
 
 protected:

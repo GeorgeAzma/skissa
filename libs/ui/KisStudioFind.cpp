@@ -78,7 +78,7 @@
 
 namespace {
 
-/// Whether every word of \p queryWords starts one of \p words
+/// Whether each of \p queryWords is the start of one of \p words
 bool everyWordStarts(const QStringList &queryWords, const QStringList &words)
 {
     return std::all_of(queryWords.cbegin(), queryWords.cend(), [&words](const QString &queryWord) {
@@ -89,11 +89,11 @@ bool everyWordStarts(const QStringList &queryWords, const QStringList &words)
 }
 
 /**
- * How well \p query names \p title, or a negative value if it doesn't.
- * Predictable matches only, best first: the start of the title, the start
- * of a word, the initials ("gb" for Gaussian Blur), every query word
- * starting a title word ("gaus bl"), and last a substring inside a word,
- * which short queries hit by accident ("gb" in RGBA) and so don't get.
+ * Scores how well \p query matches \p title; negative if it doesn't match.
+ * Only predictable matches count, best first: a prefix of the title, a prefix
+ * of a word, the initials ("gb" for Gaussian Blur), every query word starting
+ * a title word ("gaus bl"), and last a substring inside a word. The last one
+ * needs three letters, as shorter queries hit it by accident ("gb" in RGBA).
  */
 qreal strictMatch(const QString &query, const QString &title)
 {
@@ -161,7 +161,7 @@ QString kindTitle(Kind kind)
     return QString();
 }
 
-/// Kinds that are usually what you look for get a small head start
+/// A small ranking boost for the kinds people usually look for
 int kindBias(Kind kind)
 {
     switch (kind) {
@@ -173,7 +173,7 @@ int kindBias(Kind kind)
     case Kind::Layer: return 1;
     case Kind::Setting: return 0;
     case Kind::Workspace: return 0;
-    case Kind::BlendMode: return -4; // 138 of them, they shouldn't drown everything else
+    case Kind::BlendMode: return -4; // there are over a hundred; don't let them crowd out the rest
     }
     return 0;
 }
@@ -190,27 +190,27 @@ enum Roles {
     DetailRole,
     ShortcutRole,
     EntryRole,
-    MessageRole, ///< a line of text instead of results
-    PinnableRole, ///< it can go on the tools panel
-    PinnedRole,   ///< it is on the tools panel
-    ShortcutEditableRole, ///< its shortcut can be changed here (a click on its key cap)
-    RecordingRole,        ///< its key cap waits for the new shortcut
-    SwitchRole,           ///< a setting that is on or off: its switch, flipped by a click
+    MessageRole,          ///< a plain text line shown instead of results
+    PinnableRole,         ///< can be pinned to the tools panel
+    PinnedRole,           ///< is pinned to the tools panel
+    ShortcutEditableRole, ///< clicking the key cap records a new shortcut
+    RecordingRole,        ///< the key cap is recording a shortcut
+    SwitchRole,           ///< state of a boolean setting, toggled by clicking its switch
 };
 
-/// The switch of a setting's row, at its right end
+/// The switch at the right end of a setting's row
 QRect switchRect(const QRect &row)
 {
     return QRect(row.right() - 14 - 34, row.center().y() - 10, 34, 20);
 }
 
-/// The pin of a result row, at its right end: puts the result on the tools panel, or takes it off
+/// The pin at the right end of a result row, which pins the result to the tools panel
 QRect pinRect(const QRect &row)
 {
     return QRect(row.right() - 38, row.center().y() - 12, 24, 24);
 }
 
-/// The key cap of a result's shortcut (or the "+" of one without), left of the pin
+/// The shortcut's key cap (or a "+" when there is none), left of the pin
 QRectF shortcutCapRect(const QModelIndex &index, const QRect &row, const QFont &font, KisModernStyle::KeyCap state)
 {
     const int right = index.data(PinnableRole).toBool() ? pinRect(row).left() - 8 : row.right() - 12;
@@ -219,7 +219,7 @@ QRectF shortcutCapRect(const QModelIndex &index, const QRect &row, const QFont &
                                       KisModernStyle::keyCapText(index.data(ShortcutRole).toString()), state);
 }
 
-/// A push pin, upright, in \p rect: filled when pinned
+/// Draws a push pin in \p rect, filled when pinned
 void paintPin(QPainter *painter, const QRectF &rect, const QColor &ink, bool pinned)
 {
     painter->save();
@@ -230,7 +230,7 @@ void paintPin(QPainter *painter, const QRectF &rect, const QColor &ink, bool pin
     pen.setCapStyle(Qt::RoundCap);
     painter->setPen(pen);
     painter->setBrush(pinned ? ink : Qt::NoBrush);
-    // the head, the collar and the needle
+    // head, collar and needle
     QPainterPath head;
     head.addPath(KisModernStyle::squircle(QRectF(-3.2, -7.0, 6.4, 6.0), 1.2));
     painter->drawPath(head);
@@ -240,19 +240,19 @@ void paintPin(QPainter *painter, const QRectF &rect, const QColor &ink, bool pin
 }
 
 struct Entry {
-    QString key;       ///< stable id for the usage statistics
+    QString key;       ///< stable id, also used for the usage statistics
     Kind kind;
     QString title;
     QString detail;    ///< where it lives or what it does
-    QString keywords;  ///< extra words that should find it
+    QString keywords;  ///< extra search words
     QString shortcut;
     mutable QIcon icon; ///< see shownIcon()
     std::function<void()> run;
-    QStringList aliases; ///< what other applications call it
-    QPointer<QAction> action; ///< what has its shortcut, if anything does
-    /// Makes the icon when it is first shown, if it is costly to make (a brush's thumbnail, read and decoded)
+    QStringList aliases; ///< names other applications use for it
+    QPointer<QAction> action; ///< the action holding its shortcut, if any
+    /// Creates the icon on first display when that is expensive (e.g. decoding a brush thumbnail)
     mutable std::function<QIcon()> makeIcon;
-    /// A setting that is on or off (see KisSettingsRegistry): its row has a switch
+    /// Id of a boolean setting (see KisSettingsRegistry); its row gets a switch
     QString toggleId;
 
     const QIcon &shownIcon() const
@@ -265,7 +265,7 @@ struct Entry {
     }
 };
 
-/// What other painting applications call things ("lasso" for Freehand Selection), by item key
+/// Names other painting applications use ("lasso" for Freehand Selection), by item key
 QHash<QString, QStringList> aliasTable()
 {
     const QVector<QPair<const char *, QString>> table = {
@@ -328,7 +328,7 @@ struct Usage {
     qint64 lastUsed {0};
 };
 
-/// Result rows (an icon tile, the title, a dimmed detail, the shortcut on the right) and section headers
+/// Paints result rows (icon tile, title, dimmed detail, shortcut on the right) and section headers
 class FindDelegate : public QStyledItemDelegate
 {
 public:
@@ -388,8 +388,9 @@ public:
             icon.paint(painter, tile.adjusted(5, 5, -5, -5).toRect());
         }
 
+        const bool pointed = option.state.testFlag(QStyle::State_Selected) || option.state.testFlag(QStyle::State_MouseOver);
         int right = r.right() - 14;
-        // a setting's switch, drawn as Settings draws them: a bright track with a dark knob when on
+        // a boolean setting's switch, drawn like the ones in Settings
         const QVariant on = index.data(SwitchRole);
         if (on.isValid()) {
             const QRectF track = switchRect(r);
@@ -404,10 +405,9 @@ public:
             painter->drawEllipse(QPointF(track.left() + (on.toBool() ? 24 : 10), track.center().y()), 7, 7);
             right = int(track.left()) - 10;
         }
-        // the pin: on the pointed at row, always when pinned, and on every row for a finger
+        // the pin shows on the hovered row, when pinned, and always in touch mode
         if (index.data(PinnableRole).toBool()) {
             const bool pinned = index.data(PinnedRole).toBool();
-            const bool pointed = option.state.testFlag(QStyle::State_Selected) || option.state.testFlag(QStyle::State_MouseOver);
             if (pinned || pointed || KisTouchMode::isActive()) {
                 QColor ink = pinned ? pal.color(QPalette::Link) : text;
                 ink.setAlphaF(pinned ? 0.95 : 0.5);
@@ -416,10 +416,9 @@ public:
             right = pinRect(r).left() - 8;
         }
 
-        // the shortcut: a key cap, as in menus, changed by a click
+        // the shortcut as a key cap, as in menus; clicking it records a new one
         using KeyCap = KisModernStyle::KeyCap;
         const QString shortcut = KisModernStyle::keyCapText(index.data(ShortcutRole).toString());
-        const bool pointed = option.state.testFlag(QStyle::State_Selected) || option.state.testFlag(QStyle::State_MouseOver);
         const bool editable = index.data(ShortcutEditableRole).toBool();
         KeyCap state = KeyCap::Shown;
         bool shown = !shortcut.isEmpty();
@@ -463,7 +462,7 @@ public:
 
 constexpr int glassShadowMargin = 18;
 
-/// No shadow on a solid window (see KisStudioGlass::seeThroughWindows)
+/// Room for the drop shadow; none on an opaque window (see KisStudioGlass::seeThroughWindows)
 int shadowMarginOf(const QWidget *window)
 {
     return window->testAttribute(Qt::WA_TranslucentBackground) ? glassShadowMargin : 0;
@@ -483,17 +482,17 @@ struct KisStudioFind::Private
     QStandardItemModel *model {nullptr};
     QPoint dragStart;
     QPersistentModelIndex dragIndex;
-    /// Set while Find picks something for the caller instead of running it
+    /// Set while Find is used as a chooser (see pick())
     std::function<void(const QString &key)> picker;
-    QString pickPrefix; ///< while picking, only items whose key starts with it
+    QString pickPrefix; ///< while picking, only keys with this prefix are offered
     std::function<bool(const QString &key)> isOnTools;
     std::function<void(const QString &key, bool on)> setOnTools;
     QPersistentModelIndex pinPress;
     QPersistentModelIndex switchPress;
-    /// The result whose key cap waits for its new shortcut
+    /// The row whose key cap is recording a shortcut
     QPersistentModelIndex recording;
     bool capPress {false};
-    /// Commands only exist once the GUI is built: the index is redone when there are more
+    /// Commands only exist once the GUI is built, so the index is rebuilt when these counts change
     int indexedClients {-1};
     int indexedActions {-1};
     QString placeholder;
@@ -509,7 +508,7 @@ struct KisStudioFind::Private
 
     QVector<Entry> entries;
     QHash<QString, Usage> usage;
-    /// A button that is no action of its own, by its key, and the hidden action that holds its shortcut
+    /// Window buttons without an action of their own, by key, with the hidden action holding their shortcut
     struct Button {
         QPointer<QAbstractButton> button;
         QPointer<QAction> action;
@@ -524,7 +523,7 @@ struct KisStudioFind::Private
         usage.clear();
         const QStringList stored = KisConfig(true).readEntry<QStringList>(QStringLiteral("StudioFindUsage"));
         Q_FOREACH (const QString &line, stored) {
-            // key|count|time; the key itself may hold a '|' (a brush's name): the last two are the numbers
+            // "key|count|time"; the key may contain '|' itself (brush names), so split at the last two
             const int second = line.lastIndexOf(QLatin1Char('|'));
             const int first = second > 0 ? line.lastIndexOf(QLatin1Char('|'), second - 1) : -1;
             if (first > 0) {
@@ -539,7 +538,7 @@ struct KisStudioFind::Private
         u.count++;
         u.lastUsed = QDateTime::currentSecsSinceEpoch();
 
-        // keep the 200 most recent ones
+        // keep only the 200 most recent
         QVector<QPair<QString, Usage>> sorted;
         for (auto it = usage.begin(); it != usage.end(); ++it) {
             sorted.append(qMakePair(it.key(), it.value()));
@@ -567,7 +566,7 @@ struct KisStudioFind::Private
 };
 
 KisStudioFind::KisStudioFind(KisMainWindow *mainWindow)
-    // on Windows not Qt::Popup: translucent popups render a black background there (see KisStudioGlass::popupWindowType)
+    // not Qt::Popup on Windows, where translucent popups get a black background (see KisStudioGlass::popupWindowType)
     : QFrame(mainWindow, KisStudioGlass::popupWindowType() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
     , d(new Private)
 {
@@ -666,7 +665,7 @@ void KisStudioFind::rebuildIndex()
     d->entries.clear();
     d->indexedClients = d->clientCount();
     d->indexedActions = d->mainWindow->actionCollection()->actions().size();
-    // the aliases go on at the end, whatever the order of the sources
+    // attach the aliases once every source has added its entries
     auto attachAliases = qScopeGuard([this]() {
         static const QHash<QString, QStringList> aliases = aliasTable();
         static const QRegularExpression blending(QStringLiteral("blend|smudge|smear"), QRegularExpression::CaseInsensitiveOption);
@@ -686,20 +685,18 @@ void KisStudioFind::rebuildIndex()
     // tools
     QSet<QString> toolIds;
     Q_FOREACH (KoToolFactoryBase *factory, KoToolRegistry::instance()->values()) {
-        toolIds.insert(factory->id());
-        QString shortcut;
-        if (QAction *action = mainWindow->actionCollection()->action(factory->id())) {
-            shortcut = action->shortcut().toString(QKeySequence::NativeText);
-        }
         const QString id = factory->id();
+        toolIds.insert(id);
+        QAction *action = mainWindow->actionCollection()->action(id);
+        const QString shortcut = action ? action->shortcut().toString(QKeySequence::NativeText) : QString();
         d->entries.append({QStringLiteral("tool:") + id, Kind::Tool,
                            KisStudioToolRail::toolName(factory), QString(),
                            factory->section(), shortcut, KisIconUtils::loadIcon(factory->iconName()),
                            [id]() { KoToolManager::instance()->switchToolRequested(id); }});
-        d->entries.last().action = mainWindow->actionCollection()->action(factory->id());
+        d->entries.last().action = action;
     }
 
-    // where every command lives in the menus, shown as its context
+    // each command's menu path, shown as its detail
     QHash<QAction *, QString> menuPaths;
     std::function<void(QMenu *, const QString &)> walk = [&](QMenu *menu, const QString &path) {
         Q_FOREACH (QAction *action, menu->actions()) {
@@ -716,7 +713,7 @@ void KisStudioFind::rebuildIndex()
         }
     }
 
-    // effects, from the filter registry so that they get their category
+    // effects come from the filter registry, which knows their category
     QSet<QString> filterActions;
     Q_FOREACH (const QString &filterId, KisFilterRegistry::instance()->keys()) {
         KisFilterSP filter = KisFilterRegistry::instance()->value(filterId);
@@ -742,7 +739,7 @@ void KisStudioFind::rebuildIndex()
         d->entries.last().action = action;
     }
 
-    // every other command, from all the action collections
+    // all other commands, from every action collection
     QSet<QAction *> seen;
     Q_FOREACH (KisKXMLGUIClient *client, mainWindow->guiFactory()->clients()) {
         if (!client || !client->actionCollection()) {
@@ -751,7 +748,7 @@ void KisStudioFind::rebuildIndex()
         Q_FOREACH (QAction *action, client->actionCollection()->actions()) {
             const QString name = action->objectName();
             const QString text = plainText(action->text());
-            // every KisAction is a QWidgetAction: only the ones that are a widget (the toolbar's sliders, spacers) are left out
+            // every KisAction is a QWidgetAction; skip only those with a widget (toolbar sliders, spacers)
             auto *widgetAction = qobject_cast<QWidgetAction *>(action);
             if (seen.contains(action) || text.isEmpty() || action->isSeparator() || action->menu()
                 || (widgetAction && widgetAction->defaultWidget()) || toolIds.contains(name) || filterActions.contains(name)) {
@@ -767,7 +764,7 @@ void KisStudioFind::rebuildIndex()
         }
     }
 
-    // every other button: findable, pinnable, and given a shortcut from its card
+    // window buttons without an action: findable, pinnable, and able to get a shortcut
     registerButtons();
     for (auto it = d->buttons.constBegin(); it != d->buttons.constEnd(); ++it) {
         if (!it->button || !it->action) continue;
@@ -798,7 +795,7 @@ void KisStudioFind::rebuildIndex()
         d->entries.last().action = dock->toggleViewAction();
     }
 
-    // brushes, from the model so that only the chosen preset gets loaded; thumbnails only when shown, they are slow to decode
+    // brushes, read from the model so that only a chosen preset gets loaded; thumbnails are slow to decode, so made on demand
     if (KisPaintOpPresetResourceServer *server = KisResourceServerProvider::instance()->paintOpPresetServer()) {
         KisResourceModel *model = server->resourceModel();
         for (int row = 0; row < model->rowCount(); row++) {
@@ -819,14 +816,14 @@ void KisStudioFind::rebuildIndex()
             d->entries.last().makeIcon = [resourceId]() {
                 KisPaintOpPresetResourceServer *server = KisResourceServerProvider::instance()->paintOpPresetServer();
                 if (!server) return QIcon();
-                // by its id, not a kept index: the model may have been reset since
+                // look up by id: the model may have been reset since
                 const QModelIndex index = server->resourceModel()->indexForResourceId(resourceId);
                 return QIcon(QPixmap::fromImage(index.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>()));
             };
         }
     }
 
-    // blend modes of the brush
+    // brush blend modes
     const auto ops = KoCompositeOpRegistry::instance().getCompositeOps();
     for (auto it = ops.constBegin(); it != ops.constEnd(); ++it) {
         const QString opId = it.value().id();
@@ -855,7 +852,7 @@ void KisStudioFind::rebuildIndex()
         }
     }
 
-    // settings, each card of them; one that is a switch is flipped right in its row
+    // settings cards; boolean ones can be toggled right in their row
     Q_FOREACH (const KisStudioSettings::CardInfo &card, KisStudioSettings::cardInfos()) {
         QPointer<KisStudioFind> self = this;
         const QString id = card.id;
@@ -933,7 +930,7 @@ void KisStudioFind::selectFirst()
     }
 }
 
-/// Ranked loosely (a few letters of each word are enough); with nothing after the ">": recent, most used, then all
+/// Ranked loosely, so a few letters of each word are enough. With nothing after ">", lists recent, most used, then all.
 void KisStudioFind::updateCommands(const QString &query)
 {
     auto detailOf = [this](int index) {
@@ -976,7 +973,7 @@ void KisStudioFind::updateCommands(const QString &query)
         QVector<QPair<qreal, int>> scored;
         Q_FOREACH (int i, commands) {
             const Entry &entry = d->entries[i];
-            // the menu it is in counts too: "new layer" finds Layer › New › Paint Layer
+            // the menu path counts too: "new layer" finds Layer › New › Paint Layer
             QStringList path = entry.kind == Kind::Command ? entry.detail.split(QStringLiteral(" › "), Qt::SkipEmptyParts) : QStringList();
             const QString inMenu = path.isEmpty() ? QString() : path.last() + QLatin1Char(' ') + entry.title;
             const QString fullPath = path.isEmpty() ? QString() : path.join(QLatin1Char(' ')) + QLatin1Char(' ') + entry.title;
@@ -989,7 +986,7 @@ void KisStudioFind::updateCommands(const QString &query)
                 const qreal viaMenu = qMax(strictMatch(query, inMenu), strictMatch(query, fullPath) - 4.0);
                 if (viaMenu >= 0.0) score = qMax(score, viaMenu - 4.0);
             }
-            // a few letters of each word, in order
+            // otherwise fuzzy: a few letters of each word, in order
             bool loose = false;
             if (score < 0.0) {
                 int fuzzy = 0;
@@ -1017,18 +1014,11 @@ void KisStudioFind::updateCommands(const QString &query)
     adjustGeometry();
 }
 
-/**
- * The buttons of the window that are no action of their own (panels' buttons,
- * switches, options) each get a hidden action on the window that clicks it:
- * found like commands, given shortcuts on their cards. Their key is where
- * they are: the panel, the named widgets on the way, the button.
- */
 namespace
 {
 /**
- * A button's tooltip names its shortcut, whichever it has: its own action's, or the
- * one given to the button itself (see registerButtons), after what it does and
- * quieter.
+ * Appends a button's shortcut to its tooltip, dimmed. The shortcut is either
+ * its default action's or the one registerButtons() gave the button.
  */
 class ShortcutTips : public QObject
 {
@@ -1044,13 +1034,12 @@ protected:
         const QKeySequence keys = shortcutOf(button);
         if (keys.isEmpty()) return false;
         const QString text = keys.toString(QKeySequence::NativeText);
-        // Krita's own actions name it already, in parentheses: said the same way as the others
+        // Krita's own actions already append it in parentheses; replace that so all tooltips look alike
         QString plain = button->toolTip();
         const QString named = QStringLiteral(" (%1)").arg(text);
         if (plain.endsWith(named)) plain.chop(named.size());
         else if (plain.contains(text)) return false;
         const QString tip = Qt::mightBeRichText(plain) ? plain : plain.toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br>"));
-        // the keys quieter than what the button does
         const QColor ink = QToolTip::palette().color(QPalette::ToolTipText);
         const QString quiet = QStringLiteral("rgba(%1,%2,%3,0.55)").arg(ink.red()).arg(ink.green()).arg(ink.blue());
         QToolTip::showText(static_cast<QHelpEvent *>(event)->globalPos(),
@@ -1060,6 +1049,12 @@ protected:
 };
 } // namespace
 
+/**
+ * Gives each window button without an action of its own (panel buttons,
+ * switches, options) a hidden action that clicks it, so it can be found like a
+ * command and given a shortcut. Its key is its path: the panel, the named
+ * widgets in between, and the button.
+ */
 void KisStudioFind::registerButtons()
 {
     static ShortcutTips *tips = nullptr;
@@ -1078,7 +1073,7 @@ void KisStudioFind::registerButtons()
         return QKeySequence();
     };
     KisMainWindow *mainWindow = d->mainWindow;
-    // the buttons of Krita's own actions are found as those
+    // buttons of Krita's own actions are already indexed as commands
     QSet<QAction *> known;
     Q_FOREACH (QAction *action, mainWindow->actionCollection()->actions()) known.insert(action);
     if (mainWindow->guiFactory()) {
@@ -1088,7 +1083,7 @@ void KisStudioFind::registerButtons()
             }
         }
     }
-    // a button keeps its key (and its shortcut) when its text changes
+    // a button keeps its key, and so its shortcut, when its text changes
     QHash<QAbstractButton *, QString> keyOf;
     for (auto it = d->buttons.constBegin(); it != d->buttons.constEnd(); ++it) {
         if (it->button) keyOf.insert(it->button, it.key());
@@ -1098,7 +1093,7 @@ void KisStudioFind::registerButtons()
     Q_FOREACH (QAbstractButton *button, mainWindow->findChildren<QAbstractButton *>()) {
         auto *tool = qobject_cast<QToolButton *>(button);
         if (tool && tool->defaultAction() && known.contains(tool->defaultAction())) continue;
-        // parts of other widgets, Find itself, the tools panel (its items are Find's already)
+        // skip parts of compound widgets, Find itself, and the tool rail (its items are indexed already)
         bool skip = false;
         QDockWidget *dock = nullptr;
         QStringList path;
@@ -1116,10 +1111,10 @@ void KisStudioFind::registerButtons()
             }
             if (!w->objectName().isEmpty() && !w->objectName().startsWith(QLatin1String("qt_"))) path.prepend(w->objectName());
         }
-        // hidden on purpose (replaced, or not for this mode)
+        // skip buttons hidden on purpose (replaced, or unused in this mode)
         if (skip || !button->isVisibleTo(dock ? static_cast<QWidget *>(dock) : static_cast<QWidget *>(mainWindow))) continue;
 
-        // its text, else the first line of its tooltip, only the part before a colon or comma if long
+        // title: its text, else its tooltip's first line, cut at a colon, comma or period if long
         QString title = plainText(button->text());
         if (title.isEmpty()) {
             QString tip = button->toolTip();
@@ -1160,7 +1155,7 @@ void KisStudioFind::registerButtons()
                     button->click();
                     return;
                 }
-                // in a closed panel: opened, then clicked
+                // in a closed panel: open the panel first, then click
                 QDockWidget *dock = nullptr;
                 for (QWidget *w = button->parentWidget(); w && !dock; w = w->parentWidget()) dock = qobject_cast<QDockWidget *>(w);
                 if (dock && d->openPanel) {
@@ -1204,7 +1199,7 @@ void KisStudioFind::updateResults()
         if (query.isEmpty() && d->picker) {
             const bool browsable = d->pickPrefix.isEmpty() ? (entry.kind == Kind::Tool || entry.kind == Kind::Effect) : true;
             if (browsable && !entry.key.isEmpty()) {
-                // tools before effects, each alphabetically (the sort below is stable)
+                // tools before effects; each group is sorted by title below
                 scored.append({i, entry.kind == Kind::Tool ? 2.0 : 1.0});
             }
             continue;
@@ -1218,15 +1213,15 @@ void KisStudioFind::updateResults()
 
         qreal total = strictMatch(query, entry.title);
         Q_FOREACH (const QString &alias, entry.aliases) {
-            // a little below the real name, which is what the result teaches
+            // slightly below a match on the real name, which is what the result shows
             const qreal viaAlias = strictMatch(query, alias);
             if (viaAlias >= 0.0) {
                 total = qMax(total, viaAlias - 8.0);
             }
         }
         if (total < 0.0) {
-            // every query word starting a word of the name or the keywords: fuzzy matching across words finds
-            // nonsense ("blur" in "tablet ... pressure")
+            // each query word must start a word of the name, aliases, keywords or detail; fuzzy matching
+            // across words finds nonsense ("blur" in "tablet ... pressure")
             const QString text = entry.title + QLatin1Char(' ') + entry.aliases.join(QLatin1Char(' ')) + QLatin1Char(' ')
                 + entry.keywords + QLatin1Char(' ') + entry.detail;
             const QStringList words = text.split(QLatin1Char(' '), Qt::SkipEmptyParts);
@@ -1238,7 +1233,7 @@ void KisStudioFind::updateResults()
         scored.append({i, total + frecency + kindBias(entry.kind)});
     }
 
-    // too few predictable matches: loose fuzzy ones, which tolerate typos (not for one or two letters, which match half of everything)
+    // with few predictable matches, add typo-tolerant fuzzy ones (not for one or two letters, which match almost anything)
     if (query.size() >= 3 && scored.size() < 5) {
         QSet<int> have;
         Q_FOREACH (const Scored &s, scored) have.insert(s.entry);
@@ -1255,7 +1250,7 @@ void KisStudioFind::updateResults()
 
     const bool browsing = query.isEmpty() && d->picker;
 
-    // nothing typed: the recent ones, then every effect and tool, for a finger to scroll through
+    // empty query: recent items, document commands, then every effect and tool to scroll through
     if (query.isEmpty() && !d->picker) {
         std::sort(scored.begin(), scored.end(), [](const Scored &a, const Scored &b) { return a.score > b.score; });
         if (scored.size() > 8) {
@@ -1267,7 +1262,6 @@ void KisStudioFind::updateResults()
                 appendResult(s.entry, kindTitle(d->entries[s.entry].kind));
             }
         }
-        // what the main menu had: the document's commands
         QVector<int> document;
         for (const char *name : {"file_new", "file_open", "file_save", "file_save_as", "file_export_file",
                                  "imagesize", "canvassize", "options_configure"}) {
@@ -1423,9 +1417,9 @@ void KisStudioFind::runRow(int row)
         d->recordUse(entry.key);
     }
     hide();
-    // after the popup is gone, so that dialogs get the focus
+    // run once the popup is gone, so that dialogs get the focus
     QTimer::singleShot(0, this, [run = entry.run]() { if (run) run(); });
-    // it has a quicker way: say so, the first few times
+    // teach the shortcut during the first few uses
     if (!entry.shortcut.isEmpty() && d->usage.value(entry.key).count <= 3 && d->mainWindow->viewManager()) {
         d->mainWindow->viewManager()->showFloatingMessage(i18nc("@info a shortcut Find teaches; %1 the command, %2 its keys", "%1  ·  %2", entry.title, entry.shortcut),
                                                           entry.shownIcon(), 2600, KisFloatingMessage::Low);
@@ -1442,7 +1436,7 @@ void KisStudioFind::adjustGeometry()
     listHeight = qMin(listHeight + 4, 440);
     d->list->setFixedHeight(qMax(listHeight, 0));
     d->list->setVisible(listHeight > 4);
-    // else the minimum size follows only on the next layout pass and keeps the window tall
+    // apply the new minimum size now, or the window stays tall until the next layout pass
     layout()->activate();
 
     const int height = d->edit->sizeHint().height() + 36 + (d->list->isVisible() ? listHeight + 6 : 0) + 2 * shadowMarginOf(this);
@@ -1479,7 +1473,7 @@ bool KisStudioFind::showCard(QAbstractButton *button)
     return true;
 }
 
-/// The card of a result: its shortcut, and a pin to the tools panel if it isn't there
+/// Shows an item's card: its shortcut, and "Pin to tools" if it isn't pinned yet
 void KisStudioFind::popupCard(const QIcon &icon, const QString &title, QAction *action, const QString &key, QWidget *anchor)
 {
     auto *card = new KisStudioItemCard(d->mainWindow, icon, title, action);
@@ -1563,7 +1557,7 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
             const int index = d->dragIndex.data(EntryRole).toInt();
             d->dragIndex = QModelIndex();
             if (index >= 0 && index < d->entries.size() && !d->entries[index].key.isEmpty()) {
-                // to the rail: Find gets out of the way of the drop
+                // dragged to the tool rail: hide Find so it doesn't cover the drop target
                 const Entry entry = d->entries[index];
                 auto *drag = new QDrag(this);
                 auto *mime = new QMimeData();
@@ -1624,7 +1618,7 @@ void KisStudioFind::recordShortcut(QKeyEvent *event)
         return;
     }
     const QString taken = KisStudioShortcuts::assign(d->mainWindow, d->entries[index].action, sequence);
-    // the row it was taken from shows it no more
+    // refresh all shortcuts: the new one may have been taken from another item
     for (Entry &entry : d->entries) {
         if (entry.action && entry.kind != Kind::Panel) entry.shortcut = entry.action->shortcut().toString(QKeySequence::NativeText);
     }

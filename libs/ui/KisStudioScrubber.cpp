@@ -57,7 +57,7 @@ void KisStudioScrubber::setRange(qreal minimum, qreal maximum)
 
 void KisStudioScrubber::setValue(qreal value)
 {
-    // the drag owns the value until it is committed
+    // Don't let outside updates fight an ongoing drag
     if (m_dragging) {
         return;
     }
@@ -108,7 +108,7 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
     const QRectF icon(8, (height() - iconSize) / 2.0, iconSize, iconSize);
     painter.setPen(Qt::NoPen);
     if (m_kind == Kind::Size) {
-        // the dot grows the way the value is perceived, by ratios
+        // Logarithmic, to match how sizes are perceived
         const qreal low = qMax(m_minimum, 1.0);
         const qreal position = qBound(0.0, std::log(qMax(m_value, low) / low) / std::log(m_maximum / low), 1.0);
         const qreal diameter = 3.0 + (iconSize - 3.0) * position;
@@ -160,12 +160,12 @@ void KisStudioScrubber::mouseMoveEvent(QMouseEvent *event)
     }
     const bool fine = event->modifiers() & Qt::ShiftModifier;
     if (fine != m_fine) {
-        // the value goes on from where it is, at the other speed
+        // Continue from the current value at the new speed
         m_fine = fine;
         m_pressX = eventX(event);
         m_pressValue = m_value;
     }
-    // a click's jitter changes nothing: a value shown but never committed
+    // Ignore small jitter so a plain click doesn't count as a drag
     if (!m_moved && qAbs(eventX(event) - m_pressX) <= 2) {
         return;
     }
@@ -202,7 +202,7 @@ void KisStudioScrubber::mouseDoubleClickEvent(QMouseEvent *)
         m_editor->setFrame(false);
         m_editor->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         connect(m_editor, &QLineEdit::editingFinished, this, [this]() {
-            // hiding it takes its focus, which finishes the edit again
+            // Hiding the editor drops its focus, which emits editingFinished a second time
             if (m_editor->isHidden()) return;
             bool ok = false;
             const qreal typed = QString(m_editor->text()).remove(QLatin1Char('%')).trimmed().toDouble(&ok);

@@ -18,7 +18,7 @@
 
 namespace
 {
-/// The pen dragged this far (widget pixels) sideways goes through the whole range of the value
+/// Horizontal drag distance, in widget pixels, that covers the value's whole range
 constexpr qreal fullRange = 320;
 }
 
@@ -37,7 +37,7 @@ KisDragValueAction::~KisDragValueAction() = default;
 
 int KisDragValueAction::priority() const
 {
-    // as the brush size's: over painting, under panning
+    // Same as the brush size action: above painting, below panning
     return 8;
 }
 

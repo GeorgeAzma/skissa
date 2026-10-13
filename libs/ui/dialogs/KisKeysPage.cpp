@@ -9,8 +9,6 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDir>
-#include <QRegularExpression>
-#include <QDrag>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -74,7 +72,7 @@ Qt::KeyboardModifier modifierOf(int key)
     }
 }
 
-/// The symbols Shift types on the keys of the drawn (US) keyboard
+/// Shifted symbols mapped to their base keys on the drawn (US) keyboard
 const QHash<int, int> &shiftedSymbols()
 {
     static const QHash<int, int> shifted = {
@@ -89,7 +87,7 @@ const QHash<int, int> &shiftedSymbols()
     return shifted;
 }
 
-/// A key and its modifiers as one number, as the key is on the keyboard: "{" is Shift+[
+/// A key and its modifiers as one chord, by physical key: "{" becomes Shift+[
 int chordOf(int key, Qt::KeyboardModifiers modifiers)
 {
     modifiers &= Qt::ControlModifier | Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier;
@@ -109,7 +107,7 @@ int chordOf(const QKeySequence &sequence)
     return chordOf(combined & ~int(Qt::KeyboardModifierMask), Qt::KeyboardModifiers(combined & int(Qt::KeyboardModifierMask)));
 }
 
-/// The keys a held shortcut is made of, as a chord: its modifiers and its first other key, or a modifier alone
+/// The chord of a held shortcut's keys: its modifiers plus its first other key, or a lone modifier
 int chordOf(const QList<Qt::Key> &keys)
 {
     Qt::KeyboardModifiers modifiers;
@@ -123,7 +121,7 @@ int chordOf(const QList<Qt::Key> &keys)
     return chordOf(main, modifiers);
 }
 
-/// The keys of a held shortcut for \p key pressed with \p modifiers
+/// The held-shortcut keys for \p key pressed with \p modifiers
 QList<Qt::Key> heldKeys(Qt::KeyboardModifiers modifiers, int key)
 {
     QList<Qt::Key> keys;
@@ -135,70 +133,69 @@ QList<Qt::Key> heldKeys(Qt::KeyboardModifiers modifiers, int key)
     return keys;
 }
 
-/// A key on the drawn keyboard, in key widths
+/// A key on the drawn keyboard; position and size are in key widths
 struct KeyCell {
     int key;
     QString label;
     qreal x, y, w, h;
-    bool offHand;
 };
 
 QVector<KeyCell> keyboardLayout()
 {
     QVector<KeyCell> cells;
-    auto row = [&cells](qreal y, qreal h, qreal x, const QVector<std::tuple<int, QString, qreal, bool>> &keys) {
+    auto row = [&cells](qreal y, qreal h, qreal x, const QVector<std::tuple<int, QString, qreal>> &keys) {
         for (const auto &k : keys) {
             const int key = std::get<0>(k);
-            if (key) cells.append({key, std::get<1>(k), x, y, std::get<2>(k), h, std::get<3>(k)});
+            if (key) cells.append({key, std::get<1>(k), x, y, std::get<2>(k), h});
             x += std::get<2>(k);
         }
     };
     const QString ctrl = QStringLiteral("Ctrl"), shift = QStringLiteral("Shift"), alt = QStringLiteral("Alt");
-    row(0, 0.75, 0, {{Qt::Key_Escape, QStringLiteral("Esc"), 1, true}, {0, {}, 1, false},
-                     {Qt::Key_F1, QStringLiteral("F1"), 1, true}, {Qt::Key_F2, QStringLiteral("F2"), 1, true},
-                     {Qt::Key_F3, QStringLiteral("F3"), 1, true}, {Qt::Key_F4, QStringLiteral("F4"), 1, true}, {0, {}, 0.5, false},
-                     {Qt::Key_F5, QStringLiteral("F5"), 1, false}, {Qt::Key_F6, QStringLiteral("F6"), 1, false},
-                     {Qt::Key_F7, QStringLiteral("F7"), 1, false}, {Qt::Key_F8, QStringLiteral("F8"), 1, false}, {0, {}, 0.5, false},
-                     {Qt::Key_F9, QStringLiteral("F9"), 1, false}, {Qt::Key_F10, QStringLiteral("F10"), 1, false},
-                     {Qt::Key_F11, QStringLiteral("F11"), 1, false}, {Qt::Key_F12, QStringLiteral("F12"), 1, false}});
-    row(1, 1, 0, {{Qt::Key_QuoteLeft, QStringLiteral("`"), 1, true}, {Qt::Key_1, QStringLiteral("1"), 1, true},
-                  {Qt::Key_2, QStringLiteral("2"), 1, true}, {Qt::Key_3, QStringLiteral("3"), 1, true},
-                  {Qt::Key_4, QStringLiteral("4"), 1, true}, {Qt::Key_5, QStringLiteral("5"), 1, true},
-                  {Qt::Key_6, QStringLiteral("6"), 1, false}, {Qt::Key_7, QStringLiteral("7"), 1, false},
-                  {Qt::Key_8, QStringLiteral("8"), 1, false}, {Qt::Key_9, QStringLiteral("9"), 1, false},
-                  {Qt::Key_0, QStringLiteral("0"), 1, false}, {Qt::Key_Minus, QStringLiteral("-"), 1, false},
-                  {Qt::Key_Equal, QStringLiteral("="), 1, false}, {Qt::Key_Backspace, QStringLiteral("⌫"), 2, false},
-                  {0, {}, 0.5, false}, {Qt::Key_Insert, QStringLiteral("Ins"), 1, false},
-                  {Qt::Key_Home, QStringLiteral("Home"), 1, false}, {Qt::Key_PageUp, QStringLiteral("PgUp"), 1, false}});
-    row(2, 1, 0, {{Qt::Key_Tab, QStringLiteral("Tab"), 1.5, true}, {Qt::Key_Q, QStringLiteral("Q"), 1, true},
-                  {Qt::Key_W, QStringLiteral("W"), 1, true}, {Qt::Key_E, QStringLiteral("E"), 1, true},
-                  {Qt::Key_R, QStringLiteral("R"), 1, true}, {Qt::Key_T, QStringLiteral("T"), 1, true},
-                  {Qt::Key_Y, QStringLiteral("Y"), 1, false}, {Qt::Key_U, QStringLiteral("U"), 1, false},
-                  {Qt::Key_I, QStringLiteral("I"), 1, false}, {Qt::Key_O, QStringLiteral("O"), 1, false},
-                  {Qt::Key_P, QStringLiteral("P"), 1, false}, {Qt::Key_BracketLeft, QStringLiteral("["), 1, false},
-                  {Qt::Key_BracketRight, QStringLiteral("]"), 1, false}, {Qt::Key_Backslash, QStringLiteral("\\"), 1.5, false},
-                  {0, {}, 0.5, false}, {Qt::Key_Delete, QStringLiteral("Del"), 1, false},
-                  {Qt::Key_End, QStringLiteral("End"), 1, false}, {Qt::Key_PageDown, QStringLiteral("PgDn"), 1, false}});
-    row(3, 1, 0, {{Qt::Key_CapsLock, QStringLiteral("Caps"), 1.75, true}, {Qt::Key_A, QStringLiteral("A"), 1, true},
-                  {Qt::Key_S, QStringLiteral("S"), 1, true}, {Qt::Key_D, QStringLiteral("D"), 1, true},
-                  {Qt::Key_F, QStringLiteral("F"), 1, true}, {Qt::Key_G, QStringLiteral("G"), 1, true},
-                  {Qt::Key_H, QStringLiteral("H"), 1, false}, {Qt::Key_J, QStringLiteral("J"), 1, false},
-                  {Qt::Key_K, QStringLiteral("K"), 1, false}, {Qt::Key_L, QStringLiteral("L"), 1, false},
-                  {Qt::Key_Semicolon, QStringLiteral(";"), 1, false}, {Qt::Key_Apostrophe, QStringLiteral("'"), 1, false},
-                  {Qt::Key_Return, QStringLiteral("Enter"), 2.25, false}});
-    row(4, 1, 0, {{Qt::Key_Shift, shift, 2.25, true}, {Qt::Key_Z, QStringLiteral("Z"), 1, true},
-                  {Qt::Key_X, QStringLiteral("X"), 1, true}, {Qt::Key_C, QStringLiteral("C"), 1, true},
-                  {Qt::Key_V, QStringLiteral("V"), 1, true}, {Qt::Key_B, QStringLiteral("B"), 1, true},
-                  {Qt::Key_N, QStringLiteral("N"), 1, false}, {Qt::Key_M, QStringLiteral("M"), 1, false},
-                  {Qt::Key_Comma, QStringLiteral(","), 1, false}, {Qt::Key_Period, QStringLiteral("."), 1, false},
-                  {Qt::Key_Slash, QStringLiteral("/"), 1, false}, {Qt::Key_Shift, shift, 2.75, false},
-                  {0, {}, 1.5, false}, {Qt::Key_Up, QStringLiteral("↑"), 1, false}});
-    row(5, 1, 0, {{Qt::Key_Control, ctrl, 1.25, true}, {Qt::Key_Meta, QStringLiteral("Win"), 1.25, true},
-                  {Qt::Key_Alt, alt, 1.25, true}, {Qt::Key_Space, QStringLiteral("Space"), 6.25, true},
-                  {Qt::Key_Alt, alt, 1.25, false}, {Qt::Key_Meta, QStringLiteral("Win"), 1.25, false},
-                  {Qt::Key_Menu, QStringLiteral("☰"), 1.25, false}, {Qt::Key_Control, ctrl, 1.25, false},
-                  {0, {}, 0.5, false}, {Qt::Key_Left, QStringLiteral("←"), 1, false},
-                  {Qt::Key_Down, QStringLiteral("↓"), 1, false}, {Qt::Key_Right, QStringLiteral("→"), 1, false}});
+    row(0, 0.75, 0, {{Qt::Key_Escape, QStringLiteral("Esc"), 1}, {0, {}, 1},
+                     {Qt::Key_F1, QStringLiteral("F1"), 1}, {Qt::Key_F2, QStringLiteral("F2"), 1},
+                     {Qt::Key_F3, QStringLiteral("F3"), 1}, {Qt::Key_F4, QStringLiteral("F4"), 1}, {0, {}, 0.5},
+                     {Qt::Key_F5, QStringLiteral("F5"), 1}, {Qt::Key_F6, QStringLiteral("F6"), 1},
+                     {Qt::Key_F7, QStringLiteral("F7"), 1}, {Qt::Key_F8, QStringLiteral("F8"), 1}, {0, {}, 0.5},
+                     {Qt::Key_F9, QStringLiteral("F9"), 1}, {Qt::Key_F10, QStringLiteral("F10"), 1},
+                     {Qt::Key_F11, QStringLiteral("F11"), 1}, {Qt::Key_F12, QStringLiteral("F12"), 1}});
+    row(1, 1, 0, {{Qt::Key_QuoteLeft, QStringLiteral("`"), 1}, {Qt::Key_1, QStringLiteral("1"), 1},
+                  {Qt::Key_2, QStringLiteral("2"), 1}, {Qt::Key_3, QStringLiteral("3"), 1},
+                  {Qt::Key_4, QStringLiteral("4"), 1}, {Qt::Key_5, QStringLiteral("5"), 1},
+                  {Qt::Key_6, QStringLiteral("6"), 1}, {Qt::Key_7, QStringLiteral("7"), 1},
+                  {Qt::Key_8, QStringLiteral("8"), 1}, {Qt::Key_9, QStringLiteral("9"), 1},
+                  {Qt::Key_0, QStringLiteral("0"), 1}, {Qt::Key_Minus, QStringLiteral("-"), 1},
+                  {Qt::Key_Equal, QStringLiteral("="), 1}, {Qt::Key_Backspace, QStringLiteral("⌫"), 2},
+                  {0, {}, 0.5}, {Qt::Key_Insert, QStringLiteral("Ins"), 1},
+                  {Qt::Key_Home, QStringLiteral("Home"), 1}, {Qt::Key_PageUp, QStringLiteral("PgUp"), 1}});
+    row(2, 1, 0, {{Qt::Key_Tab, QStringLiteral("Tab"), 1.5}, {Qt::Key_Q, QStringLiteral("Q"), 1},
+                  {Qt::Key_W, QStringLiteral("W"), 1}, {Qt::Key_E, QStringLiteral("E"), 1},
+                  {Qt::Key_R, QStringLiteral("R"), 1}, {Qt::Key_T, QStringLiteral("T"), 1},
+                  {Qt::Key_Y, QStringLiteral("Y"), 1}, {Qt::Key_U, QStringLiteral("U"), 1},
+                  {Qt::Key_I, QStringLiteral("I"), 1}, {Qt::Key_O, QStringLiteral("O"), 1},
+                  {Qt::Key_P, QStringLiteral("P"), 1}, {Qt::Key_BracketLeft, QStringLiteral("["), 1},
+                  {Qt::Key_BracketRight, QStringLiteral("]"), 1}, {Qt::Key_Backslash, QStringLiteral("\\"), 1.5},
+                  {0, {}, 0.5}, {Qt::Key_Delete, QStringLiteral("Del"), 1},
+                  {Qt::Key_End, QStringLiteral("End"), 1}, {Qt::Key_PageDown, QStringLiteral("PgDn"), 1}});
+    row(3, 1, 0, {{Qt::Key_CapsLock, QStringLiteral("Caps"), 1.75}, {Qt::Key_A, QStringLiteral("A"), 1},
+                  {Qt::Key_S, QStringLiteral("S"), 1}, {Qt::Key_D, QStringLiteral("D"), 1},
+                  {Qt::Key_F, QStringLiteral("F"), 1}, {Qt::Key_G, QStringLiteral("G"), 1},
+                  {Qt::Key_H, QStringLiteral("H"), 1}, {Qt::Key_J, QStringLiteral("J"), 1},
+                  {Qt::Key_K, QStringLiteral("K"), 1}, {Qt::Key_L, QStringLiteral("L"), 1},
+                  {Qt::Key_Semicolon, QStringLiteral(";"), 1}, {Qt::Key_Apostrophe, QStringLiteral("'"), 1},
+                  {Qt::Key_Return, QStringLiteral("Enter"), 2.25}});
+    row(4, 1, 0, {{Qt::Key_Shift, shift, 2.25}, {Qt::Key_Z, QStringLiteral("Z"), 1},
+                  {Qt::Key_X, QStringLiteral("X"), 1}, {Qt::Key_C, QStringLiteral("C"), 1},
+                  {Qt::Key_V, QStringLiteral("V"), 1}, {Qt::Key_B, QStringLiteral("B"), 1},
+                  {Qt::Key_N, QStringLiteral("N"), 1}, {Qt::Key_M, QStringLiteral("M"), 1},
+                  {Qt::Key_Comma, QStringLiteral(","), 1}, {Qt::Key_Period, QStringLiteral("."), 1},
+                  {Qt::Key_Slash, QStringLiteral("/"), 1}, {Qt::Key_Shift, shift, 2.75},
+                  {0, {}, 1.5}, {Qt::Key_Up, QStringLiteral("↑"), 1}});
+    row(5, 1, 0, {{Qt::Key_Control, ctrl, 1.25}, {Qt::Key_Meta, QStringLiteral("Win"), 1.25},
+                  {Qt::Key_Alt, alt, 1.25}, {Qt::Key_Space, QStringLiteral("Space"), 6.25},
+                  {Qt::Key_Alt, alt, 1.25}, {Qt::Key_Meta, QStringLiteral("Win"), 1.25},
+                  {Qt::Key_Menu, QStringLiteral("☰"), 1.25}, {Qt::Key_Control, ctrl, 1.25},
+                  {0, {}, 0.5}, {Qt::Key_Left, QStringLiteral("←"), 1},
+                  {Qt::Key_Down, QStringLiteral("↓"), 1}, {Qt::Key_Right, QStringLiteral("→"), 1}});
     return cells;
 }
 
@@ -208,7 +205,7 @@ QColor mixed(const QColor &a, const QColor &b, qreal t)
                             a.blueF() + (b.blueF() - a.blueF()) * t, a.alphaF() + (b.alphaF() - a.alphaF()) * t);
 }
 
-/// A key's mark and what it means: a bar along its front edge (held on the canvas), a red badge (two commands want it)
+/// A legend entry for a key mark: a bar for keys held on the canvas, a red badge for conflicts
 class KeyLegend : public QWidget
 {
 public:
@@ -262,7 +259,7 @@ private:
     QString m_text;
 };
 
-/// What a key does, for the keyboard
+/// One thing a key does, as shown on the keyboard
 struct KeyUse {
     QString name;
     QIcon icon;
@@ -270,17 +267,17 @@ struct KeyUse {
 };
 
 /**
- * The keyboard as key caps, each with the icon (or name) of what it does in the layer shown: a count when
- * it does more than one thing, red when two commands want it, a bar under what is held on the canvas.
+ * A drawn keyboard whose keys show the icon (or name) of what they do in the current modifier layer,
+ * with a count badge when a key does several things (red on conflict) and a bar for keys held on the canvas.
  */
 class KeyboardMap : public QWidget
 {
 public:
-    /// What a chord does, and how many of those are commands (more than one: they clash)
+    /// What a chord does, and how many of those are commands (more than one is a conflict)
     std::function<QVector<KeyUse>(int chord, int *commandCount)> usesOn;
     std::function<void(int chord)> clicked;
     std::function<void(const QMimeData *mime, int chord)> dropped;
-    /// The chords of what is selected in the list, drawn lit
+    /// Chords of the item selected in the list, drawn highlighted
     QSet<int> lit;
     Qt::KeyboardModifiers layer;
 
@@ -310,7 +307,7 @@ protected:
     {
         const qreal u = unit();
         const qreal left = (width() - m_units * u) / 2;
-        // the function row closer to the rest: a real keyboard's gap, not a whole row
+        // Keep the function row close to the rest, like the gap on a real keyboard
         const qreal y = cell.y < 0.5 ? 0 : (cell.y - 0.15) * u;
         return QRectF(left + cell.x * u + 2, y + 2, cell.w * u - 4, cell.h * u - 5);
     }
@@ -323,7 +320,7 @@ protected:
         return -1;
     }
 
-    /// The chord a key stands for in the layer shown; a modifier key is itself
+    /// The chord a key stands for in the current layer; a modifier key stands for itself
     int chordAt(int cell) const
     {
         const int key = m_cells[cell].key;
@@ -360,7 +357,7 @@ protected:
             const bool used = !uses.isEmpty();
             const bool hovered = i == m_hover || i == m_dropTarget;
 
-            // the cap: its face, and under it its side, as a key stands up from the board
+            // The cap's face, with a darker side below so the key looks raised
             QColor face = mixed(window, text, used ? 0.15 : 0.06);
             if (hovered) face = mixed(face, text, 0.08);
             if (modifierOn || isLit) face = mixed(window, accent, 0.75);
@@ -392,7 +389,7 @@ protected:
                     const QRectF iconRect(body.center().x() - size / 2, body.center().y() - size / 2 + u * 0.02, size, size);
                     first.icon.paint(&painter, iconRect.toAlignedRect(), Qt::AlignCenter, isLit ? QIcon::Selected : QIcon::Normal);
                 } else {
-                    // no icon: its first word, as much as fits
+                    // Without an icon, show the first word (two on wide keys), elided
                     QColor nameInk = ink;
                     nameInk.setAlphaF(0.9);
                     painter.setPen(nameInk);
@@ -401,7 +398,7 @@ protected:
                     const QString word = first.name.section(QLatin1Char(' '), 0, cell.w > 1.6 ? 1 : 0);
                     painter.drawText(body, Qt::AlignHCenter | Qt::AlignVCenter, metrics.elidedText(word, Qt::ElideRight, body.width()));
                 }
-                // held on the canvas: a bar along its front edge
+                // Held on the canvas: a bar along the front edge
                 bool held = false;
                 for (const KeyUse &use : uses) held = held || use.held;
                 if (held) {
@@ -411,7 +408,7 @@ protected:
                     painter.setBrush(bar);
                     painter.drawRoundedRect(QRectF(r.center().x() - u * 0.14, r.bottom() - u * 0.09, u * 0.28, 2), 1, 1);
                 }
-                // more than one: how many, red when two commands want it
+                // Several uses: a count badge, red when two commands conflict
                 if (uses.size() > 1) {
                     const QString count = QString::number(uses.size());
                     const qreal d = u * 0.3;
@@ -473,7 +470,7 @@ protected:
         if (cell < 0 || event->button() != Qt::LeftButton) return;
         const int key = m_cells[cell].key;
         if (isModifierKey(key) && key != Qt::Key_Meta) {
-            // a modifier key shows its layer, or the plain one again
+            // Clicking a modifier toggles its layer
             layer ^= modifierOf(key);
             if (clicked) clicked(-1);
             update();
@@ -522,7 +519,7 @@ private:
     int m_dropTarget {-1};
 };
 
-/// The list, its rows dragged out as what they are (a command, or a held key) for the keyboard
+/// The list, whose rows (commands or held keys) can be dragged onto the keyboard
 class KeysTree : public QTreeWidget
 {
 public:
@@ -543,8 +540,8 @@ protected:
     }
 };
 
-constexpr int RowRole = Qt::UserRole;      ///< the row: a command (its index), a held key (-1 - its index)
-constexpr int GroupRole = Qt::UserRole + 1; ///< a group's heading
+constexpr int RowRole = Qt::UserRole;      ///< a command's index, or -1 - index for a held key
+constexpr int GroupRole = Qt::UserRole + 1; ///< set on group headings
 
 } // namespace
 
@@ -555,16 +552,16 @@ struct KisKeysPage::Private
         QString id;
         QString title;
         QString group;
-        QString search;   ///< what it is found by: its name, id, group, the words other applications use
+        QString search;   ///< lowercase search text: name, id, group and the names other apps use
         QList<QKeySequence> current;
         bool registered {false};
         QTreeWidgetItem *item {nullptr};
     };
     struct Hold {
-        /// What is in the profile; none for a way to set it off that has no keys yet
+        /// The profile's entry; null for an action mode that has no keys yet
         KisShortcutConfiguration *live {nullptr};
         KisShortcutConfiguration staged;
-        /// Taken off (a right click): out of the profile with OK
+        /// Cleared with a right click; removed from the profile on apply()
         bool removed {false};
         QString title;
         bool editable {false};
@@ -573,7 +570,7 @@ struct KisKeysPage::Private
     };
 
     QPointer<KisMainWindow> mainWindow;
-    /// Rings made here: gone again unless applied
+    /// Rings created on this page; removed again unless applied
     QStringList newRings;
     QVector<Command> commands;
     QVector<Hold> holds;
@@ -581,7 +578,6 @@ struct KisKeysPage::Private
     QString savedScheme;
     QString profile;
     QString savedProfile;
-    bool resetHeld {false};
     QHash<QString, QHash<QString, QString>> schemeEntries;
 
     QLineEdit *search {nullptr};
@@ -595,15 +591,15 @@ struct KisKeysPage::Private
     QTimer noteTimer;
     QTreeWidgetItem *heldGroup {nullptr};
 
-    /// The key filter (a chord), from the keyboard or a key pressed into the search
+    /// Chord to filter by, from a keyboard click or a key pressed into the search
     int keyFilter {0};
-    /// Recording: the row (as RowRole), which of its shortcuts (-1: one more)
+    /// While recording: the row (as RowRole) and which of its shortcuts (-1 adds one)
     bool recording {false};
     int recordRow {0};
     int recordIndex {-1};
-    /// A modifier pressed alone while recording a held key: it is the key, if nothing follows before it is let go
+    /// A modifier pressed alone while recording a held key; it becomes the key if released with nothing else
     int pendingModifier {0};
-    /// The layer held on the real keyboard, over the one picked
+    /// The layer picked with the buttons; modifiers held on the real keyboard override it
     Qt::KeyboardModifiers pickedLayer;
 
     QString hint() const
@@ -672,7 +668,7 @@ struct KisKeysPage::Private
         return titles.value(name, name);
     }
 
-    /// The input profile (the keys held on the canvas) that goes with a set of shortcuts
+    /// The input profile (keys held on the canvas) that matches a shortcut scheme
     QString profileFor(const QString &forScheme) const
     {
         if (forScheme == savedScheme) return savedProfile;
@@ -694,7 +690,7 @@ struct KisKeysPage::Private
 
     void collectCommands()
     {
-        // the menu each is in: its group, if nothing says better
+        // Each action's top-level menu, used as its group unless a better one applies
         QHash<QAction *, QString> menuOf;
         QStringList menuOrder;
         std::function<void(QMenu *, const QString &)> walk = [&](QMenu *menu, const QString &top) {
@@ -708,7 +704,7 @@ struct KisKeysPage::Private
             menuOrder << plainText(top->text());
             walk(top->menu(), plainText(top->text()));
         }
-        // Find knows the words other applications use for them
+        // Find knows the names other applications use for commands
         KisStudioFind *find = mainWindow->studioFind();
 
         KisActionRegistry *registry = KisActionRegistry::instance();
@@ -723,7 +719,7 @@ struct KisKeysPage::Private
             const QString title = plainText(action->text());
             auto *widgetAction = qobject_cast<QWidgetAction *>(action);
             if (id.isEmpty() || title.isEmpty() || action->isSeparator() || action->menu() || (widgetAction && widgetAction->defaultWidget())) continue;
-            // the old toolbars and their switches: nothing in the studio layout
+            // Skip toolbar toggles: the studio layout has no toolbars
             if (id.endsWith(QLatin1String("ToolBar")) || id == QLatin1String("BrushesAndStuff") || id.startsWith(QLatin1String("customToolBar"))) continue;
 
             Command command;
@@ -757,7 +753,7 @@ struct KisKeysPage::Private
         groupOrder = QStringList{tools, painting, heldTitle(), rings} + menuOrder + QStringList{panels, other};
     }
 
-    /// Krita's names of the canvas' input actions, as people say them
+    /// Friendlier names for Krita's canvas input actions
     static QString heldName(const QString &name)
     {
         static const QHash<QString, QString> names = {
@@ -786,7 +782,7 @@ struct KisKeysPage::Private
 
     QStringList groupOrder;
 
-    /// What a held action does, and its mode unless that only says the action again ("Pan Mode" of panning)
+    /// A held action's name, plus its mode unless that just repeats the action (e.g. "Pan Mode")
     static QString holdTitle(KisAbstractInputAction *action, const QString &mode)
     {
         const QString name = heldName(action->name());
@@ -816,7 +812,7 @@ struct KisKeysPage::Private
             hold.editable = config->type() == KisShortcutConfiguration::KeyCombinationType || config->type() == KisShortcutConfiguration::MouseButtonType;
             holds.append(hold);
         }
-        // what has no keys yet, with a "+" to give it some; not what only touch or a trackpad sets off
+        // Add rows for modes with no keys yet, so they can be given some; skip touch- and trackpad-only actions
         Q_FOREACH (KisAbstractInputAction *action, KisInputProfileManager::instance()->actions()) {
             const QList<KisShortcutConfiguration *> existing = inputProfile->shortcutsForAction(action);
             bool pointer = existing.isEmpty();
@@ -870,7 +866,7 @@ struct KisKeysPage::Private
         }
         heldGroup = groupItem(heldTitle());
         rebuildHoldItems();
-        // the groups in their order, then the rest by name
+        // Known groups in order, then the rest by name
         QList<QTreeWidgetItem *> ordered;
         Q_FOREACH (const QString &name, groupOrder) {
             if (groups.contains(name)) ordered << groups.take(name);
@@ -960,7 +956,7 @@ struct KisKeysPage::Private
         map->update();
     }
 
-    /// What has \p chord, for the keyboard: the commands first, then what is held on the canvas
+    /// What \p chord does: commands first, then actions held on the canvas
     QVector<KeyUse> usesOn(int chord, int *commandCount) const
     {
         QVector<KeyUse> uses;
@@ -985,14 +981,14 @@ struct KisKeysPage::Private
         return uses;
     }
 
-    /// \p sequence given to command \p row (as its \p index-th shortcut, -1 one more); whoever had it loses it
+    /// Sets \p sequence as shortcut \p index of command \p row (-1 appends), taking it from any other command
     void assignCommand(int row, int index, const QKeySequence &sequence)
     {
         Command &command = commands[row];
         QStringList takenFrom;
         const int chord = chordOf(sequence);
         if (!sequence.isEmpty()) {
-            // "!" and Shift+1 are one key
+            // Compare chords so "!" and Shift+1 count as the same key
             for (int i = 0; i < commands.size(); i++) {
                 QList<QKeySequence> &current = commands[i].current;
                 const int before = current.size();
@@ -1028,7 +1024,7 @@ struct KisKeysPage::Private
         refresh();
     }
 
-    /// Back to what the profile has
+    /// Reverts \p hold to the profile's entry
     static void resetHold(Hold &hold)
     {
         if (hold.live) hold.staged = *hold.live;
@@ -1037,7 +1033,7 @@ struct KisKeysPage::Private
         hold.changed = false;
     }
 
-    /// Taken off: no keys set it off any more (a key held with no keys would be the pen alone)
+    /// Clears a hold. A hold without keys would trigger on the pen alone, so a live one is marked removed instead.
     void removeHold(int index)
     {
         Hold &hold = holds[index];
@@ -1079,7 +1075,7 @@ struct KisKeysPage::Private
         noteTimer.start(0);
     }
 
-    /// What sets a held action off, in words; never empty (a wheel turned with no keys says so)
+    /// The input that triggers a held action, as text; never empty
     static QString inputText(const KisShortcutConfiguration &config)
     {
         const QString text = config.getInputText();
@@ -1103,7 +1099,7 @@ struct KisKeysPage::Private
     struct Cap {
         QRectF rect;
         QString text;
-        int index;   ///< which shortcut; -1 the "+", -2 the reset
+        int index;   ///< which shortcut, or -1 for the add button
     };
 
     QVector<Cap> capsOf(const QStyleOptionViewItem &option, int row) const
@@ -1144,7 +1140,7 @@ struct KisKeysPage::Private
 
 namespace
 {
-/// The key caps of the second column (see KisKeysPage::Private::capsOf)
+/// Draws the key caps in the second column (see KisKeysPage::Private::capsOf)
 class KeysDelegate : public QStyledItemDelegate
 {
 public:
@@ -1186,13 +1182,13 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     d->savedProfile = current ? current->name() : QString();
     d->profile = d->savedProfile;
 
-    // room for the keyboard: the settings grow to it
+    // Wide enough for the keyboard; the settings panel grows to fit
     setMinimumWidth(940);
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(8);
 
-    // find, by words or by keys; only what was changed; the set to start from
+    // Search by text or keys, the changed-only filter, a new ring, and the scheme to start from
     auto *bar = new QHBoxLayout;
     bar->setSpacing(6);
     d->search = new QLineEdit(this);
@@ -1208,7 +1204,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     d->changedOnly->setText(i18nc("@action:button keys page: show only changed shortcuts", "Changed"));
     d->changedOnly->setCheckable(true);
     bar->addWidget(d->changedOnly);
-    // a ring of your own, its key asked for at once
+    // Creates a ring and records its key right away
     auto *newRing = new QToolButton(this);
     newRing->setText(i18nc("@action:button keys page", "New ring"));
     newRing->setToolTip(i18nc("@info:tooltip", "Ring on a key: tap to open, hold and point to pick"));
@@ -1239,7 +1235,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     QStringList files = d->schemeFiles().keys();
     files.sort();
     Q_FOREACH (const QString &name, files) {
-        // the file of Krita's own is Krita's set again, unless it is the one in use
+        // krita_default duplicates the built-in set; list it only when it is in use
         if (name == QLatin1String("krita_default") && d->savedScheme != name) continue;
         schemeNames << name;
     }
@@ -1249,7 +1245,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     bar->addWidget(d->startFrom);
     layout->addLayout(bar);
 
-    // the keyboard's layers
+    // Modifier layer buttons
     auto *layers = new QHBoxLayout;
     layers->setSpacing(2);
     const QVector<QPair<QString, Qt::KeyboardModifiers>> layerList = {
@@ -1273,7 +1269,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
         d->layerButtons << button;
     }
     layers->addStretch();
-    // what the marks on the keys mean, drawn as the keys draw them
+    // Legend for the key marks
     layers->addWidget(new KeyLegend(KeyLegend::Held, i18nc("@info keys page legend: a key held on the canvas", "Held"), this));
     layers->addWidget(new KeyLegend(KeyLegend::Clash, i18nc("@info keys page legend: two commands on one key", "Conflict"), this));
     layout->addLayout(layers);
@@ -1310,7 +1306,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
             else if (cap.rect.contains(pointer)) state = KisModernStyle::KeyCap::Pointed;
             QPalette pal = option.palette;
             if (row < 0 && !d->holds[-1 - row].editable) {
-                // a wheel or a gesture: shown, not changed here
+                // Wheels and gestures are shown but can't be edited here
                 QColor text = pal.color(QPalette::Text);
                 text.setAlphaF(0.55);
                 pal.setColor(QPalette::Text, text);
@@ -1319,7 +1315,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
             }
             KisModernStyle::drawKeyCap(painter, cap.rect, font, cap.text, pal, state);
         }
-        // changed: the way back, after the caps
+        // A reset arrow after the caps of a changed row
         const bool isChanged = row >= 0 ? d->changed(d->commands[row]) : d->holds[-1 - row].changed;
         if (isChanged) {
             const QRectF back(option.rect.right() - 22, option.rect.center().y() - 8, 16, 16);
@@ -1355,7 +1351,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     d->collectHolds();
     d->rebuildTree();
 
-    // what the keyboard does
+    // Keyboard interaction
     auto pickLayer = [this](Qt::KeyboardModifiers layer) {
         d->pickedLayer = layer;
         d->map->layer = layer;
@@ -1368,11 +1364,11 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     pickLayer(Qt::NoModifier);
     d->map->clicked = [this, pickLayer](int chord) {
         if (chord < 0) {
-            // a modifier clicked on the keyboard: its layer
+            // A modifier was clicked: sync the layer buttons
             pickLayer(d->map->layer);
             return;
         }
-        // what has this key; again, everything
+        // Filter by this key; clicking it again clears the filter
         d->keyFilter = d->keyFilter == chord ? 0 : chord;
         d->search->blockSignals(true);
         d->search->setText(d->keyFilter ? KisModernStyle::keyCapText(QKeySequence(chord)) : QString());
@@ -1388,10 +1384,10 @@ KisKeysPage::KisKeysPage(QWidget *parent)
         const Qt::KeyboardModifiers modifiers(chord & int(Qt::KeyboardModifierMask));
         int key = chord & ~int(Qt::KeyboardModifierMask);
         if (row >= 0 && row < d->commands.size()) {
-            // a modifier alone is no shortcut
+            // A modifier alone can't be a shortcut
             if (!isModifierKey(chord)) d->assignCommand(row, -1, QKeySequence(chord));
         } else if (row < 0 && -1 - row < d->holds.size() && d->holds[-1 - row].editable) {
-            // held, a shifted key is the symbol it types, as the canvas sees it
+            // The canvas sees a shifted key as the symbol it types
             if (modifiers & Qt::ShiftModifier) key = shiftedSymbols().key(key, key);
             d->assignHold(-1 - row, heldKeys(modifiers, key));
         }
@@ -1418,7 +1414,6 @@ KisKeysPage::KisKeysPage(QWidget *parent)
         const QString name = d->startFrom->itemData(index).toString();
         d->scheme = name;
         d->profile = d->profileFor(name);
-        d->resetHeld = false;
         int changes = 0;
         for (Private::Command &command : d->commands) {
             const QList<QKeySequence> defaults = d->defaultsOf(command, name);
@@ -1434,7 +1429,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
 
 KisKeysPage::~KisKeysPage()
 {
-    // not applied (Cancel): the rings made here are not kept
+    // Rings created here and never applied are discarded
     if (KisStudioRings *rings = d->mainWindow ? d->mainWindow->studioRings() : nullptr) {
         Q_FOREACH (const QString &id, d->newRings) rings->remove(id);
     }
@@ -1443,7 +1438,7 @@ KisKeysPage::~KisKeysPage()
 void KisKeysPage::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
-    // modifiers held on the real keyboard show their layer
+    // Watch key events app-wide so held modifiers switch the layer
     qApp->installEventFilter(this);
 }
 
@@ -1458,7 +1453,7 @@ bool KisKeysPage::eventFilter(QObject *watched, QEvent *event)
 {
     const QEvent::Type type = event->type();
 
-    // recording: the next keys pressed
+    // Recording: capture the next keys pressed
     if (d->recording && (type == QEvent::KeyPress || type == QEvent::KeyRelease || type == QEvent::ShortcutOverride)) {
         auto *key = static_cast<QKeyEvent *>(event);
         if (type == QEvent::ShortcutOverride) {
@@ -1478,9 +1473,7 @@ bool KisKeysPage::eventFilter(QObject *watched, QEvent *event)
             const int row = d->recordRow;
             const int index = d->recordIndex;
             d->stopRecording();
-            if (press == KisStudioShortcuts::KeyPress::Cancel) {
-                return true;
-            }
+            if (press == KisStudioShortcuts::KeyPress::Cancel) return true;
             if (row >= 0) {
                 if (press == KisStudioShortcuts::KeyPress::Shortcut || index >= 0) d->assignCommand(row, index, sequence);
             } else {
@@ -1488,7 +1481,7 @@ bool KisKeysPage::eventFilter(QObject *watched, QEvent *event)
             }
             return true;
         }
-        // a modifier let go with nothing after it: a held key may be a modifier alone
+        // A modifier released on its own: a held key may be a lone modifier
         if (type == QEvent::KeyRelease && d->pendingModifier && code == d->pendingModifier && d->recordRow < 0) {
             const int row = d->recordRow;
             const Qt::Key held = Qt::Key(d->pendingModifier);
@@ -1499,7 +1492,7 @@ bool KisKeysPage::eventFilter(QObject *watched, QEvent *event)
         return true;
     }
 
-    // finding by keys: what is pressed in the field
+    // "Press keys" search: filter by the key pressed in the field
     if (watched == d->search && d->pressKeys->isChecked() && type == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
         if (isModifierKey(key->key())) return true;
@@ -1517,7 +1510,7 @@ bool KisKeysPage::eventFilter(QObject *watched, QEvent *event)
         return true;
     }
 
-    // modifiers held anywhere on the page: their layer, while they are
+    // Show the layer of modifiers held anywhere, while they are held
     if ((type == QEvent::KeyPress || type == QEvent::KeyRelease) && isVisible() && !d->recording) {
         auto *key = static_cast<QKeyEvent *>(event);
         if (isModifierKey(key->key())) {
@@ -1529,7 +1522,7 @@ bool KisKeysPage::eventFilter(QObject *watched, QEvent *event)
         }
     }
 
-    // the list: a click on a key cap records, a right click removes, the arrow puts it back
+    // In the list: click a cap to record, right-click to clear, click the arrow to reset
     if (watched == d->tree->viewport()) {
         if (type == QEvent::MouseMove || type == QEvent::Leave) {
             d->tree->viewport()->update();
@@ -1550,7 +1543,7 @@ bool KisKeysPage::eventFilter(QObject *watched, QEvent *event)
                 d->stopRecording();
                 return false;
             }
-            // the way back
+            // The reset arrow
             const QRectF back(option.rect.right() - 24, option.rect.center().y() - 10, 20, 20);
             const bool isChanged = row >= 0 ? d->changed(d->commands[row]) : d->holds[-1 - row].changed;
             if (isChanged && back.contains(mouse->pos()) && mouse->button() == Qt::LeftButton) {
@@ -1585,27 +1578,13 @@ bool KisKeysPage::eventFilter(QObject *watched, QEvent *event)
     return QWidget::eventFilter(watched, event);
 }
 
-void KisKeysPage::setDefaults()
-{
-    d->stopRecording();
-    d->scheme = QStringLiteral("Default");
-    d->startFrom->setCurrentIndex(qMax(0, d->startFrom->findData(d->scheme)));
-    for (Private::Command &command : d->commands) command.current = d->defaultsOf(command, d->scheme);
-    // the keys held on the canvas: Krita's own profile, as installed (with OK)
-    d->profile = d->profileFor(d->scheme);
-    d->resetHeld = true;
-    for (Private::Hold &hold : d->holds) Private::resetHold(hold);
-    d->showNote(i18nc("@info keys page", "Resets all keys on OK"));
-    d->refresh();
-}
-
 void KisKeysPage::apply()
 {
     d->stopRecording();
     d->newRings.clear();
     KisActionRegistry *registry = KisActionRegistry::instance();
 
-    // the set started from
+    // The scheme started from
     if (d->scheme != d->savedScheme) {
         KConfigGroup schemes = KSharedConfig::openConfig()->group("Shortcut Schemes");
         schemes.writeEntry("Current Scheme", d->scheme);
@@ -1613,7 +1592,7 @@ void KisKeysPage::apply()
         registry->loadShortcutScheme(d->scheme);
     }
 
-    // what differs from that set, kept; what is as it has it, not
+    // Store only the shortcuts that differ from the scheme
     KConfigGroup custom(KSharedConfig::openConfig(QStringLiteral("kritashortcutsrc")), QStringLiteral("Shortcuts"));
     for (const Private::Command &command : d->commands) {
         if (command.registered && command.current == d->defaultsOf(command, d->scheme)) {
@@ -1629,49 +1608,25 @@ void KisKeysPage::apply()
     custom.sync();
     registry->settingsPageSaved();
 
-    // the keys held on the canvas
+    // Keys held on the canvas
     KisInputProfileManager *input = KisInputProfileManager::instance();
-    if (d->resetHeld) {
-        // this profile's own copy goes (Krita's installed one is read again); other profiles are left alone
-        QDir profileDir(KoResourcePaths::saveLocation("data", "input/", false));
-        const QString file = d->profile.toLower().remove(QRegularExpression(QStringLiteral("[^a-z0-9]"))) + QStringLiteral(".profile");
-        if (profileDir.exists(file)) profileDir.remove(file);
-        input->loadProfiles();
-        // keys held changed after the reset: onto the profile as installed
-        KisInputProfile *fresh = input->profile(d->profile);
-        bool held = false;
-        for (Private::Hold &hold : d->holds) {
-            if (!hold.changed || !fresh || !hold.staged.action()) continue;
-            Q_FOREACH (KisShortcutConfiguration *old, fresh->shortcutsForAction(hold.staged.action())) {
-                if (old->mode() == hold.staged.mode()) {
-                    fresh->removeShortcut(old);
-                    delete old;
-                }
-            }
-            if (!hold.removed && !hold.staged.keys().isEmpty()) fresh->addShortcut(new KisShortcutConfiguration(hold.staged));
-            held = true;
+    KisInputProfile *profile = input->profile(d->profile);
+    bool held = false;
+    for (Private::Hold &hold : d->holds) {
+        if (!hold.changed || !profile) continue;
+        if (hold.removed && hold.live) {
+            profile->removeShortcut(hold.live);
+            delete hold.live;
+            hold.live = nullptr;
+        } else if (hold.live) {
+            *hold.live = hold.staged;
+        } else if (!hold.staged.keys().isEmpty()) {
+            profile->addShortcut(new KisShortcutConfiguration(hold.staged));
         }
-        if (held) input->saveProfiles();
-        d->resetHeld = false;
-    } else {
-        KisInputProfile *profile = input->profile(d->profile);
-        bool held = false;
-        for (Private::Hold &hold : d->holds) {
-            if (!hold.changed || !profile) continue;
-            if (hold.removed && hold.live) {
-                profile->removeShortcut(hold.live);
-                delete hold.live;
-                hold.live = nullptr;
-            } else if (hold.live) {
-                *hold.live = hold.staged;
-            } else if (!hold.staged.keys().isEmpty()) {
-                profile->addShortcut(new KisShortcutConfiguration(hold.staged));
-            }
-            held = true;
-        }
-        if (held) input->saveProfiles();
+        held = true;
     }
-    // read again, which tells the canvases: they make their own shortcuts from the profile
+    if (held) input->saveProfiles();
+    // Reload so the canvases rebuild their shortcuts from the profile
     KisConfig(false).setCurrentInputProfile(d->profile);
     input->loadProfiles();
 }

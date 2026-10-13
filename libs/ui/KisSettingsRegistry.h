@@ -19,11 +19,10 @@
 class KConfig;
 
 /**
- * Every setting Settings shows, described once: where it is kept, its kind,
- * default and valid values. Showing, finding, resetting, undoing and moving
- * settings all go through here, and a value is only written once it is
- * checked against its description. Values are as stored (seconds, a zoom
- * factor): the cards convert them for showing.
+ * Describes every setting the Settings panel shows: where it is stored, its kind,
+ * default and valid values. Reading, writing, resetting, undoing and transferring
+ * settings all go through here, and values are validated before they are written.
+ * Values are kept in their stored units (seconds, a zoom factor); the UI converts them.
  */
 class KRITAUI_EXPORT KisSettingsRegistry : public QObject
 {
@@ -31,17 +30,17 @@ class KRITAUI_EXPORT KisSettingsRegistry : public QObject
 public:
     enum class Kind {
         Toggle, ///< bool
-        Number, ///< int or double, as its default is
-        Choice, ///< one of its choices' values (int or string)
+        Number, ///< int or double, matching its default
+        Choice, ///< the value of one of its choices (int or string)
         Color,  ///< QColor, alpha included
         Text,   ///< QString
     };
 
     enum Flag {
         Restart = 1 << 0,   ///< takes effect the next time Krita starts
-        Machine = 1 << 1,   ///< about this computer (paths, hardware, screens): never moved to another
-        Fork = 1 << 2,      ///< this Krita's own: Krita itself doesn't know it
-        NewViews = 1 << 3,  ///< for images opened from now on
+        Machine = 1 << 1,   ///< specific to this computer (paths, hardware, screens); never transferred
+        Fork = 1 << 2,      ///< exists only in this fork; upstream Krita doesn't read it
+        NewViews = 1 << 3,  ///< applies only to images opened afterwards
     };
 
     struct Choice {
@@ -50,31 +49,32 @@ public:
     };
 
     struct Setting {
-        QString id;    ///< stable, used in files and lists: the key, "[group] key" in a group
-        QString group; ///< kritarc's group; empty: the top, where KisConfig keeps its settings
+        QString id;    ///< stable identifier used in files: the key, or "[group] key" for a grouped one
+        QString group; ///< kritarc group; empty for the top-level group KisConfig uses
         QString key;
         Kind kind {Kind::Toggle};
-        QVariant fallback; ///< what it is until changed
-        /// A default that follows other settings, instead of fallback
+        QVariant fallback; ///< the default value
+        /// A default computed from other settings, used instead of fallback
         std::function<QVariant()> fallbackNow;
         int flags {0};
         qreal min {0};
         qreal max {0};
         QVector<Choice> choices;
-        QString label; ///< its name in lists (an import's changes, Find)
-        QString help;  ///< what it does, if more than its name says: shown on hover
-        bool alpha {false}; ///< a Color that can be see-through; the others are opaque
-        /// More than the kind says (a text's format); for a Choice with choices only known at run time, the choices
+        QString label; ///< user-visible name
+        QString help;  ///< tooltip, for when the name alone doesn't explain it
+        bool alpha {false}; ///< whether a Color keeps its alpha; otherwise it is made opaque
+        /// Extra validation beyond the kind (e.g. a text's format)
         std::function<bool(const QVariant &value)> valid;
+        /// For a Choice whose choices are only known at run time
         std::function<QVector<Choice>()> dynamicChoices;
-        /// Kept elsewhere than in kritarc: how it is read and written
+        /// For a setting stored outside kritarc: how to read and write it
         std::function<QVariant()> read;
         std::function<void(const QVariant &value)> write;
-        /// Told after it is written, besides the general notification
+        /// Called after the value is written, in addition to the general config notification
         std::function<void(const QVariant &value)> written;
-        /// How a value reads in a list (e.g. "7 min" for 420 seconds); default: its number, choice, or On and Off
+        /// How a value is displayed (e.g. "7 min" for 420 seconds); defaults to the number, choice text, or On/Off
         std::function<QString(const QVariant &value)> format;
-        /// Whether a change from \p startup to \p now waits for a restart (default: any change, for Restart)
+        /// Whether going from \p startup to \p now needs a restart; by default any change of a Restart setting does
         std::function<bool(const QVariant &startup, const QVariant &now)> waitsForRestart;
 
         bool storedInKritarc() const { return !read; }
@@ -84,39 +84,38 @@ public:
 
     const QVector<Setting> &settings() const;
     const Setting *setting(const QString &id) const;
-    /// Choices known only at run time are looked for again (a color profile was installed)
+    /// Drops the cached run-time choices, e.g. after a color profile or theme was added
     void refreshChoices();
 
     QVariant value(const QString &id) const;
     QVariant defaultValue(const QString &id) const;
     bool isDefault(const QString &id) const;
     /**
-     * Writes \p value, if it is valid for the setting (see normalized());
-     * false if not. Krita is told of it a moment later, once for everything
-     * changed together (a slider dragged), and kritarc is written then.
+     * Writes \p value if it is valid for the setting (see normalized()), otherwise returns false.
+     * Krita is notified shortly afterwards, once per burst of changes such as a slider drag,
+     * and kritarc is synced once the changes stop.
      */
     bool setValue(const QString &id, const QVariant &value);
     void reset(const QString &id);
 
-    /// \p value as the setting holds it (from a file, JSON or text), or an invalid QVariant if it isn't one of its values
+    /// Converts \p value (from a file, JSON or text) to the setting's type; invalid if it isn't an allowed value
     QVariant normalized(const Setting &setting, const QVariant &value) const;
     bool sameValue(const Setting &setting, const QVariant &a, const QVariant &b) const;
     QVector<Choice> choices(const Setting &setting) const;
-    /// \p value as it reads in a list
+    /// \p value formatted for display
     QString display(const Setting &setting, const QVariant &value) const;
 
-    /// The values now, to go back to (an import undone, the panel's Undo)
+    /// All current values, to go back to with restore()
     QHash<QString, QVariant> snapshot() const;
     void restore(const QHash<QString, QVariant> &snapshot);
 
-    /// The settings waiting for a restart: changed since Krita started, where that takes a restart
+    /// The settings changed since startup whose change needs a restart
     QStringList waitingForRestart() const;
 
-    /**
-     * The changes made, to undo and redo them (see KisSettingsUndo): one a setting, its value before and
-     * after. Changes of one setting close together (a slider dragged) are one.
-     */
-    /// How long ago the change Undo would take back was made, in ms; -1: there is none
+    // Undo history of settings changes (see KisSettingsUndo). Quick successive changes
+    // of one setting, such as a slider drag, form a single step.
+
+    /// Milliseconds since the change Undo would revert was made, or -1 if there is none
     qint64 undoAge() const;
     QString undoName() const;
     bool undoChange();
@@ -124,21 +123,21 @@ public:
     QString redoName() const;
     bool redoChange();
 
-    /// Tells Krita now of what was written, instead of a moment later
+    /// Sends any pending change notification and syncs kritarc right away
     void flush();
 
-    /// A setting's value in another kritarc (for moving settings between Kritas); invalid if it has none or isn't valid
+    /// The setting's value in another kritarc; invalid if it is unset or not valid there
     QVariant valueIn(const Setting &setting, KConfig &config) const;
     void writeIn(const Setting &setting, KConfig &config, const QVariant &value) const;
 
 Q_SIGNALS:
-    /// \p id was written (by Settings, an import, a reset)
+    /// Emitted whenever \p id is written
     void valueChanged(const QString &id);
 
 private:
     KisSettingsRegistry();
     void schedule();
-    /// Tells Krita of what was written (what the Preferences dialog did after OK)
+    /// Notifies Krita of written settings, as the Preferences dialog does on OK
     void notifyNow();
 
     struct Private;

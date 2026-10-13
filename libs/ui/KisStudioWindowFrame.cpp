@@ -32,7 +32,7 @@ enum class WindowButtonKind {
     Close,
 };
 
-/// Thin strokes; the close button turns red on hover
+/// A caption button drawn with thin strokes; Close turns red on hover
 class WindowButton : public QAbstractButton
 {
 public:
@@ -53,7 +53,7 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
-        // maximize and restore look different
+        // the maximize icon differs between maximized and normal
         if (watched == m_window && event->type() == QEvent::WindowStateChange) update();
         return QAbstractButton::eventFilter(watched, event);
     }
@@ -103,7 +103,7 @@ private:
 };
 
 #ifdef Q_OS_WIN
-/// At the window's own DPI where the system can tell it (Windows 10 1607+)
+/// A system metric at the window's own DPI, where supported (Windows 10 1607+)
 int frameMetric(HWND hwnd, int index)
 {
     using GetDpiForWindowFn = UINT(WINAPI *)(HWND);
@@ -124,10 +124,10 @@ int frameThickness(HWND hwnd, bool vertical)
     return frameMetric(hwnd, vertical ? SM_CYFRAME : SM_CXFRAME) + frameMetric(hwnd, paddedBorder);
 }
 
-/// The frame extended (or not) into the client area, and the client area asked for again (WM_NCCALCSIZE)
+/// Extends the frame into the client area (or undoes it) and has the system recompute the client area
 void applyFrame(HWND hwnd, bool extend)
 {
-    // a 1 px glass edge keeps the system shadow of the borderless window
+    // a 1 px glass edge keeps the system shadow on the borderless window
     struct Margins { int left, right, top, bottom; };
     using DwmExtendFn = HRESULT(WINAPI *)(HWND, const Margins *);
     static HMODULE dwm = LoadLibraryW(L"dwmapi.dll");
@@ -139,7 +139,7 @@ void applyFrame(HWND hwnd, bool extend)
     SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
-/// A maximized window leaves a pixel free on the edge of an auto-hiding taskbar, which shows when the pointer reaches it
+/// Leaves a 1 px gap on an auto-hiding taskbar's edge so the pointer can still reveal it over a maximized window
 void leaveRoomForTaskbar(HWND hwnd, RECT &rect)
 {
     using AppBarFn = UINT_PTR(WINAPI *)(DWORD, PAPPBARDATA);
@@ -180,7 +180,7 @@ KisStudioWindowFrame::KisStudioWindowFrame(QMainWindow *window, std::function<bo
 bool KisStudioWindowFrame::eventFilter(QObject *watched, QEvent *event)
 {
 #ifdef Q_OS_WIN
-    // Qt recreates the native window for some changes: the new one has no extended frame yet
+    // Qt recreates the native window for some changes; the new one needs the frame applied again
     if (watched == m_window && event->type() == QEvent::WinIdChange && m_enabled && m_window->internalWinId()) {
         applyFrame(reinterpret_cast<HWND>(m_window->internalWinId()), true);
     }
@@ -208,7 +208,7 @@ bool KisStudioWindowFrame::handleNativeEvent(void *message, void *resultPointer)
         return false;
     }
     MSG *msg = static_cast<MSG *>(message);
-    // not winId(): called during the native window's creation, it would create it again (a crash)
+    // not winId(): this can run while the native window is being created, and winId() would recreate it and crash
     HWND hwnd = reinterpret_cast<HWND>(m_window->internalWinId());
     if (!hwnd || msg->hwnd != hwnd) {
         return false;
@@ -227,7 +227,7 @@ bool KisStudioWindowFrame::handleNativeEvent(void *message, void *resultPointer)
         if (msg->wParam != TRUE) {
             return false;
         }
-        // all client area; a maximized window hangs over the screen edge by the frame, which stays outside
+        // the whole window is client area; a maximized window overhangs the screen by its frame, so trim that
         if (IsZoomed(hwnd) && !fullScreen) {
             RECT &rect = reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam)->rgrc[0];
             const int fx = frameThickness(hwnd, false);
@@ -275,7 +275,7 @@ bool KisStudioWindowFrame::handleNativeEvent(void *message, void *resultPointer)
     case WM_NCRBUTTONDOWN:
     case WM_NCRBUTTONDBLCLK:
     case WM_NCRBUTTONUP:
-        // the edges resize with the left button only; a right click on the caption still opens the window menu
+        // ignore right clicks on the resize edges; a right click on the caption still opens the window menu
         if (msg->wParam >= HTLEFT && msg->wParam <= HTBOTTOMRIGHT) {
             setResult(0);
             return true;

@@ -14,15 +14,15 @@
 class KisKActionCollection;
 
 /**
- * Symmetry: painting a stroke many times at once, one way of three.
+ * Symmetry settings: painting each stroke several times at once.
  *
- *  - Mirror: Krita's mirror axes (hmirror_action, vmirror_action), with
- *    every tool that paints
- *  - Radial: copies turned around a center, maybe mirrored too (a
- *    kaleidoscope), with the brush (the Multibrush tool)
- *  - Tile: the stroke repeated on a grid, with the brush
+ *  - Mirror: Krita's canvas mirror axes (hmirror_action, vmirror_action),
+ *    which work with every painting tool
+ *  - Radial: copies rotated around a center, optionally mirrored
+ *    (kaleidoscope); uses the Multibrush tool
+ *  - Tile: the stroke repeated on a grid; uses the Multibrush tool
  *
- * Its settings, kept in kritarc's [Symmetry]; the tools follow changed().
+ * Stored in the [Symmetry] group of kritarc; tools listen to changed().
  */
 class KRITAUI_EXPORT KisStudioSymmetry : public QObject
 {
@@ -34,25 +34,25 @@ public:
 
     Mode mode() const;
     void setMode(Mode mode);
-    /// Radial: how many copies, and whether every other one is mirrored
+    /// Radial: number of copies, and whether every other one is mirrored
     int copies() const;
     void setCopies(int copies);
     bool mirrored() const;
     void setMirrored(bool mirrored);
-    /// Radial: how its axes are turned, in radians from straight up, clockwise
+    /// Radial: rotation of the axes, in radians clockwise from straight up
     qreal turn() const;
     void setTurn(qreal turn);
-    /// Tile: how far apart the copies are, in image pixels (0: no repeats that way)
+    /// Tile: distance between copies in image pixels (0 disables repeats in that direction)
     QSize spacing() const;
     void setSpacing(const QSize &spacing);
-    /// Mirror: which axes, as they were last on
+    /// Mirror: the axes to use when mirroring is turned on
     bool mirrorAcross() const;
     bool mirrorDown() const;
     void setMirrorAxes(bool across, bool down);
 
-    /// Whether the window painting through \p actions paints with symmetry now
+    /// Whether symmetry is currently on in the window that owns \p actions
     static bool isOn(KisKActionCollection *actions);
-    /// Turns it on (in the chosen mode) or off for the window painting through \p actions
+    /// Turns symmetry on (in the current mode) or off in the window that owns \p actions
     static void setOn(KisKActionCollection *actions, bool on);
 
     static constexpr int maximumCopies = 24;

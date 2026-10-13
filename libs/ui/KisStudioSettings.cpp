@@ -16,8 +16,6 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
-#include <QFile>
-#include <QFileInfo>
 #include <QFontComboBox>
 #include <QGridLayout>
 #include <QHBoxLayout>
@@ -35,7 +33,6 @@
 #include <QPushButton>
 #include <QScreen>
 #include <QScrollArea>
-#include <QScrollBar>
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QTimer>
@@ -48,7 +45,6 @@
 #include <KConfig>
 #include <KConfigGroup>
 #include <KSharedConfig>
-#include <kactioncollection.h>
 #include <kfts_fuzzy_match.h>
 #include <klocalizedstring.h>
 
@@ -97,14 +93,14 @@ using Setting = KisSettingsRegistry::Setting;
 using Kind = KisSettingsRegistry::Kind;
 
 const QString cardMime = QStringLiteral("application/x-krita-settings-card");
-/// Your sections and Quick (JSON); see UserSections
+/// kritarc key of the user's sections and Quick, as JSON; see UserSections
 const QString sectionsKey = QStringLiteral("StudioSettingsSections");
 const QString quickId = QStringLiteral("quick");
 const QString searchId = QStringLiteral("search");
 const QString changedId = QStringLiteral("changed");
 const QString keysSection = QStringLiteral("keys");
 
-/// A card's drag or menu runs its own event loop: rebuilding the cards then would delete that card under it
+/// Nonzero while a card's drag or menu runs its own event loop; rebuilding then would delete the card under it
 int cardsBusy = 0;
 
 struct Busy {
@@ -112,7 +108,7 @@ struct Busy {
     ~Busy() { cardsBusy--; }
 };
 
-/// A dialog a card opened (a color's) is up: rebuilding would close it, as if canceled
+/// Whether a dialog opened by a card (e.g. a color dialog) is up; rebuilding would cancel it
 bool cardDialogOpen()
 {
     Q_FOREACH (QWidget *top, QApplication::topLevelWidgets()) {
@@ -161,7 +157,7 @@ QLabel *dimLabel(const QString &text, QWidget *parent)
     return label;
 }
 
-/// A short message from Settings (or Quick): in the panel, or on the canvas
+/// Shows a short message in the Settings panel, or on the canvas when \p from isn't inside it
 void say(QWidget *from, const QString &text)
 {
     for (QWidget *w = from; w; w = w->parentWidget()) {
@@ -176,9 +172,9 @@ void say(QWidget *from, const QString &text)
 }
 
 // ---------------------------------------------------------------------------
-// controls
+// Controls
 
-/// On or off: a pill with a knob, which slides
+/// An on/off switch: a pill with a sliding knob
 class Switch : public QAbstractButton
 {
 public:
@@ -199,7 +195,7 @@ public:
         });
     }
 
-    /// Without the slide, nor toggled(): shown as it already is
+    /// Sets the state without animating or emitting toggled()
     void show(bool on)
     {
         if (on == isChecked()) return;
@@ -225,7 +221,7 @@ protected:
         painter.setPen(Qt::NoPen);
         painter.setBrush(fill);
         painter.drawRoundedRect(track, 10, 10);
-        // the knob: light on the faint track, dark on the bright one
+        // The knob is light on the faint track and dark on the bright one
         QColor dark = palette().color(QPalette::Window);
         dark.setAlpha(255);
         QColor knob = mix(ink(this, 1.0), dark, m_position);
@@ -247,7 +243,7 @@ private:
     qreal m_position {0};
 };
 
-/// A few choices side by side, one of them picked
+/// A row of mutually exclusive choices
 class Segmented : public QWidget
 {
 public:
@@ -365,7 +361,7 @@ private:
     int m_hovered {-1};
 };
 
-/// Pictures to pick one of (a theme, a glass), each with its name under it
+/// A grid of pictures to pick from (e.g. theme presets), each named below
 class Tiles : public QWidget
 {
 public:
@@ -396,7 +392,7 @@ public:
     QSize sizeHint() const override { return QSize(3 * m_size.width() + 16, heightFor(3 * m_size.width() + 16)); }
 
 protected:
-    /// Three across (fewer if there are fewer), as large as fits, up to their size
+    /// Up to three across, each as large as fits but no larger than its natural size
     int columns() const { return qMax(1, qMin(3, int(m_tiles.size()))); }
     QSize tileSize(int width) const
     {
@@ -411,7 +407,7 @@ protected:
 
     void resizeEvent(QResizeEvent *) override
     {
-        // as tall as its tiles are at this width (a scroll area's layout doesn't ask)
+        // Fix the height to suit the width, since a scroll area's layout doesn't ask heightForWidth()
         setFixedHeight(heightFor(width()));
     }
 
@@ -507,7 +503,7 @@ private:
     int m_hovered {-1};
 };
 
-/// KisSliderSpinBox or KisDoubleSliderSpinBox, without a frame
+/// A frameless KisSliderSpinBox or KisDoubleSliderSpinBox
 template<class Slider>
 Slider *quietSlider(QWidget *parent)
 {
@@ -521,9 +517,9 @@ Slider *quietSlider(QWidget *parent)
 }
 
 // ---------------------------------------------------------------------------
-// cards
+// Cards
 
-/// How a number is shown: what is stored is shown times \p scale (minutes for seconds: 1/60)
+/// How a number setting is shown: the stored value times \p scale (e.g. 1/60 shows seconds as minutes)
 struct Number {
     Number(const QString &label = QString(), qreal scale = 1, int decimals = 0, const QString &suffix = QString(), qreal step = 1)
         : label(label), scale(scale), decimals(decimals), suffix(suffix), step(step)
@@ -534,20 +530,18 @@ struct Number {
     int decimals;
     QString suffix;
     qreal step;
-    /// A narrower range than the setting's (shown values), if given
+    /// An optional narrower range than the setting's, in shown units
     qreal low {NAN};
     qreal high {NAN};
-    /// Written when the slider is let go, not while it is dragged: what is costly to change (undo is cleared, threads restarted)
+    /// Write only when the slider is released, for settings that are costly to change (e.g. clearing undo, restarting threads)
     bool onRelease {false};
 };
 
-/// Builds a card's rows, each bound to its setting both ways
+/// Builds a card's rows, each kept in sync with its setting in both directions
 struct Builder {
     QWidget *card {nullptr};
     QVBoxLayout *layout {nullptr};
-    /// The card's title and the line it is on
     QLabel *title {nullptr};
-    QHBoxLayout *header {nullptr};
     KisMainWindow *window {nullptr};
     QVector<std::function<void()>> refresh;
 
@@ -582,7 +576,7 @@ struct Builder {
         auto *box = controlBelow ? static_cast<QBoxLayout *>(new QVBoxLayout(row)) : static_cast<QBoxLayout *>(new QHBoxLayout(row));
         box->setContentsMargins(0, 0, 0, 0);
         box->setSpacing(controlBelow ? 4 : 10);
-        // the label's line: the label, and the mark of one that waits for a restart
+        // The label's line, with a restart mark for settings that need one
         auto *line = controlBelow ? new QHBoxLayout() : static_cast<QHBoxLayout *>(box);
         if (controlBelow) {
             line->setSpacing(KisModernStyle::space3);
@@ -604,7 +598,7 @@ struct Builder {
         return row;
     }
 
-    /// A quiet mark that \p id applies after a restart; lit once a change of it waits for one
+    /// A faint mark that \p id applies after a restart, lit while a change of it is pending
     QLabel *restartMark(const QString &id, QWidget *parent)
     {
         auto *mark = new QLabel(parent);
@@ -640,7 +634,7 @@ struct Builder {
             slider->setSingleStep(look.step);
             control = bindSlider(slider, id, look);
         }
-        // a right click puts it back as Krita comes
+        // Lets a right click reset the slider to the default
         const QVariant fallback = registry()->defaultValue(id);
         if (fallback.isValid()) control->setProperty("kisDefaultValue", fallback.toDouble() * look.scale);
         return row(look.label.isEmpty() ? s->label : look.label, control, id);
@@ -652,7 +646,7 @@ struct Builder {
         using Value = decltype(slider->value());
         const qreal scale = look.scale;
         slider->setBlockUpdateSignalOnDrag(look.onRelease);
-        // typed, too: the number once it is all there (Enter or leaving the field), not each digit
+        // Likewise, a typed number is applied once complete (Enter or focus out), not per digit
         slider->setKeyboardTracking(!look.onRelease);
         if (!look.suffix.isEmpty()) slider->setSuffix(look.suffix);
         follow([slider, id, scale]() {
@@ -670,7 +664,7 @@ struct Builder {
         return slider;
     }
 
-    /// Side by side when they are few and short, else a list
+    /// A segmented control when there are few short choices, otherwise a combo box
     QWidget *choice(const QString &id, const QString &label = QString())
     {
         const Setting *s = registry()->setting(id);
@@ -720,20 +714,7 @@ struct Builder {
         return row(label.isEmpty() ? labelOf(id) : label, button, id);
     }
 
-    QWidget *text(const QString &id, const QString &label = QString())
-    {
-        auto *edit = new QLineEdit(card);
-        edit->setFixedWidth(controlWidth / 2);
-        QObject::connect(edit, &QLineEdit::editingFinished, card, [edit, id]() {
-            if (!R::instance()->setValue(id, edit->text())) edit->setText(R::instance()->value(id).toString());
-        });
-        follow([edit, id]() {
-            if (!edit->hasFocus()) edit->setText(R::instance()->value(id).toString());
-        });
-        return row(label.isEmpty() ? labelOf(id) : label, edit, id);
-    }
-
-    /// A folder, chosen with the file dialog; one that isn't writable is refused
+    /// A folder chosen with the file dialog; folders that aren't writable are refused
     QWidget *folder(const QString &id)
     {
         auto *box = new QWidget(card);
@@ -767,7 +748,7 @@ struct Builder {
         return buttons({qMakePair(text, clicked)});
     }
 
-    /// Buttons side by side
+    /// A row of buttons
     QWidget *buttons(const QVector<QPair<QString, std::function<void()>>> &list)
     {
         auto *holder = new QWidget(card);
@@ -783,14 +764,7 @@ struct Builder {
         return holder;
     }
 
-    QLabel *note(const QString &text)
-    {
-        QLabel *label = dimLabel(text, card);
-        layout->addWidget(label);
-        return label;
-    }
-
-    /// What the card is about, said on hover over its title
+    /// Adds \p text to the tooltip of the card's title
     void explain(const QString &text)
     {
         if (!title || text.isEmpty()) return;
@@ -798,7 +772,7 @@ struct Builder {
         title->setToolTip(before.isEmpty() ? text : before + QStringLiteral("\n\n") + text);
     }
 
-    /// \p widget shown only while \p when holds
+    /// Shows \p widget only while \p when returns true
     void showWhen(QWidget *widget, std::function<bool()> when)
     {
         if (!widget) return;
@@ -815,10 +789,10 @@ struct CardDef {
     QString id;
     QString section;
     QString title;
-    QStringList settings; ///< what Reset resets, what marks it changed
-    QString aliases;      ///< more words that find it
+    QStringList settings; ///< what Reset resets and what marks the card changed
+    QString aliases;      ///< extra search words
     std::function<void(Builder &)> build;
-    /// One switch: Find shows it and flips it
+    /// For a card that is a single switch: its setting, which Find can flip directly
     QString toggleId;
 };
 
@@ -828,11 +802,11 @@ struct SectionDef {
     QString icon;
 };
 
-/// Closes Krita as its window's close button does (unsaved images asked about) and starts it again
+/// Closes Krita like the window's close button (asking about unsaved images) and starts it again
 void restartKrita()
 {
     Q_FOREACH (QPointer<KisMainWindow> window, KisPart::instance()->mainWindows()) {
-        if (window && !window->close()) return; // kept open: an unsaved image's question was cancelled
+        if (window && !window->close()) return; // the user cancelled at an unsaved image
     }
     QObject::connect(qApp, &QCoreApplication::aboutToQuit, []() {
         QProcess::startDetached(QCoreApplication::applicationFilePath(), QStringList());
@@ -862,13 +836,8 @@ QString sectionTitle(const QString &id)
     return QString();
 }
 
-/// The colors of a color scheme file, for its picture
-struct SchemeLook {
-    QColor window, view, text, selection, button;
-};
-
-/// A tiny window in \p look's colors
-void paintScheme(QPainter &painter, const QRectF &r, const SchemeLook &look)
+/// A tiny window drawn in \p look's colors
+void paintScheme(QPainter &painter, const QRectF &r, const KisStudioTheme::Look &look)
 {
     painter.fillRect(r, look.window);
     painter.setPen(Qt::NoPen);
@@ -884,7 +853,7 @@ void paintScheme(QPainter &painter, const QRectF &r, const SchemeLook &look)
     }
 }
 
-/// The sample picture on what is around it: \p glow its colors lighting black, as on the canvas
+/// The sample picture on its surround; with \p glow, its colors light the black around it as on the canvas
 void paintSurround(QPainter &painter, const QRectF &r, const QColor &around, bool glow)
 {
     static const QImage sample = KisStudioPicker::samplePicture(QSize(120, 70));
@@ -912,23 +881,22 @@ QVector<CardDef> makeCards()
                         std::function<void(Builder &)> build) {
         cards << CardDef{QStringLiteral("%1.%2").arg(section, id), section, title, settings, aliases, build, QString()};
     };
-    /// A card that is one switch, explained as its setting is
+    /// A card that is a single switch, using its setting's tooltip
     auto addToggle = [&cards](const QString &section, const QString &id, const QString &title, const QString &setting, const QString &aliases) {
         cards << CardDef{QStringLiteral("%1.%2").arg(section, id), section, title, {setting}, aliases, std::function<void(Builder &)>(), setting};
     };
 
-    // ---- appearance
+    // ---- Appearance
     add(QStringLiteral("appearance"), QStringLiteral("theme"), i18nc("settings card", "Theme"),
         {QStringLiteral("[theme] Theme"), QStringLiteral("[StudioTheme] Lightness"), QStringLiteral("[StudioTheme] Tint"),
          QStringLiteral("[StudioTheme] TintAmount"), QStringLiteral("[StudioTheme] UseAccent"), QStringLiteral("[StudioTheme] Accent")},
         QStringLiteral("dark light colors color scheme palette accent tint contrast lightness"), [](Builder &b) {
             b.explain(i18nc("@info:tooltip", "Pick a preset, then make it yours below"));
-            // the presets, each pictured in its own colors
+            // The presets, each pictured in its own colors
             const QVector<KisStudioTheme::Preset> presets = KisStudioTheme::presets();
             QVector<Tiles::Tile> tiles;
             Q_FOREACH (const KisStudioTheme::Preset &preset, presets) {
-                const KisStudioTheme::Look l = KisStudioTheme::look(preset.params);
-                const SchemeLook look{l.window, l.view, l.text, l.selection, l.button};
+                const KisStudioTheme::Look look = KisStudioTheme::look(preset.params);
                 tiles << Tiles::Tile{preset.name, [look](QPainter &painter, const QRectF &r) { paintScheme(painter, r, look); }};
             }
             auto *picker = new Tiles(tiles, QSize(96, 56), b.card);
@@ -944,7 +912,7 @@ QVector<CardDef> makeCards()
                 picker->setCurrent(current);
             });
             b.layout->addWidget(picker);
-            // the choices it is made of; costly to take, so taken when a slider is let go
+            // The theme parameters; regenerating the theme is costly, so sliders apply on release
             Number lightness(i18nc("theme", "Lightness"), 100, 0, QStringLiteral("%"));
             lightness.onRelease = true;
             b.number(QStringLiteral("[StudioTheme] Lightness"), lightness);
@@ -968,12 +936,12 @@ QVector<CardDef> makeCards()
         QStringLiteral("canvas border background color ambient glow"), [](Builder &b) {
             auto *picker = new Tiles({{i18nc("around the image", "Glow"), [](QPainter &p, const QRectF &r) { paintSurround(p, r, Qt::black, true); }},
                                       {i18nc("around the image", "Color"), [](QPainter &p, const QRectF &r) {
-                                           // the color it is, or the one it would take (black is the glow)
+                                           // The current color, or the one picking this would set (black means Glow)
                                            const QColor c = R::instance()->value(QStringLiteral("canvasBorderColor")).value<QColor>();
                                            paintSurround(p, r, c == QColor(Qt::black) ? QColor(48, 48, 52) : c, false);
                                        }}},
                                      QSize(128, 72), b.card);
-            // black is the glow (KisStudioGlass::ambientSurround)
+            // Black means Glow (see KisStudioGlass::ambientSurround)
             auto current = []() { return R::instance()->value(QStringLiteral("canvasBorderColor")).value<QColor>() == QColor(Qt::black) ? 0 : 1; };
             picker->picked = [](int i) {
                 R::instance()->setValue(QStringLiteral("canvasBorderColor"), i == 0 ? QColor(Qt::black) : QColor(48, 48, 52));
@@ -1002,10 +970,10 @@ QVector<CardDef> makeCards()
                              [](const QFont &font) { R::instance()->setValue(QStringLiteral("custom_system_font"), font.family()); });
             QWidget *familyRow = b.row(i18nc("interface font", "Font"), family, QStringLiteral("custom_system_font"));
             Number sizeLook(i18nc("interface font", "Size"), 1, 0, i18nc("font size unit", " pt"));
-            // 6 and less is the system's size (KisUiFont)
+            // 6 and below means the system size (see KisUiFont)
             sizeLook.low = 7;
             sizeLook.high = 30;
-            // every step lays the whole window out again
+            // Each change relayouts the whole window
             sizeLook.onRelease = true;
             QWidget *size = b.number(QStringLiteral("custom_font_size"), sizeLook);
             b.showWhen(familyRow, b.isOn(QStringLiteral("use_custom_system_font")));
@@ -1020,7 +988,7 @@ QVector<CardDef> makeCards()
                   QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"), QStringLiteral("hidpi scaling dpi screen scale 125% 150%"));
     }
 
-    // ---- canvas
+    // ---- Canvas
     add(QStringLiteral("canvas"), QStringLiteral("cursor"), i18nc("settings card", "Brush cursor"),
         {QStringLiteral("newCursorStyle"), QStringLiteral("newOutlineStyle"), QStringLiteral("ShowOutlineWhilePainting"), QStringLiteral("cursorMaincColor")},
         QStringLiteral("pointer outline crosshair color while painting"), [](Builder &b) {
@@ -1086,7 +1054,7 @@ QVector<CardDef> makeCards()
         });
     addToggle(QStringLiteral("canvas"), QStringLiteral("messages"), i18nc("settings card", "Messages on the canvas"),
               QStringLiteral("showOnCanvasMessages"), QStringLiteral("notifications floating messages popups"));
-    // ---- pen
+    // ---- Pen
     add(QStringLiteral("pen"), QStringLiteral("pressure"), i18nc("settings card", "Pressure"), {QStringLiteral("tabletPressureCurve")},
         QStringLiteral("pressure curve tablet stylus sensitivity"), [](Builder &b) {
             auto *curve = new KisCurveWidget(b.card);
@@ -1118,7 +1086,7 @@ QVector<CardDef> makeCards()
                                      dialog.exec();
                                  }));
 #ifdef Q_OS_WIN
-            // where on the screens the tablet reaches: WinTab's
+            // The screen area the tablet maps to (WinTab)
             buttons << qMakePair(i18nc("@action:button", "Tablet area"), std::function<void()>([window]() {
                                      KisDlgCustomTabletResolution dialog(window);
                                      dialog.exec();
@@ -1128,7 +1096,7 @@ QVector<CardDef> makeCards()
         });
     add(QStringLiteral("pen"), QStringLiteral("tilt"), i18nc("settings card", "Tilt"), {QStringLiteral("tiltDirectionOffset")},
         QStringLiteral("tilt angle direction offset"), [](Builder &b) {
-            // kept clockwise, shown counterclockwise as angles are
+            // Stored clockwise, shown counterclockwise like other angles
             b.number(QStringLiteral("tiltDirectionOffset"), {i18nc("tilt", "Direction offset"), -1, 0, QStringLiteral("°")});
         });
     add(QStringLiteral("pen"), QStringLiteral("touch"), i18nc("settings card", "Touch"),
@@ -1142,7 +1110,7 @@ QVector<CardDef> makeCards()
     addToggle(QStringLiteral("pen"), QStringLiteral("kinetic"), i18nc("settings card", "Kinetic scrolling"), QStringLiteral("KineticScrollingEnabled"),
               QStringLiteral("scrolling flick inertia"));
 
-    // ---- tools
+    // ---- Tools
     add(QStringLiteral("tools"), QStringLiteral("selecting"), i18nc("settings card", "Selecting and pasting"),
         {QStringLiteral("switchSelectionCtrlAlt"), QStringLiteral("activateTransformToolAfterPaste")}, QStringLiteral("modifiers ctrl alt paste transform"),
         [](Builder &b) {
@@ -1169,7 +1137,7 @@ QVector<CardDef> makeCards()
          KisImageConfig::layerNameKey(KisImageConfig::MergedLayer, true), KisImageConfig::layerNameKey(KisImageConfig::MergedLayer, false)},
         QStringLiteral("copy of duplicate pasted merged rename prefix suffix naming"), [](Builder &b) {
             b.explain(i18nc("@info:tooltip", "Words around a copied, pasted or merged layer's name: Ink → Copy of Ink. Empty: none"));
-            // [words before] Layer [words after], as the name will read
+            // Laid out as the name will read: [before] Layer [after]
             auto *grid = new QGridLayout();
             grid->setHorizontalSpacing(6);
             grid->setVerticalSpacing(4);
@@ -1179,7 +1147,7 @@ QVector<CardDef> makeCards()
                 for (bool before : {true, false}) {
                     const QString id = KisImageConfig::layerNameKey(kind, before);
                     auto *edit = new QLineEdit(b.card);
-                    edit->setPlaceholderText(before ? i18nc("layer names: no words", "none") : i18nc("layer names: no words", "none"));
+                    edit->setPlaceholderText(i18nc("layer names: no words", "none"));
                     edit->setAlignment(before ? Qt::AlignRight : Qt::AlignLeft);
                     edit->setMaximumWidth(110);
                     QObject::connect(edit, &QLineEdit::editingFinished, b.card, [edit, id]() {
@@ -1190,7 +1158,7 @@ QVector<CardDef> makeCards()
                     });
                     grid->addWidget(edit, kind, before ? 1 : 3);
                 }
-                // the name it comes from, as a chip
+                // The original name, as a chip
                 auto *name = new QLabel(i18nc("a layer's name, in an example", "Layer"), b.card);
                 name->setAlignment(Qt::AlignCenter);
                 name->setContentsMargins(KisModernStyle::space2, KisModernStyle::hairline, KisModernStyle::space2, KisModernStyle::hairline);
@@ -1219,17 +1187,17 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("useEraserBrushOpacity"));
         });
 
-    // ---- files
+    // ---- Files
     add(QStringLiteral("files"), QStringLiteral("autosave"), i18nc("settings card", "Autosave"),
         {QStringLiteral("AutoSaveInterval")}, QStringLiteral("auto save recovery crash interval every minutes"), [](Builder &b) {
-            // a few steps, Off among them: autosave waits for a pause anyway, so often costs nothing
+            // A few fixed steps; autosave waits for a pause anyway, so frequent saves cost little
             static const QVector<int> minutes {0, 1, 5, 15, 30};
             QStringList texts;
             Q_FOREACH (int m, minutes) texts << (m == 0 ? i18nc("autosave", "Off") : i18nc("autosave interval", "%1 min", m));
             auto *steps = new Segmented(texts, b.card);
             steps->picked = [](int i) { R::instance()->setValue(QStringLiteral("AutoSaveInterval"), minutes[i] * 60); };
             b.follow([steps]() {
-                // an interval set before, between the steps: the nearest
+                // An interval between the steps shows as the nearest one
                 const int seconds = R::instance()->value(QStringLiteral("AutoSaveInterval")).toInt();
                 int nearest = 0;
                 for (int i = 1; i < minutes.size(); i++) {
@@ -1269,7 +1237,7 @@ QVector<CardDef> makeCards()
         });
     add(QStringLiteral("files"), QStringLiteral("author"), i18nc("settings card", "Author"), {}, QStringLiteral("name profile contact metadata nickname"),
         [](Builder &b) {
-            // who documents are saved by, on the button that changes it
+            // The active author, on the button that changes it
             auto *who = new QPushButton(b.card);
             who->setToolTip(i18nc("@info:tooltip", "The name saved in documents"));
             auto showActive = [who]() {
@@ -1291,7 +1259,7 @@ QVector<CardDef> makeCards()
                 layout->addWidget(buttons);
                 if (dialog.exec() == QDialog::Accepted) {
                     page->apply();
-                    // the File menu's list of authors
+                    // Updates the File menu's list of authors
                     KisConfigNotifier::instance()->notifyConfigChanged();
                     showActive();
                 }
@@ -1302,7 +1270,7 @@ QVector<CardDef> makeCards()
             b.folder(QStringLiteral("ResourceDirectory"));
         });
 
-    // ---- color
+    // ---- Color
     add(QStringLiteral("color"), QStringLiteral("newimages"), i18nc("settings card", "New images"),
         {QStringLiteral("useDefaultColorSpace"), QStringLiteral("workingColorSpace")}, QStringLiteral("color model depth default working space new images"),
         [](Builder &b) {
@@ -1322,7 +1290,7 @@ QVector<CardDef> makeCards()
             b.choice(QStringLiteral("ExrDefaultColorProfile"), i18nc("color", "EXR files"));
         });
     {
-        // each screen's profile (or how the system is handed the canvas), and the window's format
+        // Each screen's profile (or the canvas surface options when the system manages color), and the window format
         QStringList screenSettings;
         Q_FOREACH (const Setting &s, R::instance()->settings()) {
             if (s.id.startsWith(QLatin1String("monitorProfile screen")) || s.id == QLatin1String("enableCanvasSurfaceColorSpaceManagement")
@@ -1358,7 +1326,7 @@ QVector<CardDef> makeCards()
                             const QString target = saveLocation + QFileInfo(file).fileName();
                             if (QFile::copy(file, target)) icc->addProfile(target);
                         }
-                        // the new ones among the choices, every card's
+                        // Make every card list the new profiles
                         R::instance()->refreshChoices();
                         Q_EMIT R::instance()->valueChanged(QString());
                     });
@@ -1377,7 +1345,7 @@ QVector<CardDef> makeCards()
             b.color(QStringLiteral("defaultProofingGamutwarning"), false, i18nc("proofing", "Out of gamut"));
         });
 
-    // ---- speed
+    // ---- Speed
     add(QStringLiteral("speed"), QStringLiteral("renderer"), i18nc("settings card", "Drawing the canvas"),
         {QStringLiteral("kritadisplayrc OpenGLRenderer")}, QStringLiteral("opengl angle direct3d renderer gpu acceleration graphics performance"), [](Builder &b) {
             b.choice(QStringLiteral("kritadisplayrc OpenGLRenderer"));
@@ -1410,7 +1378,7 @@ QVector<CardDef> makeCards()
                        []() { return !R::instance()->value(QStringLiteral("detectFpsLimit")).toBool(); });
         });
 
-    // settings this build doesn't have (another platform's) are left out of the cards
+    // Drop settings this build doesn't have (e.g. another platform's)
     for (CardDef &card : cards) {
         card.settings.erase(std::remove_if(card.settings.begin(), card.settings.end(),
                                            [](const QString &id) { return !R::instance()->setting(id); }),
@@ -1441,7 +1409,7 @@ bool cardChanged(const CardDef &card)
     return false;
 }
 
-/// A card's menu, Reset first (which it does itself)
+/// A card's menu, with Reset first; the menu handles Reset itself
 class CardMenu : public QMenu
 {
 public:
@@ -1453,7 +1421,7 @@ public:
         m_reset->setEnabled(cardChanged(def));
     }
 
-    /// What was chosen, other than Reset
+    /// Runs the menu and returns the chosen action, or null for none or Reset
     QAction *run(const QPoint &pos)
     {
         QAction *chosen = nullptr;
@@ -1471,13 +1439,13 @@ private:
     QAction *m_reset {nullptr};
 };
 
-/// The index of a section of yours ("user:<n>"), -1 for the others
+/// The index of a user section ("user:<n>"), or -1 for any other section
 int userIndex(const QString &sectionId)
 {
     return sectionId.startsWith(QLatin1String("user:")) ? sectionId.mid(5).toInt() : -1;
 }
 
-/// Your sections, and Quick, in kritarc
+/// The user's own sections and Quick, stored in kritarc
 struct UserSections {
     QStringList quick;
     struct Section {
@@ -1491,7 +1459,7 @@ struct UserSections {
         UserSections us;
         const KConfigGroup group = KSharedConfig::openConfig()->group(QString());
         if (!group.hasKey(sectionsKey)) {
-            // until changed: what is reached for most
+            // Default Quick: the most commonly used cards
             us.quick = QStringList{QStringLiteral("pen.pressure"), QStringLiteral("canvas.cursor"), QStringLiteral("appearance.glass"), QStringLiteral("canvas.pixelgrid")};
             return us;
         }
@@ -1527,7 +1495,7 @@ struct UserSections {
         KisConfig(false).writeEntry(sectionsKey, QString::fromUtf8(QJsonDocument(root).toJson(QJsonDocument::Compact)));
     }
 
-    /// The cards of a section of yours or Quick; null for the others
+    /// The cards of a user section or Quick; null for built-in sections
     QStringList *cardsOf(const QString &sectionId)
     {
         if (sectionId == quickId) return &quick;
@@ -1535,7 +1503,7 @@ struct UserSections {
         return i >= 0 && i < sections.size() ? &sections[i].cards : nullptr;
     }
 
-    /// A new section of yours, saved; its id
+    /// Saves a new user section and returns its id
     static QString add(const QString &name, const QStringList &cards)
     {
         UserSections us = load();
@@ -1545,7 +1513,7 @@ struct UserSections {
     }
 };
 
-/// A card: its title, its rows, a mark while any of its settings is changed
+/// A card: its title, its rows, and a mark while any of its settings differs from the default
 class Card : public QFrame
 {
 public:
@@ -1569,7 +1537,6 @@ public:
         m_title = titleLabel(def.title, this);
         header->addWidget(m_title);
         m_builder.title = m_title;
-        m_builder.header = header;
         m_mark = new QLabel(QStringLiteral("●"), this);
         QPalette palette = m_mark->palette();
         palette.setColor(QPalette::WindowText, palette.color(QPalette::Link));
@@ -1583,7 +1550,7 @@ public:
             if (s->flags & R::Restart) header->addWidget(m_builder.restartMark(def.toggleId, this));
         }
         header->addStretch(1);
-        // a card that is one switch: it, by its title
+        // A single-switch card shows its switch next to the title
         if (!def.toggleId.isEmpty()) header->addWidget(m_builder.boundSwitch(def.toggleId));
         m_more = new QToolButton(this);
         m_more->setAutoRaise(true);
@@ -1605,7 +1572,7 @@ public:
 
     ~Card() override
     {
-        // what goes with it can still speak (a color dialog closing sets the color back): not to a card half gone
+        // Children may still emit signals (a closing color dialog resets its color); keep them from reaching a half-destroyed card
         Q_FOREACH (QWidget *child, findChildren<QWidget *>()) child->blockSignals(true);
         disconnect(R::instance(), nullptr, this, nullptr);
         disconnect(KisConfigNotifier::instance(), nullptr, this, nullptr);
@@ -1615,7 +1582,7 @@ public:
 
     void refresh()
     {
-        // one of them can end up rebuilding the cards, this one too
+        // A follower may rebuild the cards, deleting this one
         const QPointer<Card> alive(this);
         const QVector<std::function<void()>> followers = m_builder.refresh;
         for (const auto &f : followers) {
@@ -1625,7 +1592,7 @@ public:
         m_mark->setVisible(cardChanged(m_def));
     }
 
-    /// Marks it for a moment: the one that was asked for
+    /// Briefly highlights the card, e.g. after Find jumped to it
     void flash()
     {
         auto *animation = new QVariantAnimation(this);
@@ -1665,7 +1632,7 @@ protected:
         event->accept();
     }
 
-    /// Dragged by its title: onto a section of yours, or within one
+    /// Cards are dragged by their title, onto a user section or within one
     void mousePressEvent(QMouseEvent *event) override
     {
         m_pressed = event->button() == Qt::LeftButton && event->pos().y() < m_title->geometry().bottom() + 6 ? event->pos() : QPoint(-1, -1);
@@ -1704,11 +1671,11 @@ private:
     qreal m_flash {0};
 };
 
-/// The cards of a section, one under another; in a section of yours, dragged to reorder or dropped in
+/// A section's cards in a column; in user sections, cards can be dropped in or reordered
 class Page : public QWidget
 {
 public:
-    /// Dropped here: \p cardId at \p index (in a section of yours)
+    /// Called when \p cardId is dropped at \p index (user sections only)
     std::function<void(const QString &cardId, int index)> dropped;
 
     explicit Page(QWidget *parent)
@@ -1778,7 +1745,7 @@ protected:
         if (!dropped || !event->mimeData()->hasFormat(cardMime)) return;
         event->acceptProposedAction();
         const QString id = QString::fromUtf8(event->mimeData()->data(cardMime));
-        // after the drag is over: the card dragged may be rebuilt
+        // Wait until the drag is over, since the dragged card may be rebuilt
         QTimer::singleShot(0, this, [this, id, index]() { dropped(id, index); });
     }
 
@@ -1800,7 +1767,7 @@ private:
     int m_dropAt {-1};
 };
 
-/// A section's name typed in place: Enter keeps it, Escape keeps the old one
+/// In-place editor for a section's name: Enter keeps the new name, Escape the old one
 class RenameEdit : public QLineEdit
 {
 public:
@@ -1820,7 +1787,7 @@ protected:
     }
 };
 
-/// The sections, down the panel's side: Quick, yours, then Krita's
+/// The section list down the panel's side: Quick, the user's sections, then the built-in ones
 class Rail : public QWidget
 {
 public:
@@ -1849,7 +1816,7 @@ public:
         m_items = items;
         int y = 4;
         for (int i = 0; i < m_items.size(); i++) {
-            // a gap before Krita's own sections
+            // A gap before the built-in sections
             if (i > 0 && !isOwn(m_items[i].id) && isOwn(m_items[i - 1].id)) y += 12;
             m_items[i].rect = QRect(6, y, width() - 12, 30);
             y += 32;
@@ -1864,7 +1831,7 @@ public:
         update();
     }
 
-    /// Only the icons, where there is no room for the names
+    /// Shows only the icons, for when there is no room for the names
     void setCompact(bool compact)
     {
         if (compact == m_compact) return;
@@ -1909,7 +1876,7 @@ protected:
             const QRect iconRect(item.rect.left() + 8, item.rect.center().y() - 8, 16, 16);
             painter.setOpacity(current ? 1.0 : 0.8);
             if (item.id == quickId) {
-                // a star: what you keep at hand
+                // Quick's icon: a star
                 QPolygonF star;
                 for (int k = 0; k < 10; k++) {
                     const qreal radius = (k % 2 ? 0.42 : 1.0) * 7;
@@ -1960,7 +1927,7 @@ protected:
 
     bool event(QEvent *event) override
     {
-        // with only icons, the name on hover
+        // In compact mode, show the name on hover
         if (event->type() == QEvent::ToolTip) {
             const int i = at(static_cast<QHelpEvent *>(event)->pos());
             if (m_compact && i >= 0) QToolTip::showText(static_cast<QHelpEvent *>(event)->globalPos(), m_items[i].title, this);
@@ -1970,7 +1937,7 @@ protected:
         return QWidget::event(event);
     }
 
-    /// Up and down go through the sections
+    /// Up and Down move through the sections
     void keyPressEvent(QKeyEvent *event) override
     {
         if (event->key() != Qt::Key_Up && event->key() != Qt::Key_Down) {
@@ -1980,7 +1947,7 @@ protected:
         int i = 0;
         for (; i < m_items.size() && m_items[i].id != m_current; i++) {}
         i = qBound(0, i + (event->key() == Qt::Key_Down ? 1 : -1), int(m_items.size()) - 1);
-        // past "New section", which would make one
+        // Skip "New section", which would create one
         if (m_items[i].id == QLatin1String("add")) i = qBound(0, i + (event->key() == Qt::Key_Down ? 1 : -1), int(m_items.size()) - 1);
         if (chosen && m_items[i].id != QLatin1String("add")) chosen(m_items[i].id);
     }
@@ -2033,7 +2000,7 @@ private:
     bool m_compact {false};
 };
 
-/// How well \p query fits \p text: its start beats a word's start beats the middle; 0 is not at all
+/// How well \p query matches \p text: at the start beats at a word start beats mid-word; 0 for no match
 int matchScore(const QString &query, const QString &text)
 {
     const int at = text.indexOf(query, 0, Qt::CaseInsensitive);
@@ -2042,7 +2009,7 @@ int matchScore(const QString &query, const QString &text)
     return 1000 - (wordStart ? 0 : 200) - at;
 }
 
-/// How well one word of a search fits a card: its title, its settings' names, its words, its section
+/// How well one search word matches a card's title, setting names, aliases or section
 int wordScore(const CardDef &card, const QString &word)
 {
     int score = matchScore(word, card.title) * 2;
@@ -2053,7 +2020,7 @@ int wordScore(const CardDef &card, const QString &word)
     return qMax(score, matchScore(word, sectionTitle(card.section)) / 4);
 }
 
-/// What finds a card: each word of \p query somewhere in it ("pen pressure", "undo steps"), or a typo of its title
+/// A card's search score: every word of \p query must match somewhere ("pen pressure"), or the title fuzzily
 int cardScore(const CardDef &card, const QString &query)
 {
     int score = 0;
@@ -2072,7 +2039,7 @@ int cardScore(const CardDef &card, const QString &query)
     return score;
 }
 
-/// The small window of Quick, by the Settings button
+/// The small Quick popup, shown by the Settings button
 class QuickWindow : public QFrame
 {
 public:
@@ -2173,13 +2140,13 @@ protected:
             QWidget *widget = qobject_cast<QWidget *>(watched);
             if (widget && !isInside(widget)) {
                 hide();
-                // a press on the button that opened it closes it, without opening it again (nor its right click after)
+                // A press on the button that opened it only closes it; swallow it so it doesn't reopen
                 const bool onAnchor = m_anchor && (widget == m_anchor || m_anchor->isAncestorOf(widget));
                 if (onAnchor) m_closedByAnchor.start();
                 return onAnchor;
             }
         } else if (event->type() == QEvent::WindowDeactivate && watched == this) {
-            // to another application, or a window not of this one (a dialog of its own stays)
+            // Hide when another app or unrelated window activates, but not for our own dialogs
             QTimer::singleShot(0, this, [this]() {
                 QWidget *active = QApplication::activeWindow();
                 if (isVisible() && !isInside(active) && !isInside(QApplication::activeModalWidget()) && !isInside(QApplication::activePopupWidget())) hide();
@@ -2209,7 +2176,7 @@ protected:
     }
 
 public:
-    /// Closed a moment ago by a press on its button: that press's right click is not to open it again
+    /// Whether a press on its button just closed it, so that press's right click doesn't reopen it
     bool closedByAnchorJustNow() const { return m_closedByAnchor.isValid() && m_closedByAnchor.elapsed() < 800; }
 
 private:
@@ -2239,7 +2206,7 @@ struct KisStudioSettings::Private
     QWidget *keysHolder {nullptr};
     QPointer<KisKeysPage> keys;
     QWidget *review {nullptr};
-    /// Shown while changes wait for a restart: restarts Krita
+    /// Restarts Krita; shown while changes are waiting for a restart
     QPushButton *footer {nullptr};
     QPushButton *undo {nullptr};
     QLabel *status {nullptr};
@@ -2247,10 +2214,10 @@ struct KisStudioSettings::Private
     QPointer<QuickWindow> quick;
 
     QString section {QStringLiteral("appearance")};
-    /// What had the focus before it opened: it has it again when it closes (else the canvas)
+    /// The focus before opening, restored on close (falls back to the canvas)
     QPointer<QWidget> focusBefore;
     bool showChanged {false};
-    /// The values when it opened: Undo goes back to them
+    /// The values when the panel opened, which Undo restores
     QHash<QString, QVariant> opened;
     QTimer refreshFooter;
 
@@ -2261,8 +2228,8 @@ struct KisStudioSettings::Private
         return section;
     }
 
-    /// Keys, left: applied and let go. A page is good for one apply (it reloads the profiles it points into),
-    /// and would write back over shortcuts changed elsewhere meanwhile: a new one is made next time.
+    /// Applies the Keys page and discards it. A page is good for one apply (it reloads the profiles it
+    /// points into), and a stale one would overwrite shortcuts changed elsewhere, so a fresh one is made next time.
     void applyKeys()
     {
         if (!keys) return;
@@ -2272,7 +2239,7 @@ struct KisStudioSettings::Private
         keys = nullptr;
     }
 
-    /// Shows \p widget in the stack, Keys applied if it was shown
+    /// Shows \p widget in the stack, applying the Keys page when leaving it
     void showInStack(QWidget *widget)
     {
         if (stack->currentWidget() == keysHolder && widget != keysHolder) applyKeys();
@@ -2306,7 +2273,7 @@ struct KisStudioSettings::Private
 
     void updateFooter()
     {
-        // the review page has its own buttons where these would be
+        // The review page has its own buttons there
         if (stack->currentWidget() == review) return;
         QStringList waiting;
         Q_FOREACH (const QString &id, R::instance()->waitingForRestart()) {
@@ -2369,7 +2336,7 @@ struct KisStudioSettings::Private
         }
         sections.save();
         updateRail();
-        // later: this runs in the card's button's click, the card is not to go yet
+        // Deferred: this runs inside the card's button click, so the card must outlive it
         if (shownSection() == quickId || userIndex(shownSection()) >= 0) QTimer::singleShot(0, q, [this]() { rebuild(); });
     }
 
@@ -2473,11 +2440,11 @@ struct KisStudioSettings::Private
         rebuild();
     }
 
-    /// The cards of what is shown now
+    /// Rebuilds the cards for the section, search or changed list being shown
     void rebuild()
     {
         if (cardsBusy || cardDialogOpen()) {
-            // once the card's drag, menu or dialog is over
+            // Retry once the card's drag, menu or dialog is over
             QTimer::singleShot(50, q, [this]() { rebuild(); });
             return;
         }
@@ -2505,7 +2472,7 @@ struct KisStudioSettings::Private
                 if (score > 0) found << qMakePair(score, &def);
             }
             if (shown == searchId) {
-                // Keys is a section, not a card: a way to it when it is what is looked for
+                // Keys is a section, not a card, so offer a button to it when the search matches
                 const QString keysWords = i18nc("find result", "Keys and shortcuts") + QStringLiteral(" keyboard hotkeys keybindings mouse held rings");
                 bool keysFound = !query.isEmpty();
                 Q_FOREACH (const QString &word, query.split(QLatin1Char(' '), Qt::SkipEmptyParts)) {
@@ -2554,7 +2521,7 @@ struct KisStudioSettings::Private
                 }
                 cards->insert(qBound(0, index, cards->size()), cardId);
                 sections.save();
-                // later: this runs in the page that is to be replaced
+                // Deferred: this runs inside the page that is about to be replaced
                 QTimer::singleShot(0, q, [this]() { rebuild(); });
             };
             fresh->setAcceptDrops(true);
@@ -2580,7 +2547,7 @@ struct KisStudioSettings::Private
         if (!page) return;
         Q_FOREACH (Card *card, page->cards()) {
             if (card->def().id != cardId) continue;
-            // once laid out
+            // Once laid out
             QPointer<Card> guard = card;
             QTimer::singleShot(0, q, [this, guard]() {
                 if (!guard) return;
@@ -2590,7 +2557,7 @@ struct KisStudioSettings::Private
         }
     }
 
-    // ---- moving settings
+    // ---- Transferring settings
 
     void showPlan(const KisSettingsTransfer::Plan &plan, const QString &title, const QString &explanation, const QString &applyText,
                   std::function<void(const QVector<KisSettingsTransfer::Change> &, bool sections)> apply)
@@ -2658,7 +2625,7 @@ struct KisStudioSettings::Private
         });
         showInStack(review);
         rail->setCurrent(QString());
-        // nothing else at its foot, where a click meant for Apply could land
+        // Hide the footer buttons so a click meant for Apply can't land on them
         footer->hide();
         undo->hide();
     }
@@ -2782,7 +2749,7 @@ struct KisStudioSettings::Private
 };
 
 KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasArea)
-    // a child of the window, not of the canvas area: over the pills and panels there, which raise themselves as they are placed
+    // Parented to the window rather than the canvas area, so it stays above the panels there, which raise themselves
     : QWidget(mainWindow)
     , d(new Private)
 {
@@ -2791,7 +2758,7 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
     d->area = canvasArea;
     setAttribute(Qt::WA_TranslucentBackground);
     setObjectName(QStringLiteral("studioSettings"));
-    // its buttons' right clicks are its own (a card's menu), not their shortcut cards
+    // Right clicks on its buttons open its own menus, not the shortcut cards
     setProperty("ownContextMenu", true);
     setFocusPolicy(Qt::StrongFocus);
     hide();
@@ -2844,7 +2811,7 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
     d->stack = new QStackedWidget(this);
     d->scroll = new QScrollArea(d->stack);
     d->scroll->setFrameShape(QFrame::NoFrame);
-    // in a narrow window, what doesn't fit can still be scrolled to
+    // In a narrow window, what doesn't fit can still be scrolled to
     d->scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     d->scroll->setWidgetResizable(true);
     d->scroll->viewport()->setAutoFillBackground(false);
@@ -2894,7 +2861,7 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
         d->updateFooter();
     });
 
-    // what changed shows below once things settle, not at every step of a drag
+    // Update the footer once changes settle, not at every step of a drag
     d->refreshFooter.setSingleShot(true);
     d->refreshFooter.setInterval(60);
     connect(&d->refreshFooter, &QTimer::timeout, this, [this]() { d->updateFooter(); });
@@ -2929,7 +2896,7 @@ void KisStudioSettings::reposition()
     const QSize wanted(width, area->height());
     const QRect inArea = d->placement ? d->placement(wanted) : QRect(area->width() - wanted.width() - 6, 6, wanted.width(), area->height() - 12);
     const QRect place(area->mapTo(parentWidget(), inArea.topLeft()), inArea.size());
-    // not room for the sections' names: their icons
+    // Without room for the section names, show only their icons
     const bool compact = place.width() < railWidth + bodyWidth + 20;
     d->rail->setCompact(compact);
     d->railScroll->setFixedWidth(d->rail->width());
@@ -2966,12 +2933,6 @@ void KisStudioSettings::say(const QString &text)
     d->statusTimer.start();
 }
 
-void KisStudioSettings::toggle()
-{
-    if (isVisible()) hide();
-    else open();
-}
-
 void KisStudioSettings::showQuick(QWidget *anchor)
 {
     if (!d->quick) {
@@ -2986,7 +2947,7 @@ void KisStudioSettings::showQuick(QWidget *anchor)
                 UserSections sections = UserSections::load();
                 sections.quick.removeAll(cardId);
                 sections.save();
-                // after the menu is gone: the card it came from is rebuilt
+                // Deferred until the menu is gone, since the card it came from is rebuilt
                 QTimer::singleShot(0, d->quick, [this]() {
                     if (d->quick) d->quick->rebuild();
                 });
@@ -3013,7 +2974,7 @@ QVector<KisStudioSettings::CardInfo> KisStudioSettings::cardInfos()
         }
         infos << CardInfo{card.id, card.title, sectionTitle(card.section), words.join(QLatin1Char(' ')), card.toggleId};
         if (!card.toggleId.isEmpty()) continue;
-        // each of its switches, found by its own name and flipped right there
+        // Each of its switches, findable by name and flippable from Find
         Q_FOREACH (const QString &id, card.settings) {
             const Setting *s = R::instance()->setting(id);
             if (s && s->kind == R::Kind::Toggle) infos << CardInfo{card.id, s->label, card.title, card.aliases, id};
@@ -3034,7 +2995,7 @@ bool KisStudioSettings::flip(const QString &settingId)
 bool KisStudioSettings::event(QEvent *event)
 {
     if (event->type() == QEvent::ApplicationPaletteChange) {
-        // another theme: what was made in the old colors (dimmed text, marks, icons), made again
+        // Rebuild what was drawn in the old theme's colors (dimmed text, marks, icons)
         QTimer::singleShot(0, this, [this]() {
             d->footer->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_refresh")));
             d->updateRail();
@@ -3073,7 +3034,7 @@ void KisStudioSettings::keyPressEvent(QKeyEvent *event)
 
 void KisStudioSettings::hideEvent(QHideEvent *event)
 {
-    // the focus not to the next widget of the window (a panel's field) but back where it was: the canvas, mostly
+    // Return focus to where it was (usually the canvas) instead of the next widget in the window
     if (isAncestorOf(QApplication::focusWidget())) {
         QWidget *back = d->focusBefore;
         if (!back && d->mainWindow->activeView() && d->mainWindow->activeView()->canvasBase()) {

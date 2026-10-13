@@ -13,8 +13,8 @@
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
 #include <QOpenGLVertexArrayObject>
-#include <QSharedPointer>
 #include <QPolygonF>
+#include <QSharedPointer>
 #include <QTransform>
 #include <QVector3D>
 #include <QtMath>
@@ -33,11 +33,11 @@
 
 namespace {
 
-/// The most the blur reaches either way, in the small pixels it is made in: three sigma of the widest
-/// (the most frosted, over the largest panel), or it is cut short and blurs as a box would
+/// Maximum blur taps either way, in downsampled pixels: three sigma of the widest blur (most frosted,
+/// largest panel). Fewer would cut the gaussian short and make it look like a box blur.
 constexpr int maxTaps = 64;
 
-/// A strip of four corners, of rect (x0, y0, x1, y1, in clip coordinates)
+/// A triangle strip covering rect (x0, y0, x1, y1 in clip coordinates).
 const char *const quadSource = R"(
 uniform vec4 rect;
 
@@ -49,11 +49,9 @@ void main()
 )";
 
 /**
- * Between the steps values are kept as their square roots, as fine near 0
- * as sRGB is, in eight bits. The blur weighs colors (see
- * KisStudioGlass::salience): kept is a value times its weight, and the
- * weight in alpha, both over the most a weight is, so that a mean is the
- * one over the other.
+ * Intermediate textures store square roots, which keeps about sRGB's precision near 0 in eight bits.
+ * The blur weights colors (see KisStudioGlass::salience): RGB holds value times weight and alpha holds
+ * the weight, both normalized by the maximum weight, so a mean is RGB divided by alpha.
  */
 const char *const commonSource = R"(
 vec3 fromSrgb(vec3 c)
@@ -67,7 +65,7 @@ vec3 toSrgb(vec3 c)
     return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
 }
 
-/// Light and its weight, as kept
+/// Decodes a stored texel into weighted value and weight.
 vec4 weighted(vec4 kept)
 {
     return vec4(kept.rgb * kept.rgb, kept.a);
@@ -78,7 +76,7 @@ vec4 keep(vec4 weighted)
     return vec4(sqrt(max(weighted.rgb, 0.0)), weighted.a);
 }
 
-/// Oklab (Bjoern Ottosson, 2020): lightness, and the two axes of color, as differences are seen
+/// Oklab (Bjoern Ottosson, 2020): a perceptual lightness and two color axes.
 vec3 toOklab(vec3 c)
 {
     vec3 lms = vec3(0.4122214708 * c.r + 0.5363325363 * c.g + 0.0514459929 * c.b,
@@ -103,12 +101,10 @@ vec3 fromOklab(vec3 c)
 )";
 
 /**
- * The canvas made smaller: each pixel the mean of the factor x factor it
- * stands for, a saturated color counting more (its chroma in Oklab is about
- * 0.32 at most, in sRGB). Of Oklab: its lightness to the power (see
- * KisStudioGlass::lightnessPower) and its two axes of color, a and b (half
- * added, to be kept as they are); or (statistics) of chroma: how far the
- * hues agree.
+ * Downsamples the canvas: each pixel is the mean of a factor x factor block, with saturated colors
+ * weighted more (Oklab chroma is at most about 0.32 in sRGB). It stores Oklab lightness raised to
+ * KisStudioGlass::lightnessPower and a, b offset by 0.5; or, for statistics, the chroma, which
+ * later shows how much the hues agree.
  */
 const char *const shrinkSource = R"(
 uniform sampler2D source;
@@ -139,7 +135,7 @@ void main()
 }
 )";
 
-/// Half of a gaussian: across, or down, within a surface's place (slot: its first and last texel)
+/// One separable gaussian pass, across or down, clamped to a surface's slot (its first and last texel).
 const char *const blurSource = R"(
 uniform sampler2D source;
 uniform ivec4 slot;
@@ -164,10 +160,9 @@ void main()
 )";
 
 /**
- * A glass panel's quad, and how strongly it is tinted: as much as what is
- * behind the whole panel needs, for what is on it to read (a bright canvas
- * more, a dark one less), the same all over it, so that what is behind
- * keeps its light and dark. Worked out at its corners, once.
+ * A glass panel's quad, plus its tint strength: enough for its content to stay readable over what is
+ * behind the whole panel (more over a bright canvas, less over a dark one). It is uniform across the
+ * panel so the background keeps its light and dark, and computed in the vertex shader.
  */
 const char *const glassVertexSource = R"(
 uniform vec4 rect;
@@ -187,9 +182,8 @@ void main()
     vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));
     gl_Position = vec4(mix(rect.xy, rect.zw, corner), 0.0, 1.0);
 
-    // how light it is behind, as seen (Oklab): a grid
-    // as fine as the blur is wide (12 x 12 at most), so that the tint does not flicker as the
-    // canvas slides under it
+    // Average Oklab lightness behind the panel, sampled on a grid as fine as the blur is wide
+    // (12 x 12 at most) so the tint doesn't flicker as the canvas scrolls underneath.
     ivec2 count = clamp(ivec2(ceil(2.0 * shape.zw / spacing)), ivec2(1), ivec2(12));
     float sum = 0.0;
     for (int y = 0; y < count.y; y++) {
@@ -204,25 +198,19 @@ void main()
 )";
 
 /**
- * A glass panel: a pane of glass held a little over the canvas, its face
- * frosted, its edge a polished bevel rounding down to the rim. Each pixel
- * is the ray seen there, followed down through the glass to the canvas:
+ * A glass panel: a pane held slightly above the canvas, with a frosted face and a polished bevel
+ * curving down to the rim. Each pixel follows the view ray down through the glass to the canvas:
  *
- *  - where the face is flat it goes straight through, and the frost
- *    scatters it: the blur, tinted;
- *  - on the bevel it is bent by the slope it enters (Snell's law), again as
- *    it leaves the flat underside, and meets the frost further in: the same
- *    smooth frost, seen bent and magnified toward the rim, so the bevel is
- *    one with the face, without a seam (each color by its own index of
- *    refraction: a faint fringe of color, as glass disperses light). Where
- *    the bevel is steep, the ray cannot leave the underside (total internal
- *    reflection): it stays in the glass, and shows the frost there.
- *  - where the bevel is steep the face reflects (Fresnel), down onto the
- *    canvas around it: the rim takes on the colors around the panel.
+ *  - On the flat face it passes straight through and the frost scatters it: the blur, tinted.
+ *  - On the bevel it refracts on entry (Snell's law) and again leaving the flat underside, so the
+ *    frost appears bent and magnified toward the rim and joins the face without a seam. Each color
+ *    channel has its own index of refraction, giving a faint dispersion fringe. Where the bevel is
+ *    steep the ray is totally internally reflected and shows the frost at that point.
+ *  - Where the bevel is steep the face also reflects (Fresnel) the canvas around the panel, so the
+ *    rim picks up the surrounding colors.
  *
- * No highlights, no lighting: the edge shows by what it bends. All of it
- * is worked out in light, what is behind tinted as tinted glass does (see
- * KisStudioGlass::veil).
+ * There are no highlights or lighting; the edge shows only through refraction. Everything is computed
+ * in linear light, tinted like real tinted glass (see KisStudioGlass::veil).
  */
 const char *const glassSource = R"(
 uniform sampler2D blurred;
@@ -248,14 +236,14 @@ uniform float polish;
 uniform float clearing;
 uniform vec3 ior;
 uniform vec4 reach;
-// the image's light (the glow's): where the image is, and its light around it, blurred
+// The image's ambient glow: where the image is, and its blurred light around it.
 uniform bool imageLit;
 uniform mat3 toImage;
 uniform mat3 fromImage;
 uniform sampler2D imageLight;
 uniform float imageLightFactor;
 uniform float imageLightReach;
-// the glass under this one (a menu over a panel): its shape, its corners, its tint (Oklab), how strongly it tints
+// Glass panels below this one (e.g. a panel under a menu): shape, corners, Oklab tint and tint strength.
 uniform int lowerCount;
 uniform vec4 lowerShape[4];
 uniform vec2 lowerCorner[4];
@@ -282,19 +270,18 @@ float erf(float x)
     return sign(x) * y;
 }
 
-// how much of the blur at d pixels in from an edge of the canvas is of the canvas. Where the panel
-// ends within the canvas, all of it: beyond the edge (the window's, in the studio layout) the blur
-// goes on as the canvas there (its textures are clamped), never a haze of the panel color along the
-// window's edges. Across the edge (crossing, where the panel goes on beyond the canvas, plain) none at
-// the edge, for the glass to meet the plain panel there without a seam.
+// How much of the blur d pixels inside a canvas edge comes from the canvas. If the panel ends within
+// the canvas, all of it: the clamped textures continue the canvas past the window edge instead of a
+// haze of panel color. If the panel crosses the edge (crossing = 1) and continues as a plain panel,
+// it fades to none at the edge so the glass meets the plain part without a seam.
 float within(float d, float crossing)
 {
     return mix(1.0, max(erf(d / (sigma * 1.41421356)), 0.0), crossing);
 }
 
-// how far outside a shape (its middle and half its size, s; its corners, c) p is, in pixels (inside,
-// less than 0), and which way is out there: its squircle corners are each a quarter of a
-// superellipse, |x|^n + |y|^n = reach^n
+// Signed distance in pixels from p to a squircle shape (center and half size; corner reach and
+// exponent), negative inside, and the outward normal. Each corner is a quarter of the superellipse
+// |x|^n + |y|^n = reach^n.
 float outsideOf(vec2 p, vec4 shape, vec2 corner, out vec2 normal)
 {
     vec2 from = p - shape.xy;
@@ -307,21 +294,21 @@ float outsideOf(vec2 p, vec4 shape, vec2 corner, out vec2 normal)
     float n = corner.y;
     vec2 a = pow(q, vec2(n));
     float f = pow(a.x + a.y, 1.0 / n);
-    // the distance to f = reach, about: f over how fast it grows
+    // Approximate distance to f = reach: the difference over the gradient's length.
     vec2 gradient = pow(q / f, vec2(n - 1.0));
     normal = normalize(gradient) * side;
     return (f - corner.x) / length(gradient);
 }
 
-// of this glass' own shape
+// outsideOf() for this panel's own shape.
 float outside(vec2 p, out vec2 normal)
 {
     return outsideOf(p, shape, corner, normal);
 }
 
-// the bevel d pixels in from the rim, w wide, h thick: its height over the underside, and its
-// slope. A quarter of a superellipse of exponent 4: steep at the rim, flat where the face is,
-// without a crease there
+// Height above the underside and slope of a bevel w wide and h thick, d pixels in from the rim.
+// The profile is a quarter superellipse of exponent 4: steep at the rim and flat at the face,
+// with no crease where they meet.
 vec2 profile(float d, float w, float h)
 {
     float u = 1.0 - clamp(d / w, 0.0, 1.0);
@@ -330,10 +317,9 @@ vec2 profile(float d, float w, float h)
     return vec2(h * pow(k, 0.25), h / w * u3 * pow(k, -0.75));
 }
 
-// the bevel over the pixel d in from the edge: its height there and its slope over all of the pixel
-// (the part of it on the glass), not at its middle. Toward the edge the slope goes up without end;
-// over a pixel it is what the face rises across it, which is finite: the rim antialiased, a line
-// along the edge, not a pixel here and there that happened to fall where it is steepest.
+// The bevel's height at the pixel d in from the edge and its slope averaged over the pixel rather
+// than at its center. The slope is unbounded at the rim, but the rise across a pixel is finite, so
+// this antialiases the rim into a clean line instead of scattered steep pixels.
 vec2 bevelOver(float d, float w, float h)
 {
     float a = max(d - 0.5, 0.0);
@@ -341,20 +327,20 @@ vec2 bevelOver(float d, float w, float h)
     return vec2(profile(0.5 * (a + b), w, h).x, (profile(b, w, h).x - profile(a, w, h).x) / (b - a));
 }
 
-// the ray seen at a point of the bevel with the surface normal there, in glass of index n, whose
-// face is height over the underside: where it meets the canvas, from there (xy); z 1 if it gets
-// there, 0 if it is reflected back up inside the glass, and then the way it leaves the face (w,
-// then 0 if it does not)
+// Traces the view ray through a bevel point with surface normal `normal`, glass index n and the face
+// `height` above the underside. Returns the offset to where it meets the canvas (xy); z is 1 if it
+// reaches the canvas, 0 if it is totally internally reflected, and w is 1 if that reflected ray
+// leaves through the face (its direction in `back`).
 vec4 trace(vec3 normal, float height, float n, out vec3 back)
 {
-    // in, at the face
+    // Refract into the face.
     vec3 t = refract(vec3(0.0, 0.0, -1.0), normal, 1.0 / n);
     vec2 offset = t.xy / max(-t.z, 1e-3) * height;
-    // out of the flat underside, and on across the gap down to the canvas
+    // Leave through the flat underside and cross the gap down to the canvas.
     float sinGlass = length(t.xy);
     float sinAir = n * sinGlass;
     if (sinAir >= 1.0) {
-        // reflected by the underside, and up out of the face (or not)
+        // Reflected by the underside, then possibly out through the face.
         back = refract(vec3(t.xy, -t.z), -normal, n);
         return vec4(offset, 0.0, dot(back, back) > 0.0 ? 1.0 : 0.0);
     }
@@ -363,7 +349,7 @@ vec4 trace(vec3 normal, float height, float n, out vec3 back)
     return vec4(offset, 1.0, 0.0);
 }
 
-// how much light the glass reflects, seen at an angle of acos(c) to its face (Schlick)
+// Reflectance of the glass at an angle of acos(c) to its normal (Schlick's approximation).
 float fresnel(float c, float n)
 {
     float r = (n - 1.0) / (n + 1.0);
@@ -371,9 +357,8 @@ float fresnel(float c, float n)
     return r + (1.0 - r) * pow(1.0 - clamp(c, 0.0, 1.0), 5.0);
 }
 
-
-// a small weighted texture (the blur, or its statistics) at p (surface pixels), in this surface's
-// place of it: bilinear, the weights too
+// Bilinear sample of a weighted downsampled texture (the blur or its statistics) at p (surface
+// pixels), within this surface's slot. The weights are interpolated too.
 vec3 softAt(sampler2D source, vec2 p)
 {
     vec2 t = p / factor - 0.5 + shift;
@@ -389,27 +374,24 @@ vec3 softAt(sampler2D source, vec2 p)
 
 vec3 inGamut(float l, vec2 ab);
 
-// a mean kept in source (lightness to the power, a and b half added) at p, in Oklab
+// The Oklab mean stored in source at p, decoding the lightness power and the a, b offset.
 vec3 meanAt(sampler2D source, vec2 p)
 {
     vec3 m = softAt(source, p);
     return vec3(pow(max(m.x, 0.0), 1.0 / power), m.yz - 0.5);
 }
 
-// and in light: as it comes (made a color of the screen once, at the end: see tintedLab)
+// The same in linear light, not yet gamut mapped (that happens once, in tintedLab).
 vec3 meanLightAt(sampler2D source, vec2 p)
 {
     return max(fromOklab(meanAt(source, p)), 0.0);
 }
 
 /**
- * The frost at p, in Oklab: the mean of the wide blur. Its lightness a power
- * mean (see KisStudioGlass::lightnessPower). Its color the mean of a and b:
- * a mean of the hues as strong as they are, never a hue that is not between
- * them (mixed as light, orange and blue make pink), and a stroke of color on
- * white paper keeps its chroma (mixed as light, it keeps half). What hues
- * cancel where they disagree is as much restored as they agree: never more
- * than the chroma behind, on average.
+ * The frost at p in Oklab: the mean of the wide blur, with a power mean for lightness (see
+ * KisStudioGlass::lightnessPower). Averaging a and b never produces a hue that isn't between the
+ * inputs (mixing in linear light turns orange and blue into pink), and a colored stroke on white keeps
+ * its chroma. Chroma lost where hues disagree is partly restored, never beyond the average chroma.
  */
 vec3 frostedLab(vec2 p)
 {
@@ -419,8 +401,7 @@ vec3 frostedLab(vec2 p)
     return vec3(wide.x, wide.yz * (1.0 + restore * (1.0 - agree)));
 }
 
-// the canvas itself at q, in light, softened a little (five taps a pixel and a half apart): what a
-// polished rim shows, clear glass, of the canvas it bends
+// The unblurred canvas at q in linear light, as seen through the clear polished rim.
 vec3 canvasLightAt(vec2 q)
 {
     vec3 c = texture(under, q / viewport).rgb;
@@ -428,11 +409,10 @@ vec3 canvasLightAt(vec2 q)
 }
 
 /**
- * The canvas over what a pixel at q sees of it (jx, jy: how far that moves a
- * pixel across and down), averaged in light: where the bevel bends it little,
- * a pixel sees about a pixel, all its detail; where it squeezes much of the
- * canvas into a pixel, all of that, its taps spread along the squeeze (none
- * of it skipped: no shimmer, no stair steps), never blurred beyond it.
+ * The canvas area a pixel at q sees through the bevel (jx, jy: its footprint across and down),
+ * averaged in linear light. Where the bevel bends little this is about one pixel, keeping all detail;
+ * where it compresses a lot of canvas into one pixel, taps are spread along the compression so
+ * nothing is skipped (no shimmer or stair steps) and nothing is blurred beyond it.
  */
 vec3 clearLab(vec2 q, vec2 jx, vec2 jy)
 {
@@ -449,21 +429,21 @@ vec3 clearLab(vec2 q, vec2 jx, vec2 jy)
     return toOklab(sum / float(2 * n));
 }
 
-// a point the rim sees, kept within as far around the panel as the canvas is blurred (reach): a
-// steep rim sees far, beyond that is nothing blurred
+// Clamps a point the rim sees to the area around the panel that was blurred (reach). A steep rim
+// can look further than that.
 vec2 held(vec2 q)
 {
     return clamp(q, reach.xy, reach.zw);
 }
 
-// the canvas the glass at p is held over, where the reflected ray d (z toward the viewer, down)
-// meets it: blurred, as the glass is not a mirror
+// The canvas where the reflected ray d (z toward the viewer) from p meets it, blurred because
+// the frosted glass is not a mirror.
 vec3 reflectedAt(vec3 d, vec2 p)
 {
     return meanLightAt(blurred, held(p + d.xy / max(-d.z, 0.2) * bevel.z));
 }
 
-// the largest chroma of hue ab at lightness l that is a color of the screen, scaled: ab times it
+// Lightness l with hue ab, its chroma reduced by bisection until it fits the sRGB gamut.
 vec3 inGamut(float l, vec2 ab)
 {
     vec3 c = fromOklab(vec3(l, ab));
@@ -484,9 +464,8 @@ vec3 inGamut(float l, vec2 ab)
     return fromOklab(vec3(l, ab * lo));
 }
 
-// what is behind (Oklab) through glass tinted s strong, in light: as light as the tint says, as
-// colorful as what is behind (its chroma kept), veiled a little (see KisStudioGlass::veil), and made
-// a color of the screen, once
+// What is behind (Oklab) seen through glass with tint strength s, in linear light: lightness moves
+// toward the tint, chroma is kept but slightly veiled (see KisStudioGlass::veil), then gamut mapped.
 vec3 tintedLab(vec3 b, vec3 tintLab, float s)
 {
     float l = clamp(mix(b.x, tintLab.x, s), 0.0, 1.0);
@@ -500,10 +479,8 @@ vec3 tinted(vec3 behind, vec3 tintLab, float s)
 }
 
 /**
- * What is seen at p (lab, Oklab) through the glass under this one, where
- * this one lies over it (a menu over a panel): tinted by each as its own
- * glass tints it, glass over glass, not the canvas as if they were not
- * there. Their edges as soft as this glass' frost makes what is under it.
+ * Applies the tint of each glass panel below this one (e.g. a panel under a menu) to lab at p, so
+ * stacked glass looks like glass over glass. Their edges are softened by this glass' frost.
  */
 vec3 throughLower(vec3 lab, vec2 p)
 {
@@ -518,11 +495,9 @@ vec3 throughLower(vec3 lab, vec2 p)
 }
 
 /**
- * The light the image casts on the glass beside it: the image glows, and in
- * the dark around it that is the only light there is. The rim catches it
- * where it faces the image, only where the bevel is steep enough to reflect
- * it (Fresnel): a thin edge of light in the colors of the image's nearest
- * edge, fainter the further away that is. None over the image.
+ * Light the glowing image casts on the glass beside it. The rim catches it where it faces the image
+ * and the bevel is steep enough to reflect it (Fresnel): a thin line in the colors of the image's
+ * nearest edge, fading with distance. Nothing over the image itself.
  */
 vec3 imageLightAt(vec2 p, vec3 normal, vec2 normal2d, bool onBevel)
 {
@@ -536,7 +511,7 @@ vec3 imageLightAt(vec2 p, vec3 normal, vec2 normal2d, bool onBevel)
     if (dist < 1.0) {
         return vec3(0.0);
     }
-    // the glow at the edge, bilinear (its texture is small, its light smooth)
+    // Bilinear sample of the small, smooth glow texture at the edge.
     vec2 t = q / imageLightFactor - 0.5;
     ivec2 i = ivec2(floor(t));
     vec2 f = t - floor(t);
@@ -560,14 +535,14 @@ void main()
     vec2 normal2d;
     float d = -outside(p, normal2d);
 
-    // the bevel: no wider than the corners are round, nor than the panel is
+    // The bevel is no wider than the corner radius or the panel itself.
     float w = min(bevel.x, min(corner.x, min(shape.z, shape.w)));
     bool onBevel = w > 0.5 && d < w;
     float h = bevel.y * w / max(bevel.x, 1e-3);
     vec2 bend = vec2(0.0);
     vec3 normal = vec3(0.0, 0.0, 1.0);
-    // where a pixel sees the canvas (the middle color's ray), and how far that moves a pixel across and
-    // down: of every pixel, before any is left out (derivatives are of the four pixels together)
+    // Where this pixel sees the canvas (green ray) and its footprint. Computed before any discard,
+    // since derivatives are taken across the 2x2 pixel quad.
     vec2 seenAt = p;
     if (onBevel) {
         bend = bevelOver(d, w, h);
@@ -582,23 +557,22 @@ void main()
     if (coverage <= 0.0) {
         discard;
     }
-    // of the canvas, not of the panel color beyond its edges
+    // How much comes from the canvas rather than the plain panel beyond its edges.
     float canvas = within(p.x, beyond.x) * within(viewport.x - p.x, beyond.y) * within(p.y, beyond.z) * within(viewport.y - p.y, beyond.w);
     vec3 tintLight = fromSrgb(tint);
     vec3 tintLab = toOklab(tintLight);
 
     vec3 color;
     if (onBevel) {
-        // polished toward the rim, it shows the canvas itself, bent; into the face, the frost, without a step
+        // Polished toward the rim it shows the bent canvas itself, fading into the frost of the face.
         float clear = polish * (1.0 - smoothstep(clearing, 1.0, d / w));
 
         vec3 light3 = vec3(0.0);
         for (int i = 0; i < 3; i++) {
             vec3 back;
             vec4 ray = trace(normal, bend.x, ior[i], back);
-            // mixed with the panel color as the face is (in Oklab), so that where the bevel
-            // flattens into the face the two are one, without a step
-            // reflected inside (it does not leave), scattered by the frost: the glass itself
+            // A ray reflected back inside shows the frost at this pixel. The result is mixed with the
+            // tint in Oklab like the face, so the bevel blends into it without a step.
             bool leaves = ray.z > 0.0;
             vec2 q = leaves ? held(p + ray.xy) : p;
             vec3 seen = frostedLab(q);
@@ -607,11 +581,11 @@ void main()
             vec3 through = max(fromOklab(mix(tintLab, seen, canvas)), 0.0);
             light3[i] = through[i];
         }
-        // thinner toward the rim, the glass tints what is behind it less (Beer-Lambert): a band along the edge, lighter
-        // over a light canvas, deeper over a dark one, as a border would be
+        // Thinner glass toward the rim tints less (Beer-Lambert), giving a band along the edge that reads
+        // like a border.
         color = tinted(light3, tintLab, strength * mix(0.3, 1.0, bend.x / h));
-        // where it is steep the face reflects (Fresnel) down onto the canvas around it; up, the
-        // room, which is in the tint already (no gloss: the bevel shows by what it bends)
+        // Steep parts reflect (Fresnel) the canvas around the panel. Upward reflections of the room
+        // are already part of the tint, so there is no gloss.
         vec3 mirrored = reflect(vec3(0.0, 0.0, -1.0), normal);
         float faceOn = fresnel(1.0, ior.g);
         float reflected = (fresnel(normal.z, ior.g) - faceOn) / (1.0 - faceOn) * smoothstep(0.0, 0.25, -mirrored.z);
@@ -624,21 +598,16 @@ void main()
     }
 
     /**
-     * Dithered, nothing more: triangular noise of a step of the target either
-     * way (the sum of two uniform ones), which turns the steps a smooth
-     * gradient would be cut into (banding) into noise too fine to see, and
-     * leaves no pattern and no noise that follows the picture: the textbook
-     * dither. No grain: the frost is smooth.
+     * Triangular dither of one target step either way (the sum of two uniform noises) turns banding
+     * in smooth gradients into invisible noise without any pattern. No grain is added otherwise.
      */
     uvec2 u = uvec2(p);
     float steps = hash(u) + hash(u + uvec2(7919u, 104729u)) - 1.0;
     if (coverage < 1.0) {
         /**
-         * A pixel the edge goes across (or glass fading in or out): what it
-         * shows is the light of both, each as much as it covers. Mixed here,
-         * in light, from the canvas under it: blending would mix the encoded
-         * values, which takes the edge too dark over a light canvas and too
-         * light over a dark one.
+         * A partly covered pixel (an edge, or glass fading in or out) mixes with the canvas here in
+         * linear light. Blending would mix encoded values, making edges too dark over a light canvas
+         * and too light over a dark one.
          */
         vec3 behind = texture(under, p / viewport).rgb;
         color = mix(decode ? fromSrgb(behind) : behind, color, coverage);
@@ -648,10 +617,9 @@ void main()
 )";
 
 /**
- * The ambient light: the canvas made sixteen times smaller (every other pixel
- * of each 16 x 16), only where the image is (toImage takes a pixel to the
- * image's own coordinates, 0 to 1 across it): its light, in linear, and how
- * much of the pixel is image, kept as the blur keeps them
+ * Downsamples the canvas for the ambient glow, sampling every other pixel of each factor x factor
+ * block and only inside the image (toImage maps to 0..1 across it). Stores linear light and image
+ * coverage in the same encoding as the blur.
  */
 const char *const ambientShrinkSource = R"(
 uniform sampler2D source;
@@ -682,11 +650,9 @@ void main()
 )";
 
 /**
- * The ambient light, drawn around the image (nothing over it): the light of
- * the image nearby (the blurred light over how much of it is image), as
- * much as there is image near (that much of it: the light falls off with
- * the distance as the blur does), a little more colorful (a wall lit by a
- * screen is lit by its colors, not its grays), over the color around it
+ * Draws the ambient glow around (not over) the image: the blurred image light, scaled by how much
+ * image is nearby so it falls off with distance, slightly boosted in chroma (a wall lit by a screen
+ * shows its colors more than its grays), added to the surrounding color.
  */
 const char *const ambientSource = R"(
 uniform sampler2D ambient;
@@ -759,7 +725,7 @@ QOpenGLShaderProgram *compile(const char *vertex, const char *fragment)
     return result.take();
 }
 
-/// A program and where its uniforms are
+/// A shader program and its uniform locations.
 struct Program {
     QSharedPointer<QOpenGLShaderProgram> program;
     QHash<QByteArray, int> locations;
@@ -777,14 +743,13 @@ struct Program {
 };
 
 /**
- * The refractive index of the glass for red, green and blue light (610,
- * 550 and 465 nm), from its index for yellow light and its Abbe number,
- * by Cauchy's equation, n = A + B / wavelength^2
+ * Refractive indices for red, green and blue light (610, 550 and 465 nm), derived from the index for
+ * yellow light and the Abbe number using Cauchy's equation n = A + B / wavelength^2.
  */
 QVector3D refractiveIndices(qreal abbeNumber)
 {
     const qreal nd = KisStudioGlass::refractiveIndex;
-    // the spread from blue (the F line, 486.1 nm) to red (the C line, 656.3 nm)
+    // Spread from blue (F line, 486.1 nm) to red (C line, 656.3 nm).
     const qreal spread = (nd - 1) / abbeNumber;
     const qreal b = spread / (1 / (0.4861 * 0.4861) - 1 / (0.6563 * 0.6563));
     const qreal a = nd - b / (0.5876 * 0.5876);
@@ -816,8 +781,8 @@ struct Programs {
 };
 
 /**
- * The programs of the contexts sharing their objects (all of Krita's canvases): compiled once, not for every
- * canvas, as the glass's own takes a while. A child of their group, gone with it.
+ * Programs shared by all contexts in a share group (all of Krita's canvases), so the slow glass shader
+ * compiles only once. Parented to the group, so it is destroyed with it.
  */
 struct SharedPrograms : public QObject {
     Programs programs;
@@ -838,31 +803,31 @@ const Programs &programsOf(QOpenGLContextGroup *group)
 
 struct KisOpenGLGlass::Private : Programs
 {
-    /// The ambient light: the canvas made small, blurred across, then down
+    /// The ambient glow: downsampled canvas, blurred across, then down.
     QScopedPointer<QOpenGLFramebufferObject> ambientSmall;
     QScopedPointer<QOpenGLFramebufferObject> ambientAcross;
     QScopedPointer<QOpenGLFramebufferObject> ambientBlurred;
-    /// Where the image was when the ambient light was made last (unit square to surface), and how much smaller it is
+    /// Where the image was when the glow was last made (unit square to surface), and the downsampling factor.
     QTransform imageToSurface;
     int ambientFactor {0};
     QOpenGLVertexArrayObject vao;
-    /// The canvas made small; blurred across; then down; and its Oklab statistics, the same
+    /// Downsampled canvas, blurred across, then down; and the same for its Oklab statistics.
     QScopedPointer<QOpenGLFramebufferObject> small;
     QScopedPointer<QOpenGLFramebufferObject> across;
     QScopedPointer<QOpenGLFramebufferObject> blurred;
     QScopedPointer<QOpenGLFramebufferObject> smallStatistics;
     QScopedPointer<QOpenGLFramebufferObject> acrossStatistics;
     QScopedPointer<QOpenGLFramebufferObject> statistics;
-    /// Of what is kept between the steps: half floats where they can be drawn to, eight bits elsewhere
+    /// Intermediate texture format: half floats where renderable, eight bits otherwise.
     GLenum keptFormat {GL_RGBA};
-    /// Where the blurs were made last, for which surfaces: made again only when the canvas or they changed
+    /// State of the last blur, which is redone only when the canvas or the surfaces change.
     QVector<QRectF> blurredFor;
     KisOpenGLGpuTiming timing {QStringLiteral("glass gpu:"), {QStringLiteral("shrink"), QStringLiteral("blur"), QStringLiteral("draw")}};
     QSize blurredViewport;
     qreal blurredRatio {0};
     qreal blurredAmount {0};
 
-    /// At least \p size: grown only (as panels come and go, their places take more or less of it)
+    /// Grows the textures to at least \p size; they never shrink, as panels come and go.
     void ensureSize(const QSize &size)
     {
         if (small && small->width() >= size.width() && small->height() >= size.height()) {
@@ -885,11 +850,11 @@ KisOpenGLGlass::~KisOpenGLGlass() = default;
 bool KisOpenGLGlass::initialize()
 {
     QOpenGLContext *context = QOpenGLContext::currentContext();
-    // texelFetch, gl_VertexID, flat: GLSL 1.30, or ES 3.00
+    // texelFetch, gl_VertexID and flat need GLSL 1.30 or ES 3.00.
     if (!context || context->format().majorVersion() < 3) {
         return false;
     }
-    // drawn to: OpenGL 3 can, OpenGL ES 3 with an extension
+    // Rendering to half floats needs an extension on OpenGL ES 3.
     const bool halfFloats = !context->isOpenGLES() || context->hasExtension("GL_EXT_color_buffer_half_float")
         || context->hasExtension("GL_EXT_color_buffer_float");
     d->keptFormat = halfFloats ? GL_RGBA16F : GL_RGBA;
@@ -906,12 +871,15 @@ bool KisOpenGLGlass::isValid() const
 }
 
 namespace {
-/// \p transform as a matrix of GLSL (columns)
-/// \p color (sRGB) in Oklab
+qreal srgbToLinear(qreal c)
+{
+    return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4);
+}
+
+/// \p color (sRGB) in Oklab.
 QVector3D oklabOf(const QColor &color)
 {
-    auto linear = [](qreal c) { return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4); };
-    const qreal r = linear(color.redF()), g = linear(color.greenF()), b = linear(color.blueF());
+    const qreal r = srgbToLinear(color.redF()), g = srgbToLinear(color.greenF()), b = srgbToLinear(color.blueF());
     const qreal l = std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
     const qreal m = std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
     const qreal s = std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
@@ -919,12 +887,33 @@ QVector3D oklabOf(const QColor &color)
                      float(0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s));
 }
 
+/// Uploads \p transform as a GLSL mat3 (column-major).
 void setMatrix(QOpenGLFunctions *f, int location, const QTransform &transform)
 {
     const float m[9] = {float(transform.m11()), float(transform.m12()), float(transform.m13()),
                         float(transform.m21()), float(transform.m22()), float(transform.m23()),
                         float(transform.m31()), float(transform.m32()), float(transform.m33())};
     f->glUniformMatrix3fv(location, 1, GL_FALSE, m);
+}
+
+/// Half of a normalized gaussian: its taps either way and their weights.
+struct Kernel {
+    int taps {0};
+    float weights[maxTaps + 1] = {};
+};
+
+/// A gaussian kernel of \p sigma, in downsampled pixels.
+Kernel gaussian(qreal sigma)
+{
+    Kernel k;
+    k.taps = qBound(1, qCeil(3 * sigma), maxTaps);
+    float sum = 0;
+    for (int i = 0; i <= k.taps; i++) {
+        k.weights[i] = float(std::exp(-0.5 * i * i / (sigma * sigma)));
+        sum += i ? 2 * k.weights[i] : k.weights[i];
+    }
+    for (int i = 0; i <= k.taps; i++) k.weights[i] /= sum;
+    return k;
 }
 } // namespace
 
@@ -936,7 +925,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     }
     const QSize viewport = canvas->size();
     const bool linearCanvas = canvasFormat == GL_RGBA16F;
-    // sixteen times smaller: the light reaches far, nothing in it is fine
+    // Sixteen times smaller: the glow reaches far and has no fine detail.
     const int factor = qMax(1, qRound(16 * pixelRatio));
     const QSize smallSize((viewport.width() + factor - 1) / factor, (viewport.height() + factor - 1) / factor);
     if (!d->ambientSmall || d->ambientSmall->size() != smallSize) {
@@ -946,15 +935,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     }
     d->imageToSurface = surfaceToImage.inverted();
     d->ambientFactor = factor;
-    const qreal sigma = KisStudioGlass::ambientSigma * pixelRatio / factor;
-    const int taps = qBound(1, qCeil(3 * sigma), maxTaps);
-    float weights[maxTaps + 1] = {};
-    float sum = 0;
-    for (int i = 0; i <= taps; i++) {
-        weights[i] = float(std::exp(-0.5 * i * i / (sigma * sigma)));
-        sum += i ? 2 * weights[i] : weights[i];
-    }
-    for (int i = 0; i <= taps; i++) weights[i] /= sum;
+    const Kernel kernel = gaussian(KisStudioGlass::ambientSigma * pixelRatio / factor);
 
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     GLint target = 0;
@@ -965,7 +946,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     f->glActiveTexture(GL_TEXTURE0);
     f->glViewport(0, 0, smallSize.width(), smallSize.height());
 
-    // the image's light, made small
+    // Downsample the image's light.
     d->ambientShrink->bind();
     f->glUniform4f(d->ambientShrink["rect"], -1, -1, 1, 1);
     f->glUniform1i(d->ambientShrink["source"], 0);
@@ -976,13 +957,13 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     f->glBindTexture(GL_TEXTURE_2D, canvas->texture());
     f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-    // spread as light falls off
+    // Blur it so the light falls off with distance.
     d->blur->bind();
     f->glUniform4f(d->blur["rect"], -1, -1, 1, 1);
     f->glUniform1i(d->blur["source"], 0);
-    f->glUniform1i(d->blur["taps"], taps);
-    f->glUniform1fv(d->blur["weights"], maxTaps + 1, weights);
-    // all of it is the ambient's (the panels' blurs each keep to a place of their own)
+    f->glUniform1i(d->blur["taps"], kernel.taps);
+    f->glUniform1fv(d->blur["weights"], maxTaps + 1, kernel.weights);
+    // The whole texture is one slot, unlike the panels' blurs.
     f->glUniform4i(d->blur["slot"], 0, 0, smallSize.width() - 1, smallSize.height() - 1);
     d->ambientAcross->bind();
     f->glUniform2i(d->blur["direction"], 1, 0);
@@ -993,7 +974,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     f->glBindTexture(GL_TEXTURE_2D, d->ambientAcross->texture());
     f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-    // around the image, on the canvas
+    // Draw the glow around the image on the canvas.
     canvas->bind();
     f->glViewport(0, 0, viewport.width(), viewport.height());
     d->ambient->bind();
@@ -1001,9 +982,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     f->glUniform1i(d->ambient["ambient"], 0);
     f->glUniform1f(d->ambient["factor"], factor);
     setMatrix(f, d->ambient["toImage"], surfaceToImage);
-    const QColor linearBase = base;
-    auto toLinear = [](qreal c) { return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4); };
-    f->glUniform3f(d->ambient["base"], float(toLinear(linearBase.redF())), float(toLinear(linearBase.greenF())), float(toLinear(linearBase.blueF())));
+    f->glUniform3f(d->ambient["base"], float(srgbToLinear(base.redF())), float(srgbToLinear(base.greenF())), float(srgbToLinear(base.blueF())));
     f->glUniform1f(d->ambient["strength"], float(KisStudioGlass::ambientStrength));
     f->glUniform1i(d->ambient["encode"], !linearCanvas);
     f->glUniform1f(d->ambient["dither"], linearCanvas ? 0.0f : canvasFormat == GL_RGB10_A2 ? 1.0f / 1023 : 1.0f / 255);
@@ -1018,17 +997,17 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
 
 qreal KisOpenGLGlass::reach()
 {
-    // the widest gaussian, and the pixels made one in the smaller canvas
+    // Three sigma of the widest blur, plus the pixels merged by downsampling.
     return 3 * KisStudioGlass::blurSigma() * KisStudioGlass::maxBlurScale + 8;
 }
 
 void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewport, qreal pixelRatio,
                             const QVector<Surface> &surfaces, const QRect &clip, bool canvasChanged)
 {
-    // a floating point (HDR) canvas is in linear light already, and has no steps to dither
+    // A floating point (HDR) canvas is already linear and needs no dithering.
     const bool linearCanvas = canvasFormat == GL_RGBA16F;
     const float dither = linearCanvas ? 0.0f : canvasFormat == GL_RGB10_A2 ? 1.0f / 1023 : 1.0f / 255;
-    // what was blurred is stale even if nothing is drawn now: a panel shown later must not reuse it
+    // The blur is stale even if nothing is drawn now, so a panel shown later must not reuse it.
     if (canvasChanged) {
         d->blurredFor.clear();
     }
@@ -1045,52 +1024,31 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         return;
     }
 
-    // made a few times smaller, the blurs as wide in widget pixels whatever the screen's scale
+    // Downsample by a factor that keeps blur widths constant in widget pixels at any screen scale.
     const int factor = qMax(1, qRound(4 * pixelRatio));
-    // half of a gaussian of sigma (widget pixels): its taps either way, and their weights
-    struct Kernel {
-        int taps {0};
-        float weights[maxTaps + 1] = {};
-    };
-    auto kernel = [&](qreal widgetSigma) {
-        Kernel k;
-        const qreal sigma = widgetSigma * pixelRatio / factor;
-        k.taps = qBound(1, qCeil(3 * sigma), maxTaps);
-        float sum = 0;
-        for (int i = 0; i <= k.taps; i++) {
-            k.weights[i] = float(std::exp(-0.5 * i * i / (sigma * sigma)));
-            sum += i ? 2 * k.weights[i] : k.weights[i];
-        }
-        for (int i = 0; i <= k.taps; i++) k.weights[i] /= sum;
-        return k;
-    };
-    // over each panel as wide as it is large (see KisStudioGlass::blurScale)
+    // Larger panels blur wider (see KisStudioGlass::blurScale).
     auto scaleOf = [pixelRatio](const Surface &surface) { return KisStudioGlass::blurScale(surface.rect.size() / pixelRatio); };
 
     const QSize smallSize((viewport.width() + factor - 1) / factor, (viewport.height() + factor - 1) / factor);
     const QRect smallWhole(QPoint(), smallSize);
 
     /**
-     * Each panel blurred under it (whole: how bright it is behind all of it
-     * sets its tint), in a place of its own in the small textures: its small
-     * pixels (one more for scaling back up), as far as the rim sees around it
-     * (its reflections, what it bends in from beside it), and as far around
-     * that as its blur takes in. Of a place of their own: panels side by side
-     * are each blurred as wide as they are large (a pill less than a column),
-     * and in one place the blur of one would show in the other where they are
-     * near (a block of it, with straight edges).
+     * Each panel is blurred in its own slot of the small textures, since panels blur by different
+     * amounts and a shared area would let one panel's blur bleed into a neighbor's. A slot covers the
+     * panel's downsampled pixels (plus one for upscaling), what the rim sees around it, and the blur's
+     * reach beyond that. The whole panel is blurred because the brightness behind it sets its tint.
      */
     struct Region {
         QRect area;
         QRect around;
-        /// From the small canvas to its place
+        /// Offset from the downsampled canvas to the slot.
         QPoint shift;
         Kernel wide;
     };
     QVector<Region> regions(surfaces.size());
     const int rimReach = qCeil(KisStudioGlass::bevel().lift * pixelRatio);
     {
-        // in rows, left to right
+        // Pack the slots in rows, left to right.
         QPoint next;
         int rowHeight = 0;
         for (int i = 0; i < surfaces.size(); i++) {
@@ -1098,7 +1056,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
             if (r.isEmpty()) continue;
             Region &region = regions[i];
             region.area = QRect(QPoint(r.left() / factor, r.top() / factor), QPoint(r.right() / factor + 1, r.bottom() / factor + 1)) & smallWhole;
-            region.wide = kernel(KisStudioGlass::blurSigma() * scaleOf(surfaces[i]));
+            region.wide = gaussian(KisStudioGlass::blurSigma() * scaleOf(surfaces[i]) * pixelRatio / factor);
             region.around = region.area.adjusted(-region.wide.taps, -region.wide.taps, region.wide.taps, region.wide.taps) & smallWhole;
             if (next.x() + region.around.width() > smallSize.width()) {
                 next = QPoint(0, next.y() + rowHeight);
@@ -1133,9 +1091,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform4f(d->blur["rect"], -1, -1, 1, 1);
     f->glUniform1i(d->blur["source"], 0);
 
-
     d->timing.begin();
-    // only the brush outline moved, say: what is behind the glass is what was blurred last time
+    // Reuse the last blur when nothing behind the glass changed, e.g. only the brush outline moved.
     QVector<QRectF> rects;
     for (const Surface &surface : surfaces) rects << surface.rect;
     const bool blurAgain = canvasChanged || rects != d->blurredFor || viewport != d->blurredViewport || pixelRatio != d->blurredRatio
@@ -1145,14 +1102,14 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     d->blurredRatio = pixelRatio;
     d->blurredAmount = KisStudioGlass::blur();
 
-    // only those that are on the canvas, when what is behind them changed
+    // Blur only the panels on the canvas, and only if what is behind them changed.
     QVector<Region> blurring;
     if (blurAgain) {
         for (const Region &region : qAsConst(regions)) {
             if (!region.around.isEmpty()) blurring << region;
         }
     }
-    // the canvas made small, as colors and as their statistics
+    // Downsample the canvas, as colors and as statistics.
     d->shrink->bind();
     f->glBindTexture(GL_TEXTURE_2D, canvas);
     for (int statistics = 0; statistics < 2; statistics++) {
@@ -1165,8 +1122,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         }
     }
     d->timing.mark();
-    // blurred: each pass for all the panels at once, the target switched (which makes the GPU wait for what
-    // was drawn into it) four times, not four times a panel
+    // Run each pass for all panels at once, so the render target (which stalls the GPU) switches four
+    // times in total rather than four times per panel.
     d->blur->bind();
     struct Pass {
         QOpenGLFramebufferObject *source;
@@ -1190,14 +1147,14 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
             f->glUniform1fv(d->blur["weights"], maxTaps + 1, k.weights);
             const QRect place = region.around.translated(region.shift);
             f->glUniform4i(d->blur["slot"], place.left(), place.top(), place.right(), place.bottom());
-            // across: as far up and down as the pass down takes in
+            // The horizontal pass also covers the rows the vertical pass will read.
             scissor((pass.across ? region.area.adjusted(0, -k.taps, 0, k.taps) & region.around : region.area).translated(region.shift));
             f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         }
     }
 
     d->timing.mark();
-    // the glass, over what is drawn
+    // Draw the glass over the canvas.
     f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(target));
     f->glViewport(0, 0, viewport.width(), viewport.height());
     scissor(drawn);
@@ -1221,7 +1178,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1f(d->glass["clearing"], bevel.clear);
     const QVector3D ior = refractiveIndices(bevel.abbeNumber);
     f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
-    // the image's light, where the glow is made (and so where it is known)
+    // The image's glow, if it has been rendered.
     const bool imageLit = KisStudioGlass::ambientSurround() && d->ambientBlurred && d->ambientFactor > 0;
     f->glUniform1i(d->glass["imageLit"], imageLit);
     if (imageLit) {
@@ -1229,7 +1186,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         setMatrix(f, d->glass["fromImage"], d->imageToSurface);
         f->glUniform1i(d->glass["imageLight"], 3);
         f->glUniform1f(d->glass["imageLightFactor"], d->ambientFactor);
-        // a larger image is a larger light: it reaches as far as it is large, and some more
+        // A larger image casts light further: its reach grows with the image size.
         const QPolygonF image = d->imageToSurface.map(QPolygonF(QRectF(0, 0, 1, 1)));
         qreal area = 0;
         for (int i = 0; i < image.size(); i++) {
@@ -1260,19 +1217,19 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glUniform4f(d->glass["shape"], r.center().x(), r.center().y(), r.width() / 2, r.height() / 2);
         f->glUniform2f(d->glass["corner"], surface.reach, surface.exponent);
         f->glUniform3f(d->glass["tint"], surface.tint.redF(), surface.tint.greenF(), surface.tint.blueF());
-        // as light as it looks (Oklab, about the cube root of its luminance), as what is behind is measured
-        auto linear = [](qreal c) { return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4); };
-        const qreal luminance = 0.2126 * linear(surface.tint.redF()) + 0.7152 * linear(surface.tint.greenF()) + 0.0722 * linear(surface.tint.blueF());
+        // Perceived lightness (about the cube root of luminance), measured like the background.
+        const qreal luminance = 0.2126 * srgbToLinear(surface.tint.redF()) + 0.7152 * srgbToLinear(surface.tint.greenF())
+            + 0.0722 * srgbToLinear(surface.tint.blueF());
         f->glUniform1f(d->glass["tintLightness"], float(std::cbrt(luminance)));
         f->glUniform1f(d->glass["opacity"], surface.opacity);
         const qreal scale = scaleOf(surface);
         f->glUniform1f(d->glass["sigma"], KisStudioGlass::blurSigma() * scale * pixelRatio);
         f->glUniform1f(d->glass["spacing"], 2 * KisStudioGlass::blurSigma() * scale * pixelRatio);
-        // the sides it goes on beyond the canvas on: left, right, bottom, top
+        // Which sides extend beyond the canvas: left, right, bottom, top.
         f->glUniform4f(d->glass["beyond"], r.left() < 0, r.right() > viewport.width(), r.top() < 0, r.bottom() > viewport.height());
         const QRectF reach = r.adjusted(-rimReach, -rimReach, rimReach, rimReach) & QRectF(whole).adjusted(0.5, 0.5, -0.5, -0.5);
         f->glUniform4f(d->glass["reach"], reach.left(), reach.top(), reach.right(), reach.bottom());
-        // the glass under it, where it lies over that (the nearest four)
+        // Up to four nearest glass panels below this one that it overlaps.
         GLfloat lowerShape[4 * 4] = {};
         GLfloat lowerCorner[4 * 2] = {};
         GLfloat lowerTint[4 * 3] = {};

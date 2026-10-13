@@ -18,7 +18,7 @@
 
 namespace {
 
-/// Enough for the colors a layer is painted with, and its last brush
+/// Strokes kept per node: plenty for its colors and last brush
 constexpr int kept = 512;
 constexpr quint32 magic = 0x4b534c33; // "KSL3"
 
@@ -138,7 +138,7 @@ QByteArray KisStrokeLog::save() const
     if (strokes.isEmpty()) {
         return QByteArray();
     }
-    // each brush's name once
+    // Brush names are stored once and referenced by index
     QStringList brushes;
     Q_FOREACH (const Stroke &stroke, strokes) {
         if (!brushes.contains(stroke.brush)) brushes << stroke.brush;
@@ -160,11 +160,11 @@ void KisStrokeLog::load(const QByteArray &compressed)
     in.setVersion(QDataStream::Qt_5_12);
     quint32 head = 0;
     in >> head;
-    // an older log (where strokes went) is let go
+    // Logs in older formats are ignored
     if (head != magic) {
         return;
     }
-    // read name by name: a count no file this size could hold is not believed (a damaged or made-up file)
+    // Reject counts larger than the data could hold (damaged or malicious files)
     QStringList brushes;
     quint32 brushCount = 0;
     in >> brushCount;
@@ -215,7 +215,6 @@ public:
     void undo() override
     {
         m_node->strokeLog().remove(m_ids);
-        // the oldest ones dropped to make room come back
         m_node->strokeLog().restore(m_dropped);
         m_dropped.clear();
     }
@@ -239,7 +238,7 @@ KisStrokeLogNotifier *KisStrokeLog::notifier()
 {
     static KisStrokeLogNotifier *notifier = []() {
         auto *object = new KisStrokeLogNotifier();
-        // in the main thread, whichever thread first asked for it
+        // Signals are delivered in the main thread, whichever thread created it
         if (QCoreApplication::instance()) object->moveToThread(QCoreApplication::instance()->thread());
         return object;
     }();

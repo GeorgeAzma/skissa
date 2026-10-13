@@ -20,12 +20,12 @@
 class QPainter;
 
 /**
- * Picks one of many things (blend modes, effects, brushes, panels) from
- * your own numbered list of them, reordered by dragging and starred to add;
- * the recent ones above it, all the others in groups on request, a search
- * over all. Pointing at one emits sigPreview(), a click or Enter picks it,
- * Escape or a click elsewhere leaves things as they were. A Source says
- * what is picked from.
+ * A popup for picking one of many items (blend modes, effects, brushes,
+ * panels). It shows the recent items, the user's own numbered list (reordered
+ * by dragging, extended with the star), all other items in groups on request,
+ * and a search over everything. Hovering an item emits sigPreview(); a click or
+ * Enter picks it, and Escape or a click outside leaves things as they were.
+ * A Source describes the items.
  */
 class KRITAUI_EXPORT KisStudioPicker : public QFrame
 {
@@ -37,65 +37,65 @@ public:
     };
 
     struct Source {
-        /// The kritarc key of your list
+        /// The kritarc key that stores the user's list
         QString pinnedKey;
-        /// Your list until you change it
+        /// The user's list until they change it
         std::function<QStringList()> initialPinned;
         std::function<QStringList()> allIds;
-        /// The ones not in your list, in groups, in the order shown
+        /// The items not in the user's list, grouped, in display order
         std::function<QVector<Group>(const QStringList &pinned)> otherGroups;
         std::function<QString(const QString &id)> name;
-        /// A shorter name for your list, optional
+        /// Optional shorter name used in the user's list
         std::function<QString(const QString &id)> pinnedName;
-        /// Other names, for searching
+        /// Alternative names to search by
         std::function<QStringList(const QString &id)> aliases;
         std::function<void(QPainter &painter, const QRect &rect, const QString &id)> paintPreview;
         /// Most recent first
         std::function<QStringList()> recent;
         /// Tiles with large previews instead of rows with swatches
         bool tiles {false};
-        /// A tile's size, name included (none: the default landscape tile)
+        /// Tile size including the name; invalid for the default landscape tile
         QSize tileSize;
-        /// How long the pointer rests on one before it is previewed, in ms
+        /// How long the pointer rests on an item before it is previewed, in ms
         int previewDelay {0};
         QString yoursTitle;
         QString searchPlaceholder;
-        /// "All %1 ..." where %1 is the number of them
+        /// Label of the "show all" link; %1 is the number of items
         QString allLabel;
     };
 
-    /// Something for an effect or a blend mode to show on, when the canvas is blank
+    /// A picture to preview effects or blend modes on when the canvas is blank
     static QImage samplePicture(const QSize &size);
-    /// Whether a picture is one flat color, or transparent: nothing to show an effect on
+    /// Whether \p image is one flat color or transparent, so useless for showing an effect
     static bool isFlat(const QImage &image);
 
     static QStringList pinnedIds(const Source &source);
     static void setPinnedIds(const Source &source, const QStringList &ids);
-    /// Yours, then all the others in the order the picker shows them
+    /// The user's list followed by all other items, in the order the picker shows them
     static QStringList scrollOrder(const Source &source);
 
-    /// @param available the ids that can be picked now; empty: all of them
+    /// @param available the ids that can be picked now; empty means all
     KisStudioPicker(const Source &source, const QString &current, const QSet<QString> &available, QWidget *parent);
     ~KisStudioPicker() override;
 
     void popupBelow(QWidget *anchor);
     void popupNear(const QPoint &globalPos);
-    /// Paints the previews again, e.g. when more of them are ready
+    /// Repaints the previews, e.g. when more of them are ready
     void updatePreviews();
 
 Q_SIGNALS:
-    /// The one pointed at; an empty id when the preview should end
+    /// The hovered item; an empty id ends the preview
     void sigPreview(const QString &id);
     void sigPicked(const QString &id);
 
 public:
-    /// Shared with the grid that draws the items
+    /// Public so that the grid drawing the items can use it
     struct Private;
 
 protected:
-    /// Another view in the list's place (e.g. a map), switched to by a link; \p rememberedKey keeps which was shown
+    /// Adds a view that can replace the list (e.g. a map), toggled by a link; \p rememberedKey stores which one shows
     void addAlternateView(QWidget *view, const QString &label, const QString &rememberedKey);
-    /// Picks as a click on an item does
+    /// Picks \p id as if its item were clicked
     void pickId(const QString &id);
     const Source &pickerSource() const;
 

@@ -17,7 +17,7 @@
 #include "KisStudioPicker.h"
 #include "kritaui_export.h"
 
-/// What the picker's tiles show a mode doing: \p source in that mode over \p backdrop, both the size of a tile's picture
+/// Images for the picker's tiles: each tile shows \p source blended over \p backdrop in its mode; both are tile-sized
 struct KisBlendModePictures {
     QImage backdrop;
     QImage source;
@@ -26,12 +26,12 @@ struct KisBlendModePictures {
 };
 
 /**
- * Picks a blend mode from your own list of them (see KisStudioPicker),
- * which starts with the common modes ordered by what they do.
+ * Blend mode picker built on KisStudioPicker. The user's list starts with
+ * the common modes, grouped by effect.
  *
- * Given Pictures, every mode is a tile showing what it does to them (the
- * layer over the layers below, or a stroke over the image); without, a
- * small swatch made with its composite op.
+ * With Pictures, each mode is a tile previewing its effect (the layer over
+ * the layers below, or a brush stroke over the image); otherwise each mode
+ * gets a small swatch rendered with its composite op.
  */
 class KRITAUI_EXPORT KisBlendModePicker : public KisStudioPicker
 {
@@ -39,22 +39,22 @@ class KRITAUI_EXPORT KisBlendModePicker : public KisStudioPicker
 public:
     using Pictures = KisBlendModePictures;
 
-    /// @param available the ids that can be used in the current color space
+    /// @param available the ids usable in the current color space
     KisBlendModePicker(const QString &current, const QSet<QString> &available, QWidget *parent = nullptr,
                        const Pictures &pictures = Pictures());
 
-    /// The size of a tile's picture, in pixels, for a widget's screen
+    /// Size of a tile's picture in device pixels for \p widget's screen
     static QSize pictureSize(const QWidget *widget);
-    /// A layer over everything below it; \p color makes a sample when the layer is empty
+    /// The layer over everything below it; an empty layer is replaced by a sample shape in \p color
     static Pictures layerPictures(KisNodeSP node, const QSize &size, const QColor &color);
-    /// A stroke of \p color over the image
+    /// A brush stroke in \p color over the image
     static Pictures brushPictures(KisImageSP image, const QSize &size, const QColor &color);
 
-    /// What scrolling steps through: your modes, then all the others as the picker shows them
+    /// Order used when scrolling through modes: the user's modes, then the rest as the picker lists them
     static QStringList scrollOrder();
 
 Q_SIGNALS:
-    /// The highlighted mode changed; an empty id when the preview should end
+    /// The highlighted mode changed; an empty id ends the preview
     void previewed(const QString &id);
     void picked(const KoID &op);
 

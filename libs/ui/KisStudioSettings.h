@@ -17,9 +17,9 @@
 class KisMainWindow;
 
 /**
- * Settings: a glass panel of cards over the canvas, in sections, applied live.
- * Cards can be pinned to Quick or put in sections of your own; settings can be
- * found, reset, undone, and moved to a file or to Krita (KisSettingsTransfer).
+ * The Settings panel: a glass panel of cards over the canvas, grouped in sections
+ * and applied live. Cards can be pinned to Quick or added to user sections; settings
+ * can be searched, reset, undone, and transferred to a file or to Krita (KisSettingsTransfer).
  */
 class KRITAUI_EXPORT KisStudioSettings : public QWidget
 {
@@ -28,29 +28,28 @@ public:
     KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasArea);
     ~KisStudioSettings() override;
 
-    /// Where it goes in the canvas area (by the button that opens it)
+    /// Computes the panel's rect in the canvas area (next to the button that opens it)
     void setPlacement(std::function<QRect(const QSize &wanted)> placement);
-    /// Shows it, scrolled to \p cardId (and that card marked for a moment) if given
+    /// Shows the panel, scrolled to \p cardId and briefly highlighting it if given
     void open(const QString &cardId = QString());
-    void toggle();
-    /// The cards pinned to Quick, in a small window by \p anchor
+    /// Shows the cards pinned to Quick in a small popup by \p anchor
     void showQuick(QWidget *anchor);
 
-    /// For Find: every card, as one thing to find
+    /// A searchable entry for Find
     struct CardInfo {
         QString id;
         QString title;
         QString section;
         QString keywords;
-        /// The setting it is, when it is one switch (Find shows it, a click flips it)
+        /// The setting of a single-switch entry, which Find shows and can flip
         QString toggleId;
     };
     static QVector<CardInfo> cardInfos();
-    /// A card's switch flipped from elsewhere (Find)
+    /// Flips a toggle setting from outside the panel (Find)
     static bool flip(const QString &settingId);
 
     void reposition();
-    /// A short message at its foot, for a few seconds
+    /// Shows a short message at the panel's foot for a few seconds
     void say(const QString &text);
 
 protected:

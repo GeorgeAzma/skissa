@@ -18,7 +18,7 @@ namespace {
 const char *const fadingOutProperty = "studioFadingOut";
 const char *const clickThroughProperty = "studioFadeClickThrough";
 
-/// While it fades out, a press goes to what is under it (a window's own, the system's)
+/// Lets clicks pass through a child widget while it fades out; windows are left to the system.
 void setClickThrough(QWidget *widget, bool on)
 {
     if (widget->isWindow()) return;
@@ -31,7 +31,7 @@ void setClickThrough(QWidget *widget, bool on)
     }
 }
 
-/// The fade running on a widget, so that a new one replaces it and starts where it was
+/// The fade running on \p widget, so a new fade can replace it and start from where it was
 QVariantAnimation *runningFade(QWidget *widget)
 {
     return widget->findChild<QVariantAnimation *>(QStringLiteral("studioFade"), Qt::FindDirectChildrenOnly);
@@ -59,11 +59,11 @@ void setOpacity(QWidget *widget, qreal opacity)
         widget->setGraphicsEffect(effect);
     }
     effect->setOpacity(opacity);
-    // the glass under it fades with it
+    // the glass backdrop fades with the widget
     KisStudioGlass::changed(widget);
 }
 
-/// Done: fully opaque again with nothing in between (an effect renders through a pixmap)
+/// Ends a fade at full opacity and drops the effect, which would keep rendering through a pixmap
 void settle(QWidget *widget)
 {
     if (widget->isWindow()) {
@@ -76,7 +76,7 @@ void settle(QWidget *widget)
 
 bool canFade(QWidget *widget)
 {
-    // another kind of effect is the widget's own: leave it alone
+    // leave widgets with some other graphics effect alone
     return widget->isWindow() || !widget->graphicsEffect() || qobject_cast<QGraphicsOpacityEffect *>(widget->graphicsEffect());
 }
 
@@ -89,7 +89,7 @@ void fade(QWidget *widget, qreal to, int duration, bool hideAtEnd)
     animation->setObjectName(QStringLiteral("studioFade"));
     animation->setStartValue(from);
     animation->setEndValue(to);
-    // the part of the way that is left, in its part of the time
+    // scale the duration by the distance left, so an interrupted fade keeps its speed
     animation->setDuration(qMax(1, qRound(duration * qAbs(to - from))));
     animation->setEasingCurve(KisModernStyle::motionCurve());
     QPointer<QWidget> target = widget;
@@ -130,7 +130,7 @@ void KisStudioMotion::showFaded(QWidget *widget)
         setOpacity(widget, 0.0);
         widget->show();
     }
-    // only a fade, no motion: glass that moves repaints everything under it every frame
+    // fade only, no movement: moving glass would repaint everything under it every frame
     fade(widget, 1.0, KisModernStyle::enterDuration, false);
 }
 

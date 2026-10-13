@@ -111,7 +111,7 @@ bool KisStudioSymmetry::mirrorDown() const
 
 void KisStudioSymmetry::setMirrorAxes(bool across, bool down)
 {
-    // never none: an axis the way most pictures are symmetric
+    // Keep at least one axis; left-right mirroring is the most common
     KConfigGroup group = settings();
     group.writeEntry("MirrorAcross", across || !down);
     group.writeEntry("MirrorDown", down);
@@ -128,7 +128,7 @@ bool KisStudioSymmetry::isOn(KisKActionCollection *actions)
 void KisStudioSymmetry::setOn(KisKActionCollection *actions, bool on)
 {
     KisStudioSymmetry *symmetry = instance();
-    // mirrored axes turned on or off elsewhere (the toolbar, a shortcut): what is on now is what comes back
+    // Remember axes toggled elsewhere (toolbar, shortcut) so turning symmetry back on restores them
     QAction *acrossAction = mirrorAction(actions, true);
     QAction *downAction = mirrorAction(actions, false);
     const bool acrossOn = acrossAction && acrossAction->isChecked();
@@ -138,7 +138,7 @@ void KisStudioSymmetry::setOn(KisKActionCollection *actions, bool on)
     const bool mirror = on && symmetry->mode() == Mirror;
     setChecked(acrossAction, mirror && symmetry->mirrorAcross());
     setChecked(downAction, mirror && symmetry->mirrorDown());
-    // radial and tile are the brush's: the Multibrush tool, and back to the tool it came from
+    // Radial and tile use the Multibrush tool; switch back to the previous tool when done
     static QString toolBefore;
     const QString tool = KoToolManager::instance()->activeToolId();
     if (on && !mirror) {

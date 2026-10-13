@@ -13,10 +13,10 @@
 #include "kritaui_export.h"
 
 /**
- * Brushes shown by what they paint: a short wave painted with each brush
- * preset, made by its own engine. Made when first asked for, one at a time
- * in the background (a preset's engine paints it as on the canvas), and
- * kept. Off unless "Show brushes as strokes" is on (see isEnabled()).
+ * Thumbnails that show what a brush preset paints: a short wavy stroke drawn
+ * by the preset's own paintop engine. Rendered on demand, one at a time in the
+ * background, and cached. Used only when "Show brushes as strokes" is on
+ * (see isEnabled()).
  */
 class KRITAUI_EXPORT KisPresetStrokeThumbnails : public QObject
 {
@@ -25,15 +25,15 @@ public:
     static KisPresetStrokeThumbnails *instance();
     ~KisPresetStrokeThumbnails() override;
 
-    /// The setting: brushes as strokes rather than as their pictures
+    /// Whether brushes are shown as strokes instead of their preset icons
     static bool isEnabled();
     static void setEnabled(bool on);
 
     /**
-     * The stroke of the preset with resource \p id (as of \p md5), in \p ink
-     * on transparent: a null image while it is being made (changed() is
-     * emitted when it is ready) or when its engine paints nothing of its
-     * own (a smudge, a filter: its picture is shown then).
+     * The stroke painted by preset \p id (version \p md5) in color \p ink,
+     * on a transparent background. Returns a null image while it is still
+     * being rendered (changed() is emitted when it is ready), or when the
+     * engine paints nothing by itself (e.g. smudge or filter brushes).
      */
     QImage stroke(int id, const QString &md5, const QColor &ink);
 

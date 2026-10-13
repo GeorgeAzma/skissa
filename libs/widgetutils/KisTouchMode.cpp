@@ -21,10 +21,10 @@
 
 namespace {
 
-/// How far a finger may drift and still be holding; less than a drag, so that a drag never turns into a hold
+/// How far a finger may drift during a long press; below the drag distance so a drag never becomes one.
 constexpr int holdSlack = 8;
 
-/// The canvas has long presses of its own: painting a dot, say
+/// The canvas handles long presses itself, e.g. painting a dot.
 bool isCanvas(const QWidget *widget)
 {
     return widget->inherits("KisOpenGLCanvas2") || widget->inherits("KisQPainterCanvas");
@@ -38,7 +38,7 @@ KisTouchMode::KisTouchMode()
     m_holdTimer.setInterval(longPressDelay);
     connect(&m_holdTimer, &QTimer::timeout, this, &KisTouchMode::hold);
 
-    // Krita's own long press (KisLongPressEventFilter) makes the menu then: not both
+    // When KisLongPressEventFilter is enabled it opens the menu, so don't do it twice.
 #ifdef Q_OS_ANDROID
     const bool longPressDefault = true;
 #else
@@ -91,13 +91,13 @@ bool KisTouchMode::eventFilter(QObject *watched, QEvent *event)
     case QEvent::TabletEnterProximity:
     case QEvent::TabletPress:
     case QEvent::TabletMove:
-        // a pen hovers like a mouse
+        // A pen hovers like a mouse.
         setActive(false);
         break;
     case QEvent::MouseMove: {
         auto *mouse = static_cast<QMouseEvent *>(event);
         if (mouse->source() == Qt::MouseEventNotSynthesized) {
-            // the same position again is not a move
+            // Ignore move events that repeat the last position.
             if (mouse->globalPos() != m_lastMousePos && !m_lastMousePos.isNull()) {
                 setActive(false);
             }
@@ -112,7 +112,7 @@ bool KisTouchMode::eventFilter(QObject *watched, QEvent *event)
         auto *mouse = static_cast<QMouseEvent *>(event);
         QWidget *widget = qobject_cast<QWidget *>(watched);
         m_swallowRelease = false;
-        // a finger: a pen's presses are synthesized too, but it has a side button
+        // Only synthesized presses come from fingers; pens synthesize too but have a side button.
         if (widget && m_active && !m_kritaLongPress && mouse->button() == Qt::LeftButton
             && mouse->source() != Qt::MouseEventNotSynthesized && !m_holdTimer.isActive()) {
             startHold(widget, mouse->globalPos());
@@ -121,7 +121,7 @@ bool KisTouchMode::eventFilter(QObject *watched, QEvent *event)
     }
     case QEvent::MouseButtonRelease: {
         m_holdTimer.stop();
-        // the widget's, not its window's (which keeps track of what is pressed)
+        // Swallow it at the widget, not the window, which tracks the pressed buttons.
         if (m_swallowRelease && watched->isWidgetType() && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
             m_swallowRelease = false;
             return true;
@@ -137,7 +137,7 @@ bool KisTouchMode::eventFilter(QObject *watched, QEvent *event)
 void KisTouchMode::startHold(QWidget *widget, const QPoint &globalPos)
 {
     for (const QWidget *w = widget; w; w = w->parentWidget()) {
-        // held still there means held: a value stepping on, a color being picked
+        // Widgets where holding has its own meaning, like auto-repeat or color picking.
         if (w->property("ownLongPress").toBool() || isCanvas(w) || qobject_cast<const QAbstractSpinBox *>(w)
             || qobject_cast<const QAbstractSlider *>(w) || w->inherits("KisColorSelectorBase")) {
             return;
@@ -155,7 +155,7 @@ void KisTouchMode::hold()
     if (!widget || !widget->isVisible()) {
         return;
     }
-    // the press is not a click: let it go far away from everything, then ignore the real release
+    // Release far away so the press doesn't click, then swallow the real release.
     const QPointF away(-100000, -100000);
     QMouseEvent release(QEvent::MouseButtonRelease, away, away, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     QCoreApplication::sendEvent(widget, &release);

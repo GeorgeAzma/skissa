@@ -15,9 +15,9 @@
 class KisMainWindow;
 
 /**
- * Choosing a layer (not adding, deleting or undoing) takes the brush last
- * painted with on it (see KisStrokeLog), unless "Layers remember their brush"
- * is off.
+ * When the user picks a layer (rather than adding, deleting or undoing one),
+ * switches to the brush last painted with on it, as recorded by KisStrokeLog.
+ * Can be turned off with the "Layers remember their brush" setting.
  */
 class KRITAUI_EXPORT KisStudioBrushMemory : public QObject
 {
@@ -25,7 +25,7 @@ class KRITAUI_EXPORT KisStudioBrushMemory : public QObject
 public:
     explicit KisStudioBrushMemory(KisMainWindow *mainWindow);
 
-    /// Whether choosing a layer takes its brush
+    /// Whether picking a layer switches to its last brush
     static bool layersRememberBrushes();
     static void setLayersRememberBrushes(bool on);
 

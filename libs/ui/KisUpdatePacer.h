@@ -10,15 +10,15 @@
 class QString;
 
 /**
- * Windows only: canvas windows repaint on a frame clock (one frame per screen refresh, not per mouse
- * report), and are always composed by the desktop so VRR screens do not flicker.
+ * Windows only: canvas windows repaint once per screen refresh rather than per mouse report, and
+ * are kept composed by the desktop so VRR screens don't flicker.
  */
 
 namespace KisUpdatePacer
 {
 KRITAUI_EXPORT void install();
 
-/// For development: \p what, timestamped, in the frame log (KRITA_DEV_FRAMELOG) if there is one
+/// Development aid: appends \p what, timestamped, to the KRITA_DEV_FRAMELOG frame log if enabled.
 KRITAUI_EXPORT void log(const QString &what);
 }
 

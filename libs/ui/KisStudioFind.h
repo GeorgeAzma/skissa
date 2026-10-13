@@ -22,10 +22,10 @@ class QKeyEvent;
 class QDockWidget;
 
 /**
- * "Find anything": one search field for everything Krita can do (tools,
- * commands, effects, brushes, blend modes, panels, layers, workspaces,
- * settings), ranked by how well they match and how often and recently they
- * were used. With nothing typed it lists the recent ones.
+ * The "Find anything" popup: one search field over everything Krita can do
+ * (tools, commands, effects, brushes, blend modes, panels, layers, workspaces
+ * and settings). Results are ranked by how well they match and by how often and
+ * how recently they were used; an empty query lists the recent ones.
  */
 class KRITAUI_EXPORT KisStudioFind : public QFrame
 {
@@ -34,33 +34,33 @@ public:
     explicit KisStudioFind(KisMainWindow *mainWindow);
     ~KisStudioFind() override;
 
-    /// How a panel gets shown, e.g. as a studio layout flyout
+    /// Sets how a panel is shown, e.g. as a flyout of the studio layout.
     void setPanelOpener(std::function<void(QDockWidget *)> opener);
-    /// How a setting's card gets shown (see KisStudioSettings)
+    /// Sets how a settings card is opened (see KisStudioSettings).
     void setSettingsOpener(std::function<void(const QString &cardId)> opener);
-    /// Whether a result is on the tools panel, and how it goes on or off it (its pin, its card)
+    /// Sets how to check and change whether an item is pinned to the tools panel.
     void setTools(std::function<bool(const QString &key)> isOnTools, std::function<void(const QString &key, bool on)> setOnTools);
 
     void open(const QString &text = QString());
-    /// Find as a chooser: what is chosen goes to \p picked instead of running
+    /// Opens Find as a chooser: the chosen item's key goes to \p picked instead of being run.
     void pick(const QString &placeholder, std::function<void(const QString &key)> picked, const QString &keyPrefix = QString());
 
-    /// One thing Find knows: what the rail and the cards need to show and run it
+    /// What other widgets need to show and run an item Find knows about.
     struct Item {
         QString key;
         QString title;
         QIcon icon;
-        QPointer<QAction> action; ///< has its shortcut, may be null
-        QStringList aliases;      ///< what other applications call it
+        QPointer<QAction> action; ///< holds the shortcut; may be null
+        QStringList aliases;      ///< names other applications use for it
     };
-    /// Looks an item up by its key ("tool:…", "effect:…", "action:…", "brush:…", "panel:…")
+    /// Looks up an item by key ("tool:…", "effect:…", "action:…", "brush:…", "panel:…").
     bool item(const QString &key, Item *item);
     bool run(const QString &key);
 
-    /// Gives every button of the window that is no action of its own a hidden one: for its shortcut and for Find
+    /// Gives each window button without an action of its own a hidden one, so it can be found and get a shortcut.
     void registerButtons();
 
-    /// Shows \p button's card beside it; false if it is no command Find knows
+    /// Shows the item card for \p button beside it; false if Find doesn't know the button.
     bool showCard(QAbstractButton *button);
 
 protected:
@@ -70,7 +70,7 @@ protected:
 private:
     void rebuildIndex();
     void updateResults();
-    /// "> ...": only what can be done, one list
+    /// Results for a query starting with ">": commands only, in a single list
     void updateCommands(const QString &query);
     void appendResult(int index, const QString &detail);
     void appendHeader(const QString &title);

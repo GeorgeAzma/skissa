@@ -13,7 +13,7 @@
 class KisMainWindow;
 
 /**
- * A pill in the canvas's bottom right corner with the view's state: zoom, rotation, mirroring, the modes that change
+ * A pill in the canvas's bottom-right corner showing the view's state: zoom, rotation, mirroring, modes that change
  * what a stroke does, and the progress of long operations. It replaces the status bar.
  */
 class KisStudioCanvasHud : public QWidget
@@ -23,7 +23,7 @@ public:
     explicit KisStudioCanvasHud(KisMainWindow *mainWindow);
     ~KisStudioCanvasHud() override;
 
-    /// Takes the progress bar from the status bar while active, and gives it back
+    /// Borrows the status bar's progress bar while active and returns it when deactivated
     void setActive(bool active);
 
 protected:
@@ -32,7 +32,7 @@ protected:
 
 private:
     void viewChanged();
-    /// The badges of the modes on now: shown, the others not
+    /// Shows the badge of each mode that is on and hides the rest
     void updateBadges();
     void updateZoom(qreal zoom);
     void updateRotation(qreal angle);

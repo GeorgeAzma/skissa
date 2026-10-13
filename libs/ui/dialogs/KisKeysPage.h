@@ -11,8 +11,8 @@
 #include <memory>
 
 /**
- * The Keys page of the settings: every shortcut and the keys held on the
- * canvas, on a drawn keyboard and in a list. Nothing changes until apply().
+ * The Keys page of the settings: every shortcut and every key held on the
+ * canvas, shown on a drawn keyboard and in a list. Nothing changes until apply().
  */
 class KisKeysPage : public QWidget
 {
@@ -22,8 +22,6 @@ public:
     ~KisKeysPage() override;
 
     void apply();
-    /// Krita's own keys, all of them (applied with apply())
-    void setDefaults();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

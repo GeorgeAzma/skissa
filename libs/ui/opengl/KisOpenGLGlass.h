@@ -16,17 +16,16 @@ class QOpenGLFramebufferObject;
 class QTransform;
 
 /**
- * The glass of the panels over the canvas (see KisStudioGlass), drawn on the GPU from the canvas FBO:
- * the canvas made a few times smaller, blurred in Oklab under each panel, tinted; the edge a refracting
- * bevel (KisStudioGlass::Bevel).
+ * GPU renderer for the glass panels over the canvas (see KisStudioGlass). It downsamples the canvas
+ * FBO, blurs it in Oklab under each panel, tints it and draws a refracting edge bevel.
  */
 class KisOpenGLGlass
 {
 public:
-    /// A glass panel, in surface device pixels (origin bottom left)
+    /// A glass panel in surface device pixels, origin at the bottom left.
     struct Surface {
         QRectF rect;
-        /// Squircle corners (see KisModernStyle::squircleCorner)
+        /// Squircle corner shape, see KisModernStyle::squircleCorner().
         qreal reach {0};
         qreal exponent {2};
         QColor tint;
@@ -36,23 +35,23 @@ public:
     KisOpenGLGlass();
     ~KisOpenGLGlass();
 
-    /// Compiles the shaders (once for all the canvases); false without OpenGL 3 or OpenGL ES 3
+    /// Compiles the shaders, shared by all canvases. Returns false without OpenGL 3 or OpenGL ES 3.
     bool initialize();
     bool isValid() const;
 
     /**
      * Draws \p surfaces into the bound framebuffer from the \p canvas texture (GL_RGBA16F is linear HDR,
-     * other formats sRGB), within \p clip if not empty. Call it every frame, with no surfaces too: unless
-     * \p canvasChanged, the last blur is reused.
+     * other formats sRGB), limited to \p clip if it is not empty. Call it every frame, even with no
+     * surfaces; the previous blur is reused unless \p canvasChanged.
      */
     void render(uint canvas, uint canvasFormat, const QSize &viewport, qreal pixelRatio,
                 const QVector<Surface> &surfaces, const QRect &clip, bool canvasChanged = true);
 
-    /// The image's ambient light drawn into \p canvas around it; \p surfaceToImage maps to 0..1 across the image
+    /// Draws the image's ambient glow into \p canvas around it; \p surfaceToImage maps to 0..1 across the image.
     void renderAmbient(QOpenGLFramebufferObject *canvas, uint canvasFormat, qreal pixelRatio, const QTransform &surfaceToImage,
                        const QColor &base);
 
-    /// How far around a panel the canvas affects its glass, in widget pixels
+    /// How far around a panel the canvas affects its glass, in widget pixels.
     static qreal reach();
 
 private:

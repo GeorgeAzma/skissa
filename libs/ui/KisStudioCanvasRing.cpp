@@ -44,12 +44,12 @@ constexpr qreal slotRadius = 31;
 constexpr qreal colorDistance = 152;
 constexpr qreal colorRadius = 9;
 constexpr qreal middleRadius = 26;
-/// Moved this far from where it opened: a flick towards a brush, not a click
+/// Distance from the opening point beyond which a movement counts as a flick rather than a click
 constexpr qreal flick = 24;
-/// A brush pressed and moved this far: dragged to another slot
+/// Distance a pressed brush must move to start dragging it to another slot
 constexpr qreal dragStart = 6;
 
-/// A brush's stroke filling a circle, its middle in the middle
+/// Paints a brush's stroke picture centered in a circle
 void paintBrush(QPainter &painter, const QPointF &center, qreal radius, const QImage &picture, qreal opacity)
 {
     QPainterPath circle;
@@ -69,7 +69,7 @@ void paintBrush(QPainter &painter, const QPointF &center, qreal radius, const QI
 } // namespace
 
 KisStudioCanvasRing::KisStudioCanvasRing(KisMainWindow *mainWindow)
-    // in the window, not the canvas: over the panels and bars that lie over the canvas
+    // A child of the window rather than the canvas, so it is drawn above the overlaid panels and bars
     : QWidget(mainWindow)
     , m_mainWindow(mainWindow)
 {
@@ -88,14 +88,14 @@ KisStudioCanvasRing::~KisStudioCanvasRing()
 
 QPointF KisStudioCanvasRing::slotCenter(int index) const
 {
-    // the first at the top, then clockwise
+    // The first slot is at the top, the rest go clockwise
     const qreal angle = qDegreesToRadians(-90.0 + index * 360.0 / ringBrushes);
     return m_center + slotDistance * QPointF(qCos(angle), qSin(angle));
 }
 
 QPointF KisStudioCanvasRing::colorCenter(int index) const
 {
-    // between the brushes' directions, from the top right
+    // Offset from the brush directions, starting at the top right
     const qreal angle = qDegreesToRadians(-75.0 + index * 360.0 / ringColors);
     return m_center + colorDistance * QPointF(qCos(angle), qSin(angle));
 }
@@ -110,7 +110,7 @@ int KisStudioCanvasRing::targetAt(const QPointF &pos) const
     for (int i = 0; i < m_colors.size(); i++) {
         if (QLineF(colorCenter(i), pos).length() <= colorRadius + 5) return 100 + i;
     }
-    // a brush by its direction: anywhere in its eighth, also past the plate when flicking
+    // Brushes are hit by direction: anywhere in their sector, and beyond the plate while flicking
     if (distance > plateRadius && !m_held) {
         return -1;
     }
@@ -118,7 +118,7 @@ int KisStudioCanvasRing::targetAt(const QPointF &pos) const
     while (angle < 0) angle += 360.0;
     const int index = int(qRound(angle / (360.0 / ringBrushes))) % ringBrushes;
     if (index < m_slots.size()) return index;
-    // an empty slot is for adding one, by clicking it (a flick picks nothing there)
+    // Empty slots add a brush when clicked; flicking towards them does nothing
     return !m_held && QLineF(slotCenter(index), pos).length() <= slotRadius + 4 ? 200 + index : -1;
 }
 
@@ -137,7 +137,7 @@ void KisStudioCanvasRing::open(QWidget *canvas, const QPointF &pos)
     m_current = resources->fgColor().toQColor();
     m_currentBrush = resources->currentPreset() ? resources->currentPreset()->name() : QString();
 
-    // all of it on the canvas: the ring moves in from the edges, the pointer stays where it is
+    // Keep the whole ring on the canvas: shift it in from the edges while the pointer stays put
     const QSizeF half = QSizeF(size()) / 2;
     QPointF at = pos;
     if (canvas->width() > width()) at.setX(qBound(half.width(), at.x(), canvas->width() - half.width()));
@@ -209,7 +209,7 @@ void KisStudioCanvasRing::pickBrush(int index)
         self->changeBrushes([index, &name](QStringList &brushes) {
             const int already = brushes.indexOf(name);
             if (index < brushes.size()) {
-                // the one there before goes to where this one was, if it was yours
+                // If the brush was already pinned, swap it with the one in this slot
                 if (already >= 0) brushes.swapItemsAt(index, already);
                 else brushes[index] = name;
             } else if (already < 0) {
@@ -266,8 +266,8 @@ void KisStudioCanvasRing::choose(int target)
 
 bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
 {
-    // every event of the application comes here: the rest goes on before anything is looked up (also while the
-    // window is being destroyed, its view manager half gone)
+    // This filter sees every event in the application. Let irrelevant ones through before looking anything up,
+    // which also keeps it safe while the window is being destroyed
     const QEvent::Type type = event->type();
     switch (type) {
     case QEvent::MouseButtonPress:
@@ -305,7 +305,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
     const bool onCanvas = watched == canvasWidget;
     const bool onRing = watched == this;
     if (!onCanvas && !onRing) {
-        // a press elsewhere in the window (a panel, a bar) closes it, and is that place's
+        // A press elsewhere in the window (a panel or bar) closes the ring and still goes to its target
         const bool anyPress = type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick || type == QEvent::TabletPress;
         if (shown && anyPress && watched->isWidgetType() && static_cast<QWidget *>(watched)->window() == m_mainWindow) close();
         return false;
@@ -348,21 +348,21 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
         return false;
     }
 
-    // the release of the press that closed it: not the canvas's either, as the press was not
+    // Swallow the release of the press that closed the ring, since the canvas never saw that press
     if (release && m_eatRelease != Qt::NoButton && button == m_eatRelease) {
         m_eatRelease = Qt::NoButton;
         event->accept();
         return true;
     }
     if (!shown) {
-        // the second click of a double click on a brush (chosen by the first) is not a dab
+        // The second click of a double click on a brush must not paint a dab
         if (onCanvas && press && m_closedByClick.isValid() && m_closedByClick.elapsed() < QApplication::doubleClickInterval()) {
             m_closedByClick.invalidate();
             m_eatRelease = button;
             event->accept();
             return true;
         }
-        // a right press with a painting tool opens it, not one while painting (another button down)
+        // A right press with a painting tool opens the ring, but not while another button is down (painting)
         if (onCanvas && press && button == Qt::RightButton && buttons == Qt::RightButton && modifiers == Qt::NoModifier
             && KisStudioBrushPicker::paintToolActive()) {
             open(canvasWidget, canvasWidget->mapFromGlobal(global.toPoint()));
@@ -388,7 +388,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
                 choose(from);
             } else {
                 m_dragging = false;
-                // let go on another of yours: the two change places
+                // Dropped on another brush: swap the two
                 if (to >= 0 && to < m_slots.size() && to != from) {
                     changeBrushes([from, to](QStringList &brushes) {
                         if (qMax(from, to) < brushes.size()) brushes.swapItemsAt(from, to);
@@ -412,7 +412,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
     }
     if (release) {
         if (m_held) {
-            // let go after moving towards a brush: taken, also past the plate (while held); without moving: open
+            // Released after a flick: select the target (even past the plate); without movement the ring stays open
             const int target = m_moved ? targetAt(local) : -1;
             m_held = false;
             if (m_moved) {
@@ -426,7 +426,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
     if (press) {
         const int target = QLineF(local, m_center).length() <= plateRadius ? targetAt(local) : -1;
         if (button == Qt::LeftButton && target >= 0 && target < m_slots.size()) {
-            // taken when let go, unless dragged to another slot
+            // Selected on release, unless dragged to another slot
             m_pressed = target;
             m_pressedAt = local;
             m_dragAt = local;
@@ -437,7 +437,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
         } else if (button == Qt::RightButton && target >= 0 && target < m_slots.size()) {
             slotMenu(target, global.toPoint());
         } else {
-            // elsewhere, or the right button again: closed, and that press (and its release) is not a stroke
+            // Anywhere else, or the right button again: close, and keep the press and its release from painting
             close();
             m_eatRelease = button;
         }
@@ -457,7 +457,7 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
     line.setAlphaF(0.1);
     const QColor accent = pal.color(QPalette::Highlight);
 
-    // glass with a soft shadow, as large as it has grown (a square with corners as round as half its side is a circle)
+    // Glass plate with a soft shadow; a corner radius of half the side makes the square a circle
     const qreal plate = (plateRadius - 6) * m_scale;
     const QRectF plateRect(m_center - QPointF(plate, plate), QSizeF(2 * plate, 2 * plate));
     KisStudioGlass::paintShadow(painter, plateRect, plate, 8, 26, 3);
@@ -472,7 +472,7 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
         painter.translate(-m_center);
     }
 
-    // the direction being flicked towards
+    // Highlight the sector being flicked towards
     if (m_hover >= 0 && m_hover < m_slots.size() && !m_dragging) {
         QColor wedge = accent;
         wedge.setAlphaF(0.16);
@@ -487,7 +487,7 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
         painter.drawPath(path);
     }
 
-    // the brushes
+    // Brushes
     for (int i = 0; i < m_slots.size(); i++) {
         const QPointF c = slotCenter(i);
         const bool hovered = i == m_hover;
@@ -499,7 +499,7 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
         painter.drawEllipse(c, r, r);
     }
 
-    // the empty slots, to add a brush in
+    // Empty slots for adding brushes
     for (int i = m_slots.size(); i < ringBrushes; i++) {
         const QPointF c = slotCenter(i);
         const bool hovered = 200 + i == m_hover;
@@ -513,7 +513,7 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
         painter.drawLine(c - QPointF(0, 6), c + QPointF(0, 6));
     }
 
-    // a brush being dragged to another slot, under the pointer
+    // The brush being dragged, under the pointer
     if (m_dragging && m_pressed >= 0 && m_pressed < m_slots.size()) {
         const qreal r = slotRadius - 4;
         paintBrush(painter, m_dragAt, r, m_slots[m_pressed].picture, 0.9);
@@ -522,7 +522,7 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
         painter.drawEllipse(m_dragAt, r, r);
     }
 
-    // the colors painted on the layer
+    // Colors painted on the layer
     for (int i = 0; i < m_colors.size(); i++) {
         const QPointF c = colorCenter(i);
         const qreal r = 100 + i == m_hover ? colorRadius + 2 : colorRadius;
@@ -536,7 +536,7 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
         }
     }
 
-    // the current color in the middle
+    // Current color in the middle
     painter.setPen(QPen(QColor(0, 0, 0, 120), 1));
     painter.setBrush(m_current);
     painter.drawEllipse(m_center, middleRadius - 4, middleRadius - 4);
@@ -546,7 +546,7 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
         painter.drawEllipse(m_center, middleRadius, middleRadius);
     }
 
-    // the name of what is pointed at, under the middle
+    // Name of the hovered item, below the middle
     QString name;
     if (m_hover >= 0 && m_hover < m_slots.size()) name = m_slots[m_hover].title;
     else if (m_hover >= 200) name = i18nc("@info an empty slot of the canvas ring", "Add a brush");

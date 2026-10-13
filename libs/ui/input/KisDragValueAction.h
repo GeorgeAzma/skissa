@@ -13,9 +13,8 @@
 class KisDoubleSliderSpinBox;
 
 /**
- * A key held and the pen dragged sideways changes one of the brush's values:
- * its opacity or its flow, as the brush size is changed by Shift and a drag
- * (KisChangePrimarySettingAction). Its keys are set on the Keys page.
+ * Holding a key and dragging sideways changes the brush opacity or flow,
+ * the same way Shift+drag changes the brush size (KisChangePrimarySettingAction).
  */
 class KisDragValueAction : public KisAbstractInputAction
 {

@@ -22,13 +22,13 @@ namespace
 
 const char *const watchedProperty = "studioEmptyWatched";
 
-/// What \p view says when empty; a null string: it is not one that says anything
+/// The message for an empty \p view, or a null string if it shows none.
 QString emptyText(QAbstractItemView *view)
 {
     const QVariant own = view->property("studioEmptyText");
     if (own.isValid()) return own.toString();
     if (view->inherits("KisResourceItemListView")) {
-        // a search on the way to it that has text: it found nothing
+        // A non-empty search field above the list means the search found nothing.
         for (QWidget *w = view->parentWidget(); w; w = w->parentWidget()) {
             Q_FOREACH (QLineEdit *edit, w->findChildren<QLineEdit *>()) {
                 if (edit->isVisible() && !edit->text().isEmpty()) return i18nc("@info an empty list", "Nothing matches");
@@ -57,7 +57,7 @@ public:
         hide();
     }
 
-    /// Later: a reset is followed by the rows it brings, and a search's text by its filter
+    /// Deferred so a model reset or a search filter has settled before counting rows.
     void refreshLater()
     {
         QTimer::singleShot(0, this, [this]() { refresh(); });
@@ -67,7 +67,7 @@ public:
     {
         if (!m_view) return;
         QAbstractItemModel *model = m_view->model();
-        // the view may have been given another model
+        // The view may have been given another model.
         if (model != m_model) {
             if (m_model) disconnect(m_model, nullptr, this, nullptr);
             m_model = model;
@@ -107,7 +107,7 @@ protected:
         if (type != QEvent::Show && type != QEvent::Resize) return false;
         auto *view = qobject_cast<QAbstractItemView *>(watched);
         if (!view) {
-            // a viewport resized: its label with it
+            // The viewport itself was shown or resized.
             auto *widget = qobject_cast<QWidget *>(watched);
             view = widget ? qobject_cast<QAbstractItemView *>(widget->parentWidget()) : nullptr;
             if (!view || view->viewport() != widget) return false;

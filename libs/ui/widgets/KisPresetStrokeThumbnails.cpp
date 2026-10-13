@@ -8,7 +8,6 @@
 #include <QList>
 #include <QSet>
 #include <QTimer>
-#include <QVector>
 
 #include <KoColor.h>
 #include <KoColorSpaceRegistry.h>
@@ -36,11 +35,11 @@ namespace
 {
 const QString settingKey = QStringLiteral("PresetStrokeThumbnails");
 
-/// A wide strip, scaled down where it is shown
+/// Rendered as a wide strip and scaled down for display
 constexpr int strokeWidth = 320;
 constexpr int strokeHeight = 88;
 
-/// Says when the strokes before it are done
+/// An empty stroke that signals when all strokes queued before it are done
 class DoneStroke : public QObject, public KisSimpleStrokeStrategy
 {
     Q_OBJECT
@@ -61,7 +60,7 @@ Q_SIGNALS:
     void done();
 };
 
-/// Engines that paint nothing of their own on an empty layer, or need a canvas to paint
+/// False for engines that paint nothing on an empty layer or need a real canvas
 bool paintsAlone(const QString &engine)
 {
     static const QSet<QString> none = {QStringLiteral("duplicate"), QStringLiteral("deformbrush"),
@@ -79,7 +78,7 @@ struct KisPresetStrokeThumbnails::Private {
     };
 
     QHash<QString, QImage> made;
-    /// Made nothing, or failed: their picture is shown instead
+    /// Presets that painted nothing or failed; their icon is shown instead
     QSet<QString> nothing;
     QList<Request> queue;
     QSet<QString> queued;
@@ -87,7 +86,7 @@ struct KisPresetStrokeThumbnails::Private {
     KisImageSP image;
     KisPaintLayerSP layer;
     Request current;
-    /// Which request a done signal is for: one given up on may still finish
+    /// Identifies the current request, since one that timed out may still finish later
     quint64 serial {0};
     bool busy {false};
     QTimer watchdog;
@@ -102,7 +101,7 @@ KisPresetStrokeThumbnails *KisPresetStrokeThumbnails::instance()
 KisPresetStrokeThumbnails::KisPresetStrokeThumbnails()
     : d(new Private)
 {
-    // an engine that never finishes is given up on, the next one painted on a fresh image
+    // Give up on engines that never finish, and paint the next one on a fresh image
     d->watchdog.setSingleShot(true);
     d->watchdog.setInterval(6000);
     connect(&d->watchdog, &QTimer::timeout, this, [this]() {
@@ -161,7 +160,7 @@ void KisPresetStrokeThumbnails::next()
                                                   ? window->viewManager()->canvasResourceProvider()->resourceManager()
                                                   : nullptr;
         if (!resources) {
-            // no window yet: asked again when the chooser is next painted
+            // No window yet; the chooser will ask again when it repaints
             d->queued.clear();
             d->queue.clear();
             return;
@@ -178,7 +177,7 @@ void KisPresetStrokeThumbnails::next()
         }
         d->layer->paintDevice()->clear();
 
-        // the brush as it is, a little smaller where it would not fit the strip
+        // Shrink brushes that are too big for the strip
         KisPaintOpPresetSP sample = preset->clone().dynamicCast<KisPaintOpPreset>();
         KisPaintOpSettingsSP settings = sample->settings();
         settings->setPaintOpSize(qBound(1.5, settings->paintOpSize(), strokeHeight * 0.3));
@@ -192,7 +191,7 @@ void KisPresetStrokeThumbnails::next()
         KisStrokeId strokeId = d->image->startStroke(
             new FreehandStrokeStrategy(snapshot, new KisFreehandStrokeInfo(), kundo2_noi18n("brush stroke thumbnail")));
 
-        // a wave, light at both ends and full in the middle, as a pen is put down and lifted
+        // A wave with light pressure at both ends and full pressure in the middle
         const qreal w = strokeWidth, h = strokeHeight;
         auto point = [](const QPointF &pos, qreal pressure, int time) {
             KisPaintInformation info(pos, pressure);
@@ -227,7 +226,7 @@ void KisPresetStrokeThumbnails::finished()
     d->busy = false;
 
     const QImage painted = d->layer->paintDevice()->convertToQImage(nullptr, d->image->bounds());
-    // nothing painted (a smudge on nothing): its picture shows instead
+    // Treat a (nearly) empty result as nothing painted, e.g. smudging on an empty layer
     bool any = false;
     for (int y = 0; y < painted.height() && !any; y += 2) {
         const QRgb *line = reinterpret_cast<const QRgb *>(painted.constScanLine(y));

@@ -18,9 +18,9 @@ class QComboBox;
 class QToolButton;
 
 /**
- * The active tool's most changed options in the top bar: transform modes,
- * selection modes, gradient shapes, what fill fills and with what. The
- * buttons drive the tool's own option widgets, so both always agree.
+ * Shows the active tool's most used options in the top bar: transform modes,
+ * selection modes, gradient shapes, and what the fill tool fills and with what.
+ * The buttons drive the tool's own option widgets, so the two always agree.
  */
 class KisStudioToolStrip : public QWidget
 {
@@ -31,17 +31,17 @@ public:
     /// Rebuilds the strip from the option widgets the active tool just provided
     void setOptionWidgets(const QList<QPointer<QWidget>> &widgets);
     bool hasOptions() const { return m_hasOptions; }
-    /// The window's actions: symmetry turns its mirror axes on and off
+    /// The window's actions, used by symmetry to toggle the mirror axes
     void setActions(KisKActionCollection *actions) { m_actions = actions; }
 
 private:
     void clear();
     void addGap();
     QToolButton *addButton(const QIcon &icon, const QString &toolTip);
-    /// A button of ours that presses \p source and follows its checked state
+    /// Adds a button that clicks \p source and follows its checked state
     void mirror(QAbstractButton *source, const QIcon &icon = QIcon());
     void mirrorCombo(QComboBox *combo, const QVector<int> &indexes, const QVector<QIcon> &icons);
-    /// Symmetry's modes and their settings
+    /// The menu with the symmetry modes and their settings
     QMenu *symmetryMenu();
 
     QHBoxLayout *m_layout {nullptr};

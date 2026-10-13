@@ -11,16 +11,16 @@
 class QWidget;
 
 /**
- * Fading in and out, as everything moves (see KisModernStyle::motionCurve): a window by its opacity, a widget by an opacity effect
- * that is removed once done.
+ * Fade-in and fade-out on the KisModernStyle::motionCurve(). A window fades through its window opacity, a child widget
+ * through a temporary opacity effect that is removed when the fade ends.
  */
 namespace KisStudioMotion
 {
-/// Shows \p widget, fading in; nothing happens if it is already shown
+/// Shows \p widget with a fade-in; does nothing if it is already shown.
 KRITAUI_EXPORT void showFaded(QWidget *widget);
-/// Fades \p widget out, then hides it; shown again meanwhile, it stays
+/// Fades \p widget out and hides it; showing it again during the fade keeps it.
 KRITAUI_EXPORT void hideFaded(QWidget *widget);
-/// Visible and not fading out (fading out, the pointer already reaches what is under it)
+/// True if \p widget is visible and not fading out. A fading widget already lets clicks through.
 KRITAUI_EXPORT bool isShown(const QWidget *widget);
 }
 

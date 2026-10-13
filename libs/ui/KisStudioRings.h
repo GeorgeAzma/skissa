@@ -17,11 +17,11 @@ class KisMainWindow;
 class QAction;
 
 /**
- * Rings of your own: up to eight of anything Find knows around the pointer,
- * on a key. Tapped, a ring stays open for a click; held, letting go picks
- * what the pointer went towards. Slots are dragged to swap, right clicked to
- * replace or remove, added with an empty slot's "+"; a right click in the
- * middle renames or deletes the ring.
+ * User-defined radial menus bound to keys, each holding up to eight items
+ * from Find. Tapping the key leaves the ring open for a click; holding it
+ * selects whatever the pointer moved towards on release. Slots can be dragged
+ * to swap, right clicked to replace or remove, and added with an empty slot's
+ * "+". Right clicking the middle renames or deletes the ring.
  */
 class KRITAUI_EXPORT KisStudioRings : public QObject
 {
@@ -30,17 +30,17 @@ public:
     explicit KisStudioRings(KisMainWindow *mainWindow);
     ~KisStudioRings() override;
 
-    /// A new, empty ring: its command, to be given a key
+    /// Creates an empty ring and returns its action, ready to be given a key
     QAction *createRing();
 
-    /// What is on ring \p id: Find's keys, in order around it from the top
+    /// The Find keys on ring \p id, clockwise from the top
     QStringList items(const QString &id) const;
     void setItems(const QString &id, const QStringList &items);
     QString name(const QString &id) const;
     void rename(const QString &id, const QString &name);
     void remove(const QString &id);
 
-    /// Opens ring \p id at the pointer (or closes it if it is open)
+    /// Opens ring \p id at the pointer, or closes it if it is already open
     void open(const QString &id);
 
     static constexpr int slotCount = 8;

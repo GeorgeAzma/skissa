@@ -15,9 +15,9 @@ class QMainWindow;
 class QWidget;
 
 /**
- * The window without the system's title bar (Windows only): the caption
- * areas the layout reports drag the window, the edges still resize it, and
- * the system still snaps, animates and shadows it.
+ * Removes the system title bar (Windows only). Caption areas reported by the
+ * layout drag the window, the edges still resize it, and the system keeps
+ * snapping, animating and shadowing it.
  */
 class KisStudioWindowFrame : public QObject
 {
@@ -28,10 +28,10 @@ public:
     void setEnabled(bool enabled);
     bool isEnabled() const { return m_enabled; }
 
-    /// From the window's nativeEvent(): \p result is a long* in Qt 5, a qintptr* in Qt 6
+    /// Call from the window's nativeEvent(); \p result is a long* in Qt 5 and a qintptr* in Qt 6.
     bool handleNativeEvent(void *message, void *result);
 
-    /// Minimize, maximize and close
+    /// Creates the minimize, maximize and close buttons
     QWidget *createButtons(QWidget *parent);
 
 protected:

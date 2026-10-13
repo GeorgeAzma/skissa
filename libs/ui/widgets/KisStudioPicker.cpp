@@ -21,8 +21,6 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPainter>
-#include <QRadialGradient>
-#include <QLinearGradient>
 #include <QPainterPath>
 #include <QPointer>
 #include <QScreen>
@@ -44,13 +42,13 @@ namespace {
 constexpr int glassShadowMargin = 16;
 constexpr int headerHeight = 26;
 
-/// Room for the shadow: none on a solid window (see KisStudioGlass::seeThroughWindows)
+/// Room for the drop shadow; none on an opaque window (see KisStudioGlass::seeThroughWindows)
 int shadowMarginOf(const QWidget *window)
 {
     return window->testAttribute(Qt::WA_TranslucentBackground) ? glassShadowMargin : 0;
 }
 
-/// \p pos moved so that a window of \p size placed there is on \p screen
+/// Moves \p pos so that a window of \p size placed there fits on \p screen
 QPoint onScreen(QPoint pos, const QSize &size, const QScreen *screen)
 {
     if (screen) {
@@ -70,7 +68,7 @@ struct Metrics {
 Metrics metricsFor(bool tiles, const QSize &tileSize = QSize())
 {
     if (tiles && tileSize.isValid()) {
-        // as many across as fit where four default tiles do
+        // as many columns as fit in the width of four default tiles
         return Metrics{qMax(2, 4 * 124 / tileSize.width()), tileSize.width(), tileSize.height()};
     }
     return tiles ? Metrics{4, 124, 96} : Metrics{3, 196, 32};
@@ -80,7 +78,7 @@ struct Item {
     QString id;
     QString name;
     QRect rect;
-    int order {-1}; ///< the place in your list, -1 for the others
+    int order {-1}; ///< position in the user's list, or -1
 };
 
 struct Header {
@@ -140,11 +138,10 @@ struct KisStudioPicker::Private
     QHBoxLayout *footer {nullptr};
     QPointer<QWidget> alternate;
     QAbstractButton *alternateButton {nullptr};
-    QLabel *hint {nullptr};
 
     QVector<Item> items;
     QVector<Header> headers;
-    /// Where your list is: a drop there pins; empty while searching
+    /// The area of the user's list, where a drop pins; empty while searching
     QRect pinnedArea;
 
     bool isAvailable(const QString &id) const { return available.isEmpty() || available.contains(id); }
@@ -157,7 +154,7 @@ struct KisStudioPicker::Private
         if (relayout) relayout();
     }
 
-    /// Highlights and previews the item pointed at or moved to with the keys
+    /// Highlights and previews the item under the pointer or selected with the keys
     void point(int index)
     {
         if (index == highlighted) return;
@@ -200,9 +197,9 @@ struct KisStudioPicker::Private
 namespace {
 
 /**
- * The items. A click picks, a drag reorders, pins or unpins, a right click
- * pins or unpins. With a finger (KisTouchMode): a tap picks, a swipe scrolls,
- * holding previews; then let go to pick, or move to drag.
+ * The items. A click picks, a drag reorders, pins or unpins, and a right click
+ * pins or unpins. In touch mode a tap picks, a swipe scrolls and a long press
+ * previews; releasing after it picks, moving drags.
  */
 class Grid : public QWidget
 {
@@ -210,7 +207,7 @@ public:
     explicit Grid(KisStudioPicker::Private *d) : QWidget(nullptr), m_d(d)
     {
         setMouseTracking(true);
-        // holding previews or drags here, it is no right click
+        // a long press previews or drags here instead of opening a context menu
         setProperty("ownLongPress", true);
         m_hold.setSingleShot(true);
         m_hold.setInterval(KisTouchMode::longPressDelay);
@@ -303,7 +300,7 @@ protected:
                                  painter.fontMetrics().elidedText(item.name, Qt::ElideRight, item.rect.width() - textLeft - 26));
             }
 
-            // among matches and recent ones yours always show their star: nothing else tells them apart
+            // among matches and recent items, pinned ones always show their star: nothing else marks them
             const bool pinned = item.order >= 0 || m_d->pinned.contains(item.id);
             if (highlighted || (pinned && item.order < 0) || KisTouchMode::isActive()) {
                 const QRectF star = starRect(item.rect, tiles);
@@ -333,7 +330,7 @@ protected:
                 painter.setBrush(wash);
                 painter.drawPath(KisModernStyle::squircle(QRectF(0, m_d->pinnedArea.bottom() + 4, width(), height() - m_d->pinnedArea.bottom() - 4), 8));
             }
-            // beside the pointer, not hiding the drop line
+            // the dragged item, offset from the pointer so that it doesn't hide the drop line
             const Item &dragged = m_d->items[m_dragging];
             const QSize size = tiles ? QSize(m_d->m.cellWidth - 8, m_d->m.cellHeight - 8) : QSize(m_d->m.cellWidth - 8, m_d->m.cellHeight - 2);
             const QRect ghost(m_pointer + QPoint(14, 10), size);
@@ -371,7 +368,7 @@ protected:
     void contextMenuEvent(QContextMenuEvent *event) override
     {
         event->accept();
-        // pinning now would relayout the items under the drag
+        // pinning would re-lay out the items under the drag
         if (m_dragging >= 0) return;
         const int index = itemAt(event->pos());
         if (index >= 0) togglePinned(m_d->items[index].id);
@@ -469,7 +466,7 @@ private:
         return -1;
     }
 
-    /// Where the dragged item goes: next to the one of yours nearest the pointer, or out of your list
+    /// Finds where the dragged item would go: next to the pinned item nearest the pointer, or out of the list
     void updateDrop()
     {
         m_dropAt = -1;
@@ -494,7 +491,7 @@ private:
             m_dropAt = m_d->pinned.size();
             return;
         }
-        // rows are read downwards, tiles across
+        // rows are ordered downwards, tiles across
         const QRect rect = m_d->items[nearest].rect;
         if (m_d->source.tiles) {
             const bool after = m_pointer.x() > rect.center().x();
@@ -543,7 +540,7 @@ private:
     QTimer m_hold;
     int m_dragging {-1};
     QPoint m_pointer;
-    int m_dropAt {-1};       ///< the place in your list it would take
+    int m_dropAt {-1};       ///< target position in the user's list
     bool m_dropUnpins {false};
     QRect m_dropLine;
 };
@@ -568,7 +565,7 @@ protected:
     }
 };
 
-/// How well \p query fits \p text: the start of it beats the start of a word beats the middle; 0 is not at all
+/// How well \p query matches \p text: a prefix beats a word start beats the middle; 0 means no match
 int matchScore(const QString &query, const QString &text)
 {
     const int at = text.indexOf(query, 0, Qt::CaseInsensitive);
@@ -581,7 +578,7 @@ int matchScore(const QString &query, const QString &text)
 
 QImage KisStudioPicker::samplePicture(const QSize &size)
 {
-    // Krita's splash art, read once at a size enough for any sample
+    // Krita's splash art, loaded once at a size large enough for any sample
     static const QImage art = []() {
         QImage image(QStringLiteral(":/splash/0.png"));
         if (image.isNull()) image.load(QStringLiteral(":/splash/hd.jpg"));
@@ -626,7 +623,7 @@ QSet<QString> knownIds(const KisStudioPicker::Source &source)
 QStringList KisStudioPicker::pinnedIds(const Source &source)
 {
     QStringList ids;
-    // an empty list is a list too: the key says whether you made one
+    // an empty list is valid too: whether the key exists tells if the user made one
     if (KSharedConfig::openConfig()->group(QString()).hasKey(source.pinnedKey)) {
         ids = KisConfig(true).readEntry<QStringList>(source.pinnedKey, QStringList());
     } else if (source.initialPinned) {
@@ -640,7 +637,7 @@ QStringList KisStudioPicker::pinnedIds(const Source &source)
 
 void KisStudioPicker::setPinnedIds(const Source &source, const QStringList &ids)
 {
-    // ids not known now (a plugin not loaded, another version's) are kept for when they are again
+    // keep ids unknown right now (a plugin not loaded, another version's) for when they return
     QStringList kept = ids;
     const QSet<QString> known = knownIds(source);
     Q_FOREACH (const QString &id, KisConfig(true).readEntry<QStringList>(source.pinnedKey, QStringList())) {
@@ -659,7 +656,7 @@ QStringList KisStudioPicker::scrollOrder(const Source &source)
 }
 
 KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, const QSet<QString> &available, QWidget *parent)
-    // on Windows not Qt::Popup: translucent popups render a black background there (see KisStudioGlass::popupWindowType)
+    // not Qt::Popup on Windows, where translucent popups get a black background (see KisStudioGlass::popupWindowType)
     : QFrame(parent, KisStudioGlass::popupWindowType() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
     , d(new Private)
 {
@@ -701,18 +698,14 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     auto *footer = new QHBoxLayout();
     d->footer = footer;
     footer->setContentsMargins(8, 2, 4, 0);
-    d->hint = new QLabel(i18nc("@info", "Drag to reorder · ★ to favorite"), this);
-    QPalette hintPalette = d->hint->palette();
-    hintPalette.setColor(QPalette::WindowText, KisModernStyle::secondaryInk(hintPalette.color(QPalette::WindowText)));
-    d->hint->setPalette(hintPalette);
-    footer->addWidget(d->hint, 1);
+    footer->addStretch(1);
     auto *all = new LinkButton(this);
     all->setCursor(Qt::PointingHandCursor);
     d->allButton = all;
     footer->addWidget(all);
     layout->addLayout(footer);
 
-    // the recent ones, yours (numbered), then the others in groups; or the matches
+    // lays out the recent items, the user's numbered list, then the other groups; or the search matches
     d->relayout = [this]() {
         d->items.clear();
         d->headers.clear();
@@ -761,7 +754,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
                 }
                 if (score > 0) scored.append(qMakePair(score, id));
             }
-            // fuzzy matches (a typo, a few letters of each word) only when the plain ones are few
+            // add fuzzy matches (typos, a few letters of each word) only when plain ones are few
             if (scored.size() < 6) {
                 Q_FOREACH (const QString &id, d->source.allIds()) {
                     int score = 0;
@@ -803,7 +796,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
                     }
                     height = y;
                 } else {
-                    // each group into the shortest column
+                    // put each group into the shortest column
                     QVector<int> heights(m.columns, y + 8);
                     Q_FOREACH (const Group &group, groups) {
                         const int c = int(std::min_element(heights.begin(), heights.end()) - heights.begin());
@@ -827,7 +820,6 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
         d->allButton->setText(d->showAll ? i18nc("@action:button", "Only yours")
                                          : d->source.allLabel.arg(d->source.allIds().size()));
         d->allButton->setVisible(query.isEmpty());
-        d->hint->setVisible(query.isEmpty());
 
         d->highlighted = -1;
         for (int i = 0; i < d->items.size(); i++) {
@@ -844,7 +836,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
         d->showAll = !d->showAll;
         d->relayout();
     });
-    // a current one that is not yours shows among the others
+    // show all items when the current one isn't in the user's list
     d->showAll = !current.isEmpty() && !d->pinned.contains(current);
     d->relayout();
 }
@@ -862,7 +854,7 @@ void KisStudioPicker::addAlternateView(QWidget *view, const QString &label, cons
     d->alternate = view;
     view->setParent(this);
     view->hide();
-    // in the list's place, the list hidden while it shows
+    // placed after the list, which is hidden while the view shows
     if (auto *box = qobject_cast<QVBoxLayout *>(layout())) {
         box->insertWidget(box->indexOf(d->scroll) + 1, view);
     }
@@ -876,7 +868,6 @@ void KisStudioPicker::addAlternateView(QWidget *view, const QString &label, cons
         d->scroll->setVisible(!on);
         d->search->setVisible(!on);
         d->allButton->setVisible(!on && d->search->text().trimmed().isEmpty());
-        d->hint->setVisible(!on && d->search->text().trimmed().isEmpty());
         d->alternateButton->setText(on ? i18nc("@action:button back to the list", "List") : label);
         adjustSize();
         keepOnScreen();
@@ -885,7 +876,7 @@ void KisStudioPicker::addAlternateView(QWidget *view, const QString &label, cons
         const bool on = !d->alternate->isVisible();
         KisConfig(false).writeEntry(rememberedKey, on);
         apply(on);
-        // the hidden search had the keys, Escape included
+        // the search field, now hidden, had the focus and so the keys, Escape included
         if (on) setFocus();
         else d->search->setFocus();
     });
@@ -907,7 +898,7 @@ void KisStudioPicker::popupBelow(QWidget *anchor)
     adjustSize();
     const int shadowMargin = shadowMarginOf(this);
     QPoint pos = anchor->mapToGlobal(QPoint(0, anchor->height())) - QPoint(shadowMargin, shadowMargin - 4);
-    // past the right of its window: lined up with the anchor's right instead
+    // if it would extend past the window, align it with the anchor's right edge instead
     const QWidget *window = anchor->window();
     const int windowRight = window->mapToGlobal(QPoint(window->width(), 0)).x();
     if (pos.x() + width() - shadowMargin > windowRight) {
@@ -919,7 +910,7 @@ void KisStudioPicker::popupBelow(QWidget *anchor)
 void KisStudioPicker::popupNear(const QPoint &globalPos)
 {
     adjustSize();
-    // the search field just above the pointer, the items under it
+    // the search field just above the pointer, the items below it
     popupAt(globalPos - QPoint(width() / 2, shadowMarginOf(this) + 26), nullptr);
 }
 
@@ -944,7 +935,7 @@ void KisStudioPicker::popupAt(QPoint pos, QWidget *anchor)
 
 void KisStudioPicker::keepOnScreen()
 {
-    // grown while shown (all of them shown, the map): not past the screen's edge
+    // it may grow while shown (show all, the alternate view): keep it on screen
     if (isVisible()) move(onScreen(pos(), size(), screen()));
 }
 
@@ -959,7 +950,7 @@ bool KisStudioPicker::eventFilter(QObject *watched, QEvent *event)
             d->point(index);
             d->scroll->ensureVisible(d->items[index].rect.center().x(), d->items[index].rect.center().y(), 0, d->m.cellHeight);
         };
-        // tiles go across, so up and down are a row away
+        // tiles are laid out across, so up and down move a whole row
         const int vertical = d->source.tiles ? d->m.columns : 1;
         switch (key->key()) {
         case Qt::Key_Down: move(vertical); return true;
@@ -978,7 +969,7 @@ bool KisStudioPicker::eventFilter(QObject *watched, QEvent *event)
             close();
             return true;
         default:
-            // a digit with nothing typed: the one of yours with that number (0 the tenth)
+            // with nothing typed, a digit picks that number from the user's list (0 is the tenth)
             if (d->search->text().isEmpty() && !(key->modifiers() & ~Qt::KeypadModifier) && key->key() >= Qt::Key_0
                 && key->key() <= Qt::Key_9) {
                 const int order = key->key() == Qt::Key_0 ? 9 : key->key() - Qt::Key_1;
@@ -997,7 +988,7 @@ bool KisStudioPicker::eventFilter(QObject *watched, QEvent *event)
 
 void KisStudioPicker::keyPressEvent(QKeyEvent *event)
 {
-    // the search has its own (see eventFilter); this is for the alternate view
+    // the search field handles its own keys (see eventFilter); this is for the alternate view
     if (event->key() == Qt::Key_Escape) {
         close();
         return;
@@ -1021,7 +1012,7 @@ void KisStudioPicker::paintEvent(QPaintEvent *)
 
 void KisStudioPicker::hideEvent(QHideEvent *event)
 {
-    // closed without picking: back to how it was
+    // closed without picking: end the preview
     if (!d->done) d->finish();
     QFrame::hideEvent(event);
 }

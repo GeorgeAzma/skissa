@@ -12,7 +12,7 @@
 
 namespace
 {
-/// Advances the animations on a timer of one screen frame (Qt's own driver ticks every 16 ms)
+/// Ticks animations once per screen frame; Qt's default driver ticks every 16 ms.
 class FrameDriver : public QAnimationDriver
 {
 public:

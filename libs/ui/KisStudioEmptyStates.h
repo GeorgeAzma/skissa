@@ -9,10 +9,9 @@
 #include "kritaui_export.h"
 
 /**
- * A list with nothing in it says why, quietly, in its middle: a search that finds
- * nothing, a tag with no brushes yet, an empty palette. Any item view can say what
- * it says with the property "studioEmptyText"; resource lists and palettes say it
- * by themselves.
+ * Shows a quiet centered message in empty item views, such as a search with no
+ * matches or an empty palette. Any view can set its own message through the
+ * "studioEmptyText" property; resource lists and palettes have built-in ones.
  */
 namespace KisStudioEmptyStates
 {

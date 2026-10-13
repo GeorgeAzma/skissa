@@ -11,17 +11,16 @@
 class KUndo2Stack;
 
 /**
- * Settings changes and a document's steps in one history: Undo takes back
- * whichever was done last, Redo does again what was taken back last. The
- * settings keep a history of their own (see KisSettingsRegistry); nothing
- * is added to the document's, which stays as it was (and so does whether
- * it is saved).
+ * Interleaves settings changes with a document's undo history, so Undo takes
+ * back whichever happened last and Redo repeats whatever was undone last.
+ * Settings keep their own history (see KisSettingsRegistry); the document's
+ * undo stack, and its modified state, are left untouched.
  */
 namespace KisSettingsUndo
 {
-/// Before \p stack undoes: true if a settings change was undone instead
+/// Called before \p stack undoes; returns true if a settings change was undone instead.
 KRITAUI_EXPORT bool undoInstead(KUndo2Stack *stack);
-/// Before \p stack redoes: true if a settings change was redone instead
+/// Called before \p stack redoes; returns true if a settings change was redone instead.
 KRITAUI_EXPORT bool redoInstead(KUndo2Stack *stack);
 }
 

@@ -16,21 +16,22 @@
 class QWidget;
 
 /**
- * Fingers, as opposed to a mouse or a pen: a finger on the screen turns it on, the mouse moving or a pen near
- * turns it off. A finger does not hover, so widgets show what is otherwise shown under the pointer while it is on.
+ * Tracks whether the user is working with fingers rather than a mouse or pen. A touch turns it on; mouse
+ * movement or a nearby pen turns it off. Fingers can't hover, so widgets show their hover-only controls
+ * while it is on.
  *
- * A finger held still on a widget is a right click there, unless the widget sets the property ownLongPress.
+ * A long press opens the widget's context menu, unless the widget sets the "ownLongPress" property.
  */
 class KRITAWIDGETUTILS_EXPORT KisTouchMode : public QObject
 {
     Q_OBJECT
 public:
     static KisTouchMode *instance();
-    /// Watches the application's input; once is enough, more does nothing
+    /// Starts watching the application's input. Further calls do nothing.
     static void install();
     static bool isActive();
 
-    /// How long a hold is, in ms
+    /// Long-press duration in ms.
     static constexpr int longPressDelay = 480;
 
 Q_SIGNALS:
@@ -47,13 +48,13 @@ private:
 
     bool m_active {false};
     QPoint m_lastMousePos;
-    /// Krita's own long press is on: it makes the context menu instead
+    /// Krita's own long-press setting is on, which opens the context menu instead.
     bool m_kritaLongPress {false};
 
     QTimer m_holdTimer;
     QPointer<QWidget> m_holdWidget;
     QPoint m_holdPos;
-    /// The hold became a right click: the release that follows is not a click
+    /// A long press opened a menu, so the following release must not click.
     bool m_swallowRelease {false};
 };
 

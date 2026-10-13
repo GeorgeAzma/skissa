@@ -10,22 +10,20 @@
 #include "kritaglobal_export.h"
 
 /**
- * The pace of what moves on screen: the refresh rate of the fastest screen,
- * so that nothing (an animation, the canvas, feedback while dragging) is held
- * to a fixed rate such as 60 Hz on a faster screen.
+ * Frame timing based on the fastest screen's refresh rate, so animations,
+ * the canvas and drag feedback are not capped at 60 Hz on faster screens.
  */
 namespace KisFrameRate
 {
-/// The refresh rate of the fastest screen, in Hz (60 if it is not known)
+/// The refresh rate of the fastest screen in Hz, or 60 if unknown.
 KRITAGLOBAL_EXPORT qreal screenRate();
 
-/// One frame of the fastest screen, in whole milliseconds (rounded down, at least 1)
+/// One frame of the fastest screen in whole milliseconds (rounded down, at least 1).
 KRITAGLOBAL_EXPORT int frameMs();
 
 /**
- * Qt's animations (QVariantAnimation, QScroller, ...) advance once per frame
- * of the fastest screen, instead of every 16 ms. Call once, from the GUI
- * thread, after the application is created.
+ * Makes Qt's animations advance once per frame of the fastest screen instead
+ * of every 16 ms. Call once from the GUI thread after the application exists.
  */
 KRITAGLOBAL_EXPORT void installAnimationDriver();
 }

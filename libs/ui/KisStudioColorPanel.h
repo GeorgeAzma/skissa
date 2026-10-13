@@ -16,8 +16,9 @@
 #include "kritaui_export.h"
 
 /**
- * The color panel: OKLCH pickers, where equal steps look equal (a hue ring around a lightness/chroma square, or
- * sliders), or Krita's classic HSV ring and triangle; the current, previous and recent colors under them.
+ * The color panel. It offers OKLCH pickers, where equal steps look equally different (a hue ring around a
+ * lightness/chroma square, or sliders), and Krita's classic HSV ring and triangle, with the current, previous
+ * and recent colors below.
  */
 class KRITAUI_EXPORT KisStudioColorPanel : public QDockWidget, public KoCanvasObserverBase
 {
@@ -31,15 +32,14 @@ public:
     void unsetCanvas() override;
 
     static QString id();
-    /// Once, before the main window creates its dockers
+    /// Registers the dock factory; call once before the main window creates its dockers.
     static void registerFactory();
 
-    struct Private;
-
 private:
-    /// No taller than the picker needs, where that is less than the room it is given
+    /// Limits the height to what the sliders need, leaving the rest to the panels below
     void fitHeight();
 
+    struct Private;
     const std::unique_ptr<Private> d;
 };
 

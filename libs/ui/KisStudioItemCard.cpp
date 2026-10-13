@@ -44,7 +44,7 @@ namespace {
 
 constexpr int glassShadowMargin = 14;
 
-/// No shadow on a solid window (see KisStudioGlass::seeThroughWindows)
+/// Opaque windows have no shadow (see KisStudioGlass::seeThroughWindows)
 int shadowMarginOf(const QWidget *window)
 {
     return window->testAttribute(Qt::WA_TranslucentBackground) ? glassShadowMargin : 0;
@@ -56,7 +56,7 @@ QColor mix(const QColor &a, const QColor &b, qreal t)
                             a.blueF() + (b.blueF() - a.blueF()) * t);
 }
 
-/// The shortcut as a key cap; a click records a new one
+/// Shows the shortcut as a key cap; clicking it records a new one
 class KeyCap : public QAbstractButton
 {
 public:
@@ -93,7 +93,7 @@ private:
     bool m_recording {false};
 };
 
-/// A variant in the card: click picks it, drag takes it out as an item, right click hides it
+/// A variant tile: click picks it, dragging takes it out as an item, right click hides it
 class ChoiceTile : public QAbstractButton
 {
 public:
@@ -161,9 +161,9 @@ private:
 };
 
 /**
- * Every menu's shortcuts can be changed where they are shown: a click on a
- * key cap (or the "+" of an entry without one) records the next keys
- * pressed; the menu stays open.
+ * Edits shortcuts directly in menus: clicking an entry's key cap (or the "+"
+ * of an entry without a shortcut) records the next key press, and the menu
+ * stays open.
  */
 class MenuShortcutEditor : public QObject
 {
@@ -253,11 +253,11 @@ private:
         }
         const QString taken = KisStudioShortcuts::assign(KisPart::instance()->currentMainwindow(), target, sequence);
         if (entry != target) {
-            // an entry standing in for the action: its shortcut is in its text
+            // A proxy entry shows its shortcut after a tab in its text
             const QString label = entry->text().section(QLatin1Char('\t'), 0, 0);
             entry->setText(sequence.isEmpty() ? label : label + QLatin1Char('\t') + sequence.toString(QKeySequence::NativeText));
         }
-        // a longer key cap makes the menu wider: kept on the screen
+        // A longer key cap can widen the menu; keep it on screen
         QTimer::singleShot(0, menu, [menu]() {
             menu->adjustSize();
             if (QScreen *screen = menu->screen()) {
@@ -365,7 +365,7 @@ void KisStudioShortcuts::enableMenuEditing()
     if (editor) return;
     editor = new MenuShortcutEditor(qApp);
     qApp->installEventFilter(editor);
-    // for the style: menus draw the "+" of entries that can be given a shortcut
+    // Tells the style to draw "+" on menu entries that can take a shortcut
     qApp->setProperty("kisMenuShortcutsEditable", true);
 }
 
@@ -417,7 +417,7 @@ struct KisStudioItemCard::Private
 };
 
 KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &icon, const QString &title, QAction *shortcutAction)
-    // on Windows not Qt::Popup: translucent popups render a black background there (see KisStudioGlass::popupWindowType)
+    // Not Qt::Popup on Windows, where translucent popups get a black background (see KisStudioGlass::popupWindowType)
     : QFrame(mainWindow, KisStudioGlass::popupWindowType() | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint)
     , d(new Private)
 {
@@ -485,7 +485,7 @@ void KisStudioItemCard::setChoices(const QVector<Choice> &choices)
             if (pick) pick();
             close();
         });
-        // dragged out: out of the way of the drop, then closed
+        // Hide during a drag so the card doesn't cover the drop target, then close
         tile->dragged = [this]() { hide(); };
         tile->dropped = [this]() { close(); };
         d->choices->addWidget(tile);
@@ -495,7 +495,7 @@ void KisStudioItemCard::setChoices(const QVector<Choice> &choices)
 
 void KisStudioItemCard::addCommand(const Command &command)
 {
-    /// A row drawn as a menu entry is; its tooltip's words after " (" are only its tooltip
+    /// A row drawn like a menu entry; any part of the tooltip from " (" on is left out of its label
     class CommandRow : public QAbstractButton
     {
     public:
@@ -588,7 +588,7 @@ void KisStudioItemCard::startRecording()
     adjustSize();
     activateWindow();
     setFocus();
-    // the window's shortcuts must not fire while recording one
+    // Keep the window's shortcuts from firing while recording
     grabKeyboard();
 }
 

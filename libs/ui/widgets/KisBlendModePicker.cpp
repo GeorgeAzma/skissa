@@ -32,10 +32,10 @@ namespace {
 
 using Group = KisStudioPicker::Group;
 
-/// The starred modes of before the list could be ordered
+/// Legacy setting with starred modes, used to seed the user's list
 const QString oldFavoritesKey = QStringLiteral("StudioFavoriteBlendModes");
 
-/// The common modes, by what they do
+/// The common modes, grouped by effect
 QStringList defaultPinned()
 {
     return {
@@ -58,7 +58,7 @@ QStringList defaultPinned()
     };
 }
 
-/// \p source in mode \p id over \p backdrop, with the mode's real composite op
+/// Blends \p source over \p backdrop using the real composite op \p id
 QImage compositeWith(const QImage &backdrop, const QImage &source, qreal opacity, const QString &id)
 {
     // Krita's 8-bit RGB is BGRA in memory, the same as ARGB32 on little endian
@@ -74,7 +74,7 @@ QImage compositeWith(const QImage &backdrop, const QImage &source, qreal opacity
         params.srcRowStride = src.bytesPerLine();
         params.rows = dst.height();
         params.cols = dst.width();
-        // dissolve at full opacity is just Normal
+        // Dissolve at full opacity looks the same as Normal
         params.opacity = float(opacity) * (id == QLatin1String("dissolve") ? 0.5f : 1.0f);
         params.flow = 1.0f;
         params.channelFlags = QBitArray();
@@ -83,7 +83,7 @@ QImage compositeWith(const QImage &backdrop, const QImage &source, qreal opacity
     return dst;
 }
 
-/// Where a picture is transparent
+/// Background that shows where a picture is transparent
 void paintCheckerboard(QPainter &painter, const QRect &rect, int cell, const QColor &dark)
 {
     for (int y = rect.top(); y < rect.bottom(); y += cell) {
@@ -95,9 +95,9 @@ void paintCheckerboard(QPainter &painter, const QRect &rect, int cell, const QCo
 }
 
 /**
- * A warm color in the mode over a gray ramp (top) and a hue ramp (bottom).
- * For the transparency modes the backdrop fades out to the right: on an
- * opaque one Behind would show nothing and Erase a hole.
+ * A warm color blended over a gray ramp (top) and a hue ramp (bottom).
+ * For the transparency modes the backdrop fades out to the right, since on
+ * an opaque backdrop Behind would show nothing and Erase only a hole.
  */
 QImage swatchFor(const QString &id)
 {
@@ -137,10 +137,10 @@ QImage swatchFor(const QString &id)
 }
 
 /**
- * What a mode is shown over when there is nothing under the layer: dark to
- * light from left to right (Multiply shows on the light side, Screen on the
- * dark), cool to warm from top to bottom for the color modes; even OKLab
- * lightness steps.
+ * Backdrop used when there is nothing under the layer: dark to light from
+ * left to right (Multiply shows on the light side, Screen on the dark),
+ * cool to warm from top to bottom for the color modes, with perceptually
+ * even (OKLab) lightness steps.
  */
 QImage blendBackdrop(const QSize &size)
 {
@@ -160,12 +160,12 @@ QImage blendBackdrop(const QSize &size)
     for (int y = 0; y < h; y++) {
         QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
         const qreal v = h > 1 ? qreal(y) / (h - 1) : 0.5;
-        // blue at the top, through violet, to amber at the bottom
+        // Blue at the top, through violet, to amber at the bottom
         const qreal hue = (250.0 + 150.0 * v) * M_PI / 180.0;
         for (int x = 0; x < w; x++) {
             const qreal u = w > 1 ? qreal(x) / (w - 1) : 0.5;
             const qreal L = 0.2 + 0.74 * u;
-            // less color near black and white, where there is little room for it
+            // Less chroma near black and white, where the gamut is narrow
             const qreal C = 0.085 * std::sin(M_PI * qBound(0.0, (L - 0.08) / 0.9, 1.0));
             const qreal A = C * std::cos(hue), B = C * std::sin(hue);
             const qreal l = std::pow(L + 0.3963377774 * A + 0.2158037573 * B, 3);
@@ -174,7 +174,7 @@ QImage blendBackdrop(const QSize &size)
             const qreal r = toSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s);
             const qreal g = toSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s);
             const qreal b = toSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s);
-            // a little noise under the step of eight bits: a smooth ramp, no bands
+            // Dither below one 8-bit step to avoid banding
             const qreal noise = (((x * 7 + y * 13) % 16) + 0.5) / 16.0 - 0.5;
             line[x] = qRgb(qBound(0, int(r * 255 + 0.5 + noise), 255), qBound(0, int(g * 255 + 0.5 + noise), 255),
                            qBound(0, int(b * 255 + 0.5 + noise), 255));
@@ -185,7 +185,7 @@ QImage blendBackdrop(const QSize &size)
     return image;
 }
 
-/// Something to blend when the layer is empty
+/// A soft blob to blend when the layer is empty
 QImage sampleShape(const QSize &size, const QColor &color)
 {
     QImage image(size, QImage::Format_ARGB32_Premultiplied);
@@ -206,7 +206,7 @@ QImage sampleShape(const QSize &size, const QColor &color)
     return image.convertToFormat(QImage::Format_ARGB32);
 }
 
-/// A thick stroke across the picture, as a brush would paint it
+/// A thick brush-like stroke across the picture
 QImage strokeShape(const QSize &size, const QColor &color)
 {
     QImage image(size, QImage::Format_ARGB32_Premultiplied);
@@ -226,7 +226,7 @@ QImage strokeShape(const QSize &size, const QColor &color)
     return image.convertToFormat(QImage::Format_ARGB32);
 }
 
-/// \p image (of size \p full) cropped to \p size in the middle
+/// Scales \p image to \p full if needed and crops its center to \p size
 QImage cropTo(QImage image, const QSize &full, const QSize &size)
 {
     if (image.isNull()) {
@@ -239,7 +239,7 @@ QImage cropTo(QImage image, const QSize &full, const QSize &size)
     return image.copy((full.width() - size.width()) / 2, (full.height() - size.height()) / 2, size.width(), size.height());
 }
 
-/// "Soft Light (Photoshop)" -> "Soft Light", for your list, where the variant rarely matters
+/// "Soft Light (Photoshop)" -> "Soft Light"; used in the user's list, where the variant rarely matters
 QString withoutQualifier(QString name)
 {
     static const QRegularExpression qualifier(QStringLiteral("\\s*\\([^)]*\\)$"));
@@ -251,7 +251,7 @@ QString nameOf(const QString &id)
     return KoCompositeOpRegistry::instance().getKoID(id).name();
 }
 
-/// Every registered mode, once
+/// Every registered mode, without duplicates
 QList<KoID> allOps()
 {
     QList<KoID> ops;
@@ -266,7 +266,7 @@ QList<KoID> allOps()
     return ops;
 }
 
-/// The modes not in your list, by category, each once
+/// Modes not in the user's list, by category, without duplicates
 QVector<Group> otherGroups(const QStringList &pinned)
 {
     QVector<Group> groups;
@@ -310,7 +310,7 @@ KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures)
     source.name = nameOf;
     source.pinnedName = [](const QString &id) { return withoutQualifier(nameOf(id)); };
     if (pictures.isValid()) {
-        // made the first time a tile shows
+        // Rendered lazily, the first time each tile is shown
         auto made = std::make_shared<QHash<QString, QImage>>();
         source.tiles = true;
         source.paintPreview = [pictures, made](QPainter &painter, const QRect &rect, const QString &id) {
@@ -327,7 +327,7 @@ KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures)
     }
     source.yoursTitle = i18nc("blend mode group", "Your modes");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 blend modes", allOps().size());
-    // the number goes in later: %1 passes through
+    // The count is filled in later, so keep %1 as a placeholder
     source.allLabel = i18nc("@action:button %1 is a number", "All %1 modes", QStringLiteral("%1"));
     return source;
 }
@@ -349,13 +349,13 @@ QStringList KisBlendModePicker::scrollOrder()
 
 QSize KisBlendModePicker::pictureSize(const QWidget *widget)
 {
-    // a default tile's picture, see KisStudioPicker
+    // A default tile's picture size, see KisStudioPicker
     return QSize(112, 64) * (widget ? widget->devicePixelRatioF() : 1.0);
 }
 
 KisBlendModePicker::Pictures KisBlendModePicker::layerPictures(KisNodeSP node, const QSize &size, const QColor &color)
 {
-    // a mask blends nothing itself: its layer does
+    // Masks don't blend by themselves; use their layer
     while (node && !node->inherits("KisLayer")) {
         node = node->parent();
     }
@@ -365,8 +365,8 @@ KisBlendModePicker::Pictures KisBlendModePicker::layerPictures(KisNodeSP node, c
     }
     const QSize full = image->bounds().size().scaled(size, Qt::KeepAspectRatioByExpanding);
 
-    // everything below the layer, bottom up, each in its own mode; groups are looked into
-    // rather than blended as one, close enough for a picture this small
+    // Composite everything below the layer, bottom up, each in its own mode. Groups are flattened
+    // into their children rather than blended as one, which is close enough at this size
     QImage backdrop(size, QImage::Format_ARGB32);
     backdrop.fill(image->defaultProjectionColor().toQColor());
     bool reached = false;
@@ -398,7 +398,7 @@ KisBlendModePicker::Pictures KisBlendModePicker::layerPictures(KisNodeSP node, c
 
     Pictures pictures;
     pictures.backdrop = KisStudioPicker::isFlat(backdrop) ? blendBackdrop(size) : backdrop;
-    // the whole image's area, to line up with the layers below (a cached thumbnail is only the painted part)
+    // Cover the whole image so it lines up with the layers below (a cached thumbnail covers only the painted part)
     const QImage layer = node->projection()
         ? cropTo(node->projection()->createThumbnailUncached(full.width(), full.height(), image->bounds()), full, size)
         : QImage();

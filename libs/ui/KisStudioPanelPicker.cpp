@@ -22,19 +22,19 @@
 
 namespace {
 
-/// Portrait, as panels are
+/// Portrait, like most panels
 const QSize tileSize(156, 176);
-/// Sharp in a tile on a 2x screen
+/// Wide enough to stay sharp in a tile on a 2x screen
 constexpr int keptWidth = 300;
 
-/// Without the empty space around the content: most panels are mostly empty
+/// Crops away the empty space around the content, since most panels are mostly empty
 QImage trimmed(const QImage &image)
 {
     const QImage img = image.convertToFormat(QImage::Format_ARGB32);
     if (img.isNull()) {
         return img;
     }
-    // the panel's own background: a bottom corner
+    // take the panel's background colour from a bottom corner
     const QRgb background = img.pixel(img.width() - 1, img.height() - 1);
     auto differs = [background](QRgb c) {
         return qAbs(qRed(c) - qRed(background)) + qAbs(qGreen(c) - qGreen(background)) + qAbs(qBlue(c) - qBlue(background)) > 30;
@@ -57,7 +57,7 @@ QImage trimmed(const QImage &image)
     return img.copy(QRect(QPoint(left, top), QPoint(right, bottom)).adjusted(-margin, -margin, margin, margin) & img.rect());
 }
 
-/// The pictures by panel id: in memory, and on disk between sessions
+/// Panel snapshots by panel id, cached in memory and on disk
 struct Looks {
     QHash<QString, QImage> images;
     QHash<QString, qint64> taken;
@@ -100,7 +100,7 @@ struct Looks {
         const QImage small = content.width() > keptWidth ? content.scaledToWidth(keptWidth, Qt::SmoothTransformation) : content;
         images.insert(id, small);
         taken.insert(id, QDateTime::currentMSecsSinceEpoch());
-        // written off the GUI thread: it runs as a panel hides
+        // save off the GUI thread, since this runs while a panel hides
         const QString file = fileOf(id);
         QtConcurrent::run([small, file]() {
             if (QDir().mkpath(folder())) small.save(file, "PNG");
@@ -108,7 +108,7 @@ struct Looks {
     }
 };
 
-/// \p look with its solid background (pictures taken before panels were glass) made transparent
+/// \p look with a solid background made transparent, so it sits on the glass
 QImage withoutBackground(const QImage &look)
 {
     static QHash<qint64, QImage> made;
@@ -142,7 +142,7 @@ KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioP
         QHash<QString, QDockWidget *> result;
         if (!window) return result;
         Q_FOREACH (QDockWidget *dock, window->dockWidgets()) {
-            // the toolbox is the tool rail in the studio layout
+            // the Studio layout shows the toolbox as the tool rail
             if (!dock->objectName().isEmpty() && dock->objectName() != QLatin1String("ToolBox") && !dock->windowTitle().isEmpty()) {
                 result.insert(dock->objectName(), dock);
             }
@@ -184,7 +184,7 @@ KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioP
             painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
             painter.drawImage(target, onGlass);
         } else {
-            // never on screen yet (laying a panel out off screen would change it)
+            // not shown yet; laying the panel out off screen would disturb it
             painter.fillRect(rect, QColor(128, 128, 128, 40));
             if (QDockWidget *dock = docks().value(id)) {
                 QRect iconRect(0, 0, 32, 32);
@@ -199,7 +199,7 @@ KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioP
     source.tileSize = tileSize;
     source.yoursTitle = i18nc("panels group: the ones on the rail", "On the rail");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search panels");
-    // %1 is filled in later
+    // %1 stays a placeholder for the picker to fill in
     source.allLabel = i18nc("@action:button %1 is a number", "All %1 panels", QStringLiteral("%1"));
     return source;
 }
@@ -217,12 +217,12 @@ KisStudioPanelPicker::KisStudioPanelPicker(KisMainWindow *mainWindow, const Rail
 void KisStudioPanelPicker::rememberLook(QDockWidget *dock)
 {
     QWidget *content = dock ? dock->widget() : nullptr;
-    // only when laid out on screen (not while the window closes)
+    // only while laid out on screen, not while the window closes
     if (!content || !dock->window() || !dock->window()->isVisible() || content->width() < 40 || content->height() < 40) {
         return;
     }
     Looks &looks = Looks::instance();
-    // not for every flicker
+    // at most once a second per panel
     if (QDateTime::currentMSecsSinceEpoch() - looks.taken.value(dock->objectName(), 0) < 1000) {
         return;
     }

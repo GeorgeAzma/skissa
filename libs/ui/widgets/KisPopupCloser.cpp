@@ -19,7 +19,7 @@ KisPopupCloser::KisPopupCloser(QWidget *popup, QWidget *anchor)
 
 bool KisPopupCloser::isInside(QWidget *widget) const
 {
-    // menus opened from the popup are separate windows, but still part of it
+    // Menus opened from the popup are separate windows but still count as inside.
     for (QWidget *window = widget->window(); window; window = window->parentWidget() ? window->parentWidget()->window() : nullptr) {
         if (window == m_popup) {
             return true;
@@ -42,7 +42,7 @@ bool KisPopupCloser::eventFilter(QObject *watched, QEvent *event)
         }
         break;
     case QEvent::WindowDeactivate:
-        // shown while another application had the focus, it never got it to lose
+        // Ignore deactivation if the popup was never active, e.g. shown while another app had focus.
         if (watched == m_popup && m_wasActive) {
             m_popup->close();
         }
