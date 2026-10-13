@@ -827,6 +827,20 @@ struct KisOpenGLGlass::Private : Programs
     qreal blurredRatio {0};
     qreal blurredAmount {0};
 
+    /**
+     * A texture to render to. Keeps the framebuffer that is bound: Qt binds the one it last knew of
+     * instead, so the glass of that frame would land off screen.
+     */
+    QOpenGLFramebufferObject *texture(const QSize &size) const
+    {
+        QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+        GLint bound = 0;
+        f->glGetIntegerv(GL_FRAMEBUFFER_BINDING, &bound);
+        auto *fbo = new QOpenGLFramebufferObject(size, QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, keptFormat);
+        f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(bound));
+        return fbo;
+    }
+
     /// Grows the textures to at least \p size; they never shrink, as panels come and go.
     void ensureSize(const QSize &size)
     {
@@ -835,7 +849,7 @@ struct KisOpenGLGlass::Private : Programs
         }
         const QSize grown = small ? size.expandedTo(small->size()) : size;
         for (QScopedPointer<QOpenGLFramebufferObject> *fbo : {&small, &across, &blurred, &smallStatistics, &acrossStatistics, &statistics}) {
-            fbo->reset(new QOpenGLFramebufferObject(grown, QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, keptFormat));
+            fbo->reset(texture(grown));
         }
     }
 };
@@ -930,7 +944,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     const QSize smallSize((viewport.width() + factor - 1) / factor, (viewport.height() + factor - 1) / factor);
     if (!d->ambientSmall || d->ambientSmall->size() != smallSize) {
         for (QScopedPointer<QOpenGLFramebufferObject> *fbo : {&d->ambientSmall, &d->ambientAcross, &d->ambientBlurred}) {
-            fbo->reset(new QOpenGLFramebufferObject(smallSize, QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, d->keptFormat));
+            fbo->reset(d->texture(smallSize));
         }
     }
     d->imageToSurface = surfaceToImage.inverted();

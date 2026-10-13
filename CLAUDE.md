@@ -134,3 +134,4 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - After a build, check the installed DLL's time: an install can silently keep the old one when the dev Krita was still running.
 - Another session may be driving the dev Krita too (and may have started it with other variables, such as `KRITA_DEV_APART`). If a capture shows a fresh-looking profile, check the process's command line and parent before suspecting the code.
 - Windows caches program icons by path: after the .exe's icon changes, Task Manager and Explorer can keep showing the old one until `ie4uinit.exe -show` refreshes the cache.
+- Creating a `QOpenGLFramebufferObject` in the middle of a frame leaves bound the framebuffer Qt last knew of, not the one that was bound: the rest of the frame lands off screen. Create them through `KisOpenGLGlass`'s `texture()`, which keeps the binding. (This was the glass missing under a menu the first time it opened.)
