@@ -1035,7 +1035,7 @@ QVector<CardDef> makeCards()
         });
     add(QStringLiteral("canvas"), QStringLiteral("selection"), i18nc("settings card", "Selection"),
         {QStringLiteral("selectionOutlineOpacity"), QStringLiteral("selectionOverlayMaskColor"), QStringLiteral("selectionActionBar")},
-        QStringLiteral("marching ants outline mask overlay color actions bar"), [](Builder &b) {
+        QStringLiteral("marching ants outline mask overlay color actions bar popup buttons floating toolbar"), [](Builder &b) {
             b.number(QStringLiteral("selectionOutlineOpacity"), {i18nc("selection", "Outline"), 100, 0, QStringLiteral("%")});
             b.color(QStringLiteral("selectionOverlayMaskColor"), true, i18nc("selection", "Mask color"));
             b.toggle(QStringLiteral("selectionActionBar"), i18nc("selection", "Actions bar"));
