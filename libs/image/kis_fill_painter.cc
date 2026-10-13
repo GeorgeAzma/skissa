@@ -39,6 +39,7 @@
 #include "kis_pixel_selection.h"
 #include <KoCompositeOpRegistry.h>
 #include <floodfill/kis_scanline_fill.h>
+#include <floodfill/KisLineArtFill.h>
 #include "kis_selection_filters.h"
 #include <kis_perspectivetransform_worker.h>
 #include <kis_sequential_iterator.h>
@@ -385,6 +386,12 @@ KisPixelSelectionSP KisFillPainter::createFloodSelection(KisPixelSelectionSP pix
         } else {
             gc.fillSelectionUntilColor(pixelSelection, m_regionFillingBoundaryColor);
         }
+    }
+
+    if (m_useCompositing && m_regionFillingMode == RegionFillingMode_FloodFill && (m_underLines || m_speckSize > 1)
+        && !sourceDevice->defaultBounds()->wrapAroundMode()) {
+        KisLineArtFill::grow(pixelSelection, sourceDevice, sourceDevice->pixel(startPoint), m_threshold, m_underLines,
+                             m_speckSize, m_closeGap, fillBoundsRect);
     }
 
     if (m_useCompositing) {

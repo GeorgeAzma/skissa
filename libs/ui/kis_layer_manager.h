@@ -68,6 +68,7 @@ private Q_SLOTS:
     void layerPropertiesDialogClosed();
 
     void flattenImage();
+    void autoFlats();
 
     void flattenLayer();
 

@@ -39,6 +39,8 @@ public:
     void setFeather(int feather);
     void setSizeMod(int sizemod);
     void setStopGrowingAtDarkestPixel(bool stopGrowingAtDarkestPixel);
+    /// Fill to the middle of the lines and take in specks (see KisFillPainter::setLineArt)
+    void setLineArt(bool underLines, int speckSize);
     void setFillThreshold(int fillThreshold);
     void setOpacitySpread(int opacitySpread);
     void setCloseGap(int gap);
@@ -80,6 +82,8 @@ private:
     int m_feather;
     int m_sizemod;
     bool m_stopGrowingAtDarkestPixel;
+    bool m_underLines {false};
+    int m_speckSize {0};
     int m_fillThreshold;
     int m_opacitySpread;
     int m_closeGap;

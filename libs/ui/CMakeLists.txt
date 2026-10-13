@@ -436,6 +436,7 @@ set(kritaui_LIB_SRCS
     KisImportUserFeedbackInterface.cpp
     kis_async_action_feedback.cpp
     KisMainWindow.cpp
+    KisColorDrop.cpp
     KisStudioLayout.cpp
     KisStudioFind.cpp
     KisStudioSettings.cpp

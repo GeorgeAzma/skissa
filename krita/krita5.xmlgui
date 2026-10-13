@@ -220,6 +220,7 @@ xsi:schemaLocation="http://www.kde.org/standards/kxmlgui/1.0  http://www.kde.org
         <Action name="cut_selection_to_new_layer"/>
         <Action name="copy_selection_to_new_layer"/>
       </Menu>
+      <Action name="auto_flats"/>
       <Menu name="LayerImportExport">
         <text>&amp;Import/Export</text>
         <Action name="save_node_as_image"/>

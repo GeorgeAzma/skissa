@@ -6,6 +6,7 @@
  */
 
 #include "kis_layer_manager.h"
+#include "KisColorDrop.h"
 #include <KisProfile.h>
 
 #include <QRect>
@@ -148,6 +149,8 @@ void KisLayerManager::activateLayer(KisLayerSP layer)
 
 void KisLayerManager::setup(KisActionManager* actionManager)
 {
+    connect(actionManager->createAction("auto_flats"), SIGNAL(triggered()), this, SLOT(autoFlats()));
+
     m_imageFlatten = actionManager->createAction("flatten_image");
     connect(m_imageFlatten, SIGNAL(triggered()), this, SLOT(flattenImage()));
 
@@ -813,6 +816,11 @@ KisNodeSP KisLayerManager::addGeneratorLayer(KisNodeSP activeNode)
         applicator.cancel();
         return nullptr;
     }
+}
+
+void KisLayerManager::autoFlats()
+{
+    KisColorDrop::autoFlats(m_view);
 }
 
 void KisLayerManager::flattenImage()

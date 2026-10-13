@@ -29,6 +29,7 @@ class KisDocument;
 class KisCanvasResourceProvider;
 class KisCoordinatesConverter;
 class KisInputManager;
+class KisColorDrop;
 
 class KoCanvasResourceProvider;
 
@@ -187,6 +188,9 @@ public:
 
     bool canvasIsMirrored() const;
 
+    /// Fills where a color is dropped on the canvas
+    KisColorDrop *colorDrop() const;
+
     void syncLastActiveNodeToDocument();
 
     void saveViewState(KisPropertiesConfiguration &config) const;
@@ -244,6 +248,7 @@ protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
 
     /**

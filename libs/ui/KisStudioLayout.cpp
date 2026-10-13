@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioLayout.h"
+#include "KisColorDrop.h"
 
 #include <QAbstractButton>
 #include <QAction>
@@ -361,10 +362,25 @@ protected:
         painter.drawEllipse(foregroundRect().adjusted(-1.5, -1.5, 1.5, 1.5));
     }
 
+    // a click acts on release, so the press can also start dragging a color onto the canvas
     void mousePressEvent(QMouseEvent *event) override
     {
-        if (event->button() != Qt::LeftButton) return;
-        if (!foregroundRect().contains(event->pos()) && backgroundRect().contains(event->pos())) {
+        m_pressed = event->button() == Qt::LeftButton;
+        m_pressAt = event->pos();
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (!m_pressed || (event->pos() - m_pressAt).manhattanLength() < QApplication::startDragDistance()) return;
+        m_pressed = false;
+        KisColorDrop::startDrag(this, onBackground(m_pressAt) ? m_background : m_foreground);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (!m_pressed || event->button() != Qt::LeftButton) return;
+        m_pressed = false;
+        if (onBackground(event->pos())) {
             if (swapColors) swapColors();
         } else if (openColors) {
             openColors();
@@ -374,6 +390,10 @@ protected:
 private:
     QRectF foregroundRect() const { return QRectF(3, 3, 26, 26); }
     QRectF backgroundRect() const { return QRectF(17, 17, 20, 20); }
+    bool onBackground(const QPoint &pos) const { return !foregroundRect().contains(pos) && backgroundRect().contains(pos); }
+
+    bool m_pressed {false};
+    QPoint m_pressAt;
 
     QColor m_foreground {Qt::black};
     QColor m_background {Qt::white};

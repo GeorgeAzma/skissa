@@ -39,6 +39,11 @@
 
 #include <KisApplication.h>
 #include <KisMainWindow.h>
+#include <KisColorDrop.h>
+#include <KisView.h>
+#include <KisViewManager.h>
+#include <KoColorSpaceRegistry.h>
+#include <canvas/kis_canvas2.h>
 #include <KisSupportedArchitectures.h>
 #include <KisUsageLogger.h>
 #include <KoConfig.h>
@@ -163,7 +168,7 @@ namespace
 {
 /**
  * Developer-only test hooks (KRITA_DEV_PROFILE), driven by posted window messages: KritaDevCapture,
- * KritaDevMouse, KritaDevKey, KritaDevExport, KritaDevTree and KritaDevShortcuts. Their output goes to TEMP.
+ * KritaDevMouse, KritaDevKey, KritaDevExport, KritaDevTree, KritaDevShortcuts and KritaDevColorDrop. Their output goes to TEMP.
  */
 class DevCaptureFilter : public QAbstractNativeEventFilter
 {
@@ -180,7 +185,14 @@ public:
         static const UINT exportMessage = RegisterWindowMessageW(L"KritaDevExport");
         static const UINT treeMessage = RegisterWindowMessageW(L"KritaDevTree");
         static const UINT shortcutsMessage = RegisterWindowMessageW(L"KritaDevShortcuts");
+        static const UINT colorDropMessage = RegisterWindowMessageW(L"KritaDevColorDrop");
         const MSG *msg = static_cast<MSG *>(message);
+        if (msg->message == colorDropMessage) {
+            // the low byte: 0 over the canvas, 1 dropped, 2 left, 3 auto flats, 4 recolor the active layer; the rest is the color as 0xRRGGBB
+            colorDrop(int(msg->wParam & 0xff), QColor::fromRgb(QRgb(quint64(msg->wParam) >> 8)),
+                      QPoint(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam)));
+            return true;
+        }
         if (msg->message == shortcutsMessage) {
             shortcuts();
             return true;
@@ -216,6 +228,25 @@ public:
     }
 
 private:
+    /// A color dragged over the active canvas, at \p windowPos in the main window, without a real drag
+    static void colorDrop(int phase, const QColor &rgb, const QPoint &windowPos)
+    {
+        KisMainWindow *window = KisPart::instance()->currentMainwindow();
+        if (!window) return;
+        if (phase == 3) {
+            KisColorDrop::autoFlats(window->viewManager());
+            return;
+        }
+        KisView *view = window->activeView();
+        if (!view || !view->canvasBase()) return;
+        const QPoint pos = view->canvasBase()->canvasWidget()->mapFrom(window, windowPos);
+        const KoColor color(rgb, KoColorSpaceRegistry::instance()->rgb8());
+        if (phase == 0) view->colorDrop()->hover(color, pos);
+        else if (phase == 1) view->colorDrop()->drop(color, pos);
+        else if (phase == 4) KisColorDrop::recolor(view->image(), window->viewManager()->activeNode(), color);
+        else view->colorDrop()->leave();
+    }
+
     /// The visible windows, bottom to top (main window first, popups last), and their bounding rectangle
     static QList<QWidget *> visibleWindows(QRect &bounds)
     {

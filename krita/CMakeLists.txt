@@ -130,12 +130,12 @@ endif()
 # make a change that applies to all systems, remove any conditions. The version
 # you specify should always be one higher than any version number you see here,
 # no matter what you're doing. Do not re-use versions.
-# View > Studio Layout was added on all platforms.
-set(KRITA5_XMLGUI_VERSION 546)
+# Layer > Auto Flats was added on all platforms.
+set(KRITA5_XMLGUI_VERSION 547)
 
 # After updating the version number properly, put the new hash that the CMake
 # error lists as the "actual hash" here.
-set(krita5_xmlgui_hash_expected "ddebd72a4a466748fcd7ef47682cd8bc")
+set(krita5_xmlgui_hash_expected "6bd9e3bdb2c193d337c3d2c975b1d1b8")
 
 # You can stop reading now, the stuff that follows doesn't need to be modified.
 # ==============================================================================

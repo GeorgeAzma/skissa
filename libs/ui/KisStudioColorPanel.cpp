@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioColorPanel.h"
+#include "KisColorDrop.h"
 
 #include <QActionGroup>
 #include <QApplication>
@@ -679,6 +680,21 @@ public:
     }
 
 protected:
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        m_pressed = event->button() == Qt::LeftButton;
+        m_pressAt = event->pos();
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (!m_pressed || (event->pos() - m_pressAt).manhattanLength() < QApplication::startDragDistance()) return;
+        m_pressed = false;
+        KisColorDrop::startDrag(this, m_color);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *) override { m_pressed = false; }
+
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
@@ -692,9 +708,11 @@ protected:
 
 private:
     QColor m_color;
+    bool m_pressed {false};
+    QPoint m_pressAt;
 };
 
-/// A row of color chips; a click picks one
+/// A row of color chips; a click picks one, a drag takes it onto the canvas
 class Swatches : public QWidget
 {
 public:
@@ -727,16 +745,37 @@ protected:
 
     void mousePressEvent(QMouseEvent *event) override
     {
-        if (event->button() != Qt::LeftButton || !picked) return;
-        for (int i = 0; i < shownCount(); i++) {
-            if (chipRect(i).contains(event->pos())) {
-                picked(i);
-                return;
-            }
-        }
+        m_pressed = event->button() == Qt::LeftButton ? chipAt(event->pos()) : -1;
+        m_pressAt = event->pos();
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (m_pressed < 0 || (event->pos() - m_pressAt).manhattanLength() < QApplication::startDragDistance()) return;
+        const int index = m_pressed;
+        m_pressed = -1;
+        KisColorDrop::startDrag(this, m_colors[index]);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        const int index = m_pressed;
+        m_pressed = -1;
+        if (index >= 0 && picked && chipAt(event->pos()) == index) picked(index);
     }
 
 private:
+    int chipAt(const QPoint &pos) const
+    {
+        for (int i = 0; i < shownCount(); i++) {
+            if (chipRect(i).contains(pos)) return i;
+        }
+        return -1;
+    }
+
+    int m_pressed {-1};
+    QPoint m_pressAt;
+
     QRectF chipRect(int i) const { return QRectF(i * (m_chip + 4), 0, m_chip, m_chip); }
     /// How many chips fit
     int shownCount() const { return qMin(int(m_colors.size()), (width() + 4) / (m_chip + 4)); }

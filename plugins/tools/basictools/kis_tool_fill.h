@@ -117,6 +117,8 @@ private:
     int m_threshold {8};
     int m_opacitySpread {100};
     int m_closeGap {0};
+    bool m_underLines {true};
+    int m_speckSize {4};
     bool m_useSelectionAsBoundary {true};
 
     bool m_antiAlias {true};
@@ -171,6 +173,8 @@ private:
     KisSliderSpinBox *m_sliderThreshold {nullptr};
     KisSliderSpinBox *m_sliderSpread {nullptr};
     KisSliderSpinBox *m_sliderCloseGap {nullptr};
+    QCheckBox *m_checkBoxUnderLines {nullptr};
+    KisSliderSpinBox *m_sliderSpecks {nullptr};
     QCheckBox *m_checkBoxSelectionAsBoundary {nullptr};
 
     QCheckBox *m_checkBoxAntiAlias {nullptr};
@@ -213,6 +217,8 @@ private Q_SLOTS:
     void slot_sliderThreshold_valueChanged(int value);
     void slot_sliderSpread_valueChanged(int value);
     void slot_sliderCloseGap_valueChanged(int value);
+    void slot_checkBoxUnderLines_toggled(bool checked);
+    void slot_sliderSpecks_valueChanged(int value);
     void slot_checkBoxSelectionAsBoundary_toggled(bool checked);
     void slot_checkBoxAntiAlias_toggled(bool checked);
     void slot_sliderGrow_valueChanged(int value);

@@ -6,6 +6,7 @@
  */
 
 #include "KisView.h"
+#include "KisColorDrop.h"
 #include <KisProfile.h>
 
 #include "KisView_p.h"
@@ -131,6 +132,7 @@ public:
     KisNodeSP currentNode;
     KisPaintingAssistantsDecorationSP paintingAssistantsDecoration;
     KisReferenceImagesDecorationSP referenceImagesDecoration;
+    KisColorDrop *colorDrop {nullptr};
     bool isCurrent {false};
     bool showFloatingMessage {true};
     QPointer<KisFloatingMessage> savedFloatingMessage;
@@ -240,6 +242,8 @@ KisView::KisView(KisDocument *document, KisViewManager *viewManager, QWidget *pa
     d->paintingAssistantsDecoration = new KisPaintingAssistantsDecoration(this);
     d->canvas.addDecoration(d->paintingAssistantsDecoration);
     d->paintingAssistantsDecoration->setVisible(true);
+
+    d->colorDrop = new KisColorDrop(this);
 
     d->showFloatingMessage = cfg.showCanvasMessages();
     slotScreenOrResolutionChanged();
@@ -471,6 +475,16 @@ void KisView::dropEvent(QDropEvent *event)
     dbgUI << "\t Has images: " << event->mimeData()->hasImage();
 
     if (!shouldAcceptDrag(event)) {
+        return;
+    }
+
+    // a color without modifiers: the fill that reaches under the lines (with them, the fill tool's modes)
+    if (KisColorDrop::carriesColor(event->mimeData()) && event->keyboardModifiers() == Qt::NoModifier) {
+        KoColor color;
+        if (image() && KisColorDrop::colorOf(event->mimeData(), &color)) {
+            d->colorDrop->drop(color, canvasBase()->canvasWidget()->mapFrom(this, event->pos()));
+        }
+        event->acceptProposedAction();
         return;
     }
 
@@ -1068,10 +1082,29 @@ void KisView::dragMoveEvent(QDragMoveEvent *event)
           << "Has images: " << event->mimeData()->hasImage();
 
     if (shouldAcceptDrag(event)) {
+        KoColor color;
+        if (image() && KisColorDrop::carriesColor(event->mimeData()) && KisColorDrop::colorOf(event->mimeData(), &color)) {
+            if (event->keyboardModifiers() == Qt::NoModifier) {
+                d->colorDrop->hover(color, canvasBase()->canvasWidget()->mapFrom(this, event->pos()));
+            } else {
+                d->colorDrop->leave();
+            }
+        }
         event->accept();
     } else {
         event->ignore();
     }
+}
+
+void KisView::dragLeaveEvent(QDragLeaveEvent *event)
+{
+    d->colorDrop->leave();
+    QWidget::dragLeaveEvent(event);
+}
+
+KisColorDrop *KisView::colorDrop() const
+{
+    return d->colorDrop;
 }
 
 KisDocument *KisView::document() const

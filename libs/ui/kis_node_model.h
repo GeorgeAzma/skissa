@@ -202,6 +202,7 @@ private:
 
 	void setDropEnabled(const QMimeData *data);
 	void updateDropEnabled(const QList<KisNodeSP> &nodes, QModelIndex parent = QModelIndex());
+    void updateColorDropEnabled(QModelIndex parent = QModelIndex());
     
 private:
 

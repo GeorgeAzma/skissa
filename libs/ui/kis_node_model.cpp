@@ -5,6 +5,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "kis_node_model.h"
+#include "KisColorDrop.h"
+#include <KoColor.h>
 
 #include <iostream>
 
@@ -824,6 +826,16 @@ bool KisNodeModel::dropMimeData(const QMimeData * data, Qt::DropAction action, i
 {
     Q_UNUSED(column);
 
+    // a color dropped onto a layer recolors it; between layers it makes a fill layer
+    KoColor color;
+    if (row == -1 && parent.isValid() && KisColorDrop::colorOf(data, &color)) {
+        KisNodeSP node = nodeFromIndex(parent);
+        if (node && node->paintDevice() && !qobject_cast<KisGroupLayer *>(node.data())) {
+            KisColorDrop::recolor(m_d->image, node, color);
+            return true;
+        }
+    }
+
     bool copyNode = (action == Qt::CopyAction);
 
     KisNodeDummy *parentDummy = 0;
@@ -872,6 +884,21 @@ void KisNodeModel::setDropEnabled(const QMimeData *data) {
     KisNodeList nodes = KisMimeData::loadNodesFast(data, m_d->image, m_d->shapeController, copyNode);
     m_d->dropEnabled.clear();
     updateDropEnabled(nodes);
+    if (KisColorDrop::carriesColor(data)) updateColorDropEnabled();
+}
+
+void KisNodeModel::updateColorDropEnabled(QModelIndex parent)
+{
+    // a color can go onto any layer it can recolor
+    for (int r = 0; r < rowCount(parent); r++) {
+        const QModelIndex idx = index(r, 0, parent);
+        KisNodeSP node = nodeFromIndex(idx);
+        if (node && node->paintDevice() && node->isEditable(false) && !qobject_cast<KisGroupLayer *>(node.data())) {
+            m_d->dropEnabled.insert(idx.internalId());
+            Q_EMIT dataChanged(idx, idx);
+        }
+        if (hasChildren(idx)) updateColorDropEnabled(idx);
+    }
 }
 
 void KisNodeModel::updateDropEnabled(const QList<KisNodeSP> &nodes, QModelIndex parent) {

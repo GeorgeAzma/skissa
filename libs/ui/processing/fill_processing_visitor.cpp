@@ -164,6 +164,8 @@ void FillProcessingVisitor::normalFill(KisPaintDeviceSP device, const QRect &fil
     fillPainter.setSizemod(m_sizemod);
     fillPainter.setStopGrowingAtDarkestPixel(m_stopGrowingAtDarkestPixel);
     fillPainter.setFeather(m_feather);
+    // under the lines only on another layer than the lines: on theirs it would paint over them
+    fillPainter.setLineArt(m_underLines && (m_unmerged ? device : m_refPaintDevice) != device, m_speckSize);
     fillPainter.setFillThreshold(m_fillThreshold);
     fillPainter.setOpacitySpread(m_opacitySpread);
     fillPainter.setCloseGap(m_closeGap);
@@ -256,6 +258,7 @@ void FillProcessingVisitor::continuousFill(KisPaintDeviceSP device, const QRect 
         painter.setStopGrowingAtDarkestPixel(m_stopGrowingAtDarkestPixel);
         painter.setAntiAlias(m_antiAlias);
         painter.setFeather(m_feather);
+        painter.setLineArt(m_underLines && sourceDevice != device, m_speckSize);
         painter.setFillThreshold(m_fillThreshold);
         painter.setOpacitySpread(m_opacitySpread);
         painter.setCloseGap(m_closeGap);
@@ -353,6 +356,12 @@ void FillProcessingVisitor::setSizeMod(int sizemod)
 void FillProcessingVisitor::setStopGrowingAtDarkestPixel(bool stopGrowingAtDarkestPixel)
 {
     m_stopGrowingAtDarkestPixel = stopGrowingAtDarkestPixel;
+}
+
+void FillProcessingVisitor::setLineArt(bool underLines, int speckSize)
+{
+    m_underLines = underLines;
+    m_speckSize = speckSize;
 }
 
 void FillProcessingVisitor::setFillThreshold(int fillThreshold)

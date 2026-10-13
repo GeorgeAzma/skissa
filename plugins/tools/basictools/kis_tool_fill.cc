@@ -368,7 +368,7 @@ void KisToolFill::addFillingOperation(const QVector<QPoint> &seedPoints)
                                  m_opacitySpread == 100 &&
                                  m_useSelectionAsBoundary == false &&
                                  !m_antiAlias && m_sizemod == 0 && m_feather == 0 &&
-                                 m_closeGap == 0 &&
+                                 m_closeGap == 0 && m_speckSize <= 1 &&
                                  m_reference == Reference_CurrentLayer;
 
         visitor->setSeedPoints(seedPoints);
@@ -392,6 +392,7 @@ void KisToolFill::addFillingOperation(const QVector<QPoint> &seedPoints)
         visitor->setFillThreshold(m_threshold);
         visitor->setOpacitySpread(m_opacitySpread);
         visitor->setCloseGap(m_closeGap);
+        visitor->setLineArt(m_underLines, m_speckSize);
         visitor->setUseSelectionAsBoundary(m_useSelectionAsBoundary);
         visitor->setAntiAlias(m_antiAlias);
         visitor->setSizeMod(m_sizemod);
@@ -581,6 +582,12 @@ QWidget* KisToolFill::createOptionWidget()
     m_sliderCloseGap->setRange(0, 32);
     m_sliderCloseGap->setSuffix(i18n(" px"));
 
+    m_checkBoxUnderLines = new QCheckBox(i18nc("The fill tool option that fills under line art to the middle of its lines", "Under lines"));
+    m_sliderSpecks = new KisSliderSpinBox;
+    m_sliderSpecks->setPrefix(i18nc("The 'specks' spinbox prefix in fill tool options: small unfilled spots it fills too", "Specks: "));
+    m_sliderSpecks->setRange(0, 32);
+    m_sliderSpecks->setSuffix(i18n(" px"));
+
     m_checkBoxSelectionAsBoundary =
         new QCheckBox(
             i18nc("The 'use selection as boundary' checkbox in fill tool to use selection borders as boundary when filling",
@@ -656,6 +663,8 @@ QWidget* KisToolFill::createOptionWidget()
     m_sliderThreshold->setToolTip(i18n("Set the color similarity tolerance of the fill. Increasing threshold increases the range of similar colors to be filled."));
     m_sliderSpread->setToolTip(i18n("Set the extent of the opaque portion of the fill. Decreasing spread decreases opacity of fill areas depending on color similarity."));
     m_sliderCloseGap->setToolTip(i18n("Close gaps in lines up to the set amount"));
+    m_checkBoxUnderLines->setToolTip(i18nc("@info:tooltip", "Fill to the middle of the lines, on another layer than them"));
+    m_sliderSpecks->setToolTip(i18nc("@info:tooltip", "Fill spots up to this size too"));
     m_checkBoxSelectionAsBoundary->setToolTip(i18n("Set if the contour of the active selection should be treated as a boundary when filling the region"));
 
     m_checkBoxAntiAlias->setToolTip(i18n("Smooths the edges of the fill"));
@@ -724,6 +733,8 @@ QWidget* KisToolFill::createOptionWidget()
     sectionRegionExtent->appendWidget("sliderThreshold", m_sliderThreshold);
     sectionRegionExtent->appendWidget("sliderSpread", m_sliderSpread);
     sectionRegionExtent->appendWidget("sliderCloseGap", m_sliderCloseGap);
+    sectionRegionExtent->appendWidget("checkBoxUnderLines", m_checkBoxUnderLines);
+    sectionRegionExtent->appendWidget("sliderSpecks", m_sliderSpecks);
     sectionRegionExtent->appendWidget("checkBoxSelectionAsBoundary", m_checkBoxSelectionAsBoundary);
     m_optionWidget->appendWidget("sectionRegionExtent", sectionRegionExtent);
 
@@ -757,6 +768,8 @@ QWidget* KisToolFill::createOptionWidget()
         m_optionWidget->setWidgetVisible("sectionDragFill", false);
         sectionRegionExtent->setWidgetVisible("checkBoxSelectionAsBoundary", false);
         sectionRegionExtent->setWidgetVisible("sliderCloseGap", false);
+        sectionRegionExtent->setWidgetVisible("checkBoxUnderLines", false);
+        sectionRegionExtent->setWidgetVisible("sliderSpecks", false);
     }
     sectionRegionExtent->setPrimaryWidgetVisible(m_fillMode == FillMode_FillContiguousRegion);
     if (m_fillType == FillType_FillWithBackgroundColor) {
@@ -787,6 +800,8 @@ QWidget* KisToolFill::createOptionWidget()
     m_sliderThreshold->setValue(m_threshold);
     m_sliderSpread->setValue(m_opacitySpread);
     m_sliderCloseGap->setValue(m_closeGap);
+    m_checkBoxUnderLines->setChecked(m_underLines);
+    m_sliderSpecks->setValue(m_speckSize);
     m_checkBoxSelectionAsBoundary->setChecked(m_useSelectionAsBoundary);
     m_checkBoxAntiAlias->setChecked(m_antiAlias);
     m_sliderGrow->setValue(m_sizemod);
@@ -837,6 +852,8 @@ QWidget* KisToolFill::createOptionWidget()
     connect(m_sliderThreshold, SIGNAL(valueChanged(int)), SLOT(slot_sliderThreshold_valueChanged(int)));
     connect(m_sliderSpread, SIGNAL(valueChanged(int)), SLOT(slot_sliderSpread_valueChanged(int)));
     connect(m_sliderCloseGap, SIGNAL(valueChanged(int)), SLOT(slot_sliderCloseGap_valueChanged(int)));
+    connect(m_checkBoxUnderLines, SIGNAL(toggled(bool)), SLOT(slot_checkBoxUnderLines_toggled(bool)));
+    connect(m_sliderSpecks, SIGNAL(valueChanged(int)), SLOT(slot_sliderSpecks_valueChanged(int)));
     connect(m_checkBoxSelectionAsBoundary,
             SIGNAL(toggled(bool)),
             SLOT(slot_checkBoxSelectionAsBoundary_toggled(bool)));
@@ -912,6 +929,8 @@ void KisToolFill::loadConfiguration()
     m_threshold = m_configGroup.readEntry<int>("thresholdAmount", 8);
     m_opacitySpread = m_configGroup.readEntry<int>("opacitySpread", 100);
     m_closeGap = m_configGroup.readEntry<int>("closeGapAmount", 0);
+    m_underLines = m_configGroup.readEntry<bool>("fillUnderLines", true);
+    m_speckSize = qBound(0, m_configGroup.readEntry<int>("speckSize", 4), 32);
     m_useSelectionAsBoundary = m_configGroup.readEntry<bool>("useSelectionAsBoundary", true);
     m_antiAlias = m_configGroup.readEntry<bool>("antiAlias", false);
     m_sizemod = m_configGroup.readEntry<int>("growSelection", 0);
@@ -1001,6 +1020,10 @@ void KisToolFill::slot_optionButtonStripWhatToFill_buttonToggled(
         m_optionWidget->widgetAs<KisOptionCollectionWidgetWithHeader*>("sectionRegionExtent")
             ->setWidgetVisible("sliderCloseGap", true);
         m_optionWidget->widgetAs<KisOptionCollectionWidgetWithHeader*>("sectionRegionExtent")
+            ->setWidgetVisible("checkBoxUnderLines", true);
+        m_optionWidget->widgetAs<KisOptionCollectionWidgetWithHeader*>("sectionRegionExtent")
+            ->setWidgetVisible("sliderSpecks", true);
+        m_optionWidget->widgetAs<KisOptionCollectionWidgetWithHeader*>("sectionRegionExtent")
             ->setWidgetVisible("checkBoxSelectionAsBoundary", true);
         m_fillMode = FillMode_FillContiguousRegion;
         m_configGroup.writeEntry("whatToFill", "fillContiguousRegion");
@@ -1015,6 +1038,10 @@ void KisToolFill::slot_optionButtonStripWhatToFill_buttonToggled(
             ->setWidgetVisible("buttonContiguousFillBoundaryColor", false);
         m_optionWidget->widgetAs<KisOptionCollectionWidgetWithHeader*>("sectionRegionExtent")
             ->setWidgetVisible("sliderCloseGap", false);
+        m_optionWidget->widgetAs<KisOptionCollectionWidgetWithHeader*>("sectionRegionExtent")
+            ->setWidgetVisible("checkBoxUnderLines", false);
+        m_optionWidget->widgetAs<KisOptionCollectionWidgetWithHeader*>("sectionRegionExtent")
+            ->setWidgetVisible("sliderSpecks", false);
         m_optionWidget->widgetAs<KisOptionCollectionWidgetWithHeader*>("sectionRegionExtent")
             ->setWidgetVisible("checkBoxSelectionAsBoundary", false);
         m_fillMode = FillMode_FillSimilarRegions;
@@ -1157,6 +1184,24 @@ void KisToolFill::slot_sliderCloseGap_valueChanged(int value)
     m_configGroup.writeEntry("closeGapAmount", value);
 }
 
+void KisToolFill::slot_checkBoxUnderLines_toggled(bool checked)
+{
+    if (checked == m_underLines) {
+        return;
+    }
+    m_underLines = checked;
+    m_configGroup.writeEntry("fillUnderLines", checked);
+}
+
+void KisToolFill::slot_sliderSpecks_valueChanged(int value)
+{
+    if (value == m_speckSize) {
+        return;
+    }
+    m_speckSize = value;
+    m_configGroup.writeEntry("speckSize", value);
+}
+
 void KisToolFill::slot_checkBoxSelectionAsBoundary_toggled(bool checked)
 {
     if (checked == m_useSelectionAsBoundary) {
@@ -1277,6 +1322,8 @@ void KisToolFill::slot_buttonReset_clicked()
     m_sliderThreshold->setValue(8);
     m_sliderSpread->setValue(100);
     m_sliderCloseGap->setValue(0);
+    m_checkBoxUnderLines->setChecked(true);
+    m_sliderSpecks->setValue(4);
     m_checkBoxSelectionAsBoundary->setChecked(true);
     m_checkBoxAntiAlias->setChecked(false);
     m_sliderGrow->setValue(0);
