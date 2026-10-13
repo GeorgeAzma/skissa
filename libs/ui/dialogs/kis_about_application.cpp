@@ -52,8 +52,9 @@ KisAboutApplication::KisAboutApplication(QWidget *parent)
                     // a modified Krita says so (GPL-3.0 section 5a), and that it isn't Krita's own
                     << i18nc("@info", "<p align=\"center\">%1 is an independent fork of Krita, modified by GeorgeAzma since 2026. "
                                       "It isn't made or endorsed by the Krita Foundation or KDE. "
-                                      "<a href=\"https://github.com/GeorgeAzma\"><span style=\" text-decoration: underline;\">Source code</span></a></p>",
-                             KisProfile::name())
+                                      "Its code was written by AI (Claude), to its author's design. "
+                                      "<a href=\"%2\"><span style=\" text-decoration: underline;\">Source code</span></a></p>",
+                             KisProfile::name(), KisProfile::homepage())
                     << "<table style=\"width:100%\" cellpadding=\"30\"><tr><td>"
                     << i18n("<p><b>Using Krita</b></p>");
 

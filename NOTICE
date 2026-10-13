@@ -4,6 +4,9 @@ An independent fork of Krita (https://krita.org, https://invent.kde.org/graphics
 modified by GeorgeAzma since 2026. The changes are in this repository's git history,
 on the modern-style branch.
 
+The fork's code was written by AI (Anthropic's Claude), to GeorgeAzma's ideas and design;
+Krita itself, which it is built on, is the work of Krita's developers.
+
 Not affiliated with or endorsed by the Stichting Krita Foundation or KDE.
 Krita is a trademark of the Stichting Krita Foundation.
 
@@ -15,6 +18,6 @@ art, CC BY-SA 4.0 (https://tysontan.com/gallery/gallery-mascots/kiki-splash-2026
 shown inside the app's interface. The sunset picture was drawn for the README.
 
 Release builds bundle third-party libraries (Qt, KDE Frameworks, FFmpeg, Python and
-others) under their own licenses; their license texts are in the release's share/licenses
-and doc folders, and their sources are listed at
+others) under their own licenses; their license texts are in the release's
+licenses/third-party folder, and their sources are listed at
 https://invent.kde.org/packaging/krita-deps-management.

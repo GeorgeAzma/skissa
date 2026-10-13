@@ -11,6 +11,13 @@ Krita with a cleaner, more visual interface. Same brushes, same engine, same `.k
 
 I paint in Krita every day and wanted it to feel more like the tablet apps: the canvas gets the screen, and everything else shows up when you need it.
 
+> [!IMPORTANT]
+> **All of the code in this fork was written by AI** (Anthropic's Claude). The ideas, the design principles and what it should feel like are mine: I paint with it, say what's wrong, and the AI writes the code. Everything under the interface (the brushes, the engine, the file formats) is Krita's, written by Krita's developers.
+
+Skissa is a look at how a painting app could work, next to how Krita works today. It isn't a replacement for Krita.
+
+[![Donate to Krita](https://img.shields.io/badge/Donate_to_Krita-the_painting_under_all_this-e5484d?style=for-the-badge)](https://krita.org/support-us/donations)
+
 ![Classic Krita layout, then Studio](docs/readme/layouts.webp)
 
 ## Ctrl+K finds anything
@@ -37,7 +44,7 @@ Tools, brushes, effects, settings and every old menu command. Effects preview li
 
 ## Get it
 
-**Windows:** download the zip from [Releases](../../releases), unzip it and run `bin\krita.exe`.
+**Windows:** download the zip from [Releases](../../releases), unzip it and run `bin\krita.exe`. English only for now.
 
 **Build it:** same as Krita, using [Krita's build guide](https://docs.krita.org/en/untranslatable_pages/building_krita.html) with this repo.
 
