@@ -14,6 +14,7 @@
 #include <QHBoxLayout>
 #include <QHash>
 #include <QAbstractSpinBox>
+#include <QCursor>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QMdiArea>
@@ -1232,6 +1233,8 @@ struct KisStudioLayout::Private
     QPointer<KisStudioPanelColumn> panelColumn;
     QPointer<TopPill> topPill;
     QPointer<TopPill> windowPill;
+    /// Canvas only: what the pointer brought back by nearing its edge (see peek())
+    QList<QPointer<QWidget>> peeking;
     QPointer<QToolBar> windowBar;
     bool panelsLeft {false};
     bool toolRailLeft {true};
@@ -1393,6 +1396,7 @@ KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
     if (QAction *canvasOnly = mainWindow->actionCollection()->action(QStringLiteral("view_show_canvas_only"))) {
         connect(canvasOnly, &QAction::toggled, this, [this]() {
             closeFlyout();
+            d->peeking.clear();
             QTimer::singleShot(0, this, &KisStudioLayout::normalize);
         });
     }
@@ -1584,7 +1588,7 @@ void KisStudioLayout::enter()
                                   if (!KisStudioToolRail::isOwnController(d->mainWindow, controller) || !d->toolStrip) return;
                                   d->toolStrip->setOptionWidgets(widgets);
                                   if (d->toolStripAction) {
-                                      d->toolStripAction->setVisible(d->toolStrip->hasOptions() && !isRailHidden());
+                                      d->toolStripAction->setVisible(d->toolStrip->hasOptions() && (!isRailHidden() || d->peeking.contains(QPointer<QWidget>(d->topPill.data()))));
                                   }
                               });
     if (QMdiArea *area = mdiArea()) {
@@ -2314,7 +2318,8 @@ void KisStudioLayout::updateCanvasInsets(bool views)
     const int pillRight = shown && !left ? reach : 0;
     int top = 0;
     for (TopPill *pill : {d->topPill.data(), d->windowPill.data()}) {
-        if (pill && !pill->isHidden()) top = qMax(top, pill->geometry().bottom() + 1);
+        // brought back over the canvas for a moment, it moves nothing
+        if (pill && !pill->isHidden() && !d->peeking.contains(pill)) top = qMax(top, pill->geometry().bottom() + 1);
     }
     // with its panels, the pill covers the canvas's side: the zoom pill and the view keep clear of it
     const QMargins insets(full && left ? reach : 0, top, full && !left ? reach : 0, 0);
@@ -3220,7 +3225,7 @@ void KisStudioLayout::updateToolChip()
     const QString tool = KoToolManager::instance()->activeToolId();
     KoToolFactoryBase *factory = KoToolRegistry::instance()->value(tool);
     if (d->toolChipAction) {
-        d->toolChipAction->setVisible(factory && !isRailHidden());
+        d->toolChipAction->setVisible(factory && (!isRailHidden() || d->peeking.contains(QPointer<QWidget>(d->topPill.data()))));
     }
     if (!factory) {
         return;
@@ -3276,7 +3281,7 @@ void KisStudioLayout::updateContextBar()
     };
 
     if (d->brushValuesAction) {
-        d->brushValuesAction->setVisible(paints && !isRailHidden());
+        d->brushValuesAction->setVisible(paints && (!isRailHidden() || d->peeking.contains(QPointer<QWidget>(d->topPill.data()))));
     }
     updateToolChip();
     if (d->flyout && d->flyoutAnchor) {
@@ -3351,8 +3356,63 @@ bool KisStudioLayout::handlePresetChip(QEvent *event)
     }
 }
 
+void KisStudioLayout::peek(const QPoint &global)
+{
+    QMdiArea *mdi = mdiArea();
+    QWidget *area = mdi ? mdi->parentWidget() : nullptr;
+    if (!area || !isCanvasOnly() || !d->active) {
+        return;
+    }
+    const QPoint at = area->mapFromGlobal(global);
+    if (!area->rect().contains(at)) {
+        return;
+    }
+    // what each edge brings back: the bars at the top, the tool rail and the panels at their sides
+    const bool toolsLeft = d->brushRail && d->brushRail->x() < area->width() / 2;
+    struct Edge {
+        QList<QWidget *> widgets;
+        bool near;
+    };
+    const int reach = 6;
+    const QList<Edge> edges = {
+        {{d->topPill.data()}, at.y() < reach},
+        {{d->brushRail.data()}, toolsLeft ? at.x() < reach : at.x() >= area->width() - reach},
+        {{d->panelColumn.data()}, toolsLeft ? at.x() >= area->width() - reach : at.x() < reach},
+    };
+    for (const Edge &edge : edges) {
+        for (QWidget *widget : edge.widgets) {
+            if (!widget) continue;
+            const bool shown = d->peeking.contains(widget);
+            // kept while the pointer is over it, or nearly
+            const bool over = shown && widget->geometry().adjusted(-48, -48, 48, 48).contains(widget->parentWidget()->mapFrom(area, at));
+            if (edge.near && !shown) {
+                d->peeking << widget;
+                if (widget == d->topPill) {
+                    // the whole of it: in canvas only its tool and brush parts are hidden
+                    if (d->topBar) d->topBar->show();
+                    if (d->toolStripAction && d->toolStrip) d->toolStripAction->setVisible(d->toolStrip->hasOptions());
+                    updateContextBar();
+                }
+                if (widget == d->topPill || widget == d->windowPill) static_cast<TopPill *>(widget)->place();
+                widget->raise();
+                KisStudioMotion::showFaded(widget);
+            } else if (shown && !edge.near && !over) {
+                d->peeking.removeAll(widget);
+                KisStudioMotion::hideFaded(widget);
+            }
+        }
+    }
+}
+
 bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 {
+    if ((event->type() == QEvent::MouseMove || event->type() == QEvent::TabletMove) && isCanvasOnly()) {
+        // the pointer over this window (another window's moves are its own)
+        auto *widget = qobject_cast<QWidget *>(watched);
+        const QPoint global = event->type() == QEvent::MouseMove ? static_cast<QMouseEvent *>(event)->globalPos()
+                                                                  : static_cast<QTabletEvent *>(event)->globalPos();
+        if (widget && widget->window() == d->mainWindow) peek(global);
+    }
     // a field keeps Undo and Redo for its own typing only: with none of it to take back, they are the window's
     if (event->type() == QEvent::ShortcutOverride) {
         auto *key = static_cast<QKeyEvent *>(event);

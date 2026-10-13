@@ -121,6 +121,8 @@ private:
     void updateContextBar();
     /// The tool chip: the brush's name for the brush tools, else the tool's
     void updateToolChip();
+    /// Canvas only: the bars, the tool rail and the panels back while the pointer is at their edge
+    void peek(const QPoint &global);
     /// The document, menu, Settings, Find and window buttons on the window pill
     void placeWindowButtons();
     void showMainMenu(QWidget *button);
