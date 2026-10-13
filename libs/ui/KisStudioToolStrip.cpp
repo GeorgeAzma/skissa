@@ -14,7 +14,6 @@
 #include <QButtonGroup>
 #include <QLabel>
 #include <QMenu>
-#include <QPushButton>
 #include <QSpinBox>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -286,6 +285,7 @@ QMenu *KisStudioToolStrip::symmetryMenu()
     // the strip's, not a button's: the buttons are made again when the tool changes, which a mode can do
     m_symmetryMenu = new QMenu(this);
     auto *panel = new QWidget(m_symmetryMenu);
+    panel->setFixedWidth(230);
     auto *layout = new QVBoxLayout(panel);
     layout->setContentsMargins(10, 8, 10, 8);
     layout->setSpacing(8);
@@ -302,6 +302,8 @@ QMenu *KisStudioToolStrip::symmetryMenu()
         button->setText(text);
         button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
         button->setFocusPolicy(Qt::NoFocus);
+        // in a row, as wide as one another
+        button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         return button;
     };
     auto row = [](QWidget *parent, const QString &label, QWidget *control) {
@@ -310,6 +312,7 @@ QMenu *KisStudioToolStrip::symmetryMenu()
         lineLayout->setContentsMargins(0, 0, 0, 0);
         lineLayout->addWidget(new QLabel(label, line));
         lineLayout->addStretch(1);
+        control->setFixedWidth(96);
         lineLayout->addWidget(control);
         return line;
     };
@@ -319,8 +322,14 @@ QMenu *KisStudioToolStrip::symmetryMenu()
     modes->setSpacing(2);
     auto *modeGroup = new QButtonGroup(panel);
     const QStringList modeNames = {i18nc("symmetry mode", "Mirror"), i18nc("symmetry mode", "Radial"), i18nc("symmetry mode", "Tile")};
+    const QStringList modeTips = {
+        i18nc("@info:tooltip", "Mirrored across an axis, with every brush tool. Drag the dot on an axis to move it."),
+        i18nc("@info:tooltip", "Copies around a center. Drag the center to move it, the dot beside it to turn; double-click the center to reset."),
+        i18nc("@info:tooltip", "Each stroke repeats across the image, or the selection, at this spacing."),
+    };
     for (int mode = KisStudioSymmetry::Mirror; mode <= KisStudioSymmetry::Tile; mode++) {
         QToolButton *button = toggle(symmetryIcon(mode, ink), modeNames[mode]);
+        button->setToolTip(modeTips[mode]);
         modeGroup->addButton(button, mode);
         modes->addWidget(button);
     }
@@ -334,19 +343,9 @@ QMenu *KisStudioToolStrip::symmetryMenu()
     QAction *downAction = m_actions ? m_actions->action(QStringLiteral("vmirror_action")) : nullptr;
     QToolButton *across = toggle(acrossAction ? acrossAction->icon() : QIcon(), i18nc("mirror axis", "Across"));
     QToolButton *down = toggle(downAction ? downAction->icon() : QIcon(), i18nc("mirror axis", "Down"));
+    mirrorLayout->setSpacing(2);
     mirrorLayout->addWidget(across);
     mirrorLayout->addWidget(down);
-    mirrorLayout->addStretch(1);
-    // the axes back in the middle of the image: dragged off the screen, they cannot be grabbed
-    auto *center = new QPushButton(i18nc("@action:button mirror axes", "Center"), mirrorPage);
-    center->setFocusPolicy(Qt::NoFocus);
-    center->setToolTip(i18nc("@info:tooltip", "Put the mirror axes back in the middle of the image"));
-    mirrorLayout->addWidget(center, 0, Qt::AlignVCenter);
-    connect(center, &QPushButton::clicked, mirrorPage, [this]() {
-        for (const char *name : {"mirrorX-moveToCenter", "mirrorY-moveToCenter"}) {
-            if (QAction *action = m_actions ? m_actions->action(QLatin1String(name)) : nullptr) action->trigger();
-        }
-    });
     layout->addWidget(mirrorPage);
 
     // radial: how many, and mirrored between
@@ -356,7 +355,7 @@ QMenu *KisStudioToolStrip::symmetryMenu()
     auto *copies = new QSpinBox(radialPage);
     copies->setRange(2, KisStudioSymmetry::maximumCopies);
     radialLayout->addWidget(row(radialPage, i18nc("radial symmetry", "Copies"), copies));
-    auto *mirrored = new QCheckBox(i18nc("radial symmetry", "Mirrored, as a kaleidoscope"), radialPage);
+    auto *mirrored = new QCheckBox(i18nc("radial symmetry", "Kaleidoscope"), radialPage);
     radialLayout->addWidget(mirrored);
     layout->addWidget(radialPage);
 
@@ -378,20 +377,12 @@ QMenu *KisStudioToolStrip::symmetryMenu()
     tileLayout->addWidget(row(tilePage, i18nc("tile spacing", "Down"), spacingY));
     layout->addWidget(tilePage);
 
-    // the pages one size, the hint three lines: the menu need not grow as they change (it would not)
+    // the pages one size: the menu need not grow as they change (it would not)
     const int pageHeight = std::max({mirrorPage->sizeHint().height(), radialPage->sizeHint().height(), tilePage->sizeHint().height()});
     for (QWidget *page : {mirrorPage, radialPage, tilePage}) {
         page->setFixedHeight(pageHeight);
+        page->layout()->setAlignment(Qt::AlignTop);
     }
-    auto *hint = new QLabel(panel);
-    hint->setWordWrap(true);
-    hint->setFixedWidth(240);
-    hint->setFixedHeight(3 * hint->fontMetrics().lineSpacing() + 2);
-    hint->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-    QPalette dim = hint->palette();
-    dim.setColor(QPalette::WindowText, KisModernStyle::secondaryInk(dim.color(QPalette::WindowText)));
-    hint->setPalette(dim);
-    layout->addWidget(hint);
 
     auto *action = new QWidgetAction(m_symmetryMenu);
     action->setDefaultWidget(panel);
@@ -411,11 +402,6 @@ QMenu *KisStudioToolStrip::symmetryMenu()
         mirrored->setChecked(symmetry->mirrored());
         spacingX->setValue(symmetry->spacing().width());
         spacingY->setValue(symmetry->spacing().height());
-        hint->setText(mode == KisStudioSymmetry::Mirror
-                          ? i18nc("@info", "Drag the dot on an axis to move it. Works with every brush tool.")
-                      : mode == KisStudioSymmetry::Radial
-                          ? i18nc("@info", "Drag the center to move it, the dot to turn. Double-click the center to reset.")
-                          : i18nc("@info", "Each stroke repeats across the image, or the selection, at this spacing."));
     };
     connect(m_symmetryMenu, &QMenu::aboutToShow, panel, show);
     connect(modeGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), panel, [this, symmetry, show](int mode) {
