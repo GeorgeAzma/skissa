@@ -24,6 +24,10 @@ class KRITAUI_EXPORT KisStudioPanelPicker : public KisStudioPicker
 {
     Q_OBJECT
 public:
+    /// Panels the Studio layout covers otherwise (the tool rail, the Color panel, recent brushes) or that are for
+    /// scripting and debugging: not offered, though one already pinned stays
+    static bool isRetired(const QString &panelId);
+
     struct Rail {
         /// The kritarc key that stores the rail's panels
         QString key;

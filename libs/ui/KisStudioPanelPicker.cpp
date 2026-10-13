@@ -142,8 +142,7 @@ KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioP
         QHash<QString, QDockWidget *> result;
         if (!window) return result;
         Q_FOREACH (QDockWidget *dock, window->dockWidgets()) {
-            // the Studio layout shows the toolbox as the tool rail
-            if (!dock->objectName().isEmpty() && dock->objectName() != QLatin1String("ToolBox") && !dock->windowTitle().isEmpty()) {
+            if (!dock->objectName().isEmpty() && !KisStudioPanelPicker::isRetired(dock->objectName()) && !dock->windowTitle().isEmpty()) {
                 result.insert(dock->objectName(), dock);
             }
         }
@@ -205,6 +204,14 @@ KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioP
 }
 
 } // namespace
+
+bool KisStudioPanelPicker::isRetired(const QString &panelId)
+{
+    static const QStringList retired = {QStringLiteral("ToolBox"), QStringLiteral("ArtisticColorSelector"), QStringLiteral("SmallColorSelector"),
+                                        QStringLiteral("SpecificColorSelector"), QStringLiteral("PresetHistory"), QStringLiteral("TouchDocker"),
+                                        QStringLiteral("TasksetDocker"), QStringLiteral("LogDocker")};
+    return retired.contains(panelId);
+}
 
 KisStudioPanelPicker::KisStudioPanelPicker(KisMainWindow *mainWindow, const Rail &rail)
     : KisStudioPicker(panelsSource(mainWindow, rail), QString(), QSet<QString>(), mainWindow)

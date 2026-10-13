@@ -1607,6 +1607,15 @@ void KisStudioLayout::enter()
             d->hiddenToolbarActions << action;
         }
     }
+    // menu items for what only the classic layout has: toolbars, styles and themes of their own, a status bar, tiled windows
+    for (const char *name : {"options_configure_toolbars", "lock_toolbars", "toolbars_submenu_action", "style_menu", "theme_menu",
+                             "showStatusBar", "windows_tile", "windows_cascade", "windows_next", "windows_previous", "help_about_kde"}) {
+        QAction *action = mainWindow->actionCollection()->action(QLatin1String(name));
+        if (action && action->isVisible()) {
+            action->setVisible(false);
+            d->hiddenToolbarActions << action;
+        }
+    }
 
     qApp->installEventFilter(this);
     KisStudioEmptyStates::install();
@@ -3056,6 +3065,7 @@ void KisStudioLayout::createTopBar()
 
     // placed on the window pill by placeWindowButtons()
     auto *menuButton = new PillButton(QStringLiteral("studio_menu"), QString(), mainWindow);
+    menuButton->setAccessibleName(i18nc("@action:button", "Menu"));
     menuButton->hide();
     connect(menuButton, &QAbstractButton::clicked, this, [this, menuButton]() { showMainMenu(menuButton); });
     d->menuButton = menuButton;

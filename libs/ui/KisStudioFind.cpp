@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioFind.h"
+#include "KisStudioPanelPicker.h"
 #include "KisStudioGlass.h"
 
 #include "widgets/KisPopupCloser.h"
@@ -750,7 +751,8 @@ void KisStudioFind::rebuildIndex()
             const QString text = plainText(action->text());
             // every KisAction is a QWidgetAction; skip only those with a widget (toolbar sliders, spacers)
             auto *widgetAction = qobject_cast<QWidgetAction *>(action);
-            if (seen.contains(action) || text.isEmpty() || action->isSeparator() || action->menu()
+            // a hidden action is one the layout took out (classic-only toolbars, styles…)
+            if (seen.contains(action) || text.isEmpty() || action->isSeparator() || action->menu() || !action->isVisible()
                 || (widgetAction && widgetAction->defaultWidget()) || toolIds.contains(name) || filterActions.contains(name)) {
                 continue;
             }
@@ -780,6 +782,7 @@ void KisStudioFind::rebuildIndex()
 
     // panels
     Q_FOREACH (QDockWidget *dock, mainWindow->dockWidgets()) {
+        if (KisStudioPanelPicker::isRetired(dock->objectName())) continue;
         QPointer<QDockWidget> target = dock;
         d->entries.append({QStringLiteral("panel:") + dock->objectName(), Kind::Panel, dock->windowTitle(),
                            QString(), QStringLiteral("docker panel"), QString(), dock->windowIcon(),
