@@ -104,8 +104,9 @@ public:
     /**
      * For large regions and filters that read neighbouring pixels: a coarse pass (the filter on a
      * downscaled copy) shown at once, replaced by the full pass once the settings settle.
+     * \p coarsestLevel limits how coarse it may be, so it isn't much softer than the canvas shows the image.
      */
-    PreviewHandleSP setProgressivePreview(bool progressive);
+    PreviewHandleSP setProgressivePreview(bool progressive, int coarsestLevel = 6);
 
     KisFilterStrokeStrategy(KisFilterSP filter,
                             KisFilterConfigurationSP filterConfig,

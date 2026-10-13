@@ -34,7 +34,10 @@
 
 // krita/ui
 #include "KisViewManager.h"
+#include <cmath>
+
 #include "kis_canvas2.h"
+#include "kis_coordinates_converter.h"
 #include <kis_bookmarked_configuration_manager.h>
 
 #include "kis_action.h"
@@ -329,8 +332,15 @@ void KisFilterManager::apply(KisFilterConfigurationSP _filterConfig)
     {
         KConfigGroup group( KSharedConfig::openConfig(), "filterdialog");
         strategy->setForceLodModeIfPossible(group.readEntry("forceLodMode", true));
-    // at full resolution, a coarse pass first (shown at once), then the full one in its place
-    d->preview = strategy->setProgressivePreview(true);
+    // at full resolution, a coarse pass first (shown at once), then the full one in its place. No coarser than
+    // one level below what the canvas shows: a much coarser pass looks far softer than the result, which then
+    // seems to undo the effect when it lands
+    int coarsest = 6;
+    if (KisCanvas2 *canvas = d->view->canvasBase()) {
+        const qreal zoom = canvas->coordinatesConverter()->effectivePhysicalZoom();
+        if (zoom > 0) coarsest = qMax(0, int(std::floor(std::log2(1.0 / zoom)))) + 1;
+    }
+    d->preview = strategy->setProgressivePreview(true, coarsest);
     }
 
     d->currentStrokeId =

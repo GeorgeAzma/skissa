@@ -68,6 +68,7 @@ struct KisFilterStrokeStrategy::Private {
 
     /// Set for a progressive preview (see setProgressivePreview)
     KisFilterStrokeStrategy::PreviewHandleSP preview;
+    int coarsestLevel {6};
     QMutex progressMutex;
     QWeakPointer<KisProcessingVisitor::ProgressHelper> progress;
     /// The coarse pass while it is being written to the target
@@ -156,8 +157,9 @@ void upscaleBilinear(const quint8 *in, const QRect &from, quint8 *out, const QRe
 }
 } // namespace
 
-KisFilterStrokeStrategy::PreviewHandleSP KisFilterStrokeStrategy::setProgressivePreview(bool progressive)
+KisFilterStrokeStrategy::PreviewHandleSP KisFilterStrokeStrategy::setProgressivePreview(bool progressive, int coarsestLevel)
 {
+    m_d->coarsestLevel = coarsestLevel;
     m_d->preview = progressive ? PreviewHandleSP(new PreviewHandle) : PreviewHandleSP();
     return m_d->preview;
 }
@@ -396,7 +398,7 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
             // a progressive preview of a large region: the filter on a downscaled copy, upscaled and
             // shown first; the full pass replaces it once the settings settle
             const int lod = m_d->preview && m_d->levelOfDetail == 0 && !shared->shouldSwitchTime()
-                ? coarseLevel(shared->filter(), shared->filterConfig(), shared->processRect) : 0;
+                ? qMin(coarseLevel(shared->filter(), shared->filterConfig(), shared->processRect), m_d->coarsestLevel) : 0;
             if (lod <= 0 || shared->processRect.isEmpty()) {
                 startFull();
                 return;
