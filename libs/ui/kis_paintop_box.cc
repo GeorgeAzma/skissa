@@ -507,6 +507,7 @@ KisPaintopBox::KisPaintopBox(KisViewManager *viewManager, QWidget *parent, const
     m_presetsEditor->setWindowTitle(i18n("Brush Editor"));
     m_brushEditorPopupButton->setPopupWidget(m_presetsEditor);
     m_brushEditorPopupButton->setPopupWidgetDetached(cfg.paintopPopupDetached());
+    connect(m_brushEditorPopupButton, &KisPopupButton::sigPinned, this, [](bool pinned) { KisConfig(false).setPaintopPopupDetached(pinned); });
 
     connect(m_presetsEditor, SIGNAL(brushEditorShown()), SLOT(slotUpdateOptionsWidgetPopup()));
     connect(m_presetsEditor, SIGNAL(toggleDetachState(bool)), m_brushEditorPopupButton, SLOT(setPopupWidgetDetached(bool)));

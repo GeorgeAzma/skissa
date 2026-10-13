@@ -69,6 +69,8 @@ public:
 
 Q_SIGNALS:
     void sigPopupWidgetShown();
+    /// Pinned by its pin (kept open as a window of its own), or unpinned
+    void sigPinned(bool pinned);
 
 public Q_SLOTS:
 

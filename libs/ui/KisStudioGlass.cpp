@@ -1269,16 +1269,17 @@ protected:
     }
 };
 
-/// KisPopupButton's popup made glass as its window is (re)made; detached it is a solid dialog
+/// KisPopupButton's popup made glass as its window is (re)made, pinned (detached) too
 void decoratePopupFrame(QFrame *frame, bool detached, bool holdsMenu)
 {
     static PopupFrameGlass *painter = new PopupFrameGlass();
-    const bool glass = KisStudioGlass::isEnabled() && KisStudioGlass::seeThroughWindows() && !detached && !holdsMenu;
+    const bool glass = KisStudioGlass::isEnabled() && KisStudioGlass::seeThroughWindows() && !holdsMenu;
     if (glass) {
         makeSeeThroughWindow(frame);
         frame->installEventFilter(painter);
         frame->setFrameStyle(QFrame::NoFrame);
-        frame->layout()->setContentsMargins(8, 8, 8, 8);
+        // pinned, a strip at the top to move it by, and its pin
+        frame->layout()->setContentsMargins(8, detached ? 30 : 8, 8, 8);
     } else {
         // window flags and frame are restored by KisPopupButton itself
         frame->setAttribute(Qt::WA_TranslucentBackground, false);

@@ -12,11 +12,15 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QScreen>
 #include <QStyleOption>
 #include <QStylePainter>
 #include <QWindow>
 #include <QMenu>
+#include <QToolButton>
+
+#include <functional>
 
 #include "kis_global.h"
 #include <kis_debug.h>
@@ -35,8 +39,14 @@ class KisPopupButtonFrame : public QFrame
     QHBoxLayout* frameLayout {0};
     bool m_detached {false};
     bool m_popupIsMenu {false};
+    QToolButton *m_pin {nullptr};
+    QPoint m_grab;
+    bool m_moving {false};
 
 public:
+    /// Asked to be kept open as a window of its own (pinned), or to be a popup again
+    std::function<void(bool)> pinRequested;
+
     KisPopupButtonFrame(QWidget *parent, bool detach, bool popupIsMenu)
         : QFrame(parent)
     {
@@ -45,6 +55,20 @@ public:
         frameLayout = new QHBoxLayout(this);
 
         setDetached(detach, popupIsMenu);
+        if (!popupIsMenu) {
+            // a pin in its corner: kept open, moved where it is wanted
+            m_pin = new QToolButton(this);
+            m_pin->setAutoRaise(true);
+            m_pin->setCheckable(true);
+            m_pin->setFocusPolicy(Qt::NoFocus);
+            m_pin->setText(QStringLiteral("📌"));
+            m_pin->setFixedSize(22, 22);
+            m_pin->setToolTip(QObject::tr("Pin: keep open"));
+            m_pin->setChecked(detach);
+            QObject::connect(m_pin, &QToolButton::clicked, this, [this](bool on) {
+                if (pinRequested) pinRequested(on);
+            });
+        }
     }
 
     void setDetached(bool detach, bool popupIsMenu)
@@ -63,11 +87,14 @@ public:
 
         m_detached = detach;
         m_popupIsMenu = popupIsMenu;
+        if (m_pin) m_pin->setChecked(detach);
         frameLayout->setContentsMargins(0, 0, 0, 0);
 
         if (detach) {
-            setWindowFlags(Qt::Dialog);
-            setFrameStyle(QFrame::NoFrame);        
+            // kept open, as it looked open: a window without the system's frame, moved by its border
+            setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint);
+            setFrameStyle(QFrame::NoFrame);
+            frameLayout->setContentsMargins(8, 30, 8, 8);
         }
         else {
             setWindowFlags(Qt::Popup);
@@ -84,6 +111,7 @@ public:
 
     void setVisible(bool visible) override
     {
+
         // its window is made as it is first shown (again after setDetached): what only counts before then, now
         if (visible && !testAttribute(Qt::WA_WState_Created) && frameDecorator()) {
             frameDecorator()(this, m_detached, m_popupIsMenu);
@@ -92,6 +120,48 @@ public:
     }
 
 protected:
+    void resizeEvent(QResizeEvent *event) override
+    {
+        QFrame::resizeEvent(event);
+        if (m_pin) {
+            m_pin->move(width() - m_pin->width() - 4, 4);
+            m_pin->raise();
+        }
+    }
+
+    void showEvent(QShowEvent *event) override
+    {
+        QFrame::showEvent(event);
+        if (m_pin) m_pin->raise();
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (m_detached && event->button() == Qt::LeftButton) {
+            m_grab = event->globalPos() - frameGeometry().topLeft();
+            m_moving = true;
+            event->accept();
+            return;
+        }
+        QFrame::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (m_moving) {
+            move(event->globalPos() - m_grab);
+            event->accept();
+            return;
+        }
+        QFrame::mouseMoveEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        m_moving = false;
+        QFrame::mouseReleaseEvent(event);
+    }
+
     void keyPressEvent(QKeyEvent *event) override
     {
         if (event->matches(QKeySequence::Cancel)) {
@@ -170,6 +240,10 @@ void KisPopupButton::setPopupWidget(QWidget* widget)
         m_d->popupWidget = widget;
 
         m_d->frame->layout()->addWidget(m_d->popupWidget);
+        m_d->frame->pinRequested = [this](bool pin) {
+            setPopupWidgetDetached(pin);
+            Q_EMIT sigPinned(pin);
+        };
 
         if (menu) {
             // The menu may decide to hide itself in response to user input.
