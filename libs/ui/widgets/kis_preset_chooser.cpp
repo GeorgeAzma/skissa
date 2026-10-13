@@ -41,6 +41,7 @@
 #include <KisResourceMetaDataModel.h>
 #include <KisModernStyle.h>
 #include "KisPresetStrokeThumbnails.h"
+#include <KisIconToolTip.h>
 
 
 /// The resource item delegate for rendering the resource preview
@@ -225,6 +226,26 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
     : QWidget(parent)
 {
     setObjectName("KisPresetChooser");
+
+    // a brush's tip shows what its tile does not: its stroke under its picture, its picture under its stroke
+    static bool tipPictures = false;
+    if (!tipPictures) {
+        tipPictures = true;
+        KisIconToolTip::setPictureProvider([](const QModelIndex &index, const QColor &ink) {
+            if (index.data(Qt::UserRole + KisAbstractResourceModel::ResourceType).toString() != ResourceType::PaintOpPresets) return QImage();
+            QImage picture = index.data(Qt::UserRole + KisAbstractResourceModel::LargeThumbnail).value<QImage>();
+            if (picture.isNull()) picture = index.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>();
+            if (!KisPresetStrokeThumbnails::isEnabled()) {
+                QColor strokeInk = ink;
+                strokeInk.setAlpha(255);
+                const QImage stroke = KisPresetStrokeThumbnails::instance()->stroke(index.data(Qt::UserRole + KisAbstractResourceModel::Id).toInt(),
+                                                                                   index.data(Qt::UserRole + KisAbstractResourceModel::MD5).toString(),
+                                                                                   strokeInk);
+                if (!stroke.isNull()) return stroke;
+            }
+            return picture;
+        });
+    }
 
     QVBoxLayout * layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);

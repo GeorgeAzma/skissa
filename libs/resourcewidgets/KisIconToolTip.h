@@ -13,6 +13,9 @@
 
 #include "kritaresourcewidgets_export.h"
 
+#include <functional>
+#include <QImage>
+
 class KoCheckerBoardPainter;
 
 class KRITARESOURCEWIDGETS_EXPORT KisIconToolTip: public KoItemToolTip
@@ -25,8 +28,19 @@ public:
     void setFixedToolTipThumbnailSize(const QSize &size);
     void setToolTipShouldRenderCheckers(bool value);
 
+    /**
+     * A picture of a resource other than its thumbnail (a brush's stroke), or a null image. Given it, a
+     * resource's tip is a card: the picture, its name, its tags as pills, and quietly where it is from.
+     */
+    using PictureProvider = std::function<QImage(const QModelIndex &index, const QColor &ink)>;
+    static void setPictureProvider(const PictureProvider &provider);
+
 protected:
     QTextDocument *createDocument( const QModelIndex &index ) override;
+
+private:
+    /// The card, or a null image when no picture provider says anything of \p index
+    QImage card(const QModelIndex &index);
 
 private:
     QSize m_fixedToolTipThumbnailSize;

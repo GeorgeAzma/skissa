@@ -12,6 +12,8 @@
 #include <QUrl>
 #include <QModelIndex>
 #include <QPainter>
+#include <QRegularExpression>
+#include <QtMath>
 
 #include <KisResourceModel.h>
 #include <KisResourceThumbnailCache.h>
@@ -42,9 +44,120 @@ void KisIconToolTip::setToolTipShouldRenderCheckers(bool value)
     }
 }
 
+namespace
+{
+KisIconToolTip::PictureProvider &pictureProvider()
+{
+    static KisIconToolTip::PictureProvider provider;
+    return provider;
+}
+} // namespace
+
+void KisIconToolTip::setPictureProvider(const PictureProvider &provider)
+{
+    pictureProvider() = provider;
+}
+
+QImage KisIconToolTip::card(const QModelIndex &index)
+{
+    if (!pictureProvider()) return QImage();
+    const QColor ink = palette().color(QPalette::ToolTipText);
+    const QImage picture = pictureProvider()(index, ink);
+    if (picture.isNull()) return QImage();
+
+    const qreal ratio = devicePixelRatioF();
+    QString name = index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString().replace(QLatin1Char('_'), QLatin1Char(' '));
+    if (name.isEmpty()) name = index.data(Qt::DisplayRole).toString();
+    // the sorting prefix of Krita's own brushes ("b) ") is not part of the name
+    name.remove(QRegularExpression(QStringLiteral("^[a-z]\\)\\s+")));
+    const QStringList tags = index.data(Qt::UserRole + KisAbstractResourceModel::Tags).toStringList();
+    QString location = index.data(Qt::UserRole + KisAbstractResourceModel::Location).toString();
+
+    const int width = 240;
+    const int pad = 2;
+    QFont titleFont = font();
+    titleFont.setWeight(QFont::DemiBold);
+    titleFont.setPointSizeF(titleFont.pointSizeF() * 1.1);
+    QFont smallFont = font();
+    smallFont.setPointSizeF(smallFont.pointSizeF() * 0.88);
+    const QFontMetrics titleMetrics(titleFont);
+    const QFontMetrics smallMetrics(smallFont);
+
+    // the picture as large as fits the width, at most 120 tall
+    QSizeF pictureSize = QSizeF(picture.size()) / picture.devicePixelRatio();
+    pictureSize.scale(QSizeF(width, 120), Qt::KeepAspectRatio);
+
+    // the tags, wrapped into rows of pills
+    const int pillHeight = smallMetrics.height() + 6;
+    QVector<QRectF> pills;
+    qreal x = 0;
+    qreal y = 0;
+    Q_FOREACH (const QString &tag, tags) {
+        const qreal w = smallMetrics.horizontalAdvance(tag) + 14;
+        if (x > 0 && x + w > width) {
+            x = 0;
+            y += pillHeight + 4;
+        }
+        pills << QRectF(x, y, w, pillHeight);
+        x += w + 4;
+    }
+    const qreal tagsHeight = pills.isEmpty() ? 0 : y + pillHeight;
+    const QString where = smallMetrics.elidedText(location, Qt::ElideMiddle, width);
+
+    const qreal height = pad + pictureSize.height() + 10 + titleMetrics.height() + (pills.isEmpty() ? 0 : 8 + tagsHeight)
+        + (where.isEmpty() ? 0 : 6 + smallMetrics.height()) + pad;
+    QImage card(QSize(width + 2 * pad, qCeil(height)) * ratio, QImage::Format_ARGB32_Premultiplied);
+    card.setDevicePixelRatio(ratio);
+    card.fill(Qt::transparent);
+    QPainter painter(&card);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    qreal top = pad;
+    painter.drawImage(QRectF(pad + (width - pictureSize.width()) / 2, top, pictureSize.width(), pictureSize.height()), picture);
+    top += pictureSize.height() + 10;
+    painter.setFont(titleFont);
+    painter.setPen(ink);
+    painter.drawText(QRectF(pad, top, width, titleMetrics.height()), Qt::AlignLeft | Qt::AlignVCenter,
+                     titleMetrics.elidedText(name, Qt::ElideRight, width));
+    top += titleMetrics.height();
+    painter.setFont(smallFont);
+    if (!pills.isEmpty()) {
+        top += 8;
+        QColor fill = ink;
+        fill.setAlphaF(0.12);
+        for (int i = 0; i < pills.size(); i++) {
+            const QRectF pill = pills[i].translated(pad, top);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(fill);
+            painter.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+            painter.setPen(ink);
+            painter.drawText(pill, Qt::AlignCenter, tags[i]);
+        }
+        top += tagsHeight;
+    }
+    if (!where.isEmpty()) {
+        top += 6;
+        QColor quiet = ink;
+        quiet.setAlphaF(0.5);
+        painter.setPen(quiet);
+        painter.drawText(QRectF(pad, top, width, smallMetrics.height()), Qt::AlignLeft | Qt::AlignVCenter, where);
+    }
+    painter.end();
+    return card;
+}
+
 QTextDocument *KisIconToolTip::createDocument(const QModelIndex &index)
 {
     QTextDocument *doc = new QTextDocument(this);
+
+    const QImage cardImage = card(index);
+    if (!cardImage.isNull()) {
+        doc->addResource(QTextDocument::ImageResource, QUrl("data:card"), cardImage);
+        doc->setHtml(QStringLiteral("<html><body><img src=\"data:card\"></body></html>"));
+        doc->setDocumentMargin(10);
+        doc->setTextWidth(cardImage.width() / cardImage.devicePixelRatio() + 20);
+        return doc;
+    }
 
     QImage thumb = index.data(Qt::DecorationRole).value<QImage>();
     if (thumb.isNull()) {
