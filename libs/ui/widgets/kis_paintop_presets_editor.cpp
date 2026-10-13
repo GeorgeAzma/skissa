@@ -283,6 +283,10 @@ KisPaintOpPresetsEditor::KisPaintOpPresetsEditor(KisCanvasResourceProvider * res
     m_d->uiWdgPaintOpPresetSettings.dirtyPresetCheckBox->setChecked(cfg.useDirtyPresets());
     m_d->uiWdgPaintOpPresetSettings.eraserBrushSizeCheckBox->setChecked(cfg.useEraserBrushSize());
     m_d->uiWdgPaintOpPresetSettings.eraserBrushOpacityCheckBox->setChecked(cfg.useEraserBrushOpacity());
+    // set in Settings (Keep tweaks) and on the Size and Opacity pages (the eraser's own)
+    m_d->uiWdgPaintOpPresetSettings.dirtyPresetCheckBox->hide();
+    m_d->uiWdgPaintOpPresetSettings.eraserBrushSizeCheckBox->hide();
+    m_d->uiWdgPaintOpPresetSettings.eraserBrushOpacityCheckBox->hide();
 
     connect(m_d->uiWdgPaintOpPresetSettings.brushEngineComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(slotUpdatePaintOpFilter()));
     connect(m_d->uiWdgPaintOpPresetSettings.bnBlacklistPreset, SIGNAL(clicked()), this, SLOT(slotBlackListCurrentPreset()));

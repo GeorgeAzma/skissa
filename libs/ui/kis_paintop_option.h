@@ -115,6 +115,8 @@ protected:
     virtual std::optional<RowValue> ownRowValue() const;
     virtual void setOwnRowValue(qreal value);
     void setConfigurationPage(QWidget *page);
+    /// The part of the page the option's checkbox enables, when not all of it (call before setConfigurationPage)
+    void setCheckedPart(QWidget *part);
 
     KisResourcesInterfaceSP resourcesInterface() const;
     KoCanvasResourcesInterfaceSP canvasResourcesInterface() const;

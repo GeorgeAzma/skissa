@@ -6,8 +6,11 @@
 #include "KisCurvePresetStrip.h"
 
 #include <QContextMenuEvent>
+
+#include <memory>
 #include <QHelpEvent>
-#include <QInputDialog>
+#include <QLineEdit>
+#include <QShortcut>
 #include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
@@ -238,10 +241,41 @@ void KisCurvePresetStrip::contextMenuEvent(QContextMenuEvent *event)
     QStringList curves = Saved::instance().curves();
     while (names.size() < curves.size()) names << QString();
     if (chosen == rename) {
-        bool ok = false;
-        const QString name = QInputDialog::getText(this, i18nc("@title:window", "Rename curve"), QString(), QLineEdit::Normal, names[index], &ok);
-        if (!ok || name.trimmed().isEmpty()) return;
-        names[index] = name.trimmed();
+        // typed over the tile itself; Enter or a click elsewhere keeps it, Escape doesn't
+        auto *edit = new QLineEdit(names[index], this);
+        // solid: the tiles under it don't show through
+        QPalette solid = edit->palette();
+        QColor base = palette().color(QPalette::Window);
+        base.setAlpha(255);
+        solid.setColor(QPalette::Base, base);
+        edit->setPalette(solid);
+        edit->setAutoFillBackground(true);
+        const QRect place = tile(i);
+        const int width = qMin(160, this->width());
+        edit->setGeometry(qBound(0, place.left(), this->width() - width), place.top(), width, place.height());
+        edit->selectAll();
+        edit->show();
+        edit->setFocus();
+        auto done = std::make_shared<bool>(false);
+        auto commit = [edit, index, done]() {
+            if (*done) return;
+            *done = true;
+            QStringList names = Saved::instance().names();
+            const QStringList curves = Saved::instance().curves();
+            while (names.size() < curves.size()) names << QString();
+            if (index < names.size() && !edit->text().trimmed().isEmpty()) {
+                names[index] = edit->text().trimmed();
+                Saved::instance().set(names, curves);
+            }
+            edit->deleteLater();
+        };
+        connect(edit, &QLineEdit::editingFinished, edit, commit);
+        auto *escape = new QShortcut(QKeySequence(Qt::Key_Escape), edit, nullptr, nullptr, Qt::WidgetShortcut);
+        connect(escape, &QShortcut::activated, edit, [edit, done]() {
+            *done = true;
+            edit->deleteLater();
+        });
+        return;
     } else if (chosen == remove) {
         names.removeAt(index);
         curves.removeAt(index);

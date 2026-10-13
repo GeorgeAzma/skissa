@@ -31,6 +31,9 @@ public:
     /// the configuration page is owned by the higher level
     /// QStackWidget, so we shouldn't care about that
     QWidget *configurationPage {nullptr};
+    /// What the option's checkbox enables in the page: the page, unless set apart
+    QWidget *checkedPart {nullptr};
+    QWidget *enabledByCheck() const { return checkedPart ? checkedPart : configurationPage; }
 
     bool updatesBlocked {false};
     bool isWritingSettings {false};
@@ -253,9 +256,14 @@ void KisPaintOpOption::setConfigurationPage(QWidget * page)
 
     m_d->configurationPage = page;
 
-    if (m_d->configurationPage) {
-        m_d->configurationPage->setEnabled(m_d->checkedCursor.get());
+    if (m_d->enabledByCheck()) {
+        m_d->enabledByCheck()->setEnabled(m_d->checkedCursor.get());
     }
+}
+
+void KisPaintOpOption::setCheckedPart(QWidget *part)
+{
+    m_d->checkedPart = part;
 }
 
 QWidget* KisPaintOpOption::configurationPage() const
@@ -265,8 +273,8 @@ QWidget* KisPaintOpOption::configurationPage() const
 
 void KisPaintOpOption::slotEnablePageWidget(bool value)
 {
-    if (m_d->configurationPage) {
-        m_d->configurationPage->setEnabled(value);
+    if (m_d->enabledByCheck()) {
+        m_d->enabledByCheck()->setEnabled(value);
     }
 }
 

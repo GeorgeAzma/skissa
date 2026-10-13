@@ -339,6 +339,13 @@ void KisPaintOpSettingsWidget::editRowValue(const QModelIndex &index)
     m_d->valueEditor = editor;
     editor->setFrame(false);
     editor->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    // solid: the row's value under it doesn't show through
+    QPalette solid = editor->palette();
+    QColor base = palette().color(QPalette::Window);
+    base.setAlpha(255);
+    solid.setColor(QPalette::Base, base);
+    editor->setPalette(solid);
+    editor->setAutoFillBackground(true);
     editor->setText(QLocale().toString(value->value, 'f', value->decimals));
     editor->setGeometry(m_d->valueRect(index));
     editor->selectAll();

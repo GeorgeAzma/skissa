@@ -60,6 +60,7 @@
 #include "KisResourceServerProvider.h"
 #include "kis_favorite_resource_manager.h"
 #include "kis_config.h"
+#include "kis_config_notifier.h"
 #include "kis_image_config.h"
 
 #include "KisPopupButton.h"
@@ -536,6 +537,7 @@ KisPaintopBox::KisPaintopBox(KisViewManager *viewManager, QWidget *parent, const
     connect(m_presetsEditor       , SIGNAL(signalResourceSelected(KoResourceSP )), SLOT(resourceSelected(KoResourceSP )));
     connect(m_presetsEditor       , SIGNAL(reloadPresetClicked())              , SLOT(slotReloadPreset()));
     connect(m_presetsEditor       , SIGNAL(dirtyPresetToggled(bool))           , SLOT(slotDirtyPresetToggled(bool)));
+    connect(KisConfigNotifier::instance(), SIGNAL(configChanged()), SLOT(slotPresetSettingsChanged()));
     connect(m_presetsEditor       , SIGNAL(eraserBrushSizeToggled(bool))       , SLOT(slotEraserBrushSizeToggled(bool)));
     connect(m_presetsEditor       , SIGNAL(eraserBrushOpacityToggled(bool))       , SLOT(slotEraserBrushOpacityToggled(bool)));
 
@@ -1536,6 +1538,23 @@ void KisPaintopBox::slotDirtyPresetToggled(bool value)
     m_dirtyPresetsEnabled = value;
     KisConfig cfg(false);
     cfg.setUseDirtyPresets(m_dirtyPresetsEnabled);
+}
+
+void KisPaintopBox::slotPresetSettingsChanged()
+{
+    KisConfig cfg(true);
+    m_eraserBrushSizeEnabled = cfg.useEraserBrushSize();
+    m_eraserBrushOpacityEnabled = cfg.useEraserBrushOpacity();
+    const bool dirty = cfg.useDirtyPresets();
+    if (dirty != m_dirtyPresetsEnabled) {
+        // tweaks no longer kept: the brush as saved again
+        if (!dirty) {
+            slotReloadPreset();
+            m_presetsEditor->resourceSelected(m_resourceProvider->currentPreset());
+            m_presetsEditor->updateViewSettings();
+        }
+        m_dirtyPresetsEnabled = dirty;
+    }
 }
 
 void KisPaintopBox::slotEraserBrushSizeToggled(bool value)

@@ -180,6 +180,8 @@ private Q_SLOTS:
     void slotDropLockedOption(KisPropertiesConfigurationSP p);
     void slotDirtyPresetToggled(bool);
     void slotEraserBrushSizeToggled(bool);
+    /// Keep tweaks and the eraser's own size and opacity, changed in Settings or on a page
+    void slotPresetSettingsChanged();
     void slotEraserBrushOpacityToggled(bool);
     void slotUpdateSelectionIcon();
 

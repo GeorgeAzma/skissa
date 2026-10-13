@@ -26,6 +26,12 @@
 #include <KisCurveOptionInputControlsStrategy.h>
 #include <KisCurvePresetStrip.h>
 
+#include <QCheckBox>
+#include <QVBoxLayout>
+
+#include <kis_config.h>
+#include <kis_config_notifier.h>
+
 namespace
 {
 /// The row's checkbox: the option on or off, or for one that is always on (Opacity, Flow), whether the pen changes it
@@ -166,6 +172,38 @@ KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommo
     }
 
     setConfigurationPage(m_widget);
+
+    // the eraser's own size or opacity, where size and opacity are set (not the masked brush's)
+    const QString optionId = optionData->id.id();
+    if (optionData->prefix.isEmpty() && category == KisPaintOpOption::GENERAL
+        && (optionId == QLatin1String("Size") || optionId == QLatin1String("Opacity"))) {
+        const bool size = optionId == QLatin1String("Size");
+        auto *eraser = new QCheckBox(size ? i18nc("@option:check", "Eraser keeps its own size")
+                                          : i18nc("@option:check", "Eraser keeps its own opacity"), m_widget);
+        eraser->setToolTip(size ? i18nc("@info:tooltip", "Switching to the eraser and back swaps between the two sizes")
+                                : i18nc("@info:tooltip", "Switching to the eraser and back swaps between the two opacities"));
+        auto show = [eraser, size]() {
+            KisConfig cfg(true);
+            const QSignalBlocker blocker(eraser);
+            eraser->setChecked(size ? cfg.useEraserBrushSize() : cfg.useEraserBrushOpacity());
+        };
+        show();
+        connect(KisConfigNotifier::instance(), &KisConfigNotifier::configChanged, eraser, show);
+        connect(eraser, &QCheckBox::toggled, eraser, [size](bool on) {
+            KisConfig cfg(false);
+            if (size) cfg.setUseEraserBrushSize(on);
+            else cfg.setUseEraserBrushOpacity(on);
+            KisConfigNotifier::instance()->notifyConfigChanged();
+        });
+        // usable with the option off too: only the pen's part follows its checkbox
+        auto *page = new QWidget();
+        auto *column = new QVBoxLayout(page);
+        column->setContentsMargins(0, 0, 0, 0);
+        column->addWidget(m_widget, 1);
+        column->addWidget(eraser);
+        setCheckedPart(m_widget);
+        setConfigurationPage(page);
+    }
 
     connect(&m_d->model, &KisCurveOptionModel::curveXMinLabelChanged,
             m_curveOptionWidget->label_xmin, &QLabel::setText);

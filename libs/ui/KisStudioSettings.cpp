@@ -1209,8 +1209,12 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("autoZoomTimelineToPlaybackRange"));
         });
     add(QStringLiteral("tools"), QStringLiteral("brushengine"), i18nc("settings card", "Painting"),
-        {QStringLiteral("maximumBrushSize")}, QStringLiteral("brush size largest"), [](Builder &b) {
+        {QStringLiteral("maximumBrushSize"), QStringLiteral("useDirtyPresets"), QStringLiteral("useEraserBrushSize"), QStringLiteral("useEraserBrushOpacity")},
+        QStringLiteral("brush size largest tweaks dirty presets keep eraser own size opacity"), [](Builder &b) {
             b.number(QStringLiteral("maximumBrushSize"), {QString(), 1, 0, i18nc("unit", " px"), 100});
+            b.toggle(QStringLiteral("useDirtyPresets"));
+            b.toggle(QStringLiteral("useEraserBrushSize"));
+            b.toggle(QStringLiteral("useEraserBrushOpacity"));
         });
 
     // ---- files

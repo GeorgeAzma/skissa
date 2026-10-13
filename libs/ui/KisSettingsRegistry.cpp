@@ -244,6 +244,11 @@ QHash<QString, QString> explanations()
         {QStringLiteral("KineticScrollingEnabled"), i18nc("@info:tooltip", "Lists keep scrolling after a flick, slowing down.")},
         {QStringLiteral("switchSelectionCtrlAlt"), i18nc("@info:tooltip", "Off: Ctrl replaces, Alt subtracts\nOn: Ctrl subtracts, Alt replaces")},
         {QStringLiteral("maximumBrushSize"), i18nc("@info:tooltip", "The top of the brush size slider. Huge brushes paint slowly")},
+        {QStringLiteral("useDirtyPresets"),
+         i18nc("@info:tooltip", "On: a changed brush stays changed when you switch away and back, until you save or reload it\n"
+               "Off: switching away forgets the changes")},
+        {QStringLiteral("useEraserBrushSize"), i18nc("@info:tooltip", "Switching to the eraser and back swaps between the two sizes")},
+        {QStringLiteral("useEraserBrushOpacity"), i18nc("@info:tooltip", "Switching to the eraser and back swaps between the two opacities")},
         {QStringLiteral("[filterdialog] forceLodMode"), i18nc("@info:tooltip", "Large images: a rough preview while you adjust, full quality after")},
         {QStringLiteral("[KisToolTransform] forceLodMode"), i18nc("@info:tooltip", "Large images: a rough preview while you transform, full quality after")},
         {QStringLiteral("[KritaTransform/KisToolMove] forceLodMode"), i18nc("@info:tooltip", "Large images: a rough preview while you move, full quality after")},
@@ -524,6 +529,9 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("switchSelectionCtrlAlt"), false, i18nc("setting", "Swap Ctrl and Alt for selections"));
         all << toggle(QStringLiteral("activateTransformToolAfterPaste"), false, i18nc("setting", "Transform after pasting"));
         all << number(QStringLiteral("maximumBrushSize"), 1000, 100, 10000, i18nc("setting", "Largest brush"), R::Restart);
+        all << toggle(QStringLiteral("useDirtyPresets"), true, i18nc("setting", "Keep brush tweaks"));
+        all << toggle(QStringLiteral("useEraserBrushSize"), false, i18nc("setting", "Eraser keeps its own size"));
+        all << toggle(QStringLiteral("useEraserBrushOpacity"), false, i18nc("setting", "Eraser keeps its own opacity"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in effects")), QStringLiteral("filterdialog"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in Transform")), QStringLiteral("KisToolTransform"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), false, i18nc("setting", "Instant preview in Move")), QStringLiteral("KritaTransform/KisToolMove"));
