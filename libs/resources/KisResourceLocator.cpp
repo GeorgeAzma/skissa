@@ -1053,7 +1053,7 @@ void KisResourceLocator::fontRegistryLoaded()
 
 KisResourceLocator::LocatorError KisResourceLocator::firstTimeInstallation(InitializationStatus initializationStatus, const QString &installationResourcesLocation)
 {
-    Q_EMIT progressMessage(i18n("Krita is running for the first time. Initialization will take some time."));
+    Q_EMIT progressMessage(i18n("Skissa is running for the first time. Initialization will take some time."));
     Q_UNUSED(initializationStatus);
 
     Q_FOREACH(const QString &folder, KisResourceLoaderRegistry::instance()->resourceTypes()) {

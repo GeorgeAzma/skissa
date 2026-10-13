@@ -72,7 +72,7 @@ KisAboutApplication::KisAboutApplication(QWidget *parent)
                     << "</td><td>"
                     << i18n("<p><b>Coding Krita</b></p>")
                     << i18n("<p><a href=\"https://krita-artists.org\"><span style=\" text-decoration: underline;\">User Community</span></a></p>")
-                    << i18n("<p><a href=\"https://invent.kde.org/graphics/krita\"><span style=\" text-decoration: underline;;\">Source Code</span></a></p>")
+                    << i18n("<p><a href=\"%1\"><span style=\" text-decoration: underline;;\">Source Code</span></a></p>", KisProfile::homepage())
                     << i18n("<p><a href=\"https://api.kde.org/krita/html/classKrita.html\"><span style=\" text-decoration: underline;\">Scripting API</span></a></p>")
                     << i18n("<p><a href=\"https://scripting.krita.org/lessons/introduction\"><span style=\" text-decoration: underline;;\">Scripting School</span></a></p>")
                     << "</td></tr></table></body>"
@@ -177,18 +177,18 @@ KisAboutApplication::KisAboutApplication(QWidget *parent)
                            "<head/>"
                            "<body>"
                            "<h1 align=\"center\"><b>Your Rights</b></h1>"
-                           "<p>Krita is released under the GNU General Public License (version 3 or any later version).</p>"
+                           "<p>Skissa is released under the GNU General Public License (version 3 or any later version).</p>"
                            "<p>This license grants people a number of freedoms:</p>"
                            "<ul>"
-                           "<li>You are free to use Krita, for any purpose</li>"
-                           "<li>You are free to distribute Krita</li>"
-                           "<li>You can study how Krita works and change it</li>"
-                           "<li>You can distribute changed versions of Krita</li>"
+                           "<li>You are free to use Skissa, for any purpose</li>"
+                           "<li>You are free to distribute Skissa</li>"
+                           "<li>You can study how Skissa works and change it</li>"
+                           "<li>You can distribute changed versions of Skissa</li>"
                            "</ul>"
                            "<p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p>"
                            "<h1 align=\"center\">Your artwork</h1>"
-                           "<p>What you create with Krita is your sole property. All your artwork is free for you to use as you like.</p>"
-                           "<p>That means that Krita can be used commercially, for any purpose. There are no restrictions whatsoever.</p>"
+                           "<p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p>"
+                           "<p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p>"
                            "<p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast "
                            "to trial or educational versions of commercial software that will forbid your work in commercial situations.</p>"
                            "<br/><hr/><pre>");
@@ -211,8 +211,8 @@ KisAboutApplication::KisAboutApplication(QWidget *parent)
         QString thirdPartyHtml = i18n("<html>"
                                       "<head/>"
                                       "<body>"
-                                      "<h1 align=\"center\"><b>Third-party Libraries used by Krita</b></h1>"
-                                      "<p>Krita is built on the following free software libraries:</p><p><ul>");
+                                      "<h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1>"
+                                      "<p>Skissa is built on the following free software libraries:</p><p><ul>");
 
         Q_FOREACH (const QString &lib, thirdPartyText.readAll().split('\n', Qt::SkipEmptyParts)) {
 

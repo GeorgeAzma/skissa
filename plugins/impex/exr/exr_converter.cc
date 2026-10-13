@@ -918,7 +918,7 @@ KisImportExportErrorCode EXRConverter::decode(const QString &filename)
             QString msg =
                     i18nc("@info",
                           "The image contains pixels with zero alpha channel and non-zero "
-                          "color channels. Krita has modified those pixels to have "
+                          "color channels. Skissa has modified those pixels to have "
                           "at least some alpha. The initial values will <i>not</i> "
                           "be reverted on saving the image back."
                           "<br/><br/>"

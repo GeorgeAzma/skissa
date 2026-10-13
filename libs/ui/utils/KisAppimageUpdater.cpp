@@ -168,7 +168,7 @@ void KisAppimageUpdater::slotUpdateFinished(int result, QProcess::ExitStatus exi
         switch (result) {
         case 0:
             updateStatus = UpdaterStatus::StatusID::RESTART_REQUIRED;
-            statusDetails = i18n("New AppImage was downloaded to %1. To complete the update, close Krita and run the new AppImage.", finfoAppImagePath.path());
+            statusDetails = i18n("New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage.", finfoAppImagePath.path());
             break;
         default:
             // some errors have exit code of 255 (modified by system, when AppImageUpdate returns -1)

@@ -406,7 +406,7 @@ void KisAdvancedColorSpaceSelector::fillDescription()
                                                                     "profiles being very specific per printer, it is recommended to work in RGB space, and then later convert "
                                                                     "to a CMYK profile, preferably one delivered by your printer. <br/>"
                                                                     "CMYK is <b>not</b> recommended for painting."
-                                                                    "Unfortunately, Krita cannot retrieve colorants or the TRC for this space.")+"</p>");
+                                                                    "Unfortunately, Skissa cannot retrieve colorants or the TRC for this space.")+"</p>");
     } else if (currentModelStr == "XYZA") {
         d->colorSpaceSelector->textProfileDescription->append("<p>"+i18nc("If the selected model is XYZ",
                                                                     "<b><a href=\"https://en.wikipedia.org/wiki/CIE_1931_color_space\">CIE XYZ</a></b>"
@@ -420,7 +420,7 @@ void KisAdvancedColorSpaceSelector::fillDescription()
                                                                     "gray values and transparent values. Grayscale images use half "
                                                                     "the memory and disk space compared to an RGB image of the same bit-depth.<br/>"
                                                                     "Grayscale is useful for inking and grayscale images. In "
-                                                                    "Krita, you can mix Grayscale and RGB layers in the same image.")+"</p>");
+                                                                    "Skissa, you can mix Grayscale and RGB layers in the same image.")+"</p>");
     } else if (currentModelStr == "LABA") {
         d->colorSpaceSelector->textProfileDescription->append("<p>"+i18nc("If the selected model is LAB",
                                                                     "<b><a href=\"https://en.wikipedia.org/wiki/Lab_color_space\">L*a*b</a></b>. <b>L</b> stands for Lightness, "
@@ -429,7 +429,7 @@ void KisAdvancedColorSpaceSelector::fillDescription()
                                                                     "tries to encode the difference in lightness, red-green balance and yellow-blue balance. "
                                                                     "This makes it useful for color correction, but the vast majority of color maths in the blending "
                                                                     "modes do <b>not</b> work as expected here.<br/>"
-                                                                    "Similarly, Krita does not support HDR in LAB, meaning that HDR images converted to LAB lose color "
+                                                                    "Similarly, Skissa does not support HDR in LAB, meaning that HDR images converted to LAB lose color "
                                                                     "information. This colorspace is <b>not</b> recommended for painting, nor for export, "
                                                                     "but best as a space to do post-processing in. The TRC is assumed to be the L* TRC.")+"</p>");
     } else if (currentModelStr == "YCbCrA") {
@@ -506,7 +506,7 @@ void KisAdvancedColorSpaceSelector::fillDescription()
 
         d->colorSpaceSelector->textProfileDescription->append("<p>"+i18nc("These are Elle Stone's notes on her profiles that we ship.",
                                                                     "<p><b>Extra notes on profiles by Elle Stone:</b></p>"
-                                                                    "<p><i>Krita comes with a number of high quality profiles created by "
+                                                                    "<p><i>Skissa comes with a number of high quality profiles created by "
                                                                     "<a href=\"https://ninedegreesbelow.com\">Elle Stone</a>. This is a summary. Please check "
                                                                     "<a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">the full documentation</a> as well.</i></p>"));
 

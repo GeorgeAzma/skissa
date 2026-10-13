@@ -1122,7 +1122,8 @@ if (!qEnvironmentVariableIsEmpty("KRITA_OPENGL_DEBUG")) {
                             i18nc("@info", "Painting, built on Krita"),
                             KAboutLicense::GPL,
                             i18nc("@info:credit", "© 1999–2026 The Krita Developers"));
-    aboutData.setHomepage(QStringLiteral("https://github.com/GeorgeAzma"));
+    aboutData.setHomepage(KisProfile::homepage());
+    aboutData.setBugAddress((KisProfile::homepage() + QStringLiteral("/issues")).toUtf8());
     aboutData.setOrganizationDomain("krita.org");
 
     // this call sets corresponding fields of QApplication as well
@@ -1220,7 +1221,7 @@ if (!qEnvironmentVariableIsEmpty("KRITA_OPENGL_DEBUG")) {
         if (osVersion.majorVersion() < QOperatingSystemVersion::Windows7.majorVersion()) {
             if (cfg.readEntry("WarnedAboutUnsupportedWindows", false)) {
                 QMessageBox::information(nullptr,
-                                         i18nc("@title:window", "Krita: Warning"),
+                                         i18nc("@title:window", "Skissa: Warning"),
                                          i18n("You are running an unsupported version of Windows: %1.\n"
                                               "This is not recommended. Do not report any bugs.\n"
                                               "Please update to a supported version of Windows: Windows 7, 8, 8.1 or 10.", osVersion.name()));

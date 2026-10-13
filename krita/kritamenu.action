@@ -1772,10 +1772,10 @@
     <text>Settings</text>
     <Action name="options_configure">
       <icon>configure</icon>
-      <text>&amp;Configure Krita...</text>
+      <text>&amp;Configure Skissa...</text>
       <whatsThis></whatsThis>
-      <toolTip>Configure Krita</toolTip>
-      <iconText>Configure Krita</iconText>
+      <toolTip>Configure Skissa</toolTip>
+      <iconText>Configure Skissa</iconText>
       <activationFlags>0</activationFlags>
       <activationConditions>0</activationConditions>
       <shortcut></shortcut>

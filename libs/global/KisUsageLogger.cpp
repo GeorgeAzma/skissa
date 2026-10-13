@@ -105,8 +105,8 @@ QString KisUsageLogger::basicSystemInfo()
 
     // NOTE: This is intentionally not translated!
 
-    // Krita version info
-    systemInfo.append("Krita\n");
+    // the app, and Krita's version under it
+    systemInfo.append(KisProfile::name()).append(QStringLiteral(" (built on Krita)\n"));
     systemInfo.append("\n Version: ").append(KritaVersionWrapper::versionString(true));
 #ifdef Q_OS_WIN
     {

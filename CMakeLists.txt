@@ -341,7 +341,8 @@ add_feature_info("Limit long tests" LIMIT_LONG_TESTS "Run long running unittests
 option(BUILD_KRITA_QT_DESIGNER_PLUGINS "Build Qt Designer plugins for Krita widgets" OFF)
 add_feature_info("Build Qt Designer plugins" BUILD_KRITA_QT_DESIGNER_PLUGINS "Builds Qt Designer plugins for Krita widgets (use -DBUILD_KRITA_QT_DESIGNER_PLUGINS=ON to enable).")
 
-option(ENABLE_UPDATERS "Enable updaters/update notifications" ON)
+# Off: Krita's update check would offer Krita's releases in place of this fork's own.
+option(ENABLE_UPDATERS "Enable updaters/update notifications" OFF)
 configure_file(config-updaters.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config-updaters.h)
 add_feature_info("Enable updaters" ENABLE_UPDATERS "Enable updaters/update notifications.")
 

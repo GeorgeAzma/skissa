@@ -122,7 +122,7 @@ KisKBugReport::KisKBugReport(const KAboutData &aboutData, QWidget *_parent)
     d->lblApplicationName = new QLabel(this);
     d->lblApplicationName->setWhatsThis(qwtstr);
 
-    d->appname = d->m_aboutData.productName();
+    d->appname = d->m_aboutData.displayName();
     d->lblApplicationName->setText(d->appname);
 
     glay->addWidget(d->lblApplicationName, row, 1);
@@ -156,11 +156,8 @@ KisKBugReport::KisKBugReport(const KAboutData &aboutData, QWidget *_parent)
 
     lay->addSpacing(10);
     QString text = i18n("<qt>"
-                        "<p>Please read <b><a href=\"https://docs.krita.org/en/untranslatable_pages/reporting_bugs.html\">this guide</a></b> for reporting bugs first!</p>"
-                        "<p>To submit a bug report, click on the button below. This will open a web browser "
-                        "window on <a href=\"https://bugs.kde.org\">https://bugs.kde.org</a> where you will find "
-                        "a form to fill in. </p>"
-                        "<p><b>Please paste the following information into the bug report!</b></p>"
+                        "<p>The button below opens a new issue on the app's page. Say what you did, what happened and what you expected.</p>"
+                        "<p><b>The details below are copied: paste them into the issue.</b></p>"
                         "</qt>");
     QLabel *label = new QLabel(text, this);
     label->setOpenExternalLinks(true);
@@ -215,25 +212,10 @@ KisKBugReport::~KisKBugReport()
 
 void KisKBugReportPrivate::_k_updateUrl()
 {
-    url = QUrl(QStringLiteral("https://bugs.kde.org/enter_bug.cgi"));
+    // the fork's own issues, not Krita's: bugs in it are its own to fix
+    url = QUrl(KisProfile::homepage() + QStringLiteral("/issues/new"));
     QUrlQuery query;
-    query.addQueryItem(QStringLiteral("format"), QLatin1String("guided"));    // use the guided form
-
-    // the string format is product/component, where component is optional
-    QStringList list = QStringList() << appname;
-    query.addQueryItem(QStringLiteral("product"), list[0]);
-    if (list.size() == 2) {
-        query.addQueryItem(QStringLiteral("component"), list[1]);
-    }
-
-    query.addQueryItem(QStringLiteral("version"), m_strVersion);
-
-    // TODO: guess and fill OS(sys_os) and Platform(rep_platform) fields
-#ifdef Q_OS_WIN
-    query.addQueryItem(QStringLiteral("op_sys"), QStringLiteral("MS Windows"));
-    query.addQueryItem(QStringLiteral("rep_platform"), QStringLiteral("MS Windows"));
-#endif
-
+    query.addQueryItem(QStringLiteral("body"), QStringLiteral("%1 %2, %3\n\n").arg(appname, m_strVersion, os));
     url.setQuery(query);
 }
 

@@ -27,6 +27,9 @@ namespace KisProfile
 /// The fork's name, also the name of its folders
 KRITAGLOBAL_EXPORT QString name();
 
+/// Where the fork lives online: its source, issues and releases
+KRITAGLOBAL_EXPORT QString homepage();
+
 /// Whether this run keeps its own folders (always, except the dev profile's old layout)
 KRITAGLOBAL_EXPORT bool isApart();
 

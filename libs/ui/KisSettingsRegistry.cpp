@@ -236,7 +236,7 @@ QHash<QString, QString> explanations()
                "High quality: smooth and sharpest")},
         {QStringLiteral("kritadisplayrc useWin8PointerInput"),
          i18nc("@info:tooltip", "On: Windows Ink\nOff: WinTab, your tablet's driver\nPressure or tilt acting up? Try the other")},
-        {QStringLiteral("useRightMiddleTabletButtonWorkaround"), i18nc("@info:tooltip", "For pen buttons that do nothing in Krita")},
+        {QStringLiteral("useRightMiddleTabletButtonWorkaround"), i18nc("@info:tooltip", "For pen buttons that do nothing in Skissa")},
         {QStringLiteral("tiltDirectionOffset"), i18nc("@info:tooltip", "Turns the tilt's direction: for a rotated tablet or left hand")},
         {QStringLiteral("touchPainting"), i18nc("@info:tooltip", "Auto: a finger paints when there's no pen\nOn: a finger always paints\nOff: a finger only moves and zooms")},
         {QStringLiteral("longPressEnabled"), i18nc("@info:tooltip", "Hold a finger still = right-click")},
@@ -291,7 +291,7 @@ QHash<QString, QString> explanations()
         {QStringLiteral("kritadisplayrc rootSurfaceFormat"), i18nc("@info:tooltip", "sRGB: any screen\nHDR: an HDR screen with HDR turned on in the system")},
         {QStringLiteral("ExrDefaultColorProfile"), i18nc("@info:tooltip", "EXR files rarely carry a profile: this one is used to open them")},
         {QStringLiteral("kritadisplayrc OpenGLRenderer"), i18nc("@info:tooltip", "Keep Auto. Change only if the canvas is slow, flickers or shows wrong colors")},
-        {QStringLiteral("memoryHardLimitPercent"), i18nc("@info:tooltip", "The share of memory images may use. Past it, Krita uses the disk: slower")},
+        {QStringLiteral("memoryHardLimitPercent"), i18nc("@info:tooltip", "The share of memory images may use. Past it, Skissa uses the disk: slower")},
         {QStringLiteral("maxNumberOfThreads"), i18nc("@info:tooltip", "More: faster painting and effects, less left for other apps")},
         {QStringLiteral("frameRenderingClones"), i18nc("@info:tooltip", "More: animations render faster, using more memory")},
         {QStringLiteral("detectFpsLimit"), i18nc("@info:tooltip", "The canvas redraws as often as the screen refreshes: 60 Hz → 60 a second")},
@@ -594,7 +594,7 @@ QVector<Setting> describeAll()
 #else
         nativeDialogs = qgetenv("XDG_CURRENT_DESKTOP") == "KDE";
 #endif
-        all << grouped(toggle(QStringLiteral("DontUseNativeFileDialog"), !nativeDialogs, i18nc("setting", "Krita's own file dialogs"), R::Machine),
+        all << grouped(toggle(QStringLiteral("DontUseNativeFileDialog"), !nativeDialogs, i18nc("setting", "Skissa's own file dialogs"), R::Machine),
                        QStringLiteral("File Dialogs"));
         Setting resources = text(QStringLiteral("ResourceDirectory"), QStandardPaths::writableLocation(QStandardPaths::AppDataLocation),
                                  i18nc("setting", "Resource folder"), R::Machine | R::Restart);

@@ -367,7 +367,7 @@ void KisWelcomePageWidget::slotUpdateThemeColors()
     kritaWebsiteLink->setText(QString("<a style=\"color: " + blendedColor.name() + " \" href=\"https://www.krita.org?" + analyticsString + "marketing-site" + "\">")
                               .append(i18n("Krita Website")).append("</a>"));
 
-    sourceCodeLink->setText(QString("<a style=\"color: " + blendedColor.name() + " \" href=\"https://invent.kde.org/graphics/krita\">")
+    sourceCodeLink->setText(QString("<a style=\"color: " + blendedColor.name() + " \" href=\"" + KisProfile::homepage() + "\">")
                             .append(i18n("Source Code")).append("</a>"));
 
     poweredByKDELink->setText(QString("<a style=\"color: " + blendedColor.name() + " \" href=\"https://userbase.kde.org/What_is_KDE\">")

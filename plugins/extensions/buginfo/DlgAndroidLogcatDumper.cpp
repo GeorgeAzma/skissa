@@ -95,7 +95,7 @@ QString DlgAndroidLogcatDumper::originalFileName()
 QString DlgAndroidLogcatDumper::captionText()
 {
     return i18nc("Caption of the dialog with Krita's Android system log for bug reports",
-                 "Krita Logcat Dump: please paste this information to the bug report");
+                 "Skissa Logcat Dump: please paste this information to the bug report");
 }
 
 QString DlgAndroidLogcatDumper::replacementWarningText() { return QString(); }

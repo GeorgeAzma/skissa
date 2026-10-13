@@ -77,7 +77,7 @@ void QMic::slotQMic(bool again)
     }
 
     if (!plugin) {
-        QMessageBox::warning(qApp->activeWindow(), KisProfile::name(), i18n("Krita cannot launch the gmic-qt plugin. No bundled library found."));
+        QMessageBox::warning(qApp->activeWindow(), KisProfile::name(), i18n("Skissa cannot launch the gmic-qt plugin. No bundled library found."));
         return;
     }
 

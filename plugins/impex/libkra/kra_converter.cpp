@@ -370,7 +370,7 @@ KisImportExportErrorCode KraConverter::loadXML(const QDomDocument &doc, KoStore 
     
     if (syntaxVersion > 2) {
         errUI << "The file is too new for this version of Krita:" << syntaxVersion;
-        m_doc->setErrorMessage(i18n("The file is too new for this version of Krita (%1).", syntaxVersion));
+        m_doc->setErrorMessage(i18n("The file is too new for this version of Skissa (%1).", syntaxVersion));
         return ImportExportCodes::FormatFeaturesUnsupported;
     }
 

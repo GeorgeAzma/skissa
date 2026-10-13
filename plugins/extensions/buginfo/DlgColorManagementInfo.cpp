@@ -65,7 +65,7 @@ QString DlgColorManagementInfo::defaultNewFileName()
 
 QString DlgColorManagementInfo::captionText()
 {
-    return i18nc("Caption of the dialog with color management information for bug reports", "Krita Color Management Information: please paste this information to the bug report");
+    return i18nc("Caption of the dialog with color management information for bug reports", "Skissa Color Management Information: please paste this information to the bug report");
 }
 
 QString DlgColorManagementInfo::replacementWarningText()

@@ -149,7 +149,7 @@
        <item>
         <widget class="QCheckBox" name="cb_enable_script">
          <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If this is checked your script will be automatically enabled in Krita. That is, it will show up in the Scripts menu or docker list. If not, you will need to manually enable the script through the Krita-&amp;gt;Settings menu entry. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If this is checked your script will be automatically enabled in Skissa. That is, it will show up in the Scripts menu or docker list. If not, you will need to manually enable the script through the Skissa-&amp;gt;Settings menu entry. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
          <property name="text">
           <string>Enable Script</string>

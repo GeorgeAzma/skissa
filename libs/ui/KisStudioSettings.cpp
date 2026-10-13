@@ -606,7 +606,7 @@ struct Builder {
         follow([mark, id]() {
             const bool waiting = R::instance()->waitingForRestart().contains(id);
             mark->setEnabled(waiting);
-            mark->setToolTip(waiting ? i18nc("@info:tooltip", "Restart Krita to apply") : i18nc("@info:tooltip", "Applies after a restart"));
+            mark->setToolTip(waiting ? i18nc("@info:tooltip", "Restart to apply") : i18nc("@info:tooltip", "Applies after a restart"));
         });
         return mark;
     }
@@ -1544,7 +1544,7 @@ public:
         QFont markFont = m_mark->font();
         markFont.setPointSizeF(markFont.pointSizeF() * 0.6);
         m_mark->setFont(markFont);
-        m_mark->setToolTip(i18nc("@info:tooltip", "Changed from Krita's default"));
+        m_mark->setToolTip(i18nc("@info:tooltip", "Changed from the default"));
         header->addWidget(m_mark);
         if (const Setting *s = def.toggleId.isEmpty() ? nullptr : R::instance()->setting(def.toggleId)) {
             if (s->flags & R::Restart) header->addWidget(m_builder.restartMark(def.toggleId, this));
@@ -2497,7 +2497,7 @@ struct KisStudioSettings::Private
             }
             if (found.isEmpty() && fresh->box()->count() == 0) {
                 fresh->box()->addWidget(dimLabel(shown == searchId ? i18nc("@info", "No setting is called that.")
-                                                                   : i18nc("@info", "Everything is as Krita comes."), fresh));
+                                                                   : i18nc("@info", "Everything is as it comes."), fresh));
             }
             rail->setCurrent(QString());
         } else if (QStringList *own = sections.cardsOf(shown)) {
@@ -2651,7 +2651,7 @@ struct KisStudioSettings::Private
     {
         KoFileDialog dialog(q, KoFileDialog::SaveFile, QStringLiteral("StudioSettingsExport"));
         dialog.setCaption(i18nc("@title:window", "Export Settings"));
-        dialog.setNameFilter(i18nc("file type", "Krita settings (*.json)"));
+        dialog.setNameFilter(i18nc("file type", "Settings (*.json)"));
         dialog.setDefaultDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + QStringLiteral("/krita-settings.json"));
         QString path = dialog.filename();
         if (path.isEmpty()) return;
@@ -2669,7 +2669,7 @@ struct KisStudioSettings::Private
     {
         KoFileDialog dialog(q, KoFileDialog::OpenFile, QStringLiteral("StudioSettingsExport"));
         dialog.setCaption(i18nc("@title:window", "Import Settings"));
-        dialog.setNameFilter(i18nc("file type", "Krita settings (*.json)"));
+        dialog.setNameFilter(i18nc("file type", "Settings (*.json)"));
         const QString path = dialog.filename();
         if (path.isEmpty()) return;
         QFile file(path);
@@ -2769,7 +2769,7 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
     d->changedButton = new QToolButton(this);
     d->changedButton->setCheckable(true);
     d->changedButton->setAutoRaise(true);
-    d->changedButton->setToolTip(i18nc("@info:tooltip", "Changed from Krita's defaults"));
+    d->changedButton->setToolTip(i18nc("@info:tooltip", "Changed from the defaults"));
     header->addWidget(d->changedButton);
     auto *more = new QToolButton(this);
     more->setAutoRaise(true);
@@ -2808,7 +2808,7 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
     connect(&d->statusTimer, &QTimer::timeout, d->status, &QWidget::hide);
 
     auto *footer = new QHBoxLayout();
-    d->footer = new QPushButton(KisIconUtils::loadIcon(QStringLiteral("studio_refresh")), i18nc("@action:button restart Krita", "Restart"), this);
+    d->footer = new QPushButton(KisIconUtils::loadIcon(QStringLiteral("studio_refresh")), i18nc("@action:button restart the app", "Restart"), this);
     d->footer->hide();
     connect(d->footer, &QPushButton::clicked, this, []() { restartKrita(); });
     footer->addWidget(d->footer, 0, Qt::AlignLeft);

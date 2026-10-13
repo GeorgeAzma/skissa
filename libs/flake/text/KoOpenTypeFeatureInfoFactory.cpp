@@ -71,7 +71,7 @@ KoOpenTypeFeatureInfoFactory::KoOpenTypeFeatureInfoFactory()
                       {KoOpenTypeFeatureInfo::GSUB1}));
     initialMap.append(KoOpenTypeFeatureInfo(QByteArray("opbd"),
                       i18nc("@title", "Optical Bounds"),
-                      i18nc("@tooltip", "Adjusts glyphs so they align by their optical bounds. Doesn't do anything in Krita."),
+                      i18nc("@tooltip", "Adjusts glyphs so they align by their optical bounds. Doesn't do anything in Skissa."),
                       {KoOpenTypeFeatureInfo::GPOS1}));
     initialMap.append(KoOpenTypeFeatureInfo(QByteArray("ornm"),
                       i18nc("@title", "Ornaments"),
@@ -125,7 +125,7 @@ KoOpenTypeFeatureInfoFactory::KoOpenTypeFeatureInfoFactory()
                       {KoOpenTypeFeatureInfo::GSUB1}));
     initialMap.append(KoOpenTypeFeatureInfo(QByteArray("size"),
                       i18nc("@title", "Optical size"),
-                      i18nc("@tooltip", "Indicates how much the font is suitable for its current size. Does nothing in Krita."),
+                      i18nc("@tooltip", "Indicates how much the font is suitable for its current size. Does nothing in Skissa."),
                       {KoOpenTypeFeatureInfo::GPOS1}));
     initialMap.append(KoOpenTypeFeatureInfo(QByteArray("vkrn"),
                       i18nc("@title", "Vertical Kerning"),

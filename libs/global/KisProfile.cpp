@@ -17,6 +17,11 @@ QString name()
     return QStringLiteral("Skissa");
 }
 
+QString homepage()
+{
+    return QStringLiteral("https://github.com/GeorgeAzma/skissa");
+}
+
 bool isApart()
 {
     return !qEnvironmentVariableIsSet("KRITA_DEV_PROFILE") || qEnvironmentVariableIsSet("KRITA_DEV_APART");
