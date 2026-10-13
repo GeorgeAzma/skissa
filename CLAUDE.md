@@ -75,8 +75,13 @@ A map, so you know where things are and how they think. Files are in `libs/ui/` 
   - `KisLineArtFill::grow` runs after Krita's flood fill (`KisFillPainter::setLineArt`): a watershed on the difference from the clicked color, so the fill reaches under the lines to where they meet the next area. Every one-color area with an inside competes (paper, earlier fills, the solid middle of thick lines); thin bands (soft line edges), specks and corners the gap closing cut off are taken in. Only when filling another layer than the one read; the Fill tool has Under lines and Specks.
   - A color dragged onto the canvas (from the rail chip, the color panel's swatches, a palette) previews the area in that color; resting, then moving sideways, tunes the threshold. The drop fills a "Colors" layer of its own when the active layer holds the lines (below clear line art, Multiply above opaque), sizes the gap closing from the line width, and leaves a chip that keeps filling. With a modifier held, Krita's own color drop runs instead.
   - A color dropped onto a layer row recolors it (`KisNodeModel::dropMimeData`); between rows it still makes a fill layer. Layer → Auto Flats gives every enclosed area its own color (`KisLineArtFill::flats`).
+- **Shapes** (`tool/KisStrokeShape`, `KisToolFreehand`): with the toggle next to Symmetry on, a stroke held still for half a second at its end becomes a clean line, arc, ellipse (near-round → circle) or polygon (near-square → rectangle); the helper's `repaintAs` drops the stroke and paints the shape, carrying its pressure, as one undo step. Thresholds are in screen pixels and were tuned so scribbles, waves and spirals never snap. The colorize mask brush opts out (`m_snapsToShapes`).
+- **Time-lapse** (`plugins/dockers/recorder`): a panel with a scrubbable preview of the recorded frames, a record button, the clip length (drag), MP4/GIF/WebM chips and an Export that saves "<image> time-lapse.<ext>" beside the image; the rest is in its ⋯ menu. Krita's recorder and ffmpeg export underneath.
 - **Symmetry** (`KisStudioSymmetry`, `plugins/tools/basictools/kis_tool_multihand`): one button with Mirror/Radial/Tile modes. Radial and Tile use the Multibrush tool and return to the previous tool. Handles are drawn with `paintToolOutline`.
 - **Its own folders** (`libs/global/KisProfile`): nothing is shared with a regular Krita on the same computer. Config files and logs live in `<LocalAppData>/<name>/` (`KisProfile::configFile`), resources and other app data in `<AppData>/<name>/krita` (the Qt organization name), autosaves of unsaved images in `<Temp>/<name>`; the single-instance key differs. Any new file the fork writes goes through `KisProfile`, never a bare `QStandardPaths::GenericConfigLocation` or `"kritarc"`. Krita's files are only ever read (Take Krita's settings), never written. The dev profile keeps its old layout inside `qttest`; `KRITA_DEV_APART=1` runs the new layout there for testing.
+- **Name and links** (`KisProfile::name()`, `KisProfile::homepage()`): text that means this app says Skissa; text about Krita the project, its files or its docs stays Krita. Report Bug opens the homepage's issues. Krita's update checker is off (`ENABLE_UPDATERS`).
+- **Saving on Windows** (`KisImportExportManager`): the new file is written beside the old one and swapped in (`MoveFileEx`), so a failed save never leaves a broken file.
+- **Releases** (`packaging/windows/make-release.py`): a portable zip that follows the DLL imports of everything it ships, with the license texts and a SOURCE.txt pointing at the exact tag. English only (no locale).
 - **Small systems:**
   - Empty lists say why they're empty (`KisStudioEmptyStates`).
   - The brush tooltip is a card showing the other picture (stroke or icon), tags and location (`resourcewidgets/KisIconToolTip`).
@@ -118,14 +123,13 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 
 ## Open questions and known issues
 
-- **The app is named Skissa** (`KisProfile::name()`, which also names the folders). Window title, About, splash, icons, theme names, dialog titles and the exe's file info use it. Still Krita's, to do before a public release:
-  - about 100 sentences that name Krita as the app ("Krita will back up…"); they could take `KisProfile::name()`;
-  - the exe is `krita.exe`, and the internal ids (`krita` component, `.kra`) stay, as they should;
-  - Help → Report Bug goes to bugs.kde.org; it should go to the fork's own issues once its repo exists, and the About "Source code" link should point there too;
-  - the splash art is Kiki, Krita's mascot (credited, CC BY-SA); art of the fork's own would separate it further.
+- **The app is named Skissa** everywhere it names itself. The exe stays `krita.exe` and the internal ids (`krita` component, `.kra`) stay, as they should. The splash art is Kiki, Krita's mascot (credited, CC BY-SA); art of the fork's own would separate it further.
+- **The homepage `github.com/GeorgeAzma/skissa` is assumed** (`KisProfile::homepage()`, `make-release.py`); change both if the repo lives elsewhere.
+- **The README says plainly that all the code is AI-written** and the ideas are the owner's; keep that true and visible. Its donate button goes to Krita.
 - Take Krita's settings copies settings only, not the user's own brushes and bundles from Krita's resource folder.
 - **Pre-5.0 brush engine paths were removed** (legacy smudge, spray center bias, hard flow). Old presets that used them paint slightly differently.
 - **G'MIC-Qt isn't built** in `krita-deps`; only the bridge plugin is. The idea on the table is wrapping the useful G'MIC filters as native effects.
+- **The owner asked to be reminded** of shader filters and the brush editor redesign; they will go through the brush editor's current UI themselves and ask for changes one by one.
 - **Ideas the owner liked:** shader-based custom filters in the effect panel (Shadertoy-style GLSL; the sliders come from uniforms), and a brush editor redesign around a tip/mask/texture stack and a dynamics grid (sensors × properties).
 
 ## Lessons (append, newest last)
@@ -141,3 +145,6 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - Creating a `QOpenGLFramebufferObject` in the middle of a frame leaves bound the framebuffer Qt last knew of, not the one that was bound: the rest of the frame lands off screen. Create them through `KisOpenGLGlass`'s `texture()`, which keeps the binding. (This was the glass missing under a menu the first time it opened.)
 - A fill run through `FillProcessingVisitor` changes the layer but not the canvas: add a `KisUpdateCommand` with its dirty rect to the same stroke, as the fill tool does.
 - Fills that read the whole picture must not take earlier fills for lines: what counts as a line (for line width, for the layer that holds the lines) is dark ink, not "differs from the clicked color".
+- Python one-liners in a bash heredoc turn `\n` inside C++ strings into real newlines: make escape-heavy edits with the Edit tool.
+- PowerShell's `[int]` rounds (to even), it doesn't truncate: use `[math]::Floor` in test scripts. `Set-Content -Encoding utf8` writes a BOM, which CMake files can't take.
+- In a fresh profile (`KRITA_DEV_APART`) the UI scale differs, so devinput coordinates are logical pixels there; in the dev profile they match the capture's pixels.
