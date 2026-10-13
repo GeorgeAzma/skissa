@@ -635,6 +635,14 @@ KisPaintopBox::~KisPaintopBox()
     }
 }
 
+void KisPaintopBox::setStudioButtonsHidden(bool hidden)
+{
+    for (QWidget *button : {static_cast<QWidget *>(m_brushEditorPopupButton), static_cast<QWidget *>(m_eraseModeButton),
+                            static_cast<QWidget *>(m_alphaLockButton), static_cast<QWidget *>(m_reloadButton)}) {
+        button->setVisible(!hidden);
+    }
+}
+
 QWidget *KisPaintopBox::presetChip() const
 {
     return m_presetSelectorPopupButton;

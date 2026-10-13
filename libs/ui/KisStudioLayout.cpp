@@ -61,6 +61,7 @@
 #include "KisModernStyle.h"
 #include "KisResourceServerProvider.h"
 #include "KisSettingsRegistry.h"
+#include "KisStudioBarButtons.h"
 #include "KisStudioBrushMemory.h"
 #include "KisStudioBrushPicker.h"
 #include "KisStudioCanvasHud.h"
@@ -1212,6 +1213,8 @@ struct KisStudioLayout::Private
     QPointer<QWidget> windowHandle;
     /// Holds the tool chip, the tool options, size and opacity
     QPointer<QToolBar> topBar;
+    /// The bar's arrangeable switches and commands, after the brush's own controls
+    QPointer<QToolBar> buttonsBar;
     QPointer<QWidget> findField;
     QPointer<QAction> findFieldAction;
     QPointer<QWidget> menuButton;
@@ -1587,6 +1590,7 @@ void KisStudioLayout::enter()
     });
     KisViewManager *viewManager = mainWindow->viewManager();
     if (KisPaintopBox *paintopBox = viewManager ? viewManager->paintOpBox() : nullptr) {
+        paintopBox->setStudioButtonsHidden(true);
         d->presetChip = paintopBox->presetChip();
         if (d->presetChip) {
             d->presetChipToolTip = d->presetChip->toolTip();
@@ -1866,6 +1870,12 @@ void KisStudioLayout::leave()
     }
     if (d->topBar) {
         d->topBar->hide();
+    }
+    if (d->buttonsBar) {
+        d->buttonsBar->hide();
+    }
+    if (KisPaintopBox *paintopBox = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr) {
+        paintopBox->setStudioButtonsHidden(false);
     }
     releaseTopBars();
     if (!isCanvasOnly()) {
@@ -2971,7 +2981,6 @@ void KisStudioLayout::createTopBar()
     d->toolChip = toolChip;
 
     auto *strip = new KisStudioToolStrip(bar);
-    strip->setActions(mainWindow->actionCollection());
     d->toolStripAction = bar->addWidget(strip);
     d->toolStripAction->setVisible(false);
     d->toolStrip = strip;
@@ -3036,6 +3045,15 @@ void KisStudioLayout::createTopBar()
     KisStudioGlass::setSeeThrough(bar, true);
     d->topBar = bar;
 
+    auto *buttonsBar = new QToolBar(i18nc("@title:window", "Buttons"), mainWindow);
+    buttonsBar->setObjectName(QStringLiteral("studioButtonsBar"));
+    buttonsBar->setMovable(false);
+    buttonsBar->setFloatable(false);
+    buttonsBar->setContextMenuPolicy(Qt::PreventContextMenu);
+    buttonsBar->addWidget(new KisStudioBarButtons(mainWindow, buttonsBar));
+    KisStudioGlass::setSeeThrough(buttonsBar, true);
+    d->buttonsBar = buttonsBar;
+
     // placed on the window pill by placeWindowButtons()
     auto *menuButton = new PillButton(QStringLiteral("studio_menu"), QString(), mainWindow);
     menuButton->hide();
@@ -3099,7 +3117,7 @@ void KisStudioLayout::adoptTopBars()
     const bool tools = d->active && !isRailHidden();
     QToolBar *brushBar = d->mainWindow->findChild<QToolBar *>(QStringLiteral("BrushesAndStuff"));
     int index = 1;
-    for (QToolBar *bar : {d->topBar.data(), brushBar}) {
+    for (QToolBar *bar : {d->topBar.data(), brushBar, d->buttonsBar.data()}) {
         if (!bar) continue;
         if (bar->parentWidget() != d->topPill->contents()) {
             d->mainWindow->removeToolBar(bar);
@@ -3111,6 +3129,7 @@ void KisStudioLayout::adoptTopBars()
     }
     // show them after inserting: removeToolBar() hides them, as does restoring a window state with no place for them
     if (d->topBar) d->topBar->setVisible(tools);
+    if (d->buttonsBar) d->buttonsBar->setVisible(tools);
     if (brushBar) brushBar->show();
     if (d->windowBar) d->windowBar->show();
 
@@ -3428,6 +3447,7 @@ void KisStudioLayout::peek(const QPoint &global)
             if (widget == d->topPill) {
                 // show it whole: canvas-only mode hides its tool and brush parts
                 if (d->topBar) d->topBar->show();
+                if (d->buttonsBar) d->buttonsBar->show();
                 if (d->toolStripAction && d->toolStrip) d->toolStripAction->setVisible(d->toolStrip->hasOptions());
                 updateContextBar();
                 d->topPill->place();

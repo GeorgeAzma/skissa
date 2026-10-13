@@ -116,6 +116,8 @@ public:
 
     /// The button with the current brush's picture that opens the brush presets
     QWidget *presetChip() const;
+    /// Hides the edit, eraser, alpha lock and reload buttons, which the Studio layout's bar shows instead
+    void setStudioButtonsHidden(bool hidden);
 
 Q_SIGNALS:
     /// The value as shown in the sliders, i.e. 0-100 for opacity and flow
