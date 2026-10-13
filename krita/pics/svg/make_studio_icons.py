@@ -226,6 +226,7 @@ ICONS = {
                 + p('M10.5 18.2 4.1 8.9a1.9 1.9 0 0 1 .5-2.6l5.9-4')),
     'history': p('M3.5 12a8.5 8.5 0 1 0 2.9-6.4L3.5 8.3') + p('M3.5 3.5v4.8h4.8') + p('M12 7.5V12l3 2'),
     'timelapse': c(12, 12, 8.5) + p('M10.2 8.6v6.8l5.6-3.4Z'),
+    'shapes': c(8.2, 8.2, 4.7) + sq(12.3, 12.3, 8.2, 8.2, 2),
     'tool_options': p('M7 3.5v3M7 10.5v10M12 3.5v10M12 17.5v3M17 3.5v6M17 13.5v7') + c(7, 8.5, 2) + c(12, 15.5, 2) + c(17, 11.5, 2),
 
     # ---- the panels, shown (see KisIconUtils: a button's On state)
@@ -238,6 +239,7 @@ ICONS = {
     'history_on': (p('M3.5 12a8.5 8.5 0 1 0 2.9-6.4L3.5 8.3') + p('M3.5 3.5v4.8h4.8')
                    + '<path d="%sM11.3 6.6h1.4v4.7l2.7 1.8-.8 1.2-3.3-2.2Z" fill="INK" fill-rule="evenodd" stroke="none"/>' % hole_circle(12, 12, 5.9).replace('M6.1 12', 'M6.1 12', 1)),
     'timelapse_on': solid('M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0-17 0ZM9.4 7.4v9.2l7.6-4.6Z'),
+    'shapes_on': solid('M3.5 8.2a4.7 4.7 0 1 0 9.4 0a4.7 4.7 0 1 0-9.4 0Z') + solid(outline_of(sq(12.3, 12.3, 8.2, 8.2, 2))),
     'tool_options_on': p('M7 3.5v3M7 10.5v10M12 3.5v10M12 17.5v3M17 3.5v6M17 13.5v7') + dot(7, 8.5, 2.6) + dot(12, 15.5, 2.6) + dot(17, 11.5, 2.6),
     'find': c(10.5, 10.5, 7) + p('m20.5 20.5-5-5'),
     'more': dot(5.5, 12, 1.6) + dot(12, 12, 1.6) + dot(18.5, 12, 1.6),

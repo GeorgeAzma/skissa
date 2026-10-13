@@ -56,6 +56,9 @@
 #include "kis_tool_freehand_helper.h"
 #include "strokes/freehand_stroke.h"
 #include "kis_tool_utils.h"
+#include "KisStrokeShape.h"
+#include "KisSettingsRegistry.h"
+#include "canvas/kis_coordinates_converter.h"
 
 using namespace std::placeholders; // For _1 placeholder
 
@@ -123,6 +126,10 @@ KisToolFreehand::KisToolFreehand(KoCanvasBase * canvas, const QCursor & cursor,
                                          new KisSmoothingOptions(useSavedSmoothing));
 
     connect(m_helper, SIGNAL(requestExplicitUpdateOutline()), SLOT(explicitUpdateOutline()));
+
+    m_shapeHold.setSingleShot(true);
+    m_shapeHold.setInterval(500);
+    connect(&m_shapeHold, &QTimer::timeout, this, &KisToolFreehand::snapToShape);
 
     connect(qobject_cast<KisCanvas2*>(canvas)->viewManager(), SIGNAL(brushOutlineToggled()), SLOT(explicitUpdateOutline()));
 
@@ -343,7 +350,10 @@ void KisToolFreehand::doStroke(KoPointerEvent *event)
 
 void KisToolFreehand::endStroke()
 {
-    m_helper->endPaint();
+    m_shapeHold.stop();
+    if (m_helper->isRunning()) {
+        m_helper->endPaint();
+    }
     bool paintOpIgnoredEvent = currentPaintOpPreset()->settings()->mouseReleaseEvent();
     Q_UNUSED(paintOpIgnoredEvent);
 }
@@ -391,6 +401,16 @@ void KisToolFreehand::beginPrimaryAction(KoPointerEvent *event)
     }
 
     initStroke(event);
+
+    m_shapeSnapped = false;
+    m_shapePoints.clear();
+    m_shapePressures.clear();
+    if (m_snapsToShapes && KisSettingsRegistry::instance()->value(QStringLiteral("StrokeShapeSnap")).toBool()) {
+        m_shapePoints << convertToPixelCoord(event);
+        m_shapePressures << event->pressure();
+        m_shapeHoldPos = event->pos();
+        m_shapeHold.start();
+    }
 }
 
 void KisToolFreehand::continuePrimaryAction(KoPointerEvent *event)
@@ -399,10 +419,58 @@ void KisToolFreehand::continuePrimaryAction(KoPointerEvent *event)
 
     requestUpdateOutline(temporaryStraightRulerOutlinePosition(event->point), event);
 
+    // once it is a shape, the rest of the stroke only waits for the pen to lift
+    if (m_shapeSnapped) return;
+
     /**
      * Actual painting
      */
     doStroke(event);
+
+    if (!m_shapePoints.isEmpty()) {
+        m_shapePoints << convertToPixelCoord(event);
+        m_shapePressures << event->pressure();
+        // a hand holding still still trembles a little
+        if (QLineF(event->pos(), m_shapeHoldPos).length() > 3) {
+            m_shapeHoldPos = event->pos();
+            m_shapeHold.start();
+        }
+    }
+}
+
+void KisToolFreehand::snapToShape()
+{
+    KisCanvas2 *canvas2 = dynamic_cast<KisCanvas2*>(canvas());
+    if (mode() != KisTool::PAINT_MODE || !m_helper->isRunning() || !canvas2 || m_shapePoints.size() < 2) return;
+
+    const QTransform toWidget = canvas2->coordinatesConverter()->imageToWidgetTransform();
+    const qreal pixel = 1.0 / qMax(1e-6, std::sqrt(std::abs(toWidget.determinant())));
+    const KisStrokeShape shape = KisStrokeShape::recognize(m_shapePoints, pixel);
+    if (shape.kind == KisStrokeShape::None) return;
+
+    // the shape is drawn as hard as the stroke was at the same share of its way, evened out a little
+    QVector<qreal> travelled {0};
+    for (int i = 1; i < m_shapePoints.size(); i++) {
+        travelled << travelled.last() + QLineF(m_shapePoints[i - 1], m_shapePoints[i]).length();
+    }
+    const qreal total = qMax<qreal>(1e-6, travelled.last());
+    QVector<KisPaintInformation> points;
+    for (int i = 0; i < shape.outline.size(); i++) {
+        qreal sum = 0;
+        int count = 0;
+        int nearest = 0;
+        for (int k = 0; k < travelled.size(); k++) {
+            const qreal at = travelled[k] / total;
+            if (std::abs(at - shape.along[i]) < 0.05) {
+                sum += m_shapePressures[k];
+                count++;
+            }
+            if (std::abs(at - shape.along[i]) < std::abs(travelled[nearest] / total - shape.along[i])) nearest = k;
+        }
+        points << KisPaintInformation(shape.outline[i], count ? sum / count : m_shapePressures[nearest]);
+    }
+    m_helper->repaintAs(points);
+    m_shapeSnapped = true;
 }
 
 void KisToolFreehand::endPrimaryAction(KoPointerEvent *event)

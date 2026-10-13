@@ -15,6 +15,7 @@
 
 
 #include "KisViewManager.h"
+#include "KisSettingsRegistry.h"
 #include <QPrinter>
 
 #include <QAction>
@@ -780,6 +781,15 @@ void KisViewManager::createActions()
     tAction->setChecked(false);
     tAction->setAutoRepeat(false);
     connect(tAction, SIGNAL(toggled(bool)), this, SLOT(switchCanvasOnly(bool)));
+
+    tAction = actionManager()->createAction("stroke_shapes");
+    tAction->setChecked(KisSettingsRegistry::instance()->value(QStringLiteral("StrokeShapeSnap")).toBool());
+    connect(tAction, &QAction::toggled, this, [](bool on) { KisSettingsRegistry::instance()->setValue(QStringLiteral("StrokeShapeSnap"), on); });
+    connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::valueChanged, tAction, [tAction](const QString &id) {
+        if (id == QLatin1String("StrokeShapeSnap")) {
+            tAction->setChecked(KisSettingsRegistry::instance()->value(id).toBool());
+        }
+    });
 
     //Workaround, by default has the same shortcut as mirrorCanvas
     KisAction *a = dynamic_cast<KisAction*>(actionCollection()->action("format_italic"));

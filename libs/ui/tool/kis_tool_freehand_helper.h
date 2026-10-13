@@ -66,6 +66,8 @@ public:
                    KisDefaultBoundsBaseSP bounds = 0);
     void paintEvent(KoPointerEvent *event );
     void endPaint();
+    /// Drops the stroke so far, paints \p points in its place and ends it
+    void repaintAs(const QVector<KisPaintInformation> &points);
 
     KisOptimizedBrushOutline paintOpOutline(const QPointF &savedCursorPos,
                                             const KoPointerEvent *event,

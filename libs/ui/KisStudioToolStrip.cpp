@@ -452,6 +452,14 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
                 connect(mirror, &QAction::toggled, symmetry, [this, symmetry]() { symmetry->setChecked(KisStudioSymmetry::isOn(m_actions)); });
             }
         }
+
+        if (QAction *shapesAction = m_actions->action(QStringLiteral("stroke_shapes"))) {
+            QToolButton *shapes = addButton(KisIconUtils::loadIcon(QStringLiteral("studio_shapes")),
+                                            i18nc("@info:tooltip", "Shapes: hold the pen still at the end of a stroke"));
+            shapes->setChecked(shapesAction->isChecked());
+            connect(shapes, &QToolButton::clicked, shapesAction, &QAction::setChecked);
+            connect(shapesAction, &QAction::toggled, shapes, &QToolButton::setChecked);
+        }
     }
 
     Q_FOREACH (const QPointer<QWidget> &widget, widgets) {

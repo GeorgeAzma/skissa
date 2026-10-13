@@ -13,6 +13,7 @@
 #include <kis_distance_information.h>
 
 #include <Qt>
+#include <QTimer>
 
 #include "kis_types.h"
 #include "kis_tool_paint.h"
@@ -119,6 +120,8 @@ protected:
     double m_magnetism {1.0};
     bool m_only_one_assistant {true};
     bool m_eraser_snapping {false};
+    /// Whether a stroke held still at its end may become a clean shape
+    bool m_snapsToShapes {true};
 
 private:
     KisPaintingInformationBuilder *m_infoBuilder {nullptr};
@@ -133,6 +136,14 @@ private:
     KisSignalCompressorWithParam<qreal> m_brushResizeCompressor;
 
     std::optional<KoPointerEventWrapper> m_beginAlternateActionEvent;
+
+    void snapToShape();
+    /// The stroke in image pixels and its pressure, while it may still become a shape
+    QVector<QPointF> m_shapePoints;
+    QVector<qreal> m_shapePressures;
+    QPointF m_shapeHoldPos;
+    QTimer m_shapeHold;
+    bool m_shapeSnapped {false};
 };
 
 

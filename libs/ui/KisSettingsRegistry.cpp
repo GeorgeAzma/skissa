@@ -255,6 +255,7 @@ QHash<QString, QString> explanations()
         {QStringLiteral("StudioEffectsEditable"), i18nc("@info:tooltip", "On: effects can be changed or removed later\nOff: painted into the layer")},
         {QStringLiteral("ResourceDirectory"), i18nc("@info:tooltip", "Where brushes, palettes, bundles and the rest are kept.")},
         {QStringLiteral("StudioLayersRememberBrushes"), i18nc("@info:tooltip", "Choosing a layer picks the brush last used on it.")},
+        {QStringLiteral("StrokeShapeSnap"), i18nc("@info:tooltip", "Hold the pen still at the end of a stroke:\nline, circle, rectangle, arc → clean")},
         {QStringLiteral("ConvertToImageColorSpaceOnImport"), i18nc("@info:tooltip", "Imported layers take the image's colors, e.g. CMYK → RGB")},
         {QStringLiteral("compressLayersInKra"), i18nc("@info:tooltip", "Smaller files, slower to save and open")},
         {QStringLiteral("TrimKra"), i18nc("@info:tooltip", "Paint outside the canvas is deleted on save: smaller files, off-canvas art lost")},
@@ -531,6 +532,7 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("useDirtyPresets"), true, i18nc("setting", "Keep brush tweaks"));
         all << toggle(QStringLiteral("useEraserBrushSize"), false, i18nc("setting", "Eraser keeps its own size"));
         all << toggle(QStringLiteral("useEraserBrushOpacity"), false, i18nc("setting", "Eraser keeps its own opacity"));
+        all << toggle(QStringLiteral("StrokeShapeSnap"), false, i18nc("setting", "Hold to make a shape"), R::Fork);
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in effects")), QStringLiteral("filterdialog"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in Transform")), QStringLiteral("KisToolTransform"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), false, i18nc("setting", "Instant preview in Move")), QStringLiteral("KritaTransform/KisToolMove"));

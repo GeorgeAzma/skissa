@@ -751,6 +751,39 @@ void KisToolFreehandHelper::endPaint()
     m_d->infoBuilder->reset();
 }
 
+void KisToolFreehandHelper::repaintAs(const QVector<KisPaintInformation> &points)
+{
+    if (!m_d->strokeId || points.size() < 2) return;
+
+    KisImageSP image = m_d->resources->image();
+    KisNodeSP node = m_d->resources->currentNode();
+    KisStrokesFacade *strokesFacade = m_d->strokesFacade;
+    cancelPaint();
+
+    const qreal startAngle = KisAlgebra2D::directionBetweenPoints(points[0].pos(), points[1].pos(), 0.0);
+    initPaintImpl(startAngle, points.first(), m_d->resourceManager, image, node, strokesFacade, node);
+    // painted as given, without the stabilizer's delay
+    m_d->stabilizerPollTimer.stop();
+    if (m_d->stabilizerDelayedPaintHelper.running()) {
+        m_d->stabilizerDelayedPaintHelper.cancel();
+    }
+    m_d->airbrushingTimer.stop();
+
+    for (int i = 1; i < points.size(); i++) {
+        paintLine(points[i - 1], points[i]);
+    }
+
+    if (m_d->asyncUpdateHelper.isActive()) {
+        m_d->asyncUpdateHelper.endUpdateStream();
+    }
+    m_d->strokeInfos.clear();
+    m_d->strokesFacade->addJob(m_d->strokeId,
+       new KisAsynchronousStrokeUpdateHelper::UpdateData(true));
+    m_d->strokesFacade->endStroke(m_d->strokeId);
+    m_d->strokeId.clear();
+    m_d->infoBuilder->reset();
+}
+
 void KisToolFreehandHelper::cancelPaint()
 {
     if (!m_d->strokeId) return;

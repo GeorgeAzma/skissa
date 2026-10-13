@@ -49,6 +49,7 @@ KisToolLazyBrush::KisToolLazyBrush(KoCanvasBase * canvas)
       m_d(new Private)
 {
     setObjectName("tool_lazybrush");
+    m_snapsToShapes = false;
 }
 
 KisToolLazyBrush::~KisToolLazyBrush()
