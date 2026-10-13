@@ -1,6 +1,7 @@
 /*
  *  SPDX-FileCopyrightText: 2019 Shi Yan <billconan@gmail.net>
  *  SPDX-FileCopyrightText: 2020 Dmitrii Utkin <loentar@gmail.com>
+ *  SPDX-FileCopyrightText: 2026 GeorgeAzma <lumi.main.mail@gmail.com>
  *
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -9,11 +10,11 @@
 #include "recorder_config.h"
 #include "recorder_writer.h"
 #include "recorder_const.h"
-#include "ui_recorderdocker.h"
 #include "recorder_snapshots_manager.h"
 #include "recorder_export.h"
 #include "recorder_export_settings.h"
 #include "recorder_export_config.h"
+#include "recorder_export_preprocessor.h"
 
 #include <klocalizedstring.h>
 #include <kis_action_registry.h>
@@ -21,22 +22,44 @@
 #include <kis_icon_utils.h>
 #include <kis_statusbar.h>
 #include <KisDocument.h>
+#include <kis_config.h>
+#include <KisModernStyle.h>
 #include <KisViewManager.h>
 #include <KoDocumentInfo.h>
 #include <kactioncollection.h>
 #include <KisPart.h>
-#include <KisKineticScroller.h>
 #include "KisMainWindow.h"
 #include "KoFileDialog.h"
+#ifndef Q_OS_ANDROID
+#include "animation/KisFFMpegWrapper.h"
+#endif
 
+#include <QAbstractButton>
+#include <QActionGroup>
+#include <QDesktopServices>
+#include <QDir>
 #include <QFileInfo>
-#include <QPointer>
+#include <QHBoxLayout>
+#include <QImageReader>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QLabel>
+#include <QMenu>
 #include <QMessageBox>
-#include <QTimer>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPointer>
+#include <QPushButton>
 #include <QRegularExpression>
+#include <QTimer>
+#include <QToolButton>
+#include <QUrl>
+#include <QVBoxLayout>
+
+#include <algorithm>
+#include <functional>
 
 #ifdef Q_OS_ANDROID
-#include <QDir>
 #include <QFile>
 #include <QThreadPool>
 #endif
@@ -54,26 +77,485 @@ const QString activeColorRed(" color='#da4453'");
 const QString inactiveColorRed(" color='#f2c4c9'");
 const QString inactiveColorGray(" color='#3e3e3e'");
 
-const QColor textColorOrange(0xff, 0xe5, 0xaf);
-const QColor buttonColorOrange(0xca, 0x8f, 0x14);
-const QColor textColorRed(0xf2, 0xc4, 0xc9);
-const QColor buttonColorRed(0xda, 0x44, 0x53);
+const QColor recordRed(0xe5, 0x48, 0x4d);
 
+/// The video's frame rate when its length is worked out.
+constexpr int videoFps = 30;
+
+QColor inkOf(const QWidget *widget, qreal alpha)
+{
+    QColor ink = widget->palette().color(QPalette::WindowText);
+    ink.setAlphaF(alpha);
+    return ink;
 }
+
+/// m:ss
+QString clock(qint64 seconds)
+{
+    return QStringLiteral("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char('0'));
+}
+
+/**
+ * The recording itself: the latest frame, or any earlier one while dragging across it. The play button
+ * runs it as the video will. A double or right click goes back to the latest frame.
+ */
+class TimelapseView : public QWidget
+{
+public:
+    explicit TimelapseView(QWidget *parent)
+        : QWidget(parent)
+    {
+        setMouseTracking(true);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        setToolTip(i18nc("@info:tooltip", "Drag to look back"));
+        m_play.setInterval(1000 / videoFps);
+        QObject::connect(&m_play, &QTimer::timeout, this, [this]() {
+            if (m_index < 0 || m_index >= m_frames.size() - 1) {
+                m_play.stop();
+                m_index = -1;
+            } else {
+                m_index++;
+            }
+            update();
+        });
+    }
+
+    void setFrames(const QStringList &frames)
+    {
+        if (frames == m_frames) return;
+        const QString last = m_frames.isEmpty() ? QString() : m_frames.last();
+        m_frames = frames;
+        if (m_index >= m_frames.size()) m_index = -1;
+        if (m_frames.isEmpty() || m_frames.last() != last) m_cache.clear();
+        updateGeometry();
+        update();
+    }
+
+    bool hasHeightForWidth() const override { return true; }
+
+    int heightForWidth(int width) const override
+    {
+        const QSize frame = m_aspect.isEmpty() ? QSize(3, 2) : m_aspect;
+        return qBound(80, width * frame.height() / qMax(1, frame.width()), 320);
+    }
+
+    QSize sizeHint() const override { return QSize(260, heightForWidth(260)); }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QRectF tile = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+        const QPainterPath shape = KisModernStyle::squircle(tile, KisModernStyle::cardRadius);
+        painter.fillPath(shape, inkOf(this, 0.06));
+
+        if (m_frames.isEmpty()) {
+            // nothing yet: the record mark, faintly
+            painter.setPen(QPen(inkOf(this, 0.18), 2));
+            painter.setBrush(Qt::NoBrush);
+            const QPointF center = tile.center();
+            painter.drawEllipse(center, 16, 16);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(inkOf(this, 0.18));
+            painter.drawEllipse(center, 7, 7);
+            return;
+        }
+
+        const QImage frame = frameAt(shown());
+        if (!frame.isNull()) {
+            const QSizeF size = QSizeF(frame.size()) / frame.devicePixelRatioF();
+            QRectF target(QPointF(), size.scaled(tile.size(), Qt::KeepAspectRatio));
+            target.moveCenter(tile.center());
+            painter.save();
+            painter.setClipPath(shape);
+            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            painter.drawImage(target, frame);
+            painter.restore();
+        }
+
+        if (m_frames.size() < 2) return;
+        // where in the recording this is, along the bottom
+        const QRectF track(tile.left() + 10, tile.bottom() - 7, tile.width() - 20, 3);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(0, 0, 0, 90));
+        painter.drawRoundedRect(track.adjusted(-1, -1, 1, 1), 2.5, 2.5);
+        QRectF done = track;
+        done.setWidth(track.width() * (shown() + 1) / m_frames.size());
+        painter.setBrush(QColor(255, 255, 255, 220));
+        painter.drawRoundedRect(done, 1.5, 1.5);
+
+        if (underMouse() || m_play.isActive() || m_scrubbing) {
+            const QRectF button = playButton();
+            painter.setBrush(QColor(0, 0, 0, 120));
+            painter.drawEllipse(button);
+            painter.setBrush(Qt::white);
+            const QPointF c = button.center();
+            if (m_play.isActive()) {
+                painter.drawRoundedRect(QRectF(c.x() - 5, c.y() - 6, 3.5, 12), 1, 1);
+                painter.drawRoundedRect(QRectF(c.x() + 1.5, c.y() - 6, 3.5, 12), 1, 1);
+            } else {
+                painter.drawPolygon(QPolygonF({c + QPointF(-4, -6.5), c + QPointF(7, 0), c + QPointF(-4, 6.5)}));
+            }
+            // the time in the video, while looking back
+            if (m_index >= 0) {
+                const QString time = clock(m_index / videoFps) + QStringLiteral(" / ") + clock(m_frames.size() / videoFps);
+                QFont font = KisModernStyle::textFont(this->font(), 0.85);
+                painter.setFont(font);
+                const QFontMetricsF metrics(font);
+                QRectF pill(0, 0, metrics.horizontalAdvance(time) + 14, metrics.height() + 4);
+                pill.moveTopRight(tile.topRight() + QPointF(-8, 8));
+                painter.setBrush(QColor(0, 0, 0, 120));
+                painter.drawPath(KisModernStyle::squircle(pill, pill.height() / 2));
+                painter.setPen(Qt::white);
+                painter.drawText(pill, Qt::AlignCenter, time);
+            }
+        }
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::RightButton) {
+            showLatest();
+            return;
+        }
+        if (event->button() != Qt::LeftButton || m_frames.isEmpty()) return;
+        if (m_frames.size() > 1 && playButton().contains(event->pos())) {
+            if (m_play.isActive()) {
+                m_play.stop();
+            } else {
+                if (m_index < 0 || m_index >= m_frames.size() - 1) m_index = 0;
+                m_play.start();
+            }
+            update();
+            return;
+        }
+        m_play.stop();
+        m_scrubbing = true;
+        scrubTo(event->pos().x());
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (m_scrubbing) scrubTo(event->pos().x());
+        else update();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *) override
+    {
+        m_scrubbing = false;
+        update();
+    }
+
+    void mouseDoubleClickEvent(QMouseEvent *event) override
+    {
+        if (!playButton().contains(event->pos())) showLatest();
+    }
+
+    void leaveEvent(QEvent *) override { update(); }
+    void resizeEvent(QResizeEvent *) override { m_cache.clear(); }
+
+private:
+    int shown() const { return m_index < 0 ? m_frames.size() - 1 : m_index; }
+
+    QRectF playButton() const { return QRectF(10, height() - 46, 32, 32); }
+
+    void scrubTo(int x)
+    {
+        const qreal share = qBound<qreal>(0, (x - 10.0) / qMax(1, width() - 20), 1);
+        m_index = qRound(share * (m_frames.size() - 1));
+        update();
+    }
+
+    void showLatest()
+    {
+        m_play.stop();
+        m_index = -1;
+        update();
+    }
+
+    /// The frame, decoded at the size it is shown (the last few kept).
+    QImage frameAt(int index)
+    {
+        auto it = m_cache.constFind(index);
+        if (it != m_cache.constEnd()) return *it;
+        QImageReader reader(m_frames[index]);
+        const QSize full = reader.size();
+        if (full.isEmpty()) return QImage();
+        if (m_aspect != full) {
+            m_aspect = full;
+            updateGeometry();
+        }
+        const qreal ratio = devicePixelRatioF();
+        reader.setScaledSize(full.scaled((QSizeF(size()) * ratio).toSize(), Qt::KeepAspectRatio).boundedTo(full));
+        QImage image = reader.read();
+        image.setDevicePixelRatio(ratio);
+        if (m_cache.size() > 6) m_cache.clear();
+        m_cache.insert(index, image);
+        return image;
+    }
+
+    QStringList m_frames;
+    /// The frame shown; -1 follows the latest.
+    int m_index {-1};
+    bool m_scrubbing {false};
+    QTimer m_play;
+    QHash<int, QImage> m_cache;
+    QSize m_aspect;
+};
+
+/// The round record button: a red dot to record, a red square to stop; while frames are taken, it glows.
+class RecordButton : public QAbstractButton
+{
+public:
+    explicit RecordButton(QWidget *parent)
+        : QAbstractButton(parent)
+    {
+        setCheckable(true);
+        setFixedSize(44, 44);
+        setCursor(Qt::PointingHandCursor);
+    }
+
+    void setActive(bool active)
+    {
+        m_active = active;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QRectF ring = QRectF(rect()).adjusted(2, 2, -2, -2);
+        QColor rim = isChecked() ? recordRed : inkOf(this, underMouse() ? 0.45 : 0.28);
+        if (!isEnabled()) rim = inkOf(this, 0.12);
+        if (isChecked() && m_active) {
+            QColor glow = recordRed;
+            glow.setAlphaF(0.25);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(glow);
+            painter.drawEllipse(ring);
+        }
+        painter.setPen(QPen(rim, 2));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(ring.adjusted(1, 1, -1, -1));
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(isEnabled() ? recordRed : inkOf(this, 0.18));
+        const QPointF c = ring.center();
+        if (isChecked()) {
+            painter.drawPath(KisModernStyle::squircle(QRectF(c - QPointF(7, 7), QSizeF(14, 14)), 4));
+        } else {
+            painter.drawEllipse(c, 9, 9);
+        }
+    }
+
+    void enterEvent(QEvent *) override { update(); }
+    void leaveEvent(QEvent *) override { update(); }
+
+private:
+    bool m_active {false};
+};
+
+/// The video's length, dragged sideways; right click goes back to the default.
+class LengthValue : public QWidget
+{
+public:
+    std::function<void(int)> changed;
+
+    explicit LengthValue(QWidget *parent)
+        : QWidget(parent)
+    {
+        setCursor(Qt::SizeHorCursor);
+        setToolTip(i18nc("@info:tooltip", "Video length"));
+        setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    }
+
+    void setSeconds(int seconds)
+    {
+        m_seconds = qBound(minimum, seconds, maximum);
+        update();
+    }
+
+    int seconds() const { return m_seconds; }
+
+    QSize sizeHint() const override
+    {
+        const QFontMetrics metrics(font());
+        return QSize(metrics.horizontalAdvance(QStringLiteral("888 s")) + 2 * KisModernStyle::space2, 28);
+    }
+
+    static constexpr int minimum = 5;
+    static constexpr int maximum = 300;
+    static constexpr int standard = 30;
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QRectF box = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(inkOf(this, underMouse() || m_pressed ? 0.12 : 0.07));
+        painter.drawPath(KisModernStyle::squircle(box, KisModernStyle::cornerRadius));
+        QFont font = this->font();
+        painter.setFont(font);
+        painter.setPen(palette().color(QPalette::WindowText));
+        painter.drawText(box, Qt::AlignCenter, i18nc("a length in seconds, as short as possible", "%1 s", m_seconds));
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::RightButton) {
+            set(standard);
+            return;
+        }
+        m_pressed = event->button() == Qt::LeftButton;
+        m_pressX = event->pos().x();
+        m_pressSeconds = m_seconds;
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (!m_pressed) return;
+        // a second for every few pixels; Shift is finer
+        const int step = event->modifiers() & Qt::ShiftModifier ? 12 : 4;
+        set(m_pressSeconds + (event->pos().x() - m_pressX) / step);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *) override
+    {
+        m_pressed = false;
+        update();
+    }
+
+    void wheelEvent(QWheelEvent *event) override
+    {
+        set(m_seconds + KisModernStyle::wheelSteps(event, this));
+        event->accept();
+    }
+
+    void enterEvent(QEvent *) override { update(); }
+    void leaveEvent(QEvent *) override { update(); }
+
+private:
+    void set(int seconds)
+    {
+        seconds = qBound(minimum, seconds, maximum);
+        if (seconds == m_seconds) return;
+        m_seconds = seconds;
+        update();
+        if (changed) changed(seconds);
+    }
+
+    int m_seconds {standard};
+    bool m_pressed {false};
+    int m_pressX {0};
+    int m_pressSeconds {0};
+};
+
+/// The export button, filling as the video is encoded.
+class ExportButton : public QPushButton
+{
+public:
+    using QPushButton::QPushButton;
+
+    void setProgress(qreal progress)
+    {
+        m_progress = progress;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        QPushButton::paintEvent(event);
+        if (m_progress <= 0) return;
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QRectF bar = QRectF(rect()).adjusted(3, height() - 5, -3, -2);
+        bar.setWidth(bar.width() * qMin<qreal>(1, m_progress));
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(palette().color(QPalette::Highlight));
+        painter.drawRoundedRect(bar, 1.5, 1.5);
+    }
+
+private:
+    qreal m_progress {0};
+};
+
+/// Where the profiles of RecorderExportConfig keep each format.
+struct VideoFormat {
+    QString name;
+    int profile;
+};
+
+const QVector<VideoFormat> &videoFormats()
+{
+    static const QVector<VideoFormat> formats = {{QStringLiteral("MP4"), 0}, {QStringLiteral("GIF"), 1}, {QStringLiteral("WebM"), 3}};
+    return formats;
+}
+
+#ifndef Q_OS_ANDROID
+/// Splits ffmpeg arguments as the export dialog does: quotes group, three quotes are a quote.
+QStringList splitCommand(const QString &command)
+{
+    QStringList args;
+    QString token;
+    int quotes = 0;
+    bool inQuote = false;
+    for (const QChar ch : command) {
+        if (ch == QLatin1Char('"')) {
+            if (++quotes == 3) {
+                quotes = 0;
+                token += ch;
+            }
+            continue;
+        }
+        if (quotes) {
+            if (quotes == 1) inQuote = !inQuote;
+            quotes = 0;
+        }
+        if (!inQuote && ch.isSpace()) {
+            if (!token.isEmpty()) {
+                args += token;
+                token.clear();
+            }
+        } else {
+            token += ch;
+        }
+    }
+    if (!token.isEmpty()) args += token;
+    return args;
+}
+#endif
+
+} // namespace
 
 
 class RecorderDockerDock::Private
 {
 public:
     RecorderDockerDock *const q;
-    QScopedPointer<Ui::RecorderDocker> ui;
-    QPalette threadsSliderPalette;
-    QPalette threadsSpinPalette;
     QPointer<KisCanvas2> canvas;
     RecorderWriterManager writer;
 
     QAction *recordToggleAction = nullptr;
     QAction *exportAction = nullptr;
+
+    TimelapseView *view = nullptr;
+    RecordButton *recordButton = nullptr;
+    QLabel *lengthLabel = nullptr;
+    QList<QToolButton *> formatButtons;
+    LengthValue *lengthValue = nullptr;
+    ExportButton *exportButton = nullptr;
+    QToolButton *menuButton = nullptr;
+    QAction *autoRecordAction = nullptr;
+    QActionGroup *intervalGroup = nullptr;
+    QActionGroup *resolutionGroup = nullptr;
+    QTimer framesTimer;
+    QTimer showTimer;
+    int frameCount = 0;
 
     QString snapshotDirectory;
     QString prefix;
@@ -89,6 +571,9 @@ public:
     bool paused = true;
 #ifdef Q_OS_ANDROID
     bool internalMoveInProgress{false};
+#else
+    QScopedPointer<KisFFMpegWrapper> exporter;
+    QString exportedFile;
 #endif
     QTimer pausedTimer;
     QTimer warningTimer;
@@ -100,7 +585,6 @@ public:
 
     Private(const RecorderExportSettings &es, RecorderDockerDock *q_ptr)
         : q(q_ptr)
-        , ui(new Ui::RecorderDocker())
         , writer(es)
         , statusBarLabel(new QLabel())
         , statusBarWarningLabel(new QLabel())
@@ -147,90 +631,12 @@ public:
         }
         recordIsolateLayerMode = config.recordIsolateLayerMode();
         recordAutomatically = config.recordAutomatically();
-
-        updateUiFormat();
     }
 
     void loadRelevantExportSettings()
     {
         RecorderExportConfig config(true);
         q->exportSettings->fps = config.fps();
-    }
-
-    void updateUiFormat() {
-        int index = 0;
-        QString title;
-        QString hint;
-        int minValue = 0;
-        int maxValue = 0;
-        QString suffix;
-        int factor = 0;
-        switch (format) {
-            case RecorderFormat::JPEG:
-                index = 0;
-                title = i18nc("Title for label. JPEG Quality level", "Quality:");
-                hint = i18nc("@tooltip", "Greater value will produce a larger file and a better quality. Doesn't affect CPU consumption.\nValues lower than 50 are not recommended due to high artifacts.");
-                minValue = 1;
-                maxValue = 100;
-                suffix = "%";
-                factor = quality;
-                break;
-            case RecorderFormat::PNG:
-                index = 1;
-                title = i18nc("Title for label. PNG Compression level", "Compression:");
-                hint = i18nc("@tooltip", "Greater value will produce a smaller file but will require more from your CPU. Doesn't affect quality.\nCompression set to 0 is not recommended due to high disk space consumption.\nValues above 3 are not recommended due to high performance impact.");
-                minValue = 0;
-                maxValue = 5;
-                suffix = "";
-                factor = compression;
-                break;
-        }
-
-        ui->comboFormat->setCurrentIndex(index);
-        ui->labelQuality->setText(title);
-        ui->spinQuality->setToolTip(hint);
-        QSignalBlocker blocker(ui->spinQuality);
-        ui->spinQuality->setMinimum(minValue);
-        ui->spinQuality->setMaximum(maxValue);
-        ui->spinQuality->setValue(factor);
-        ui->spinQuality->setSuffix(suffix);
-    }
-
-    void updateUiForRealTimeMode() {
-        QString title;
-        double minValue = 0;
-        double maxValue = 0;
-        double value = 0;
-        int decimals = 0;
-        QString suffix;
-        QSignalBlocker blocker(ui->spinRate);
-
-        if (realTimeCaptureMode) {
-                title = i18nc("Title for label. Video frames per second", "Video FPS:");
-                minValue = 1;
-                maxValue = 60;
-                decimals = 0;
-                value = q->exportSettings->fps;
-                suffix = "";
-                disconnect(ui->spinRate, SIGNAL(valueChanged(double)), q, SLOT(onCaptureIntervalChanged(double)));
-                connect(ui->spinRate, SIGNAL(valueChanged(double)), q, SLOT(onVideoFPSChanged(double)));
-        } else {
-                title = i18nc("Title for label. Capture rate", "Capture interval:");
-                minValue = 0.10;
-                maxValue = 100.0;
-                decimals = 1;
-                value = captureInterval;
-                suffix = " sec.";
-                disconnect(ui->spinRate, SIGNAL(valueChanged(double)), q, SLOT(onVideoFPSChanged(double)));
-                connect(ui->spinRate, SIGNAL(valueChanged(double)), q, SLOT(onCaptureIntervalChanged(double)));
-        }
-
-        ui->labelRate->setText(title);
-        ui->spinRate->setDecimals(decimals);
-        ui->spinRate->setMinimum(minValue);
-        ui->spinRate->setMaximum(maxValue);
-        ui->spinRate->setSuffix(suffix);
-        ui->spinRate->setValue(value);
     }
 
     void updateWriterSettings()
@@ -253,26 +659,38 @@ public:
                : canvas->imageView()->document()->documentInfo()->aboutInfo("creation-date").remove(QRegularExpression("[^0-9]"));
     }
 
-    void updateComboResolution(quint32 width, quint32 height)
+    /// This image's frames so far, oldest first.
+    QStringList frames() const
     {
-        const QStringList titles = {
-            i18nc("Use original resolution for the frames when recording the canvas", "Original"),
-            i18nc("Use the resolution two times smaller than the original resolution for the frames when recording the canvas", "Half"),
-            i18nc("Use the resolution four times smaller than the original resolution for the frames when recording the canvas", "Quarter")
-        };
+        if (!canvas || outputDirectory.isEmpty()) return QStringList();
+        const QDir dir(outputDirectory, QStringLiteral("*.") + RecorderFormatInfo::fileExtension(format), QDir::Name,
+                       QDir::Files | QDir::NoDotAndDotDot);
+        QStringList paths;
+        for (const QString &name : dir.entryList()) paths << dir.filePath(name);
+        return paths;
+    }
 
-        QStringList items;
-        for (int index = 0, len = titles.length(); index < len; ++index) {
-            int divider = 1 << index;
-            items += QString("%1 (%2x%3)").arg(titles[index])
-                    .arg((width / divider) & ~1)
-                    .arg((height / divider) & ~1);
-        }
-        QSignalBlocker blocker(ui->comboResolution);
-        const int currentIndex = ui->comboResolution->currentIndex();
-        ui->comboResolution->clear();
-        ui->comboResolution->addItems(items);
-        ui->comboResolution->setCurrentIndex(currentIndex);
+    void refreshFrames()
+    {
+        const QStringList all = frames();
+        frameCount = all.size();
+        view->setFrames(all);
+        lengthLabel->setText(clock(frameCount / videoFps));
+        lengthLabel->setVisible(frameCount > 0);
+        updateExportEnabled();
+    }
+
+    void updateExportEnabled()
+    {
+#ifndef Q_OS_ANDROID
+        const bool exporting = exporter;
+#else
+        const bool exporting = false;
+#endif
+        const bool recording = recordButton->isChecked();
+        exportButton->setEnabled(canvas && !recording && !exporting && frameCount > 0);
+        exportButton->setToolTip(recording ? i18nc("@info:tooltip", "Stop recording to save the video")
+                                           : i18nc("@info:tooltip", "Save the video beside the image"));
     }
 
     void updateRecordStatus(bool isRecording)
@@ -280,20 +698,24 @@ public:
         recordToggleAction->setChecked(isRecording);
         recordToggleAction->setEnabled(true);
 
-        QSignalBlocker blocker(ui->buttonRecordToggle);
-        ui->buttonRecordToggle->setChecked(isRecording);
-        ui->buttonRecordToggle->setIcon(KisIconUtils::loadIcon(isRecording ? "media-playback-stop" : "media-record"));
-        ui->buttonRecordToggle->setText(isRecording ? i18nc("Stop recording the canvas", "Stop")
-                                        : i18nc("Start recording the canvas", "Record"));
-
-        if (canRecord()) {
-            ui->buttonRecordToggle->setEnabled(true);
-            ui->buttonRecordToggle->setToolTip("");
+        QSignalBlocker blocker(recordButton);
+        recordButton->setChecked(isRecording);
+        if (!isRecording) recordButton->setActive(false);
+        recordButton->setToolTip(isRecording ? i18nc("Stop recording the canvas", "Stop") : i18nc("Start recording the canvas", "Record"));
+        if (canvas && !canRecord()) {
+            recordButton->setEnabled(false);
+            recordButton->setToolTip(i18n("Image too large to be recorded"));
         } else {
-            ui->buttonRecordToggle->setEnabled(false);
-            ui->buttonRecordToggle->setToolTip(i18n("Image too large to be recorded"));
+            recordButton->setEnabled(!canvas.isNull());
         }
-        ui->widgetSettings->setEnabled(!isRecording);
+        if (isRecording) framesTimer.start();
+        else framesTimer.stop();
+        if (canvas) {
+            refreshFrames();
+        } else {
+            frameCount = 0;
+            updateExportEnabled();
+        }
 
         statusBarLabel->setVisible(isRecording);
 
@@ -342,6 +764,7 @@ public:
                          .arg(paused ? "" : activeColorRed));
         statusBarLabel->setText(label);
         statusBarLabel->setToolTip(paused ? i18n("Recorder is paused") : QString(i18n("Active recording with %1 of %2 available threads")).arg(threadsInUse).arg(threads));
+        if (recordButton) recordButton->setActive(!paused);
     }
 
     void showWarning(const QString &hint) {
@@ -352,40 +775,247 @@ public:
         }
     }
 
-    void updateThreadUi()
+    void buildUi()
     {
-        QString toolTipText;
-        auto threads = writer.recorderThreads.get();
-        if (threads > ThreadSystemValue::MaxRecordThreadCount) {
-            // Number of threads exceeds ideal thread count
-            // -> switch color of threads slider and spin wheel to red
-            QPalette pal;
-            pal.setColor(QPalette::Text, textColorRed);
-            pal.setColor(QPalette::Button, buttonColorRed);
-            ui->spinThreads->setPalette(pal);
-            ui->sliderThreads->setPalette(pal);
-            toolTipText = QString(
-                i18n("Set the number of recording threads.\nThe number of threads exceeds the ideal max number of your hardware setup.\nPlease be aware, that a number greater than %1 probably won't give you any performance boost.")
-                    .arg(ThreadSystemValue::MaxRecordThreadCount));
-        } else if (threads > ThreadSystemValue::IdealRecordThreadCount) {
-            // Number of threads exceeds ideal recorder thread count
-            // -> switch color of threads slider and spin wheel to orange
-            QPalette pal;
-            pal.setColor(QPalette::Text, textColorOrange);
-            pal.setColor(QPalette::Button, buttonColorOrange);
-            ui->spinThreads->setPalette(pal);
-            ui->sliderThreads->setPalette(pal);
-            toolTipText = QString(
-                i18n("Set the number of recording threads.\nAccording to your hardware setup you should record with no more than %1 threads.\nYou can play around with one or two more threads, but keep an eye on your overall system performance.")
-                    .arg(ThreadSystemValue::IdealRecordThreadCount));
-        } else {
-            ui->spinThreads->setPalette(threadsSpinPalette);
-            ui->sliderThreads->setPalette(threadsSliderPalette);
-            toolTipText = i18n("Set the number of threads to be used for recording.");
+        QWidget *page = new QWidget(q);
+        auto *layout = new QVBoxLayout(page);
+        layout->setContentsMargins(KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2);
+        layout->setSpacing(KisModernStyle::space2);
+
+        view = new TimelapseView(page);
+        layout->addWidget(view);
+
+        auto *recordRow = new QHBoxLayout();
+        recordRow->setSpacing(KisModernStyle::space2);
+        recordButton = new RecordButton(page);
+        recordRow->addWidget(recordButton);
+        lengthLabel = new QLabel(page);
+        QFont font = KisModernStyle::textFont(lengthLabel->font(), 1.15, QFont::DemiBold);
+        lengthLabel->setFont(font);
+        lengthLabel->setToolTip(i18nc("@info:tooltip", "Time-lapse so far"));
+        recordRow->addWidget(lengthLabel);
+        recordRow->addStretch(1);
+        menuButton = new QToolButton(page);
+        menuButton->setAutoRaise(true);
+        menuButton->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_more")));
+        menuButton->setPopupMode(QToolButton::InstantPopup);
+        menuButton->setToolTip(i18nc("@info:tooltip", "More"));
+        menuButton->setStyleSheet(QStringLiteral("QToolButton::menu-indicator { image: none; }"));
+        recordRow->addWidget(menuButton);
+        layout->addLayout(recordRow);
+
+        auto *exportRow = new QHBoxLayout();
+        exportRow->setSpacing(KisModernStyle::space1);
+        RecorderExportConfig exportConfig(true);
+        const int profile = exportConfig.profileIndex();
+        for (const VideoFormat &videoFormat : videoFormats()) {
+            auto *button = new QToolButton(page);
+            button->setText(videoFormat.name);
+            button->setCheckable(true);
+            button->setAutoExclusive(true);
+            button->setAutoRaise(true);
+            button->setProperty(KisModernStyle::tabButtonProperty, true);
+            button->setChecked(videoFormat.profile == profile);
+            QObject::connect(button, &QToolButton::toggled, q, [videoFormat](bool on) {
+                if (on) RecorderExportConfig(false).setProfileIndex(videoFormat.profile);
+            });
+            formatButtons << button;
+            exportRow->addWidget(button);
         }
-        ui->spinThreads->setToolTip(toolTipText);
-        ui->sliderThreads->setToolTip(toolTipText);
+        if (std::none_of(formatButtons.begin(), formatButtons.end(), [](QToolButton *b) { return b->isChecked(); })) {
+            formatButtons.first()->setChecked(true);
+        }
+        exportRow->addSpacing(KisModernStyle::space1);
+        lengthValue = new LengthValue(page);
+        lengthValue->setSeconds(KisConfig(true).readEntry<int>("recorder_export/lengthSec", LengthValue::standard));
+        lengthValue->changed = [](int seconds) { KisConfig(false).writeEntry("recorder_export/lengthSec", seconds); };
+        exportRow->addWidget(lengthValue);
+        exportRow->addStretch(1);
+        exportButton = new ExportButton(i18nc("Save the time-lapse video", "Save"), page);
+        exportRow->addWidget(exportButton);
+        layout->addLayout(exportRow);
+        layout->addStretch(1);
+
+        buildMenu();
+        q->setWidget(page);
+
+        framesTimer.setInterval(1500);
+        QObject::connect(&framesTimer, &QTimer::timeout, q, [this]() { refreshFrames(); });
+        showTimer.setSingleShot(true);
+        showTimer.setInterval(8000);
+        QObject::connect(&showTimer, &QTimer::timeout, q, [this]() {
+            exportButton->setText(i18nc("Save the time-lapse video", "Save"));
+#ifndef Q_OS_ANDROID
+            exportedFile.clear();
+#endif
+        });
     }
+
+    void buildMenu()
+    {
+        auto *menu = new QMenu(menuButton);
+        autoRecordAction = menu->addAction(i18nc("@action:inmenu record every image from its start", "Record Every Image"));
+        autoRecordAction->setCheckable(true);
+        autoRecordAction->setChecked(recordAutomatically);
+        QObject::connect(autoRecordAction, &QAction::toggled, q, [this](bool on) {
+            RecorderConfig(false).setRecordAutomatically(on);
+            loadSettings();
+        });
+
+        menu->addSection(i18nc("@title:menu how often a frame is taken", "A Frame Every"));
+        intervalGroup = new QActionGroup(menu);
+        for (const double seconds : {0.5, 1.0, 2.0, 5.0}) {
+            QAction *action = menu->addAction(i18nc("a time in seconds, as short as possible", "%1 s", QLocale().toString(seconds)));
+            action->setCheckable(true);
+            action->setChecked(qFuzzyCompare(seconds, captureInterval));
+            intervalGroup->addAction(action);
+            QObject::connect(action, &QAction::triggered, q, [this, seconds]() {
+                RecorderConfig(false).setCaptureInterval(seconds);
+                loadSettings();
+                updateWriterSettings();
+            });
+        }
+
+        menu->addSection(i18nc("@title:menu the size of recorded frames", "Frame Size"));
+        resolutionGroup = new QActionGroup(menu);
+        const QStringList sizes = {i18nc("frames at the image's size", "Full"), i18nc("frames at half the image's size", "Half"),
+                                   i18nc("frames at a quarter of the image's size", "Quarter")};
+        for (int index = 0; index < sizes.size(); index++) {
+            QAction *action = menu->addAction(sizes[index]);
+            action->setCheckable(true);
+            action->setChecked(index == resolution);
+            resolutionGroup->addAction(action);
+            QObject::connect(action, &QAction::triggered, q, [this, index]() {
+                RecorderConfig(false).setResolution(index);
+                loadSettings();
+                updateWriterSettings();
+            });
+        }
+
+        menu->addSeparator();
+        menu->addAction(KisIconUtils::loadIcon("folder"), i18nc("@action:inmenu where recordings are kept", "Recordings Folder…"), q,
+                        SLOT(slotSelectSnapshotDirectory()));
+        menu->addAction(i18nc("@action:inmenu", "Manage Recordings…"), q, [this]() {
+            RecorderSnapshotsManager snapshotsManager(q);
+            snapshotsManager.execFor(snapshotDirectory);
+            refreshFrames();
+        });
+        menu->addAction(i18nc("@action:inmenu the full time-lapse export dialog", "Export Options…"), q, SLOT(onExportOptionsClicked()));
+        QObject::connect(menu, &QMenu::aboutToShow, q, [this]() {
+            // recording settings take effect from the next recording
+            const bool recording = recordButton->isChecked();
+            intervalGroup->setEnabled(!recording);
+            resolutionGroup->setEnabled(!recording);
+            autoRecordAction->setChecked(recordAutomatically);
+        });
+        menuButton->setMenu(menu);
+    }
+
+#ifndef Q_OS_ANDROID
+    /// A file beside the image (or in the videos folder for one not saved yet) that is not taken.
+    QString videoPath(const QString &extension) const
+    {
+        KisDocument *document = canvas->imageView()->document();
+        const QFileInfo image(document->localFilePath());
+        QString directory = image.exists() ? image.absolutePath() : RecorderExportConfig(true).videoDirectory();
+        if (directory.isEmpty()) directory = QDir::homePath();
+        const QString base = QFileInfo(document->caption().trimmed()).completeBaseName();
+        const QString name = (base.isEmpty() ? i18nc("file name of a time-lapse video", "Time-lapse") : base + QStringLiteral(" ")
+                                                                                                         + i18nc("file name suffix of a time-lapse video", "time-lapse"));
+        QString path = QDir(directory).filePath(name + QStringLiteral(".") + extension);
+        for (int n = 2; QFileInfo::exists(path); n++) {
+            path = QDir(directory).filePath(QStringLiteral("%1 %2.%3").arg(name).arg(n).arg(extension));
+        }
+        return path;
+    }
+
+    QString applyVariables(const QString &templateArguments) const
+    {
+        const RecorderExportSettings *settings = q->exportSettings;
+        const QSize &outSize = settings->resize ? settings->size : settings->imageSize;
+        const int previewLength = settings->resultPreview ? settings->firstFrameSec : 0;
+        const int resultLength = settings->extendResult ? settings->lastFrameSec : 0;
+        const float transitionLength = settings->resultPreview ? 0.7 : 0;
+        return QString(templateArguments)
+            .replace("$IN_FPS", QString::number(settings->inputFps))
+            .replace("$OUT_FPS", QString::number(settings->fps))
+            .replace("$WIDTH", QString::number(outSize.width()))
+            .replace("$HEIGHT", QString::number(outSize.height()))
+            .replace("$FRAMES", QString::number(settings->framesCount))
+            .replace("$INPUT_DIR", settings->inputDirectory)
+            .replace("$FIRST_FRAME_SEC", QString::number(previewLength))
+            .replace("$TRANSITION_LENGTH", QString::number(transitionLength))
+            .replace("$H264_ENCODER", settings->h264Encoder)
+            .replace("$LAST_FRAME_SEC", QString::number(resultLength))
+            .replace("$EXT", RecorderFormatInfo::fileExtension(settings->format));
+    }
+
+    /// Encodes the frames into the chosen format and length, with the export dialog's other settings.
+    void exportVideo()
+    {
+        RecorderExportSettings *settings = q->exportSettings;
+        RecorderExportConfig(true).loadConfiguration(settings);
+        const QJsonObject ffmpeg = KisFFMpegWrapper::findFFMpeg(settings->ffmpegPath);
+        if (!ffmpeg["enabled"].toBool()) {
+            QMessageBox::warning(q, i18nc("@title:window", "Time-lapse"),
+                                 i18n("FFmpeg, which makes the video, was not found. Choose where it is in Export Options."));
+            return;
+        }
+        settings->ffmpegPath = ffmpeg["path"].toString();
+        const QJsonArray encoders = ffmpeg["codecs"].toObject()["h264"].toObject()["encoders"].toArray();
+        settings->h264Encoder = encoders.contains("libopenh264") ? "libopenh264" : "libx264";
+
+        settings->inputDirectory = outputDirectory;
+        settings->format = format;
+        settings->realTimeCaptureMode = realTimeCaptureMode;
+        RecorderExportPreprocessor preprocessor(settings->inputDirectory, settings->format);
+        preprocessor.doPreprocessing();
+        const QStringList all = frames();
+        settings->framesCount = all.size();
+        if (all.isEmpty()) return;
+        settings->imageSize = QImageReader(all.last()).size();
+        settings->imageSize.rwidth() &= ~1;
+        settings->imageSize.rheight() &= ~1;
+        // videos over 1920 pixels often fail to encode or upload
+        constexpr int limit = 1920;
+        settings->resize = true;
+        settings->size = settings->imageSize.scaled(QSize(limit, limit), Qt::KeepAspectRatio).boundedTo(settings->imageSize);
+        settings->size.rwidth() &= ~1;
+        settings->size.rheight() &= ~1;
+        // as many frames a second as fit the chosen length, after the stills at the start and the end
+        const int stills = (settings->resultPreview ? settings->firstFrameSec : 0) + (settings->extendResult ? settings->lastFrameSec : 0);
+        const int painting = qMax(1, lengthValue->seconds() - stills);
+        settings->inputFps = qBound(8, qRound(qreal(settings->framesCount) / painting), 240);
+        settings->profileIndex = RecorderExportConfig(true).profileIndex();
+        const RecorderProfile &profile = settings->profiles[qBound(0, settings->profileIndex, int(settings->profiles.size()) - 1)];
+        settings->videoFilePath = videoPath(profile.extension);
+
+        exporter.reset(new KisFFMpegWrapper(q));
+        connect(exporter.data(), SIGNAL(sigStarted()), q, SLOT(onExporterStarted()));
+        connect(exporter.data(), SIGNAL(sigFinished()), q, SLOT(onExporterFinished()));
+        connect(exporter.data(), SIGNAL(sigFinishedWithError(QString)), q, SLOT(onExporterFinishedWithError(QString)));
+        connect(exporter.data(), SIGNAL(sigProgressUpdated(int)), q, SLOT(onExporterProgressUpdated(int)));
+        KisFFMpegWrapperSettings run;
+        run.processPath = settings->ffmpegPath;
+        run.args = splitCommand(applyVariables(profile.arguments));
+        run.outputFile = settings->videoFilePath;
+        run.batchMode = true;
+        exportButton->setText(i18nc("the time-lapse video is being made", "Saving…"));
+        exportButton->setProgress(0.01);
+        updateExportEnabled();
+        exporter->startNonBlocking(run);
+    }
+
+    void finishExport()
+    {
+        if (exporter) {
+            exporter->reset();
+            exporter.reset();
+        }
+        exportButton->setProgress(0);
+        updateExportEnabled();
+    }
+#endif
 
 #ifdef Q_OS_ANDROID
     void fixInternalSnapshotDirectory()
@@ -407,63 +1037,29 @@ public:
 };
 
 RecorderDockerDock::RecorderDockerDock()
-    : QDockWidget(i18nc("Title of the docker", "Recorder"))
+    : QDockWidget(i18nc("Title of the docker", "Time-lapse"))
     , exportSettings(new RecorderExportSettings())
     , d(new Private(*exportSettings, this))
 {
-    QWidget* page = new QWidget(this);
-    d->ui->setupUi(page);
-
-    d->ui->buttonManageRecordings->setIcon(KisIconUtils::loadIcon("configure-thicker"));
-    d->ui->buttonBrowse->setIcon(KisIconUtils::loadIcon("folder"));
-    d->ui->buttonRecordToggle->setIcon(KisIconUtils::loadIcon("media-record"));
-    d->ui->buttonExport->setIcon(KisIconUtils::loadIcon("document-export-16"));
-    d->ui->sliderThreads->setTickPosition(QSlider::TickPosition::TicksBelow);
-    d->ui->sliderThreads->setMinimum(1);
-    d->ui->sliderThreads->setMaximum(ThreadSystemValue::MaxThreadCount);
-    d->ui->spinThreads->setMinimum(1);
-    d->ui->spinThreads->setMaximum(ThreadSystemValue::MaxThreadCount);
-    d->threadsSpinPalette = d->ui->spinThreads->palette();
-    d->threadsSliderPalette = d->ui->sliderThreads->palette();
-
+    setWindowIcon(KisIconUtils::loadIcon(QStringLiteral("studio_timelapse")));
     d->loadSettings();
     d->loadRelevantExportSettings();
-    d->updateThreadUi();
-
-    d->ui->editDirectory->setText(d->snapshotDirectory);
-    d->ui->spinQuality->setValue(d->quality);
-    d->ui->spinThreads->setValue(d->writer.recorderThreads.get());
-    d->ui->comboResolution->setCurrentIndex(d->resolution);
-    d->ui->checkBoxRealTimeCaptureMode->setChecked(d->realTimeCaptureMode);
-    d->ui->checkBoxRecordIsolateMode->setChecked(d->recordIsolateLayerMode);
-    d->ui->checkBoxAutoRecord->setChecked(d->recordAutomatically);
+    d->buildUi();
 
     KisActionRegistry *actionRegistry = KisActionRegistry::instance();
     d->recordToggleAction = actionRegistry->makeQAction(keyActionRecordToggle, this);
     d->exportAction = actionRegistry->makeQAction(keyActionExport, this);
 
-    connect(d->recordToggleAction, SIGNAL(toggled(bool)), d->ui->buttonRecordToggle, SLOT(setChecked(bool)));
-    connect(d->exportAction, SIGNAL(triggered()), d->ui->buttonExport, SIGNAL(clicked()));
-    connect(d->ui->buttonRecordToggle, SIGNAL(toggled(bool)), d->ui->buttonExport, SLOT(setDisabled(bool)));
-    if (d->recordAutomatically)
-        d->ui->buttonExport->setDisabled(true);
+    connect(d->recordToggleAction, SIGNAL(toggled(bool)), d->recordButton, SLOT(setChecked(bool)));
+    connect(d->exportAction, SIGNAL(triggered()), d->exportButton, SIGNAL(clicked()));
 
     // Need to register toolbar actions before attaching canvas else it wont appear after restart.
     // Is there any better way to do this?
     connect(KisPart::instance(), SIGNAL(sigMainWindowIsBeingCreated(KisMainWindow *)),
             this, SLOT(onMainWindowIsBeingCreated(KisMainWindow *)));
 
-    connect(d->ui->buttonManageRecordings, SIGNAL(clicked()), this, SLOT(onManageRecordingsButtonClicked()));
-    connect(d->ui->buttonBrowse, SIGNAL(clicked()), this, SLOT(slotSelectSnapshotDirectory()));
-    connect(d->ui->comboFormat, SIGNAL(currentIndexChanged(int)), this, SLOT(onFormatChanged(int)));
-    connect(d->ui->spinQuality, SIGNAL(valueChanged(int)), this, SLOT(onQualityChanged(int)));
-    connect(d->ui->spinThreads, SIGNAL(valueChanged(int)), this, SLOT(onThreadsChanged(int)));
-    connect(d->ui->comboResolution, SIGNAL(currentIndexChanged(int)), this, SLOT(onResolutionChanged(int)));
-    connect(d->ui->checkBoxRealTimeCaptureMode, SIGNAL(toggled(bool)), this, SLOT(onRealTimeCaptureModeToggled(bool)));
-    connect(d->ui->checkBoxRecordIsolateMode, SIGNAL(toggled(bool)), this, SLOT(onRecordIsolateLayerModeToggled(bool)));
-    connect(d->ui->checkBoxAutoRecord, SIGNAL(toggled(bool)), this, SLOT(onAutoRecordToggled(bool)));
-    connect(d->ui->buttonRecordToggle, SIGNAL(toggled(bool)), this, SLOT(onRecordButtonToggled(bool)));
-    connect(d->ui->buttonExport, SIGNAL(clicked()), this, SLOT(onExportButtonClicked()));
+    connect(d->recordButton, SIGNAL(toggled(bool)), this, SLOT(onRecordButtonToggled(bool)));
+    connect(d->exportButton, SIGNAL(clicked()), this, SLOT(onExportButtonClicked()));
 
     connect(&d->writer.recorderThreads, SIGNAL(notifyInUseChange(bool)), this, SLOT(onActiveRecording(bool)));
     connect(&d->writer.recorderThreads, SIGNAL(notifyInUseChange(bool)), this, SLOT(onUpdateRecIndicator()));
@@ -473,23 +1069,7 @@ RecorderDockerDock::RecorderDockerDock()
     connect(&d->writer, SIGNAL(recorderStopWarning()), this, SLOT(onRecorderStopWarning()));
     connect(&d->writer, SIGNAL(lowPerformanceWarning()), this, SLOT(onLowPerformanceWarning()));
 
-
-    QScroller *scroller = KisKineticScroller::createPreconfiguredScroller(d->ui->scrollArea);
-    if (scroller) {
-        connect(scroller, SIGNAL(stateChanged(QScroller::State)),
-                this, SLOT(slotScrollerStateChanged(QScroller::State)));
-    }
-
-    // The system is not efficient enough for the RealTime Recording Feature
-    if (ThreadSystemValue::MaxRecordThreadCount <= 1)
-    {
-        d->ui->checkBoxRealTimeCaptureMode->setCheckState(Qt::Unchecked);
-        d->ui->checkBoxRealTimeCaptureMode->setDisabled(true);
-        d->ui->checkBoxRealTimeCaptureMode->setToolTip(
-            i18n("Your system is not efficient enough for this feature"));
-    }
-
-    setWidget(page);
+    d->updateRecordStatus(false);
 }
 
 RecorderDockerDock::~RecorderDockerDock()
@@ -512,7 +1092,6 @@ void RecorderDockerDock::setCanvas(KoCanvasBase* canvas)
         return;
 
     KisDocument *document = d->canvas->imageView()->document();
-    d->updateComboResolution(document->image()->width(), document->image()->height());
 
     d->prefix = d->getPrefix();
     bool wasToggled = false;
@@ -520,11 +1099,9 @@ void RecorderDockerDock::setCanvas(KoCanvasBase* canvas)
         && !d->enabledIds.contains(document->linkedResourcesStorageId()) && d->canRecord()) {
         wasToggled = onRecordButtonToggled(true);
     }
-    if (!wasToggled) { // onRecordButtonToggled(true) may call these, don't call them twice.
+    if (!wasToggled) { // onRecordButtonToggled(true) may call it, don't call it twice.
         d->updateWriterSettings();
-        d->updateUiFormat();
     }
-    d->updateUiForRealTimeMode();
 
     bool enabled = d->enabledIds.value(document->linkedResourcesStorageId(), false);
     d->writer.setEnabled(enabled);
@@ -540,6 +1117,7 @@ void RecorderDockerDock::unsetCanvas()
     d->writer.setCanvas(nullptr);
     d->canvas = nullptr;
     d->enabledIds.clear();
+    d->view->setFrames(QStringList());
 }
 
 void RecorderDockerDock::onMainWindowIsBeingCreated(KisMainWindow *window)
@@ -551,7 +1129,7 @@ void RecorderDockerDock::onMainWindowIsBeingCreated(KisMainWindow *window)
 
 bool RecorderDockerDock::onRecordButtonToggled(bool checked)
 {
-    QSignalBlocker blocker(d->ui->buttonRecordToggle);
+    QSignalBlocker blocker(d->recordButton);
 
     // Ask the user to pick a directory if we don't have one. This should only
     // happen on Android, other operating systems have a non-empty default that
@@ -559,7 +1137,7 @@ bool RecorderDockerDock::onRecordButtonToggled(bool checked)
     if (checked && d->snapshotDirectory.isEmpty()) {
         slotSelectSnapshotDirectory();
         if (d->snapshotDirectory.isEmpty()) {
-            d->ui->buttonRecordToggle->setChecked(false);
+            d->recordButton->setChecked(false);
             d->recordToggleAction->setChecked(false);
             return false;
         }
@@ -586,11 +1164,10 @@ bool RecorderDockerDock::onRecordButtonToggled(bool checked)
     }
 
 
-    d->ui->buttonRecordToggle->setEnabled(false);
+    d->recordButton->setEnabled(false);
 
     if (checked) {
         d->updateWriterSettings();
-        d->updateUiFormat();
         d->writer.start();
 
         // Calculate Rec symbol activity timeout depending on the capture interval
@@ -617,6 +1194,22 @@ void RecorderDockerDock::onExportButtonClicked()
 {
     if (!d->canvas)
         return;
+#ifdef Q_OS_ANDROID
+    onExportOptionsClicked();
+#else
+    if (!d->exportedFile.isEmpty()) {
+        // after saving, the button shows the video
+        QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(d->exportedFile).absolutePath()));
+        return;
+    }
+    if (!d->exporter) d->exportVideo();
+#endif
+}
+
+void RecorderDockerDock::onExportOptionsClicked()
+{
+    if (!d->canvas)
+        return;
 
     KisDocument *document = d->canvas->imageView()->document();
 
@@ -630,107 +1223,21 @@ void RecorderDockerDock::onExportButtonClicked()
     RecorderExport exportDialog(exportSettings, this);
     exportDialog.setup();
     exportDialog.exec();
-
-    if (d->realTimeCaptureMode)
-        d->ui->spinRate->setValue(exportSettings->fps);
-}
-
-void RecorderDockerDock::onManageRecordingsButtonClicked()
-{
-    RecorderSnapshotsManager snapshotsManager(this);
-    snapshotsManager.execFor(d->snapshotDirectory);
+    d->refreshFrames();
 }
 
 void RecorderDockerDock::slotSelectSnapshotDirectory()
 {
     KoFileDialog dialog(this, KoFileDialog::OpenDirectory, "SelectRecordingsDirectory");
     dialog.setCaption(i18n("Select a Directory for Recordings"));
-    dialog.setDefaultDir(d->ui->editDirectory->text());
+    dialog.setDefaultDir(d->snapshotDirectory);
     QString directory = dialog.filename();
     if (!directory.isEmpty()) {
-        d->ui->editDirectory->setText(directory);
         RecorderConfig(false).setSnapshotDirectory(directory);
         d->loadSettings();
+        d->updateWriterSettings();
+        d->refreshFrames();
     }
-}
-
-void RecorderDockerDock::onRecordIsolateLayerModeToggled(bool checked)
-{
-    d->recordIsolateLayerMode = checked;
-    RecorderConfig(false).setRecordIsolateLayerMode(checked);
-    d->loadSettings();
-}
-
-void RecorderDockerDock::onAutoRecordToggled(bool checked)
-{
-    d->recordAutomatically = checked;
-    RecorderConfig(false).setRecordAutomatically(checked);
-    d->loadSettings();
-}
-
-void RecorderDockerDock::onRealTimeCaptureModeToggled(bool checked)
-{
-    d->realTimeCaptureMode = checked;
-    RecorderConfig(false).setRealTimeCaptureMode(checked);
-    d->loadSettings();
-    d->updateUiForRealTimeMode();
-    if (d->realTimeCaptureMode) {
-        exportSettings->lockFps = true;
-        exportSettings->realTimeCaptureModeWasSet = true;
-    }
-}
-
-void RecorderDockerDock::onCaptureIntervalChanged(double interval)
-{
-    d->captureInterval = interval;
-    RecorderConfig(false).setCaptureInterval(interval);
-    d->loadSettings();
-}
-void RecorderDockerDock::onVideoFPSChanged(double fps)
-{
-    exportSettings->fps = fps;
-    RecorderExportConfig(false).setFps(fps);
-    d->loadRelevantExportSettings();
-}
-
-void RecorderDockerDock::onQualityChanged(int value)
-{
-    switch (d->format) {
-    case RecorderFormat::JPEG:
-        d->quality = value;
-        RecorderConfig(false).setQuality(value);
-        d->loadSettings();
-        break;
-    case RecorderFormat::PNG:
-        d->compression = value;
-        RecorderConfig(false).setCompression(value);
-        d->loadSettings();
-        break;
-    }
-}
-
-void RecorderDockerDock::onFormatChanged(int format)
-{
-    d->format = static_cast<RecorderFormat>(format);
-    d->updateUiFormat();
-
-    RecorderConfig(false).setFormat(d->format);
-    d->loadSettings();
-}
-
-void RecorderDockerDock::onResolutionChanged(int resolution)
-{
-    d->resolution = resolution;
-    RecorderConfig(false).setResolution(resolution);
-    d->loadSettings();
-}
-
-void RecorderDockerDock::onThreadsChanged(int threads)
-{
-    d->writer.recorderThreads.set(threads);
-    RecorderConfig(false).setThreads(threads);
-    d->loadSettings();
-    d->updateThreadUi();
 }
 
 void RecorderDockerDock::onWriterStarted()
@@ -765,14 +1272,14 @@ void RecorderDockerDock::onPausedTimeout()
 
 void RecorderDockerDock::onWriterFrameWriteFailed()
 {
-    QMessageBox::warning(this, i18nc("@title:window", "Recorder"),
+    QMessageBox::warning(this, i18nc("@title:window", "Time-lapse"),
                          i18n("The recorder has been stopped due to failure while writing a frame. Please check free disk space and start the recorder again."));
 }
 
 void RecorderDockerDock::onRecorderStopWarning()
 {
-    QMessageBox::warning(this, i18nc("@title:window", "Recorder"),
-                         i18n("Krita was unable to stop the recorder probably. Please try to restart Krita."));
+    QMessageBox::warning(this, i18nc("@title:window", "Time-lapse"),
+                         i18n("The recorder could not be stopped. Please restart the application."));
 }
 void RecorderDockerDock::onLowPerformanceWarning()
 {
@@ -788,9 +1295,40 @@ void RecorderDockerDock::onWarningTimeout()
     d->statusBarWarningLabel->hide();
 }
 
-void RecorderDockerDock::slotScrollerStateChanged(QScroller::State state)
+void RecorderDockerDock::onExporterStarted()
 {
-    KisKineticScroller::updateCursor(this, state);
+}
+
+void RecorderDockerDock::onExporterFinished()
+{
+#ifndef Q_OS_ANDROID
+    d->exportedFile = exportSettings->videoFilePath;
+    d->finishExport();
+    d->exportButton->setText(i18nc("show the saved time-lapse video in its folder", "Show"));
+    d->exportButton->setToolTip(QFileInfo(d->exportedFile).fileName());
+    d->showTimer.start();
+    if (d->canvas) {
+        d->canvas->viewManager()->showFloatingMessage(i18nc("@info:status", "Saved %1", QFileInfo(d->exportedFile).fileName()),
+                                                      KisIconUtils::loadIcon("document-save"));
+    }
+#endif
+}
+
+void RecorderDockerDock::onExporterFinishedWithError(QString error)
+{
+#ifndef Q_OS_ANDROID
+    d->finishExport();
+    d->exportButton->setText(i18nc("Save the time-lapse video", "Save"));
+    QMessageBox::critical(this, i18nc("@title:window", "Time-lapse"), i18n("The video could not be saved:") % "\n\n" % error);
+#else
+    Q_UNUSED(error);
+#endif
+}
+
+void RecorderDockerDock::onExporterProgressUpdated(int frameNo)
+{
+    const qreal frames = exportSettings->framesCount * exportSettings->fps / qMax<qreal>(1, exportSettings->inputFps);
+    d->exportButton->setProgress(qBound<qreal>(0.01, frameNo / qMax<qreal>(1, frames), 1));
 }
 
 #ifdef Q_OS_ANDROID

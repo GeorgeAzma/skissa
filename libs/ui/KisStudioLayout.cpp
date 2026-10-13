@@ -149,6 +149,7 @@ QString railIconName(const QString &id)
         {QStringLiteral("sharedtooldocker"), QStringLiteral("studio_tool_options")},
         {QStringLiteral("PaletteDocker"), QStringLiteral("studio_palette")},
         {QStringLiteral("History"), QStringLiteral("studio_history")},
+        {QStringLiteral("RecorderDocker"), QStringLiteral("studio_timelapse")},
     };
     return icons.value(id);
 }
