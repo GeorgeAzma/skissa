@@ -84,6 +84,7 @@ A map, so you know where things are and how they think. Files are in `libs/ui/` 
 - **Saving on Windows** (`KisImportExportManager`): the new file is written beside the old one and swapped in (`MoveFileEx`), so a failed save never leaves a broken file.
 - **Releases** (`packaging/windows/make-release.py`): a portable zip that follows the DLL imports of everything it ships, with the license texts and a SOURCE.txt pointing at the exact tag. Build it from a staged copy of the install (`cmake --install build --prefix <copy>`) when the dev Krita is in use.
 - **Translations** (`packaging/skissa-translations.py`): the fork's text gets only translations Krita already has (same text elsewhere, Krita→Skissa sentences), added as a block at the end of each `po/<lang>/krita.po`. A word or two is reused only when Krita translates it the same way in several places; `OTHER_SENSE` lists text used in another sense. Never write translations by hand. Rerun it after merging upstream translations or changing text.
+- **What Studio leaves out**: classic-only menu items (toolbars, styles, themes menu, status bar, window tiling, About KDE) are hidden while Studio is on (`hiddenToolbarActions`), and Find skips hidden actions. Panels the Studio covers otherwise are retired from the panel picker and Find (`KisStudioPanelPicker::isRetired`); one already pinned stays.
 - **Small systems:**
   - Empty lists say why they're empty (`KisStudioEmptyStates`).
   - The brush tooltip is a card showing the other picture (stroke or icon), tags and location (`resourcewidgets/KisIconToolTip`).
@@ -154,3 +155,4 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - Widgets made before `KisStudioGlass::installMenuGlass()` were polished without it (resource lists' item tooltips): the install pass converts those, and anything new must be polished before its native window is created.
 - A long press arrives as a plain right click; `longPressAt` on `qApp` tells them apart.
 - Ctrl+Z in a test also undoes settings changes (one undo), so undoing test strokes can undo a toggle made for the test.
+- The UI tour (`KRITA_DEV_TOUR`) decides what is safe to press from a button's text, tooltip, object name and accessible name: a button with none of these (an icon-only button whose tooltip was removed) must still get a name, or the tour may press Close. Run it with `KRITA_DEV_APART=1` so it can't touch the dev profile.

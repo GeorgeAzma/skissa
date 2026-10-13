@@ -1319,7 +1319,8 @@ private:
     void dialogs()
     {
         note(QStringLiteral("dialogs"));
-        if (m_menuOrder.isEmpty()) inventory();
+        // taken again: menus rebuild some of their actions (recent files, themes, windows) after the first look
+        inventory();
         const QString section = QStringLiteral("08 dialogs");
         // with a selection, which some dialogs need
         trigger("select_all", 300);
@@ -1559,7 +1560,8 @@ private:
     void effects()
     {
         note(QStringLiteral("effects"));
-        if (m_menuOrder.isEmpty()) inventory();
+        // taken again: menus rebuild some of their actions (recent files, themes, windows) after the first look
+        inventory();
         const QString section = QStringLiteral("13 effects");
         QList<QPointer<QAction>> list;
         Q_FOREACH (QAction *a, m_menuOrder) {
