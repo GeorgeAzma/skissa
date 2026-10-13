@@ -85366,3 +85366,365 @@ msgstr ""
 
 #~ msgid "Ok"
 #~ msgstr "Ok"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Configure Skissa"
+msgstr "Skissa سەپلە"
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Skissa: ئىچكى خاتالىق"
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "قەۋەت"
+
+msgid "Permission denied. Skissa is not allowed to read or write to the file."
+msgstr "ئىجازەت رەت قىلىندى. Skissa is not allowed to read or write to the file."
+
+msgctxt "canvas renderer"
+msgid "Auto"
+msgstr "ئاپتوماتىك"
+
+msgctxt "cursor"
+msgid "None"
+msgstr "يوق"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "يوق"
+
+msgctxt "brush outline"
+msgid "Circle"
+msgstr "چەمبەر"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "يوق"
+
+msgctxt "color sampler preview"
+msgid "Left"
+msgstr "سول"
+
+msgctxt "color sampler preview"
+msgid "Right"
+msgstr "ئوڭ"
+
+msgctxt "canvas scaling"
+msgid "Bilinear"
+msgstr "قوش سىزىقلىق"
+
+msgctxt "touch painting"
+msgid "Auto"
+msgstr "ئاپتوماتىك"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "جەريانچاق"
+
+msgctxt "rendering intent"
+msgid "Perceptual"
+msgstr "سەزگۈ"
+
+msgctxt "rendering intent"
+msgid "Saturation"
+msgstr "تويۇنۇش"
+
+msgctxt "canvas surface depth"
+msgid "Auto"
+msgstr "ئاپتوماتىك"
+
+msgctxt "a setting's value: not set"
+msgid "Default"
+msgstr "كۆڭۈلدىكى"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "پىكسېل"
+
+msgctxt "brush group"
+msgid "Other"
+msgstr "باشقا"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "رەڭ"
+
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "يورۇقلۇق دەرىجىسى"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "رەڭگى"
+
+msgctxt "@info:tooltip"
+msgid "Preview"
+msgstr "ئالدىن كۆزەت"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "رەڭ"
+
+msgctxt "effect group"
+msgid "Other"
+msgstr "باشقا"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "قەۋەت"
+
+msgctxt "@title find results"
+msgid "All"
+msgstr "ھەممىسى"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "غۇۋالىقى"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "ئاتى"
+
+msgctxt "@info an empty slot of a ring"
+msgid "Add"
+msgstr "قوش"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "رەڭ"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "سۈرئىتى"
+
+msgctxt "theme"
+msgid "Lightness"
+msgstr "يورۇقلۇق دەرىجىسى"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "غۇۋالىقى"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "رەڭ"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "چوڭلۇقى"
+
+msgctxt "color sampler"
+msgid "Preview"
+msgstr "ئالدىن كۆزەت"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "چوڭلۇقى"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "رەڭ"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "يېنىۋال"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "قەۋەت"
+
+msgctxt "layer names: no words"
+msgid "none"
+msgstr "يوق"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "قەۋەت"
+
+msgctxt "author"
+msgid "None"
+msgstr "يوق"
+
+msgctxt "settings card"
+msgid "Display"
+msgstr "كۆرسەتكۈچ"
+
+msgctxt "instant preview"
+msgid "Transform"
+msgstr "ئالماشتۇر"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "يۆتكە"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "يېنىۋال"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Select"
+msgstr "تاللا"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Transform"
+msgstr "ئالماشتۇر"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Fill"
+msgstr "تولدۇر"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "تېكىست"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "رادىئال"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "ئاستى"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "يوق"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "ئاستى"
+
+msgctxt "@info:tooltip"
+msgid "Close"
+msgstr "ياپ"
+
+msgctxt "new image: one made to measure"
+msgid "Custom"
+msgstr "ئىختىيارى"
+
+msgctxt "keys group"
+msgid "Other"
+msgstr "باشقا"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "چۆرگىلەت"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "يوق"
+
+msgctxt "@info:tooltip"
+msgid "Preset"
+msgstr "ئەسلىگە قايتۇرۇش"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "غۇۋالىقى"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "غۇۋالىقى"
+
+msgctxt "default name of a filter layer, followed by a number"
+msgid "Filter"
+msgstr "سۈزگۈچ"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "ھۆججەت"
+
+msgctxt "@action:inmenu"
+msgid "Select All"
+msgstr "ھەممىنى تاللا"
+
+msgctxt "@action:inmenu"
+msgid "Invert"
+msgstr "ئەكسى رەڭگە ئالماشتۇر"
+
+msgctxt "@action:inmenu"
+msgid "Transform"
+msgstr "ئالماشتۇر"
+
+msgctxt "@action:inmenu"
+msgid "Smooth"
+msgstr "سىلىق"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "تەھرىر"
+
+msgctxt "@title:menu"
+msgid "Select"
+msgstr "تاللا"
+
+msgctxt "@action:inmenu select layers"
+msgid "All"
+msgstr "ھەممىسى"
+
+msgctxt "@action:inmenu select layers"
+msgid "Visible"
+msgstr "كۆرۈنۈشچان"
+
+msgctxt "@title:menu other kinds of layer"
+msgid "New"
+msgstr "يېڭى"
+
+msgctxt "@action:inmenu"
+msgid "Group"
+msgstr "گۇرۇپپا"
+
+msgctxt "@action:inmenu"
+msgid "Clone"
+msgstr "نۇسخىلا"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "كۆچۈر"
+
+msgctxt "@action:inmenu"
+msgid "Cut"
+msgstr "كەس"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "كۆچۈر"
+
+msgctxt "@action:inmenu"
+msgid "Alpha into Mask"
+msgstr "ئالفادىن نىقابغىچە"
+
+msgctxt "@action:inmenu"
+msgid "Write as Alpha"
+msgstr "ئالفا سۈپىتىدە ياز"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "يېنىۋال"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "قايتىلا"
+
+msgctxt "@action:button choose a palette"
+msgid "Palettes"
+msgstr "رەڭ تەڭشەش تاختىسى"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "تەھرىر"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "ساقلا"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "ساقلا"
+
+msgctxt "frames at half the image's size"
+msgid "Half"
+msgstr "يېرىم"
+

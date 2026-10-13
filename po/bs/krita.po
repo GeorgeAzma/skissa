@@ -112509,3 +112509,70 @@ msgstr ""
 
 #~ msgid "Tutorials"
 #~ msgstr "Vodiči"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Interna greška programa Skissa"
+
+msgctxt "canvas renderer"
+msgid "Auto"
+msgstr "Automatski"
+
+msgctxt "touch painting"
+msgid "Auto"
+msgstr "Automatski"
+
+msgctxt "canvas surface depth"
+msgid "Auto"
+msgstr "Automatski"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Poništi"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Poništi"
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "Rotiraj"
+
+msgctxt "default name of a filter layer, followed by a number"
+msgid "Filter"
+msgstr "Filter"
+
+msgctxt "@action:inmenu"
+msgid "Smooth"
+msgstr "Glatko"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "Kopiraj"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "Kopiraj"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Image"
+msgstr "Spljošti sliku"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Poništi"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Ponovi"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Dodaj u paletu"
+

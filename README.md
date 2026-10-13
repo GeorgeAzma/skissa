@@ -44,7 +44,7 @@ Tools, brushes, effects, settings and every old menu command. Effects preview li
 
 ## Get it
 
-**Windows:** download the zip from [Releases](../../releases), unzip it and run `bin\krita.exe`. English only for now.
+**Windows:** download the zip from [Releases](../../releases), unzip it and run `bin\krita.exe`.
 
 **Build it:** same as Krita, using [Krita's build guide](https://docs.krita.org/en/untranslatable_pages/building_krita.html) with this repo.
 

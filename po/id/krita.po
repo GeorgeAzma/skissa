@@ -71562,3 +71562,444 @@ msgstr ""
 #~ msgctxt "Resolution for recorded frames"
 #~ msgid "Resolution:"
 #~ msgstr "Resolusi:"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Show Skissa log for bug reports."
+msgstr "Tampilkan catatan log Skissa untuk melaporkan bug."
+
+msgctxt "action"
+msgid "Configure Skissa"
+msgstr "Konfigurasi Skissa"
+
+msgctxt "action"
+msgid "About Skissa"
+msgstr "Tentang Skissa"
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "Lapisan"
+
+msgctxt "@item:layer name: flat colors under line art"
+msgid "Colors"
+msgstr "Warna"
+
+msgctxt "canvas renderer"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "cursor"
+msgid "None"
+msgstr "Tidak ada"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "Tidak ada"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "Tidak ada"
+
+msgctxt "color sampler preview"
+msgid "Right"
+msgstr "Kanan"
+
+msgctxt "touch painting"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "Sesi"
+
+msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
+msgid "Screen %1 (%2)"
+msgstr "Layar %1 (%2)"
+
+msgctxt "canvas surface depth"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "Piksel"
+
+msgctxt "brush group"
+msgid "Other"
+msgstr "Lainnya"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "Kecahayaan"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "HSV"
+
+msgctxt "@info:tooltip"
+msgid "Preview"
+msgstr "Pratinjau"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "effect group"
+msgid "Other"
+msgstr "Lainnya"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "Lapisan"
+
+msgctxt "@title find results"
+msgid "Settings"
+msgstr "Pengaturan"
+
+msgctxt "@title find results"
+msgid "Workspaces"
+msgstr "Ruang Kerja"
+
+msgctxt "@title find results"
+msgid "All"
+msgstr "Semua"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "Jendela"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "Opasitas"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "Jendela"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "Nama"
+
+msgctxt "@info an empty slot of a ring"
+msgid "Add"
+msgstr "Tambah"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "Kecepatan"
+
+msgctxt "theme"
+msgid "Lightness"
+msgstr "Kecahayaan"
+
+msgctxt "glass"
+msgid "Blur"
+msgstr "Buram"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "Opasitas"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "Ukuran"
+
+msgctxt "color sampler"
+msgid "Preview"
+msgstr "Pratinjau"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "Ukuran"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Urung"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "Lapisan"
+
+msgctxt "layer names: no words"
+msgid "none"
+msgstr "tidak ada"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "Lapisan"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "Animasi"
+
+msgctxt "settings card"
+msgid "Author"
+msgstr "Penulis"
+
+msgctxt "author"
+msgid "None"
+msgstr "Tidak ada"
+
+msgctxt "@title:window"
+msgid "Authors"
+msgstr "Para Penulis"
+
+msgctxt "settings card"
+msgid "Display"
+msgstr "Display"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "Putih"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "Pindah"
+
+msgctxt "@action:inmenu"
+msgid "Reset"
+msgstr "Atur ulang"
+
+msgctxt "@action:button"
+msgid "Import"
+msgstr "Impor"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Urung"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Blend"
+msgstr "Padu"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Select"
+msgstr "Pilih"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Fill"
+msgstr "Isi"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "Teks"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Guides"
+msgstr "Panduan"
+
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Cermin"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Tidak ada"
+
+msgctxt "@info:tooltip"
+msgid "Close"
+msgstr "Tutup"
+
+msgctxt "new image: one made to measure"
+msgid "Custom"
+msgstr "Kustom"
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "keys group"
+msgid "Other"
+msgstr "Lainnya"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "Rotasi"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "Tidak ada"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Hak Anda</b></h1><p>Skissa dirilis di bawah Lisensi Publik Umum GNU (versi 3 atau versi yang lebih baru).</p><p>Lisensi ini memberi orang sejumlah kebebasan:</p><ul><li>Anda bebas menggunakan Skissa, untuk tujuan apapun</li><li>Anda bebas mendistribusikan Skissa</li><li>Anda dapat mempelajari cara kerja Skissa dan mengubahnya</li><li>Anda dapat mendistribusikan versi Skissa yang telah diubah</li></ul><p>Skissa Foundation dan proyek-proyeknya di krita.org <b>berkomitmen</b> untuk melestarikan Skissa sebagai perangkat lunak gratis.</p><h1 align=\"center\">Karya seni Anda</h1><p>Apa yang Anda buat dengan Skissa adalah satu-satunya milik Anda. Semua karya seni Anda gratis untuk Anda gunakan sesuka Anda.</p><p>Artinya Skissa bisa digunakan secara komersial, untuk tujuan apapun. Tidak ada batasan apa pun.</p><p>Lisensi GNU GPL Skissa menjamin Anda kebebasan ini. Tidak ada seorang pun yang diizinkan untuk mengambilnya, berbeda dengan perangkat lunak komersial versi uji coba atau pendidikan yang akan melarang pekerjaan Anda dalam situasi komersial.</p><br/><hr/><pre>"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1><p>Skissa is built on the following free software libraries:</p><p><ul>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Pustaka Pihak Ketiga yang digunakan oleh Skissa</b></h1><p>Skissa telah dibangun pada pustaka perangkat lunak bebas berikut ini:</p><p><ul>"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "Opasitas"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "Opasitas"
+
+msgctxt "default name of a filter layer, followed by a number"
+msgid "Filter"
+msgstr "Filter"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "File"
+
+msgctxt "@action:inmenu"
+msgid "Select All"
+msgstr "Pilih Semua"
+
+msgctxt "@action:inmenu"
+msgid "Deselect"
+msgstr "Nonpilih"
+
+msgctxt "@action:inmenu"
+msgid "Reselect"
+msgstr "Pilih Ulang"
+
+msgctxt "@action:inmenu"
+msgid "Invert"
+msgstr "Kebalikan"
+
+msgctxt "@action:inmenu"
+msgid "Smooth"
+msgstr "Halus"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "Edit"
+
+msgctxt "@title:menu"
+msgid "Select"
+msgstr "Pilih"
+
+msgctxt "@action:inmenu select layers"
+msgid "All"
+msgstr "Semua"
+
+msgctxt "@action:inmenu select layers"
+msgid "Visible"
+msgstr "Terlihat"
+
+msgctxt "@title:menu other kinds of layer"
+msgid "New"
+msgstr "Baru"
+
+msgctxt "@action:inmenu"
+msgid "Paint Layer"
+msgstr "Lapisan Lukis"
+
+msgctxt "@action:inmenu"
+msgid "Group"
+msgstr "Kelompok"
+
+msgctxt "@action:inmenu"
+msgid "Clone"
+msgstr "Klon"
+
+msgctxt "@action:inmenu"
+msgid "Colorize Mask"
+msgstr "Mask Pewarnaan"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "Salin"
+
+msgctxt "@action:inmenu"
+msgid "Cut"
+msgstr "Pindah"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "Salin"
+
+msgctxt "@action:inmenu"
+msgid "Alpha into Mask"
+msgstr "Alfakan ke dalam Mask"
+
+msgctxt "@action:inmenu"
+msgid "Write as Alpha"
+msgstr "Tulis sebagai Alfa"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Layer"
+msgstr "Ratakan Lapisan"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Image"
+msgstr "Ratakan Gambar"
+
+msgctxt "@action:inmenu"
+msgid "Pin to Timeline"
+msgstr "Sematkan ke Linimasa"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Urung"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Ulang"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "Edit"
+
+msgctxt "@info:tooltip"
+msgid "Lock"
+msgstr "Gembok"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "Simpan"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Tambahkan ke palet"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "Simpan"
+
+msgctxt "frames at half the image's size"
+msgid "Half"
+msgstr "Setengah"
+
+msgctxt "Caption of the dialog with Krita's Android system log for bug reports"
+msgid "Skissa Logcat Dump: please paste this information to the bug report"
+msgstr "Dump Logcat Skissa: silakan tempel informasi ini ke laporan bug"
+
+msgctxt "Caption of the dialog with crash log for bug reports"
+msgid "Skissa Crash Log: please paste this information to the bug report"
+msgstr "Catatan Log Mogok Skissa: silakan tempel informasi ini ke laporan bug"
+
+msgctxt "Caption of the dialog with Skissa usage log for bug reports"
+msgid "Skissa Usage Log: please paste this information to the bug report"
+msgstr "Catatan Log Penggunaan Skissa: silakan tempel informasi ini ke laporan bug"
+
+msgctxt "Caption of the dialog with system information for bug reports"
+msgid "Skissa System Information: please paste this information to the bug report"
+msgstr "Informasi Sistem Skissa: silakan tempel informasi ini ke laporan bug"
+
+msgctxt "@title:window"
+msgid "Skissa - Edit Text"
+msgstr "Skissa - Edit Teks"
+
+msgctxt "(qtundo-format)"
+msgid "Fill"
+msgstr "Isi"
+

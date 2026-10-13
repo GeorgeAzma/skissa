@@ -89883,3 +89883,153 @@ msgstr ""
 #, fuzzy
 #~ msgid "Swappiness:"
 #~ msgstr "Gildi"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Show Skissa log for bug reports."
+msgstr "Birta atvikaskrár Skissa fyrir villumeldingar."
+
+msgctxt "cursor"
+msgid "None"
+msgstr "Ekkert"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "Ekkert"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "Ekkert"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "Setur"
+
+msgctxt "a setting's value: not set"
+msgid "Default"
+msgstr "Sjálfgefið"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "Mynddíll"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "Litur"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "HSV"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "Litur"
+
+msgctxt "@title find results"
+msgid "Settings"
+msgstr "Stillingar"
+
+msgctxt "@title find results"
+msgid "Workspaces"
+msgstr "Vinnusvæði"
+
+msgctxt "@title find results"
+msgid "All"
+msgstr "Allt"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "Gluggi"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "Gluggi"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "Litur"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "Litur"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "Litur"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Afturkalla"
+
+msgctxt "layer names: no words"
+msgid "none"
+msgstr "ekkert"
+
+msgctxt "author"
+msgid "None"
+msgstr "Ekkert"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Afturkalla"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Ekkert"
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "Ekkert"
+
+msgctxt "default name of a filter layer, followed by a number"
+msgid "Filter"
+msgstr "Sía"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "Skrá"
+
+msgctxt "@action:inmenu"
+msgid "Deselect"
+msgstr "Afvelja"
+
+msgctxt "@action:inmenu"
+msgid "Reselect"
+msgstr "Endurvelja"
+
+msgctxt "@action:inmenu"
+msgid "Smooth"
+msgstr "Mýking"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "Breyta"
+
+msgctxt "@action:inmenu select layers"
+msgid "All"
+msgstr "Allt"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Afturkalla"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Endurtaka"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "Breyta"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Bæta á litaspjald"
+
+msgid "The file is too new for this version of Skissa (%1)."
+msgstr "Skráin er of ný fyrir þessa útgáfu Skissa (%1)."
+

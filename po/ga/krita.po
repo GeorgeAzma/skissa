@@ -100002,3 +100002,640 @@ msgstr ""
 
 #~ msgid "&Custom Convolution..."
 #~ msgstr "&Conbhlóidiú Saincheaptha..."
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Opens a file browser at the location Skissa saves resources such as brushes to."
+msgstr "Osclaíonn sé brabhsálaí comhad san áit ina sábhálann Skissa acmhainní amhail scuaba."
+
+msgctxt "action"
+msgid "Show Skissa log for bug reports."
+msgstr "Taispeáin log Skissa le haghaidh tuairiscí fabht."
+
+msgctxt "action"
+msgid "Configure Skissa"
+msgstr "Cumraigh Skissa"
+
+msgctxt "action"
+msgid "About Skissa"
+msgstr "Maidir le Skissa"
+
+msgctxt "@tooltip"
+msgid "Adjusts glyphs so they align by their optical bounds. Doesn't do anything in Skissa."
+msgstr "Coigeartaíonn sé glifí ionas go mbeidh siad ailínithe de réir a dteorainneacha optúla. Ní dhéanann sé aon rud i Skissa."
+
+msgctxt "@tooltip"
+msgid "Indicates how much the font is suitable for its current size. Does nothing in Skissa."
+msgstr "Léiríonn sé cé chomh hoiriúnach is atá an cló dá mhéid reatha. Ní dhéanann sé tada i Skissa."
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "Sraith"
+
+msgid "The resource database scheme has changed. Skissa will backup your database and create a new database."
+msgstr "Tá an scéim bunachar sonraí acmhainní athraithe. Déanfaidh Skissa cúltaca de do bhunachar sonraí agus cruthóidh sé bunachar sonraí nua."
+
+msgid "Skissa is running for the first time. Initialization will take some time."
+msgstr "Tá Skissa ag rith den chéad uair. Tógfaidh an tosú roinnt ama."
+
+msgctxt "@title:window"
+msgid "Skissa: Fatal error"
+msgstr "Skissa: Earráid mharfach"
+
+msgid "%1\n\nSkissa will quit now."
+msgstr "%1\n\nScoirfidh Skissa anois."
+
+msgid "\n\nSkissa will quit now."
+msgstr "\n\nScoirfidh Skissa anois."
+
+msgid "Cannot add the file layer: no document is open.\n\nYou can create a new document using the --new-image option, or you can open an existing file.\n\nIf you instead want to add the file layer to a document in an already running instance of Skissa, check the \"Allow only one instance of Skissa\" checkbox in the settings (Settings -> General -> Window)."
+msgstr "Ní féidir an ciseal comhaid a chur leis: níl aon doiciméad oscailte.\n\nIs féidir leat doiciméad nua a chruthú ag baint úsáide as an rogha --new-image, nó is féidir leat comhad atá ann cheana a oscailt.\n\nMás mian leat an ciseal comhaid a chur le doiciméad i gcás Skissa atá ag rith cheana féin, seiceáil an bosca seiceála \"Ceadaigh cás amháin de Skissa\" sna socruithe (Socruithe -> Ginearálta -> Fuinneog)."
+
+msgid "Skissa configurations reset!\n\nBackup file was created at: %1\n\nRestart Skissa for changes to take effect."
+msgstr "Cumraíochtaí Skissa athshocraithe!\n\nCruthaíodh comhad cúltaca ag: %1\n\nAtosaigh Skissa le go dtiocfaidh na hathruithe i bhfeidhm."
+
+msgid "The name of the workspace to open Skissa with"
+msgstr "Ainm an spás oibre le Skissa a oscailt leis"
+
+msgid "The name of the window layout to open Skissa with"
+msgstr "Ainm leagan amach na fuinneoige le Skissa a oscailt leis"
+
+msgid "The name of the session to open Skissa with"
+msgstr "Ainm an tseisiúin le Skissa a oscailt leis"
+
+msgid "Start Skissa in canvas-only mode"
+msgstr "Tosaigh Skissa i mód canbháis amháin"
+
+msgid "Start Skissa in full-screen mode"
+msgstr "Tosaigh Skissa i mód lánscáileáin"
+
+msgid "A location that overrides the configured location for Skissa's resources"
+msgstr "Suíomh a sháraíonn an suíomh cumraithe d'acmhainní Skissa"
+
+msgctxt "@item:layer name: flat colors under line art"
+msgid "Colors"
+msgstr "Dathanna"
+
+msgid "Permission denied. Skissa is not allowed to read or write to the file."
+msgstr "Cead diúltaithe. Níl cead ag Skissa an comhad a léamh ná a scríobh chuige."
+
+msgid "Permission denied: Skissa is not allowed to read the file."
+msgstr "Cead diúltaithe: Níl cead ag Skissa an comhad a léamh."
+
+msgid "Permission denied: Skissa is not allowed to write to the file."
+msgstr "Cead diúltaithe: Níl cead ag Skissa scríobh chuig an gcomhad."
+
+msgid "Skissa does not support this file format."
+msgstr "Ní thacaíonn Skissa leis an bhformáid comhaid seo."
+
+msgctxt "@title:window"
+msgid "Skissa: Export Error"
+msgstr "Skissa: Earráid Easpórtála"
+
+msgctxt "the argument is the ICC profile name"
+msgid "The image has a profile attached that Skissa cannot edit images in (\"%1\"), please select a space to convert to for editing: \n"
+msgstr "Tá próifíl ceangailte leis an íomhá nach féidir le Skissa íomhánna a chur in eagar inti (\"%1\"), roghnaigh spás le tiontú chuige le haghaidh eagarthóireachta: \n"
+
+msgctxt "brush outline"
+msgid "Circle"
+msgstr "Ciorcal"
+
+msgctxt "color sampler preview"
+msgid "Left"
+msgstr "Ar Chlé"
+
+msgctxt "color sampler preview"
+msgid "Right"
+msgstr "Ar Dheis"
+
+msgctxt "zoom"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "canvas scaling"
+msgid "Bilinear"
+msgstr "Délíneach"
+
+msgctxt "setting"
+msgid "Pressure"
+msgstr "Brú"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "Seisiúin"
+
+msgctxt "rendering intent"
+msgid "Perceptual"
+msgstr "Céadfach"
+
+msgctxt "rendering intent"
+msgid "Saturation"
+msgstr "Sáithiú"
+
+msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
+msgid "Screen %1 (%2)"
+msgstr "Scáileán %1 (%2)"
+
+msgctxt "setting"
+msgid "Frame rate limit"
+msgstr "Teorainn ráta fráma"
+
+msgctxt "a setting's value: not set"
+msgid "Default"
+msgstr "Réamhshocrú"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "Picteilín"
+
+msgctxt "brush group"
+msgid "Other"
+msgstr "Eile"
+
+msgctxt "zoom level, %1 is the percentage"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "Éadromacht"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "Lí"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "HSV"
+
+msgctxt "@info:tooltip"
+msgid "Preview"
+msgstr "Réamhamharc"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "effect group"
+msgid "Other"
+msgstr "Eile"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "Sraitheanna"
+
+msgctxt "@title find results"
+msgid "Settings"
+msgstr "Socruithe"
+
+msgctxt "@title find results"
+msgid "Workspaces"
+msgstr "Spásanna Oibre"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "Fuinneog"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "Teimhneacht"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "Fuinneog"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "Ainm"
+
+msgctxt "@info an empty slot of a ring"
+msgid "Add"
+msgstr "Cuir leis"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "Luas"
+
+msgctxt "theme"
+msgid "Lightness"
+msgstr "Éadromacht"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "Teimhneacht"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "Méid"
+
+msgctxt "color sampler"
+msgid "Preview"
+msgstr "Réamhamharc"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "Méid"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "settings card"
+msgid "Pressure"
+msgstr "Brú"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Cuir ar ceal"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "Sraitheanna"
+
+msgctxt "layer names: no words"
+msgid "none"
+msgstr "aon cheann"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "Sraith"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "Beochan"
+
+msgctxt "settings card"
+msgid "Author"
+msgstr "Údar"
+
+msgctxt "@title:window"
+msgid "Authors"
+msgstr "Údair"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "Bán"
+
+msgctxt "instant preview"
+msgid "Transform"
+msgstr "Claochlú"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "Bog"
+
+msgctxt "@action:inmenu"
+msgid "Reset"
+msgstr "Athshocraigh"
+
+msgctxt "@action:button"
+msgid "Import"
+msgstr "Iompórtáil"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Cuir ar ceal"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Blend"
+msgstr "Cumasc"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Select"
+msgstr "Roghnaigh"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Transform"
+msgstr "Claochlú"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Fill"
+msgstr "Líon"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "Téacs"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Guides"
+msgstr "Treoraithe"
+
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Scáthán"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Gathach"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Síos"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Síos"
+
+msgctxt "@info:tooltip"
+msgid "Close"
+msgstr "Dún"
+
+msgid "Use the new template every time Skissa starts"
+msgstr "Úsáid an teimpléad nua gach uair a thosaíonn Skissa"
+
+msgid "Warning: you are trying to import more than 100 frames into Skissa.\n\nThis means you might be overloading your system.\nIf you want to edit a clip larger than 100 frames, consider using a real video editor, like Kdenlive (https://kdenlive.org)."
+msgstr "Rabhadh: tá tú ag iarraidh níos mó ná 100 fráma a allmhairiú isteach i Skissa.\n\nCiallaíonn sé seo go bhféadfadh ró-ualach a bheith á chur ar do chóras.\nMás mian leat gearrthóg atá níos mó ná 100 fráma a chur in eagar, smaoinigh ar eagarthóir físe fíor a úsáid, cosúil le Kdenlive (https://kdenlive.org)."
+
+msgctxt "part of warning in video importer."
+msgid "Skissa does not support the video transfer curve (%1), it will be loaded as linear."
+msgstr "Ní thacaíonn Skissa leis an cuar aistrithe físe (%1), luchtófar é mar líneach."
+
+msgid "WARNING: HDR mode was activated on surface working in 8-bit mode!\nPlease activate 10-bit mode in Skissa's Preferences dialog and restart Skissa to avoid color banding!"
+msgstr "RABHADH: Gníomhachtaíodh mód HDR ar dhromchla ag obair i mód 8-giotán!\nGníomhachtaigh mód 10-giotán i ndialóg Roghanna Skissa agus atosú Skissa chun bandaí datha a sheachaint!"
+
+msgctxt "@info:tooltip"
+msgid "The amount of time during which the strokes will be kept unmerged. When a stroke becomes old enough, Skissa will try to merge it"
+msgstr "An méid ama a choinneofar na strócanna gan chumasc. Nuair a bheidh stróc sean go leor, déanfaidh Skissa iarracht é a chumasc"
+
+msgctxt "@info:tooltip"
+msgid "The number of last strokes that Skissa will not merge (even if they are old enough)"
+msgstr "Líon na strócanna deireanacha nach gcuirfidh Skissa le chéile (fiú má tá siad sean go leor)"
+
+msgid "Cumulative Undo allows Skissa to merge undo actions and make undo history cleaner. Skissa will still keep a few latest actions unmerged according to \"Wait before merging strokes\" and \"Exclude last strokes from merge\" options. Whenever an action gets outdated using the time limit and this action is not excluded using \"Exclude last strokes from merge\", Skissa will try  to merge this action into a group. The groups are formed using \"Max group strokes delay\" and \"Max group duration\" options."
+msgstr "Le Cealaigh Carnach, is féidir le Skissa gníomhartha cealaithe a chumasc agus stair an chealaithe a dhéanamh níos glaine. Coinneoidh Skissa roinnt gníomhartha is déanaí gan chumasc de réir na roghanna \"Fan sula ndéantar strócanna a chumasc\" agus \"Eisiamh na strócanna deireanacha ó chumasc\". Aon uair a théann gníomh as dáta ag baint úsáide as an teorainn ama agus nach ndéantar an gníomh seo a eisiamh ag baint úsáide as \"Eisiamh na strócanna deireanacha ó chumasc\", déanfaidh Skissa iarracht an gníomh seo a chumasc i ngrúpa. Cruthaítear na grúpaí ag baint úsáide as na roghanna \"Moill uasta strócanna grúpa\" agus \"Fad uasta grúpa\"."
+
+msgctxt "new image: one made to measure"
+msgid "Custom"
+msgstr "Saincheaptha"
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "keys group"
+msgid "Other"
+msgstr "Eile"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "Rothlaigh"
+
+msgctxt "@info:tooltip"
+msgid "Preset"
+msgstr "Réamhshocrú"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Do Chearta</b></h1><p>Scaoiltear Skissa faoin gCeadúnas Poiblí Ginearálta GNU (leagan 3 nó aon leagan níos déanaí).</p><p>Tugann an ceadúnas seo roinnt saoirsí do dhaoine:</p><ul><li>Tá tú saor chun Skissa a úsáid, chun aon chríche</li><li>Tá tú saor chun Skissa a dháileadh</li><li>Is féidir leat staidéar a dhéanamh ar an gcaoi a n-oibríonn Skissa agus é a athrú</li><li>Is féidir leat leaganacha athraithe de Skissa a dháileadh</li></ul><p>Tá Fondúireacht Skissa agus a tionscadail ar krita.org <b>tiomanta</b> do Skissa a chaomhnú mar bhogearraí saor in aisce.</p><h1 align=\"center\">Do shaothar ealaíne</h1><p>Is leatsa an t-aon mhaoin a chruthaíonn tú le Skissa. Tá do shaothar ealaíne go léir saor in aisce duit le húsáid mar is mian leat.</p><p>Ciallaíonn sé sin gur féidir Skissa a úsáid go tráchtála, chun aon chríche. Níl aon srianta ar bith ann.</p><p>Ráthaíonn ceadúnas GNU GPL Skissa an tsaoirse seo duit. Ní cheadaítear d'aon duine é a bhaint díot riamh, i gcodarsnacht le leaganacha trialach nó oideachasúla de bhogearraí tráchtála a chuirfidh cosc ar d'obair i gcásanna tráchtála.</p><br/><hr/><pre>"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1><p>Skissa is built on the following free software libraries:</p><p><ul>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Leabharlanna tríú páirtí a úsáideann Skissa</b></h1><p>Tá Skissa tógtha ar na leabharlanna bogearraí saor in aisce seo a leanas:</p><p><ul>"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "Teimhneacht"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "Teimhneacht"
+
+msgctxt "default name of a filter layer, followed by a number"
+msgid "Filter"
+msgstr "Scagaire"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "Comhad"
+
+msgctxt "tooltip on statusbar memory reporting button"
+msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
+msgstr "\n\nRABHADH: Gan chuimhne! Tá tús curtha leis an malartú.\nCumraigh níos mó RAM do Skissa sa dialóg Socruithe le do thoil"
+
+msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
+msgstr "Níorbh fhéidir le Skissa canbhás OpenGL a thosú:\n\n%1\n\nDíchumasóidh Skissa OpenGL agus dúnfaidh sé anois."
+
+msgctxt "@action:inmenu"
+msgid "Select All"
+msgstr "Roghnaigh Uile"
+
+msgctxt "@action:inmenu"
+msgid "Deselect"
+msgstr "Díroghnaigh"
+
+msgctxt "@action:inmenu"
+msgid "Reselect"
+msgstr "Athroghnaigh"
+
+msgctxt "@action:inmenu"
+msgid "Invert"
+msgstr "Inbhéartaigh"
+
+msgctxt "@action:inmenu"
+msgid "Transform"
+msgstr "Claochlú"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "Eagar"
+
+msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
+msgstr "Íoslódáladh AppImage nua chuig %1. Chun an nuashonrú a chríochnú, dún Skissa agus rith an AppImage nua."
+
+msgctxt "If the selected model is CMYK"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
+msgstr "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cian, Magenta, Buí, Eochair)</a></b>, an tsamhail a úsáideann printéirí agus meáin eile atá bunaithe ar dhúch.<br/>Is samhail dhealúchach é CMYK, rud a chiallaíonn go ndéanfaidh dathanna a chur le chéile iad a dhéanamh níos dorcha. Toisc go bhfuil próifílí CMYK an-sonrach do gach printéir, moltar oibriú i spás RGB, agus ansin tiontú ina dhiaidh sin go próifíl CMYK, ceann a sheachadann do phrintéir más féidir. <br/><b>Ní</b> mholtar CMYK le haghaidh péinteála. Ar an drochuair, ní féidir le Skissa dathanna ná an TRC a aisghabháil don spás seo."
+
+msgctxt "If the selected model is Grayscale"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/Grayscale\">Grayscale</a></b> only allows for gray values and transparent values. Grayscale images use half the memory and disk space compared to an RGB image of the same bit-depth.<br/>Grayscale is useful for inking and grayscale images. In Skissa, you can mix Grayscale and RGB layers in the same image."
+msgstr "Ní cheadaíonn <b><a href=\"https://en.wikipedia.org/wiki/Grayscale\">Liathscála</a></b> ach luachanna liatha agus luachanna trédhearcacha. Úsáideann íomhánna liathscála leath an chuimhne agus an spáis diosca i gcomparáid le híomhá RGB den doimhneacht giotán chéanna.<br/>Tá liathscála úsáideach le haghaidh íomhánna dúigh agus liathscála. I Skissa, is féidir leat sraitheanna Liathscála agus RGB a mheascadh san íomhá chéanna."
+
+msgctxt "If the selected model is LAB"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/Lab_color_space\">L*a*b</a></b>. <b>L</b> stands for Lightness, the <b>a</b> and <b>b</b> components represent color channels.<br/>L*a*b is a special model for color correction. It is based on human perception, meaning that it tries to encode the difference in lightness, red-green balance and yellow-blue balance. This makes it useful for color correction, but the vast majority of color maths in the blending modes do <b>not</b> work as expected here.<br/>Similarly, Skissa does not support HDR in LAB, meaning that HDR images converted to LAB lose color information. This colorspace is <b>not</b> recommended for painting, nor for export, but best as a space to do post-processing in. The TRC is assumed to be the L* TRC."
+msgstr "<b><a href=\"https://en.wikipedia.org/wiki/Lab_color_space\">L*a*b</a></b>. Seasann <b>L</b> do Gile, agus seasann na comhpháirteanna <b>a</b> agus <b>b</b> do chainéil datha.<br/>Is samhail speisialta é L*a*b le haghaidh ceartúcháin datha. Tá sé bunaithe ar bhraistint an duine, rud a chiallaíonn go ndéanann sé iarracht an difríocht i n-gile, cothromaíocht dearg-uaine agus cothromaíocht buí-gorm a ionchódú. Fágann sé seo go bhfuil sé úsáideach le haghaidh ceartúcháin datha, ach <b>ní</b> oibríonn formhór mór na matamaitice datha sna modhanna cumasc mar a bhíothas ag súil leis anseo.<br/>Ar an gcaoi chéanna, ní thacaíonn Skissa le HDR i LAB, rud a chiallaíonn go gcaillfidh íomhánna HDR a thiontaítear go LAB faisnéis datha. <b>Ní</b> mholtar an spás datha seo le haghaidh péinteála, ná le haghaidh easpórtála, ach is fearr é mar spás chun iarphróiseáil a dhéanamh ann. Glactar leis gurb é an L* TRC an TRC."
+
+msgctxt "These are Elle Stone's notes on her profiles that we ship."
+msgid "<p><b>Extra notes on profiles by Elle Stone:</b></p><p><i>Skissa comes with a number of high quality profiles created by <a href=\"https://ninedegreesbelow.com\">Elle Stone</a>. This is a summary. Please check <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">the full documentation</a> as well.</i></p>"
+msgstr "<p><b>Nótaí breise ar phróifílí Elle Stone:</b></p><p><i>Tagann roinnt próifílí ardchaighdeáin le Skissa, arna gcruthú ag <a href=\"https://ninedegreesbelow.com\">Elle Stone</a>. Is achoimre í seo. Seiceáil <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">an doiciméadacht iomlán</a> chomh maith.</i></p>"
+
+msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
+msgstr "Níl síneadh comhaid ag an ainm comhaid roghnaithe a thuigeann Skissa.\nDéan cinnte go gcríochnaíonn ainm an chomhaid le '.%1' mar shampla."
+
+msgid "Dropped frames are not available in this Skissa instance"
+msgstr "Níl frámaí titimte ar fáil sa chás Skissa seo"
+
+msgctxt "@title:menu"
+msgid "Select"
+msgstr "Roghnaigh"
+
+msgctxt "@action:inmenu select layers"
+msgid "Visible"
+msgstr "Infheicthe"
+
+msgctxt "@title:menu other kinds of layer"
+msgid "New"
+msgstr "Nua"
+
+msgctxt "@action:inmenu"
+msgid "Paint Layer"
+msgstr "Sraith Péinte"
+
+msgctxt "@action:inmenu"
+msgid "Group"
+msgstr "Grúpa"
+
+msgctxt "@action:inmenu"
+msgid "Vector Layer"
+msgstr "Sraith Veicteoir"
+
+msgctxt "@action:inmenu"
+msgid "Clone"
+msgstr "Clónáil"
+
+msgctxt "@action:inmenu"
+msgid "Transparency Mask"
+msgstr "Masc Trédhearcachta"
+
+msgctxt "@action:inmenu"
+msgid "Color Overlay Mask"
+msgstr "Masc Forleagan Dath"
+
+msgctxt "@action:inmenu"
+msgid "Colorize Mask"
+msgstr "Dathúigh Masc"
+
+msgctxt "@action:inmenu"
+msgid "Transform Mask"
+msgstr "Masc Claochlaithe"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "Cóipeáil"
+
+msgctxt "@action:inmenu"
+msgid "Cut"
+msgstr "Gearr"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "Cóipeáil"
+
+msgctxt "@action:inmenu"
+msgid "Alpha into Mask"
+msgstr "Alfa isteach i Masc"
+
+msgctxt "@action:inmenu"
+msgid "Write as Alpha"
+msgstr "Scríobh mar Alfa"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Layer"
+msgstr "Sraith Leacaithe"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Image"
+msgstr "Íomhá a Leacú"
+
+msgctxt "@action:inmenu"
+msgid "Pin to Timeline"
+msgstr "Prínnigh chuig an Amchlár"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Cuir ar ceal"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Athdhéan"
+
+msgctxt "@action:button choose a palette"
+msgid "Palettes"
+msgstr "Pailéid"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "Eagar"
+
+msgctxt "@info:tooltip"
+msgid "Lock"
+msgstr "Glasáil"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "Sábháil"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Cuir leis an bpailéad"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "Sábháil"
+
+msgctxt "frames at half the image's size"
+msgid "Half"
+msgstr "Leath"
+
+msgctxt "settings page"
+msgid "Wide Gamut Selector"
+msgstr "Roghnóir Gamut Leathan"
+
+msgctxt "Caption of the dialog with Krita's Android system log for bug reports"
+msgid "Skissa Logcat Dump: please paste this information to the bug report"
+msgstr "Dumpáil Logcat Skissa: greamaigh an fhaisnéis seo isteach sa tuairisc fabht le do thoil"
+
+msgctxt "Caption of the dialog with color management information for bug reports"
+msgid "Skissa Color Management Information: please paste this information to the bug report"
+msgstr "Faisnéis Bainistíochta Dathanna Skissa: greamaigh an fhaisnéis seo isteach sa tuairisc fabht le do thoil"
+
+msgctxt "Caption of the dialog with crash log for bug reports"
+msgid "Skissa Crash Log: please paste this information to the bug report"
+msgstr "Log Tuairteála Skissa: greamaigh an fhaisnéis seo isteach sa tuairisc fabht le do thoil"
+
+msgctxt "Caption of the dialog with Skissa usage log for bug reports"
+msgid "Skissa Usage Log: please paste this information to the bug report"
+msgstr "Log Úsáide Skissa: greamaigh an fhaisnéis seo isteach sa tuairisc fabht le do thoil"
+
+msgctxt "Caption of the dialog with system information for bug reports"
+msgid "Skissa System Information: please paste this information to the bug report"
+msgstr "Faisnéis Chórais Skissa: greamaigh an fhaisnéis seo isteach sa tuairisc fabht le do thoil"
+
+msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
+msgstr "Ní féidir le Skissa an breiseán gmic-qt a sheoladh. Níor aimsíodh aon leabharlann phacáilte."
+
+msgctxt "@info"
+msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
+msgstr "Tá picteilíní san íomhá le cainéal alfa nialasach agus bealaí datha neamh-nialasacha. Tá na picteilíní sin modhnaithe ag Skissa chun roinnt alfa a bheith acu ar a laghad. <i>Ní</i> aisiompófar na luachanna tosaigh nuair a shábhálfar an íomhá ar ais.<br/><br/>Is ar éigean a dhéanfaidh sé seo aon difríocht amhairc ach coinnigh i gcuimhne é."
+
+msgctxt "@tooltip"
+msgid "The image will be linearized first, and then encoded with SMPTE ST 428. Skissa always opens images like these as linear floating point, this option is there to reverse that"
+msgstr "Déanfar an íomhá a líneáil ar dtús, agus ansin a ionchódú le SMPTE ST 428. Osclaíonn Skissa íomhánna mar seo i gcónaí mar snámhphointe líneach, tá an rogha seo ann chun é sin a aisiompú"
+
+msgid "Layer \"%1\" has blending mode \"%2\" that has changed its behavior for CMYK color in Krita 5.2. Please check the result and consider enabling legacy \"Additive\" algorithm in Settings->Configure Skissa->General->Tools->CMYK blending mode"
+msgstr "Tá modh cumasc \"%2\" ag an tsraith \"%1\" a d'athraigh a hiompar le haghaidh dath CMYK i Skissa 5.2. Seiceáil an toradh agus smaoinigh ar an sean-algartam \"Breiseach\" a chumasú i Socruithe->Cumraigh Skissa->Ginearálta->Uirlisí->Mód cumasc CMYK"
+
+msgid "The file is too new for this version of Skissa (%1)."
+msgstr "Tá an comhad ró-nua don leagan seo de Skissa (%1)."
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Líneach"
+
+msgctxt "@title:window"
+msgid "Skissa - Edit Text"
+msgstr "Skissa - Cuir Téacs in Eagar"
+
+msgid "Skissa was built without the support of GNU Scientific Library, so you cannot scale the selection with handles. Please compile Skissa with GNU Scientific Library support, or use options widget for editing scale values manually."
+msgstr "Tógadh Skissa gan tacaíocht Leabharlann Eolaíochta GNU, mar sin ní féidir leat an roghnú a scálú le láimhseálacha. Tiomsaigh Skissa le tacaíocht Leabharlann Eolaíochta GNU, nó bain úsáid as an ngiuirléid roghanna chun luachanna scálaithe a chur in eagar de láimh."
+

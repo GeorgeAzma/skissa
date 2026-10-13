@@ -100278,3 +100278,30 @@ msgstr ""
 #~ " ទ្រង់​ទ្រាយ​ GIF ​មិន​គាំ​ទ្រ​រូបភាព​ដែល​មាន​ពណ៌​ពិត​ទេ ។\n"
 #~ " គ្រប់​រូបភាព​របស់ Krita ទាំង​អស់​ជា​ពណ៌​ពិត ។ នឹង​មានការ​ផ្លាស់​ប្តូរ​នៅ​ក្នុង​ពណ៌​ និង​បែប​ផែន​ចលនា (បើ​"
 #~ "មាន) ។"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "cursor"
+msgid "None"
+msgstr "គ្មាន"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "គ្មាន"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "គ្មាន"
+
+msgctxt "author"
+msgid "None"
+msgstr "គ្មាន"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "គ្មាន"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "គ្មាន"
+

@@ -71003,3 +71003,677 @@ msgstr ""
 #~ msgstr ""
 #~ "Ez az XCF fájl túl új; a Krita nem támogatja a GIMP 2.9 vagy újabb "
 #~ "verzióival írt XCF fájlokat."
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Opens a file browser at the location Skissa saves resources such as brushes to."
+msgstr "Megnyit egy fájlkezelőt ott, ahová a Skissa az erőforrásokat (például ecseteket) menti."
+
+msgctxt "action"
+msgid "Show Skissa log for bug reports."
+msgstr "Skissa napló megjelenítése a hibajelentésekhez."
+
+msgctxt "action"
+msgid "Configure Skissa"
+msgstr "Skissa beállítása"
+
+msgctxt "action"
+msgid "About Skissa"
+msgstr "Skissa névjegye"
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Skissa: Belső hiba"
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "Réteg"
+
+msgid "The resource database scheme has changed. Skissa will backup your database and create a new database."
+msgstr "Az erőforrás-adatbázis sémája megváltozott. A Skissa biztonsági mentést készít az adatbázisról, és újat hoz létre."
+
+msgid "Skissa is running for the first time. Initialization will take some time."
+msgstr "A Skissa most fut először. Az inicializálás igénybe vehet némi időt."
+
+msgctxt "@title:window"
+msgid "Skissa: Fatal error"
+msgstr "Skissa: Végzetes hiba"
+
+msgid "%1\n\nSkissa will quit now."
+msgstr "%1\n\nA Skissa most kilép."
+
+msgid "\n\nSkissa will quit now."
+msgstr "\n\nA Skissa most kilép."
+
+msgid "Cannot add the file layer: no document is open.\n\nYou can create a new document using the --new-image option, or you can open an existing file.\n\nIf you instead want to add the file layer to a document in an already running instance of Skissa, check the \"Allow only one instance of Skissa\" checkbox in the settings (Settings -> General -> Window)."
+msgstr "A fájlréteg hozzáadása sikertelen: nincs nyitva dokumentum.\n\nLétrehozhat egy új dokumentumot a --new-image opcióval, vagy megnyithat egy létező fájlt.\n\nHa a fájlréteget egy már futó Skissa példány dokumentumához szeretné adni, jelölje be a \"Csak egy Skissa példány engedélyezése\" jelölőnégyzetet a beállításokban (Beállítások -> Általános -> Ablak)."
+
+msgid "Skissa configurations reset!\n\nBackup file was created at: %1\n\nRestart Skissa for changes to take effect."
+msgstr "A Skissa beállításai alaphelyzetbe álltak!\n\nBiztonsági másolat készült ide: %1\n\nIndítsa újra a Kritát a változások érvénybe léptetéséhez."
+
+msgid "The name of the workspace to open Skissa with"
+msgstr "A munkaterület neve, mellyel a Skissa megnyílik"
+
+msgid "The name of the window layout to open Skissa with"
+msgstr "Az ablakelrendezés neve, mellyel a Skissa megnyílik"
+
+msgid "The name of the session to open Skissa with"
+msgstr "A munkamenet neve, mellyel a Skissa megnyílik"
+
+msgid "Start Skissa in canvas-only mode"
+msgstr "Skissa indítása csak rajzvászon módban"
+
+msgid "Start Skissa in full-screen mode"
+msgstr "Skissa indítása teljes képernyős módban"
+
+msgid "A location that overrides the configured location for Skissa's resources"
+msgstr "Egy hely, amely felülbírálja a Skissa erőforrásainak beállított helyét"
+
+msgctxt "@item:layer name: flat colors under line art"
+msgid "Colors"
+msgstr "Színek"
+
+msgid "Skissa does not support this file format."
+msgstr "A Skissa nem támogatja ezt a fájlformátumot."
+
+msgctxt "@title:window"
+msgid "Skissa: Export Error"
+msgstr "Skissa: Exportálási hiba"
+
+msgctxt "the argument is the ICC profile name"
+msgid "The image has a profile attached that Skissa cannot edit images in (\"%1\"), please select a space to convert to for editing: \n"
+msgstr "A képhez olyan profil van csatolva (\"%1\"), melyben a Skissa nem tud képeket szerkeszteni. Válasszon egy színteret, amelyre át szeretné alakítani a szerkesztéshez: \n"
+
+msgctxt "canvas renderer"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "cursor"
+msgid "None"
+msgstr "Nincs"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "Nincs"
+
+msgctxt "brush outline"
+msgid "Circle"
+msgstr "Kör"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "Nincs"
+
+msgctxt "color sampler preview"
+msgid "Left"
+msgstr "Bal"
+
+msgctxt "color sampler preview"
+msgid "Right"
+msgstr "Jobb"
+
+msgctxt "zoom"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "canvas scaling"
+msgid "Bilinear"
+msgstr "Bilineáris"
+
+msgctxt "setting"
+msgid "Pressure"
+msgstr "Nyomás"
+
+msgctxt "touch painting"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "Munkamenetek"
+
+msgctxt "rendering intent"
+msgid "Perceptual"
+msgstr "Érzékelési"
+
+msgctxt "rendering intent"
+msgid "Saturation"
+msgstr "Telítettség"
+
+msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
+msgid "Screen %1 (%2)"
+msgstr "%1. képernyő (%2)"
+
+msgctxt "canvas surface depth"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "setting"
+msgid "Frame rate limit"
+msgstr "Képkockasebesség korlát"
+
+msgctxt "a setting's value: not set"
+msgid "Default"
+msgstr "Alapértelmezett"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "Pixel"
+
+msgctxt "brush group"
+msgid "Other"
+msgstr "Egyéb"
+
+msgctxt "zoom level, %1 is the percentage"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "Világosság"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "Árnyalat"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "HSV"
+
+msgctxt "@info:tooltip"
+msgid "Preview"
+msgstr "Előnézet"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "effect group"
+msgid "Other"
+msgstr "Egyéb"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "Rétegek"
+
+msgctxt "@title find results"
+msgid "Settings"
+msgstr "Beállítások"
+
+msgctxt "@title find results"
+msgid "Workspaces"
+msgstr "Munkaterületek"
+
+msgctxt "@title find results"
+msgid "All"
+msgstr "Összes"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "Ablak"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "Átlátszatlanság"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "Ablak"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "Név"
+
+msgctxt "@info an empty slot of a ring"
+msgid "Add"
+msgstr "Hozzáadás"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "Sebesség"
+
+msgctxt "theme"
+msgid "Lightness"
+msgstr "Világosság"
+
+msgctxt "glass"
+msgid "Blur"
+msgstr "Elmosás"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "Átlátszatlanság"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "Méret"
+
+msgctxt "color sampler"
+msgid "Preview"
+msgstr "Előnézet"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "Méret"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "settings card"
+msgid "Pressure"
+msgstr "Nyomás"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Visszavonás"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "Rétegek"
+
+msgctxt "layer names: no words"
+msgid "none"
+msgstr "nincs"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "Réteg"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "Animáció"
+
+msgctxt "settings card"
+msgid "Author"
+msgstr "Szerző"
+
+msgctxt "author"
+msgid "None"
+msgstr "Nincs"
+
+msgctxt "@title:window"
+msgid "Authors"
+msgstr "Szerzők"
+
+msgctxt "settings card"
+msgid "Display"
+msgstr "Kijelző"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "Fehér"
+
+msgctxt "instant preview"
+msgid "Transform"
+msgstr "Átalakítás"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "Mozgatás"
+
+msgctxt "@action:inmenu"
+msgid "Reset"
+msgstr "Visszaállítás"
+
+msgctxt "@action:button"
+msgid "Import"
+msgstr "Importálás"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Visszavonás"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Blend"
+msgstr "Keverés"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Select"
+msgstr "Kijelölés"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Transform"
+msgstr "Átalakítás"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Fill"
+msgstr "Kitöltés"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "Szöveg"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Guides"
+msgstr "Segédvonalak"
+
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Tükrözés"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Sugárirányú"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Le"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Nincs"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Le"
+
+msgctxt "@info:tooltip"
+msgid "Close"
+msgstr "Bezárás"
+
+msgid "Use the new template every time Skissa starts"
+msgstr "Új sablon használata a Skissa minden indításakor"
+
+msgctxt "part of warning in video importer."
+msgid "Skissa does not support the video transfer curve (%1), it will be loaded as linear."
+msgstr "A Skissa nem támogatja ezt a videó-átviteli görbét (%1), lineárisként lesz betöltve."
+
+msgid "WARNING: HDR mode was activated on surface working in 8-bit mode!\nPlease activate 10-bit mode in Skissa's Preferences dialog and restart Skissa to avoid color banding!"
+msgstr "FIGYELEM: A HDR mód 8 bites felületen lett aktiválva!\nKérjük, aktiválja a 10 bites módot a Skissa beállításaiban és indítsa újra a programot a sávosodás elkerülése érdekében!"
+
+msgctxt "@info:tooltip"
+msgid "The amount of time during which the strokes will be kept unmerged. When a stroke becomes old enough, Skissa will try to merge it"
+msgstr "Az az időtartam, ameddig az ecsetvonások egyesítetlenek maradnak. Amikor egy vonás elég régivé válik, a Skissa megpróbálja egyesíteni azt"
+
+msgctxt "@info:tooltip"
+msgid "The number of last strokes that Skissa will not merge (even if they are old enough)"
+msgstr "Az utolsó ecsetvonások száma, amelyeket a Skissa nem egyesít (még akkor sem, ha elég régiek)."
+
+msgid "Cumulative Undo allows Skissa to merge undo actions and make undo history cleaner. Skissa will still keep a few latest actions unmerged according to \"Wait before merging strokes\" and \"Exclude last strokes from merge\" options. Whenever an action gets outdated using the time limit and this action is not excluded using \"Exclude last strokes from merge\", Skissa will try  to merge this action into a group. The groups are formed using \"Max group strokes delay\" and \"Max group duration\" options."
+msgstr "A kumulatív visszavonás lehetővé teszi a Skissa számára a visszavonási műveletek egyesítését, tisztábbá téve az előzményeket. A Skissa továbbra is egyesítetlenül hagy néhány legutóbbi műveletet a \"Várakozás az ecsetvonások egyesítése előtt\" és az \"Utolsó ecsetvonások kihagyása az egyesítésből\" opciók alapján. Amikor egy művelet elavul az időkorlát miatt, és nincs kizárva az utolsó vonások közül, a Skissa megpróbálja azt egy csoportba egyesíteni. A csoportok a \"Csoportosított ecsetvonások max. időköze\" és a \"Csoport maximális időtartama\" opciók alapján jönnek létre."
+
+msgctxt "new image: one made to measure"
+msgid "Custom"
+msgstr "Egyéni"
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "keys group"
+msgid "Other"
+msgstr "Egyéb"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "Forgatás"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "Nincs"
+
+msgctxt "@info:tooltip"
+msgid "Preset"
+msgstr "Előbeállítás"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Az Ön jogai</b></h1><p>A Skissa a GNU General Public License (3-as vagy bármely későbbi verzió) alatt jelenik meg.</p><p>Ez a licenc számos szabadságjogot biztosít:</p><ul><li>A Kritát bármilyen célra szabadon használhatja</li><li>A Kritát szabadon terjesztheti</li><li>Tanulmányozhatja a Skissa működését és megváltoztathatja azt</li><li>Terjesztheti a Skissa módosított változatait</li></ul><p>A Skissa Alapítvány és a krita.org projektjei <b>elkötelezettek</b> a Skissa szabad szoftverként való megőrzése mellett.</p><h1 align=\"center\">Az Ön művei</h1><p>Amit a Kritával készít, az az Ön kizárólagos tulajdona. Minden művét szabadon használhatja, ahogy szeretné.</p><p>Ez azt jelenti, hogy a Skissa kereskedelmi célokra, bármilyen szándékkal használható. Nincsenek korlátozások.</p><p>A Skissa GNU GPL licence garantálja ezt a szabadságot. Senkinek sem megengedett, hogy ezt elvegye, ellentétben a kereskedelmi szoftverek próba- vagy oktatási verzióival, amelyek megtilthatják a munkát kereskedelmi helyzetekben.</p><br/><hr/><pre>"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1><p>Skissa is built on the following free software libraries:</p><p><ul>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>A Skissa által használt külső könyvtárak</b></h1><p>A Skissa a következő szabad szoftveres könyvtárakra épül:</p><p><ul>"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "Átlátszatlanság"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "Átlátszatlanság"
+
+msgctxt "default name of a filter layer, followed by a number"
+msgid "Filter"
+msgstr "Szűrő"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "Fájl"
+
+msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
+msgstr "A Skissa nem tudta inicializálni az OpenGL vásznat:\n\n%1\n\n A Skissa most kikapcsolja az OpenGL-t és bezárul."
+
+msgctxt "@action:inmenu"
+msgid "Select All"
+msgstr "Összes kijelölése"
+
+msgctxt "@action:inmenu"
+msgid "Deselect"
+msgstr "Kijelölés megszüntetése"
+
+msgctxt "@action:inmenu"
+msgid "Reselect"
+msgstr "Újrakijelölés"
+
+msgctxt "@action:inmenu"
+msgid "Invert"
+msgstr "Invertálás"
+
+msgctxt "@action:inmenu"
+msgid "Transform"
+msgstr "Átalakítás"
+
+msgctxt "@action:inmenu"
+msgid "Smooth"
+msgstr "Simítás"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "Szerkesztés"
+
+msgctxt "If the selected model is CMYK"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
+msgstr "A <b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (cián, bíbor, sárga, kulcsszín)</a></b> a nyomtatók és egyéb tintalapú médiumok által használt modell.<br/>A CMYK egy szubtraktív modell, ami azt jelenti, hogy a színek összeadása sötétebbé teszi őket. Mivel a CMYK-profilok nyomtatónként nagyon specifikusak, ajánlott RGB-színtérben dolgozni, és csak később konvertálni CMYK-profilba, lehetőleg olyanba, amelyet a nyomtatóhoz mellékeltek. <br/>A CMYK <b>nem</b> ajánlott festéshez. Sajnos a Skissa ehhez a színtérhez nem tudja lekérni a színezékeket vagy a TRC-t ehhez a területhez."
+
+msgctxt "If the selected model is LAB"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/Lab_color_space\">L*a*b</a></b>. <b>L</b> stands for Lightness, the <b>a</b> and <b>b</b> components represent color channels.<br/>L*a*b is a special model for color correction. It is based on human perception, meaning that it tries to encode the difference in lightness, red-green balance and yellow-blue balance. This makes it useful for color correction, but the vast majority of color maths in the blending modes do <b>not</b> work as expected here.<br/>Similarly, Skissa does not support HDR in LAB, meaning that HDR images converted to LAB lose color information. This colorspace is <b>not</b> recommended for painting, nor for export, but best as a space to do post-processing in. The TRC is assumed to be the L* TRC."
+msgstr "<b><a href=\"https://en.wikipedia.org/wiki/Lab_color_space\">L*a*b</a></b>. Az <b>L</b> a világosságot, az <b>a</b> és <b>b</b> komponensek pedig a színcsatornákat jelölik.<br/>Az L*a*b egy speciális modell a színkorrekcióhoz. Az emberi érzékelésen alapul, ami azt jelenti, hogy a világosság, a vörös-zöld egyensúly és a sárga-kék egyensúly közötti különbséget próbálja kódolni. Ez hasznossá teszi a színkorrekcióhoz, de a keverési módok színmatematikai műveleteinek túlnyomó többsége itt <b>nem</b> az elvárt módon működik.<br/>Hasonlóképpen a Skissa nem támogatja a HDR-t LAB-ban, így a LAB-ba konvertált HDR-képek színinformációt veszítenek. Ez a színtér <b>nem</b> ajánlott festéshez, sem exportáláshoz, leginkább utómunkálatok elvégzésére alkalmas. A TRC feltételezetten az L* TRC."
+
+msgctxt "These are Elle Stone's notes on her profiles that we ship."
+msgid "<p><b>Extra notes on profiles by Elle Stone:</b></p><p><i>Skissa comes with a number of high quality profiles created by <a href=\"https://ninedegreesbelow.com\">Elle Stone</a>. This is a summary. Please check <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">the full documentation</a> as well.</i></p>"
+msgstr "<p><b>Kiegészítő megjegyzések Elle Stone-tól a profilokhoz:</b></p><p><i>A Skissa számos kiváló minőségű profilt tartalmaz, melyeket <a href=\"https://ninedegreesbelow.com\">Elle Stone</a> készített. Ez itt egy összefoglaló. Kérjük, olvassa el a <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">teljes dokumentációt</a> is.</i></p>"
+
+msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
+msgstr "A kiválasztott fájlnév nem rendelkezik olyan kiterjesztéssel, amelyet a Skissa értelmezni tudna.\nGyőződjön meg róla, hogy a fájlnév például '.%1' végződésű."
+
+msgid "Dropped frames are not available in this Skissa instance"
+msgstr "Az eldobott képkockák nem érhetőek el ebben a Skissa példányban"
+
+msgctxt "@title:menu"
+msgid "Select"
+msgstr "Kijelölés"
+
+msgctxt "@action:inmenu select layers"
+msgid "All"
+msgstr "Összes"
+
+msgctxt "@action:inmenu select layers"
+msgid "Visible"
+msgstr "Látható"
+
+msgctxt "@title:menu other kinds of layer"
+msgid "New"
+msgstr "Új"
+
+msgctxt "@action:inmenu"
+msgid "Paint Layer"
+msgstr "Festőréteg"
+
+msgctxt "@action:inmenu"
+msgid "Group"
+msgstr "Csoport"
+
+msgctxt "@action:inmenu"
+msgid "Vector Layer"
+msgstr "Vektorréteg"
+
+msgctxt "@action:inmenu"
+msgid "Clone"
+msgstr "Klón"
+
+msgctxt "@action:inmenu"
+msgid "Transparency Mask"
+msgstr "Átlátszósági maszk"
+
+msgctxt "@action:inmenu"
+msgid "Color Overlay Mask"
+msgstr "Színátfedési maszk"
+
+msgctxt "@action:inmenu"
+msgid "Colorize Mask"
+msgstr "Színezőmaszk"
+
+msgctxt "@action:inmenu"
+msgid "Transform Mask"
+msgstr "Átalakító maszk"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "Másolás"
+
+msgctxt "@action:inmenu"
+msgid "Cut"
+msgstr "Kivágás"
+
+msgctxt "@title:menu layer style"
+msgid "Style"
+msgstr "Stílus"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "Másolás"
+
+msgctxt "@action:inmenu"
+msgid "Alpha into Mask"
+msgstr "Alfa maszkká"
+
+msgctxt "@action:inmenu"
+msgid "Write as Alpha"
+msgstr "Írás alfaként"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Layer"
+msgstr "Réteg lapítása"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Image"
+msgstr "Kép lapítása"
+
+msgctxt "@action:inmenu"
+msgid "Pin to Timeline"
+msgstr "Rögzítés az idővonalhoz"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Visszavonás"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Újra"
+
+msgctxt "@action:button choose a palette"
+msgid "Palettes"
+msgstr "Paletták"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "Szerkesztés"
+
+msgctxt "@info:tooltip"
+msgid "Lock"
+msgstr "Zárolás"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "Mentés"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Hozzáadás a palettához"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "Mentés"
+
+msgctxt "frames at half the image's size"
+msgid "Half"
+msgstr "Fél"
+
+msgctxt "settings page"
+msgid "Wide Gamut Selector"
+msgstr "Wide Gamut választó"
+
+msgctxt "Caption of the dialog with Krita's Android system log for bug reports"
+msgid "Skissa Logcat Dump: please paste this information to the bug report"
+msgstr "Skissa Logcat dump: kérjük, illessze be ezeket az információkat a hibajelentésbe"
+
+msgctxt "Caption of the dialog with color management information for bug reports"
+msgid "Skissa Color Management Information: please paste this information to the bug report"
+msgstr "Skissa színkezelési információk: kérjük, illessze be ezeket az információkat a hibajelentésbe"
+
+msgctxt "Caption of the dialog with crash log for bug reports"
+msgid "Skissa Crash Log: please paste this information to the bug report"
+msgstr "Skissa összeomlási napló: kérjük, illessze be ezeket az információkat a hibajelentésbe"
+
+msgctxt "Caption of the dialog with Skissa usage log for bug reports"
+msgid "Skissa Usage Log: please paste this information to the bug report"
+msgstr "Skissa használati napló: kérjük, illessze be ezeket az információkat a hibajelentésbe"
+
+msgctxt "Caption of the dialog with system information for bug reports"
+msgid "Skissa System Information: please paste this information to the bug report"
+msgstr "Skissa rendszerinformációk: kérjük, illessze be ezeket az információkat a hibajelentésbe"
+
+msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
+msgstr "A Skissa nem tudja elindítani a gmic-qt bővítményt. Nem található csomagolt könyvtár."
+
+msgctxt "@info"
+msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
+msgstr "A kép nulla alfa-csatornával, de nem nulla színcsatornával rendelkező pixeleket tartalmaz. A Skissa módosította ezeket a pixeleket, hogy legyen egy minimális átlátszóságuk. Az eredeti értékek a kép mentésekor <i>nem</i> állíthatók vissza.<br/><br/>Ez alig okoz vizuális különbséget, de vegye figyelembe."
+
+msgctxt "@tooltip"
+msgid "The image will be linearized first, and then encoded with SMPTE ST 428. Skissa always opens images like these as linear floating point, this option is there to reverse that"
+msgstr "A kép először linearizálva lesz, majd SMPTE ST 428 szerint lesz kódolva. A Skissa az ilyen képeket mindig lineáris lebegőpontosként nyitja meg, ez az opció ennek visszavonására szolgál"
+
+msgid "Layer \"%1\" has blending mode \"%2\" that has changed its behavior for CMYK color in Krita 5.2. Please check the result and consider enabling legacy \"Additive\" algorithm in Settings->Configure Skissa->General->Tools->CMYK blending mode"
+msgstr "A(z) \"%1\" réteg \"%2\" keverési módot használ, amelynek viselkedése megváltozott a CMYK színeknél a Skissa 5.2-ben. Kérjük, ellenőrizze az eredményt, és fontolja meg az örökölt \"Additív\" algoritmus engedélyezését a Beállítások -> A Skissa konfigurálása -> Általános -> Eszközök -> CMYK keverési mód menüpontban"
+
+msgid "The file is too new for this version of Skissa (%1)."
+msgstr "A fájl túl új ehhez a Skissa verzióhoz (%1)."
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineáris"
+
+msgctxt "@title:window"
+msgid "Skissa - Edit Text"
+msgstr "Skissa - Szöveg szerkesztése"
+
+msgid "Skissa was built without the support of GNU Scientific Library, so you cannot scale the selection with handles. Please compile Skissa with GNU Scientific Library support, or use options widget for editing scale values manually."
+msgstr "A Skissa a GNU Scientific Library támogatása nélkül lett lefordítva, így a kijelölést nem lehet a fogantyúkkal méretezni. Kérjük, fordítsa újra a Kritát GNU Scientific Library támogatással, vagy használja a beállítások panelt a méretértékek kézi megadásához."
+
+msgctxt "(qtundo-format)"
+msgid "Fill"
+msgstr "Kitöltés"
+

@@ -113194,3 +113194,403 @@ msgstr ""
 
 #~ msgid "Transform..."
 #~ msgstr "Muunna..."
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Opens a file browser at the location Skissa saves resources such as brushes to."
+msgstr "Avaa tiedostoselaimen kansioon, jonne Skissa tallentaa resurssinsa kuten siveltimet."
+
+msgctxt "action"
+msgid "Show Skissa log for bug reports."
+msgstr "Näytä Skissan loki vikailmoituksia varten."
+
+msgctxt "action"
+msgid "Configure Skissa"
+msgstr "Skissan asetukset"
+
+msgctxt "action"
+msgid "About Skissa"
+msgstr "Tietoa Skissasta"
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Skissa: sisäinen virhe"
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "Taso"
+
+msgid "The resource database scheme has changed. Skissa will backup your database and create a new database."
+msgstr "Resurssin tietokantamalli on muuttunut. Skissa varmuuskopioi tietokannan ja luo uuden."
+
+msgid "Skissa is running for the first time. Initialization will take some time."
+msgstr "Skissa on käynnistetty ensi kertaa. Valmistelu vie hetken."
+
+msgid "%1\n\nSkissa will quit now."
+msgstr "%1\n\nSkissa lopetetaan nyt."
+
+msgid "Skissa configurations reset!\n\nBackup file was created at: %1\n\nRestart Skissa for changes to take effect."
+msgstr "Skissan asetukset nollattu!\n\nLuotiin varmuuskopiotiedosto: %1\n\nKäynnistä Skissa uudelleen, jotta muutokset tulevat voimaan."
+
+msgid "The name of the workspace to open Skissa with"
+msgstr "Sen työtilan nimi, johon Skissa avataan"
+
+msgid "The name of the window layout to open Skissa with"
+msgstr "Ikkuna-asettelu, johon Skissa avautuu"
+
+msgid "The name of the session to open Skissa with"
+msgstr "Sen istunnon nimi, johon Skissa avataan"
+
+msgid "Start Skissa in full-screen mode"
+msgstr "Käynnistä Skissa koko näytön tilassa"
+
+msgctxt "@item:layer name: flat colors under line art"
+msgid "Colors"
+msgstr "Värit"
+
+msgid "Permission denied. Skissa is not allowed to read or write to the file."
+msgstr "Lupa evätty. Skissalla ei ole lupaa lukea tai kirjoittaa tiedostoa."
+
+msgid "Permission denied: Skissa is not allowed to read the file."
+msgstr "Lupa evätty: Skissalla ei ole lupaa lukea tiedostoa."
+
+msgid "Permission denied: Skissa is not allowed to write to the file."
+msgstr "Lupa evätty: Skissalla ei ole lupaa kirjoittaa tiedostoon."
+
+msgctxt "canvas renderer"
+msgid "Auto"
+msgstr "Automaattinen"
+
+msgctxt "canvas scaling"
+msgid "Bilinear"
+msgstr "Bilineaarinen"
+
+msgctxt "setting"
+msgid "Pressure"
+msgstr "Paine"
+
+msgctxt "touch painting"
+msgid "Auto"
+msgstr "Automaattinen"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "Istunnot"
+
+msgctxt "canvas surface depth"
+msgid "Auto"
+msgstr "Automaattinen"
+
+msgctxt "a setting's value: not set"
+msgid "Default"
+msgstr "Oletus"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "Kuvapiste"
+
+msgctxt "brush group"
+msgid "Other"
+msgstr "Muu"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "HSV"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "effect group"
+msgid "Other"
+msgstr "Muu"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "Tasot"
+
+msgctxt "@title find results"
+msgid "Settings"
+msgstr "Asetukset"
+
+msgctxt "@title find results"
+msgid "Workspaces"
+msgstr "Työtilat"
+
+msgctxt "@title find results"
+msgid "All"
+msgstr "Kaikki"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "Ikkuna"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "Peittävyys"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "Ikkuna"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "Nimi"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "Nopeus"
+
+msgctxt "glass"
+msgid "Blur"
+msgstr "Sumennus"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "Peittävyys"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "Koko"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "Koko"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "settings card"
+msgid "Pressure"
+msgstr "Paine"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Kumoa"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "Tasot"
+
+msgctxt "layer names: no words"
+msgid "none"
+msgstr "ei mitään"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "Taso"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "Animaatio"
+
+msgctxt "settings card"
+msgid "Author"
+msgstr "Tekijä"
+
+msgctxt "proofing"
+msgid "Profile"
+msgstr "Profiili"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "Valkoinen"
+
+msgctxt "@action:button"
+msgid "Import"
+msgstr "Tuo"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Kumoa"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Select"
+msgstr "Valitse"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "Teksti"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Säteittäinen"
+
+msgctxt "@info:tooltip"
+msgid "Close"
+msgstr "Sulje"
+
+msgid "Use the new template every time Skissa starts"
+msgstr "Käytä pohjaa aina kun Skissa käynnistyy"
+
+msgid "Warning: you are trying to import more than 100 frames into Skissa.\n\nThis means you might be overloading your system.\nIf you want to edit a clip larger than 100 frames, consider using a real video editor, like Kdenlive (https://kdenlive.org)."
+msgstr "Varoitus: yrität tuoda Skissaan yli sata kuvaa.\n\nTämä voi ylikuormittaa järjestelmän.\nJos haluat muokata yli 100 sadan leikettä, käytä mieluummin oikeaa videomuokkainta kuten Kdenliveä (https://kdenlive.org/)."
+
+msgid "WARNING: HDR mode was activated on surface working in 8-bit mode!\nPlease activate 10-bit mode in Skissa's Preferences dialog and restart Skissa to avoid color banding!"
+msgstr "VAROITUS: HDR-tila on aktivoitu 8-bittisessä tilassa toimivalle pinnalle!\nAktivoi 10-bittinen tila Skissan asetuksissa ja käynnistä Skissa uudelleen, jottei väri raidoitu!"
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "keys group"
+msgid "Other"
+msgstr "Muu"
+
+msgctxt "@info:tooltip"
+msgid "Preset"
+msgstr "Esiasetus"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1><p>Skissa is built on the following free software libraries:</p><p><ul>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Skissan käyttämät kolmannen osapuolet kirjastot</b></h1><p>Skissa on koostettu seuraavilla vapaan ohjelmiston kirjastoilla:</p><p><ul>"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "Peittävyys"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "Peittävyys"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "Tiedosto"
+
+msgctxt "tooltip on statusbar memory reporting button"
+msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
+msgstr "\n\nVAROITUS: \tMuisti loppunut! Heittovaihto aloitettu.\n\t\tOle hyvä ja vapauta lisää keskusmuistia Skissalle Asetukset ikkunassa"
+
+msgctxt "@action:inmenu"
+msgid "Invert"
+msgstr "Käännä"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "Muokkaa"
+
+msgctxt "If the selected model is CMYK"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
+msgstr "<b><a href=\"https://fi.wikipedia.org/wiki/CMYK\">CMYK</a></b> (syaani, magenta, keltainen, avainväri) on tulostimien ja muiden musteeseen perustuvien laitteiden käyttämä värimalli.<br/>CMYK on subtraktiivinen malli, jossa väriarvon kasvattaminen tummentaa väriä. Koska CMYK-profiilit ovat hyvin tulostinkohtaisia, työ suositellaan tehtäväksi RGB-väriavaruudessa ja muuttamaan myöhemmin CMYK-profiiliin, mieluiten tulostimen mukana tulleeseen.<br/>CMYK:ta <b>ei suositella</b> maalauksiin. Skissa ei valitettavasti osaa noutaa tämän avaruuden väriaineita tai TRC:tä."
+
+msgctxt "@title:menu"
+msgid "Select"
+msgstr "Valitse"
+
+msgctxt "@action:inmenu select layers"
+msgid "All"
+msgstr "Kaikki"
+
+msgctxt "@title:menu other kinds of layer"
+msgid "New"
+msgstr "Uusi"
+
+msgctxt "@action:inmenu"
+msgid "Paint Layer"
+msgstr "Maalitaso"
+
+msgctxt "@action:inmenu"
+msgid "Group"
+msgstr "Ryhmä"
+
+msgctxt "@action:inmenu"
+msgid "Vector Layer"
+msgstr "Vektoritaso"
+
+msgctxt "@action:inmenu"
+msgid "Clone"
+msgstr "Monista"
+
+msgctxt "@action:inmenu"
+msgid "Transparency Mask"
+msgstr "Läpinäkyvyysmaski"
+
+msgctxt "@action:inmenu"
+msgid "Transform Mask"
+msgstr "Muunnosmaski"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "Kopioi"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "Kopioi"
+
+msgctxt "@action:inmenu"
+msgid "Alpha into Mask"
+msgstr "Alfa maskiksi"
+
+msgctxt "@action:inmenu"
+msgid "Write as Alpha"
+msgstr "Kirjoita alfaksi"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Kumoa"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Tee uudelleen"
+
+msgctxt "@action:button choose a palette"
+msgid "Palettes"
+msgstr "Paletit"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "Muokkaa"
+
+msgctxt "@info:tooltip"
+msgid "Lock"
+msgstr "Lukitse"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "Tallenna"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Lisää palettiin"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "Tallenna"
+
+msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
+msgstr "Skissa ei voi käynnistää qmic-qt-liitännäistä. Paketoitua kirjastoa ei löytynyt."
+
+msgctxt "@info"
+msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
+msgstr "Kuva sisältää kuvapisteitä, joiden alfakanava on nolla ja värikanavat ei-nollia. Skissa antaa näille kuvapisteille hieman alfaa. Alkuarvoja <i>ei palauteta</i> tallennettaessa kuva takaisin.<br/><br/>Tällä ei ole juurikaan näkyvää vaikutusta, mutta asia kannattaa pitää mielessä."
+
+msgid "Layer \"%1\" has blending mode \"%2\" that has changed its behavior for CMYK color in Krita 5.2. Please check the result and consider enabling legacy \"Additive\" algorithm in Settings->Configure Skissa->General->Tools->CMYK blending mode"
+msgstr "Tasolla ”%1” on sekoitustapa ”%2”, jonka toiminta CMYK-väreillä on muuttunut Skissa 5.2:ssa. Tarkista tulos ja harkitse vanhan ”additiivisen” algoritmin käyttöönottoa: asetukset→Skissan asetukset→Perusasetukset→Työkalut→CMYK-sekoitustapa"
+
+msgid "The file is too new for this version of Skissa (%1)."
+msgstr "Tiedosto on liian uusi tälle Skissan versiolle (%1)."
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineaarinen"
+
+msgctxt "@title:window"
+msgid "Skissa - Edit Text"
+msgstr "Skissa – Muokkaa tekstiä"
+
+msgid "Skissa was built without the support of GNU Scientific Library, so you cannot scale the selection with handles. Please compile Skissa with GNU Scientific Library support, or use options widget for editing scale values manually."
+msgstr "Skissa on koostettu GNU Scientific Libraryn tuetta, joten valintaa ei voi skaalata kahvoin. Koosta Skissa GNU Scientific Libraryn tuella tai muokkaa skaalausarvoja asetussovelmalla itse."
+

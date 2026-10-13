@@ -112320,3 +112320,238 @@ msgstr ""
 
 #~ msgid "Flip on &Y Axis"
 #~ msgstr "Flip langs &Y-aksen"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "About Skissa"
+msgstr "Om Skissa"
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Skissa: Intern fejl"
+
+msgctxt "@item:layer name: flat colors under line art"
+msgid "Colors"
+msgstr "Farver"
+
+msgctxt "canvas renderer"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "cursor"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "color sampler preview"
+msgid "Right"
+msgstr "Højre"
+
+msgctxt "canvas scaling"
+msgid "Bilinear"
+msgstr "Bilineær"
+
+msgctxt "setting"
+msgid "Pressure"
+msgstr "Tryk"
+
+msgctxt "touch painting"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "canvas surface depth"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "Pixel"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "HSV"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "Lag"
+
+msgctxt "@title find results"
+msgid "Workspaces"
+msgstr "Arbejdsområder"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "Vindue"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "Vindue"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "Navn"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "glass"
+msgid "Blur"
+msgstr "Slør"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "settings card"
+msgid "Pressure"
+msgstr "Tryk"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Fortryd"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "Lag"
+
+msgctxt "author"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "proofing"
+msgid "Profile"
+msgstr "Profil"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "Hvid"
+
+msgctxt "instant preview"
+msgid "Transform"
+msgstr "Transformér"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "Flyt"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Fortryd"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Transform"
+msgstr "Transformér"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Radial"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "Rotér"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "default name of a filter layer, followed by a number"
+msgid "Filter"
+msgstr "Filter"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "Fil"
+
+msgctxt "@action:inmenu"
+msgid "Reselect"
+msgstr "Vælg igen"
+
+msgctxt "@action:inmenu"
+msgid "Transform"
+msgstr "Transformér"
+
+msgctxt "@action:inmenu"
+msgid "Smooth"
+msgstr "Glat"
+
+msgctxt "@action:inmenu select layers"
+msgid "Visible"
+msgstr "Synlig"
+
+msgctxt "@action:inmenu"
+msgid "Vector Layer"
+msgstr "Vektorlag"
+
+msgctxt "@action:inmenu"
+msgid "Transparency Mask"
+msgstr "Gennemsigtighedsmaske"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "Kopiér"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "Kopiér"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Layer"
+msgstr "Fladgør lag"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Image"
+msgstr "Fladgør billede"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Fortryd"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Gendan"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "Gem"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Tilføj til palet"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "Gem"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineær"
+

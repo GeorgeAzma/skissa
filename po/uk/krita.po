@@ -75102,3 +75102,532 @@ msgstr ""
 
 #~ msgid "GBR"
 #~ msgstr "GBR"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Opens a file browser at the location Skissa saves resources such as brushes to."
+msgstr "Відкриває вікно програми для керування файлами у теці, де Skissa зберігає ресурси, зокрема дані пензлів."
+
+msgctxt "action"
+msgid "Show Skissa log for bug reports."
+msgstr "Показати журнал Skissa для звітів щодо вад"
+
+msgctxt "action"
+msgid "Configure Skissa"
+msgstr "Налаштувати Skissa"
+
+msgctxt "action"
+msgid "About Skissa"
+msgstr "Про Skissa"
+
+msgctxt "@tooltip"
+msgid "Adjusts glyphs so they align by their optical bounds. Doesn't do anything in Skissa."
+msgstr "Коригує гліфи так, щоб вони вирівнювалися за оптичними межами. У Skissa не працює."
+
+msgctxt "@tooltip"
+msgid "Indicates how much the font is suitable for its current size. Does nothing in Skissa."
+msgstr "Вказує на те, наскільки шрифт придатний для поточного розміру. У Skissa не працює."
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Skissa: внутрішня помилка"
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "Шар"
+
+msgid "The resource database scheme has changed. Skissa will backup your database and create a new database."
+msgstr "Змінено схему бази даних ресурсів. Skissa створить резервну копію вашої бази даних, а потім створить нову базу даних."
+
+msgid "Skissa is running for the first time. Initialization will take some time."
+msgstr "Skissa запущено вперше. Для ініціалізації програми знадобиться певний час."
+
+msgctxt "@title:window"
+msgid "Skissa: Fatal error"
+msgstr "Skissa: критична помилка"
+
+msgid "%1\n\nSkissa will quit now."
+msgstr "%1\n\nЗараз Skissa завершить роботу."
+
+msgid "\n\nSkissa will quit now."
+msgstr "\n\nЗараз Skissa завершить роботу."
+
+msgid "Cannot add the file layer: no document is open.\n\nYou can create a new document using the --new-image option, or you can open an existing file.\n\nIf you instead want to add the file layer to a document in an already running instance of Skissa, check the \"Allow only one instance of Skissa\" checkbox in the settings (Settings -> General -> Window)."
+msgstr "Неможливо додати файловий шар: не відкрито жодного документа.\n\nВи можете створити документ за допомогою параметра --new-image або відкрити наявний файл.\n\nЯкщо ж ви хочете додати файловий шар до документа у вже запущеному екземплярі Skissa, позначте пункт «Дозволяти запускати лише один екземпляр Skissa» у параметрах програми (Параметри → Налаштувати Skissa → Загальне → Вікно)."
+
+msgid "Skissa configurations reset!\n\nBackup file was created at: %1\n\nRestart Skissa for changes to take effect."
+msgstr "Налаштування Skissa скинуто до типових!\n\nСтворено файл резервної копії налаштувань: %1\n\nПерезапустіть Skissa, щоб зміни набули чинності."
+
+msgid "The name of the workspace to open Skissa with"
+msgstr "Назва робочого простору, який слід відкрити у Skissa"
+
+msgid "The name of the window layout to open Skissa with"
+msgstr "Назва компонування вікна, яке слід відкрити у Skissa"
+
+msgid "The name of the session to open Skissa with"
+msgstr "Назва сеансу, який слід відкрити у Skissa"
+
+msgid "Start Skissa in canvas-only mode"
+msgstr "Запустити Skissa у режимі лише полотна"
+
+msgid "Start Skissa in full-screen mode"
+msgstr "Запустити Skissa у повноекранному режимі"
+
+msgid "A location that overrides the configured location for Skissa's resources"
+msgstr "Це місце матиме вищий пріоритет за налаштоване місце для ресурсів Skissa"
+
+msgctxt "@item:layer name: flat colors under line art"
+msgid "Colors"
+msgstr "Кольори"
+
+msgid "Permission denied. Skissa is not allowed to read or write to the file."
+msgstr "Відмовлено у доступі. Skissa заборонено читати файл або записувати до нього дані."
+
+msgid "Permission denied: Skissa is not allowed to read the file."
+msgstr "Відмовлено у доступі Skissa заборонено читати файл."
+
+msgid "Permission denied: Skissa is not allowed to write to the file."
+msgstr "Відмовлено у доступі Skissa заборонено записувати дані до файла."
+
+msgid "Skissa does not support this file format."
+msgstr "У Skissa не передбачено підтримки файлів у цьому форматі."
+
+msgctxt "@title:window"
+msgid "Skissa: Export Error"
+msgstr "Skissa: Помилка експортування"
+
+msgctxt "the argument is the ICC profile name"
+msgid "The image has a profile attached that Skissa cannot edit images in (\"%1\"), please select a space to convert to for editing: \n"
+msgstr "Для зображення долучено профіль, який Skissa не може редагувати, у («%1»). Будь ласка, виберіть простір для перетворення з метою редагування: \n"
+
+msgctxt "canvas renderer"
+msgid "Auto"
+msgstr "Авто"
+
+msgctxt "brush outline"
+msgid "Circle"
+msgstr "Коло"
+
+msgctxt "zoom"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "setting"
+msgid "Pressure"
+msgstr "Натиск"
+
+msgctxt "touch painting"
+msgid "Auto"
+msgstr "Авто"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "Сеанси"
+
+msgctxt "rendering intent"
+msgid "Saturation"
+msgstr "Насиченість"
+
+msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
+msgid "Screen %1 (%2)"
+msgstr "Екран %1 (%2)"
+
+msgctxt "canvas surface depth"
+msgid "Auto"
+msgstr "Авто"
+
+msgctxt "setting"
+msgid "Frame rate limit"
+msgstr "Обмеження частоти кадрів"
+
+msgctxt "zoom level, %1 is the percentage"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "Освітленість"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "Відтінок"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "HSV"
+
+msgctxt "@info:tooltip"
+msgid "Preview"
+msgstr "Перегляд"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "Шари"
+
+msgctxt "@title find results"
+msgid "Settings"
+msgstr "Параметри"
+
+msgctxt "@title find results"
+msgid "Workspaces"
+msgstr "Робочі простори"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "Вікно"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "Непрозорість"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "Вікно"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "Назва"
+
+msgctxt "@info an empty slot of a ring"
+msgid "Add"
+msgstr "Додати"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "Швидкість"
+
+msgctxt "theme"
+msgid "Lightness"
+msgstr "Освітленість"
+
+msgctxt "glass"
+msgid "Blur"
+msgstr "Розмивання"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "Непрозорість"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "color sampler"
+msgid "Preview"
+msgstr "Перегляд"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "settings card"
+msgid "Pressure"
+msgstr "Натиск"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Вернути"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "Шари"
+
+msgctxt "layer names: no words"
+msgid "none"
+msgstr "немає"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "Шар"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "Анімація"
+
+msgctxt "settings card"
+msgid "Author"
+msgstr "Автор"
+
+msgctxt "@title:window"
+msgid "Authors"
+msgstr "Автори"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "Білий"
+
+msgctxt "@action:inmenu"
+msgid "Reset"
+msgstr "Скинути"
+
+msgctxt "@action:button"
+msgid "Import"
+msgstr "Імпортувати"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Вернути"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Blend"
+msgstr "Змішати"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "Текст"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Guides"
+msgstr "Напрямні"
+
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Віддзеркалити"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Радіальний"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Вниз"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Вниз"
+
+msgctxt "@info:tooltip"
+msgid "Close"
+msgstr "Закрити"
+
+msgid "Use the new template every time Skissa starts"
+msgstr "Використовувати новий шаблон кожний раз під час запуску Skissa"
+
+msgid "Warning: you are trying to import more than 100 frames into Skissa.\n\nThis means you might be overloading your system.\nIf you want to edit a clip larger than 100 frames, consider using a real video editor, like Kdenlive (https://kdenlive.org)."
+msgstr "Увага! Ви намагаєтеся імпортувати до Skissa понад 100 кадрів.\n\nЦе означає, що можливе перенавантаження на систему.\nЯкщо ви хочете редагувати кліп, у якому понад 100 кадрів, вам варто скористатися справжнім відеоредактором, наприклад Kdenlive (https://kdenlive.org)."
+
+msgctxt "part of warning in video importer."
+msgid "Skissa does not support the video transfer curve (%1), it will be loaded as linear."
+msgstr "У Skissa не передбачено підтримки кривої передавання відео (%1), її буде завантажено як лінійну."
+
+msgid "WARNING: HDR mode was activated on surface working in 8-bit mode!\nPlease activate 10-bit mode in Skissa's Preferences dialog and restart Skissa to avoid color banding!"
+msgstr "ПОПЕРЕДЖЕННЯ: Режим HDR було активовано на поверхні, яка працювала в 8-бітовому режимі!\nБудь ласка, активуйте 10-бітовий режим у діалоговому вікні налаштувань Skissa та перезапустіть Skissa, щоб уникнути кольорових смуг!"
+
+msgctxt "@info:tooltip"
+msgid "The amount of time during which the strokes will be kept unmerged. When a stroke becomes old enough, Skissa will try to merge it"
+msgstr "Проміжок часу, протягом якого мазки не об'єднуватимуться. Коли мазок стане достатньо давнім, Skissa спробує його об'єднати."
+
+msgctxt "@info:tooltip"
+msgid "The number of last strokes that Skissa will not merge (even if they are old enough)"
+msgstr "Кількість останніх мазків, які Skissa не об'єднуватиме (навіть якщо вони достатньо давні)"
+
+msgid "Cumulative Undo allows Skissa to merge undo actions and make undo history cleaner. Skissa will still keep a few latest actions unmerged according to \"Wait before merging strokes\" and \"Exclude last strokes from merge\" options. Whenever an action gets outdated using the time limit and this action is not excluded using \"Exclude last strokes from merge\", Skissa will try  to merge this action into a group. The groups are formed using \"Max group strokes delay\" and \"Max group duration\" options."
+msgstr "Накопичувальне скасування надає змогу Skissa об'єднувати дії зі скасування і спрощувати журнал дій. Skissa триматиме у пам'яті декілька найсвіжіших дій без об'єднання, відповідно до значень параметрів «Очікування до об'єднання мазків» та «Виключати останні мазки з об'єднання». Якщо дія стає достатньо старою за обмеженням часу, і цю дію не виключено на основі пункту «Виключати останні мазки з об'єднання», Skissa спробує включити об'єднанням цю дію до групи. Групи буде сформовано на основі значень параметрів «Максимальний інтервал групованих мазків» та «Максимальна тривалість групи»."
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Ваші права</b></h1><p>Skissa випущено відповідно до загальної громадської ліцензії GNU (GNU GPL версії 3 або будь-якої наступної версії).</p><p>Такі умови ліцензування надають користувачам декілька свобод:</p><ul><li>Ви можете безкоштовно користуватися Skissa для виконання будь-яких завдань.</li><li>Ви можете вільно поширювати Skissa.</li><li>Ви можете вивчати код Skissa та змінювати його.</li><li>Ви можете поширювати змінені версії Skissa.</li></ul><p>Skissa Foundation та пов'язані з нею проєкти на krita.org <b>призначено</b> для збереження вільності Skissa як програмного забезпечення.</p><h1 align=\"center\">Ваші художні твори</h1><p>Створені вами за допомогою Skissa малюнки є вашою власністю. Будь-які результати вашої роботи у програмі може бути використано у бажаний для вас спосіб.</p><p>Це означає, що Skissa можна використовувати для створення комерційних творів будь-якого призначення. Умовами ліцензування програми не накладається жодних обмежень щодо цього.</p><p>Цю свободу вам гарантують умови ліцензування Skissa відповідно до GNU GPL. Ніхто не має права забирати цю свободу, на відміну від освітніх версій комерційного програмного забезпечення, які не можна використовувати для комерційних потреб.</p><br/><hr/><pre>"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1><p>Skissa is built on the following free software libraries:</p><p><ul>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Сторонні бібліотеки, які використовуються Skissa</b></h1><p>Skissa зібрано на основі таких вільних програмних бібліотек:</p><p><ul>"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "Непрозорість"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "Непрозорість"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "Файл"
+
+msgctxt "tooltip on statusbar memory reporting button"
+msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
+msgstr "\n\nУВАГА!\tНе вистачає оперативної пам’яті! Розпочато використання резервної.\n\t\tБудь ласка, збільште об’єм оперативної пам’яті для Skissa за допомогою вікна «Параметри»."
+
+msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
+msgstr "Skissa не вдалося ініціалізувати полотно OpenGL:\n\n%1.\n\n У Skissa буде вимкнено OpenGL. Роботу програми буде завершено."
+
+msgctxt "@action:inmenu"
+msgid "Invert"
+msgstr "Інвертувати"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "Зміни"
+
+msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
+msgstr "Новий пакунок AppImage було збережено до %1. Щоб завершити оновлення, закрийте вікно Skissa і запустіть новий AppImage."
+
+msgctxt "If the selected model is CMYK"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
+msgstr "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK, означає Cyan (блакитний), Magenta (малиновий), Yellow (жовтий), Key (ключовий)</a></b>, — модель кольорів для принтерів та інших засобів відтворення, заснованих на чорнилах.<br/>Це модель із відніманням, тобто додавання кольорів робить результат темнішим. Оскільки профілі CMYK для окремих принтерів дуже різняться, рекомендовано користуватися простором кольорів RGB з наступним перетворенням у профіль CMYK, бажано у той, що постачається з вашим принтером.<br/>CMYK <b>не</b> рекомендовано використовувати для редагування. На жаль, Skissa не здатна самостійно отримати пігменти або криву відтворення кольорів для цього простору кольору."
+
+msgctxt "If the selected model is Grayscale"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/Grayscale\">Grayscale</a></b> only allows for gray values and transparent values. Grayscale images use half the memory and disk space compared to an RGB image of the same bit-depth.<br/>Grayscale is useful for inking and grayscale images. In Skissa, you can mix Grayscale and RGB layers in the same image."
+msgstr "<b><a href=\"https://en.wikipedia.org/wiki/Grayscale\">Тони сірого</a></b>, — простір тонів сірого кольору, як можна зрозуміти із назви, надає змогу використовувати лише тони сірого та значення прозорості кольору. Перевагою його моделі кольорів є те, що його використання вдвічі зменшує споживання оперативної пам’яті та місця на жорсткому диску, порівняно із зображенням у просторі RGB такої самої бітової глибини.<br/>Корисний для представлення графіки та зображень у тонах сірого кольору. У Skissa ви можете використовувати на одному зображенні одночасно шари у тонах сірого і шари простору кольорів RGB."
+
+msgctxt "These are Elle Stone's notes on her profiles that we ship."
+msgid "<p><b>Extra notes on profiles by Elle Stone:</b></p><p><i>Skissa comes with a number of high quality profiles created by <a href=\"https://ninedegreesbelow.com\">Elle Stone</a>. This is a summary. Please check <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">the full documentation</a> as well.</i></p>"
+msgstr "<p><b>Додаткові нотатки щодо профілів від Ель Стоун:</b></p><p><i>Skissa постачається із декількома високоякісними профілями, створеними <a href=\"https://ninedegreesbelow.com\">Ель Стоун</a>. Це лише резюме. Будь ласка, ознайомтеся із <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">повною версією документації</a>.</i></p>"
+
+msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
+msgstr "У вибраної назви немає придатного до обробки у Skissa суфікса.\nНазва файла, наприклад, може завершуватися суфіксом «.%1»."
+
+msgid "Dropped frames are not available in this Skissa instance"
+msgstr "Пропущені кадри у цьому екземплярі Skissa не є доступними"
+
+msgctxt "@title:menu other kinds of layer"
+msgid "New"
+msgstr "Створити"
+
+msgctxt "@action:inmenu"
+msgid "Paint Layer"
+msgstr "Шар малювання"
+
+msgctxt "@action:inmenu"
+msgid "Vector Layer"
+msgstr "Векторний шар"
+
+msgctxt "@action:inmenu"
+msgid "Transparency Mask"
+msgstr "Маска прозорості"
+
+msgctxt "@action:inmenu"
+msgid "Color Overlay Mask"
+msgstr "Маска накладання кольору"
+
+msgctxt "@action:inmenu"
+msgid "Colorize Mask"
+msgstr "Маска розфарбовування"
+
+msgctxt "@action:inmenu"
+msgid "Transform Mask"
+msgstr "Маска перетворення"
+
+msgctxt "@title:menu layer style"
+msgid "Style"
+msgstr "Стиль"
+
+msgctxt "@action:inmenu"
+msgid "Alpha into Mask"
+msgstr "Прозорість у маску"
+
+msgctxt "@action:inmenu"
+msgid "Write as Alpha"
+msgstr "Записати як канал прозорості"
+
+msgctxt "@action:inmenu"
+msgid "Pin to Timeline"
+msgstr "Пришпилити до монтажного столу"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Вернути"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Повторити"
+
+msgctxt "@action:button choose a palette"
+msgid "Palettes"
+msgstr "Палітри"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "Зміни"
+
+msgctxt "@info:tooltip"
+msgid "Lock"
+msgstr "Заблокувати"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "Зберегти"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Додати до палітри"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "Зберегти"
+
+msgctxt "frames at half the image's size"
+msgid "Half"
+msgstr "Половина"
+
+msgctxt "settings page"
+msgid "Wide Gamut Selector"
+msgstr "Широкий вибір відтінку"
+
+msgctxt "Caption of the dialog with Krita's Android system log for bug reports"
+msgid "Skissa Logcat Dump: please paste this information to the bug report"
+msgstr "Дамп категорії журналу Skissa: будь ласка, додайте ці відомості до звіту щодо вади"
+
+msgctxt "Caption of the dialog with color management information for bug reports"
+msgid "Skissa Color Management Information: please paste this information to the bug report"
+msgstr "Дані щодо керування кольорами у Skissa: будь ласка, додайте ці відомості до звіту щодо вади"
+
+msgctxt "Caption of the dialog with crash log for bug reports"
+msgid "Skissa Crash Log: please paste this information to the bug report"
+msgstr "Журнал аварій Skissa: будь ласка, додайте ці відомості до звіту щодо вади"
+
+msgctxt "Caption of the dialog with Skissa usage log for bug reports"
+msgid "Skissa Usage Log: please paste this information to the bug report"
+msgstr "Журнал користування Skissa: будь ласка, додайте ці відомості до звіту щодо вади"
+
+msgctxt "Caption of the dialog with system information for bug reports"
+msgid "Skissa System Information: please paste this information to the bug report"
+msgstr "Дані щодо системи Skissa: будь ласка, додайте ці відомості до звіту щодо вади"
+
+msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
+msgstr "Skissa не вдалося запустити додаток gmic-qt. Не знайдено пов'язаної бібліотеки."
+
+msgctxt "@info"
+msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
+msgstr "На зображенні є пікселі з нульовим значенням непрозорості і ненульовими значеннями кольорів. Skissa змінено пікселі так, щоб значення прозорості було ненульовим. Початкові значення <i>не</i> буде повернено під час збереження зображення.<br/><br/>Ця зміна навряд чи призведе до зміни вигляду зображення. Втім, це слід враховувати."
+
+msgctxt "@tooltip"
+msgid "The image will be linearized first, and then encoded with SMPTE ST 428. Skissa always opens images like these as linear floating point, this option is there to reverse that"
+msgstr "Спочатку зображення буде лінеаризовано, потім закодовано за допомогою SMPTE ST 428. Skissa завжди відкриває подібні зображення як лінійні із даними у форматі з рухомою крапкою. Цей пункт призначено для інвертування такої поведінки."
+
+msgid "Layer \"%1\" has blending mode \"%2\" that has changed its behavior for CMYK color in Krita 5.2. Please check the result and consider enabling legacy \"Additive\" algorithm in Settings->Configure Skissa->General->Tools->CMYK blending mode"
+msgstr "У шарі %1 визначено режим злиття «%2», який змінив поведінку для кольорів CMYK у Skissa 5.2. Будь ласка, ознайомтеся із результатом і, якщо потрібно, увімкніть підтримку застарілого кумулятивного алгоритму за допомогою пункту «Параметри->Налаштувати Skissa->Загальне->Інструменти->Режим злиття CMYK»"
+
+msgid "The file is too new for this version of Skissa (%1)."
+msgstr "Цей файл є надто новим для цієї версії Skissa (%1)."
+
+msgctxt "@title:window"
+msgid "Skissa - Edit Text"
+msgstr "Skissa — Редагування тексту"
+
+msgid "Skissa was built without the support of GNU Scientific Library, so you cannot scale the selection with handles. Please compile Skissa with GNU Scientific Library support, or use options widget for editing scale values manually."
+msgstr "Skissa було зібрано без підтримки GNU Scientific Library, отже ви не зможете масштабувати позначене за допомогою елементів керування на полотні. Будь ласка, зберіть Skissa з підтримкою GNU Scientific Library або скористайтеся віджетом параметрів для редагування значень масштабування вручну."
+

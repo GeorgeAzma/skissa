@@ -105804,3 +105804,54 @@ msgstr ""
 
 #~ msgid "darken"
 #~ msgstr "Afdüüstern"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "cursor"
+msgid "None"
+msgstr "Keen"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "Keen"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "Keen"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Torüchnehmen"
+
+msgctxt "author"
+msgid "None"
+msgstr "Keen"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "Verschuven"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Torüchnehmen"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Keen"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "Keen"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Torüchnehmen"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Wedderhalen"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Na Klörensett tofögen"
+

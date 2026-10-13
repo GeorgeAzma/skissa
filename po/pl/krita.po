@@ -107853,3 +107853,466 @@ msgstr ""
 
 #~ msgid "Hide Grid"
 #~ msgstr "Ukryj siatkę"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Opens a file browser at the location Skissa saves resources such as brushes to."
+msgstr "Otwiera przeglądarkę plików w miejscu, w którym Skissa zapisuje zasoby takie jak pędzle."
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Skissa: Wewnętrzny błąd"
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "Warstwa"
+
+msgid "The resource database scheme has changed. Skissa will backup your database and create a new database."
+msgstr "Układ bazy danych zasobów uległ zmianie. Skissa utworzy kopię danych twojej bazy danych i utworzy nową bazę danych."
+
+msgid "Skissa is running for the first time. Initialization will take some time."
+msgstr "Skissa jest uruchamiana po raz pierwszy. Jej przygotowanie zajmie trochę czasu."
+
+msgctxt "@title:window"
+msgid "Skissa: Fatal error"
+msgstr "Skissa: Błąd fatalny"
+
+msgid "%1\n\nSkissa will quit now."
+msgstr "%1\n\nSkissa teraz zakończy."
+
+msgid "\n\nSkissa will quit now."
+msgstr "\n\nSkissa teraz zakończy."
+
+msgctxt "@item:layer name: flat colors under line art"
+msgid "Colors"
+msgstr "Barwy"
+
+msgid "Permission denied. Skissa is not allowed to read or write to the file."
+msgstr "Odmówiono uprawnień. Skissa nie jest uprawniona do odczytu lub zapisu do pliku."
+
+msgid "Permission denied: Skissa is not allowed to read the file."
+msgstr "Odmówiono uprawnień: Skissa nie jest uprawniona do odczytu z pliku."
+
+msgid "Permission denied: Skissa is not allowed to write to the file."
+msgstr "Odmówiono uprawnień: Skissa nie jest uprawniona do zapisu do pliku."
+
+msgid "Skissa does not support this file format."
+msgstr "Skissa nie obsługuje tego formatu plików."
+
+msgctxt "@title:window"
+msgid "Skissa: Export Error"
+msgstr "Skissa: Błąd eksportu"
+
+msgctxt "the argument is the ICC profile name"
+msgid "The image has a profile attached that Skissa cannot edit images in (\"%1\"), please select a space to convert to for editing: \n"
+msgstr "Obraz zawiera profil, którego Skissa nie jest w stanie zmienić (\"%1\"), wybierz przestrzeń, na którą przekształcić, aby można było to zmienić: \n"
+
+msgctxt "zoom"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "canvas scaling"
+msgid "Bilinear"
+msgstr "Dwuliniowa"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "Posiedzenia"
+
+msgctxt "rendering intent"
+msgid "Saturation"
+msgstr "Nasycenie"
+
+msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
+msgid "Screen %1 (%2)"
+msgstr "Ekran %1 (%2)"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "Piksel"
+
+msgctxt "brush group"
+msgid "Other"
+msgstr "Inne"
+
+msgctxt "zoom level, %1 is the percentage"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "Odcień"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "HSV"
+
+msgctxt "@info:tooltip"
+msgid "Preview"
+msgstr "Podgląd"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "effect group"
+msgid "Other"
+msgstr "Inne"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "Warstwy"
+
+msgctxt "@title find results"
+msgid "Settings"
+msgstr "Ustawienia"
+
+msgctxt "@title find results"
+msgid "All"
+msgstr "Wszystkie"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "Okno"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "Nieprzezroczystość"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "Okno"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "Nazwa"
+
+msgctxt "@info an empty slot of a ring"
+msgid "Add"
+msgstr "Dodaj"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "Szybkość"
+
+msgctxt "glass"
+msgid "Blur"
+msgstr "Rozmycie"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "Nieprzezroczystość"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "Rozmiar"
+
+msgctxt "color sampler"
+msgid "Preview"
+msgstr "Podgląd"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "Rozmiar"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Cofnij"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "Warstwy"
+
+msgctxt "layer names: no words"
+msgid "none"
+msgstr "brak"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "Warstwa"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "Animacja"
+
+msgctxt "settings card"
+msgid "Author"
+msgstr "Autor"
+
+msgctxt "@title:window"
+msgid "Authors"
+msgstr "Autorzy"
+
+msgctxt "settings card"
+msgid "Display"
+msgstr "Wyświetlanie"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "Biały"
+
+msgctxt "instant preview"
+msgid "Transform"
+msgstr "Przekształć"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "Przesuń"
+
+msgctxt "@action:inmenu"
+msgid "Reset"
+msgstr "Wyzeruj"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Cofnij"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Select"
+msgstr "Zaznacz"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Transform"
+msgstr "Przekształć"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Fill"
+msgstr "Wypełnienie"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "Tekst"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Guides"
+msgstr "Prowadnice"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "W dół"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "W dół"
+
+msgctxt "@info:tooltip"
+msgid "Close"
+msgstr "Zamknij"
+
+msgid "Use the new template every time Skissa starts"
+msgstr "Użyj nowego wzorca za każdym razem, kiedy Skissa się uruchamia"
+
+msgctxt "part of warning in video importer."
+msgid "Skissa does not support the video transfer curve (%1), it will be loaded as linear."
+msgstr "Skissa nie obsługuje krzywej przesyłania filmów (%1), zostanie ona wczytana jako liniowa."
+
+msgctxt "@info:tooltip"
+msgid "The amount of time during which the strokes will be kept unmerged. When a stroke becomes old enough, Skissa will try to merge it"
+msgstr "Ilość czasu, podczas której pociągnięcia będą przechowywane jako niescalone. Gdy pociągniecie stanie się wystarczająco stare, to Skissa spróbuje je scalić"
+
+msgctxt "@info:tooltip"
+msgid "The number of last strokes that Skissa will not merge (even if they are old enough)"
+msgstr "Liczba ostatnich pociągnięć, których Skissa nie scali (nawet gdy są wystarczająco stare)"
+
+msgid "Cumulative Undo allows Skissa to merge undo actions and make undo history cleaner. Skissa will still keep a few latest actions unmerged according to \"Wait before merging strokes\" and \"Exclude last strokes from merge\" options. Whenever an action gets outdated using the time limit and this action is not excluded using \"Exclude last strokes from merge\", Skissa will try  to merge this action into a group. The groups are formed using \"Max group strokes delay\" and \"Max group duration\" options."
+msgstr "Nagromadzone cofanie umożliwia Kricie scalenie działań cofania i stworzenie czystszej historii cofania. Skissa nada będzie zachowywać kilka ostatnich działań jako niescalone zgodnie z ustawieniami \"Czekaj zanim scalisz pociągnięcia\" oraz \"Wyklucz ostanie pociągnięcia ze scalania\". Za każdym razem, gdy działanie stanie się przedawnione przy użyciu ograniczenia czasowego i to działanie nie zostanie wykluczone poprzez \"Wyklucz ostanie pociągnięcia ze scalania\", to Skissa spróbuje scalić to działanie w grupę. Grupy są tworzone na zasadzie ustawień \"Największe opóźnienie pociągnięć grupy\" oraz \"Najdłuższy czas trwania grupy\"."
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "keys group"
+msgid "Other"
+msgstr "Inne"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "Obróć"
+
+msgctxt "@info:tooltip"
+msgid "Preset"
+msgstr "Nastawa"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Twoje prawa</b></h1><p>Skissa jest wydawana na licencji GNU General Public License (wersja 3 lub dowolna późniejsza wersja).</p><p>Licencja ta daje ludziom wiele dowolności:</p><ul><li>Możesz używać Krity do dowolnego celu</li><li>Możesz rozpowszechniać Kritę</li><li>Możesz poznawać jak Skissa działa wewnątrz i zmieniać to</li><li>Możesz rozpowszechniać zmienione wersje Krity</li></ul><p>Fundacja Krity i jej projekty na krita.org <b>mają na celu</b> utrzymanie Krity jako wolne oprogramowanie.</p><h1 align=\"center\">Twoja praca artystyczna</h1><p>To co tworzysz przy użyciu Krity jest wyłącznie twoją własnością. Całą swoją pracą artystyczną możesz rozporządzać do woli.</p><p>Oznacza to, ze Krity można używać do zarabiana pieniędzy lub do innych celów. Nie istnieją żadne ograniczenia.</p><p>Licencja GPL dla Krity zapewnia tę wolność. Nawet nie wolno nikomu zabrać ci tej wolności w przeciwieństwie do próbnych lub edukacyjnych wersji komercyjnego oprogramowania, które zakazuje udostępniania twojej pracy w sytuacjach komercyjnych.</p><br/><hr/><pre>"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1><p>Skissa is built on the following free software libraries:</p><p><ul>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Biblioteki stron trzecich używane przez Kritę</b></h1><p>Skissa została zbudowana na następujących bibliotekach wolnego oprogramowania:</p><p><ul>"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "Nieprzezroczystość"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "Nieprzezroczystość"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "Plik"
+
+msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
+msgstr "Skissa nie może zainicjować płótna OpenGL:\n\n%1\n\n Skissa wyłączy OpenGL i zakończy działanie."
+
+msgctxt "@action:inmenu"
+msgid "Select All"
+msgstr "Zaznacz wszystko"
+
+msgctxt "@action:inmenu"
+msgid "Reselect"
+msgstr "Zaznacz ponownie"
+
+msgctxt "@action:inmenu"
+msgid "Transform"
+msgstr "Przekształć"
+
+msgctxt "@action:inmenu"
+msgid "Smooth"
+msgstr "Wygładź"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "Edytuj"
+
+msgctxt "If the selected model is CMYK"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
+msgstr "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK, oznaczający Turkusowy (z ang. Cyan), Purpurowy (z ang. Magenta), Żółty (z ang. Yellow), Czarny (z ang. Key)</a></b>, jest modelem barw używanym w drukarkach i innych urządzeniach wykorzystujących atrament.<br/> Jest to subtraktywny model barw, co oznacza, że dodanie barw do siebie przyciemnia je. Ponieważ profile CMYK są bardzo zależne od drukarki, zaleca się pracować w przestrzeni RGB, a następnie przekształcić do profilu CMYK, najlepiej do tego dostarczanego z twoją drukarką. <b>Nie</b> zaleca się używania <br/>CMYK  do malowania. Niestety Skissa nie ma możliwości uzyskania kolorantów czy TRC dla tej przestrzeni."
+
+msgctxt "These are Elle Stone's notes on her profiles that we ship."
+msgid "<p><b>Extra notes on profiles by Elle Stone:</b></p><p><i>Skissa comes with a number of high quality profiles created by <a href=\"https://ninedegreesbelow.com\">Elle Stone</a>. This is a summary. Please check <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">the full documentation</a> as well.</i></p>"
+msgstr "<p><b>Dodatkowe uwagi do profili stworzonych przez Elle Stone:</b></p><p><i>Skissa jest dostarczana z kilkoma profilami wysokiej jakości stworzonymi przez <a href=\"https://ninedegreesbelow.com\">Elle Stone</a>. Jest to podsumowanie. Sprawdź również <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">pełną dokumentację</a>.</i></p>"
+
+msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
+msgstr "W nazwie wybranego pliku nie ma rozszerzania, które rozumie Skissa.\nUpewnij się, że nazwa jest zakończona na na przykład '.%1'."
+
+msgctxt "@title:menu"
+msgid "Select"
+msgstr "Zaznacz"
+
+msgctxt "@action:inmenu select layers"
+msgid "All"
+msgstr "Wszystkie"
+
+msgctxt "@title:menu other kinds of layer"
+msgid "New"
+msgstr "Nowa"
+
+msgctxt "@action:inmenu"
+msgid "Paint Layer"
+msgstr "Warstwa malowania"
+
+msgctxt "@action:inmenu"
+msgid "Vector Layer"
+msgstr "Warstwa wektorów"
+
+msgctxt "@action:inmenu"
+msgid "Transparency Mask"
+msgstr "Maska przezroczystości"
+
+msgctxt "@action:inmenu"
+msgid "Color Overlay Mask"
+msgstr "Maska nakładki barwiącej"
+
+msgctxt "@action:inmenu"
+msgid "Transform Mask"
+msgstr "Maska przekształcenia"
+
+msgctxt "@action:inmenu"
+msgid "Cut"
+msgstr "Wytnij"
+
+msgctxt "@action:inmenu"
+msgid "Alpha into Mask"
+msgstr "Alfa na maskę"
+
+msgctxt "@action:inmenu"
+msgid "Write as Alpha"
+msgstr "Zapisz do alfy"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Layer"
+msgstr "Spłaszcz warstwę"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Image"
+msgstr "Spłaszcz obraz"
+
+msgctxt "@action:inmenu"
+msgid "Pin to Timeline"
+msgstr "Przypnij na osi czasu"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Cofnij"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Przywróć"
+
+msgctxt "@action:button choose a palette"
+msgid "Palettes"
+msgstr "Palety"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "Edytuj"
+
+msgctxt "@info:tooltip"
+msgid "Lock"
+msgstr "Zablokuj"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "Zapisz"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Dodaj do palety"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "Zapisz"
+
+msgctxt "frames at half the image's size"
+msgid "Half"
+msgstr "Połowiczna"
+
+msgctxt "settings page"
+msgid "Wide Gamut Selector"
+msgstr "Wybierak szerokiego gamutu"
+
+msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
+msgstr "Skissa nie może znaleźć uruchomić wtyczki gmic-qt. Nie dostarczono z nią takiej biblioteki."
+
+msgctxt "@info"
+msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
+msgstr "Obraz zawiera piksele z zerowym kanałem alfa i niezerowymi kanałami barw. Skissa będzie musiała zmienić te piksele, aby uzyskać przynajmniej jakąś alfę. Początkowe wartości <i>nie</i> zostaną przywrócone przy zapisywaniu obrazu.<br/><br/>Raczej nie spowoduje to różnicy w wyświetlaniu, ale powinieneś mieć to na uwadze."
+
+msgctxt "@tooltip"
+msgid "The image will be linearized first, and then encoded with SMPTE ST 428. Skissa always opens images like these as linear floating point, this option is there to reverse that"
+msgstr "Obraz zostanie najpierw przekształcony na liniowy, a następnie zakodowany SMPTE ST 428. Skissa zawsze otwiera obrazy jakby były opisane liczbami rzeczywistymi, a to ustawienie jest tu po to, aby temu przeciwdziałać"
+
+msgctxt "@title:window"
+msgid "Skissa - Edit Text"
+msgstr "Skissa - edycja tekstu"
+
+msgid "Skissa was built without the support of GNU Scientific Library, so you cannot scale the selection with handles. Please compile Skissa with GNU Scientific Library support, or use options widget for editing scale values manually."
+msgstr "Skissa została zbudowana bez obsługi Biblioteki Naukowej GNU, więc nie można przeskalować zaznaczanie poprzez uchwyty. Skompiluj Kritę z obsługą Biblioteki Naukowej GNU lub użyj elementu interfejsu opcji do ręcznego edytowania wartości skali."
+

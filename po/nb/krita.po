@@ -68445,3 +68445,98 @@ msgid ""
 "Full range: [%1, %2]\n"
 "Subrange: [%3, %4]"
 msgstr ""
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Skissa: intern feil"
+
+msgctxt "canvas renderer"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "cursor"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "touch painting"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "canvas surface depth"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "a setting's value: not set"
+msgid "Default"
+msgstr "Standard"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "Piksel"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "Navn"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Angre"
+
+msgctxt "settings card"
+msgid "Author"
+msgstr "Forfatter"
+
+msgctxt "author"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "Hvit"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "Flytt"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Angre"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "Roter"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "default name of a filter layer, followed by a number"
+msgid "Filter"
+msgstr "Filter"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Angre"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Legg til palett"
+

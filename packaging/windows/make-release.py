@@ -31,7 +31,7 @@ HOMEPAGE = 'https://github.com/GeorgeAzma/skissa'
 PROGRAMS = ['krita.exe', 'krita_version.exe', 'ffmpeg.exe', 'ffprobe.exe']
 # folders that only matter for building
 SHARE_SKIP = {'aclocal', 'cmake', 'doc', 'man', 'pkgconfig', 'eigen3', 'ECM', 'gettext', 'metainfo', 'applications',
-              'locale', 'kservices5', 'unofficial-angle', 'dlfcn-win32'}
+              'kservices5', 'unofficial-angle', 'dlfcn-win32'}
 # Windows' own libraries, there on every machine
 SYSTEM = re.compile(r'^(api-ms-|ext-ms-)|^(kernel32|user32|gdi32|gdiplus|advapi32|shell32|ole32|oleaut32|comdlg32|comctl32|'
                     r'ws2_32|winmm|imm32|version|uxtheme|dwmapi|setupapi|shlwapi|crypt32|bcrypt|secur32|ntdll|msvcrt|ucrtbase|'

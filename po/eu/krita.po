@@ -103252,3 +103252,530 @@ msgstr ""
 
 #~ msgid "Titlebar"
 #~ msgstr "Titulu-barra"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Opens a file browser at the location Skissa saves resources such as brushes to."
+msgstr "Fitxategi arakatzaile bat irekitzen du Skissak pintzelen gisako baliabideak gordetzen dituen kokalekuan."
+
+msgctxt "action"
+msgid "Show Skissa log for bug reports."
+msgstr "Erakutsi akats-txostenetarako Skissaren egunkaria."
+
+msgctxt "action"
+msgid "Configure Skissa"
+msgstr "Konfiguratu Skissa"
+
+msgctxt "action"
+msgid "About Skissa"
+msgstr "Skissari buruz"
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Skissa: Barneko errorea"
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "Geruza"
+
+msgid "The resource database scheme has changed. Skissa will backup your database and create a new database."
+msgstr "Baliabideen datu-base antolaera aldatu egin da. Skissak zure datu-basearen babes kopia egingo du eta datu-base berri bat sortuko du."
+
+msgid "Skissa is running for the first time. Initialization will take some time."
+msgstr "Skissa lehen aldiz exekutatzen ari da. Hasieratzeko denbora beharko du."
+
+msgctxt "@title:window"
+msgid "Skissa: Fatal error"
+msgstr "Skissa: Errore larria"
+
+msgid "%1\n\nSkissa will quit now."
+msgstr "%1\n\nSkissa orain itxi egingo da."
+
+msgid "\n\nSkissa will quit now."
+msgstr "\n\nSkissa orain itxiko da."
+
+msgid "Cannot add the file layer: no document is open.\n\nYou can create a new document using the --new-image option, or you can open an existing file.\n\nIf you instead want to add the file layer to a document in an already running instance of Skissa, check the \"Allow only one instance of Skissa\" checkbox in the settings (Settings -> General -> Window)."
+msgstr "Ezin du fitxategi-geruza gehitu: ez dago irekitako dokumenturik.\n\nDokumentu berri bat sor dezakezu « --new-image » aukera erabiliz, edo existitzen den fitxategi bat ireki dezakezu.\n\nHorren ordez, fitxategi-geruza dagoeneko martxan dagoen Skissaren instantzia bateko dokumentu batera gehitu nahi baduzu, markatu  ezarpenetako (Ezarpenak -> Orokorra -> Leihoa) \"Baimendu Skissaren instantzia bakarra\" kontrol-laukia."
+
+msgid "Skissa configurations reset!\n\nBackup file was created at: %1\n\nRestart Skissa for changes to take effect."
+msgstr "Skissa konfigurazioak berrezartzea!\n\nBabes-kopia fitxategia hemen sortu da: %1\n\nBerrabiarazi Skissa aldaketak indarrean sar daitezen."
+
+msgid "The name of the workspace to open Skissa with"
+msgstr "Skissarekin ireki behar den langunearen izena"
+
+msgid "The name of the window layout to open Skissa with"
+msgstr "Skissarekin ireki behar den leiho-antolaeraren izena"
+
+msgid "The name of the session to open Skissa with"
+msgstr "Skissarekin ireki beharreko saioaren izena"
+
+msgid "Start Skissa in canvas-only mode"
+msgstr "Abiatu Skissa oihala-bakarrik moduan"
+
+msgid "Start Skissa in full-screen mode"
+msgstr "Abiatu Skissa pantaila osoko moduan"
+
+msgctxt "@item:layer name: flat colors under line art"
+msgid "Colors"
+msgstr "Koloreak"
+
+msgid "Permission denied. Skissa is not allowed to read or write to the file."
+msgstr "Baimena ukatu da. Skissak ez du fitxategi hau irakurtzeko edo idazteko baimenik."
+
+msgid "Permission denied: Skissa is not allowed to read the file."
+msgstr "Baimena ukatu da: Skissak ez du fitxategia irakurtzeko baimenik."
+
+msgid "Permission denied: Skissa is not allowed to write to the file."
+msgstr "Baimena ukatu da: Skissak ez du fitxategia idazteko baimenik."
+
+msgid "Skissa does not support this file format."
+msgstr "Skissak ez du onartzen fitxategi-formatu hori."
+
+msgctxt "@title:window"
+msgid "Skissa: Export Error"
+msgstr "Skissa: Esportatzeko errorea"
+
+msgctxt "canvas renderer"
+msgid "Auto"
+msgstr "Automatikoa"
+
+msgctxt "cursor"
+msgid "None"
+msgstr "Bat ere ez"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "Bat ere ez"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "Bat ere ez"
+
+msgctxt "color sampler preview"
+msgid "Left"
+msgstr "Ezkerrean"
+
+msgctxt "canvas scaling"
+msgid "Bilinear"
+msgstr "Bilineala"
+
+msgctxt "setting"
+msgid "Pressure"
+msgstr "Presioa"
+
+msgctxt "touch painting"
+msgid "Auto"
+msgstr "Automatikoa"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "Saioak"
+
+msgctxt "rendering intent"
+msgid "Saturation"
+msgstr "Asetasuna"
+
+msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
+msgid "Screen %1 (%2)"
+msgstr "%1 pantaila (%2)"
+
+msgctxt "canvas surface depth"
+msgid "Auto"
+msgstr "Automatikoa"
+
+msgctxt "a setting's value: not set"
+msgid "Default"
+msgstr "Lehenetsia"
+
+msgctxt "brush group"
+msgid "Other"
+msgstr "Bestelakoak"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "Argitasuna"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "Tonua"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "HSV"
+
+msgctxt "@info:tooltip"
+msgid "Preview"
+msgstr "Aurreikusi"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "effect group"
+msgid "Other"
+msgstr "Bestelakoak"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "Geruzak"
+
+msgctxt "@title find results"
+msgid "Settings"
+msgstr "Ezarpenak"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "Leihoa"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "Opakutasuna"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "Leihoa"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "Izena"
+
+msgctxt "@info an empty slot of a ring"
+msgid "Add"
+msgstr "Gehitu"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "Abiadura"
+
+msgctxt "theme"
+msgid "Lightness"
+msgstr "Argitasuna"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "Opakutasuna"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "Tamaina"
+
+msgctxt "color sampler"
+msgid "Preview"
+msgstr "Aurreikusi"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "Tamaina"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "settings card"
+msgid "Pressure"
+msgstr "Presioa"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Desegin"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "Geruzak"
+
+msgctxt "layer names: no words"
+msgid "none"
+msgstr "bat ere ez"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "Geruza"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "Animazioa"
+
+msgctxt "settings card"
+msgid "Author"
+msgstr "Egilea"
+
+msgctxt "author"
+msgid "None"
+msgstr "Bat ere ez"
+
+msgctxt "@title:window"
+msgid "Authors"
+msgstr "Egileak"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "Zuria"
+
+msgctxt "instant preview"
+msgid "Transform"
+msgstr "Eraldatu"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "Lekuz aldatu"
+
+msgctxt "@action:inmenu"
+msgid "Reset"
+msgstr "Berrezarri"
+
+msgctxt "@action:button"
+msgid "Import"
+msgstr "Inportatu"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Desegin"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Blend"
+msgstr "Nahasi"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Select"
+msgstr "Hautatu"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Transform"
+msgstr "Eraldatu"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "Testua"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Guides"
+msgstr "Gidak"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Erradiala"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Behera"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Bat ere ez"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Behera"
+
+msgctxt "@info:tooltip"
+msgid "Close"
+msgstr "Itxi"
+
+msgid "Use the new template every time Skissa starts"
+msgstr "Erabili txantiloi berria Skissa hasten den bakoitzean"
+
+msgid "Warning: you are trying to import more than 100 frames into Skissa.\n\nThis means you might be overloading your system.\nIf you want to edit a clip larger than 100 frames, consider using a real video editor, like Kdenlive (https://kdenlive.org)."
+msgstr "Abisua: Skissan 100 fotograma baino gehiago inportatzen saiatzen ari zara.\n\nHorrek esan nahi du agian zure sisteman gainzama jartzen ari zarela.\n100 fotograma baino gehiago dituen klip bat editatu nahi baduzu, kontuan hartu bideo-editore erreal bat erabiltzea, Kdenlive (https://kdenlive.org) esaterako."
+
+msgctxt "part of warning in video importer."
+msgid "Skissa does not support the video transfer curve (%1), it will be loaded as linear."
+msgstr "Skissak ez du onartzen bideo transferentziaren kurba (%1), lineala bezala zamatuko da."
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "keys group"
+msgid "Other"
+msgstr "Bestelakoak"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "Bat ere ez"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1><p>Skissa is built on the following free software libraries:</p><p><ul>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Skissak erabiltzen dituen hirugarrenen liburutegiak</b></h1><p>Skissa ondoko software askeko liburuekin eraiki da:</p><p><ul>"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "Opakutasuna"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "Opakutasuna"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "Fitxategia"
+
+msgctxt "tooltip on statusbar memory reporting button"
+msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
+msgstr "\n\nABISUA:\tMemoria guztia erabilita! Trukaketa erabiltzen hasi da.\n\t\tMesedez, konfiguratu Skissarentzako RAM gehiago ezarpenen elkarrizketa-koadroan"
+
+msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
+msgstr "Skissak ezin izan du OpenGL oihala hasieratu:\n\n%1\nSkissak OpenGL ezgaitu eta orain itxiko da."
+
+msgctxt "@action:inmenu"
+msgid "Deselect"
+msgstr "Desautatu"
+
+msgctxt "@action:inmenu"
+msgid "Invert"
+msgstr "Alderantzikatu"
+
+msgctxt "@action:inmenu"
+msgid "Transform"
+msgstr "Eraldatu"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "Editatu"
+
+msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
+msgstr "«AppImage» berria zama-jaitsi da %1(e)ra. Eguneratzea osatzeko, itxi Skissa eta exekutatu «AppImage» berria."
+
+msgctxt "If the selected model is CMYK"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
+msgstr "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key /Zian, Magenta, Horia, Gakoa)</a></b>, inprimagailuek eta tinta oinarri duten beste euskarri batzuek erabiltzen duten eredua da.<br/>CMYK eredu kentzaile bat da, koloreak elkartzea haiek ilunduko dituela esan nahi du. CMYK profilak inprimagailu bakoitzarekiko oso espezifikoak direnez, RGB eremuarekin lan egitea gomendatzen da, eta ondoren CMYK profil batera bihurtzea, hobeto zure inprimagailuarentzako egindako bat. <br/>CMYK <b>ez</b> da margotzeko gomendatzen. Zoritxarrez, Skissak ezin ditu eremu honetarako koloragarriak edo TRC-a berreskuratu."
+
+msgid "Dropped frames are not available in this Skissa instance"
+msgstr "Skissaren instantzia honetan baztertutako fotogramak ez daude erabilgarri"
+
+msgctxt "@title:menu"
+msgid "Select"
+msgstr "Hautatu"
+
+msgctxt "@action:inmenu select layers"
+msgid "Visible"
+msgstr "Ikusgai"
+
+msgctxt "@title:menu other kinds of layer"
+msgid "New"
+msgstr "Berria"
+
+msgctxt "@action:inmenu"
+msgid "Paint Layer"
+msgstr "Margo geruza"
+
+msgctxt "@action:inmenu"
+msgid "Colorize Mask"
+msgstr "Koloreztatze-maskara"
+
+msgctxt "@action:inmenu"
+msgid "Transform Mask"
+msgstr "Eraldatze maskara"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "Kopiatu"
+
+msgctxt "@action:inmenu"
+msgid "Cut"
+msgstr "Ebaki"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "Kopiatu"
+
+msgctxt "@action:inmenu"
+msgid "Alpha into Mask"
+msgstr "Alfa maskaran"
+
+msgctxt "@action:inmenu"
+msgid "Write as Alpha"
+msgstr "Idatzi alfa gisa"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Layer"
+msgstr "Berdindu geruza"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Image"
+msgstr "Berdindu irudia"
+
+msgctxt "@action:inmenu"
+msgid "Pin to Timeline"
+msgstr "Iltzatu denbora-lerroan"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Desegin"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Berregin"
+
+msgctxt "@action:button choose a palette"
+msgid "Palettes"
+msgstr "Paletak"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "Editatu"
+
+msgctxt "@info:tooltip"
+msgid "Lock"
+msgstr "Giltzatu"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "Gorde"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Paletari gehitu"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "Gorde"
+
+msgctxt "frames at half the image's size"
+msgid "Half"
+msgstr "Erdia"
+
+msgctxt "settings page"
+msgid "Wide Gamut Selector"
+msgstr "Gama zabalaren hautatzailea"
+
+msgctxt "Caption of the dialog with crash log for bug reports"
+msgid "Skissa Crash Log: please paste this information to the bug report"
+msgstr "Skissa kraskadura egunkaria: mesedez, itsatsi informazioa hori akats-txostenera"
+
+msgctxt "Caption of the dialog with Skissa usage log for bug reports"
+msgid "Skissa Usage Log: please paste this information to the bug report"
+msgstr "Skissa erabileraren egunkaria: mesedez, itsatsi informazioa hori akats-txostenera"
+
+msgctxt "Caption of the dialog with system information for bug reports"
+msgid "Skissa System Information: please paste this information to the bug report"
+msgstr "Skissa-ren sistemako informazioa: mesedez, itsatsi informazio hori akats-txostenera"
+
+msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
+msgstr "Skissak ezin du gmic-qt plugina abiarazi. Ez da liburutegi-fardelik aurkitu."
+
+msgid "The file is too new for this version of Skissa (%1)."
+msgstr "Fitxategia berriegia da Skissa-ren bertsio honetarako (%1)."
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineala"
+
+msgctxt "@title:window"
+msgid "Skissa - Edit Text"
+msgstr "Skissa - Testua editatzea"
+
+msgid "Skissa was built without the support of GNU Scientific Library, so you cannot scale the selection with handles. Please compile Skissa with GNU Scientific Library support, or use options widget for editing scale values manually."
+msgstr "Skissa GNU Liburutegi Zientifikoaren euskarririk gabe eraiki zen eta, beraz, aukeraketa ezin duzu heldulekuekin eskalatu. Mesedez, konpilatu Skissa GNU Liburutegi Zientifikoaren euskarriarekin, edo erabili aukeren trepeta eskala-balioak eskuz editatzeko."
+

@@ -102222,3 +102222,54 @@ msgstr ""
 
 #~ msgid "EMPTY, TO BE FILLED WITH A GREAT GUI"
 #~ msgstr "रिकामे, GREAT GUI ने  भरा"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "cursor"
+msgid "None"
+msgstr "काही नाही"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "काही नाही"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "काही नाही"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "पूर्ववत करा"
+
+msgctxt "author"
+msgid "None"
+msgstr "काही नाही"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "हलवा"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "पूर्ववत करा"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "काही नाही"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "काही नाही"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "पूर्ववत करा"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "पुन्हा करा"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "पटलमध्ये भरा"
+

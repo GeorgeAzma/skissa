@@ -100542,3 +100542,378 @@ msgstr ""
 
 #~ msgid "Pressure variation: "
 #~ msgstr "दबाव वेरिएशन:"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "परत"
+
+msgctxt "@item:layer name: flat colors under line art"
+msgid "Colors"
+msgstr "रंग"
+
+msgctxt "color sampler preview"
+msgid "Right"
+msgstr "दायाँ"
+
+msgctxt "canvas scaling"
+msgid "Bilinear"
+msgstr "द्विरेखीय"
+
+msgctxt "setting"
+msgid "Pressure"
+msgstr "दबाव"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "सत्र"
+
+msgctxt "rendering intent"
+msgid "Saturation"
+msgstr "संतृप्ति"
+
+msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
+msgid "Screen %1 (%2)"
+msgstr "स्क्रीन %1 (%2)"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "पिक्सेल"
+
+msgctxt "brush group"
+msgid "Other"
+msgstr "अन्य"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "उजालापन"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "वर्ण"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "एचएसवी"
+
+msgctxt "@info:tooltip"
+msgid "Preview"
+msgstr "पूर्वावलोकन"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "effect group"
+msgid "Other"
+msgstr "अन्य"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "परतें"
+
+msgctxt "@title find results"
+msgid "Settings"
+msgstr "विन्यास"
+
+msgctxt "@title find results"
+msgid "Workspaces"
+msgstr "कार्यक्षेत्र"
+
+msgctxt "@title find results"
+msgid "All"
+msgstr "सभी"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "विंडो"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "अपार्दरशिता"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "विंडो"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "नाम"
+
+msgctxt "@info an empty slot of a ring"
+msgid "Add"
+msgstr "जोड़ें"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "गति"
+
+msgctxt "theme"
+msgid "Lightness"
+msgstr "उजालापन"
+
+msgctxt "glass"
+msgid "Blur"
+msgstr "धुंधला करें"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "अपार्दरशिता"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "color sampler"
+msgid "Preview"
+msgstr "पूर्वावलोकन"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "settings card"
+msgid "Pressure"
+msgstr "दबाव"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "पूर्ववत करें"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "परतें"
+
+msgctxt "layer names: no words"
+msgid "none"
+msgstr "कोई नहीं"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "परत"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "एनिमेशन"
+
+msgctxt "settings card"
+msgid "Author"
+msgstr "चित्रकार"
+
+msgctxt "@title:window"
+msgid "Authors"
+msgstr "लेखक"
+
+msgctxt "settings card"
+msgid "Display"
+msgstr "प्रदर्शन"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "सफेद"
+
+msgctxt "instant preview"
+msgid "Transform"
+msgstr "रूपांतरण"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "पूर्ववत करें"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Blend"
+msgstr "मिश्रण"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Select"
+msgstr "चुनें"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Transform"
+msgstr "रूपांतरण"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Fill"
+msgstr "भरें"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "पाठ"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Guides"
+msgstr "मार्गदर्शिका"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "नीचे"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "नीचे"
+
+msgctxt "@info:tooltip"
+msgid "Close"
+msgstr "बंद करें"
+
+msgctxt "new image: one made to measure"
+msgid "Custom"
+msgstr "मनपसंद"
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "क्रिता"
+
+msgctxt "keys group"
+msgid "Other"
+msgstr "अन्य"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "घुमाएँ"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "अपार्दरशिता"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "अपार्दरशिता"
+
+msgctxt "default name of a filter layer, followed by a number"
+msgid "Filter"
+msgstr "फ़िल्टर"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "फाइल"
+
+msgctxt "@action:inmenu"
+msgid "Deselect"
+msgstr "अचयनित"
+
+msgctxt "@action:inmenu"
+msgid "Reselect"
+msgstr "फिर से चुनें"
+
+msgctxt "@action:inmenu"
+msgid "Transform"
+msgstr "रूपांतरण"
+
+msgctxt "@action:inmenu"
+msgid "Smooth"
+msgstr "चिकना"
+
+msgctxt "@title:menu"
+msgid "Select"
+msgstr "चुनें"
+
+msgctxt "@action:inmenu select layers"
+msgid "All"
+msgstr "सभी"
+
+msgctxt "@action:inmenu"
+msgid "Paint Layer"
+msgstr "चित्रकारी परत"
+
+msgctxt "@action:inmenu"
+msgid "Group"
+msgstr "समूह"
+
+msgctxt "@action:inmenu"
+msgid "Vector Layer"
+msgstr "वेक्टर परत"
+
+msgctxt "@action:inmenu"
+msgid "Clone"
+msgstr "प्रतिरूप"
+
+msgctxt "@action:inmenu"
+msgid "Transparency Mask"
+msgstr "पारदर्शिता मास्क"
+
+msgctxt "@action:inmenu"
+msgid "Colorize Mask"
+msgstr "रंगीकरण मास्क"
+
+msgctxt "@action:inmenu"
+msgid "Transform Mask"
+msgstr "रूपांतरण मास्क"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "नक़ल"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "नक़ल"
+
+msgctxt "@action:inmenu"
+msgid "Alpha into Mask"
+msgstr "अल्फ़ा से मास्क बनाएँ"
+
+msgctxt "@action:inmenu"
+msgid "Write as Alpha"
+msgstr "परत के अल्फ़ा में लिखें"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Image"
+msgstr "चित्र समतल करें"
+
+msgctxt "@action:inmenu"
+msgid "Pin to Timeline"
+msgstr "समय-रेखा पर पिन करें"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "पूर्ववत करें"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "फिर करें"
+
+msgctxt "@action:button choose a palette"
+msgid "Palettes"
+msgstr "रंगदानियाँ"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "सहेजें"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "रंगदानी में जोड़ें"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "सहेजें"
+
+msgctxt "frames at half the image's size"
+msgid "Half"
+msgstr "आधा"
+
+msgctxt "settings page"
+msgid "Wide Gamut Selector"
+msgstr "विस्तृत वर्ण विस्तार चयनक"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "रेखीय"
+

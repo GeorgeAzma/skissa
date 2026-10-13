@@ -100208,3 +100208,34 @@ msgstr ""
 
 #~ msgid "Pressure variation: "
 #~ msgstr "दबाव वेरिएसन:"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "cursor"
+msgid "None"
+msgstr "कुछ नइ"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "कुछ नइ"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "कुछ नइ"
+
+msgctxt "author"
+msgid "None"
+msgstr "कुछ नइ"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "कुछ नइ"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "कुछ नइ"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "रंगदानी मं जोड़व"
+

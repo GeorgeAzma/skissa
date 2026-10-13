@@ -96165,3 +96165,10 @@ msgstr ""
 
 #~ msgid "Preview (needs update)"
 #~ msgstr "Priekšskatījums (nepieciešams atjaunināt)"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Pievienot paletei"
+

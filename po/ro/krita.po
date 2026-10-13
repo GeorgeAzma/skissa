@@ -71048,3 +71048,54 @@ msgstr ""
 #, fuzzy
 #~ msgid "Div Style:"
 #~ msgstr "Stil:"
+
+# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "rendering intent"
+msgid "Saturation"
+msgstr "Saturație"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "Nuanță"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Desfă"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Desfă"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Desfă"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Refă"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Adaugă la paletă"
+
