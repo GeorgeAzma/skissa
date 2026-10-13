@@ -809,7 +809,7 @@ protected:
         paintGlass(painter, this, 12, 0.12);
         const int side = qMin(20, qMin(width(), height()) - 12);
         painter.setOpacity(0.85);
-        QApplication::windowIcon().paint(&painter, QRect(QPoint(), QSize(side, side)).translated(rect().center() - QPoint(side / 2, side / 2)));
+        KisIconUtils::loadIcon(QStringLiteral("krita-branding")).paint(&painter, QRect(QPoint(), QSize(side, side)).translated(rect().center() - QPoint(side / 2, side / 2)));
     }
 };
 

@@ -245,7 +245,8 @@ KisApplication::KisApplication(const QString &key, int &argc, char **argv)
     QCoreApplication::addLibraryPath(QCoreApplication::applicationDirPath());
 
 #ifndef Q_OS_MACOS
-    setWindowIcon(KisIconUtils::loadIcon("krita-branding"));
+    // the taskbar can be dark or light whatever the theme: the S with a light edge reads on both
+    setWindowIcon(QIcon(QStringLiteral(":/krita-branding.svgz")));
 #endif
 
     // if style is set from config, try to load that, otherwise default

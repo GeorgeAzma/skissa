@@ -6,5 +6,7 @@
 <RCC version="1.0">
     <qresource>
         <file alias="krita-branding.svgz">sc-apps-krita.svgz</file>
+        <file>dark_krita-branding.svgz</file>
+        <file>light_krita-branding.svgz</file>
     </qresource>
 </RCC>

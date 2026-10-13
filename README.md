@@ -1,4 +1,7 @@
-<img src="docs/readme/icon.png" width="64" alt="">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/icon-dark.png">
+  <img src="docs/readme/icon-light.png" width="64" alt="">
+</picture>
 
 # Skissa
 

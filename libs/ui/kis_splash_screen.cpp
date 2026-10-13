@@ -46,7 +46,7 @@ KisSplashScreen::KisSplashScreen(int height, QWidget *parent, Qt::WindowFlags f)
 {
     setWindowTitle(KisProfile::name());
 #ifndef Q_OS_MACOS
-    setWindowIcon(KisIconUtils::loadIcon("krita-branding"));
+    setWindowIcon(QIcon(QStringLiteral(":/krita-branding.svgz")));
 #endif
 
     setLayout(new QVBoxLayout());
@@ -61,7 +61,8 @@ KisSplashScreen::KisSplashScreen(int height, QWidget *parent, Qt::WindowFlags f)
     m_loadingTextLabel->setAlignment(Qt::AlignRight | Qt::AlignTop);
     addDropShadow(m_loadingTextLabel);
 
-    m_brandingSvg = new QSvgWidget(QStringLiteral(":/krita-branding.svgz"), m_lblSplash);
+    m_brandingSvg = new QSvgWidget(QStringLiteral(":/light_krita-branding.svgz"), m_lblSplash);
+    addDropShadow(m_brandingSvg);
     m_bannerSvg = new QSvgWidget(QStringLiteral(":/splash/banner.svg"), m_lblSplash);
     addDropShadow(m_bannerSvg);
 
