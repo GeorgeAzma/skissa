@@ -31,6 +31,7 @@
 #include <QMimeData>
 #include <QPainter>
 #include <QPointer>
+#include <QProcess>
 #include <QPushButton>
 #include <QScreen>
 #include <QScrollArea>
@@ -59,6 +60,7 @@
 #include <KoResourcePaths.h>
 
 #include "KisMainWindow.h"
+#include "KisPart.h"
 #include "KisModernStyle.h"
 #include "KisSettingsRegistry.h"
 #include "KisSettingsTransfer.h"
@@ -590,22 +592,29 @@ struct Builder {
         if (const Setting *s = id.isEmpty() ? nullptr : registry()->setting(id)) {
             QStringList notes;
             if (!s->help.isEmpty()) notes << s->help;
-            if (s->flags & R::Restart) notes << i18nc("@info:tooltip", "After a restart");
             if (s->flags & R::NewViews) notes << i18nc("@info:tooltip", "For images opened from now on");
             if (s->flags & R::Machine) notes << i18nc("@info:tooltip", "Stays on this computer: not exported");
             if (!notes.isEmpty()) row->setToolTip(notes.join(QStringLiteral("\n\n")));
-            if (s->flags & R::Restart) {
-                auto *mark = new QLabel(row);
-                mark->setPixmap(KisIconUtils::loadIcon(QStringLiteral("studio_refresh")).pixmap(12, 12));
-                mark->setToolTip(i18nc("@info:tooltip", "After a restart"));
-                line->insertWidget(1, mark);
-            }
+            if (s->flags & R::Restart) line->insertWidget(1, restartMark(id, row));
         }
         if (controlBelow) box->addWidget(control);
         else box->addWidget(control, 0, Qt::AlignRight | Qt::AlignVCenter);
         row->setMinimumHeight(controlBelow ? 0 : 30);
         layout->addWidget(row);
         return row;
+    }
+
+    /// A quiet mark that \p id applies after a restart; lit once a change of it waits for one
+    QLabel *restartMark(const QString &id, QWidget *parent)
+    {
+        auto *mark = new QLabel(parent);
+        mark->setPixmap(KisIconUtils::loadIcon(QStringLiteral("studio_refresh")).pixmap(12, 12));
+        follow([mark, id]() {
+            const bool waiting = R::instance()->waitingForRestart().contains(id);
+            mark->setEnabled(waiting);
+            mark->setToolTip(waiting ? i18nc("@info:tooltip", "Restart Krita to apply") : i18nc("@info:tooltip", "Applies after a restart"));
+        });
+        return mark;
     }
 
     QWidget *toggle(const QString &id, const QString &label = QString())
@@ -816,6 +825,18 @@ struct SectionDef {
     QString title;
     QString icon;
 };
+
+/// Closes Krita as its window's close button does (unsaved images asked about) and starts it again
+void restartKrita()
+{
+    Q_FOREACH (QPointer<KisMainWindow> window, KisPart::instance()->mainWindows()) {
+        if (window && !window->close()) return; // kept open: an unsaved image's question was cancelled
+    }
+    QObject::connect(qApp, &QCoreApplication::aboutToQuit, []() {
+        QProcess::startDetached(QCoreApplication::applicationFilePath(), QStringList());
+    });
+    QTimer::singleShot(0, qApp, &QCoreApplication::quit);
+}
 
 QVector<SectionDef> builtinSections()
 {
@@ -1552,6 +1573,9 @@ public:
         m_mark->setFont(markFont);
         m_mark->setToolTip(i18nc("@info:tooltip", "Changed from Krita's default"));
         header->addWidget(m_mark);
+        if (const Setting *s = def.toggleId.isEmpty() ? nullptr : R::instance()->setting(def.toggleId)) {
+            if (s->flags & R::Restart) header->addWidget(m_builder.restartMark(def.toggleId, this));
+        }
         header->addStretch(1);
         // a card that is one switch: it, by its title
         if (!def.toggleId.isEmpty()) header->addWidget(m_builder.boundSwitch(def.toggleId));
@@ -2209,7 +2233,8 @@ struct KisStudioSettings::Private
     QWidget *keysHolder {nullptr};
     QPointer<KisKeysPage> keys;
     QWidget *review {nullptr};
-    QLabel *footer {nullptr};
+    /// Shown while changes wait for a restart: restarts Krita
+    QPushButton *footer {nullptr};
     QPushButton *undo {nullptr};
     QLabel *status {nullptr};
     QTimer statusTimer;
@@ -2281,7 +2306,7 @@ struct KisStudioSettings::Private
         Q_FOREACH (const QString &id, R::instance()->waitingForRestart()) {
             if (const Setting *s = R::instance()->setting(id)) waiting << s->label;
         }
-        footer->setText(waiting.isEmpty() ? QString() : i18nc("@info", "After a restart: %1", waiting.join(QStringLiteral(", "))));
+        footer->setToolTip(i18nc("@info:tooltip what a restart applies", "Applies %1", waiting.join(QStringLiteral(", "))));
         footer->setVisible(!waiting.isEmpty());
         bool differs = false;
         for (auto it = opened.constBegin(); it != opened.constEnd() && !differs; ++it) {
@@ -2835,8 +2860,11 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
     connect(&d->statusTimer, &QTimer::timeout, d->status, &QWidget::hide);
 
     auto *footer = new QHBoxLayout();
-    d->footer = dimLabel(QString(), this);
-    footer->addWidget(d->footer, 1);
+    d->footer = new QPushButton(KisIconUtils::loadIcon(QStringLiteral("studio_refresh")), i18nc("@action:button restart Krita", "Restart"), this);
+    d->footer->hide();
+    connect(d->footer, &QPushButton::clicked, this, []() { restartKrita(); });
+    footer->addWidget(d->footer, 0, Qt::AlignLeft);
+    footer->addStretch(1);
     d->undo = new QPushButton(i18nc("@action:button undo the changes made since Settings opened", "Undo"), this);
     d->undo->setToolTip(i18nc("@info:tooltip", "Undo all changes since Settings opened"));
     footer->addWidget(d->undo, 0, Qt::AlignRight);
@@ -3002,9 +3030,7 @@ bool KisStudioSettings::event(QEvent *event)
     if (event->type() == QEvent::ApplicationPaletteChange) {
         // another theme: what was made in the old colors (dimmed text, marks, icons), made again
         QTimer::singleShot(0, this, [this]() {
-            QPalette dim = d->footer->palette();
-            dim.setColor(QPalette::WindowText, KisModernStyle::secondaryInk(palette().color(QPalette::WindowText)));
-            d->footer->setPalette(dim);
+            d->footer->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_refresh")));
             d->updateRail();
             if (isVisible() && d->stack->currentWidget() != d->review) d->rebuild();
             if (d->quick && d->quick->isVisible()) d->quick->rebuild();
