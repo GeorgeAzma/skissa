@@ -108,7 +108,7 @@ int quantile(std::vector<int> &values, qreal quantile, size_t enough)
 } // namespace
 
 void KisLineArtFill::grow(KisPixelSelectionSP region, KisPaintDeviceSP reference, const KoColor &seedColor, int threshold,
-                          bool underLines, int speckSize, int closeGap, const QRect &bounds)
+                          bool underLines, int speckSize, int closeGap, const QRect &bounds, KisPaintDeviceSP target)
 {
     if (!region || !reference || (!underLines && speckSize <= 1 && closeGap <= 0)) return;
     const QRect filled = region->selectedExactRect() & bounds;
@@ -139,11 +139,25 @@ void KisLineArtFill::grow(KisPixelSelectionSP region, KisPaintDeviceSP reference
     // line, a color filled earlier, the solid middle of a thick line. Areas without an inside have no say:
     // the soft edges of lines (thin bands, however long), specks, and corners the gap closing cut off
     // (they touch the region without a line between).
-    const int pixelSize = reference->pixelSize();
-    const KoColorSpace *colorSpace = reference->colorSpace();
-    std::vector<quint8> pixels(size_t(count) * pixelSize);
-    reference->readBytes(pixels.data(), area);
-    auto pixel = [&](int i) { return pixels.data() + size_t(i) * pixelSize; };
+    // the color difference of KoColorSpace::differenceA, from Lab taken once for the whole area: per pair
+    // of pixels, it would convert both every time
+    std::vector<quint16> lab(size_t(count) * 4);
+    {
+        const int pixelSize = reference->pixelSize();
+        std::vector<quint8> pixels(size_t(count) * pixelSize);
+        reference->readBytes(pixels.data(), area);
+        reference->colorSpace()->toLabA16(pixels.data(), reinterpret_cast<quint8 *>(lab.data()), count);
+    }
+    auto difference = [&](int i, int j) {
+        const quint16 *a = lab.data() + size_t(i) * 4, *b = lab.data() + size_t(j) * 4;
+        const int alphaA = qRound(a[3] / 257.0), alphaB = qRound(b[3] / 257.0);
+        if (alphaA == 0 || alphaB == 0) return qRound(100.0 / 255.0 * qAbs(alphaA - alphaB));
+        const qreal dL = (int(a[0]) - int(b[0])) / 655.35;
+        const qreal da = (int(a[1]) - int(b[1])) / 257.0;
+        const qreal db = (int(a[2]) - int(b[2])) / 257.0;
+        const qreal dAlpha = (int(a[3]) - int(b[3])) * 100.0 / 65535.0;
+        return int(qMin<qreal>(255.0, std::sqrt(dL * dL + da * da + db * db + dAlpha * dAlpha)));
+    };
     const int speckArea = qMax(speckSize * speckSize, 4);
     const int cornerArea = closeGap > 0 ? 9 * closeGap * closeGap : 0;
     // while areas are found, their pixels carry a tag below these
@@ -152,7 +166,6 @@ void KisLineArtFill::grow(KisPixelSelectionSP region, KisPaintDeviceSP reference
     qint32 next = 2, tag = absorbed;
     for (int start = 0; start < count; start++) {
         if (labels[start]) continue;
-        const quint8 *color = pixel(start);
         members.clear();
         stack.push_back(start);
         labels[start] = --tag;
@@ -164,7 +177,7 @@ void KisLineArtFill::grow(KisPixelSelectionSP region, KisPaintDeviceSP reference
             forNeighbors(i, width, height, [&](int j) {
                 if (own[j]) {
                     touchesRegion = true;
-                } else if (!labels[j] && colorSpace->differenceA(color, pixel(j)) <= threshold) {
+                } else if (!labels[j] && difference(start, j) <= threshold) {
                     labels[j] = tag;
                     stack.push_back(j);
                 }
@@ -199,10 +212,20 @@ void KisLineArtFill::grow(KisPixelSelectionSP region, KisPaintDeviceSP reference
 
     watershed(level, labels, width, height);
 
+    // under lines only where the layer filled has no ink of its own: on the layer of the lines it would cover them
+    std::vector<bool> targetInk;
+    if (underLines && target) {
+        const QImage image = target->convertToQImage(nullptr, area.x(), area.y(), area.width(), area.height());
+        targetInk.resize(size_t(count));
+        for (int y = 0; y < height; y++) {
+            const QRgb *row = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+            for (int x = 0; x < width; x++) targetInk[size_t(y) * width + x] = qAlpha(row[x]) * (255 - qGray(row[x])) / 255 > 64;
+        }
+    }
     KisSequentialIterator it(region, area);
     int i = 0;
     while (it.nextPixel()) {
-        if (!own[i] && labels[i] == 1 && (underLines || open(i))) *it.rawData() = MAX_SELECTED;
+        if (!own[i] && labels[i] == 1 && (open(i) || (underLines && (targetInk.empty() || !targetInk[i])))) *it.rawData() = MAX_SELECTED;
         i++;
     }
     region->invalidateOutlineCache();

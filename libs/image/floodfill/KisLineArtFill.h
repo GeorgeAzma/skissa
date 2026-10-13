@@ -30,10 +30,11 @@ public:
      * around it, up to where they meet the areas next to it: the middle of a thin line, the solid
      * part of a thick one. Areas smaller than \p speckSize pixels across (dust, paper between
      * hatching) have no say and are taken in by what surrounds them; so are the corners a gap
-     * closing of \p closeGap cut off. With \p underLines false only the open ones are taken in.
+     * closing of \p closeGap cut off. With \p underLines false only the open ones are taken in. Ink
+     * on \p target, the layer filled, is never covered: when it holds the lines itself, they stay.
      */
     static void grow(KisPixelSelectionSP region, KisPaintDeviceSP reference, const KoColor &seedColor, int threshold,
-                     bool underLines, int speckSize, int closeGap, const QRect &bounds);
+                     bool underLines, int speckSize, int closeGap, const QRect &bounds, KisPaintDeviceSP target = nullptr);
 
     /**
      * How wide the lines near \p point are, in pixels: the dark ink, whatever colors are around it. Half

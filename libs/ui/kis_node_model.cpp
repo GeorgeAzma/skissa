@@ -830,7 +830,7 @@ bool KisNodeModel::dropMimeData(const QMimeData * data, Qt::DropAction action, i
     KoColor color;
     if (row == -1 && parent.isValid() && KisColorDrop::colorOf(data, &color)) {
         KisNodeSP node = nodeFromIndex(parent);
-        if (node && node->paintDevice() && !qobject_cast<KisGroupLayer *>(node.data())) {
+        if (KisColorDrop::canRecolor(node)) {
             KisColorDrop::recolor(m_d->image, node, color);
             return true;
         }
@@ -893,7 +893,7 @@ void KisNodeModel::updateColorDropEnabled(QModelIndex parent)
     for (int r = 0; r < rowCount(parent); r++) {
         const QModelIndex idx = index(r, 0, parent);
         KisNodeSP node = nodeFromIndex(idx);
-        if (node && node->paintDevice() && node->isEditable(false) && !qobject_cast<KisGroupLayer *>(node.data())) {
+        if (KisColorDrop::canRecolor(node)) {
             m_d->dropEnabled.insert(idx.internalId());
             Q_EMIT dataChanged(idx, idx);
         }

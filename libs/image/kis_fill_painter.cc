@@ -388,10 +388,11 @@ KisPixelSelectionSP KisFillPainter::createFloodSelection(KisPixelSelectionSP pix
         }
     }
 
-    if (m_useCompositing && m_regionFillingMode == RegionFillingMode_FloodFill && (m_underLines || m_speckSize > 1)
+    // specks alone change nothing on the layer that is read: there, only open pixels are taken in
+    if (m_useCompositing && m_regionFillingMode == RegionFillingMode_FloodFill && (m_underLines || m_closeGap > 0)
         && !sourceDevice->defaultBounds()->wrapAroundMode()) {
         KisLineArtFill::grow(pixelSelection, sourceDevice, sourceDevice->pixel(startPoint), m_threshold, m_underLines,
-                             m_speckSize, m_closeGap, fillBoundsRect);
+                             m_speckSize, m_closeGap, fillBoundsRect, m_lineArtTarget);
     }
 
     if (m_useCompositing) {

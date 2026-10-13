@@ -428,11 +428,13 @@ public:
 
     /**
      *  Sets if a flood fill reaches under the lines around it to their middle, and the size of the
-     *  specks it takes in (see KisLineArtFill). For filling another layer than the one it reads.
+     *  specks it takes in (see KisLineArtFill). For filling another layer than the one it reads;
+     *  \p target, the layer filled, keeps any ink it holds itself.
      */
-    void setLineArt(bool underLines, int speckSize) {
+    void setLineArt(bool underLines, int speckSize, KisPaintDeviceSP target = nullptr) {
         m_underLines = underLines;
         m_speckSize = speckSize;
+        m_lineArtTarget = target;
     }
 
     /// What the last fill covered (the selection taken into account); null for a fill in fast mode
@@ -475,6 +477,7 @@ private:
     bool m_stopGrowingAtDarkestPixel;
     bool m_underLines {false};
     int m_speckSize {0};
+    KisPaintDeviceSP m_lineArtTarget;
 };
 
 #endif //KIS_FILL_PAINTER_H_

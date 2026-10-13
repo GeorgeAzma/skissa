@@ -49,6 +49,8 @@ public:
     /// Drags \p color out of \p source, shown as a round swatch under the pointer. Returns when it is dropped.
     static void startDrag(QWidget *source, const QColor &color);
 
+    /// Whether a color dropped on \p node can recolor it: a paint layer that can be edited
+    static bool canRecolor(KisNodeSP node);
     /// Gives every pixel of \p node \p color, keeping its transparency. One undo step.
     static void recolor(KisImageSP image, KisNodeSP node, const KoColor &color);
 

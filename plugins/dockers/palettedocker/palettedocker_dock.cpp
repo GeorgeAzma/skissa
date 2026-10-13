@@ -497,13 +497,15 @@ private:
         auto *drag = new QDrag(this);
         auto *mime = new QMimeData();
         mime->setData(swatchMimeType, QByteArray::number(from.row()) + ',' + QByteArray::number(from.column()));
+        // its color too, so it fills where it is dropped on the canvas or recolors a layer it is dropped on
+        mime->setColorData(swatchColor(from));
         drag->setMimeData(mime);
         drag->setPixmap(swatchPixmap(swatchColor(from), m_cell, 4, devicePixelRatioF()));
         drag->setHotSpot(QPoint(m_cell / 2, m_cell / 2));
 
         m_dragging = true;
         update();
-        const Qt::DropAction result = drag->exec(Qt::MoveAction);
+        const Qt::DropAction result = drag->exec(Qt::MoveAction | Qt::CopyAction, Qt::MoveAction);
         m_dragging = false;
         m_dropRect = QRect();
         update();

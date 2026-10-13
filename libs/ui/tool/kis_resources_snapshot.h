@@ -89,6 +89,8 @@ public:
     bool presetNeedsAsynchronousUpdates() const;
 
     void setFGColorOverride(const KoColor &color);
+    /// Whether the window's Preserve Alpha applies (the layer's own lock always does)
+    void setGlobalAlphaLock(bool on);
     void setBGColorOverride(const KoColor &color);
     void setSelectionOverride(KisSelectionSP selection);
     void setBrush(const KisPaintOpPresetSP &brush);

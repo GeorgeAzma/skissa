@@ -16,6 +16,8 @@
 #include <QTabletEvent>
 #include <QTimer>
 #include <QToolButton>
+#include <new>
+
 #include <QtConcurrent>
 
 #include <KoColor.h>
@@ -306,7 +308,6 @@ struct KisColorDrop::Private {
     QPoint pointer;
     QPoint seed {-1, -1};
     int threshold {8};
-    int closeGap {0};
     /// The area last shown, to skip work while the pointer stays inside it.
     KisPixelSelectionSP region;
     int generation {0};
@@ -376,7 +377,7 @@ struct KisColorDrop::Private {
         KisPaintDeviceSP reference = new KisPaintDevice(*image->projection());
         const QRect bounds = image->bounds();
         const QPoint at = seed;
-        const int t = threshold, gap = closeGap;
+        const int t = threshold;
         const Options o = options;
         const QColor tint = color.toQColor();
         struct Result {
@@ -397,9 +398,10 @@ struct KisColorDrop::Private {
             }
             if (pending) compute();
         });
-        watcher->setFuture(QtConcurrent::run([reference, at, t, gap, o, bounds, tint]() {
+        watcher->setFuture(QtConcurrent::run([reference, at, t, o, bounds, tint]() {
             Result result;
-            result.region = regionAt(reference, at, t, gap, o, bounds);
+            // the gap too, as finding the width of the lines nearby reads a piece of the image
+            result.region = regionAt(reference, at, t, gapFor(o, reference, at, bounds), o, bounds);
             result.rect = result.region->selectedExactRect();
             result.overlay = tintedOverlay(result.region, result.rect, tint);
             return result;
@@ -529,7 +531,6 @@ void KisColorDrop::hover(const KoColor &color, const QPoint &canvasPos)
         return;
     }
     d->seed = point;
-    d->closeGap = gapFor(d->options, image->projection(), point, image->bounds());
     d->compute();
 }
 
@@ -577,6 +578,8 @@ bool KisColorDrop::drop(const KoColor &color, const QPoint &canvasPos)
     KisResourcesSnapshotSP resources =
         new KisResourcesSnapshot(image, node, viewManager->canvasResourceProvider()->resourceManager());
     resources->setFGColorOverride(color.convertedTo(image->colorSpace()));
+    // a new layer is empty: with Preserve Alpha the fill would show nowhere
+    if (target.newLayer) resources->setGlobalAlphaLock(false);
 
     FillProcessingVisitor *visitor = new FillProcessingVisitor(image->projection(), resources->activeSelection(), resources);
     visitor->setSeedPoint(point);
@@ -631,9 +634,15 @@ void KisColorDrop::startDrag(QWidget *source, const QColor &color)
     drag->exec(Qt::CopyAction);
 }
 
+bool KisColorDrop::canRecolor(KisNodeSP node)
+{
+    // pixels of its own to recolor: a fill or filter layer's device, or a mask's, is only where it applies
+    return node && qobject_cast<KisPaintLayer *>(node.data()) && node->isEditable(false);
+}
+
 void KisColorDrop::recolor(KisImageSP image, KisNodeSP node, const KoColor &color)
 {
-    if (!image || !node || !node->paintDevice() || !node->isEditable()) return;
+    if (!image || !canRecolor(node)) return;
     KisStrokeStrategyUndoCommandBased *strategy =
         new KisStrokeStrategyUndoCommandBased(kundo2_i18n("Recolor Layer"), false, image.data());
     KisStrokeId stroke = image->startStroke(strategy);
@@ -669,6 +678,11 @@ void KisColorDrop::autoFlats(KisViewManager *viewManager)
     if (!image) return;
     KisNodeSP active = viewManager->activeNode();
     const bool fromLayer = active && qobject_cast<KisPaintLayer *>(active.data()) && !active->paintDevice()->exactBounds().isEmpty();
+    // its working buffers take about twenty bytes a pixel
+    if (qint64(image->bounds().width()) * image->bounds().height() > 60'000'000) {
+        viewManager->showFloatingMessage(i18nc("@info:status", "Too large for flats"), KisIconUtils::loadIcon(QStringLiteral("krita_tool_color_fill")), 2000);
+        return;
+    }
     KisPaintDeviceSP lines = new KisPaintDevice(fromLayer ? *active->paintDevice() : *image->projection());
     const QRect bounds = image->bounds();
     const Options options = Options::read();
@@ -690,7 +704,7 @@ void KisColorDrop::autoFlats(KisViewManager *viewManager)
                                             OPACITY_OPAQUE_U8, flats);
         if (fromLayer && active && active->parent()) {
             // under clear line art; over opaque line art, multiplied, so the lines show through
-            const bool opaque = active->paintDevice()->exactBounds() == image->bounds()
+            const bool opaque = active->paintDevice()->exactBounds().contains(image->bounds())
                 && active->paintDevice()->pixel(image->bounds().center()).opacityU8() == OPACITY_OPAQUE_U8;
             if (opaque) target.newLayer->setCompositeOpId(COMPOSITE_MULT);
             target.parent = active->parent();
@@ -706,8 +720,13 @@ void KisColorDrop::autoFlats(KisViewManager *viewManager)
         addLayerJob(image, stroke, target);
         image->endStroke(stroke);
     });
-    watcher->setFuture(QtConcurrent::run([lines, bounds, options, colorSpace]() {
-        return KisLineArtFill::flats(lines, bounds, gapFor(options, lines, bounds.center(), bounds, 0.75), options.speckSize, colorSpace);
+    watcher->setFuture(QtConcurrent::run([lines, bounds, options, colorSpace]() -> KisPaintDeviceSP {
+        // an exception thrown here would be thrown again in the window's event loop, and end the app
+        try {
+            return KisLineArtFill::flats(lines, bounds, gapFor(options, lines, bounds.center(), bounds, 0.75), options.speckSize, colorSpace);
+        } catch (const std::bad_alloc &) {
+            return nullptr;
+        }
     }));
 }
 
@@ -715,6 +734,9 @@ bool KisColorDrop::eventFilter(QObject *watched, QEvent *event)
 {
     // Keeping on filling: a tap on the canvas fills, a drag does nothing, Esc or a right click stops.
     if (!d->keepFilling || watched != d->canvasWidget()) return false;
+    // a pen's tap arrives as a tablet event and then again as a mouse event made from it: one fill
+    if (auto *mouse = dynamic_cast<QMouseEvent *>(event); mouse && mouse->source() != Qt::MouseEventNotSynthesized) return true;
+    if (dynamic_cast<QTabletEvent *>(event)) event->accept();
     auto position = [event]() -> QPoint {
         if (auto *tablet = dynamic_cast<QTabletEvent *>(event)) return tablet->pos();
         return static_cast<QMouseEvent *>(event)->pos();

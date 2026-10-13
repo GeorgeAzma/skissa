@@ -471,6 +471,11 @@ void KisResourcesSnapshot::setFGColorOverride(const KoColor &color)
     m_d->currentFgColor = color;
 }
 
+void KisResourcesSnapshot::setGlobalAlphaLock(bool on)
+{
+    m_d->globalAlphaLock = on;
+}
+
 void KisResourcesSnapshot::setBGColorOverride(const KoColor &color)
 {
     m_d->currentBgColor = color;

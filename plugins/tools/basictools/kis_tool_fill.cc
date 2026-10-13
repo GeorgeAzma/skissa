@@ -368,7 +368,7 @@ void KisToolFill::addFillingOperation(const QVector<QPoint> &seedPoints)
                                  m_opacitySpread == 100 &&
                                  m_useSelectionAsBoundary == false &&
                                  !m_antiAlias && m_sizemod == 0 && m_feather == 0 &&
-                                 m_closeGap == 0 && m_speckSize <= 1 &&
+                                 m_closeGap == 0 &&
                                  m_reference == Reference_CurrentLayer;
 
         visitor->setSeedPoints(seedPoints);
