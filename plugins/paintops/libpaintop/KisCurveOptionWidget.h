@@ -97,16 +97,6 @@ protected Q_SLOTS:
     void updateThemedIcons();
 
 
-    // curve shape preset buttons
-    void changeCurveLinear();
-    void changeCurveReverseLinear();
-    void changeCurveSShape();
-    void changeCurveReverseSShape();
-    void changeCurveJShape();
-    void changeCurveLShape();
-    void changeCurveUShape();
-    void changeCurveArchShape();
-
 
 protected:
     QWidget* m_widget {nullptr};

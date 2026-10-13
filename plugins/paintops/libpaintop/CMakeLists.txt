@@ -25,6 +25,7 @@ set(kritalibpaintop_LIB_SRCS
     KisCurveRangeModel.cpp
     KisCurveOptionModel.cpp
     KisCurveOptionWidget.cpp
+    KisCurvePresetStrip.cpp
     KisCurveOption.cpp
     KisMultiSensorsSelector.cpp
     KisMultiSensorsModel.cpp

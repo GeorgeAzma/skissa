@@ -24,6 +24,7 @@
 #include <KisCurveWidgetConnectionHelper.h>
 #include <KisCurveRangeModel.h>
 #include <KisCurveOptionInputControlsStrategy.h>
+#include <KisCurvePresetStrip.h>
 
 namespace
 {
@@ -190,18 +191,20 @@ KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommo
             &KisMultiSensorsSelector::highlightedSensorChanged,
             std::bind(&KisCurveOptionModel::setactiveSensorId, &m_d->model, std::placeholders::_1));
 
-    // set all the icons for the curve preset shapes
     updateThemedIcons();
 
-    // various curve preset buttons with predefined curves
-    connect(m_curveOptionWidget->linearCurveButton, SIGNAL(clicked(bool)), this, SLOT(changeCurveLinear()));
-    connect(m_curveOptionWidget->revLinearButton, SIGNAL(clicked(bool)), this, SLOT(changeCurveReverseLinear()));
-    connect(m_curveOptionWidget->jCurveButton, SIGNAL(clicked(bool)), this, SLOT(changeCurveJShape()));
-    connect(m_curveOptionWidget->lCurveButton, SIGNAL(clicked(bool)), this, SLOT(changeCurveLShape()));
-    connect(m_curveOptionWidget->sCurveButton, SIGNAL(clicked(bool)), this, SLOT(changeCurveSShape()));
-    connect(m_curveOptionWidget->reverseSCurveButton, SIGNAL(clicked(bool)), this, SLOT(changeCurveReverseSShape()));
-    connect(m_curveOptionWidget->uCurveButton, SIGNAL(clicked(bool)), this, SLOT(changeCurveUShape()));
-    connect(m_curveOptionWidget->revUCurveButton, SIGNAL(clicked(bool)), this, SLOT(changeCurveArchShape()));
+    // curves picked at a click: Linear, Soft, Firm and your own, each drawn as it is
+    for (QWidget *old : {static_cast<QWidget *>(m_curveOptionWidget->linearCurveButton), static_cast<QWidget *>(m_curveOptionWidget->revLinearButton),
+                         static_cast<QWidget *>(m_curveOptionWidget->jCurveButton), static_cast<QWidget *>(m_curveOptionWidget->lCurveButton),
+                         static_cast<QWidget *>(m_curveOptionWidget->sCurveButton), static_cast<QWidget *>(m_curveOptionWidget->reverseSCurveButton),
+                         static_cast<QWidget *>(m_curveOptionWidget->uCurveButton), static_cast<QWidget *>(m_curveOptionWidget->revUCurveButton)}) {
+        old->setVisible(false);
+    }
+    auto *presets = new KisCurvePresetStrip(m_widget);
+    m_curveOptionWidget->horizontalLayout_2->insertWidget(0, presets);
+    connect(presets, &KisCurvePresetStrip::picked, &m_d->model, &KisCurveOptionModel::setdisplayedCurve);
+    connect(&m_d->model, &KisCurveOptionModel::displayedCurveChanged, presets, &KisCurvePresetStrip::setCurrent);
+    presets->setCurrent(m_d->model.displayedCurve());
 
     m_curveOptionWidget->strengthSlider->setPrefix(strengthPrefix);
     m_curveOptionWidget->strengthSlider->setSuffix(strengthSuffix);
@@ -237,12 +240,9 @@ KisCurveOptionWidget::KisCurveOptionWidget(lager::cursor<KisCurveOptionDataCommo
         m_curveOptionWidget->checkBoxUseSameCurve->setVisible(false);
     }
 
-    if (flags & SupportsCurveMode) {
-        connectControl(m_curveOptionWidget->curveMode, &m_d->model, "curveMode");
-    } else {
-        m_curveOptionWidget->curveMode->setVisible(false);
-        m_curveOptionWidget->lblCurveMode->setVisible(false);
-    }
+    // the sensors' curves multiply: a preset combining them otherwise keeps its way, with no choice shown
+    m_curveOptionWidget->curveMode->setVisible(false);
+    m_curveOptionWidget->lblCurveMode->setVisible(false);
 
     m_d->model.optionData.bind(std::bind(&KisCurveOptionWidget::emitSettingChanged, this));
 }
@@ -324,91 +324,17 @@ QWidget* KisCurveOptionWidget::curveWidget()
     return m_widget;
 }
 
-void KisCurveOptionWidget::changeCurveLinear()
-{
-    QList<QPointF> points;
-    points.push_back(QPointF(0,0));
-    points.push_back(QPointF(1,1));
-    m_d->model.setdisplayedCurve(KisCubicCurve(points).toString());
-}
-
-void KisCurveOptionWidget::changeCurveReverseLinear()
-{
-    QList<QPointF> points;
-    points.push_back(QPointF(0,1));
-    points.push_back(QPointF(1,0));
-    m_d->model.setdisplayedCurve(KisCubicCurve(points).toString());
-}
-
-void KisCurveOptionWidget::changeCurveSShape()
-{
-    QList<QPointF> points;
-    points.push_back(QPointF(0,0));
-    points.push_back(QPointF(0.25,0.1));
-    points.push_back(QPointF(0.75,0.9));
-    points.push_back(QPointF(1, 1));
-    m_d->model.setdisplayedCurve(KisCubicCurve(points).toString());
-}
 
 
-void KisCurveOptionWidget::changeCurveReverseSShape()
-{
-    QList<QPointF> points;
-    points.push_back(QPointF(0,1));
-    points.push_back(QPointF(0.25,0.9));
-    points.push_back(QPointF(0.75,0.1));
-    points.push_back(QPointF(1,0));
-    m_d->model.setdisplayedCurve(KisCubicCurve(points).toString());
-}
 
-void KisCurveOptionWidget::changeCurveJShape()
-{
-    QList<QPointF> points;
-    points.push_back(QPointF(0,0));
-    points.push_back(QPointF(0.35,0.1));
-    points.push_back(QPointF(1,1));
-    m_d->model.setdisplayedCurve(KisCubicCurve(points).toString());
-}
 
-void KisCurveOptionWidget::changeCurveLShape()
-{
-    QList<QPointF> points;
-    points.push_back(QPointF(0,1));
-    points.push_back(QPointF(0.25,0.48));
-    points.push_back(QPointF(1,0));
-    m_d->model.setdisplayedCurve(KisCubicCurve(points).toString());
-}
 
-void KisCurveOptionWidget::changeCurveUShape()
-{
-    QList<QPointF> points;
-    points.push_back(QPointF(0,1));
-    points.push_back(QPointF(0.5,0));
-    points.push_back(QPointF(1,1));
-    m_d->model.setdisplayedCurve(KisCubicCurve(points).toString());
-}
 
-void KisCurveOptionWidget::changeCurveArchShape()
-{
-    QList<QPointF> points;
-    points.push_back(QPointF(0,0));
-    points.push_back(QPointF(0.5,1));
-    points.push_back(QPointF(1,0));
-    m_d->model.setdisplayedCurve(KisCubicCurve(points).toString());
-}
+
+
 
 void KisCurveOptionWidget::updateThemedIcons()
 {
-    // set all the icons for the curve preset shapes
-    m_curveOptionWidget->linearCurveButton->setIcon(KisIconUtils::loadIcon("curve-preset-linear"));
-    m_curveOptionWidget->revLinearButton->setIcon(KisIconUtils::loadIcon("curve-preset-linear-reverse"));
-    m_curveOptionWidget->jCurveButton->setIcon(KisIconUtils::loadIcon("curve-preset-j"));
-    m_curveOptionWidget->lCurveButton->setIcon(KisIconUtils::loadIcon("curve-preset-l"));
-    m_curveOptionWidget->sCurveButton->setIcon(KisIconUtils::loadIcon("curve-preset-s"));
-    m_curveOptionWidget->reverseSCurveButton->setIcon(KisIconUtils::loadIcon("curve-preset-s-reverse"));
-    m_curveOptionWidget->uCurveButton->setIcon(KisIconUtils::loadIcon("curve-preset-u"));
-    m_curveOptionWidget->revUCurveButton->setIcon(KisIconUtils::loadIcon("curve-preset-arch"));
-
     // this helps make the checkboxes show themselves on the dark color themes
     QPalette pal = m_curveOptionWidget->sensorSelector->palette();
     QPalette newPalette = pal;

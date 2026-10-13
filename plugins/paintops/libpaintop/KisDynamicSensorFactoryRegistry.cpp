@@ -17,7 +17,7 @@ Q_GLOBAL_STATIC(KisDynamicSensorFactoryRegistry, s_instance)
 
 KisDynamicSensorFactoryRegistry::KisDynamicSensorFactoryRegistry()
 {
-    addImpl(PressureId, 0, 100, i18n("0.0"), i18n("1.0"), i18n("%"));
+    addImpl(PressureId, 0, 100, i18nc("pen pressure", "Light"), i18nc("pen pressure", "Hard"), i18n("%"));
 
     addImpl(FuzzyPerDabId, 0, 100, "", "", i18n("%"));
     addImpl(FuzzyPerStrokeId, 0, 100, "", "", i18n("%"));

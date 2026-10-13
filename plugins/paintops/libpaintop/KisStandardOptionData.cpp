@@ -17,8 +17,8 @@ KisCurveOptionWidget *createOpacityOptionWidgetImpl(KisPaintOpOption::PaintopCat
 {
     return createCurveOptionWidget(KisOpacityOptionData(prefix),
                                    category,
-                                   i18n("Transparent"),
-                                   i18n("Opaque"));
+                                   i18n("0%"),
+                                   i18n("100%"));
 }
 KisCurveOptionWidget *createRotationOptionWidgetImpl(KisPaintOpOption::PaintopCategory category, const QString &prefix)
 {
