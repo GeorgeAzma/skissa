@@ -471,7 +471,7 @@ QVector<Setting> describeAll()
         all << sampler;
         all << number(QStringLiteral("colorSamplerPreviewCircleDiameter"), 180, 1, 400, i18nc("setting", "Sampler ring size"));
         all << toggle(QStringLiteral("colorSamplerPreviewCircleExtraCirclesEnabled"), true, i18nc("setting", "Sampler ring comparison"));
-        all << toggle(QStringLiteral("colorSamplerZoomPreviewEnabled"), false, i18nc("setting", "Sampler magnifier"));
+        all << toggle(QStringLiteral("colorSamplerZoomPreviewEnabled"), true, i18nc("setting", "Sampler magnifier"));
         all << number(QStringLiteral("colorSamplerZoomPreviewScale"), 10.0, 1, 50, i18nc("setting", "Sampler magnification"));
 
         all << color(QStringLiteral("checkerscolor"), QColor(220, 220, 220), i18nc("setting", "Checkerboard squares"));

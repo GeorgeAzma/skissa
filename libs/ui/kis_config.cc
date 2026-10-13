@@ -506,7 +506,8 @@ void KisConfig::setColorSamplerPreviewCircleExtraCirclesEnabled(bool enabled)
 }
 
 bool KisConfig::colorSamplerZoomPreviewEnabled(bool defaultValue) const {
-    bool def = false;
+    // a loupe: the pixels under the pointer, enlarged, inside the ring
+    bool def = true;
     if (!defaultValue) {
         return m_cfg.readEntry("colorSamplerZoomPreviewEnabled", def);
     }
