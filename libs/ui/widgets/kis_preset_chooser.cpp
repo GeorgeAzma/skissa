@@ -42,6 +42,9 @@
 #include <KisModernStyle.h>
 #include "KisPresetStrokeThumbnails.h"
 #include <KisIconToolTip.h>
+#include <QHelpEvent>
+#include <QCursor>
+#include <QAbstractScrollArea>
 
 
 /// The resource item delegate for rendering the resource preview
@@ -244,6 +247,19 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
                 if (!stroke.isNull()) return stroke;
             }
             return picture;
+        });
+        // a stroke made while its tip is up: the tip again, with it
+        QObject::connect(KisPresetStrokeThumbnails::instance(), &KisPresetStrokeThumbnails::changed, qApp, []() {
+            Q_FOREACH (QWidget *top, QApplication::topLevelWidgets()) {
+                if (!top->isVisible() || !top->inherits("KoItemToolTip")) continue;
+                auto *view = qobject_cast<QAbstractScrollArea *>(top->parentWidget());
+                if (!view) continue;
+                QWidget *viewport = view->viewport();
+                const QPoint at = viewport->mapFromGlobal(QCursor::pos());
+                if (!viewport->rect().contains(at)) continue;
+                QHelpEvent help(QEvent::ToolTip, at, QCursor::pos());
+                QApplication::sendEvent(viewport, &help);
+            }
         });
     }
 

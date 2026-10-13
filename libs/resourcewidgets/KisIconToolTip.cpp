@@ -152,8 +152,10 @@ QTextDocument *KisIconToolTip::createDocument(const QModelIndex &index)
 
     const QImage cardImage = card(index);
     if (!cardImage.isNull()) {
-        doc->addResource(QTextDocument::ImageResource, QUrl("data:card"), cardImage);
-        doc->setHtml(QStringLiteral("<html><body><img src=\"data:card\"></body></html>"));
+        // named after the picture: another picture (a stroke made meanwhile) is another tip, shown again
+        const QString url = QStringLiteral("data:card%1").arg(cardImage.cacheKey());
+        doc->addResource(QTextDocument::ImageResource, QUrl(url), cardImage);
+        doc->setHtml(QStringLiteral("<html><body><img src=\"%1\"></body></html>").arg(url));
         doc->setDocumentMargin(10);
         doc->setTextWidth(cardImage.width() / cardImage.devicePixelRatio() + 20);
         return doc;
