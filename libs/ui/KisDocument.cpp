@@ -54,6 +54,7 @@
 
 #include <QTextBrowser>
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QBuffer>
 #include <QStandardPaths>
 #include <QDir>
@@ -1535,9 +1536,68 @@ void KisDocument::slotChildCompletedSavingInBackground(KisImportExportErrorCode 
     d->completeSavingConnection = {};
 }
 
+namespace {
+/**
+ * When the user last did anything (moved the pen, pressed a key): an autosave waits for a pause, not to stall
+ * a stroke or the one after it
+ */
+class InputClock : public QObject
+{
+public:
+    static InputClock *instance()
+    {
+        static InputClock *clock = nullptr;
+        if (!clock) {
+            clock = new InputClock();
+            clock->setParent(qApp);
+            qApp->installEventFilter(clock);
+        }
+        return clock;
+    }
+    qint64 sinceInput() const { return m_last.elapsed(); }
+
+protected:
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        switch (event->type()) {
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseMove:
+        case QEvent::TabletPress:
+        case QEvent::TabletMove:
+        case QEvent::TouchBegin:
+        case QEvent::TouchUpdate:
+        case QEvent::KeyPress:
+        case QEvent::Wheel:
+            m_last.restart();
+            break;
+        default:
+            break;
+        }
+        return false;
+    }
+
+private:
+    InputClock() { m_last.start(); }
+    QElapsedTimer m_last;
+};
+} // namespace
+
 void KisDocument::slotAutoSaveImpl(std::unique_ptr<KisDocument> &&optionalClonedDocument)
 {
     if (!d->modified || !d->modifiedAfterAutosave) return;
+    // while the user works, a moment later: never in the middle of drawing
+    constexpr qint64 pause = 3000;
+    if (!optionalClonedDocument && InputClock::instance()->sinceInput() < pause) {
+        // one wait at a time (the autosave timer may fire again meanwhile)
+        if (!property("autosaveWaiting").toBool()) {
+            setProperty("autosaveWaiting", true);
+            QTimer::singleShot(1000, this, [this]() {
+                setProperty("autosaveWaiting", false);
+                slotAutoSaveImpl(nullptr);
+            });
+        }
+        return;
+    }
     const QString autoSaveFileName = generateAutoSaveFileName(localFilePath());
 
     Q_EMIT statusBarMessage(i18n("Autosaving... %1", autoSaveFileName), successMessageTimeout);
@@ -2148,6 +2208,8 @@ void KisDocument::setModified(bool mod)
 {
     if (mod) {
         updateEditingTime(false);
+        // the autosave's pause is measured from now on
+        InputClock::instance();
     }
 
     /// 1) Ignore setModified calls due to autosaving
