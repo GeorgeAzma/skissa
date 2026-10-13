@@ -228,7 +228,7 @@ ICONS = {
     'timelapse': c(12, 12, 8.5) + p('M10.2 8.6v6.8l5.6-3.4Z'),
     'shapes': c(8.2, 8.2, 4.7) + sq(12.3, 12.3, 8.2, 8.2, 2),
     # the view turned around its axis
-    'mirror_view': p('M12 3.5v17') + p('M8.6 7.2 3.5 12l5.1 4.8Z') + p('M15.4 7.2l5.1 4.8-5.1 4.8Z'),
+    'mirror_view': solid('M10 6.5 3.5 12l6.5 5.5Z') + solid('M14 6.5l6.5 5.5-6.5 5.5Z'),
     'tool_options': p('M7 3.5v3M7 10.5v10M12 3.5v10M12 17.5v3M17 3.5v6M17 13.5v7') + c(7, 8.5, 2) + c(12, 15.5, 2) + c(17, 11.5, 2),
 
     # ---- the panels, shown (see KisIconUtils: a button's On state)
