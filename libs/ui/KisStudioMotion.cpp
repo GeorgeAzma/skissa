@@ -11,6 +11,7 @@
 #include <QWidget>
 
 #include "KisStudioGlass.h"
+#include <KisModernStyle.h>
 
 namespace {
 
@@ -79,7 +80,7 @@ bool canFade(QWidget *widget)
     return widget->isWindow() || !widget->graphicsEffect() || qobject_cast<QGraphicsOpacityEffect *>(widget->graphicsEffect());
 }
 
-void fade(QWidget *widget, qreal to, int duration, QEasingCurve::Type curve, bool hideAtEnd)
+void fade(QWidget *widget, qreal to, int duration, bool hideAtEnd)
 {
     delete runningFade(widget);
     const qreal from = currentOpacity(widget);
@@ -90,7 +91,7 @@ void fade(QWidget *widget, qreal to, int duration, QEasingCurve::Type curve, boo
     animation->setEndValue(to);
     // the part of the way that is left, in its part of the time
     animation->setDuration(qMax(1, qRound(duration * qAbs(to - from))));
-    animation->setEasingCurve(curve);
+    animation->setEasingCurve(KisModernStyle::motionCurve());
     QPointer<QWidget> target = widget;
     QObject::connect(animation, &QVariantAnimation::valueChanged, widget, [target](const QVariant &value) {
         if (target) setOpacity(target, value.toReal());
@@ -130,7 +131,7 @@ void KisStudioMotion::showFaded(QWidget *widget)
         widget->show();
     }
     // only a fade, no motion: glass that moves repaints everything under it every frame
-    fade(widget, 1.0, 120, QEasingCurve::OutCubic, false);
+    fade(widget, 1.0, KisModernStyle::enterDuration, false);
 }
 
 void KisStudioMotion::hideFaded(QWidget *widget)
@@ -144,7 +145,7 @@ void KisStudioMotion::hideFaded(QWidget *widget)
     }
     widget->setProperty(fadingOutProperty, true);
     setClickThrough(widget, true);
-    fade(widget, 0.0, 80, QEasingCurve::InCubic, true);
+    fade(widget, 0.0, KisModernStyle::exitDuration, true);
 }
 
 bool KisStudioMotion::isShown(const QWidget *widget)

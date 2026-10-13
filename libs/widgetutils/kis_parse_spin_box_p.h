@@ -58,7 +58,7 @@ public:
         }
         m_warningAnimation.setStartValue(0.0);
         m_warningAnimation.setEndValue(1.0);
-        m_warningAnimation.setEasingCurve(QEasingCurve(QEasingCurve::InOutCubic));
+        m_warningAnimation.setEasingCurve(KisModernStyle::motionCurve());
         connect(&m_warningAnimation, &QVariantAnimation::valueChanged, m_lineEdit, QOverload<>::of(&QLineEdit::update));
     }
     
@@ -475,7 +475,7 @@ private:
     // The width of the warning icon
     static constexpr double widthOfWarningIconArea{24.0};
     // The animation duration
-    static constexpr double warningAnimationDuration{250.0};
+    static constexpr double warningAnimationDuration{double(KisModernStyle::changeDuration)};
 
     SpinBoxType *m_q;
     QLineEdit *m_lineEdit;

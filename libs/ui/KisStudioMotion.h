@@ -11,7 +11,7 @@
 class QWidget;
 
 /**
- * Fading in and out in about a tenth of a second: a window by its opacity, a widget by an opacity effect
+ * Fading in and out, as everything moves (see KisModernStyle::motionCurve): a window by its opacity, a widget by an opacity effect
  * that is removed once done.
  */
 namespace KisStudioMotion

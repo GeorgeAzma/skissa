@@ -8,6 +8,7 @@
 
 #include "kritawidgetutils_export.h"
 #include <QPainterPath>
+#include <QEasingCurve>
 #include <QProxyStyle>
 #include <QKeySequence>
 #include <QFont>
@@ -48,6 +49,16 @@ public:
      * on short sides the exponent drops toward 2, so a pill stays a pill
      */
     static QPainterPath squircle(const QRectF &rect, qreal radius);
+
+    /**
+     * The one way things move: an exponential decay toward where they go, quick at first and settling
+     * softly, never past it. Appearing takes enterDuration, going away exitDuration (ms); a change of
+     * state (a switch, a highlight) changeDuration.
+     */
+    static QEasingCurve motionCurve();
+    static constexpr int enterDuration = 180;
+    static constexpr int exitDuration = 120;
+    static constexpr int changeDuration = 160;
 
     /// squircle()'s corner reach along the sides and exponent, for half-sides \p room long
     static void squircleCorner(qreal radius, qreal room, qreal *reach, qreal *exponent);

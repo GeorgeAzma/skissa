@@ -159,8 +159,8 @@ void KisStudioCanvasRing::open(QWidget *canvas, const QPointF &pos)
     auto *grow = new QVariantAnimation(this);
     grow->setStartValue(0.86);
     grow->setEndValue(1.0);
-    grow->setDuration(120);
-    grow->setEasingCurve(QEasingCurve::OutCubic);
+    grow->setDuration(KisModernStyle::enterDuration);
+    grow->setEasingCurve(KisModernStyle::motionCurve());
     connect(grow, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
         m_scale = value.toReal();
         update();

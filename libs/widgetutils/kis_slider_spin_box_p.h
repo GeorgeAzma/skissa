@@ -76,17 +76,17 @@ public:
 
         m_sliderAnimation.setStartValue(0.0);
         m_sliderAnimation.setEndValue(1.0);
-        m_sliderAnimation.setEasingCurve(QEasingCurve(QEasingCurve::InOutCubic));
+        m_sliderAnimation.setEasingCurve(KisModernStyle::motionCurve());
         connect(&m_sliderAnimation, &QVariantAnimation::valueChanged, m_lineEdit, QOverload<>::of(&QLineEdit::update));
         connect(&m_sliderAnimation, &QVariantAnimation::valueChanged, m_widgetRangeToggle, QOverload<>::of(&QLineEdit::update));
         m_quietHover.setStartValue(0.0);
         m_quietHover.setEndValue(0.0);
-        m_quietHover.setEasingCurve(QEasingCurve::OutCubic);
+        m_quietHover.setEasingCurve(KisModernStyle::motionCurve());
         connect(&m_quietHover, &QVariantAnimation::valueChanged, m_lineEdit, QOverload<>::of(&QLineEdit::update));
 
         m_rangeToggleHoverAnimation.setStartValue(0.0);
         m_rangeToggleHoverAnimation.setEndValue(1.0);
-        m_rangeToggleHoverAnimation.setEasingCurve(QEasingCurve(QEasingCurve::InOutCubic));
+        m_rangeToggleHoverAnimation.setEasingCurve(KisModernStyle::motionCurve());
         connect(&m_rangeToggleHoverAnimation, &QVariantAnimation::valueChanged, m_widgetRangeToggle, QOverload<>::of(&QLineEdit::update));
     }
 
@@ -699,7 +699,7 @@ public:
         m_quietHover.stop();
         m_quietHover.setStartValue(from);
         m_quietHover.setEndValue(target);
-        m_quietHover.setDuration(qMax(1, qRound(120 * qAbs(target - from))));
+        m_quietHover.setDuration(qMax(1, qRound(KisModernStyle::changeDuration * qAbs(target - from))));
         m_quietHover.start();
     }
 
@@ -1069,7 +1069,7 @@ private:
     // Width of the area to activate soft/hard range
     static constexpr double widthOfRangeModeToggle{16.0};
     // The duration of the animation 
-    static constexpr double fullAnimationDuration{200.0};
+    static constexpr double fullAnimationDuration{double(KisModernStyle::changeDuration)};
 
     SpinBoxType *m_q {nullptr};
     QLineEdit *m_lineEdit {nullptr};

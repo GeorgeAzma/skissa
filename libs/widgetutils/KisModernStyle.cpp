@@ -372,6 +372,17 @@ void KisModernStyle::squircleCorner(qreal radius, qreal room, qreal *reach, qrea
     *exponent = qBound<qreal>(2, -1 / std::log2(1 - circle / (room * M_SQRT2)), smooth);
 }
 
+QEasingCurve KisModernStyle::motionCurve()
+{
+    // 1 - e^(-kt), scaled to reach 1 at the end: most of the way in the first third
+    QEasingCurve curve;
+    curve.setCustomType([](qreal t) {
+        constexpr qreal k = 5.5;
+        return (1 - std::exp(-k * t)) / (1 - std::exp(-k));
+    });
+    return curve;
+}
+
 QPainterPath KisModernStyle::squircle(const QRectF &rect, qreal radius)
 {
     QPainterPath path;

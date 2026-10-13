@@ -2440,8 +2440,8 @@ void KisStudioLayout::gripClicked(const QString &id)
     animation->setObjectName(foldName);
     animation->setStartValue(from);
     animation->setEndValue(to);
-    animation->setDuration(220);
-    animation->setEasingCurve(QEasingCurve::OutExpo);
+    animation->setDuration(KisModernStyle::enterDuration + 40);
+    animation->setEasingCurve(KisModernStyle::motionCurve());
     QPointer<QDockWidget> target = dock;
     connect(animation, &QVariantAnimation::valueChanged, this, [this, target, fold](const QVariant &value) {
         if (!target) return;

@@ -186,8 +186,8 @@ public:
         setCheckable(true);
         setCursor(Qt::PointingHandCursor);
         setFocusPolicy(Qt::TabFocus);
-        m_slide.setDuration(120);
-        m_slide.setEasingCurve(QEasingCurve::OutCubic);
+        m_slide.setDuration(KisModernStyle::changeDuration);
+        m_slide.setEasingCurve(KisModernStyle::motionCurve());
         connect(&m_slide, &QVariantAnimation::valueChanged, this, [this]() { update(); });
         connect(this, &QAbstractButton::toggled, this, [this](bool on) {
             m_slide.stop();
@@ -1601,6 +1601,7 @@ public:
     {
         auto *animation = new QVariantAnimation(this);
         animation->setDuration(1400);
+        animation->setEasingCurve(KisModernStyle::motionCurve());
         animation->setStartValue(1.0);
         animation->setEndValue(0.0);
         connect(animation, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
