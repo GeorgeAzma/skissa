@@ -592,7 +592,7 @@ struct Builder {
             if (!s->help.isEmpty()) notes << s->help;
             if (s->flags & R::Restart) notes << i18nc("@info:tooltip", "After a restart");
             if (s->flags & R::NewViews) notes << i18nc("@info:tooltip", "For images opened from now on");
-            if (s->flags & R::Machine) notes << i18nc("@info:tooltip", "About this computer: not exported");
+            if (s->flags & R::Machine) notes << i18nc("@info:tooltip", "Stays on this computer: not exported");
             if (!notes.isEmpty()) row->setToolTip(notes.join(QStringLiteral("\n\n")));
             if (s->flags & R::Restart) {
                 auto *mark = new QLabel(row);
@@ -899,7 +899,7 @@ QVector<CardDef> makeCards()
         {QStringLiteral("[theme] Theme"), QStringLiteral("[StudioTheme] Lightness"), QStringLiteral("[StudioTheme] Tint"),
          QStringLiteral("[StudioTheme] TintAmount"), QStringLiteral("[StudioTheme] UseAccent"), QStringLiteral("[StudioTheme] Accent")},
         QStringLiteral("dark light colors color scheme palette accent tint contrast lightness"), [](Builder &b) {
-            b.explain(i18nc("@info:tooltip", "Start from a preset, then make it yours: every choice below changes the theme."));
+            b.explain(i18nc("@info:tooltip", "Pick a preset, then make it yours below"));
             // the presets, each pictured in its own colors
             const QVector<KisStudioTheme::Preset> presets = KisStudioTheme::presets();
             QVector<Tiles::Tile> tiles;
@@ -961,7 +961,7 @@ QVector<CardDef> makeCards()
             });
             b.layout->addWidget(picker);
             b.showWhen(b.color(QStringLiteral("canvasBorderColor"), false, i18nc("around the image", "Color")), [current]() { return current() == 1; });
-            b.explain(i18nc("@info:tooltip", "Glow: the picture's colors light the dark around it. Color: one color all around."));
+            b.explain(i18nc("@info:tooltip", "Glow: the image's colors light the dark around it\nColor: one color all around"));
         });
     add(QStringLiteral("appearance"), QStringLiteral("font"), i18nc("settings card", "Interface font"),
         {QStringLiteral("use_custom_system_font"), QStringLiteral("custom_system_font"), QStringLiteral("custom_font_size")},
@@ -1126,13 +1126,6 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("switchSelectionCtrlAlt"));
             b.toggle(QStringLiteral("activateTransformToolAfterPaste"));
         });
-    add(QStringLiteral("tools"), QStringLiteral("preview"), i18nc("settings card", "Instant preview"),
-        {QStringLiteral("[filterdialog] forceLodMode"), QStringLiteral("[KisToolTransform] forceLodMode"), QStringLiteral("[KritaTransform/KisToolMove] forceLodMode")},
-        QStringLiteral("lod level of detail preview fast effects transform move"), [](Builder &b) {
-            b.toggle(QStringLiteral("[filterdialog] forceLodMode"), i18nc("instant preview", "Effects"));
-            b.toggle(QStringLiteral("[KisToolTransform] forceLodMode"), i18nc("instant preview", "Transform"));
-            b.toggle(QStringLiteral("[KritaTransform/KisToolMove] forceLodMode"), i18nc("instant preview", "Move"));
-        });
     add(QStringLiteral("tools"), QStringLiteral("undo"), i18nc("settings card", "Undo"),
         {QStringLiteral("undoStackLimit"), QStringLiteral("useCumulativeUndoRedo")},
         QStringLiteral("history redo steps cumulative merge strokes"), [](Builder &b) {
@@ -1152,7 +1145,7 @@ QVector<CardDef> makeCards()
          KisImageConfig::layerNameKey(KisImageConfig::PastedLayer, true), KisImageConfig::layerNameKey(KisImageConfig::PastedLayer, false),
          KisImageConfig::layerNameKey(KisImageConfig::MergedLayer, true), KisImageConfig::layerNameKey(KisImageConfig::MergedLayer, false)},
         QStringLiteral("copy of duplicate pasted merged rename prefix suffix naming"), [](Builder &b) {
-            b.explain(i18nc("@info:tooltip", "The words a copied, pasted or merged layer gets around the name it comes from. Empty: none."));
+            b.explain(i18nc("@info:tooltip", "Words around a copied, pasted or merged layer's name: Ink → Copy of Ink. Empty: none"));
             // [words before] Layer [words after], as the name will read
             auto *grid = new QGridLayout();
             grid->setHorizontalSpacing(6);
@@ -1202,28 +1195,23 @@ QVector<CardDef> makeCards()
     // ---- files
     add(QStringLiteral("files"), QStringLiteral("autosave"), i18nc("settings card", "Autosave"),
         {QStringLiteral("AutoSaveInterval")}, QStringLiteral("auto save recovery crash interval every minutes"), [](Builder &b) {
-            auto *on = new Switch(b.card);
-            auto *minutes = quietSlider<KisSliderSpinBox>(b.card);
-            minutes->setRange(1, 1440);
-            minutes->setSuffix(i18nc("unit", " min"));
-            b.follow([on, minutes]() {
+            // a few steps, Off among them: autosave waits for a pause anyway, so often costs nothing
+            static const QVector<int> minutes {0, 1, 5, 15, 30};
+            QStringList texts;
+            Q_FOREACH (int m, minutes) texts << (m == 0 ? i18nc("autosave", "Off") : i18nc("autosave interval", "%1 min", m));
+            auto *steps = new Segmented(texts, b.card);
+            steps->picked = [](int i) { R::instance()->setValue(QStringLiteral("AutoSaveInterval"), minutes[i] * 60); };
+            b.follow([steps]() {
+                // an interval set before, between the steps: the nearest
                 const int seconds = R::instance()->value(QStringLiteral("AutoSaveInterval")).toInt();
-                on->show(seconds > 0);
-                // off: turned on, it is Krita's interval again
-                const int shown = seconds > 0 ? qMax(1, seconds / 60) : R::instance()->defaultValue(QStringLiteral("AutoSaveInterval")).toInt() / 60;
-                if (minutes->value() != shown) {
-                    const QSignalBlocker blocker(minutes);
-                    minutes->setValue(shown);
+                int nearest = 0;
+                for (int i = 1; i < minutes.size(); i++) {
+                    if (seconds > 0 && qAbs(minutes[i] * 60 - seconds) < qAbs(minutes[nearest] * 60 - seconds)) nearest = i;
                 }
+                if (seconds > 0 && nearest == 0) nearest = 1;
+                steps->setCurrent(nearest);
             });
-            QObject::connect(on, &QAbstractButton::toggled, b.card, [minutes](bool checked) {
-                R::instance()->setValue(QStringLiteral("AutoSaveInterval"), checked ? minutes->value() * 60 : 0);
-            });
-            QObject::connect(minutes, QOverload<int>::of(&KisSliderSpinBox::valueChanged), b.card,
-                             [](int value) { R::instance()->setValue(QStringLiteral("AutoSaveInterval"), value * 60); });
-            b.row(i18nc("autosave", "On"), on, QStringLiteral("AutoSaveInterval"));
-            auto saving = []() { return R::instance()->value(QStringLiteral("AutoSaveInterval")).toInt() > 0; };
-            b.showWhen(b.row(i18nc("autosave", "Every"), minutes), saving);
+            b.row(i18nc("autosave", "Every"), steps, QStringLiteral("AutoSaveInterval"));
         });
     add(QStringLiteral("files"), QStringLiteral("backup"), i18nc("settings card", "Backups"),
         {QStringLiteral("CreateBackupFile"), QStringLiteral("backupfilelocation"), QStringLiteral("numberofbackupfiles")},
@@ -1314,7 +1302,7 @@ QVector<CardDef> makeCards()
         }
         add(QStringLiteral("color"), QStringLiteral("screens"), i18nc("settings card", "Screens"), screenSettings,
             QStringLiteral("monitor profile screen display icc hdr calibration surface"), [screenSettings](Builder &b) {
-                b.explain(i18nc("@info:tooltip", "The color profile of each screen, as calibrated: what makes the canvas show its colors right."));
+                b.explain(i18nc("@info:tooltip", "Each screen's calibrated profile: the canvas shows its colors right"));
                 const bool osManaged = KisPlatformPluginInterfaceFactory::instance()->surfaceColorManagedByOS();
                 Q_FOREACH (const QString &id, screenSettings) {
                     if (id == QLatin1String("canvasSurfaceColorSpaceManagementMode") || id == QLatin1String("canvasSurfaceBitDepthMode")) {
@@ -1350,7 +1338,7 @@ QVector<CardDef> makeCards()
         {QStringLiteral("defaultProofingProfileName"), QStringLiteral("defaultProofingConversionIntent"), QStringLiteral("defaultProofingBlackpointCompensation"),
          QStringLiteral("defaultProofingDisplayMode"), QStringLiteral("defaultProofingGamutwarning")},
         QStringLiteral("soft proofing print preview gamut warning paper cmyk printer"), [](Builder &b) {
-            b.explain(i18nc("@info:tooltip", "How new images are proofed: shown as they would print (View > Soft Proofing)."));
+            b.explain(i18nc("@info:tooltip", "How new images look printed (View > Soft Proofing)"));
             b.choice(QStringLiteral("defaultProofingProfileName"), i18nc("proofing", "Profile"));
             b.choice(QStringLiteral("defaultProofingConversionIntent"), i18nc("proofing", "Intent"));
             b.toggle(QStringLiteral("defaultProofingBlackpointCompensation"), i18nc("proofing", "Black point compensation"));
@@ -1360,25 +1348,32 @@ QVector<CardDef> makeCards()
 
     // ---- speed
     add(QStringLiteral("speed"), QStringLiteral("renderer"), i18nc("settings card", "Drawing the canvas"),
-        {QStringLiteral("kritadisplayrc OpenGLRenderer")}, QStringLiteral("opengl angle direct3d renderer gpu acceleration graphics"), [](Builder &b) {
+        {QStringLiteral("kritadisplayrc OpenGLRenderer")}, QStringLiteral("opengl angle direct3d renderer gpu acceleration graphics performance"), [](Builder &b) {
             b.choice(QStringLiteral("kritadisplayrc OpenGLRenderer"));
         });
+    add(QStringLiteral("speed"), QStringLiteral("preview"), i18nc("settings card", "Instant preview"),
+        {QStringLiteral("[filterdialog] forceLodMode"), QStringLiteral("[KisToolTransform] forceLodMode"), QStringLiteral("[KritaTransform/KisToolMove] forceLodMode")},
+        QStringLiteral("lod level of detail preview fast effects transform move performance"), [](Builder &b) {
+            b.toggle(QStringLiteral("[filterdialog] forceLodMode"), i18nc("instant preview", "Effects"));
+            b.toggle(QStringLiteral("[KisToolTransform] forceLodMode"), i18nc("instant preview", "Transform"));
+            b.toggle(QStringLiteral("[KritaTransform/KisToolMove] forceLodMode"), i18nc("instant preview", "Move"));
+        });
     add(QStringLiteral("speed"), QStringLiteral("memory"), i18nc("settings card", "Memory"),
-        {QStringLiteral("memoryHardLimitPercent")}, QStringLiteral("ram limit"), [](Builder &b) {
+        {QStringLiteral("memoryHardLimitPercent")}, QStringLiteral("ram limit performance"), [](Builder &b) {
             const int ram = KisImageConfig::totalRAM();
             b.explain(i18nc("@info:tooltip", "This computer has %1 GB.", QLocale().toString(ram / 1024.0, 'f', 1)));
             b.number(QStringLiteral("memoryHardLimitPercent"), {QString(), 1, 0, QStringLiteral("%")});
         });
     add(QStringLiteral("speed"), QStringLiteral("threads"), i18nc("settings card", "Processor"),
         {QStringLiteral("maxNumberOfThreads"), QStringLiteral("frameRenderingClones")},
-        QStringLiteral("cpu threads cores rendering frames"), [](Builder &b) {
+        QStringLiteral("cpu threads cores rendering frames performance"), [](Builder &b) {
             Number threads;
             threads.onRelease = true;
             b.number(QStringLiteral("maxNumberOfThreads"), threads);
             b.number(QStringLiteral("frameRenderingClones"), threads);
         });
     add(QStringLiteral("speed"), QStringLiteral("framerate"), i18nc("settings card", "Frame rate"),
-        {QStringLiteral("detectFpsLimit"), QStringLiteral("fpsLimit")}, QStringLiteral("fps refresh hz"), [](Builder &b) {
+        {QStringLiteral("detectFpsLimit"), QStringLiteral("fpsLimit")}, QStringLiteral("fps refresh hz performance"), [](Builder &b) {
             b.toggle(QStringLiteral("detectFpsLimit"));
             b.showWhen(b.number(QStringLiteral("fpsLimit"), {QString(), 1, 0, i18nc("unit", " fps")}),
                        []() { return !R::instance()->value(QStringLiteral("detectFpsLimit")).toBool(); });
@@ -2797,7 +2792,7 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
     d->changedButton = new QToolButton(this);
     d->changedButton->setCheckable(true);
     d->changedButton->setAutoRaise(true);
-    d->changedButton->setToolTip(i18nc("@info:tooltip", "What differs from how Krita comes"));
+    d->changedButton->setToolTip(i18nc("@info:tooltip", "Changed from Krita's defaults"));
     header->addWidget(d->changedButton);
     auto *more = new QToolButton(this);
     more->setAutoRaise(true);
@@ -2839,7 +2834,7 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
     d->footer = dimLabel(QString(), this);
     footer->addWidget(d->footer, 1);
     d->undo = new QPushButton(i18nc("@action:button undo the changes made since Settings opened", "Undo"), this);
-    d->undo->setToolTip(i18nc("@info:tooltip", "Puts back what changed since Settings opened"));
+    d->undo->setToolTip(i18nc("@info:tooltip", "Undo all changes since Settings opened"));
     footer->addWidget(d->undo, 0, Qt::AlignRight);
     body->addLayout(footer);
     layout->addLayout(body, 1);

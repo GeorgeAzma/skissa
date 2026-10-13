@@ -220,97 +220,77 @@ QVector<Choice> themes()
 QHash<QString, QString> explanations()
 {
     return {
-        {QStringLiteral("[StudioTheme] Lightness"), i18nc("@info:tooltip", "How light the window is: from near black to near white.")},
-        {QStringLiteral("[StudioTheme] TintAmount"), i18nc("@info:tooltip", "How much of the tint's hue the window's grays take.")},
-        {QStringLiteral("[StudioTheme] UseAccent"), i18nc("@info:tooltip", "Chosen items, focus and links in a color of their own, not gray.")},
-        {QStringLiteral("StudioGlassBlur"), i18nc("@info:tooltip", "How much the glass blurs what is behind it.")},
-        {QStringLiteral("StudioGlassOpacity"), i18nc("@info:tooltip", "How much the panel color covers what is behind: none, to solid.")},
-        {QStringLiteral("StudioGlassRefraction"), i18nc("@info:tooltip", "How much a panel's edge bends the picture under it, as the rim of a lens does.")},
+        {QStringLiteral("[StudioTheme] Lightness"), i18nc("@info:tooltip", "Near black → near white")},
+        {QStringLiteral("[StudioTheme] TintAmount"), i18nc("@info:tooltip", "0%: plain gray → 100%: fully the tint's hue")},
+        {QStringLiteral("[StudioTheme] UseAccent"), i18nc("@info:tooltip", "Selected items, focus and links in color instead of gray")},
+        {QStringLiteral("StudioGlassOpacity"), i18nc("@info:tooltip", "0%: see-through → 100%: solid")},
+        {QStringLiteral("StudioGlassRefraction"), i18nc("@info:tooltip", "Panel edges bend what's behind them, like the rim of a lens")},
         {QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"),
-         i18nc("@info:tooltip",
-               "At a screen scale like 125% or 150%, the interface is drawn at exactly that size. Off, it is rounded to 100% or 200%: "
-               "crisper lines, but a little too small or too large.")},
-        {QStringLiteral("newOutlineStyle"), i18nc("@info:tooltip", "The outline shows where the brush paints: a circle of its size, or its actual shape.")},
-        {QStringLiteral("newCursorStyle"), i18nc("@info:tooltip", "A mark at the pen's tip, besides the outline.")},
-        {QStringLiteral("colorSamplerPreviewCircleExtraCirclesEnabled"), i18nc("@info:tooltip", "The ring shows the color you had before next to the one under the pointer.")},
-        {QStringLiteral("pixelGridDrawingThreshold"), i18nc("@info:tooltip", "Lines between the pixels appear from this zoom on.")},
-        {QStringLiteral("showSingleChannelAsColor"), i18nc("@info:tooltip", "When the Channels panel shows one channel alone, it is shown in its color instead of gray.")},
-        {QStringLiteral("zoomSteps"), i18nc("@info:tooltip", "How many zoom steps it takes to double the size.")},
+         i18nc("@info:tooltip", "On: exactly 125% or 150%, as the screen is set\nOff: rounded to 100% or 200%, crisper but a bit small or large")},
+        {QStringLiteral("newOutlineStyle"), i18nc("@info:tooltip", "Circle: the brush's size\nBrush: its real shape\nWith tilt: its shape, leaning with the pen")},
+        {QStringLiteral("newCursorStyle"), i18nc("@info:tooltip", "A mark at the pen's tip, with the outline")},
+        {QStringLiteral("showSingleChannelAsColor"), i18nc("@info:tooltip", "One channel shown alone in its own color: Red in red, not gray")},
+        {QStringLiteral("zoomSteps"), i18nc("@info:tooltip", "Steps from 100% to 200%. 2: 100% → 141% → 200%")},
         {QStringLiteral("OpenGLFilterMode"),
          i18nc("@info:tooltip",
-               "How the image is scaled on screen when zoomed. Nearest: sharp square pixels, best for pixel art. Bilinear: smooth, "
-               "fastest. Trilinear: smooth, and calmer when zoomed out. High quality: the sharpest smooth result.")},
+               "Nearest: crisp square pixels, for pixel art\nBilinear: smooth, fastest\nTrilinear: smooth, less shimmer zoomed out\n"
+               "High quality: smooth and sharpest")},
         {QStringLiteral("kritadisplayrc useWin8PointerInput"),
-         i18nc("@info:tooltip",
-               "How Krita reads the pen. On: Windows Ink, built into Windows. Off: WinTab, the tablet maker's driver. If pressure "
-               "or tilt misbehave, try the other.")},
-        {QStringLiteral("useRightMiddleTabletButtonWorkaround"), i18nc("@info:tooltip", "For tablets whose pen buttons do nothing in Krita: their clicks are read as mouse clicks.")},
-        {QStringLiteral("tiltDirectionOffset"), i18nc("@info:tooltip", "Turns the direction the pen's tilt is read in, e.g. for a tablet used rotated or left-handed.")},
-        {QStringLiteral("touchPainting"), i18nc("@info:tooltip", "Auto: a finger paints only when there is no pen. On: a finger always paints. Off: a finger only moves and zooms the canvas.")},
-        {QStringLiteral("longPressEnabled"), i18nc("@info:tooltip", "Holding a finger still opens the context menu, as a right-click does.")},
+         i18nc("@info:tooltip", "On: Windows Ink\nOff: WinTab, your tablet's driver\nPressure or tilt acting up? Try the other")},
+        {QStringLiteral("useRightMiddleTabletButtonWorkaround"), i18nc("@info:tooltip", "For pen buttons that do nothing in Krita")},
+        {QStringLiteral("tiltDirectionOffset"), i18nc("@info:tooltip", "Turns the tilt's direction: for a rotated tablet or left hand")},
+        {QStringLiteral("touchPainting"), i18nc("@info:tooltip", "Auto: a finger paints when there's no pen\nOn: a finger always paints\nOff: a finger only moves and zooms")},
+        {QStringLiteral("longPressEnabled"), i18nc("@info:tooltip", "Hold a finger still = right-click")},
         {QStringLiteral("KineticScrollingEnabled"), i18nc("@info:tooltip", "Lists keep scrolling after a flick, slowing down.")},
-        {QStringLiteral("switchSelectionCtrlAlt"), i18nc("@info:tooltip", "Ctrl and Alt change how a new selection combines with the old one (add or subtract): this swaps which does which.")},
-        {QStringLiteral("maximumBrushSize"), i18nc("@info:tooltip", "The largest size the brush size slider reaches. Very large brushes paint slowly.")},
-        {QStringLiteral("[filterdialog] forceLodMode"), i18nc("@info:tooltip", "While you adjust an effect on a large image, a quick lower-resolution preview; the full result follows.")},
-        {QStringLiteral("[KisToolTransform] forceLodMode"), i18nc("@info:tooltip", "While you transform on a large image, a quick lower-resolution preview; the full result follows.")},
-        {QStringLiteral("[KritaTransform/KisToolMove] forceLodMode"), i18nc("@info:tooltip", "While you move on a large image, a quick lower-resolution preview; the full result follows.")},
-        {QStringLiteral("useCumulativeUndoRedo"), i18nc("@info:tooltip", "Older quick strokes are merged into one undo step each, so the undo history reaches further back.")},
-        {QStringLiteral("StudioEffectsEditable"), i18nc("@info:tooltip", "An effect is added as a filter mask you can change or remove later, not painted into the layer.")},
+        {QStringLiteral("switchSelectionCtrlAlt"), i18nc("@info:tooltip", "Off: Ctrl replaces, Alt subtracts\nOn: Ctrl subtracts, Alt replaces")},
+        {QStringLiteral("maximumBrushSize"), i18nc("@info:tooltip", "The top of the brush size slider. Huge brushes paint slowly")},
+        {QStringLiteral("[filterdialog] forceLodMode"), i18nc("@info:tooltip", "Large images: a rough preview while you adjust, full quality after")},
+        {QStringLiteral("[KisToolTransform] forceLodMode"), i18nc("@info:tooltip", "Large images: a rough preview while you transform, full quality after")},
+        {QStringLiteral("[KritaTransform/KisToolMove] forceLodMode"), i18nc("@info:tooltip", "Large images: a rough preview while you move, full quality after")},
+        {QStringLiteral("useCumulativeUndoRedo"), i18nc("@info:tooltip", "Older quick strokes become one undo step: undo reaches further back")},
+        {QStringLiteral("StudioEffectsEditable"), i18nc("@info:tooltip", "On: effects can be changed or removed later\nOff: painted into the layer")},
         {QStringLiteral("ResourceDirectory"), i18nc("@info:tooltip", "Where brushes, palettes, bundles and the rest are kept.")},
         {QStringLiteral("StudioLayersRememberBrushes"), i18nc("@info:tooltip", "Choosing a layer picks the brush last used on it.")},
-        {QStringLiteral("ConvertToImageColorSpaceOnImport"), i18nc("@info:tooltip", "Layers imported from files are converted to the image's color space instead of keeping their own.")},
-        {QStringLiteral("compressLayersInKra"), i18nc("@info:tooltip", "Layers are compressed harder in .kra files: smaller files that take longer to save and open.")},
-        {QStringLiteral("TrimKra"), i18nc("@info:tooltip", "Paint outside the canvas is cut off when saving: smaller files, but what was moved off the canvas is lost.")},
-        {QStringLiteral("pasteFormat"), i18nc("@info:tooltip", "An image pasted from a browser can be the original file (downloaded again), the copy the browser kept, or the picture as pasted.")},
-        {QStringLiteral("pasteBehaviour"), i18nc("@info:tooltip", "Images pasted from other apps usually say nothing of their colors: they are taken as sRGB, as your screen's colors, or you are asked.")},
-        {QStringLiteral("useDefaultColorSpace"), i18nc("@info:tooltip", "New images start in the color model chosen here, not in the one used last.")},
+        {QStringLiteral("ConvertToImageColorSpaceOnImport"), i18nc("@info:tooltip", "Imported layers take the image's colors, e.g. CMYK → RGB")},
+        {QStringLiteral("compressLayersInKra"), i18nc("@info:tooltip", "Smaller files, slower to save and open")},
+        {QStringLiteral("TrimKra"), i18nc("@info:tooltip", "Paint outside the canvas is deleted on save: smaller files, off-canvas art lost")},
+        {QStringLiteral("pasteFormat"),
+         i18nc("@info:tooltip", "Images copied from a browser:\nOriginal: the full file, downloaded\nLocal copy: the one the browser kept\nPasted image: exactly what was copied")},
+        {QStringLiteral("pasteBehaviour"), i18nc("@info:tooltip", "Pasted images rarely say which colors they use: what to take them as")},
+        {QStringLiteral("useDefaultColorSpace"), i18nc("@info:tooltip", "On: new images use this model\nOff: the one used last")},
         {QStringLiteral("renderIntent"),
          i18nc("@info:tooltip",
-               "How colors the screen can't show are brought into what it can.\n"
-               "Perceptual: all colors move together, keeping how they relate; smooth, a little less vivid.\n"
-               "Relative: colors the screen can show stay exact; the rest move to the nearest it can.\n"
-               "Saturation: keeps colors vivid; hues may shift. For charts more than pictures.\n"
-               "Absolute: as Relative, but white stays the image's white (for proofing paper).")},
-        {QStringLiteral("useBlackPointCompensation"),
-         i18nc("@info:tooltip",
-               "The image's darkest black is shown as the screen's darkest black: shadows keep their detail instead of being crushed "
-               "or looking gray.")},
-        {QStringLiteral("allowLCMSOptimization"),
-         i18nc("@info:tooltip",
-               "Converts colors a little faster and a little less exactly. Turn it off for linear light and wide color spaces, where "
-               "it can show as banding.")},
-        {QStringLiteral("defaultProofingProfileName"),
-         i18nc("@info:tooltip", "The printer, paper or screen to proof for: new images are shown as they would come out there (View > Soft Proofing).")},
+               "For colors the screen can't show:\n"
+               "Perceptual: all shift a little, smooth\n"
+               "Relative: exact where possible, the rest to the nearest\n"
+               "Saturation: vivid, hues may shift\n"
+               "Absolute: as Relative, keeping the image's white")},
+        {QStringLiteral("useBlackPointCompensation"), i18nc("@info:tooltip", "Image black → screen black: shadows keep their detail")},
+        {QStringLiteral("allowLCMSOptimization"), i18nc("@info:tooltip", "A little faster, a little less exact. Gradients show stripes? Turn it off")},
+        {QStringLiteral("defaultProofingProfileName"), i18nc("@info:tooltip", "The printer or paper new images are previewed for (View > Soft Proofing)")},
         {QStringLiteral("defaultProofingConversionIntent"),
          i18nc("@info:tooltip",
-               "How colors the printer can't reach are brought into what it can.\n"
-               "Perceptual: all colors move together, keeping how they relate.\n"
-               "Relative: colors it can print stay exact; the rest move to the nearest it can.\n"
-               "Saturation: keeps colors vivid; hues may shift.\n"
-               "Absolute: as Relative, keeping the image's white.")},
-        {QStringLiteral("defaultProofingBlackpointCompensation"),
-         i18nc("@info:tooltip", "The image's darkest black becomes the printer's darkest black: shadows keep their detail.")},
+               "For colors the printer can't reach:\n"
+               "Perceptual: all shift a little, smooth\n"
+               "Relative: exact where possible, the rest to the nearest\n"
+               "Saturation: vivid, hues may shift\n"
+               "Absolute: as Relative, keeping the image's white")},
+        {QStringLiteral("defaultProofingBlackpointCompensation"), i18nc("@info:tooltip", "Image black → the printer's darkest black: shadows keep their detail")},
         {QStringLiteral("defaultProofingDisplayMode"),
-         i18nc("@info:tooltip", "Paper white: the paper's white and the ink's black are shown as they are, duller than the screen's, as on a real print.\n"
-               "Screen white: the screen's white stands for the paper's.")},
-        {QStringLiteral("defaultProofingGamutwarning"), i18nc("@info:tooltip", "Colors the printer can't reach are painted this color while gamut warnings are on (View > Out of Gamut Warnings).")},
+         i18nc("@info:tooltip", "Paper white: duller whites and blacks, as on a real print\nScreen white: the screen's bright white stands for the paper")},
+        {QStringLiteral("defaultProofingGamutwarning"), i18nc("@info:tooltip", "Colors the printer can't reach are marked in this color (View > Out of Gamut Warnings)")},
         {QStringLiteral("colorsettings/forcepalettecolors"), i18nc("@info:tooltip", "Picked colors snap to the nearest color of the palette in use.")},
         {QStringLiteral("enableCanvasSurfaceColorSpaceManagement"),
-         i18nc("@info:tooltip", "The canvas gets a surface of its own whose colors the system manages: colors beyond sRGB and paper white proofing. "
-               "It may be slower on some computers.")},
-        {QStringLiteral("canvasSurfaceColorSpaceManagementMode"), i18nc("@info:tooltip", "The color space the canvas is handed to the system in. Leave it as the system prefers unless you know why.")},
+         i18nc("@info:tooltip", "The system manages the canvas' colors: colors beyond sRGB, paper white proofing. Can be slower")},
+        {QStringLiteral("canvasSurfaceColorSpaceManagementMode"), i18nc("@info:tooltip", "Leave as the system prefers unless colors look wrong")},
         {QStringLiteral("canvasSurfaceBitDepthMode"), i18nc("@info:tooltip", "10 bit is needed for HDR.")},
-        {QStringLiteral("kritadisplayrc rootSurfaceFormat"),
-         i18nc("@info:tooltip", "The format the window is drawn in. An HDR format shows HDR images in full on an HDR screen, with HDR turned on in the system.")},
-        {QStringLiteral("ExrDefaultColorProfile"), i18nc("@info:tooltip", "EXR files usually say nothing of their colors: the profile they are opened in.")},
-        {QStringLiteral("kritadisplayrc OpenGLRenderer"),
-         i18nc("@info:tooltip",
-               "What draws the canvas on the graphics card. Auto picks the best for this computer; change it only if the canvas is "
-               "slow, flickers or shows wrong colors.")},
-        {QStringLiteral("memoryHardLimitPercent"), i18nc("@info:tooltip", "The share of this computer's memory images may use. Past it, Krita works from the swap file on disk.")},
-        {QStringLiteral("maxNumberOfThreads"), i18nc("@info:tooltip", "How many processor threads Krita paints and runs effects with.")},
-        {QStringLiteral("frameRenderingClones"), i18nc("@info:tooltip", "Animation frames rendered at once: more is faster, and takes more memory.")},
-        {QStringLiteral("detectFpsLimit"), i18nc("@info:tooltip", "The canvas redraws as often as the screen refreshes.")},
+        {QStringLiteral("kritadisplayrc rootSurfaceFormat"), i18nc("@info:tooltip", "sRGB: any screen\nHDR: an HDR screen with HDR turned on in the system")},
+        {QStringLiteral("ExrDefaultColorProfile"), i18nc("@info:tooltip", "EXR files rarely carry a profile: this one is used to open them")},
+        {QStringLiteral("kritadisplayrc OpenGLRenderer"), i18nc("@info:tooltip", "Keep Auto. Change only if the canvas is slow, flickers or shows wrong colors")},
+        {QStringLiteral("memoryHardLimitPercent"), i18nc("@info:tooltip", "The share of memory images may use. Past it, Krita uses the disk: slower")},
+        {QStringLiteral("maxNumberOfThreads"), i18nc("@info:tooltip", "More: faster painting and effects, less left for other apps")},
+        {QStringLiteral("frameRenderingClones"), i18nc("@info:tooltip", "More: animations render faster, using more memory")},
+        {QStringLiteral("detectFpsLimit"), i18nc("@info:tooltip", "The canvas redraws as often as the screen refreshes: 60 Hz → 60 a second")},
     };
 }
 
@@ -571,7 +551,7 @@ QVector<Setting> describeAll()
 
     // files
     {
-        Setting autosave = number(QStringLiteral("AutoSaveInterval"), 420, 0, 86400, i18nc("setting", "Autosave"));
+        Setting autosave = number(QStringLiteral("AutoSaveInterval"), 300, 0, 86400, i18nc("setting", "Autosave"));
         autosave.format = [](const QVariant &value) {
             return value.toInt() <= 0 ? i18nc("autosave", "Off") : i18nc("autosave interval", "Every %1 min", qMax(1, value.toInt() / 60));
         };
