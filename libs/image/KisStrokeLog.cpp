@@ -164,9 +164,19 @@ void KisStrokeLog::load(const QByteArray &compressed)
     if (head != magic) {
         return;
     }
+    // read name by name: a count no file this size could hold is not believed (a damaged or made-up file)
     QStringList brushes;
+    quint32 brushCount = 0;
+    in >> brushCount;
+    if (brushCount > quint32(data.size())) return;
+    for (quint32 i = 0; i < brushCount && in.status() == QDataStream::Ok; i++) {
+        QString brush;
+        in >> brush;
+        brushes << brush;
+    }
     quint32 count = 0;
-    in >> brushes >> count;
+    in >> count;
+    if (in.status() != QDataStream::Ok || count > quint32(data.size())) return;
     Strokes strokes;
     for (quint32 i = 0; i < count && in.status() == QDataStream::Ok; i++) {
         qint32 brush = -1;

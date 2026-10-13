@@ -142,8 +142,12 @@ void KoQuaZipStore::init(const QByteArray &appIdentification)
 {
     Q_D(KoStore);
 
-    // .kra files of any size (Krita before 4.2 can't open those)
-    const bool enableZip64 = appIdentification == "application/x-krita";
+    // as Krita: only when asked for (UseZip64). Zip64 moves the mimetype entry's text from where file
+    // managers look for it, and Krita before 4.2 can't open those files
+    bool enableZip64 = false;
+    if (appIdentification == "application/x-krita") {
+        enableZip64 = KSharedConfig::openConfig()->group("").readEntry<bool>("UseZip64", false);
+    }
 
     dd->archive->setDataDescriptorWritingEnabled(false);
     dd->archive->setZip64Enabled(enableZip64);

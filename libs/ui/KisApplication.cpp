@@ -850,13 +850,24 @@ bool KisApplication::start(const KisApplicationArguments &args)
     }
 
     // nothing opened, nothing to recover: the image worked on last, the start page only when there is none
-    const bool openLast = KSharedConfig::openConfig()->group(QString()).readEntry("sessionOnStartup", 3) == 3;
-    if (openLast && d->mainWindow && !d->batchRun && KisPart::instance()->documents().isEmpty()) {
+    KConfigGroup general = KSharedConfig::openConfig()->group(QString());
+    const bool openLast = general.readEntry("sessionOnStartup", 3) == 3;
+    // the last time it was opened this way, Krita didn't come back from it (a crash or a hang): not again
+    const QString unfinished = general.readEntry("StudioOpeningLastImage", QString());
+    if (!unfinished.isEmpty()) {
+        general.deleteEntry("StudioOpeningLastImage");
+        general.sync();
+    }
+    if (openLast && unfinished.isEmpty() && d->mainWindow && !d->batchRun && KisPart::instance()->documents().isEmpty()) {
         const QList<QUrl> recent = KisRecentFilesManager::instance()->recentUrlsLatestFirst();
         for (const QUrl &url : recent) {
             if (!url.isLocalFile() || !QFileInfo(url.toLocalFile()).isFile()) continue;
             hideSplashScreen();
+            general.writeEntry("StudioOpeningLastImage", url.toLocalFile());
+            general.sync();
             d->mainWindow->openDocument(url.toLocalFile(), KisMainWindow::None);
+            general.deleteEntry("StudioOpeningLastImage");
+            general.sync();
             break;
         }
     }

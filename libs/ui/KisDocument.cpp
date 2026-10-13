@@ -54,7 +54,10 @@
 
 #include <QTextBrowser>
 #include <QApplication>
+#include <QDateTime>
 #include <QElapsedTimer>
+#include <QMouseEvent>
+#include <QTabletEvent>
 #include <QBuffer>
 #include <QStandardPaths>
 #include <QDir>
@@ -1559,11 +1562,16 @@ public:
 protected:
     bool eventFilter(QObject *, QEvent *event) override
     {
+        // working, not only there: a pen or mouse hovering between strokes is no reason to wait
         switch (event->type()) {
-        case QEvent::MouseButtonPress:
         case QEvent::MouseMove:
-        case QEvent::TabletPress:
+            if (static_cast<QMouseEvent *>(event)->buttons() != Qt::NoButton) m_last.restart();
+            break;
         case QEvent::TabletMove:
+            if (static_cast<QTabletEvent *>(event)->buttons() != Qt::NoButton) m_last.restart();
+            break;
+        case QEvent::MouseButtonPress:
+        case QEvent::TabletPress:
         case QEvent::TouchBegin:
         case QEvent::TouchUpdate:
         case QEvent::KeyPress:
@@ -1587,7 +1595,12 @@ void KisDocument::slotAutoSaveImpl(std::unique_ptr<KisDocument> &&optionalCloned
     if (!d->modified || !d->modifiedAfterAutosave) return;
     // while the user works, a moment later: never in the middle of drawing
     constexpr qint64 pause = 3000;
-    if (!optionalClonedDocument && InputClock::instance()->sinceInput() < pause) {
+    // but not for ever: after a minute of waiting it saves as Krita always did (in the background, or later if busy)
+    constexpr qint64 longestWait = 60000;
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (property("autosaveWaitingSince").isNull()) setProperty("autosaveWaitingSince", now);
+    const bool waitedEnough = now - property("autosaveWaitingSince").toLongLong() >= longestWait;
+    if (!optionalClonedDocument && !waitedEnough && InputClock::instance()->sinceInput() < pause) {
         // one wait at a time (the autosave timer may fire again meanwhile)
         if (!property("autosaveWaiting").toBool()) {
             setProperty("autosaveWaiting", true);
@@ -1598,6 +1611,7 @@ void KisDocument::slotAutoSaveImpl(std::unique_ptr<KisDocument> &&optionalCloned
         }
         return;
     }
+    setProperty("autosaveWaitingSince", QVariant());
     const QString autoSaveFileName = generateAutoSaveFileName(localFilePath());
 
     Q_EMIT statusBarMessage(i18n("Autosaving... %1", autoSaveFileName), successMessageTimeout);
@@ -2038,6 +2052,15 @@ bool KisDocument::openPath(const QString &_path, OpenFlags flags)
     if (!fileBatchMode()) {
         QString file = path;
         QString asf = generateAutoSaveFileName(file);
+        // an autosave left hidden or not (another setting, or another Krita's): the newer of the two
+        {
+            const QFileInfo info(asf);
+            const QString name = info.fileName();
+            const QString other = info.dir().filePath(name.startsWith(QLatin1Char('.')) ? name.mid(1) : QLatin1Char('.') + name);
+            if (QFile::exists(other) && (!QFile::exists(asf) || QFileInfo(other).lastModified() > info.lastModified())) {
+                asf = other;
+            }
+        }
         if (QFile::exists(asf)) {
             KisApplication *kisApp = static_cast<KisApplication*>(qApp);
             kisApp->hideSplashScreen();

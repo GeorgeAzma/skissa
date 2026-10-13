@@ -741,7 +741,8 @@ KisImportExportErrorCode KisPNGConverter::buildImage(QIODevice* iod)
 #if defined(PNG_cLLI_SUPPORTED)
     KisRelativeContentLightLevelInformation clli;
     if (png_get_cLLI(png_ptr, info_ptr, &clli.maxContentLightLevel, &clli.maxFrameAverageLightLevel)) {
-        const double refWhiteMultiplier = 1.0/profile->hdrReferenceWhite().value_or(203.0);
+        // no usable profile (cleared above): the usual reference white
+        const double refWhiteMultiplier = 1.0 / (profile ? profile->hdrReferenceWhite().value_or(203.0) : 203.0);
         clli.maxContentLightLevel *= refWhiteMultiplier;
         clli.maxFrameAverageLightLevel *= refWhiteMultiplier;
         m_image->setRelativeContentLightLevelInformation(clli);
@@ -1387,7 +1388,8 @@ KisImportExportErrorCode KisPNGConverter::buildFile(QIODevice* iodevice, const Q
         }
     }
 #if defined(PNG_cLLI_SUPPORTED)
-    if (colorProfilePQ && m_doc->image().toStrongRef()->relativeContentLightLevelInformation()) {
+    // m_doc is null when a layer is saved into a .kra or .ora (saveDeviceToStore)
+    if (colorProfilePQ && m_doc && m_doc->image().toStrongRef()->relativeContentLightLevelInformation()) {
         const std::optional<KisRelativeContentLightLevelInformation> clli = m_doc->image().toStrongRef()->relativeContentLightLevelInformation();
         const double hdrRefWhite = colorProfile->hdrReferenceWhite().value_or(203.0);
         const double maxcll = clli->maxContentLightLevel * hdrRefWhite;
@@ -1396,7 +1398,7 @@ KisImportExportErrorCode KisPNGConverter::buildFile(QIODevice* iodevice, const Q
     }
 #endif
 #if defined(PNG_mDCV_SUPPORTED)
-    if (colorProfilePQ && m_doc->image().toStrongRef()->colorVolumeInformation()) {
+    if (colorProfilePQ && m_doc && m_doc->image().toStrongRef()->colorVolumeInformation()) {
         const std::optional<KisColorVolumeInformation> cvi = m_doc->image().toStrongRef()->colorVolumeInformation();
         png_set_mDCV(png_ptr, info_ptr,
                      cvi->white.x, cvi->white.y,
