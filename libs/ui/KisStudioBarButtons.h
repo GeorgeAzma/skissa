@@ -26,7 +26,7 @@ public:
     explicit KisStudioBarButtons(KisMainWindow *mainWindow, QWidget *parent = nullptr);
     ~KisStudioBarButtons() override;
 
-    /// Shows the buttons that apply to the active tool (symmetry and shapes only paint with brushes)
+    /// Shows the buttons that apply to the active tool (the brush's own only with the tools that use it)
     void updateForTool();
     QStringList items() const;
     void setItems(const QStringList &items);

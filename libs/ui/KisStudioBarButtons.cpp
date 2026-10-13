@@ -62,6 +62,14 @@ bool paintsWithBrush(const QString &tool)
     return tools.contains(tool);
 }
 
+/// The tools that paint, with a brush or by filling: eraser mode and alpha lock apply to them too
+bool paints(const QString &tool)
+{
+    static const QStringList fills = {QStringLiteral("KritaFill/KisToolFill"), QStringLiteral("KritaFill/KisToolGradient"),
+                                      QStringLiteral("KisToolEncloseAndFill")};
+    return paintsWithBrush(tool) || fills.contains(tool);
+}
+
 /// Icon for a symmetry mode: mirror, radial or tile
 QIcon symmetryIcon(int mode, const QColor &ink)
 {
@@ -333,10 +341,13 @@ void KisStudioBarButtons::showEvent(QShowEvent *event)
 
 void KisStudioBarButtons::updateForTool()
 {
-    const bool brush = paintsWithBrush(KoToolManager::instance()->activeToolId());
+    // the brush's own buttons only with the tools they apply to; anything added stays
+    const QString tool = KoToolManager::instance()->activeToolId();
+    const QStringList brushOnly = {symmetryItem, shapesItem, brushEditorItem, QStringLiteral("action:reload_preset_action")};
+    const QStringList painting = {QStringLiteral("action:erase_action"), QStringLiteral("action:preserve_alpha")};
     for (int w = 0; w < d->widgets.size(); w++) {
         const QString key = d->items.value(d->widgetItem[w]);
-        d->widgets[w]->setVisible(brush || (key != symmetryItem && key != shapesItem));
+        d->widgets[w]->setVisible(brushOnly.contains(key) ? paintsWithBrush(tool) : painting.contains(key) ? paints(tool) : true);
     }
 }
 
