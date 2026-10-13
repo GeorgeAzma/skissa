@@ -24,7 +24,6 @@
 #include <KisPart.h>
 #include <KisApplication.h>
 
-#include <kis_icon.h>
 
 #include <klocalizedstring.h>
 #include <kconfig.h>
@@ -45,9 +44,6 @@ KisSplashScreen::KisSplashScreen(int height, QWidget *parent, Qt::WindowFlags f)
       , m_versionHtml(qApp->applicationVersion().toHtmlEscaped())
 {
     setWindowTitle(KisProfile::name());
-#ifndef Q_OS_MACOS
-    setWindowIcon(QIcon(QStringLiteral(":/krita-branding.svgz")));
-#endif
 
     setLayout(new QVBoxLayout());
     layout()->setContentsMargins(QMargins());

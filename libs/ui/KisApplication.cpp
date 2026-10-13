@@ -24,6 +24,8 @@
 #include "KisAndroidDonations.h"
 #endif
 
+#include <QAbstractNativeEventFilter>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QScreen>
 #include <QDir>
@@ -149,6 +151,48 @@
 
 namespace {
 const QTime appStartTime(QTime::currentTime());
+
+/// The S that stands out on the taskbar, which Windows can keep light under a dark app or the other way round
+QIcon taskbarIcon()
+{
+#ifdef Q_OS_WIN
+    const QSettings personalize(QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"), QSettings::NativeFormat);
+    const bool lightTaskbar = personalize.value(QStringLiteral("SystemUsesLightTheme"), 0).toInt() == 1;
+    // Krita names icons by their own color: the dark S is the one for light backgrounds
+    return QIcon(lightTaskbar ? QStringLiteral(":/dark_krita-branding.svgz") : QStringLiteral(":/light_krita-branding.svgz"));
+#else
+    return KisIconUtils::loadIcon(QStringLiteral("krita-branding"));
+#endif
+}
+
+#ifdef Q_OS_WIN
+/// Swaps the taskbar icon when Windows switches between light and dark
+class TaskbarThemeFilter : public QAbstractNativeEventFilter
+{
+public:
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    bool nativeEventFilter(const QByteArray &, void *message, qintptr *) override
+#else
+    bool nativeEventFilter(const QByteArray &, void *message, long *) override
+#endif
+    {
+        const MSG *msg = static_cast<const MSG *>(message);
+        if (msg->message == WM_SETTINGCHANGE && msg->lParam
+                && wcscmp(reinterpret_cast<const wchar_t *>(msg->lParam), L"ImmersiveColorSet") == 0 && !m_pending) {
+            // every top-level window gets the broadcast; one update is enough
+            m_pending = true;
+            QTimer::singleShot(0, qApp, [this]() {
+                m_pending = false;
+                qApp->setWindowIcon(taskbarIcon());
+            });
+        }
+        return false;
+    }
+
+private:
+    bool m_pending {false};
+};
+#endif
 }
 
 namespace {
@@ -245,8 +289,10 @@ KisApplication::KisApplication(const QString &key, int &argc, char **argv)
     QCoreApplication::addLibraryPath(QCoreApplication::applicationDirPath());
 
 #ifndef Q_OS_MACOS
-    // the taskbar can be dark or light whatever the theme: the S with a light edge reads on both
-    setWindowIcon(QIcon(QStringLiteral(":/krita-branding.svgz")));
+    setWindowIcon(taskbarIcon());
+#endif
+#ifdef Q_OS_WIN
+    installNativeEventFilter(new TaskbarThemeFilter);
 #endif
 
     // if style is set from config, try to load that, otherwise default

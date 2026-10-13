@@ -8,8 +8,8 @@
 #   light_krita-branding.svgz  light S, for dark themes (in the app, and the splash)
 #   dark_krita-branding.svgz   ink S, for light themes (Krita names icons by their own color)
 #   sc-apps-krita.svgz, *-apps-krita.png, krita.ico
-#                              ink S with a light edge, for places that can be dark or light
-#                              (taskbar, file browser); the edge grows at small sizes
+#                              a colored S that reads on dark and light alike, for places that
+#                              can't follow the theme (the .exe in the file browser, Start, shortcuts)
 # into every branding folder, so no build shows Krita's logo, and the .kra file icons (a page with
 # the S) into ../mimetypes. Needs Pillow.
 
@@ -23,7 +23,7 @@ SIZE = 1024
 GROW = 1.22             # the S fills the icon; there's no tile around it
 INK = (38, 35, 32)
 LIGHT = (240, 234, 222)
-EDGE = 20               # the light edge of the either-way icon, at 1024 px
+STATIC = (236, 98, 78)
 PAGE = (252, 250, 246)
 PAGE_EDGE = (205, 190, 165)
 FOLD = (232, 220, 199)
@@ -79,28 +79,17 @@ def stroke(n=240):
     return left + cap(n, True) + right[::-1] + cap(0, False)
 
 
-def svg(fill, edge=None):
+def svg(fill):
     d = 'M' + ' L'.join('%.1f %.1f' % p for p in stroke()) + ' Z'
-    under = f' <path d="{d}" fill="rgb{edge}" stroke="rgb{edge}" stroke-width="{2 * EDGE}" stroke-linejoin="round"/>\n' if edge else ''
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{SIZE}" height="{SIZE}" viewBox="0 0 {SIZE} {SIZE}">\n'
-            f'{under} <path d="{d}" fill="rgb{fill}"/>\n</svg>\n').encode()
+            f' <path d="{d}" fill="rgb{fill}"/>\n</svg>\n').encode()
 
 
-def render(fill, edge=None, edge_px=EDGE, scale=4):
+def render(fill, scale=4):
     big = SIZE * scale
     img = Image.new('RGBA', (big, big), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    pts = [(x * scale, y * scale) for x, y in stroke(480)]
-    if edge:
-        d.polygon(pts, fill=edge + (255,))
-        d.line(pts + [pts[0]], fill=edge + (255,), width=round(2 * edge_px * scale), joint='curve')
-    d.polygon(pts, fill=fill + (255,))
+    ImageDraw.Draw(img).polygon([(x * scale, y * scale) for x, y in stroke(480)], fill=fill + (255,))
     return img.resize((SIZE, SIZE), Image.LANCZOS)
-
-
-def either_way(size):
-    """The ink S with a light edge, its edge at least about a pixel and a half wide at any size."""
-    return render(INK, LIGHT, max(EDGE, 1.5 * SIZE / size)).resize((size, size), Image.LANCZOS)
 
 
 def document(scale=4):
@@ -123,12 +112,13 @@ def write_svgz(path, data):
 
 
 def main():
-    pngs = {s: either_way(s) for s in PNG_SIZES}
-    ico = [pngs[s] if s in pngs else either_way(s) for s in ICO_SIZES]
+    static = render(STATIC)
+    pngs = {s: static.resize((s, s), Image.LANCZOS) for s in PNG_SIZES}
+    ico = [pngs[s] for s in ICO_SIZES]
     ico[-1].save(os.path.join(HERE, 'krita.ico'), sizes=[(s, s) for s in ICO_SIZES], append_images=ico[:-1])
     for branding in BRANDINGS:
         folder = os.path.join(HERE, branding)
-        write_svgz(os.path.join(folder, 'sc-apps-krita.svgz'), svg(INK, LIGHT))
+        write_svgz(os.path.join(folder, 'sc-apps-krita.svgz'), svg(STATIC))
         write_svgz(os.path.join(folder, 'light_krita-branding.svgz'), svg(LIGHT))
         write_svgz(os.path.join(folder, 'dark_krita-branding.svgz'), svg(INK))
         for s, im in pngs.items():
