@@ -26,7 +26,9 @@ public:
         /// A value on the row: where it is between its ends (0 to 1), as text, and whether it is used now
         ValueFractionRole  = Qt::UserRole + 7,
         ValueTextRole      = Qt::UserRole + 8,
-        ValueAppliesRole   = Qt::UserRole + 9
+        ValueAppliesRole   = Qt::UserRole + 9,
+        /// At its full strength: shown only while the pointer is over it
+        ValueFullRole      = Qt::UserRole + 10
     };
 
 public:

@@ -75,8 +75,8 @@ struct KisPaintOpSettingsWidget::Private
     /// The row's value under \p pos, if it can be changed now
     bool valueAt(const QModelIndex &index, const QPoint &pos) const
     {
+        // the whole row from its name on, as a layer's opacity; unchecked too, as a hidden layer's
         if (!index.isValid() || !index.data(__CategorizedListModelBase::ValueFractionRole).isValid()) return false;
-        if (!index.data(__CategorizedListModelBase::ValueAppliesRole).toBool()) return false;
         return valueRect(index).contains(pos);
     }
 

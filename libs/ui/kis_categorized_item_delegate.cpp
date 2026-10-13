@@ -74,8 +74,11 @@ void KisCategorizedItemDelegate::paint(QPainter* painter, const QStyleOptionView
 
         }
 
-        // the value under the name, its number after it
-        const QVariant fraction = index.data(__CategorizedListModelBase::ValueFractionRole);
+        // the value under the name, its number after it; a full one only while the pointer is over it
+        QVariant fraction = index.data(__CategorizedListModelBase::ValueFractionRole);
+        if (index.data(__CategorizedListModelBase::ValueFullRole).toBool() && !(option.state & QStyle::State_MouseOver)) {
+            fraction = QVariant();
+        }
         if (fraction.isValid()) {
             paintValue(painter, sovi, index, fraction.toReal(), false);
         }

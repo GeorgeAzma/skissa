@@ -66,7 +66,7 @@ void KisPaintOpOptionListModel::addPaintOpOption(KisPaintOpOption *option, int w
 
 QVariant KisPaintOpOptionListModel::data(const QModelIndex& idx, int role) const
 {
-    if (idx.isValid() && (role == ValueFractionRole || role == ValueTextRole || role == ValueAppliesRole)) {
+    if (idx.isValid() && (role == ValueFractionRole || role == ValueTextRole || role == ValueAppliesRole || role == ValueFullRole)) {
         DataItem *item = categoriesMapper()->itemFromRow(idx.row());
         // an option this brush can't use now has no value to show
         if (!item || item->isCategory() || !item->data()->option || !item->isEnabled()) return QVariant();
@@ -82,6 +82,11 @@ QVariant KisPaintOpOptionListModel::data(const QModelIndex& idx, int role) const
         if (role == ValueTextRole) {
             const QString number = QLocale().toString(value->value, 'f', value->decimals);
             return value->suffix.isEmpty() ? number : number + value->suffix;
+        }
+        if (role == ValueFullRole) {
+            // a size is a number to read; a strength at its top, or at 100%, is what the brush does anyway
+            return !value->size && (value->value >= value->maximum - 1e-6
+                                    || (value->suffix.trimmed() == QLatin1String("%") && qAbs(value->value - 100.0) < 1e-6));
         }
         return value->appliesUnchecked || !item->isCheckable() || item->isChecked();
     }
