@@ -106,6 +106,7 @@
 #include "KisResourceServerProvider.h"
 #include "kis_node_manager.h"
 #include "KisPart.h"
+#include "KisSettingsUndo.h"
 #include "KisApplication.h"
 #include "KisDocument.h"
 #include "KisImportExportManager.h"
@@ -194,12 +195,15 @@ public:
     }
 
     void undo() override {
+        // a change of settings made since is taken back first (nothing of it is in this stack)
+        if (m_recursionCounter == 0 && m_doc->image() && m_doc->image()->isIdle() && KisSettingsUndo::undoInstead(this)) return;
         m_postponedJobs.append({PostponedJob::Undo, 0});
         processPostponedJobs();
     }
 
 
     void redo() override {
+        if (m_recursionCounter == 0 && m_doc->image() && m_doc->image()->isIdle() && KisSettingsUndo::redoInstead(this)) return;
         m_postponedJobs.append({PostponedJob::Redo, 0});
         processPostponedJobs();
     }

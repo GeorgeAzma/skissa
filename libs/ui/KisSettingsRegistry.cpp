@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QColor>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QLocale>
 #include <QGuiApplication>
@@ -818,6 +819,17 @@ struct KisSettingsRegistry::Private
     QHash<QString, QVector<Choice>> foundChoices;
     QTimer notify;
     QTimer sync;
+
+    struct Change {
+        QString id;
+        QVariant before;
+        QVariant after;
+        QElapsedTimer made;
+    };
+    QVector<Change> undo;
+    QVector<Change> redo;
+    /// Undoing or redoing: what is written is not a change of its own
+    bool replaying {false};
 };
 
 KisSettingsRegistry *KisSettingsRegistry::instance()
@@ -1032,7 +1044,20 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
     if (!s) return false;
     const QVariant v = normalized(*s, newValue);
     if (!v.isValid()) return false;
-    if (sameValue(*s, v, value(id))) return true;
+    const QVariant before = value(id);
+    if (sameValue(*s, v, before)) return true;
+    if (!d->replaying) {
+        // a slider dragged, a value typed and fixed: one change
+        if (!d->undo.isEmpty() && d->undo.last().id == id && d->undo.last().made.elapsed() < 1500) {
+            d->undo.last().after = v;
+        } else {
+            Private::Change change{id, before, v, QElapsedTimer()};
+            d->undo << change;
+            if (d->undo.size() > 200) d->undo.removeFirst();
+        }
+        d->undo.last().made.restart();
+        d->redo.clear();
+    }
     if (s->write) {
         s->write(v);
     } else {
@@ -1046,6 +1071,53 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
     if (s->written) s->written(v);
     schedule();
     Q_EMIT valueChanged(id);
+    return true;
+}
+
+qint64 KisSettingsRegistry::undoAge() const
+{
+    return d->undo.isEmpty() ? -1 : d->undo.last().made.elapsed();
+}
+
+QString KisSettingsRegistry::undoName() const
+{
+    const Setting *s = d->undo.isEmpty() ? nullptr : setting(d->undo.last().id);
+    return s ? s->label : QString();
+}
+
+bool KisSettingsRegistry::undoChange()
+{
+    if (d->undo.isEmpty()) return false;
+    Private::Change change = d->undo.takeLast();
+    d->replaying = true;
+    setValue(change.id, change.before);
+    d->replaying = false;
+    change.made.restart();
+    d->redo << change;
+    return true;
+}
+
+bool KisSettingsRegistry::canRedoChange() const
+{
+    return !d->redo.isEmpty();
+}
+
+QString KisSettingsRegistry::redoName() const
+{
+    const Setting *s = d->redo.isEmpty() ? nullptr : setting(d->redo.last().id);
+    return s ? s->label : QString();
+}
+
+bool KisSettingsRegistry::redoChange()
+{
+    if (d->redo.isEmpty()) return false;
+    Private::Change change = d->redo.takeLast();
+    d->replaying = true;
+    setValue(change.id, change.after);
+    d->replaying = false;
+    // done again: as recent as it is now, for Undo to weigh against the document's steps
+    change.made.restart();
+    d->undo << change;
     return true;
 }
 

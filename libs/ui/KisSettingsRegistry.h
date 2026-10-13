@@ -112,6 +112,18 @@ public:
     /// The settings waiting for a restart: changed since Krita started, where that takes a restart
     QStringList waitingForRestart() const;
 
+    /**
+     * The changes made, to undo and redo them (see KisSettingsUndo): one a setting, its value before and
+     * after. Changes of one setting close together (a slider dragged) are one.
+     */
+    /// How long ago the change Undo would take back was made, in ms; -1: there is none
+    qint64 undoAge() const;
+    QString undoName() const;
+    bool undoChange();
+    bool canRedoChange() const;
+    QString redoName() const;
+    bool redoChange();
+
     /// Tells Krita now of what was written, instead of a moment later
     void flush();
 

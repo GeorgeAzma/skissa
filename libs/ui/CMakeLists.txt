@@ -460,6 +460,7 @@ set(kritaui_LIB_SRCS
     KisStudioBrushMemory.cpp
     KisStudioTheme.cpp
     KisStudioSymmetry.cpp
+    KisSettingsUndo.cpp
     KisStudioCanvasRing.cpp
     KisOpenPane.cpp
     KisPart.cpp

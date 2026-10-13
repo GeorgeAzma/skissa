@@ -13,7 +13,9 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QHash>
+#include <QAbstractSpinBox>
 #include <QKeyEvent>
+#include <QLineEdit>
 #include <QMdiArea>
 #include <QMdiSubWindow>
 #include <QMenu>
@@ -2966,6 +2968,13 @@ void KisStudioLayout::createTopBar()
                             scrubber->setValue(value);
                         }
                     });
+            // a right click: the value the brush came with, as it was picked
+            scrubber->setDefaultValue(source->value());
+            if (KisCanvasResourceProvider *resources = mainWindow->viewManager()->canvasResourceProvider()) {
+                connect(resources, &KisCanvasResourceProvider::sigPaintOpPresetChanged, scrubber, [scrubber, source]() {
+                    QTimer::singleShot(0, scrubber, [scrubber, source]() { scrubber->setDefaultValue(source->value()); });
+                });
+            }
         }
         d->brushValuesAction = bar->addWidget(values);
         d->brushValuesAction->setVisible(false);
@@ -3344,6 +3353,22 @@ bool KisStudioLayout::handlePresetChip(QEvent *event)
 
 bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 {
+    // a field keeps Undo and Redo for its own typing only: with none of it to take back, they are the window's
+    if (event->type() == QEvent::ShortcutOverride) {
+        auto *key = static_cast<QKeyEvent *>(event);
+        const bool undo = key->matches(QKeySequence::Undo);
+        const bool redo = key->matches(QKeySequence::Redo);
+        if (undo || redo) {
+            QLineEdit *edit = qobject_cast<QLineEdit *>(watched);
+            if (!edit) {
+                if (auto *spin = qobject_cast<QAbstractSpinBox *>(watched)) edit = spin->findChild<QLineEdit *>();
+            }
+            if (edit && edit->window() == d->mainWindow && !(undo ? edit->isUndoAvailable() : edit->isRedoAvailable())) {
+                event->ignore();
+                return true;
+            }
+        }
+    }
     // closed before the window state is saved: restoring a floating panel crashes Qt
     if (watched == d->mainWindow && event->type() == QEvent::Close) {
         if (d->flyout) closeFlyout();
