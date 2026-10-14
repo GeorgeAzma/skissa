@@ -143,14 +143,17 @@ protected:
         if ((event->buttons() & Qt::LeftButton) && !m_choice.key.isEmpty()
             && (event->pos() - m_pressPos).manhattanLength() > QApplication::startDragDistance()) {
             setDown(false);
-            auto *drag = new QDrag(this);
+            // taking a variant out of its slot rebuilds the card, this tile with it: the drag can't be the tile's
+            auto *drag = new QDrag(qApp);
             auto *mime = new QMimeData();
             mime->setData(KisStudioShortcuts::itemMimeType(), m_choice.key.toUtf8());
             drag->setMimeData(mime);
             drag->setPixmap(m_choice.icon.pixmap(32, 32));
+            const std::function<void()> done = dropped;
             if (dragged) dragged();
             drag->exec(Qt::CopyAction);
-            if (dropped) dropped();
+            drag->deleteLater();
+            if (done) done();
             return;
         }
         QAbstractButton::mouseMoveEvent(event);
@@ -507,8 +510,13 @@ void KisStudioItemCard::setChoices(const QVector<Choice> &choices)
             close();
         });
         // Hide during a drag so the card doesn't cover the drop target, then close
-        tile->dragged = [this]() { hide(); };
-        tile->dropped = [this]() { close(); };
+        const QPointer<KisStudioItemCard> card(this);
+        tile->dragged = [card]() {
+            if (card) card->hide();
+        };
+        tile->dropped = [card]() {
+            if (card) card->close();
+        };
         d->choices->addWidget(tile);
     }
     d->choices->addStretch(1);
