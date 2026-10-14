@@ -6,6 +6,8 @@
 
 #include "KisMaskingBrushOption.h"
 
+#include <QHash>
+
 #include "kis_predefined_brush_chooser.h"
 #include "kis_brush_selection_widget.h"
 
@@ -313,6 +315,7 @@ QWidget *KisMaskingBrushOption::createQuickPage(PaintopCategory category, QWidge
         QVector<KisStudioChips::Chip> chips;
         KisStudioChips::Chip off;
         off.text = i18nc("no mask on the brush", "None");
+        off.toolTip = i18nc("@info:tooltip", "No mask: the tip as it is");
         off.on = !on;
         chips << off;
         Q_FOREACH (const QString &id, all) {
@@ -320,11 +323,21 @@ QWidget *KisMaskingBrushOption::createQuickPage(PaintopCategory category, QWidge
             KisStudioChips::Chip chip;
             chip.text = KoCompositeOpRegistry::instance().getKoID(id).name();
             chip.on = on && id == current;
+            // what the mask does to the tip, for the common ones
+            static const QHash<QString, QString> tips = {
+                {COMPOSITE_MULT, i18nc("@info:tooltip mask mode", "The mask's darks thin the paint")},
+                {COMPOSITE_DARKEN, i18nc("@info:tooltip mask mode", "Paint only where the mask is darker")},
+                {COMPOSITE_OVERLAY, i18nc("@info:tooltip mask mode", "The mask deepens the tip's lights and darks")},
+                {COMPOSITE_SUBTRACT, i18nc("@info:tooltip mask mode", "The mask cuts holes in the tip")},
+                {COMPOSITE_BURN, i18nc("@info:tooltip mask mode", "The mask darkens the tip, strongly")},
+            };
+            chip.toolTip = tips.value(id);
             chips << chip;
             *shown << id;
         }
         KisStudioChips::Chip more;
         more.text = *showAll ? i18nc("show fewer choices", "Less") : QStringLiteral("···");
+        more.toolTip = *showAll ? QString() : i18nc("@info:tooltip", "More modes");
         chips << more;
         modes->setChips(chips);
     };

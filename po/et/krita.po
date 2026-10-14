@@ -116905,6 +116905,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Võta tagasi"
 
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Tõmme tõmbejoontele"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
 msgstr "Valimine"

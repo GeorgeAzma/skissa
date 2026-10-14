@@ -181,7 +181,9 @@ void KisStudioChips::paintEvent(QPaintEvent *)
             }
             continue;
         }
-        QRectF text = box.adjusted(padding, 0, -padding, 0);
+        // tabs share the row: their names need the room more than the padding
+        const int inset = m_tabs ? KisModernStyle::space1 : padding;
+        QRectF text = box.adjusted(inset, 0, -inset, 0);
         if (chip.dot) {
             painter.setPen(Qt::NoPen);
             painter.setBrush(accent);

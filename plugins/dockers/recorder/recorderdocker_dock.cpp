@@ -108,7 +108,7 @@ public:
     {
         setMouseTracking(true);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-        setToolTip(i18nc("@info:tooltip", "Drag to look back"));
+        setToolTip(i18nc("@info:tooltip the time-lapse preview, scrubbed", "Earlier ← → now"));
         m_play.setInterval(1000 / videoFps);
         QObject::connect(&m_play, &QTimer::timeout, this, [this]() {
             if (m_index < 0 || m_index >= m_frames.size() - 1) {
@@ -368,7 +368,7 @@ public:
         : QWidget(parent)
     {
         setCursor(Qt::SizeHorCursor);
-        setToolTip(i18nc("@info:tooltip", "Video length"));
+        setToolTip(i18nc("@info:tooltip", "The whole painting in this long, e.g. 30 s"));
         setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     }
 
@@ -812,6 +812,10 @@ public:
         for (const VideoFormat &videoFormat : videoFormats()) {
             auto *button = new QToolButton(page);
             button->setText(videoFormat.name);
+            // what each format is good for
+            if (videoFormat.profile == 0) button->setToolTip(i18nc("@info:tooltip video format", "MP4: plays anywhere"));
+            else if (videoFormat.profile == 1) button->setToolTip(i18nc("@info:tooltip video format", "GIF: loops in chats, no sound, larger"));
+            else button->setToolTip(i18nc("@info:tooltip video format", "WebM: small, for the web"));
             button->setCheckable(true);
             button->setAutoExclusive(true);
             button->setAutoRaise(true);

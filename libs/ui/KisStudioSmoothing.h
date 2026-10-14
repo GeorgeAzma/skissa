@@ -9,24 +9,24 @@
 #include <QObject>
 #include <QWidget>
 
-#include <functional>
-
 #include "kritaui_export.h"
 #include "tool/kis_smoothing_options.h"
-#include "widgets/KisStudioPopup.h"
 
 class KisMainWindow;
 
 /**
  * The line smoothing of the brush tool in use, as one amount: 0 is off, and the rest is the smoothing
- * distance by ratios (as sizes are dragged). The brush chip on the top bar shows it behind the brush's name,
- * dragging it changes it, and a click opens the smoothing menu (KisStudioSmoothingPopup).
+ * distance by ratios (as sizes are dragged). The brush chip on the top bar shows it behind the brush's name
+ * and dragging it changes it; the brush editor's Stroke tab (KisStudioStrokePage) has the rest.
+ * Each brush keeps its own smoothing, in the fork's config by the brush's name.
  */
 class KRITAUI_EXPORT KisStudioSmoothing : public QObject
 {
     Q_OBJECT
 public:
     static KisStudioSmoothing *instance();
+    /// Keeps each brush's smoothing for \p mainWindow, and gives it back when the brush is picked
+    static void watch(KisMainWindow *mainWindow);
 
     /// The smoothing of the brush tool in use in \p mainWindow's view; null when that tool has none
     static KisSmoothingOptionsSP options(KisMainWindow *mainWindow);
@@ -40,28 +40,43 @@ public:
     static void setType(KisMainWindow *mainWindow, KisSmoothingOptions::SmoothingType type);
     /// After the options were changed directly: the tool's own options and everything showing it follow
     static void changed(KisMainWindow *mainWindow);
+    /// Whether the brush in use paints whole pixels (pixel art), where pixel perfect lines are offered
+    static bool pixelBrush(KisMainWindow *mainWindow);
 
     static qreal distanceToAmount(qreal distance);
     static qreal amountToDistance(qreal amount);
 
 Q_SIGNALS:
     void sigChanged();
+    /// Changed in the tool's own options
+    void sigToolChanged();
+    /// The tool's whole options asked for, from the Stroke tab
+    void sigToolOptionsRequested(KisMainWindow *mainWindow);
 
 private:
     KisStudioSmoothing() = default;
 };
 
-/// Smoothing, drawn on a wobbly line as it would come out, its kinds as pills and each kind's few settings
-class KRITAUI_EXPORT KisStudioSmoothingPopup : public KisStudioPopup
+/**
+ * How the brush tool lays a stroke down: its smoothing drawn on a wobbly line as it would come out, the kinds
+ * as pills and each kind's few settings, pixel perfect lines for pixel brushes, Shapes, snapping to guides
+ * when the image has some, and the tool's whole options.
+ */
+class KRITAUI_EXPORT KisStudioStrokePage : public QWidget
 {
     Q_OBJECT
 public:
-    /// Opens the menu below \p anchor, or closes it if open; \p everything shows the tool's whole options
-    static void toggle(KisMainWindow *mainWindow, QWidget *anchor, std::function<void()> everything);
-    ~KisStudioSmoothingPopup() override;
+    KisStudioStrokePage(KisMainWindow *mainWindow, QWidget *parent);
+    ~KisStudioStrokePage() override;
+
+    /// Whether the tool in use paints freehand with the brush, which is what this page is about
+    static bool applies(KisMainWindow *mainWindow);
+
+Q_SIGNALS:
+    /// Its rows changed: the window holding it fits it again
+    void sigResized();
 
 private:
-    KisStudioSmoothingPopup(KisMainWindow *mainWindow, std::function<void()> everything);
     void rebuild();
 
     struct Private;

@@ -71838,10 +71838,6 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "色"
 
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "色相"
-
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
@@ -71997,6 +71993,10 @@ msgstr "インポート"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "元に戻す"
+
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "基準線に合わせる"
 
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
@@ -72270,13 +72270,13 @@ msgstr "レイヤー\"%1\"には、Skissa 5.2で CMYK カラーの動作が変�
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "このファイルは新しすぎてこのバージョン (%1) の Skissa では開けません"
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "ハード"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "サイズ"
 
-msgctxt "brush tip edge"
-msgid "Gaussian"
-msgstr "ガウシアン"
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "高さ"
 
 msgctxt "brush tip shape"
 msgid "Square"

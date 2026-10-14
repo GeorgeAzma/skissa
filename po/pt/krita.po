@@ -73789,6 +73789,10 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "Filtro"
 
+msgctxt "brush part: how the line is laid down (smoothing, shapes)"
+msgid "Stroke"
+msgstr "Traço"
+
 msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "Adicionar"
@@ -73808,14 +73812,6 @@ msgstr "Gravar"
 msgctxt "@title:window"
 msgid "Color"
 msgstr "Cor"
-
-msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "Iluminação"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "Tom"
 
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
@@ -73980,6 +73976,10 @@ msgstr "Importar"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Desfazer"
+
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Ajustar às guias"
 
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
@@ -74257,17 +74257,13 @@ msgstr "A camada \"%1\" tem o modo de mistura \"%2\", que mudou o seu comportame
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "O ficheiro é demasiado recente para esta versão do Skissa (%1)."
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "Forte"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Tamanho"
 
-msgctxt "brush tip edge"
-msgid "Curve"
-msgstr "Curva"
-
-msgctxt "brush tip edge"
-msgid "Gaussian"
-msgstr "Gaussiano"
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "Altura"
 
 msgctxt "brush tip shape"
 msgid "Square"

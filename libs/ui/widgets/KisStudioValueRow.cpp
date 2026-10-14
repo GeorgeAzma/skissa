@@ -9,7 +9,11 @@
 #include <QLineEdit>
 #include <QLocale>
 #include <QMouseEvent>
+#include <QHelpEvent>
 #include <QPainter>
+#include <QToolTip>
+
+#include <klocalizedstring.h>
 #include <QPainterPath>
 
 #include <cmath>
@@ -379,6 +383,20 @@ bool KisStudioValueRow::event(QEvent *event)
 {
     if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) {
         update();
+    }
+    if (event->type() == QEvent::ToolTip) {
+        // the pin and the cross say what they do; the rest of the row has its own tooltip
+        auto *help = static_cast<QHelpEvent *>(event);
+        QString tip;
+        if (showsPin() && pinRect().adjusted(-4, -6, 4, 6).contains(help->pos())) {
+            tip = m_pinned ? i18nc("@info:tooltip", "Unpin from the top bar") : i18nc("@info:tooltip", "Pin to the top bar");
+        } else if (m_removable && removeRect().adjusted(-3, -6, 3, 6).contains(help->pos())) {
+            tip = i18nc("@info:tooltip", "Take off the brush");
+        }
+        if (!tip.isEmpty()) {
+            QToolTip::showText(help->globalPos(), tip, this);
+            return true;
+        }
     }
     // the release never comes when the window loses focus mid-drag
     if (m_pressed && (event->type() == QEvent::WindowDeactivate || event->type() == QEvent::Hide

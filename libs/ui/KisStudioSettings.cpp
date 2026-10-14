@@ -948,7 +948,7 @@ QVector<CardDef> makeCards()
         {QStringLiteral("[theme] Theme"), QStringLiteral("[StudioTheme] Lightness"), QStringLiteral("[StudioTheme] Tint"),
          QStringLiteral("[StudioTheme] TintAmount"), QStringLiteral("[StudioTheme] UseAccent"), QStringLiteral("[StudioTheme] Accent")},
         QStringLiteral("dark light colors color scheme palette accent tint contrast lightness"), [](Builder &b) {
-            b.explain(i18nc("@info:tooltip", "Pick a preset, then make it yours below"));
+            b.explain(i18nc("@info:tooltip", "Presets, then tint and lightness"));
             // The presets, each pictured in its own colors
             const QVector<KisStudioTheme::Preset> presets = KisStudioTheme::presets();
             QVector<Tiles::Tile> tiles;

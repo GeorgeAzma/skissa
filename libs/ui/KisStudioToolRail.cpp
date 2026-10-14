@@ -244,7 +244,7 @@ public:
         setFixedSize(40, name.isEmpty() ? 14 : 20);
         setAttribute(Qt::WA_Hover);
         setCursor(Qt::PointingHandCursor);
-        setToolTip(name.isEmpty() ? i18nc("@info:tooltip", "Gap: click to name, drag off to remove")
+        setToolTip(name.isEmpty() ? i18nc("@info:tooltip a gap between groups of tools", "Gap\nClick: name · Drag off: remove")
                                   : name);
     }
 

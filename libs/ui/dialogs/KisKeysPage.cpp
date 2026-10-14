@@ -217,7 +217,7 @@ public:
         , m_mark(mark)
         , m_text(text)
     {
-        setToolTip(mark == Held ? i18nc("@info:tooltip", "Held on the canvas") : i18nc("@info:tooltip", "Two commands on one key"));
+        setToolTip(mark == Held ? i18nc("@info:tooltip", "Works while held, e.g. Space pans") : i18nc("@info:tooltip", "Two commands on one key"));
     }
 
     QSize sizeHint() const override
@@ -1220,6 +1220,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     bar->addWidget(d->pressKeys);
     d->changedOnly = new QToolButton(this);
     d->changedOnly->setText(i18nc("@action:button keys page: show only changed shortcuts", "Changed"));
+    d->changedOnly->setToolTip(i18nc("@info:tooltip", "Only shortcuts you changed"));
     d->changedOnly->setCheckable(true);
     bar->addWidget(d->changedOnly);
     // Creates a ring and records its key right away
@@ -1259,7 +1260,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     }
     Q_FOREACH (const QString &name, schemeNames) d->startFrom->addItem(d->schemeTitle(name), name);
     d->startFrom->setCurrentIndex(qMax(0, d->startFrom->findData(d->scheme)));
-    d->startFrom->setToolTip(i18nc("@info:tooltip", "Preset"));
+    d->startFrom->setToolTip(i18nc("@info:tooltip", "A ready-made set of shortcuts to begin from"));
     bar->addWidget(d->startFrom);
     layout->addLayout(bar);
 
@@ -1282,7 +1283,8 @@ KisKeysPage::KisKeysPage(QWidget *parent)
         button->setAutoRaise(true);
         button->setProperty(KisModernStyle::tabButtonProperty, true);
         button->setProperty("layer", int(entry.second));
-        button->setToolTip(i18nc("@info:tooltip", "Modifiers"));
+        button->setToolTip(entry.second == Qt::NoModifier ? i18nc("@info:tooltip keyboard layer", "The keys alone")
+                                                          : i18nc("@info:tooltip keyboard layer, e.g. The keys with Ctrl held", "The keys with %1 held", entry.first));
         layers->addWidget(button);
         d->layerButtons << button;
     }

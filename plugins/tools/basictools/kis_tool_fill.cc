@@ -651,21 +651,21 @@ QWidget* KisToolFill::createOptionWidget()
     m_buttonFillWithFG->setToolTip(i18n("Foreground color"));
     m_buttonFillWithBG->setToolTip(i18n("Background color"));
     m_buttonFillWithPattern->setToolTip(i18n("Pattern"));
-    m_sliderPatternScale->setToolTip(i18n("Set the scale of the pattern"));
-    m_angleSelectorPatternRotation->setToolTip(i18n("Set the rotation of the pattern"));
-    m_checkBoxCustomBlendingOptions->setToolTip(i18n("Set custom blending options instead of using the brush ones"));
-    m_sliderCustomOpacity->setToolTip(i18n("Set a custom opacity for the fill"));
-    m_comboBoxCustomCompositeOp->setToolTip(i18n("Set a custom blend mode for the fill"));
+    m_sliderPatternScale->setToolTip(i18nc("@info:tooltip", "Pattern size"));
+    m_angleSelectorPatternRotation->setToolTip(i18nc("@info:tooltip", "Pattern angle"));
+    m_checkBoxCustomBlendingOptions->setToolTip(i18nc("@info:tooltip", "Own opacity and blend mode, not the brush's"));
+    m_sliderCustomOpacity->setToolTip(i18nc("@info:tooltip", "The fill's opacity"));
+    m_comboBoxCustomCompositeOp->setToolTip(i18nc("@info:tooltip", "The fill's blend mode"));
 
     m_buttonContiguousFillModeFloodFill->setToolTip(i18n("Fill regions similar in color to the clicked region"));
     m_buttonContiguousFillModeBoundaryFill->setToolTip(i18n("Fill all regions until a specific boundary color"));
     m_buttonContiguousFillBoundaryColor->setToolTip(i18n("Boundary color"));
-    m_sliderThreshold->setToolTip(i18n("Set the color similarity tolerance of the fill. Increasing threshold increases the range of similar colors to be filled."));
-    m_sliderSpread->setToolTip(i18n("Set the extent of the opaque portion of the fill. Decreasing spread decreases opacity of fill areas depending on color similarity."));
+    m_sliderThreshold->setToolTip(i18nc("@info:tooltip", "0% this exact color → 100% every color"));
+    m_sliderSpread->setToolTip(i18nc("@info:tooltip", "0% fades with the color difference → 100% solid"));
     m_sliderCloseGap->setToolTip(i18n("Close gaps in lines up to the set amount"));
     m_checkBoxUnderLines->setToolTip(i18nc("@info:tooltip", "Fill to the middle of the lines, on another layer than them"));
     m_sliderSpecks->setToolTip(i18nc("@info:tooltip", "Fill spots up to this size too"));
-    m_checkBoxSelectionAsBoundary->setToolTip(i18n("Set if the contour of the active selection should be treated as a boundary when filling the region"));
+    m_checkBoxSelectionAsBoundary->setToolTip(i18nc("@info:tooltip", "The selection's edge stops the fill too"));
 
     m_checkBoxAntiAlias->setToolTip(i18n("Smooths the edges of the fill"));
     m_sliderGrow->setToolTip(i18n("Grow or shrink the fill by the set amount"));
@@ -677,9 +677,9 @@ QWidget* KisToolFill::createOptionWidget()
     m_buttonReferenceLabeled->setToolTip(i18n("Fill regions found from the merging of layers with specific color labels"));
     m_checkBoxUseActiveLayer->setToolTip(i18n("Includes the active layer in regions found from merging of layers with specific color labels"));
 
-    m_buttonDragFillDoNotUse->setToolTip(i18n("Dragging will not fill different regions"));
-    m_buttonDragFillAny->setToolTip(i18n("Dragging will fill regions of any color"));
-    m_buttonDragFillSimilar->setToolTip(i18n("Dragging will fill only regions similar in color to the initial region (useful for filling line-art)"));
+    m_buttonDragFillDoNotUse->setToolTip(i18nc("@info:tooltip", "Dragging fills nothing more"));
+    m_buttonDragFillAny->setToolTip(i18nc("@info:tooltip", "Dragging fills every region it crosses"));
+    m_buttonDragFillSimilar->setToolTip(i18nc("@info:tooltip", "Dragging fills only regions like the first, e.g. inside line art"));
 
     buttonReset->setToolTip(i18n("Reset the options to their default values"));
 

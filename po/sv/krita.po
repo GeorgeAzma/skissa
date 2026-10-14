@@ -106750,14 +106750,6 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Färg"
 
-msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "Ljushet"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "Färgton"
-
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
@@ -106918,6 +106910,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Ångra"
 
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Lås till hjälplinjer"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Blanda"
@@ -106969,10 +106965,6 @@ msgstr "Krita"
 msgctxt "held key"
 msgid "Rotate"
 msgstr "Rotera"
-
-msgctxt "@info:tooltip"
-msgid "Preset"
-msgstr "Förinställning"
 
 msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
 msgstr "<html><head/><body><h1 align=\"center\"><b>Dina rättigheter</b></h1><p>Skissa ges ut under GNU General Public License (version 3 eller senare version).</p><p>Licensen ger användare ett antal friheter:</p><ul><li>Du har frihet att använda Skissa för vilket syfte som helst</li><li>Du har frihet att distribuera Skissa</li><li>Du kan studera hur Skissa fungerar och ändra det</li><li>Du kan distribuera ändrade versioner av Skissa</li></ul><p>Stiftelsen Skissa och dess projekt på krita.org <b>strävar efter</b> att bevara Skissa som fri programvara.</p><h1 align=\"center\">Dina alster</h1><p>Det du skapar med Skissa är din exklusiva egendom. Du har frihet att använda alla dina alster som du vill.</p><p>Det betyder att Skissa kan användas kommersiellt för vilket syfte som helst. Det finns överhuvudtaget inte några begränsningar.</p><p>Skissas GNU GPL-licens garanterar denna frihet. Ingen har någonsin rätt att inskränka den, i motsats till prov- eller utbildningsversioner av kommersiell programvara som förbjuder dig att arbeta i kommersiellt syfte.</p><br/><hr/><pre>"
@@ -107181,17 +107173,13 @@ msgstr "Lager \"%1\" har blandningsläget \"%2\" som har ändrat beteende för C
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Filen är för ny för den här versionen av Skissa (%1)."
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "Hård"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Storlek"
 
-msgctxt "brush tip edge"
-msgid "Curve"
-msgstr "Kurva"
-
-msgctxt "brush tip edge"
-msgid "Gaussian"
-msgstr "Gaussisk"
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "Höjd"
 
 msgctxt "pattern group"
 msgid "Patterns"

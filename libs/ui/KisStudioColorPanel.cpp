@@ -1195,11 +1195,11 @@ KisStudioColorPanel::KisStudioColorPanel()
     auto *tracks = new QVBoxLayout();
     tracks->setSpacing(KisModernStyle::space2);
     d->lightTrack = new Track(18, d->pill);
-    d->lightTrack->setToolTip(i18nc("@info:tooltip", "Lightness"));
+    d->lightTrack->setToolTip(i18nc("@info:tooltip", "Lightness: black → white"));
     d->chromaTrack = new Track(18, d->pill);
-    d->chromaTrack->setToolTip(i18nc("@info:tooltip", "Chroma"));
+    d->chromaTrack->setToolTip(i18nc("@info:tooltip", "Chroma: gray → vivid"));
     d->hueTrack = new Track(18, d->pill);
-    d->hueTrack->setToolTip(i18nc("@info:tooltip", "Hue"));
+    d->hueTrack->setToolTip(i18nc("@info:tooltip", "Hue: red → yellow → green → blue"));
     tracks->addWidget(d->lightTrack);
     tracks->addWidget(d->chromaTrack);
     tracks->addWidget(d->hueTrack);

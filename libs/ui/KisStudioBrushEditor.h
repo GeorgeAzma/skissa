@@ -35,6 +35,8 @@ public:
     static KisPaintOpOption *brushOption(KisMainWindow *mainWindow, const QString &id);
     /// The key that pins \p option to the top bar
     static QString pinKey(KisPaintOpOption *option);
+    /// What a brush setting does, as a short tooltip; empty when its name says it
+    static QString optionTip(KisPaintOpOption *option);
     /// Keeps \p row showing \p option's value and changing it
     static void bindRow(KisStudioValueRow *row, KisPaintOpOption *option, KisPaintOpSettingsWidget *settings);
 
@@ -48,6 +50,7 @@ private:
     explicit KisStudioBrushEditor(KisMainWindow *mainWindow);
     void rebuild();
     void showPart(int part);
+    void fitPage();
     void updateHeader();
 
     struct Private;

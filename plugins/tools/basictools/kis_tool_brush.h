@@ -50,6 +50,12 @@ class KisToolBrush : public KisToolFreehand
     Q_PROPERTY(bool finishStabilizedCurve READ finishStabilizedCurve WRITE setFinishStabilizedCurve NOTIFY finishStabilizedCurveChanged)
     Q_PROPERTY(bool stabilizeSensors READ stabilizeSensors WRITE setStabilizeSensors NOTIFY stabilizeSensorsChanged)
 
+    // snapping to the image's assistants, set through the tool's own option widgets so they follow
+    Q_PROPERTY(bool assistantSnapping READ assistantSnapping WRITE setAssistantSnapping)
+    Q_PROPERTY(int magnetism READ magnetism WRITE setMagnetism)
+    Q_PROPERTY(bool onlyOneAssistant READ onlyOneAssistant WRITE setOnlyOneAssistant)
+    Q_PROPERTY(bool snapEraser READ snapEraser WRITE setSnapEraserChecked)
+
 
 public:
     KisToolBrush(KoCanvasBase * canvas);
@@ -69,6 +75,15 @@ public:
 
     bool finishStabilizedCurve() const;
     bool stabilizeSensors() const;
+
+    bool assistantSnapping() const;
+    void setAssistantSnapping(bool on);
+    int magnetism() const;
+    void setMagnetism(int magnetism);
+    bool onlyOneAssistant() const;
+    void setOnlyOneAssistant(bool on);
+    bool snapEraser() const;
+    void setSnapEraserChecked(bool on);
 
 protected:
     KConfigGroup m_configGroup; // only used in the multihand tool for now

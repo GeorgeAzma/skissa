@@ -467,7 +467,7 @@ KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &ico
 
     d->keyCap = new KeyCap(this);
     d->keyCap->setVisible(shortcutAction);
-    d->keyCap->setToolTip(i18nc("@info:tooltip", "Click to set shortcut"));
+    d->keyCap->setToolTip(i18nc("@info:tooltip", "Shortcut\nClick: record a new one"));
     connect(d->keyCap, &QAbstractButton::clicked, this, &KisStudioItemCard::startRecording);
     header->addWidget(d->keyCap);
     layout->addLayout(header);

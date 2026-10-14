@@ -85485,14 +85485,6 @@ msgid "Color"
 msgstr "رەڭ"
 
 msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "يورۇقلۇق دەرىجىسى"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "رەڭگى"
-
-msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "ئالدىن كۆزەت"
 
@@ -85608,6 +85600,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "يېنىۋال"
 
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "سېتكىغا توغرىلا"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
 msgstr "تاللا"
@@ -85639,10 +85635,6 @@ msgstr "چۆرگىلەت"
 msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "يوق"
-
-msgctxt "@info:tooltip"
-msgid "Preset"
-msgstr "ئەسلىگە قايتۇرۇش"
 
 msgctxt "canvas input action mode"
 msgid "Opacity"
@@ -85760,13 +85752,13 @@ msgctxt "frames at half the image's size"
 msgid "Half"
 msgstr "يېرىم"
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "تەس"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "چوڭلۇقى"
 
-msgctxt "brush tip edge"
-msgid "Curve"
-msgstr "ئەگرى سىزىق"
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "ئېگىزلىك"
 
 msgctxt "brush tip shape"
 msgid "Square"

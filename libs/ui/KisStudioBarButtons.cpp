@@ -53,8 +53,9 @@ const QString indexMimeType = QStringLiteral("application/x-krita-studio-bar-ind
 
 QStringList defaultItems()
 {
-    return {symmetryItem, shapesItem, brushEditorItem, QStringLiteral("action:erase_action"),
-            QStringLiteral("action:preserve_alpha"), QStringLiteral("action:reload_preset_action")};
+    // the brush editor opens from the brush's chip, before these
+    return {symmetryItem, shapesItem, QStringLiteral("action:erase_action"), QStringLiteral("action:preserve_alpha"),
+            QStringLiteral("action:reload_preset_action")};
 }
 
 /// The tools that paint with the brush, which are the ones symmetry and shapes apply to
@@ -243,6 +244,12 @@ KisStudioBarButtons::KisStudioBarButtons(KisMainWindow *mainWindow, QWidget *par
     d->indicator->hide();
 
     d->items = KisConfig(true).readEntry<QStringList>(itemsKey, defaultItems());
+    // the brush editor's button gave way to the brush's chip, once; put back, it stays
+    if (!KisConfig(true).readEntry("StudioBarBrushEditorRetired", false)) {
+        KisConfig cfg(false);
+        cfg.writeEntry("StudioBarBrushEditorRetired", true);
+        if (d->items.removeAll(brushEditorItem) && cfg.readEntry(itemsKey, QString()).size()) cfg.writeEntry(itemsKey, d->items);
+    }
     connect(KoToolManager::instance(), &KoToolManager::changedTool, this, &KisStudioBarButtons::updateForTool);
     if (KisPaintopBox *box = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr) {
         connect(box, &KisPaintopBox::sigOptionWidgetChanged, this, [this]() {
@@ -319,8 +326,8 @@ void KisStudioBarButtons::rebuild()
         if (key == symmetryItem) {
             // a click toggles it, a long press or right click opens its modes
             button->setCheckable(true);
-            button->setIcon(KisIconUtils::loadIcon(QStringLiteral("krita_tool_multihand")));
-            button->setToolTip(i18nc("@info:tooltip", "Symmetry (hold or right-click for its modes)"));
+            button->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_symmetry")));
+            button->setToolTip(i18nc("@info:tooltip", "Symmetry\nRight-click: modes"));
             button->setChecked(KisStudioSymmetry::isOn(d->actions()));
             button->setMenu(symmetryMenu());
             button->setPopupMode(QToolButton::DelayedPopup);
@@ -344,6 +351,8 @@ void KisStudioBarButtons::rebuild()
             QAction *action = item.action;
             // the brush editor's action is checkable, but it only opens the editor
             if (action && action->isCheckable() && key != brushEditorItem) {
+                // eraser mode's icon is drawn solid while it is on
+                if (action->objectName() == QLatin1String("erase_action")) action->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_erase_mode")));
                 // the action keeps the button's state (and icon) in step, whatever changes it
                 button->setDefaultAction(action);
                 button->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -652,9 +661,9 @@ QMenu *KisStudioBarButtons::symmetryMenu()
     auto *modeGroup = new QButtonGroup(panel);
     const QStringList modeNames = {i18nc("symmetry mode", "Mirror"), i18nc("symmetry mode", "Radial"), i18nc("symmetry mode", "Tile")};
     const QStringList modeTips = {
-        i18nc("@info:tooltip", "Mirrored across an axis, with every brush tool. Drag the dot on an axis to move it."),
-        i18nc("@info:tooltip", "Copies around a center. Drag the center to move it, the dot beside it to turn; double-click the center to reset."),
-        i18nc("@info:tooltip", "Each stroke repeats across the image, or the selection, at this spacing."),
+        i18nc("@info:tooltip symmetry mode", "Each stroke and its reflection"),
+        i18nc("@info:tooltip symmetry mode", "Copies around a center, like a flower"),
+        i18nc("@info:tooltip symmetry mode", "Each stroke repeats across the image, like wallpaper"),
     };
     for (int mode = KisStudioSymmetry::Mirror; mode <= KisStudioSymmetry::Tile; mode++) {
         QToolButton *button = toggle(symmetryIcon(mode, ink), modeNames[mode]);
@@ -672,6 +681,8 @@ QMenu *KisStudioBarButtons::symmetryMenu()
     QAction *downAction = actions->action(QStringLiteral("vmirror_action"));
     QToolButton *across = toggle(acrossAction ? acrossAction->icon() : QIcon(), i18nc("mirror axis", "Across"));
     QToolButton *down = toggle(downAction ? downAction->icon() : QIcon(), i18nc("mirror axis", "Down"));
+    across->setToolTip(i18nc("@info:tooltip mirror axis", "Left ↔ right"));
+    down->setToolTip(i18nc("@info:tooltip mirror axis", "Top ↕ bottom"));
     mirrorLayout->setSpacing(KisModernStyle::hairline);
     mirrorLayout->addWidget(across);
     mirrorLayout->addWidget(down);
@@ -685,6 +696,7 @@ QMenu *KisStudioBarButtons::symmetryMenu()
     copies->setRange(2, KisStudioSymmetry::maximumCopies);
     radialLayout->addWidget(row(radialPage, i18nc("radial symmetry", "Copies"), copies));
     auto *mirrored = new QCheckBox(i18nc("radial symmetry", "Kaleidoscope"), radialPage);
+    mirrored->setToolTip(i18nc("@info:tooltip radial symmetry", "Every other copy flipped, like a snowflake"));
     radialLayout->addWidget(mirrored);
     layout->addWidget(radialPage);
 
@@ -702,6 +714,8 @@ QMenu *KisStudioBarButtons::symmetryMenu()
     };
     QSpinBox *spacingX = spacingBox();
     QSpinBox *spacingY = spacingBox();
+    spacingX->setToolTip(i18nc("@info:tooltip tile spacing", "Gap between copies side by side"));
+    spacingY->setToolTip(i18nc("@info:tooltip tile spacing", "Gap between copies above and below"));
     tileLayout->addWidget(row(tilePage, i18nc("tile spacing", "Across"), spacingX));
     tileLayout->addWidget(row(tilePage, i18nc("tile spacing", "Down"), spacingY));
     layout->addWidget(tilePage);

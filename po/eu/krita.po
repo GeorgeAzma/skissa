@@ -103416,6 +103416,10 @@ msgctxt "brush part"
 msgid "Color"
 msgstr "Kolorea"
 
+msgctxt "brush part: how the line is laid down (smoothing, shapes)"
+msgid "Stroke"
+msgstr "Trazua"
+
 msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "Gehitu"
@@ -103431,14 +103435,6 @@ msgstr "Gorde"
 msgctxt "@title:window"
 msgid "Color"
 msgstr "Kolorea"
-
-msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "Argitasuna"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "Tonua"
 
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
@@ -103599,6 +103595,10 @@ msgstr "Inportatu"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Desegin"
+
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Atxiki saretara"
 
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
@@ -103816,13 +103816,13 @@ msgstr "Skissak ezin du gmic-qt plugina abiarazi. Ez da liburutegi-fardelik aurk
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Fitxategia berriegia da Skissa-ren bertsio honetarako (%1)."
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "Gogorra"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Tamaina"
 
-msgctxt "brush tip edge"
-msgid "Curve"
-msgstr "Kurba"
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "Altuera"
 
 msgctxt "brush tip shape"
 msgid "Square"

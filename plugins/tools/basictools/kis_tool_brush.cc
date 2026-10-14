@@ -189,10 +189,10 @@ void KisToolBrush::slotSetSmoothingType(int index)
         m_sliderSmoothnessDistanceMax->setVisible(true);
         m_distanceAspectButton->setVisible(true);
         showControl(m_sliderTailAggressiveness, false);
-        showControl(m_chkSmoothPressure, false);
         showControl(m_sliderDelayDistance, true);
         showControl(m_chkFinishStabilizedCurve, true);
-        showControl(m_chkStabilizeSensors, true);
+        showControl(m_chkSmoothPressure, true);
+        showControl(m_chkStabilizeSensors, false);
 
         // scalable distance option is disabled due to bug 421314
         showControl(m_chkUseScalableDistance, false);
@@ -313,10 +313,12 @@ void KisToolBrush::slotSetTailAggressiveness(qreal argh_rhhrr)
     Q_EMIT smoothnessFactorChanged();
 }
 
-// used with weighted smoothing
+// one switch for both kinds of smoothing: the stabilizer's sensors follow it
 void KisToolBrush::setSmoothPressure(bool value)
 {
     smoothingOptions()->setSmoothPressure(value);
+    smoothingOptions()->setStabilizeSensors(value);
+    Q_EMIT smoothPressureChanged();
 }
 
 void KisToolBrush::slotSetMagnetism(int magnetism)
@@ -404,6 +406,50 @@ void KisToolBrush::setStabilizeSensors(bool value)
 bool KisToolBrush::stabilizeSensors() const
 {
     return smoothingOptions()->stabilizeSensors();
+}
+
+bool KisToolBrush::assistantSnapping() const
+{
+    return m_assistant;
+}
+
+void KisToolBrush::setAssistantSnapping(bool on)
+{
+    optionWidgets();
+    m_chkAssistant->setChecked(on);
+}
+
+int KisToolBrush::magnetism() const
+{
+    return m_sliderMagnetism ? m_sliderMagnetism->value() : MAXIMUM_MAGNETISM;
+}
+
+void KisToolBrush::setMagnetism(int magnetism)
+{
+    optionWidgets();
+    m_sliderMagnetism->setValue(qBound(0, magnetism, MAXIMUM_MAGNETISM));
+}
+
+bool KisToolBrush::onlyOneAssistant() const
+{
+    return m_only_one_assistant;
+}
+
+void KisToolBrush::setOnlyOneAssistant(bool on)
+{
+    optionWidgets();
+    m_chkOnlyOneAssistant->setChecked(on);
+}
+
+bool KisToolBrush::snapEraser() const
+{
+    return m_eraser_snapping;
+}
+
+void KisToolBrush::setSnapEraserChecked(bool on)
+{
+    optionWidgets();
+    m_chkSnapEraser->setChecked(on);
 }
 
 void KisToolBrush::updateSettingsViews()

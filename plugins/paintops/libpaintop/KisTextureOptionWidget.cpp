@@ -5,6 +5,8 @@
  */
 #include "KisTextureOptionWidget.h"
 
+#include <QHash>
+
 #include <kis_paintop_lod_limitations.h>
 #include <KisTextureOptionModel.h>
 #include <KisWidgetConnectionUtils.h>
@@ -282,9 +284,28 @@ QWidget *KisTextureOptionWidget::createQuickPage(PaintopCategory category, QWidg
         << std::make_pair(i18nc("Linear Height (Photoshop) blend mode for brush texture", "Linear Height (Photoshop)"), int(KisTextureOptionData::LINEAR_HEIGHT_PHOTOSHOP));
     const QVector<int> common = {KisTextureOptionData::MULTIPLY, KisTextureOptionData::SUBTRACT, KisTextureOptionData::DARKEN,
                                  KisTextureOptionData::OVERLAY, KisTextureOptionData::HEIGHT};
+    // what each does with the pattern, in one line
+    const QHash<int, QString> tips = {
+        {KisTextureOptionData::MULTIPLY, i18nc("@info:tooltip texture mode", "The pattern's darks darken the paint")},
+        {KisTextureOptionData::SUBTRACT, i18nc("@info:tooltip texture mode", "The pattern cuts holes in the paint")},
+        {KisTextureOptionData::LIGHTNESS, i18nc("@info:tooltip texture mode", "The pattern's lights and darks shade the paint's color")},
+        {KisTextureOptionData::GRADIENT, i18nc("@info:tooltip texture mode", "The pattern's tones → your gradient's colors")},
+        {KisTextureOptionData::DARKEN, i18nc("@info:tooltip texture mode", "Only the pattern's darker parts show")},
+        {KisTextureOptionData::OVERLAY, i18nc("@info:tooltip texture mode", "The pattern deepens lights and darks")},
+        {KisTextureOptionData::COLOR_DODGE, i18nc("@info:tooltip texture mode", "The pattern lightens the paint")},
+        {KisTextureOptionData::LINEAR_DODGE, i18nc("@info:tooltip texture mode", "The pattern lightens the paint, evenly")},
+        {KisTextureOptionData::COLOR_BURN, i18nc("@info:tooltip texture mode", "The pattern darkens the paint, strongly")},
+        {KisTextureOptionData::LINEAR_BURN, i18nc("@info:tooltip texture mode", "The pattern darkens the paint, evenly")},
+        {KisTextureOptionData::HARD_MIX_PHOTOSHOP, i18nc("@info:tooltip texture mode", "Paint all or nothing where the pattern is")},
+        {KisTextureOptionData::HARD_MIX_SOFTER_PHOTOSHOP, i18nc("@info:tooltip texture mode", "Paint all or nothing, softened")},
+        {KisTextureOptionData::HEIGHT, i18nc("@info:tooltip texture mode", "Light pressure catches only the grain's peaks, like charcoal on paper")},
+        {KisTextureOptionData::LINEAR_HEIGHT, i18nc("@info:tooltip texture mode", "Like Height, with softer edges")},
+        {KisTextureOptionData::HEIGHT_PHOTOSHOP, i18nc("@info:tooltip texture mode", "Like Height, as Photoshop does it")},
+        {KisTextureOptionData::LINEAR_HEIGHT_PHOTOSHOP, i18nc("@info:tooltip texture mode", "Like Linear Height, as Photoshop does it")},
+    };
     auto showAll = std::make_shared<bool>(false);
     auto shown = std::make_shared<QVector<int>>();
-    auto refreshModes = [model, modes, all, common, showAll, shown]() {
+    auto refreshModes = [model, modes, all, common, showAll, shown, tips]() {
         const int current = model->texturingMode();
         shown->clear();
         QVector<KisStudioChips::Chip> chips;
@@ -293,11 +314,13 @@ QWidget *KisTextureOptionWidget::createQuickPage(PaintopCategory category, QWidg
             KisStudioChips::Chip chip;
             chip.text = mode.first;
             chip.on = mode.second == current;
+            chip.toolTip = tips.value(mode.second);
             chips << chip;
             *shown << mode.second;
         }
         KisStudioChips::Chip more;
         more.text = *showAll ? i18nc("show fewer choices", "Less") : QStringLiteral("···");
+        more.toolTip = *showAll ? QString() : i18nc("@info:tooltip", "More modes");
         chips << more;
         modes->setChips(chips);
         modes->setVisible(model->isEnabled());

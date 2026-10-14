@@ -75269,6 +75269,10 @@ msgctxt "brush part"
 msgid "Color"
 msgstr "Колір"
 
+msgctxt "brush part: how the line is laid down (smoothing, shapes)"
+msgid "Stroke"
+msgstr "Штрих"
+
 msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "Додати"
@@ -75284,14 +75288,6 @@ msgstr "%1%"
 msgctxt "@title:window"
 msgid "Color"
 msgstr "Колір"
-
-msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "Освітленість"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "Відтінок"
 
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
@@ -75452,6 +75448,10 @@ msgstr "Імпортувати"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Вернути"
+
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Прилипання до напрямних"
 
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
@@ -75680,9 +75680,13 @@ msgstr "У шарі %1 визначено режим злиття «%2», яки
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Цей файл є надто новим для цієї версії Skissa (%1)."
 
-msgctxt "brush tip edge"
-msgid "Curve"
-msgstr "Крива"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "Висота"
 
 msgctxt "pattern group"
 msgid "Patterns"

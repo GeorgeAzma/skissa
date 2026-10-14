@@ -493,7 +493,7 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     });
     header->addWidget(d->preview);
 
-    d->editable = iconButton(QStringLiteral("filterMask"), i18nc("@info:tooltip", "Keep editable (filter mask)"), this);
+    d->editable = iconButton(QStringLiteral("filterMask"), i18nc("@info:tooltip", "On: on a layer of its own, to change later\nOff: painted in"), this);
     d->editable->setCheckable(true);
     connect(d->editable, &QToolButton::toggled, this, [](bool on) { KisConfig(false).writeEntry(editableKey, on); });
     header->addWidget(d->editable);

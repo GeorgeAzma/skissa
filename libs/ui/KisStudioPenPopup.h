@@ -28,6 +28,8 @@ public:
 
     /// Short names of the pen inputs, by Krita's sensor id
     static QString inputName(const QString &id, const QString &fallback);
+    /// What a pen input is, as a short tooltip; empty for one without
+    static QString inputTip(const QString &id);
     /// The inputs shown before "more"
     static QStringList mainInputs();
 

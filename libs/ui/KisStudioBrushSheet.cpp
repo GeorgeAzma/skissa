@@ -610,6 +610,7 @@ void KisStudioBrushSheet::rebuild()
             Q_FOREACH (KisPaintOpOption *option, details) {
                 KisStudioChips::Chip chip;
                 chip.text = option->label() + QStringLiteral(" ›");
+                chip.toolTip = KisStudioBrushEditor::optionTip(option);
                 chips << chip;
                 targets << option;
             }

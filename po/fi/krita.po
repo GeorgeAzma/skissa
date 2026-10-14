@@ -113298,6 +113298,10 @@ msgctxt "brush part"
 msgid "Color"
 msgstr "Väri"
 
+msgctxt "brush part: how the line is laid down (smoothing, shapes)"
+msgid "Stroke"
+msgstr "Veto"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Kuvapiste"
@@ -113454,6 +113458,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Kumoa"
 
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Kohdista apuviivoihin"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
 msgstr "Valitse"
@@ -113478,10 +113486,6 @@ msgstr "Krita"
 msgctxt "keys group"
 msgid "Other"
 msgstr "Muu"
-
-msgctxt "@info:tooltip"
-msgid "Preset"
-msgstr "Esiasetus"
 
 msgid "<html><head/><body><h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1><p>Skissa is built on the following free software libraries:</p><p><ul>"
 msgstr "<html><head/><body><h1 align=\"center\"><b>Skissan käyttämät kolmannen osapuolet kirjastot</b></h1><p>Skissa on koostettu seuraavilla vapaan ohjelmiston kirjastoilla:</p><p><ul>"
@@ -113615,13 +113619,13 @@ msgstr "Tasolla ”%1” on sekoitustapa ”%2”, jonka toiminta CMYK-väreill�
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Tiedosto on liian uusi tälle Skissan versiolle (%1)."
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "Kova"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Koko"
 
-msgctxt "brush tip edge"
-msgid "Gaussian"
-msgstr "Gauss"
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "Korkeus"
 
 msgctxt "brush tip shape"
 msgid "Square"

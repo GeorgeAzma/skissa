@@ -107687,14 +107687,6 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Farbe"
 
-msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "Helligkeit"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "Farbton"
-
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
@@ -107854,6 +107846,10 @@ msgstr "Importieren"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Rückgängig"
+
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "An Hilfslinien ausrichten"
 
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
@@ -108034,6 +108030,10 @@ msgstr "Skissa-Systeminformation: Bitte fügen Sie diese Informationen in Ihren 
 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Die Datei ist neuer als diese Version von Skissa (%1)."
+
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Größe"
 
 msgctxt "brush tip shape"
 msgid "Square"

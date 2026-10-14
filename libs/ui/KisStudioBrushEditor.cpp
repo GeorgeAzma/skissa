@@ -30,12 +30,16 @@
 #include <kis_signal_auto_connection.h>
 #include <kactioncollection.h>
 
+#include <KoCanvasController.h>
+#include <KoToolManager.h>
+
 #include "KisLastStrokeReplay.h"
 #include "KisMainWindow.h"
 #include "KisStudioBarButtons.h"
 #include "KisStudioBrushPicker.h"
 #include "KisStudioBrushSheet.h"
 #include "KisStudioPenPopup.h"
+#include "KisStudioSmoothing.h"
 #include "KisViewManager.h"
 #include "kis_canvas_resource_provider.h"
 #include "kis_config.h"
@@ -50,6 +54,8 @@
 namespace {
 
 constexpr int contentWidth = 368;
+/// The tab of how the tool lays the stroke down (smoothing, shapes, snapping): not one of the brush's option categories
+constexpr int strokePart = 1000;
 const QString partKey = QStringLiteral("StudioBrushEditorPart");
 
 QHash<KisMainWindow *, QPointer<KisStudioBrushEditor>> &editors()
@@ -71,11 +77,30 @@ QString partName(int part)
         return i18nc("brush part", "Color");
     case KisPaintOpOption::FILTER:
         return i18nc("brush part", "Filter");
+    case strokePart:
+        return i18nc("brush part: how the line is laid down (smoothing, shapes)", "Stroke");
     }
     return QString();
 }
 
 const QString pinPrefix = QStringLiteral("brushsetting:");
+
+QString partTip(int part)
+{
+    switch (part) {
+    case KisPaintOpOption::MASKING_BRUSH:
+        return i18nc("@info:tooltip brush part", "A second tip that cuts into the first: bristles, chalk");
+    case KisPaintOpOption::TEXTURE:
+        return i18nc("@info:tooltip brush part", "A paper grain the paint catches on");
+    case KisPaintOpOption::COLOR:
+        return i18nc("@info:tooltip brush part", "Where the color comes from and how it builds up");
+    case KisPaintOpOption::FILTER:
+        return i18nc("@info:tooltip brush part", "The effect the brush paints with: blur, sharpen…");
+    case strokePart:
+        return i18nc("@info:tooltip brush part", "How the line is laid down: smoothing, shapes");
+    }
+    return QString();
+}
 
 /// The curve of the first pen input that drives \p option, if the pen drives it
 QString penCurve(KisPaintOpOption *option)
@@ -192,6 +217,33 @@ KisPaintOpOption *KisStudioBrushEditor::brushOption(KisMainWindow *mainWindow, c
     return nullptr;
 }
 
+QString KisStudioBrushEditor::optionTip(KisPaintOpOption *option)
+{
+    static const QHash<QString, QString> tips = {
+        {QStringLiteral("Opacity"), i18nc("@info:tooltip brush setting", "0% see-through → 100% solid")},
+        {QStringLiteral("Flow"), i18nc("@info:tooltip brush setting", "Each dab: 10% builds up slowly → 100% full")},
+        {QStringLiteral("Spacing"), i18nc("@info:tooltip brush setting", "Gap between dabs: 5% smooth line → 100% beads")},
+        {QStringLiteral("Ratio"), i18nc("@info:tooltip brush setting", "Tip shape: 100% round → 20% flat")},
+        {QStringLiteral("Softness"), i18nc("@info:tooltip brush setting", "Edge: 0% crisp → 100% soft")},
+        {QStringLiteral("Rotation"), i18nc("@info:tooltip brush setting", "The tip turned, e.g. along the stroke")},
+        {QStringLiteral("Mirror"), i18nc("@info:tooltip brush setting", "Dabs flipped, e.g. at random")},
+        {QStringLiteral("Sharpness"), i18nc("@info:tooltip brush setting", "Edges on whole pixels, for pixel art")},
+        {QStringLiteral("Scatter"), i18nc("@info:tooltip brush setting", "Dabs strewn off the line: 0% on it → more, spread out")},
+        {QStringLiteral("Darken"), i18nc("@info:tooltip brush setting", "The color darker, e.g. with pressure")},
+        {QStringLiteral("Mix"), i18nc("@info:tooltip brush setting", "Foreground → background color, e.g. by pressure")},
+        {QStringLiteral("h"), i18nc("@info:tooltip brush setting", "The hue shifts, e.g. at random each dab")},
+        {QStringLiteral("s"), i18nc("@info:tooltip brush setting", "The saturation shifts, e.g. at random each dab")},
+        {QStringLiteral("v"), i18nc("@info:tooltip brush setting", "The lightness shifts, e.g. at random each dab")},
+        {QStringLiteral("Rate"), i18nc("@info:tooltip brush setting", "Airbrush: dabs a second while the pen holds still")},
+        {QStringLiteral("LightnessStrength"), i18nc("@info:tooltip brush setting", "The tip's lights and darks shade the paint")},
+        {QStringLiteral("Texture/Strength/"), i18nc("@info:tooltip brush setting", "Texture: 0% none → 100% full")},
+    };
+    // the mask's own settings have a prefix before the same names
+    const QString id = option->id();
+    if (tips.contains(id)) return tips.value(id);
+    return tips.value(id.section(QLatin1Char('/'), -1));
+}
+
 QString KisStudioBrushEditor::pinKey(KisPaintOpOption *option)
 {
     return pinPrefix + option->id();
@@ -204,6 +256,7 @@ void KisStudioBrushEditor::bindRow(KisStudioValueRow *row, KisPaintOpOption *opt
     auto apply = [row, target, owner]() {
         if (target) Private::applyRow(row, target, owner);
     };
+    row->setToolTip(optionTip(option));
     apply();
     QObject::connect(row, &KisStudioValueRow::valueChanged, option, [target](qreal value) {
         if (!target) return;
@@ -330,6 +383,10 @@ KisStudioBrushEditor::KisStudioBrushEditor(KisMainWindow *mainWindow)
     if (d->box) {
         connect(d->box, &KisPaintopBox::sigOptionWidgetChanged, this, &KisStudioBrushEditor::rebuild);
     }
+    // the Stroke tab is there for the tools that paint freehand
+    connect(KoToolManager::instance(), &KoToolManager::changedTool, this, [this]() {
+        if (d->parts.contains(strokePart) != KisStudioStrokePage::applies(d->mainWindow)) rebuild();
+    });
     rebuild();
 }
 
@@ -387,12 +444,14 @@ void KisStudioBrushEditor::rebuild()
         }
         if (has) d->parts << part;
     }
+    if (KisStudioStrokePage::applies(d->mainWindow)) d->parts << strokePart;
     if (!d->parts.contains(d->part)) d->part = d->parts.isEmpty() ? KisPaintOpOption::GENERAL : d->parts.first();
 
     QVector<KisStudioChips::Chip> tabs;
     Q_FOREACH (int part, d->parts) {
         KisStudioChips::Chip chip;
         chip.text = partName(part);
+        chip.toolTip = partTip(part);
         tabs << chip;
     }
     d->tabs->setChips(tabs);
@@ -419,6 +478,21 @@ void KisStudioBrushEditor::showPart(int part)
             widget->deleteLater();
         }
         delete item;
+    }
+
+    if (part == strokePart) {
+        auto *stroke = new KisStudioStrokePage(d->mainWindow, d->page);
+        connect(stroke, &KisStudioStrokePage::sigResized, this, [this]() {
+            QTimer::singleShot(0, this, [this]() {
+                adjustSize();
+                if (isVisible()) keepOnScreen();
+            });
+        });
+        d->pageLayout->addWidget(stroke);
+        d->rowOptions.clear();
+        d->unusedOptions.clear();
+        fitPage();
+        return;
     }
 
     const QList<KisPaintOpOption *> options = d->options();
@@ -517,6 +591,7 @@ void KisStudioBrushEditor::showPart(int part)
         Q_FOREACH (KisPaintOpOption *option, unused) {
             KisStudioChips::Chip chip;
             chip.text = option->label();
+            chip.toolTip = optionTip(option);
             const QString id = option->id();
             chip.picture = [more, id, fg](QPainter &painter, const QRectF &rect) {
                 const QColor ink = more->palette().color(QPalette::WindowText);
@@ -541,6 +616,11 @@ void KisStudioBrushEditor::showPart(int part)
         d->pageLayout->addWidget(more);
     }
 
+    fitPage();
+}
+
+void KisStudioBrushEditor::fitPage()
+{
     // the window fits the new page, smaller or larger
     d->pageLayout->activate();
     layout()->activate();

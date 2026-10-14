@@ -70314,6 +70314,10 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "Filter"
 
+msgctxt "brush part: how the line is laid down (smoothing, shapes)"
+msgid "Stroke"
+msgstr "Strøk"
+
 msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "Legg til"
@@ -70333,14 +70337,6 @@ msgstr "Lagra"
 msgctxt "@title:window"
 msgid "Color"
 msgstr "Farge"
-
-msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "Lysstyrke"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "Kulør"
 
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
@@ -70497,6 +70493,10 @@ msgstr "Importer"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Angra"
+
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Lås til hjelpelinjer"
 
 msgctxt "@info:tooltip tool slot"
 msgid "Transform"
@@ -70740,17 +70740,13 @@ msgstr "Biletet vert først linearisert og så koda med SMPTE ST 428. Skissa o
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Fila er for ny for den versjonen av Skissa (%1)."
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "Hard"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Storleik"
 
-msgctxt "brush tip edge"
-msgid "Curve"
-msgstr "Kurve"
-
-msgctxt "brush tip edge"
-msgid "Gaussian"
-msgstr "Gaussisk"
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "Høgd"
 
 msgctxt "pattern group"
 msgid "Patterns"

@@ -102784,6 +102784,10 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "Filter"
 
+msgctxt "brush part: how the line is laid down (smoothing, shapes)"
+msgid "Stroke"
+msgstr "Ťah"
+
 msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "Pridať"
@@ -102803,14 +102807,6 @@ msgstr "%1%"
 msgctxt "@title:window"
 msgid "Color"
 msgstr "Farba"
-
-msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "Svetlosť"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "Odtieň"
 
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
@@ -102983,6 +102979,10 @@ msgstr "Importovať"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Späť"
+
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Prichytiť k vodiacim čiaram"
 
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
@@ -103257,17 +103257,13 @@ msgstr "Obraz sa najprv linearizuje a potom zakóduje pomocou SMPTE ST 428. Skis
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Súbor je príliš nový pre túto verziu Skissa (%1)."
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "Ťažká"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Veľkosť"
 
-msgctxt "brush tip edge"
-msgid "Curve"
-msgstr "Krivka"
-
-msgctxt "brush tip edge"
-msgid "Gaussian"
-msgstr "Gaussovské"
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "Výška"
 
 msgctxt "brush tip shape"
 msgid "Square"

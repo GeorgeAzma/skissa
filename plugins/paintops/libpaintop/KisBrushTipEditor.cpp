@@ -9,7 +9,9 @@
 #include <QLineEdit>
 #include <QLocale>
 #include <QMouseEvent>
+#include <QHelpEvent>
 #include <QPainter>
+#include <QToolTip>
 #include <QPainterPath>
 #include <QPointer>
 #include <QVBoxLayout>
@@ -447,6 +449,48 @@ public:
         }
         row(QPointF(width() - inset, inset), true, false, {{ChipAngle, {}, locale.toString(qRound(angle())) + QStringLiteral("°"), {}}});
         return chips;
+    }
+
+    QString partTip(Part part) const
+    {
+        switch (part) {
+        case ChipWidth:
+            return m_linked ? i18nc("@info:tooltip brush tip", "Size") : i18nc("@info:tooltip brush tip", "Width");
+        case ChipHeight:
+            return i18nc("@info:tooltip brush tip", "Height");
+        case ChipLink:
+            return m_linked ? i18nc("@info:tooltip brush tip", "Linked: width = height") : i18nc("@info:tooltip brush tip", "Unlinked: stretch freely");
+        case ChipAngle:
+            return i18nc("@info:tooltip brush tip", "Tip angle");
+        case ChipFadeA:
+            return m_fadeLinked ? i18nc("@info:tooltip brush tip", "Soft edge: 0% crisp → 100% all fade") : i18nc("@info:tooltip brush tip", "Soft edge, across");
+        case ChipFadeB:
+            return i18nc("@info:tooltip brush tip", "Soft edge, down");
+        case ChipFadeLink:
+            return m_fadeLinked ? i18nc("@info:tooltip brush tip", "Linked: the same softness all round")
+                                : i18nc("@info:tooltip brush tip", "Unlinked: softer one way");
+        case ChipEdge:
+            return i18nc("@info:tooltip brush tip", "Edge falloff: hard, curve or gaussian");
+        case ChipPoints:
+            return i18nc("@info:tooltip brush tip", "Points of the star");
+        default:
+            return QString();
+        }
+    }
+
+    bool event(QEvent *event) override
+    {
+        if (event->type() == QEvent::ToolTip) {
+            auto *help = static_cast<QHelpEvent *>(event);
+            const QString tip = partTip(partAt(help->pos()));
+            if (tip.isEmpty()) {
+                QToolTip::hideText();
+            } else {
+                QToolTip::showText(help->globalPos(), tip, this);
+            }
+            return true;
+        }
+        return QWidget::event(event);
     }
 
     Part partAt(const QPointF &pos) const
@@ -989,7 +1033,9 @@ private:
     void refreshKinds()
     {
         QVector<KisStudioChips::Chip> chips;
-        const QStringList names = {i18nc("brush tip edge", "Hard"), i18nc("brush tip edge", "Curve"), i18nc("brush tip edge", "Gaussian")};
+        const QStringList names = {i18nc("@info:tooltip brush tip edge", "Hard: solid, softened only by the edge %"),
+                                   i18nc("@info:tooltip brush tip edge", "Curve: your own falloff, drawn below"),
+                                   i18nc("@info:tooltip brush tip edge", "Gaussian: soft, natural falloff, like an airbrush")};
         for (int kind = 0; kind < 3; kind++) {
             KisStudioChips::Chip chip;
             chip.toolTip = names[kind];

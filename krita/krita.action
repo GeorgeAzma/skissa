@@ -555,7 +555,7 @@
       <icon>draw-eraser</icon>
       <text>Set eraser mode</text>
       <whatsThis/>
-      <toolTip>Set eraser mode</toolTip>
+      <toolTip>Eraser: this brush erases</toolTip>
       <iconText>Set eraser mode</iconText>
       <activationFlags>0</activationFlags>
       <activationConditions>0</activationConditions>
@@ -603,7 +603,7 @@
       <icon>reload-preset</icon>
       <text>Reload Original Preset</text>
       <whatsThis/>
-      <toolTip>Reload Original Preset</toolTip>
+      <toolTip>Back to the saved brush</toolTip>
       <iconText>Reload Original Preset</iconText>
       <activationFlags>0</activationFlags>
       <shortcut/>
@@ -614,7 +614,7 @@
       <icon>transparency-unlocked</icon>
       <text>Preserve Alpha</text>
       <whatsThis/>
-      <toolTip>Preserve Alpha</toolTip>
+      <toolTip>Alpha lock: paint only over existing paint</toolTip>
       <iconText>Preserve Alpha</iconText>
       <activationFlags>0</activationFlags>
       <shortcut/>
@@ -2707,7 +2707,7 @@
       <icon>studio_shapes</icon>
       <text>Hold for &amp;Shapes</text>
       <whatsThis/>
-      <toolTip>Hold the pen still at the end of a stroke to make it a clean shape</toolTip>
+      <toolTip>Hold still at the end: wobbly line → clean line, circle, box</toolTip>
       <iconText>Shapes</iconText>
       <activationFlags>0</activationFlags>
       <activationConditions>0</activationConditions>

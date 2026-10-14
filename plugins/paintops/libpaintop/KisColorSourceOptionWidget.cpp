@@ -6,6 +6,7 @@
 #include "KisColorSourceOptionWidget.h"
 
 #include <QGroupBox>
+#include <QHash>
 #include <QLinearGradient>
 #include <QPainter>
 #include <QPainterPath>
@@ -180,6 +181,15 @@ QWidget *KisColorSourceOptionWidget::createQuickPage(PaintopCategory category, Q
             KisStudioChips::Chip chip;
             chip.text = id.name();
             chip.on = type == model->type();
+            static const QHash<int, QString> tips = {
+                {KisColorSourceOptionData::PLAIN, i18nc("@info:tooltip color source", "Your current color")},
+                {KisColorSourceOptionData::GRADIENT, i18nc("@info:tooltip color source", "Colors along your current gradient")},
+                {KisColorSourceOptionData::UNIFORM_RANDOM, i18nc("@info:tooltip color source", "A random color each dab")},
+                {KisColorSourceOptionData::TOTAL_RANDOM, i18nc("@info:tooltip color source", "Random colors pixel by pixel, like noise")},
+                {KisColorSourceOptionData::PATTERN, i18nc("@info:tooltip color source", "Colors from a pattern that moves with each dab")},
+                {KisColorSourceOptionData::PATTERN_LOCKED, i18nc("@info:tooltip color source", "Colors from a pattern fixed to the canvas")},
+            };
+            chip.toolTip = tips.value(type);
             chip.picture = [sources, self, type](QPainter &painter, const QRectF &rect) {
                 QColor fg(70, 140, 230);
                 QColor bg(240, 200, 90);

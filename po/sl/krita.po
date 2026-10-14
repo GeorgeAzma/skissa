@@ -70788,6 +70788,10 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "Filter"
 
+msgctxt "brush part: how the line is laid down (smoothing, shapes)"
+msgid "Stroke"
+msgstr "Poteza"
+
 msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "Dodaj"
@@ -70984,6 +70988,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Razveljavi"
 
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Pripni na vodila"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Zmešaj"
@@ -71037,10 +71045,6 @@ msgstr "Drugo"
 msgctxt "held key"
 msgid "Rotate"
 msgstr "Zavrti"
-
-msgctxt "@info:tooltip"
-msgid "Preset"
-msgstr "Prednastavitev"
 
 msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
 msgstr "<html><head/><body><h1 align=\"center\"><b>Vaše pravice</b></h1><p>Skissa je izdana pod Splošnim javnim dovoljenjem GNU (različica 3 ali poljubna novejša različica).</p><p>Ta licenca ljudem dovoljuje številne svoboščine:</p><ul><li>Krito lahko uporabljate za poljubne namene;</li><li>Krito lahko razširjate;</li><li>lahko preučite, kako deluje Skissa in jo spremenite;</li><li>lahko razširjate spremenjene različice Krite.</li></ul><p>Fundacija Skissa in njeni projekti na krita.org so <b> zavezani </b> k ohranjanju Krite kot brezplačnega programja.</p><h1 align=\"center\">Vaše umetniške stvaritve</h1><p>To, kar ustvarite s Krito, je vaša last. Vsako svojo stvaritev lahko prosto uporabljate, kot želite.</p><p>To pomeni, da Krito lahko uporabljate komercialno, za vse namene. Nikakršnih omejitev ni.</p><p>Dovoljenje Krite GNU GPL vam zagotavlja to svobodo. Nihče je nikoli ne more vzeti, v nasprotju s poskusnimi ali izobraževalnimi različicami komercialne programske opreme, ki bodo prepovedale vaše delo v komercialnih okoliščinah.</p><br/><hr/><pre>"
@@ -71247,17 +71251,13 @@ msgstr "Slika bo najprej linearizirana, nato pa kodirana s SMPTE ST 428. Skissa 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Datoteka je preveč nova za to različico programa Skissa (%1)."
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "Ostro"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Velikost"
 
-msgctxt "brush tip edge"
-msgid "Curve"
-msgstr "Krivulja"
-
-msgctxt "brush tip edge"
-msgid "Gaussian"
-msgstr "Po Gaussu"
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "Višina"
 
 msgctxt "pattern group"
 msgid "Patterns"

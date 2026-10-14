@@ -100621,14 +100621,6 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "रंग"
 
-msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "उजालापन"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "वर्ण"
-
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "एचएसवी"
@@ -100792,6 +100784,10 @@ msgstr "रूपांतरण"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "पूर्ववत करें"
+
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "मार्गदर्शिकाओं से स्नेप करें"
 
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
@@ -100965,9 +100961,13 @@ msgctxt "settings page"
 msgid "Wide Gamut Selector"
 msgstr "विस्तृत वर्ण विस्तार चयनक"
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "कठिन"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "ऊंचाई"
 
 msgctxt "pattern group"
 msgid "Patterns"

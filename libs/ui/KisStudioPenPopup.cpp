@@ -72,6 +72,29 @@ QString KisStudioPenPopup::inputName(const QString &id, const QString &fallback)
     return names.value(id, fallback);
 }
 
+QString KisStudioPenPopup::inputTip(const QString &id)
+{
+    static const QHash<QString, QString> tips = {
+        {QStringLiteral("pressure"), i18nc("@info:tooltip pen input", "Light → firm press")},
+        {QStringLiteral("pressurein"), i18nc("@info:tooltip pen input", "The hardest press so far: never lightens mid-stroke")},
+        {QStringLiteral("declination"), i18nc("@info:tooltip pen input", "Pen upright → lying flat")},
+        {QStringLiteral("speed"), i18nc("@info:tooltip pen input", "Slow → fast strokes")},
+        {QStringLiteral("drawingangle"), i18nc("@info:tooltip pen input", "The way the stroke heads: → ↓ ← ↑")},
+        {QStringLiteral("fade"), i18nc("@info:tooltip pen input", "Start of the stroke → further along it")},
+        {QStringLiteral("fuzzy"), i18nc("@info:tooltip pen input", "A new random amount every dab")},
+        {QStringLiteral("fuzzystroke"), i18nc("@info:tooltip pen input", "One random amount for the whole stroke")},
+        {QStringLiteral("xtilt"), i18nc("@info:tooltip pen input", "Leaning left ↔ right")},
+        {QStringLiteral("ytilt"), i18nc("@info:tooltip pen input", "Leaning toward ↕ away")},
+        {QStringLiteral("ascension"), i18nc("@info:tooltip pen input", "Which way the pen leans, like a compass")},
+        {QStringLiteral("rotation"), i18nc("@info:tooltip pen input", "Turning the pen in your fingers (art pens)")},
+        {QStringLiteral("distance"), i18nc("@info:tooltip pen input", "How far along the stroke, repeating")},
+        {QStringLiteral("time"), i18nc("@info:tooltip pen input", "How long the stroke has lasted, repeating")},
+        {QStringLiteral("perspective"), i18nc("@info:tooltip pen input", "Near → far on the perspective grid")},
+        {QStringLiteral("tangentialpressure"), i18nc("@info:tooltip pen input", "The airbrush pen's finger wheel")},
+    };
+    return tips.value(id);
+}
+
 QStringList KisStudioPenPopup::mainInputs()
 {
     return {QStringLiteral("pressure"), QStringLiteral("declination"), QStringLiteral("speed"),
@@ -107,7 +130,7 @@ KisStudioPenPopup::KisStudioPenPopup(KisPaintOpOption *option, QWidget *parent, 
     if (option->isCheckable() && value && !value->appliesUnchecked) {
         // an effect the brush can go without (Rotation, Scatter): its own switch
         d->on = new QCheckBox(this);
-        d->on->setToolTip(i18nc("@info:tooltip", "On"));
+        d->on->setToolTip(i18nc("@info:tooltip a brush effect's switch", "Off: the brush goes without it"));
         header->addWidget(d->on);
         connect(d->on, &QCheckBox::toggled, this, [this](bool checked) {
             if (d->option) d->option->setChecked(checked);
@@ -136,6 +159,7 @@ KisStudioPenPopup::KisStudioPenPopup(KisPaintOpOption *option, QWidget *parent, 
 
     d->curve = new KisCurveWidget(this);
     d->curve->setFixedHeight(150);
+    d->curve->setToolTip(i18nc("@info:tooltip a pen curve", "Across: the pen's input\nUp: how much"));
     layout->addWidget(d->curve);
     connect(d->curve, &KisCurveWidget::modified, this, [this]() {
         if (!d->option) return;
@@ -196,6 +220,7 @@ void KisStudioPenPopup::refresh()
     auto add = [&](const KisPaintOpOption::PenInput &input) {
         KisStudioChips::Chip chip;
         chip.text = inputName(input.id, input.name);
+        chip.toolTip = inputTip(input.id);
         chip.on = input.active;
         chip.dot = input.active;
         if (input.id == d->selected) current = chips.size();
@@ -231,9 +256,17 @@ void KisStudioPenPopup::refresh()
     d->modes->setVisible(mode >= 0 && activeCount > 1);
     if (d->modes->isVisible()) {
         QVector<KisStudioChips::Chip> modes;
-        Q_FOREACH (const QString &name, KisPaintOpOption::penModeNames()) {
+        // how two inputs make one amount, with an example
+        const QStringList tips = {i18nc("@info:tooltip pen inputs combined", "50% × 50% → 25%"),
+                                  i18nc("@info:tooltip pen inputs combined", "50% + 30% → 80%"),
+                                  i18nc("@info:tooltip pen inputs combined", "The stronger: 50%, 30% → 50%"),
+                                  i18nc("@info:tooltip pen inputs combined", "The weaker: 50%, 30% → 30%"),
+                                  i18nc("@info:tooltip pen inputs combined", "The gap: 50%, 30% → 20%")};
+        const QStringList names = KisPaintOpOption::penModeNames();
+        for (int i = 0; i < names.size(); i++) {
             KisStudioChips::Chip chip;
-            chip.text = name;
+            chip.text = names[i];
+            chip.toolTip = tips.value(i);
             modes << chip;
         }
         d->modes->setChips(modes);

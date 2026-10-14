@@ -71262,6 +71262,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Отмяна"
 
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Прилепяне към водачите"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Смесване"
@@ -71549,13 +71553,13 @@ msgstr "Слой \"%1\" има режим на смесване \"%2\", чиет
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Файлът е твърде нов за тази версия на Skissa (%1)."
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "Остро"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Размер"
 
-msgctxt "brush tip edge"
-msgid "Curve"
-msgstr "Крива"
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "Височина"
 
 msgctxt "brush tip shape"
 msgid "Square"

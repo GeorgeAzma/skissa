@@ -108208,10 +108208,6 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Kleur"
 
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "Tint"
-
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
@@ -108388,6 +108384,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Ongedaan maken"
 
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Vastzetten op hulplijnen"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Vermengen"
@@ -108451,10 +108451,6 @@ msgstr "Draaien"
 msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "Geen"
-
-msgctxt "@info:tooltip"
-msgid "Preset"
-msgstr "Voorinstelling"
 
 msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
 msgstr "<html><head/><body><h1 align=\"center\"><b>Uw rechten</b></h1><p>Skissa wordt uitgegeven onder de bepalingen van de GNU General Public License (versie 3 of elke latere versie).</p><p>Deze licentie geeft mensen een aantal vrijheden:</p><ul><li>U mag Skissa voor elk doel vrij gebruiken</li><li>U mag Skissa vrij distribueren</li><li>U kunt bestuderen hoe Skissa werkt en het wijzigen</li><li>U mag de gewijzigde versie van Skissa distribueren</li></ul><p>De Skissa Foundation en zijn projecten op krita.org zijn <b>toegewijd</b> aan het behouden van Skissa als vrije software.</p><h1 align=\"center\">Uw illustraties</h1><p>Wat u maakt met Skissa is uw volledige eigendom. Al uw werk is vrij om door u op elke wijze te gebruiken.</p><p>Dat betekent dat Skissa commercieel gebruikt mag worden, voor elk doel. Er is geen enkele beperking.</p><p>De GNU GPL licentie van Skissa garandeert u deze vrijheid. Niemand heeft het recht om het weg te nemen, dit in tegenstelling tot probeer- of educatieve versies van commerciële software die u zullen verbieden uw werk in commerciële situaties te gebruiken.</p><br/><hr/><pre>"
@@ -108683,17 +108679,13 @@ msgstr "Laag \"%1\" heeft mengmodus \"%2\" die zijn gedrag heeft gewijzigd voor 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Het bestand is te nieuw voor deze versie van Skissa (%1)."
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "Hard"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Grootte"
 
-msgctxt "brush tip edge"
-msgid "Curve"
-msgstr "Kromme"
-
-msgctxt "brush tip edge"
-msgid "Gaussian"
-msgstr "Gaussiaans"
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "Hoogte"
 
 msgctxt "brush tip shape"
 msgid "Square"

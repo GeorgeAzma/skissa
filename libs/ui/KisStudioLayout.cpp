@@ -173,7 +173,7 @@ public:
     {
         setAttribute(Qt::WA_Hover);
         setCursor(Qt::OpenHandCursor);
-        setToolTip(i18nc("@info:tooltip", "Drag to move, click to fold"));
+        setToolTip(i18nc("@info:tooltip a panel's title bar", "Drag: move\nClick: fold"));
         QObject::connect(KisTouchMode::instance(), &KisTouchMode::changed, this, [this]() { fit(); });
         fit();
     }
@@ -183,7 +183,7 @@ public:
     {
         m_folded = folded;
         m_title = title;
-        setToolTip(folded ? i18nc("@info:tooltip", "Drag to move, click to unfold") : i18nc("@info:tooltip", "Drag to move, click to fold"));
+        setToolTip(folded ? i18nc("@info:tooltip a panel's title bar", "Drag: move\nClick: unfold") : i18nc("@info:tooltip a panel's title bar", "Drag: move\nClick: fold"));
         fit();
         update();
     }
@@ -527,7 +527,7 @@ public:
     {
         setCursor(Qt::OpenHandCursor);
         setFixedHeight(14);
-        setToolTip(i18nc("@info:tooltip", "Drag to switch sides"));
+        setToolTip(i18nc("@info:tooltip", "Drag: switch sides"));
     }
 
 protected:
@@ -692,7 +692,7 @@ public:
             if (widget && widget != m_grip) widget->setVisible(!tucked);
         }
         m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Show tools")
-                                  : i18nc("@info:tooltip", "Drag to switch sides, click to hide"));
+                                  : i18nc("@info:tooltip", "Drag: switch sides\nClick: hide"));
         place();
     }
 
@@ -838,7 +838,7 @@ public:
         keepHeight();
         if (m_grip) {
             m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Show bar")
-                                      : i18nc("@info:tooltip", "Drag to move, double-click to maximize"));
+                                      : i18nc("@info:tooltip", "Drag: move\nDouble-click: maximize"));
         }
     }
 
@@ -1685,13 +1685,15 @@ void KisStudioLayout::enter()
         // the brush editor's action (its shortcut, Find) opens the quick editor, under the bar's button if it has one
         disconnect(paintopBox, &KisPaintopBox::sigQuickEditorRequested, this, nullptr);
         connect(paintopBox, &KisPaintopBox::sigQuickEditorRequested, this, [this]() {
+            // below the brush's chip, or a bar button of its own if it was put back
             QWidget *button = d->mainWindow->findChild<QWidget *>(QStringLiteral("studio_bar_action_show_brush_editor"));
+            if (!button || !button->isVisible()) button = d->toolChip;
             KisStudioBrushEditor::toggle(d->mainWindow, button && button->isVisible() ? button : nullptr, Qt::BottomEdge);
         });
         d->presetChip = paintopBox->presetChip();
         if (d->presetChip) {
             d->presetChipToolTip = d->presetChip->toolTip();
-            d->presetChip->setToolTip(i18nc("@info:tooltip", "Brushes (right-click to manage)"));
+            d->presetChip->setToolTip(i18nc("@info:tooltip", "Brushes\nRight-click: manage"));
         }
     }
 
@@ -2390,7 +2392,7 @@ void KisStudioLayout::setPanelsTucked(bool tucked)
     KisConfig(false).writeEntry(panelsHiddenKey, tucked);
     if (d->stripGrip) {
         d->stripGrip->setToolTip(tucked ? i18nc("@info:tooltip", "Show panels")
-                                        : i18nc("@info:tooltip", "Drag to switch sides, click to hide"));
+                                        : i18nc("@info:tooltip", "Drag: switch sides\nClick: hide"));
     }
     updateColumns();
 }
@@ -3092,7 +3094,7 @@ void KisStudioLayout::createTopBar()
 
     auto *toolChip = new ToolChip(bar);
     toolChip->setIconSize(bar->iconSize());
-    // a brush tool's chip carries its smoothing: dragged sideways, and a click opens the smoothing menu
+    // a brush tool's chip carries its smoothing, dragged sideways; a click opens the brush editor
     const QPointer<KisMainWindow> window = mainWindow;
     toolChip->amount = [window]() { return KisStudioSmoothing::amount(window); };
     toolChip->setAmount = [window](qreal amount) { KisStudioSmoothing::setAmount(window, amount); };
@@ -3101,11 +3103,17 @@ void KisStudioLayout::createTopBar()
         KisStudioSmoothing::setAmount(window, KisStudioSmoothing::distanceToAmount(KisConfig(true).lineSmoothingDistanceMin(true)));
     };
     connect(toolChip, &QToolButton::clicked, this, [this, toolChip]() {
-        if (KisStudioSmoothing::options(d->mainWindow)) {
-            KisStudioSmoothingPopup::toggle(d->mainWindow, toolChip, [this]() { toggleToolOptions(); });
+        if (KisStudioStrokePage::applies(d->mainWindow)) {
+            KisStudioBrushEditor::toggle(d->mainWindow, toolChip, Qt::BottomEdge);
         } else {
             toggleToolOptions();
         }
+    });
+    KisStudioSmoothing::watch(mainWindow);
+    connect(KisStudioSmoothing::instance(), &KisStudioSmoothing::sigToolOptionsRequested, this, [this](KisMainWindow *window) {
+        if (window != d->mainWindow) return;
+        if (KisStudioBrushEditor::isOpen(d->mainWindow)) KisStudioBrushEditor::toggle(d->mainWindow, nullptr, Qt::BottomEdge);
+        toggleToolOptions();
     });
     connect(KisStudioSmoothing::instance(), &KisStudioSmoothing::sigChanged, toolChip, qOverload<>(&QWidget::update));
     d->toolChipAction = bar->addWidget(toolChip);
@@ -3186,13 +3194,13 @@ void KisStudioLayout::createTopBar()
     d->buttonsBar = buttonsBar;
 
     // placed on the window pill by placeWindowButtons()
-    auto *menuButton = new PillButton(QStringLiteral("studio_menu"), QString(), mainWindow);
+    auto *menuButton = new PillButton(QStringLiteral("studio_menu"), i18nc("@info:tooltip", "Menu"), mainWindow);
     menuButton->setAccessibleName(i18nc("@action:button", "Menu"));
     menuButton->hide();
     connect(menuButton, &QAbstractButton::clicked, this, [this, menuButton]() { showMainMenu(menuButton); });
     d->menuButton = menuButton;
 
-    auto *settingsButton = new PillButton(QStringLiteral("studio_settings"), i18nc("@info:tooltip", "Settings · right click: Quick"), mainWindow);
+    auto *settingsButton = new PillButton(QStringLiteral("studio_settings"), i18nc("@info:tooltip", "Settings\nRight-click: Quick"), mainWindow);
     settingsButton->hide();
     settingsButton->setProperty("ownContextMenu", true);
     connect(settingsButton, &QAbstractButton::clicked, this, [this]() { openSettings(QString(), true); });
@@ -3431,13 +3439,9 @@ void KisStudioLayout::updateToolChip()
     // a right click resets the smoothing, instead of showing the chip's card
     d->toolChip->setProperty("ownContextMenu", bool(KisStudioSmoothing::options(d->mainWindow)));
     if (KisStudioSmoothing::options(d->mainWindow)) {
-        d->toolChip->setToolTip(i18nc("@info:tooltip the brush chip: drag sideways for smoothing, click for its menu", "Drag: smoothing\nClick: smoothing and %1 options", toolName));
-        // changed in the tool's own options too
-        KisViewManager *viewManager = d->mainWindow->viewManager();
-        if (QObject *brushTool = viewManager && viewManager->canvasBase() ? KoToolManager::instance()->toolById(viewManager->canvasBase(), tool) : nullptr) {
-            connect(brushTool, SIGNAL(smoothingTypeChanged()), d->toolChip, SLOT(update()), Qt::UniqueConnection);
-            connect(brushTool, SIGNAL(smoothnessQualityChanged()), d->toolChip, SLOT(update()), Qt::UniqueConnection);
-        }
+        d->toolChip->setToolTip(i18nc("@info:tooltip the brush chip: drag sideways for smoothing, click for the brush's settings", "Drag: smoothing\nClick: brush settings"));
+    } else if (KisStudioStrokePage::applies(d->mainWindow)) {
+        d->toolChip->setToolTip(i18nc("@info:tooltip", "Brush settings"));
     } else {
         d->toolChip->setToolTip(brush.isEmpty() ? i18nc("@info:tooltip", "Tool options") : i18nc("@info:tooltip tool chip: the tool, its options", "%1 options", toolName));
     }

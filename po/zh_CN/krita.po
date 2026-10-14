@@ -69955,10 +69955,6 @@ msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
 msgstr "%1%"
 
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "色相"
-
 msgctxt "a group of settings"
 msgid "Settings"
 msgstr "设置"
@@ -70083,6 +70079,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "撤销"
 
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "吸附到参考线"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "混合"
@@ -70138,10 +70138,6 @@ msgstr "其他"
 msgctxt "held key"
 msgid "Rotate"
 msgstr "旋转"
-
-msgctxt "@info:tooltip"
-msgid "Preset"
-msgstr "预设"
 
 msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
 msgstr "<html><head/><body><h1 align=\"center\"><b>用户的权利</b></h1><p>Skissa 是在 GNU 通用公共许可证 (第 3 版或者其后续版本) 下发布的。</p><p>此许可证赋予人们以下自由的权利：</p><ul><li>任何人都可以为了任何目的自由地使用 Skissa</li><li>任何人都可以自由地分发 Skissa</li><li>任何人都可以自由地研究、修改 Skissa</li><li>任何人都可以自由地分发修改后的 Skissa 版本</li></ul><p>Skissa 基金会和它在 krita.org 运营的其他项目将尽一切努力确保 Skissa 始终是一款自由软件。</p><h1 align=\"center\">用户作品的权利</h1><p>用户使用 Skissa 创作的作品是该用户独占的个人财产，该用户享有自由支配这些作品的权利。</p><p>Skissa 对软件的使用场景不做任何限制。用户可以在包括商业用途在内的任意场景自由地使用 Skissa。</p><p>Skissa 通过 GPL 许可证赋予用户上述自由，任何人无权剥夺。</p><br/><hr/><pre>"
@@ -70354,17 +70350,13 @@ msgstr "图层“%1”使用了“%2”混合模式，它在 CMYK 色彩空间�
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "此版本的 Skissa (%1) 太旧，不支持此文件的版本。"
 
-msgctxt "brush tip edge"
-msgid "Hard"
-msgstr "锐利"
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "大小"
 
-msgctxt "brush tip edge"
-msgid "Curve"
-msgstr "曲线"
-
-msgctxt "brush tip edge"
-msgid "Gaussian"
-msgstr "高斯"
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "高度"
 
 msgctxt "pattern group"
 msgid "Patterns"
