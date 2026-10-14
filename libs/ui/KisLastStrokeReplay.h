@@ -31,10 +31,10 @@ public:
     static bool isEnabled();
     static void setEnabled(bool on);
 
-    /// \p helper painted a stroke with brush \p preset; its step goes onto \p stack
-    void strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack *stack, const QString &preset);
-    /// The brush \p preset changed: its last stroke is painted again shortly
-    void brushChanged(const QString &preset);
+    /// \p helper painted a stroke with brush \p preset, set as \p settings; its step goes onto \p stack
+    void strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack *stack, const QString &preset, const QString &settings);
+    /// The brush \p preset changed to \p settings (its XML): its last stroke is painted again with it
+    void brushChanged(const QString &preset, const QString &settings);
 
 private:
     KisLastStrokeReplay();

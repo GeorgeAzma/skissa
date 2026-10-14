@@ -478,14 +478,16 @@ void KisStudioBrushSheet::rebuild()
         d->preview->setCurrentPreset(preset);
         d->preview->requestUpdateStroke();
         if (preset->updateProxy()) {
+            // the last stroke shows the change on the picture, as soon as it is made
+            d->presetConnections.addConnection(preset->updateProxy(), &KisPaintOpPresetUpdateProxy::sigSettingsChangedUncompressed, this,
+                                               [this]() {
+                                                   KisPaintOpPresetSP current = d->preset();
+                                                   if (current && d->follow->isChecked()) KisLastStrokeReplay::instance()->brushChanged(current->name(), current->settings()->toXML());
+                                               });
             d->presetConnections.addConnection(preset->updateProxy(), &KisPaintOpPresetUpdateProxy::sigSettingsChanged, this, [this]() {
                 d->preview->requestUpdateStroke();
                 updateHeader();
                 d->refreshGrid.start();
-                // the last stroke shows the change on the picture
-                if (KisPaintOpPresetSP current = d->preset()) {
-                    if (d->follow->isChecked()) KisLastStrokeReplay::instance()->brushChanged(current->name());
-                }
             });
         }
     }

@@ -652,6 +652,8 @@ KisPaintOpConfigWidget *KisPaintopBox::currentOptionWidget() const
 void KisPaintopBox::setQuickEditorShown(bool shown)
 {
     m_quickEditorShown = shown;
+    // changes reach the brush (and the stroke painted again with it) quicker while it is edited
+    if (m_optionWidget) m_optionWidget->setUpdateDelay(shown ? 25 : 100);
     // what changed while it was closed
     if (shown) slotUpdateOptionsWidgetPopup();
 }
@@ -758,6 +760,7 @@ void KisPaintopBox::setCurrentPaintop(KisPaintOpPresetSP preset)
     }
 
     m_optionWidget = m_paintopOptionWidgets[paintop];
+    m_optionWidget->setUpdateDelay(m_quickEditorShown ? 25 : 100);
 
     Q_ASSERT(m_optionWidget && m_presetSelectorPopupButton);
 

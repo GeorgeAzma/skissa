@@ -346,7 +346,8 @@ void KisToolFreehand::reportStrokeEnded()
     KisCanvas2 *canvas2 = dynamic_cast<KisCanvas2 *>(canvas());
     KisDocument *document = canvas2 && canvas2->imageView() ? canvas2->imageView()->document() : nullptr;
     if (!document || !currentPaintOpPreset()) return;
-    KisLastStrokeReplay::instance()->strokeEnded(m_helper, document->undoStack(), currentPaintOpPreset()->name());
+    KisLastStrokeReplay::instance()->strokeEnded(m_helper, document->undoStack(), currentPaintOpPreset()->name(),
+                                                 currentPaintOpPreset()->settings()->toXML());
 }
 
 void KisToolFreehand::initStroke(KoPointerEvent *event)
