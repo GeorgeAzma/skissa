@@ -25,6 +25,7 @@
 #include "kis_cursor.h"
 #include "kis_config.h"
 #include "kis_slider_spin_box.h"
+#include "kis_signals_blocker.h"
 #include "kundo2magicstring.h"
 
 #include <KisUsageLogger.h>
@@ -116,6 +117,15 @@ int KisToolBrush::smoothnessQualityMax() const
 qreal KisToolBrush::smoothnessFactor() const
 {
     return smoothingOptions()->tailAggressiveness();
+}
+
+namespace {
+/// Without the colon, as the style shows a label beside its field (it only drops it from text a label starts with)
+void setLabelText(QLabel *label, QString text)
+{
+    if (text.endsWith(QLatin1Char(':')) || text.endsWith(QChar(0xFF1A))) text.chop(1);
+    label->setText(text);
+}
 }
 
 void KisToolBrush::slotSetSmoothingType(int index)
@@ -213,7 +223,7 @@ void KisToolBrush::updateSmoothnessDistanceLabel()
     const qreal oldValueMax = m_sliderSmoothnessDistanceMax->value();
 
     if (smoothingType() == KisSmoothingOptions::STABILIZER) {
-        m_lblSmoothnessDistanceMin->setText(i18n("Sample Count at Max Speed:"));
+        setLabelText(m_lblSmoothnessDistanceMin, i18n("Sample Count at Max Speed:"));
         m_sliderSmoothnessDistanceMin->setRange(3.0, MAXIMUM_SMOOTHNESS_DISTANCE, 0);
         m_sliderSmoothnessDistanceMin->setSingleStep(1);
         m_sliderSmoothnessDistanceMin->setExponentRatio(3.0); // help pick smaller values
@@ -223,7 +233,7 @@ void KisToolBrush::updateSmoothnessDistanceLabel()
             m_sliderSmoothnessDistanceMin->setValue(qRound(oldValueMin));
         }
 
-        m_lblSmoothnessDistanceMax->setText(i18n("Sample Count at Min Speed:"));
+        setLabelText(m_lblSmoothnessDistanceMax, i18n("Sample Count at Min Speed:"));
         m_sliderSmoothnessDistanceMax->setRange(3.0, MAXIMUM_SMOOTHNESS_DISTANCE, 0);
         m_sliderSmoothnessDistanceMax->setSingleStep(1);
         m_sliderSmoothnessDistanceMax->setExponentRatio(3.0); // help pick smaller values
@@ -233,7 +243,7 @@ void KisToolBrush::updateSmoothnessDistanceLabel()
             m_sliderSmoothnessDistanceMax->setValue(qRound(oldValueMax));
         }
     } else {
-        m_lblSmoothnessDistanceMin->setText(i18n("Distance at Max Speed:"));
+        setLabelText(m_lblSmoothnessDistanceMin, i18n("Distance at Max Speed:"));
         m_sliderSmoothnessDistanceMin->setRange(3.0, MAXIMUM_SMOOTHNESS_DISTANCE, 1);
         m_sliderSmoothnessDistanceMin->setSingleStep(1);
         m_sliderSmoothnessDistanceMin->setExponentRatio(3.0); // help pick smaller values
@@ -243,7 +253,7 @@ void KisToolBrush::updateSmoothnessDistanceLabel()
             m_sliderSmoothnessDistanceMin->setValue(oldValueMin);
         }
 
-        m_lblSmoothnessDistanceMax->setText(i18n("Distance at Min Speed:"));
+        setLabelText(m_lblSmoothnessDistanceMax, i18n("Distance at Min Speed:"));
         m_sliderSmoothnessDistanceMax->setRange(3.0, MAXIMUM_SMOOTHNESS_DISTANCE, 1);
         m_sliderSmoothnessDistanceMax->setSingleStep(1);
         m_sliderSmoothnessDistanceMax->setExponentRatio(3.0); // help pick smaller values
@@ -253,6 +263,21 @@ void KisToolBrush::updateSmoothnessDistanceLabel()
             m_sliderSmoothnessDistanceMax->setValue(oldValueMax);
         }
     }
+    showSmoothnessDistanceRows();
+}
+
+void KisToolBrush::showSmoothnessDistanceRows()
+{
+    if (!m_distanceAspectButton) return;
+    const int type = smoothingType();
+    const bool shown = type == KisSmoothingOptions::WEIGHTED_SMOOTHING || type == KisSmoothingOptions::STABILIZER;
+    const bool linked = m_distanceAspectButton->keepAspectRatio();
+    m_lblSmoothnessDistanceMax->setVisible(shown && !linked);
+    m_sliderSmoothnessDistanceMax->setVisible(shown && !linked);
+    if (!linked) return;
+    setLabelText(m_lblSmoothnessDistanceMin, type == KisSmoothingOptions::STABILIZER
+                                            ? i18nc("@label:slider the stabilizer's samples, at any speed", "Sample Count:")
+                                            : i18nc("@label:slider the smoothing distance, at any speed", "Distance:"));
 }
 
 void KisToolBrush::slotSetSmoothnessDistanceMin(qreal distance)
@@ -270,6 +295,16 @@ void KisToolBrush::slotSetSmoothnessDistanceMax(qreal distance)
 void KisToolBrush::slotSetSmoothnessDistanceKeepAspectRatio(bool value)
 {
     smoothingOptions()->setSmoothnessDistanceKeepAspectRatio(value);
+    if (value && !qFuzzyCompare(m_sliderSmoothnessDistanceMin->value(), m_sliderSmoothnessDistanceMax->value())) {
+        // linked again, they are one value: the one row shows it
+        {
+            KisSignalsBlocker blocker(m_sliderSmoothnessDistanceMax);
+            m_sliderSmoothnessDistanceMax->setValue(m_sliderSmoothnessDistanceMin->value());
+        }
+        slotSetSmoothnessDistanceMax(m_sliderSmoothnessDistanceMax->value());
+        m_distanceAspectLocker->updateAspect();
+    }
+    updateSmoothnessDistanceLabel();
 }
 
 void KisToolBrush::slotSetTailAggressiveness(qreal argh_rhhrr)
@@ -461,16 +496,17 @@ QWidget * KisToolBrush::createOptionWidget()
 
     addOptionWidgetOption(distanceSliderWidget, distanceLabelWidget);
 
-    KisAspectRatioLocker *distanceAspectLocker = new KisAspectRatioLocker(this);
-    distanceAspectLocker->connectSpinBoxes(m_sliderSmoothnessDistanceMin, m_sliderSmoothnessDistanceMax, m_distanceAspectButton);
+    m_distanceAspectLocker = new KisAspectRatioLocker(this);
+    m_distanceAspectLocker->connectSpinBoxes(m_sliderSmoothnessDistanceMin, m_sliderSmoothnessDistanceMax, m_distanceAspectButton);
 
-    connect(distanceAspectLocker, &KisAspectRatioLocker::aspectButtonToggled,
+    connect(m_distanceAspectLocker, &KisAspectRatioLocker::aspectButtonToggled,
         this, &KisToolBrush::slotSetSmoothnessDistanceKeepAspectRatio);
 
-    connect(distanceAspectLocker, &KisAspectRatioLocker::sliderValueChanged, this, [this]() {
+    connect(m_distanceAspectLocker, &KisAspectRatioLocker::sliderValueChanged, this, [this]() {
         slotSetSmoothnessDistanceMin(m_sliderSmoothnessDistanceMin->value());
         slotSetSmoothnessDistanceMax(m_sliderSmoothnessDistanceMax->value());
     });
+    showSmoothnessDistanceRows();
 
     // Finish stabilizer curve
     m_chkFinishStabilizedCurve = new QCheckBox(optionsWidget);

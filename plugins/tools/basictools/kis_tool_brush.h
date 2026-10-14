@@ -14,6 +14,7 @@
 #include "KisToolPaintFactoryBase.h"
 
 #include "KoAspectButton.h"
+#include "kis_aspect_ratio_locker.h"
 
 #include <flake/kis_node_shape.h>
 #include <kis_icon.h>
@@ -111,6 +112,8 @@ Q_SIGNALS:
 private:
     void addSmoothingAction(int enumId, const QString &id);
     void updateSmoothnessDistanceLabel();
+    /// Linked, the two distances are one row; the second comes back when they are unlinked
+    void showSmoothnessDistanceRows();
 private:
     QComboBox *m_cmbSmoothingType {0};
 
@@ -121,6 +124,7 @@ private:
     KisDoubleSliderSpinBox *m_sliderSmoothnessDistanceMin {0};
     KisDoubleSliderSpinBox *m_sliderSmoothnessDistanceMax {0};
     KoAspectButton *m_distanceAspectButton {0};
+    KisAspectRatioLocker *m_distanceAspectLocker {0};
     QLabel *m_lblSmoothnessDistanceMin {0};
     QLabel *m_lblSmoothnessDistanceMax {0};
     KisDoubleSliderSpinBox *m_sliderTailAggressiveness {0};
