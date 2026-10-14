@@ -796,15 +796,20 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
                 }
             }
             const int yoursTop = y;
-            y = header(d->source.yoursTitle, 0, y, width);
-            y = tiles ? placeAcross(d->pinned, y, 0) : placeDown(d->pinned, y, 0);
+            if (d->pinned.isEmpty()) {
+                // nothing of the user's yet: everything, to pick from (and it stays shown once one is starred)
+                d->showAll = true;
+            } else {
+                y = header(d->source.yoursTitle, 0, y, width);
+                y = tiles ? placeAcross(d->pinned, y, 0) : placeDown(d->pinned, y, 0);
+            }
             d->pinnedArea = QRect(0, yoursTop, width, y - yoursTop);
             height = y;
 
             if (d->showAll) {
                 const QVector<Group> groups = d->source.otherGroups(d->pinned);
                 if (tiles) {
-                    y += 8;
+                    if (y > 0) y += 8;
                     Q_FOREACH (const Group &group, groups) {
                         y = placeAcross(group.ids, header(group.title, 0, y, width), -1) + 4;
                     }
@@ -833,7 +838,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
         d->scroll->setVerticalScrollBarPolicy(height > maxHeight ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
         d->allButton->setText(d->showAll ? i18nc("@action:button", "Only yours")
                                          : d->source.allLabel.arg(d->source.allIds().size()));
-        d->allButton->setVisible(query.isEmpty());
+        d->allButton->setVisible(query.isEmpty() && !d->pinned.isEmpty());
 
         d->highlighted = -1;
         for (int i = 0; i < d->items.size(); i++) {
