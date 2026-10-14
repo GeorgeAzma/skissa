@@ -1421,6 +1421,8 @@ KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
     if (QAction *canvasOnly = mainWindow->actionCollection()->action(QStringLiteral("view_show_canvas_only"))) {
         connect(canvasOnly, &QAction::toggled, this, [this](bool on) {
             closeFlyout();
+            // a fade from peeking would hide what the mode just brought back
+            for (const QPointer<QWidget> &widget : d->peeking) KisStudioMotion::stopFade(widget);
             d->peeking.clear();
             QTimer::singleShot(0, this, &KisStudioLayout::normalize);
             // full screen and back without Windows animating the window from its restored size
@@ -1809,6 +1811,15 @@ void KisStudioLayout::leave()
     KisMainWindow *mainWindow = d->mainWindow;
     closeFlyout();
     qApp->removeEventFilter(this);
+    // folds still running would size the classic docks when they end
+    Q_FOREACH (QVariantAnimation *fold, findChildren<QVariantAnimation *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (fold->objectName().startsWith(QLatin1String("studioFold_")) && fold->state() == QAbstractAnimation::Running) {
+            fold->setCurrentTime(fold->duration());
+        }
+    }
+    d->heightSave->stop();
+    for (const QPointer<QWidget> &widget : d->peeking) KisStudioMotion::stopFade(widget);
+    d->peeking.clear();
     if (d->presetChip) {
         d->presetChip->setToolTip(d->presetChipToolTip);
     }
@@ -1822,6 +1833,7 @@ void KisStudioLayout::leave()
     }
     mainWindow->setProperty("studioLayoutActive", false);
     if (d->frame) {
+        d->frame->setTransitionsEnabled(true);
         d->frame->setEnabled(false);
     }
     if (d->effectOverlay && d->effectOverlay->isVisible()) {
@@ -2350,7 +2362,7 @@ void KisStudioLayout::updateColumns()
             any = any || !dock->isHidden();
         }
         column->setPanelsShown(any && !arePanelsHidden() && !d->panelsTucked);
-        column->setVisible(d->active && !isRailHidden());
+        column->setVisible(d->active && (!isRailHidden() || d->peeking.contains(QPointer<QWidget>(column))));
     }
     updateCanvasInsets();
 }
@@ -3444,7 +3456,7 @@ void KisStudioLayout::peek(const QPoint &global)
     const QList<Edge> edges = {
         {d->topPill.data(), at.y() < reach},
         {d->brushRail.data(), toolsLeft ? at.x() < reach : at.x() >= area->width() - reach},
-        {d->panelColumn.data(), toolsLeft ? at.x() >= area->width() - reach : at.x() < reach},
+        {d->panelColumn.data(), d->panelColumn && d->panelColumn->isLeft() ? at.x() < reach : at.x() >= area->width() - reach},
     };
     for (const Edge &edge : edges) {
         QWidget *widget = edge.widget;

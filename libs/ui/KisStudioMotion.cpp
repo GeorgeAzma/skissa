@@ -134,6 +134,17 @@ void KisStudioMotion::showFaded(QWidget *widget)
     fade(widget, 1.0, KisModernStyle::enterDuration, false);
 }
 
+void KisStudioMotion::stopFade(QWidget *widget)
+{
+    if (!widget) {
+        return;
+    }
+    delete runningFade(widget);
+    widget->setProperty(fadingOutProperty, false);
+    setClickThrough(widget, false);
+    settle(widget);
+}
+
 void KisStudioMotion::hideFaded(QWidget *widget)
 {
     if (!widget || widget->isHidden() || widget->property(fadingOutProperty).toBool()) {

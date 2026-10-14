@@ -22,6 +22,8 @@ KRITAUI_EXPORT void showFaded(QWidget *widget);
 KRITAUI_EXPORT void hideFaded(QWidget *widget);
 /// True if \p widget is visible and not fading out. A fading widget already lets clicks through.
 KRITAUI_EXPORT bool isShown(const QWidget *widget);
+/// Ends a fade where it is, at full opacity, leaving \p widget shown or hidden as it is now.
+KRITAUI_EXPORT void stopFade(QWidget *widget);
 }
 
 #endif // KISSTUDIOMOTION_H
