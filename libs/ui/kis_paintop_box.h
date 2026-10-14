@@ -125,6 +125,8 @@ public:
     void setQuickEditorShown(bool shown);
     /// Opens the full brush editor
     void showFullEditor();
+    /// Saves the current brush over itself, or as a new brush (asking its name)
+    void savePreset(bool asNew);
 
 Q_SIGNALS:
     /// The value as shown in the sliders, i.e. 0-100 for opacity and flow

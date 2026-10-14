@@ -31,6 +31,7 @@
 #include "KisMainWindow.h"
 #include "KisStudioBarButtons.h"
 #include "KisStudioBrushPicker.h"
+#include "KisStudioBrushSheet.h"
 #include "KisStudioPenPopup.h"
 #include "KisViewManager.h"
 #include "kis_canvas_resource_provider.h"
@@ -163,6 +164,7 @@ struct KisStudioBrushEditor::Private
         const std::optional<qreal> picked = settings ? settings->pickedRowValue(option) : std::nullopt;
         row->setDefaultValue(picked ? *picked : qQNaN());
         row->setPenCurve(penCurve(option));
+        row->setInactive(option->isCheckable() && !option->isChecked() && !value->appliesUnchecked);
     }
 };
 
@@ -293,9 +295,9 @@ KisStudioBrushEditor::KisStudioBrushEditor(KisMainWindow *mainWindow)
     everything->setDraggable(false);
     everything->setValueText(QStringLiteral("›"));
     connect(everything, &KisStudioValueRow::clicked, this, [this]() {
-        QPointer<KisPaintopBox> box = d->box;
+        QPointer<KisMainWindow> mainWindow = d->mainWindow;
         close();
-        if (box) box->showFullEditor();
+        if (mainWindow) KisStudioBrushSheet::toggle(mainWindow);
     });
     layout->addWidget(everything);
 

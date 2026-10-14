@@ -51,6 +51,8 @@ public:
     void setSelected(bool selected);
     /// Shorter, for dense sheets
     void setCompact(bool compact);
+    /// Quiet: a setting that is off (dragging it still changes it)
+    void setInactive(bool inactive);
     /// Without a value bar: a row that is clicked, not dragged
     void setDraggable(bool draggable);
     /// Shows a pin under the pointer (filled while \p pinned), and lets the row be pulled out upwards or downwards
@@ -92,6 +94,7 @@ private:
     QString m_penCurve;
     bool m_selected {false};
     bool m_compact {false};
+    bool m_inactive {false};
     bool m_draggable {true};
     bool m_pinnable {false};
     bool m_pinned {false};

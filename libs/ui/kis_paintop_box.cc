@@ -663,6 +663,11 @@ void KisPaintopBox::showFullEditor()
     }
 }
 
+void KisPaintopBox::savePreset(bool asNew)
+{
+    QMetaObject::invokeMethod(m_presetsEditor, asNew ? "slotSaveNewBrushPreset" : "slotSaveBrushPreset");
+}
+
 QWidget *KisPaintopBox::presetChip() const
 {
     return m_presetSelectorPopupButton;

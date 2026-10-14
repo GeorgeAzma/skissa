@@ -53,6 +53,7 @@ QString KisStudioPenPopup::inputName(const QString &id, const QString &fallback)
 {
     static const QHash<QString, QString> names = {
         {QStringLiteral("pressure"), i18nc("pen input", "Pressure")},
+        {QStringLiteral("pressurein"), i18nc("pen input: the highest pressure so far in the stroke", "Peak pressure")},
         {QStringLiteral("declination"), i18nc("pen input: how far the pen leans", "Tilt")},
         {QStringLiteral("speed"), i18nc("pen input", "Speed")},
         {QStringLiteral("drawingangle"), i18nc("pen input: the way the stroke goes", "Direction")},

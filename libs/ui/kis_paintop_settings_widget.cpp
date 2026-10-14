@@ -57,6 +57,8 @@ struct KisPaintOpSettingsWidget::Private
     bool scrubFine {false};
     QPointer<QLineEdit> valueEditor;
     QHash<KisPaintOpOption *, qreal> pickedValues;
+    /// Pages shown elsewhere, and where they go back in the stack
+    QHash<KisPaintOpOption *, int> lentPages;
 
     KisPaintOpOption *optionAt(const QModelIndex &index) const
     {
@@ -286,6 +288,23 @@ std::optional<qreal> KisPaintOpSettingsWidget::pickedRowValue(KisPaintOpOption *
 QList<KisPaintOpOption *> KisPaintOpSettingsWidget::options() const
 {
     return m_d->paintOpOptions;
+}
+
+QWidget *KisPaintOpSettingsWidget::lendPage(KisPaintOpOption *option)
+{
+    QWidget *page = option ? option->configurationPage() : nullptr;
+    const int index = page ? m_d->optionsStack->indexOf(page) : -1;
+    if (index < 0 || m_d->lentPages.contains(option)) return nullptr;
+    m_d->lentPages.insert(option, index);
+    m_d->optionsStack->removeWidget(page);
+    return page;
+}
+
+void KisPaintOpSettingsWidget::returnPage(KisPaintOpOption *option)
+{
+    if (!m_d->lentPages.contains(option)) return;
+    QWidget *page = option->configurationPage();
+    m_d->optionsStack->insertWidget(m_d->lentPages.take(option), page);
 }
 
 void KisPaintOpSettingsWidget::changePage(const QModelIndex& index)

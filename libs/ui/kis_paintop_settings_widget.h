@@ -59,6 +59,10 @@ public:
     /// The options, in the order of the list
     QList<KisPaintOpOption *> options() const;
 
+    /// Lends \p option's full page to be shown elsewhere, until returnPage(); null when it has none or is lent
+    QWidget *lendPage(KisPaintOpOption *option);
+    void returnPage(KisPaintOpOption *option);
+
 private Q_SLOTS:
 
     void changePage(const QModelIndex&);

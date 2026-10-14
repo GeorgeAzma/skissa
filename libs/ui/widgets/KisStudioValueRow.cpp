@@ -115,6 +115,13 @@ QRectF KisStudioValueRow::pinRect() const
     return QRectF(width() - KisModernStyle::space2 - 16, (height() - 16) / 2.0, 16, 16);
 }
 
+void KisStudioValueRow::setInactive(bool inactive)
+{
+    if (inactive == m_inactive) return;
+    m_inactive = inactive;
+    update();
+}
+
 void KisStudioValueRow::setDraggable(bool draggable)
 {
     m_draggable = draggable;
@@ -170,14 +177,14 @@ void KisStudioValueRow::paintEvent(QPaintEvent *)
     const QPainterPath shape = KisModernStyle::squircle(box, KisModernStyle::tileRadius);
 
     QColor ground = ink;
-    ground.setAlphaF(m_dragging ? 0.10 : underMouse() ? 0.075 : 0.05);
+    ground.setAlphaF(m_dragging ? 0.10 : underMouse() ? 0.075 : m_inactive ? 0.025 : 0.05);
     if (m_selected) {
         ground = palette().color(QPalette::Highlight);
         ground.setAlphaF(0.16);
     }
     painter.fillPath(shape, ground);
 
-    if (m_draggable && m_valueText.isEmpty()) {
+    if (m_draggable && m_valueText.isEmpty() && !m_inactive) {
         QColor bar = ink;
         bar.setAlphaF(0.08);
         painter.save();
@@ -213,7 +220,7 @@ void KisStudioValueRow::paintEvent(QPaintEvent *)
     }
 
     if (m_editor && m_editor->isVisible()) return;
-    painter.setPen(ink);
+    painter.setPen(m_inactive ? KisModernStyle::secondaryInk(ink) : ink);
     painter.drawText(content, Qt::AlignVCenter | Qt::AlignLeft, m_name);
     painter.setPen(KisModernStyle::secondaryInk(ink));
     painter.drawText(content, Qt::AlignVCenter | Qt::AlignRight, text());
