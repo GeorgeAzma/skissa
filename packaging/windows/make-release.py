@@ -29,6 +29,7 @@ HOMEPAGE = 'https://github.com/GeorgeAzma/skissa'
 
 # programs the app runs or that run it
 PROGRAMS = ['krita.exe', 'krita_version.exe', 'ffmpeg.exe', 'ffprobe.exe']
+LOADED = ['libEGL.dll', 'libGLESv2.dll', 'exchndl.dll', 'mgwhelp.dll', 'dbghelp.dll', 'symsrv.dll', 'symsrv.yes']
 # folders that only matter for building
 SHARE_SKIP = {'aclocal', 'cmake', 'doc', 'man', 'pkgconfig', 'eigen3', 'ECM', 'gettext', 'metainfo', 'applications',
               'kservices5', 'unofficial-angle', 'dlfcn-win32'}
@@ -98,10 +99,18 @@ def main():
     # Python's own DLLs sit beside it and load from there
     python = os.path.join(release, 'python')
     folders = [os.path.join(install, 'bin'), os.path.join(install, 'lib'), runtime]
+    seen, missing = set(), set()
     queue = [os.path.join(install, 'bin', p) for p in PROGRAMS]
+    # loaded by name at run time, so no import names them: ANGLE (OpenGL over Direct3D) and the crash handler
+    for name in LOADED:
+        path = os.path.join(install, 'bin', name)
+        if os.path.exists(path):
+            shutil.copy2(path, os.path.join(release, 'bin', name))
+            seen.add(name.lower())
+        else:
+            print('not found:', name)
     for root, _, files in os.walk(release):
         queue += [os.path.join(root, f) for f in files if f.lower().endswith(('.dll', '.pyd'))]
-    seen, missing = set(), set()
     while queue:
         binary = queue.pop()
         for dll in imports(objdump, binary):

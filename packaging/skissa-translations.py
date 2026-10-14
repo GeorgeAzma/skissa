@@ -234,7 +234,7 @@ def main():
         with open(path, encoding='utf-8', newline='') as f:
             text = f.read()
         # this script's last block out, and with it any of its entries upstream has since added
-        text = text.split('\n' + BEGIN + '\n')[0].rstrip('\n') + '\n'
+        text = re.split(r'\r?\n' + re.escape(BEGIN) + r'\r?\n', text)[0].rstrip('\r\n') + '\n'
         with open(path, 'w', encoding='utf-8', newline='') as f:
             f.write(text)
         entries = parse(path)
