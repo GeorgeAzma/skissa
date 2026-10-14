@@ -309,8 +309,10 @@ public:
         const int icon = iconSize().width();
         // measured without the '&' mnemonic the accelerator manager adds
         const QString label = QString(text()).remove(QLatin1Char('&'));
-        return QSize(padding + icon + gap + fontMetrics().horizontalAdvance(label) + padding,
-                     qMax(28, icon + 8));
+        int textWidth = fontMetrics().horizontalAdvance(label);
+        // room for the smoothing while it is dragged, at its widest
+        if (amount && amount() >= 0) textWidth = qMax(textWidth, fontMetrics().horizontalAdvance(scrubText(QStringLiteral("1000"))));
+        return QSize(padding + icon + gap + textWidth + padding, qMax(28, icon + 8));
     }
 
 protected:
@@ -340,9 +342,7 @@ protected:
         this->icon().paint(&painter, QRect(area.left(), (height() - icon) / 2, icon, icon));
         area.setLeft(area.left() + icon + gap);
         painter.setPen(palette().color(QPalette::ButtonText));
-        const QString shown = m_scrubbing && amountText
-            ? i18nc("the brush chip while its smoothing is dragged, e.g. Smoothing 50", "Smoothing %1", amountText())
-            : text();
+        const QString shown = m_scrubbing && amountText ? scrubText(amountText()) : text();
         painter.drawText(area, Qt::AlignVCenter | Qt::AlignLeft | Qt::TextHideMnemonic, fontMetrics().elidedText(shown, Qt::ElideRight, area.width()));
     }
 
@@ -404,6 +404,11 @@ protected:
     }
 
 private:
+    static QString scrubText(const QString &value)
+    {
+        return i18nc("the brush chip while its smoothing is dragged, e.g. Smoothing 50", "Smoothing %1", value);
+    }
+
     bool m_scrubbing {false};
     bool m_fine {false};
     int m_pressX {0};
