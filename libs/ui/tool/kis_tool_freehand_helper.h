@@ -69,6 +69,16 @@ public:
     /// Drops the stroke so far, paints \p points in its place and ends it
     void repaintAs(const QVector<KisPaintInformation> &points);
 
+    /// Whether the last stroke painted can be painted again (replayLastStroke())
+    bool hasLastStroke() const;
+    /// The image the last stroke was painted on
+    KisImageWSP lastStrokeImage() const;
+    /**
+     * Paints the last stroke again, as it was drawn, with the brush as it is now (in the color it had).
+     * Taking the first one back is the caller's (see KisLastStrokeReplay). Returns false if it can't.
+     */
+    bool replayLastStroke();
+
     KisOptimizedBrushOutline paintOpOutline(const QPointF &savedCursorPos,
                                             const KoPointerEvent *event,
                                             const KisPaintOpSettingsSP globalSettings,
@@ -82,6 +92,8 @@ Q_SIGNALS:
      * event
      */
     void requestExplicitUpdateOutline();
+    /// A stroke was painted to its end (not when a stroke was painted again)
+    void sigStrokeEnded();
 
 protected:
     void cancelPaint();

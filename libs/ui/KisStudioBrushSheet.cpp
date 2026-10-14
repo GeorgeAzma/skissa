@@ -38,6 +38,7 @@
 
 #include <algorithm>
 
+#include "KisLastStrokeReplay.h"
 #include "KisMainWindow.h"
 #include "KisStudioBarButtons.h"
 #include "KisStudioBrushEditor.h"
@@ -280,6 +281,7 @@ struct KisStudioBrushSheet::Private
     /// What is done with the brush: left out of its picture
     QList<QWidget *> actions;
     QToolButton *reload {nullptr};
+    QToolButton *follow {nullptr};
     KisPresetLivePreviewView *preview {nullptr};
     QWidget *columns {nullptr};
     QHBoxLayout *columnsLayout {nullptr};
@@ -390,11 +392,16 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
     });
     more->setMenu(moreMenu);
     header->addWidget(more);
+    d->follow = iconButton(QStringLiteral("studio_restroke"), i18nc("@info:tooltip", "Your last stroke follows the brush"));
+    d->follow->setCheckable(true);
+    d->follow->setChecked(KisLastStrokeReplay::isEnabled());
+    connect(d->follow, &QToolButton::toggled, this, [](bool on) { KisLastStrokeReplay::setEnabled(on); });
+    header->addWidget(d->follow);
     QToolButton *pin = iconButton(QStringLiteral("studio_pin"), i18nc("@info:tooltip", "Keep open while painting"));
     pin->setCheckable(true);
     connect(pin, &QToolButton::toggled, this, &KisStudioPopup::setPinned);
     header->addWidget(pin);
-    d->actions = {copy, d->reload, saveNew, save, more, pin};
+    d->actions = {copy, d->reload, saveNew, save, more, d->follow, pin};
     layout->addLayout(header);
 
     d->columns = new QWidget(this);
@@ -475,6 +482,10 @@ void KisStudioBrushSheet::rebuild()
                 d->preview->requestUpdateStroke();
                 updateHeader();
                 d->refreshGrid.start();
+                // the last stroke shows the change on the picture
+                if (KisPaintOpPresetSP current = d->preset()) {
+                    if (d->follow->isChecked()) KisLastStrokeReplay::instance()->brushChanged(current->name());
+                }
             });
         }
     }

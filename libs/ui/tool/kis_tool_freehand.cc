@@ -11,6 +11,10 @@
  */
 
 #include "kis_tool_freehand.h"
+
+#include "KisLastStrokeReplay.h"
+#include "KisDocument.h"
+#include "KisView.h"
 #include <optional>
 #include <QPainter>
 #include <QRect>
@@ -126,6 +130,7 @@ KisToolFreehand::KisToolFreehand(KoCanvasBase * canvas, const QCursor & cursor,
                                          new KisSmoothingOptions(useSavedSmoothing));
 
     connect(m_helper, SIGNAL(requestExplicitUpdateOutline()), SLOT(explicitUpdateOutline()));
+    connect(m_helper, &KisToolFreehandHelper::sigStrokeEnded, this, &KisToolFreehand::reportStrokeEnded);
 
     m_shapeHold.setSingleShot(true);
     m_shapeHold.setInterval(500);
@@ -225,6 +230,7 @@ void KisToolFreehand::resetHelper(KisToolFreehandHelper *helper)
 {
     delete m_helper;
     m_helper = helper;
+    connect(m_helper, &KisToolFreehandHelper::sigStrokeEnded, this, &KisToolFreehand::reportStrokeEnded);
 }
 
 bool KisToolFreehand::supportsPaintingAssistants() const
@@ -332,6 +338,15 @@ void KisToolFreehand::lockTemporaryStraightRuler(const QPointF &documentPoint, Q
     }
 
     canvas2->paintingAssistantsDecoration()->setTemporaryConstraint(constraint);
+}
+
+void KisToolFreehand::reportStrokeEnded()
+{
+    // the last stroke, to be painted again as the brush is edited
+    KisCanvas2 *canvas2 = dynamic_cast<KisCanvas2 *>(canvas());
+    KisDocument *document = canvas2 && canvas2->imageView() ? canvas2->imageView()->document() : nullptr;
+    if (!document || !currentPaintOpPreset()) return;
+    KisLastStrokeReplay::instance()->strokeEnded(m_helper, document->undoStack(), currentPaintOpPreset()->name());
 }
 
 void KisToolFreehand::initStroke(KoPointerEvent *event)

@@ -28,6 +28,7 @@
 #include <kis_signal_auto_connection.h>
 #include <kactioncollection.h>
 
+#include "KisLastStrokeReplay.h"
 #include "KisMainWindow.h"
 #include "KisStudioBarButtons.h"
 #include "KisStudioBrushPicker.h"
@@ -94,6 +95,7 @@ struct KisStudioBrushEditor::Private
     QLabel *name {nullptr};
     QToolButton *reload {nullptr};
     QToolButton *pin {nullptr};
+    QToolButton *follow {nullptr};
     KisPresetLivePreviewView *preview {nullptr};
     KisStudioChips *tabs {nullptr};
     QWidget *page {nullptr};
@@ -258,6 +260,14 @@ KisStudioBrushEditor::KisStudioBrushEditor(KisMainWindow *mainWindow)
         }
     });
     header->addWidget(d->reload);
+    d->follow = new QToolButton(this);
+    d->follow->setAutoRaise(true);
+    d->follow->setCheckable(true);
+    d->follow->setChecked(KisLastStrokeReplay::isEnabled());
+    d->follow->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_restroke")));
+    d->follow->setToolTip(i18nc("@info:tooltip", "Your last stroke follows the brush"));
+    connect(d->follow, &QToolButton::toggled, this, [](bool on) { KisLastStrokeReplay::setEnabled(on); });
+    header->addWidget(d->follow);
     d->pin = new QToolButton(this);
     d->pin->setAutoRaise(true);
     d->pin->setCheckable(true);
@@ -347,6 +357,10 @@ void KisStudioBrushEditor::rebuild()
                                                [this]() {
                                                    d->preview->requestUpdateStroke();
                                                    updateHeader();
+                                                   // the last stroke shows the change on the picture
+                                                   if (KisPaintOpPresetSP current = d->preset()) {
+                                                       if (d->follow->isChecked()) KisLastStrokeReplay::instance()->brushChanged(current->name());
+                                                   }
                                                });
         }
     }

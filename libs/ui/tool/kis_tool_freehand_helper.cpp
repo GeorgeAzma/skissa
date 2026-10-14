@@ -56,6 +56,24 @@ const qreal TIMING_UPDATE_INTERVAL = 50.0;
 
 struct KisToolFreehandHelper::Private
 {
+    /// What a stroke painted, piece by piece, to paint it again
+    struct Piece {
+        enum Kind { At, Line, Bezier } kind {At};
+        int strokeInfoId {0};
+        KisPaintInformation pi1;
+        QPointF control1;
+        QPointF control2;
+        KisPaintInformation pi2;
+    };
+    QVector<Piece> pieces;
+    qreal piecesStartAngle {0};
+    KisPaintInformation piecesStart;
+    KisImageWSP piecesImage;
+    KisNodeWSP piecesNode;
+    KisDefaultBoundsBaseSP piecesBounds;
+    KoColor piecesColor;
+    bool replaying {false};
+
     KoCanvasResourceProvider *resourceManager;
     KisPaintingInformationBuilder *infoBuilder;
     KisStrokesFacade *strokesFacade;
@@ -322,6 +340,19 @@ void KisToolFreehandHelper::initPaintImpl(qreal startAngle,
         m_d->resources->setCurrentNode(overrideNode);
     }
 
+    if (m_d->replaying) {
+        // in the color it had
+        m_d->resources->setFGColorOverride(m_d->piecesColor);
+    } else {
+        m_d->pieces.clear();
+        m_d->piecesStartAngle = startAngle;
+        m_d->piecesStart = pi;
+        m_d->piecesImage = image;
+        m_d->piecesNode = overrideNode ? overrideNode : currentNode;
+        m_d->piecesBounds = bounds;
+        m_d->piecesColor = m_d->resources->currentFgColor();
+    }
+
     const bool airbrushing = m_d->resources->needsAirbrushing();
     const bool useSpacingUpdates = m_d->resources->needsSpacingUpdates();
 
@@ -365,7 +396,7 @@ void KisToolFreehandHelper::initPaintImpl(qreal startAngle,
     // If airbrushing, paint an initial dab immediately. This is a workaround for an issue where
     // some paintops (Dyna, Particle, Sketch) might never initialize their spacing/timing
     // information until paintAt is called.
-    if (airbrushing) {
+    if (airbrushing && !m_d->replaying) {
         paintAt(pi);
     }
 }
@@ -749,6 +780,7 @@ void KisToolFreehandHelper::endPaint()
     m_d->strokesFacade->endStroke(m_d->strokeId);
     m_d->strokeId.clear();
     m_d->infoBuilder->reset();
+    Q_EMIT sigStrokeEnded();
 }
 
 void KisToolFreehandHelper::repaintAs(const QVector<KisPaintInformation> &points)
@@ -782,6 +814,59 @@ void KisToolFreehandHelper::repaintAs(const QVector<KisPaintInformation> &points
     m_d->strokesFacade->endStroke(m_d->strokeId);
     m_d->strokeId.clear();
     m_d->infoBuilder->reset();
+    Q_EMIT sigStrokeEnded();
+}
+
+bool KisToolFreehandHelper::hasLastStroke() const
+{
+    return !m_d->pieces.isEmpty() && m_d->piecesImage && m_d->piecesNode;
+}
+
+KisImageWSP KisToolFreehandHelper::lastStrokeImage() const
+{
+    return m_d->piecesImage;
+}
+
+bool KisToolFreehandHelper::replayLastStroke()
+{
+    KisImageSP image = m_d->piecesImage;
+    KisNodeSP node = m_d->piecesNode;
+    if (isRunning() || m_d->pieces.isEmpty() || !image || !node || !m_d->strokesFacade) return false;
+
+    m_d->replaying = true;
+    initPaintImpl(m_d->piecesStartAngle, m_d->piecesStart, m_d->resourceManager, image, node,
+                  m_d->strokesFacade, node, m_d->piecesBounds);
+    // painted as it was, without timers of its own
+    m_d->stabilizerPollTimer.stop();
+    if (m_d->stabilizerDelayedPaintHelper.running()) {
+        m_d->stabilizerDelayedPaintHelper.cancel();
+    }
+    m_d->airbrushingTimer.stop();
+
+    Q_FOREACH (const Private::Piece &piece, m_d->pieces) {
+        switch (piece.kind) {
+        case Private::Piece::At:
+            paintAt(piece.strokeInfoId, piece.pi1);
+            break;
+        case Private::Piece::Line:
+            paintLine(piece.strokeInfoId, piece.pi1, piece.pi2);
+            break;
+        case Private::Piece::Bezier:
+            paintBezierCurve(piece.strokeInfoId, piece.pi1, piece.control1, piece.control2, piece.pi2);
+            break;
+        }
+    }
+
+    if (m_d->asyncUpdateHelper.isActive()) {
+        m_d->asyncUpdateHelper.endUpdateStream();
+    }
+    m_d->strokeInfos.clear();
+    m_d->strokesFacade->addJob(m_d->strokeId,
+       new KisAsynchronousStrokeUpdateHelper::UpdateData(true));
+    m_d->strokesFacade->endStroke(m_d->strokeId);
+    m_d->strokeId.clear();
+    m_d->replaying = false;
+    return true;
 }
 
 void KisToolFreehandHelper::cancelPaint()
@@ -1055,6 +1140,7 @@ void KisToolFreehandHelper::paintAt(int strokeInfoId,
 {
     updateCurrentBrushPosition(pi.pos());
     m_d->hasPaintAtLeastOnce = true;
+    if (!m_d->replaying) m_d->pieces.append({Private::Piece::At, strokeInfoId, pi, {}, {}, {}});
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId, pi));
 
@@ -1066,6 +1152,7 @@ void KisToolFreehandHelper::paintLine(int strokeInfoId,
 {
     updateCurrentBrushPosition(pi2.pos());
     m_d->hasPaintAtLeastOnce = true;
+    if (!m_d->replaying) m_d->pieces.append({Private::Piece::Line, strokeInfoId, pi1, {}, {}, pi2});
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId, pi1, pi2));
 
@@ -1104,6 +1191,7 @@ void KisToolFreehandHelper::paintBezierCurve(int strokeInfoId,
 #endif
 
     m_d->hasPaintAtLeastOnce = true;
+    if (!m_d->replaying) m_d->pieces.append({Private::Piece::Bezier, strokeInfoId, pi1, control1, control2, pi2});
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId,
                                                                 pi1, control1, control2, pi2));

@@ -457,6 +457,7 @@ set(kritaui_LIB_SRCS
     KisStudioBrushEditor.cpp
     KisStudioBrushSheet.cpp
     KisStudioControls.cpp
+    KisLastStrokeReplay.cpp
     KisStudioPenPopup.cpp
     KisStudioItemCard.cpp
     KisUpdatePacer.cpp

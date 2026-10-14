@@ -84,6 +84,8 @@ protected:
 protected Q_SLOTS:
 
     void explicitUpdateOutline();
+    /// Tells KisLastStrokeReplay of a stroke just painted
+    void reportStrokeEnded();
     void resetCursorStyle() override;
     void setAssistant(bool assistant);
     void setOnlyOneAssistantSnap(bool assistant);
