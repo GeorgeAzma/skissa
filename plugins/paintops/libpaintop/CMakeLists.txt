@@ -1,5 +1,6 @@
 set(kritalibpaintop_LIB_SRCS
     kis_auto_brush_widget.cpp
+    KisBrushTipEditor.cpp
     kis_brush_based_paintop.cpp
     kis_predefined_brush_chooser.cpp
     KisAutoBrushModel.cpp
@@ -25,7 +26,6 @@ set(kritalibpaintop_LIB_SRCS
     KisCurveRangeModel.cpp
     KisCurveOptionModel.cpp
     KisCurveOptionWidget.cpp
-    KisCurvePresetStrip.cpp
     KisCurveOption.cpp
     KisMultiSensorsSelector.cpp
     KisMultiSensorsModel.cpp

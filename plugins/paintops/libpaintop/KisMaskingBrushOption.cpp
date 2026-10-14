@@ -32,6 +32,12 @@
 #include "KisAutoBrushModel.h"
 #include "KisPredefinedBrushModel.h"
 #include "KisTextBrushModel.h"
+#include "KisBrushTipEditor.h"
+
+#include <KisModernStyle.h>
+#include <widgets/KisStudioChips.h>
+
+#include <memory>
 
 
 using namespace KisBrushModel;
@@ -278,6 +284,72 @@ void KisMaskingBrushOption::lodLimitations(KisPaintopLodLimitations *l) const
 lager::reader<bool> KisMaskingBrushOption::maskingBrushEnabledReader() const
 {
     return m_d->maskingData[&MaskingBrushData::isEnabled];
+}
+
+bool KisMaskingBrushOption::hasQuickPage(PaintopCategory category) const
+{
+    return category == MASKING_BRUSH;
+}
+
+QWidget *KisMaskingBrushOption::createQuickPage(PaintopCategory category, QWidget *parent)
+{
+    if (category != MASKING_BRUSH) return nullptr;
+    auto *page = new QWidget(parent);
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space2);
+
+    // how the mask cuts into the tip, or no mask; the commonest first
+    auto *modes = new KisStudioChips(page);
+    layout->addWidget(modes);
+    const QStringList all = KisMaskingBrushCompositeOpFactory::supportedCompositeOpIds();
+    const QStringList common = {COMPOSITE_MULT, COMPOSITE_DARKEN, COMPOSITE_OVERLAY, COMPOSITE_SUBTRACT, COMPOSITE_BURN};
+    auto showAll = std::make_shared<bool>(false);
+    auto shown = std::make_shared<QStringList>();
+    auto refresh = [this, modes, all, common, showAll, shown]() {
+        const bool on = m_d->maskingModel.isEnabled();
+        const QString current = m_d->maskingModel.compositeOpId();
+        shown->clear();
+        QVector<KisStudioChips::Chip> chips;
+        KisStudioChips::Chip off;
+        off.text = i18nc("no mask on the brush", "None");
+        off.on = !on;
+        chips << off;
+        Q_FOREACH (const QString &id, all) {
+            if (!*showAll && !common.contains(id) && id != current) continue;
+            KisStudioChips::Chip chip;
+            chip.text = KoCompositeOpRegistry::instance().getKoID(id).name();
+            chip.on = on && id == current;
+            chips << chip;
+            *shown << id;
+        }
+        KisStudioChips::Chip more;
+        more.text = *showAll ? i18nc("show fewer choices", "Less") : QStringLiteral("···");
+        chips << more;
+        modes->setChips(chips);
+    };
+    connect(modes, &KisStudioChips::clicked, page, [this, refresh, showAll, shown](int index) {
+        if (index == 0) {
+            m_d->maskingModel.setisEnabled(false);
+        } else if (index - 1 < shown->size()) {
+            m_d->maskingModel.setcompositeOpId(shown->at(index - 1));
+            m_d->maskingModel.setisEnabled(true);
+        } else {
+            *showAll = !*showAll;
+        }
+        refresh();
+    });
+    connect(&m_d->maskingModel, &MaskingBrushModel::isEnabledChanged, modes, refresh);
+    connect(&m_d->maskingModel, &MaskingBrushModel::compositeOpIdChanged, modes, refresh);
+    refresh();
+
+    // the mask's own tip, shaped as the brush's is
+    auto *tip = new KisBrushTipQuickPage(&m_d->maskingModel.autoBrushModel, &m_d->maskingModel.predefinedBrushModel,
+                                         m_d->maskingData[&MaskingBrushData::brush][&BrushData::type], page);
+    layout->addWidget(tip);
+    tip->setVisible(m_d->maskingModel.isEnabled());
+    connect(&m_d->maskingModel, &MaskingBrushModel::isEnabledChanged, tip, &QWidget::setVisible);
+    return page;
 }
 
 void KisMaskingBrushOption::slotCompositeModeWidgetChanged(int index)

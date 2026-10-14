@@ -67,7 +67,7 @@ QWidget *KisDynamicSensorFactoryDrawingAngle::createConfigWidget(lager::cursor<K
     KisAngleSelector *angleOffset = new KisAngleSelector(widget);
     angleOffset->setDecimals(0);
     angleOffset->setRange(-180, 180);
-    angleOffset->setFlipOptionsMode(KisAngleSelector::FlipOptionsMode_MenuButton);
+    angleOffset->setFlipOptionsMode(KisAngleSelector::FlipOptionsMode_NoFlipOptions);
     connectControl(angleOffset, model, "angleOffsetInverted");
 
     QVBoxLayout *layout = new QVBoxLayout(widget);

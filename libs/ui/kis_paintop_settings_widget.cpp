@@ -277,6 +277,17 @@ void KisPaintOpSettingsWidget::rememberRowValues()
     }
 }
 
+std::optional<qreal> KisPaintOpSettingsWidget::pickedRowValue(KisPaintOpOption *option) const
+{
+    if (!m_d->pickedValues.contains(option)) return std::nullopt;
+    return m_d->pickedValues.value(option);
+}
+
+QList<KisPaintOpOption *> KisPaintOpSettingsWidget::options() const
+{
+    return m_d->paintOpOptions;
+}
+
 void KisPaintOpSettingsWidget::changePage(const QModelIndex& index)
 {
     KisOptionInfo info;

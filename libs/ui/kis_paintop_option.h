@@ -19,6 +19,9 @@
 #include <functional>
 #include <optional>
 
+#include <QVector>
+#include <QStringList>
+
 class QWidget;
 class QString;
 class KisPaintopLodLimitations;
@@ -72,6 +75,8 @@ public:
     bool isLocked() const;
 
     QString label() const;
+    /// Names the option across brushes and sessions (pinned settings use it); the object name unless more is needed
+    virtual QString id() const;
 
     /**
      * Reimplement this to use the image in the option widget
@@ -100,6 +105,8 @@ public:
         bool size {false};
         /// Used while the row is unchecked too (Opacity: the checkbox is only the pen's)
         bool appliesUnchecked {false};
+        /// Shown instead of the number (Spacing: "Auto"); dragging sets a number
+        QString text;
     };
 
     /// None for an option whose row has no value
@@ -109,6 +116,34 @@ public:
     void setRowValueSource(std::function<std::optional<RowValue>()> get, std::function<void(qreal)> set);
     /// Says the row's value changed, for a value of another source
     void notifyRowValueChanged();
+
+    /// A pen input that can drive the option, with the curve it is read through
+    struct PenInput {
+        QString id;
+        QString name;
+        bool active {false};
+        QString curve;
+    };
+    /// The pen inputs that can drive the option; none when the pen can't
+    virtual QVector<PenInput> penInputs() const;
+    /// Turns input \p id on or off
+    virtual void setPenInputActive(const QString &id, bool active);
+    /// Gives input \p id its own \p curve
+    virtual void setPenCurve(const QString &id, const QString &curve);
+    /// How inputs that are on together combine, an index into penModeNames(); -1 when they can't
+    virtual int penMode() const;
+    virtual void setPenMode(int mode);
+    static QStringList penModeNames();
+    /// Settings of input \p id itself (Fade's length), made for \p parent; null when it has none
+    virtual QWidget *createPenInputPage(const QString &id, QWidget *parent);
+
+    /**
+     * A small page for the quick brush editor's tab of \p category, made for \p parent:
+     * pictures and direct handles rather than the full page. Null when the option has none there.
+     */
+    virtual QWidget *createQuickPage(PaintopCategory category, QWidget *parent);
+    /// Whether createQuickPage() makes a page for \p category
+    virtual bool hasQuickPage(PaintopCategory category) const;
 
 protected:
     virtual OptionalLodLimitationsReader lodLimitationsReader() const;

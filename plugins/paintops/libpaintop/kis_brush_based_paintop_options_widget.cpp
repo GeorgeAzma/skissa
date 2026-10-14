@@ -11,6 +11,7 @@
 
 #include <kis_image_config.h>
 #include <KisSizeOptionWidget.h>
+#include <KisSpacingOptionWidget.h>
 
 KisBrushBasedPaintopOptionWidget::KisBrushBasedPaintopOptionWidget(KisBrushOptionWidgetFlags flags, QWidget* parent)
     : KisPaintOpSettingsWidget(parent)
@@ -35,6 +36,12 @@ lager::reader<qreal> KisBrushBasedPaintopOptionWidget::effectiveBrushSize() cons
 
 void KisBrushBasedPaintopOptionWidget::paintOpOptionAdded(KisPaintOpOption *option)
 {
+    if (auto *spacing = dynamic_cast<KisSpacingOptionWidget *>(option)) {
+        if (spacing->category() == KisPaintOpOption::GENERAL && !m_spacingOption) {
+            addSpacingRow(spacing);
+        }
+        return;
+    }
     auto *size = dynamic_cast<KisSizeOptionWidget *>(option);
     // the masked brush's Size stays its share of this diameter
     if (!size || size->category() != KisPaintOpOption::GENERAL || m_sizeOption) return;
@@ -61,6 +68,38 @@ void KisBrushBasedPaintopOptionWidget::paintOpOptionAdded(KisPaintOpOption *opti
         [diameter, share](qreal value) mutable { diameter.set(value / share()); });
     connect(m_brushOption, &KisPaintOpOption::sigSettingChanged, size, &KisPaintOpOption::notifyRowValueChanged);
     connect(size, &KisPaintOpOption::sigSettingChanged, size, &KisPaintOpOption::notifyRowValueChanged);
+}
+
+void KisBrushBasedPaintopOptionWidget::addSpacingRow(KisSpacingOptionWidget *spacing)
+{
+    m_spacingOption = spacing;
+    lager::cursor<KisBrushModel::CommonData> common = m_brushOption->commonData();
+    // the widest spacing it lays dabs at: the tip's, times the Spacing strength while the pen drives it
+    auto share = [spacing]() {
+        const qreal strength = spacing->strengthValue();
+        return spacing->isChecked() && strength > 0.0 ? strength : 1.0;
+    };
+    spacing->setRowValueSource(
+        [common, share]() -> std::optional<KisPaintOpOption::RowValue> {
+            const KisBrushModel::CommonData data = common.get();
+            KisPaintOpOption::RowValue value;
+            value.value = data.spacing * 100.0 * share();
+            value.minimum = 2.0;
+            value.maximum = 1000.0;
+            value.suffix = i18nc("percent, after the number", "%");
+            value.size = true;
+            value.appliesUnchecked = true;
+            if (data.useAutoSpacing) value.text = i18nc("spacing chosen from the brush size", "Auto");
+            return value;
+        },
+        [common, share](qreal value) mutable {
+            KisBrushModel::CommonData data = common.get();
+            data.spacing = value / 100.0 / share();
+            data.useAutoSpacing = false;
+            common.set(data);
+        });
+    connect(m_brushOption, &KisPaintOpOption::sigSettingChanged, spacing, &KisPaintOpOption::notifyRowValueChanged);
+    connect(spacing, &KisPaintOpOption::sigSettingChanged, spacing, &KisPaintOpOption::notifyRowValueChanged);
 }
 
 KisBrushOptionWidget *KisBrushBasedPaintopOptionWidget::brushOptionWidget() const

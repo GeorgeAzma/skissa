@@ -23,10 +23,12 @@
 #include <KisCurveWidgetConnectionHelper.h>
 #include <KisCurveRangeModel.h>
 #include <KisCurveOptionInputControlsStrategy.h>
-#include <KisCurvePresetStrip.h>
+#include <widgets/KisCurvePresetStrip.h>
 
 #include <QCheckBox>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 #include <kis_config.h>
 #include <kis_config_notifier.h>
@@ -298,6 +300,88 @@ bool KisCurveOptionWidget::isCheckable() const
 {
     // An always-on option is checked when the pen affects it
     return !m_d->noPenCheckbox || m_d->model.isCheckable();
+}
+
+QString KisCurveOptionWidget::id() const
+{
+    return m_d->model.optionData->prefix + m_d->model.optionData->id.id();
+}
+
+qreal KisCurveOptionWidget::strengthValue() const
+{
+    return m_d->model.optionData->strengthValue;
+}
+
+QVector<KisPaintOpOption::PenInput> KisCurveOptionWidget::penInputs() const
+{
+    const KisCurveOptionDataCommon data = m_d->model.optionData.get();
+    QVector<PenInput> inputs;
+    Q_FOREACH (const KisSensorData *sensor, data.sensors()) {
+        PenInput input;
+        input.id = sensor->id.id();
+        input.name = sensor->id.name();
+        // the pen off (useCurve) keeps its inputs for when it is on again
+        input.active = sensor->isActive && data.useCurve;
+        input.curve = data.useSameCurve ? data.commonCurve : sensor->curve;
+        inputs << input;
+    }
+    return inputs;
+}
+
+void KisCurveOptionWidget::setPenInputActive(const QString &id, bool active)
+{
+    KisCurveOptionDataCommon data = m_d->model.optionData.get();
+    std::vector<KisSensorData *> sensors = data.sensors();
+    std::vector<bool> on;
+    for (KisSensorData *sensor : sensors) {
+        on.push_back(sensor->id.id() == id ? active : sensor->isActive && data.useCurve);
+    }
+    if (std::none_of(on.begin(), on.end(), [](bool value) { return value; })) {
+        // the inputs stay as they were, for when the pen is on again
+        data.useCurve = false;
+    } else {
+        data.useCurve = true;
+        for (size_t i = 0; i < sensors.size(); i++) {
+            sensors[i]->isActive = on[i];
+        }
+        // an input on is the option on
+        if (data.isCheckable) data.isChecked = true;
+    }
+    m_d->model.optionData.set(data);
+}
+
+void KisCurveOptionWidget::setPenCurve(const QString &id, const QString &curve)
+{
+    KisCurveOptionDataCommon data = m_d->model.optionData.get();
+    if (data.useSameCurve) {
+        // each input keeps a curve of its own from now on
+        for (KisSensorData *sensor : data.sensors()) {
+            sensor->curve = data.commonCurve;
+        }
+        data.useSameCurve = false;
+    }
+    for (KisSensorData *sensor : data.sensors()) {
+        if (sensor->id.id() == id) sensor->curve = curve;
+    }
+    m_d->model.optionData.set(data);
+}
+
+int KisCurveOptionWidget::penMode() const
+{
+    return m_d->model.optionData->curveMode;
+}
+
+void KisCurveOptionWidget::setPenMode(int mode)
+{
+    KisCurveOptionDataCommon data = m_d->model.optionData.get();
+    data.curveMode = mode;
+    m_d->model.optionData.set(data);
+}
+
+QWidget *KisCurveOptionWidget::createPenInputPage(const QString &id, QWidget *parent)
+{
+    KisDynamicSensorFactory *factory = KisDynamicSensorFactoryRegistry::instance()->get(id);
+    return factory ? factory->createConfigWidget(m_d->model.optionData, parent) : nullptr;
 }
 
 std::optional<KisPaintOpOption::RowValue> KisCurveOptionWidget::ownRowValue() const

@@ -1,0 +1,256 @@
+/*
+ *  SPDX-FileCopyrightText: 2026 GeorgeAzma <lumi.main.mail@gmail.com>
+ *
+ *  SPDX-License-Identifier: GPL-2.0-or-later
+ */
+#include "KisStudioPenPopup.h"
+
+#include <QCheckBox>
+#include <QHash>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPointer>
+#include <QVBoxLayout>
+
+#include <klocalizedstring.h>
+
+#include <KisModernStyle.h>
+#include <kis_cubic_curve.h>
+#include <kis_signals_blocker.h>
+
+#include "kis_paintop_option.h"
+#include "widgets/KisCurvePresetStrip.h"
+#include "widgets/KisStudioChips.h"
+#include "widgets/kis_curve_widget.h"
+
+struct KisStudioPenPopup::Private
+{
+    QPointer<KisPaintOpOption> option;
+    QString selected;
+    bool showAll {false};
+    QVector<KisPaintOpOption::PenInput> shown;
+
+    QLabel *title {nullptr};
+    QCheckBox *on {nullptr};
+    KisStudioChips *inputs {nullptr};
+    KisCurveWidget *curve {nullptr};
+    KisCurvePresetStrip *saved {nullptr};
+    KisStudioChips *modes {nullptr};
+    QWidget *inputPageHolder {nullptr};
+    QWidget *inputPage {nullptr};
+    QString inputPageId;
+
+    KisPaintOpOption::PenInput input(const QString &id) const
+    {
+        Q_FOREACH (const KisPaintOpOption::PenInput &input, option->penInputs()) {
+            if (input.id == id) return input;
+        }
+        return {};
+    }
+};
+
+QString KisStudioPenPopup::inputName(const QString &id, const QString &fallback)
+{
+    static const QHash<QString, QString> names = {
+        {QStringLiteral("pressure"), i18nc("pen input", "Pressure")},
+        {QStringLiteral("declination"), i18nc("pen input: how far the pen leans", "Tilt")},
+        {QStringLiteral("speed"), i18nc("pen input", "Speed")},
+        {QStringLiteral("drawingangle"), i18nc("pen input: the way the stroke goes", "Direction")},
+        {QStringLiteral("fade"), i18nc("pen input: along the stroke", "Fade")},
+        {QStringLiteral("fuzzy"), i18nc("pen input: a new random value each dab", "Random")},
+        {QStringLiteral("fuzzystroke"), i18nc("pen input: a random value each stroke", "Random per stroke")},
+        {QStringLiteral("xtilt"), i18nc("pen input", "X tilt")},
+        {QStringLiteral("ytilt"), i18nc("pen input", "Y tilt")},
+        {QStringLiteral("ascension"), i18nc("pen input: the way the pen leans", "Tilt direction")},
+        {QStringLiteral("rotation"), i18nc("pen input: turning the pen in the fingers", "Twist")},
+        {QStringLiteral("distance"), i18nc("pen input", "Distance")},
+        {QStringLiteral("time"), i18nc("pen input", "Time")},
+        {QStringLiteral("perspective"), i18nc("pen input", "Perspective")},
+        {QStringLiteral("tangentialpressure"), i18nc("pen input: an airbrush pen's wheel", "Wheel")},
+    };
+    return names.value(id, fallback);
+}
+
+QStringList KisStudioPenPopup::mainInputs()
+{
+    return {QStringLiteral("pressure"), QStringLiteral("declination"), QStringLiteral("speed"),
+            QStringLiteral("drawingangle"), QStringLiteral("fade"), QStringLiteral("fuzzy")};
+}
+
+KisStudioPenPopup::KisStudioPenPopup(KisPaintOpOption *option, QWidget *parent, const QString &input)
+    : KisStudioPopup(parent)
+    , d(new Private)
+{
+    d->option = option;
+    d->selected = input;
+    if (d->selected.isEmpty()) {
+        Q_FOREACH (const KisPaintOpOption::PenInput &each, option->penInputs()) {
+            if (each.active) {
+                d->selected = each.id;
+                break;
+            }
+        }
+    }
+    if (d->selected.isEmpty()) d->selected = QStringLiteral("pressure");
+
+    auto *layout = new QVBoxLayout(this);
+    fitLayout(layout, KisModernStyle::space3);
+    layout->setSpacing(KisModernStyle::space2 + KisModernStyle::hairline);
+
+    auto *header = new QHBoxLayout();
+    header->setSpacing(KisModernStyle::space2);
+    d->title = new QLabel(option->label(), this);
+    d->title->setFont(KisModernStyle::textFont(font(), 1.0, QFont::DemiBold));
+    header->addWidget(d->title, 1);
+    const std::optional<KisPaintOpOption::RowValue> value = option->rowValue();
+    if (option->isCheckable() && value && !value->appliesUnchecked) {
+        // an effect the brush can go without (Rotation, Scatter): its own switch
+        d->on = new QCheckBox(this);
+        d->on->setToolTip(i18nc("@info:tooltip", "On"));
+        header->addWidget(d->on);
+        connect(d->on, &QCheckBox::toggled, this, [this](bool checked) {
+            if (d->option) d->option->setChecked(checked);
+        });
+    }
+    layout->addLayout(header);
+
+    d->inputs = new KisStudioChips(this);
+    layout->addWidget(d->inputs);
+    connect(d->inputs, &KisStudioChips::clicked, this, [this](int index) {
+        if (!d->option) return;
+        if (index >= d->shown.size()) {
+            d->showAll = !d->showAll;
+            refresh();
+            return;
+        }
+        const KisPaintOpOption::PenInput picked = d->shown[index];
+        if (picked.id == d->selected) {
+            d->option->setPenInputActive(picked.id, !picked.active);
+        } else {
+            d->selected = picked.id;
+            if (!picked.active) d->option->setPenInputActive(picked.id, true);
+        }
+        refresh();
+    });
+
+    d->curve = new KisCurveWidget(this);
+    d->curve->setFixedHeight(150);
+    layout->addWidget(d->curve);
+    connect(d->curve, &KisCurveWidget::modified, this, [this]() {
+        if (!d->option) return;
+        const QString curve = d->curve->curve().toString();
+        d->option->setPenCurve(d->selected, curve);
+        if (!d->input(d->selected).active) d->option->setPenInputActive(d->selected, true);
+        d->saved->setCurrent(curve);
+    });
+
+    d->saved = new KisCurvePresetStrip(this);
+    layout->addWidget(d->saved);
+    connect(d->saved, &KisCurvePresetStrip::picked, this, [this](const QString &curve) {
+        if (!d->option) return;
+        d->option->setPenCurve(d->selected, curve);
+        if (!d->input(d->selected).active) d->option->setPenInputActive(d->selected, true);
+        refresh();
+    });
+
+    d->modes = new KisStudioChips(this);
+    d->modes->setTabs(true);
+    layout->addWidget(d->modes);
+    connect(d->modes, &KisStudioChips::clicked, this, [this](int index) {
+        if (d->option) d->option->setPenMode(index);
+        refresh();
+    });
+
+    d->inputPageHolder = new QWidget(this);
+    auto *holderLayout = new QVBoxLayout(d->inputPageHolder);
+    holderLayout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(d->inputPageHolder);
+
+    setFixedWidth(320 + 2 * shadowMargin());
+    connect(option, &KisPaintOpOption::sigSettingChanged, this, &KisStudioPenPopup::refresh);
+    connect(option, &QObject::destroyed, this, &QWidget::close);
+    refresh();
+}
+
+KisStudioPenPopup::~KisStudioPenPopup()
+{
+}
+
+KisPaintOpOption *KisStudioPenPopup::option() const
+{
+    return d->option;
+}
+
+void KisStudioPenPopup::refresh()
+{
+    if (!d->option) return;
+    const QVector<KisPaintOpOption::PenInput> all = d->option->penInputs();
+    const QStringList main = mainInputs();
+
+    d->shown.clear();
+    QVector<KisStudioChips::Chip> chips;
+    int activeCount = 0;
+    int current = -1;
+    // the main inputs in their order, then any other that is on or picked, then the rest when asked
+    auto add = [&](const KisPaintOpOption::PenInput &input) {
+        KisStudioChips::Chip chip;
+        chip.text = inputName(input.id, input.name);
+        chip.on = input.active;
+        chip.dot = input.active;
+        if (input.id == d->selected) current = chips.size();
+        chips << chip;
+        d->shown << input;
+    };
+    Q_FOREACH (const QString &id, main) {
+        Q_FOREACH (const KisPaintOpOption::PenInput &input, all) {
+            if (input.id == id) add(input);
+        }
+    }
+    Q_FOREACH (const KisPaintOpOption::PenInput &input, all) {
+        if (input.active) activeCount++;
+        if (main.contains(input.id)) continue;
+        if (d->showAll || input.active || input.id == d->selected) add(input);
+    }
+    KisStudioChips::Chip more;
+    more.text = d->showAll ? i18nc("show fewer pen inputs", "Less") : QStringLiteral("···");
+    more.toolTip = d->showAll ? QString() : i18nc("@info:tooltip", "More pen inputs");
+    chips << more;
+    d->inputs->setChips(chips);
+    d->inputs->setCurrent(current);
+
+    const KisPaintOpOption::PenInput selected = d->input(d->selected);
+    const QString curve = selected.curve.isEmpty() ? KisCubicCurve().toString() : selected.curve;
+    if (d->curve->curve().toString() != curve) {
+        KisSignalsBlocker blocker(d->curve);
+        d->curve->setCurve(KisCubicCurve(curve));
+    }
+    d->saved->setCurrent(curve);
+
+    const int mode = d->option->penMode();
+    d->modes->setVisible(mode >= 0 && activeCount > 1);
+    if (d->modes->isVisible()) {
+        QVector<KisStudioChips::Chip> modes;
+        Q_FOREACH (const QString &name, KisPaintOpOption::penModeNames()) {
+            KisStudioChips::Chip chip;
+            chip.text = name;
+            modes << chip;
+        }
+        d->modes->setChips(modes);
+        d->modes->setCurrent(mode);
+    }
+
+    if (d->on) {
+        KisSignalsBlocker blocker(d->on);
+        d->on->setChecked(d->option->isChecked());
+    }
+
+    if (d->inputPageId != d->selected) {
+        delete d->inputPage;
+        d->inputPageId = d->selected;
+        d->inputPage = d->option->createPenInputPage(d->selected, d->inputPageHolder);
+        if (d->inputPage) d->inputPageHolder->layout()->addWidget(d->inputPage);
+        d->inputPageHolder->setVisible(d->inputPage);
+    }
+    adjustSize();
+    if (isVisible()) keepOnScreen();
+}

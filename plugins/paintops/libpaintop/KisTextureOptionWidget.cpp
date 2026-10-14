@@ -11,6 +11,49 @@
 
 #include "kis_texture_chooser.h"
 
+#include <QPainter>
+#include <QVBoxLayout>
+
+#include <KisGlobalResourcesInterface.h>
+#include <KisModernStyle.h>
+#include <KisResourceModel.h>
+#include <KoCompositeOpRegistry.h>
+#include <KoPattern.h>
+#include <kis_config.h>
+#include <widgets/KisStudioChips.h>
+#include <widgets/KisStudioPicker.h>
+#include <widgets/KisStudioValueRow.h>
+
+#include <memory>
+
+namespace {
+const QString recentPatternsKey = QStringLiteral("StudioRecentPatterns");
+
+/// Fills \p box with \p pattern repeated, small enough to read as a texture
+void paintPattern(QPainter &painter, const QRectF &box, const QImage &pattern)
+{
+    if (pattern.isNull()) return;
+    painter.fillRect(box, QBrush(pattern.scaled(qMin(pattern.width(), 64), qMin(pattern.height(), 64), Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+}
+
+void rememberPattern(const QString &md5)
+{
+    QStringList recent = KisConfig(true).readEntry<QStringList>(recentPatternsKey, QStringList());
+    recent.removeAll(md5);
+    recent.prepend(md5);
+    KisConfig(false).writeEntry(recentPatternsKey, recent.mid(0, 6));
+}
+
+void paintMore(QPainter &painter, const QRectF &box, const QColor &ink)
+{
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(KisModernStyle::secondaryInk(ink));
+    for (int i = -1; i <= 1; i++) {
+        painter.drawEllipse(box.center() + QPointF(i * 6, 0), 1.6, 1.6);
+    }
+}
+} // namespace
+
 
 struct KisTextureOptionWidget::Private
 {
@@ -20,6 +63,7 @@ struct KisTextureOptionWidget::Private
     }
 
     KisTextureOptionModel model;
+    KisBrushTextureFlags flags;
 };
 
 
@@ -27,6 +71,7 @@ KisTextureOptionWidget::KisTextureOptionWidget(lager::cursor<KisTextureOptionDat
     : KisPaintOpOption(i18n("Pattern"), KisPaintOpOption::TEXTURE, optionData[&KisTextureOptionData::isEnabled])
     , m_d(new Private(optionData, resourcesInterface))
 {
+    m_d->flags = flags;
     using namespace KisWidgetConnectionUtils;
     setObjectName("KisTextureOption");
 
@@ -86,6 +131,228 @@ void KisTextureOptionWidget::readOptionSetting(const KisPropertiesConfigurationS
     KisTextureOptionData data = *m_d->model.optionData;
     data.read(setting.data());
     m_d->model.optionData.set(data);
+}
+
+bool KisTextureOptionWidget::hasQuickPage(PaintopCategory category) const
+{
+    return category == TEXTURE;
+}
+
+QWidget *KisTextureOptionWidget::createQuickPage(PaintopCategory category, QWidget *parent)
+{
+    if (category != TEXTURE) return nullptr;
+    KisTextureOptionModel *model = &m_d->model;
+    auto *page = new QWidget(parent);
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space2);
+
+    // the patterns: none, this one, the ones used last, all
+    auto *patterns = new KisStudioChips(page);
+    patterns->setTileSize(44);
+    layout->addWidget(patterns);
+    auto ids = std::make_shared<QStringList>();
+    auto refreshPatterns = [model, patterns, ids]() {
+        const QColor ink = patterns->palette().color(QPalette::WindowText);
+        const bool on = model->isEnabled();
+        const KoPatternSP current = model->textureResource().dynamicCast<KoPattern>();
+        QVector<KisStudioChips::Chip> chips;
+        KisStudioChips::Chip none;
+        none.toolTip = i18nc("no texture on the brush", "None");
+        none.on = !on;
+        none.picture = [ink](QPainter &painter, const QRectF &box) {
+            painter.setPen(QPen(KisModernStyle::secondaryInk(ink), 1.5));
+            painter.setBrush(Qt::NoBrush);
+            const QRectF circle(box.center() - QPointF(8, 8), QSizeF(16, 16));
+            painter.drawEllipse(circle);
+            painter.drawLine(circle.bottomLeft() + QPointF(2.5, -2.5), circle.topRight() + QPointF(-2.5, 2.5));
+        };
+        chips << none;
+        QStringList wanted;
+        if (current) wanted << current->md5Sum();
+        Q_FOREACH (const QString &md5, KisConfig(true).readEntry<QStringList>(recentPatternsKey, QStringList())) {
+            if (!wanted.contains(md5)) wanted << md5;
+        }
+        ids->clear();
+        auto source = KisGlobalResourcesInterface::instance()->source<KoPattern>(ResourceType::Patterns);
+        Q_FOREACH (const QString &md5, wanted) {
+            if (ids->size() >= 5) break;
+            const KoPatternSP match = source.bestMatch(md5, QString(), QString());
+            if (!match) continue;
+            *ids << md5;
+            KisStudioChips::Chip chip;
+            chip.toolTip = match->name();
+            chip.on = on && current && current->md5Sum() == md5;
+            const QImage image = match->pattern();
+            chip.picture = [image](QPainter &painter, const QRectF &box) { paintPattern(painter, box.adjusted(-4, -4, 4, 4), image); };
+            chips << chip;
+        }
+        KisStudioChips::Chip more;
+        more.toolTip = i18nc("@info:tooltip", "All patterns");
+        more.picture = [ink](QPainter &painter, const QRectF &box) { paintMore(painter, box, ink); };
+        chips << more;
+        patterns->setChips(chips);
+    };
+    auto use = [model, refreshPatterns](const QString &md5) {
+        auto source = KisGlobalResourcesInterface::instance()->source<KoPattern>(ResourceType::Patterns);
+        const KoPatternSP match = source.bestMatch(md5, QString(), QString());
+        if (!match) return;
+        model->settextureResource(match);
+        model->setisEnabled(true);
+        rememberPattern(md5);
+        refreshPatterns();
+    };
+    connect(patterns, &KisStudioChips::clicked, page, [model, patterns, ids, refreshPatterns, use](int index) {
+        if (index == 0) {
+            model->setisEnabled(false);
+            refreshPatterns();
+            return;
+        }
+        if (index - 1 < ids->size()) {
+            use(ids->at(index - 1));
+            return;
+        }
+        auto *resources = new KisResourceModel(ResourceType::Patterns);
+        QStringList all;
+        QHash<QString, QString> names;
+        QHash<QString, QImage> thumbnails;
+        for (int row = 0; row < resources->rowCount(); row++) {
+            const QModelIndex at = resources->index(row, 0);
+            const QString md5 = resources->data(at, Qt::UserRole + KisAbstractResourceModel::MD5).toString();
+            if (md5.isEmpty() || all.contains(md5)) continue;
+            all << md5;
+            names.insert(md5, resources->data(at, Qt::UserRole + KisAbstractResourceModel::Name).toString());
+            thumbnails.insert(md5, resources->data(at, Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>());
+        }
+        delete resources;
+        KisStudioPicker::Source source;
+        source.pinnedKey = QStringLiteral("StudioPinnedPatterns");
+        source.initialPinned = []() { return QStringList(); };
+        source.allIds = [all]() { return all; };
+        source.otherGroups = [all](const QStringList &pinned) {
+            KisStudioPicker::Group group{i18nc("pattern group", "Patterns"), {}};
+            Q_FOREACH (const QString &id, all) {
+                if (!pinned.contains(id)) group.ids << id;
+            }
+            return QVector<KisStudioPicker::Group>{group};
+        };
+        source.name = [names](const QString &id) { return names.value(id); };
+        source.paintPreview = [thumbnails](QPainter &painter, const QRect &rect, const QString &id) {
+            paintPattern(painter, rect, thumbnails.value(id));
+        };
+        source.recent = []() { return KisConfig(true).readEntry<QStringList>(recentPatternsKey, QStringList()); };
+        source.tiles = true;
+        source.tileSize = QSize(84, 96);
+        source.yoursTitle = i18nc("pattern group", "Your patterns");
+        source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 patterns", all.size());
+        source.allLabel = i18nc("@action:button %1 is a number", "All %1 patterns", QStringLiteral("%1"));
+        const KoPatternSP current = model->textureResource().dynamicCast<KoPattern>();
+        auto *picker = new KisStudioPicker(source, current ? current->md5Sum() : QString(), {}, patterns->window());
+        connect(picker, &KisStudioPicker::sigPicked, patterns, use);
+        picker->popupBelow(patterns);
+    });
+    connect(model, &KisTextureOptionModel::isEnabledChanged, patterns, refreshPatterns);
+    connect(model, &KisTextureOptionModel::textureResourceChanged, patterns, refreshPatterns);
+    refreshPatterns();
+
+    // how it marks the paint: the commonest first
+    auto *modes = new KisStudioChips(page);
+    layout->addWidget(modes);
+    const KoCompositeOpRegistry &registry = KoCompositeOpRegistry::instance();
+    QVector<std::pair<QString, int>> all;
+    all << std::make_pair(registry.getKoID(COMPOSITE_MULT).name(), int(KisTextureOptionData::MULTIPLY))
+        << std::make_pair(registry.getKoID(COMPOSITE_SUBTRACT).name(), int(KisTextureOptionData::SUBTRACT));
+    if (m_d->flags & SupportsLightnessMode) {
+        all << std::make_pair(i18nc("Lightness Map blend mode for brush texture", "Lightness Map"), int(KisTextureOptionData::LIGHTNESS));
+    }
+    if (m_d->flags & SupportsGradientMode) {
+        all << std::make_pair(i18nc("Gradient Map blend mode for brush texture", "Gradient Map"), int(KisTextureOptionData::GRADIENT));
+    }
+    all << std::make_pair(registry.getKoID(COMPOSITE_DARKEN).name(), int(KisTextureOptionData::DARKEN))
+        << std::make_pair(registry.getKoID(COMPOSITE_OVERLAY).name(), int(KisTextureOptionData::OVERLAY))
+        << std::make_pair(registry.getKoID(COMPOSITE_DODGE).name(), int(KisTextureOptionData::COLOR_DODGE))
+        << std::make_pair(registry.getKoID(COMPOSITE_BURN).name(), int(KisTextureOptionData::COLOR_BURN))
+        << std::make_pair(registry.getKoID(COMPOSITE_LINEAR_DODGE).name(), int(KisTextureOptionData::LINEAR_DODGE))
+        << std::make_pair(registry.getKoID(COMPOSITE_LINEAR_BURN).name(), int(KisTextureOptionData::LINEAR_BURN))
+        << std::make_pair(registry.getKoID(COMPOSITE_HARD_MIX_PHOTOSHOP).name(), int(KisTextureOptionData::HARD_MIX_PHOTOSHOP))
+        << std::make_pair(registry.getKoID(COMPOSITE_HARD_MIX_SOFTER_PHOTOSHOP).name(), int(KisTextureOptionData::HARD_MIX_SOFTER_PHOTOSHOP))
+        << std::make_pair(i18nc("Height blend mode for brush texture", "Height"), int(KisTextureOptionData::HEIGHT))
+        << std::make_pair(i18nc("Linear Height blend mode for brush texture", "Linear Height"), int(KisTextureOptionData::LINEAR_HEIGHT))
+        << std::make_pair(i18nc("Height (Photoshop) blend mode for brush texture", "Height (Photoshop)"), int(KisTextureOptionData::HEIGHT_PHOTOSHOP))
+        << std::make_pair(i18nc("Linear Height (Photoshop) blend mode for brush texture", "Linear Height (Photoshop)"), int(KisTextureOptionData::LINEAR_HEIGHT_PHOTOSHOP));
+    const QVector<int> common = {KisTextureOptionData::MULTIPLY, KisTextureOptionData::SUBTRACT, KisTextureOptionData::DARKEN,
+                                 KisTextureOptionData::OVERLAY, KisTextureOptionData::HEIGHT};
+    auto showAll = std::make_shared<bool>(false);
+    auto shown = std::make_shared<QVector<int>>();
+    auto refreshModes = [model, modes, all, common, showAll, shown]() {
+        const int current = model->texturingMode();
+        shown->clear();
+        QVector<KisStudioChips::Chip> chips;
+        Q_FOREACH (const auto &mode, all) {
+            if (!*showAll && !common.contains(mode.second) && mode.second != current) continue;
+            KisStudioChips::Chip chip;
+            chip.text = mode.first;
+            chip.on = mode.second == current;
+            chips << chip;
+            *shown << mode.second;
+        }
+        KisStudioChips::Chip more;
+        more.text = *showAll ? i18nc("show fewer choices", "Less") : QStringLiteral("···");
+        chips << more;
+        modes->setChips(chips);
+        modes->setVisible(model->isEnabled());
+    };
+    connect(modes, &KisStudioChips::clicked, page, [model, refreshModes, showAll, shown](int index) {
+        if (index < shown->size()) {
+            model->settexturingMode(shown->at(index));
+        } else {
+            *showAll = !*showAll;
+        }
+        refreshModes();
+    });
+    connect(model, &KisTextureOptionModel::texturingModeChanged, modes, refreshModes);
+    connect(model, &KisTextureOptionModel::isEnabledChanged, modes, refreshModes);
+    refreshModes();
+
+    // its size and tone, in percent
+    struct Setting {
+        QString name;
+        qreal minimum;
+        qreal maximum;
+        qreal neutral;
+        std::function<qreal()> get;
+        std::function<void(qreal)> set;
+    };
+    const QVector<Setting> settings = {
+        {i18nc("texture setting", "Scale"), 1, 200, 100,
+         [model]() { return model->scale() * 100.0; }, [model](qreal value) { model->setscale(value / 100.0); }},
+        {i18nc("texture setting", "Brightness"), -100, 100, 0,
+         [model]() { return model->brightness() * 100.0; }, [model](qreal value) { model->setbrightness(value / 100.0); }},
+        {i18nc("texture setting", "Contrast"), 0, 200, 100,
+         [model]() { return model->contrast() * 100.0; }, [model](qreal value) { model->setcontrast(value / 100.0); }},
+    };
+    Q_FOREACH (const Setting &setting, settings) {
+        auto *row = new KisStudioValueRow(setting.name, page);
+        KisStudioValueRow::Range range;
+        range.minimum = setting.minimum;
+        range.maximum = setting.maximum;
+        range.suffix = i18nc("percent, after the number", "%");
+        row->setRange(range);
+        row->setDefaultValue(setting.neutral);
+        const auto get = setting.get;
+        auto show = [row, get, model]() {
+            row->setValue(get());
+            row->setVisible(model->isEnabled());
+        };
+        show();
+        connect(model, &KisTextureOptionModel::scaleChanged, row, show);
+        connect(model, &KisTextureOptionModel::brightnessChanged, row, show);
+        connect(model, &KisTextureOptionModel::contrastChanged, row, show);
+        connect(model, &KisTextureOptionModel::isEnabledChanged, row, show);
+        connect(row, &KisStudioValueRow::valueChanged, page, setting.set);
+        layout->addWidget(row);
+    }
+    return page;
 }
 
 KisPaintOpOption::OptionalLodLimitationsReader KisTextureOptionWidget::lodLimitationsReader() const

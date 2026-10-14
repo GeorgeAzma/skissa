@@ -14,6 +14,7 @@
 
 #include <KisColorSourceOptionModel.h>
 #include <KisWidgetConnectionUtils.h>
+#include <widgets/KisStudioChips.h>
 
 struct KisColorSourceOptionWidget::Private
 {
@@ -62,6 +63,37 @@ KisColorSourceOptionWidget::KisColorSourceOptionWidget(lager::cursor<KisColorSou
 
 KisColorSourceOptionWidget::~KisColorSourceOptionWidget()
 {
+}
+
+bool KisColorSourceOptionWidget::hasQuickPage(PaintopCategory category) const
+{
+    return category == COLOR;
+}
+
+QWidget *KisColorSourceOptionWidget::createQuickPage(PaintopCategory category, QWidget *parent)
+{
+    if (category != COLOR) return nullptr;
+    // where the paint's color comes from, one choice each
+    auto *sources = new KisStudioChips(parent);
+    KisColorSourceOptionModel *model = &m_d->model;
+    auto refresh = [sources, model]() {
+        QVector<KisStudioChips::Chip> chips;
+        Q_FOREACH (const KoID &id, KisColorSourceOptionData::colorSourceTypeIds()) {
+            KisStudioChips::Chip chip;
+            chip.text = id.name();
+            chip.on = KisColorSourceOptionData::id2Type(id) == model->type();
+            chips << chip;
+        }
+        sources->setChips(chips);
+    };
+    connect(sources, &KisStudioChips::clicked, sources, [model, refresh](int index) {
+        const QVector<KoID> ids = KisColorSourceOptionData::colorSourceTypeIds();
+        if (index >= 0 && index < ids.size()) model->settype(KisColorSourceOptionData::id2Type(ids[index]));
+        refresh();
+    });
+    connect(model, &KisColorSourceOptionModel::typeChanged, sources, refresh);
+    refresh();
+    return sources;
 }
 
 void KisColorSourceOptionWidget::writeOptionSetting(KisPropertiesConfigurationSP setting) const

@@ -5,6 +5,8 @@
  */
 #include "KisStudioToolRail.h"
 
+#include "KisStudioBrushEditor.h"
+
 #include <QAction>
 #include <QApplication>
 #include <QContextMenuEvent>
@@ -964,8 +966,14 @@ void KisStudioToolRail::runItem(int index)
     const QString key = d->items.value(index);
     if (key.startsWith(slotPrefix)) {
         const QString slotId = key.mid(slotPrefix.size());
-        // clicking the active slot again shows its variants
-        if (slotId == d->activeSlot && d->visibleVariants(slotId).size() > 1) {
+        const BrushMode brush = d->slots.value(slotId).brush;
+        if (slotId == d->activeSlot && brush != BrushMode::None) {
+            // clicking the active brush slot again opens the brush's settings
+            const int widgetIndex = d->widgetItem.indexOf(index);
+            KisStudioBrushEditor::toggle(d->mainWindow, widgetIndex >= 0 ? d->widgets[widgetIndex] : nullptr, Qt::RightEdge);
+            updateActiveSlot();
+        } else if (slotId == d->activeSlot && d->visibleVariants(slotId).size() > 1) {
+            // clicking another active slot again shows its variants
             showCard(index);
             updateActiveSlot();
         } else {

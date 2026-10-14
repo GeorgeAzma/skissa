@@ -135,6 +135,8 @@ KisAutoBrushWidget::KisAutoBrushWidget(int maxBrushSize,
     brushPreview->setIconSize(QSize(100, 100));
 
     connectControl(btnAntialiasing, m_d->model, "antialiasEdges");
+    // always smooth edges: a stair-stepped dab is never wanted
+    btnAntialiasing->setVisible(false);
 
     lager::watch(m_d->model->m_commonData, std::bind(&KisSignalCompressor::start, &m_d->previewCompressor));
     lager::watch(m_d->model->m_autoBrushData, std::bind(&KisSignalCompressor::start, &m_d->previewCompressor));

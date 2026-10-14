@@ -5,6 +5,13 @@
  */
 #include "KisStudioBarButtons.h"
 
+#include "KisStudioBrushEditor.h"
+#include "KisStudioPenPopup.h"
+#include "KisViewManager.h"
+#include "kis_paintop_box.h"
+#include "kis_paintop_option.h"
+#include "widgets/KisStudioValueRow.h"
+
 #include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -108,6 +115,49 @@ QIcon symmetryIcon(int mode, const QColor &ink)
     return icon;
 }
 
+const QString brushPrefix = QStringLiteral("brush:");
+
+/**
+ * A brush setting pinned to the bar: its row, small, for the current brush (made again when the brush
+ * changes). Dragging it sideways changes it, pulling it down moves it or takes it off, a click shows how
+ * the pen drives it, its pin unpins it.
+ */
+class BrushValue : public KisStudioValueRow
+{
+public:
+    BrushValue(KisMainWindow *mainWindow, KisPaintOpOption *option, QWidget *parent)
+        : KisStudioValueRow(option->label(), parent)
+    {
+        setCompact(true);
+        setFixedWidth(qMax(132, sizeHint().width() + 24));
+        setPinnable(true, true);
+        setPinOnHoverOnly(true);
+        // a right click resets it; Find's card doesn't take it
+        setProperty("ownContextMenu", true);
+        KisStudioBrushEditor::bindRow(this, option, KisStudioBrushEditor::brushSettings(mainWindow));
+        const QPointer<KisPaintOpOption> target(option);
+        connect(this, &KisStudioValueRow::clicked, this, [this, mainWindow, target]() {
+            if (!target || target->penInputs().isEmpty()) return;
+            if (m_pen) {
+                m_pen->close();
+                return;
+            }
+            m_pen = new KisStudioPenPopup(target, mainWindow);
+            setSelected(true);
+            connect(m_pen, &QObject::destroyed, this, [this]() { setSelected(false); });
+            m_pen->popupBeside(this, Qt::BottomEdge);
+        });
+    }
+
+    ~BrushValue() override
+    {
+        if (m_pen) m_pen->close();
+    }
+
+private:
+    QPointer<KisStudioPenPopup> m_pen;
+};
+
 /// A button on the bar: a click runs it, a drag moves it, a right click or long press shows its card
 class BarButton : public QToolButton
 {
@@ -206,6 +256,11 @@ struct KisStudioBarButtons::Private {
                 return true;
             }
         }
+        if (key.startsWith(brushPrefix)) {
+            item->key = key;
+            item->title = key.mid(brushPrefix.size());
+            return true;
+        }
         KisStudioFind *find = mainWindow->studioFind();
         return find && find->item(key, item);
     }
@@ -229,6 +284,16 @@ KisStudioBarButtons::KisStudioBarButtons(KisMainWindow *mainWindow, QWidget *par
 
     d->items = KisConfig(true).readEntry<QStringList>(itemsKey, defaultItems());
     connect(KoToolManager::instance(), &KoToolManager::changedTool, this, &KisStudioBarButtons::updateForTool);
+    if (KisPaintopBox *box = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr) {
+        connect(box, &KisPaintopBox::sigOptionWidgetChanged, this, [this]() {
+            Q_FOREACH (const QString &key, d->items) {
+                if (key.startsWith(brushPrefix)) {
+                    rebuild();
+                    return;
+                }
+            }
+        });
+    }
     rebuild();
 }
 
@@ -248,6 +313,7 @@ void KisStudioBarButtons::setItems(const QStringList &items)
     d->items = unique;
     KisConfig(false).writeEntry(itemsKey, d->items);
     rebuild();
+    Q_EMIT sigItemsChanged();
 }
 
 void KisStudioBarButtons::rebuild()
@@ -266,6 +332,21 @@ void KisStudioBarButtons::rebuild()
     for (int i = 0; i < d->items.size(); i++) {
         const QString key = d->items[i];
         const int index = i;
+        if (key.startsWith(brushPrefix)) {
+            // a brush setting, if this brush has it
+            KisPaintOpOption *option = KisStudioBrushEditor::brushOption(d->mainWindow, key.mid(brushPrefix.size()));
+            if (!option) continue;
+            auto *value = new BrushValue(d->mainWindow, option, this);
+            value->setObjectName(QStringLiteral("studio_bar_") + QString(key).replace(QLatin1Char(':'), QLatin1Char('_')));
+            connect(value, &KisStudioValueRow::pinClicked, this, [this, key]() {
+                QTimer::singleShot(0, this, [this, key]() { toggle(d->mainWindow, key); });
+            });
+            connect(value, &KisStudioValueRow::pulledOut, this, [this, index, value]() { startDrag(index, value, value->grab()); });
+            d->layout->addWidget(value);
+            d->widgets << value;
+            d->widgetItem << i;
+            continue;
+        }
         auto *button = new BarButton(this);
         // named by its item, so Find knows the button and its shortcut
         button->setObjectName(QStringLiteral("studio_bar_") + QString(key).replace(QLatin1Char(':'), QLatin1Char('_')));
@@ -304,8 +385,10 @@ void KisStudioBarButtons::rebuild()
             } else {
                 button->setIcon(item.icon.isNull() ? KisIconUtils::loadIcon(QStringLiteral("studio_more")) : item.icon);
                 button->setToolTip(item.title);
-                connect(button, &QToolButton::clicked, this, [this, key, action]() {
-                    if (action) {
+                connect(button, &QToolButton::clicked, this, [this, key, action, button]() {
+                    if (key == brushEditorItem) {
+                        KisStudioBrushEditor::toggle(d->mainWindow, button, Qt::BottomEdge);
+                    } else if (action) {
                         action->trigger();
                     } else if (KisStudioFind *find = d->mainWindow->studioFind()) {
                         find->run(key);
@@ -347,7 +430,8 @@ void KisStudioBarButtons::updateForTool()
     const QStringList painting = {QStringLiteral("action:erase_action"), QStringLiteral("action:preserve_alpha")};
     for (int w = 0; w < d->widgets.size(); w++) {
         const QString key = d->items.value(d->widgetItem[w]);
-        d->widgets[w]->setVisible(brushOnly.contains(key) ? paintsWithBrush(tool) : painting.contains(key) ? paints(tool) : true);
+        const bool brush = brushOnly.contains(key) || key.startsWith(brushPrefix);
+        d->widgets[w]->setVisible(brush ? paintsWithBrush(tool) : painting.contains(key) ? paints(tool) : true);
     }
 }
 
@@ -425,6 +509,44 @@ void KisStudioBarButtons::showRestoreCard(const QPoint &globalPos)
 void KisStudioBarButtons::contextMenuEvent(QContextMenuEvent *event)
 {
     showRestoreCard(event->globalPos());
+}
+
+KisStudioBarButtons *KisStudioBarButtons::of(KisMainWindow *mainWindow)
+{
+    return mainWindow ? mainWindow->findChild<KisStudioBarButtons *>(QStringLiteral("studioBarButtons")) : nullptr;
+}
+
+bool KisStudioBarButtons::has(KisMainWindow *mainWindow, const QString &key)
+{
+    KisStudioBarButtons *bar = of(mainWindow);
+    return bar && bar->d->items.contains(key);
+}
+
+void KisStudioBarButtons::toggle(KisMainWindow *mainWindow, const QString &key)
+{
+    KisStudioBarButtons *bar = of(mainWindow);
+    if (!bar) return;
+    QStringList items = bar->d->items;
+    if (items.contains(key)) {
+        items.removeAll(key);
+    } else {
+        // after the other pinned settings, before the buttons
+        int at = 0;
+        while (at < items.size() && items[at].startsWith(brushPrefix)) at++;
+        items.insert(at, key);
+    }
+    bar->setItems(items);
+}
+
+void KisStudioBarButtons::dragItem(const QString &key, QWidget *source)
+{
+    auto *drag = new QDrag(source);
+    auto *mime = new QMimeData();
+    mime->setData(KisStudioShortcuts::itemMimeType(), key.toUtf8());
+    drag->setMimeData(mime);
+    drag->setPixmap(source->grab());
+    drag->setHotSpot(QPoint(source->width() / 2, source->height() / 2));
+    drag->exec(Qt::CopyAction);
 }
 
 void KisStudioBarButtons::startDrag(int index, QWidget *source, const QPixmap &pixmap)

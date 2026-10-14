@@ -28,6 +28,9 @@ public:
 
     lager::reader<bool> maskingBrushEnabledReader() const;
 
+    bool hasQuickPage(PaintopCategory category) const override;
+    QWidget *createQuickPage(PaintopCategory category, QWidget *parent) override;
+
 private Q_SLOTS:
     void slotCompositeModeWidgetChanged(int index);
     void slotCompositeModePropertyChanged(const QString &value);

@@ -25,6 +25,7 @@
 #include "kis_predefined_brush_chooser.h"
 #include "kis_auto_brush_widget.h"
 #include "kis_text_brush_chooser.h"
+#include "KisBrushTipEditor.h"
 #include "KisWidgetConnectionUtils.h"
 #include <KisZug.h>
 #include <KisLager.h>
@@ -157,6 +158,12 @@ KisBrushSelectionWidget::KisBrushSelectionWidget(int maxBrushSize,
 
     setCurrentWidget(m_autoBrushWidget);
 
+    // one row of tips (round, square, star, pictures) above the dab, in place of the Auto, Predefined and Text modes
+    uiWdgBrushChooser.verticalLayout->insertWidget(0, new KisBrushTipQuickPage(autoBrushModel, predefinedBrushModel, brushType, this));
+    Q_FOREACH (QAbstractButton *button, m_buttonGroup->buttons()) {
+        button->setVisible(false);
+    }
+
     uiWdgBrushChooser.sliderPrecision->setRange(1, 5);
     uiWdgBrushChooser.sliderPrecision->setSingleStep(1);
     uiWdgBrushChooser.sliderPrecision->setPageStep(1);
@@ -172,7 +179,9 @@ KisBrushSelectionWidget::KisBrushSelectionWidget(int maxBrushSize,
                 uiWdgBrushChooser.sliderPrecision, &KisSliderSpinBox::setDisabled);
         connect(&m_d->model, &PrecisionModel::useAutoPrecisionChanged,
                 uiWdgBrushChooser.lblPrecision, &KisSliderSpinBox::setDisabled);
-    } else {
+    }
+    // the precision follows the size by itself
+    {
         uiWdgBrushChooser.sliderPrecision->setVisible(false);
         uiWdgBrushChooser.autoPrecisionCheckBox->setVisible(false);
         uiWdgBrushChooser.lblPrecision->setVisible(false);

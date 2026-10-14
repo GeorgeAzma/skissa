@@ -85,6 +85,19 @@ public:
     bool isCheckable() const override;
     void show();
 
+    /// Its data's id, after the masked brush's prefix when it is the mask's
+    QString id() const override;
+
+    /// The strength as stored (most options: 0 to 1)
+    qreal strengthValue() const;
+
+    QVector<PenInput> penInputs() const override;
+    void setPenInputActive(const QString &id, bool active) override;
+    void setPenCurve(const QString &id, const QString &curve) override;
+    int penMode() const override;
+    void setPenMode(int mode) override;
+    QWidget *createPenInputPage(const QString &id, QWidget *parent) override;
+
 protected:
     std::optional<RowValue> ownRowValue() const override;
     void setOwnRowValue(qreal value) override;

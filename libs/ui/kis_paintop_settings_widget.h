@@ -53,6 +53,11 @@ public:
 
     /// Keeps each row's value as the brush is picked: a right click on the row goes back to it
     void rememberRowValues();
+    /// The value a row had when the brush was picked, if it has one
+    std::optional<qreal> pickedRowValue(KisPaintOpOption *option) const;
+
+    /// The options, in the order of the list
+    QList<KisPaintOpOption *> options() const;
 
 private Q_SLOTS:
 

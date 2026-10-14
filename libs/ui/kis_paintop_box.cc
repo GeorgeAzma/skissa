@@ -637,9 +637,29 @@ KisPaintopBox::~KisPaintopBox()
 
 void KisPaintopBox::setStudioButtonsHidden(bool hidden)
 {
+    m_studio = hidden;
     for (QWidget *button : {static_cast<QWidget *>(m_brushEditorPopupButton), static_cast<QWidget *>(m_eraseModeButton),
                             static_cast<QWidget *>(m_alphaLockButton), static_cast<QWidget *>(m_reloadButton)}) {
         button->setVisible(!hidden);
+    }
+}
+
+KisPaintOpConfigWidget *KisPaintopBox::currentOptionWidget() const
+{
+    return m_optionWidget;
+}
+
+void KisPaintopBox::setQuickEditorShown(bool shown)
+{
+    m_quickEditorShown = shown;
+    // what changed while it was closed
+    if (shown) slotUpdateOptionsWidgetPopup();
+}
+
+void KisPaintopBox::showFullEditor()
+{
+    if (!m_brushEditorPopupButton->isPopupWidgetVisible()) {
+        m_brushEditorPopupButton->showPopupWidget();
     }
 }
 
@@ -781,6 +801,7 @@ void KisPaintopBox::setCurrentPaintop(KisPaintOpPresetSP preset)
 
     m_currCompositeOpID = preset->settings()->paintOpCompositeOp();
     updateCompositeOp(m_currCompositeOpID);
+    Q_EMIT sigOptionWidgetChanged();
 
     if (preset->settings()->hasPatternSettings()) {
         setMultiplierSliderValue("patternsize", preset->settings()->paintOpPatternSize());
@@ -807,7 +828,7 @@ void KisPaintopBox::slotUpdateOptionsWidgetPopup()
 
     // the connection to the preset is maintained even when the editor
     // is hidden, so skip the updates
-    if (!m_presetsEditor->isVisible()) return;
+    if (!m_presetsEditor->isVisible() && !m_quickEditorShown) return;
 
     KIS_SAFE_ASSERT_RECOVER_RETURN(preset);
     KIS_SAFE_ASSERT_RECOVER_RETURN(m_optionWidget);
@@ -823,6 +844,10 @@ void KisPaintopBox::slotUpdateOptionsWidgetPopup()
 
 void KisPaintopBox::togglePresetEditor()
 {
+    if (m_studio && !m_brushEditorPopupButton->isPopupWidgetVisible()) {
+        Q_EMIT sigQuickEditorRequested();
+        return;
+    }
     if (m_brushEditorPopupButton->isPopupWidgetVisible()) {
         m_brushEditorPopupButton->hidePopupWidget();
     } else {

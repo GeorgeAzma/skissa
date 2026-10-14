@@ -20,6 +20,7 @@
 #include "KisAutoBrushModel.h"
 #include "KisPredefinedBrushModel.h"
 #include "KisTextBrushModel.h"
+#include "KisBrushTipEditor.h"
 
 struct KisBrushOptionWidget::Private
 {
@@ -146,6 +147,29 @@ lager::reader<BrushData> KisBrushOptionWidget::bakedBrushData() const
 
         return data;
     });
+}
+
+lager::cursor<KisBrushModel::CommonData> KisBrushOptionWidget::commonData() const
+{
+    return m_d->brushData[&BrushData::common];
+}
+
+bool KisBrushOptionWidget::hasQuickPage(PaintopCategory category) const
+{
+    // the tip to shape; with Texture, the tip's own grain
+    return category == GENERAL || category == TEXTURE;
+}
+
+QWidget *KisBrushOptionWidget::createQuickPage(PaintopCategory category, QWidget *parent)
+{
+    if (category == GENERAL) {
+        return new KisBrushTipQuickPage(&m_d->autoBrushModel, &m_d->predefinedBrushModel,
+                                        m_d->brushData[&BrushData::type], parent);
+    }
+    if (category == TEXTURE) {
+        return KisBrushTipQuickPage::createGrainPage(&m_d->autoBrushModel, m_d->brushData[&BrushData::type], parent);
+    }
+    return nullptr;
 }
 
 KisPaintOpOption::OptionalLodLimitationsReader KisBrushOptionWidget::lodLimitationsReader() const

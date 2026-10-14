@@ -62,6 +62,7 @@
 #include "KisResourceServerProvider.h"
 #include "KisSettingsRegistry.h"
 #include "KisStudioBarButtons.h"
+#include "KisStudioBrushEditor.h"
 #include "KisStudioBrushMemory.h"
 #include "KisStudioBrushPicker.h"
 #include "KisStudioCanvasHud.h"
@@ -1593,6 +1594,12 @@ void KisStudioLayout::enter()
     KisViewManager *viewManager = mainWindow->viewManager();
     if (KisPaintopBox *paintopBox = viewManager ? viewManager->paintOpBox() : nullptr) {
         paintopBox->setStudioButtonsHidden(true);
+        // the brush editor's action (its shortcut, Find) opens the quick editor, under the bar's button if it has one
+        disconnect(paintopBox, &KisPaintopBox::sigQuickEditorRequested, this, nullptr);
+        connect(paintopBox, &KisPaintopBox::sigQuickEditorRequested, this, [this]() {
+            QWidget *button = d->mainWindow->findChild<QWidget *>(QStringLiteral("studio_bar_action_show_brush_editor"));
+            KisStudioBrushEditor::toggle(d->mainWindow, button && button->isVisible() ? button : nullptr, Qt::BottomEdge);
+        });
         d->presetChip = paintopBox->presetChip();
         if (d->presetChip) {
             d->presetChipToolTip = d->presetChip->toolTip();

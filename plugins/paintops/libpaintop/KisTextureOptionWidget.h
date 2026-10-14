@@ -22,6 +22,9 @@ public:
     void writeOptionSetting(KisPropertiesConfigurationSP setting) const override;
     void readOptionSetting(const KisPropertiesConfigurationSP setting) override;
 
+    bool hasQuickPage(PaintopCategory category) const override;
+    QWidget *createQuickPage(PaintopCategory category, QWidget *parent) override;
+
 protected:
     OptionalLodLimitationsReader lodLimitationsReader() const override;
 

@@ -15,6 +15,7 @@
 
 class KisBrushOptionWidget;
 class KisSizeOptionWidget;
+class KisSpacingOptionWidget;
 
 class PAINTOP_EXPORT KisBrushBasedPaintopOptionWidget : public KisPaintOpSettingsWidget
 {
@@ -32,8 +33,13 @@ protected:
     void paintOpOptionAdded(KisPaintOpOption *option) override;
 
 private:
+    /// The Spacing row is the tip's spacing
+    void addSpacingRow(KisSpacingOptionWidget *spacing);
+
+private:
     KisBrushOptionWidget *m_brushOption;
     KisSizeOptionWidget *m_sizeOption {nullptr};
+    KisSpacingOptionWidget *m_spacingOption {nullptr};
 };
 
 #endif // KIS_BRUSH_BASED_PAINTOP_OPTIONS_WIDGET_H

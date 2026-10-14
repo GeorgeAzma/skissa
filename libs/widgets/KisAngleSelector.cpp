@@ -296,7 +296,7 @@ KisAngleSelector::KisAngleSelector(QWidget* parent)
     setTabOrder(m_d->toolButtonFlipHorizontally, m_d->toolButtonFlipVertically);
     setTabOrder(m_d->toolButtonFlipVertically, m_d->toolButtonFlipHorizontallyAndVertically);
 
-    setFlipOptionsMode(FlipOptionsMode_Buttons);
+    setFlipOptionsMode(FlipOptionsMode_NoFlipOptions);
     setWidgetsHeight(0);
     
     using namespace std::placeholders;

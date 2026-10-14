@@ -8,14 +8,14 @@
 
 #include <QWidget>
 
-#include <kritapaintop_export.h>
+#include "kritaui_export.h"
 
 /**
  * A strip of curve presets, each drawn as a small plot: Linear, Soft and Firm, followed by the user's
  * saved curves. The "+" tile saves the curve being edited; right click renames or deletes a saved one.
  * Saved curves are shared by all brush options.
  */
-class PAINTOP_EXPORT KisCurvePresetStrip : public QWidget
+class KRITAUI_EXPORT KisCurvePresetStrip : public QWidget
 {
     Q_OBJECT
 public:

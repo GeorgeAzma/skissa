@@ -26,6 +26,9 @@ class KRITAUI_EXPORT KisPopupCloser : public QObject
 public:
     KisPopupCloser(QWidget *popup, QWidget *anchor = nullptr);
 
+    /// Off: the popup stays when the pointer goes elsewhere (pinned)
+    void setEnabled(bool enabled) { m_enabled = enabled; }
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
@@ -35,6 +38,7 @@ private:
     QWidget *m_popup;
     QPointer<QWidget> m_anchor;
     bool m_wasActive = false;
+    bool m_enabled = true;
 };
 
 #endif // KISPOPUPCLOSER_H

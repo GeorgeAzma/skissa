@@ -119,9 +119,20 @@ public:
     /// Hides the edit, eraser, alpha lock and reload buttons, which the Studio layout's bar shows instead
     void setStudioButtonsHidden(bool hidden);
 
+    /// The current brush's settings, as the brush editor edits them
+    KisPaintOpConfigWidget *currentOptionWidget() const;
+    /// While shown, the quick editor keeps the settings in step with the brush, as the full editor does
+    void setQuickEditorShown(bool shown);
+    /// Opens the full brush editor
+    void showFullEditor();
+
 Q_SIGNALS:
     /// The value as shown in the sliders, i.e. 0-100 for opacity and flow
     void sigBrushSliderValueChanged(const QString &sliderID, qreal value);
+    /// Another brush (or engine) is current: its settings are a new set of options
+    void sigOptionWidgetChanged();
+    /// The brush editor action asks for the quick editor, while the Studio layout shows one
+    void sigQuickEditorRequested();
 
 public Q_SLOTS:
 
@@ -282,6 +293,8 @@ private:
     PaintOpPresetMap m_paintOpPresetMap;
     TabletToolID     m_currTabletToolID {KoInputDevice::invalid()};
     bool             m_presetsEnabled {true};
+    bool             m_quickEditorShown {false};
+    bool             m_studio {false};
     bool             m_blockUpdate {false};
     bool             m_dirtyPresetsEnabled {false};
     bool             m_eraserBrushSizeEnabled {false};

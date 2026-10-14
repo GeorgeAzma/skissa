@@ -7,6 +7,7 @@
 
 #include <QApplication>
 #include <QEvent>
+#include <QTimer>
 #include <QWidget>
 
 KisPopupCloser::KisPopupCloser(QWidget *popup, QWidget *anchor)
@@ -30,7 +31,7 @@ bool KisPopupCloser::isInside(QWidget *widget) const
 
 bool KisPopupCloser::eventFilter(QObject *watched, QEvent *event)
 {
-    if (!m_popup->isVisible()) {
+    if (!m_popup->isVisible() || !m_enabled) {
         m_wasActive = false;
         return false;
     }
@@ -44,7 +45,11 @@ bool KisPopupCloser::eventFilter(QObject *watched, QEvent *event)
     case QEvent::WindowDeactivate:
         // Ignore deactivation if the popup was never active, e.g. shown while another app had focus.
         if (watched == m_popup && m_wasActive) {
-            m_popup->close();
+            // not when a popup opened from it took the focus: it counts as inside
+            QTimer::singleShot(0, m_popup, [this]() {
+                QWidget *active = QApplication::activeWindow();
+                if (!active || !isInside(active)) m_popup->close();
+            });
         }
         break;
     case QEvent::MouseButtonPress:

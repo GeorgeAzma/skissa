@@ -164,7 +164,7 @@ public:
     /**
      * @brief Gets the mode in which the flip options should be shown
      * 
-     * The default is FlipOptions::FlipOptionsMode_Buttons
+     * The default is FlipOptions::FlipOptionsMode_NoFlipOptions
      * @return The mode in which the flip options should be shown.
      * @see setFlipOptionsMode(FlipOptionsMode)
      * @see FlipOptionsMode

@@ -248,6 +248,10 @@ set(kritaui_LIB_SRCS
     widgets/KisBlendModePicker.cpp
     widgets/KisStudioPicker.cpp
     widgets/KisPopupCloser.cpp
+    widgets/KisStudioPopup.cpp
+    widgets/KisStudioValueRow.cpp
+    widgets/KisStudioChips.cpp
+    widgets/KisCurvePresetStrip.cpp
     widgets/KisCompositeOpListConnectionHelper.cpp
     widgets/kis_cmb_contour.cpp
     widgets/kis_cmb_gradient.cpp
@@ -450,6 +454,8 @@ set(kritaui_LIB_SRCS
     KisStudioToolStrip.cpp
     KisStudioBarButtons.cpp
     KisStudioScrubber.cpp
+    KisStudioBrushEditor.cpp
+    KisStudioPenPopup.cpp
     KisStudioItemCard.cpp
     KisUpdatePacer.cpp
     KisStudioEffectOverlay.cpp

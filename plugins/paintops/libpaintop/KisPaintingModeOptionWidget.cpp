@@ -5,6 +5,8 @@
  */
 #include "KisPaintingModeOptionWidget.h"
 
+#include <widgets/KisStudioChips.h>
+
 #include <QButtonGroup>
 
 #include <lager/constant.hpp>
@@ -79,6 +81,39 @@ KisPaintingModeOptionWidget::KisPaintingModeOptionWidget(lager::cursor<KisPainti
 
 KisPaintingModeOptionWidget::~KisPaintingModeOptionWidget()
 {
+}
+
+bool KisPaintingModeOptionWidget::hasQuickPage(PaintopCategory category) const
+{
+    return category == COLOR;
+}
+
+QWidget *KisPaintingModeOptionWidget::createQuickPage(PaintopCategory category, QWidget *parent)
+{
+    if (category != COLOR) return nullptr;
+    // paint piling up within a stroke, or laid evenly as a wash
+    auto *modes = new KisStudioChips(parent);
+    modes->setTabs(true);
+    KisPaintingModeOptionModel *model = &m_d->model;
+    auto refresh = [modes, model]() {
+        KisStudioChips::Chip buildup;
+        buildup.text = i18nc("painting mode", "Build up");
+        buildup.on = model->effectivePaintingMode() == int(enumPaintingMode::BUILDUP);
+        buildup.toolTip = i18nc("@info:tooltip", "Dabs pile up within a stroke");
+        KisStudioChips::Chip wash;
+        wash.text = i18nc("painting mode", "Wash");
+        wash.on = model->effectivePaintingMode() == int(enumPaintingMode::WASH);
+        wash.toolTip = i18nc("@info:tooltip", "A stroke never gets darker than its opacity");
+        modes->setChips({buildup, wash});
+        modes->setCurrent(-1);
+    };
+    connect(modes, &KisStudioChips::clicked, modes, [model, refresh](int index) {
+        model->setpaintingMode(index == 0 ? int(enumPaintingMode::BUILDUP) : int(enumPaintingMode::WASH));
+        refresh();
+    });
+    connect(model, &KisPaintingModeOptionModel::effectivePaintingModeChanged, modes, refresh);
+    refresh();
+    return modes;
 }
 
 void KisPaintingModeOptionWidget::writeOptionSetting(KisPropertiesConfigurationSP setting) const

@@ -45,6 +45,11 @@ public:
     /// The tip's diameter, in px, set as the top bar's size is
     lager::cursor<qreal> brushSize() const;
     lager::reader<KisBrushModel::BrushData> bakedBrushData() const;
+    /// The tip's angle and spacing
+    lager::cursor<KisBrushModel::CommonData> commonData() const;
+
+    bool hasQuickPage(PaintopCategory category) const override;
+    QWidget *createQuickPage(PaintopCategory category, QWidget *parent) override;
 
 protected:
     OptionalLodLimitationsReader lodLimitationsReader() const override;

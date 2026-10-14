@@ -182,6 +182,66 @@ void KisPaintOpOption::notifyRowValueChanged()
     Q_EMIT sigRowValueChanged();
 }
 
+QString KisPaintOpOption::id() const
+{
+    return objectName().isEmpty() ? label() : objectName();
+}
+
+QVector<KisPaintOpOption::PenInput> KisPaintOpOption::penInputs() const
+{
+    return {};
+}
+
+void KisPaintOpOption::setPenInputActive(const QString &id, bool active)
+{
+    Q_UNUSED(id);
+    Q_UNUSED(active);
+}
+
+void KisPaintOpOption::setPenCurve(const QString &id, const QString &curve)
+{
+    Q_UNUSED(id);
+    Q_UNUSED(curve);
+}
+
+int KisPaintOpOption::penMode() const
+{
+    return -1;
+}
+
+void KisPaintOpOption::setPenMode(int mode)
+{
+    Q_UNUSED(mode);
+}
+
+QStringList KisPaintOpOption::penModeNames()
+{
+    // the order of Krita's curve modes
+    return {i18nc("pen inputs combined", "Multiply"), i18nc("pen inputs combined", "Add"),
+            i18nc("pen inputs combined", "Max"), i18nc("pen inputs combined", "Min"),
+            i18nc("pen inputs combined", "Difference")};
+}
+
+QWidget *KisPaintOpOption::createPenInputPage(const QString &id, QWidget *parent)
+{
+    Q_UNUSED(id);
+    Q_UNUSED(parent);
+    return nullptr;
+}
+
+QWidget *KisPaintOpOption::createQuickPage(PaintopCategory category, QWidget *parent)
+{
+    Q_UNUSED(category);
+    Q_UNUSED(parent);
+    return nullptr;
+}
+
+bool KisPaintOpOption::hasQuickPage(PaintopCategory category) const
+{
+    Q_UNUSED(category);
+    return false;
+}
+
 std::optional<KisPaintOpOption::RowValue> KisPaintOpOption::ownRowValue() const
 {
     return std::nullopt;

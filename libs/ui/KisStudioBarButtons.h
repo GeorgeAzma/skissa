@@ -31,6 +31,18 @@ public:
     QStringList items() const;
     void setItems(const QStringList &items);
 
+    /// The bar of \p mainWindow
+    static KisStudioBarButtons *of(KisMainWindow *mainWindow);
+    /// Whether \p key is on the bar of \p mainWindow
+    static bool has(KisMainWindow *mainWindow, const QString &key);
+    /// Puts \p key at the end of the bar, or takes it off
+    static void toggle(KisMainWindow *mainWindow, const QString &key);
+    /// Starts dragging \p key from \p source, to be dropped on a bar
+    static void dragItem(const QString &key, QWidget *source);
+
+Q_SIGNALS:
+    void sigItemsChanged();
+
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
     void showEvent(QShowEvent *event) override;
