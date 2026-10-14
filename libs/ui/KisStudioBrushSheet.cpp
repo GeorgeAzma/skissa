@@ -535,6 +535,13 @@ void KisStudioBrushSheet::rebuild()
             }
         }
 
+        // a part that is off (no mask, no texture) keeps only its pictures, to turn it on
+        KisPaintOpOption *lead = nullptr;
+        Q_FOREACH (KisPaintOpOption *option, options) {
+            if (option->category() == part && option->hasQuickPage(category) && option->isCheckable()) lead = option;
+        }
+        QList<QWidget *> partSettings;
+
         // every setting of the part, the ones that are off quiet
         QList<KisPaintOpOption *> details;
         QList<KisPaintOpOption *> inPart;
@@ -576,6 +583,7 @@ void KisStudioBrushSheet::rebuild()
                 pen->popupBeside(row, Qt::RightEdge);
             });
             columnLayout->addWidget(row);
+            partSettings << row;
         }
 
         // the rest of a part, as Krita shows it
@@ -602,6 +610,18 @@ void KisStudioBrushSheet::rebuild()
             });
             columnLayout->addSpacing(KisModernStyle::space2);
             columnLayout->addWidget(more);
+            partSettings << more;
+        }
+        if (lead) {
+            const QPointer<KisPaintOpOption> on(lead);
+            auto show = [this, on, partSettings]() {
+                Q_FOREACH (QWidget *widget, partSettings) {
+                    widget->setVisible(on && on->isChecked());
+                }
+                QTimer::singleShot(0, this, [this]() { adjustSize(); });
+            };
+            show();
+            connect(lead, &KisPaintOpOption::sigCheckedChanged, column, show);
         }
         columnLayout->addStretch(1);
         d->columnsLayout->addWidget(column, 0, Qt::AlignTop);

@@ -124,6 +124,37 @@ QImage autoDab(const AutoBrushData &data, qreal width, qreal height, const QColo
     return image;
 }
 
+/**
+ * How far a star tip reaches at \p angle (radians, y down, as in the dab): Krita folds every angle
+ * into the first point's slice and reads the ellipse (or rectangle) of half sizes \p a and \p b there.
+ */
+qreal starReach(qreal angle, qreal a, qreal b, int spikes, bool rectangle)
+{
+    qreal folded = std::atan2(qAbs(std::sin(angle)), std::cos(angle));
+    const qreal slice = M_PI / spikes;
+    while (folded > slice) folded -= 2 * slice;
+    const qreal c = qAbs(std::cos(folded));
+    const qreal s = qAbs(std::sin(folded));
+    if (rectangle) {
+        return qMin(c > 1e-9 ? a / c : 1e9, s > 1e-9 ? b / s : 1e9);
+    }
+    return 1.0 / std::sqrt(std::pow(c / qMax(a, 1e-9), 2) + std::pow(s / qMax(b, 1e-9), 2));
+}
+
+QPainterPath starOutline(qreal a, qreal b, int spikes, bool rectangle)
+{
+    QPainterPath path;
+    for (int i = 0; i <= 720; i++) {
+        const qreal angle = i * 2 * M_PI / 720;
+        const qreal r = starReach(angle, a, b, spikes, rectangle);
+        const QPointF point(r * std::cos(angle), r * std::sin(angle));
+        if (i) path.lineTo(point);
+        else path.moveTo(point);
+    }
+    path.closeSubpath();
+    return path;
+}
+
 /// The edge's falloff from the middle (x = 0) out (x = 1), for drawing it
 qreal falloff(int type, const QString &curve, qreal fade, qreal x)
 {
@@ -182,6 +213,7 @@ public:
         FadeA,
         FadeB,
         Turn,
+        Valley,      ///< a star's notch between two points: how deep they go
         ChipWidth,
         ChipLink,
         ChipHeight,
@@ -246,6 +278,26 @@ public:
     bool isAuto() const
     {
         return m_type.get() != Predefined;
+    }
+
+    bool isStar() const
+    {
+        return isAuto() && m_auto->spikes() > 2;
+    }
+
+    /// The notch between the first two points, in the dab's own frame (y down), widget pixels
+    QPointF valleyLocal() const
+    {
+        const QSizeF size = tipSize() * m_scale / 2.0;
+        const qreal slice = M_PI / m_auto->spikes();
+        const qreal r = starReach(slice, size.width(), size.height(), m_auto->spikes(), m_auto->shape() == Rectangle);
+        return QPointF(r * std::cos(slice), r * std::sin(slice));
+    }
+
+    /// The dab's own frame turned onto the screen
+    QPointF toScreen(const QPointF &local) const
+    {
+        return QTransform().rotate(-angle()).map(local);
     }
 
     qreal angle() const
@@ -317,6 +369,8 @@ public:
             return c + across() * size.height() * m_auto->verticalFade();
         case Turn:
             return c + along() * (size.width() + stalk);
+        case Valley:
+            return c + toScreen(valleyLocal());
         default:
             return c;
         }
@@ -325,6 +379,7 @@ public:
     QVector<Part> handles() const
     {
         if (!isAuto()) return {AxisA, AxisAOpposite, Turn};
+        if (isStar()) return {AxisA, Valley, FadeA, Turn};
         return {AxisA, AxisAOpposite, AxisB, AxisBOpposite, FadeA, FadeB, Turn};
     }
 
@@ -440,7 +495,10 @@ public:
         painter.translate(center());
         painter.rotate(-angle());
         const QRectF dabRect(-size.width() / 2, -size.height() / 2, size.width(), size.height());
-        if (!m_dab.isNull()) painter.drawImage(dabRect, m_dab);
+        if (!m_dab.isNull()) {
+            if (isAuto()) painter.drawImage(QPointF(-m_dab.width() / 2.0, -m_dab.height() / 2.0), m_dab);
+            else painter.drawImage(dabRect, m_dab);
+        }
         painter.setBrush(Qt::NoBrush);
         QPen outline(accent, 1);
         outline.setCosmetic(true);
@@ -455,6 +513,15 @@ public:
                               dabRect.width() * m_auto->horizontalFade(), dabRect.height() * m_auto->verticalFade());
             if (m_auto->shape() == Rectangle) painter.drawRect(hard);
             else painter.drawEllipse(hard);
+        } else if (isStar()) {
+            const bool rectangle = m_auto->shape() == Rectangle;
+            const qreal a = dabRect.width() / 2;
+            const qreal b = dabRect.height() / 2;
+            painter.drawPath(starOutline(a, b, m_auto->spikes(), rectangle));
+            QPen dashed(accent, 1, Qt::DashLine);
+            dashed.setCosmetic(true);
+            painter.setPen(dashed);
+            painter.drawPath(starOutline(a * m_auto->horizontalFade(), b * m_auto->verticalFade(), m_auto->spikes(), rectangle));
         } else if (!isAuto()) {
             painter.drawRect(dabRect);
         }
@@ -643,7 +710,7 @@ public:
         } else if (isAuto() && (part == ChipFadeA || part == ChipFadeB || part == FadeA || part == FadeB)) {
             m_auto->sethorizontalFade(1.0);
             m_auto->setverticalFade(1.0);
-        } else if (isAuto() && (part == ChipHeight || part == AxisB || part == AxisBOpposite)) {
+        } else if (isAuto() && (part == ChipHeight || part == AxisB || part == AxisBOpposite || part == Valley)) {
             m_auto->setratio(1.0);
         }
         event->accept();
@@ -726,6 +793,23 @@ private:
         case Turn:
             setAngle(angleOf(from));
             break;
+        case Valley: {
+            // the notch's reach along its own direction sets how round the star is (Krita's ratio)
+            const int spikes = m_auto->spikes();
+            const qreal slice = M_PI / spikes;
+            const QPointF direction = toScreen(QPointF(std::cos(slice), std::sin(slice)));
+            const qreal a = m_pressSize.width() / 2.0;
+            const qreal reach = qMax(0.5, dot(from, direction) / m_scale);
+            qreal b;
+            if (m_auto->shape() == Rectangle) {
+                b = reach * std::sin(slice);
+            } else {
+                const qreal rest = 1.0 / (reach * reach) - std::pow(std::cos(slice) / a, 2);
+                b = rest > 1e-12 ? std::sin(slice) / std::sqrt(rest) : a;
+            }
+            m_auto->setratio(qBound(0.01, b / a, 1.0));
+            break;
+        }
         case ChipWidth:
         case ChipHeight: {
             // by ratios, as sizes are: 100 px of drag doubles it
@@ -994,6 +1078,8 @@ KisBrushTipQuickPage::KisBrushTipQuickPage(KisAutoBrushModel *autoModel,
             d->type.set(Auto);
         } else if (index == 2) {
             if (model->spikes() <= 2) model->setspikes(5);
+            // round, its points wouldn't show: Krita's star is the ellipse folded into them
+            if (model->ratio() > 0.9) model->setratio(0.35);
             d->type.set(Auto);
         } else if (index - 3 < d->tipIds.size()) {
             auto source = KisGlobalResourcesInterface::instance()->source<KisBrush>(ResourceType::Brushes);
