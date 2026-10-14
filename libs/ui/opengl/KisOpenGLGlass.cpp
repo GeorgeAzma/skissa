@@ -810,6 +810,11 @@ struct KisOpenGLGlass::Private : Programs
     /// Where the image was when the glow was last made (unit square to surface), and the downsampling factor.
     QTransform imageToSurface;
     int ambientFactor {0};
+    /// What the glow was last made for; it is in the canvas until the canvas is drawn again without it.
+    QTransform ambientSurfaceToImage;
+    QColor ambientBase;
+    QSize ambientViewport;
+    qreal ambientRatio {0};
     QOpenGLVertexArrayObject vao;
     /// Downsampled canvas, blurred across, then down; and the same for its Oklab statistics.
     QScopedPointer<QOpenGLFramebufferObject> small;
@@ -820,12 +825,30 @@ struct KisOpenGLGlass::Private : Programs
     QScopedPointer<QOpenGLFramebufferObject> statistics;
     /// Intermediate texture format: half floats where renderable, eight bits otherwise.
     GLenum keptFormat {GL_RGBA};
-    /// State of the last blur, which is redone only when the canvas or the surfaces change.
-    QVector<QRectF> blurredFor;
+    /// A slot as last blurred: its content depends only on these and on the canvas it reads.
+    struct Blur {
+        QRect area;
+        QRect around;
+        QPoint shift;
+        qreal sigma {0};
+
+        bool operator==(const Blur &other) const
+        {
+            return area == other.area && around == other.around && shift == other.shift && sigma == other.sigma;
+        }
+    };
+    /// The slots of the last blur, which stay valid where the canvas under them did not change.
+    QVector<Blur> blurs;
+    /// The canvas drawn again since the last blur, in surface pixels; all of it if changedAll.
+    QRect changed;
+    bool changedAll {true};
+    /// Whether canvasRedrawn() was called since the last render().
+    bool reported {false};
     KisOpenGLGpuTiming timing {QStringLiteral("glass gpu:"), {QStringLiteral("shrink"), QStringLiteral("blur"), QStringLiteral("draw")}};
     QSize blurredViewport;
-    qreal blurredRatio {0};
-    qreal blurredAmount {0};
+    int blurredFactor {0};
+    uint blurredCanvas {0};
+    uint blurredFormat {0};
 
     /**
      * A texture to render to. Keeps the framebuffer that is bound: Qt binds the one it last knew of
@@ -841,16 +864,18 @@ struct KisOpenGLGlass::Private : Programs
         return fbo;
     }
 
-    /// Grows the textures to at least \p size; they never shrink, as panels come and go.
-    void ensureSize(const QSize &size)
+    /// Grows the textures to at least \p size; they never shrink, as panels come and go. Returns whether
+    /// they were made anew, losing their content.
+    bool ensureSize(const QSize &size)
     {
         if (small && small->width() >= size.width() && small->height() >= size.height()) {
-            return;
+            return false;
         }
         const QSize grown = small ? size.expandedTo(small->size()) : size;
         for (QScopedPointer<QOpenGLFramebufferObject> *fbo : {&small, &across, &blurred, &smallStatistics, &acrossStatistics, &statistics}) {
             fbo->reset(texture(grown));
         }
+        return true;
     }
 };
 
@@ -949,6 +974,12 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     }
     d->imageToSurface = surfaceToImage.inverted();
     d->ambientFactor = factor;
+    d->ambientSurfaceToImage = surfaceToImage;
+    d->ambientBase = base;
+    d->ambientViewport = viewport;
+    d->ambientRatio = pixelRatio;
+    // The glow is drawn all around the image.
+    d->changedAll = true;
     const Kernel kernel = gaussian(KisStudioGlass::ambientSigma * pixelRatio / factor);
 
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
@@ -1009,10 +1040,34 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(target));
 }
 
+bool KisOpenGLGlass::hasAmbient(const QSize &viewport, qreal pixelRatio, const QTransform &surfaceToImage, const QColor &base) const
+{
+    return d->ambientFactor > 0 && d->ambientViewport == viewport && d->ambientRatio == pixelRatio
+        && d->ambientSurfaceToImage == surfaceToImage && d->ambientBase == base;
+}
+
+void KisOpenGLGlass::dropAmbient()
+{
+    d->ambientFactor = 0;
+}
+
+void KisOpenGLGlass::canvasRedrawn(const QRect &surfaceRect)
+{
+    d->changed |= surfaceRect;
+    d->reported = true;
+}
+
 qreal KisOpenGLGlass::reach()
 {
-    // Three sigma of the widest blur, plus the pixels merged by downsampling.
-    return 3 * KisStudioGlass::blurSigma() * KisStudioGlass::maxBlurScale + 8;
+    // Three sigma of the widest blur, plus the pixels merged by downsampling and sampling, plus how far
+    // the rim looks out.
+    return 3 * KisStudioGlass::blurSigma() * KisStudioGlass::maxBlurScale + 16 + KisStudioGlass::bevel().lift;
+}
+
+qreal KisOpenGLGlass::ambientReach()
+{
+    // Three sigma of the glow's blur, plus a few of its sixteen times downsampled pixels.
+    return 3 * KisStudioGlass::ambientSigma + 6 * 16;
 }
 
 void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewport, qreal pixelRatio,
@@ -1021,10 +1076,12 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     // A floating point (HDR) canvas is already linear and needs no dithering.
     const bool linearCanvas = canvasFormat == GL_RGBA16F;
     const float dither = linearCanvas ? 0.0f : canvasFormat == GL_RGB10_A2 ? 1.0f / 1023 : 1.0f / 255;
-    // The blur is stale even if nothing is drawn now, so a panel shown later must not reuse it.
-    if (canvasChanged) {
-        d->blurredFor.clear();
+    // Changes accumulate until the next blur, so a panel shown later doesn't reuse a stale one. A change
+    // not reported to canvasRedrawn() may be anywhere.
+    if (canvasChanged && !d->reported) {
+        d->changedAll = true;
     }
+    d->reported = false;
     if (!d->valid || surfaces.isEmpty() || viewport.isEmpty()) {
         return;
     }
@@ -1049,7 +1106,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     /**
      * Each panel is blurred in its own slot of the small textures, since panels blur by different
      * amounts and a shared area would let one panel's blur bleed into a neighbor's. A slot covers the
-     * panel's downsampled pixels (plus one for upscaling), what the rim sees around it, and the blur's
+     * panel's downsampled pixels (plus one around for upscaling), what the rim sees around it, and the blur's
      * reach beyond that. The whole panel is blurred because the brightness behind it sets its tint.
      */
     struct Region {
@@ -1057,6 +1114,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         QRect around;
         /// Offset from the downsampled canvas to the slot.
         QPoint shift;
+        qreal sigma {0};
         Kernel wide;
     };
     QVector<Region> regions(surfaces.size());
@@ -1069,8 +1127,10 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
             const QRect r = surfaces[i].rect.toAlignedRect().adjusted(-rimReach, -rimReach, rimReach, rimReach) & whole;
             if (r.isEmpty()) continue;
             Region &region = regions[i];
-            region.area = QRect(QPoint(r.left() / factor, r.top() / factor), QPoint(r.right() / factor + 1, r.bottom() / factor + 1)) & smallWhole;
-            region.wide = gaussian(KisStudioGlass::blurSigma() * scaleOf(surfaces[i]) * pixelRatio / factor);
+            // Bilinear sampling reaches into the pixel before the first one as well as past the last.
+            region.area = QRect(QPoint(r.left() / factor - 1, r.top() / factor - 1), QPoint(r.right() / factor + 1, r.bottom() / factor + 1)) & smallWhole;
+            region.sigma = KisStudioGlass::blurSigma() * scaleOf(surfaces[i]) * pixelRatio / factor;
+            region.wide = gaussian(region.sigma);
             region.around = region.area.adjusted(-region.wide.taps, -region.wide.taps, region.wide.taps, region.wide.taps) & smallWhole;
             if (next.x() + region.around.width() > smallSize.width()) {
                 next = QPoint(0, next.y() + rowHeight);
@@ -1080,7 +1140,10 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
             next.rx() += region.around.width();
             rowHeight = qMax(rowHeight, region.around.height());
         }
-        d->ensureSize(QSize(smallSize.width(), qMax(1, next.y() + rowHeight)));
+        if (d->ensureSize(QSize(smallSize.width(), qMax(1, next.y() + rowHeight)))) {
+            // New textures hold no blur yet.
+            d->changedAll = true;
+        }
     }
     const QSize placesSize = d->small->size();
 
@@ -1106,23 +1169,29 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1i(d->blur["source"], 0);
 
     d->timing.begin();
-    // Reuse the last blur when nothing behind the glass changed, e.g. only the brush outline moved.
-    QVector<QRectF> rects;
-    for (const Surface &surface : surfaces) rects << surface.rect;
-    const bool blurAgain = canvasChanged || rects != d->blurredFor || viewport != d->blurredViewport || pixelRatio != d->blurredRatio
-        || KisStudioGlass::blur() != d->blurredAmount;
-    d->blurredFor = rects;
-    d->blurredViewport = viewport;
-    d->blurredRatio = pixelRatio;
-    d->blurredAmount = KisStudioGlass::blur();
-
-    // Blur only the panels on the canvas, and only if what is behind them changed.
-    QVector<Region> blurring;
-    if (blurAgain) {
-        for (const Region &region : qAsConst(regions)) {
-            if (!region.around.isEmpty()) blurring << region;
-        }
+    // Reuse a panel's last blur when its slot is the same and nothing behind it changed, e.g. only the
+    // brush outline moved or the image changed elsewhere.
+    if (d->changedAll || viewport != d->blurredViewport || factor != d->blurredFactor || canvas != d->blurredCanvas
+        || canvasFormat != d->blurredFormat) {
+        d->blurs.clear();
     }
+    QVector<Region> blurring;
+    QVector<Private::Blur> blurs;
+    for (const Region &region : qAsConst(regions)) {
+        if (region.around.isEmpty()) continue;
+        const Private::Blur blur {region.area, region.around, region.shift, region.sigma};
+        // The canvas pixels the slot is downsampled from.
+        const QRect read(region.around.topLeft() * factor, region.around.size() * factor);
+        if (!d->blurs.contains(blur) || read.intersects(d->changed)) blurring << region;
+        blurs << blur;
+    }
+    d->blurs = blurs;
+    d->changed = QRect();
+    d->changedAll = false;
+    d->blurredViewport = viewport;
+    d->blurredFactor = factor;
+    d->blurredCanvas = canvas;
+    d->blurredFormat = canvasFormat;
     // Downsample the canvas, as colors and as statistics.
     d->shrink->bind();
     f->glBindTexture(GL_TEXTURE_2D, canvas);

@@ -38,6 +38,7 @@
 #include <QOpenGLFramebufferObjectFormat>
 #include <QMessageBox>
 #include <QVector3D>
+#include <QtMath>
 #include <KoCompositeOpRegistry.h>
 #include <KoColorModelStandardIds.h>
 #include "KisOpenGLBufferCircularStorage.h"
@@ -487,17 +488,15 @@ void KisOpenGLCanvasRenderer::paintCanvasOnly(const QRect &canvasImageDirtyRect,
             d->canvasFBO->bind();
             renderCanvasGL(canvasImageDirtyRect);
             d->canvasFBO->release();
+            d->glass.canvasRedrawn(widgetToSurface(canvasImageDirtyRect).toAlignedRect());
             // the light the image casts around it; none in wrap-around mode, where its copies are all around it
             if (KisStudioGlass::ambientSurround() && d->glass.isValid() && !d->wrapAroundMode) {
-                const qreal ratio = devicePixelRatioF();
-                const QTransform widgetToSurface = QTransform::fromScale(1.0, -1.0) * QTransform::fromTranslate(0, d->pixelAlignedWidgetSize.height())
-                    * QTransform::fromScale(ratio, ratio);
-                const QRect bounds = coordinatesConverter()->imageRectInImagePixels();
-                const QTransform imageToUnit = QTransform::fromTranslate(-bounds.x(), -bounds.y())
-                    * QTransform::fromScale(1.0 / qMax(1, bounds.width()), 1.0 / qMax(1, bounds.height()));
-                const QTransform surfaceToImage = (coordinatesConverter()->imageToWidgetTransform() * widgetToSurface).inverted() * imageToUnit;
-                d->glass.renderAmbient(d->canvasFBO.data(), d->canvasBridge->internalTextureFormat(), ratio, surfaceToImage,
-                                       colorToDisplaySpace(borderColor()));
+                if (changesAmbient(canvasImageDirtyRect)) {
+                    d->glass.renderAmbient(d->canvasFBO.data(), d->canvasBridge->internalTextureFormat(), devicePixelRatioF(), surfaceToImage(),
+                                           colorToDisplaySpace(borderColor()));
+                }
+            } else {
+                d->glass.dropAmbient();
             }
         }
         QRect blitRect;
@@ -516,6 +515,32 @@ void KisOpenGLCanvasRenderer::paintCanvasOnly(const QRect &canvasImageDirtyRect,
         }
         renderCanvasGL(fullUpdateRect);
     }
+}
+
+QTransform KisOpenGLCanvasRenderer::surfaceToImage()
+{
+    const qreal ratio = devicePixelRatioF();
+    const QTransform widgetToSurface = QTransform::fromScale(1.0, -1.0) * QTransform::fromTranslate(0, d->pixelAlignedWidgetSize.height())
+        * QTransform::fromScale(ratio, ratio);
+    const QRect bounds = coordinatesConverter()->imageRectInImagePixels();
+    const QTransform imageToUnit = QTransform::fromTranslate(-bounds.x(), -bounds.y())
+        * QTransform::fromScale(1.0 / qMax(1, bounds.width()), 1.0 / qMax(1, bounds.height()));
+    return (coordinatesConverter()->imageToWidgetTransform() * widgetToSurface).inverted() * imageToUnit;
+}
+
+bool KisOpenGLCanvasRenderer::changesAmbient(const QRect &canvasImageDirtyRect)
+{
+    if (canvasImageDirtyRect.isEmpty()) {
+        return false;
+    }
+    if (!d->glass.hasAmbient(d->viewportDevicePixelSize, devicePixelRatioF(), surfaceToImage(), colorToDisplaySpace(borderColor()))) {
+        return true;
+    }
+    // the glow is cast only by the image near its edges: a change deep inside it leaves the glow as it is
+    const int reach = qCeil(KisOpenGLGlass::ambientReach());
+    const QRectF around(canvasImageDirtyRect.adjusted(-reach, -reach, reach, reach));
+    const QRectF inImage = coordinatesConverter()->imageToWidgetTransform().inverted().mapRect(around);
+    return !QRectF(coordinatesConverter()->imageRectInImagePixels()).contains(inImage);
 }
 
 bool KisOpenGLCanvasRenderer::drawsGlass() const

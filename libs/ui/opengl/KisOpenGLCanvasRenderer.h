@@ -27,6 +27,7 @@ class KisCoordinatesConverter;
 class KisDisplayFilter;
 class QOpenGLShaderProgram;
 class QPainterPath;
+class QTransform;
 class KisOptimizedBrushOutline;
 
 #ifndef Q_MOC_RUN
@@ -67,9 +68,13 @@ public:
     /// The glass of \p surfaces over the canvas just drawn; \p canvasChanged: the image part changed, not only decorations
     void paintGlass(const QVector<KisStudioGlass::Surface> &surfaces, const QRect &viewportUpdateRect = QRect(), bool canvasChanged = true);
     bool drawsGlass() const;
+    /// Whether drawing \p canvasImageDirtyRect (widget pixels) again changes the image's glow, which is then drawn again all around it
+    bool changesAmbient(const QRect &canvasImageDirtyRect);
 
 private:
     void renderCanvasGL(const QRect &updateRect);
+    /// Maps surface pixels to 0..1 across the image.
+    QTransform surfaceToImage();
 
 public:
     void paintToolOutline(const KisOptimizedBrushOutline &path, const QRect &viewportUpdateRect, const int thickness = 1);

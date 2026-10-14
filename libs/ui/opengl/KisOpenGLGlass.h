@@ -7,6 +7,7 @@
 #define KISOPENGLGLASS_H
 
 #include <QColor>
+#include <QRect>
 #include <QRectF>
 #include <QScopedPointer>
 #include <QSize>
@@ -42,17 +43,30 @@ public:
     /**
      * Draws \p surfaces into the bound framebuffer from the \p canvas texture (GL_RGBA16F is linear HDR,
      * other formats sRGB), limited to \p clip if it is not empty. Call it every frame, even with no
-     * surfaces; the previous blur is reused unless \p canvasChanged.
+     * surfaces; the previous blur is reused unless \p canvasChanged. Only the panels near the parts
+     * reported to canvasRedrawn() are blurred again; with none reported, all are.
      */
     void render(uint canvas, uint canvasFormat, const QSize &viewport, qreal pixelRatio,
                 const QVector<Surface> &surfaces, const QRect &clip, bool canvasChanged = true);
+
+    /// Reports that \p surfaceRect (surface device pixels) of the canvas texture was drawn again.
+    void canvasRedrawn(const QRect &surfaceRect);
 
     /// Draws the image's ambient glow into \p canvas around it; \p surfaceToImage maps to 0..1 across the image.
     void renderAmbient(QOpenGLFramebufferObject *canvas, uint canvasFormat, qreal pixelRatio, const QTransform &surfaceToImage,
                        const QColor &base);
 
+    /// Whether the glow last drawn by renderAmbient() was for these arguments, so it is still in the canvas.
+    bool hasAmbient(const QSize &viewport, qreal pixelRatio, const QTransform &surfaceToImage, const QColor &base) const;
+
+    /// Reports that the canvas was drawn again without the glow.
+    void dropAmbient();
+
     /// How far around a panel the canvas affects its glass, in widget pixels.
     static qreal reach();
+
+    /// How far the image's pixels cast the glow, in widget pixels.
+    static qreal ambientReach();
 
 private:
     struct Private;

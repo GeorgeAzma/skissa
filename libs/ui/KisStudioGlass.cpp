@@ -675,6 +675,9 @@ public:
         bool drawn {false};
         /// The part covered by a glass window above it, in its own coordinates; not painted.
         QRegion covered;
+        /// Where its glass may still be on a canvas, in that canvas' coordinates.
+        QRect shownAt;
+        QPointer<QWidget> shownOn;
     };
 
     static Panels &instance()
@@ -688,8 +691,8 @@ public:
     {
         auto it = m_panels.find(widget);
         if (it == m_panels.end()) {
-            m_panels.insert(widget, {rect, radius, false, QRegion()});
-            if (!m_shown.contains(widget->window())) m_shown.insert(widget->window(), ++m_shownCount);
+            m_panels.insert(widget, {rect, radius, false, QRegion(), QRect(), QPointer<QWidget>()});
+            if (!shownOrder(widget->window())) noteShown(widget->window());
             widget->installEventFilter(this);
             if (widget->window() != widget) widget->window()->installEventFilter(this);
             connect(widget, &QObject::destroyed, this, [this, widget]() {
@@ -763,21 +766,35 @@ public:
         return m_panels.value(widget).covered;
     }
 
-    /// Redraws the canvases under \p widget and the other panels in its window.
-    void changed(QWidget *widget)
+    /**
+     * Redraws the canvases under \p widget and the other panels in its window: where their glass is now
+     * and where it was drawn before, or \p everywhere.
+     */
+    void changed(QWidget *widget, bool everywhere = false)
     {
         KisUpdatePacer::log(QStringLiteral("glass changed ") + QString::fromLatin1(widget->metaObject()->className()) + QLatin1Char(' ') + widget->objectName());
         QWidget *window = widget->window();
-        QSet<QWidget *> canvases;
+        QHash<QWidget *, QRegion> canvases;
         for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
-            if (it.key() == widget || it.key()->window() == window) {
-                QWidget *canvas = canvasWidgetOf(it.key());
-                if (drawnByCanvas(canvas)) canvases.insert(canvas);
+            QWidget *panel = it.key();
+            if (panel != widget && panel->window() != window) {
+                continue;
             }
+            QWidget *canvas = canvasWidgetOf(panel);
+            if (drawnByCanvas(canvas)) {
+                const QRect now = it->rect.translated(panel->mapToGlobal(QPoint()) - canvas->mapToGlobal(QPoint())).toAlignedRect();
+                canvases[canvas] += now.adjusted(-2, -2, 2, 2) & canvas->rect();
+            }
+            QWidget *before = it->shownOn.data();
+            if (drawnByCanvas(before)) canvases[before] += it->shownAt;
         }
-        for (QWidget *canvas : qAsConst(canvases)) {
-            canvas->update();
-            hideUnderWindows(canvas);
+        for (auto it = canvases.constBegin(); it != canvases.constEnd(); ++it) {
+            if (everywhere) {
+                it.key()->update();
+            } else {
+                it.key()->update(it.value());
+            }
+            hideUnderWindows(it.key());
         }
     }
 
@@ -881,10 +898,10 @@ public:
             return surfaces;
         }
         const QPoint canvasOrigin = canvasWidget->mapToGlobal(QPoint());
-        QList<QWidget *> widgets = m_panels.keys();
-        std::sort(widgets.begin(), widgets.end(), [this, canvasWidget](QWidget *a, QWidget *b) { return below(a, b, canvasWidget); });
-        for (QWidget *widget : qAsConst(widgets)) {
-            Panel &panel = m_panels[widget];
+        // Hidden menus and tooltips stay registered, so leave them out before sorting.
+        QList<QPair<QWidget *, qreal>> shown;
+        for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
+            QWidget *widget = it.key();
             if (!widget->isVisible() || canvasWidgetOf(widget) != canvasWidget) {
                 continue;
             }
@@ -893,8 +910,16 @@ public:
                 // A panel fading in from zero stays solid until its glass is drawn.
                 continue;
             }
+            shown.append(qMakePair(widget, opacity));
+        }
+        std::sort(shown.begin(), shown.end(), [this, canvasWidget](const QPair<QWidget *, qreal> &a, const QPair<QWidget *, qreal> &b) {
+            return below(a.first, b.first, canvasWidget);
+        });
+        for (const QPair<QWidget *, qreal> &entry : qAsConst(shown)) {
+            QWidget *widget = entry.first;
+            const Panel &panel = m_panels[widget];
             const QPointF offset = widget->mapToGlobal(QPoint()) - canvasOrigin;
-            surfaces.append({panel.rect.translated(offset), panel.radius, widget->palette().color(QPalette::Window), opacity});
+            surfaces.append({panel.rect.translated(offset), panel.radius, widget->palette().color(QPalette::Window), entry.second});
         }
         return surfaces;
     }
@@ -910,10 +935,18 @@ public:
         for (auto it = m_panels.begin(); it != m_panels.end(); ++it) {
             QWidget *widget = it.key();
             Panel &panel = it.value();
-            if (panel.drawn || !widget->isVisible() || canvasWidgetOf(widget) != canvasWidget || opacityOf(widget) <= 0) {
+            const bool on = widget->isVisible() && canvasWidgetOf(widget) == canvasWidget && opacityOf(widget) > 0;
+            if (!on && panel.shownOn != canvasWidget) {
                 continue;
             }
-            const QRect area = panel.rect.translated(widget->mapToGlobal(QPoint()) - canvasOrigin).toAlignedRect() & canvasWidget->rect();
+            const QRect area = on ? panel.rect.translated(widget->mapToGlobal(QPoint()) - canvasOrigin).toAlignedRect() & canvasWidget->rect() : QRect();
+            // Its glass is now where it was drawn, and still where it was before but not drawn over.
+            const bool kept = panel.shownOn == canvasWidget && !painted.isEmpty() && !painted.contains(panel.shownAt);
+            panel.shownAt = (kept ? panel.shownAt : QRect()) | (area.isEmpty() ? QRect() : area.adjusted(-1, -1, 1, 1));
+            panel.shownOn = panel.shownAt.isEmpty() ? nullptr : canvasWidget;
+            if (!on || panel.drawn) {
+                continue;
+            }
             if (painted.isEmpty() || painted.contains(area)) {
                 panel.drawn = true;
                 // Turn see-through only after the frame with its glass is presented.
@@ -950,14 +983,16 @@ protected:
             break;
         case QEvent::Show:
             // A window shown later stacks above those shown before.
-            if (widget->isWindow()) m_shown.insert(widget, ++m_shownCount);
+            if (widget->isWindow()) noteShown(widget);
             changed(widget);
             break;
         case QEvent::Move:
         case QEvent::Resize:
         case QEvent::PaletteChange:
-        case QEvent::WindowStateChange:
             changed(widget);
+            break;
+        case QEvent::WindowStateChange:
+            changed(widget, true);
             break;
         default:
             break;
@@ -985,13 +1020,31 @@ private:
     {
         const bool aOwn = a->window() != canvas->window(), bOwn = b->window() != canvas->window();
         if (aOwn != bOwn) return bOwn;
-        if (a->window() != b->window()) return m_shown.value(a->window()) < m_shown.value(b->window());
+        if (a->window() != b->window()) return shownOrder(a->window()) < shownOrder(b->window());
         return paintedBefore(a, b);
     }
 
+    void noteShown(QWidget *window)
+    {
+        m_shown.insert(window, {window, ++m_shownCount});
+    }
+
+    /// When \p window was shown, counting up; 0 if unknown. An entry left by a destroyed window at the
+    /// same address does not count.
+    quint64 shownOrder(QWidget *window) const
+    {
+        const Shown shown = m_shown.value(window);
+        return shown.window == window ? shown.order : 0;
+    }
+
+    struct Shown {
+        QPointer<QWidget> window;
+        quint64 order {0};
+    };
+
     QHash<QWidget *, Panel> m_panels;
     QList<QPointer<QWidget>> m_canvases;
-    QHash<QWidget *, quint64> m_shown;
+    QHash<QWidget *, Shown> m_shown;
     quint64 m_shownCount {0};
 };
 
