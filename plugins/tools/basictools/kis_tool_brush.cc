@@ -305,6 +305,7 @@ void KisToolBrush::slotSetSmoothnessDistanceKeepAspectRatio(bool value)
         m_distanceAspectLocker->updateAspect();
     }
     updateSmoothnessDistanceLabel();
+    Q_EMIT smoothnessQualityChanged();
 }
 
 void KisToolBrush::slotSetTailAggressiveness(qreal argh_rhhrr)
@@ -456,8 +457,15 @@ void KisToolBrush::updateSettingsViews()
 {
     m_cmbSmoothingType->setCurrentIndex(smoothingOptions()->smoothingType());
 
-    m_sliderSmoothnessDistanceMin->setValue(smoothingOptions()->smoothnessDistanceMin());
-    m_sliderSmoothnessDistanceMax->setValue(smoothingOptions()->smoothnessDistanceMax());
+    {
+        // as the options have them, without the link moving one with the other on the way
+        KisSignalsBlocker blocker(m_distanceAspectButton, m_sliderSmoothnessDistanceMin, m_sliderSmoothnessDistanceMax);
+        m_distanceAspectButton->setKeepAspectRatio(smoothingOptions()->smoothnessDistanceKeepAspectRatio());
+        m_sliderSmoothnessDistanceMin->setValue(smoothingOptions()->smoothnessDistanceMin());
+        m_sliderSmoothnessDistanceMax->setValue(smoothingOptions()->smoothnessDistanceMax());
+    }
+    m_distanceAspectLocker->updateAspect();
+    showSmoothnessDistanceRows();
     m_chkDelayDistance->setChecked(smoothingOptions()->useDelayDistance());
     m_sliderDelayDistance->setValue(smoothingOptions()->delayDistance());
     m_sliderTailAggressiveness->setValue(smoothingOptions()->tailAggressiveness());
