@@ -79,25 +79,57 @@ struct Sample {
 constexpr qreal previewWidth = 640;
 constexpr qreal previewHeight = 170;
 
-/// A quick wavy line as a hand draws it, with its tremor: slow at its ends, lighter where it starts and ends
+/// A quick line of handwriting, small loops and all, with a hand's tremor and its pressure wavering: slow and light where it starts and ends
 QVector<Sample> handLine()
 {
     QVector<Sample> line;
-    const int count = 200;
-    const qreal duration = 1000.0;
+    const int count = 260;
+    const qreal duration = 1300.0;
     for (int i = 0; i < count; i++) {
         const qreal t = i / qreal(count - 1);
         const qreal u = t * t * (3 - 2 * t);
-        const qreal tremor = 5.5 * (std::sin(t * 2 * M_PI * 11) + 0.6 * std::sin(t * 2 * M_PI * 17 + 1.3) + 0.4 * std::sin(t * 2 * M_PI * 29 + 0.7));
+        const qreal tremorX = 2.0 * std::sin(t * 2 * M_PI * 17 + 2);
+        const qreal tremorY = 3.0 * (std::sin(t * 2 * M_PI * 13) + 0.6 * std::sin(t * 2 * M_PI * 21 + 1.3) + 0.4 * std::sin(t * 2 * M_PI * 34 + 0.7));
         Sample sample;
-        sample.pos = QPointF(30 + 580 * u + 2.5 * std::sin(t * 2 * M_PI * 13 + 2), 85 - 48 * std::sin(u * 2 * M_PI * 1.15 + 0.3) + tremor);
-        const qreal in = qMin(1.0, t / 0.12);
-        const qreal out = qMin(1.0, (1 - t) / 0.2);
-        sample.pressure = qMax(0.05, in * in * (3 - 2 * in) * out * out * (3 - 2 * out));
+        // cursive loops, like "eeee" on a gently rising and falling line
+        const qreal turn = u * 2 * M_PI * 5;
+        sample.pos = QPointF(40 + 560 * u - 30 * std::sin(turn) + tremorX,
+                             95 - 26 * std::cos(turn) - 16 * std::sin(u * 2 * M_PI * 0.8) + tremorY);
+        const qreal in = qMin(1.0, t / 0.1);
+        const qreal out = qMin(1.0, (1 - t) / 0.18);
+        const qreal envelope = in * in * (3 - 2 * in) * out * out * (3 - 2 * out);
+        // a hand's pressure wavers, a few times a second
+        const qreal waver = 0.12 * std::sin(t * 2 * M_PI * 5 + 0.4) + 0.05 * std::sin(t * 2 * M_PI * 9 + 1.7);
+        sample.pressure = qBound(0.05, envelope * (0.72 + 0.18 * std::sin(u * 2 * M_PI * 1.3 + 1)) + waver * envelope, 1.0);
         sample.time = t * duration;
         line << sample;
     }
     return line;
+}
+
+/// A stroke as one shape, as wide as the pen pressed at each point, round at its ends
+QPainterPath ribbon(const QVector<QPointF> &points, const QVector<qreal> &widths)
+{
+    QPainterPath path;
+    path.setFillRule(Qt::WindingFill);
+    if (points.size() < 2) return path;
+    QVector<QPointF> left;
+    QVector<QPointF> right;
+    QPointF normal(0, -1);
+    for (int i = 0; i < points.size(); i++) {
+        const QPointF along = points[qMin(i + 1, points.size() - 1)] - points[qMax(i - 1, 0)];
+        const qreal length = std::hypot(along.x(), along.y());
+        if (length > 1e-6) normal = QPointF(-along.y(), along.x()) / length;
+        left << points[i] + normal * widths[i] / 2;
+        right << points[i] - normal * widths[i] / 2;
+    }
+    path.moveTo(left.first());
+    for (int i = 1; i < left.size(); i++) path.lineTo(left[i]);
+    for (int i = right.size() - 1; i >= 0; i--) path.lineTo(right[i]);
+    path.closeSubpath();
+    path.addEllipse(points.first(), widths.first() / 2, widths.first() / 2);
+    path.addEllipse(points.last(), widths.last() / 2, widths.last() / 2);
+    return path;
 }
 
 /// The smoothing distance at a drawing speed (0 to 1), as the freehand helper takes it
@@ -215,7 +247,7 @@ public:
         , m_mainWindow(mainWindow)
         , m_raw(handLine())
     {
-        setFixedHeight(84);
+        setFixedHeight(96);
     }
 
 protected:
@@ -241,19 +273,28 @@ protected:
             line = stabilized(m_raw, *options);
         }
 
+        // where the pen went, faint, under the stroke it makes
         QPainterPath pen;
         pen.moveTo(map(m_raw.first().pos));
         for (int i = 1; i < m_raw.size(); i++) pen.lineTo(map(m_raw[i].pos));
-        painter.setPen(QPen(KisModernStyle::secondaryInk(ink), 1.0));
+        QColor faint = KisModernStyle::secondaryInk(ink);
+        faint.setAlphaF(faint.alphaF() * 0.7);
+        painter.setPen(QPen(faint, 1.0));
         painter.setBrush(Qt::NoBrush);
         painter.drawPath(pen);
 
-        // the stroke, as thick as the pen presses
-        for (int i = 1; i < line.size(); i++) {
-            painter.setPen(QPen(ink, 0.8 + 2.4 * line[i].pressure, Qt::SolidLine, Qt::RoundCap));
-            painter.drawLine(map(line[i - 1].pos), map(line[i].pos));
+        // the stroke, as wide as the pen presses (its pressure smoothed or not), without the points it stood still on
+        QVector<QPointF> points;
+        QVector<qreal> widths;
+        Q_FOREACH (const Sample &sample, line) {
+            const QPointF at = map(sample.pos);
+            if (!points.isEmpty() && QLineF(points.last(), at).length() < 0.3) continue;
+            points << at;
+            widths << 0.8 + 5.0 * sample.pressure;
         }
         painter.setPen(Qt::NoPen);
+        painter.setBrush(ink);
+        painter.drawPath(ribbon(points, widths));
         painter.setBrush(KisModernStyle::secondaryInk(ink));
         painter.drawEllipse(map(m_raw.last().pos), 2.5, 2.5);
     }
