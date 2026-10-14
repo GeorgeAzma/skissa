@@ -51,6 +51,7 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QSignalBlocker>
 #include <QTimer>
 #include <QToolButton>
 #include <QUrl>
@@ -822,7 +823,9 @@ public:
             formatButtons << button;
             exportRow->addWidget(button);
         }
+        // a format of the classic dialog's: shown as the first, kept until one is picked
         if (std::none_of(formatButtons.begin(), formatButtons.end(), [](QToolButton *b) { return b->isChecked(); })) {
+            const QSignalBlocker blocker(formatButtons.first());
             formatButtons.first()->setChecked(true);
         }
         exportRow->addSpacing(KisModernStyle::space1);
@@ -1051,7 +1054,10 @@ RecorderDockerDock::RecorderDockerDock()
     d->exportAction = actionRegistry->makeQAction(keyActionExport, this);
 
     connect(d->recordToggleAction, SIGNAL(toggled(bool)), d->recordButton, SLOT(setChecked(bool)));
-    connect(d->exportAction, SIGNAL(triggered()), d->exportButton, SIGNAL(clicked()));
+    // the shortcut does what the button would, and nothing while the button can't (recording, saving)
+    connect(d->exportAction, &QAction::triggered, this, [this]() {
+        if (d->exportButton->isEnabled()) onExportButtonClicked();
+    });
 
     // Need to register toolbar actions before attaching canvas else it wont appear after restart.
     // Is there any better way to do this?
