@@ -102784,6 +102784,10 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "Filter"
 
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "Pridať"
+
 msgctxt "brush group"
 msgid "Other"
 msgstr "Iný"

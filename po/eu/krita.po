@@ -103416,6 +103416,10 @@ msgctxt "brush part"
 msgid "Color"
 msgstr "Kolorea"
 
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "Gehitu"
+
 msgctxt "brush group"
 msgid "Other"
 msgstr "Bestelakoak"

@@ -70788,6 +70788,10 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "Filter"
 
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "Dodaj"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Slikovna točka"

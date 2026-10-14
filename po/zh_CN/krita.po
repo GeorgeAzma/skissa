@@ -69943,6 +69943,10 @@ msgctxt "brush part"
 msgid "Texture"
 msgstr "纹理"
 
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "添加"
+
 msgctxt "brush group"
 msgid "Other"
 msgstr "其他"

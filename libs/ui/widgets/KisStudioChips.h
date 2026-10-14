@@ -27,7 +27,7 @@ public:
     struct Chip {
         QString text;
         QString toolTip;
-        /// Drawn instead of the text (a tip shape, a pattern)
+        /// Drawn instead of the text (a tip shape, a pattern); on a tile with text, the text is written under it
         std::function<void(QPainter &, const QRectF &)> picture;
         /// Lit, as a choice that is on
         bool on {false};
@@ -43,6 +43,8 @@ public:
     void setTabs(bool tabs);
     /// Square chips of this side holding pictures; 0: sized to their text
     void setTileSize(int side);
+    /// Tiles of this height, \p columns to a row sharing its width
+    void setTileColumns(int columns, int height);
     /// The chip outlined as the one being edited; -1: none
     void setCurrent(int index);
     int current() const { return m_current; }
@@ -71,6 +73,7 @@ private:
     QVector<Chip> m_chips;
     bool m_tabs {false};
     int m_tile {0};
+    int m_columns {0};
     int m_current {-1};
     int m_hovered {-1};
 };

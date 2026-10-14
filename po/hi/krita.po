@@ -100601,6 +100601,10 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "फ़िल्टर"
 
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "जोड़ें"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "पिक्सेल"

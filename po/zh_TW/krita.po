@@ -72067,6 +72067,10 @@ msgctxt "brush part"
 msgid "Color"
 msgstr "色彩"
 
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "新增"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "像素"

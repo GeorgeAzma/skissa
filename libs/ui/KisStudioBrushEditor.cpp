@@ -14,6 +14,7 @@
 #include <QHBoxLayout>
 #include <QHash>
 #include <QLabel>
+#include <QPainter>
 #include <QPointer>
 #include <QTimer>
 #include <QToolButton>
@@ -42,6 +43,7 @@
 #include "kis_paintop_option.h"
 #include "kis_paintop_settings_widget.h"
 #include "widgets/KisStudioChips.h"
+#include "widgets/KisStudioDabPictures.h"
 #include "widgets/KisStudioValueRow.h"
 #include "widgets/kis_preset_live_preview_view.h"
 
@@ -105,6 +107,8 @@ struct KisStudioBrushEditor::Private
     QVector<int> parts;
     int part {KisPaintOpOption::GENERAL};
     QPointer<KisStudioPenPopup> pen;
+    /// The settings to add are shown, until another part is picked
+    bool adding {false};
     QTimer refreshPage;
     /// The options shown as rows and as ones to add, to see whether a change moves any
     QList<KisPaintOpOption *> rowOptions;
@@ -266,7 +270,7 @@ KisStudioBrushEditor::KisStudioBrushEditor(KisMainWindow *mainWindow)
     d->follow->setCheckable(true);
     d->follow->setChecked(KisLastStrokeReplay::isEnabled());
     d->follow->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_restroke")));
-    d->follow->setToolTip(i18nc("@info:tooltip", "Your last stroke follows the brush"));
+    d->follow->setToolTip(i18nc("@info:tooltip", "Redraw the last stroke while editing"));
     connect(d->follow, &QToolButton::toggled, this, [](bool on) { KisLastStrokeReplay::setEnabled(on); });
     header->addWidget(d->follow);
     d->pin = new QToolButton(this);
@@ -291,6 +295,7 @@ KisStudioBrushEditor::KisStudioBrushEditor(KisMainWindow *mainWindow)
     connect(d->tabs, &KisStudioChips::clicked, this, [this](int index) {
         if (index < 0 || index >= d->parts.size()) return;
         d->part = d->parts[index];
+        d->adding = false;
         KisConfig(false).writeEntry(partKey, d->part);
         showPart(d->part);
     });
@@ -490,12 +495,38 @@ void KisStudioBrushEditor::showPart(int part)
         d->pageLayout->addWidget(row);
     }
 
-    if (!unused.isEmpty()) {
+    if (!unused.isEmpty() && !d->adding) {
+        // what could be added stays out of the way until asked for
+        auto *add = new KisStudioChips(d->page);
+        KisStudioChips::Chip chip;
+        chip.text = QStringLiteral("+ ") + i18nc("@action:button add a brush setting", "Add");
+        add->setChips({chip});
+        connect(add, &KisStudioChips::clicked, this, [this]() {
+            d->adding = true;
+            showPart(d->part);
+        });
+        d->pageLayout->addSpacing(KisModernStyle::space1);
+        d->pageLayout->addWidget(add);
+    } else if (!unused.isEmpty()) {
+        // each drawn as what it does to a stroke
         auto *more = new KisStudioChips(d->page);
+        more->setTileColumns(5, 58);
+        KisViewManager *view = d->mainWindow ? d->mainWindow->viewManager() : nullptr;
+        const QColor fg = view && view->canvasResourceProvider() ? view->canvasResourceProvider()->fgColor().toQColor() : QColor();
         QVector<KisStudioChips::Chip> chips;
         Q_FOREACH (KisPaintOpOption *option, unused) {
             KisStudioChips::Chip chip;
-            chip.text = QStringLiteral("+ ") + option->label();
+            chip.text = option->label();
+            const QString id = option->id();
+            chip.picture = [more, id, fg](QPainter &painter, const QRectF &rect) {
+                const QColor ink = more->palette().color(QPalette::WindowText);
+                const QColor paint = KisStudioDabPictures::paintColor(fg, more->palette().color(QPalette::Highlight));
+                if (KisStudioDabPictures::effect(painter, rect, id, ink, paint)) return;
+                painter.setPen(QPen(KisModernStyle::secondaryInk(ink), 1.5, Qt::SolidLine, Qt::RoundCap));
+                const QPointF c = rect.center();
+                painter.drawLine(c - QPointF(5, 0), c + QPointF(5, 0));
+                painter.drawLine(c - QPointF(0, 5), c + QPointF(0, 5));
+            };
             chips << chip;
         }
         more->setChips(chips);

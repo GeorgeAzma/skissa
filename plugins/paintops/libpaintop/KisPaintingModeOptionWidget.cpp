@@ -6,6 +6,10 @@
 #include "KisPaintingModeOptionWidget.h"
 
 #include <widgets/KisStudioChips.h>
+#include <widgets/KisStudioDabPictures.h>
+
+#include <QPainter>
+#include <QPainterPath>
 
 #include <QButtonGroup>
 
@@ -91,19 +95,44 @@ bool KisPaintingModeOptionWidget::hasQuickPage(PaintopCategory category) const
 QWidget *KisPaintingModeOptionWidget::createQuickPage(PaintopCategory category, QWidget *parent)
 {
     if (category != COLOR) return nullptr;
-    // paint piling up within a stroke, or laid evenly as a wash
+    // paint piling up within a stroke, or laid evenly as a wash: a stroke of see-through dabs each way
     auto *modes = new KisStudioChips(parent);
-    modes->setTabs(true);
+    modes->setTileColumns(2, 54);
     KisPaintingModeOptionModel *model = &m_d->model;
-    auto refresh = [modes, model]() {
+    auto picture = [modes](bool wash) {
+        return [modes, wash](QPainter &painter, const QRectF &rect) {
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            QColor paint = modes->palette().color(QPalette::WindowText);
+            paint.setAlphaF(0.35);
+            const qreal r = rect.height() * 0.45;
+            // overlapping by half, where build up shows
+            const qreal span = qMin(rect.width(), 12 * r);
+            const QRectF along(rect.center().x() - span / 2, rect.top(), span, rect.height());
+            const QVector<QPointF> dabs = KisStudioDabPictures::strokeDabs(along, 11, r);
+            QPainterPath body;
+            Q_FOREACH (const QPointF &c, dabs) {
+                QPainterPath one;
+                one.addEllipse(c, r, r);
+                if (wash) {
+                    body = body.united(one);
+                } else {
+                    painter.fillPath(one, paint);
+                }
+            }
+            if (wash) painter.fillPath(body, paint);
+        };
+    };
+    auto refresh = [modes, model, picture]() {
         KisStudioChips::Chip buildup;
         buildup.text = i18nc("painting mode", "Build up");
         buildup.on = model->effectivePaintingMode() == int(enumPaintingMode::BUILDUP);
         buildup.toolTip = i18nc("@info:tooltip", "Dabs pile up within a stroke");
+        buildup.picture = picture(false);
         KisStudioChips::Chip wash;
         wash.text = i18nc("painting mode", "Wash");
         wash.on = model->effectivePaintingMode() == int(enumPaintingMode::WASH);
         wash.toolTip = i18nc("@info:tooltip", "A stroke never gets darker than its opacity");
+        wash.picture = picture(true);
         modes->setChips({buildup, wash});
         modes->setCurrent(-1);
     };

@@ -100177,6 +100177,10 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "Scagaire"
 
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "Cuir leis"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Picteilín"

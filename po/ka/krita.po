@@ -69858,6 +69858,10 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "ფილტრი"
 
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "დამატება"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "პიქსელი"

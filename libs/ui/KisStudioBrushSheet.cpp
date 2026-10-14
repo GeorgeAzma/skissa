@@ -392,7 +392,7 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
     });
     more->setMenu(moreMenu);
     header->addWidget(more);
-    d->follow = iconButton(QStringLiteral("studio_restroke"), i18nc("@info:tooltip", "Your last stroke follows the brush"));
+    d->follow = iconButton(QStringLiteral("studio_restroke"), i18nc("@info:tooltip", "Redraw the last stroke while editing"));
     d->follow->setCheckable(true);
     d->follow->setChecked(KisLastStrokeReplay::isEnabled());
     connect(d->follow, &QToolButton::toggled, this, [](bool on) { KisLastStrokeReplay::setEnabled(on); });

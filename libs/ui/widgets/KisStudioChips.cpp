@@ -52,6 +52,14 @@ void KisStudioChips::setTileSize(int side)
     update();
 }
 
+void KisStudioChips::setTileColumns(int columns, int height)
+{
+    m_columns = columns;
+    m_tile = height;
+    updateGeometry();
+    update();
+}
+
 void KisStudioChips::setCurrent(int index)
 {
     if (index == m_current) return;
@@ -78,12 +86,13 @@ QVector<QRectF> KisStudioChips::layoutFor(int width) const
     }
     qreal x = 0;
     qreal y = 0;
+    const qreal column = m_columns > 0 ? (width - gap * (m_columns - 1)) / qreal(m_columns) : 0;
     Q_FOREACH (const Chip &chip, m_chips) {
-        qreal w = m_tile;
+        qreal w = m_columns > 0 ? column : m_tile;
         if (!m_tile) {
             w = fontMetrics().horizontalAdvance(chip.text) + 2 * padding + (chip.dot ? dotSize + 6 : 0);
         }
-        if (x > 0 && x + w > width) {
+        if (x > 0 && x + w > width + 0.5) {
             x = 0;
             y += height + gap;
         }
@@ -105,12 +114,13 @@ QSize KisStudioChips::sizeHint() const
     Q_FOREACH (const QRectF &rect, layoutFor(10000)) {
         width = qMax(width, rect.right());
     }
+    if (m_columns > 0) width = 360;
     return QSize(qMin<int>(width, 360), heightForWidth(qMin<int>(width, 360)));
 }
 
 QSize KisStudioChips::minimumSizeHint() const
 {
-    return QSize(m_tile ? m_tile : 60, chipHeight());
+    return QSize(m_tile && !m_columns ? m_tile : 60, chipHeight());
 }
 
 int KisStudioChips::at(const QPoint &pos) const
@@ -142,9 +152,24 @@ void KisStudioChips::paintEvent(QPaintEvent *)
             painter.drawPath(shape);
         }
         if (chip.picture) {
+            QRectF picture = box.adjusted(4, 4, -4, -4);
+            if (m_tile && !chip.text.isEmpty()) {
+                // a picture with its name under it
+                // a long name a little smaller rather than cut short
+                QFont small = KisModernStyle::textFont(font(), 0.9);
+                if (QFontMetrics(small).horizontalAdvance(chip.text) > box.width() - 6) small = KisModernStyle::textFont(font(), 0.8);
+                const int line = QFontMetrics(small).height();
+                picture.setBottom(box.bottom() - line - 4);
+                painter.save();
+                painter.setFont(small);
+                painter.setPen(chip.on ? ink : KisModernStyle::secondaryInk(ink));
+                const QRectF caption(box.left() + 2, picture.bottom(), box.width() - 4, box.bottom() - picture.bottom() - 1);
+                painter.drawText(caption, Qt::AlignCenter, QFontMetrics(small).elidedText(chip.text, Qt::ElideRight, int(caption.width())));
+                painter.restore();
+            }
             painter.save();
             painter.setClipPath(shape);
-            chip.picture(painter, box.adjusted(4, 4, -4, -4));
+            chip.picture(painter, picture);
             painter.restore();
             if (chip.on && i != m_current) {
                 // a picture may fill its tile: the choice that is on gets a ring

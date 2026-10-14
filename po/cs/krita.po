@@ -69249,6 +69249,10 @@ msgctxt "brush part"
 msgid "Color"
 msgstr "Barva"
 
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "Přidat"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Pixel"

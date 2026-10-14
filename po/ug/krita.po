@@ -85464,6 +85464,10 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "سۈزگۈچ"
 
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "قوش"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "پىكسېل"

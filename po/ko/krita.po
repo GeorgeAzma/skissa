@@ -113191,6 +113191,10 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "필터"
 
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "추가"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "픽셀"

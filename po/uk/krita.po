@@ -75269,6 +75269,10 @@ msgctxt "brush part"
 msgid "Color"
 msgstr "Колір"
 
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "Додати"
+
 msgctxt "@action:button save the brush over itself"
 msgid "Save"
 msgstr "Зберегти"
