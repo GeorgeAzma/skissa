@@ -157,6 +157,7 @@ struct KisStudioPicker::Private
     /// Highlights and previews the item under the pointer or selected with the keys
     void point(int index)
     {
+        if (index >= items.size()) index = -1;
         if (index == highlighted) return;
         for (int i : {highlighted, index}) {
             if (i >= 0 && i < items.size()) grid->update(items[i].rect);
@@ -217,6 +218,18 @@ public:
             m_d->point(m_press);
         });
         QObject::connect(KisTouchMode::instance(), &KisTouchMode::changed, this, [this]() { update(); });
+    }
+
+    /// Drops the pressed or dragged item, whose index means nothing once the items are laid out again
+    void forgetPress()
+    {
+        m_press = -1;
+        m_dragging = -1;
+        m_lifted = false;
+        m_hold.stop();
+        m_dropAt = -1;
+        m_dropLine = QRect();
+        m_dropUnpins = false;
     }
 
 protected:
@@ -707,6 +720,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
 
     // lays out the recent items, the user's numbered list, then the other groups; or the search matches
     d->relayout = [this]() {
+        static_cast<Grid *>(d->grid)->forgetPress();
         d->items.clear();
         d->headers.clear();
         d->pinnedArea = QRect();

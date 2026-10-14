@@ -81,6 +81,13 @@ private:
     Qt::MouseButton m_eatRelease {Qt::NoButton};
     /// Started when a click selects something, so the second click of a double click can be swallowed
     QElapsedTimer m_closedByClick;
+    /// Where that click was, in global coordinates
+    QPointF m_closedAt;
+    /// Button of the last pen press the ring took, and when; Windows sends a copy of it as a mouse press
+    Qt::MouseButton m_penPress {Qt::NoButton};
+    QElapsedTimer m_penPressed;
+    /// Button of a copied mouse press that was swallowed, so its release is swallowed too
+    Qt::MouseButton m_eatMouseRelease {Qt::NoButton};
 };
 
 #endif // KISSTUDIOCANVASRING_H

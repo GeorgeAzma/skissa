@@ -286,9 +286,29 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
         return false;
     }
     const bool shown = KisStudioMotion::isShown(this);
-    if (type == QEvent::KeyPress && shown && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+    // Escape in the ring's own menu belongs to the menu
+    if (type == QEvent::KeyPress && shown && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape
+        && !QApplication::activePopupWidget()) {
         close();
         return true;
+    }
+    // Windows follows a pen press with a mouse press of its own; when the ring took the pen press,
+    // that copy and its release are swallowed too, wherever they land (also in the ring's menu)
+    if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick || type == QEvent::MouseButtonRelease) {
+        const Qt::MouseButton button = static_cast<QMouseEvent *>(event)->button();
+        if (type != QEvent::MouseButtonRelease && button == m_penPress) {
+            m_penPress = Qt::NoButton;
+            if (m_penPressed.elapsed() < QApplication::doubleClickInterval()) {
+                m_eatMouseRelease = button;
+                event->accept();
+                return true;
+            }
+        }
+        if (type == QEvent::MouseButtonRelease && button == m_eatMouseRelease) {
+            m_eatMouseRelease = Qt::NoButton;
+            event->accept();
+            return true;
+        }
     }
 
     KisViewManager *view = m_mainWindow->viewManager();
@@ -348,26 +368,38 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
         return false;
     }
 
+    // A pen press the ring takes is remembered before handling it, since the ring's menu runs its own event loop
+    const bool penPress = type == QEvent::TabletPress;
+    auto armPen = [&]() {
+        if (penPress) {
+            m_penPress = button;
+            m_penPressed.start();
+        }
+    };
+    auto take = [&]() -> bool {
+        armPen();
+        event->accept();
+        return true;
+    };
+
     // Swallow the release of the press that closed the ring, since the canvas never saw that press
     if (release && m_eatRelease != Qt::NoButton && button == m_eatRelease) {
         m_eatRelease = Qt::NoButton;
-        event->accept();
-        return true;
+        return take();
     }
     if (!shown) {
         // The second click of a double click on a brush must not paint a dab
-        if (onCanvas && press && m_closedByClick.isValid() && m_closedByClick.elapsed() < QApplication::doubleClickInterval()) {
+        if (onCanvas && press && m_closedByClick.isValid() && m_closedByClick.elapsed() < QApplication::doubleClickInterval()
+            && QLineF(global, m_closedAt).length() <= slotRadius) {
             m_closedByClick.invalidate();
             m_eatRelease = button;
-            event->accept();
-            return true;
+            return take();
         }
         // A right press with a painting tool opens the ring, but not while another button is down (painting)
         if (onCanvas && press && button == Qt::RightButton && buttons == Qt::RightButton && modifiers == Qt::NoModifier
             && KisStudioBrushPicker::paintToolActive()) {
             open(canvasWidget, canvasWidget->mapFromGlobal(global.toPoint()));
-            event->accept();
-            return true;
+            return take();
         }
         return false;
     }
@@ -385,6 +417,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
             m_pressed = -1;
             if (!m_dragging) {
                 m_closedByClick.start();
+                m_closedAt = global;
                 choose(from);
             } else {
                 m_dragging = false;
@@ -424,6 +457,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
         return true;
     }
     if (press) {
+        armPen();
         const int target = QLineF(local, m_center).length() <= plateRadius ? targetAt(local) : -1;
         if (button == Qt::LeftButton && target >= 0 && target < m_slots.size()) {
             // Selected on release, unless dragged to another slot
@@ -432,6 +466,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
             m_dragAt = local;
         } else if (button == Qt::LeftButton && target != -1) {
             m_closedByClick.start();
+            m_closedAt = global;
             m_eatRelease = button;
             choose(target);
         } else if (button == Qt::RightButton && target >= 0 && target < m_slots.size()) {

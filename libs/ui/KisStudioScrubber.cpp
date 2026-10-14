@@ -187,6 +187,11 @@ void KisStudioScrubber::mouseReleaseEvent(QMouseEvent *event)
         QWidget::mouseReleaseEvent(event);
         return;
     }
+    endDrag();
+}
+
+void KisStudioScrubber::endDrag()
+{
     m_dragging = false;
     if (m_moved) {
         commit(m_value);
@@ -251,6 +256,11 @@ bool KisStudioScrubber::event(QEvent *event)
 {
     if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) {
         update();
+    }
+    // The release never comes when the window loses focus or the bar hides mid-drag: end the drag here instead
+    if (m_dragging && (event->type() == QEvent::WindowDeactivate || event->type() == QEvent::Hide
+                       || event->type() == QEvent::UngrabMouse)) {
+        endDrag();
     }
     return QWidget::event(event);
 }

@@ -20,6 +20,8 @@
 #include <kis_action.h>
 #include <QWheelEvent>
 #include <QApplication>
+#include <QFocusEvent>
+#include <QHideEvent>
 #include <QMouseEvent>
 #include "kis_action_manager.h"
 
@@ -533,22 +535,47 @@ void KisCompositeOpComboBox::mouseReleaseEvent(QMouseEvent *e)
         KisSqueezedComboBox::mouseReleaseEvent(e);
         return;
     }
-    m_pressed = false;
     e->accept();
     if (m_scrubbing) {
-        m_scrubbing = false;
-        unsetCursor();
-        if (m_scrubId.isEmpty()) {
-            return;
-        }
-        Q_EMIT sigPreviewBlendMode(QString());
-        pick(KoCompositeOpRegistry::instance().getKoID(m_scrubId));
+        endScrub();
         return;
     }
+    m_pressed = false;
     // a click, not a press that ended elsewhere
     if (rect().contains(e->pos())) {
         showPopup();
     }
+}
+
+void KisCompositeOpComboBox::focusOutEvent(QFocusEvent *e)
+{
+    // the release may never come (another window, a dialog): keep the scrubbed mode as a release would
+    endScrub();
+    KisSqueezedComboBox::focusOutEvent(e);
+}
+
+void KisCompositeOpComboBox::hideEvent(QHideEvent *e)
+{
+    endScrub();
+    KisSqueezedComboBox::hideEvent(e);
+}
+
+void KisCompositeOpComboBox::endScrub()
+{
+    if (!m_pressed) {
+        return;
+    }
+    m_pressed = false;
+    if (!m_scrubbing) {
+        return;
+    }
+    m_scrubbing = false;
+    unsetCursor();
+    if (m_scrubId.isEmpty()) {
+        return;
+    }
+    Q_EMIT sigPreviewBlendMode(QString());
+    pick(KoCompositeOpRegistry::instance().getKoID(m_scrubId));
 }
 
 void KisCompositeOpComboBox::wheelEvent(QWheelEvent *e)

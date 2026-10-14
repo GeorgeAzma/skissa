@@ -70,6 +70,8 @@ protected:
     void mousePressEvent(QMouseEvent *e) override;
     void mouseMoveEvent(QMouseEvent *e) override;
     void mouseReleaseEvent(QMouseEvent *e) override;
+    void focusOutEvent(QFocusEvent *e) override;
+    void hideEvent(QHideEvent *e) override;
 
 public:
 Q_SIGNALS:
@@ -115,6 +117,8 @@ private:
     bool isUsable(const QString &id) const;
     /// Chooses it as the user would in the list
     void pick(const KoID &op);
+    /// Ends a press; a scrub picks the mode it reached
+    void endScrub();
 
 private:
     KisSortedCompositeOpListModel *m_model;

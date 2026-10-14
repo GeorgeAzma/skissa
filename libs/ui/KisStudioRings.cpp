@@ -224,7 +224,9 @@ protected:
     {
         if (!KisStudioMotion::isShown(this)) return false;
         const QEvent::Type type = event->type();
-        if (type == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+        // Escape in the ring's own menus and Rename dialog belongs to them
+        if (type == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape
+            && !QApplication::activeModalWidget() && !QApplication::activePopupWidget()) {
             closeRing();
             return true;
         }

@@ -55,6 +55,8 @@ private:
     qreal bounded(qreal value) const;
     QString text() const;
     void commit(qreal value);
+    /// Ends a drag, committing the value if it moved
+    void endDrag();
 
     Kind m_kind;
     qreal m_minimum {0.0};

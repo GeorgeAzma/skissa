@@ -45,6 +45,7 @@
 #include <QHelpEvent>
 #include <QCursor>
 #include <QAbstractScrollArea>
+#include <QTimer>
 
 
 /// The resource item delegate for rendering the resource preview
@@ -248,8 +249,15 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
             }
             return picture;
         });
-        // a stroke made while its tip is up: the tip again, with it
-        QObject::connect(KisPresetStrokeThumbnails::instance(), &KisPresetStrokeThumbnails::changed, qApp, []() {
+        // a stroke made while its tip is up: the tip again, with it, once for a run of strokes made together
+        auto *reshow = new QTimer(qApp);
+        reshow->setSingleShot(true);
+        reshow->setInterval(50);
+        QObject::connect(KisPresetStrokeThumbnails::instance(), &KisPresetStrokeThumbnails::changed, reshow, [reshow]() {
+            // tips show strokes only while the rows show pictures
+            if (!KisPresetStrokeThumbnails::isEnabled() && !reshow->isActive()) reshow->start();
+        });
+        QObject::connect(reshow, &QTimer::timeout, qApp, []() {
             Q_FOREACH (QWidget *top, QApplication::topLevelWidgets()) {
                 if (!top->isVisible() || !top->inherits("KoItemToolTip")) continue;
                 auto *view = qobject_cast<QAbstractScrollArea *>(top->parentWidget());

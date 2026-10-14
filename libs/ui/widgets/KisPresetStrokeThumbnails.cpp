@@ -90,6 +90,8 @@ struct KisPresetStrokeThumbnails::Private {
     quint64 serial {0};
     bool busy {false};
     QTimer watchdog;
+    /// Images given up on by the watchdog, by request serial, until their strokes end
+    QHash<quint64, KisImageSP> retired;
 };
 
 KisPresetStrokeThumbnails *KisPresetStrokeThumbnails::instance()
@@ -107,6 +109,18 @@ KisPresetStrokeThumbnails::KisPresetStrokeThumbnails()
     connect(&d->watchdog, &QTimer::timeout, this, [this]() {
         if (!d->busy) return;
         d->nothing.insert(d->current.key);
+
+        // The stroke still holds the image: keep it here until its strokes are over, so that it is
+        // never destroyed by its own updater thread
+        const quint64 serial = d->serial;
+        d->retired.insert(serial, d->image);
+        d->image->requestStrokeCancellation();
+        DoneStroke *done = new DoneStroke();
+        connect(done, &DoneStroke::done, this, [this, serial]() {
+            d->retired.remove(serial);
+        }, Qt::QueuedConnection);
+        d->image->endStroke(d->image->startStroke(done));
+
         d->image = nullptr;
         d->layer = nullptr;
         d->busy = false;

@@ -714,6 +714,7 @@ void LayerBox::setCanvas(KoCanvasBase *canvas)
     if (m_canvas == canvas)
         return;
 
+    slotPreviewBlendMode(QString());
     setEnabled(canvas != 0);
 
     if (m_canvas) {
@@ -848,6 +849,8 @@ void LayerBox::updateUI()
     KisNodeSP activeNode = m_nodeManager->activeNode();
 
     if (activeNode != m_activeNode) {
+        // a blend mode previewed on the previous layer must not stay on it outside undo
+        slotPreviewBlendMode(QString());
         m_activeNodeConnections.clear();
         m_activeNode = activeNode;
 
