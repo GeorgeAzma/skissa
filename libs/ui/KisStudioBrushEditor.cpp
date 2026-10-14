@@ -383,6 +383,8 @@ KisStudioBrushEditor::KisStudioBrushEditor(KisMainWindow *mainWindow)
     if (d->box) {
         connect(d->box, &KisPaintopBox::sigOptionWidgetChanged, this, &KisStudioBrushEditor::rebuild);
     }
+    // the last stroke follows the smoothing (the Stroke tab, the chip) as it does the brush
+    connect(KisStudioSmoothing::instance(), &KisStudioSmoothing::sigChanged, this, &KisStudioBrushEditor::followLastStroke);
     // the Stroke tab is there for the tools that paint freehand
     connect(KoToolManager::instance(), &KoToolManager::changedTool, this, [this]() {
         if (d->parts.contains(strokePart) != KisStudioStrokePage::applies(d->mainWindow)) rebuild();
@@ -418,10 +420,7 @@ void KisStudioBrushEditor::rebuild()
         if (preset->updateProxy()) {
             // the last stroke shows the change on the picture, as soon as it is made
             d->presetConnections.addConnection(preset->updateProxy(), &KisPaintOpPresetUpdateProxy::sigSettingsChangedUncompressed, this,
-                                               [this]() {
-                                                   KisPaintOpPresetSP current = d->preset();
-                                                   if (current && d->follow->isChecked()) KisLastStrokeReplay::instance()->brushChanged(current->name(), current->settings()->toXML());
-                                               });
+                                               [this]() { followLastStroke(); });
             d->presetConnections.addConnection(preset->updateProxy(), &KisPaintOpPresetUpdateProxy::sigSettingsChanged, this,
                                                [this]() {
                                                    d->preview->requestUpdateStroke();
@@ -458,6 +457,12 @@ void KisStudioBrushEditor::rebuild()
     d->tabs->setVisible(d->parts.size() > 1);
     updateHeader();
     showPart(d->part);
+}
+
+void KisStudioBrushEditor::followLastStroke()
+{
+    KisPaintOpPresetSP current = d->preset();
+    if (current && d->follow->isChecked()) KisLastStrokeReplay::instance()->brushChanged(current->name(), current->settings()->toXML());
 }
 
 void KisStudioBrushEditor::updateHeader()

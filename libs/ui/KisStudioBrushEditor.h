@@ -51,6 +51,8 @@ private:
     void rebuild();
     void showPart(int part);
     void fitPage();
+    /// The brush or its smoothing changed: the last stroke is painted again with it
+    void followLastStroke();
     void updateHeader();
 
     struct Private;

@@ -70,7 +70,8 @@ void KisLastStrokeReplay::strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack
 {
     d->helper = helper;
     d->preset = preset;
-    d->settings = settings;
+    // the smoothing too: a change of it paints the stroke again as well
+    d->settings = settings + (helper ? helper->smoothingKey() : QString());
     d->step = nullptr;
     d->painting = false;
     d->cancelling = false;
@@ -94,8 +95,10 @@ void KisLastStrokeReplay::strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack
 void KisLastStrokeReplay::brushChanged(const QString &preset, const QString &settings)
 {
     // the brush read back as it was (the editor following the preset) changes nothing
-    if (!isEnabled() || preset != d->preset || !d->helper || settings == d->settings) return;
-    d->settings = settings;
+    if (!isEnabled() || preset != d->preset || !d->helper) return;
+    const QString look = settings + d->helper->smoothingKey();
+    if (look == d->settings) return;
+    d->settings = look;
     d->dirty = true;
     d->retries = 0;
     // after the change has reached the brush the stroke is painted with

@@ -75,9 +75,12 @@ public:
     KisImageWSP lastStrokeImage() const;
     /**
      * Paints the last stroke again, as it was drawn, with the brush as it is now (in the color it had).
+     * With the smoothing changed since, the pen's own path is smoothed again as it is now set.
      * Taking the first one back is the caller's (see KisLastStrokeReplay). Returns false if it can't.
      */
     bool replayLastStroke();
+    /// The smoothing as it is set, as text that changes when any of it does
+    QString smoothingKey() const;
 
     KisOptimizedBrushOutline paintOpOutline(const QPointF &savedCursorPos,
                                             const KoPointerEvent *event,
@@ -170,6 +173,9 @@ private Q_SLOTS:
     void slotSmoothingTypeChanged();
 
 private:
+    /// replayLastStroke() from the pen's own path, through the smoothing as it is now
+    void replayFromInput();
+
     struct Private;
     Private * const m_d;
 };
