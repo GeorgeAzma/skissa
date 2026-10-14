@@ -5,6 +5,10 @@
  */
 #include "KisStudioEffectsPicker.h"
 
+#include <cmath>
+
+#include <kis_default_bounds.h>
+
 #include <QMutex>
 #include <QMutexLocker>
 #include <QPainter>
@@ -33,6 +37,8 @@
 /// Tile thumbnails, rendered in a worker thread from a small copy of the image
 struct KisStudioEffectThumbnails {
     QImage base;                        ///< the image without effect, set before the worker starts
+    /// How much smaller than the image the base is, as a level of detail: effects scale their sizes by it
+    int levelOfDetail {0};
     QMutex mutex;
     QHash<QString, QImage> made;        ///< written by the worker, guarded by the mutex
     std::atomic<bool> cancelled {false};
@@ -143,20 +149,50 @@ QString groupOf(const QString &id)
 }
 
 /// The image cropped to the tile shape, or the sample picture if the image is blank
-QImage basePicture(KisViewManager *view, const QSize &size)
+/// A thumbnail's bounds, at the level of detail its size is to the image
+class ThumbnailBounds : public KisDefaultBounds
+{
+public:
+    ThumbnailBounds(const QRect &rect, int levelOfDetail)
+        : m_rect(rect)
+        , m_levelOfDetail(levelOfDetail)
+    {
+    }
+
+    QRect bounds() const override
+    {
+        return m_rect;
+    }
+
+    int currentLevelOfDetail() const override
+    {
+        return m_levelOfDetail;
+    }
+
+private:
+    QRect m_rect;
+    int m_levelOfDetail;
+};
+
+QImage basePicture(KisViewManager *view, const QSize &size, int *levelOfDetail)
 {
     QImage picture;
+    *levelOfDetail = 0;
     KisImageSP image = view ? view->image() : nullptr;
     if (image && image->projection()) {
         const QImage whole = image->projection()->createThumbnail(size.width() * 2, size.height() * 2, Qt::KeepAspectRatio);
         if (!whole.isNull()) {
             const QImage covering = whole.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            // a blur of 20 px on the image is one of about 1 px on a thumbnail 20 times smaller
+            const qreal scale = qreal(covering.width()) / qMax(1, image->width());
+            *levelOfDetail = qBound(0, qRound(std::log2(1.0 / qMax(scale, 0.0001))), 10);
             picture = covering.copy((covering.width() - size.width()) / 2, (covering.height() - size.height()) / 2,
                                     size.width(), size.height());
         }
     }
     if (picture.isNull() || KisStudioPicker::isFlat(picture)) {
         picture = KisStudioPicker::samplePicture(size);
+        *levelOfDetail = 0;
     }
     return picture.convertToFormat(QImage::Format_ARGB32);
 }
@@ -251,7 +287,7 @@ KisStudioEffectsPicker::KisStudioEffectsPicker(KisMainWindow *mainWindow, std::s
 {
     d->mainWindow = mainWindow;
     d->thumbnails = thumbnails;
-    thumbnails->base = basePicture(mainWindow->viewManager(), thumbnailSize * mainWindow->devicePixelRatioF());
+    thumbnails->base = basePicture(mainWindow->viewManager(), thumbnailSize * mainWindow->devicePixelRatioF(), &thumbnails->levelOfDetail);
 
     // render the tiles in the order they are likely to be seen
     const Source &source = pickerSource();
@@ -260,7 +296,8 @@ KisStudioEffectsPicker::KisStudioEffectsPicker(KisMainWindow *mainWindow, std::s
     QVector<Job> jobs;
     Q_FOREACH (const QString &id, order) {
         KisFilterSP filter = KisFilterRegistry::instance()->value(id);
-        KisFilterConfigurationSP config = filter ? filter->defaultConfiguration(KisGlobalResourcesInterface::instance()) : nullptr;
+        // as the effect would open: with the settings it was last applied with
+        KisFilterConfigurationSP config = filter ? KisFilterManager::lastUsedConfiguration(filter) : nullptr;
         if (config) {
             // snapshot the resources: the worker thread must not access them itself
             jobs << Job{id, filter, config->cloneWithResourcesSnapshot()};
@@ -272,6 +309,7 @@ KisStudioEffectsPicker::KisStudioEffectsPicker(KisMainWindow *mainWindow, std::s
         Q_FOREACH (const Job &job, jobs) {
             if (thumbnails->cancelled) break;
             KisPaintDeviceSP device = new KisPaintDevice(KoColorSpaceRegistry::instance()->rgb8());
+            device->setDefaultBounds(new ThumbnailBounds(rect, thumbnails->levelOfDetail));
             device->convertFromQImage(base, nullptr);
             job.filter->process(device, rect, job.config);
             const QImage picture = device->convertToQImage(nullptr, rect.x(), rect.y(), rect.width(), rect.height());
@@ -337,7 +375,7 @@ void KisStudioEffectsPicker::Private::previewOnCanvas(const QString &id)
     if (!node || !node->paintDevice() || !node->isEditable() || !filter) {
         return;
     }
-    KisFilterConfigurationSP config = filter->defaultConfiguration(KisGlobalResourcesInterface::instance());
+    KisFilterConfigurationSP config = KisFilterManager::lastUsedConfiguration(filter);
     if (!config) {
         return;
     }

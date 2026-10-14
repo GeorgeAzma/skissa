@@ -41,6 +41,8 @@ protected:
 
 private:
     void startApplying();
+    /// The reset to defaults shows while the settings differ from them
+    void showReset();
     void createMask(KisFilterConfigurationSP config);
     void finishEditing();
     void reposition();

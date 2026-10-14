@@ -29,6 +29,9 @@ class KRITAUI_EXPORT KisFilterManager : public QObject
     Q_OBJECT
 
 public:
+    /// The settings \p filter was last applied with (Krita's "Last Used"), or its defaults
+    static KisFilterConfigurationSP lastUsedConfiguration(KisFilterSP filter);
+
 
     KisFilterManager(KisViewManager * parent);
     ~KisFilterManager() override;

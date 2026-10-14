@@ -270,6 +270,8 @@ void KisFilterManager::showFilterDialog(const QString &filterId, KisFilterConfig
     }
 
     if (filter->showConfigurationWidget()) {
+        // as it was last applied
+        if (!overrideDefaultConfig) overrideDefaultConfig = lastUsedConfiguration(filter);
         if (d->inlineEditor.open && d->inlineEditor.open(filter, overrideDefaultConfig)) {
             return;
         }
@@ -288,6 +290,18 @@ void KisFilterManager::showFilterDialog(const QString &filterId, KisFilterConfig
         apply(defaultConfiguration);
         finish();
     }
+}
+
+KisFilterConfigurationSP KisFilterManager::lastUsedConfiguration(KisFilterSP filter)
+{
+    if (!filter) return KisFilterConfigurationSP();
+    KisBookmarkedConfigurationManager *bookmarks = filter->bookmarkManager();
+    if (bookmarks && bookmarks->exists(KisBookmarkedConfigurationManager::ConfigLastUsed)) {
+        KisFilterConfigurationSP config =
+            dynamic_cast<KisFilterConfiguration *>(bookmarks->load(KisBookmarkedConfigurationManager::ConfigLastUsed).data());
+        if (config && config->name() == filter->id()) return config;
+    }
+    return filter->defaultConfiguration(KisGlobalResourcesInterface::instance());
 }
 
 void KisFilterManager::apply(KisFilterConfigurationSP _filterConfig)

@@ -40,6 +40,8 @@
 #include <kis_layer.h>
 #include <kis_paint_layer.h>
 #include <kis_slider_spin_box.h>
+#include <KisGlobalResourcesInterface.h>
+#include <kis_config_widget.h>
 
 #include "KisMainWindow.h"
 #include "KisStudioGlass.h"
@@ -409,6 +411,7 @@ struct KisStudioEffectOverlay::Private
     QLabel *title {nullptr};
     QToolButton *preview {nullptr};
     QToolButton *editable {nullptr};
+    QToolButton *reset {nullptr};
     KisSignalCompressor compressor;
     /// Allows only zooming and panning, no painting, while the effect is adjusted
     QScopedPointer<KisInputActionGroupsMaskGuard> guard;
@@ -493,6 +496,17 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     });
     header->addWidget(d->preview);
 
+    // back to the effect's own defaults; shown while the settings differ from them
+    d->reset = iconButton(QStringLiteral("studio_reload"), i18nc("@info:tooltip", "Defaults"), this);
+    connect(d->reset, &QToolButton::clicked, this, [this]() {
+        KisConfigWidget *settings = d->selector ? d->selector->findChild<KisConfigWidget *>() : nullptr;
+        if (!settings || !d->filter) return;
+        settings->setConfiguration(d->filter->defaultConfiguration(KisGlobalResourcesInterface::instance()));
+        d->compressor.start();
+        showReset();
+    });
+    header->addWidget(d->reset);
+
     d->editable = iconButton(QStringLiteral("filterMask"), i18nc("@info:tooltip", "On: on a layer of its own, to change later\nOff: painted in"), this);
     d->editable->setCheckable(true);
     connect(d->editable, &QToolButton::toggled, this, [](bool on) { KisConfig(false).writeEntry(editableKey, on); });
@@ -513,7 +527,7 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     d->scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     d->scroll->viewport()->setAutoFillBackground(false);
     layout->addWidget(d->scroll, 1);
-    for (QWidget *widget : std::initializer_list<QWidget *>{d->preview, d->editable, cancel, apply, d->scroll}) {
+    for (QWidget *widget : std::initializer_list<QWidget *>{d->preview, d->reset, d->editable, cancel, apply, d->scroll}) {
         KisStudioGlass::setSeeThrough(widget, true);
     }
 
@@ -539,6 +553,13 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
 KisStudioEffectOverlay::~KisStudioEffectOverlay()
 {
     d->setCursor(false);
+}
+
+void KisStudioEffectOverlay::showReset()
+{
+    KisFilterConfigurationSP current = d->selector ? d->selector->configuration() : KisFilterConfigurationSP();
+    KisFilterConfigurationSP defaults = d->filter ? d->filter->defaultConfiguration(KisGlobalResourcesInterface::instance()) : KisFilterConfigurationSP();
+    d->reset->setVisible(current && defaults && current->toXML() != defaults->toXML());
 }
 
 bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP overrideDefaultConfig)
@@ -569,6 +590,7 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
         }
     }
     connect(selector, &KisFilterSelectorWidget::configurationChanged, &d->compressor, &KisSignalCompressor::start);
+    connect(selector, &KisFilterSelectorWidget::configurationChanged, this, &KisStudioEffectOverlay::showReset);
     connect(selector, &KisFilterSelectorWidget::sigSizeChanged, this, &KisStudioEffectOverlay::reposition);
     d->scroll->setWidget(selector);
     d->selector = selector;
@@ -582,6 +604,7 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
         d->editable->setChecked(KisConfig(true).readEntry<bool>(editableKey, true));
     }
     d->editable->setVisible(d->maskPossible());
+    showReset();
     {
         QSignalBlocker blocker(d->preview);
         d->preview->setChecked(true);
