@@ -323,6 +323,9 @@ KisInputProfile* KisInputProfileManager::loadProfileInternal(const QString &full
             if (action->id() != QLatin1String("Drag Value")) known << action->id();
         }
     }
+    // the same for the modes of an action the profile has (Drag to Change: Smoothing); before they were listed it knew Krita's and the first two of the fork's
+    QStringList knownModes = general.readEntry("modes", QStringList());
+    const bool modesListed = general.hasKey("modes");
     QList<KisShortcutConfiguration *> newer;
     // by its name: a profile is saved under a file named after it, which is not always the bundled one's
     QScopedPointer<KConfig> bundled;
@@ -349,6 +352,22 @@ KisInputProfile* KisInputProfileManager::loadProfileInternal(const QString &full
                 }
             }
             continue;
+        }
+
+        if (bundled && bundled->hasGroup(action->id())) {
+            Q_FOREACH (const QString &entry, bundled->group(action->id()).entryMap()) {
+                auto *shortcut = new KisShortcutConfiguration;
+                shortcut->setAction(action);
+                const bool read = shortcut->unserialize(entry);
+                const int mode = int(shortcut->mode());
+                const bool known = modesListed ? knownModes.contains(action->id() + QLatin1Char('/') + QString::number(mode))
+                                               : !(action->id() == QLatin1String("Drag Value") && mode > 1);
+                if (read && !known) {
+                    newer.append(shortcut);
+                } else {
+                    delete shortcut;
+                }
+            }
         }
 
         KConfigGroup grp = config.group(action->id());
@@ -455,6 +474,11 @@ void KisInputProfileManager::saveProfile(KisInputProfile *profile, QString stora
     QStringList actionIds;
     Q_FOREACH (KisAbstractInputAction *action, d->actions) actionIds << action->id();
     config.group("General").writeEntry("actions", actionIds);
+    QStringList modes;
+    Q_FOREACH (KisAbstractInputAction *action, d->actions) {
+        Q_FOREACH (int mode, action->shortcutIndexes().values()) modes << action->id() + QLatin1Char('/') + QString::number(mode);
+    }
+    config.group("General").writeEntry("modes", modes);
 
     Q_FOREACH(KisAbstractInputAction * action, d->actions) {
         KConfigGroup grp = config.group(action->id());

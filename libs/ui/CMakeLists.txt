@@ -456,6 +456,7 @@ set(kritaui_LIB_SRCS
     KisStudioToolStrip.cpp
     KisStudioBarButtons.cpp
     KisStudioScrubber.cpp
+    KisStudioSmoothing.cpp
     KisStudioBrushEditor.cpp
     KisStudioBrushSheet.cpp
     KisStudioControls.cpp

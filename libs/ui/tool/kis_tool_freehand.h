@@ -117,6 +117,7 @@ private Q_SLOTS:
 protected:
     friend class KisViewManager;
     friend class KisView;
+    friend class KisStudioSmoothing;
     KisSmoothingOptionsSP smoothingOptions() const;
     bool m_assistant {false};
     double m_magnetism {1.0};

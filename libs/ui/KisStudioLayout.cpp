@@ -22,6 +22,7 @@
 #include <QMdiSubWindow>
 #include <QMenu>
 #include <QMenuBar>
+#include <QContextMenuEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -49,6 +50,7 @@
 
 #include <KoCanvasController.h>
 #include <KoToolFactoryBase.h>
+#include <KoToolBase.h>
 #include <KoToolManager.h>
 #include <KoToolRegistry.h>
 #include <filter/kis_filter.h>
@@ -78,6 +80,7 @@
 #include "KisStudioPanelPicker.h"
 #include "KisStudioScrubber.h"
 #include "KisStudioSettings.h"
+#include "KisStudioSmoothing.h"
 #include "KisStudioToolRail.h"
 #include "KisStudioToolStrip.h"
 #include "KisStudioWindowFrame.h"
@@ -284,6 +287,13 @@ struct PanelDrop {
 class ToolChip : public QToolButton
 {
 public:
+    /// What fills the chip from its left (the brush's smoothing), 0 to 1; -1: nothing, and the chip isn't dragged
+    std::function<qreal()> amount;
+    std::function<void(qreal)> setAmount;
+    /// The amount as shown while dragged
+    std::function<QString()> amountText;
+    std::function<void()> resetAmount;
+
     explicit ToolChip(QWidget *parent)
         : QToolButton(parent)
     {
@@ -312,16 +322,93 @@ protected:
         if (option.state & (QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_On)) {
             painter.drawPrimitive(QStyle::PE_PanelButtonTool, option);
         }
+        const qreal filled = amount ? amount() : -1;
+        if (filled > 0) {
+            // the smoothing, as layer opacity fills its row
+            painter.save();
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            const QRectF box = QRectF(rect()).adjusted(1, 3, -1, -3);
+            painter.setClipPath(KisModernStyle::squircle(box, KisModernStyle::cornerRadius));
+            QColor fill = palette().color(QPalette::ButtonText);
+            fill.setAlphaF(m_scrubbing ? 0.2 : 0.11);
+            painter.fillRect(QRectF(box.left(), box.top(), box.width() * filled, box.height()), fill);
+            painter.restore();
+        }
 
         const int icon = iconSize().width();
         QRect area = rect().adjusted(padding, 0, -padding, 0);
         this->icon().paint(&painter, QRect(area.left(), (height() - icon) / 2, icon, icon));
         area.setLeft(area.left() + icon + gap);
         painter.setPen(palette().color(QPalette::ButtonText));
-        painter.drawText(area, Qt::AlignVCenter | Qt::AlignLeft | Qt::TextHideMnemonic, text());
+        const QString shown = m_scrubbing && amountText
+            ? i18nc("the brush chip while its smoothing is dragged, e.g. Smoothing 50", "Smoothing %1", amountText())
+            : text();
+        painter.drawText(area, Qt::AlignVCenter | Qt::AlignLeft | Qt::TextHideMnemonic, fontMetrics().elidedText(shown, Qt::ElideRight, area.width()));
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        m_scrubbing = false;
+        m_pressX = event->pos().x();
+        QToolButton::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        const bool scrubbable = amount && setAmount && amount() >= 0;
+        if (scrubbable && (event->buttons() & Qt::LeftButton)) {
+            const bool fine = event->modifiers() & Qt::ShiftModifier;
+            if (!m_scrubbing && qAbs(event->pos().x() - m_pressX) > QApplication::startDragDistance()) {
+                // dragged sideways: the smoothing, not a click
+                m_scrubbing = true;
+                setDown(false);
+                m_fine = !fine;
+            }
+            if (m_scrubbing) {
+                if (fine != m_fine) {
+                    // Shift held or let go: on from here, finer or not
+                    m_fine = fine;
+                    m_pressX = event->pos().x();
+                    m_pressAmount = amount();
+                }
+                const qreal span = fine ? 800.0 : 200.0;
+                setAmount(qBound(0.0, m_pressAmount + (event->pos().x() - m_pressX) / span, 1.0));
+                update();
+                event->accept();
+                return;
+            }
+        }
+        QToolButton::mouseMoveEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (m_scrubbing) {
+            m_scrubbing = false;
+            setDown(false);
+            update();
+            event->accept();
+            return;
+        }
+        QToolButton::mouseReleaseEvent(event);
+    }
+
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        // right click: the smoothing back to its default
+        if (amount && resetAmount && amount() >= 0) {
+            resetAmount();
+            update();
+        }
+        event->accept();
     }
 
 private:
+    bool m_scrubbing {false};
+    bool m_fine {false};
+    int m_pressX {0};
+    qreal m_pressAmount {0.0};
+
     static constexpr int padding = 8;
     static constexpr int gap = 6;
 };
@@ -3005,7 +3092,22 @@ void KisStudioLayout::createTopBar()
 
     auto *toolChip = new ToolChip(bar);
     toolChip->setIconSize(bar->iconSize());
-    connect(toolChip, &QToolButton::clicked, this, &KisStudioLayout::toggleToolOptions);
+    // a brush tool's chip carries its smoothing: dragged sideways, and a click opens the smoothing menu
+    const QPointer<KisMainWindow> window = mainWindow;
+    toolChip->amount = [window]() { return KisStudioSmoothing::amount(window); };
+    toolChip->setAmount = [window](qreal amount) { KisStudioSmoothing::setAmount(window, amount); };
+    toolChip->amountText = [window]() { return KisStudioSmoothing::text(window); };
+    toolChip->resetAmount = [window]() {
+        KisStudioSmoothing::setAmount(window, KisStudioSmoothing::distanceToAmount(KisConfig(true).lineSmoothingDistanceMin(true)));
+    };
+    connect(toolChip, &QToolButton::clicked, this, [this, toolChip]() {
+        if (KisStudioSmoothing::options(d->mainWindow)) {
+            KisStudioSmoothingPopup::toggle(d->mainWindow, toolChip, [this]() { toggleToolOptions(); });
+        } else {
+            toggleToolOptions();
+        }
+    });
+    connect(KisStudioSmoothing::instance(), &KisStudioSmoothing::sigChanged, toolChip, qOverload<>(&QWidget::update));
     d->toolChipAction = bar->addWidget(toolChip);
     d->toolChip = toolChip;
 
@@ -3326,7 +3428,20 @@ void KisStudioLayout::updateToolChip()
     const QString brush = brushTool && resources && resources->currentPreset() ? KisStudioBrushPicker::title(resources->currentPreset()->name()) : QString();
     const QString toolName = KisStudioToolRail::toolName(factory);
     d->toolChip->setText(brush.isEmpty() ? toolName : brush);
-    d->toolChip->setToolTip(brush.isEmpty() ? i18nc("@info:tooltip", "Tool options") : i18nc("@info:tooltip tool chip: the tool, its options", "%1 options", toolName));
+    // a right click resets the smoothing, instead of showing the chip's card
+    d->toolChip->setProperty("ownContextMenu", bool(KisStudioSmoothing::options(d->mainWindow)));
+    if (KisStudioSmoothing::options(d->mainWindow)) {
+        d->toolChip->setToolTip(i18nc("@info:tooltip the brush chip: drag sideways for smoothing, click for its menu", "Drag: smoothing\nClick: smoothing and %1 options", toolName));
+        // changed in the tool's own options too
+        KisViewManager *viewManager = d->mainWindow->viewManager();
+        if (QObject *brushTool = viewManager && viewManager->canvasBase() ? KoToolManager::instance()->toolById(viewManager->canvasBase(), tool) : nullptr) {
+            connect(brushTool, SIGNAL(smoothingTypeChanged()), d->toolChip, SLOT(update()), Qt::UniqueConnection);
+            connect(brushTool, SIGNAL(smoothnessQualityChanged()), d->toolChip, SLOT(update()), Qt::UniqueConnection);
+        }
+    } else {
+        d->toolChip->setToolTip(brush.isEmpty() ? i18nc("@info:tooltip", "Tool options") : i18nc("@info:tooltip tool chip: the tool, its options", "%1 options", toolName));
+    }
+    d->toolChip->update();
     d->toolChip->updateGeometry();
 }
 

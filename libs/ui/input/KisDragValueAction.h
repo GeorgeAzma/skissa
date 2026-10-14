@@ -11,9 +11,10 @@
 #include <QPointF>
 
 class KisDoubleSliderSpinBox;
+class KisMainWindow;
 
 /**
- * Holding a key and dragging sideways changes the brush opacity or flow,
+ * Holding a key and dragging sideways changes the brush opacity, flow or line smoothing,
  * the same way Shift+drag changes the brush size (KisChangePrimarySettingAction).
  */
 class KisDragValueAction : public KisAbstractInputAction
@@ -22,6 +23,7 @@ public:
     enum Shortcut {
         OpacityShortcut,
         FlowShortcut,
+        SmoothingShortcut,
     };
 
     KisDragValueAction();
@@ -35,6 +37,7 @@ public:
 
 private:
     KisDoubleSliderSpinBox *slider(int shortcut) const;
+    KisMainWindow *mainWindow() const;
 
     int m_shortcut {OpacityShortcut};
     QPointF m_start;
