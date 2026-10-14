@@ -171,3 +171,5 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - A long press arrives as a plain right click; `longPressAt` on `qApp` tells them apart.
 - Ctrl+Z in a test also undoes settings changes (one undo), so undoing test strokes can undo a toggle made for the test.
 - The UI tour (`KRITA_DEV_TOUR`) decides what is safe to press from a button's text, tooltip, object name and accessible name: a button with none of these (an icon-only button whose tooltip was removed) must still get a name, or the tour may press Close. Run it with `KRITA_DEV_APART=1` so it can't touch the dev profile.
+- The owner uses the dev build between turns (pins, tweaks): back up the profile right before each test, not once per session, and capture before clicking by coordinates, since the bar may have moved.
+- A stroke's step reaches the undo stack a moment after the image goes idle: wait a turn of the event loop before deciding a stroke was cancelled.
