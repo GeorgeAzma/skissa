@@ -100577,6 +100577,30 @@ msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
 msgid "Screen %1 (%2)"
 msgstr "स्क्रीन %1 (%2)"
 
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "नीचे"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "नीचे"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "मास्क"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "टेक्श्चर"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "फ़िल्टर"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "पिक्सेल"
@@ -100584,6 +100608,10 @@ msgstr "पिक्सेल"
 msgctxt "brush group"
 msgid "Other"
 msgstr "अन्य"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "सहेजें"
 
 msgctxt "@title:window"
 msgid "Color"
@@ -100600,6 +100628,10 @@ msgstr "वर्ण"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "एचएसवी"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "विन्यास"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -100640,6 +100672,26 @@ msgstr "अपार्दरशिता"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "विंडो"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "दबाव"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "गति"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "फीका"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "दूरी"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "परिप्रेक्ष्य"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -100761,18 +100813,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "मार्गदर्शिका"
 
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "नीचे"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "नीचे"
-
-msgctxt "@info:tooltip"
-msgid "Close"
-msgstr "बंद करें"
-
 msgctxt "new image: one made to measure"
 msgid "Custom"
 msgstr "मनपसंद"
@@ -100805,6 +100845,10 @@ msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "फाइल"
 
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "जोड़ें"
+
 msgctxt "@action:inmenu"
 msgid "Deselect"
 msgstr "अचयनित"
@@ -100820,6 +100864,10 @@ msgstr "रूपांतरण"
 msgctxt "@action:inmenu"
 msgid "Smooth"
 msgstr "चिकना"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "रेखीय"
 
 msgctxt "@title:menu"
 msgid "Select"
@@ -100913,7 +100961,15 @@ msgctxt "settings page"
 msgid "Wide Gamut Selector"
 msgstr "विस्तृत वर्ण विस्तार चयनक"
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "रेखीय"
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "कठिन"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "पैटर्न"
+
+msgctxt "texture setting"
+msgid "Scale"
+msgstr "आकार बदलें"
 

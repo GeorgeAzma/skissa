@@ -112528,6 +112528,10 @@ msgctxt "canvas surface depth"
 msgid "Auto"
 msgstr "Automatski"
 
+msgctxt "brush part"
+msgid "Filter"
+msgstr "Filter"
+
 msgctxt "settings card"
 msgid "Undo"
 msgstr "Poništi"
@@ -112575,4 +112579,12 @@ msgstr "Ponovi"
 msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Dodaj u paletu"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Kvadratni"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "Automatski"
 

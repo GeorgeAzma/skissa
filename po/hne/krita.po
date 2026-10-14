@@ -100223,11 +100223,11 @@ msgctxt "color sampler preview"
 msgid "None"
 msgstr "कुछ नइ"
 
-msgctxt "author"
+msgctxt "tile spacing of 0"
 msgid "None"
 msgstr "कुछ नइ"
 
-msgctxt "tile spacing of 0"
+msgctxt "author"
 msgid "None"
 msgstr "कुछ नइ"
 
@@ -100238,4 +100238,16 @@ msgstr "कुछ नइ"
 msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "रंगदानी मं जोड़व"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "वर्ग"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "कुछ नइ"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "कुछ नइ"
 

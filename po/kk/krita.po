@@ -109450,3 +109450,7 @@ msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Палитраға қосу"
 
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Шаршы"
+

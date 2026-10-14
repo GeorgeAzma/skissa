@@ -107811,6 +107811,10 @@ msgctxt "color sampler preview"
 msgid "None"
 msgstr "Κανένα"
 
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Κανένα"
+
 msgctxt "settings card"
 msgid "Undo"
 msgstr "Αναίρεση"
@@ -107827,10 +107831,6 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Αναίρεση"
 
-msgctxt "tile spacing of 0"
-msgid "None"
-msgstr "Κανένα"
-
 msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "Κανένα"
@@ -107846,4 +107846,12 @@ msgstr "Επανάληψη"
 msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Προσθήκη στην παλέτα"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "Κανένα"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "Κανένα"
 

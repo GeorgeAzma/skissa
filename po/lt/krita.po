@@ -77425,6 +77425,10 @@ msgstr ""
 
 # ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
 
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Nuostatos"
+
 msgctxt "@title find results"
 msgid "Settings"
 msgstr "Nuostatos"

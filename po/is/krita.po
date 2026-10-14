@@ -89910,6 +89910,18 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "Sjálfgefið"
 
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Ekkert"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Litur"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "Sía"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Mynddíll"
@@ -89921,6 +89933,10 @@ msgstr "Litur"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Stillingar"
 
 msgctxt "effect group"
 msgid "Color"
@@ -89945,6 +89961,10 @@ msgstr "Gluggi"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Gluggi"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "Stefna"
 
 msgctxt "settings section"
 msgid "Color"
@@ -89973,10 +89993,6 @@ msgstr "Ekkert"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Afturkalla"
-
-msgctxt "tile spacing of 0"
-msgid "None"
-msgstr "Ekkert"
 
 msgctxt "shortcut set"
 msgid "Krita"
@@ -90032,4 +90048,16 @@ msgstr "Bæta á litaspjald"
 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Skráin er of ný fyrir þessa útgáfu Skissa (%1)."
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "Ekkert"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "Ekkert"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Mynstur"
 

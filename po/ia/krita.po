@@ -96068,6 +96068,38 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "Predefinite"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Speculo"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Radial"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "A basso"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "A basso"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Mascara"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Textura"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "Filtro"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Pixel"
@@ -96075,6 +96107,10 @@ msgstr "Pixel"
 msgctxt "brush group"
 msgid "Other"
 msgstr "Altere"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Salveguarda"
 
 msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
@@ -96095,6 +96131,10 @@ msgstr "Tinta"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Preferentias"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -96131,6 +96171,30 @@ msgstr "Opacitate"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Fenestra"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Pression"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Velocitate"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "Direction"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "Pallidi"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Distantia:"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspectiva"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -96256,22 +96320,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guidas"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "Speculo"
-
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "Radial"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "A basso"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "A basso"
-
 msgctxt "shortcut set"
 msgid "Krita"
 msgstr "Krita"
@@ -96304,6 +96352,14 @@ msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "File"
 
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "Adde"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "Differentia"
+
 msgctxt "@action:inmenu"
 msgid "Select All"
 msgstr "Selige toto"
@@ -96331,6 +96387,10 @@ msgstr "Lisie"
 msgctxt "@action:inmenu"
 msgid "Edit"
 msgstr "Modifica"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Linear "
 
 msgctxt "@title:menu"
 msgid "Select"
@@ -96416,9 +96476,33 @@ msgctxt "frames at half the image's size"
 msgid "Half"
 msgstr "Medietate"
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "Linear "
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "Dur"
+
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "Curva"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "Gaussian"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Quadrato"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Patronos"
+
+msgctxt "texture setting"
+msgid "Scale"
+msgstr "Scala"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "Auto"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

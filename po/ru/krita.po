@@ -113668,9 +113668,33 @@ msgctxt "setting"
 msgid "Frame rate limit"
 msgstr "Ограничение частоты кадров"
 
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Вниз"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Вниз"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Маска"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Текстура"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Цвет"
+
 msgctxt "brush group"
 msgid "Other"
 msgstr "Другие"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Сохранить"
 
 msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
@@ -113723,6 +113747,30 @@ msgstr "Непрозрачность"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Окно"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Давление"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Скорость"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "Направление"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "Угасание"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Расстояние"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Перспектива"
 
 msgctxt "@info an empty slot of a ring"
 msgid "Add"
@@ -113824,18 +113872,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Направляющие"
 
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "Вниз"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "Вниз"
-
-msgctxt "@info:tooltip"
-msgid "Close"
-msgstr "Закрыть"
-
 msgid "Use the new template every time Skissa starts"
 msgstr "Использовать новый шаблон при каждом запуске Skissa"
 
@@ -113886,6 +113922,14 @@ msgstr "Непрозрачность"
 msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "Файл"
+
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "Добавить"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "Разница"
 
 msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
@@ -114047,6 +114091,18 @@ msgstr "Для слоя «%1» установлен режим наложени�
 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Файл слишком новый для этой версии Skissa (%1)."
+
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "Жёсткий"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "Гауссово"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Текстуры"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

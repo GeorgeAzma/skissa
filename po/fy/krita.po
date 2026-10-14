@@ -101192,3 +101192,7 @@ msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Oan palet tafoegje"
 
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Fjouwerkant"
+

@@ -72119,6 +72119,38 @@ msgctxt "canvas surface depth"
 msgid "Auto"
 msgstr "Aŭtomate"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Spegulo"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Radiala"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Malsupren"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Malsupren"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Masko"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Teksturo"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Koloro"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Rastrumero"
@@ -72126,6 +72158,10 @@ msgstr "Rastrumero"
 msgctxt "brush group"
 msgid "Other"
 msgstr "Alia"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Konservi"
 
 msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
@@ -72182,6 +72218,26 @@ msgstr "Travidebleco"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Fenestro"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Premo"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Rapido"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "Dissolvi"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Distanco"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspektivo"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -72311,27 +72367,7 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Gvidistoj"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "Spegulo"
-
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "Radiala"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "Malsupren"
-
-msgctxt "tile spacing of 0"
-msgid "None"
-msgstr "Neniu"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "Malsupren"
-
-msgctxt "@info:tooltip"
+msgctxt "@action:button"
 msgid "Close"
 msgstr "Fermi"
 
@@ -72386,6 +72422,14 @@ msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "Dosiero"
 
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "Aldoni"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "Diferenco"
+
 msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nAVERTO:\tMemoro mankas! Interŝanĝo estis komencita.\n\t\tBonvolu agordi pli da RAM por Skissa en Agorda dialogo"
@@ -72411,6 +72455,10 @@ msgstr "Redakti"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "Nova AppImage estis elŝutita al %1. Por kompletigi la ĝisdatigon, fermu Skissa kaj rulu la novan AppImage."
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineara"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -72579,9 +72627,41 @@ msgstr "Tavolo \"%1\" havas miksan reĝimon \"%2\" kiu ŝanĝis sian konduton po
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "La dosiero estas tro nova por ĉi tiu versio de Skissa (%1)."
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "Lineara"
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "Malfacila"
+
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "Kurbo"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "Gaŭsa"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Ŝablonoj"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "Brilo"
+
+msgctxt "texture setting"
+msgid "Contrast"
+msgstr "Kontrasto"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "Aŭtomate"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

@@ -113286,6 +113286,18 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "Oletus"
 
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Säteittäinen"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Pintakuvio"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Väri"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Kuvapiste"
@@ -113294,6 +113306,10 @@ msgctxt "brush group"
 msgid "Other"
 msgstr "Muu"
 
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Tallenna"
+
 msgctxt "@title:window"
 msgid "Color"
 msgstr "Väri"
@@ -113301,6 +113317,10 @@ msgstr "Väri"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Asetukset"
 
 msgctxt "effect group"
 msgid "Color"
@@ -113337,6 +113357,22 @@ msgstr "Peittävyys"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Ikkuna"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Paine"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Nopeus"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Etäisyys"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspektiivi"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -113426,14 +113462,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Text"
 msgstr "Teksti"
 
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "Säteittäinen"
-
-msgctxt "@info:tooltip"
-msgid "Close"
-msgstr "Sulje"
-
 msgid "Use the new template every time Skissa starts"
 msgstr "Käytä pohjaa aina kun Skissa käynnistyy"
 
@@ -113481,6 +113509,10 @@ msgstr "Käännä"
 msgctxt "@action:inmenu"
 msgid "Edit"
 msgstr "Muokkaa"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineaarinen"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -113583,9 +113615,25 @@ msgstr "Tasolla ”%1” on sekoitustapa ”%2”, jonka toiminta CMYK-väreill�
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Tiedosto on liian uusi tälle Skissan versiolle (%1)."
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "Lineaarinen"
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "Kova"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "Gauss"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Neliö"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Kuviot"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "Automaattinen"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

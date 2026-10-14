@@ -117523,9 +117523,41 @@ msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
 msgid "Screen %1 (%2)"
 msgstr "Pantalla %1 (%2)"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Reflectir"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Radial"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Baixar"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Baixar"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Máscara"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Textura"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Cor"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Pixel"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Gardar"
 
 msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
@@ -117570,6 +117602,26 @@ msgstr "Opacidade"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Xanela"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Presión"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Velocidade"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "Esvaer"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Distancia"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspectiva"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -117679,26 +117731,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guías"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "Reflectir"
-
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "Radial"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "Baixar"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "Baixar"
-
-msgctxt "@info:tooltip"
-msgid "Close"
-msgstr "Pechar"
-
 msgid "Use the new template every time Skissa starts"
 msgstr "Usar o novo modelo sempre que se inicie Skissa."
 
@@ -117749,6 +117781,14 @@ msgstr "Opacidade"
 msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "Ficheiro"
+
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "Engadir"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "Diferenza"
 
 msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
@@ -117942,6 +117982,18 @@ msgstr "A capa «%1» ten o modo de fusión «%2» que cambiou o seu comportamen
 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "O ficheiro é novo de máis para esta versión de Skissa (%1)."
+
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "Curva"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "de Gauss"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Cadrado"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

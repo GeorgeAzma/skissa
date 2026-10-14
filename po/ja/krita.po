@@ -71802,6 +71802,22 @@ msgctxt "canvas surface depth"
 msgid "Auto"
 msgstr "自動"
 
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "マスク"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "テクスチャ"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "色"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "フィルタ"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "ピクセル"
@@ -71809,6 +71825,10 @@ msgstr "ピクセル"
 msgctxt "brush group"
 msgid "Other"
 msgstr "その他"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "保存"
 
 msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
@@ -71825,6 +71845,10 @@ msgstr "色相"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "設定"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -71865,6 +71889,22 @@ msgstr "不透明度"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "ウィンドウ"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "筆圧"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "速度"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "減衰"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "距離"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -71974,7 +72014,7 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "基準線"
 
-msgctxt "@info:tooltip"
+msgctxt "@action:button"
 msgid "Close"
 msgstr "閉じる"
 
@@ -72036,6 +72076,10 @@ msgstr "フィルタ"
 msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "ファイル"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "差分"
 
 msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
@@ -72225,6 +72269,34 @@ msgstr "レイヤー\"%1\"には、Skissa 5.2で CMYK カラーの動作が変�
 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "このファイルは新しすぎてこのバージョン (%1) の Skissa では開けません"
+
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "ハード"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "ガウシアン"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "四角"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "パターン"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "明度"
+
+msgctxt "texture setting"
+msgid "Contrast"
+msgstr "コントラスト"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "自動"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

@@ -71157,6 +71157,42 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "Alapértelmezett"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Tükrözés"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Sugárirányú"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Le"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Nincs"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Le"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Maszk"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Textúra"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "Szűrő"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Pixel"
@@ -71164,6 +71200,10 @@ msgstr "Pixel"
 msgctxt "brush group"
 msgid "Other"
 msgstr "Egyéb"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Mentés"
 
 msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
@@ -71184,6 +71224,10 @@ msgstr "Árnyalat"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Beállítások"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -71224,6 +71268,30 @@ msgstr "Átlátszatlanság"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Ablak"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Nyomás"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Sebesség"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "Irány"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "Elhalványítás"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Távolság"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspektíva"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -71361,27 +71429,7 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Segédvonalak"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "Tükrözés"
-
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "Sugárirányú"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "Le"
-
-msgctxt "tile spacing of 0"
-msgid "None"
-msgstr "Nincs"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "Le"
-
-msgctxt "@info:tooltip"
+msgctxt "@action:button"
 msgid "Close"
 msgstr "Bezárás"
 
@@ -71452,6 +71500,14 @@ msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "Fájl"
 
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "Hozzáadás"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "Különbség"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "A Skissa nem tudta inicializálni az OpenGL vásznat:\n\n%1\n\n A Skissa most kikapcsolja az OpenGL-t és bezárul."
 
@@ -71482,6 +71538,10 @@ msgstr "Simítás"
 msgctxt "@action:inmenu"
 msgid "Edit"
 msgstr "Szerkesztés"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineáris"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -71662,9 +71722,49 @@ msgstr "A(z) \"%1\" réteg \"%2\" keverési módot használ, amelynek viselkedé
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "A fájl túl új ehhez a Skissa verzióhoz (%1)."
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "Lineáris"
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "Kemény"
+
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "Görbe"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "Gauss-féle"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Négyzet"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "Nincs"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "Nincs"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Minták"
+
+msgctxt "texture setting"
+msgid "Scale"
+msgstr "Méretezés"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "Fényerő"
+
+msgctxt "texture setting"
+msgid "Contrast"
+msgstr "Kontraszt"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "Auto"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

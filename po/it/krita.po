@@ -121139,6 +121139,38 @@ msgctxt "setting"
 msgid "Frame rate limit"
 msgstr "Limite velocità fotogrammi"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Rispecchia"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Radiale"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Verso il basso"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Verso il basso"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Maschera"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Trama"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Colore"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "Filtro"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Pixel"
@@ -121146,6 +121178,10 @@ msgstr "Pixel"
 msgctxt "brush group"
 msgid "Other"
 msgstr "Altro"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Salva"
 
 msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
@@ -121166,6 +121202,10 @@ msgstr "Tonalità"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Impostazioni"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -121202,6 +121242,30 @@ msgstr "Opacità"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Finestra"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Pressione"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Velocità"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "Direzione"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "Dissolvi"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Distanza"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Prospettiva"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -121319,26 +121383,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guide"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "Rispecchia"
-
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "Radiale"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "Verso il basso"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "Verso il basso"
-
-msgctxt "@info:tooltip"
-msgid "Close"
-msgstr "Chiudi"
-
 msgid "Use the new template every time Skissa starts"
 msgstr "Usa il nuovo modello ogni volta che si avvia Skissa"
 
@@ -121401,6 +121445,14 @@ msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "File"
 
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "Aggiungi"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "Differenza"
+
 msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nATTENZIONE:\tMemoria insufficiente! Lo swap è stato avviato.\n\t\tConfigura più RAM per Skissa nelle Impostazioni"
@@ -121438,6 +121490,10 @@ msgstr "Modifica"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "È stata scaricata una nuova AppImage in %1. Per completare l'aggiornamento, chiudi Skissa ed esegui la nuova AppImage."
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineare"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -121598,9 +121654,17 @@ msgstr "Il livello «%1» contiene il metodo di fusione «%2\"», che ha cambiat
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Il file è troppo nuovo per questa versione di Skissa (%1)."
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "Lineare"
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "Curva"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "Gaussiana"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Motivi"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

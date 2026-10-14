@@ -102237,6 +102237,10 @@ msgctxt "color sampler preview"
 msgid "None"
 msgstr "काही नाही"
 
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "काही नाही"
+
 msgctxt "settings card"
 msgid "Undo"
 msgstr "पूर्ववत करा"
@@ -102253,10 +102257,6 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "पूर्ववत करा"
 
-msgctxt "tile spacing of 0"
-msgid "None"
-msgstr "काही नाही"
-
 msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "काही नाही"
@@ -102272,4 +102272,12 @@ msgstr "पुन्हा करा"
 msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "पटलमध्ये भरा"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "काही नाही"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "काही नाही"
 

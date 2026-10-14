@@ -72051,6 +72051,22 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "預設"
 
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "無"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "遮罩"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "紋理"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "色彩"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "像素"
@@ -72078,6 +72094,10 @@ msgstr "色相"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "設定"
 
 msgctxt "effect group"
 msgid "Color"
@@ -72114,6 +72134,26 @@ msgstr "不透明度"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "視窗"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "壓力"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "速度"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "淡化"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "距離"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "透視"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -72227,10 +72267,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "參考線"
 
-msgctxt "tile spacing of 0"
-msgid "None"
-msgstr "無"
-
 msgid "Use the new template every time Skissa starts"
 msgstr "Skissa 每次啟動時使用此新範本"
 
@@ -72290,6 +72326,14 @@ msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "檔案"
 
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "新增"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "差值"
+
 msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\n警告：\t記憶體不足！已啟用記憶體置換。\n\t\t請在設定對話框中為 Skissa 分配更多記憶體"
@@ -72319,6 +72363,10 @@ msgstr "編輯"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "新的 AppImage 已下載至 %1。如要完成更新，請關閉 Skissa 並執行新的 AppImage。"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "線性"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -72475,9 +72523,37 @@ msgstr "圖層「%1」所使用的「%2」混色模式，由 Skissa 5.2 版本�
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "此檔案對此版 Skissa 而言格式太新 (%1)。"
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "線性"
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "硬邊"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "無"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "無"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "圖案"
+
+msgctxt "texture setting"
+msgid "Scale"
+msgstr "縮放"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "亮度"
+
+msgctxt "texture setting"
+msgid "Contrast"
+msgstr "對比度"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "自動"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

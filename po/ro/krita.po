@@ -71055,6 +71055,10 @@ msgctxt "rendering intent"
 msgid "Saturation"
 msgstr "Saturație"
 
+msgctxt "brush part"
+msgid "Color"
+msgstr "Culoare"
+
 msgctxt "@title:window"
 msgid "Color"
 msgstr "Culoare"

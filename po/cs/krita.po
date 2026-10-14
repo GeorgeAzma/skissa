@@ -69217,9 +69217,45 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "Výchozí"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Zrcadlit"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Radiální"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Dolů"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Žádný"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Dolů"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Maska"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Textura"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Barva"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Pixel"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Uložit"
 
 msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
@@ -69240,6 +69276,10 @@ msgstr "Tón"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Nastavení"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -69276,6 +69316,26 @@ msgstr "Krytí"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Okno"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Tlak"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Rychlost"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "Blednutí"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Vzdálenost"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspektiva"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -69401,27 +69461,7 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Vodítka"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "Zrcadlit"
-
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "Radiální"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "Dolů"
-
-msgctxt "tile spacing of 0"
-msgid "None"
-msgstr "Žádný"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "Dolů"
-
-msgctxt "@info:tooltip"
+msgctxt "@action:button"
 msgid "Close"
 msgstr "Zavřít"
 
@@ -69452,6 +69492,14 @@ msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "Soubor"
 
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "Přidat"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "Rozdíl"
+
 msgctxt "@action:inmenu"
 msgid "Select All"
 msgstr "Vybrat vše"
@@ -69471,6 +69519,10 @@ msgstr "Invertovat"
 msgctxt "@action:inmenu"
 msgid "Edit"
 msgstr "Upravit"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineární"
 
 msgctxt "@title:menu"
 msgid "Select"
@@ -69588,9 +69640,45 @@ msgctxt "frames at half the image's size"
 msgid "Half"
 msgstr "Poloviční"
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "Lineární"
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "Křivka"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "Gaussovo"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Čtverec"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "Žádný"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "Žádný"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Vzorky"
+
+msgctxt "texture setting"
+msgid "Scale"
+msgstr "Měřítko"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "Jas"
+
+msgctxt "texture setting"
+msgid "Contrast"
+msgstr "Kontrast"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "Automaticky"
 
 msgctxt "(qtundo-format)"
 msgid "Fill"

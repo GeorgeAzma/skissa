@@ -102756,9 +102756,41 @@ msgctxt "setting"
 msgid "Frame rate limit"
 msgstr "Limit snímkovej frekvencie"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Zrkadliť"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Dolu"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Dolu"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Maska"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Textúra"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Farba"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "Filter"
+
 msgctxt "brush group"
 msgid "Other"
 msgstr "Iný"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Uložiť"
 
 msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
@@ -102779,6 +102811,10 @@ msgstr "Odtieň"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Nastavenia"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -102819,6 +102855,30 @@ msgstr "Nepriehľadnosť"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Okno"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Tlak"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Rýchlosť"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "Smer"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "Blednutie"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Vzdialenosť"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspektíva"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -102940,18 +103000,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Vodiace čiary"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "Zrkadliť"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "Dolu"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "Dolu"
-
 msgid "Use the new template every time Skissa starts"
 msgstr "Použiť novú šablónu vždy keď sa spustí Skissa"
 
@@ -103002,6 +103050,14 @@ msgstr "Filter"
 msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "Súbor"
+
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "Pridať"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "Rozdiel"
 
 msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
@@ -103196,6 +103252,30 @@ msgstr "Obraz sa najprv linearizuje a potom zakóduje pomocou SMPTE ST 428. Skis
 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Súbor je príliš nový pre túto verziu Skissa (%1)."
+
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "Ťažká"
+
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "Krivka"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "Gaussovské"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Štvorec"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Vzorky"
+
+msgctxt "texture setting"
+msgid "Scale"
+msgstr "Mierka"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

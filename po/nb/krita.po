@@ -68480,6 +68480,14 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "Standard"
 
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "Filter"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Piksel"
@@ -68512,10 +68520,6 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Angre"
 
-msgctxt "tile spacing of 0"
-msgid "None"
-msgstr "Ingen"
-
 msgctxt "shortcut set"
 msgid "Krita"
 msgstr "Krita"
@@ -68539,4 +68543,20 @@ msgstr "Angre"
 msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Legg til palett"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "Lysstyrke"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "Auto"
 

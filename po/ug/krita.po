@@ -85440,6 +85440,30 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "كۆڭۈلدىكى"
 
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "رادىئال"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "ئاستى"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "يوق"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "ئاستى"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "رەڭ"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "سۈزگۈچ"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "پىكسېل"
@@ -85447,6 +85471,10 @@ msgstr "پىكسېل"
 msgctxt "brush group"
 msgid "Other"
 msgstr "باشقا"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "ساقلا"
 
 msgctxt "@title:window"
 msgid "Color"
@@ -85483,6 +85511,18 @@ msgstr "ھەممىسى"
 msgctxt "@info:tooltip"
 msgid "Opacity"
 msgstr "غۇۋالىقى"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "سۈرئىتى"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "سۇسلاشتۇر"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "ئارىلىق"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -85580,26 +85620,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Text"
 msgstr "تېكىست"
 
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "رادىئال"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "ئاستى"
-
-msgctxt "tile spacing of 0"
-msgid "None"
-msgstr "يوق"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "ئاستى"
-
-msgctxt "@info:tooltip"
-msgid "Close"
-msgstr "ياپ"
-
 msgctxt "new image: one made to measure"
 msgid "Custom"
 msgstr "ئىختىيارى"
@@ -85635,6 +85655,14 @@ msgstr "سۈزگۈچ"
 msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "ھۆججەت"
+
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "قوش"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "پەرق"
 
 msgctxt "@action:inmenu"
 msgid "Select All"
@@ -85727,4 +85755,28 @@ msgstr "ساقلا"
 msgctxt "frames at half the image's size"
 msgid "Half"
 msgstr "يېرىم"
+
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "تەس"
+
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "ئەگرى سىزىق"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "تۆت چاسا"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "يوق"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "يوق"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "ئاپتوماتىك"
 

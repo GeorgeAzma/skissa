@@ -69826,6 +69826,38 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "ნაგულისხმევი"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "სარკე"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "რადიალური"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "ქვემოთ"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "ქვემოთ"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "ნიღაბი"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "ტექსტურა"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "ფერი"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "ფილტრი"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "პიქსელი"
@@ -69833,6 +69865,10 @@ msgstr "პიქსელი"
 msgctxt "brush group"
 msgid "Other"
 msgstr "სხვა"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "შენახვა"
 
 msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
@@ -69849,6 +69885,10 @@ msgstr "ტონი"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "მორგება"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -69889,6 +69929,30 @@ msgstr "გაუმჭვირვალობა"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "ფანჯარა"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "წნევა"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "სიჩქარე"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "მიმართულება"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "მინავლება"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "მანძილი"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "პერსპექტივა"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -70014,23 +70078,7 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "მიმმართველები"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "სარკე"
-
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "რადიალური"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "ქვემოთ"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "ქვემოთ"
-
-msgctxt "@info:tooltip"
+msgctxt "@action:button"
 msgid "Close"
 msgstr "დახურვა"
 
@@ -70094,6 +70142,14 @@ msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "ფაილი"
 
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "დამატება"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "სხვაობა"
+
 msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nგაფრთხილება:\tარასაკმარისი მეხსიერება! დაწყებულია სვოპის გამოყენება.\n\t\tმიანიჭეთ Skissa-ს მეტი RAM მორგების დიალოგიდან"
@@ -70131,6 +70187,10 @@ msgstr "ჩასწორება"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "ახალი AppImage გადმოწერილია %1-ში. განახლების დასასრულებლად დახურეთ Skissa და გაუშვით ახალი AppImage."
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "ხაზოვანი"
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "არჩეული ფაილის სახელს არ აქვს გაფართოება, რომელიც Skissa-ს ესმის.\nდარწმუნდით, რომ ფაილის სახელი სრულდება, მაგალითად, '.%1'-ით."
@@ -70276,9 +70336,37 @@ msgstr "Skissa-ს არ შეუძლია, დამატება gmic-q
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "ეს ფაილი მეტისმეტად ახალია Skissa-ის ამ ვერსიისთვის (%1)."
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "ხაზოვანი"
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "მაგარი"
+
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "მრუდი"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "გაუსის"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "კვადრატი"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "შაბლონები"
+
+msgctxt "texture setting"
+msgid "Scale"
+msgstr "მასშტაბირება"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "სიკაშკაშე"
+
+msgctxt "texture setting"
+msgid "Contrast"
+msgstr "კონტრასტი"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

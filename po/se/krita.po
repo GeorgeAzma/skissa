@@ -68263,3 +68263,7 @@ msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Lasit palehttii"
 
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Boksa"
+

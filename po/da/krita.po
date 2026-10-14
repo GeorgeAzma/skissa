@@ -112371,9 +112371,33 @@ msgctxt "canvas surface depth"
 msgid "Auto"
 msgstr "Auto"
 
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Radial"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Tekstur"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "Filter"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Pixel"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Gem"
 
 msgctxt "@title:window"
 msgid "Color"
@@ -112402,6 +112426,18 @@ msgstr "Vindue"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Vindue"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Tryk"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "Retning"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspektiv"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -112463,14 +112499,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Transform"
 msgstr "Transformér"
 
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "Radial"
-
-msgctxt "tile spacing of 0"
-msgid "None"
-msgstr "Ingen"
-
 msgctxt "shortcut set"
 msgid "Krita"
 msgstr "Krita"
@@ -112502,6 +112530,10 @@ msgstr "Transformér"
 msgctxt "@action:inmenu"
 msgid "Smooth"
 msgstr "Glat"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineær"
 
 msgctxt "@action:inmenu select layers"
 msgid "Visible"
@@ -112551,7 +112583,19 @@ msgctxt "Save the time-lapse video"
 msgid "Save"
 msgstr "Gem"
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "Lineær"
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Mønstre"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "Auto"
 

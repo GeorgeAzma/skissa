@@ -107643,6 +107643,30 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "Standard"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Spiegeln"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Nach unten"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Nach unten"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Maske"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Textur"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Farbe"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Pixel"
@@ -107650,6 +107674,10 @@ msgstr "Pixel"
 msgctxt "brush group"
 msgid "Other"
 msgstr "Weitere"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Speichern"
 
 msgctxt "@title:window"
 msgid "Color"
@@ -107666,6 +107694,10 @@ msgstr "Farbton"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Einstellungen"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -107702,6 +107734,26 @@ msgstr "Fenster"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Fenster"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Druck"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Geschwindigkeit"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "Überblenden"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Abstand"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspektive"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -107815,22 +107867,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Hilfslinien"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "Spiegeln"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "Nach unten"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "Nach unten"
-
-msgctxt "@info:tooltip"
-msgid "Close"
-msgstr "Schließen"
-
 msgid "Use the new template every time Skissa starts"
 msgstr "Die neue Vorlage immer beim Start von Skissa als Standard setzen"
 
@@ -107865,6 +107901,10 @@ msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "Datei"
 
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "Hinzufügen"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Die OpenGL-Leinwand lässt sich nicht initialisieren:\n\n %1\n\n OpenGL wird deaktiviert und Skissa jetzt geschlossen."
 
@@ -107887,6 +107927,10 @@ msgstr "Invertieren"
 msgctxt "@action:inmenu"
 msgid "Transform"
 msgstr "Transformieren"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Linear"
 
 msgctxt "@title:menu"
 msgid "Select"
@@ -107987,9 +108031,13 @@ msgstr "Skissa-Systeminformation: Bitte fügen Sie diese Informationen in Ihren 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Die Datei ist neuer als diese Version von Skissa (%1)."
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "Linear"
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Quadrat"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Muster"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

@@ -75999,6 +75999,22 @@ msgctxt "setting"
 msgid "Frame rate limit"
 msgstr "حد معدل الإطارات"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "اعكس"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "دائريّ"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "قناع"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "اللون"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "بكسل"
@@ -76006,6 +76022,10 @@ msgstr "بكسل"
 msgctxt "brush group"
 msgid "Other"
 msgstr "أخرى"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "احفظ"
 
 msgctxt "@title:window"
 msgid "Color"
@@ -76018,6 +76038,10 @@ msgstr "الصّبغة"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "الإعدادات"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -76058,6 +76082,30 @@ msgstr "الشّفافيّة"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "النافذة"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "الضغط"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "السرعة"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "الاتّجاه"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "التّلاشي"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "المسافة"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "منظور"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -76163,18 +76211,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Fill"
 msgstr "الملء"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "اعكس"
-
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "دائريّ"
-
-msgctxt "@info:tooltip"
-msgid "Close"
-msgstr "أغلق"
-
 msgctxt "shortcut set"
 msgid "Krita"
 msgstr "كريتا"
@@ -76199,6 +76235,10 @@ msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "ملف"
 
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "أضف"
+
 msgctxt "@action:inmenu"
 msgid "Invert"
 msgstr "اعكس"
@@ -76214,6 +76254,10 @@ msgstr "سَلِس"
 msgctxt "@action:inmenu"
 msgid "Edit"
 msgstr "حرّر"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "خطّي"
 
 msgctxt "@action:inmenu select layers"
 msgid "All"
@@ -76299,9 +76343,29 @@ msgctxt "settings page"
 msgid "Wide Gamut Selector"
 msgstr "محدد التدرج ألواسع"
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "خطّي"
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "منحنى"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "ضبابي"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "مربع"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "السّطوع"
+
+msgctxt "texture setting"
+msgid "Contrast"
+msgstr "التّباين"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "آليّ"
 
 msgctxt "(qtundo-format)"
 msgid "Fill"

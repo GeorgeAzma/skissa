@@ -70282,6 +70282,38 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "Standard"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Spegelvend"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Radiell"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Ned"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Ned"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Maske"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Tekstur"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Farge"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "Filter"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Piksel"
@@ -70289,6 +70321,10 @@ msgstr "Piksel"
 msgctxt "brush group"
 msgid "Other"
 msgstr "Anna"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Lagra"
 
 msgctxt "@title:window"
 msgid "Color"
@@ -70305,6 +70341,10 @@ msgstr "Kulør"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Innstillingar"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -70341,6 +70381,22 @@ msgstr "Tettleik"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Vindauge"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Trykk"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Fart"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Avstand"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspektiv"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -70454,23 +70510,7 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Hjelpelinjer"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "Spegelvend"
-
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "Radiell"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "Ned"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "Ned"
-
-msgctxt "@info:tooltip"
+msgctxt "@action:button"
 msgid "Close"
 msgstr "Lukk"
 
@@ -70514,6 +70554,10 @@ msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "Fil"
 
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "Legg til"
+
 msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nÅTVARING:\tIkkje nok minne. Brukar no veksleminne.\n\t\tDu bør reservera meir minne for Skissa i innstillingane."
@@ -70535,6 +70579,10 @@ msgstr "Transformer"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "Ei ny AppImage-fil er no lasta ned til %1. For å fullføra oppdateringa, lukk Skissa og køyr så den nye AppImage-fila."
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineær"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -70688,9 +70736,33 @@ msgstr "Biletet vert først linearisert og så koda med SMPTE ST 428. Skissa o
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Fila er for ny for den versjonen av Skissa (%1)."
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "Lineær"
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "Hard"
+
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "Kurve"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "Gaussisk"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Mønster"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "Lysstyrke"
+
+msgctxt "texture setting"
+msgid "Contrast"
+msgstr "Kontrast"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "Auto"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

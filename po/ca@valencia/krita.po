@@ -71113,9 +71113,45 @@ msgctxt "setting"
 msgid "Frame rate limit"
 msgstr "Límit de velocitat dels fotogrames"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Espill"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Radial"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Avall"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Avall"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Màscara"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Textura"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "brush part"
+msgid "Filter"
+msgstr "Filtre"
+
 msgctxt "brush group"
 msgid "Pixel"
 msgstr "Píxel"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Guarda"
 
 msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
@@ -71136,6 +71172,10 @@ msgstr "To"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Configuració"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -71168,6 +71208,26 @@ msgstr "Opacitat"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Finestra"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Pressió"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Velocitat"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "Direcció"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Distància"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspectiva"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -71289,23 +71349,7 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guies"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "Espill"
-
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "Radial"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "Avall"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "Avall"
-
-msgctxt "@info:tooltip"
+msgctxt "@action:button"
 msgid "Close"
 msgstr "Tanca"
 
@@ -71367,6 +71411,14 @@ msgctxt "default name of a file layer, followed by a number"
 msgid "File"
 msgstr "Fitxer"
 
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "Afig"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "Diferència"
+
 msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nAVÍS:\tS'ha exhaurit la memòria! Ha començat l'ús de la memòria d'intercanvi.\n\t\tConfigureu més RAM per a Skissa en el diàleg de configuració"
@@ -71400,6 +71452,10 @@ msgstr "Edita"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "S'ha baixat una AppImage nova a %1. Per a completar l'actualització, tanqueu Skissa i executeu AppImage nova."
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineal"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -71568,9 +71624,33 @@ msgstr "La capa «%1x té el mode de barreja «%2», que ha canviat el seu compo
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "El fitxer és massa nou per a esta versió de Skissa (%1)."
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "Lineal"
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "Corba"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "Gaussià"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Quadrat"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Patrons"
+
+msgctxt "texture setting"
+msgid "Scale"
+msgstr "Escala"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "Brillantor"
+
+msgctxt "texture setting"
+msgid "Contrast"
+msgstr "Contrast"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

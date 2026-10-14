@@ -106710,6 +106710,38 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "Förval"
 
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Spegla"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Radiell"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Ner"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Ner"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Mask"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Struktur"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Spara"
+
 msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
 msgstr "%1 %"
@@ -106729,6 +106761,10 @@ msgstr "Färgton"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Inställningar"
 
 msgctxt "@info:tooltip"
 msgid "Preview"
@@ -106765,6 +106801,30 @@ msgstr "Ogenomskinlighet"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Fönster"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Tryck"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Hastighet"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "Riktning"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "Tona"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Avstånd"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspektiv"
 
 msgctxt "@label:textbox"
 msgid "Name"
@@ -106878,26 +106938,6 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Hjälplinjer"
 
-msgctxt "symmetry mode"
-msgid "Mirror"
-msgstr "Spegla"
-
-msgctxt "symmetry mode"
-msgid "Radial"
-msgstr "Radiell"
-
-msgctxt "mirror axis"
-msgid "Down"
-msgstr "Ner"
-
-msgctxt "tile spacing"
-msgid "Down"
-msgstr "Ner"
-
-msgctxt "@info:tooltip"
-msgid "Close"
-msgstr "Stäng"
-
 msgid "Use the new template every time Skissa starts"
 msgstr "Använd den nya mallen varje gång Skissa startas"
 
@@ -106948,6 +106988,10 @@ msgctxt "brush value"
 msgid "Opacity"
 msgstr "Ogenomskinlighet"
 
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "Skillnad"
+
 msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nVarning:\tMinnet är slut! Växling har startats.\n\t\tStäll in mer RAM för Skissa i inställningsdialogrutan."
@@ -106981,6 +107025,10 @@ msgstr "Redigera"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "En ny AppImage har laddats ner till %1. Stäng Skissa och kör ny AppImage för att slutföra uppdateringen."
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Linjär"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -107133,9 +107181,25 @@ msgstr "Lager \"%1\" har blandningsläget \"%2\" som har ändrat beteende för C
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Filen är för ny för den här versionen av Skissa (%1)."
 
-msgctxt "curve preset"
-msgid "Linear"
-msgstr "Linjär"
+msgctxt "brush tip edge"
+msgid "Hard"
+msgstr "Hård"
+
+msgctxt "brush tip edge"
+msgid "Curve"
+msgstr "Kurva"
+
+msgctxt "brush tip edge"
+msgid "Gaussian"
+msgstr "Gaussisk"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Mönster"
+
+msgctxt "texture setting"
+msgid "Scale"
+msgstr "Skala"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"
