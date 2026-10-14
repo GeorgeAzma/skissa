@@ -132,8 +132,9 @@ QList<KoColor> KisUniqueColorSet::colorList() const
 void KisUniqueColorSet::setColorList(const QList<KoColor> &colors)
 {
     clear();
-    Q_FOREACH(KoColor c, colors) {
-        addColor(c);
+    // most recent first, as colorList() gives them: added oldest first
+    for (auto it = colors.crbegin(); it != colors.crend(); ++it) {
+        addColor(*it);
     }
 }
 

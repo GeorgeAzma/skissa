@@ -373,6 +373,7 @@ void KisCanvasResourceProvider::slotPainting()
         Q_EMIT sigFGColorUsed(fgColor());
         m_fGChanged = false;
     }
+    Q_EMIT sigFGColorPainted(fgColor());
 }
 
 void KisCanvasResourceProvider::slotGamutMaskActivated(KoGamutMaskSP mask)

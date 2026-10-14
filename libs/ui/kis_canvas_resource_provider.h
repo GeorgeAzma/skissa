@@ -205,6 +205,8 @@ Q_SIGNALS:
     void sigPatternChanged(KoPatternSP);
     void sigNodeChanged(const KisNodeSP);
     void sigFGColorUsed(const KoColor&);
+    /// After every stroke, with the foreground color it painted in (sigFGColorUsed only follows a change)
+    void sigFGColorPainted(const KoColor&);
     void sigOnScreenResolutionChanged(qreal scaleX, qreal scaleY);
     void sigEffectiveCompositeOpChanged();
     void sigOpacityChanged(qreal);

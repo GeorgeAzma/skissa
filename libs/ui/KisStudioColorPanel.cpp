@@ -39,11 +39,13 @@
 #include <klocalizedstring.h>
 
 #include "KisStudioGlass.h"
+#include "KisDocument.h"
 #include "KisViewManager.h"
+#include "kis_canvas_resource_provider.h"
+#include <KisUniqueColorSet.h>
+#include <KoCompositeOpRegistry.h>
 #include "canvas/kis_canvas2.h"
 #include "kis_config.h"
-#include "kis_favorite_resource_manager.h"
-#include "kis_paintop_box.h"
 #include <KisModernStyle.h>
 
 namespace {
@@ -1023,7 +1025,8 @@ private:
 struct KisStudioColorPanel::Private
 {
     QPointer<KoCanvasBase> canvas;
-    QPointer<KisFavoriteResourceManager> favorites;
+    /// The image whose colors the recent row shows (saved in its .kra)
+    QPointer<KisDocument> document;
     QList<QMetaObject::Connection> canvasConnections;
 
     OklchRing *ring {nullptr};
@@ -1153,9 +1156,9 @@ struct KisStudioColorPanel::Private
     void updateRecent()
     {
         QVector<QColor> colors;
-        if (favorites) {
-            for (int i = 0; i < favorites->recentColorsTotal() && colors.size() < 12; i++) {
-                colors << favorites->recentColorAt(i).toQColor();
+        if (KisUniqueColorSet *history = document ? document->colorHistoryModel() : nullptr) {
+            for (int i = 0; i < history->size() && colors.size() < 12; i++) {
+                colors << history->color(i).toQColor();
             }
         }
         recentRow->setColors(colors);
@@ -1213,7 +1216,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->currentRow->setToolTip(i18nc("@info:tooltip", "Current and previous color"));
     row->addWidget(d->currentRow);
     d->recentRow = new Swatches(16, contents);
-    d->recentRow->setToolTip(i18nc("@info:tooltip", "Recent colors"));
+    d->recentRow->setToolTip(i18nc("@info:tooltip", "Colors in this image"));
     row->addWidget(d->recentRow, 1, Qt::AlignVCenter);
     d->styleButton = new QToolButton(contents);
     d->styleButton->setAutoRaise(true);
@@ -1332,8 +1335,9 @@ KisStudioColorPanel::KisStudioColorPanel()
         if (index == 1 && d->previous) d->setColor(*d->previous);
     };
     d->recentRow->picked = [this](int index) {
-        if (d->favorites && index < d->favorites->recentColorsTotal()) {
-            d->setColor(d->favorites->recentColorAt(index));
+        KisUniqueColorSet *history = d->document ? d->document->colorHistoryModel() : nullptr;
+        if (history && index < history->size()) {
+            d->setColor(history->color(index));
         }
     };
     connect(d->hex, &QLineEdit::editingFinished, this, [this]() {
@@ -1398,12 +1402,21 @@ void KisStudioColorPanel::setCanvas(KoCanvasBase *canvas)
     d->showColor(canvas->resourceManager()->foregroundColor());
 
     auto *kisCanvas = dynamic_cast<KisCanvas2 *>(canvas);
-    if (kisCanvas && kisCanvas->viewManager() && kisCanvas->viewManager()->paintOpBox()) {
-        d->favorites = kisCanvas->viewManager()->paintOpBox()->favoriteResourcesManager();
-        if (d->favorites) {
-            d->canvasConnections << connect(d->favorites, &KisFavoriteResourceManager::setSelectedColor, this, [this]() { d->updateRecent(); });
-            d->canvasConnections << connect(d->favorites, &KisFavoriteResourceManager::updatePalettes, this, [this]() { d->updateRecent(); });
-        }
+    // the colors painted in this image, newest first: Krita keeps them with the image
+    d->document = kisCanvas && kisCanvas->imageView() ? kisCanvas->imageView()->document() : nullptr;
+    KisUniqueColorSet *history = d->document ? d->document->colorHistoryModel() : nullptr;
+    if (history && kisCanvas->viewManager()) {
+        auto changed = [this]() { d->updateRecent(); };
+        d->canvasConnections << connect(history, &KisUniqueColorSet::sigReset, this, changed);
+        d->canvasConnections << connect(history, &KisUniqueColorSet::sigColorAdded, this, changed);
+        d->canvasConnections << connect(history, &KisUniqueColorSet::sigColorMoved, this, changed);
+        d->canvasConnections << connect(history, &KisUniqueColorSet::sigColorRemoved, this, changed);
+        KisCanvasResourceProvider *provider = kisCanvas->viewManager()->canvasResourceProvider();
+        d->canvasConnections << connect(provider, &KisCanvasResourceProvider::sigFGColorPainted, this, [this, provider](const KoColor &color) {
+            // erasing doesn't use the color
+            if (!d->document || provider->eraserMode() || provider->currentCompositeOp() == COMPOSITE_ERASE) return;
+            d->document->colorHistoryModel()->addColor(color);
+        });
     }
     d->updateRecent();
 }
@@ -1415,7 +1428,7 @@ void KisStudioColorPanel::unsetCanvas()
     }
     d->canvasConnections.clear();
     d->canvas = nullptr;
-    d->favorites = nullptr;
+    d->document = nullptr;
     setEnabled(false);
 }
 
