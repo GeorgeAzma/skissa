@@ -15,6 +15,8 @@
 #include <cmath>
 #include <KisModernStyle.h>
 
+#include "widgets/KisStudioInlineEdit.h"
+
 namespace {
 
 constexpr int iconSize = 20;
@@ -202,28 +204,14 @@ void KisStudioScrubber::endDrag()
 
 void KisStudioScrubber::mouseDoubleClickEvent(QMouseEvent *)
 {
-    if (!m_editor) {
-        m_editor = new QLineEdit(this);
-        m_editor->setFrame(false);
-        m_editor->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        connect(m_editor, &QLineEdit::editingFinished, this, [this]() {
-            // Hiding the editor drops its focus, which emits editingFinished a second time
-            if (m_editor->isHidden()) return;
-            bool ok = false;
-            const qreal typed = QString(m_editor->text()).remove(QLatin1Char('%')).trimmed().toDouble(&ok);
-            m_editor->hide();
-            if (ok) {
-                commit(typed);
-            } else {
-                update();
-            }
-        });
-    }
-    m_editor->setGeometry(8 + iconSize + 4, 3, width() - iconSize - 14, height() - 6);
-    m_editor->setText(text().remove(QLatin1Char('%')));
-    m_editor->show();
-    m_editor->selectAll();
-    m_editor->setFocus();
+    // typed where the number is written
+    const QString shown = text().remove(QLatin1Char('%'));
+    const QRect at(8 + iconSize + 6, 0, fontMetrics().horizontalAdvance(text()), height());
+    m_editor = KisStudioInlineEdit::open(this, at, shown, Qt::AlignLeft, font(), [this](const QString &typed) {
+        bool ok = false;
+        const qreal value = QString(typed).remove(QLatin1Char('%')).trimmed().toDouble(&ok);
+        if (ok) commit(value);
+    });
     update();
 }
 

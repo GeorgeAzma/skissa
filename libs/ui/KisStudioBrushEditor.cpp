@@ -6,6 +6,7 @@
 #include "KisStudioBrushEditor.h"
 
 #include <QAction>
+#include <QCursor>
 
 #include <algorithm>
 
@@ -455,7 +456,23 @@ void KisStudioBrushEditor::showPart(int part)
             connect(bar, &KisStudioBarButtons::sigItemsChanged, row, showPinned);
         }
         connect(row, &KisStudioValueRow::pinClicked, this, [this, key]() { KisStudioBarButtons::toggle(d->mainWindow, key); });
-        connect(row, &KisStudioValueRow::pulledOut, this, [row, key]() { KisStudioBarButtons::dragItem(key, row); });
+        // an effect the brush can go without (Rotation, Scatter) comes off by its cross, or pulled off the editor
+        const std::optional<KisPaintOpOption::RowValue> rowValue = option->rowValue();
+        const bool removable = option->isCheckable() && rowValue && !rowValue->appliesUnchecked;
+        row->setRemovable(removable);
+        connect(row, &KisStudioValueRow::removeClicked, this, [target]() {
+            if (target) target->setChecked(false);
+        });
+        connect(row, &KisStudioValueRow::pulledOut, this, [this, row, key, target, removable]() {
+            const Qt::DropAction done = KisStudioBarButtons::dragItem(key, row);
+            // dropped on the bar: pinned; let go over the editor, or the drag cancelled: nothing
+            if (done != Qt::IgnoreAction || !removable || !target || KisModernStyle::pointerHeld()) return;
+            if (frameGeometry().contains(QCursor::pos())) return;
+            target->setChecked(false);
+        });
+        connect(row, &KisStudioValueRow::typingStarted, this, [this, target]() {
+            if (d->pen && d->pen->option() == target) d->pen->close();
+        });
         connect(row, &KisStudioValueRow::clicked, this, [this, row, target]() {
             if (!target || target->penInputs().isEmpty()) return;
             const bool same = d->pen && d->pen->option() == target;

@@ -503,7 +503,7 @@ void KisStudioBarButtons::toggle(KisMainWindow *mainWindow, const QString &key)
     bar->setItems(items);
 }
 
-void KisStudioBarButtons::dragItem(const QString &key, QWidget *source)
+Qt::DropAction KisStudioBarButtons::dragItem(const QString &key, QWidget *source)
 {
     auto *drag = new QDrag(source);
     auto *mime = new QMimeData();
@@ -511,7 +511,7 @@ void KisStudioBarButtons::dragItem(const QString &key, QWidget *source)
     drag->setMimeData(mime);
     drag->setPixmap(source->grab());
     drag->setHotSpot(QPoint(source->width() / 2, source->height() / 2));
-    drag->exec(Qt::CopyAction);
+    return drag->exec(Qt::CopyAction);
 }
 
 void KisStudioBarButtons::startDrag(int index, QWidget *source, const QPixmap &pixmap)

@@ -251,6 +251,7 @@ set(kritaui_LIB_SRCS
     widgets/KisStudioPopup.cpp
     widgets/KisStudioValueRow.cpp
     widgets/KisStudioChips.cpp
+    widgets/KisStudioInlineEdit.cpp
     widgets/KisCurvePresetStrip.cpp
     widgets/KisCompositeOpListConnectionHelper.cpp
     widgets/kis_cmb_contour.cpp

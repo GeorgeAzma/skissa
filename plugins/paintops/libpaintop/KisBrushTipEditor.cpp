@@ -35,6 +35,7 @@
 #include <kis_signals_blocker.h>
 #include <widgets/KisCurvePresetStrip.h>
 #include <widgets/KisStudioChips.h>
+#include <widgets/KisStudioInlineEdit.h>
 #include <widgets/KisStudioPicker.h>
 #include <widgets/KisStudioPopup.h>
 #include <widgets/KisStudioValueRow.h>
@@ -589,7 +590,7 @@ public:
                 painter.setBrush(Qt::NoBrush);
                 const QRectF graph = chip.rect.adjusted(8, 6, -8, -6);
                 painter.drawPath(falloffPath(graph, m_auto->type(), m_auto->curveString(), m_auto->horizontalFade()));
-            } else {
+            } else if (chip.part != m_editing) {
                 painter.setPen(ink);
                 painter.drawText(chip.rect, Qt::AlignCenter, chip.text);
             }
@@ -844,11 +845,6 @@ private:
     /// Types \p chip's value over it
     void type(const Chip &chip)
     {
-        auto *editor = new QLineEdit(this);
-        editor->setFrame(false);
-        editor->setAlignment(Qt::AlignCenter);
-        editor->setProperty(KisModernStyle::quietFieldProperty, true);
-        editor->setGeometry(chip.rect.adjusted(0, 0, 20, 0).toRect());
         const QSizeF size = tipSize();
         qreal value = 0;
         switch (chip.part) {
@@ -860,17 +856,13 @@ private:
         case ChipPoints: value = m_auto->spikes(); break;
         default: break;
         }
-        editor->setText(QLocale().toString(value, 'f', 0));
-        editor->selectAll();
-        editor->show();
-        editor->setFocus();
         const Part part = chip.part;
-        connect(editor, &QLineEdit::editingFinished, this, [this, editor, part]() {
-            if (editor->isHidden()) return;
+        m_editing = part;
+        // typed where it is written, in the chip's own text
+        QLineEdit *editor = KisStudioInlineEdit::open(this, chip.rect.toRect(), QLocale().toString(value, 'f', 0), Qt::AlignHCenter,
+                                                      chipFont(), [this, part](const QString &text) {
             bool ok = false;
-            const qreal typed = QLocale().toDouble(editor->text().remove(QLatin1Char('%')).remove(QStringLiteral("°")).trimmed(), &ok);
-            editor->hide();
-            editor->deleteLater();
+            const qreal typed = QLocale().toDouble(QString(text).remove(QLatin1Char('%')).remove(QStringLiteral("°")).trimmed(), &ok);
             if (!ok) return;
             m_pressSize = tipSize();
             m_pressAlong = along();
@@ -903,6 +895,11 @@ private:
             }
             fit(true);
         });
+        connect(editor, &QObject::destroyed, this, [this]() {
+            m_editing = None;
+            update();
+        });
+        update();
     }
 
     void showEdge();
@@ -922,6 +919,8 @@ private:
     mutable QSize m_dabSize;
 
     Part m_hover {None};
+    /// The chip being typed into, whose text the editor stands in for
+    Part m_editing {None};
     Part m_dragPart {None};
     bool m_dragging {false};
     bool m_moved {false};

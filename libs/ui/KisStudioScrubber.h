@@ -6,6 +6,7 @@
 #ifndef KISSTUDIOSCRUBBER_H
 #define KISSTUDIOSCRUBBER_H
 
+#include <QPointer>
 #include <QWidget>
 #include <QtNumeric>
 
@@ -69,7 +70,7 @@ private:
     bool m_moved {false};
     /// Shift is held: the drag moves at a quarter of the speed
     bool m_fine {false};
-    QLineEdit *m_editor {nullptr};
+    QPointer<QLineEdit> m_editor;
 };
 
 #endif // KISSTUDIOSCRUBBER_H

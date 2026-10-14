@@ -37,8 +37,8 @@ public:
     static bool has(KisMainWindow *mainWindow, const QString &key);
     /// Puts \p key at the end of the bar, or takes it off
     static void toggle(KisMainWindow *mainWindow, const QString &key);
-    /// Starts dragging \p key from \p source, to be dropped on a bar
-    static void dragItem(const QString &key, QWidget *source);
+    /// Drags \p key from \p source, to be dropped on a bar (or the Controls panel); returns what the drop did
+    static Qt::DropAction dragItem(const QString &key, QWidget *source);
 
 Q_SIGNALS:
     void sigItemsChanged();

@@ -54,6 +54,9 @@ public:
     {
         KisStudioBrushEditor::bindRow(this, option, KisStudioBrushEditor::brushSettings(mainWindow));
         const QPointer<KisPaintOpOption> target(option);
+        connect(this, &KisStudioValueRow::typingStarted, this, [this]() {
+            if (m_pen) m_pen->close();
+        });
         connect(this, &KisStudioValueRow::clicked, this, [this, mainWindow, target]() {
             if (!target || target->penInputs().isEmpty()) return;
             if (m_pen) {

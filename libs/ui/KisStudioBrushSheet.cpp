@@ -584,6 +584,9 @@ void KisStudioBrushSheet::rebuild()
                 row->setPinnable(true, KisStudioBarButtons::has(d->mainWindow, key));
             });
             connect(row, &KisStudioValueRow::pulledOut, this, [row, key]() { KisStudioBarButtons::dragItem(key, row); });
+            connect(row, &KisStudioValueRow::typingStarted, this, [this, target]() {
+                if (d->pen && d->pen->option() == target) d->pen->close();
+            });
             connect(row, &KisStudioValueRow::clicked, this, [this, row, target]() {
                 if (!target || target->penInputs().isEmpty()) return;
                 const bool same = d->pen && d->pen->option() == target;

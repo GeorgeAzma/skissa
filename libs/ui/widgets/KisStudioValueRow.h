@@ -57,6 +57,8 @@ public:
     void setDraggable(bool draggable);
     /// Shows a pin under the pointer (filled while \p pinned), and lets the row be pulled out upwards or downwards
     void setPinnable(bool pinnable, bool pinned);
+    /// A cross under the pointer that takes the row away (removeClicked())
+    void setRemovable(bool removable);
     /// The pin only under the pointer, even when pinned (where being pinned is plain, as on the bar)
     void setPinOnHoverOnly(bool onHoverOnly) { m_pinOnHoverOnly = onHoverOnly; }
 
@@ -69,6 +71,9 @@ Q_SIGNALS:
     /// Pressed and released without dragging
     void clicked();
     void pinClicked();
+    void removeClicked();
+    /// Its value is about to be typed (a double click): what its first click opened can go
+    void typingStarted();
     /// Pulled up or down out of its place, to be dropped elsewhere (the top bar)
     void pulledOut();
 
@@ -101,6 +106,12 @@ private:
     bool m_pinOnHoverOnly {false};
 
     QRectF pinRect() const;
+    QRectF removeRect() const;
+    bool showsPin() const;
+    /// Where the name and the value are written, between the row's edges and what is drawn at its end
+    QRectF textArea() const;
+    bool m_removable {false};
+    bool m_editing {false};
 
     bool m_pressed {false};
     bool m_dragging {false};
@@ -108,7 +119,6 @@ private:
     int m_pressX {0};
     int m_pressY {0};
     qreal m_pressValue {0.0};
-    QPointer<QLineEdit> m_editor;
 };
 
 #endif // KISSTUDIOVALUEROW_H

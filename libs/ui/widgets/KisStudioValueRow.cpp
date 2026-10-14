@@ -16,6 +16,8 @@
 
 #include <KisModernStyle.h>
 #include <kis_icon_utils.h>
+
+#include "KisStudioInlineEdit.h"
 #include <kis_cubic_curve.h>
 
 namespace {
@@ -115,6 +117,32 @@ QRectF KisStudioValueRow::pinRect() const
     return QRectF(width() - KisModernStyle::space2 - 16, (height() - 16) / 2.0, 16, 16);
 }
 
+void KisStudioValueRow::setRemovable(bool removable)
+{
+    m_removable = removable;
+    update();
+}
+
+bool KisStudioValueRow::showsPin() const
+{
+    return m_pinnable && ((m_pinned && !m_pinOnHoverOnly) || underMouse());
+}
+
+QRectF KisStudioValueRow::removeRect() const
+{
+    const qreal right = m_pinnable ? pinRect().left() - KisModernStyle::space1 : width() - KisModernStyle::space2;
+    return QRectF(right - 16, (height() - 16) / 2.0, 16, 16);
+}
+
+QRectF KisStudioValueRow::textArea() const
+{
+    QRectF content = QRectF(rect()).adjusted(KisModernStyle::space3, 0, -KisModernStyle::space3, 0);
+    if (showsPin()) content.setRight(pinRect().left() - KisModernStyle::space2);
+    if (m_removable && underMouse()) content.setRight(removeRect().left() - KisModernStyle::space2);
+    if (!m_penCurve.isEmpty()) content.setRight(content.right() - glyphWidth - KisModernStyle::space2);
+    return content;
+}
+
 void KisStudioValueRow::setInactive(bool inactive)
 {
     if (inactive == m_inactive) return;
@@ -197,14 +225,20 @@ void KisStudioValueRow::paintEvent(QPaintEvent *)
         painter.drawPath(shape);
     }
 
-    QRectF content = box.adjusted(KisModernStyle::space3, 0, -KisModernStyle::space3, 0);
-    if (m_pinnable && ((m_pinned && !m_pinOnHoverOnly) || underMouse())) {
+    if (showsPin()) {
         const QIcon pin = KisIconUtils::loadIcon(QStringLiteral("studio_pin"));
         pin.paint(&painter, pinRect().toRect(), Qt::AlignCenter, QIcon::Normal, m_pinned ? QIcon::On : QIcon::Off);
-        content.setRight(pinRect().left() - KisModernStyle::space2);
     }
+    if (m_removable && underMouse()) {
+        // a cross: off the list
+        const QRectF cross = removeRect().adjusted(4, 4, -4, -4);
+        painter.setPen(QPen(KisModernStyle::secondaryInk(ink), 1.5, Qt::SolidLine, Qt::RoundCap));
+        painter.drawLine(cross.topLeft(), cross.bottomRight());
+        painter.drawLine(cross.topRight(), cross.bottomLeft());
+    }
+    const QRectF content = textArea();
     if (!m_penCurve.isEmpty()) {
-        const QRectF glyph(content.right() - glyphWidth, content.center().y() - glyphHeight / 2.0, glyphWidth, glyphHeight);
+        const QRectF glyph(content.right() + KisModernStyle::space2, content.center().y() - glyphHeight / 2.0, glyphWidth, glyphHeight);
         const KisCubicCurve curve(m_penCurve);
         QPainterPath path;
         for (int i = 0; i <= 12; i++) {
@@ -216,12 +250,12 @@ void KisStudioValueRow::paintEvent(QPaintEvent *)
         painter.setPen(QPen(ink, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         painter.setBrush(Qt::NoBrush);
         painter.drawPath(path);
-        content.setRight(glyph.left() - KisModernStyle::space2);
     }
 
-    if (m_editor && m_editor->isVisible()) return;
     painter.setPen(m_inactive ? KisModernStyle::secondaryInk(ink) : ink);
     painter.drawText(content, Qt::AlignVCenter | Qt::AlignLeft, m_name);
+    // while it is typed, the editor stands where the value is
+    if (m_editing) return;
     painter.setPen(KisModernStyle::secondaryInk(ink));
     painter.drawText(content, Qt::AlignVCenter | Qt::AlignRight, text());
 }
@@ -232,8 +266,13 @@ void KisStudioValueRow::mousePressEvent(QMouseEvent *event)
         QWidget::mousePressEvent(event);
         return;
     }
-    if (m_pinnable && ((m_pinned && !m_pinOnHoverOnly) || underMouse()) && pinRect().adjusted(-4, -6, 4, 6).contains(event->pos())) {
+    if (showsPin() && pinRect().adjusted(-4, -6, 4, 6).contains(event->pos())) {
         Q_EMIT pinClicked();
+        event->accept();
+        return;
+    }
+    if (m_removable && underMouse() && removeRect().adjusted(-3, -6, 3, 6).contains(event->pos())) {
+        Q_EMIT removeClicked();
         event->accept();
         return;
     }
@@ -304,28 +343,24 @@ void KisStudioValueRow::mouseDoubleClickEvent(QMouseEvent *event)
         QWidget::mouseDoubleClickEvent(event);
         return;
     }
-    if (!m_editor) {
-        m_editor = new QLineEdit(this);
-        m_editor->setFrame(false);
-        m_editor->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        m_editor->setProperty(KisModernStyle::quietFieldProperty, true);
-        connect(m_editor, &QLineEdit::editingFinished, this, [this]() {
-            // hiding it drops its focus, which finishes the editing a second time
-            if (m_editor->isHidden()) return;
-            QString typed = m_editor->text();
-            if (!m_range.suffix.trimmed().isEmpty()) typed.remove(m_range.suffix.trimmed());
-            bool ok = false;
-            const qreal value = QLocale().toDouble(typed.trimmed(), &ok);
-            m_editor->hide();
-            if (ok) change(value);
-            update();
-        });
-    }
-    m_editor->setGeometry(rect().adjusted(width() / 2, 3, -KisModernStyle::space2, -3));
-    m_editor->setText(QLocale().toString(m_value, 'f', m_range.decimals));
-    m_editor->show();
-    m_editor->selectAll();
-    m_editor->setFocus();
+    Q_EMIT typingStarted();
+    // the number is typed where it is written, the unit left out
+    const QRectF content = textArea();
+    const QString shown = QLocale().toString(m_value, 'f', m_range.size && m_value >= 10.0 ? 0 : m_range.decimals);
+    const int width = fontMetrics().horizontalAdvance(text());
+    const QRect at(QPointF(content.right() - width, content.top()).toPoint(), QSize(width, int(content.height())));
+    m_editing = true;
+    QLineEdit *editor = KisStudioInlineEdit::open(this, at, shown, Qt::AlignRight, font(), [this](const QString &typed) {
+        QString number = typed;
+        if (!m_range.suffix.trimmed().isEmpty()) number.remove(m_range.suffix.trimmed());
+        bool ok = false;
+        const qreal value = QLocale().toDouble(number.trimmed(), &ok);
+        if (ok) change(value);
+    });
+    connect(editor, &QObject::destroyed, this, [this]() {
+        m_editing = false;
+        update();
+    });
     update();
     event->accept();
 }
