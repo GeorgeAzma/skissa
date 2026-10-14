@@ -96,6 +96,8 @@ public:
      * and kritarc is synced once the changes stop.
      */
     bool setValue(const QString &id, const QVariant &value);
+    /// Writes several settings as one step of the undo history (a theme preset)
+    void setValues(const QVector<QPair<QString, QVariant>> &values);
     void reset(const QString &id);
 
     /// Converts \p value (from a file, JSON or text) to the setting's type; invalid if it isn't an allowed value
@@ -122,6 +124,8 @@ public:
     bool canRedoChange() const;
     QString redoName() const;
     bool redoChange();
+    /// Whether an undo or redo is writing its values back
+    bool replaying() const;
 
     /// Sends any pending change notification and syncs kritarc right away
     void flush();

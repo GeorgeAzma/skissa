@@ -900,7 +900,20 @@ QVector<CardDef> makeCards()
                 tiles << Tiles::Tile{preset.name, [look](QPainter &painter, const QRectF &r) { paintScheme(painter, r, look); }};
             }
             auto *picker = new Tiles(tiles, QSize(96, 56), b.card);
-            picker->picked = [presets](int i) { KisStudioTheme::apply(presets[i].params); };
+            // one step of the undo history, through the registry
+            picker->picked = [presets](int i) {
+                const KisStudioTheme::Params p = presets[i].params;
+                QVector<QPair<QString, QVariant>> values = {{QStringLiteral("[StudioTheme] Lightness"), p.lightness},
+                                                            {QStringLiteral("[StudioTheme] Tint"), p.tint},
+                                                            {QStringLiteral("[StudioTheme] TintAmount"), p.tintAmount},
+                                                            {QStringLiteral("[StudioTheme] UseAccent"), p.accent.isValid()}};
+                if (p.accent.isValid()) values << qMakePair(QStringLiteral("[StudioTheme] Accent"), QVariant(p.accent));
+                R::instance()->setValues(values);
+                // the same values as now, from a shipped theme: the generated one in its place
+                if (R::instance()->value(QStringLiteral("[theme] Theme")).toString() != KisStudioTheme::schemeName()) {
+                    KisStudioTheme::apply(KisStudioTheme::current());
+                }
+            };
             b.follow([picker, presets]() {
                 int current = -1;
                 if (R::instance()->value(QStringLiteral("[theme] Theme")).toString() == KisStudioTheme::schemeName()) {
@@ -2693,35 +2706,22 @@ struct KisStudioSettings::Private
                  [this](const QVector<KisSettingsTransfer::Change> &chosen, bool) { applyHere(chosen, QByteArray()); });
     }
 
-    void restoreKrita()
-    {
-        QString error;
-        if (KisSettingsTransfer::restoreKrita(&error)) {
-            q->say(i18nc("@info", "Krita's settings are back as they were."));
-        } else {
-            q->say(error);
-        }
-    }
-
     void moreMenu(QWidget *anchor)
     {
         QMenu menu(q);
         QAction *exportAction = menu.addAction(i18nc("@action:inmenu", "Export settings"));
         QAction *importAction = menu.addAction(i18nc("@action:inmenu", "Import settings"));
         QAction *from = nullptr;
-        QAction *restore = nullptr;
-        // Krita's settings are only read here; Restore puts back a copy of them, when one was kept
+        // Krita's settings are only ever read
         if (!KisSettingsTransfer::kritaSettingsPath().isEmpty()) {
             menu.addSeparator();
             from = menu.addAction(i18nc("@action:inmenu", "Take Krita's settings"));
-            if (KisSettingsTransfer::kritaBackupTime().isValid()) restore = menu.addAction(i18nc("@action:inmenu", "Restore Krita's settings"));
         }
         QAction *chosen = menu.exec(anchor->mapToGlobal(QPoint(0, anchor->height())));
         if (!chosen) return;
         if (chosen == exportAction) exportFile();
         else if (chosen == importAction) importFile();
         else if (chosen == from) fromKrita();
-        else if (chosen == restore) restoreKrita();
     }
 };
 

@@ -10,6 +10,7 @@
 #include <cmath>
 
 #include <QFile>
+#include <QTimer>
 
 #include <KConfig>
 #include <KConfigGroup>
@@ -219,11 +220,23 @@ void apply(const Params &params)
     writeScheme(params);
     // The scheme file may be new, so the list of themes has to be scanned again
     KisSettingsRegistry::instance()->refreshChoices();
+    // through the registry, so the switch to the generated theme is undone with the change that made it;
+    // an undo puts back the theme it recorded
+    if (!KisSettingsRegistry::instance()->replaying()) {
+        KisSettingsRegistry::instance()->setValue(QStringLiteral("[theme] Theme"), schemeName());
+    }
     // Bumping the revision makes the window reload the scheme even when its name is unchanged
     KConfigGroup theme = KSharedConfig::openConfig()->group("theme");
-    theme.writeEntry("Theme", schemeName());
     theme.writeEntry("Revision", theme.readEntry("Revision", 0) + 1);
-    KisConfigNotifier::instance()->notifyConfigChanged();
+    // once for all the values a preset changes at a time
+    static bool notifying = false;
+    if (!notifying) {
+        notifying = true;
+        QTimer::singleShot(0, []() {
+            notifying = false;
+            KisConfigNotifier::instance()->notifyConfigChanged();
+        });
+    }
 }
 
 QString schemeName()

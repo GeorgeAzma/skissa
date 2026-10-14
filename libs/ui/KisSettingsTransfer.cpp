@@ -25,12 +25,6 @@
 #include "KisSettingsRegistry.h"
 #include <KisProfile.h>
 
-#ifdef Q_OS_WIN
-#include <windows.h>
-#include <tlhelp32.h>
-#include <wchar.h>
-#endif
-
 namespace KisSettingsTransfer
 {
 
@@ -39,7 +33,6 @@ namespace {
 const QString formatName = QStringLiteral("krita-settings");
 /// The user's own sections and Quick (see KisStudioSettings), transferred along with the settings
 const QString sectionsKey = QStringLiteral("StudioSettingsSections");
-const QString backupSuffix = QStringLiteral(".before-krita-dev");
 
 using Setting = KisSettingsRegistry::Setting;
 using Kind = KisSettingsRegistry::Kind;
@@ -102,11 +95,6 @@ bool fail(QString *error, const QString &message)
 QString notFound()
 {
     return i18nc("@info", "Krita's settings weren't found.");
-}
-
-QString closeKritaFirst()
-{
-    return i18nc("@info", "Close Krita first: it would write its own settings over these.");
 }
 
 } // namespace
@@ -209,47 +197,6 @@ QString kritaSettingsPath()
     return QFileInfo::exists(path) ? path : QString();
 }
 
-bool kritaRunning()
-{
-#ifdef Q_OS_WIN
-    const QString self = samePath(QCoreApplication::applicationFilePath());
-    const DWORD ownId = GetCurrentProcessId();
-    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snapshot == INVALID_HANDLE_VALUE) return true; // can't tell, so assume it is
-    bool running = false;
-    PROCESSENTRY32W entry;
-    entry.dwSize = sizeof(entry);
-    for (BOOL more = Process32FirstW(snapshot, &entry); more && !running; more = Process32NextW(snapshot, &entry)) {
-        if (entry.th32ProcessID == ownId || _wcsicmp(entry.szExeFile, L"krita.exe") != 0) continue;
-        // Another krita.exe counts unless it is this same executable running twice
-        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID);
-        if (!process) {
-            running = true;
-            break;
-        }
-        wchar_t buffer[MAX_PATH * 2];
-        DWORD size = DWORD(sizeof(buffer) / sizeof(buffer[0]));
-        if (!QueryFullProcessImageNameW(process, 0, buffer, &size) || samePath(QString::fromWCharArray(buffer, int(size))) != self) {
-            running = true;
-        }
-        CloseHandle(process);
-    }
-    CloseHandle(snapshot);
-    return running;
-#elif defined(Q_OS_LINUX)
-    const QString self = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
-    const QString ownId = QString::number(QCoreApplication::applicationPid());
-    Q_FOREACH (const QString &pid, QDir(QStringLiteral("/proc")).entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-        if (pid == ownId) continue;
-        const QString exe = QFileInfo(QStringLiteral("/proc/%1/exe").arg(pid)).canonicalFilePath();
-        if (QFileInfo(exe).fileName().startsWith(QLatin1String("krita")) && exe != self) return true;
-    }
-    return false;
-#else
-    return false;
-#endif
-}
-
 Plan planFromKrita()
 {
     const QString path = kritaSettingsPath();
@@ -260,32 +207,6 @@ Plan planFromKrita()
     }
     KConfig krita(path, KConfig::SimpleConfig);
     return plan(&krita);
-}
-
-QDateTime kritaBackupTime()
-{
-    const QString path = kritaSettingsPath();
-    if (path.isEmpty()) return QDateTime();
-    const QFileInfo backup(path + backupSuffix);
-    return backup.exists() ? backup.lastModified() : QDateTime();
-}
-
-bool restoreKrita(QString *error)
-{
-    const QString path = kritaSettingsPath();
-    if (path.isEmpty()) return fail(error, notFound());
-    if (kritaRunning()) return fail(error, closeKritaFirst());
-    const QString backup = path + backupSuffix;
-    bool ok = false;
-    const QByteArray kept = readAll(backup, &ok);
-    if (!ok || kept.isEmpty()) return fail(error, i18nc("@info", "There is no copy of Krita's settings to go back to."));
-    // Keep the current file in case it is wanted after all
-    const QByteArray current = readAll(path, &ok);
-    QString why;
-    if (ok && !writeFile(path + QStringLiteral(".krita-dev-replaced"), current, &why)) return fail(error, why);
-    if (!writeFile(path, kept, &why)) return fail(error, why);
-    QFile::remove(backup);
-    return true;
 }
 
 } // namespace KisSettingsTransfer

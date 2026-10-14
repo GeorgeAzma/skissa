@@ -48,14 +48,8 @@ KRITAUI_EXPORT Plan planImport(const QByteArray &data);
 
 /// The regular Krita installation's kritarc, or empty if there is none or it is this instance's own
 KRITAUI_EXPORT QString kritaSettingsPath();
-/// Whether another Krita process is running
-KRITAUI_EXPORT bool kritaRunning();
 /// The changes taking Krita's settings would make here
 KRITAUI_EXPORT Plan planFromKrita();
-/// When a backup of Krita's original kritarc was made; invalid if there is none
-KRITAUI_EXPORT QDateTime kritaBackupTime();
-/// Restores Krita's kritarc from that backup
-KRITAUI_EXPORT bool restoreKrita(QString *error);
 
 } // namespace KisSettingsTransfer
 

@@ -555,6 +555,8 @@ struct KisKeysPage::Private
         QString group;
         QString search;   ///< lowercase search text: name, id, group and the names other apps use
         QList<QKeySequence> current;
+        /// Changed on this page: only these are written, so keys set elsewhere meanwhile stay
+        bool edited {false};
         bool registered {false};
         QTreeWidgetItem *item {nullptr};
     };
@@ -993,11 +995,20 @@ struct KisKeysPage::Private
             for (int i = 0; i < commands.size(); i++) {
                 QList<QKeySequence> &current = commands[i].current;
                 const int before = current.size();
-                current.erase(std::remove_if(current.begin(), current.end(), [chord](const QKeySequence &other) { return chordOf(other) == chord; }),
-                              current.end());
-                if (i != row && current.size() < before) takenFrom << commands[i].title;
+                for (int k = current.size() - 1; k >= 0; k--) {
+                    // the edited place itself is replaced below; one before it moves it up
+                    if (i == row && k == index) continue;
+                    if (chordOf(current[k]) != chord) continue;
+                    current.removeAt(k);
+                    if (i == row && k < index) index--;
+                }
+                if (current.size() < before) {
+                    commands[i].edited = true;
+                    if (i != row) takenFrom << commands[i].title;
+                }
             }
         }
+        command.edited = true;
         if (index >= 0 && index < command.current.size()) {
             if (sequence.isEmpty()) command.current.removeAt(index);
             else command.current[index] = sequence;
@@ -1182,6 +1193,12 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     KisInputProfile *current = KisInputProfileManager::instance()->currentProfile();
     d->savedProfile = current ? current->name() : QString();
     d->profile = d->savedProfile;
+    // the profiles are made again when a window opens (or this page applies): what the holds point to is gone
+    connect(KisInputProfileManager::instance(), &KisInputProfileManager::currentProfileChanged, this, [this]() {
+        d->stopRecording();
+        d->collectHolds();
+        d->rebuildHoldItems();
+    });
 
     // Wide enough for the keyboard; the settings panel grows to fit
     setMinimumWidth(940);
@@ -1418,7 +1435,10 @@ KisKeysPage::KisKeysPage(QWidget *parent)
         int changes = 0;
         for (Private::Command &command : d->commands) {
             const QList<QKeySequence> defaults = d->defaultsOf(command, name);
-            if (command.current != defaults) changes++;
+            if (command.current != defaults) {
+                changes++;
+                command.edited = true;
+            }
             command.current = defaults;
         }
         d->collectHolds();
@@ -1551,6 +1571,7 @@ bool KisKeysPage::eventFilter(QObject *watched, QEvent *event)
                 d->stopRecording();
                 if (row >= 0) {
                     d->commands[row].current = d->defaultsOf(d->commands[row], d->scheme);
+                    d->commands[row].edited = true;
                 } else {
                     Private::resetHold(d->holds[-1 - row]);
                 }
@@ -1596,6 +1617,7 @@ void KisKeysPage::apply()
     // Store only the shortcuts that differ from the scheme
     KConfigGroup custom(KSharedConfig::openConfig(KisProfile::configFile(QStringLiteral("kritashortcutsrc"))), QStringLiteral("Shortcuts"));
     for (const Private::Command &command : d->commands) {
+        if (!command.edited) continue;
         if (command.registered && command.current == d->defaultsOf(command, d->scheme)) {
             custom.deleteEntry(command.id);
         } else if (!command.registered && command.action && command.current == command.action->shortcuts()) {
@@ -1607,6 +1629,7 @@ void KisKeysPage::apply()
         if (command.action) command.action->setShortcuts(command.current);
     }
     custom.sync();
+    for (Private::Command &command : d->commands) command.edited = false;
     registry->settingsPageSaved();
 
     // Keys held on the canvas

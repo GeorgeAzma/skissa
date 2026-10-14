@@ -827,16 +827,28 @@ struct KisSettingsRegistry::Private
     QTimer notify;
     QTimer sync;
 
+    /// A setting another one's change wrote (a font with its switch): part of that change's step
+    struct Follower {
+        QString id;
+        QVariant before;
+        QVariant after;
+    };
     struct Change {
         QString id;
         QVariant before;
         QVariant after;
         QElapsedTimer made;
+        QVector<Follower> followers;
     };
     QVector<Change> undo;
     QVector<Change> redo;
     /// Set while undoing or redoing, so the write isn't recorded as a new change
     bool replaying {false};
+    /// How deep in writing settings: a write made while another is written follows it
+    int writing {0};
+    /// Inside setValues(): after the first, the writes follow it
+    bool batch {false};
+    bool batchStarted {false};
 };
 
 KisSettingsRegistry *KisSettingsRegistry::instance()
@@ -1053,18 +1065,24 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
     if (!v.isValid()) return false;
     const QVariant before = value(id);
     if (sameValue(*s, v, before)) return true;
-    if (!d->replaying) {
+    if (!d->replaying && (d->writing > 0 || (d->batch && d->batchStarted)) && !d->undo.isEmpty()) {
+        d->undo.last().followers << Private::Follower{id, before, v};
+    } else if (!d->replaying) {
+        if (d->batch) d->batchStarted = true;
         // Merge quick successive changes of one setting (a slider drag, typing) into one step
         if (!d->undo.isEmpty() && d->undo.last().id == id && d->undo.last().made.elapsed() < 1500) {
             d->undo.last().after = v;
         } else {
-            Private::Change change{id, before, v, QElapsedTimer()};
+            Private::Change change{id, before, v, QElapsedTimer(), {}};
             d->undo << change;
             if (d->undo.size() > 200) d->undo.removeFirst();
         }
         d->undo.last().made.restart();
         d->redo.clear();
+        // dragged there and back: no step at all
+        if (d->undo.last().followers.isEmpty() && sameValue(*s, d->undo.last().after, d->undo.last().before)) d->undo.removeLast();
     }
+    d->writing++;
     if (s->write) {
         s->write(v);
     } else {
@@ -1076,9 +1094,18 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
         d->sync.start();
     }
     if (s->written) s->written(v);
+    d->writing--;
     schedule();
     Q_EMIT valueChanged(id);
     return true;
+}
+
+void KisSettingsRegistry::setValues(const QVector<QPair<QString, QVariant>> &values)
+{
+    d->batch = true;
+    d->batchStarted = false;
+    for (const auto &value : values) setValue(value.first, value.second);
+    d->batch = false;
 }
 
 qint64 KisSettingsRegistry::undoAge() const
@@ -1097,11 +1124,19 @@ bool KisSettingsRegistry::undoChange()
     if (d->undo.isEmpty()) return false;
     Private::Change change = d->undo.takeLast();
     d->replaying = true;
-    setValue(change.id, change.before);
+    const bool done = setValue(change.id, change.before);
+    for (int i = change.followers.size() - 1; i >= 0; i--) setValue(change.followers[i].id, change.followers[i].before);
     d->replaying = false;
+    // a value that can't be gone back to (a choice since removed): on to the step before
+    if (!done) return undoChange();
     change.made.restart();
     d->redo << change;
     return true;
+}
+
+bool KisSettingsRegistry::replaying() const
+{
+    return d->replaying;
 }
 
 bool KisSettingsRegistry::canRedoChange() const
@@ -1121,6 +1156,7 @@ bool KisSettingsRegistry::redoChange()
     Private::Change change = d->redo.takeLast();
     d->replaying = true;
     setValue(change.id, change.after);
+    for (const Private::Follower &follower : change.followers) setValue(follower.id, follower.after);
     d->replaying = false;
     // A redone change counts as new when Undo weighs it against the document's steps
     change.made.restart();

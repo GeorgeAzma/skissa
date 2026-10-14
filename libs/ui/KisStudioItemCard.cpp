@@ -382,10 +382,30 @@ void KisStudioShortcuts::restore(QAction *action)
 QString KisStudioShortcuts::assign(KisMainWindow *mainWindow, QAction *action, const QKeySequence &sequence)
 {
     KConfigGroup group(KSharedConfig::openConfig(KisProfile::configFile(QStringLiteral("kritashortcutsrc"))), QStringLiteral("Shortcuts"));
+    // the recorded key replaces the first one; other keys the command has (Ctrl+Y beside Ctrl+Shift+Z) stay
+    QList<QKeySequence> keys = action->shortcuts();
+    if (sequence.isEmpty()) {
+        keys.clear();
+    } else {
+        keys.removeAll(sequence);
+        if (keys.isEmpty()) keys << sequence;
+        else keys[0] = sequence;
+    }
+    const QString name = action->objectName();
+    // every window has its own copy of each action
+    QList<KisMainWindow *> windows;
+    for (const QPointer<KisMainWindow> &window : KisPart::instance()->mainWindows()) {
+        if (window) windows << window;
+    }
+    if (!windows.contains(mainWindow)) windows << mainWindow;
     QString takenFrom;
-    if (!sequence.isEmpty()) {
-        Q_FOREACH (QAction *other, allActions(mainWindow)) {
-            if (other == action || !other->shortcuts().contains(sequence)) {
+    for (KisMainWindow *window : windows) {
+        Q_FOREACH (QAction *other, allActions(window)) {
+            if (other == action || (!name.isEmpty() && other->objectName() == name)) {
+                other->setShortcuts(keys);
+                continue;
+            }
+            if (sequence.isEmpty() || !other->shortcuts().contains(sequence)) {
                 continue;
             }
             QList<QKeySequence> remaining = other->shortcuts();
@@ -397,9 +417,9 @@ QString KisStudioShortcuts::assign(KisMainWindow *mainWindow, QAction *action, c
             takenFrom = plainText(other->text());
         }
     }
-    action->setShortcut(sequence);
-    if (!action->objectName().isEmpty()) {
-        group.writeEntry(action->objectName(), sequence.isEmpty() ? QStringLiteral("none") : sequence.toString(QKeySequence::PortableText));
+    action->setShortcuts(keys);
+    if (!name.isEmpty()) {
+        group.writeEntry(name, keys.isEmpty() ? QStringLiteral("none") : QKeySequence::listToString(keys));
     }
     group.sync();
     KisActionRegistry::instance()->loadCustomShortcuts();
