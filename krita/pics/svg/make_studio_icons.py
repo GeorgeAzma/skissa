@@ -253,6 +253,8 @@ ICONS = {
     'refresh': p('M20 12a8 8 0 0 1-14 5.3M4 12A8 8 0 0 1 18 6.7') + p('M18.2 3v3.9h-3.9M5.8 21v-3.9h3.9'),
     'undo': p('M9 14 4 9l5-5') + p('M4 9h10.5a5.5 5.5 0 0 1 0 11H11'),
     'filter': p('M3.5 4.5h17l-6.5 7.7v6.3l-4 2v-8.3Z'),
+    # two knobs on a strip: the settings the user collected
+    'controls': c(8, 11, 4.5) + p('M8 11 10.8 8.2') + c(17, 11, 3) + p('M17 11V8.6') + p('M3.5 19.5h17'),
     # a pushpin: kept where it is
     'pin': p('M9 3.5h6l-.9 5.6 3.4 3.9h-11l3.4-3.9Z') + p('M12 13v7.5'),
     'pin_on': solid('M9 3.5h6l-.9 5.6 3.4 3.9h-11l3.4-3.9Z') + p('M12 13v7.5'),

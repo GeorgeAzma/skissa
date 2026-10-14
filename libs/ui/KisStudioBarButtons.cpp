@@ -6,10 +6,9 @@
 #include "KisStudioBarButtons.h"
 
 #include "KisStudioBrushEditor.h"
-#include "KisStudioPenPopup.h"
+#include "KisStudioControls.h"
 #include "KisViewManager.h"
 #include "kis_paintop_box.h"
-#include "kis_paintop_option.h"
 #include "widgets/KisStudioValueRow.h"
 
 #include <QApplication>
@@ -115,48 +114,7 @@ QIcon symmetryIcon(int mode, const QColor &ink)
     return icon;
 }
 
-const QString brushPrefix = QStringLiteral("brush:");
-
-/**
- * A brush setting pinned to the bar: its row, small, for the current brush (made again when the brush
- * changes). Dragging it sideways changes it, pulling it down moves it or takes it off, a click shows how
- * the pen drives it, its pin unpins it.
- */
-class BrushValue : public KisStudioValueRow
-{
-public:
-    BrushValue(KisMainWindow *mainWindow, KisPaintOpOption *option, QWidget *parent)
-        : KisStudioValueRow(option->label(), parent)
-    {
-        setCompact(true);
-        setFixedWidth(qMax(132, sizeHint().width() + 24));
-        setPinnable(true, true);
-        setPinOnHoverOnly(true);
-        // a right click resets it; Find's card doesn't take it
-        setProperty("ownContextMenu", true);
-        KisStudioBrushEditor::bindRow(this, option, KisStudioBrushEditor::brushSettings(mainWindow));
-        const QPointer<KisPaintOpOption> target(option);
-        connect(this, &KisStudioValueRow::clicked, this, [this, mainWindow, target]() {
-            if (!target || target->penInputs().isEmpty()) return;
-            if (m_pen) {
-                m_pen->close();
-                return;
-            }
-            m_pen = new KisStudioPenPopup(target, mainWindow);
-            setSelected(true);
-            connect(m_pen, &QObject::destroyed, this, [this]() { setSelected(false); });
-            m_pen->popupBeside(this, Qt::BottomEdge);
-        });
-    }
-
-    ~BrushValue() override
-    {
-        if (m_pen) m_pen->close();
-    }
-
-private:
-    QPointer<KisStudioPenPopup> m_pen;
-};
+const QString brushPrefix = QStringLiteral("brushsetting:");
 
 /// A button on the bar: a click runs it, a drag moves it, a right click or long press shows its card
 class BarButton : public QToolButton
@@ -234,6 +192,8 @@ struct KisStudioBarButtons::Private {
 
     /// Items that couldn't be shown yet, since the actions behind them are made after the bar
     bool missing {false};
+    /// The item being dragged was dropped back on the bar
+    bool droppedHere {false};
 
     KisKActionCollection *actions() const
     {
@@ -256,9 +216,9 @@ struct KisStudioBarButtons::Private {
                 return true;
             }
         }
-        if (key.startsWith(brushPrefix)) {
+        if (KisStudioControls::isControl(key)) {
             item->key = key;
-            item->title = key.mid(brushPrefix.size());
+            item->title = key.mid(key.indexOf(QLatin1Char(':')) + 1);
             return true;
         }
         KisStudioFind *find = mainWindow->studioFind();
@@ -332,11 +292,16 @@ void KisStudioBarButtons::rebuild()
     for (int i = 0; i < d->items.size(); i++) {
         const QString key = d->items[i];
         const int index = i;
-        if (key.startsWith(brushPrefix)) {
-            // a brush setting, if this brush has it
-            KisPaintOpOption *option = KisStudioBrushEditor::brushOption(d->mainWindow, key.mid(brushPrefix.size()));
-            if (!option) continue;
-            auto *value = new BrushValue(d->mainWindow, option, this);
+        if (KisStudioControls::isControl(key)) {
+            // a setting pinned here (a brush's, if this brush has it)
+            KisStudioValueRow *value = KisStudioControls::create(d->mainWindow, key, this);
+            if (!value) continue;
+            value->setCompact(true);
+            value->setFixedWidth(qMax(132, value->sizeHint().width() + 24));
+            value->setPinnable(true, true);
+            value->setPinOnHoverOnly(true);
+            // a right click resets it; Find's card doesn't take it
+            value->setProperty("ownContextMenu", true);
             value->setObjectName(QStringLiteral("studio_bar_") + QString(key).replace(QLatin1Char(':'), QLatin1Char('_')));
             connect(value, &KisStudioValueRow::pinClicked, this, [this, key]() {
                 QTimer::singleShot(0, this, [this, key]() { toggle(d->mainWindow, key); });
@@ -532,7 +497,7 @@ void KisStudioBarButtons::toggle(KisMainWindow *mainWindow, const QString &key)
     } else {
         // after the other pinned settings, before the buttons
         int at = 0;
-        while (at < items.size() && items[at].startsWith(brushPrefix)) at++;
+        while (at < items.size() && KisStudioControls::isControl(items[at])) at++;
         items.insert(at, key);
     }
     bar->setItems(items);
@@ -560,8 +525,10 @@ void KisStudioBarButtons::startDrag(int index, QWidget *source, const QPixmap &p
     if (!pixmap.isNull()) {
         drag->setPixmap(pixmap);
     }
-    // dropping it off the bar removes it, unless the drag was cancelled with Esc
-    if (drag->exec(Qt::MoveAction) == Qt::IgnoreAction && !KisModernStyle::pointerHeld()) {
+    // dropping it off the bar (or onto the Controls panel) removes it, unless the drag was cancelled with Esc
+    d->droppedHere = false;
+    const Qt::DropAction done = drag->exec(Qt::MoveAction);
+    if ((done == Qt::IgnoreAction && !KisModernStyle::pointerHeld()) || (done == Qt::MoveAction && !d->droppedHere)) {
         QStringList items = d->items;
         if (index < items.size() && items[index] == dragged) {
             items.removeAt(index);
@@ -631,6 +598,7 @@ void KisStudioBarButtons::dropEvent(QDropEvent *event)
     }
     items.insert(qBound(0, to, items.size()), key);
     event->setDropAction(from >= 0 && event->mimeData()->hasFormat(indexMimeType) ? Qt::MoveAction : Qt::CopyAction);
+    d->droppedHere = true;
     event->accept();
     // deferred: the dragged widget is still in use by its drag
     QTimer::singleShot(0, this, [this, items]() { setItems(items); });

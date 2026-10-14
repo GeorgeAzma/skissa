@@ -1318,8 +1318,10 @@ protected:
         case QEvent::MouseButtonPress: {
             auto *mouse = static_cast<QMouseEvent *>(event);
             // Presses on the background, labels, group boxes or plain frames start a drag.
+            // (a plain widget that follows the pointer draws something to click: a grid of items, a handle)
             const bool background = widget == dialog || qobject_cast<QLabel *>(widget) || qobject_cast<QGroupBox *>(widget)
-                || widget->metaObject() == &QWidget::staticMetaObject || qobject_cast<QFrame *>(widget) && !qobject_cast<QAbstractScrollArea *>(widget);
+                || (widget->metaObject() == &QWidget::staticMetaObject && !widget->hasMouseTracking())
+                || (qobject_cast<QFrame *>(widget) && !qobject_cast<QAbstractScrollArea *>(widget));
             if (mouse->button() == Qt::LeftButton && background) {
                 m_moving = true;
                 m_grab = mouse->globalPos() - dialog->frameGeometry().topLeft();

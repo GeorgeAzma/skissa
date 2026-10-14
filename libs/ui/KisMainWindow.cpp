@@ -160,6 +160,7 @@
 #include "KisModernStyle.h"
 #include "utils/KisRecentFileIconCache.h"
 #include "KisStudioColorPanel.h"
+#include "KisStudioControls.h"
 #include "KisStudioLayout.h"
 #include "KisStudioItemCard.h"
 #include "KisUpdatePacer.h"
@@ -425,6 +426,7 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     KoPluginLoader::instance()->load("Krita/ApplicationPlugin", KoPluginLoader::PluginsConfig(), qApp, true);
 
     KisStudioColorPanel::registerFactory();
+    KisStudioControlsPanel::registerFactory();
 
     KoToolBoxFactory toolBoxFactory;
     QDockWidget *toolbox = createDockWidget(&toolBoxFactory);

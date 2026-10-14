@@ -71,7 +71,7 @@ QString partName(int part)
     return QString();
 }
 
-const QString pinPrefix = QStringLiteral("brush:");
+const QString pinPrefix = QStringLiteral("brushsetting:");
 
 /// The curve of the first pen input that drives \p option, if the pen drives it
 QString penCurve(KisPaintOpOption *option)

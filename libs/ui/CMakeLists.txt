@@ -456,6 +456,7 @@ set(kritaui_LIB_SRCS
     KisStudioScrubber.cpp
     KisStudioBrushEditor.cpp
     KisStudioBrushSheet.cpp
+    KisStudioControls.cpp
     KisStudioPenPopup.cpp
     KisStudioItemCard.cpp
     KisUpdatePacer.cpp

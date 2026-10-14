@@ -5,6 +5,9 @@
  */
 #include "KisStudioSettings.h"
 
+#include "KisStudioBarButtons.h"
+#include "KisStudioControls.h"
+
 #include <QAbstractButton>
 #include <QApplication>
 #include <QCheckBox>
@@ -538,6 +541,29 @@ struct Number {
 };
 
 /// Builds a card's rows, each kept in sync with its setting in both directions
+/// Calls back when the pointer enters or leaves \p watched
+class HoverWatch : public QObject
+{
+public:
+    HoverWatch(QWidget *watched, std::function<void()> changed)
+        : QObject(watched)
+        , m_changed(changed)
+    {
+        watched->setAttribute(Qt::WA_Hover);
+        watched->installEventFilter(this);
+    }
+
+protected:
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) m_changed();
+        return false;
+    }
+
+private:
+    std::function<void()> m_changed;
+};
+
 struct Builder {
     QWidget *card {nullptr};
     QVBoxLayout *layout {nullptr};
@@ -590,12 +616,43 @@ struct Builder {
             if (s->flags & R::Machine) notes << i18nc("@info:tooltip", "Stays on this computer: not exported");
             if (!notes.isEmpty()) row->setToolTip(notes.join(QStringLiteral("\n\n")));
             if (s->flags & R::Restart) line->insertWidget(1, restartMark(id, row));
+            if (KisStudioControls::canPinSetting(id) && !controlBelow) line->addWidget(pinButton(id, row));
         }
         if (controlBelow) box->addWidget(control);
         else box->addWidget(control, 0, Qt::AlignRight | Qt::AlignVCenter);
         row->setMinimumHeight(controlBelow ? 0 : 30);
         layout->addWidget(row);
         return row;
+    }
+
+    /// A pin, under the pointer or while pinned: puts \p id on the top bar, or takes it off
+    QToolButton *pinButton(const QString &id, QWidget *row)
+    {
+        auto *pin = new QToolButton(row);
+        pin->setAutoRaise(true);
+        pin->setCheckable(true);
+        pin->setFixedSize(24, 24);
+        pin->setToolTip(i18nc("@info:tooltip", "Pin to the top bar"));
+        const QString key = KisStudioControls::settingKey(id);
+        KisMainWindow *mainWindow = window;
+        const QIcon icon = KisIconUtils::loadIcon(QStringLiteral("studio_pin"));
+        auto show = [pin, row, key, mainWindow, icon]() {
+            const bool pinned = KisStudioBarButtons::has(mainWindow, key);
+            QSignalBlocker blocker(pin);
+            pin->setChecked(pinned);
+            pin->setIcon(pinned || row->underMouse() ? icon : QIcon());
+        };
+        follow(show);
+        auto *hover = new HoverWatch(row, show);
+        Q_UNUSED(hover);
+        if (KisStudioBarButtons *bar = KisStudioBarButtons::of(mainWindow)) {
+            QObject::connect(bar, &KisStudioBarButtons::sigItemsChanged, pin, show);
+        }
+        QObject::connect(pin, &QToolButton::clicked, pin, [mainWindow, key, show]() {
+            KisStudioBarButtons::toggle(mainWindow, key);
+            show();
+        });
+        return pin;
     }
 
     /// A faint mark that \p id applies after a restart, lit while a change of it is pending
