@@ -1593,7 +1593,10 @@ private:
 
 void KisDocument::slotAutoSaveImpl(std::unique_ptr<KisDocument> &&optionalClonedDocument)
 {
-    if (!d->modified || !d->modifiedAfterAutosave) return;
+    if (!d->modified || !d->modifiedAfterAutosave) {
+        setProperty("autosaveWaitingSince", QVariant());
+        return;
+    }
     // while the user works, a moment later: never in the middle of drawing
     constexpr qint64 pause = 3000;
     // but not for ever: after a minute of waiting it saves as Krita always did (in the background, or later if busy)
@@ -1607,6 +1610,11 @@ void KisDocument::slotAutoSaveImpl(std::unique_ptr<KisDocument> &&optionalCloned
             setProperty("autosaveWaiting", true);
             QTimer::singleShot(1000, this, [this]() {
                 setProperty("autosaveWaiting", false);
+                // autosave turned off meanwhile (or the image went read-only)
+                if (!d->autoSaveActive || !isReadWrite() || d->autoSaveDelay <= 0) {
+                    setProperty("autosaveWaitingSince", QVariant());
+                    return;
+                }
                 slotAutoSaveImpl(nullptr);
             });
         }
@@ -2053,13 +2061,18 @@ bool KisDocument::openPath(const QString &_path, OpenFlags flags)
     if (!fileBatchMode()) {
         QString file = path;
         QString asf = generateAutoSaveFileName(file);
-        // an autosave left hidden or not (another setting, or another Krita's): the newer of the two
+        // An autosave named the other way (hidden or not: an earlier setting, or a regular Krita's) is offered
+        // while it is newer than the file and its own; it is never deleted, as it may be another app's.
+        bool foreign = false;
         {
             const QFileInfo info(asf);
             const QString name = info.fileName();
             const QString other = info.dir().filePath(name.startsWith(QLatin1Char('.')) ? name.mid(1) : QLatin1Char('.') + name);
-            if (QFile::exists(other) && (!QFile::exists(asf) || QFileInfo(other).lastModified() > info.lastModified())) {
+            const QFileInfo otherInfo(other);
+            if (otherInfo.exists() && otherInfo.lastModified() > QFileInfo(file).lastModified()
+                && (!info.exists() || otherInfo.lastModified() > info.lastModified())) {
                 asf = other;
+                foreign = true;
             }
         }
         if (QFile::exists(asf)) {
@@ -2078,8 +2091,10 @@ bool KisDocument::openPath(const QString &_path, OpenFlags flags)
                 autosaveOpened = true;
                 break;
             case KisRecoverNamedAutosaveDialog::OpenMainFile :
-                KisUsageLogger::log(QString("Removing autosave file: %1").arg(asf));
-                QFile::remove(asf);
+                if (!foreign) {
+                    KisUsageLogger::log(QString("Removing autosave file: %1").arg(asf));
+                    QFile::remove(asf);
+                }
                 break;
             default: // Cancel
                 return false;

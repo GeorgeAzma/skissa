@@ -916,8 +916,15 @@ bool KisApplication::start(const KisApplicationArguments &args)
             general.writeEntry("StudioOpeningLastImage", url.toLocalFile());
             general.sync();
             d->mainWindow->openDocument(url.toLocalFile(), KisMainWindow::None);
-            general.deleteEntry("StudioOpeningLastImage");
-            general.sync();
+            // past its first frames on screen, or closed before then: it came back
+            auto cameBack = []() {
+                KConfigGroup general = KSharedConfig::openConfig()->group(QString());
+                if (!general.hasKey("StudioOpeningLastImage")) return;
+                general.deleteEntry("StudioOpeningLastImage");
+                general.sync();
+            };
+            QTimer::singleShot(5000, this, cameBack);
+            connect(this, &QCoreApplication::aboutToQuit, this, cameBack);
             break;
         }
     }
