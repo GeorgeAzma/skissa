@@ -136,7 +136,7 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - **G'MIC-Qt isn't built** in `krita-deps`; only the bridge plugin is. The idea on the table is wrapping the useful G'MIC filters as native effects.
 - **The owner asked to be reminded** of shader filters, custom blend modes written the same way (shader-like code), and the brush editor redesign; they will go through the brush editor's current UI themselves and ask for changes one by one.
 - **Ideas the owner liked:** shader-based custom filters in the effect panel (Shadertoy-style GLSL; the sliders come from uniforms), and a brush editor redesign around a tip/mask/texture stack and a dynamics grid (sensors × properties).
-- **Ideas waiting for a go:** liked: a Procreate-style lasso fill (drag a loop with the Fill tool, possibly replacing Enclose and Fill) and a per-image color history strip. Maybe: handles to nudge a snapped shape (only if seamless), time-lapse trimming on the scrubber, a theme taken from the open image. Not wanted: a canvas flip gesture.
+- **Ideas weighed and left:** handles to nudge a snapped shape (an editing state after every stroke), time-lapse trimming (the export's ffmpeg templates are saved settings that read every frame; trimming means changing them or copying frames), a theme taken from the image (a theme is a stable personal choice), a canvas flip gesture (not wanted). Lasso fill: Krita's Freehand Path brush already does it.
 
 ## Lessons (append, newest last)
 
