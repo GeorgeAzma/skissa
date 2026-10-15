@@ -1629,9 +1629,9 @@ KisStudioGlass::Bevel KisStudioGlass::bevel()
     auto at = [r](qreal none, qreal middle, qreal all) {
         return r < 0.5 ? none + (middle - none) * r * 2 : middle + (all - middle) * (r - 0.5) * 2;
     };
-    // A polished rim, clear over its outer third, fading into the frost.
+    // A polished rim, growing frosted toward the face.
     const qreal fadeIn = qMin<qreal>(1, r * 2);
-    return {at(10, 16, 20), at(0, 17, 24), at(0, 31, 44), 0.85 * fadeIn, 0.35, 40};
+    return {at(10, 16, 20), at(0, 17, 24), at(0, 31, 44), 0.85 * fadeIn, 40};
 }
 
 void KisStudioGlass::setOverOverlays(QWidget *panel)

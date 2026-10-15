@@ -61,8 +61,7 @@ public:
         qreal width {0};       ///< from the edge in to the flat face
         qreal thickness {0};   ///< of the pane at the flat face
         qreal lift {0};        ///< gap between the pane and the canvas
-        qreal polish {0};      ///< 0 frosted, 1 clear at the rim
-        qreal clear {0};       ///< share of the bevel that is fully clear
+        qreal polish {0};      ///< 0 frosted at the rim like the face, 1 polished smooth there
         qreal abbeNumber {40}; ///< dispersion: lower spreads colors more
     };
     static Bevel bevel();
