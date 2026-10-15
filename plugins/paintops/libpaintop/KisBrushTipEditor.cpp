@@ -6,6 +6,7 @@
 #include "KisBrushTipEditor.h"
 
 #include <QHBoxLayout>
+#include <QHash>
 #include <QLineEdit>
 #include <QLocale>
 #include <QMouseEvent>
@@ -524,13 +525,20 @@ public:
         painter.fillPath(KisModernStyle::squircle(box, KisModernStyle::cardRadius), well);
 
         const QSizeF size = tipSize() * m_scale;
-        if (m_dabDirty || m_dabInk != ink || m_dabSize != size.toSize()) {
-            m_dabDirty = false;
-            m_dabInk = ink;
-            m_dabSize = size.toSize();
-            if (isAuto()) {
+        if (isAuto()) {
+            if (m_dabDirty || m_dabInk != ink || m_dabSize != size.toSize() || !m_dabPicture.isEmpty()) {
+                m_dabDirty = false;
+                m_dabInk = ink;
+                m_dabSize = size.toSize();
+                m_dabPicture.clear();
                 m_dab = autoDab(m_auto->bakedOptionData(), size.width(), size.height(), ink);
-            } else {
+            }
+        } else {
+            // a picture tip is drawn scaled into its place: made again only for another picture or ink, not for its size
+            const QString picture = m_predefined->resourceSignature().md5sum + QString::number(int(m_predefined->application())) + ink.name(QColor::HexArgb);
+            if (picture != m_dabPicture) {
+                m_dabPicture = picture;
+                m_dabDirty = true;
                 KisBrushSP tip = tipFor(m_predefined->resourceSignature());
                 m_dab = tip ? tinted(tip->brushTipImage(), ink, m_predefined->application() == ALPHAMASK) : QImage();
             }
@@ -961,6 +969,8 @@ private:
     mutable bool m_dabDirty {true};
     mutable QColor m_dabInk;
     mutable QSize m_dabSize;
+    /// The picture tip and ink the dab was made for; empty for a round one
+    mutable QString m_dabPicture;
 
     Part m_hover {None};
     /// The chip being typed into, whose text the editor stands in for
@@ -1092,6 +1102,10 @@ struct KisBrushTipQuickPage::Private
     KisStudioChips *shapes {nullptr};
     /// The picture tips the shapes row shows, after round, square and star
     QStringList tipIds;
+    /// Their pictures, small and in the ink they were made in, and names: by md5
+    QHash<QString, QImage> tipPictures;
+    QHash<QString, QString> tipNames;
+    QColor tipInk;
 };
 
 KisBrushTipQuickPage::KisBrushTipQuickPage(KisAutoBrushModel *autoModel,
@@ -1247,17 +1261,27 @@ void KisBrushTipQuickPage::updateShapes()
         if (!ids.contains(md5)) ids << md5;
     }
     d->tipIds.clear();
+    if (ink != d->tipInk) {
+        d->tipPictures.clear();
+        d->tipInk = ink;
+    }
     auto source = KisGlobalResourcesInterface::instance()->source<KisBrush>(ResourceType::Brushes);
     Q_FOREACH (const QString &md5, ids) {
         if (d->tipIds.size() >= 4) break;
-        const KisBrushSP match = source.bestMatch(md5, QString(), QString());
-        if (!match) continue;
+        // looked up and tinted once: this runs with each step of the star's points dragged
+        if (!d->tipPictures.contains(md5)) {
+            const KisBrushSP match = source.bestMatch(md5, QString(), QString());
+            if (!match) continue;
+            const enumBrushType kind = match->brushType();
+            const QImage small = match->brushTipImage().scaled(64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            d->tipPictures.insert(md5, tinted(small, ink, kind == MASK || kind == PIPE_MASK));
+            d->tipNames.insert(md5, match->name());
+        }
         d->tipIds << md5;
         KisStudioChips::Chip tip;
-        tip.toolTip = match->name();
+        tip.toolTip = d->tipNames.value(md5);
         tip.on = !isAuto && md5 == d->predefinedModel->resourceSignature().md5sum;
-        const enumBrushType kind = match->brushType();
-        const QImage image = tinted(match->brushTipImage(), ink, kind == MASK || kind == PIPE_MASK);
+        const QImage image = d->tipPictures.value(md5);
         tip.picture = [image](QPainter &painter, const QRectF &box) {
             const QSizeF fitted = QSizeF(image.size()).scaled(box.size(), Qt::KeepAspectRatio);
             QRectF target(QPointF(0, 0), fitted);
