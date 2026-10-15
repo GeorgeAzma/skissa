@@ -6,7 +6,7 @@ msgstr "Открыть в диспетчере файлов папку, где S
 
 msgctxt "action"
 msgid "Show Skissa log for bug reports."
-msgstr "Показать журнал Skissa для отчётов об ошибкахс."
+msgstr "Показать журнал Skissa для отчётов об ошибках."
 
 msgctxt "action"
 msgid "Configure Skissa"
