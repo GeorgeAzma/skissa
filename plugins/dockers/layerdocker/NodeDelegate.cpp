@@ -1209,7 +1209,11 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
                 if (!clickedProperty) return false;
                 if (!marksShown && clickedProperty->state.toBool()) return false;
 
-                d->toggleProperty(props, clickedProperty, mouseEvent->modifiers(), index);
+                Qt::KeyboardModifiers modifiers = mouseEvent->modifiers();
+                // Alt+click shows only this layer, as Shift+click does
+                if (modifiers == Qt::AltModifier) modifiers = Qt::ShiftModifier;
+                d->toggleProperty(props, clickedProperty, modifiers, index);
+                if (modifiers == Qt::NoModifier && event->type() == QEvent::MouseButtonPress) d->view->startVisibilityDrag(index);
 
                 return true;
             }

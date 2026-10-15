@@ -8,6 +8,7 @@
 #include "NodeDelegate.h"
 #include "NodeViewVisibilityDelegate.h"
 #include "kis_node_model.h"
+#include "kis_layer_properties_icons.h"
 #include "kis_signals_blocker.h"
 
 
@@ -78,6 +79,9 @@ public:
     bool shiftClickFix;
 #endif
     bool ignoreDataChanged = false;
+    /// While a press on an eye drags on: what it made that layer, and the last row it set
+    std::optional<bool> eyeDrag;
+    QPersistentModelIndex eyeDragLast;
 };
 
 
@@ -229,6 +233,7 @@ bool NodeView::viewportEvent(QEvent *e)
             }
         } break;
         case QEvent::MouseButtonRelease: {
+            d->eyeDrag.reset();
             const QPoint pos = static_cast<QMouseEvent*>(e)->pos();
             QModelIndex index = model()->buddy(indexAt(pos));
             if (!indexAt(pos).isValid()) {
@@ -256,6 +261,16 @@ bool NodeView::viewportEvent(QEvent *e)
 #endif
 
             const QPoint pos = static_cast<QMouseEvent*>(e)->pos();
+            if (d->eyeDrag) {
+                // down the eyes: each row passed over is shown or hidden like the first
+                const QModelIndex under = indexAt(pos);
+                const QModelIndex row = under.isValid() ? under.sibling(under.row(), DEFAULT_COL) : QModelIndex();
+                if (row.isValid() && row != d->eyeDragLast) {
+                    d->eyeDragLast = row;
+                    setVisibility(row, *d->eyeDrag);
+                }
+                return true;
+            }
             QModelIndex hovered = indexAt(pos);
             if (hovered != d->hovered) {
                 if (d->hovered.isValid()) {
@@ -580,6 +595,31 @@ void NodeView::mousePressEvent(QMouseEvent *e) {
 
     if (ind.has_value()) {
         setExclusiveActiveItem(ind.value());
+    }
+}
+
+void NodeView::startVisibilityDrag(const QModelIndex &index)
+{
+    const QModelIndex row = index.sibling(index.row(), DEFAULT_COL);
+    const KisBaseNode::PropertyList props = row.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
+    for (const KisBaseNode::Property &prop : props) {
+        if (prop.id == KisLayerPropertiesIcons::visible.id()) {
+            d->eyeDrag = prop.state.toBool();
+            d->eyeDragLast = row;
+        }
+    }
+}
+
+void NodeView::setVisibility(const QModelIndex &row, bool visible)
+{
+    KisBaseNode::PropertyList props = row.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
+    for (KisBaseNode::Property &prop : props) {
+        if (prop.id == KisLayerPropertiesIcons::visible.id() && prop.state.toBool() != visible) {
+            prop.state = visible;
+            prop.isInStasis = false;
+            model()->setData(row, QVariant::fromValue(props), KisNodeModel::PropertiesRole);
+            return;
+        }
     }
 }
 

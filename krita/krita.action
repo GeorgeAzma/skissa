@@ -2807,7 +2807,7 @@
       <iconText>Toggle layer visibility</iconText>
       <activationFlags>1000</activationFlags>
       <activationConditions>0</activationConditions>
-      <shortcut/>
+      <shortcut>Ctrl+,</shortcut>
       <isCheckable>false</isCheckable>
       <statusTip/>
     </Action>
