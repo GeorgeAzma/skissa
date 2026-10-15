@@ -400,7 +400,8 @@ void KisStudioCanvasHud::reposition()
     const int margin = 10;
     // stay left of any panels pinned over the canvas
     const int right = parentWidget()->property("studioCanvasRightInset").toInt();
-    move(parentWidget()->width() - right - width() - margin, parentWidget()->height() - height() - margin);
+    const int bottom = parentWidget()->property("studioCanvasBottomInset").toInt();
+    move(parentWidget()->width() - right - width() - margin, parentWidget()->height() - bottom - height() - margin);
     raise();
 }
 

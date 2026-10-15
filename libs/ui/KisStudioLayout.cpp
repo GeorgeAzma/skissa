@@ -127,6 +127,11 @@ const QString toolRailSideKey = QStringLiteral("StudioLayoutToolRailSide");
 const QString panelsHiddenKey = QStringLiteral("StudioLayoutPanelsTucked");
 const QString toolRailHiddenKey = QStringLiteral("StudioLayoutToolRailTucked");
 const QString topBarHiddenKey = QStringLiteral("StudioLayoutTopBarTucked");
+/// Where each pill was dragged to: "across,down", as shares of the room it has (see shareOf()); across is from its own side
+const QString toolRailSpotKey = QStringLiteral("StudioLayoutToolRailSpot");
+const QString panelSpotKey = QStringLiteral("StudioLayoutPanelSpot");
+const QString farSpotKey = QStringLiteral("StudioLayoutFarPanelSpot");
+const QString topBarSpotKey = QStringLiteral("StudioLayoutTopBarSpot");
 const QString classicStateKey = QStringLiteral("StudioLayoutClassicState");
 
 /// The panels on the rail by default; the tool options open from the tool chip instead
@@ -511,6 +516,7 @@ private:
 const char *const leftInsetProperty = "studioCanvasLeftInset";
 const char *const rightInsetProperty = "studioCanvasRightInset";
 const char *const topInsetProperty = "studioCanvasTopInset";
+const char *const bottomInsetProperty = "studioCanvasBottomInset";
 /// Set on widgets whose empty space drags the window, like a title bar
 const char *const captionProperty = "studioCaption";
 
@@ -518,7 +524,39 @@ QMargins canvasInsets(const QWidget *canvasArea)
 {
     if (!canvasArea) return QMargins();
     return QMargins(canvasArea->property(leftInsetProperty).toInt(), canvasArea->property(topInsetProperty).toInt(),
-                    canvasArea->property(rightInsetProperty).toInt(), 0);
+                    canvasArea->property(rightInsetProperty).toInt(), canvasArea->property(bottomInsetProperty).toInt());
+}
+
+/**
+ * Where a pill that can be dragged anywhere sits along one axis: the share of the room it can move in,
+ * 0 against the near edge and 1 against the far one. Dropped near an edge or the middle, it is caught
+ * there (so corners are easy to hit), and it stays there as the window changes size.
+ */
+qreal shareOf(int offset, int room)
+{
+    const int snap = 48;
+    if (room <= 0 || offset < snap) return 0;
+    if (offset > room - snap) return 1;
+    if (qAbs(offset - room / 2) < snap / 2) return 0.5;
+    return qreal(offset) / room;
+}
+
+int offsetOf(qreal share, int room)
+{
+    return qRound(qBound(0.0, share, 1.0) * qMax(0, room));
+}
+
+/// A pill's place as "across,down" shares (see shareOf())
+QPointF readSpot(const QString &key)
+{
+    const QStringList parts = KisConfig(true).readEntry<QString>(key, QString()).split(QLatin1Char(','));
+    if (parts.size() != 2) return QPointF();
+    return QPointF(qBound(0.0, parts[0].toDouble(), 1.0), qBound(0.0, parts[1].toDouble(), 1.0));
+}
+
+void writeSpot(const QString &key, const QPointF &spot)
+{
+    KisConfig(false).writeEntry(key, QString(QString::number(spot.x()) + QLatin1Char(',') + QString::number(spot.y())));
 }
 
 /// How far the pinned panels' pill reaches in from the left and right edges, even when only its strip shows
@@ -544,7 +582,7 @@ public:
     {
         setCursor(Qt::OpenHandCursor);
         setFixedHeight(14);
-        setToolTip(i18nc("@info:tooltip", "Drag: switch sides"));
+        setToolTip(i18nc("@info:tooltip", "Drag: move"));
     }
 
 protected:
@@ -577,14 +615,14 @@ protected:
     void leaveEvent(QEvent *) override { update(); }
 };
 
-/**
- * The top bar's grip: dragging moves the window, a tap tucks the bar away and
- * a double click maximizes. It is not a system caption, as Qt never sees clicks on those.
- */
+/// The top bar's grip: dragging moves the bar, a tap tucks it away
 class TopGrip : public DragGrip
 {
 public:
     std::function<void()> tapped;
+    std::function<void(const QPoint &globalPos)> pressed;
+    std::function<void(const QPoint &globalPos)> dragged;
+    std::function<void()> dropped;
 
     using DragGrip::DragGrip;
 
@@ -597,47 +635,38 @@ protected:
         }
         m_pressPos = globalMousePos(event);
         m_pressed = true;
+        m_dragging = false;
+        if (pressed) pressed(m_pressPos);
         event->accept();
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if (!m_pressed || !(event->buttons() & Qt::LeftButton)) return;
-        if ((globalMousePos(event) - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
-        m_pressed = false;
-        QWidget *top = window();
-        if (!top->isFullScreen() && top->windowHandle()) top->windowHandle()->startSystemMove();
+        const QPoint pos = globalMousePos(event);
+        if (!m_dragging && (pos - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
+        m_dragging = true;
+        setCursor(Qt::ClosedHandCursor);
+        if (dragged) dragged(pos);
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
         if (!m_pressed || event->button() != Qt::LeftButton) return;
         m_pressed = false;
-        if (m_doubleClicked) {
-            m_doubleClicked = false;
+        if (m_dragging) {
+            m_dragging = false;
+            setCursor(Qt::OpenHandCursor);
+            if (dropped) dropped();
             return;
         }
-        // immediately, without waiting to see if a double click follows
         if (rect().contains(event->pos()) && tapped) tapped();
-    }
-
-    void mouseDoubleClickEvent(QMouseEvent *event) override
-    {
-        if (event->button() != Qt::LeftButton) return;
-        // undo the tap from the first click
-        if (tapped) tapped();
-        m_pressed = true;
-        m_doubleClicked = true;
-        QWidget *top = window();
-        if (top->isFullScreen()) return;
-        if (top->isMaximized()) top->showNormal();
-        else top->showMaximized();
     }
 
 private:
     QPoint m_pressPos;
     bool m_pressed {false};
-    bool m_doubleClicked {false};
+    bool m_dragging {false};
 };
 
 /// The handle between two stacked panels: drag to resize the one above, right-click to fit it to its contents
@@ -1072,8 +1101,8 @@ private:
 class RailOverlay : public QWidget
 {
 public:
-    /// Called when dragged by its grip and dropped nearer the other side of the canvas
-    std::function<void(bool left)> moved;
+    /// Called when dragged and dropped: the side of the canvas it is on and its place from that side (see shareOf())
+    std::function<void(bool left, const QPointF &spot)> moved;
     std::function<void()> tapped;
 
     explicit RailOverlay(QWidget *canvasArea)
@@ -1090,16 +1119,20 @@ public:
         setTucked(false);
     }
 
-    void setLeft(bool left)
+    void setPlace(bool left, const QPointF &spot)
     {
         m_left = left;
+        m_spot = spot;
         place();
     }
 
     /// When tucked, only the grip shows, as wide as the rail was
     void setTucked(bool tucked)
     {
-        if (tucked && !m_tucked) m_grip->setFixedWidth(qMax(m_grip->width(), 30));
+        if (tucked && !m_tucked) {
+            m_grip->setFixedWidth(qMax(m_grip->width(), 30));
+            m_openHeight = layout()->sizeHint().height();
+        }
         if (!tucked) {
             m_grip->setMinimumWidth(0);
             m_grip->setMaximumWidth(QWIDGETSIZE_MAX);
@@ -1109,23 +1142,16 @@ public:
             QWidget *widget = layout()->itemAt(i)->widget();
             if (widget && widget != m_grip) widget->setVisible(!tucked);
         }
-        m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Click: show tools\nDrag: switch sides")
-                                  : i18nc("@info:tooltip", "Drag: switch sides\nClick: hide"));
+        m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Click: show tools\nDrag: move")
+                                  : i18nc("@info:tooltip", "Drag: move\nClick: hide"));
         place();
     }
 
     void place()
     {
-        if (m_moving) return;
-        // beside the pinned panels' pill and under the top pills
-        QWidget *area = parentWidget();
-        const int top = area->property(topInsetProperty).toInt();
-        const int y = top > 0 ? top + 6 : 10;
-        if (m_left) {
-            move(10 + area->property(leftPillProperty).toInt(), y);
-        } else {
-            move(area->width() - 10 - area->property(rightPillProperty).toInt() - width(), y);
-        }
+        const QRect room = this->room();
+        const int across = offsetOf(m_spot.x(), room.width());
+        move(m_left ? room.left() + across : room.left() + room.width() - across, room.top() + offsetOf(m_spot.y(), room.height()));
         raise();
     }
 
@@ -1143,11 +1169,11 @@ protected:
     {
         // pressed on the grip or between the tools: the rail follows the pointer
         if (event->button() == Qt::LeftButton) {
-            m_moving = true;
-            m_grab = event->pos().x();
+            m_pressed = true;
+            m_moving = false;
+            m_grab = event->pos();
             m_pressPos = globalMousePos(event);
             m_onGrip = m_grip->geometry().contains(event->pos());
-            setCursor(Qt::ClosedHandCursor);
             event->accept();
             return;
         }
@@ -1156,28 +1182,39 @@ protected:
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (!m_moving) return;
+        if (!m_pressed) return;
+        const QPoint global = globalMousePos(event);
+        if (!m_moving) {
+            if ((global - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
+            m_moving = true;
+            setCursor(Qt::ClosedHandCursor);
+            update();
+        }
+        // caught by the edges and the middle as it goes, so it shows where it will stay
         const QWidget *area = parentWidget();
-        const int x = area->mapFromGlobal(globalMousePos(event)).x() - m_grab;
-        move(qBound(4, x, qMax(4, area->width() - 4 - width())), y());
+        const QPoint at = area->mapFromGlobal(global) - m_grab;
+        const QRect room = this->room();
+        m_left = at.x() + width() / 2 < area->width() / 2;
+        const int across = m_left ? at.x() - room.left() : room.left() + room.width() - at.x();
+        m_spot = QPointF(shareOf(across, room.width()), shareOf(at.y() - room.top(), room.height()));
+        place();
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
-        if (!m_moving || event->button() != Qt::LeftButton) {
+        if (!m_pressed || event->button() != Qt::LeftButton) {
             QWidget::mouseReleaseEvent(event);
+            return;
+        }
+        m_pressed = false;
+        if (!m_moving) {
+            if (m_onGrip && tapped) tapped();
             return;
         }
         m_moving = false;
         unsetCursor();
-        if (m_onGrip && (globalMousePos(event) - m_pressPos).manhattanLength() < QApplication::startDragDistance()) {
-            place();
-            if (tapped) tapped();
-            return;
-        }
-        const bool left = x() + width() / 2 < parentWidget()->width() / 2;
-        if (left != m_left && moved) moved(left);
-        else place();
+        update();
+        if (moved) moved(m_left, m_spot);
     }
 
     void paintEvent(QPaintEvent *) override
@@ -1187,19 +1224,36 @@ protected:
     }
 
 private:
+    /// Where its corner can go, as offset and extent: beside the pinned panels' pills and clear of the bars
+    QRect room() const
+    {
+        const QWidget *area = parentWidget();
+        const int top = area->property(topInsetProperty).toInt();
+        const int bottom = area->property(bottomInsetProperty).toInt();
+        const int minX = 10 + area->property(leftPillProperty).toInt();
+        const int maxX = area->width() - 10 - area->property(rightPillProperty).toInt() - width();
+        const int minY = top > 0 ? top + 6 : 10;
+        // placed as if open, so the grip stays where it was when tucked
+        const int maxY = area->height() - (bottom > 0 ? bottom + 6 : 10) - (m_tucked ? qMax(height(), m_openHeight) : height());
+        return QRect(minX, minY, qMax(0, maxX - minX), qMax(0, maxY - minY));
+    }
+
     DragGrip *m_grip {nullptr};
     bool m_left {true};
+    QPointF m_spot;
+    bool m_pressed {false};
     bool m_moving {false};
     bool m_tucked {false};
+    int m_openHeight {0};
     bool m_onGrip {false};
-    int m_grab {0};
+    QPoint m_grab;
     QPoint m_pressPos;
 };
 
 /**
- * A glass pill over the top of the canvas, sized to its contents: the tool and
- * brush bars on the left, or the window's buttons on the right. Its empty space
- * drags the window like a title bar.
+ * A glass pill over the canvas, sized to its contents: the tool and brush bars
+ * (along the top unless dragged elsewhere by its grip), or the window's buttons
+ * in the top right corner. Its empty space drags the window like a title bar.
  */
 class TopPill : public QWidget
 {
@@ -1220,6 +1274,9 @@ public:
             m_grip = new TopGrip(this);
             m_grip->setFixedSize(22, 30);
             layout->addWidget(m_grip);
+            m_grip->pressed = [this](const QPoint &globalPos) { m_grab = mapFromGlobal(globalPos); };
+            m_grip->dragged = [this](const QPoint &globalPos) { dragTo(globalPos); };
+            m_grip->dropped = [this]() { if (moved) moved(m_spot); };
         }
         // hidden when the pill is tucked away to its grip
         m_contents = new QWidget(this);
@@ -1252,31 +1309,53 @@ public:
 
     void setTucked(bool tucked)
     {
+        if (tucked && m_contents->isVisibleTo(this)) m_openWidth = layout()->sizeHint().width();
+        m_tucked = tucked;
         m_contents->setVisible(!tucked);
         keepHeight();
         if (m_grip) {
-            m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Click: show the bar\nDrag: move\nDouble-click: maximize")
-                                      : i18nc("@info:tooltip", "Drag: move\nClick: hide\nDouble-click: maximize"));
+            m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Click: show the bar\nDrag: move")
+                                      : i18nc("@info:tooltip", "Drag: move\nClick: hide"));
         }
     }
 
     void place()
     {
         QWidget *area = parentWidget();
-        move(m_right ? area->width() - margin - width() : margin + m_leftInset, margin);
+        if (m_right) {
+            move(area->width() - margin - width(), margin);
+        } else {
+            const int y = margin + offsetOf(m_spot.y(), roomY());
+            const QPair<int, int> span = spanAt(y);
+            move(span.first + offsetOf(m_spot.x(), span.second - span.first), y);
+        }
         raise();
     }
 
-    /// Space on the left reserved for the window handle
-    void setLeftInset(int inset)
+    /// Where it was dragged to, as shares of the room it has (see shareOf())
+    void setSpot(const QPointF &spot)
     {
-        if (inset == m_leftInset) return;
-        m_leftInset = inset;
+        m_spot = spot;
+        place();
+    }
+    QPointF spot() const { return m_spot; }
+
+    /// Whether it sits along the top of the canvas, or else along the bottom
+    bool isAtTop() const { return m_spot.y() < 0.5; }
+
+    /// Space in the top row reserved for the window handle on the left and the window's buttons on the right
+    void setInsets(int left, int right)
+    {
+        if (left == m_leftInset && right == m_rightInset) return;
+        m_leftInset = left;
+        m_rightInset = right;
         place();
     }
 
-    /// Called when resized, shown or hidden, so whatever is placed below can follow
+    /// Called when resized, moved, shown or hidden, so whatever is placed around it can follow
     std::function<void()> changed;
+    /// Called when dropped after a drag by its grip
+    std::function<void(const QPointF &spot)> moved;
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
@@ -1313,8 +1392,36 @@ protected:
     }
 
 private:
+    int roomY() const { return parentWidget()->height() - 2 * margin - height(); }
+
+    /// The span its left edge can take at height \p y; in the top row, between the window handle and the window's buttons
+    QPair<int, int> spanAt(int y) const
+    {
+        const bool topRow = y < margin + height();
+        const int from = margin + (topRow ? m_leftInset : 0);
+        // placed as if open, so the grip stays where it was when tucked
+        const int width = m_tucked ? qMax(this->width(), m_openWidth) : this->width();
+        return {from, qMax(from, parentWidget()->width() - margin - (topRow ? m_rightInset : 0) - width)};
+    }
+
+    /// Follows the grip, caught by the edges and the middle as it goes
+    void dragTo(const QPoint &globalPos)
+    {
+        const QPoint at = parentWidget()->mapFromGlobal(globalPos) - m_grab;
+        const qreal down = shareOf(at.y() - margin, roomY());
+        const QPair<int, int> span = spanAt(margin + offsetOf(down, roomY()));
+        m_spot = QPointF(shareOf(at.x() - span.first, span.second - span.first), down);
+        place();
+        if (changed) changed();
+    }
+
     bool m_right {false};
     int m_leftInset {0};
+    int m_rightInset {0};
+    bool m_tucked {false};
+    int m_openWidth {0};
+    QPointF m_spot;
+    QPoint m_grab;
     TopGrip *m_grip {nullptr};
     QWidget *m_contents {nullptr};
 };
@@ -1393,9 +1500,10 @@ private:
 } // namespace
 
 /**
- * The pinned panels in a glass pill over an edge of the canvas, below the
- * strip of panel buttons. Dragging the strip switches sides; dragging the
- * inner edge sets the width.
+ * The pinned panels in a glass pill over the canvas, below the strip of panel
+ * buttons (or a grip). Dragging the strip moves it: against an edge it is
+ * docked there and the canvas makes room for it, anywhere else it floats.
+ * Dragging the inner edge sets the width.
  */
 class KisStudioPanelColumn : public QWidget
 {
@@ -1408,8 +1516,8 @@ public:
 
     /// Called when the geometry changes; \p done is true once a width drag ends
     std::function<void(bool done)> resized;
-    /// Called when dragged by the strip and dropped nearer the other side of the canvas
-    std::function<void(bool left)> moved;
+    /// Called when dragged by the strip and dropped, or resized: the side of the canvas it is on and its place from that side
+    std::function<void(bool left, const QPointF &spot)> moved;
     std::function<void()> tapped;
 
     KisStudioPanelColumn(QWidget *canvasArea, bool left, int width)
@@ -1438,6 +1546,15 @@ public:
     PanelStack *stack() const { return m_stack; }
     int columnWidth() const { return m_width; }
     bool isLeft() const { return m_left; }
+    /// Against its side's edge, rather than floating over the canvas
+    bool isDocked() const { return m_spot.x() <= 0; }
+
+    /// Where it was dragged to, from its side, as shares of the room it has (see shareOf())
+    void setSpot(const QPointF &spot)
+    {
+        m_spot = spot;
+        place();
+    }
 
     void setStrip(QWidget *strip)
     {
@@ -1468,24 +1585,27 @@ public:
     /// Takes \p docks in this order, each keeping its visibility
     void setPanels(const QList<QDockWidget *> &docks) { m_stack->setPanels(docks); }
 
-    /// Places the column over the canvas area's edge, as tall as its panels want within it; just the strip without them
+    /// Places the column over the canvas area, as tall as its panels want within it; just the strip without them
     void place()
     {
         QWidget *area = parentWidget();
-        // below the pills along the top of the canvas
-        const int top = area->property(topInsetProperty).toInt() + margin;
+        const QPair<int, int> span = spanY();
         QSize size;
         if (panelsShown()) {
             const QMargins margins = m_layout->contentsMargins();
             const int strip = m_strip && !m_strip->isHidden() ? m_strip->sizeHint().height() : 0;
             const int wanted = margins.top() + margins.bottom() + strip + m_stack->wantedHeight();
             size = QSize(qBound(minimumColumnWidth, m_width, qMax(minimumColumnWidth, area->width() / 2)),
-                         qBound(0, wanted, qMax(0, area->height() - top - margin)));
+                         qBound(0, wanted, qMax(0, span.second - span.first)));
+            m_openSize = size;
         } else {
             size = m_layout->sizeHint();
         }
-        QRect geometry(m_left ? margin : area->width() - margin - size.width(), top, size.width(), size.height());
-        if (m_moving) geometry.moveLeft(x());
+        // with only the strip showing, placed as if open, so the strip stays where it was
+        const QSize placed = placedSize(size);
+        const int across = offsetOf(m_spot.x(), area->width() - 2 * margin - placed.width());
+        const QRect geometry(m_left ? margin + across : area->width() - margin - size.width() - across,
+                             span.first + offsetOf(m_spot.y(), span.second - span.first - placed.height()), size.width(), size.height());
         if (geometry != this->geometry()) {
             setGeometry(geometry);
             if (resized) resized(false);
@@ -1504,6 +1624,8 @@ protected:
             case QEvent::MouseButtonPress:
                 if (static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
                     m_resizing = true;
+                    // the outer edge stays where it is
+                    m_outer = m_left ? x() : geometry().right() + 1;
                     update();
                     return true;
                 }
@@ -1512,8 +1634,11 @@ protected:
                 if (m_resizing) {
                     const QWidget *area = parentWidget();
                     const int x = area->mapFromGlobal(globalMousePos(static_cast<QMouseEvent *>(event))).x();
-                    m_width = qBound(minimumColumnWidth, m_left ? x - margin : area->width() - margin - x,
-                                     qMax(minimumColumnWidth, area->width() / 2));
+                    m_width = qBound(minimumColumnWidth, m_left ? x - m_outer : m_outer - x, qMax(minimumColumnWidth, area->width() / 2));
+                    if (!isDocked()) {
+                        const int from = m_left ? m_outer - margin : area->width() - margin - m_outer;
+                        m_spot.setX(qBound(0.0, qreal(from) / qMax(1, area->width() - 2 * margin - m_width), 1.0));
+                    }
                     place();
                     return true;
                 }
@@ -1522,6 +1647,7 @@ protected:
                 if (m_resizing && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
                     m_resizing = false;
                     if (resized) resized(true);
+                    if (!isDocked() && moved) moved(m_left, m_spot);
                     update();
                     return true;
                 }
@@ -1559,45 +1685,70 @@ protected:
             QWidget::mousePressEvent(event);
             return;
         }
-        m_moving = true;
-        m_grab = event->pos().x();
+        m_pressed = true;
+        m_moving = false;
+        m_grab = event->pos();
         m_pressPos = globalMousePos(event);
-        setCursor(Qt::ClosedHandCursor);
-        update();
         event->accept();
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (!m_moving) {
+        if (!m_pressed) {
             QWidget::mouseMoveEvent(event);
             return;
         }
+        const QPoint global = globalMousePos(event);
+        if (!m_moving) {
+            if ((global - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
+            m_moving = true;
+            setCursor(Qt::ClosedHandCursor);
+            update();
+        }
+        // caught by the edges and the middle as it goes, so it shows where it will stay
         const QWidget *area = parentWidget();
-        const int x = area->mapFromGlobal(globalMousePos(event)).x();
-        move(qBound(margin, x - m_grab, qMax(margin, area->width() - margin - width())), y());
+        const QPoint at = area->mapFromGlobal(global) - m_grab;
+        const bool left = at.x() + width() / 2 < area->width() / 2;
+        if (left != m_left) {
+            m_left = left;
+            updateMargins();
+            placeGrip();
+        }
+        const QPair<int, int> span = spanY();
+        const QSize placed = placedSize(size());
+        const int across = m_left ? at.x() - margin : area->width() - margin - width() - at.x();
+        m_spot = QPointF(shareOf(across, area->width() - 2 * margin - placed.width()),
+                         shareOf(at.y() - span.first, span.second - span.first - placed.height()));
+        place();
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
-        if (event->button() != Qt::LeftButton || !m_moving) {
+        if (event->button() != Qt::LeftButton || !m_pressed) {
             QWidget::mouseReleaseEvent(event);
+            return;
+        }
+        m_pressed = false;
+        if (!m_moving) {
+            if (tapped) tapped();
             return;
         }
         m_moving = false;
         unsetCursor();
         update();
-        if ((globalMousePos(event) - m_pressPos).manhattanLength() < QApplication::startDragDistance()) {
-            place();
-            if (tapped) tapped();
-            return;
-        }
-        const bool left = x() + width() / 2 < parentWidget()->width() / 2;
-        if (left != m_left && moved) moved(left);
-        else place();
+        if (moved) moved(m_left, m_spot);
     }
 
 private:
+    QSize placedSize(const QSize &size) const { return panelsShown() || m_openSize.isEmpty() ? size : m_openSize; }
+
+    /// The top and bottom it can reach, clear of the bars along the canvas's top and bottom
+    QPair<int, int> spanY() const
+    {
+        const QWidget *area = parentWidget();
+        return {area->property(topInsetProperty).toInt() + margin, area->height() - area->property(bottomInsetProperty).toInt() - margin};
+    }
+
     /// The resize grip covers the inner edge, only while the panels are shown
     void placeGrip()
     {
@@ -1616,10 +1767,14 @@ private:
     QPointer<QWidget> m_strip;
     QWidget *m_grip {nullptr};
     bool m_left {false};
+    QPointF m_spot;
+    QSize m_openSize;
     int m_width {0};
     bool m_resizing {false};
+    int m_outer {0};
+    bool m_pressed {false};
     bool m_moving {false};
-    int m_grab {0};
+    QPoint m_grab;
     QPoint m_pressPos;
 };
 
@@ -1741,6 +1896,9 @@ struct KisStudioLayout::Private
     QPointer<QToolBar> windowBar;
     bool panelsLeft {false};
     bool toolRailLeft {true};
+    /// Where the tool rail and the top bar were dragged to (see shareOf())
+    QPointF toolRailSpot;
+    QPointF topBarSpot;
     bool panelsTucked {false};
     bool toolRailTucked {false};
     bool topBarTucked {false};
@@ -1974,6 +2132,8 @@ void KisStudioLayout::enter()
     d->panelsLeft = panelSide == QLatin1String("left")
                     || (panelSide.isEmpty() && !d->pinned.isEmpty() && readSet(leftKey).contains(d->pinned));
     d->toolRailLeft = cfg.readEntry<QString>(toolRailSideKey, QStringLiteral("left")) != QLatin1String("right");
+    d->toolRailSpot = readSpot(toolRailSpotKey);
+    d->topBarSpot = readSpot(topBarSpotKey);
     d->panelsTucked = cfg.readEntry<bool>(panelsHiddenKey, false);
     d->toolRailTucked = cfg.readEntry<bool>(toolRailHiddenKey, false);
     d->topBarTucked = cfg.readEntry<bool>(topBarHiddenKey, false);
@@ -2174,7 +2334,7 @@ bool KisStudioLayout::isCaptionAt(const QPoint &pos) const
 {
     KisMainWindow *mainWindow = d->mainWindow;
     QWidget *widget = mainWindow->childAt(pos);
-    // in a pill, empty space and drag grips act as caption; controls don't, nor does TopGrip, which moves the window itself
+    // in a pill, empty space and drag grips act as caption; controls don't, nor does TopGrip, which moves the bar
     for (QWidget *w = widget; w; w = w->parentWidget()) {
         if (w->property(captionProperty).toBool()) {
             if (dynamic_cast<TopGrip *>(widget)) return false;
@@ -2772,7 +2932,12 @@ KisStudioPanelColumn *KisStudioLayout::panelColumn()
         d->panelColumn = createColumn(d->panelsLeft, cfg.readEntry<int>(columnWidthKey, cfg.readEntry<int>(QStringLiteral("StudioLayoutRightColumnWidth"), 270)),
                                       columnWidthKey);
         if (!d->panelColumn) return nullptr;
-        d->panelColumn->moved = [this](bool left) { setPanelsSide(left); };
+        d->panelColumn->setSpot(readSpot(panelSpotKey));
+        d->panelColumn->moved = [this](bool left, const QPointF &spot) {
+            writeSpot(panelSpotKey, spot);
+            if (left != d->panelsLeft) setPanelsSide(left);
+            else updateCanvasInsets();
+        };
         d->panelColumn->tapped = [this]() { setPanelsTucked(!d->panelsTucked); };
     }
     if (d->rail) d->panelColumn->setStrip(d->rail);
@@ -2785,7 +2950,16 @@ KisStudioPanelColumn *KisStudioLayout::farColumn()
         // as wide as the other until its own width is set
         const int width = d->panelColumn ? d->panelColumn->columnWidth() : 270;
         d->farColumn = createColumn(!d->panelsLeft, KisConfig(true).readEntry<int>(farWidthKey, width), farWidthKey);
-        if (d->farColumn) d->farColumn->setObjectName(QStringLiteral("studioFarPanels"));
+        if (!d->farColumn) return nullptr;
+        d->farColumn->setObjectName(QStringLiteral("studioFarPanels"));
+        // it has no panel buttons to drag it by
+        d->farColumn->setStrip(new DragGrip(d->farColumn));
+        d->farColumn->setSpot(readSpot(farSpotKey));
+        d->farColumn->moved = [this](bool left, const QPointF &spot) {
+            writeSpot(farSpotKey, spot);
+            if (left == d->panelsLeft) setPanelsSide(!left);
+            else updateCanvasInsets();
+        };
     }
     return d->farColumn;
 }
@@ -2815,8 +2989,8 @@ void KisStudioLayout::setPanelsTucked(bool tucked)
     d->panelsTucked = tucked;
     KisConfig(false).writeEntry(panelsHiddenKey, tucked);
     if (d->stripGrip) {
-        d->stripGrip->setToolTip(tucked ? i18nc("@info:tooltip", "Click: show panels\nDrag: switch sides")
-                                        : i18nc("@info:tooltip", "Drag: switch sides\nClick: hide"));
+        d->stripGrip->setToolTip(tucked ? i18nc("@info:tooltip", "Click: show panels\nDrag: move")
+                                        : i18nc("@info:tooltip", "Drag: move\nClick: hide"));
     }
     updateColumns();
 }
@@ -2848,7 +3022,7 @@ void KisStudioLayout::setToolRailSide(bool left)
 {
     d->toolRailLeft = left;
     KisConfig(false).writeEntry(toolRailSideKey, left ? QStringLiteral("left") : QStringLiteral("right"));
-    if (auto *rail = static_cast<RailOverlay *>(d->brushRail.data())) rail->setLeft(left);
+    if (auto *rail = static_cast<RailOverlay *>(d->brushRail.data())) rail->setPlace(left, d->toolRailSpot);
 }
 
 void KisStudioLayout::parkPanel(QDockWidget *dock)
@@ -2951,7 +3125,8 @@ void KisStudioLayout::updateCanvasInsets(bool views)
     int fullLeft = 0;
     int fullRight = 0;
     for (KisStudioPanelColumn *column : {d->panelColumn.data(), d->farColumn.data()}) {
-        if (!column || column->isHidden()) continue;
+        // one floating over the canvas leaves it be
+        if (!column || column->isHidden() || !column->isDocked()) continue;
         const bool left = column->isLeft();
         const int reach = left ? column->geometry().right() + 1 : area->width() - column->x();
         // the tool rail sits beside the pill, even when only its strip shows
@@ -2959,17 +3134,22 @@ void KisStudioLayout::updateCanvasInsets(bool views)
         if (column->panelsShown()) (left ? fullLeft : fullRight) = qMax(left ? fullLeft : fullRight, reach);
     }
     int top = 0;
+    int bottom = 0;
     for (TopPill *pill : {d->topPill.data(), d->windowPill.data()}) {
-        // a pill only peeking over the canvas doesn't push anything
-        if (pill && !pill->isHidden() && !d->peeking.contains(pill)) top = qMax(top, pill->geometry().bottom() + 1);
+        // a pill only peeking over the canvas doesn't push anything, nor does one dragged away from the edges
+        if (!pill || pill->isHidden() || d->peeking.contains(pill)) continue;
+        const QRect at = pill->geometry();
+        if (at.top() <= TopPill::margin) top = qMax(top, at.bottom() + 1);
+        else if (at.bottom() + 1 >= area->height() - TopPill::margin) bottom = qMax(bottom, area->height() - at.top());
     }
     // with its panels shown, the pill covers the canvas's side, so the HUD and the view keep clear of it
-    const QMargins insets(fullLeft, top, fullRight, 0);
+    const QMargins insets(fullLeft, top, fullRight, bottom);
     if (canvasInsets(area) != insets || area->property(leftPillProperty).toInt() != pillLeft
         || area->property(rightPillProperty).toInt() != pillRight) {
         area->setProperty(leftInsetProperty, insets.left());
         area->setProperty(rightInsetProperty, insets.right());
         area->setProperty(topInsetProperty, insets.top());
+        area->setProperty(bottomInsetProperty, insets.bottom());
         for (KisStudioPanelColumn *column : {d->panelColumn.data(), d->farColumn.data()}) {
             if (column) column->place();
         }
@@ -2993,6 +3173,7 @@ void KisStudioLayout::updateCanvasInsets(bool views)
         viewInsets.setTop(qMax(0, area->mapToGlobal(QPoint(0, top)).y() - widget.top()));
         if (fullLeft) viewInsets.setLeft(qMax(0, area->mapToGlobal(QPoint(fullLeft, 0)).x() - widget.left()));
         if (fullRight) viewInsets.setRight(qMax(0, widget.right() + 1 - area->mapToGlobal(QPoint(area->width() - fullRight, 0)).x()));
+        if (bottom) viewInsets.setBottom(qMax(0, widget.bottom() + 1 - area->mapToGlobal(QPoint(0, area->height() - bottom)).y()));
         if (view->canvasController()) view->canvasController()->setViewportInsets(viewInsets);
     }
 }
@@ -3534,9 +3715,13 @@ void KisStudioLayout::createBrushRail()
 
     toolRail->addBottomWidget(contents);
     rail->layout()->addWidget(toolRail);
-    rail->moved = [this](bool left) { setToolRailSide(left); };
+    rail->moved = [this](bool left, const QPointF &spot) {
+        d->toolRailSpot = spot;
+        writeSpot(toolRailSpotKey, spot);
+        setToolRailSide(left);
+    };
     rail->tapped = [this]() { setToolRailTucked(!d->toolRailTucked); };
-    rail->setLeft(d->toolRailLeft);
+    rail->setPlace(d->toolRailLeft, d->toolRailSpot);
     rail->setTucked(d->toolRailTucked);
     d->brushRail = rail;
 }
@@ -3699,7 +3884,13 @@ void KisStudioLayout::adoptTopBars()
         d->topPill = new TopPill(area, false);
         d->topPill->changed = [self = QPointer<KisStudioLayout>(this)]() { if (self) self->updateCanvasInsets(); };
         d->topPill->grip()->tapped = [this]() { setTopBarTucked(!d->topBarTucked); };
+        d->topPill->moved = [this](const QPointF &spot) {
+            d->topBarSpot = spot;
+            writeSpot(topBarSpotKey, spot);
+            updateCanvasInsets();
+        };
         d->topPill->setTucked(d->topBarTucked);
+        d->topPill->setSpot(d->topBarSpot);
     }
     if (!d->windowPill) {
         d->windowPill = new TopPill(area, true);
@@ -3751,15 +3942,18 @@ void KisStudioLayout::placeWindowHandle()
     if (!handle || !pill) return;
     const int height = pill->height();
     QRect place(TopPill::margin, TopPill::margin, height, height);
-    // cap a tool rail on the left, matching its width
+    // cap a tool rail in the top left corner, matching its width
     QWidget *rail = d->brushRail;
-    if (rail && rail->isVisible() && rail->parentWidget() == handle->parentWidget() && rail->x() < rail->parentWidget()->width() / 2) {
+    QWidget *area = handle->parentWidget();
+    if (rail && rail->isVisible() && rail->parentWidget() == area && rail->x() <= area->property(leftPillProperty).toInt() + 16
+        && rail->y() < place.bottom() + 24) {
         place.setLeft(rail->x());
         place.setWidth(rail->width());
     }
     if (handle->geometry() != place) handle->setGeometry(place);
     handle->raise();
-    pill->setLeftInset(handle->isVisible() ? place.right() + 1 : 0);
+    TopPill *window = d->windowPill;
+    pill->setInsets(handle->isVisible() ? place.right() + 1 : 0, window && window->isVisible() ? area->width() - window->x() : 0);
 }
 
 void KisStudioLayout::releaseTopBars()
@@ -4063,7 +4257,7 @@ void KisStudioLayout::peek(const QPoint &global)
     };
     const int reach = 6;
     const QList<Edge> edges = {
-        {d->topPill.data(), at.y() < reach},
+        {d->topPill.data(), d->topPill && !d->topPill->isAtTop() ? at.y() >= area->height() - reach : at.y() < reach},
         {d->brushRail.data(), toolsLeft ? at.x() < reach : at.x() >= area->width() - reach},
         {d->panelColumn.data(), d->panelColumn && d->panelColumn->isLeft() ? at.x() < reach : at.x() >= area->width() - reach},
         {d->farColumn.data(), d->farColumn && d->farColumn->panelsShown() && (d->farColumn->isLeft() ? at.x() < reach : at.x() >= area->width() - reach)},

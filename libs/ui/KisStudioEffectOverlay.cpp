@@ -781,7 +781,8 @@ void KisStudioEffectOverlay::reposition()
     // centered in the part of the canvas not covered by pinned panels
     const int left = parentWidget()->property("studioCanvasLeftInset").toInt();
     const int right = parentWidget()->property("studioCanvasRightInset").toInt();
-    QRect place(left + (area.width() - left - right - width) / 2, area.height() - height - 54, width, height);
+    const int bottom = parentWidget()->property("studioCanvasBottomInset").toInt();
+    QRect place(left + (area.width() - left - right - width) / 2, area.height() - bottom - height - 54, width, height);
     place.translate(d->moved);
     // keep the title bar inside the window so that the panel can't be dragged out of reach
     place.moveLeft(qBound(-width + 80, place.left(), area.width() - 80));
