@@ -268,6 +268,9 @@ protected:
     void contextMenuEvent(QContextMenuEvent *event) override
     {
         event->accept();
+        // a finger held on a slot: its press runs nothing once the menu has taken the release
+        m_pressed = -1;
+        m_dragging = false;
         const int target = targetAt(event->pos());
         if (target >= 0 && target < m_slots.size()) slotMenu(target, event->globalPos());
         else if (target == -2) middleMenu(event->globalPos());

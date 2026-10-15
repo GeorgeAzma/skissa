@@ -716,11 +716,20 @@ void keepUpright(QDockWidget *dock, bool upright)
 {
     Q_FOREACH (KisResourceItemChooser *chooser, dock->findChildren<KisResourceItemChooser *>()) {
         if (upright) {
-            // a list again first, as a tall chooser lays itself out
-            chooser->setResponsiveness(true);
-            if (chooser->height() <= 100) chooser->resize(chooser->width(), 200);
+            if (!chooser->property("studioResponsive").isValid()) chooser->setProperty("studioResponsive", chooser->isResponsive());
+            // a list again first: a responsive chooser lays itself out by its height when resized
+            if (chooser->isResponsive() && chooser->height() <= 100) {
+                const QSize before = chooser->size();
+                chooser->resize(chooser->width(), 200);
+                QResizeEvent resized(chooser->size(), before);
+                QCoreApplication::sendEvent(chooser, &resized);
+            }
+            chooser->setResponsiveness(false);
+        } else if (chooser->property("studioResponsive").isValid()) {
+            // as it was before it was in a column
+            chooser->setResponsiveness(chooser->property("studioResponsive").toBool());
+            chooser->setProperty("studioResponsive", QVariant());
         }
-        chooser->setResponsiveness(!upright);
     }
 }
 
@@ -965,7 +974,9 @@ private:
         int y = 0;
         for (int i = 0; i < shown.size(); i++) {
             QDockWidget *dock = shown[i];
-            dock->setGeometry(0, y, width(), sizes[i].want);
+            // only when it moves: a geometry set again can make a panel ask for another layout
+            const QRect place(0, y, width(), sizes[i].want);
+            if (dock->geometry() != place) dock->setGeometry(place);
             y += sizes[i].want;
             PanelHandle *handle = m_handles[i];
             const bool between = i + 1 < shown.size();
@@ -1024,8 +1035,10 @@ private:
         explicit Watcher(PanelStack *stack) : QObject(stack), m_stack(stack) {}
 
     protected:
-        bool eventFilter(QObject *, QEvent *event) override
+        bool eventFilter(QObject *watched, QEvent *event) override
         {
+            // a panel since moved to another column, or parked, is that one's
+            if (watched->parent() != m_stack) return false;
             switch (event->type()) {
             case QEvent::Show:
             case QEvent::Hide:

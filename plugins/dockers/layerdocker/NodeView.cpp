@@ -220,6 +220,7 @@ bool NodeView::viewportEvent(QEvent *e)
         switch(e->type()) {
         case QEvent::MouseButtonPress: {
             DRAG_WHILE_DRAG_WORKAROUND_STOP();
+            d->eyeDrag.reset();
 
             const QPoint pos = static_cast<QMouseEvent*>(e)->pos();
             d->lastPos = pos;
@@ -261,13 +262,23 @@ bool NodeView::viewportEvent(QEvent *e)
 #endif
 
             const QPoint pos = static_cast<QMouseEvent*>(e)->pos();
+            if (d->eyeDrag && !(static_cast<QMouseEvent*>(e)->buttons() & Qt::LeftButton)) {
+                // its release never came (a menu took it)
+                d->eyeDrag.reset();
+            }
             if (d->eyeDrag) {
-                // down the eyes: each row passed over is shown or hidden like the first
+                // down the eyes: each row passed over is shown or hidden like the first, also those between two moves
                 const QModelIndex under = indexAt(pos);
                 const QModelIndex row = under.isValid() ? under.sibling(under.row(), DEFAULT_COL) : QModelIndex();
                 if (row.isValid() && row != d->eyeDragLast) {
+                    const bool down = !d->eyeDragLast.isValid() || visualRect(row).top() > visualRect(d->eyeDragLast).top();
+                    QModelIndex step = d->eyeDragLast.isValid() ? QModelIndex(d->eyeDragLast) : row;
+                    while (step.isValid() && step != row) {
+                        step = down ? indexBelow(step) : indexAbove(step);
+                        if (step.isValid()) setVisibility(step, *d->eyeDrag);
+                    }
+                    if (!step.isValid()) setVisibility(row, *d->eyeDrag);
                     d->eyeDragLast = row;
-                    setVisibility(row, *d->eyeDrag);
                 }
                 return true;
             }
@@ -318,6 +329,8 @@ bool NodeView::viewportEvent(QEvent *e)
 
 void NodeView::contextMenuEvent(QContextMenuEvent *e)
 {
+    // a finger held on an eye opens the menu, which takes the release
+    d->eyeDrag.reset();
     QTreeView::contextMenuEvent(e);
     QModelIndex i = indexAt(e->pos());
     if (model())

@@ -61,6 +61,7 @@ public:
     /// Enable or disable changing the layout based on size.
     /// Default is false no responsiveness, layout is vertical.
     void setResponsiveness(bool isResponsive);
+    bool isResponsive() const;
 
     /// Set's the desired view mode for the resource list.
     /// Caller should use this instead of directly tampering with the KisResourceItemListView.

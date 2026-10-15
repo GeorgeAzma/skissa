@@ -452,7 +452,10 @@ void KisStudioStartPage::paintEvent(QPaintEvent *)
 
 void KisStudioStartPage::dragEnterEvent(QDragEnterEvent *event)
 {
-    if (!event->mimeData()->hasUrls()) {
+    // only files it can open: not links from a browser
+    bool files = false;
+    Q_FOREACH (const QUrl &url, event->mimeData()->urls()) files = files || url.isLocalFile();
+    if (!files) {
         event->ignore();
         return;
     }

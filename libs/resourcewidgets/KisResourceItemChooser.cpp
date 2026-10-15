@@ -316,6 +316,11 @@ void KisResourceItemChooser::setResponsiveness(bool isResponsive)
     }
 }
 
+bool KisResourceItemChooser::isResponsive() const
+{
+    return d->isResponsive;
+}
+
 void KisResourceItemChooser::setListViewMode(ListViewMode newViewMode)
 {
     d->requestedViewMode = newViewMode;

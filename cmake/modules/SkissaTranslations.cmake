@@ -15,6 +15,8 @@ function(skissa_install_translations)
     get_filename_component(destname ${LOCALE_INSTALL_DIR} DIRECTORY)
     set(locale ${CMAKE_CURRENT_BINARY_DIR}/${dirname})
     set(script ${CMAKE_CURRENT_SOURCE_DIR}/packaging/skissa-translations.py)
+    # a real Python 3 (not a store stub or Python 2) to join them; without one Krita's translations go in as they are
+    find_package(Python3 COMPONENTS Interpreter QUIET)
 
     file(GLOB langs LIST_DIRECTORIES true RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/po ${CMAKE_CURRENT_SOURCE_DIR}/po/*)
     # a language the fork gains translations for is picked up without configuring again
@@ -27,13 +29,14 @@ function(skissa_install_translations)
         if(NOT EXISTS ${upstream})
             continue()
         endif()
-        if(fork IN_LIST forks)
+        if(fork IN_LIST forks AND Python3_Interpreter_FOUND)
             set(joined ${CMAKE_CURRENT_BINARY_DIR}/po-joined/${lang}/krita.po)
             add_custom_command(OUTPUT ${mo}
                 COMMAND ${CMAKE_COMMAND} -E make_directory ${locale}/${lang}/LC_MESSAGES
-                COMMAND ${KI18N_PYTHON_EXECUTABLE} ${script} --join ${upstream} ${fork} ${joined}
+                COMMAND ${Python3_EXECUTABLE} ${script} --join ${upstream} ${fork} ${joined}
                 COMMAND ${GETTEXT_MSGFMT_EXECUTABLE} -o ${mo} ${joined}
                 DEPENDS ${upstream} ${fork} ${script}
+                BYPRODUCTS ${joined}
                 VERBATIM)
         else()
             add_custom_command(OUTPUT ${mo}

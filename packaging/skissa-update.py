@@ -58,8 +58,8 @@ def main():
     git('config', 'rerere.autoupdate', 'true')
     upstream = '%s/%s' % (UPSTREAM_REMOTE, UPSTREAM_BRANCH)
 
-    merging = os.path.exists(os.path.join(git('rev-parse', '--git-dir').stdout.strip(), 'MERGE_HEAD'))
-    if merging:
+    merge_head = os.path.join(git('rev-parse', '--absolute-git-dir').stdout.strip(), 'MERGE_HEAD')
+    if os.path.exists(merge_head):
         left = conflicts()
         if left:
             print('The merge still has conflicts:\n  ' + '\n  '.join(left))
@@ -77,6 +77,9 @@ def main():
         merge = git('merge', '--no-edit', '-m', 'Merge Krita %s' % git('rev-parse', '--short', upstream).stdout.strip(), upstream, check=False)
         if merge.returncode:
             left = conflicts()
+            if not os.path.exists(merge_head):
+                # it never started (files in the way, say)
+                sys.exit('The merge failed:\n%s%s' % (merge.stdout, merge.stderr))
             if not left:
                 # rerere settled every conflict: the merge only needs committing
                 git('commit', '--no-edit')
@@ -91,9 +94,11 @@ def main():
         script = os.path.join(HERE, 'skissa-translations.py')
         env = dict(os.environ)
         if not shutil.which('perl'):
-            # Git for Windows ships one
-            git_perl = os.path.join(os.path.dirname(os.path.dirname(shutil.which('git') or '')), 'usr', 'bin')
-            env['PATH'] = git_perl + os.pathsep + env.get('PATH', '')
+            # Git for Windows ships one, in usr/bin of the folder git.exe is somewhere under
+            folder = os.path.dirname(shutil.which('git') or '')
+            while folder and not os.path.exists(os.path.join(folder, 'usr', 'bin', 'perl.exe')) and os.path.dirname(folder) != folder:
+                folder = os.path.dirname(folder)
+            env['PATH'] = os.path.join(folder, 'usr', 'bin') + os.pathsep + env.get('PATH', '')
         if subprocess.run([sys.executable, script, '--gettext', args.gettext], cwd=SOURCE, env=env,
                           stdout=subprocess.DEVNULL).returncode:
             sys.exit('translations failed')
