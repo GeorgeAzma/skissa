@@ -16,6 +16,7 @@
 #include <QtDebug>
 #include <QApplication>
 #include <QCursor>
+#include <QHeaderView>
 #include <QRegularExpression>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -195,13 +196,24 @@ void NodeDelegate::paint(QPainter *p, const QStyleOptionViewItem &cell, const QM
             const bool eye = index.column() == NodeView::VISIBILITY_COL;
             const bool leftToRight = option.direction != Qt::RightToLeft;
             const qreal beyond = 48;
-            QRectF shape = QRectF(option.rect).adjusted(1, 1, -1, -1);
-            if (eye == leftToRight) {
+            QRect cell = option.rect;
+            if (!eye) {
+                // the row's part reaches back over a nested layer's indentation to the eye
+                const QHeaderView *header = d->view->header();
+                const int eyeStart = header->sectionViewportPosition(NodeView::VISIBILITY_COL);
+                if (leftToRight) {
+                    cell.setLeft(qMin(cell.left(), eyeStart + header->sectionSize(NodeView::VISIBILITY_COL)));
+                } else {
+                    cell.setRight(qMax(cell.right(), eyeStart - 1));
+                }
+            }
+            QRectF shape = QRectF(cell).adjusted(1, 1, -1, -1);
+            if (eye != leftToRight) {
                 shape.adjust(-beyond, 0, -1, 0);
             } else {
                 shape.adjust(0, 0, beyond, 0);
             }
-            p->setClipRect(option.rect);
+            p->setClipRect(cell);
             p->drawPath(KisModernStyle::squircle(shape, 6));
             p->restore();
         }
