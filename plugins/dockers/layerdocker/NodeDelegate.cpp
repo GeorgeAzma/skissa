@@ -18,6 +18,7 @@
 #include <QCursor>
 #include <QHeaderView>
 #include <KisTouchMode.h>
+#include <KisStudioTips.h>
 #include <QRegularExpression>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -1313,9 +1314,11 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
         }
         d->tip.hide();
         auto said = [](const KisBaseNode::Property &property) {
-            if (!property.isMutable) return QStringLiteral("%1: %2").arg(property.name, property.state.toString());
-            return property.state.toBool() ? i18nc("a layer's switch that is on, %1 its name", "%1: on", property.name)
-                                           : i18nc("a layer's switch that is off, %1 its name", "%1: off", property.name);
+            if (!property.isMutable) return QStringLiteral("%1 %2").arg(property.name, property.state.toString());
+            if (property.id == KisLayerPropertiesIcons::visible.id()) {
+                return property.state.toBool() ? i18nc("a layer's eye when the layer shows", "Visible") : i18nc("a layer's eye when the layer doesn't show", "Hidden");
+            }
+            return property.state.toBool() ? property.name : i18nc("a layer's switch that is off, %1 its name", "%1 off", property.name);
         };
         QString text;
         KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
@@ -1331,7 +1334,7 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
                 : said(*hovered);
         }
         if (text.isEmpty()) QToolTip::hideText();
-        else QToolTip::showText(helpEvent->globalPos(), text, d->view);
+        else QToolTip::showText(helpEvent->globalPos(), KisStudioTips::html(text), d->view);
         return true;
     }
 

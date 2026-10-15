@@ -413,7 +413,7 @@ bool KisStudioValueRow::event(QEvent *event)
         // what the row is, then its gestures
         if (tip.isEmpty() && m_draggable) tip = KisStudioTips::tip(toolTip(), KisStudioTips::valueGestures(!qIsNaN(m_default)));
         if (!tip.isEmpty()) {
-            QToolTip::showText(help->globalPos(), tip, this);
+            QToolTip::showText(help->globalPos(), KisStudioTips::html(tip), this);
             return true;
         }
     }

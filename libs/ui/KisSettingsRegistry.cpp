@@ -783,7 +783,7 @@ QVector<Setting> describeAll()
  */
 void forgetRetired()
 {
-    constexpr int version = 5;
+    constexpr int version = 6;
     KConfigGroup top = KSharedConfig::openConfig()->group(QString());
     if (top.readEntry("StudioRetiredSettings", 0) >= version) return;
     const char *const keys[] = {
@@ -800,6 +800,8 @@ void forgetRetired()
         "enableOpenGLFramerateLogging", "enableBrushSpeedLogging", "enableProgressReporting", "enablePerfLog",
         "forcedDpiForQtFontBugWorkaround", "memorySoftLimitPercent", "maxSwapSize", "swaplocation", "useOnDiskAnimationCacheSwapping",
         "calculateAnimationCacheInBackground", "disableAVXOptimizations", "amdDisableVectorWorkaround",
+        // pinned panels now fit their contents; only heights set by hand are kept, under another key
+        "StudioLayoutPanelHeights",
     };
     // Krita's "don't rename copied/pasted/merged layers" options become empty name affixes
     const struct { const char *old; KisImageConfig::LayerNaming kind; } renames[] = {

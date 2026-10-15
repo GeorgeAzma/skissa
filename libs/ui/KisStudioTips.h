@@ -6,14 +6,23 @@
 #ifndef KISSTUDIOTIPS_H
 #define KISSTUDIOTIPS_H
 
+#include <QKeySequence>
 #include <QString>
 #include <QStringList>
 
+#include <functional>
+
 #include <klocalizedstring.h>
 
+#include "kritaui_export.h"
+
+class QAbstractButton;
+
 /**
- * Tooltips teach the gestures: what a control is on the first line, then each
- * gesture on a line of its own, worded the same everywhere ("Drag: change").
+ * Tooltips teach the gestures. A tooltip is written as what the control is,
+ * then a line per gesture ("Drag: change"); it is shown as the name with the
+ * gestures in a row under it, each a little picture of the mouse doing it and
+ * a word, and the shortcut after the name.
  */
 namespace KisStudioTips
 {
@@ -38,6 +47,12 @@ inline QStringList valueGestures(bool resets = true)
     if (resets) gestures << rightClickReset();
     return gestures;
 }
+
+/// \p tooltip as shown: its gesture lines as pictures, \p keys after its first line; plain text if it has neither
+KRITAUI_EXPORT QString html(const QString &tooltip, const QString &keys = QString());
+
+/// Shows every tooltip so, with the shortcut \p shortcutOf gives a button
+KRITAUI_EXPORT void install(std::function<QKeySequence(QAbstractButton *)> shortcutOf);
 
 } // namespace KisStudioTips
 
