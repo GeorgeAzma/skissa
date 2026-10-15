@@ -136,6 +136,8 @@ private:
     void releaseTopBars();
     void syncRail();
     /// Keeps the start page clear of the tool rail over it
+    /// The Studio's start page in place of Krita's welcome page, or Krita's back
+    void showStartPage(bool show);
     void placeWelcomePage();
     /// Places the window handle in the top-left corner and the top pill after it
     void placeWindowHandle();

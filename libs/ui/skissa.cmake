@@ -37,6 +37,7 @@ set(skissa_ui_SRCS
     KisStudioScrubber.cpp
     KisStudioSettings.cpp
     KisStudioSmoothing.cpp
+    KisStudioStartPage.cpp
     KisStudioSymmetry.cpp
     KisStudioTheme.cpp
     KisStudioToolRail.cpp

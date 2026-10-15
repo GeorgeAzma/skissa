@@ -90,6 +90,7 @@
 #include "KisView.h"
 #include "KisViewManager.h"
 #include "KisWelcomePageWidget.h"
+#include "KisStudioStartPage.h"
 #include "canvas/kis_canvas2.h"
 #include "canvas/kis_canvas_controller.h"
 #include "kis_canvas_resource_provider.h"
@@ -1712,6 +1713,9 @@ struct KisStudioLayout::Private
     QPointer<KisStudioPanelColumn> panelColumn;
     /// The column on the other side of the canvas, without the panel buttons
     QPointer<KisStudioPanelColumn> farColumn;
+    /// Shown in place of Krita's welcome page, which is kept aside meanwhile
+    QPointer<KisStudioStartPage> startPage;
+    QPointer<QWidget> classicWelcome;
     QSet<QString> far;
     QPointer<TopPill> topPill;
     QPointer<TopPill> windowPill;
@@ -2014,6 +2018,7 @@ void KisStudioLayout::enter()
         });
     }
 
+    showStartPage(true);
     createRail();
     createBrushRail();
     createTopBar();
@@ -2291,6 +2296,7 @@ void KisStudioLayout::leave()
     if (d->hud) {
         d->hud->setActive(false);
     }
+    showStartPage(false);
     if (auto *welcome = mainWindow->findChild<KisWelcomePageWidget *>()) {
         welcome->setContentsMargins(QMargins());
     }
@@ -2837,9 +2843,38 @@ void KisStudioLayout::parkPanel(QDockWidget *dock)
     dock->hide();
 }
 
+void KisStudioLayout::showStartPage(bool show)
+{
+    if (show && !d->startPage) {
+        auto *welcome = d->mainWindow->findChild<KisWelcomePageWidget *>();
+        QWidget *viewport = welcome ? welcome->parentWidget() : nullptr;
+        auto *scroller = viewport ? qobject_cast<QScrollArea *>(viewport->parentWidget()) : nullptr;
+        if (!scroller || scroller->widget() != welcome) return;
+        d->classicWelcome = scroller->takeWidget();
+        // kept as the window's own, for what still looks it up
+        d->classicWelcome->setParent(d->mainWindow);
+        d->classicWelcome->hide();
+        d->startPage = new KisStudioStartPage(d->mainWindow);
+        scroller->setWidget(d->startPage);
+        // the window shows it after laying out for it, and raises it over the pills: lay out again once it shows
+        d->startPage->installEventFilter(this);
+    } else if (!show && d->startPage) {
+        QWidget *viewport = d->startPage->parentWidget();
+        auto *scroller = viewport ? qobject_cast<QScrollArea *>(viewport->parentWidget()) : nullptr;
+        if (scroller) {
+            scroller->takeWidget();
+            if (d->classicWelcome) {
+                scroller->setWidget(d->classicWelcome);
+                d->classicWelcome->show();
+            }
+        }
+        delete d->startPage;
+    }
+}
+
 void KisStudioLayout::placeWelcomePage()
 {
-    auto *welcome = d->mainWindow->findChild<KisWelcomePageWidget *>();
+    QWidget *welcome = d->startPage ? static_cast<QWidget *>(d->startPage) : d->mainWindow->findChild<KisWelcomePageWidget *>();
     QWidget *rail = d->brushRail;
     if (!welcome || !rail) return;
     QMargins room;
@@ -4055,6 +4090,10 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
         Q_FOREACH (QDockWidget *dock, d->mainWindow->dockWidgets()) {
             if (dock->isFloating() && dock->isHidden()) dockAway(dock);
         }
+    }
+
+    if (watched == d->startPage && d->startPage && (event->type() == QEvent::Show || event->type() == QEvent::Hide)) {
+        QTimer::singleShot(0, this, &KisStudioLayout::normalize);
     }
 
     if (watched == d->brushRail && d->brushRail) {
