@@ -1,0 +1,34 @@
+# Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "a setting's value: not set"
+msgid "Default"
+msgstr "Mặc định"
+
+msgctxt "brush group"
+msgid "Other"
+msgstr "Khác"
+
+msgctxt "@info:tooltip"
+msgid "Preview"
+msgstr "Xem thử"
+
+msgctxt "effect group"
+msgid "Other"
+msgstr "Khác"
+
+msgctxt "color sampler"
+msgid "Preview"
+msgstr "Xem thử"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "Hoạt ảnh"
+
+msgctxt "keys group"
+msgid "Other"
+msgstr "Khác"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Thêm vào bảng màu"
+

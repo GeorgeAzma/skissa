@@ -1,0 +1,646 @@
+# Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Opens a file browser at the location Skissa saves resources such as brushes to."
+msgstr "在檔案管理器裡開啟 Skissa 儲存筆刷等資源的位置。"
+
+msgctxt "action"
+msgid "Show Skissa log for bug reports."
+msgstr "顯示要用於錯誤報告的 Skissa 紀錄。"
+
+msgctxt "action"
+msgid "Configure Skissa"
+msgstr "設定 Skissa"
+
+msgctxt "action"
+msgid "About Skissa"
+msgstr "關於 Skissa"
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Skissa：內部錯誤"
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "圖層"
+
+msgid "The resource database scheme has changed. Skissa will backup your database and create a new database."
+msgstr "資源資料庫綱要已變更。Skissa 會先備份您的資料庫，然後再建立一個新的資料庫。"
+
+msgid "Skissa is running for the first time. Initialization will take some time."
+msgstr "Skissa 為第一次執行。需要一點時間初始化。"
+
+msgctxt "@title:window"
+msgid "Skissa: Fatal error"
+msgstr "Skissa：嚴重錯誤"
+
+msgid "%1\n\nSkissa will quit now."
+msgstr "%1\n\nSkissa 將立刻離開。"
+
+msgid "\n\nSkissa will quit now."
+msgstr "\n\nSkissa 將立刻退出。"
+
+msgid "Cannot add the file layer: no document is open.\n\nYou can create a new document using the --new-image option, or you can open an existing file.\n\nIf you instead want to add the file layer to a document in an already running instance of Skissa, check the \"Allow only one instance of Skissa\" checkbox in the settings (Settings -> General -> Window)."
+msgstr "無法新增檔案圖層：未開啟檔案。\n\n您可使用 --new-image 選項建立新文件，或是開啟現有檔案。\n\n如果您想改新增檔案圖層至執行中 Skissa 實體中的文件，請核取設定中的「只允許一個 Skissa 實體」(設定 -> 一般 -> 視窗)。"
+
+msgid "Skissa configurations reset!\n\nBackup file was created at: %1\n\nRestart Skissa for changes to take effect."
+msgstr "已重設 Skissa 設定！\n\n備份檔已在下述位置建立：%1\n\n請重新啟動 Skissa 以套用變更。"
+
+msgid "The name of the workspace to open Skissa with"
+msgstr "Skissa 啟動時使用的作業空間名稱"
+
+msgid "The name of the window layout to open Skissa with"
+msgstr "Skissa 啟動時使用的視窗版面配置名稱"
+
+msgid "The name of the session to open Skissa with"
+msgstr "Skissa 啟動時使用的工作階段名稱"
+
+msgid "Start Skissa in canvas-only mode"
+msgstr "Skissa 啟動時預設為畫布獨佔模式"
+
+msgid "Start Skissa in full-screen mode"
+msgstr "以全螢幕模式啟動 Skissa"
+
+msgid "A location that overrides the configured location for Skissa's resources"
+msgstr "指定路徑以覆寫已設定的 Skissa 資源資料夾路徑選項"
+
+msgid "Permission denied. Skissa is not allowed to read or write to the file."
+msgstr "沒有權限。該檔案不允許 Skissa 進行讀寫。"
+
+msgid "Permission denied: Skissa is not allowed to read the file."
+msgstr "沒有權限：該檔案不允許 Skissa 進行讀寫。"
+
+msgid "Permission denied: Skissa is not allowed to write to the file."
+msgstr "沒有權限：該檔案不允許 Skissa 進行讀寫。"
+
+msgid "Skissa does not support this file format."
+msgstr "Skissa 不支援此檔案格式。"
+
+msgctxt "@title:window"
+msgid "Skissa: Export Error"
+msgstr "Skissa：匯出錯誤"
+
+msgctxt "the argument is the ICC profile name"
+msgid "The image has a profile attached that Skissa cannot edit images in (\"%1\"), please select a space to convert to for editing: \n"
+msgstr "此影像附有 Skissa 不能使用作影像編輯用途的色彩特性檔案 (「%1」)。請選取一個色彩空間來轉換影像以便編輯：\n"
+
+msgctxt "canvas renderer"
+msgid "Auto"
+msgstr "自動"
+
+msgctxt "cursor"
+msgid "None"
+msgstr "無"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "無"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "無"
+
+msgctxt "zoom"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "canvas scaling"
+msgid "Bilinear"
+msgstr "雙線性"
+
+msgctxt "setting"
+msgid "Pressure"
+msgstr "壓力"
+
+msgctxt "touch painting"
+msgid "Auto"
+msgstr "自動"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "工作階段"
+
+msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
+msgid "Screen %1 (%2)"
+msgstr "顯示器 %1 (%2)"
+
+msgctxt "canvas surface depth"
+msgid "Auto"
+msgstr "自動"
+
+msgctxt "a setting's value: not set"
+msgid "Default"
+msgstr "預設"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "無"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "遮罩"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "紋理"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "新增"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "像素"
+
+msgctxt "brush group"
+msgid "Other"
+msgstr "其他"
+
+msgctxt "zoom level, %1 is the percentage"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "設定"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "effect group"
+msgid "Other"
+msgstr "其他"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "圖層"
+
+msgctxt "@title find results"
+msgid "Settings"
+msgstr "設定"
+
+msgctxt "@title find results"
+msgid "Workspaces"
+msgstr "作業空間"
+
+msgctxt "@title find results"
+msgid "All"
+msgstr "全部"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "視窗"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "不透明度"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "視窗"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "壓力"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "速度"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "淡化"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "距離"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "透視"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "名稱"
+
+msgctxt "@info an empty slot of a ring"
+msgid "Add"
+msgstr "新增"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "速度"
+
+msgctxt "theme"
+msgid "Lightness"
+msgstr "亮度"
+
+msgctxt "glass"
+msgid "Blur"
+msgstr "模糊"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "不透明度"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "settings card"
+msgid "Pressure"
+msgstr "壓力"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "復原"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "圖層"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "圖層"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "動畫"
+
+msgctxt "author"
+msgid "None"
+msgstr "無"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "白點"
+
+msgctxt "instant preview"
+msgid "Transform"
+msgstr "變形"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "移動"
+
+msgctxt "@action:inmenu"
+msgid "Reset"
+msgstr "重設"
+
+msgctxt "@action:button"
+msgid "Import"
+msgstr "匯入"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "復原"
+
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "吸附到參考線"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Blend"
+msgstr "混色"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Transform"
+msgstr "變形"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Fill"
+msgstr "填充"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "文字"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Guides"
+msgstr "參考線"
+
+msgid "Use the new template every time Skissa starts"
+msgstr "Skissa 每次啟動時使用此新範本"
+
+msgid "Warning: you are trying to import more than 100 frames into Skissa.\n\nThis means you might be overloading your system.\nIf you want to edit a clip larger than 100 frames, consider using a real video editor, like Kdenlive (https://kdenlive.org)."
+msgstr "警告：您正嘗試匯入多於 100 個影格到 Skissa。\n\n這表示您可能會令系統超出負荷。\n如果您希望修改一段多於 100 個影格的影片，請考慮使用一個影片編輯軟體，例如 Kdenlive (https://kdenlive.org)。"
+
+msgctxt "part of warning in video importer."
+msgid "Skissa does not support the video transfer curve (%1), it will be loaded as linear."
+msgstr "Skissa 不支援此影片的轉移曲線 (%1)。影片檔將會以線性色彩載入。"
+
+msgctxt "@info:tooltip"
+msgid "The amount of time during which the strokes will be kept unmerged. When a stroke becomes old enough, Skissa will try to merge it"
+msgstr "筆畫維持不被合併的時長。當筆畫存留時間到達時限，Skissa 會嘗試將其合併"
+
+msgctxt "@info:tooltip"
+msgid "The number of last strokes that Skissa will not merge (even if they are old enough)"
+msgstr "Skissa 保留不合併的最近筆畫數目 (即使存留時間已到達時限)"
+
+msgid "Cumulative Undo allows Skissa to merge undo actions and make undo history cleaner. Skissa will still keep a few latest actions unmerged according to \"Wait before merging strokes\" and \"Exclude last strokes from merge\" options. Whenever an action gets outdated using the time limit and this action is not excluded using \"Exclude last strokes from merge\", Skissa will try  to merge this action into a group. The groups are formed using \"Max group strokes delay\" and \"Max group duration\" options."
+msgstr "合併復原容許 Skissa 將復原動作合併以令復原記錄更清晰。Skissa 會根據「筆畫合併前等候時間」和「排除合併最近筆畫」選項保留最近數項復原動作不被合併。每當有復原動作變得過時而又未被「排除合併最近筆畫數」選項排除，Skissa 便會嘗試將此動作合併至一個筆畫組。這些筆畫組會根據「筆畫組最大時間間隔」和「筆畫組最大時長」選項分組。"
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "keys group"
+msgid "Other"
+msgstr "其他"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "旋轉"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "無"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>使用者的權利</b></h1><p>Skissa 是在 GNU 通用公共許可協議 (第三版或其後續版本) 下發布的。</p><p>此協議賦予人們以下自由的權利：</p><ul><li>任何人都可以為任何目的自由使用 Skissa</li><li>任何人都可以自由地分發 Skissa</li><li>任何人都可以自由地研究 Skissa 的作業原理並對其進行修改</li><li>任何人都可以自由地分發修改過的 Skissa 版本</li></ul><p>Skissa 基金會及其他 krita.org 運營的專案將<b>全力確保</b> Skissa 始終是自由軟體。</p><h1 align=\"center\">使用者作品的權利</h1><p>使用者使用 Skissa 創作的所有產物都是該使用者獨享的私有財產，該使用者享有自由支配這些作品的權利。</p><p>Skissa 可被自由用作包括商業用途在內的任意場景，不作任何限制。</p><p>Skissa 通過 GPL 協議賦予使用者上述自由，任何人無權剝奪。Skissa 不會像一些商業軟體那樣對試用版或教育版軟體的商用場景進行限制。</p><br/><hr/><pre>"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1><p>Skissa is built on the following free software libraries:</p><p><ul>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Skissa 使用的第三方程式庫</b></h1><p>Skissa 基於下列自由軟體程式庫進行編譯：</p><p><ul>"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "不透明度"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "不透明度"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "檔案"
+
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "新增"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "差值"
+
+msgctxt "tooltip on statusbar memory reporting button"
+msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
+msgstr "\n\n警告：\t記憶體不足！已啟用記憶體置換。\n\t\t請在設定對話框中為 Skissa 分配更多記憶體"
+
+msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
+msgstr "Skissa 無法初始化 OpenGL 畫布：\n\n%1\n\nSkissa 將在停用 OpenGL 選項後立即關閉。"
+
+msgctxt "@action:inmenu"
+msgid "Deselect"
+msgstr "取消選取"
+
+msgctxt "@action:inmenu"
+msgid "Reselect"
+msgstr "重新選取"
+
+msgctxt "@action:inmenu"
+msgid "Invert"
+msgstr "反轉"
+
+msgctxt "@action:inmenu"
+msgid "Transform"
+msgstr "變形"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "編輯"
+
+msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
+msgstr "新的 AppImage 已下載至 %1。如要完成更新，請關閉 Skissa 並執行新的 AppImage。"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "線性"
+
+msgctxt "If the selected model is CMYK"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
+msgstr "<b><a href=\"https://zh.wikipedia.org/wiki/印刷四分色模式\">CMYK (青、品紅、 黃、黑)</a></b>是一種用於印表機以及其他運用色料產生影像的媒體使用的色彩模型。<br/>CMYK 是一種減色模型，色彩在相互疊加時結果變暗。每台印表機的 CMYK 特性檔案都有差異，因此我們推薦先使用 RGB 色彩模型繪製作品，然後再把影像用目標印表機的 CMYK 特性檔案來進行轉換。<br/>我們<b>不建議</b> 把 CMYK 用於繪畫過程。Skissa 也無法獲取此色彩空間的色料特性或階調響應曲線 (TRC) 。"
+
+msgctxt "If the selected model is Grayscale"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/Grayscale\">Grayscale</a></b> only allows for gray values and transparent values. Grayscale images use half the memory and disk space compared to an RGB image of the same bit-depth.<br/>Grayscale is useful for inking and grayscale images. In Skissa, you can mix Grayscale and RGB layers in the same image."
+msgstr "<b><a href=\"https://zh.wikipedia.org/wiki/灰度影像\">灰階</a></b> 僅允許灰度值和透明值。與相同位元色深的 RGB 影像相比，灰階影像對記憶體和磁碟空間的佔用率僅為一半。<br/>灰階影像適用於繪製線稿和灰度作品。Skissa 允許在同一影像中同時包含 RGB 和灰度圖層。"
+
+msgctxt "If the selected model is LAB"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/Lab_color_space\">L*a*b</a></b>. <b>L</b> stands for Lightness, the <b>a</b> and <b>b</b> components represent color channels.<br/>L*a*b is a special model for color correction. It is based on human perception, meaning that it tries to encode the difference in lightness, red-green balance and yellow-blue balance. This makes it useful for color correction, but the vast majority of color maths in the blending modes do <b>not</b> work as expected here.<br/>Similarly, Skissa does not support HDR in LAB, meaning that HDR images converted to LAB lose color information. This colorspace is <b>not</b> recommended for painting, nor for export, but best as a space to do post-processing in. The TRC is assumed to be the L* TRC."
+msgstr "<b><a href=\"https://zh.wikipedia.org/wiki/Lab色彩空間\">L*a*b</a></b>。<b>L</b> 代表亮度， <b>a</b> 和 <b>b</b> 表示色彩通道。<br/>L*a*b 是為色彩校對而設計的特殊色彩模型。它基於人類對色彩的感知原理將色彩以亮度、紅綠平衡以及黃藍平衡三個參數進行編碼。雖然此模型便於色彩校對，但 Skissa 大多數的混色模式所使用的演算法<b>不能</b>在此模型下正常作業。<br/>因為類似的原因 Skissa 在 LAB 色彩空間下不支援 HDR，一切 HDR 影像在轉成 LAB 色彩空間時都會遺失色彩資訊。我們<b>不建議</b>將此色彩空間用於繪畫或匯出，但是可以用於做後期處理。此色彩空間的階調響應曲線 (TRC) 假設為 L* TRC。"
+
+msgctxt "These are Elle Stone's notes on her profiles that we ship."
+msgid "<p><b>Extra notes on profiles by Elle Stone:</b></p><p><i>Skissa comes with a number of high quality profiles created by <a href=\"https://ninedegreesbelow.com\">Elle Stone</a>. This is a summary. Please check <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">the full documentation</a> as well.</i></p>"
+msgstr "<p><b>Elle Stone 色彩特性檔案說明：</b></p><p><b>Skissa 內建了一系列由 <a href=\"https://ninedegreesbelow.com\">Elle Stone</a> 製作的高品質色彩特性檔案。此處只顯示了特性檔案的說明摘要。如需具體資料，請查看<a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">完整說明</a>。</b></p>"
+
+msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
+msgstr "所選檔案名稱不含 Skissa 能理解的副檔名。\n舉個例，請確認檔案名稱以「.%1」結尾。"
+
+msgid "Dropped frames are not available in this Skissa instance"
+msgstr "此 Skissa 實體不支援拋棄的影格"
+
+msgctxt "@action:inmenu select layers"
+msgid "All"
+msgstr "全部"
+
+msgctxt "@action:inmenu select layers"
+msgid "Visible"
+msgstr "可見"
+
+msgctxt "@title:menu other kinds of layer"
+msgid "New"
+msgstr "建立"
+
+msgctxt "@action:inmenu"
+msgid "Paint Layer"
+msgstr "顏料圖層"
+
+msgctxt "@action:inmenu"
+msgid "Group"
+msgstr "群組"
+
+msgctxt "@action:inmenu"
+msgid "Vector Layer"
+msgstr "向量圖層"
+
+msgctxt "@action:inmenu"
+msgid "Transparency Mask"
+msgstr "透明度遮罩"
+
+msgctxt "@action:inmenu"
+msgid "Colorize Mask"
+msgstr "著色遮罩"
+
+msgctxt "@action:inmenu"
+msgid "Transform Mask"
+msgstr "變形遮罩"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "複製"
+
+msgctxt "@action:inmenu"
+msgid "Cut"
+msgstr "剪下"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "複製"
+
+msgctxt "@action:inmenu"
+msgid "Alpha into Mask"
+msgstr "Alpha (透明度) 轉為遮罩"
+
+msgctxt "@action:inmenu"
+msgid "Write as Alpha"
+msgstr "作為 Alpha (透明度) 寫入"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Layer"
+msgstr "平整圖層"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Image"
+msgstr "平整影像"
+
+msgctxt "@action:inmenu"
+msgid "Pin to Timeline"
+msgstr "釘選至時間軸"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "復原"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "重做"
+
+msgctxt "@action:button choose a palette"
+msgid "Palettes"
+msgstr "調色板"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "編輯"
+
+msgctxt "@info:tooltip"
+msgid "Lock"
+msgstr "鎖定"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "加入到調色板"
+
+msgctxt "frames at half the image's size"
+msgid "Half"
+msgstr "一半"
+
+msgctxt "settings page"
+msgid "Wide Gamut Selector"
+msgstr "廣色域選色器"
+
+msgctxt "Caption of the dialog with Krita's Android system log for bug reports"
+msgid "Skissa Logcat Dump: please paste this information to the bug report"
+msgstr "Skissa Logcat 傾印：請將這些資料貼上到錯誤報告內"
+
+msgctxt "Caption of the dialog with crash log for bug reports"
+msgid "Skissa Crash Log: please paste this information to the bug report"
+msgstr "Skissa 程式崩潰紀錄：請將這些資料貼上到錯誤報告內"
+
+msgctxt "Caption of the dialog with Skissa usage log for bug reports"
+msgid "Skissa Usage Log: please paste this information to the bug report"
+msgstr "Skissa 使用紀錄：請將這些資料貼上到錯誤報告內"
+
+msgctxt "Caption of the dialog with system information for bug reports"
+msgid "Skissa System Information: please paste this information to the bug report"
+msgstr "Skissa 系統資訊：請將這些資料貼上到錯誤報告內"
+
+msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
+msgstr "Skissa 未能啟動 gmic-qt 外掛程式。找不到同捆的程式庫。"
+
+msgctxt "@info"
+msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
+msgstr "此影像包含 Alpha (透明度) 通道數值為零而色彩通道不為零的像素。Skissa 已經將那些像素調整為含有 Alpha。原始數值在儲存影像時將<b>不會</b>被還原。<br/><br/>這並不會構成視覺上的明顯區別，只是提醒一下。"
+
+msgctxt "@tooltip"
+msgid "The image will be linearized first, and then encoded with SMPTE ST 428. Skissa always opens images like these as linear floating point, this option is there to reverse that"
+msgstr "影像會先被線性化，然後以 SMPTE ST 428 作出編碼。Skissa 一般會以線性浮點格式開啟這些影像，而此選項可用作還原這項操作。"
+
+msgid "Layer \"%1\" has blending mode \"%2\" that has changed its behavior for CMYK color in Krita 5.2. Please check the result and consider enabling legacy \"Additive\" algorithm in Settings->Configure Skissa->General->Tools->CMYK blending mode"
+msgstr "圖層「%1」所使用的「%2」混色模式，由 Skissa 5.2 版本起改變了在 CMYK 色彩模型下的行為。請檢查影像效果，並考慮到設定中啟用與舊版相容的「加色法」混色方法 (設定→設定 Skissa→一般→工具→CMYK 混色模式)"
+
+msgid "The file is too new for this version of Skissa (%1)."
+msgstr "此檔案對此版 Skissa 而言格式太新 (%1)。"
+
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "高度"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "無"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "無"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "圖案"
+
+msgctxt "texture setting"
+msgid "Scale"
+msgstr "縮放"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "亮度"
+
+msgctxt "texture setting"
+msgid "Contrast"
+msgstr "對比度"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "自動"
+
+msgctxt "@title:window"
+msgid "Skissa - Edit Text"
+msgstr "Skissa - 編輯文字"
+
+msgctxt "(qtundo-format)"
+msgid "Fill"
+msgstr "填充"
+

@@ -1,0 +1,30 @@
+# Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Амалдан қайту"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "Жылжыту"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Амалдан қайту"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Амалдан қайту"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Қайтудан айну"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Палитраға қосу"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Шаршы"
+

@@ -1,0 +1,688 @@
+# Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Opens a file browser at the location Skissa saves resources such as brushes to."
+msgstr "פתיחת דפדפן קבצים במקום שבו Skissa שומרת משאבים כגון מכחולים."
+
+msgctxt "action"
+msgid "Show Skissa log for bug reports."
+msgstr "הצגת היומן של Skissa לדיווח על תקלות."
+
+msgctxt "action"
+msgid "Configure Skissa"
+msgstr "הגדרת Skissa"
+
+msgctxt "action"
+msgid "About Skissa"
+msgstr "על Skissa"
+
+msgctxt "@tooltip"
+msgid "Adjusts glyphs so they align by their optical bounds. Doesn't do anything in Skissa."
+msgstr "כוונון הגליפים כך שהם ייושרו לפי הגבולות האופטיים שלהם. לא תקף ב־Skissa."
+
+msgctxt "@tooltip"
+msgid "Indicates how much the font is suitable for its current size. Does nothing in Skissa."
+msgstr "ציון כמה הגופן מתאים לגודל הנוכחי שלו. לא תקף ב־Skissa."
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Skissa: שגיאה פנימית"
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "שכבה"
+
+msgid "The resource database scheme has changed. Skissa will backup your database and create a new database."
+msgstr "מבנה מסד נתוני המשאבים השתנה. Skissa תגבה את מסד הנתונים שלך ותיצור מסד נתונים חדש."
+
+msgid "Skissa is running for the first time. Initialization will take some time."
+msgstr "זאת ההפעלה הראשונה של Skissa. האתחול עלול לארוך זמן מה."
+
+msgctxt "@title:window"
+msgid "Skissa: Fatal error"
+msgstr "Skissa: שגיאה משמעותית"
+
+msgid "%1\n\nSkissa will quit now."
+msgstr "%1\n\nSkissa תיסגר כעת."
+
+msgid "\n\nSkissa will quit now."
+msgstr "\n\nSkissa תיסגר כעת."
+
+msgid "Skissa configurations reset!\n\nBackup file was created at: %1\n\nRestart Skissa for changes to take effect."
+msgstr "איפוס ההגדרות של Skissa!\n\nקובץ הגיבוי נוצר תחת: %1\n\nיש להפעיל את Skissa מחדש כדי שהשינויים יהיו בתוקף."
+
+msgid "The name of the workspace to open Skissa with"
+msgstr "שם מרחב העבודה לפתוח את Skissa איתו"
+
+msgid "The name of the window layout to open Skissa with"
+msgstr "שם פריסת החלונות לפתוח את Skissa איתה"
+
+msgid "The name of the session to open Skissa with"
+msgstr "שם ההפעלה בה לפתוח את Skissa"
+
+msgid "Start Skissa in canvas-only mode"
+msgstr "הפעלת Skissa במצב משטח ציור בלבד"
+
+msgid "Start Skissa in full-screen mode"
+msgstr "הפעלת Skissa על כל המסך"
+
+msgctxt "@item:layer name: flat colors under line art"
+msgid "Colors"
+msgstr "צבעים"
+
+msgid "Permission denied. Skissa is not allowed to read or write to the file."
+msgstr "ההרשאה נדחתה. ל־Skissa אסור לקרוא מהקובץ או לכתוב אליו."
+
+msgid "Permission denied: Skissa is not allowed to read the file."
+msgstr "ההרשאה נדחתה: ל־Skissa אסור לקרוא מהקובץ."
+
+msgid "Permission denied: Skissa is not allowed to write to the file."
+msgstr "ההרשאה נדחתה: ל־Skissa אסור לכתוב לקובץ."
+
+msgid "Skissa does not support this file format."
+msgstr "Skissa לא תומכת בתסדיר הקובץ הזה."
+
+msgctxt "@title:window"
+msgid "Skissa: Export Error"
+msgstr "Skissa: שגיאת ייבוא"
+
+msgctxt "the argument is the ICC profile name"
+msgid "The image has a profile attached that Skissa cannot edit images in (\"%1\"), please select a space to convert to for editing: \n"
+msgstr "לתמונה מצורף פרופיל ש־Skissa לא יכולה לערוך בו תמונות („%1”), נא לבחור מרחב להמרה לטובת עריכה: \n"
+
+msgctxt "canvas renderer"
+msgid "Auto"
+msgstr "אוטו׳"
+
+msgctxt "cursor"
+msgid "None"
+msgstr "ללא"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "ללא"
+
+msgctxt "brush outline"
+msgid "Circle"
+msgstr "עיגול"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "ללא"
+
+msgctxt "color sampler preview"
+msgid "Left"
+msgstr "שמאל"
+
+msgctxt "color sampler preview"
+msgid "Right"
+msgstr "ימין"
+
+msgctxt "zoom"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "setting"
+msgid "Pressure"
+msgstr "לחץ"
+
+msgctxt "touch painting"
+msgid "Auto"
+msgstr "אוטו׳"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "הפעלות"
+
+msgctxt "rendering intent"
+msgid "Perceptual"
+msgstr "תפיסתי"
+
+msgctxt "rendering intent"
+msgid "Saturation"
+msgstr "רוויה"
+
+msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
+msgid "Screen %1 (%2)"
+msgstr "מסך %1 (%2)"
+
+msgctxt "canvas surface depth"
+msgid "Auto"
+msgstr "אוטו׳"
+
+msgctxt "setting"
+msgid "Frame rate limit"
+msgstr "מגבלת קצב תמוניות"
+
+msgctxt "a setting's value: not set"
+msgid "Default"
+msgstr "ברירת מחדל"
+
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "שיקוף"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "למטה"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "ללא"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "למטה"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "מסכה"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "מרקם"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "הוספה"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "פיקסל"
+
+msgctxt "brush group"
+msgid "Other"
+msgstr "אחר"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "שמירה"
+
+msgctxt "zoom level, %1 is the percentage"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "הגדרות"
+
+msgctxt "@info:tooltip"
+msgid "Preview"
+msgstr "תצוגה מקדימה"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "effect group"
+msgid "Other"
+msgstr "אחר"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "שכבות"
+
+msgctxt "@title find results"
+msgid "Settings"
+msgstr "הגדרות"
+
+msgctxt "@title find results"
+msgid "Workspaces"
+msgstr "מרחבי עבודה"
+
+msgctxt "@title find results"
+msgid "All"
+msgstr "הכול"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "חלון"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "אטימות"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "חלון"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "לחץ"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "מהירות"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "כיוון"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "עמעום"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "מרחק"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "נקודת מבט"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "שם"
+
+msgctxt "@info an empty slot of a ring"
+msgid "Add"
+msgstr "הוספה"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "מהירות"
+
+msgctxt "theme"
+msgid "Lightness"
+msgstr "בהירות"
+
+msgctxt "glass"
+msgid "Blur"
+msgstr "טשטוש"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "אטימות"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "color sampler"
+msgid "Preview"
+msgstr "תצוגה מקדימה"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "settings card"
+msgid "Pressure"
+msgstr "לחץ"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "הסגה"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "שכבות"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "שכבה"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "הנפשה"
+
+msgctxt "author"
+msgid "None"
+msgstr "ללא"
+
+msgctxt "@title:window"
+msgid "Authors"
+msgstr "יוצרים"
+
+msgctxt "settings card"
+msgid "Display"
+msgstr "תצוגה"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "לבן"
+
+msgctxt "instant preview"
+msgid "Transform"
+msgstr "התמרה"
+
+msgctxt "@action:inmenu"
+msgid "Reset"
+msgstr "איפוס"
+
+msgctxt "@action:button"
+msgid "Import"
+msgstr "ייבוא"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "הסגה"
+
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "הצמדה לקווים המנחים"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Select"
+msgstr "בחירה"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Transform"
+msgstr "התמרה"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Fill"
+msgstr "מילוי"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "טקסט"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Guides"
+msgstr "קווים מנחים"
+
+msgid "Use the new template every time Skissa starts"
+msgstr "להשתמש בתבנית החדשה עם כל הפעלה של Skissa"
+
+msgid "Warning: you are trying to import more than 100 frames into Skissa.\n\nThis means you might be overloading your system.\nIf you want to edit a clip larger than 100 frames, consider using a real video editor, like Kdenlive (https://kdenlive.org)."
+msgstr "אזהרה: ניסית לייבא יותר מ־100 תמוניות ל־Skissa.\n\nיכול להיות שזה יעמיס על המערכת שלך.\nכדי לערוך סרטון באורך של יותר מ־100 תמוניות כדאי להשתמש בעורך וידאו אמיתי, כגון Kdenlive‏ (https://kdenlive.org)."
+
+msgctxt "part of warning in video importer."
+msgid "Skissa does not support the video transfer curve (%1), it will be loaded as linear."
+msgstr "Skissa לא תומכת בעקומת העברת וידאו (%1), הוא ייטען כקווי."
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "keys group"
+msgid "Other"
+msgstr "אחר"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "סיבוב"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "ללא"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>הזכויות שלך</b></h1><p>Skissa יוצאת לאור בכפוף לרישיון הציבורי הכללי של גנו (גרסה 3 ואילך).</p><p>הרישיו הזה מעניק לאנשים מספר חרויות:</p><ul><li>מותר לך להשתמש ב־Skissa, לכל מטרה שהיא</li><li>מותר לך להפיץ את Skissa</li><li>אפשר לחקור איך Skissa עובדת ולשנות אותה</li><li>מותר להפיץ מהדורות מותאמות של Skissa</li></ul><p>קרן Skissa והמיזמים שלה תחת krita.org <b>מחויבים</b> לשימור Skissa כתוכנה חופשית.</p><h1 align=\"center\">יצירות האומנות שלך</h1><p>מה שיצרת באמצעות Skissa הוא רכושך. כל יצירות האומנות שלך זמינות לך לשימוש בכל דרך שמתאימה לך.</p><p>המשמעות היא שאפשר להשתמש ב־Skissa מסחרית, לכל מטרה שהיא. אין כלל וכלל מגבלות.</p><p>הרישיון הציבורי הכללי של גנו שחל על Skissa מבטיח לך את החירות הזאת. לאף אחד או אחת אין שום זכות לקחת אותה ממך, בניגוד לגרסאות חינוכיות של תוכנות מסחריות שתאסורנה עליך לעבוד בתנאים מסחריים.</p><br/><hr/><pre>"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1><p>Skissa is built on the following free software libraries:</p><p><ul>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>ספריות צד־שלישי שמשמשות את Skissa</b></h1><p>Skissa נבנתה על גבי ספריות התוכנה החופשית הבאות:</p><p><ul>"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "אטימות"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "אטימות"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "קובץ"
+
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "הוספה"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "הבדל"
+
+msgctxt "tooltip on statusbar memory reporting button"
+msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
+msgstr "\n\nאזהרה:\tנגמר הזיכרון! החל שימוש בזיכרון ההחלפה.\n\t\tנא להגדיר יותר RAM ל־Skissa בחלונית ההגדרות"
+
+msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
+msgstr "Skissa לא הצליח לאתחל את משטח הציור OpenGL:\n\n%1\n\n Skissa תשבית את OpenGL ותיסגר כעת."
+
+msgctxt "@action:inmenu"
+msgid "Select All"
+msgstr "בחירה בהכול"
+
+msgctxt "@action:inmenu"
+msgid "Deselect"
+msgstr "ביטול בחירה"
+
+msgctxt "@action:inmenu"
+msgid "Reselect"
+msgstr "בחירה מחדש"
+
+msgctxt "@action:inmenu"
+msgid "Invert"
+msgstr "היפוך"
+
+msgctxt "@action:inmenu"
+msgid "Transform"
+msgstr "התמרה"
+
+msgctxt "@action:inmenu"
+msgid "Smooth"
+msgstr "חלק"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "עריכה"
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "קווי"
+
+msgid "Dropped frames are not available in this Skissa instance"
+msgstr "תמוניות שהושמטו אינן זמינות בעותק הזה של Skissa"
+
+msgctxt "@title:menu"
+msgid "Select"
+msgstr "בחירה"
+
+msgctxt "@action:inmenu select layers"
+msgid "All"
+msgstr "הכול"
+
+msgctxt "@action:inmenu select layers"
+msgid "Visible"
+msgstr "גלוי"
+
+msgctxt "@title:menu other kinds of layer"
+msgid "New"
+msgstr "חדש"
+
+msgctxt "@action:inmenu"
+msgid "Paint Layer"
+msgstr "שכבת צבע"
+
+msgctxt "@action:inmenu"
+msgid "Group"
+msgstr "קבוצה"
+
+msgctxt "@action:inmenu"
+msgid "Vector Layer"
+msgstr "שכבת וקטור"
+
+msgctxt "@action:inmenu"
+msgid "Clone"
+msgstr "שכפול"
+
+msgctxt "@action:inmenu"
+msgid "Transparency Mask"
+msgstr "מסכת שקיפות"
+
+msgctxt "@action:inmenu"
+msgid "Color Overlay Mask"
+msgstr "מסכת שכבת צבע עליונה"
+
+msgctxt "@action:inmenu"
+msgid "Colorize Mask"
+msgstr "מסכת צביעה"
+
+msgctxt "@action:inmenu"
+msgid "Transform Mask"
+msgstr "מסכת התמרה"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "העתקה"
+
+msgctxt "@action:inmenu"
+msgid "Cut"
+msgstr "גזירה"
+
+msgctxt "@title:menu layer style"
+msgid "Style"
+msgstr "סגנון"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "העתקה"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Layer"
+msgstr "שיטוח שכבה"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Image"
+msgstr "שיטוח תמונה"
+
+msgctxt "@action:inmenu"
+msgid "Pin to Timeline"
+msgstr "הצמדה לציר הזמן"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "הסגה"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "ביצוע מחדש"
+
+msgctxt "@action:button choose a palette"
+msgid "Palettes"
+msgstr "לוחות צבעים"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "עריכה"
+
+msgctxt "@info:tooltip"
+msgid "Lock"
+msgstr "נעילה"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "שמירה"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "הוספה ללוח צבעים"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "שמירה"
+
+msgctxt "frames at half the image's size"
+msgid "Half"
+msgstr "חצי"
+
+msgctxt "settings page"
+msgid "Wide Gamut Selector"
+msgstr "בורר מנעד רחב"
+
+msgctxt "Caption of the dialog with Krita's Android system log for bug reports"
+msgid "Skissa Logcat Dump: please paste this information to the bug report"
+msgstr "פרטי היטל Logcat של Skissa: נא להדביק את הפרטים האלה בדוח התקלה"
+
+msgctxt "Caption of the dialog with color management information for bug reports"
+msgid "Skissa Color Management Information: please paste this information to the bug report"
+msgstr "פרטי ניהול צבע של Skissa: נא להדביק את הפרטים האלה בדוח התקלה"
+
+msgctxt "Caption of the dialog with crash log for bug reports"
+msgid "Skissa Crash Log: please paste this information to the bug report"
+msgstr "יומן הקריסה של Skissa: נא להדביק את הפרטים האלה בדוח התקלה"
+
+msgctxt "Caption of the dialog with Skissa usage log for bug reports"
+msgid "Skissa Usage Log: please paste this information to the bug report"
+msgstr "יומן השימוש של Skissa: נא להדביק את הפרטים האלה בדוח התקלה"
+
+msgctxt "Caption of the dialog with system information for bug reports"
+msgid "Skissa System Information: please paste this information to the bug report"
+msgstr "פרטי מערכת של Skissa: נא להדביק את הפרטים האלה בדוח התקלה"
+
+msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
+msgstr "Skissa לא יכולה לטעון את התוסף gmic-qt. לא נמצאה ספרייה מאוגדת."
+
+msgid "The file is too new for this version of Skissa (%1)."
+msgstr "הקובץ הזה חדש מדי לגרסה הזאת של Skissa ‏(%1)."
+
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "גובה"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "ריבוע"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "ללא"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "ללא"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "תבניות"
+
+msgctxt "texture setting"
+msgid "Scale"
+msgstr "קנה מידה"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "בהירות"
+
+msgctxt "texture setting"
+msgid "Contrast"
+msgstr "ניגודיות"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "אוטו׳"
+
+msgctxt "@title:window"
+msgid "Skissa - Edit Text"
+msgstr "Skissa - עריכת טקסט"
+
+msgctxt "(qtundo-format)"
+msgid "Fill"
+msgstr "מילוי"
+

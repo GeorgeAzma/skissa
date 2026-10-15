@@ -1,0 +1,6 @@
+# Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "रङदानीमा थप्नुहोस्"
+

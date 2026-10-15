@@ -1,0 +1,632 @@
+# Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Opens a file browser at the location Skissa saves resources such as brushes to."
+msgstr "Öppnar en filbläddrare på platsen där Skissa sparar resurser såsom penslar."
+
+msgctxt "action"
+msgid "Show Skissa log for bug reports."
+msgstr "Visa Skissa logg för felrapporter."
+
+msgctxt "action"
+msgid "Configure Skissa"
+msgstr "Anpassa Skissa"
+
+msgctxt "action"
+msgid "About Skissa"
+msgstr "Om Skissa"
+
+msgctxt "@tooltip"
+msgid "Adjusts glyphs so they align by their optical bounds. Doesn't do anything in Skissa."
+msgstr "Justerar glyfer som att de riktas in enligt deras optiska gränser. Gör ingenting i Skissa."
+
+msgctxt "@tooltip"
+msgid "Indicates how much the font is suitable for its current size. Does nothing in Skissa."
+msgstr "Anger hur passande teckensnittet är för sin nuvarande storlek. Gör ingenting i Skissa."
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Skissa: Internt fel"
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "Lager"
+
+msgid "The resource database scheme has changed. Skissa will backup your database and create a new database."
+msgstr "Resursdatabasschemat har ändrats. Skissa skapar en säkerhetskopia av din databas och skapar en ny databas."
+
+msgid "Skissa is running for the first time. Initialization will take some time."
+msgstr "Skissa körs för första gången. Initiering kommer att ta en viss tid."
+
+msgctxt "@title:window"
+msgid "Skissa: Fatal error"
+msgstr "Skissa: Allvarligt fel"
+
+msgid "%1\n\nSkissa will quit now."
+msgstr "%1\n\nSkissa avslutas nu."
+
+msgid "\n\nSkissa will quit now."
+msgstr "\n\nSkissa avslutas nu."
+
+msgid "Cannot add the file layer: no document is open.\n\nYou can create a new document using the --new-image option, or you can open an existing file.\n\nIf you instead want to add the file layer to a document in an already running instance of Skissa, check the \"Allow only one instance of Skissa\" checkbox in the settings (Settings -> General -> Window)."
+msgstr "Kan inte lägga till arkivlagret: inget dokument är öppet.\n\nDu kan skapa en ny fil genom att använda väljaren --new-image, eller öppna en befintlig fil.\n\nOm du istället vill lägga till arkivlagret i ett dokument som finns i en instans av Skissa som redan kör, markera kryssrutan \"Tillåt bara en instans av Skissa\" i inställningarna (Inställningar -> Allmänt -> Fönster)."
+
+msgid "Skissa configurations reset!\n\nBackup file was created at: %1\n\nRestart Skissa for changes to take effect."
+msgstr "Skissa inställningar återställda.\n\nSäkerhetskopia skapad i: %1\n\nStarta om Skissa för att ändringarna ska få effekt."
+
+msgid "The name of the workspace to open Skissa with"
+msgstr "Namnet på arbetsytan som Skissa ska startas med"
+
+msgid "The name of the window layout to open Skissa with"
+msgstr "Namnet på fönsterlayouten som Skissa ska startas med"
+
+msgid "The name of the session to open Skissa with"
+msgstr "Namnet på sessionen som Skissa ska startas med"
+
+msgid "Start Skissa in canvas-only mode"
+msgstr "Starta Skissa med enbart duk"
+
+msgid "Start Skissa in full-screen mode"
+msgstr "Starta Skissa med fullskärmsläge"
+
+msgid "A location that overrides the configured location for Skissa's resources"
+msgstr "En plats som överskrider den inställda platsen för Skissas resurser"
+
+msgctxt "@item:layer name: flat colors under line art"
+msgid "Colors"
+msgstr "Färger"
+
+msgid "Permission denied. Skissa is not allowed to read or write to the file."
+msgstr "Behörighet saknas. Skissa har inte rättighet att läsa eller skriva filen."
+
+msgid "Permission denied: Skissa is not allowed to read the file."
+msgstr "Behörighet saknas Skissa har inte rättighet att läsa filen."
+
+msgid "Permission denied: Skissa is not allowed to write to the file."
+msgstr "Behörighet saknas Skissa har inte rättighet att skriva filen."
+
+msgid "Skissa does not support this file format."
+msgstr "Skissa stöder inte detta filformat."
+
+msgctxt "@title:window"
+msgid "Skissa: Export Error"
+msgstr "Skissa: Exportfel"
+
+msgctxt "the argument is the ICC profile name"
+msgid "The image has a profile attached that Skissa cannot edit images in (\"%1\"), please select a space to convert to for editing: \n"
+msgstr "Bilden har en tillhörande profil som Skissa inte kan redigera bilder med (\"%1\"), välj en rymd att konvertera den till för redigering: \n"
+
+msgctxt "brush outline"
+msgid "Circle"
+msgstr "Cirkel"
+
+msgctxt "color sampler preview"
+msgid "Left"
+msgstr "Vänster"
+
+msgctxt "color sampler preview"
+msgid "Right"
+msgstr "Höger"
+
+msgctxt "zoom"
+msgid "%1%"
+msgstr "%1 %"
+
+msgctxt "canvas scaling"
+msgid "Bilinear"
+msgstr "Bilinjär"
+
+msgctxt "setting"
+msgid "Pressure"
+msgstr "Tryck"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "Sessioner"
+
+msgctxt "rendering intent"
+msgid "Perceptual"
+msgstr "Perceptuell"
+
+msgctxt "rendering intent"
+msgid "Saturation"
+msgstr "Färgmättnad"
+
+msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
+msgid "Screen %1 (%2)"
+msgstr "Skärm %1 (%2)"
+
+msgctxt "setting"
+msgid "Frame rate limit"
+msgstr "Bildfrekvensgräns"
+
+msgctxt "a setting's value: not set"
+msgid "Default"
+msgstr "Förval"
+
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Spegla"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Radiell"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Ner"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Ner"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Mask"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Struktur"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Spara"
+
+msgctxt "zoom level, %1 is the percentage"
+msgid "%1%"
+msgstr "%1 %"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "HSV"
+
+msgctxt "a group of settings"
+msgid "Settings"
+msgstr "Inställningar"
+
+msgctxt "@info:tooltip"
+msgid "Preview"
+msgstr "Förhandsgranskning"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "Lager"
+
+msgctxt "@title find results"
+msgid "Settings"
+msgstr "Inställningar"
+
+msgctxt "@title find results"
+msgid "Workspaces"
+msgstr "Arbetsytor"
+
+msgctxt "@title find results"
+msgid "All"
+msgstr "Alla"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "Fönster"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "Ogenomskinlighet"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "Fönster"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Tryck"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Hastighet"
+
+msgctxt "pen input: the way the stroke goes"
+msgid "Direction"
+msgstr "Riktning"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "Tona"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Avstånd"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspektiv"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "Namn"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "Hastighet"
+
+msgctxt "theme"
+msgid "Lightness"
+msgstr "Ljushet"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "Ogenomskinlighet"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "Storlek"
+
+msgctxt "color sampler"
+msgid "Preview"
+msgstr "Förhandsgranskning"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "Storlek"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "settings card"
+msgid "Pressure"
+msgstr "Tryck"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Ångra"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "Lager"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "Lager"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "Animering"
+
+msgctxt "settings card"
+msgid "Author"
+msgstr "Upphovsman"
+
+msgctxt "@title:window"
+msgid "Authors"
+msgstr "Upphovsmän"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "Vit"
+
+msgctxt "instant preview"
+msgid "Transform"
+msgstr "Transformera"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "Flytta"
+
+msgctxt "@action:inmenu"
+msgid "Reset"
+msgstr "Återställ"
+
+msgctxt "@action:button"
+msgid "Import"
+msgstr "Importera"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Ångra"
+
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Lås till hjälplinjer"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Blend"
+msgstr "Blanda"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Transform"
+msgstr "Transformera"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Fill"
+msgstr "Fyll"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "Text"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Guides"
+msgstr "Hjälplinjer"
+
+msgid "Use the new template every time Skissa starts"
+msgstr "Använd den nya mallen varje gång Skissa startas"
+
+msgid "Warning: you are trying to import more than 100 frames into Skissa.\n\nThis means you might be overloading your system.\nIf you want to edit a clip larger than 100 frames, consider using a real video editor, like Kdenlive (https://kdenlive.org)."
+msgstr "Varning: du försöker importera mer än 100 bildrutor i Skissa.\n\nDet betyder att systemet kan bli överlastat.\nOm du vill redigera ett klipp större än 100 bildrutor, överväg att använda en riktig videoeditor, som Kdenlive (https://kdenlive.org)."
+
+msgctxt "part of warning in video importer."
+msgid "Skissa does not support the video transfer curve (%1), it will be loaded as linear."
+msgstr "Skissa stöder inte videoöverföringskurvan (%1), den läses in som linjär."
+
+msgid "WARNING: HDR mode was activated on surface working in 8-bit mode!\nPlease activate 10-bit mode in Skissa's Preferences dialog and restart Skissa to avoid color banding!"
+msgstr "Varning: HDR-läge aktiverades på ytor som arbetar i 8-bitars läge.\nAktivera 10-bitars läge i Skissas inställningsdialogruta och starta om Skissa för att undvika färgbandning."
+
+msgctxt "@info:tooltip"
+msgid "The amount of time during which the strokes will be kept unmerged. When a stroke becomes old enough, Skissa will try to merge it"
+msgstr "Tidslängd som dragen behålls utan att sammanfogas. När ett drag blir gammalt nog, försöker Skissa sammanfoga det."
+
+msgctxt "@info:tooltip"
+msgid "The number of last strokes that Skissa will not merge (even if they are old enough)"
+msgstr "Antal senaste drag som Skissa inte sammanfogar (även om de är gamla nog)"
+
+msgid "Cumulative Undo allows Skissa to merge undo actions and make undo history cleaner. Skissa will still keep a few latest actions unmerged according to \"Wait before merging strokes\" and \"Exclude last strokes from merge\" options. Whenever an action gets outdated using the time limit and this action is not excluded using \"Exclude last strokes from merge\", Skissa will try  to merge this action into a group. The groups are formed using \"Max group strokes delay\" and \"Max group duration\" options."
+msgstr "Ackumulera ångra låter Skissa sammanfoga ångringsåtgärder och göra ångringshistoriken enklare. Skissa behåller fortfarande några av de senaste åtgärderna utan att sammanfoga dem enligt alternativen \"Vänta innan drag sammanfogas\" och \"Undanta senaste dragen från sammanfogning\". Så snart en åtgärd blir föråldrad enligt tidsgränsen och åtgärden inte undantas med \"Undanta senaste dragen från sammanfogning\", försöker Skissa sammanfoga åtgärden med en grupp. Grupperna skapas med alternativen \"Maximal fördröjning för gruppdrag\" och \"Maximal grupplängd\"."
+
+msgctxt "shortcut set"
+msgid "Krita"
+msgstr "Krita"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "Rotera"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Dina rättigheter</b></h1><p>Skissa ges ut under GNU General Public License (version 3 eller senare version).</p><p>Licensen ger användare ett antal friheter:</p><ul><li>Du har frihet att använda Skissa för vilket syfte som helst</li><li>Du har frihet att distribuera Skissa</li><li>Du kan studera hur Skissa fungerar och ändra det</li><li>Du kan distribuera ändrade versioner av Skissa</li></ul><p>Stiftelsen Skissa och dess projekt på krita.org <b>strävar efter</b> att bevara Skissa som fri programvara.</p><h1 align=\"center\">Dina alster</h1><p>Det du skapar med Skissa är din exklusiva egendom. Du har frihet att använda alla dina alster som du vill.</p><p>Det betyder att Skissa kan användas kommersiellt för vilket syfte som helst. Det finns överhuvudtaget inte några begränsningar.</p><p>Skissas GNU GPL-licens garanterar denna frihet. Ingen har någonsin rätt att inskränka den, i motsats till prov- eller utbildningsversioner av kommersiell programvara som förbjuder dig att arbeta i kommersiellt syfte.</p><br/><hr/><pre>"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1><p>Skissa is built on the following free software libraries:</p><p><ul>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Tredjepartsbibliotek använda av Skissa</b></h1><p>Skissa är byggt på följande bibliotek med fri programvara:</p><p><ul>"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "Ogenomskinlighet"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "Ogenomskinlighet"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "Skillnad"
+
+msgctxt "tooltip on statusbar memory reporting button"
+msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
+msgstr "\n\nVarning:\tMinnet är slut! Växling har startats.\n\t\tStäll in mer RAM för Skissa i inställningsdialogrutan."
+
+msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
+msgstr "Skissa kunde inte initiera OpenGL-duken:\n\n%1\n\n Skissa inaktiverar OpenGL och avslutas nu."
+
+msgctxt "@action:inmenu"
+msgid "Select All"
+msgstr "Markera alla"
+
+msgctxt "@action:inmenu"
+msgid "Deselect"
+msgstr "Avmarkera"
+
+msgctxt "@action:inmenu"
+msgid "Reselect"
+msgstr "Markera igen"
+
+msgctxt "@action:inmenu"
+msgid "Invert"
+msgstr "Invertera"
+
+msgctxt "@action:inmenu"
+msgid "Transform"
+msgstr "Transformera"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "Redigera"
+
+msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
+msgstr "En ny AppImage har laddats ner till %1. Stäng Skissa och kör ny AppImage för att slutföra uppdateringen."
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Linjär"
+
+msgctxt "If the selected model is CMYK"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
+msgstr "<b><a href=\"https://sv.wikipedia.org/wiki/CMYK\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, är modellen som används av skrivare och andra bläckbaserade medier.<br/>CMYK är en subtraktiv modell, vilket betyder att färger blir mörkare när de adderas. Eftersom CMYK-profiler är mycket skrivarspecifika rekommenderas att arbeta i RGB-rymden och senare konvertera till en CMYK-profil, helst en som levereras av skrivaren.<br/>CMYK rekommenderas <b>inte</b> för målning. Tyvärr kan Skissa inte hämta färgämnen eller tonåtergivningskurvan för denna färgrymd."
+
+msgctxt "If the selected model is Grayscale"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/Grayscale\">Grayscale</a></b> only allows for gray values and transparent values. Grayscale images use half the memory and disk space compared to an RGB image of the same bit-depth.<br/>Grayscale is useful for inking and grayscale images. In Skissa, you can mix Grayscale and RGB layers in the same image."
+msgstr "<b><a href=\"https://sv.wikipedia.org/wiki/Gråskala\">Gråskala</a></b>, tillåter bara gråa och genomskinliga värden. Gråskalebilder använder hälften så mycket minne och diskutrymme jämfört med en RGB-bild av samma bitdjup.<br/>Gråskala är användbart för teckningar och gråskalebilder. I Skissa kan gråskalelager och RGB-lager i samma bild."
+
+msgctxt "If the selected model is LAB"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/Lab_color_space\">L*a*b</a></b>. <b>L</b> stands for Lightness, the <b>a</b> and <b>b</b> components represent color channels.<br/>L*a*b is a special model for color correction. It is based on human perception, meaning that it tries to encode the difference in lightness, red-green balance and yellow-blue balance. This makes it useful for color correction, but the vast majority of color maths in the blending modes do <b>not</b> work as expected here.<br/>Similarly, Skissa does not support HDR in LAB, meaning that HDR images converted to LAB lose color information. This colorspace is <b>not</b> recommended for painting, nor for export, but best as a space to do post-processing in. The TRC is assumed to be the L* TRC."
+msgstr "<b><a href=\"https://sv.wikipedia.org/wiki/CIELAB\">L*a*b</a></b>. <b>L</b> står för Ljushet, <b>a</b>- och <b>b</b>-komponent representerar färgkanaler.<br/>L*a*b är en särskild modell för färgkorrektion. Den är baserad på mänsklig perception, vilket betyder att den försöker koda skillnaderna i ljushet, röd-grön-balans och gul-blå-balans. Det gör den användbar för färgkorrektion, men en stor majoritet av färgmatematiken i blandningslägen fungerar <b>inte</b> som förväntat här.<br/>På liknande sätt, stöder Skissa inte heller HDR med L*a*b, vilket betyder att HDR-bilder som konverteras till L*a*b förlorar färginformation. Färgrymden rekommenderas <b>inte</b> för målning, och inte heller för export, utan är bäst som en färgrymd att utföra efterbehandling med. Tonåtergivningskurvan (TRC) antas vara L*."
+
+msgctxt "These are Elle Stone's notes on her profiles that we ship."
+msgid "<p><b>Extra notes on profiles by Elle Stone:</b></p><p><i>Skissa comes with a number of high quality profiles created by <a href=\"https://ninedegreesbelow.com\">Elle Stone</a>. This is a summary. Please check <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">the full documentation</a> as well.</i></p>"
+msgstr "<p><b>Extra anmärkningar om profiler av Elle Stone:</b></p><p><i>Skissa levereras med ett antal högkvalitativa profiler skapade av <a href=\"https://ninedegreesbelow.com\">Elle Stone</a>. Det här är en sammanfattning. Titta också gärna på <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">den fullständiga dokumentationen</a>.</i></p>"
+
+msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
+msgstr "Det valda filnamnet har inte en filändelse som Skissa förstår.\nSäkerställ att filnamnet slutar på exempelvis '.%1'."
+
+msgid "Dropped frames are not available in this Skissa instance"
+msgstr "Överhoppade bildrutor är inte tillgängliga i den här instansen av Skissa"
+
+msgctxt "@action:inmenu select layers"
+msgid "All"
+msgstr "Alla"
+
+msgctxt "@action:inmenu"
+msgid "Vector Layer"
+msgstr "Vektorlager"
+
+msgctxt "@action:inmenu"
+msgid "Transparency Mask"
+msgstr "Genomskinlighetsmask"
+
+msgctxt "@action:inmenu"
+msgid "Color Overlay Mask"
+msgstr "Färgöverlagringsmask"
+
+msgctxt "@action:inmenu"
+msgid "Colorize Mask"
+msgstr "Färgläggningsmask"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "Kopiera"
+
+msgctxt "@action:inmenu"
+msgid "Cut"
+msgstr "Klipp ut"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "Kopiera"
+
+msgctxt "@action:inmenu"
+msgid "Alpha into Mask"
+msgstr "Alfa till mask"
+
+msgctxt "@action:inmenu"
+msgid "Write as Alpha"
+msgstr "Skriv som alfa"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Layer"
+msgstr "Platta ut lager"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Image"
+msgstr "Platta ut bild"
+
+msgctxt "@action:inmenu"
+msgid "Pin to Timeline"
+msgstr "Fäst på tidslinje"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Ångra"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Gör om"
+
+msgctxt "@action:button choose a palette"
+msgid "Palettes"
+msgstr "Paletter"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "Redigera"
+
+msgctxt "@info:tooltip"
+msgid "Lock"
+msgstr "Lås"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "Spara"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Lägg till i palett"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "Spara"
+
+msgctxt "frames at half the image's size"
+msgid "Half"
+msgstr "Halv"
+
+msgctxt "settings page"
+msgid "Wide Gamut Selector"
+msgstr "Väljare av stort tonomfång"
+
+msgctxt "Caption of the dialog with Krita's Android system log for bug reports"
+msgid "Skissa Logcat Dump: please paste this information to the bug report"
+msgstr "Skissa Logcat-dump: klistra in den här informationen i felrapporten"
+
+msgctxt "Caption of the dialog with color management information for bug reports"
+msgid "Skissa Color Management Information: please paste this information to the bug report"
+msgstr "Skissas färghanteringsinformation: klistra in den här informationen i felrapporten"
+
+msgctxt "Caption of the dialog with crash log for bug reports"
+msgid "Skissa Crash Log: please paste this information to the bug report"
+msgstr "Skissa kraschlogg: klistra in den här informationen i felrapporten"
+
+msgctxt "Caption of the dialog with Skissa usage log for bug reports"
+msgid "Skissa Usage Log: please paste this information to the bug report"
+msgstr "Skissa användningslogg: klistra in den här informationen i felrapporten"
+
+msgctxt "Caption of the dialog with system information for bug reports"
+msgid "Skissa System Information: please paste this information to the bug report"
+msgstr "Skissa systeminformation: klistra in den här informationen i felrapporten"
+
+msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
+msgstr "Skissa kan inte starta insticksprogrammet gmic-qt. Inget paketerat bibliotek hittades."
+
+msgctxt "@info"
+msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
+msgstr "Bilden innehåller bildpunkter med alfakanal noll och färgkanaler som skiljer sig från noll. Skissa har ändrat dessa bildpunkter för att åtminstone ha något alfa. De ursprungliga värdena kommer <i>inte</i> att återställas när bilden sparas.<br/><br/>Det leder knappt till någon synlig skillnad, men var ändå medveten om det."
+
+msgctxt "@tooltip"
+msgid "The image will be linearized first, and then encoded with SMPTE ST 428. Skissa always opens images like these as linear floating point, this option is there to reverse that"
+msgstr "Bilden görs först linjär, och kodas sedan med SMPTE ST 428. Skissa öppnar alltid bilder som de här med linjära flyttal. Det här alternativet finns för att vända på det."
+
+msgid "Layer \"%1\" has blending mode \"%2\" that has changed its behavior for CMYK color in Krita 5.2. Please check the result and consider enabling legacy \"Additive\" algorithm in Settings->Configure Skissa->General->Tools->CMYK blending mode"
+msgstr "Lager \"%1\" har blandningsläget \"%2\" som har ändrat beteende för CMYK-färg i Skissa 5.2. Kontrollera resultatet och överväg att aktivera den föråldrade algoritmen \"Additiv\" under Inställningar->Anpassa Skissa->Allmänt->Verktyg->CMYK blandningsläge."
+
+msgid "The file is too new for this version of Skissa (%1)."
+msgstr "Filen är för ny för den här versionen av Skissa (%1)."
+
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Storlek"
+
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "Höjd"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Mönster"
+
+msgctxt "texture setting"
+msgid "Scale"
+msgstr "Skala"
+
+msgctxt "@title:window"
+msgid "Skissa - Edit Text"
+msgstr "Skissa - Redigera text"
+
+msgid "Skissa was built without the support of GNU Scientific Library, so you cannot scale the selection with handles. Please compile Skissa with GNU Scientific Library support, or use options widget for editing scale values manually."
+msgstr "Skissa byggdes utan stöd för GNU:s vetenskapliga bibliotek, så det går inte att skala markeringen med grepp. Kompilera Skissa med stöd för GNU:s vetenskapliga bibliotek, eller använd den grafiska alternativkomponenten för att redigera skalningsvärden för hand."
+

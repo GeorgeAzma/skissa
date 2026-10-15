@@ -1,0 +1,701 @@
+# Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "action"
+msgid "Opens a file browser at the location Skissa saves resources such as brushes to."
+msgstr "Malfermas dosier-retumilon ĉe la loko kie Skissa konservas rimedojn ekz. penikojn."
+
+msgctxt "action"
+msgid "Show Skissa log for bug reports."
+msgstr "Montru Skissa protokolon por cimraportoj."
+
+msgctxt "action"
+msgid "Configure Skissa"
+msgstr "Agordi Skissa"
+
+msgctxt "action"
+msgid "About Skissa"
+msgstr "Pri Skissa"
+
+msgctxt "@title:window"
+msgid "Skissa: Internal Error"
+msgstr "Skissa: Interna Eraro"
+
+msgctxt "default name of a new layer, followed by a number"
+msgid "Layer"
+msgstr "Tavolo"
+
+msgid "The resource database scheme has changed. Skissa will backup your database and create a new database."
+msgstr "La rimeda datumbaza skemo ŝanĝiĝis. Skissa sekurkopios vian datumbazon kaj kreos novan datumbazon."
+
+msgid "Skissa is running for the first time. Initialization will take some time."
+msgstr "Skissa kuras unuafoje. Iniciatigo daŭros iom da tempo."
+
+msgctxt "@title:window"
+msgid "Skissa: Fatal error"
+msgstr "Skissa: Mortiga eraro"
+
+msgid "%1\n\nSkissa will quit now."
+msgstr "%1\n\nSkissa ĉesos nun."
+
+msgid "\n\nSkissa will quit now."
+msgstr "\n\nSkissa ĉesos nun."
+
+msgid "Cannot add the file layer: no document is open.\n\nYou can create a new document using the --new-image option, or you can open an existing file.\n\nIf you instead want to add the file layer to a document in an already running instance of Skissa, check the \"Allow only one instance of Skissa\" checkbox in the settings (Settings -> General -> Window)."
+msgstr "Ne povas aldoni la dosiertavolon: neniu dokumento estas malfermita.\n\nVi povas krei novan dokumenton per la opcio --new-image, aŭ vi povas malfermi ekzistantan dosieron.\n\nSe vi anstataŭe volas aldoni la dosiertavolon al dokumenton en jam funkcianta kazo de Skissa, marku la markokeston \"Permesi nur unu ekzemplon de Skissa\" en la agordoj (Agordoj -> Ĝenerala -> Fenestro)."
+
+msgid "Skissa configurations reset!\n\nBackup file was created at: %1\n\nRestart Skissa for changes to take effect."
+msgstr "Skissa-agordoj restarigitaj!\n\nSekurkopio dosiero estis kreita ĉe: %1\n\nRekomencu Skissa por ke ŝanĝoj efektiviĝu."
+
+msgid "The name of the workspace to open Skissa with"
+msgstr "La nomo de la laborspaco kun kiu malfermu Skissa"
+
+msgid "The name of the window layout to open Skissa with"
+msgstr "La nomo de la fenestra aranĝo por malfermi Skissa"
+
+msgid "The name of the session to open Skissa with"
+msgstr "La nomo de la seanco por malfermi Skissa"
+
+msgid "Start Skissa in canvas-only mode"
+msgstr "Komenci Skissa en nur kanvasa reĝimo"
+
+msgid "Start Skissa in full-screen mode"
+msgstr "Komenci Skissa en plenekrana reĝimo"
+
+msgid "A location that overrides the configured location for Skissa's resources"
+msgstr "Loko kiu superregas la agorditan lokon por la rimedoj de Skissa"
+
+msgctxt "@item:layer name: flat colors under line art"
+msgid "Colors"
+msgstr "Koloroj"
+
+msgid "Permission denied. Skissa is not allowed to read or write to the file."
+msgstr "Permeso Rifuzita. Skissa ne rajtas legi aŭ skribi al la dosiero."
+
+msgid "Permission denied: Skissa is not allowed to read the file."
+msgstr "Permeso rifuzita: Skissa ne rajtas legi la dosieron."
+
+msgid "Permission denied: Skissa is not allowed to write to the file."
+msgstr "Permeso rifuzita: Skissa ne rajtas skribi al la dosiero."
+
+msgid "Skissa does not support this file format."
+msgstr "Skissa ne subtenas ĉi tiun dosierformaton."
+
+msgctxt "@title:window"
+msgid "Skissa: Export Error"
+msgstr "Skissa: Eksporta Eraro"
+
+msgctxt "the argument is the ICC profile name"
+msgid "The image has a profile attached that Skissa cannot edit images in (\"%1\"), please select a space to convert to for editing: \n"
+msgstr "La bildo havas alligitan profilon tian ke Skissa ne povas redakti bildojn en (\"%1\"), bonvolu elektu spacon al kiu konverti por redaktado:: \n"
+
+msgctxt "canvas renderer"
+msgid "Auto"
+msgstr "Aŭtomate"
+
+msgctxt "cursor"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "color sampler preview"
+msgid "Left"
+msgstr "Maldekstre"
+
+msgctxt "zoom"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "canvas scaling"
+msgid "Bilinear"
+msgstr "Dulineara"
+
+msgctxt "setting"
+msgid "Pressure"
+msgstr "Premo"
+
+msgctxt "touch painting"
+msgid "Auto"
+msgstr "Aŭtomate"
+
+msgctxt "on start"
+msgid "Sessions"
+msgstr "Seancoj"
+
+msgctxt "rendering intent"
+msgid "Perceptual"
+msgstr "Percepta"
+
+msgctxt "rendering intent"
+msgid "Saturation"
+msgstr "Satureco"
+
+msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
+msgid "Screen %1 (%2)"
+msgstr "Ekrano %1 (%2)"
+
+msgctxt "canvas surface depth"
+msgid "Auto"
+msgstr "Aŭtomate"
+
+msgctxt "symmetry mode"
+msgid "Mirror"
+msgstr "Spegulo"
+
+msgctxt "symmetry mode"
+msgid "Radial"
+msgstr "Radiala"
+
+msgctxt "mirror axis"
+msgid "Down"
+msgstr "Malsupren"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "tile spacing"
+msgid "Down"
+msgstr "Malsupren"
+
+msgctxt "brush part: a second tip that cuts into the first"
+msgid "Mask"
+msgstr "Masko"
+
+msgctxt "brush part"
+msgid "Texture"
+msgstr "Teksturo"
+
+msgctxt "brush part"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "brush part: how the line is laid down (smoothing, shapes)"
+msgid "Stroke"
+msgstr "Bato"
+
+msgctxt "@action:button add a brush setting"
+msgid "Add"
+msgstr "Aldoni"
+
+msgctxt "brush group"
+msgid "Pixel"
+msgstr "Rastrumero"
+
+msgctxt "brush group"
+msgid "Other"
+msgstr "Alia"
+
+msgctxt "@action:button save the brush over itself"
+msgid "Save"
+msgstr "Konservi"
+
+msgctxt "zoom level, %1 is the percentage"
+msgid "%1%"
+msgstr "%1%"
+
+msgctxt "@title:window"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "@item:inmenu color picker"
+msgid "HSV"
+msgstr "HSV"
+
+msgctxt "@info:tooltip"
+msgid "Preview"
+msgstr "Antaŭrigardo"
+
+msgctxt "effect group"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "effect group"
+msgid "Other"
+msgstr "Alia"
+
+msgctxt "@title find results"
+msgid "Layers"
+msgstr "Tavoloj"
+
+msgctxt "@title find results"
+msgid "Workspaces"
+msgstr "Laborspacoj"
+
+msgctxt "@title find results"
+msgid "All"
+msgstr "Ĉiuj"
+
+msgctxt "find result detail: a button of the window, outside the panels"
+msgid "Window"
+msgstr "Fenestro"
+
+msgctxt "@info:tooltip"
+msgid "Opacity"
+msgstr "Travidebleco"
+
+msgctxt "@title:window"
+msgid "Window"
+msgstr "Fenestro"
+
+msgctxt "pen input"
+msgid "Pressure"
+msgstr "Premo"
+
+msgctxt "pen input"
+msgid "Speed"
+msgstr "Rapido"
+
+msgctxt "pen input: along the stroke"
+msgid "Fade"
+msgstr "Dissolvi"
+
+msgctxt "pen input"
+msgid "Distance"
+msgstr "Distanco"
+
+msgctxt "pen input"
+msgid "Perspective"
+msgstr "Perspektivo"
+
+msgctxt "@label:textbox"
+msgid "Name"
+msgstr "Nomo"
+
+msgctxt "@info an empty slot of a ring"
+msgid "Add"
+msgstr "Aldoni"
+
+msgctxt "settings section"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "settings section"
+msgid "Speed"
+msgstr "Rapido"
+
+msgctxt "theme"
+msgid "Lightness"
+msgstr "Heleco"
+
+msgctxt "glass"
+msgid "Opacity"
+msgstr "Travidebleco"
+
+msgctxt "around the image"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "interface font"
+msgid "Size"
+msgstr "Grandeco"
+
+msgctxt "color sampler"
+msgid "Preview"
+msgstr "Antaŭrigardo"
+
+msgctxt "checkerboard"
+msgid "Size"
+msgstr "Grandeco"
+
+msgctxt "pixel grid"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "settings card"
+msgid "Pressure"
+msgstr "Premo"
+
+msgctxt "settings card"
+msgid "Undo"
+msgstr "Malfari"
+
+msgctxt "settings card"
+msgid "Layers"
+msgstr "Tavoloj"
+
+msgctxt "layer names: no words"
+msgid "none"
+msgstr "neniu"
+
+msgctxt "a layer's name, in an example"
+msgid "Layer"
+msgstr "Tavolo"
+
+msgctxt "settings card"
+msgid "Animation"
+msgstr "Animacio"
+
+msgctxt "settings card"
+msgid "Author"
+msgstr "Aŭtoro"
+
+msgctxt "author"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "@title:window"
+msgid "Authors"
+msgstr "Aŭtoroj"
+
+msgctxt "settings card"
+msgid "Display"
+msgstr "Montrado"
+
+msgctxt "proofing"
+msgid "White"
+msgstr "Blanka"
+
+msgctxt "instant preview"
+msgid "Transform"
+msgstr "Transformi"
+
+msgctxt "instant preview"
+msgid "Move"
+msgstr "Movi"
+
+msgctxt "@action:button"
+msgid "Import"
+msgstr "Importi"
+
+msgctxt "@action:button undo the changes made since Settings opened"
+msgid "Undo"
+msgstr "Malfari"
+
+msgctxt "lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Alklaki al gvidiloj"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Blend"
+msgstr "Miksi"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Select"
+msgstr "Elekti"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Transform"
+msgstr "Transformi"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Fill"
+msgstr "Plenigi"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Text"
+msgstr "Teksto"
+
+msgctxt "@info:tooltip tool slot"
+msgid "Guides"
+msgstr "Gvidistoj"
+
+msgctxt "@action:button"
+msgid "Close"
+msgstr "Fermi"
+
+msgid "Use the new template every time Skissa starts"
+msgstr "Uzi la novan ŝablonon ĉiufoje kiam Skissa komenciĝas"
+
+msgid "Warning: you are trying to import more than 100 frames into Skissa.\n\nThis means you might be overloading your system.\nIf you want to edit a clip larger than 100 frames, consider using a real video editor, like Kdenlive (https://kdenlive.org)."
+msgstr "Averto: vi provas importi pli ol 100 kadrojn en Skissa.\n\nĈi tio signifas, ke vi eble troŝarĝas vian sistemon.\nSe vi volas redakti klipo pli grandan ol 100 kadrojn, konsideru uzi realan videoredaktilon, kiel Kdenlive (https://kdenlive.org)."
+
+msgctxt "part of warning in video importer."
+msgid "Skissa does not support the video transfer curve (%1), it will be loaded as linear."
+msgstr "Skissa ne subtenas la videotransigan kurbon (%1), ĝi estos ŝargata kiel lineara."
+
+msgctxt "@info:tooltip"
+msgid "The amount of time during which the strokes will be kept unmerged. When a stroke becomes old enough, Skissa will try to merge it"
+msgstr "La tempokvanto dum kiu la strekoj estas tenataj nekunfanditaj. Kiam streko sufiĉe aĝiĝas, Skissa provos ties kunfandadon"
+
+msgctxt "@info:tooltip"
+msgid "The number of last strokes that Skissa will not merge (even if they are old enough)"
+msgstr "La nombro da lastaj strekoj, kiujn Skissa ne kunfandos (eĉ se ili estas sufiĉe malnovaj)"
+
+msgid "Cumulative Undo allows Skissa to merge undo actions and make undo history cleaner. Skissa will still keep a few latest actions unmerged according to \"Wait before merging strokes\" and \"Exclude last strokes from merge\" options. Whenever an action gets outdated using the time limit and this action is not excluded using \"Exclude last strokes from merge\", Skissa will try  to merge this action into a group. The groups are formed using \"Max group strokes delay\" and \"Max group duration\" options."
+msgstr "Akumula Malfaro permesas al Skissa kunfandi malfar-agojn kaj igi malfaran historion pli pura. Skissa ankoraŭ konservos kelkajn lastajn agojn nekunfanditaj laŭ opcioj \"Atendu antaŭ kunfandi strekojn\" kaj \"Ekskludi lastajn strekojn el kunfandado\". Kiam ajn ago malnoviĝas uzante la tempolimon kaj ĉi tiu ago ne estas ekskludita per \"Ekskludi lastajn strekojn el kunfandado\", Skissa provos kunfandi ĉi tiun agon en grupon. La grupoj estas formitaj per la opcioj \"Maksimuma grupa strekoprokrasto\" kaj \"Maksimuma grupo-daŭro\"."
+
+msgctxt "keys group"
+msgid "Other"
+msgstr "Alia"
+
+msgctxt "held key"
+msgid "Rotate"
+msgstr "Rotacii"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "Neniu"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Your Rights</b></h1><p>Skissa is released under the GNU General Public License (version 3 or any later version).</p><p>This license grants people a number of freedoms:</p><ul><li>You are free to use Skissa, for any purpose</li><li>You are free to distribute Skissa</li><li>You can study how Skissa works and change it</li><li>You can distribute changed versions of Skissa</li></ul><p>The Krita Foundation and its projects on krita.org are <b>committed</b> to preserving Krita as free software.</p><h1 align=\"center\">Your artwork</h1><p>What you create with Skissa is your sole property. All your artwork is free for you to use as you like.</p><p>That means that Skissa can be used commercially, for any purpose. There are no restrictions whatsoever.</p><p>Krita’s GNU GPL license guarantees you this freedom. Nobody is ever permitted to take it away, in contrast to trial or educational versions of commercial software that will forbid your work in commercial situations.</p><br/><hr/><pre>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Viaj Rajtoj</b></h1><p>Skissa estas liberigita sub la Ĝenerala Publika Permesilo de GNU (versio 3 aŭ ajna posta versio).</p><p>Tiu permesilo donas al homoj kelkajn liberecojn:</p><ul><li>Vi rajtas uzi Skissa, por ajna celo</li><li>Vi estas libera; distribui Skissa</li><li>Vi povas studi kiel Skissa funkcias kaj ŝanĝi ĝin</li><li>Vi povas distribui ŝanĝitajn versiojn de Skissa</li></ul><p>La Skissa Fondaĵo kaj ĝiaj projektoj ĉe krita.org estas <b>engaĝitaj</b> konservi Skissa kiel libera programaro.</p><h1 align=\"center\">Via artaĵo</h1><p>Kion vi kreas per Skissa estas via sola posedaĵo. Ĉiuj viaj artaĵoj estas liberaj por vi uzi laŭplaĉe.</p><p>Tio signifas, ke Skissa povas esti uzata komerce, por ajna celo. Estas neniuj limigoj.</p><p>La permesilo GNU GPL de Skissa garantias al vi ĉi tiun liberecon. Neniu iam rajtas forpreni ĝin, kontraste al provaj aŭ edukaj versioj de komerca programaro, kiuj malpermesos vian laboron en komercaj situacioj.</p><br/><hr/><pre>"
+
+msgid "<html><head/><body><h1 align=\"center\"><b>Third-party Libraries used by Skissa</b></h1><p>Skissa is built on the following free software libraries:</p><p><ul>"
+msgstr "<html><head/><body><h1 align=\"center\"><b>Triapartaj Bibliotekoj uzataj de Skissa</b></h1><p>Skissa estas konstruita sur la jenaj liberprogramaraj bibliotekoj :</p><p><ul>"
+
+msgctxt "canvas input action mode"
+msgid "Opacity"
+msgstr "Travidebleco"
+
+msgctxt "brush value"
+msgid "Opacity"
+msgstr "Travidebleco"
+
+msgctxt "default name of a file layer, followed by a number"
+msgid "File"
+msgstr "Dosiero"
+
+msgctxt "pen inputs combined"
+msgid "Add"
+msgstr "Aldoni"
+
+msgctxt "pen inputs combined"
+msgid "Difference"
+msgstr "Diferenco"
+
+msgctxt "tooltip on statusbar memory reporting button"
+msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
+msgstr "\n\nAVERTO:\tMemoro mankas! Interŝanĝo estis komencita.\n\t\tBonvolu agordi pli da RAM por Skissa en Agorda dialogo"
+
+msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
+msgstr "Skissa ne povis pravalorigi la OpenGL-kanvason:\n\n%1\n\n Skissa malŝaltos OpenGL kaj fermos nun."
+
+msgctxt "@action:inmenu"
+msgid "Deselect"
+msgstr "Malelekti"
+
+msgctxt "@action:inmenu"
+msgid "Reselect"
+msgstr "Reelekti"
+
+msgctxt "@action:inmenu"
+msgid "Transform"
+msgstr "Transformi"
+
+msgctxt "@action:inmenu"
+msgid "Edit"
+msgstr "Redakti"
+
+msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
+msgstr "Nova AppImage estis elŝutita al %1. Por kompletigi la ĝisdatigon, fermu Skissa kaj rulu la novan AppImage."
+
+msgctxt "curve preset"
+msgid "Linear"
+msgstr "Lineara"
+
+msgctxt "If the selected model is CMYK"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
+msgstr "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, estas la modelo uzata de presiloj kaj aliaj ink-bazitaj datumportiloj.<br/>CMYK estas subtraha modelo, tio signifas, ke aldonado de koloroj kune mallumigos ilin. Ĉar CMYK-profiloj estas tre specifaj por presilo, oni rekomendas labori en RGB-spaco, kaj poste konverti al CMYK-profilo, prefere unu liverita de via presilo. <br/>CMYK <b>ne</b> estas rekomendita por pentrado. Bedaŭrinde, Skissa ne povas preni koloraĵojn aŭ la TRC por ĉi tiu spaco."
+
+msgctxt "If the selected model is Grayscale"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/Grayscale\">Grayscale</a></b> only allows for gray values and transparent values. Grayscale images use half the memory and disk space compared to an RGB image of the same bit-depth.<br/>Grayscale is useful for inking and grayscale images. In Skissa, you can mix Grayscale and RGB layers in the same image."
+msgstr "<b><a href=\"https://en.wikipedia.org/wiki/Grayscale\">Grizskalo</a></b> nur permesas grizajn valorojn kaj travideblajn valorojn. Grizskalaj bildoj uzas duonon de la memoro kaj diskspaco kompare kun RGB-bildo de la sama bit-profundo.<br/>Grazskalo estas utila por nigri kaj grizskalaj bildoj. En Skissa, vi povas miksi Grizskalon kaj RGB-tavolojn en la sama bildo."
+
+msgctxt "If the selected model is LAB"
+msgid "<b><a href=\"https://en.wikipedia.org/wiki/Lab_color_space\">L*a*b</a></b>. <b>L</b> stands for Lightness, the <b>a</b> and <b>b</b> components represent color channels.<br/>L*a*b is a special model for color correction. It is based on human perception, meaning that it tries to encode the difference in lightness, red-green balance and yellow-blue balance. This makes it useful for color correction, but the vast majority of color maths in the blending modes do <b>not</b> work as expected here.<br/>Similarly, Skissa does not support HDR in LAB, meaning that HDR images converted to LAB lose color information. This colorspace is <b>not</b> recommended for painting, nor for export, but best as a space to do post-processing in. The TRC is assumed to be the L* TRC."
+msgstr "<b><a href=\"https://en.wikipedia.org/wiki/Lab_color_space\">L*a*b</a></b>. <b>L</b> signifas Leĝerecon, la komponantoj <b>a</b> kaj <b>b</b> reprezentas kolorkanalojn.<br/>L*a*b estas speciala modelo por koloro. korekto. Ĝi baziĝas sur homa percepto, kio signifas, ke ĝi provas kodi la diferencon en malpezeco, ruĝ-verda ekvilibro kaj flavblua ekvilibro. Tio igas ĝin utila por kolorkorektado, sed la granda plimulto de kolormatematiko en la miksreĝimoj <b>ne</b> funkcias kiel atendite ĉi tie.<br/>Simile, Skissa ne subtenas HDR en LAB, tio signifas, ke HDR bildoj konvertitaj al LAB perdas kolorinformojn. Ĉi tiu kolorspaco <b>ne</b> estas rekomendita por pentrado, nek por eksporto, sed plej bone kiel spaco por fari post-traktadon. La TRC estas supozata kiel la L* TRC."
+
+msgctxt "These are Elle Stone's notes on her profiles that we ship."
+msgid "<p><b>Extra notes on profiles by Elle Stone:</b></p><p><i>Skissa comes with a number of high quality profiles created by <a href=\"https://ninedegreesbelow.com\">Elle Stone</a>. This is a summary. Please check <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">the full documentation</a> as well.</i></p>"
+msgstr "<p><b>Kromaj notoj pri profiloj de Elle Stone:</b></p><p><i>Skissa venas kun kelkaj altkvalitaj profiloj kreitaj de <a href=\"https://ninedegreesbelow .com\">Elle Stone</a>. Ĉi tio estas resumo. Bonvolu kontroli <a href=\"https://ninedegreesbelow.com/photography/lcms-make-icc-profiles.html\">ankaŭ la plenan dokumentaron</a>.</i></p>"
+
+msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
+msgstr "La elektita dosiernomo ne havas dosieran etendon, kiun Skissa komprenas.\nCergu, ke la dosiernomo finiĝas per '.%1' ekzemple."
+
+msgid "Dropped frames are not available in this Skissa instance"
+msgstr "Forigitaj kadroj ne haveblas en ĉi tiu Skissa-instanco"
+
+msgctxt "@title:menu"
+msgid "Select"
+msgstr "Elekti"
+
+msgctxt "@action:inmenu select layers"
+msgid "All"
+msgstr "Ĉiuj"
+
+msgctxt "@action:inmenu select layers"
+msgid "Visible"
+msgstr "Videbla"
+
+msgctxt "@title:menu other kinds of layer"
+msgid "New"
+msgstr "Nova"
+
+msgctxt "@action:inmenu"
+msgid "Paint Layer"
+msgstr "Pentra Tavolo"
+
+msgctxt "@action:inmenu"
+msgid "Group"
+msgstr "Grupo"
+
+msgctxt "@action:inmenu"
+msgid "Clone"
+msgstr "Klono"
+
+msgctxt "@action:inmenu"
+msgid "Transparency Mask"
+msgstr "Masko de Travidebleco"
+
+msgctxt "@action:inmenu"
+msgid "Color Overlay Mask"
+msgstr "Kolor-Surmeta Masko"
+
+msgctxt "@action:inmenu"
+msgid "Colorize Mask"
+msgstr "Koloriga Masko"
+
+msgctxt "@action:inmenu"
+msgid "Transform Mask"
+msgstr "Transforma Masko"
+
+msgctxt "@action:inmenu"
+msgid "Copy"
+msgstr "Kopii"
+
+msgctxt "@action:inmenu layer style"
+msgid "Copy"
+msgstr "Kopii"
+
+msgctxt "@action:inmenu"
+msgid "Alpha into Mask"
+msgstr "Alfa en Maskon"
+
+msgctxt "@action:inmenu"
+msgid "Write as Alpha"
+msgstr "Skribi kiel Alfa"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Layer"
+msgstr "Platigi Tavolon"
+
+msgctxt "@action:inmenu"
+msgid "Flatten Image"
+msgstr "Platigi Bildon"
+
+msgctxt "@action:inmenu"
+msgid "Pin to Timeline"
+msgstr "Alpinglu al Templinio"
+
+msgctxt "@info:tooltip"
+msgid "Undo"
+msgstr "Malfari"
+
+msgctxt "@info:tooltip"
+msgid "Redo"
+msgstr "Refari"
+
+msgctxt "@action:button choose a palette"
+msgid "Palettes"
+msgstr "Paletroj"
+
+msgctxt "@info:tooltip"
+msgid "Edit"
+msgstr "Redakti"
+
+msgctxt "@info:tooltip"
+msgid "Lock"
+msgstr "Ŝlosi"
+
+msgctxt "@info:tooltip"
+msgid "Save"
+msgstr "Konservi"
+
+msgctxt "@info:tooltip"
+msgid "Add to palette"
+msgstr "Aldoni al paletro"
+
+msgctxt "Save the time-lapse video"
+msgid "Save"
+msgstr "Konservi"
+
+msgctxt "frames at half the image's size"
+msgid "Half"
+msgstr "Duono"
+
+msgctxt "settings page"
+msgid "Wide Gamut Selector"
+msgstr "Larĝa Gamut-Selektilo"
+
+msgctxt "Caption of the dialog with Krita's Android system log for bug reports"
+msgid "Skissa Logcat Dump: please paste this information to the bug report"
+msgstr "Skissa Logcat Dump: bonvolu alglui ĉi tiun informon al la cimraporto"
+
+msgctxt "Caption of the dialog with crash log for bug reports"
+msgid "Skissa Crash Log: please paste this information to the bug report"
+msgstr "Skissa Crash Log: bonvolu alglui ĉi tiun informon al la cimraporto"
+
+msgctxt "Caption of the dialog with Skissa usage log for bug reports"
+msgid "Skissa Usage Log: please paste this information to the bug report"
+msgstr "Skissa Uzado-Protokolo: bonvolu alglui ĉi tiun informon al la cimraporto"
+
+msgctxt "Caption of the dialog with system information for bug reports"
+msgid "Skissa System Information: please paste this information to the bug report"
+msgstr "Skissa System Information: bonvolu alglui ĉi tiun informon al la cimraporto"
+
+msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
+msgstr "Skissa ne povas lanĉi la kromprogramon gmic-qt. Neniu pakaĵa biblioteko trovita."
+
+msgctxt "@info"
+msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
+msgstr "La bildo enhavas rastrumerojn kun nula alfa-kanalo kaj ne-nulaj kolorkanaloj. Skissa modifis tiujn rastrumerojn por havi almenaŭ iom da alfao. La komencaj valoroj <i>ne</i> estos revertitaj post konservado de la bildo reen.<br/><br/>Tio apenaŭ faros ajnan vidan diferencon, nur memoru ĝin."
+
+msgctxt "@tooltip"
+msgid "The image will be linearized first, and then encoded with SMPTE ST 428. Skissa always opens images like these as linear floating point, this option is there to reverse that"
+msgstr "La bildo unue estos linearigita, kaj poste kodita per SMPTE ST 428. Skissa ĉiam malfermas bildojn kiel ĉi tiuj kiel lineara glitpunkto, ĉi tiu opcio estas tie por inversigi tion."
+
+msgid "Layer \"%1\" has blending mode \"%2\" that has changed its behavior for CMYK color in Krita 5.2. Please check the result and consider enabling legacy \"Additive\" algorithm in Settings->Configure Skissa->General->Tools->CMYK blending mode"
+msgstr "Tavolo \"%1\" havas miksan reĝimon \"%2\" kiu ŝanĝis sian konduton por CMYK-koloro en Skissa 5.2. Bonvolu kontroli la rezulton kaj pripensi ebligi heredaĵan algoritmon \"Aldonaĵo\" en Agordoj->Agordi Skissa->Ĝenerala->Iloj->CMYK-miksa reĝimo"
+
+msgid "The file is too new for this version of Skissa (%1)."
+msgstr "La dosiero estas tro nova por ĉi tiu versio de Skissa (%1)."
+
+msgctxt "@info:tooltip brush tip"
+msgid "Size"
+msgstr "Grandeco"
+
+msgctxt "@info:tooltip brush tip"
+msgid "Height"
+msgstr "Alto"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "pattern group"
+msgid "Patterns"
+msgstr "Ŝablonoj"
+
+msgctxt "texture setting"
+msgid "Brightness"
+msgstr "Brilo"
+
+msgctxt "texture setting"
+msgid "Contrast"
+msgstr "Kontrasto"
+
+msgctxt "spacing chosen from the brush size"
+msgid "Auto"
+msgstr "Aŭtomate"
+
+msgctxt "@title:window"
+msgid "Skissa - Edit Text"
+msgstr "Skissa - Redakti Tekston"
+
+msgid "Skissa was built without the support of GNU Scientific Library, so you cannot scale the selection with handles. Please compile Skissa with GNU Scientific Library support, or use options widget for editing scale values manually."
+msgstr "Skissa estis konstruita sen la subteno de GNU Scientific Library, do vi ne povas skali la elekton per teniloj. Bonvolu kompili Skissa kun subteno de GNU Scientific Library, aŭ uzi opcian fenestraĵon por redakti skalvalorojn permane."
+
+msgctxt "(qtundo-format)"
+msgid "Fill"
+msgstr "Plenigi"
+

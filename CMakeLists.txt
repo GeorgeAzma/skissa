@@ -1764,4 +1764,5 @@ elseif(ANDROID)
     message(STATUS "You can export a target by specifying -DQTANDROID_EXPORTED_TARGET=<targetname> and -DANDROID_APK_DIR=<paths>")
 endif()
 
-ki18n_install(po)
+include(SkissaTranslations)
+skissa_install_translations()

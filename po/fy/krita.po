@@ -101185,14 +101185,3 @@ msgstr ""
 
 #~ msgid "&Palette font size:"
 #~ msgstr "Lettergrutte op &paletten:"
-
-# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
-
-msgctxt "@info:tooltip"
-msgid "Add to palette"
-msgstr "Oan palet tafoegje"
-
-msgctxt "brush tip shape"
-msgid "Square"
-msgstr "Fjouwerkant"
-

@@ -77422,38 +77422,3 @@ msgstr ""
 #, fuzzy
 #~ msgid "Toggle Assistant"
 #~ msgstr "Padėjėjas:"
-
-# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
-
-msgctxt "a group of settings"
-msgid "Settings"
-msgstr "Nuostatos"
-
-msgctxt "@title find results"
-msgid "Settings"
-msgstr "Nuostatos"
-
-msgctxt "settings card"
-msgid "Undo"
-msgstr "Atšaukti"
-
-msgctxt "instant preview"
-msgid "Move"
-msgstr "Perkelti"
-
-msgctxt "@action:button undo the changes made since Settings opened"
-msgid "Undo"
-msgstr "Atšaukti"
-
-msgctxt "@info:tooltip"
-msgid "Undo"
-msgstr "Atšaukti"
-
-msgctxt "@info:tooltip"
-msgid "Redo"
-msgstr "Pakartoti"
-
-msgctxt "@info:tooltip"
-msgid "Add to palette"
-msgstr "Pridėti į paletę"
-

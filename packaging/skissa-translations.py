@@ -9,15 +9,18 @@ Gives Skissa's own text the translations Krita already has.
 
 Krita's translators never saw the text Skissa added or changed, so it would show in English. Many of
 those strings are ones Krita already translates in another context, or Krita's own sentences with the
-app's name changed. This finds them and adds an entry for each to po/<lang>/krita.po, in a block at
-the end that it replaces each time it runs:
+app's name changed. This finds them and writes an entry for each to po-skissa/<lang>.po:
 
     python packaging/skissa-translations.py --gettext <folder with xgettext.exe and msgfmt.exe>
+
+Krita's own po/<lang>/krita.po stay as upstream has them, so merging translations never conflicts; the
+build joins the two (--join, from skissa_install_translations in CMakeLists.txt), leaving out any entry
+upstream has since added.
 
 Only translations that already exist are reused, adapted at most by:
   - "Krita" -> "Skissa", where the translation keeps the name as it is;
   - a trailing colon or ellipsis, or a keyboard accelerator, dropped.
-Run it again after merging translations from upstream: an entry upstream now has is left out.
+Run it again after merging translations from upstream or changing text.
 """
 
 import argparse
@@ -30,7 +33,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SOURCE = os.path.normpath(os.path.join(HERE, '..'))
-BEGIN = '# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)'
+HEADER = '# Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)\n\n'
 UPSTREAM = 'origin/master'
 
 KDE_KEYWORDS = ['-ki18n:1', '-ki18nc:1c,2', '-ki18np:1,2', '-ki18ncp:1c,2,3', '-kki18n:1', '-kki18nc:1c,2',
@@ -217,38 +220,60 @@ def translate(entries, wanted):
     return out
 
 
+def join(upstream, fork, out):
+    """Krita's po file with the fork's entries added, those upstream has left out"""
+    present = {(e.ctx, e.id) for e in parse(upstream)}
+    with open(upstream, encoding='utf-8', newline='') as f:
+        text = f.read()
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    with open(out, 'w', encoding='utf-8', newline='') as f:
+        f.write(text.rstrip('\r\n') + '\n\n')
+        for e in parse(fork):
+            if (e.ctx, e.id) not in present:
+                write_entry(f, e.ctx, e.id, e.plural, e.strs)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--gettext', required=True, help='the folder with xgettext and msgfmt')
+    parser.add_argument('--gettext', help='the folder with xgettext and msgfmt')
+    parser.add_argument('--join', nargs=3, metavar=('UPSTREAM', 'FORK', 'OUT'), help='write UPSTREAM with the entries of FORK it lacks to OUT')
     args = parser.parse_args()
+    if args.join:
+        join(*args.join)
+        return
+    if not args.gettext:
+        parser.error('--gettext is needed')
 
     wanted = fork_strings(args.gettext)
     print(len(wanted), 'strings in the files Skissa changed')
     podir = os.path.join(SOURCE, 'po')
+    forkdir = os.path.join(SOURCE, 'po-skissa')
+    os.makedirs(forkdir, exist_ok=True)
     msgfmt = os.path.join(args.gettext, 'msgfmt.exe' if os.name == 'nt' else 'msgfmt')
     report = []
     for lang in sorted(os.listdir(podir)):
         path = os.path.join(podir, lang, 'krita.po')
         if not os.path.isfile(path):
             continue
-        with open(path, encoding='utf-8', newline='') as f:
-            text = f.read()
-        # this script's last block out, and with it any of its entries upstream has since added
-        text = re.split(r'\r?\n' + re.escape(BEGIN) + r'\r?\n', text)[0].rstrip('\r\n') + '\n'
-        with open(path, 'w', encoding='utf-8', newline='') as f:
-            f.write(text)
         entries = parse(path)
         present = {(e.ctx, e.id) for e in entries if not e.obsolete}
         missing = {(w[0], w[1]) for w in wanted} - present
         added = translate(entries, wanted)
-        if added:
-            with open(path, 'a', encoding='utf-8', newline='') as out:
-                out.write('\n' + BEGIN + '\n\n')
-                for ctx, msgid, plural, strs in added:
-                    write_entry(out, ctx, msgid, plural, strs)
-            check = subprocess.run([msgfmt, '-c', '-o', os.path.join(tempfile.gettempdir(), 'skissa-check.mo'), path], capture_output=True, text=True, encoding='utf-8', errors='replace')
+        fork = os.path.join(forkdir, lang + '.po')
+        if not added:
+            if os.path.exists(fork):
+                os.remove(fork)
+            continue
+        with open(fork, 'w', encoding='utf-8', newline='') as out:
+            out.write(HEADER)
+            for ctx, msgid, plural, strs in added:
+                write_entry(out, ctx, msgid, plural, strs)
+        with tempfile.TemporaryDirectory() as tmp:
+            joined = os.path.join(tmp, 'krita.po')
+            join(path, fork, joined)
+            check = subprocess.run([msgfmt, '-c', '-o', os.path.join(tmp, 'krita.mo'), joined], capture_output=True, text=True, encoding='utf-8', errors='replace')
             if check.returncode:
-                sys.exit('%s: %s' % (path, check.stderr[-2000:]))
+                sys.exit('%s: %s' % (fork, check.stderr[-2000:]))
         report.append((lang, len(added), len(missing)))
     for lang, added, missing in report:
         print('%-12s %4d of %4d' % (lang, added, missing))

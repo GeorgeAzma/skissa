@@ -100929,10 +100929,3 @@ msgstr ""
 #~ msgstr ""
 #~ "छविको भाग नक्कल गर्नुहोस् । नक्कल गर्नका लागि प्रारम्भ गर्ने स्थानबाट Shift थिचेर "
 #~ "क्लिक गर्नुहोस् ।"
-
-# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
-
-msgctxt "@info:tooltip"
-msgid "Add to palette"
-msgstr "रङदानीमा थप्नुहोस्"
-

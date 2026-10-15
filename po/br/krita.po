@@ -97142,10 +97142,3 @@ msgstr ""
 #, fuzzy
 #~ msgid "Thresholding"
 #~ msgstr "Treuzoù"
-
-# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
-
-msgctxt "@info:tooltip"
-msgid "Add to palette"
-msgstr "Ouzhpennañ d'an daolenn-livioù"
-

@@ -68248,22 +68248,3 @@ msgid ""
 "Full range: [%1, %2]\n"
 "Subrange: [%3, %4]"
 msgstr ""
-
-# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
-
-msgctxt "@label:textbox"
-msgid "Name"
-msgstr "Namma"
-
-msgctxt "@action:inmenu"
-msgid "Smooth"
-msgstr "Čábbát"
-
-msgctxt "@info:tooltip"
-msgid "Add to palette"
-msgstr "Lasit palehttii"
-
-msgctxt "brush tip shape"
-msgid "Square"
-msgstr "Boksa"
-

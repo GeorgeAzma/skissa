@@ -98801,10 +98801,3 @@ msgstr ""
 
 #~ msgid "Grayscale 8-bit integer/channel)"
 #~ msgstr "مقیاس خاکستری ۸ بیت عدد صحیح/مجرا("
-
-# ---- Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
-
-msgctxt "@info:tooltip"
-msgid "Add to palette"
-msgstr "افزودن به پالت"
-

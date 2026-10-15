@@ -1,0 +1,38 @@
+# Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
+
+msgctxt "cursor"
+msgid "None"
+msgstr "Nouk"
+
+msgctxt "brush outline"
+msgid "None"
+msgstr "Nouk"
+
+msgctxt "color sampler preview"
+msgid "None"
+msgstr "Nouk"
+
+msgctxt "tile spacing of 0"
+msgid "None"
+msgstr "Nouk"
+
+msgctxt "author"
+msgid "None"
+msgstr "Nouk"
+
+msgctxt "held key input: nothing set"
+msgid "None"
+msgstr "Nouk"
+
+msgctxt "brush tip shape"
+msgid "Square"
+msgstr "Cwåré"
+
+msgctxt "no mask on the brush"
+msgid "None"
+msgstr "Nouk"
+
+msgctxt "no texture on the brush"
+msgid "None"
+msgstr "Nouk"
+
