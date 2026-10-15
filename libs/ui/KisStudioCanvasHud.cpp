@@ -266,7 +266,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     d->zoom->setAutoRaise(true);
     d->zoom->setFocusPolicy(Qt::NoFocus);
     d->zoom->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    d->zoom->setToolTip(i18nc("@info:tooltip", "Zoom\nClick: fit ↔ last zoom"));
+    d->zoom->setToolTip(i18nc("@info:tooltip", "Zoom\nClick: fit ↔ last zoom\nScroll: zoom"));
     d->zoom->installEventFilter(this);
     connect(d->zoom, &QToolButton::clicked, this, [this]() { d->trigger("toggle_zoom_to_fit"); });
     layout->addWidget(d->zoom);

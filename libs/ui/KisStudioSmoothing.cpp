@@ -778,7 +778,7 @@ void KisStudioStrokePage::rebuild()
             percent.suffix = QStringLiteral("%");
             auto *ending = addRow(i18nc("how a smoothed line ends", "Stroke Ending"), percent, options->tailAggressiveness() * 100,
                                   KisConfig(true).lineSmoothingTailAggressiveness(true) * 100);
-            ending->setToolTip(i18nc("@info:tooltip", "0% the end lags â†’ 100% it ends at the pen"));
+            ending->setToolTip(i18nc("@info:tooltip", "0% the end lags → 100% it ends at the pen"));
             connect(ending, &KisStudioValueRow::valueChanged, this, [change](qreal value) {
                 change([value](KisSmoothingOptions &options) { options.setTailAggressiveness(value / 100); });
             });
@@ -846,7 +846,7 @@ void KisStudioStrokePage::rebuild()
         snap->setValue(snapping ? tool->property("magnetism").toInt() / 10.0 : 0);
         snap->setValueText(snapping ? QString() : i18nc("snapping is off", "Off"));
         snap->setDefaultValue(0);
-        snap->setToolTip(i18nc("@info:tooltip", "0% off â†’ 100% on the guide"));
+        snap->setToolTip(i18nc("@info:tooltip", "0% off → 100% on the guide"));
         const QPointer<QObject> target(tool);
         connect(snap, &KisStudioValueRow::valueChanged, this, [target, snap](qreal value) {
             if (!target) return;
@@ -857,7 +857,7 @@ void KisStudioStrokePage::rebuild()
         lineLayout->addWidget(snap, 1);
         auto *more = new QToolButton(line);
         more->setAutoRaise(true);
-        more->setText(QStringLiteral("â‹¯"));
+        more->setText(QStringLiteral("⋯"));
         more->setToolTip(i18nc("@info:tooltip", "More snapping"));
         more->setPopupMode(QToolButton::InstantPopup);
         auto *menu = new QMenu(more);
@@ -882,7 +882,7 @@ void KisStudioStrokePage::rebuild()
     if (KoToolManager::instance()->activeToolId() != QLatin1String("KritaShape/KisToolBrush")) {
         auto *rest = new KisStudioValueRow(i18nc("the rest of the tool's options", "Tool options"), this);
         rest->setDraggable(false);
-        rest->setValueText(QStringLiteral("â€º"));
+        rest->setValueText(QStringLiteral("›"));
         connect(rest, &KisStudioValueRow::clicked, this, [mainWindow]() { Q_EMIT KisStudioSmoothing::instance()->sigToolOptionsRequested(mainWindow); });
         d->layout->addSpacing(KisModernStyle::space1);
         d->layout->addWidget(rest);

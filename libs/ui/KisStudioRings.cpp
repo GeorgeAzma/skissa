@@ -265,14 +265,19 @@ protected:
         }
     }
 
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        event->accept();
+        const int target = targetAt(event->pos());
+        if (target >= 0 && target < m_slots.size()) slotMenu(target, event->globalPos());
+        else if (target == -2) middleMenu(event->globalPos());
+    }
+
     void mousePressEvent(QMouseEvent *event) override
     {
         const int target = targetAt(event->localPos());
-        if (event->button() == Qt::RightButton) {
-            if (target >= 0 && target < m_slots.size()) slotMenu(target, event->globalPos());
-            else if (target == -2) middleMenu(event->globalPos());
-            return;
-        }
+        // the menus open on the context menu event that follows, which a finger held still sends too
+        if (event->button() == Qt::RightButton) return;
         if (event->button() != Qt::LeftButton) return;
         if (target >= 0 && target < m_slots.size()) {
             // Run on release, unless dragged to another slot

@@ -130,12 +130,15 @@ protected:
 
     void mousePressEvent(QMouseEvent *event) override
     {
-        if (event->button() == Qt::RightButton && m_choice.hide) {
-            m_choice.hide();
-            return;
-        }
         m_pressPos = event->pos();
         QAbstractButton::mousePressEvent(event);
+    }
+
+    // a right click, or a finger held on it
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        event->accept();
+        if (m_choice.hide) m_choice.hide();
     }
 
     void mouseMoveEvent(QMouseEvent *event) override

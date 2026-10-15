@@ -104,6 +104,8 @@ private:
 
     QRectF pinRect() const;
     QRectF removeRect() const;
+    /// What shows only under the pointer is shown: hovered, or always in touch mode
+    bool revealed() const;
     bool showsPin() const;
     /// Where the name and the value are written, between the row's edges and what is drawn at its end
     QRectF textArea() const;
@@ -111,6 +113,8 @@ private:
     bool m_editing {false};
 
     bool m_pressed {false};
+    /// The current press became a drag (a long press then isn't a reset)
+    bool m_draggedThisPress {false};
     bool m_dragging {false};
     bool m_fine {false};
     int m_pressX {0};

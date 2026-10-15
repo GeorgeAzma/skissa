@@ -5,6 +5,8 @@
  */
 #include "KisStudioSettings.h"
 
+#include <KisTouchMode.h>
+
 #include "KisStudioBarButtons.h"
 #include "KisStudioControls.h"
 
@@ -640,7 +642,8 @@ struct Builder {
             const bool pinned = KisStudioBarButtons::has(mainWindow, key);
             QSignalBlocker blocker(pin);
             pin->setChecked(pinned);
-            pin->setIcon(pinned || row->underMouse() ? icon : QIcon());
+            // fingers can't hover: the pin always shows in touch mode
+            pin->setIcon(pinned || row->underMouse() || KisTouchMode::isActive() ? icon : QIcon());
             pin->setToolTip(pinned ? i18nc("@info:tooltip", "Unpin from the top bar") : i18nc("@info:tooltip", "Pin to the top bar"));
         };
         follow(show);

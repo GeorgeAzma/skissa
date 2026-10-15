@@ -5,6 +5,8 @@
  */
 #include "KisStudioScrubber.h"
 
+#include "KisStudioTips.h"
+
 #include <QLineEdit>
 #include <QContextMenuEvent>
 #include <QMouseEvent>
@@ -42,7 +44,7 @@ KisStudioScrubber::KisStudioScrubber(Kind kind, const QString &toolTip, QWidget 
     : QWidget(parent)
     , m_kind(kind)
 {
-    setToolTip(toolTip);
+    setToolTip(KisStudioTips::tip(toolTip, KisStudioTips::valueGestures() << KisStudioTips::scrollStep()));
     setAccessibleName(toolTip);
     setCursor(Qt::SizeHorCursor);
     setAttribute(Qt::WA_Hover);
@@ -142,12 +144,12 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
 
 void KisStudioScrubber::mousePressEvent(QMouseEvent *event)
 {
+    m_moved = false;
     if (event->button() != Qt::LeftButton) {
         QWidget::mousePressEvent(event);
         return;
     }
     m_dragging = true;
-    m_moved = false;
     m_fine = event->modifiers() & Qt::ShiftModifier;
     m_pressX = eventX(event);
     m_pressValue = m_value;
@@ -217,6 +219,11 @@ void KisStudioScrubber::mouseDoubleClickEvent(QMouseEvent *)
 
 void KisStudioScrubber::contextMenuEvent(QContextMenuEvent *event)
 {
+    // a finger held still at the end of a drag isn't asking for a reset
+    if (m_moved) {
+        event->accept();
+        return;
+    }
     if (!qIsNaN(m_default)) {
         commit(m_default);
         event->accept();

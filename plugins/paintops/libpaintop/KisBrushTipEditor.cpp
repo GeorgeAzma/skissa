@@ -651,6 +651,7 @@ public:
 
     void mousePressEvent(QMouseEvent *event) override
     {
+        m_moved = false;
         if (event->button() != Qt::LeftButton) return;
         const QPointF pos = event->pos();
         const Part part = partAt(pos);
@@ -756,6 +757,11 @@ public:
 
     void contextMenuEvent(QContextMenuEvent *event) override
     {
+        // a finger held still at the end of a drag isn't asking for a reset
+        if (m_moved) {
+            event->accept();
+            return;
+        }
         // the values' reset: round, upright, hard
         const Part part = partAt(event->pos());
         if (part == ChipAngle || part == Turn) {

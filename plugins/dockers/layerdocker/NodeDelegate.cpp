@@ -17,6 +17,7 @@
 #include <QApplication>
 #include <QCursor>
 #include <QHeaderView>
+#include <KisTouchMode.h>
 #include <QRegularExpression>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -854,7 +855,7 @@ void NodeDelegate::drawIcons(QPainter *p, const QStyleOptionViewItem &option, co
     Q_FOREACH (OptionalProperty prop, realProps) {
         const bool lit = slotAt++ == under;
         x += scm.iconMargin();
-        if (prop && (prop->state.toBool() || revealAll) && (!hidden || pointedAt)) {
+        if (prop && (prop->state.toBool() || revealAll) && (!hidden || pointedAt || KisTouchMode::isActive())) {
             QIcon icon = prop->state.toBool() ? prop->onIcon : prop->offIcon;
             bool fullColor = prop->state.toBool() && option.state & QStyle::State_Enabled;
 
@@ -972,8 +973,8 @@ void NodeDelegate::drawVisibilityIcon(QPainter *p, const QStyleOptionViewItem &o
 
     QIcon icon = prop->state.toBool() ? prop->onIcon : prop->offIcon;
 
-    // visible is the normal case: no eye unless hovered or selected
-    const bool revealAll = option.state & (QStyle::State_MouseOver | QStyle::State_Selected);
+    // visible is the normal case: no eye unless hovered or selected; every eye for fingers, which can't hover
+    const bool revealAll = (option.state & (QStyle::State_MouseOver | QStyle::State_Selected)) || KisTouchMode::isActive();
     if (prop->state.toBool() && !revealAll && !prop->isInStasis) {
         return;
     }
@@ -1207,7 +1208,7 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
                 KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
                 OptionalProperty clickedProperty = d->findVisibilityProperty(props);
                 if (!clickedProperty) return false;
-                if (!marksShown && clickedProperty->state.toBool()) return false;
+                if (!marksShown && !KisTouchMode::isActive() && clickedProperty->state.toBool()) return false;
 
                 Qt::KeyboardModifiers modifiers = mouseEvent->modifiers();
                 // Alt+click shows only this layer, as Shift+click does
@@ -1319,7 +1320,11 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
         QString text;
         KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
         if (index.column() == NodeView::VISIBILITY_COL) {
-            if (OptionalProperty visibility = d->findVisibilityProperty(props)) text = said(*visibility);
+            // the eye teaches its gestures
+            if (OptionalProperty visibility = d->findVisibilityProperty(props)) {
+                text = said(*visibility) + QLatin1Char('\n')
+                    + i18nc("@info:tooltip a layer's eye: its gestures", "Drag down: the layers passed too\nAlt+click: only this layer");
+            }
         } else if (auto hovered = d->propForMousePos(index, pos, option)) {
             text = (hovered->id == KisLayerPropertiesIcons::layerError.id() || hovered->id == KisLayerPropertiesIcons::layerColorSpaceMismatch.id())
                 ? hovered->state.toString()

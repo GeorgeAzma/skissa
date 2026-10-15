@@ -9,6 +9,7 @@
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QContextMenuEvent>
+#include <QDateTime>
 #include <QMouseEvent>
 #include <QTouchDevice>
 #include <QTouchEvent>
@@ -164,6 +165,8 @@ void KisTouchMode::hold()
     if (!m_holdWidget) {
         return;
     }
+    // as Krita's own long press marks it, so the menu can tell a held finger from a right click
+    qApp->setProperty("longPressAt", QDateTime::currentMSecsSinceEpoch());
     QContextMenuEvent menu(QContextMenuEvent::Mouse, m_holdWidget->mapFromGlobal(m_holdPos), m_holdPos);
     QCoreApplication::sendEvent(m_holdWidget, &menu);
 }

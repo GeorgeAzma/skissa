@@ -232,7 +232,7 @@ public:
         setFocusPolicy(Qt::NoFocus);
         setContextMenuPolicy(Qt::CustomContextMenu);
         setText(i18nc("@action:button", "New layer"));
-        setToolTip(i18nc("@info:tooltip", "New layer (right-click for other kinds)"));
+        setToolTip(i18nc("@info:tooltip", "New layer\nRight-click: other kinds"));
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         auto fit = [this]() { setFixedHeight(KisTouchMode::isActive() ? 34 : 26); };
         fit();

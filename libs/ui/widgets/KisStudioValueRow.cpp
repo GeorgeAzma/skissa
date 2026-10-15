@@ -5,6 +5,10 @@
  */
 #include "KisStudioValueRow.h"
 
+#include "KisStudioTips.h"
+
+#include <KisTouchMode.h>
+
 #include <QContextMenuEvent>
 #include <QLineEdit>
 #include <QLocale>
@@ -127,9 +131,15 @@ void KisStudioValueRow::setRemovable(bool removable)
     update();
 }
 
+bool KisStudioValueRow::revealed() const
+{
+    // fingers can't hover: what shows on hover always shows
+    return underMouse() || KisTouchMode::isActive();
+}
+
 bool KisStudioValueRow::showsPin() const
 {
-    return m_pinnable && ((m_pinned && !m_pinOnHoverOnly) || underMouse());
+    return m_pinnable && ((m_pinned && !m_pinOnHoverOnly) || revealed());
 }
 
 QRectF KisStudioValueRow::removeRect() const
@@ -142,7 +152,7 @@ QRectF KisStudioValueRow::textArea() const
 {
     QRectF content = QRectF(rect()).adjusted(KisModernStyle::space3, 0, -KisModernStyle::space3, 0);
     if (showsPin()) content.setRight(pinRect().left() - KisModernStyle::space2);
-    if (m_removable && underMouse()) content.setRight(removeRect().left() - KisModernStyle::space2);
+    if (m_removable && revealed()) content.setRight(removeRect().left() - KisModernStyle::space2);
     if (!m_penCurve.isEmpty()) content.setRight(content.right() - glyphWidth - KisModernStyle::space2);
     return content;
 }
@@ -233,7 +243,7 @@ void KisStudioValueRow::paintEvent(QPaintEvent *)
         const QIcon pin = KisIconUtils::loadIcon(QStringLiteral("studio_pin"));
         pin.paint(&painter, pinRect().toRect(), Qt::AlignCenter, QIcon::Normal, m_pinned ? QIcon::On : QIcon::Off);
     }
-    if (m_removable && underMouse()) {
+    if (m_removable && revealed()) {
         // a cross: off the list
         const QRectF cross = removeRect().adjusted(4, 4, -4, -4);
         painter.setPen(QPen(KisModernStyle::secondaryInk(ink), 1.5, Qt::SolidLine, Qt::RoundCap));
@@ -266,6 +276,7 @@ void KisStudioValueRow::paintEvent(QPaintEvent *)
 
 void KisStudioValueRow::mousePressEvent(QMouseEvent *event)
 {
+    m_draggedThisPress = false;
     if (event->button() != Qt::LeftButton) {
         QWidget::mousePressEvent(event);
         return;
@@ -275,7 +286,7 @@ void KisStudioValueRow::mousePressEvent(QMouseEvent *event)
         event->accept();
         return;
     }
-    if (m_removable && underMouse() && removeRect().adjusted(-3, -6, 3, 6).contains(event->pos())) {
+    if (m_removable && revealed() && removeRect().adjusted(-3, -6, 3, 6).contains(event->pos())) {
         Q_EMIT removeClicked();
         event->accept();
         return;
@@ -307,6 +318,7 @@ void KisStudioValueRow::mouseMoveEvent(QMouseEvent *event)
         // a click with a little jitter isn't a drag
         if (qAbs(x - m_pressX) <= 3) return;
         m_dragging = true;
+        m_draggedThisPress = true;
         m_pressX = x;
     }
     const bool fine = event->modifiers() & Qt::ShiftModifier;
@@ -371,6 +383,11 @@ void KisStudioValueRow::mouseDoubleClickEvent(QMouseEvent *event)
 
 void KisStudioValueRow::contextMenuEvent(QContextMenuEvent *event)
 {
+    // a finger held still at the end of a drag isn't asking for a reset
+    if (m_draggedThisPress) {
+        event->accept();
+        return;
+    }
     if (!qIsNaN(m_default)) {
         change(m_default);
         event->accept();
@@ -393,6 +410,8 @@ bool KisStudioValueRow::event(QEvent *event)
         } else if (m_removable && removeRect().adjusted(-3, -6, 3, 6).contains(help->pos())) {
             tip = i18nc("@info:tooltip", "Take off the brush");
         }
+        // what the row is, then its gestures
+        if (tip.isEmpty() && m_draggable) tip = KisStudioTips::tip(toolTip(), KisStudioTips::valueGestures(!qIsNaN(m_default)));
         if (!tip.isEmpty()) {
             QToolTip::showText(help->globalPos(), tip, this);
             return true;

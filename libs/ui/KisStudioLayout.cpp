@@ -358,6 +358,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override
     {
         m_scrubbing = false;
+        m_scrubbedThisPress = false;
         m_pressX = event->pos().x();
         QToolButton::mousePressEvent(event);
     }
@@ -370,6 +371,7 @@ protected:
             if (!m_scrubbing && qAbs(event->pos().x() - m_pressX) > QApplication::startDragDistance()) {
                 // dragged sideways: the smoothing, not a click
                 m_scrubbing = true;
+                m_scrubbedThisPress = true;
                 setDown(false);
                 m_fine = !fine;
             }
@@ -404,8 +406,8 @@ protected:
 
     void contextMenuEvent(QContextMenuEvent *event) override
     {
-        // right click: the smoothing back to its default
-        if (amount && resetAmount && amount() >= 0) {
+        // right click: the smoothing back to its default; not a finger held still after a drag
+        if (amount && resetAmount && amount() >= 0 && !m_scrubbedThisPress) {
             resetAmount();
             update();
         }
@@ -419,6 +421,7 @@ private:
     }
 
     bool m_scrubbing {false};
+    bool m_scrubbedThisPress {false};
     bool m_fine {false};
     int m_pressX {0};
     qreal m_pressAmount {0.0};
@@ -438,7 +441,7 @@ public:
     {
         setFixedSize(40, 40);
         setCursor(Qt::PointingHandCursor);
-        setToolTip(i18nc("@info:tooltip", "Colors (X swaps)"));
+        setToolTip(i18nc("@info:tooltip the color chip on the tool rail", "Colors\nDrag onto the image: fill\nClick the back one: swap"));
     }
 
     void setColors(const QColor &foreground, const QColor &background)
@@ -1093,7 +1096,7 @@ public:
             QWidget *widget = layout()->itemAt(i)->widget();
             if (widget && widget != m_grip) widget->setVisible(!tucked);
         }
-        m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Show tools")
+        m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Click: show tools\nDrag: switch sides")
                                   : i18nc("@info:tooltip", "Drag: switch sides\nClick: hide"));
         place();
     }
@@ -1239,8 +1242,8 @@ public:
         m_contents->setVisible(!tucked);
         keepHeight();
         if (m_grip) {
-            m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Show bar")
-                                      : i18nc("@info:tooltip", "Drag: move\nDouble-click: maximize"));
+            m_grip->setToolTip(tucked ? i18nc("@info:tooltip", "Click: show the bar\nDrag: move\nDouble-click: maximize")
+                                      : i18nc("@info:tooltip", "Drag: move\nClick: hide\nDouble-click: maximize"));
         }
     }
 
@@ -2066,7 +2069,7 @@ void KisStudioLayout::enter()
         d->presetChip = paintopBox->presetChip();
         if (d->presetChip) {
             d->presetChipToolTip = d->presetChip->toolTip();
-            d->presetChip->setToolTip(i18nc("@info:tooltip", "Brushes\nRight-click: manage"));
+            d->presetChip->setToolTip(i18nc("@info:tooltip", "Brushes\nScroll: next brush\nRight-click: manage"));
         }
     }
 
@@ -2799,7 +2802,7 @@ void KisStudioLayout::setPanelsTucked(bool tucked)
     d->panelsTucked = tucked;
     KisConfig(false).writeEntry(panelsHiddenKey, tucked);
     if (d->stripGrip) {
-        d->stripGrip->setToolTip(tucked ? i18nc("@info:tooltip", "Show panels")
+        d->stripGrip->setToolTip(tucked ? i18nc("@info:tooltip", "Click: show panels\nDrag: switch sides")
                                         : i18nc("@info:tooltip", "Drag: switch sides\nClick: hide"));
     }
     updateColumns();
@@ -3905,7 +3908,7 @@ void KisStudioLayout::updateToolChip()
     // a right click resets the smoothing, instead of showing the chip's card
     d->toolChip->setProperty("ownContextMenu", bool(KisStudioSmoothing::options(d->mainWindow)));
     if (KisStudioSmoothing::options(d->mainWindow)) {
-        d->toolChip->setToolTip(i18nc("@info:tooltip the brush chip: drag sideways for smoothing, click for the brush's settings", "Drag: smoothing\nClick: brush settings"));
+        d->toolChip->setToolTip(i18nc("@info:tooltip the brush chip: drag sideways for smoothing, click for the brush's settings", "Drag: smoothing\nClick: brush settings\nRight-click: reset"));
     } else if (KisStudioStrokePage::applies(d->mainWindow)) {
         d->toolChip->setToolTip(i18nc("@info:tooltip", "Brush settings"));
     } else {
