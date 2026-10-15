@@ -8,6 +8,7 @@
 #include "KisStudioGlass.h"
 
 #include "widgets/KisPopupCloser.h"
+#include "KisStretchedIconButton.h"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -773,6 +774,7 @@ void KisStudioFind::rebuildIndex()
         const QString key = it.key();
         QPointer<QAction> action = it->action;
         QIcon icon = it->button->icon();
+        if (auto *stretched = dynamic_cast<KisStretchedIconButton *>(it->button.data())) icon = stretched->stretchedIcon();
         if (icon.isNull()) icon = KisIconUtils::loadIcon(QStringLiteral("hamburger_menu_dots"));
         d->entries.append({key, Kind::Command, it->title, it->where, QStringLiteral("button"),
                            it->action->shortcut().toString(QKeySequence::NativeText), icon,
@@ -1108,6 +1110,8 @@ void KisStudioFind::registerButtons()
     Q_FOREACH (QAbstractButton *button, mainWindow->findChildren<QAbstractButton *>()) {
         auto *tool = qobject_cast<QToolButton *>(button);
         if (tool && tool->defaultAction() && known.contains(tool->defaultAction())) continue;
+        auto *stretched = dynamic_cast<KisStretchedIconButton *>(button);
+        if (stretched && known.contains(stretched->associatedAction())) continue;
         // skip parts of compound widgets, Find itself, and the tool rail (its items are indexed already)
         bool skip = false;
         QDockWidget *dock = nullptr;
