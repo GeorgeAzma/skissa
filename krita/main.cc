@@ -551,6 +551,36 @@ void resetRotation()
     bool result = pSetDisplayAutoRotationPreferences(ORIENTATION_PREFERENCE_NONE);
     dbgKrita << "SetDisplayAutoRotationPreferences(ORIENTATION_PREFERENCE_NONE) returned" << result;
 }
+
+/**
+ * Whether the tablet driver has WinTab but refuses to open it (XP-Pen's does while its own Windows Ink mode
+ * is on): Qt would then give up on the tablet, and the pen would reach the canvas only as a mouse.
+ */
+bool winTabRefused()
+{
+    QLibrary winTab(QStringLiteral("wintab32"));
+    if (!winTab.load()) return false;
+    using Info = UINT(WINAPI *)(UINT, UINT, LPVOID);
+    using Open = HANDLE(WINAPI *)(HWND, LPVOID, BOOL);
+    using Close = BOOL(WINAPI *)(HANDLE);
+    const auto info = cast_to_function<Info>(winTab.resolve("WTInfoW"));
+    const auto open = cast_to_function<Open>(winTab.resolve("WTOpenW"));
+    const auto close = cast_to_function<Close>(winTab.resolve("WTClose"));
+    if (!info || !open || !close) return false;
+
+    const UINT WTI_DEFSYSCTX = 4;
+    const UINT size = info(WTI_DEFSYSCTX, 0, nullptr);
+    if (!size) return false;
+    QByteArray context(int(size), '\0');
+    info(WTI_DEFSYSCTX, 0, context.data());
+
+    // the context Qt asks for, on a window of its kind
+    HWND window = CreateWindowExW(0, L"STATIC", L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, nullptr, nullptr);
+    HANDLE opened = open(window, context.data(), TRUE);
+    if (opened) close(opened);
+    DestroyWindow(window);
+    return !opened;
+}
 } // namespace
 #endif
 
@@ -1050,7 +1080,9 @@ if (!qEnvironmentVariableIsEmpty("KRITA_OPENGL_DEBUG")) {
 
 #if defined Q_OS_WIN && QT_VERSION < QT_VERSION_CHECK(6, 0, 0) && defined QT5_HAS_WINTAB_SWITCH
     const bool forceWinTab = !KisConfig::useWin8PointerInputNoApp(&kritarc);
-    QCoreApplication::setAttribute(Qt::AA_MSWindowsUseWinTabAPI, forceWinTab);
+    // Windows Ink for this session only: the driver may allow WinTab again next time
+    const bool winTabRefusedNow = forceWinTab && winTabRefused();
+    QCoreApplication::setAttribute(Qt::AA_MSWindowsUseWinTabAPI, forceWinTab && !winTabRefusedNow);
 
     if (qEnvironmentVariableIsEmpty("QT_WINTAB_DESKTOP_RECT") &&
         qEnvironmentVariableIsEmpty("QT_IGNORE_WINTAB_MAPPING")) {
@@ -1252,7 +1284,9 @@ if (!qEnvironmentVariableIsEmpty("KRITA_OPENGL_DEBUG")) {
     // Check if WinTab/WinInk has actually activated
     const bool useWinInkAPI = !KisApplication::testAttribute(Qt::AA_MSWindowsUseWinTabAPI);
 
-    if (useWinInkAPI != cfg.useWin8PointerInput()) {
+    if (winTabRefusedNow) {
+        KisUsageLogger::log("WARNING: the tablet driver refuses WinTab. Using WinInk for this session...");
+    } else if (useWinInkAPI != cfg.useWin8PointerInput()) {
         KisUsageLogger::log("WARNING: WinTab tablet protocol is not supported on this device. Switching to WinInk...");
 
         cfg.setUseWin8PointerInput(useWinInkAPI);
