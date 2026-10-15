@@ -553,8 +553,8 @@ void resetRotation()
 }
 
 /**
- * Whether the tablet driver has WinTab but refuses to open it (as in a remote session, where a pen arrives
- * through Windows Ink): Qt would then give up on the tablet, and the pen would reach the canvas only as a mouse.
+ * Whether the tablet driver has WinTab but refuses to open it to anyone: Qt would then give up on the tablet,
+ * and the pen would reach the canvas only as a mouse.
  */
 bool winTabRefused()
 {
