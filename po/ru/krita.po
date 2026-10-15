@@ -82,7 +82,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: krita\n"
 "Report-Msgid-Bugs-To: https://bugs.kde.org\n"
-"POT-Creation-Date: 2026-10-06 00:43+0000\n"
+"POT-Creation-Date: 2026-10-10 00:43+0000\n"
 "PO-Revision-Date: 2026-10-06 08:28+0200\n"
 "Last-Translator: Alexander Yavorsky <kekcuha@gmail.com>\n"
 "Language-Team: Basealt Translation Team\n"
@@ -8556,7 +8556,7 @@ msgstr "Включить диагностику планшета"
 #, kde-format
 msgctxt "action"
 msgid "Show Krita log for bug reports."
-msgstr "Показать журнал Krita для отчётов об ошибкахс."
+msgstr "Показать журнал Krita для отчётов об ошибках."
 
 #. i18n: context: text @ Action (sysinfo), Actions (General), ActionCollection (Krita)
 #. i18n: context: toolTip @ Action (sysinfo), Actions (General), ActionCollection (Krita)
@@ -10691,7 +10691,7 @@ msgstr "Выбрать режим наложения «Мягкий свет»"
 #, kde-format
 msgctxt "action"
 msgid "Select Hard Light Blending Mode"
-msgstr "Выбрать режим наложения «Жёсткое осветление»"
+msgstr "Выбрать режим наложения «Жёсткий свет»"
 
 #. i18n: context: text @ Action (Select Vivid Light Blending Mode), Actions (Blending Modes), ActionCollection (Krita)
 #. i18n: context: toolTip @ Action (Select Vivid Light Blending Mode), Actions (Blending Modes), ActionCollection (Krita)
@@ -10715,7 +10715,7 @@ msgstr "Выбрать режим наложения «Яркое осветле
 #, kde-format
 msgctxt "action"
 msgid "Select Linear Light Blending Mode"
-msgstr "Выбрать режим наложения «Линейное осветление»"
+msgstr "Выбрать режим наложения «Линейный свет»"
 
 #. i18n: context: text @ Action (Select Pin Light Blending Mode), Actions (Blending Modes), ActionCollection (Krita)
 #. i18n: context: toolTip @ Action (Select Pin Light Blending Mode), Actions (Blending Modes), ActionCollection (Krita)
@@ -21183,7 +21183,7 @@ msgstr "Неподдерживаемая единица измерения"
 #, kde-format
 msgctxt "Category of brush engines"
 msgid "Brush engines"
-msgstr "Кистевые движки"
+msgstr "Кистевые модули"
 
 #: libs/image/brushengine/kis_paintop_registry.cc:126
 #, kde-format
@@ -23350,7 +23350,7 @@ msgstr "Неопределённая операция в цветовом про
 #: libs/pigment/colorspaces/KoSimpleColorSpaceEngine.cpp:58
 #, kde-format
 msgid "Simple Color Conversion Engine"
-msgstr "Простой движок цветового преобразования"
+msgstr "Простой механизм цветового преобразования"
 
 #: libs/pigment/KoBasicHistogramProducers.cpp:360
 #: libs/pigment/KoBasicHistogramProducers.cpp:427
@@ -23706,7 +23706,7 @@ msgstr "Осветление"
 #, kde-format
 msgctxt "Blending mode - Linear Light"
 msgid "Linear Light"
-msgstr "Линейное осветление"
+msgstr "Линейный свет"
 
 #: libs/pigment/KoCompositeOpRegistry.cpp:75
 #, kde-format
@@ -23742,7 +23742,7 @@ msgstr "Плоский свет"
 #, kde-format
 msgctxt "Blending mode - Hard Light"
 msgid "Hard Light"
-msgstr "Жёсткое осветление"
+msgstr "Жёсткий свет"
 
 #: libs/pigment/KoCompositeOpRegistry.cpp:81
 #, kde-format
@@ -23892,7 +23892,7 @@ msgstr "Исключение"
 #, kde-format
 msgctxt "Blending mode - Arcus Tangent"
 msgid "Arcus Tangent"
-msgstr "Касательная дуга"
+msgstr "Арктангенс"
 
 #: libs/pigment/KoCompositeOpRegistry.cpp:108
 #, kde-format
@@ -31087,7 +31087,7 @@ msgstr "Цвет контура ластика:"
 #: libs/ui/forms/wdggeneralsettings.ui:962
 #, kde-format
 msgid "Color Sampler Shape:"
-msgstr "Форма цветового миксера:"
+msgstr "Форма пипетки:"
 
 #. i18n: ectx: property (text), widget (QLabel, m_lblColorSamplerPreviewSize)
 #. i18n: ectx: property (text), widget (QLabel, DiameterLbl)
@@ -31151,7 +31151,7 @@ msgstr "x"
 #: libs/ui/forms/wdggeneralsettings.ui:1066
 #, kde-format
 msgid "Color Sampler Position:"
-msgstr "Положение цветового миксера:"
+msgstr "Положение пипетки:"
 
 #. i18n: ectx: attribute (title), widget (QWidget, Tools)
 #: libs/ui/forms/wdggeneralsettings.ui:1094
@@ -32446,7 +32446,7 @@ msgstr "Сохранить"
 #: libs/ui/forms/wdgpaintopsettings.ui:230
 #, kde-format
 msgid "Current Brush Engine"
-msgstr "Движок текущей кисти"
+msgstr "Модуль текущей кисти"
 
 #. i18n: ectx: property (text), widget (QPushButton, saveNewBrushPresetButton)
 #: libs/ui/forms/wdgpaintopsettings.ui:368
@@ -32470,7 +32470,7 @@ msgstr "Профили"
 #: libs/ui/forms/wdgpaintopsettings.ui:472
 #, kde-format
 msgid "Engine:"
-msgstr "Движок:"
+msgstr "Модуль:"
 
 #. i18n: ectx: property (toolTip), widget (QCheckBox, eraserBrushSizeCheckBox)
 #: libs/ui/forms/wdgpaintopsettings.ui:643
@@ -35005,7 +35005,7 @@ msgstr "Переключиться на предыдущий профиль ки
 #: plugins/tools/basictools/wdgcolorsampler.ui:18
 #, kde-format
 msgid "Color Sampler"
-msgstr "Цветовой миксер"
+msgstr "Пипетка"
 
 #: libs/ui/input/KisTouchGestureAction.cpp:29
 #: libs/ui/kis_selection_actions_panel.cpp:94
@@ -38938,7 +38938,7 @@ msgstr ""
 #: plugins/tools/tool_enclose_and_fill/subtools/KisToolBasicBrushBase.cpp:75
 #, kde-format
 msgid "The MyPaint Brush Engine is not available for this colorspace"
-msgstr "Движок кистей MyPaint недоступен для этого цветового пространства"
+msgstr "Модуль кистей MyPaint недоступен для этого цветового пространства"
 
 #: libs/ui/tool/kis_tool_polyline_base.cpp:116
 #: libs/ui/tool/kis_tool_rectangle_base.cpp:158
@@ -38998,7 +38998,7 @@ msgstr "Группу нельзя редактировать."
 #: libs/ui/tool/KisAsyncColorSamplerHelper.cpp:877
 #, kde-format
 msgid "Color sampler does not work on this layer."
-msgstr "Цветовой миксер недоступен на этом слое."
+msgstr "Пипетка недоступна на этом слое."
 
 #: libs/ui/tool/KisToolPaintFactoryBase.cpp:27
 #, kde-format
@@ -40490,12 +40490,12 @@ msgstr "Открепить редактор кистей"
 #, kde-format
 msgctxt "%1 is the name of a brush engine"
 msgid "%1 Engine"
-msgstr "Движок %1"
+msgstr "Модуль %1"
 
 #: libs/ui/widgets/kis_preset_live_preview_view.cpp:175
 #, kde-format
 msgid "No Preview for this engine"
-msgstr "Предварительный просмотр для этого движка отсутствует"
+msgstr "Предварительный просмотр для этого модуля отсутствует"
 
 #: libs/ui/widgets/kis_selection_options.cc:188
 #: plugins/tools/basictools/kis_tool_fill.cc:591
@@ -44101,7 +44101,7 @@ msgstr ""
 "вставку ключевого кадра"
 
 #: plugins/dockers/animation/KisAnimCurvesModel.cpp:249
-#: plugins/dockers/animation/KisAnimCurvesView.cpp:723
+#: plugins/dockers/animation/KisAnimCurvesView.cpp:730
 msgctxt "(qtundo-format)"
 msgid "Adjust tangent"
 msgstr ""
@@ -44110,11 +44110,11 @@ msgstr ""
 
 #: plugins/dockers/animation/KisAnimCurvesModel.cpp:258
 #: plugins/dockers/animation/KisAnimCurvesModel.cpp:270
-#: plugins/dockers/animation/KisAnimCurvesView.cpp:870
-#: plugins/dockers/animation/KisAnimCurvesView.cpp:879
-#: plugins/dockers/animation/KisAnimCurvesView.cpp:888
-#: plugins/dockers/animation/KisAnimCurvesView.cpp:897
-#: plugins/dockers/animation/KisAnimCurvesView.cpp:925
+#: plugins/dockers/animation/KisAnimCurvesView.cpp:877
+#: plugins/dockers/animation/KisAnimCurvesView.cpp:886
+#: plugins/dockers/animation/KisAnimCurvesView.cpp:895
+#: plugins/dockers/animation/KisAnimCurvesView.cpp:904
+#: plugins/dockers/animation/KisAnimCurvesView.cpp:932
 msgctxt "(qtundo-format)"
 msgid "Set interpolation mode"
 msgstr ""
@@ -45329,7 +45329,7 @@ msgstr "Реестры"
 #: plugins/dockers/logdocker/LogDockerDock.cpp:263
 #, kde-format
 msgid "Tile Engine"
-msgstr "Движок плитки"
+msgstr "Механизм плитки"
 
 #: plugins/dockers/logdocker/LogDockerDock.cpp:271
 #, kde-format
@@ -45544,7 +45544,7 @@ msgstr "Вид:"
 #: plugins/dockers/lut/wdglut.ui:296
 #, kde-format
 msgid "Color Engine:"
-msgstr "Цветовой движок:"
+msgstr "Цветовой механизм:"
 
 #. i18n: ectx: property (text), item, widget (QComboBox, m_colorManagement)
 #: plugins/dockers/lut/wdglut.ui:310
@@ -49107,7 +49107,7 @@ msgstr "word-spacing, tracking, white space, интервал, отслежив�
 #, kde-format
 msgctxt "@label:listbox"
 msgid "Writing Mode"
-msgstr "Режим ввода"
+msgstr "Режим письма"
 
 #: plugins/dockers/textproperties/qml/WritingMode.qml:16
 #, kde-format
@@ -49116,7 +49116,7 @@ msgid ""
 "Writing mode sets whether the text flows horizontally or vertically, and in "
 "the latter case, whether the block flows right to left or left to right."
 msgstr ""
-"Режим ввода определяет, располагается ли текст горизонтально или "
+"Режим письма определяет, располагается ли текст горизонтально или "
 "вертикально, а в последнем случае — идёт ли блок справа налево или слева "
 "направо."
 
@@ -51506,7 +51506,7 @@ msgstr ""
 #: plugins/extensions/pykrita/plugin/manager.ui:43
 #, kde-format
 msgid "Error: The Python engine could not be initialized"
-msgstr "Ошибка: не удалось инициализировать движок Python"
+msgstr "Ошибка: не удалось инициализировать механизм Python"
 
 #. i18n: ectx: property (text), widget (QLabel, label_2)
 #: plugins/extensions/pykrita/plugin/manager.ui:72
@@ -51653,7 +51653,7 @@ msgstr ""
 #, kde-format
 msgctxt "@info:tooltip"
 msgid "Internal engine failure"
-msgstr "Внутренняя ошибка движка"
+msgstr "Внутренняя ошибка механизма"
 
 #: plugins/extensions/pykrita/plugin/PythonPluginManager.cpp:386
 #, kde-format
@@ -51935,7 +51935,7 @@ msgstr "Удалить источники"
 #, kde-format
 msgctxt "Brush engine type, in resource manager"
 msgid "Engine: "
-msgstr "Движок: "
+msgstr "Модуль: "
 
 #: plugins/extensions/resourcemanager/DlgResourceTypeForFile.cpp:21
 #, kde-format
@@ -53153,7 +53153,7 @@ msgstr "Порог:"
 #: plugins/filters/colors/wdgcolortoalphabase.ui:164
 #, kde-format
 msgid "Color Sampler:"
-msgstr "Цветовой миксер:"
+msgstr "Пипетка:"
 
 #. i18n: ectx: property (text), widget (QLabel, label_13)
 #: plugins/filters/colors/wdgfilterfastcoloroverlay.ui:43
@@ -62322,7 +62322,7 @@ msgstr "Высота (Photoshop)"
 #, kde-format
 msgctxt "Linear Height (Photoshop) blend mode for brush texture"
 msgid "Linear Height (Photoshop)"
-msgstr "Мягкий свет (Photoshop)"
+msgstr "Линейная высота (Photoshop)"
 
 #: plugins/paintops/libpaintop/kis_texture_chooser.cpp:82
 #, kde-format
@@ -62707,7 +62707,7 @@ msgstr "Размер -> Угасание (сенсор)"
 #: plugins/paintops/libpaintop/KisSpacingOptionWidget.cpp:38
 #, kde-format
 msgid "Isotropic Spacing"
-msgstr "Изотропная среда"
+msgstr "Изотропный интервал"
 
 #: plugins/paintops/libpaintop/KisSpacingOptionWidget.cpp:39
 #, kde-format
@@ -63737,7 +63737,7 @@ msgstr "Параметры наклона"
 #: plugins/paintops/tangentnormal/wdgtangenttiltoption.ui:33
 #, kde-format
 msgid "A Brush Engine for Drawing 3d Tangent Normal Maps"
-msgstr "Кистевой движок для рисования трёхмерных карт нормалей"
+msgstr "Кистевой модуль для рисования трёхмерных карт нормалей"
 
 #. i18n: ectx: property (title), widget (QGroupBox, TangentEncoding)
 #: plugins/paintops/tangentnormal/wdgtangenttiltoption.ui:43
@@ -66941,7 +66941,7 @@ msgstr "Включить прилипание при использовании 
 #: plugins/tools/basictools/kis_tool_colorsampler.h:124
 #, kde-format
 msgid "Color Sampler Tool"
-msgstr "Инструмент «Цветовой миксер»"
+msgstr "Инструмент «Пипетка»"
 
 #: plugins/tools/basictools/kis_tool_ellipse.cc:64
 msgctxt "(qtundo-format)"
@@ -67397,12 +67397,12 @@ msgstr "Снежинка"
 #: plugins/tools/basictools/kis_tool_multihand.cpp:453
 #, kde-format
 msgid "Copy Translate"
-msgstr "Скопировать перевод"
+msgstr "Копирование с переносом"
 
 #: plugins/tools/basictools/kis_tool_multihand.cpp:454
 #, kde-format
 msgid "Copy Translate at Intervals"
-msgstr "Копировать преобразование с интервалами"
+msgstr "Копирование с переносом через интервал"
 
 #: plugins/tools/basictools/kis_tool_multihand.cpp:565
 #, kde-format
@@ -67519,8 +67519,8 @@ msgid ""
 "<nobr>Determines whether the color sampler will sample</nobr> colors from "
 "all visible layers or only the currently selected layer."
 msgstr ""
-"<nobr>Определяет, будет ли цветовой миксер брать образец</nobr> цвета из "
-"всех видимых слоёв или только из текущего выделенного слоя."
+"<nobr>Определяет, будет ли пипетка брать образец</nobr> цвета из всех "
+"видимых слоёв или только из текущего выделенного слоя."
 
 #. i18n: ectx: property (text), item, widget (QComboBox, cmbSources)
 #: plugins/tools/basictools/wdgcolorsampler.ui:140
@@ -67585,8 +67585,8 @@ msgid ""
 "<nobr>Controls whether the color sampler updates the</nobr> current "
 "foreground or not."
 msgstr ""
-"<nobr>Определяет, будет ли цветовой миксер обновлять</nobr> текущий цвет "
-"переднего плана или нет."
+"<nobr>Определяет, будет ли пипетка обновлять</nobr> текущий цвет переднего "
+"плана или нет."
 
 #. i18n: ectx: property (text), widget (QCheckBox, cbUpdateCurrentColor)
 #: plugins/tools/basictools/wdgcolorsampler.ui:251
@@ -71400,7 +71400,7 @@ msgstr "Выбор форм"
 #, kde-format
 msgctxt "action"
 msgid "Color Sampler"
-msgstr "Цветовой миксер"
+msgstr "Пипетка"
 
 #. i18n: context: toolTip @ Action (KritaSelected/KisToolColorSampler), Actions (tool-shortcuts), ActionCollection (Tools)
 #: plugins/tools/tools.action:76

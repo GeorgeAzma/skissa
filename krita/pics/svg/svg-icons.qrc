@@ -19,15 +19,15 @@
         <file>light_10_scripts.svg</file>
         <file>light_10_brushes.svg</file>
         <file>light_script_0.svg</file>
-        <file>light_script_1.svg</file> 
-        <file>light_script_2.svg</file> 
-        <file>light_script_3.svg</file> 
+        <file>light_script_1.svg</file>
+        <file>light_script_2.svg</file>
+        <file>light_script_3.svg</file>
         <file>light_script_4.svg</file>
-        <file>light_script_5.svg</file> 
-        <file>light_script_6.svg</file> 
-        <file>light_script_7.svg</file> 
-        <file>light_script_8.svg</file> 
-        <file>light_script_9.svg</file> 
+        <file>light_script_5.svg</file>
+        <file>light_script_6.svg</file>
+        <file>light_script_7.svg</file>
+        <file>light_script_8.svg</file>
+        <file>light_script_9.svg</file>
         <file>light_brush_preset_0.svg</file>
         <file>light_brush_preset_1.svg</file>
         <file>light_brush_preset_2.svg</file>
@@ -40,39 +40,39 @@
         <file>light_brush_preset_9.svg</file>
         <file>dark_10_scripts.svg</file>
         <file>dark_10_brushes.svg</file>
-        <file>dark_script_0.svg</file> 
-        <file>dark_script_1.svg</file> 
-        <file>dark_script_2.svg</file> 
-        <file>dark_script_3.svg</file> 
-        <file>dark_script_4.svg</file> 
-        <file>dark_script_5.svg</file> 
-        <file>dark_script_6.svg</file> 
-        <file>dark_script_7.svg</file> 
-        <file>dark_script_8.svg</file> 
-        <file>dark_script_9.svg</file> 
-        <file>dark_brush_preset_0.svg</file> 
-        <file>dark_brush_preset_1.svg</file> 
-        <file>dark_brush_preset_2.svg</file> 
-        <file>dark_brush_preset_3.svg</file> 
-        <file>dark_brush_preset_4.svg</file> 
-        <file>dark_brush_preset_5.svg</file> 
-        <file>dark_brush_preset_6.svg</file> 
-        <file>dark_brush_preset_7.svg</file> 
-        <file>dark_brush_preset_8.svg</file> 
-        <file>dark_brush_preset_9.svg</file> 
+        <file>dark_script_0.svg</file>
+        <file>dark_script_1.svg</file>
+        <file>dark_script_2.svg</file>
+        <file>dark_script_3.svg</file>
+        <file>dark_script_4.svg</file>
+        <file>dark_script_5.svg</file>
+        <file>dark_script_6.svg</file>
+        <file>dark_script_7.svg</file>
+        <file>dark_script_8.svg</file>
+        <file>dark_script_9.svg</file>
+        <file>dark_brush_preset_0.svg</file>
+        <file>dark_brush_preset_1.svg</file>
+        <file>dark_brush_preset_2.svg</file>
+        <file>dark_brush_preset_3.svg</file>
+        <file>dark_brush_preset_4.svg</file>
+        <file>dark_brush_preset_5.svg</file>
+        <file>dark_brush_preset_6.svg</file>
+        <file>dark_brush_preset_7.svg</file>
+        <file>dark_brush_preset_8.svg</file>
+        <file>dark_brush_preset_9.svg</file>
         <file>dark_close-all-tabs.svg</file>
         <file>light_close-all-tabs.svg</file>
-        <file>light_feather_select.svg</file> 
-        <file>light_grow_selection.svg</file> 
-        <file>light_shrink_selection.svg</file> 
-        <file>light_border_selection.svg</file> 
-        <file>light_show_selection.svg</file> 
-        <file>light_edit_selection.svg</file> 
-        <file>dark_feather_select.svg</file> 
-        <file>dark_grow_selection.svg</file> 
-        <file>dark_shrink_selection.svg</file> 
-        <file>dark_border_selection.svg</file> 
-        <file>dark_show_selection.svg</file> 
+        <file>light_feather_select.svg</file>
+        <file>light_grow_selection.svg</file>
+        <file>light_shrink_selection.svg</file>
+        <file>light_border_selection.svg</file>
+        <file>light_show_selection.svg</file>
+        <file>light_edit_selection.svg</file>
+        <file>dark_feather_select.svg</file>
+        <file>dark_grow_selection.svg</file>
+        <file>dark_shrink_selection.svg</file>
+        <file>dark_border_selection.svg</file>
+        <file>dark_show_selection.svg</file>
         <file>dark_edit_selection.svg</file>
         <file>light_quick_group.svg</file>
         <file>dark_quick_group.svg</file>
@@ -791,5 +791,47 @@
         <file>light_brush-option-slider-3.svg</file>
         <file>light_brush-option-slider-4.svg</file>
         <file>light_brush-option-slider-5.svg</file>
+        <file>dark_brush-size-decrease.svg</file>
+        <file>dark_brush-size-increase.svg</file>
+        <file>dark_fade-decrease.svg</file>
+        <file>dark_fade-increase.svg</file>
+        <file>dark_flow-decrease.svg</file>
+        <file>dark_flow-increase.svg</file>
+        <file>dark_font-decrease.svg</file>
+        <file>dark_font-increase.svg</file>
+        <file>dark_lightness-decrease.svg</file>
+        <file>dark_lightness-increase.svg</file>
+        <file>dark_opacity-decrease.svg</file>
+        <file>dark_opacity-increase.svg</file>
+        <file>dark_saturation-decrease.svg</file>
+        <file>dark_saturation-increase.svg</file>
+        <file>dark_scatter-decrease.svg</file>
+        <file>dark_scatter-increase.svg</file>
+        <file>light_brush-size-decrease.svg</file>
+        <file>light_brush-size-increase.svg</file>
+        <file>light_fade-decrease.svg</file>
+        <file>light_fade-increase.svg</file>
+        <file>light_flow-decrease.svg</file>
+        <file>light_flow-increase.svg</file>
+        <file>light_font-decrease.svg</file>
+        <file>light_font-increase.svg</file>
+        <file>light_lightness-decrease.svg</file>
+        <file>light_lightness-increase.svg</file>
+        <file>light_opacity-decrease.svg</file>
+        <file>light_opacity-increase.svg</file>
+        <file>light_saturation-decrease.svg</file>
+        <file>light_saturation-increase.svg</file>
+        <file>light_scatter-decrease.svg</file>
+        <file>light_scatter-increase.svg</file>
+        <file>light_duplicate-frame-16.svg</file>
+        <file>light_remove-frame-16.svg</file>
+        <file>dark_duplicate-frame-16.svg</file>
+        <file>dark_remove-frame-16.svg</file>
+        <file>dark_wrap-both.svg</file>
+        <file>dark_wrap-horizontally.svg</file>
+        <file>dark_wrap-vertically.svg</file>
+        <file>light_wrap-both.svg</file>
+        <file>light_wrap-horizontally.svg</file>
+        <file>light_wrap-vertically.svg</file>
     </qresource>
 </RCC>

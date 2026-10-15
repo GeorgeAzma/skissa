@@ -480,7 +480,7 @@
       <statusTip/>
     </Action>
     <Action name="increase_flow">
-      <icon></icon>
+      <icon>flow-increase</icon>
       <text>Increase Flow</text>
       <whatsThis/>
       <toolTip>Increase brush Flow</toolTip>
@@ -492,7 +492,7 @@
       <statusTip/>
     </Action>
     <Action name="decrease_flow">
-      <icon></icon>
+      <icon>flow-decrease</icon>
       <text>Decrease Flow</text>
       <whatsThis/>
       <toolTip>Decrease brush Flow</toolTip>
@@ -504,7 +504,7 @@
       <statusTip/>
     </Action>
     <Action name="increase_fade">
-      <icon></icon>
+      <icon>fade-increase</icon>
       <text>Increase Fade</text>
       <whatsThis/>
       <toolTip>Increase brush Fade</toolTip>
@@ -516,7 +516,7 @@
       <statusTip/>
     </Action>
     <Action name="decrease_fade">
-      <icon></icon>
+      <icon>fade-decrease</icon>
       <text>Decrease Fade</text>
       <whatsThis/>
       <toolTip>Decrease brush Fade</toolTip>
@@ -528,7 +528,7 @@
       <statusTip/>
     </Action>
     <Action name="increase_scatter">
-      <icon></icon>
+      <icon>scatter-increase</icon>
       <text>Increase Scatter</text>
       <whatsThis/>
       <toolTip>Increase brush Scatter strength</toolTip>
@@ -540,7 +540,7 @@
       <statusTip/>
     </Action>
     <Action name="decrease_scatter">
-      <icon></icon>
+      <icon>scatter-decrease</icon>
       <text>Decrease Scatter</text>
       <whatsThis/>
       <toolTip>Decrease brush Scatter strength</toolTip>
@@ -883,7 +883,7 @@
       <statusTip/>
     </Action>
     <Action name="decrease_brush_size">
-      <icon>brushsize-decrease</icon>
+      <icon>brush-size-decrease</icon>
       <text>Decrease Brush Size</text>
       <whatsThis/>
       <toolTip>Decrease Brush Size</toolTip>
@@ -905,7 +905,7 @@
       <statusTip/>
     </Action>
     <Action name="increase_brush_size">
-      <icon>brushsize-increase</icon>
+      <icon>brush-size-increase</icon>
       <text>Increase Brush Size</text>
       <whatsThis/>
       <toolTip>Increase Brush Size</toolTip>
@@ -2034,7 +2034,7 @@
       <statusTip/>
     </Action>
     <Action name="add_blank_frame">
-      <icon>addblankframe</icon>
+      <icon>addblankframe-16</icon>
       <text>Create Blank Frame</text>
       <whatsThis/>
       <toolTip>Add blank frame</toolTip>
@@ -2046,7 +2046,7 @@
       <statusTip/>
     </Action>
     <Action name="add_duplicate_frame">
-      <icon>addduplicateframe</icon>
+      <icon>duplicate-frame-16</icon>
       <text>Create Duplicate Frame</text>
       <whatsThis/>
       <toolTip>Add duplicate frame</toolTip>
@@ -2114,7 +2114,7 @@
       <statusTip/>
     </Action>
     <Action name="pin_to_timeline">
-      <icon/>
+      <icon>krita_tool_reference_images</icon>
       <text>Pin to Timeline</text>
       <whatsThis/>
       <toolTip>If checked, layer becomes pinned to the timeline, making it visible even when inactive.</toolTip>
@@ -2173,7 +2173,7 @@
       <statusTip/>
     </Action>
     <Action name="remove_frames">
-      <icon>deletekeyframe</icon>
+      <icon>remove-frame-16</icon>
       <text>Remove Keyframe</text>
       <whatsThis/>
       <toolTip>Remove keyframes without moving anything around</toolTip>

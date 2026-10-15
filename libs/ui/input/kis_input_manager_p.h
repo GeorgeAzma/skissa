@@ -101,7 +101,7 @@ public:
 
     KisInputEventsEater eventEater;
 
-    int accumulatedScrollDelta = 0;
+    QPoint accumulatedScrollDelta;
 
     class TabletLatencyTracker : public KisLatencyTracker {
     protected:
