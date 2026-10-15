@@ -56,9 +56,11 @@ public:
 
     NewTile(const QString &name, const QSize &pixels, QWidget *parent)
         : QAbstractButton(parent)
+        , m_name(name)
         , m_pixels(pixels)
     {
-        setText(name);
+        // not as its text, which popups would give a keyboard accelerator
+        setAccessibleName(name);
         setCursor(Qt::PointingHandCursor);
         setAttribute(Qt::WA_Hover);
         setFixedSize(tileWidth, tileHeight);
@@ -117,7 +119,7 @@ protected:
         painter.setPen(ink);
         painter.setFont(font());
         const QRect nameRect(KisModernStyle::space2, int(box.bottom()) + KisModernStyle::space2, width() - 2 * KisModernStyle::space2, fontMetrics().height());
-        painter.drawText(nameRect, Qt::AlignHCenter | Qt::AlignVCenter, fontMetrics().elidedText(text(), Qt::ElideRight, nameRect.width()));
+        painter.drawText(nameRect, Qt::AlignHCenter | Qt::AlignVCenter, fontMetrics().elidedText(m_name, Qt::ElideRight, nameRect.width()));
         if (m_pixels.isValid()) {
             const QFont small = KisModernStyle::textFont(font(), 0.88);
             painter.setFont(small);
@@ -129,6 +131,7 @@ protected:
     }
 
 private:
+    QString m_name;
     QSize m_pixels;
     QImage m_picture;
 };
@@ -289,31 +292,30 @@ QLabel *heading(const QString &text, QWidget *parent)
     return label;
 }
 
+/// A new image of \p pixels at \p pixelsPerPoint, otherwise as the last image made
+void createImage(const QSize &pixels, qreal pixelsPerPoint)
+{
+    KisConfig cfg(true);
+    const KoColorSpace *cs = KoColorSpaceRegistry::instance()->colorSpace(cfg.defColorModel(), cfg.defaultColorDepth(), cfg.defColorProfile());
+    if (!cs) cs = KoColorSpaceRegistry::instance()->rgb8();
+    QColor background = cfg.defaultBackgroundColor();
+    background.setAlpha(cfg.defaultBackgroundOpacity());
+    KisDocument *doc = KisPart::instance()->createDocument();
+    if (!doc->newImage(i18n("Unnamed"), pixels.width(), pixels.height(), cs, KoColor(background, cs), cfg.defaultBackgroundStyle(),
+                       cfg.numDefaultLayers(), QString(), pixelsPerPoint)) {
+        delete doc;
+        return;
+    }
+    doc->setModified(false);
+    KisPart::instance()->startCustomDocument(doc);
+}
+
 } // namespace
 
 struct KisStudioStartPage::Private
 {
     QPointer<KisMainWindow> mainWindow;
-    QPointer<NewTile> clipboardTile;
     bool dropping {false};
-
-    /// A new image of \p pixels at \p pixelsPerPoint, otherwise as the last image made
-    void create(const QSize &pixels, qreal pixelsPerPoint)
-    {
-        KisConfig cfg(true);
-        const KoColorSpace *cs = KoColorSpaceRegistry::instance()->colorSpace(cfg.defColorModel(), cfg.defaultColorDepth(), cfg.defColorProfile());
-        if (!cs) cs = KoColorSpaceRegistry::instance()->rgb8();
-        QColor background = cfg.defaultBackgroundColor();
-        background.setAlpha(cfg.defaultBackgroundOpacity());
-        KisDocument *doc = KisPart::instance()->createDocument();
-        if (!doc->newImage(i18n("Unnamed"), pixels.width(), pixels.height(), cs, KoColor(background, cs), cfg.defaultBackgroundStyle(),
-                           cfg.numDefaultLayers(), QString(), pixelsPerPoint)) {
-            delete doc;
-            return;
-        }
-        doc->setModified(false);
-        KisPart::instance()->startCustomDocument(doc);
-    }
 };
 
 KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
@@ -349,7 +351,26 @@ KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
     newRow->addWidget(open);
     column->addLayout(newRow);
 
-    auto *tiles = new QHBoxLayout();
+    column->addWidget(createNewTiles(mainWindow, this));
+
+    column->addSpacing(KisModernStyle::space4 * 2);
+    column->addWidget(heading(i18nc("@title the start page's recent images", "Recent"), this));
+    auto *recent = new RecentGrid(this);
+    recent->opened = [this](const QString &path) {
+        if (d->mainWindow) d->mainWindow->openDocument(path, KisMainWindow::None);
+    };
+    recent->forgotten = [this](const QString &path) {
+        if (d->mainWindow) d->mainWindow->removeRecentFile(path);
+    };
+    column->addWidget(recent);
+    column->addStretch(1);
+}
+
+QWidget *KisStudioStartPage::createNewTiles(KisMainWindow *mainWindow, QWidget *parent, std::function<void()> picked)
+{
+    auto *row = new QWidget(parent);
+    auto *tiles = new QHBoxLayout(row);
+    tiles->setContentsMargins(0, 0, 0, 0);
     tiles->setSpacing(KisModernStyle::space3);
     KisConfig cfg(true);
     const qreal pixelsPerPoint = cfg.defImageResolution();
@@ -373,49 +394,42 @@ KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
     for (const Preset &preset : presets) known = known || preset.pixels == last;
     if (!known && last.isValid()) presets.prepend({i18nc("a new image's size: the one made last", "Last"), last, pixelsPerPoint});
     for (const Preset &preset : presets) {
-        auto *tile = new NewTile(preset.name, preset.pixels, this);
+        auto *tile = new NewTile(preset.name, preset.pixels, row);
         const QSize pixels = preset.pixels;
         const qreal ppp = preset.pixelsPerPoint;
-        connect(tile, &QAbstractButton::clicked, this, [this, pixels, ppp]() { d->create(pixels, ppp); });
+        QObject::connect(tile, &QAbstractButton::clicked, row, [pixels, ppp, picked]() {
+            if (picked) picked();
+            createImage(pixels, ppp);
+        });
         tiles->addWidget(tile);
     }
-    auto *clipboard = new NewTile(i18nc("a new image: from the image on the clipboard", "Clipboard"), QSize(), this);
-    connect(clipboard, &QAbstractButton::clicked, this, [this]() {
-        auto *dialog = new KisDlgCreateNewDocument(this);
+    QPointer<KisMainWindow> window = mainWindow;
+    QPointer<NewTile> clipboard = new NewTile(i18nc("a new image: from the image on the clipboard", "Clipboard"), QSize(), row);
+    QObject::connect(clipboard, &QAbstractButton::clicked, row, [window, picked]() {
+        if (picked) picked();
+        auto *dialog = new KisDlgCreateNewDocument(window);
         dialog->SelectPage(KisDlgCreateNewDocument::Page::CreateFromClipboard);
         dialog->exec();
         dialog->deleteLater();
     });
-    d->clipboardTile = clipboard;
-    auto updateClipboard = [this]() {
-        if (!d->clipboardTile) return;
+    auto updateClipboard = [clipboard]() {
+        if (!clipboard) return;
         const QImage image = QGuiApplication::clipboard() ? QGuiApplication::clipboard()->image() : QImage();
-        d->clipboardTile->setVisible(!image.isNull());
-        if (!image.isNull()) d->clipboardTile->setPicture(image.scaled(240, 240, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        clipboard->setVisible(!image.isNull());
+        if (!image.isNull()) clipboard->setPicture(image.scaled(240, 240, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     };
-    connect(KisClipboard::instance(), &KisClipboard::clipChanged, this, updateClipboard);
+    QObject::connect(KisClipboard::instance(), &KisClipboard::clipChanged, row, updateClipboard);
     updateClipboard();
     tiles->addWidget(clipboard);
-    auto *custom = new NewTile(i18nc("a new image: made to measure in the full dialog", "Custom"), QSize(), this);
+    auto *custom = new NewTile(i18nc("a new image: made to measure in the full dialog", "Custom"), QSize(), row);
     custom->setToolTip(i18nc("@info:tooltip", "Size, resolution, color, templates"));
-    connect(custom, &QAbstractButton::clicked, this, [this]() {
-        if (d->mainWindow) d->mainWindow->slotFileNew();
+    QObject::connect(custom, &QAbstractButton::clicked, row, [window, picked]() {
+        if (picked) picked();
+        if (window) window->showNewImageDialog();
     });
     tiles->addWidget(custom);
     tiles->addStretch(1);
-    column->addLayout(tiles);
-
-    column->addSpacing(KisModernStyle::space4 * 2);
-    column->addWidget(heading(i18nc("@title the start page's recent images", "Recent"), this));
-    auto *recent = new RecentGrid(this);
-    recent->opened = [this](const QString &path) {
-        if (d->mainWindow) d->mainWindow->openDocument(path, KisMainWindow::None);
-    };
-    recent->forgotten = [this](const QString &path) {
-        if (d->mainWindow) d->mainWindow->removeRecentFile(path);
-    };
-    column->addWidget(recent);
-    column->addStretch(1);
+    return row;
 }
 
 KisStudioStartPage::~KisStudioStartPage()

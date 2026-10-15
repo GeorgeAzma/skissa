@@ -91,6 +91,7 @@
 #include "KisViewManager.h"
 #include "KisWelcomePageWidget.h"
 #include "KisStudioStartPage.h"
+#include "widgets/KisStudioPopup.h"
 #include "canvas/kis_canvas2.h"
 #include "canvas/kis_canvas_controller.h"
 #include "kis_canvas_resource_provider.h"
@@ -2841,6 +2842,23 @@ void KisStudioLayout::parkPanel(QDockWidget *dock)
     dock->hide();
     d->mainWindow->addDockWidget(Qt::RightDockWidgetArea, dock);
     dock->hide();
+}
+
+void KisStudioLayout::showNewImagePopup()
+{
+    auto *popup = new KisStudioPopup(d->mainWindow);
+    popup->setAttribute(Qt::WA_DeleteOnClose);
+    auto *layout = new QVBoxLayout(popup);
+    popup->fitLayout(layout, KisModernStyle::space3);
+    QPointer<KisStudioPopup> self = popup;
+    layout->addWidget(KisStudioStartPage::createNewTiles(d->mainWindow, popup, [self]() {
+        if (self) self->close();
+    }));
+    popup->adjustSize();
+    // centred under the top of the window, where the menu opens
+    QWidget *area = d->mainWindow->centralWidget();
+    const QRect at(area->mapToGlobal(QPoint()), area->size());
+    popup->popupAt(QPoint(at.center().x() - popup->width() / 2, at.top() + 64));
 }
 
 void KisStudioLayout::showStartPage(bool show)

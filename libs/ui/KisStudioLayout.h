@@ -47,6 +47,8 @@ public:
     void showPanel(QDockWidget *dock);
     /// Opens Settings at \p cardId; with \p toggle, closes them instead if they are open
     void openSettings(const QString &cardId = QString(), bool toggle = false);
+    /// New image sizes as tiles in a popup under the top of the window; Custom there opens Krita's dialog
+    void showNewImagePopup();
 
     bool eventFilter(QObject *watched, QEvent *event) override;
 

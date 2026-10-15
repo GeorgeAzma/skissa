@@ -1905,6 +1905,15 @@ void KisMainWindow::showWelcomeScreen(bool show)
 
 void KisMainWindow::slotFileNew()
 {
+    if (d->studioLayout && d->studioLayout->isActive()) {
+        d->studioLayout->showNewImagePopup();
+        return;
+    }
+    showNewImageDialog();
+}
+
+void KisMainWindow::showNewImageDialog()
+{
     KisDlgCreateNewDocument* dlg = new KisDlgCreateNewDocument(this);
     dlg->exec();
     dlg->deleteLater();

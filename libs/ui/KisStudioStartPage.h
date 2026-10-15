@@ -8,6 +8,8 @@
 
 #include <QWidget>
 
+#include <functional>
+
 #include "kritaui_export.h"
 
 class KisMainWindow;
@@ -23,6 +25,9 @@ class KRITAUI_EXPORT KisStudioStartPage : public QWidget
 public:
     explicit KisStudioStartPage(KisMainWindow *mainWindow);
     ~KisStudioStartPage() override;
+
+    /// The new image tiles: a size makes the image at once, Custom opens the full dialog; \p picked runs first
+    static QWidget *createNewTiles(KisMainWindow *mainWindow, QWidget *parent, std::function<void()> picked = {});
 
 protected:
     void paintEvent(QPaintEvent *event) override;

@@ -180,6 +180,9 @@ public:
     /// Copy the given file into the bundle directory.
     bool installBundle(const QString &fileName) const;
 
+    /// Krita's full dialog for a new image (File > New opens the Studio's own in the Studio layout)
+    void showNewImageDialog();
+
     /**
      * @brief layoutThumbnail
      * @return image for the workspaces.
