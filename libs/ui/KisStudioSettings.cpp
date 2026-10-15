@@ -557,7 +557,9 @@ public:
 protected:
     bool eventFilter(QObject *, QEvent *event) override
     {
-        if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) m_changed();
+        // a moment later: a Leave also comes while the watched widget's children are being deleted, and the
+        // call is dropped if this goes with them
+        if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) QTimer::singleShot(0, this, m_changed);
         return false;
     }
 
