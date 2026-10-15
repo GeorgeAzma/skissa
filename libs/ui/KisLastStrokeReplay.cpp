@@ -11,6 +11,9 @@
 #include <kundo2stack.h>
 #include <kis_image.h>
 
+#include "KisMainWindow.h"
+#include "KisPart.h"
+#include "KisView.h"
 #include "kis_config.h"
 #include "tool/kis_tool_freehand_helper.h"
 
@@ -110,6 +113,9 @@ void KisLastStrokeReplay::replay()
     if (!d->dirty || !isEnabled() || !d->helper || !d->stack || !d->helper->hasLastStroke()) return;
     KisImageSP image = d->helper->lastStrokeImage();
     if (!image) return;
+    // only on the picture in view: another document's stroke is left as it is
+    KisMainWindow *window = KisPart::instance()->currentMainwindow();
+    if (!window || !window->activeView() || window->activeView()->image().data() != image.data()) return;
     const int index = d->stack->index();
 
     if (d->painting) {
@@ -117,7 +123,8 @@ void KisLastStrokeReplay::replay()
         if (!d->cancelling) {
             d->cancelling = true;
             d->idleSeen = false;
-            image->requestStrokeCancellation();
+            // only while something paints: with nothing to cancel, the image asks everyone else to stop instead
+            if (!image->isIdle()) image->requestStrokeCancellation();
         }
         // idle twice in a row: a stroke that finished instead has pushed its step by then
         if (!image->isIdle() || !d->idleSeen) {
@@ -153,6 +160,11 @@ void KisLastStrokeReplay::replay()
     d->dirty = false;
     d->expectedIndex = index;
     d->stack->setIndex(index - 1);
-    d->helper->replayLastStroke();
+    if (!d->helper->replayLastStroke()) {
+        // couldn't paint it again: it stays as it was
+        d->stack->setIndex(index);
+        d->expectedIndex = -1;
+        return;
+    }
     d->painting = true;
 }

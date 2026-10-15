@@ -50,7 +50,6 @@
 
 #include <KoCanvasController.h>
 #include <KoToolFactoryBase.h>
-#include <KoToolBase.h>
 #include <KoToolManager.h>
 #include <KoToolRegistry.h>
 #include <filter/kis_filter.h>
@@ -3104,9 +3103,7 @@ void KisStudioLayout::createTopBar()
     toolChip->amount = [window]() { return KisStudioSmoothing::amount(window); };
     toolChip->setAmount = [window](qreal amount) { KisStudioSmoothing::setAmount(window, amount); };
     toolChip->amountText = [window]() { return KisStudioSmoothing::text(window); };
-    toolChip->resetAmount = [window]() {
-        KisStudioSmoothing::setAmount(window, KisStudioSmoothing::distanceToAmount(KisConfig(true).lineSmoothingDistanceMin(true)));
-    };
+    toolChip->resetAmount = [window]() { KisStudioSmoothing::reset(window); };
     connect(toolChip, &QToolButton::clicked, this, [this, toolChip]() {
         if (KisStudioStrokePage::applies(d->mainWindow)) {
             KisStudioBrushEditor::toggle(d->mainWindow, toolChip, Qt::BottomEdge);

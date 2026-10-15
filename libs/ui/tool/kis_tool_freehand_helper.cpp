@@ -6,6 +6,8 @@
 
 #include "kis_tool_freehand_helper.h"
 
+#include "KisLastStrokeReplay.h"
+
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QQueue>
@@ -79,6 +81,8 @@ struct KisToolFreehandHelper::Private
     bool replaying {false};
     /// Painting it again from the pen's path: what is painted is the stroke's pieces from now on
     bool rerecording {false};
+    /// Whether this stroke is kept to be painted again (only while that is on)
+    bool recording {false};
 
     KoCanvasResourceProvider *resourceManager;
     KisPaintingInformationBuilder *infoBuilder;
@@ -359,6 +363,7 @@ void KisToolFreehandHelper::initPaintImpl(qreal startAngle,
         m_d->piecesColor = m_d->resources->currentFgColor();
         m_d->rawInputs.clear();
         m_d->piecesSmoothing = smoothingKey();
+        m_d->recording = KisLastStrokeReplay::isEnabled();
     }
 
     const bool airbrushing = m_d->resources->needsAirbrushing();
@@ -536,6 +541,7 @@ void KisToolFreehandHelper::paintEvent(KoPointerEvent *event)
             m_d->infoBuilder->continueStroke(event,
                                              elapsedStrokeTime());
     KisUpdateTimeMonitor::instance()->reportMouseMove(info.pos());
+    if (m_d->recording) m_d->rawInputs << info;
 
     paint(info);
 }
@@ -543,7 +549,6 @@ void KisToolFreehandHelper::paintEvent(KoPointerEvent *event)
 
 void KisToolFreehandHelper::paint(KisPaintInformation &info)
 {
-    if (!m_d->replaying) m_d->rawInputs << info;
 
     /**
      * Smooth the coordinates out using the history and the
@@ -810,6 +815,7 @@ void KisToolFreehandHelper::repaintAs(const QVector<KisPaintInformation> &points
         m_d->stabilizerDelayedPaintHelper.cancel();
     }
     m_d->airbrushingTimer.stop();
+    m_d->usingStabilizer = false;
 
     for (int i = 1; i < points.size(); i++) {
         paintLine(points[i - 1], points[i]);
@@ -865,6 +871,7 @@ bool KisToolFreehandHelper::replayLastStroke()
         m_d->stabilizerDelayedPaintHelper.cancel();
     }
     m_d->airbrushingTimer.stop();
+    m_d->usingStabilizer = false;
 
     Q_FOREACH (const Private::Piece &piece, m_d->pieces) {
         switch (piece.kind) {
@@ -908,6 +915,7 @@ void KisToolFreehandHelper::replayFromInput()
         m_d->stabilizerDelayedPaintHelper.cancel();
     }
     m_d->airbrushingTimer.stop();
+    m_d->usingStabilizer = false;
 
     const KisSmoothingOptions::SmoothingType type = m_d->smoothingOptions->smoothingType();
     if (type == KisSmoothingOptions::STABILIZER) {
@@ -934,11 +942,13 @@ void KisToolFreehandHelper::replayFromInput()
                 }
             }
             const KisPaintInformation info = getStabilizedPaintInfo(m_d->stabilizerDeque, sample);
+            info.setCurrentTime(sample.currentTime());
             paintLine(m_d->previousPaintInformation, info);
             m_d->previousPaintInformation = info;
             m_d->stabilizerDeque.dequeue();
             m_d->stabilizerDeque.enqueue(sample);
         }
+        if (!m_d->hasPaintAtLeastOnce) paintAt(m_d->previousPaintInformation);
         m_d->usingStabilizer = false;
     } else {
         Q_FOREACH (KisPaintInformation info, m_d->rawInputs) {
@@ -1236,7 +1246,7 @@ void KisToolFreehandHelper::paintAt(int strokeInfoId,
 {
     updateCurrentBrushPosition(pi.pos());
     m_d->hasPaintAtLeastOnce = true;
-    if (!m_d->replaying || m_d->rerecording) m_d->pieces.append({Private::Piece::At, strokeInfoId, pi, {}, {}, {}});
+    if ((m_d->recording && !m_d->replaying) || m_d->rerecording) m_d->pieces.append({Private::Piece::At, strokeInfoId, pi, {}, {}, {}});
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId, pi));
 
@@ -1248,7 +1258,7 @@ void KisToolFreehandHelper::paintLine(int strokeInfoId,
 {
     updateCurrentBrushPosition(pi2.pos());
     m_d->hasPaintAtLeastOnce = true;
-    if (!m_d->replaying || m_d->rerecording) m_d->pieces.append({Private::Piece::Line, strokeInfoId, pi1, {}, {}, pi2});
+    if ((m_d->recording && !m_d->replaying) || m_d->rerecording) m_d->pieces.append({Private::Piece::Line, strokeInfoId, pi1, {}, {}, pi2});
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId, pi1, pi2));
 
@@ -1287,7 +1297,7 @@ void KisToolFreehandHelper::paintBezierCurve(int strokeInfoId,
 #endif
 
     m_d->hasPaintAtLeastOnce = true;
-    if (!m_d->replaying || m_d->rerecording) m_d->pieces.append({Private::Piece::Bezier, strokeInfoId, pi1, control1, control2, pi2});
+    if ((m_d->recording && !m_d->replaying) || m_d->rerecording) m_d->pieces.append({Private::Piece::Bezier, strokeInfoId, pi1, control1, control2, pi2});
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId,
                                                                 pi1, control1, control2, pi2));

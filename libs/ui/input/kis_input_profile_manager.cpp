@@ -323,7 +323,7 @@ KisInputProfile* KisInputProfileManager::loadProfileInternal(const QString &full
             if (action->id() != QLatin1String("Drag Value")) known << action->id();
         }
     }
-    // the same for the modes of an action the profile has (Drag to Change: Smoothing); before they were listed it knew Krita's and the first two of the fork's
+    // the same for the modes of an action the profile has (Drag to Change: Smoothing); a profile without the list knows Krita's modes and the fork's first two
     QStringList knownModes = general.readEntry("modes", QStringList());
     const bool modesListed = general.hasKey("modes");
     QList<KisShortcutConfiguration *> newer;

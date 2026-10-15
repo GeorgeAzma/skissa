@@ -40,6 +40,8 @@ public:
     static void setType(KisMainWindow *mainWindow, KisSmoothingOptions::SmoothingType type);
     /// After the options were changed directly: the tool's own options and everything showing it follow
     static void changed(KisMainWindow *mainWindow);
+    /// Krita's own default smoothing (the kind and the distances)
+    static void reset(KisMainWindow *mainWindow);
     /// Whether the brush in use paints whole pixels (pixel art), where pixel perfect lines are offered
     static bool pixelBrush(KisMainWindow *mainWindow);
 
@@ -48,6 +50,8 @@ public:
 
 Q_SIGNALS:
     void sigChanged();
+    /// Changed through changed(), in \p mainWindow
+    void sigChangedIn(KisMainWindow *mainWindow);
     /// Changed in the tool's own options
     void sigToolChanged();
     /// The tool's whole options asked for, from the Stroke tab

@@ -345,7 +345,7 @@ void KisToolFreehand::reportStrokeEnded()
     // the last stroke, to be painted again as the brush is edited
     KisCanvas2 *canvas2 = dynamic_cast<KisCanvas2 *>(canvas());
     KisDocument *document = canvas2 && canvas2->imageView() ? canvas2->imageView()->document() : nullptr;
-    if (!document || !currentPaintOpPreset()) return;
+    if (!document || !currentPaintOpPreset() || !KisLastStrokeReplay::isEnabled()) return;
     KisLastStrokeReplay::instance()->strokeEnded(m_helper, document->undoStack(), currentPaintOpPreset()->name(),
                                                  currentPaintOpPreset()->settings()->toXML());
 }

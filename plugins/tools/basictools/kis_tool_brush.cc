@@ -213,6 +213,11 @@ void KisToolBrush::slotSetSmoothingType(int index)
         showControl(m_chkStabilizeSensors, false);
     }
     updateSmoothnessDistanceLabel();
+    {
+        KisSignalsBlocker blocker(m_chkSmoothPressure);
+        m_chkSmoothPressure->setChecked(index == KisSmoothingOptions::STABILIZER ? smoothingOptions()->stabilizeSensors()
+                                                                                 : smoothingOptions()->smoothPressure());
+    }
 
     Q_EMIT smoothingTypeChanged();
 }
@@ -320,6 +325,7 @@ void KisToolBrush::setSmoothPressure(bool value)
     smoothingOptions()->setSmoothPressure(value);
     smoothingOptions()->setStabilizeSensors(value);
     Q_EMIT smoothPressureChanged();
+    Q_EMIT stabilizeSensorsChanged();
 }
 
 void KisToolBrush::slotSetMagnetism(int magnetism)
@@ -455,24 +461,34 @@ void KisToolBrush::setSnapEraserChecked(bool on)
 
 void KisToolBrush::updateSettingsViews()
 {
-    m_cmbSmoothingType->setCurrentIndex(smoothingOptions()->smoothingType());
-
+    // every widget as the options have them: none may write back to them while the others are still out of date
+    const KisSmoothingOptionsSP options = smoothingOptions();
+    const int type = options->smoothingType();
+    const qreal distanceMin = options->smoothnessDistanceMin();
+    const qreal distanceMax = options->smoothnessDistanceMax();
+    const bool useDelay = options->useDelayDistance();
     {
-        // as the options have them, without the link moving one with the other on the way
-        KisSignalsBlocker blocker(m_distanceAspectButton, m_sliderSmoothnessDistanceMin, m_sliderSmoothnessDistanceMax);
-        m_distanceAspectButton->setKeepAspectRatio(smoothingOptions()->smoothnessDistanceKeepAspectRatio());
-        m_sliderSmoothnessDistanceMin->setValue(smoothingOptions()->smoothnessDistanceMin());
-        m_sliderSmoothnessDistanceMax->setValue(smoothingOptions()->smoothnessDistanceMax());
+        KisSignalsBlocker blocker(m_cmbSmoothingType, m_distanceAspectButton, m_sliderSmoothnessDistanceMin, m_sliderSmoothnessDistanceMax,
+                                  m_chkDelayDistance, m_sliderDelayDistance);
+        KisSignalsBlocker more(m_sliderTailAggressiveness, m_chkSmoothPressure, m_chkUseScalableDistance, m_chkFinishStabilizedCurve,
+                               m_chkStabilizeSensors);
+        // the kind's rows and ranges first, then the values in them
+        slotSetSmoothingType(type);
+        m_distanceAspectButton->setKeepAspectRatio(options->smoothnessDistanceKeepAspectRatio());
+        m_sliderSmoothnessDistanceMin->setValue(distanceMin);
+        m_sliderSmoothnessDistanceMax->setValue(distanceMax);
+        m_chkDelayDistance->setChecked(useDelay);
+        m_sliderDelayDistance->setValue(options->delayDistance());
+        m_sliderTailAggressiveness->setValue(options->tailAggressiveness());
+        m_chkSmoothPressure->setChecked(type == KisSmoothingOptions::STABILIZER ? options->stabilizeSensors() : options->smoothPressure());
+        m_chkUseScalableDistance->setChecked(options->useScalableDistance());
+        m_chkFinishStabilizedCurve->setChecked(options->finishStabilizedCurve());
+        m_chkStabilizeSensors->setChecked(options->stabilizeSensors());
     }
+    m_sliderDelayDistance->setEnabled(useDelay);
+    enableControl(m_chkFinishStabilizedCurve, !useDelay);
     m_distanceAspectLocker->updateAspect();
     showSmoothnessDistanceRows();
-    m_chkDelayDistance->setChecked(smoothingOptions()->useDelayDistance());
-    m_sliderDelayDistance->setValue(smoothingOptions()->delayDistance());
-    m_sliderTailAggressiveness->setValue(smoothingOptions()->tailAggressiveness());
-    m_chkSmoothPressure->setChecked(smoothingOptions()->smoothPressure());
-    m_chkUseScalableDistance->setChecked(smoothingOptions()->useScalableDistance());
-    m_cmbSmoothingType->setCurrentIndex((int)smoothingOptions()->smoothingType());
-    m_chkStabilizeSensors->setChecked(smoothingOptions()->stabilizeSensors());
 
     Q_EMIT smoothnessQualityChanged();
     Q_EMIT smoothnessFactorChanged();

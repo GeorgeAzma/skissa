@@ -8,7 +8,6 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QHBoxLayout>
-#include <QHash>
 #include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
@@ -312,14 +311,15 @@ QString remembered(const KisSmoothingOptions &options)
                         QString::number(options.smoothnessDistanceMax()), QString::number(options.tailAggressiveness()),
                         QString::number(int(options.smoothPressure())), QString::number(int(options.useScalableDistance())),
                         QString::number(options.delayDistance()), QString::number(int(options.useDelayDistance())),
-                        QString::number(int(options.finishStabilizedCurve())), QString::number(int(options.stabilizeSensors()))})
+                        QString::number(int(options.finishStabilizedCurve())), QString::number(int(options.stabilizeSensors())),
+                        QString::number(int(options.smoothnessDistanceKeepAspectRatio()))})
         .join(QLatin1Char(';'));
 }
 
 bool recall(const QString &text, KisSmoothingOptions &options)
 {
     const QStringList parts = text.split(QLatin1Char(';'));
-    if (parts.size() != 10) return false;
+    if (parts.size() < 10) return false;
     options.setSmoothingType(KisSmoothingOptions::SmoothingType(qBound(0, parts[0].toInt(), 4)));
     options.setSmoothnessDistanceMin(parts[1].toDouble());
     options.setSmoothnessDistanceMax(parts[2].toDouble());
@@ -330,6 +330,8 @@ bool recall(const QString &text, KisSmoothingOptions &options)
     options.setUseDelayDistance(parts[7].toInt());
     options.setFinishStabilizedCurve(parts[8].toInt());
     options.setStabilizeSensors(parts[9].toInt());
+    // kept before the link was: linked when the two are one value
+    options.setSmoothnessDistanceKeepAspectRatio(parts.size() > 10 ? parts[10].toInt() : qFuzzyCompare(parts[1].toDouble(), parts[2].toDouble()));
     return true;
 }
 
@@ -341,15 +343,27 @@ KConfigGroup memory()
 /// Remembers each brush's smoothing, and gives a brush its own when it is picked
 class SmoothingMemory : public QObject
 {
+    Q_OBJECT
 public:
     explicit SmoothingMemory(KisMainWindow *mainWindow)
         : QObject(mainWindow)
         , m_mainWindow(mainWindow)
     {
         connect(KoToolManager::instance(), &KoToolManager::changedTool, this, [this]() { follow(); });
-        connect(KisStudioSmoothing::instance(), &KisStudioSmoothing::sigChanged, this, [this]() { save(); });
+        connect(KisStudioSmoothing::instance(), &KisStudioSmoothing::sigChangedIn, this, [this](KisMainWindow *window) {
+            if (window == m_mainWindow) save();
+        });
         QTimer::singleShot(0, this, [this]() { follow(); });
     }
+
+public Q_SLOTS:
+    /// Changed in this window's tool's own options
+    void toolChanged()
+    {
+        save();
+    }
+
+public:
 
     /// The brush in use, once the view has its resources
     void watchResources()
@@ -392,6 +406,7 @@ private:
                 if (tool->metaObject()->indexOfSignal(name) < 0) continue;
                 // as SIGNAL() writes it
                 const QByteArray signal = QByteArray("2") + name;
+                connect(tool, signal.constData(), this, SLOT(toolChanged()), Qt::UniqueConnection);
                 connect(tool, signal.constData(), KisStudioSmoothing::instance(), SIGNAL(sigToolChanged()), Qt::UniqueConnection);
             }
         }
@@ -429,11 +444,22 @@ KisStudioSmoothing *KisStudioSmoothing::instance()
     return smoothing;
 }
 
+namespace {
+/// changed() is running: the tool's options reading the change back say nothing new
+int changing = 0;
+}
+
 void KisStudioSmoothing::watch(KisMainWindow *mainWindow)
 {
     new SmoothingMemory(mainWindow);
     // a change made in the tool's own options shows on the chip and in the editor too
-    connect(instance(), &KisStudioSmoothing::sigToolChanged, instance(), &KisStudioSmoothing::sigChanged, Qt::UniqueConnection);
+    static bool forwarding = false;
+    if (!forwarding) {
+        forwarding = true;
+        connect(instance(), &KisStudioSmoothing::sigToolChanged, instance(), []() {
+            if (!changing) Q_EMIT instance()->sigChanged();
+        });
+    }
 }
 
 KisSmoothingOptionsSP KisStudioSmoothing::options(KisMainWindow *mainWindow)
@@ -499,12 +525,27 @@ void KisStudioSmoothing::setType(KisMainWindow *mainWindow, KisSmoothingOptions:
 
 void KisStudioSmoothing::changed(KisMainWindow *mainWindow)
 {
+    changing++;
     if (KisToolFreehand *tool = brushTool(mainWindow)) {
         // its options are made on first use; they read the smoothing back
         tool->optionWidgets();
         tool->updateSettingsViews();
     }
+    changing--;
+    Q_EMIT instance()->sigChangedIn(mainWindow);
     Q_EMIT instance()->sigChanged();
+}
+
+void KisStudioSmoothing::reset(KisMainWindow *mainWindow)
+{
+    KisSmoothingOptionsSP options = KisStudioSmoothing::options(mainWindow);
+    if (!options) return;
+    const KisConfig defaults(true);
+    options->setSmoothingType(KisSmoothingOptions::SmoothingType(defaults.lineSmoothingType(true)));
+    options->setSmoothnessDistanceMin(defaults.lineSmoothingDistanceMin(true));
+    options->setSmoothnessDistanceMax(defaults.lineSmoothingDistanceMax(true));
+    options->setSmoothnessDistanceKeepAspectRatio(defaults.lineSmoothingDistanceKeepAspectRatio(true));
+    changed(mainWindow);
 }
 
 bool KisStudioSmoothing::pixelBrush(KisMainWindow *mainWindow)
@@ -544,6 +585,7 @@ KisStudioStrokePage::KisStudioStrokePage(KisMainWindow *mainWindow, QWidget *par
     d->layout->setContentsMargins(0, 0, 0, 0);
     d->layout->setSpacing(KisModernStyle::space1);
     connect(KisStudioSmoothing::instance(), &KisStudioSmoothing::sigChanged, this, &KisStudioStrokePage::rebuild);
+    connect(KoToolManager::instance(), &KoToolManager::changedTool, this, &KisStudioStrokePage::rebuild);
     rebuild();
 }
 
@@ -567,7 +609,19 @@ void KisStudioStrokePage::rebuild()
     if (d->preview) d->preview->update();
     // a row's own change keeps the rows, so the drag goes on
     const bool linked = !options || options->smoothnessDistanceKeepAspectRatio();
-    const QString shown = QStringLiteral("%1 %2 %3 %4 %5").arg(bool(options)).arg(int(type)).arg(guides).arg(pixel).arg(linked);
+    // all it shows but the values of the rows, which follow without a rebuild (one may be dragged)
+    QString shown = KoToolManager::instance()->activeToolId() + QStringLiteral(" %1 %2 %3 %4 %5").arg(bool(options)).arg(int(type)).arg(guides).arg(pixel).arg(linked);
+    if (options) {
+        shown += QStringLiteral(" %1 %2 %3 %4 %5 %6").arg(options->tailAggressiveness()).arg(options->smoothPressure()).arg(options->stabilizeSensors())
+                     .arg(options->useScalableDistance()).arg(options->finishStabilizedCurve()).arg(quintptr(options.data()));
+    }
+    if (QAction *shapes = d->mainWindow ? d->mainWindow->actionCollection()->action(QStringLiteral("stroke_shapes")) : nullptr) {
+        shown += shapes->isChecked() ? QStringLiteral(" shapes") : QString();
+    }
+    if (guides) {
+        shown += QStringLiteral(" %1 %2 %3 %4").arg(tool->property("assistantSnapping").toBool()).arg(tool->property("magnetism").toInt())
+                     .arg(tool->property("onlyOneAssistant").toBool()).arg(tool->property("snapEraser").toBool());
+    }
     if (d->changing || shown == d->shown) {
         Q_FOREACH (KisStudioValueRow *row, findChildren<KisStudioValueRow *>()) {
             if (options && row->property("amount").toBool()) row->setValue(options->smoothnessDistanceMin());
@@ -700,7 +754,7 @@ void KisStudioStrokePage::rebuild()
             KisStudioValueRow::Range percent;
             percent.maximum = 100;
             percent.suffix = QStringLiteral("%");
-            auto *ending = addRow(i18n("Stroke Ending"), percent, options->tailAggressiveness() * 100,
+            auto *ending = addRow(i18nc("how a smoothed line ends", "Stroke Ending"), percent, options->tailAggressiveness() * 100,
                                   KisConfig(true).lineSmoothingTailAggressiveness(true) * 100);
             ending->setToolTip(i18nc("@info:tooltip", "0% the end lags → 100% it ends at the pen"));
             connect(ending, &KisStudioValueRow::valueChanged, this, [change](qreal value) {
@@ -711,7 +765,7 @@ void KisStudioStrokePage::rebuild()
             KisStudioValueRow::Range pixels;
             pixels.maximum = 500;
             pixels.suffix = i18n(" px");
-            auto *delay = addRow(i18n("Delay"), pixels, options->useDelayDistance() ? options->delayDistance() : 0, 0);
+            auto *delay = addRow(i18nc("the stabilizer waits until the pen is this far", "Delay"), pixels, options->useDelayDistance() ? options->delayDistance() : 0, 0);
             delay->setProperty("delay", true);
             delay->setToolTip(i18nc("@info:tooltip", "The line waits until the pen is this far away"));
             connect(delay, &KisStudioValueRow::valueChanged, this, [change](qreal value) {

@@ -14,7 +14,6 @@
 #include "KisToolPaintFactoryBase.h"
 
 #include "KoAspectButton.h"
-#include "kis_aspect_ratio_locker.h"
 
 #include <flake/kis_node_shape.h>
 #include <kis_icon.h>
@@ -33,6 +32,7 @@ class KisKActionCollection;
 class KoCanvasBase;
 class KisSliderSpinBox;
 class KisDoubleSliderSpinBox;
+class KisAspectRatioLocker;
 
 class KisToolBrush : public KisToolFreehand
 {

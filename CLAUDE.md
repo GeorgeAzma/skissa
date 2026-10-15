@@ -177,3 +177,6 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - The UI tour (`KRITA_DEV_TOUR`) decides what is safe to press from a button's text, tooltip, object name and accessible name: a button with none of these (an icon-only button whose tooltip was removed) must still get a name, or the tour may press Close. Run it with `KRITA_DEV_APART=1` so it can't touch the dev profile.
 - The owner uses the dev build between turns (pins, tweaks): back up the profile right before each test, not once per session, and capture before clicking by coordinates, since the bar may have moved.
 - A stroke's step reaches the undo stack a moment after the image goes idle: wait a turn of the event loop before deciding a stroke was cancelled.
+- A drag owned by the widget it starts from dies with it: anything rebuilt while the drag runs (a brush picked, a card refreshed) takes the QDrag along and Qt crashes. Parent drags to `qApp` and delete them after `exec()`.
+- A tool's `updateSettingsViews()` must block its widgets' signals while it sets them: one set first writes its stale neighbours back into the options (the smoothing sliders, the combo's ranges).
+- Anything that keeps the brush's option widget in step (`KisPaintopBox::useOptionWidget`) takes and gives back a use; one shared flag let one closing editor stop another, or pinned rows go stale.
