@@ -75,7 +75,11 @@ private:
     void arrangePinned();
     void restoreHeights();
     void saveHeights();
+    /// The column with the panel buttons
     KisStudioPanelColumn *panelColumn();
+    /// The column across the canvas from it
+    KisStudioPanelColumn *farColumn();
+    KisStudioPanelColumn *createColumn(bool left, int width, const QString &widthKey);
     void setPanelsSide(bool left);
     void setToolRailSide(bool left);
     /// Tucked away by tapping their grip: the pinned panels (but not their strip), the tool rail's tools, the top bar

@@ -4,9 +4,14 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioLayout.h"
+
+#include <KisResourceItemChooser.h>
 #include "KisColorDrop.h"
 
 #include <QAbstractButton>
+#include <QTreeView>
+#include <QListView>
+#include <QAbstractItemView>
 #include <QAction>
 #include <QApplication>
 #include <QDockWidget>
@@ -30,8 +35,6 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSet>
-#include <QSplitter>
-#include <QSplitterHandle>
 #include <QStatusBar>
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
@@ -109,10 +112,13 @@ const QString pinnedKey = QStringLiteral("StudioLayoutPinnedPanels");
 const QString leftKey = QStringLiteral("StudioLayoutLeftPanels");
 /// A panel dropped this close to the canvas edge is pinned there
 const int edgeDropZone = 140;
-/// Pinned panel heights, as "id=height" entries
-const QString heightsKey = QStringLiteral("StudioLayoutPanelHeights");
+/// Heights set by the handles between pinned panels, as "id=height" entries; the others fit their contents
+const QString heightsKey = QStringLiteral("StudioLayoutPanelSizes");
 const QString foldedKey = QStringLiteral("StudioLayoutFoldedPanels");
 const QString columnWidthKey = QStringLiteral("StudioLayoutPanelWidth");
+/// The pinned panels docked on the far side of the canvas, away from the panel buttons
+const QString farKey = QStringLiteral("StudioLayoutFarPanels");
+const QString farWidthKey = QStringLiteral("StudioLayoutFarPanelWidth");
 /// "left" or "right"
 const QString panelSideKey = QStringLiteral("StudioLayoutPanelSide");
 const QString toolRailSideKey = QStringLiteral("StudioLayoutToolRailSide");
@@ -278,6 +284,8 @@ private:
 struct PanelDrop {
     bool column {false};
     bool left {false};
+    /// Into the column on the far side, away from the panel buttons
+    bool far {false};
     QString before;      ///< the panel it goes above; empty for the bottom
     QRect indicator;     ///< in main window coordinates
 };
@@ -627,31 +635,419 @@ private:
     bool m_doubleClicked {false};
 };
 
-/// The handle between two pinned panels: invisible, so the glass shows through
-class PanelSplitterHandle : public QSplitterHandle
+/// The handle between two stacked panels: drag to resize the one above, right-click to fit it to its contents
+class PanelHandle : public QWidget
 {
 public:
-    using QSplitterHandle::QSplitterHandle;
+    std::function<void()> pressed;
+    /// Moved \p dy pixels since the press; \p done on release
+    std::function<void(int dy, bool done)> dragged;
+    std::function<void()> fit;
+
+    explicit PanelHandle(QWidget *parent)
+        : QWidget(parent)
+    {
+        setAttribute(Qt::WA_Hover);
+        setCursor(Qt::SizeVerCursor);
+        setToolTip(i18nc("@info:tooltip the handle between two panels", "Drag: resize\nRight-click: fit"));
+    }
 
 protected:
-    void paintEvent(QPaintEvent *) override {}
+    void paintEvent(QPaintEvent *) override
+    {
+        // invisible until the pointer finds it, so the glass shows through; a line across, unlike a panel's grip
+        if (!underMouse() && !m_pressed) return;
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QColor ink = palette().color(QPalette::WindowText);
+        ink.setAlphaF(m_pressed ? 0.5 : 0.25);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(ink);
+        const QRectF line(12, height() / 2.0 - 1, width() - 24, 2);
+        painter.drawPath(KisModernStyle::squircle(line, 1));
+    }
+
+    void enterEvent(QEvent *) override { update(); }
+    void leaveEvent(QEvent *) override { update(); }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton) return;
+        m_pressed = true;
+        m_pressY = globalMousePos(event).y();
+        update();
+        if (pressed) pressed();
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (m_pressed && dragged) dragged(globalMousePos(event).y() - m_pressY, false);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (!m_pressed || event->button() != Qt::LeftButton) return;
+        m_pressed = false;
+        update();
+        if (dragged) dragged(globalMousePos(event).y() - m_pressY, true);
+    }
+
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        event->accept();
+        if (fit) fit();
+    }
+
+private:
+    bool m_pressed {false};
+    int m_pressY {0};
 };
 
-class PanelSplitter : public QSplitter
+/**
+ * Krita's resource lists turn into a strip of tiles when short, which a panel
+ * fitted to its contents would then stay. In a column they stay lists.
+ */
+void keepUpright(QDockWidget *dock, bool upright)
+{
+    Q_FOREACH (KisResourceItemChooser *chooser, dock->findChildren<KisResourceItemChooser *>()) {
+        if (upright) {
+            // a list again first, as a tall chooser lays itself out
+            chooser->setResponsiveness(true);
+            if (chooser->height() <= 100) chooser->resize(chooser->width(), 200);
+        }
+        chooser->setResponsiveness(!upright);
+    }
+}
+
+/// The scroll area that holds most of \p dock's contents: what the panel grows to show more of
+QAbstractScrollArea *mainScrollArea(const QDockWidget *dock)
+{
+    QAbstractScrollArea *best = nullptr;
+    int bestArea = 0;
+    Q_FOREACH (QAbstractScrollArea *area, dock->findChildren<QAbstractScrollArea *>()) {
+        if (!area->isVisibleTo(dock)) continue;
+        const int size = area->width() * area->height();
+        if (size > bestArea) {
+            best = area;
+            bestArea = size;
+        }
+    }
+    return best;
+}
+
+/// How tall \p area's contents are: what it shows without scrolling; -1 if that can't be told
+int contentsHeight(QAbstractScrollArea *area)
+{
+    if (auto *scroll = qobject_cast<QScrollArea *>(area)) {
+        QWidget *widget = scroll->widget();
+        if (!widget) return 0;
+        return widget->hasHeightForWidth() ? widget->heightForWidth(scroll->viewport()->width()) : widget->sizeHint().height();
+    }
+    auto *view = qobject_cast<QAbstractItemView *>(area);
+    QAbstractItemModel *model = view ? view->model() : nullptr;
+    if (!model) return -1;
+    const QModelIndex root = view->rootIndex();
+    if (model->rowCount(root) == 0) return 0;
+    const QModelIndex first = model->index(0, 0, root);
+    QModelIndex last = model->index(model->rowCount(root) - 1, 0, root);
+    if (auto *tree = qobject_cast<QTreeView *>(view)) {
+        for (QModelIndex i = first; i.isValid(); i = tree->indexBelow(i)) last = i;
+    }
+    const QRect top = view->visualRect(first);
+    const QRect bottom = view->visualRect(last);
+    if (!top.isValid() || !bottom.isValid()) return -1;
+    auto *list = qobject_cast<QListView *>(view);
+    return bottom.bottom() - top.top() + 1 + (list ? 2 * list->spacing() : 0);
+}
+
+/**
+ * The pinned panels of a column, stacked top to bottom. Each is as tall as its
+ * contents, or as its handle set it; when they don't all fit, the ones that
+ * scroll give up room, those sized by hand last.
+ */
+class PanelStack : public QWidget
 {
 public:
-    explicit PanelSplitter(QWidget *parent)
-        : QSplitter(Qt::Vertical, parent)
+    /// Height of the handle between two panels; taller for fingers
+    static int gap() { return KisTouchMode::isActive() ? 12 : 6; }
+    /// A scrolling panel keeps at least this much of its contents
+    static constexpr int minimumContents = 56;
+
+    /// A panel's height set by its handle; 0: fitted to its contents
+    std::function<int(const QDockWidget *)> userHeight;
+    /// Its handle moved: \p height for \p dock, 0 to fit it again; \p done once let go
+    std::function<void(QDockWidget *dock, int height, bool done)> resizedByUser;
+    /// How tall the stack would like to be has changed
+    std::function<void()> wantsHeight;
+
+    explicit PanelStack(QWidget *parent)
+        : QWidget(parent)
     {
-        setChildrenCollapsible(false);
-        setHandleWidth(6);
+        m_timer.setSingleShot(true);
+        m_timer.setInterval(0);
+        QObject::connect(&m_timer, &QTimer::timeout, this, [this]() { relayout(true); });
+        QObject::connect(KisTouchMode::instance(), &KisTouchMode::changed, this, [this]() { later(); });
+    }
+
+    QList<QDockWidget *> panels() const
+    {
+        QList<QDockWidget *> docks;
+        for (const QPointer<QDockWidget> &dock : m_panels) {
+            if (dock && dock->parentWidget() == this) docks << dock;
+        }
+        return docks;
+    }
+
+    /// Takes \p docks in this order, each keeping its visibility
+    void setPanels(const QList<QDockWidget *> &docks)
+    {
+        m_panels.clear();
+        for (QDockWidget *dock : docks) {
+            const bool shown = !dock->isHidden();
+            KisStudioGlass::setSeeThrough(dock, true);
+            keepUpright(dock, true);
+            if (dock->parentWidget() != this) dock->setParent(this);
+            dock->setVisible(shown);
+            dock->removeEventFilter(m_watcher);
+            watch(dock);
+            m_panels << dock;
+        }
+        later();
+    }
+
+    /// The height all its shown panels want, with their handles
+    int wantedHeight()
+    {
+        int total = 0;
+        int shown = 0;
+        for (QDockWidget *dock : panels()) {
+            if (dock->isHidden()) continue;
+            total += measure(dock).want;
+            shown++;
+        }
+        return total + qMax(0, shown - 1) * gap();
+    }
+
+    QSize sizeHint() const override { return QSize(width(), m_wanted); }
+
+    /// Lays the panels out again soon, once their contents have settled
+    void later()
+    {
+        m_passes = 0;
+        m_timer.start();
+    }
+
+    /// Lays the panels out in the stack's height; \p ask: first see whether the stack wants another height
+    void relayout(bool ask)
+    {
+        if (ask) {
+            const int wanted = wantedHeight();
+            if (wanted != m_wanted) {
+                m_wanted = wanted;
+                updateGeometry();
+                // the column resizes the stack, which lays the panels out
+                if (wantsHeight) wantsHeight();
+            }
+        }
+        arrange();
     }
 
 protected:
-    QSplitterHandle *createHandle() override
+    void resizeEvent(QResizeEvent *event) override
     {
-        return new PanelSplitterHandle(orientation(), this);
+        QWidget::resizeEvent(event);
+        arrange();
+        // a new width rewraps grids of tiles
+        if (event->oldSize().width() != width()) later();
     }
+
+private:
+    struct Measure {
+        int want {0};
+        int minimum {0};
+        bool byHand {false};
+    };
+
+    Measure measure(QDockWidget *dock)
+    {
+        Measure m;
+        QWidget *title = dock->titleBarWidget();
+        const int titleHeight = title ? title->height() : 0;
+        if (dock->widget() && dock->widget()->property("studioFolded").toBool()) {
+            m.want = m.minimum = titleHeight;
+            return m;
+        }
+        int natural;
+        QAbstractScrollArea *area = mainScrollArea(dock);
+        const int contents = area ? contentsHeight(area) : -1;
+        if (area && contents >= 0 && dock->height() <= titleHeight) {
+            // not laid out yet: measured again once it is
+            m_remeasure = true;
+        }
+        if (area && contents >= 0 && dock->height() > titleHeight) {
+            // what isn't the scroll area, from the size hints (the current sizes are off when squeezed), and its frame
+            const int chrome = dock->sizeHint().height() - area->sizeHint().height() + area->height() - area->viewport()->height();
+            natural = chrome + qMax(contents, minimumContents);
+            m.minimum = chrome + qMin(qMax(contents, 1), minimumContents);
+        } else {
+            natural = dock->hasHeightForWidth() ? dock->heightForWidth(width()) : dock->sizeHint().height();
+            m.minimum = dock->minimumSizeHint().height();
+        }
+        const int byHand = userHeight ? userHeight(dock) : 0;
+        m.byHand = byHand > 0;
+        // a panel that scrolls is never taller than its contents; one that doesn't takes the height it is given
+        m.want = m.byHand ? (area && contents >= 0 ? qMin(byHand, natural) : byHand) : natural;
+        // never below what its own layout needs (Qt wouldn't make it smaller); a fold animating caps it, below that too
+        m.minimum = qMax(m.minimum, qMax(titleHeight, qMax(dock->minimumSizeHint().height(), dock->minimumHeight())));
+        m.minimum = qMin(m.minimum, dock->maximumHeight());
+        m.want = qBound(m.minimum, m.want, dock->maximumHeight());
+        return m;
+    }
+
+    void arrange()
+    {
+        m_remeasure = false;
+        QList<QDockWidget *> shown;
+        for (QDockWidget *dock : panels()) {
+            if (!dock->isHidden()) shown << dock;
+        }
+        QVector<Measure> sizes;
+        int total = qMax(0, shown.size() - 1) * gap();
+        for (QDockWidget *dock : shown) {
+            sizes << measure(dock);
+            total += sizes.last().want;
+        }
+        // measured again after the column was sized: it follows
+        if (total != m_wanted && m_passes < 3) {
+            m_passes++;
+            m_wanted = total;
+            updateGeometry();
+            QTimer::singleShot(0, this, [this]() {
+                if (wantsHeight) wantsHeight();
+            });
+        }
+        // too tall: the panels give up room down to their minimum, those fitted to their contents first
+        int deficit = total - height();
+        for (int round = 0; round < 2 && deficit > 0; round++) {
+            const bool byHand = round == 1;
+            int room = 0;
+            for (int i = 0; i < sizes.size(); i++) {
+                if (sizes[i].byHand == byHand && shown[i] != m_dragged) room += sizes[i].want - sizes[i].minimum;
+            }
+            if (room <= 0) continue;
+            const int take = qMin(deficit, room);
+            int taken = 0;
+            for (int i = 0; i < sizes.size(); i++) {
+                if (sizes[i].byHand != byHand || shown[i] == m_dragged) continue;
+                const int share = int(qint64(take) * (sizes[i].want - sizes[i].minimum) / room);
+                sizes[i].want -= share;
+                taken += share;
+            }
+            // what rounding left over, from the first that can give it
+            for (int i = 0; i < sizes.size() && taken < take; i++) {
+                if (sizes[i].byHand != byHand || shown[i] == m_dragged) continue;
+                const int share = qMin(take - taken, sizes[i].want - sizes[i].minimum);
+                sizes[i].want -= share;
+                taken += share;
+            }
+            deficit -= taken;
+        }
+
+        while (m_handles.size() < shown.size()) {
+            auto *handle = new PanelHandle(this);
+            m_handles << handle;
+        }
+        int y = 0;
+        for (int i = 0; i < shown.size(); i++) {
+            QDockWidget *dock = shown[i];
+            dock->setGeometry(0, y, width(), sizes[i].want);
+            y += sizes[i].want;
+            PanelHandle *handle = m_handles[i];
+            const bool between = i + 1 < shown.size();
+            handle->setVisible(between);
+            if (!between) continue;
+            handle->setGeometry(0, y, width(), gap());
+            handle->raise();
+            QPointer<QDockWidget> target = dock;
+            handle->pressed = [this, target]() { m_dragStart = target ? target->height() : 0; };
+            handle->dragged = [this, target](int dy, bool done) {
+                if (!target) return;
+                m_dragged = done ? nullptr : target.data();
+                if (resizedByUser) resizedByUser(target, qMax(1, m_dragStart + dy), done);
+                relayout(true);
+            };
+            handle->fit = [this, target]() {
+                if (target && resizedByUser) resizedByUser(target, 0, true);
+                relayout(true);
+            };
+            y += gap();
+        }
+        for (int i = shown.size(); i < m_handles.size(); i++) m_handles[i]->hide();
+        if (m_remeasure && m_passes < 3) {
+            m_passes++;
+            m_timer.start();
+        }
+    }
+
+    /// Lays out again when a panel's contents change size
+    void watch(QDockWidget *dock)
+    {
+        if (!m_watcher) {
+            m_watcher = new Watcher(this);
+        }
+        dock->installEventFilter(m_watcher);
+        QAbstractScrollArea *area = mainScrollArea(dock);
+        auto *view = qobject_cast<QAbstractItemView *>(area);
+        if (view && view->model() && !m_models.contains(view->model())) {
+            QAbstractItemModel *model = view->model();
+            m_models << model;
+            for (auto signal : {&QAbstractItemModel::rowsInserted, &QAbstractItemModel::rowsRemoved}) {
+                QObject::connect(model, signal, this, [this]() { later(); });
+            }
+            QObject::connect(model, &QAbstractItemModel::modelReset, this, [this]() { later(); });
+            QObject::connect(model, &QAbstractItemModel::layoutChanged, this, [this]() { later(); });
+        }
+        if (auto *tree = qobject_cast<QTreeView *>(view)) {
+            QObject::connect(tree, &QTreeView::expanded, this, [this]() { later(); }, Qt::UniqueConnection);
+            QObject::connect(tree, &QTreeView::collapsed, this, [this]() { later(); }, Qt::UniqueConnection);
+        }
+    }
+
+    class Watcher : public QObject
+    {
+    public:
+        explicit Watcher(PanelStack *stack) : QObject(stack), m_stack(stack) {}
+
+    protected:
+        bool eventFilter(QObject *, QEvent *event) override
+        {
+            switch (event->type()) {
+            case QEvent::Show:
+            case QEvent::Hide:
+            case QEvent::LayoutRequest:
+                m_stack->later();
+                break;
+            default:
+                break;
+            }
+            return false;
+        }
+
+    private:
+        PanelStack *m_stack;
+    };
+
+    QList<QPointer<QDockWidget>> m_panels;
+    QList<PanelHandle *> m_handles;
+    QList<QPointer<QAbstractItemModel>> m_models;
+    Watcher *m_watcher {nullptr};
+    QPointer<QDockWidget> m_dragged;
+    int m_dragStart {0};
+    QTimer m_timer;
+    int m_wanted {0};
+    bool m_remeasure {false};
+    /// Layouts redone in a row to measure panels that weren't laid out yet
+    int m_passes {0};
 };
 
 /// Holds the tool rail over the side of the canvas, as tall as its tools
@@ -1006,8 +1402,9 @@ public:
         setObjectName(QStringLiteral("studioPanels"));
         m_layout = new QVBoxLayout(this);
         m_layout->setSpacing(0);
-        m_splitter = new PanelSplitter(this);
-        m_layout->addWidget(m_splitter);
+        m_stack = new PanelStack(this);
+        m_stack->wantsHeight = [this]() { place(); };
+        m_layout->addWidget(m_stack);
         updateMargins();
         setMouseTracking(true);
         // a separate widget, since a cursor set on the column would also apply to the panels
@@ -1020,7 +1417,7 @@ public:
         hide();
     }
 
-    QSplitter *splitter() const { return m_splitter; }
+    PanelStack *stack() const { return m_stack; }
     int columnWidth() const { return m_width; }
     bool isLeft() const { return m_left; }
 
@@ -1042,58 +1439,18 @@ public:
     /// Shows the panels below the strip, or only the strip
     void setPanelsShown(bool shown)
     {
-        m_splitter->setVisible(shown);
+        m_stack->setVisible(shown);
         place();
         placeGrip();
     }
-    bool panelsShown() const { return !m_splitter->isHidden(); }
+    bool panelsShown() const { return !m_stack->isHidden(); }
 
-    QList<QDockWidget *> panels() const
-    {
-        QList<QDockWidget *> docks;
-        for (int i = 0; i < m_splitter->count(); i++) {
-            if (auto *dock = qobject_cast<QDockWidget *>(m_splitter->widget(i))) docks << dock;
-        }
-        return docks;
-    }
+    QList<QDockWidget *> panels() const { return m_stack->panels(); }
 
     /// Takes \p docks in this order, each keeping its visibility
-    void setPanels(const QList<QDockWidget *> &docks)
-    {
-        for (int i = 0; i < docks.size(); i++) {
-            QDockWidget *dock = docks[i];
-            const bool shown = !dock->isHidden();
-            KisStudioGlass::setSeeThrough(dock, true);
-            m_splitter->insertWidget(i, dock);
-            dock->setVisible(shown);
-        }
-    }
+    void setPanels(const QList<QDockWidget *> &docks) { m_stack->setPanels(docks); }
 
-    /// Resizes \p dock to \p height, taking the difference from or giving it to the other panels
-    void resizePanel(QDockWidget *dock, int height)
-    {
-        const int index = m_splitter->indexOf(dock);
-        if (index < 0) return;
-        QList<int> sizes = m_splitter->sizes();
-        int delta = height - sizes[index];
-        sizes[index] = height;
-        // the panels below it first, then those above, each within its limits
-        QList<int> others;
-        for (int i = index + 1; i < sizes.size(); i++) others << i;
-        for (int i = index - 1; i >= 0; i--) others << i;
-        for (int i : qAsConst(others)) {
-            QWidget *widget = m_splitter->widget(i);
-            if (widget->isHidden() || delta == 0) continue;
-            const int minimum = qMax(widget->minimumSizeHint().height(), widget->minimumHeight());
-            const int maximum = widget->maximumHeight();
-            const int size = qBound(minimum, sizes[i] - delta, maximum);
-            delta -= sizes[i] - size;
-            sizes[i] = size;
-        }
-        m_splitter->setSizes(sizes);
-    }
-
-    /// Places the column over the canvas area's edge: full height with panels, just the strip without
+    /// Places the column over the canvas area's edge, as tall as its panels want within it; just the strip without them
     void place()
     {
         QWidget *area = parentWidget();
@@ -1101,7 +1458,11 @@ public:
         const int top = area->property(topInsetProperty).toInt() + margin;
         QSize size;
         if (panelsShown()) {
-            size = QSize(qBound(minimumColumnWidth, m_width, qMax(minimumColumnWidth, area->width() / 2)), qMax(0, area->height() - top - margin));
+            const QMargins margins = m_layout->contentsMargins();
+            const int strip = m_strip && !m_strip->isHidden() ? m_strip->sizeHint().height() : 0;
+            const int wanted = margins.top() + margins.bottom() + strip + m_stack->wantedHeight();
+            size = QSize(qBound(minimumColumnWidth, m_width, qMax(minimumColumnWidth, area->width() / 2)),
+                         qBound(0, wanted, qMax(0, area->height() - top - margin)));
         } else {
             size = m_layout->sizeHint();
         }
@@ -1233,7 +1594,7 @@ private:
     }
 
     QVBoxLayout *m_layout {nullptr};
-    QSplitter *m_splitter {nullptr};
+    PanelStack *m_stack {nullptr};
     QPointer<QWidget> m_strip;
     QWidget *m_grip {nullptr};
     bool m_left {false};
@@ -1349,6 +1710,9 @@ struct KisStudioLayout::Private
     QSet<QString> folded;
     QHash<QString, QPointer<PanelGrip>> grips;
     QPointer<KisStudioPanelColumn> panelColumn;
+    /// The column on the other side of the canvas, without the panel buttons
+    QPointer<KisStudioPanelColumn> farColumn;
+    QSet<QString> far;
     QPointer<TopPill> topPill;
     QPointer<TopPill> windowPill;
     /// In canvas-only mode, what the pointer brought back by nearing its edge (see peek())
@@ -1360,9 +1724,6 @@ struct KisStudioLayout::Private
     bool toolRailTucked {false};
     bool topBarTucked {false};
     QPointer<QWidget> stripGrip;
-    QTimer *heightSave {nullptr};
-    /// Set while panels are arranged or folded, so those resizes aren't saved as the user's
-    bool settlingHeights {false};
 
     /// The unpinned panel open over the canvas, and the widget it opened from (it is placed below it)
     QPointer<QDockWidget> flyout;
@@ -1410,13 +1771,13 @@ struct KisStudioLayout::Private
         return order;
     }
 
-    /// The pinned panels shown in the column, top to bottom, excluding \p without
-    QList<QDockWidget *> column(const QString &without) const
+    /// The pinned panels shown in a column, top to bottom, excluding \p without; \p farSide: the far column's
+    QList<QDockWidget *> column(const QString &without, bool farSide = false) const
     {
         QList<QDockWidget *> docks;
         Q_FOREACH (const QString &id, pinnedOrder()) {
             QDockWidget *dock = mainWindow->dockWidget(id);
-            if (id != without && dock && dock != flyout && !dock->isHidden() && !dock->isFloating()) {
+            if (id != without && far.contains(id) == farSide && dock && dock != flyout && !dock->isHidden() && !dock->isFloating()) {
                 docks << dock;
             }
         }
@@ -1437,33 +1798,38 @@ struct KisStudioLayout::Private
         if (!canvasArea) return drop;
         const QPoint pos = mainWindow->mapFromGlobal(globalPos);
         const QRect canvas = canvasArea->geometry();
-        const bool left = panelsLeft;
-        const QList<QDockWidget *> docks = column(moving);
-        QRect area;
-        Q_FOREACH (QDockWidget *dock, docks) {
-            area |= placeOf(dock);
-        }
-        // over the column, or near the canvas edge when it has no panels
-        const bool overColumn = !area.isEmpty() && pos.x() >= area.left() - 8 && pos.x() <= area.right() + 8;
-        const bool nearEdge = area.isEmpty() && canvas.contains(pos)
-                              && (left ? pos.x() < canvas.left() + edgeDropZone : pos.x() > canvas.right() - edgeDropZone);
-        if (!overColumn && !nearEdge) return drop;
+        // the column with the panel buttons first, then the one across the canvas
+        for (const bool farSide : {false, true}) {
+            const bool left = farSide ? !panelsLeft : panelsLeft;
+            const QList<QDockWidget *> docks = column(moving, farSide);
+            QRect area;
+            Q_FOREACH (QDockWidget *dock, docks) {
+                area |= placeOf(dock);
+            }
+            // over a column, or near the canvas edge where it has no panels
+            const bool overColumn = !area.isEmpty() && pos.x() >= area.left() - 8 && pos.x() <= area.right() + 8;
+            const bool nearEdge = area.isEmpty() && canvas.contains(pos)
+                                  && (left ? pos.x() < canvas.left() + edgeDropZone : pos.x() > canvas.right() - edgeDropZone);
+            if (!overColumn && !nearEdge) continue;
 
-        drop.column = true;
-        drop.left = left;
-        if (area.isEmpty()) {
-            drop.indicator = QRect(left ? canvas.left() + 2 : canvas.right() - 4, canvas.top() + 6, 3, canvas.height() - 12);
+            drop.column = true;
+            drop.left = left;
+            drop.far = farSide;
+            if (area.isEmpty()) {
+                drop.indicator = QRect(left ? canvas.left() + 2 : canvas.right() - 4, canvas.top() + 6, 3, canvas.height() - 12);
+                return drop;
+            }
+            int y = area.bottom() - 1;
+            Q_FOREACH (QDockWidget *dock, docks) {
+                if (pos.y() < placeOf(dock).center().y()) {
+                    drop.before = dock->objectName();
+                    y = placeOf(dock).top() - 1;
+                    break;
+                }
+            }
+            drop.indicator = QRect(area.left() + 4, qMax(area.top(), y - 1), area.width() - 8, 3);
             return drop;
         }
-        int y = area.bottom() - 1;
-        Q_FOREACH (QDockWidget *dock, docks) {
-            if (pos.y() < placeOf(dock).center().y()) {
-                drop.before = dock->objectName();
-                y = placeOf(dock).top() - 1;
-                break;
-            }
-        }
-        drop.indicator = QRect(area.left() + 4, qMax(area.top(), y - 1), area.width() - 8, 3);
         return drop;
     }
 
@@ -1505,10 +1871,6 @@ KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
     KisSettingsRegistry::instance();
 
     // save the heights once a resize has settled
-    d->heightSave = new QTimer(this);
-    d->heightSave->setSingleShot(true);
-    d->heightSave->setInterval(400);
-    connect(d->heightSave, &QTimer::timeout, this, &KisStudioLayout::saveHeights);
 
     // canvas-only mode restores the window state partly through the event queue, so normalize afterwards
     if (QAction *canvasOnly = mainWindow->actionCollection()->action(QStringLiteral("view_show_canvas_only"))) {
@@ -1585,6 +1947,7 @@ void KisStudioLayout::enter()
         return QSet<QString>(list.begin(), list.end());
     };
     d->pinned = readSet(pinnedKey);
+    d->far = readSet(farKey);
     d->folded = readSet(foldedKey);
     const QString panelSide = cfg.readEntry<QString>(panelSideKey, QString());
     d->panelsLeft = panelSide == QLatin1String("left")
@@ -1918,7 +2281,6 @@ void KisStudioLayout::leave()
             fold->setCurrentTime(fold->duration());
         }
     }
-    d->heightSave->stop();
     for (const QPointer<QWidget> &widget : d->peeking) KisStudioMotion::stopFade(widget);
     d->peeking.clear();
     if (d->presetChip) {
@@ -1973,7 +2335,8 @@ void KisStudioLayout::leave()
     d->classicDocks.clear();
     d->panels.clear();
     d->grips.clear();
-    if (KisStudioPanelColumn *column = d->panelColumn) {
+    for (KisStudioPanelColumn *column : {d->panelColumn.data(), d->farColumn.data()}) {
+        if (!column) continue;
         Q_FOREACH (QDockWidget *dock, column->panels()) {
             const bool shown = !dock->isHidden();
             parkPanel(dock);
@@ -2266,6 +2629,11 @@ void KisStudioLayout::positionFlyout()
         const QRect strip(column->mapToGlobal(QPoint()), column->size());
         if (strip.intersects(global)) global.setTop(strip.bottom() + 1 + margin);
     }
+    // beside the panels docked on that side, rather than over them
+    if (KisStudioPanelColumn *far = d->farColumn; far && far->isVisible() && !far->isLeft()) {
+        const QRect pill(far->mapToGlobal(QPoint()), far->size());
+        if (pill.intersects(global)) global.moveRight(pill.left() - 1 - margin);
+    }
     if (d->flyoutAnchor) {
         // below what opened it, as tall as its contents, beside the tool rail rather than over it
         int left = qMax(area.left() + margin, d->flyoutAnchor->mapToGlobal(QPoint(0, 0)).x());
@@ -2312,6 +2680,7 @@ void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
         applyFold(dock, d->folded.contains(id));
     } else {
         d->pinned.remove(id);
+        d->far.remove(id);
         applyFold(dock, false);
         const bool wasVisible = !dock->isHidden();
         dock->hide();
@@ -2329,11 +2698,11 @@ void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
 
 void KisStudioLayout::arrangePinned()
 {
-    // in the rail's order; only redone when the order or the side has changed
+    // in the rail's order; only redone when the order or a side has changed
     const QStringList order = d->pinnedOrder();
     QString arrangement = d->panelsLeft ? QStringLiteral("L:") : QStringLiteral("R:");
     Q_FOREACH (const QString &id, order) {
-        arrangement += id + QLatin1Char(',');
+        arrangement += (d->far.contains(id) ? QStringLiteral("far ") : QString()) + id + QLatin1Char(',');
     }
     if (arrangement == d->arrangement) {
         updateColumns();
@@ -2342,20 +2711,22 @@ void KisStudioLayout::arrangePinned()
     d->arrangement = arrangement;
 
     KisStudioPanelColumn *column = panelColumn();
-    if (!column) {
+    KisStudioPanelColumn *far = farColumn();
+    if (!column || !far) {
         return;
     }
-    QList<QDockWidget *> docks;
+    QList<QDockWidget *> near;
+    QList<QDockWidget *> across;
     Q_FOREACH (const QString &id, order) {
         QDockWidget *dock = d->mainWindow->dockWidget(id);
-        if (dock && dock != d->flyout) docks << dock;
+        if (dock && dock != d->flyout) (d->far.contains(id) ? across : near) << dock;
     }
-    Q_FOREACH (QDockWidget *dock, column->panels()) {
-        if (!docks.contains(dock)) parkPanel(dock);
+    Q_FOREACH (QDockWidget *dock, column->panels() + far->panels()) {
+        if (!near.contains(dock) && !across.contains(dock)) parkPanel(dock);
     }
-    // take them out of the window's dock areas so the canvas extends under the pill
-    Q_FOREACH (QDockWidget *dock, docks) {
-        if (dock->parentWidget() != column->splitter()) {
+    // take them out of the window's dock areas so the canvas extends under the pills
+    Q_FOREACH (QDockWidget *dock, near + across) {
+        if (dock->parentWidget() != column->stack() && dock->parentWidget() != far->stack()) {
             const bool shown = !dock->isHidden();
             if (dock->isFloating()) dockAway(dock);
             d->mainWindow->removeDockWidget(dock);
@@ -2363,7 +2734,9 @@ void KisStudioLayout::arrangePinned()
         }
     }
     column->setLeft(d->panelsLeft);
-    column->setPanels(docks);
+    far->setLeft(!d->panelsLeft);
+    column->setPanels(near);
+    far->setPanels(across);
     restoreHeights();
     updateColumns();
 }
@@ -2371,23 +2744,47 @@ void KisStudioLayout::arrangePinned()
 KisStudioPanelColumn *KisStudioLayout::panelColumn()
 {
     if (!d->panelColumn) {
-        QMdiArea *area = mdiArea();
-        if (!area) return nullptr;
         KisConfig cfg(true);
         // fall back to the legacy key
-        const int width = cfg.readEntry<int>(columnWidthKey, cfg.readEntry<int>(QStringLiteral("StudioLayoutRightColumnWidth"), 270));
-        auto *column = new KisStudioPanelColumn(area->parentWidget(), d->panelsLeft, width);
-        column->resized = [this](bool done) {
-            // refit the views only when a width drag ends; doing it on every move costs most of a frame
-            updateCanvasInsets(done);
-            if (done && d->panelColumn) KisConfig(false).writeEntry(columnWidthKey, d->panelColumn->columnWidth());
-        };
-        column->moved = [this](bool left) { setPanelsSide(left); };
-        column->tapped = [this]() { setPanelsTucked(!d->panelsTucked); };
-        d->panelColumn = column;
+        d->panelColumn = createColumn(d->panelsLeft, cfg.readEntry<int>(columnWidthKey, cfg.readEntry<int>(QStringLiteral("StudioLayoutRightColumnWidth"), 270)),
+                                      columnWidthKey);
+        if (!d->panelColumn) return nullptr;
+        d->panelColumn->moved = [this](bool left) { setPanelsSide(left); };
+        d->panelColumn->tapped = [this]() { setPanelsTucked(!d->panelsTucked); };
     }
     if (d->rail) d->panelColumn->setStrip(d->rail);
     return d->panelColumn;
+}
+
+KisStudioPanelColumn *KisStudioLayout::farColumn()
+{
+    if (!d->farColumn) {
+        // as wide as the other until its own width is set
+        const int width = d->panelColumn ? d->panelColumn->columnWidth() : 270;
+        d->farColumn = createColumn(!d->panelsLeft, KisConfig(true).readEntry<int>(farWidthKey, width), farWidthKey);
+        if (d->farColumn) d->farColumn->setObjectName(QStringLiteral("studioFarPanels"));
+    }
+    return d->farColumn;
+}
+
+KisStudioPanelColumn *KisStudioLayout::createColumn(bool left, int width, const QString &widthKey)
+{
+    QMdiArea *area = mdiArea();
+    if (!area) return nullptr;
+    auto *column = new KisStudioPanelColumn(area->parentWidget(), left, width);
+    QPointer<KisStudioPanelColumn> self = column;
+    column->resized = [this, self, widthKey](bool done) {
+        // refit the views only when a width drag ends; doing it on every move costs most of a frame
+        updateCanvasInsets(done);
+        if (done && self) KisConfig(false).writeEntry(widthKey, self->columnWidth());
+    };
+    column->stack()->userHeight = [this](const QDockWidget *dock) { return d->heights.value(dock->objectName(), 0); };
+    column->stack()->resizedByUser = [this](QDockWidget *dock, int height, bool done) {
+        if (height > 0) d->heights.insert(dock->objectName(), height);
+        else d->heights.remove(dock->objectName());
+        if (done) saveHeights();
+    };
+    return column;
 }
 
 void KisStudioLayout::setPanelsTucked(bool tucked)
@@ -2434,6 +2831,7 @@ void KisStudioLayout::setToolRailSide(bool left)
 void KisStudioLayout::parkPanel(QDockWidget *dock)
 {
     KisStudioGlass::setSeeThrough(dock, false);
+    keepUpright(dock, false);
     dock->hide();
     d->mainWindow->addDockWidget(Qt::RightDockWidgetArea, dock);
     dock->hide();
@@ -2456,14 +2854,16 @@ void KisStudioLayout::placeWelcomePage()
 
 void KisStudioLayout::updateColumns()
 {
-    KisStudioPanelColumn *column = d->panelColumn;
-    if (column) {
+    for (KisStudioPanelColumn *column : {d->panelColumn.data(), d->farColumn.data()}) {
+        if (!column) continue;
         bool any = false;
         Q_FOREACH (QDockWidget *dock, column->panels()) {
             any = any || !dock->isHidden();
         }
         column->setPanelsShown(any && !arePanelsHidden() && !d->panelsTucked);
-        column->setVisible(d->active && (!isRailHidden() || d->peeking.contains(QPointer<QWidget>(column))));
+        // the far column is nothing without its panels; the other keeps its strip
+        const bool kept = column == d->panelColumn || column->panelsShown();
+        column->setVisible(d->active && kept && (!isRailHidden() || d->peeking.contains(QPointer<QWidget>(column))));
     }
     updateCanvasInsets();
 }
@@ -2476,27 +2876,34 @@ void KisStudioLayout::updateCanvasInsets(bool views)
     if (!area) {
         return;
     }
-    KisStudioPanelColumn *column = d->panelColumn;
-    const bool shown = column && !column->isHidden();
-    const bool full = shown && column->panelsShown();
-    const bool left = shown && column->isLeft();
-    const int reach = shown ? (left ? column->geometry().right() + 1 : area->width() - column->x()) : 0;
-    // the tool rail sits beside the pill, even when only its strip shows
-    const int pillLeft = shown && left ? reach : 0;
-    const int pillRight = shown && !left ? reach : 0;
+    // how far each side's pill reaches in, and whether it has its panels out (rather than only its strip)
+    int pillLeft = 0;
+    int pillRight = 0;
+    int fullLeft = 0;
+    int fullRight = 0;
+    for (KisStudioPanelColumn *column : {d->panelColumn.data(), d->farColumn.data()}) {
+        if (!column || column->isHidden()) continue;
+        const bool left = column->isLeft();
+        const int reach = left ? column->geometry().right() + 1 : area->width() - column->x();
+        // the tool rail sits beside the pill, even when only its strip shows
+        (left ? pillLeft : pillRight) = qMax(left ? pillLeft : pillRight, reach);
+        if (column->panelsShown()) (left ? fullLeft : fullRight) = qMax(left ? fullLeft : fullRight, reach);
+    }
     int top = 0;
     for (TopPill *pill : {d->topPill.data(), d->windowPill.data()}) {
         // a pill only peeking over the canvas doesn't push anything
         if (pill && !pill->isHidden() && !d->peeking.contains(pill)) top = qMax(top, pill->geometry().bottom() + 1);
     }
     // with its panels shown, the pill covers the canvas's side, so the HUD and the view keep clear of it
-    const QMargins insets(full && left ? reach : 0, top, full && !left ? reach : 0, 0);
+    const QMargins insets(fullLeft, top, fullRight, 0);
     if (canvasInsets(area) != insets || area->property(leftPillProperty).toInt() != pillLeft
         || area->property(rightPillProperty).toInt() != pillRight) {
         area->setProperty(leftInsetProperty, insets.left());
         area->setProperty(rightInsetProperty, insets.right());
         area->setProperty(topInsetProperty, insets.top());
-        if (column) column->place();
+        for (KisStudioPanelColumn *column : {d->panelColumn.data(), d->farColumn.data()}) {
+            if (column) column->place();
+        }
         area->setProperty(leftPillProperty, pillLeft);
         area->setProperty(rightPillProperty, pillRight);
         QCoreApplication::postEvent(area, new QEvent(QEvent::LayoutRequest));
@@ -2515,41 +2922,27 @@ void KisStudioLayout::updateCanvasInsets(bool views)
         const QRect widget(canvasWidget->mapToGlobal(QPoint()), canvasWidget->size());
         QMarginsF viewInsets;
         viewInsets.setTop(qMax(0, area->mapToGlobal(QPoint(0, top)).y() - widget.top()));
-        if (full && left) viewInsets.setLeft(qMax(0, column->mapToGlobal(QPoint(column->width(), 0)).x() - widget.left()));
-        if (full && !left) viewInsets.setRight(qMax(0, widget.right() + 1 - column->mapToGlobal(QPoint()).x()));
+        if (fullLeft) viewInsets.setLeft(qMax(0, area->mapToGlobal(QPoint(fullLeft, 0)).x() - widget.left()));
+        if (fullRight) viewInsets.setRight(qMax(0, widget.right() + 1 - area->mapToGlobal(QPoint(area->width() - fullRight, 0)).x()));
         if (view->canvasController()) view->canvasController()->setViewportInsets(viewInsets);
     }
 }
 
 void KisStudioLayout::restoreHeights()
 {
-    // resize once the column has laid out the panels
-    d->settlingHeights = true;
+    // fold once the column holds the panels, then fit them
     QTimer::singleShot(0, this, [this]() {
         Q_FOREACH (const QString &id, d->pinnedOrder()) {
             applyFold(d->mainWindow->dockWidget(id), d->folded.contains(id) && d->pinned.contains(id));
         }
-        if (KisStudioPanelColumn *column = d->panelColumn) {
-            QList<int> sizes;
-            Q_FOREACH (QDockWidget *dock, column->panels()) {
-                const QString id = dock->objectName();
-                sizes << (dock->isHidden() ? 0 : d->folded.contains(id) ? dock->minimumSizeHint().height()
-                                                                          : d->heights.value(id, qMax(160, dock->sizeHint().height())));
-            }
-            column->splitter()->setSizes(sizes);
+        for (KisStudioPanelColumn *column : {d->panelColumn.data(), d->farColumn.data()}) {
+            if (column) column->stack()->later();
         }
-        QTimer::singleShot(0, this, [this]() { d->settlingHeights = false; });
     });
 }
 
 void KisStudioLayout::saveHeights()
 {
-    Q_FOREACH (const QString &id, d->pinnedOrder()) {
-        QDockWidget *dock = d->mainWindow->dockWidget(id);
-        if (dock && !dock->isHidden() && !dock->isFloating() && !d->folded.contains(id)) {
-            d->heights.insert(id, dock->height());
-        }
-    }
     QStringList entries;
     for (auto it = d->heights.constBegin(); it != d->heights.constEnd(); ++it) {
         entries << it.key() + QLatin1Char('=') + QString::number(it.value());
@@ -2577,7 +2970,6 @@ void KisStudioLayout::gripClicked(const QString &id)
     }
     const bool fold = !d->folded.contains(id);
     if (fold) {
-        saveHeights();
         d->folded.insert(id);
     } else {
         d->folded.remove(id);
@@ -2590,7 +2982,6 @@ void KisStudioLayout::gripClicked(const QString &id)
         applyFold(dock, fold);
         return;
     }
-    d->settlingHeights = true;
     int to;
     if (fold) {
         // let it shrink and show the name at once; the content is squeezed when the animation ends
@@ -2601,7 +2992,7 @@ void KisStudioLayout::gripClicked(const QString &id)
         to = grip->height();
     } else {
         applyFold(dock, false);
-        to = d->heights.value(id, qMax(160, content->sizeHint().height() + grip->height()));
+        to = d->heights.value(id, qMax(160, dock->sizeHint().height()));
         dock->setMaximumHeight(from);
     }
     auto *animation = new QVariantAnimation(this);
@@ -2614,7 +3005,7 @@ void KisStudioLayout::gripClicked(const QString &id)
     connect(animation, &QVariantAnimation::valueChanged, this, [this, target, fold](const QVariant &value) {
         if (!target) return;
         target->setMaximumHeight(value.toInt());
-        if (!fold && d->panelColumn) d->panelColumn->resizePanel(target, value.toInt());
+        if (auto *stack = target ? dynamic_cast<PanelStack *>(target->parentWidget()) : nullptr) stack->relayout(true);
     });
     connect(animation, &QVariantAnimation::finished, this, [this, target, fold, to]() {
         if (target) {
@@ -2625,16 +3016,9 @@ void KisStudioLayout::gripClicked(const QString &id)
                 target->setMaximumHeight(to);
             } else {
                 target->setMaximumHeight(QWIDGETSIZE_MAX);
-                if (d->panelColumn) d->panelColumn->resizePanel(target, to);
             }
         }
-        QTimer::singleShot(0, this, [this]() {
-            // keep settling while another panel is still folding
-            Q_FOREACH (QVariantAnimation *other, findChildren<QVariantAnimation *>(QString(), Qt::FindDirectChildrenOnly)) {
-                if (other->objectName().startsWith(QLatin1String("studioFold_")) && other->state() == QAbstractAnimation::Running) return;
-            }
-            d->settlingHeights = false;
-        });
+        if (auto *stack = target ? dynamic_cast<PanelStack *>(target->parentWidget()) : nullptr) stack->relayout(true);
     });
     animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
@@ -2666,6 +3050,7 @@ void KisStudioLayout::applyFold(QDockWidget *dock, bool fold)
         grip->setFolded(fold, dock->windowTitle());
     }
     dock->setMaximumHeight(fold && grip ? grip->height() : QWIDGETSIZE_MAX);
+    if (auto *stack = dynamic_cast<PanelStack *>(dock->parentWidget())) stack->later();
 }
 
 void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool fromRail)
@@ -2687,18 +3072,20 @@ void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool
     }
 
     d->pinned.insert(id);
+    if (drop.far) d->far.insert(id);
+    else d->far.remove(id);
     savePinned();
     if (dock == d->flyout) {
         releaseFlyout();
     }
     dockAway(dock);
 
-    // the column follows the rail's order, so insert it on the rail where it lands in the column
+    // the columns follow the rail's order, so insert it on the rail where it lands in its column
     QStringList panels = d->railPanels;
     panels.removeAll(id);
     int at = drop.before.isEmpty() ? -1 : panels.indexOf(drop.before);
     if (at < 0) {
-        Q_FOREACH (QDockWidget *other, d->column(id)) {
+        Q_FOREACH (QDockWidget *other, d->column(id, drop.far)) {
             at = qMax(at, panels.indexOf(other->objectName()) + 1);
         }
     }
@@ -2713,6 +3100,9 @@ void KisStudioLayout::savePinned()
     QStringList pinned = d->pinned.values();
     pinned.sort();
     KisConfig(false).writeEntry(pinnedKey, pinned);
+    QStringList far = d->far.values();
+    far.sort();
+    KisConfig(false).writeEntry(farKey, far);
 }
 
 void KisStudioLayout::createRail()
@@ -3607,6 +3997,7 @@ void KisStudioLayout::peek(const QPoint &global)
         {d->topPill.data(), at.y() < reach},
         {d->brushRail.data(), toolsLeft ? at.x() < reach : at.x() >= area->width() - reach},
         {d->panelColumn.data(), d->panelColumn && d->panelColumn->isLeft() ? at.x() < reach : at.x() >= area->width() - reach},
+        {d->farColumn.data(), d->farColumn && d->farColumn->panelsShown() && (d->farColumn->isLeft() ? at.x() < reach : at.x() >= area->width() - reach)},
     };
     for (const Edge &edge : edges) {
         QWidget *widget = edge.widget;
@@ -3708,14 +4099,6 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
             if (!ownCard && find && find->showCard(button)) {
                 return true;
             }
-        }
-    }
-
-    // a pinned panel resized by the user keeps that height
-    if (event->type() == QEvent::Resize && !d->settlingHeights) {
-        auto *dock = qobject_cast<QDockWidget *>(watched);
-        if (dock && d->panels.contains(dock) && d->pinned.contains(dock->objectName()) && !dock->isFloating()) {
-            d->heightSave->start();
         }
     }
 
