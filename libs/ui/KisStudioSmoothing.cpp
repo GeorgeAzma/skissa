@@ -37,6 +37,7 @@
 #include "kis_painting_assistants_decoration.h"
 #include "kis_config.h"
 #include "tool/kis_tool_freehand.h"
+#include "tool/kis_tool_freehand_helper.h"
 #include "widgets/KisStudioChips.h"
 #include "widgets/KisStudioValueRow.h"
 
@@ -227,7 +228,19 @@ QVector<Sample> stabilized(const QVector<Sample> &raw, const KisSmoothingOptions
         for (int i = 1; i < queue.size(); i++) {
             const qreal k = qreal(i) / (i + 1);
             result.pos = k * result.pos + (1 - k) * queue[i].pos;
-            if (options.stabilizeSensors()) result.pressure = k * result.pressure + (1 - k) * queue[i].pressure;
+        }
+        if (options.stabilizeSensors()) {
+            // as the helper does: over a few milliseconds around the queue's middle
+            const int count = queue.size();
+            const int middle = count / 2;
+            const int reach = qMin(middle, KisToolFreehandHelper::stabilizedSensorsReach);
+            qreal pressure = 0;
+            int mixed = 0;
+            for (int index = middle - reach; index <= qMin(count - 1, middle + reach); index++) {
+                pressure += index < count - 1 ? queue[index + 1].pressure : sample.pressure;
+                mixed++;
+            }
+            result.pressure = pressure / mixed;
         }
         out << result;
         previous = result;
@@ -756,7 +769,7 @@ void KisStudioStrokePage::rebuild()
             percent.suffix = QStringLiteral("%");
             auto *ending = addRow(i18nc("how a smoothed line ends", "Stroke Ending"), percent, options->tailAggressiveness() * 100,
                                   KisConfig(true).lineSmoothingTailAggressiveness(true) * 100);
-            ending->setToolTip(i18nc("@info:tooltip", "0% the end lags → 100% it ends at the pen"));
+            ending->setToolTip(i18nc("@info:tooltip", "0% the end lags â†’ 100% it ends at the pen"));
             connect(ending, &KisStudioValueRow::valueChanged, this, [change](qreal value) {
                 change([value](KisSmoothingOptions &options) { options.setTailAggressiveness(value / 100); });
             });
@@ -824,7 +837,7 @@ void KisStudioStrokePage::rebuild()
         snap->setValue(snapping ? tool->property("magnetism").toInt() / 10.0 : 0);
         snap->setValueText(snapping ? QString() : i18nc("snapping is off", "Off"));
         snap->setDefaultValue(0);
-        snap->setToolTip(i18nc("@info:tooltip", "0% off → 100% on the guide"));
+        snap->setToolTip(i18nc("@info:tooltip", "0% off â†’ 100% on the guide"));
         const QPointer<QObject> target(tool);
         connect(snap, &KisStudioValueRow::valueChanged, this, [target, snap](qreal value) {
             if (!target) return;
@@ -835,7 +848,7 @@ void KisStudioStrokePage::rebuild()
         lineLayout->addWidget(snap, 1);
         auto *more = new QToolButton(line);
         more->setAutoRaise(true);
-        more->setText(QStringLiteral("⋯"));
+        more->setText(QStringLiteral("â‹¯"));
         more->setToolTip(i18nc("@info:tooltip", "More snapping"));
         more->setPopupMode(QToolButton::InstantPopup);
         auto *menu = new QMenu(more);
@@ -860,7 +873,7 @@ void KisStudioStrokePage::rebuild()
     if (KoToolManager::instance()->activeToolId() != QLatin1String("KritaShape/KisToolBrush")) {
         auto *rest = new KisStudioValueRow(i18nc("the rest of the tool's options", "Tool options"), this);
         rest->setDraggable(false);
-        rest->setValueText(QStringLiteral("›"));
+        rest->setValueText(QStringLiteral("â€º"));
         connect(rest, &KisStudioValueRow::clicked, this, [mainWindow]() { Q_EMIT KisStudioSmoothing::instance()->sigToolOptionsRequested(mainWindow); });
         d->layout->addSpacing(KisModernStyle::space1);
         d->layout->addWidget(rest);

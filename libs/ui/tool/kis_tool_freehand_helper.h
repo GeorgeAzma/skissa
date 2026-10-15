@@ -33,6 +33,8 @@ class KRITAUI_EXPORT KisToolFreehandHelper : public QObject
     Q_OBJECT
 
 public:
+    /// The stabilizer evens the pen's pressure and tilt out over this many samples (milliseconds) either side
+    static constexpr int stabilizedSensorsReach = 12;
 
     KisToolFreehandHelper(KisPaintingInformationBuilder *infoBuilder,
                           KoCanvasResourceProvider *resourceManager,

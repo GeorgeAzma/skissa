@@ -1066,20 +1066,43 @@ KisToolFreehandHelper::getStabilizedPaintInfo(const QQueue<KisPaintInformation> 
         it++;
         int i = 2;
 
+        while (it != end) {
+            qreal k = qreal(i - 1) / i; // coeff for uniform averaging
+            result.KisPaintInformation::mixOtherOnlyPosition(k, *it);
+            it++;
+            i++;
+        }
+
         if (m_d->smoothingOptions->stabilizeSensors()) {
-            while (it != end) {
-                qreal k = qreal(i - 1) / i; // coeff for uniform averaging
-                result.KisPaintInformation::mixOtherWithoutTime(k, *it);
-                it++;
-                i++;
+            /**
+             * The pen's sensors are evened out only over a few milliseconds around the middle of the queue,
+             * where the pen was at the averaged position: pressure still follows the hand at any strength.
+             * The samples in time order are the queue without its oldest one, then lastPaintInfo.
+             */
+            const int count = queue.size();
+            auto sample = [&](int index) -> const KisPaintInformation & {
+                return index < count - 1 ? queue[index + 1] : lastPaintInfo;
+            };
+            const int middle = count / 2;
+            const int reach = qMin(middle, stabilizedSensorsReach);
+            KisPaintInformation sensors(sample(middle - reach));
+            int mixed = 1;
+            for (int index = middle - reach + 1; index <= qMin(count - 1, middle + reach); index++) {
+                mixed++;
+                sensors.mixOtherWithoutTime(qreal(mixed - 1) / mixed, sample(index));
             }
-        } else{
-            while (it != end) {
-                qreal k = qreal(i - 1) / i; // coeff for uniform averaging
-                result.KisPaintInformation::mixOtherOnlyPosition(k, *it);
-                it++;
-                i++;
-            }
+            result = KisPaintInformation(result.pos(),
+                                         sensors.pressure(),
+                                         sensors.xTilt(),
+                                         sensors.yTilt(),
+                                         sensors.rotation(),
+                                         sensors.tangentialPressure(),
+                                         sensors.perspective(),
+                                         elapsedStrokeTime(),
+                                         sensors.drawingSpeed());
+            result.setCanvasRotation(lastPaintInfo.canvasRotation());
+            result.setCanvasMirroredH(lastPaintInfo.canvasMirroredH());
+            result.setCanvasMirroredV(lastPaintInfo.canvasMirroredV());
         }
     }
 

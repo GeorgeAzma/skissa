@@ -84,6 +84,7 @@
 #include <QtGui/private/qhighdpiscaling_p.h>
 #include <QScreen>
 #include <QTouchDevice>
+#include <QTabletEvent>
 #include <windows.h>
 #include <winuser.h>
 #include <windowsx.h>
@@ -202,7 +203,7 @@ public:
             return true;
         }
         if (msg->message == mouseMessage) {
-            mouse(int(msg->wParam), QPoint(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam)));
+            mouse(int(msg->wParam & 0xff), QPoint(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam)), int(msg->wParam >> 8) / 1000.0);
             return true;
         }
         if (msg->message == treeMessage) {
@@ -418,9 +419,10 @@ private:
     /**
      * Input at a point of the capture image (lParam: x, y) through Qt's input queue, without moving the
      * system cursor. wParam: 0 move, 1/2 left press/release, 3/4 right press/release, 5/6 wheel up/down,
-     * 7/8/9 touch down/move/up, 10/11 middle press/release.
+     * 7/8/9 touch down/move/up, 10/11 middle press/release, 12/13/14 pen down/move/up with the pressure in thousandths
+     * above the action's byte.
      */
-    static void mouse(int action, const QPoint &imagePos)
+    static void mouse(int action, const QPoint &imagePos, qreal pressure = 1.0)
     {
         static Qt::MouseButtons buttons;
         QRect bounds;
@@ -477,6 +479,21 @@ private:
             point.normalPosition = QPointF((global.x() - screen.x()) / screen.width(), (global.y() - screen.y()) / screen.height());
             point.pressure = action == 9 ? 0 : 1;
             QWindowSystemInterface::handleTouchEvent(window, device, {point});
+            return;
+        }
+        case 12:
+        case 13:
+        case 14: {
+            static Qt::MouseButtons pen;
+            if (action == 12) {
+                QWindowSystemInterface::handleTabletEnterProximityEvent(QTabletEvent::Stylus, QTabletEvent::Pen, 1);
+                pen = Qt::LeftButton;
+            }
+            if (action == 14) pen = Qt::NoButton;
+            QWindowSystemInterface::handleTabletEvent(window, local, nativeGlobal, QTabletEvent::Stylus, QTabletEvent::Pen, pen,
+                                                      action == 14 ? 0.0 : pressure, 0, 0, 0, 0, 0, 1, QGuiApplication::keyboardModifiers());
+            // lifted away, so that the mouse is the mouse again
+            if (action == 14) QWindowSystemInterface::handleTabletLeaveProximityEvent(QTabletEvent::Stylus, QTabletEvent::Pen, 1);
             return;
         }
         default: break;
