@@ -2771,7 +2771,7 @@
       <iconText>Isolate Active Layer</iconText>
       <activationFlags>1000</activationFlags>
       <activationConditions>0</activationConditions>
-      <shortcut/>
+      <shortcut>`</shortcut>
       <isCheckable>true</isCheckable>
       <statusTip/>
     </Action>
