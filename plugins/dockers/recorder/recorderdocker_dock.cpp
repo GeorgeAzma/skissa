@@ -368,7 +368,7 @@ public:
         : QWidget(parent)
     {
         setCursor(Qt::SizeHorCursor);
-        setToolTip(i18nc("@info:tooltip", "The whole painting in this long, e.g. 30 s"));
+        setToolTip(i18nc("@info:tooltip", "How long the whole painting plays, e.g. 30 s"));
         setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     }
 
@@ -489,11 +489,16 @@ private:
 struct VideoFormat {
     QString name;
     int profile;
+    /// What it is good for
+    QString toolTip;
 };
 
 const QVector<VideoFormat> &videoFormats()
 {
-    static const QVector<VideoFormat> formats = {{QStringLiteral("MP4"), 0}, {QStringLiteral("GIF"), 1}, {QStringLiteral("WebM"), 3}};
+    static const QVector<VideoFormat> formats = {
+        {QStringLiteral("MP4"), 0, i18nc("@info:tooltip video format", "Plays anywhere")},
+        {QStringLiteral("GIF"), 1, i18nc("@info:tooltip video format", "Loops in chats; the largest file")},
+        {QStringLiteral("WebM"), 3, i18nc("@info:tooltip video format", "Small, for the web")}};
     return formats;
 }
 
@@ -812,10 +817,7 @@ public:
         for (const VideoFormat &videoFormat : videoFormats()) {
             auto *button = new QToolButton(page);
             button->setText(videoFormat.name);
-            // what each format is good for
-            if (videoFormat.profile == 0) button->setToolTip(i18nc("@info:tooltip video format", "MP4: plays anywhere"));
-            else if (videoFormat.profile == 1) button->setToolTip(i18nc("@info:tooltip video format", "GIF: loops in chats, no sound, larger"));
-            else button->setToolTip(i18nc("@info:tooltip video format", "WebM: small, for the web"));
+            button->setToolTip(videoFormat.toolTip);
             button->setCheckable(true);
             button->setAutoExclusive(true);
             button->setAutoRaise(true);

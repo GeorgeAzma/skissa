@@ -35,6 +35,8 @@ public:
     static KisPaintOpOption *brushOption(KisMainWindow *mainWindow, const QString &id);
     /// The key that pins \p option to the top bar
     static QString pinKey(KisPaintOpOption *option);
+    /// A part of a brush as its tab and column are named (Tip, Mask, Texture, Color, Filter, Stroke)
+    static QString partName(int part);
     /// What a brush setting does, as a short tooltip; empty when its name says it
     static QString optionTip(KisPaintOpOption *option);
     /// Keeps \p row showing \p option's value and changing it

@@ -412,6 +412,9 @@ struct KisStudioEffectOverlay::Private
     QToolButton *preview {nullptr};
     QToolButton *editable {nullptr};
     QToolButton *reset {nullptr};
+    /// The settings at their defaults, as the panel writes them (it may add to them: curves per channel, a version);
+    /// empty while that isn't known, as when the effect opened with its last used settings
+    QString defaults;
     KisSignalCompressor compressor;
     /// Allows only zooming and panning, no painting, while the effect is adjusted
     QScopedPointer<KisInputActionGroupsMaskGuard> guard;
@@ -502,6 +505,7 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
         KisConfigWidget *settings = d->selector ? d->selector->findChild<KisConfigWidget *>() : nullptr;
         if (!settings || !d->filter) return;
         settings->setConfiguration(d->filter->defaultConfiguration(KisGlobalResourcesInterface::instance()));
+        d->defaults = d->selector->configuration()->toXML();
         d->compressor.start();
         showReset();
     });
@@ -558,8 +562,7 @@ KisStudioEffectOverlay::~KisStudioEffectOverlay()
 void KisStudioEffectOverlay::showReset()
 {
     KisFilterConfigurationSP current = d->selector ? d->selector->configuration() : KisFilterConfigurationSP();
-    KisFilterConfigurationSP defaults = d->filter ? d->filter->defaultConfiguration(KisGlobalResourcesInterface::instance()) : KisFilterConfigurationSP();
-    d->reset->setVisible(current && defaults && current->toXML() != defaults->toXML());
+    d->reset->setVisible(current && (d->defaults.isEmpty() || current->toXML() != d->defaults));
 }
 
 bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP overrideDefaultConfig)
@@ -604,6 +607,10 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
         d->editable->setChecked(KisConfig(true).readEntry<bool>(editableKey, true));
     }
     d->editable->setVisible(d->maskPossible());
+    // opened at its defaults: what the panel makes of them is what the reset compares with
+    KisFilterConfigurationSP defaults = filter->defaultConfiguration(KisGlobalResourcesInterface::instance());
+    const bool atDefaults = !overrideDefaultConfig || overrideDefaultConfig->toXML() == defaults->toXML();
+    d->defaults = atDefaults && selector->configuration() ? selector->configuration()->toXML() : QString();
     showReset();
     {
         QSignalBlocker blocker(d->preview);
@@ -731,6 +738,8 @@ void KisStudioEffectOverlay::createMask(KisFilterConfigurationSP config)
     if (layer->allowAsChild(mask)) {
         KisNodeCommandsAdapter adapter(viewManager);
         adapter.addNode(mask, layer, layer->lastChild());
+        // its settings are the ones it opens with next time, as when painted in
+        KisFilterManager::rememberLastUsed(config, d->node->paintDevice());
         KisStudioEffectsPicker::recordUse(d->filter->id());
     }
     finishEditing();

@@ -343,15 +343,17 @@ QWidget *KisTextureOptionWidget::createQuickPage(PaintopCategory category, QWidg
         qreal minimum;
         qreal maximum;
         qreal neutral;
+        /// Dragged by ratios, as sizes are
+        bool size;
         std::function<qreal()> get;
         std::function<void(qreal)> set;
     };
     const QVector<Setting> settings = {
-        {i18nc("texture setting", "Scale"), 1, 200, 100,
+        {i18nc("texture setting", "Scale"), 1, 200, 100, true,
          [model]() { return model->scale() * 100.0; }, [model](qreal value) { model->setscale(value / 100.0); }},
-        {i18nc("texture setting", "Brightness"), -100, 100, 0,
+        {i18nc("texture setting", "Brightness"), -100, 100, 0, false,
          [model]() { return model->brightness() * 100.0; }, [model](qreal value) { model->setbrightness(value / 100.0); }},
-        {i18nc("texture setting", "Contrast"), 0, 200, 100,
+        {i18nc("texture setting", "Contrast"), 0, 200, 100, false,
          [model]() { return model->contrast() * 100.0; }, [model](qreal value) { model->setcontrast(value / 100.0); }},
     };
     Q_FOREACH (const Setting &setting, settings) {
@@ -360,6 +362,7 @@ QWidget *KisTextureOptionWidget::createQuickPage(PaintopCategory category, QWidg
         range.minimum = setting.minimum;
         range.maximum = setting.maximum;
         range.suffix = i18nc("percent, after the number", "%");
+        range.size = setting.size;
         row->setRange(range);
         row->setDefaultValue(setting.neutral);
         const auto get = setting.get;

@@ -64,22 +64,6 @@ QHash<KisMainWindow *, QPointer<KisStudioBrushSheet>> &sheets()
     return all;
 }
 
-QString partName(int part)
-{
-    switch (part) {
-    case KisPaintOpOption::GENERAL:
-        return i18nc("brush part: its tip and how it is laid down", "Tip");
-    case KisPaintOpOption::MASKING_BRUSH:
-        return i18nc("brush part: a second tip that cuts into the first", "Mask");
-    case KisPaintOpOption::TEXTURE:
-        return i18nc("brush part", "Texture");
-    case KisPaintOpOption::COLOR:
-        return i18nc("brush part", "Color");
-    case KisPaintOpOption::FILTER:
-        return i18nc("brush part", "Filter");
-    }
-    return QString();
-}
 
 /**
  * Which pen input drives which setting: a row for each setting the pen drives, a column for each
@@ -166,7 +150,9 @@ protected:
             painter.setPen(ink);
             // the mask's and the texture's own settings say whose they are
             const QString name = option->category() == KisPaintOpOption::GENERAL || option->category() == KisPaintOpOption::COLOR
-                ? option->label() : partName(option->category()) + QLatin1Char(' ') + option->label().toLower();
+                ? option->label()
+                : i18nc("a brush setting of a part, e.g. Mask opacity: %1 the part, %2 the setting", "%1 %2",
+                        KisStudioBrushEditor::partName(option->category()), option->label().toLower());
             painter.drawText(QRectF(0, y, label - 8, rowHeight), Qt::AlignVCenter | Qt::AlignLeft, name);
             const QVector<KisPaintOpOption::PenInput> inputs = option->penInputs();
             for (int c = 0; c < columns.size() && c < inputs.size(); c++) {
@@ -215,6 +201,7 @@ protected:
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
+        if (event->button() != Qt::LeftButton) return;
         const QVector<KisPaintOpOption::PenInput> columns = inputs();
         const QList<KisPaintOpOption *> lines = rows();
         if (columns.isEmpty() || event->pos().x() < label || event->pos().y() < header) return;
@@ -275,6 +262,8 @@ struct KisStudioBrushSheet::Private
     QPointer<KisMainWindow> mainWindow;
     QPointer<KisPaintopBox> box;
     QPointer<KisPaintOpSettingsWidget> settings;
+    /// The brush's settings are in use (useOptionWidget()), from shown to closed
+    bool usingSettings {false};
 
     QLabel *name {nullptr};
     QToolButton *engine {nullptr};
@@ -343,6 +332,25 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
     d->engine->setPopupMode(QToolButton::InstantPopup);
     d->engine->setToolTip(i18nc("@info:tooltip", "A new brush with another engine"));
     title->addWidget(d->engine, 0, Qt::AlignLeft);
+    // a new brush of another engine: the menu is made once, as the engines don't change
+    auto *engines = new QMenu(d->engine);
+    QList<KisPaintOpFactory *> factories;
+    Q_FOREACH (const QString &id, KisPaintOpRegistry::instance()->keys()) {
+        if (KisPaintOpFactory *factory = KisPaintOpRegistry::instance()->get(id)) factories << factory;
+    }
+    std::sort(factories.begin(), factories.end(), [](KisPaintOpFactory *a, KisPaintOpFactory *b) {
+        return a->name().localeAwareCompare(b->name()) < 0;
+    });
+    Q_FOREACH (KisPaintOpFactory *factory, factories) {
+        const QString id = factory->id();
+        engines->addAction(factory->name(), this, [this, id]() {
+            // after the menu is done: the new brush rebuilds the sheet
+            QTimer::singleShot(0, this, [this, id]() {
+                if (d->box) d->box->slotCreatePresetFromScratch(id);
+            });
+        });
+    }
+    d->engine->setMenu(engines);
     header->addLayout(title);
     d->preview = new KisPresetLivePreviewView(this);
     d->preview->setFixedSize(460, 64);
@@ -428,8 +436,10 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
 
     d->refreshGrid.setSingleShot(true);
     connect(&d->refreshGrid, &QTimer::timeout, this, [this]() {
+        // the sheet only grows or shrinks when the grid gains or loses a row, not with each value dragged
+        const int before = d->grid->minimumHeight();
         d->grid->refresh();
-        adjustSize();
+        if (d->grid->minimumHeight() != before) adjustSize();
     });
 
     if (d->box) {
@@ -444,13 +454,19 @@ KisStudioBrushSheet::~KisStudioBrushSheet()
 
 void KisStudioBrushSheet::showEvent(QShowEvent *event)
 {
-    if (d->box) d->box->setQuickEditorShown(true);
+    if (d->box && !d->usingSettings) {
+        d->box->useOptionWidget(true);
+        d->usingSettings = true;
+    }
     KisStudioPopup::showEvent(event);
 }
 
 void KisStudioBrushSheet::closeEvent(QCloseEvent *event)
 {
-    if (d->box) d->box->setQuickEditorShown(false);
+    if (d->box && d->usingSettings) {
+        d->box->useOptionWidget(false);
+        d->usingSettings = false;
+    }
     if (d->pen) d->pen->close();
     if (d->details) d->details->close();
     KisStudioPopup::closeEvent(event);
@@ -492,23 +508,6 @@ void KisStudioBrushSheet::rebuild()
         }
     }
 
-    // a new brush of another engine
-    auto *engines = new QMenu(d->engine);
-    QList<KisPaintOpFactory *> factories;
-    Q_FOREACH (const QString &id, KisPaintOpRegistry::instance()->keys()) {
-        if (KisPaintOpFactory *factory = KisPaintOpRegistry::instance()->get(id)) factories << factory;
-    }
-    std::sort(factories.begin(), factories.end(), [](KisPaintOpFactory *a, KisPaintOpFactory *b) {
-        return a->name().localeAwareCompare(b->name()) < 0;
-    });
-    Q_FOREACH (KisPaintOpFactory *factory, factories) {
-        const QString id = factory->id();
-        engines->addAction(factory->name(), this, [this, id]() {
-            if (d->box) d->box->slotCreatePresetFromScratch(id);
-        });
-    }
-    delete d->engine->menu();
-    d->engine->setMenu(engines);
     updateHeader();
 
     while (QLayoutItem *item = d->columnsLayout->takeAt(0)) {
@@ -534,7 +533,7 @@ void KisStudioBrushSheet::rebuild()
         auto *columnLayout = new QVBoxLayout(column);
         columnLayout->setContentsMargins(0, 0, 0, 0);
         columnLayout->setSpacing(KisModernStyle::space1);
-        auto *title = new QLabel(partName(part), column);
+        auto *title = new QLabel(KisStudioBrushEditor::partName(part), column);
         title->setFont(KisModernStyle::textFont(font(), 1.0, QFont::DemiBold));
         columnLayout->addWidget(title);
 
@@ -642,11 +641,10 @@ void KisStudioBrushSheet::rebuild()
         }
         columnLayout->addStretch(1);
         d->columnsLayout->addWidget(column, 0, Qt::AlignTop);
-
-        Q_FOREACH (KisPaintOpOption *option, options) {
-            connect(option, &KisPaintOpOption::sigCheckedChanged, &d->refreshGrid, qOverload<>(&QTimer::start), Qt::UniqueConnection);
-            connect(option, &KisPaintOpOption::sigSettingChanged, &d->refreshGrid, qOverload<>(&QTimer::start), Qt::UniqueConnection);
-        }
+    }
+    Q_FOREACH (KisPaintOpOption *option, options) {
+        connect(option, &KisPaintOpOption::sigCheckedChanged, &d->refreshGrid, qOverload<>(&QTimer::start), Qt::UniqueConnection);
+        connect(option, &KisPaintOpOption::sigSettingChanged, &d->refreshGrid, qOverload<>(&QTimer::start), Qt::UniqueConnection);
     }
     d->grid->refresh();
     adjustSize();

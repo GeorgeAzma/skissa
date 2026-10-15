@@ -5,6 +5,7 @@
  */
 #include "KisStudioControls.h"
 
+#include <QApplication>
 #include <QDrag>
 #include <QDragEnterEvent>
 #include <QFrame>
@@ -24,7 +25,6 @@
 #include <kis_icon_utils.h>
 
 #include "KisMainWindow.h"
-#include "KisPart.h"
 #include "KisSettingsRegistry.h"
 #include "KisStudioBrushEditor.h"
 #include "KisStudioItemCard.h"
@@ -52,6 +52,9 @@ public:
     BrushControl(KisMainWindow *mainWindow, KisPaintOpOption *option, QWidget *parent)
         : KisStudioValueRow(option->label(), parent)
     {
+        // the settings follow the brush while the row is there: changed by keys or on the canvas, it shows that
+        m_box = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr;
+        if (m_box) m_box->useOptionWidget(true);
         KisStudioBrushEditor::bindRow(this, option, KisStudioBrushEditor::brushSettings(mainWindow));
         const QPointer<KisPaintOpOption> target(option);
         connect(this, &KisStudioValueRow::typingStarted, this, [this]() {
@@ -73,10 +76,12 @@ public:
     ~BrushControl() override
     {
         if (m_pen) m_pen->close();
+        if (m_box) m_box->useOptionWidget(false);
     }
 
 private:
     QPointer<KisStudioPenPopup> m_pen;
+    QPointer<KisPaintopBox> m_box;
 };
 
 /// One of Krita's settings: a number drags, a switch toggles, a choice opens its choices
@@ -113,9 +118,9 @@ public:
         });
         connect(this, &KisStudioValueRow::clicked, this, &SettingControl::clickedOn);
         connect(R::instance(), &R::valueChanged, this, [this](const QString &changed) {
-            if (changed == m_id) show();
+            if (changed == m_id) refresh();
         });
-        show();
+        refresh();
     }
 
 protected:
@@ -127,7 +132,7 @@ protected:
     }
 
 private:
-    void show()
+    void refresh()
     {
         const R::Setting *setting = R::instance()->setting(m_id);
         if (!setting) return;
@@ -208,6 +213,8 @@ struct KisStudioControlsPanel::Private
     QLabel *empty {nullptr};
     QToolButton *add {nullptr};
     QList<QWidget *> rows;
+    /// The item each row is (a pinned setting this brush lacks has none)
+    QVector<int> rowItems;
     QPointer<KisMainWindow> mainWindow;
 };
 
@@ -279,6 +286,7 @@ void KisStudioControlsPanel::rebuild()
         row->deleteLater();
     }
     d->rows.clear();
+    d->rowItems.clear();
     while (QLayoutItem *item = d->layout->takeAt(0)) {
         delete item;
     }
@@ -302,7 +310,8 @@ void KisStudioControlsPanel::rebuild()
             });
         });
         connect(row, &KisStudioValueRow::pulledOut, this, [this, key, row]() {
-            auto *drag = new QDrag(row);
+            // the rows may be rebuilt while it runs: the drag isn't the row's
+            auto *drag = new QDrag(qApp);
             auto *mime = new QMimeData();
             mime->setData(KisStudioShortcuts::itemMimeType(), key.toUtf8());
             drag->setMimeData(mime);
@@ -310,6 +319,7 @@ void KisStudioControlsPanel::rebuild()
             drag->setHotSpot(QPoint(row->width() / 2, row->height() / 2));
             // moved elsewhere or dropped off: it leaves the panel, unless the drag was cancelled with Esc
             const Qt::DropAction done = drag->exec(Qt::MoveAction | Qt::CopyAction);
+            drag->deleteLater();
             if (done == Qt::IgnoreAction && KisModernStyle::pointerHeld()) return;
             if (done == Qt::MoveAction && property("droppedHere").toBool()) return;
             QTimer::singleShot(0, this, [this, key]() {
@@ -320,6 +330,7 @@ void KisStudioControlsPanel::rebuild()
         });
         d->layout->addWidget(row);
         d->rows << row;
+        d->rowItems << i;
     }
     d->empty->setVisible(d->rows.isEmpty());
     d->layout->addWidget(d->empty);
@@ -391,10 +402,7 @@ void KisStudioControlsPanel::pickSetting()
 int KisStudioControlsPanel::dropIndex(int y) const
 {
     for (int r = 0; r < d->rows.size(); r++) {
-        if (y < d->rows[r]->geometry().center().y()) {
-            const QString key = d->items.value(r);
-            return d->items.indexOf(key);
-        }
+        if (y < d->rows[r]->geometry().center().y()) return d->rowItems[r];
     }
     return d->items.size();
 }
@@ -417,7 +425,7 @@ void KisStudioControlsPanel::dragMoveEvent(QDragMoveEvent *event)
     const int index = dropIndex(at.y());
     int y = d->rows.isEmpty() ? KisModernStyle::space2 : d->rows.last()->geometry().bottom() + 2;
     for (int r = 0; r < d->rows.size(); r++) {
-        if (d->items.indexOf(d->items.value(r)) >= index) {
+        if (d->rowItems[r] >= index) {
             y = d->rows[r]->geometry().top() - 2;
             break;
         }

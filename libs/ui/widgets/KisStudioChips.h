@@ -6,7 +6,6 @@
 #ifndef KISSTUDIOCHIPS_H
 #define KISSTUDIOCHIPS_H
 
-#include <QIcon>
 #include <QVector>
 #include <QWidget>
 
@@ -38,7 +37,6 @@ public:
     explicit KisStudioChips(QWidget *parent = nullptr);
 
     void setChips(const QVector<Chip> &chips);
-    const QVector<Chip> &chips() const { return m_chips; }
     /// Shares the width equally in one row
     void setTabs(bool tabs);
     /// Square chips of this side holding pictures; 0: sized to their text
@@ -47,7 +45,6 @@ public:
     void setTileColumns(int columns, int height);
     /// The chip outlined as the one being edited; -1: none
     void setCurrent(int index);
-    int current() const { return m_current; }
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;

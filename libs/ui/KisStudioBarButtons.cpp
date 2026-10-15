@@ -244,7 +244,7 @@ KisStudioBarButtons::KisStudioBarButtons(KisMainWindow *mainWindow, QWidget *par
     d->indicator->hide();
 
     d->items = KisConfig(true).readEntry<QStringList>(itemsKey, defaultItems());
-    // the brush editor's button gave way to the brush's chip, once; put back, it stays
+    // the brush's chip opens the brush editor: a bar saved with the editor's button loses it once, and keeps it if put back
     if (!KisConfig(true).readEntry("StudioBarBrushEditorRetired", false)) {
         KisConfig cfg(false);
         cfg.writeEntry("StudioBarBrushEditorRetired", true);
@@ -351,8 +351,11 @@ void KisStudioBarButtons::rebuild()
             QAction *action = item.action;
             // the brush editor's action is checkable, but it only opens the editor
             if (action && action->isCheckable() && key != brushEditorItem) {
-                // eraser mode's icon is drawn solid while it is on
-                if (action->objectName() == QLatin1String("erase_action")) action->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_erase_mode")));
+                // eraser mode's icon is drawn solid while it is on (set once: menus and Find show it too)
+                if (action->objectName() == QLatin1String("erase_action") && !action->property("studioIcon").toBool()) {
+                    action->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_erase_mode")));
+                    action->setProperty("studioIcon", true);
+                }
                 // the action keeps the button's state (and icon) in step, whatever changes it
                 button->setDefaultAction(action);
                 button->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -514,19 +517,22 @@ void KisStudioBarButtons::toggle(KisMainWindow *mainWindow, const QString &key)
 
 Qt::DropAction KisStudioBarButtons::dragItem(const QString &key, QWidget *source)
 {
-    auto *drag = new QDrag(source);
+    // the source may be rebuilt while the drag runs (a brush picked meanwhile): the drag isn't its child
+    auto *drag = new QDrag(qApp);
     auto *mime = new QMimeData();
     mime->setData(KisStudioShortcuts::itemMimeType(), key.toUtf8());
     drag->setMimeData(mime);
     drag->setPixmap(source->grab());
     drag->setHotSpot(QPoint(source->width() / 2, source->height() / 2));
-    return drag->exec(Qt::CopyAction);
+    const Qt::DropAction done = drag->exec(Qt::CopyAction);
+    drag->deleteLater();
+    return done;
 }
 
 void KisStudioBarButtons::startDrag(int index, QWidget *source, const QPixmap &pixmap)
 {
     const QString dragged = d->items.value(index);
-    auto *drag = new QDrag(source);
+    auto *drag = new QDrag(qApp);
     auto *mime = new QMimeData();
     mime->setData(KisStudioShortcuts::itemMimeType(), dragged.toUtf8());
     mime->setData(indexMimeType, QByteArray::number(index));
@@ -537,6 +543,7 @@ void KisStudioBarButtons::startDrag(int index, QWidget *source, const QPixmap &p
     // dropping it off the bar (or onto the Controls panel) removes it, unless the drag was cancelled with Esc
     d->droppedHere = false;
     const Qt::DropAction done = drag->exec(Qt::MoveAction);
+    drag->deleteLater();
     if ((done == Qt::IgnoreAction && !KisModernStyle::pointerHeld()) || (done == Qt::MoveAction && !d->droppedHere)) {
         QStringList items = d->items;
         if (index < items.size() && items[index] == dragged) {

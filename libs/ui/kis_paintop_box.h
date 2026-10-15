@@ -121,8 +121,11 @@ public:
 
     /// The current brush's settings, as the brush editor edits them
     KisPaintOpConfigWidget *currentOptionWidget() const;
-    /// While shown, the quick editor keeps the settings in step with the brush, as the full editor does
-    void setQuickEditorShown(bool shown);
+    /**
+     * While anything uses the current brush's settings (the quick editor, the sheet, a pinned brush setting),
+     * they are kept in step with the brush, as for the full editor. Each use is taken (true) and given back (false).
+     */
+    void useOptionWidget(bool use);
     /// Opens the full brush editor
     void showFullEditor();
     /// Saves the current brush over itself, or as a new brush (asking its name)
@@ -295,7 +298,7 @@ private:
     PaintOpPresetMap m_paintOpPresetMap;
     TabletToolID     m_currTabletToolID {KoInputDevice::invalid()};
     bool             m_presetsEnabled {true};
-    bool             m_quickEditorShown {false};
+    int              m_optionWidgetUsers {0};
     bool             m_studio {false};
     bool             m_blockUpdate {false};
     bool             m_dirtyPresetsEnabled {false};

@@ -94,7 +94,8 @@ void KisBrushBasedPaintopOptionWidget::addSpacingRow(KisSpacingOptionWidget *spa
         },
         [common, share](qreal value) mutable {
             KisBrushModel::CommonData data = common.get();
-            data.spacing = value / 100.0 / share();
+            // within the range Krita's own spacing slider has
+            data.spacing = qBound(0.02, value / 100.0 / share(), 10.0);
             data.useAutoSpacing = false;
             common.set(data);
         });

@@ -431,12 +431,12 @@ public:
             const int softA = qRound((1.0 - m_auto->horizontalFade()) * 100);
             const int softB = qRound((1.0 - m_auto->verticalFade()) * 100);
             if (softA == softB && m_fadeLinked) {
-                row(QPointF(inset, height() - inset), false, true, {{ChipFadeA, {}, QString::number(softA) + QLatin1Char('%'), {}},
+                row(QPointF(inset, height() - inset), false, true, {{ChipFadeA, {}, QLocale().toString(softA) + i18nc("percent, after the number", "%"), {}},
                                                                     {ChipFadeLink, {}, {}, QStringLiteral("studio_link")}});
             } else {
-                row(QPointF(inset, height() - inset), false, true, {{ChipFadeA, {}, QString::number(softA) + QLatin1Char('%'), {}},
+                row(QPointF(inset, height() - inset), false, true, {{ChipFadeA, {}, QLocale().toString(softA) + i18nc("percent, after the number", "%"), {}},
                                                                     {ChipFadeLink, {}, {}, m_fadeLinked ? QStringLiteral("studio_link") : QStringLiteral("studio_unlink")},
-                                                                    {ChipFadeB, {}, QString::number(softB) + QLatin1Char('%'), {}}});
+                                                                    {ChipFadeB, {}, QLocale().toString(softB) + i18nc("percent, after the number", "%"), {}}});
             }
             row(QPointF(width() - inset, height() - inset), true, true, {{ChipEdge, {}, {}, {}}});
             if (m_auto->spikes() > 2) {
@@ -906,7 +906,7 @@ private:
         QLineEdit *editor = KisStudioInlineEdit::open(this, chip.rect.toRect(), QLocale().toString(value, 'f', 0), Qt::AlignHCenter,
                                                       chipFont(), [this, part](const QString &text) {
             bool ok = false;
-            const qreal typed = QLocale().toDouble(QString(text).remove(QLatin1Char('%')).remove(QStringLiteral("°")).trimmed(), &ok);
+            const qreal typed = QLocale().toDouble(QString(text).remove(i18nc("percent, after the number", "%")).remove(QLatin1Char('%')).remove(QStringLiteral("°")).trimmed(), &ok);
             if (!ok) return;
             m_pressSize = tipSize();
             m_pressAlong = along();
@@ -1280,6 +1280,24 @@ void KisBrushTipQuickPage::updateShapes()
     d->shapes->setChips(chips);
 }
 
+namespace {
+/// Shows the grain page for the tips that have a grain, as the tip's kind changes; watching while the page lives
+class GrainShown : public QObject
+{
+public:
+    GrainShown(lager::cursor<BrushType> type, QWidget *page)
+        : QObject(page)
+        , m_type(type)
+    {
+        page->setVisible(m_type.get() != Predefined);
+        m_type.watch([page](BrushType kind) { page->setVisible(kind != Predefined); });
+    }
+
+private:
+    lager::cursor<BrushType> m_type;
+};
+}
+
 QWidget *KisBrushTipQuickPage::createGrainPage(KisAutoBrushModel *autoModel, lager::cursor<BrushType> type, QWidget *parent)
 {
     auto *page = new QWidget(parent);
@@ -1313,8 +1331,8 @@ QWidget *KisBrushTipQuickPage::createGrainPage(KisAutoBrushModel *autoModel, lag
     QObject::connect(noise, &KisStudioValueRow::valueChanged, autoModel, [autoModel](qreal value) { autoModel->setrandomness(value); });
     QObject::connect(coverage, &KisStudioValueRow::valueChanged, autoModel, [autoModel](qreal value) { autoModel->setdensity(value); });
 
-    // a picture tip has no grain of its own
-    page->setVisible(type.get() != Predefined);
+    // a picture tip has no grain of its own, whichever kind of tip is picked
+    new GrainShown(type, page);
     return page;
 }
 

@@ -540,7 +540,6 @@ struct Number {
     bool onRelease {false};
 };
 
-/// Builds a card's rows, each kept in sync with its setting in both directions
 /// Calls back when the pointer enters or leaves \p watched
 class HoverWatch : public QObject
 {
@@ -564,6 +563,7 @@ private:
     std::function<void()> m_changed;
 };
 
+/// Builds a card's rows, each kept in sync with its setting in both directions
 struct Builder {
     QWidget *card {nullptr};
     QVBoxLayout *layout {nullptr};
@@ -632,7 +632,7 @@ struct Builder {
         pin->setAutoRaise(true);
         pin->setCheckable(true);
         pin->setFixedSize(24, 24);
-        pin->setToolTip(i18nc("@info:tooltip", "Pin to the top bar"));
+
         const QString key = KisStudioControls::settingKey(id);
         KisMainWindow *mainWindow = window;
         const QIcon icon = KisIconUtils::loadIcon(QStringLiteral("studio_pin"));
@@ -641,10 +641,10 @@ struct Builder {
             QSignalBlocker blocker(pin);
             pin->setChecked(pinned);
             pin->setIcon(pinned || row->underMouse() ? icon : QIcon());
+            pin->setToolTip(pinned ? i18nc("@info:tooltip", "Unpin from the top bar") : i18nc("@info:tooltip", "Pin to the top bar"));
         };
         follow(show);
-        auto *hover = new HoverWatch(row, show);
-        Q_UNUSED(hover);
+        new HoverWatch(row, show);
         if (KisStudioBarButtons *bar = KisStudioBarButtons::of(mainWindow)) {
             QObject::connect(bar, &KisStudioBarButtons::sigItemsChanged, pin, show);
         }

@@ -29,9 +29,13 @@ class KRITAUI_EXPORT KisFilterManager : public QObject
     Q_OBJECT
 
 public:
-    /// The settings \p filter was last applied with (Krita's "Last Used"), or its defaults
-    static KisFilterConfigurationSP lastUsedConfiguration(KisFilterSP filter);
-
+    /**
+     * The settings \p filter was last applied with (Krita's "Last Used"), or its defaults.
+     * Settings made per channel (levels, curves) only for \p device of the color model they were made on.
+     */
+    static KisFilterConfigurationSP lastUsedConfiguration(KisFilterSP filter, KisPaintDeviceSP device);
+    /// Keeps \p config as its filter's last used settings, applied to \p device
+    static void rememberLastUsed(KisFilterConfigurationSP config, KisPaintDeviceSP device);
 
     KisFilterManager(KisViewManager * parent);
     ~KisFilterManager() override;

@@ -6,13 +6,11 @@
 #ifndef KISSTUDIOVALUEROW_H
 #define KISSTUDIOVALUEROW_H
 
-#include <QPointer>
 #include <QWidget>
 #include <QtNumeric>
 
 #include "kritaui_export.h"
 
-class QLineEdit;
 
 /**
  * A setting as one row: its name, its value as a bar and a number. Dragging the row changes it
@@ -37,7 +35,6 @@ public:
     QString name() const { return m_name; }
     void setName(const QString &name);
     void setRange(const Range &range);
-    Range range() const { return m_range; }
     /// Shows \p value without emitting valueChanged()
     void setValue(qreal value);
     qreal value() const { return m_value; }

@@ -265,7 +265,7 @@ ICONS = {
     'controls': c(8, 11, 4.5) + p('M8 11 10.8 8.2') + c(17, 11, 3) + p('M17 11V8.6') + p('M3.5 19.5h17'),
     # a stroke drawn again: the last stroke follows the brush
     'restroke': p('M3.5 18.5c2.5-4.5 5-5.5 7.5-3s5 2.5 9-2') + p('M10 4.5a5 5 0 0 1 8.2 2.2') + p('M18.6 3.5v3.4h-3.4'),
-    'restroke_on': p('M3.5 18.5c2.5-4.5 5-5.5 7.5-3s5 2.5 9-2') + '<path d="M3.5 18.5c2.5-4.5 5-5.5 7.5-3s5 2.5 9-2" stroke-width="3.2"/>' + p('M10 4.5a5 5 0 0 1 8.2 2.2') + p('M18.6 3.5v3.4h-3.4'),
+    'restroke_on': '<path d="M3.5 18.5c2.5-4.5 5-5.5 7.5-3s5 2.5 9-2" stroke-width="3.2"/>' + p('M10 4.5a5 5 0 0 1 8.2 2.2') + p('M18.6 3.5v3.4h-3.4'),
     # a pushpin: kept where it is
     'pin': p('M9 3.5h6l-.9 5.6 3.4 3.9h-11l3.4-3.9Z') + p('M12 13v7.5'),
     'pin_on': solid('M9 3.5h6l-.9 5.6 3.4 3.9h-11l3.4-3.9Z') + p('M12 13v7.5'),

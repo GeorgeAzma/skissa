@@ -649,13 +649,13 @@ KisPaintOpConfigWidget *KisPaintopBox::currentOptionWidget() const
     return m_optionWidget;
 }
 
-void KisPaintopBox::setQuickEditorShown(bool shown)
+void KisPaintopBox::useOptionWidget(bool use)
 {
-    m_quickEditorShown = shown;
+    m_optionWidgetUsers = qMax(0, m_optionWidgetUsers + (use ? 1 : -1));
     // changes reach the brush (and the stroke painted again with it) quicker while it is edited
-    if (m_optionWidget) m_optionWidget->setUpdateDelay(shown ? 25 : 100);
-    // what changed while it was closed
-    if (shown) slotUpdateOptionsWidgetPopup();
+    if (m_optionWidget) m_optionWidget->setUpdateDelay(m_optionWidgetUsers > 0 ? 25 : 100);
+    // what changed while nothing used them
+    if (use) slotUpdateOptionsWidgetPopup();
 }
 
 void KisPaintopBox::showFullEditor()
@@ -760,9 +760,9 @@ void KisPaintopBox::setCurrentPaintop(KisPaintOpPresetSP preset)
     }
 
     m_optionWidget = m_paintopOptionWidgets[paintop];
-    m_optionWidget->setUpdateDelay(m_quickEditorShown ? 25 : 100);
 
     Q_ASSERT(m_optionWidget && m_presetSelectorPopupButton);
+    m_optionWidget->setUpdateDelay(m_optionWidgetUsers > 0 ? 25 : 100);
 
     KisSignalsBlocker b(m_optionWidget);
 
@@ -836,7 +836,7 @@ void KisPaintopBox::slotUpdateOptionsWidgetPopup()
 
     // the connection to the preset is maintained even when the editor
     // is hidden, so skip the updates
-    if (!m_presetsEditor->isVisible() && !m_quickEditorShown) return;
+    if (!m_presetsEditor->isVisible() && m_optionWidgetUsers == 0) return;
 
     KIS_SAFE_ASSERT_RECOVER_RETURN(preset);
     KIS_SAFE_ASSERT_RECOVER_RETURN(m_optionWidget);

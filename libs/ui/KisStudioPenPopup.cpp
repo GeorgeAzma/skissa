@@ -253,8 +253,10 @@ void KisStudioPenPopup::refresh()
     d->saved->setCurrent(curve);
 
     const int mode = d->option->penMode();
-    d->modes->setVisible(mode >= 0 && activeCount > 1);
-    if (d->modes->isVisible()) {
+    // decided here, not by isVisible(): the popup itself may not be shown yet
+    const bool combining = mode >= 0 && activeCount > 1;
+    d->modes->setVisible(combining);
+    if (combining) {
         QVector<KisStudioChips::Chip> modes;
         // how two inputs make one amount, with an example
         const QStringList tips = {i18nc("@info:tooltip pen inputs combined", "50% × 50% → 25%"),
@@ -285,6 +287,10 @@ void KisStudioPenPopup::refresh()
         if (d->inputPage) d->inputPageHolder->layout()->addWidget(d->inputPage);
         d->inputPageHolder->setVisible(d->inputPage);
     }
-    adjustSize();
-    if (isVisible()) keepOnScreen();
+    // fitted again only when it grew or shrank, not with each step of a curve dragged
+    if (layout()) layout()->activate();
+    if (size() != sizeHint()) {
+        adjustSize();
+        if (isVisible()) keepOnScreen();
+    }
 }

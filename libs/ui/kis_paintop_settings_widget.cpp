@@ -58,7 +58,8 @@ struct KisPaintOpSettingsWidget::Private
     QPointer<QLineEdit> valueEditor;
     QHash<KisPaintOpOption *, qreal> pickedValues;
     /// Pages shown elsewhere, and where they go back in the stack
-    QHash<KisPaintOpOption *, int> lentPages;
+    /// Each lent page's stand-in, holding its place in the stack (the options list keeps pages by index)
+    QHash<KisPaintOpOption *, QWidget *> lentPages;
 
     KisPaintOpOption *optionAt(const QModelIndex &index) const
     {
@@ -295,16 +296,25 @@ QWidget *KisPaintOpSettingsWidget::lendPage(KisPaintOpOption *option)
     QWidget *page = option ? option->configurationPage() : nullptr;
     const int index = page ? m_d->optionsStack->indexOf(page) : -1;
     if (index < 0 || m_d->lentPages.contains(option)) return nullptr;
-    m_d->lentPages.insert(option, index);
+    auto *standIn = new QWidget();
+    const bool shown = m_d->optionsStack->currentWidget() == page;
+    m_d->optionsStack->insertWidget(index, standIn);
+    if (shown) m_d->optionsStack->setCurrentWidget(standIn);
     m_d->optionsStack->removeWidget(page);
+    m_d->lentPages.insert(option, standIn);
     return page;
 }
 
 void KisPaintOpSettingsWidget::returnPage(KisPaintOpOption *option)
 {
     if (!m_d->lentPages.contains(option)) return;
-    QWidget *page = option->configurationPage();
-    m_d->optionsStack->insertWidget(m_d->lentPages.take(option), page);
+    QWidget *standIn = m_d->lentPages.take(option);
+    const int index = m_d->optionsStack->indexOf(standIn);
+    const bool shown = m_d->optionsStack->currentWidget() == standIn;
+    m_d->optionsStack->insertWidget(index, option->configurationPage());
+    if (shown) m_d->optionsStack->setCurrentWidget(option->configurationPage());
+    m_d->optionsStack->removeWidget(standIn);
+    delete standIn;
 }
 
 void KisPaintOpSettingsWidget::changePage(const QModelIndex& index)

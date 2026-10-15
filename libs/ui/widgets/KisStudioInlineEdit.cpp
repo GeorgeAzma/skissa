@@ -40,7 +40,8 @@ private:
         if (m_finished) return;
         m_finished = true;
         const QString typed = text();
-        QWidget *owner = parentWidget();
+        // what is typed may rebuild the owner
+        const QPointer<QWidget> owner = parentWidget();
         hide();
         deleteLater();
         if (keep && m_done) m_done(typed);

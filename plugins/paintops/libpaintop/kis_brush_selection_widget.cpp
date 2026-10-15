@@ -181,11 +181,9 @@ KisBrushSelectionWidget::KisBrushSelectionWidget(int maxBrushSize,
                 uiWdgBrushChooser.lblPrecision, &KisSliderSpinBox::setDisabled);
     }
     // the precision follows the size by itself
-    {
-        uiWdgBrushChooser.sliderPrecision->setVisible(false);
-        uiWdgBrushChooser.autoPrecisionCheckBox->setVisible(false);
-        uiWdgBrushChooser.lblPrecision->setVisible(false);
-    }
+    uiWdgBrushChooser.sliderPrecision->setVisible(false);
+    uiWdgBrushChooser.autoPrecisionCheckBox->setVisible(false);
+    uiWdgBrushChooser.lblPrecision->setVisible(false);
 }
 
 

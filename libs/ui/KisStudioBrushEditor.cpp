@@ -64,24 +64,6 @@ QHash<KisMainWindow *, QPointer<KisStudioBrushEditor>> &editors()
     return all;
 }
 
-QString partName(int part)
-{
-    switch (part) {
-    case KisPaintOpOption::GENERAL:
-        return i18nc("brush part: its tip and how it is laid down", "Tip");
-    case KisPaintOpOption::MASKING_BRUSH:
-        return i18nc("brush part: a second tip that cuts into the first", "Mask");
-    case KisPaintOpOption::TEXTURE:
-        return i18nc("brush part", "Texture");
-    case KisPaintOpOption::COLOR:
-        return i18nc("brush part", "Color");
-    case KisPaintOpOption::FILTER:
-        return i18nc("brush part", "Filter");
-    case strokePart:
-        return i18nc("brush part: how the line is laid down (smoothing, shapes)", "Stroke");
-    }
-    return QString();
-}
 
 const QString pinPrefix = QStringLiteral("brushsetting:");
 
@@ -132,6 +114,8 @@ struct KisStudioBrushEditor::Private
     QVector<int> parts;
     int part {KisPaintOpOption::GENERAL};
     QPointer<KisStudioPenPopup> pen;
+    /// The brush's settings are in use (useOptionWidget()), from shown to closed
+    bool usingSettings {false};
     /// The settings to add are shown, until another part is picked
     bool adding {false};
     QTimer refreshPage;
@@ -199,6 +183,25 @@ struct KisStudioBrushEditor::Private
         row->setInactive(option->isCheckable() && !option->isChecked() && !value->appliesUnchecked);
     }
 };
+
+QString KisStudioBrushEditor::partName(int part)
+{
+    switch (part) {
+    case KisPaintOpOption::GENERAL:
+        return i18nc("brush part: its tip and how it is laid down", "Tip");
+    case KisPaintOpOption::MASKING_BRUSH:
+        return i18nc("brush part: a second tip that cuts into the first", "Mask");
+    case KisPaintOpOption::TEXTURE:
+        return i18nc("brush part", "Texture");
+    case KisPaintOpOption::COLOR:
+        return i18nc("brush part", "Color");
+    case KisPaintOpOption::FILTER:
+        return i18nc("brush part", "Filter");
+    case strokePart:
+        return i18nc("brush part: how the line is laid down (smoothing, shapes)", "Stroke");
+    }
+    return QString();
+}
 
 KisPaintOpSettingsWidget *KisStudioBrushEditor::brushSettings(KisMainWindow *mainWindow)
 {
@@ -398,13 +401,19 @@ KisStudioBrushEditor::~KisStudioBrushEditor()
 
 void KisStudioBrushEditor::showEvent(QShowEvent *event)
 {
-    if (d->box) d->box->setQuickEditorShown(true);
+    if (d->box && !d->usingSettings) {
+        d->box->useOptionWidget(true);
+        d->usingSettings = true;
+    }
     KisStudioPopup::showEvent(event);
 }
 
 void KisStudioBrushEditor::closeEvent(QCloseEvent *event)
 {
-    if (d->box) d->box->setQuickEditorShown(false);
+    if (d->box && d->usingSettings) {
+        d->box->useOptionWidget(false);
+        d->usingSettings = false;
+    }
     if (d->pen) d->pen->close();
     KisStudioPopup::closeEvent(event);
 }
@@ -597,7 +606,7 @@ void KisStudioBrushEditor::showPart(int part)
             KisStudioChips::Chip chip;
             chip.text = option->label();
             chip.toolTip = optionTip(option);
-            const QString id = option->id();
+            const QString id = option->id().section(QLatin1Char('/'), -1).isEmpty() ? option->id() : option->id().section(QLatin1Char('/'), -1);
             chip.picture = [more, id, fg](QPainter &painter, const QRectF &rect) {
                 const QColor ink = more->palette().color(QPalette::WindowText);
                 const QColor paint = KisStudioDabPictures::paintColor(fg, more->palette().color(QPalette::Highlight));

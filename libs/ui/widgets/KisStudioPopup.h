@@ -7,7 +7,6 @@
 #define KISSTUDIOPOPUP_H
 
 #include <QFrame>
-#include <QPointer>
 
 #include "kritaui_export.h"
 
@@ -37,7 +36,6 @@ public:
     void keepOnScreen();
 
     void setPinned(bool pinned);
-    bool isPinned() const { return m_pinned; }
 
 protected:
     void paintEvent(QPaintEvent *event) override;

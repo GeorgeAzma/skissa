@@ -50,9 +50,13 @@ void dab(QPainter &painter, const QPointF &center, qreal radius, const QColor &c
 
 QColor KisStudioDabPictures::paintColor(const QColor &color, const QColor &fallback)
 {
-    const QColor hsv = color.toHsv();
-    if (!color.isValid() || hsv.hsvSaturationF() < 0.2 || hsv.valueF() < 0.3) return fallback;
-    return color;
+    auto colorful = [](const QColor &c) {
+        const QColor hsv = c.toHsv();
+        return c.isValid() && hsv.hsvSaturationF() >= 0.2 && hsv.valueF() >= 0.3;
+    };
+    if (colorful(color)) return color;
+    // a theme without an accent has a gray highlight: a blue then, so hue and saturation still show
+    return colorful(fallback) ? fallback : QColor::fromHsvF(0.6, 0.6, 0.85);
 }
 
 QVector<QPointF> KisStudioDabPictures::strokeDabs(const QRectF &rect, int n, qreal radius)
@@ -69,6 +73,7 @@ QVector<QPointF> KisStudioDabPictures::strokeDabs(const QRectF &rect, int n, qre
 
 bool KisStudioDabPictures::effect(QPainter &painter, const QRectF &rect, const QString &id, const QColor &ink, const QColor &paint)
 {
+    if (rect.width() < 4 || rect.height() < 4) return false;
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
     const qreal r = qMin(rect.height() * 0.32, rect.width() / (2.0 * count) * 1.25);
@@ -168,7 +173,7 @@ bool KisStudioDabPictures::effect(QPainter &painter, const QRectF &rect, const Q
         for (int i = 0; i < count; i++) dab(painter, along(rect, r, i), r, paint.darker(100 + int(250 * share(i))));
     } else if (id == QLatin1String("Mix")) {
         // the paint taking in the color under it
-        const QColor under = QColor::fromHsvF(fmod(paint.toHsv().hsvHueF() + 0.5, 1.0), 0.45, 0.75);
+        const QColor under = QColor::fromHsvF(fmod(qMax(0.0, paint.toHsv().hsvHueF()) + 0.5, 1.0), 0.45, 0.75);
         for (int i = 0; i < count; i++) {
             const qreal t = share(i) * 0.8;
             dab(painter, along(rect, r, i),

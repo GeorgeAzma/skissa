@@ -23,6 +23,7 @@
 // krita/image
 #include <filter/kis_filter.h>
 #include <filter/kis_filter_registry.h>
+#include "kis_config.h"
 #include <filter/kis_filter_configuration.h>
 #include <kis_paint_device.h>
 #include <kis_paint_device_frames_interface.h>
@@ -271,7 +272,7 @@ void KisFilterManager::showFilterDialog(const QString &filterId, KisFilterConfig
 
     if (filter->showConfigurationWidget()) {
         // as it was last applied
-        if (!overrideDefaultConfig) overrideDefaultConfig = lastUsedConfiguration(filter);
+        if (!overrideDefaultConfig) overrideDefaultConfig = lastUsedConfiguration(filter, dev);
         if (d->inlineEditor.open && d->inlineEditor.open(filter, overrideDefaultConfig)) {
             return;
         }
@@ -292,16 +293,35 @@ void KisFilterManager::showFilterDialog(const QString &filterId, KisFilterConfig
     }
 }
 
-KisFilterConfigurationSP KisFilterManager::lastUsedConfiguration(KisFilterSP filter)
+namespace {
+QString lastUsedColorModelKey(const QString &filterId)
+{
+    return QStringLiteral("StudioFilterLastUsedColorModel/") + filterId;
+}
+}
+
+KisFilterConfigurationSP KisFilterManager::lastUsedConfiguration(KisFilterSP filter, KisPaintDeviceSP device)
 {
     if (!filter) return KisFilterConfigurationSP();
     KisBookmarkedConfigurationManager *bookmarks = filter->bookmarkManager();
     if (bookmarks && bookmarks->exists(KisBookmarkedConfigurationManager::ConfigLastUsed)) {
         KisFilterConfigurationSP config =
             dynamic_cast<KisFilterConfiguration *>(bookmarks->load(KisBookmarkedConfigurationManager::ConfigLastUsed).data());
-        if (config && config->name() == filter->id()) return config;
+        // a curve for each channel fits only the channels it was made for
+        const bool perChannel = config && (config->hasProperty(QStringLiteral("nTransfers")) || config->hasProperty(QStringLiteral("number_of_channels")));
+        const bool fits = !perChannel
+            || (device && KisConfig(true).readEntry(lastUsedColorModelKey(filter->id()), QString()) == device->colorSpace()->id());
+        if (config && config->name() == filter->id() && fits) return config;
     }
     return filter->defaultConfiguration(KisGlobalResourcesInterface::instance());
+}
+
+void KisFilterManager::rememberLastUsed(KisFilterConfigurationSP config, KisPaintDeviceSP device)
+{
+    KisFilterSP filter = config ? KisFilterRegistry::instance()->value(config->name()) : KisFilterSP();
+    if (!filter || !filter->bookmarkManager()) return;
+    filter->bookmarkManager()->save(KisBookmarkedConfigurationManager::ConfigLastUsed, config.data());
+    if (device) KisConfig(false).writeEntry(lastUsedColorModelKey(filter->id()), device->colorSpace()->id());
 }
 
 void KisFilterManager::apply(KisFilterConfigurationSP _filterConfig)
@@ -407,10 +427,7 @@ void KisFilterManager::finish()
     d->strokeImage = KisImageWSP();
 
     KisFilterSP filter = KisFilterRegistry::instance()->value(d->currentlyAppliedConfiguration->name());
-    if (filter->bookmarkManager()) {
-        filter->bookmarkManager()->save(KisBookmarkedConfigurationManager::ConfigLastUsed,
-                                       d->currentlyAppliedConfiguration.data());
-    }
+    rememberLastUsed(d->currentlyAppliedConfiguration, d->view->activeNode() ? d->view->activeNode()->paintDevice() : KisPaintDeviceSP());
 
     d->lastConfiguration = d->currentlyAppliedConfiguration;
     d->reapplyAction->setEnabled(true);

@@ -148,7 +148,6 @@ QString groupOf(const QString &id)
     return QStringLiteral("other");
 }
 
-/// The image cropped to the tile shape, or the sample picture if the image is blank
 /// A thumbnail's bounds, at the level of detail its size is to the image
 class ThumbnailBounds : public KisDefaultBounds
 {
@@ -174,6 +173,7 @@ private:
     int m_levelOfDetail;
 };
 
+/// The image cropped to the tile shape, or the sample picture if the image is blank; \p levelOfDetail is how much smaller it is
 QImage basePicture(KisViewManager *view, const QSize &size, int *levelOfDetail)
 {
     QImage picture;
@@ -294,10 +294,12 @@ KisStudioEffectsPicker::KisStudioEffectsPicker(KisMainWindow *mainWindow, std::s
     QStringList order = pinnedIds(source) + source.recent() + source.allIds();
     order.removeDuplicates();
     QVector<Job> jobs;
+    KisViewManager *view = mainWindow->viewManager();
+    const KisPaintDeviceSP layer = view && view->activeNode() ? view->activeNode()->paintDevice() : KisPaintDeviceSP();
     Q_FOREACH (const QString &id, order) {
         KisFilterSP filter = KisFilterRegistry::instance()->value(id);
-        // as the effect would open: with the settings it was last applied with
-        KisFilterConfigurationSP config = filter ? KisFilterManager::lastUsedConfiguration(filter) : nullptr;
+        // as the effect would open on this layer: with the settings it was last applied with
+        KisFilterConfigurationSP config = filter ? KisFilterManager::lastUsedConfiguration(filter, layer) : nullptr;
         if (config) {
             // snapshot the resources: the worker thread must not access them itself
             jobs << Job{id, filter, config->cloneWithResourcesSnapshot()};
@@ -375,7 +377,7 @@ void KisStudioEffectsPicker::Private::previewOnCanvas(const QString &id)
     if (!node || !node->paintDevice() || !node->isEditable() || !filter) {
         return;
     }
-    KisFilterConfigurationSP config = KisFilterManager::lastUsedConfiguration(filter);
+    KisFilterConfigurationSP config = KisFilterManager::lastUsedConfiguration(filter, node->paintDevice());
     if (!config) {
         return;
     }
