@@ -108,6 +108,7 @@
 #endif
 
 #include <KisScopedPerformanceLogger.h>
+#include <KisSentenceCase.h>
 #include <KisUsageLogger.h>
 #include <brushengine/kis_paintop_settings.h>
 #include "dialogs/kis_about_application.h"
@@ -2532,6 +2533,7 @@ QDockWidget* KisMainWindow::createDockWidget(KoDockFactoryBase* factory)
             warnKrita << "Could not create docker for" << factory->id();
             return 0;
         }
+        dockWidget->setWindowTitle(KisSentenceCase::of(dockWidget->windowTitle()));
 
         KoDockWidgetTitleBar *titleBar = dynamic_cast<KoDockWidgetTitleBar*>(dockWidget->titleBarWidget());
 
@@ -3154,6 +3156,7 @@ void KisMainWindow::createActions()
     d->fullScreenMode = actionManager->createStandardAction(KStandardAction::FullScreen, this, SLOT(viewFullscreen(bool)));
 
     d->recentFiles = KStandardAction::openRecent(this, SLOT(slotFileOpenRecent(QUrl)), actionCollection());
+    d->recentFiles->setText(KisSentenceCase::of(d->recentFiles->text()));
 
     d->saveAction = actionManager->createStandardAction(KStandardAction::Save, this, SLOT(slotFileSave()));
     d->saveAction->setActivationFlags(KisAction::IMAGE_IS_WRITABLE);

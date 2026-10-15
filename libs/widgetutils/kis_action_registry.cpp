@@ -22,6 +22,7 @@
 #include "kis_icon_utils.h"
 
 #include "kis_action_registry.h"
+#include "KisSentenceCase.h"
 #include "kshortcutschemeshelper_p.h"
 
 
@@ -135,10 +136,10 @@ namespace {
         }
         if (translatedString.isEmpty()) {
             dbgAction << "No translation found for" << s.text();
-            return s.text();
+            return KisSentenceCase::of(s.text());
         }
 
-        return translatedString;
+        return KisSentenceCase::of(translatedString);
     }
 }
 

@@ -389,11 +389,18 @@ public:
     }
 
 private:
-    QString presetName() const
+    KisPaintOpPresetSP currentPreset() const
     {
         KisViewManager *view = m_mainWindow ? m_mainWindow->viewManager() : nullptr;
-        KisPaintOpPresetSP preset = view && view->canvasResourceProvider() ? view->canvasResourceProvider()->currentPreset() : nullptr;
-        return preset ? preset->name() : QString();
+        return view && view->canvasResourceProvider() ? view->canvasResourceProvider()->currentPreset() : nullptr;
+    }
+
+    /// The brush's file, which stays when the brush is renamed; its name for one not saved yet
+    QString presetKey() const
+    {
+        KisPaintOpPresetSP preset = currentPreset();
+        if (!preset) return QString();
+        return preset->filename().isEmpty() ? preset->name() : preset->filename();
     }
 
     void save()
@@ -409,7 +416,7 @@ private:
         // what the last brush had, kept for it
         save();
         m_options = KisStudioSmoothing::options(m_mainWindow);
-        m_preset = presetName();
+        m_preset = presetKey();
         if (!m_options || m_preset.isEmpty()) return;
         if (KoToolBase *tool = KoToolManager::instance()->toolById(m_mainWindow->viewManager()->canvasBase(), KoToolManager::instance()->activeToolId())) {
             // changed in the tool's own options: kept as well
@@ -423,7 +430,9 @@ private:
                 connect(tool, signal.constData(), KisStudioSmoothing::instance(), SIGNAL(sigToolChanged()), Qt::UniqueConnection);
             }
         }
-        const QString kept = memory().readEntry(m_preset, QString());
+        QString kept = memory().readEntry(m_preset, QString());
+        // kept by the brush's name before
+        if (kept.isEmpty() && currentPreset()) kept = memory().readEntry(currentPreset()->name(), QString());
         if (kept.isEmpty()) return;
         m_applying = true;
         if (recall(kept, *m_options)) KisStudioSmoothing::changed(m_mainWindow);

@@ -3363,17 +3363,38 @@ void KisStudioLayout::showMainMenu(QWidget *button)
     }
     QMenu *menu = d->mainMenu;
     menu->clear();
+    qDeleteAll(menu->findChildren<QMenu *>(QString(), Qt::FindDirectChildrenOnly));
     KisKActionCollection *actions = d->mainWindow->actionCollection();
+    QSet<QAction *> shown;
     auto add = [&](std::initializer_list<const char *> names) {
         for (const char *name : names) {
-            if (QAction *action = actions->action(QLatin1String(name))) menu->addAction(action);
+            if (QAction *action = actions->action(QLatin1String(name))) {
+                menu->addAction(action);
+                shown.insert(action);
+            }
         }
         menu->addSeparator();
     };
     add({"file_new", "file_open", "file_open_recent"});
     add({"file_save", "file_save_as", "file_export_file"});
     Q_FOREACH (QAction *top, d->mainWindow->menuBar()->actions()) {
-        if (top->menu() && top->isVisible()) menu->addAction(top);
+        if (!top->menu() || !top->isVisible()) continue;
+        if (top->menu()->objectName() != QLatin1String("file")) {
+            menu->addAction(top);
+            continue;
+        }
+        // File without the commands listed above it
+        QMenu *file = menu->addMenu(top->text());
+        bool separate = false;
+        Q_FOREACH (QAction *action, top->menu()->actions()) {
+            if (action->isSeparator()) {
+                separate = !file->isEmpty();
+            } else if (!shown.contains(action) && action->isVisible() && action->objectName() != QLatin1String("file_quit")) {
+                if (separate) file->addSeparator();
+                separate = false;
+                file->addAction(action);
+            }
+        }
     }
     menu->addSeparator();
     add({"file_quit"});

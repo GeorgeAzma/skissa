@@ -6,6 +6,7 @@
 */
 
 #include "kxmlguibuilder.h"
+#include "KisSentenceCase.h"
 
 #include "kxmlguiclient.h"
 #include "ktoolbar.h"
@@ -183,6 +184,7 @@ QWidget *KisKXMLGUIBuilder::createContainer(QWidget *parent, int index, const QD
             } else {
                 i18nText = i18ndc(domain.constData(), context.toUtf8().constData(), text.toUtf8().constData());
             }
+            i18nText = KisSentenceCase::of(i18nText);
         }
 
         //qDebug(260) << "ELEMENT i18n TEXT:" << i18nText;
