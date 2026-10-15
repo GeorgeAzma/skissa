@@ -207,10 +207,8 @@ KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioP
 
 bool KisStudioPanelPicker::isRetired(const QString &panelId)
 {
-    static const QStringList retired = {QStringLiteral("ToolBox"), QStringLiteral("ArtisticColorSelector"), QStringLiteral("SmallColorSelector"),
-                                        QStringLiteral("SpecificColorSelector"), QStringLiteral("PresetHistory"), QStringLiteral("TouchDocker"),
-                                        QStringLiteral("TasksetDocker"), QStringLiteral("LogDocker")};
-    return retired.contains(panelId);
+    // the panels the Studio covers otherwise are not built; the toolbox stays for the classic layout
+    return panelId == QLatin1String("ToolBox");
 }
 
 KisStudioPanelPicker::KisStudioPanelPicker(KisMainWindow *mainWindow, const Rail &rail)
