@@ -1,3 +1,4 @@
+# G'MIC-Qt isn't built, so its bridge (qmic) would only offer a menu entry that fails: not built
 add_subdirectory( imagesplit )
 add_subdirectory( clonesarray )
 add_subdirectory( colorrange )
@@ -13,7 +14,6 @@ add_subdirectory( resourcemanager )
 add_subdirectory( layersplit )
 add_subdirectory( waveletdecompose )
 add_subdirectory( pykrita )
-add_subdirectory( qmic )
 add_subdirectory( buginfo )
 add_subdirectory( samplescreencolor )
 add_subdirectory( dbexplorer )

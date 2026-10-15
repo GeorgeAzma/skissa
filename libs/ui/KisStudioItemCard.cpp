@@ -282,6 +282,13 @@ private:
     QPointer<QMenu> m_swallowRelease;
 };
 
+/// The saved shortcuts, read once: opened afresh, the file was parsed again for every button
+KConfigGroup savedShortcuts()
+{
+    static const KSharedConfigPtr config = KSharedConfig::openConfig(KisProfile::configFile(QStringLiteral("kritashortcutsrc")));
+    return KConfigGroup(config, QStringLiteral("Shortcuts"));
+}
+
 } // namespace
 
 QString KisStudioShortcuts::itemMimeType()
@@ -375,8 +382,7 @@ void KisStudioShortcuts::enableMenuEditing()
 
 void KisStudioShortcuts::restore(QAction *action)
 {
-    const QString saved = KConfigGroup(KSharedConfig::openConfig(KisProfile::configFile(QStringLiteral("kritashortcutsrc"))), QStringLiteral("Shortcuts"))
-                              .readEntry(action->objectName(), QString());
+    const QString saved = savedShortcuts().readEntry(action->objectName(), QString());
     if (!saved.isEmpty() && saved != QLatin1String("none")) {
         action->setShortcuts(QKeySequence::listFromString(saved));
     }
@@ -384,7 +390,7 @@ void KisStudioShortcuts::restore(QAction *action)
 
 QString KisStudioShortcuts::assign(KisMainWindow *mainWindow, QAction *action, const QKeySequence &sequence)
 {
-    KConfigGroup group(KSharedConfig::openConfig(KisProfile::configFile(QStringLiteral("kritashortcutsrc"))), QStringLiteral("Shortcuts"));
+    KConfigGroup group = savedShortcuts();
     // the recorded key replaces the first one; other keys the command has (Ctrl+Y beside Ctrl+Shift+Z) stay
     QList<QKeySequence> keys = action->shortcuts();
     if (sequence.isEmpty()) {

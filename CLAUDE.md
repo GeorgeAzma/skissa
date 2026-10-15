@@ -99,7 +99,7 @@ A map, so you know where things are and how they think. Files are in `libs/ui/` 
 - **Saving on Windows** (`KisImportExportManager`): the new file is written beside the old one and swapped in (`MoveFileEx`), so a failed save never leaves a broken file.
 - **Releases** (`packaging/windows/make-release.py`): a portable zip that follows the DLL imports of everything it ships, with the license texts and a SOURCE.txt pointing at the exact tag. Build it from a staged copy of the install (`cmake --install build --prefix <copy>`) when the dev Krita is in use. DLLs loaded by name at run time (ANGLE, the crash handler) have no import to follow: they are in its `LOADED` list.
 - **Translations** (`packaging/skissa-translations.py`): the fork's text gets only translations Krita already has (same text elsewhere, Krita→Skissa sentences), written to `po-skissa/<lang>.po`; Krita's `po/` stays exactly as upstream has it, and the build joins the two (`cmake/modules/SkissaTranslations.cmake`, in place of `ki18n_install`, compiling a language only when its files change). A word or two is reused only when Krita translates it the same way in several places; `OTHER_SENSE` lists text used in another sense. Never write translations by hand. Rerun it after merging upstream translations or changing text.
-- **What Studio leaves out**: classic-only menu items (toolbars, styles, themes menu, status bar, window tiling, About KDE) are hidden while Studio is on (`hiddenToolbarActions`), and Find skips hidden actions. Panel plugins the Studio covers otherwise are not built (`plugins/dockers/CMakeLists.txt`: the small, specific and artistic color selectors, brush history, tasksets, log, touch docker); their sources stay for merges. The toolbox is core, so it is only hidden from the panel picker and Find (`KisStudioPanelPicker::isRetired`). After dropping a plugin, delete its DLL from the install: `cmake --install` never removes old files.
+- **What Studio leaves out**: classic-only menu items (toolbars, styles, themes menu, status bar, window tiling, About KDE) are hidden while Studio is on (`hiddenToolbarActions`), and Find skips hidden actions. Panel plugins the Studio covers otherwise are not built (`plugins/dockers/CMakeLists.txt`: the small, specific and artistic color selectors, brush history, tasksets, log, touch docker), nor is the G'MIC bridge (G'MIC-Qt itself isn't built, so its menu entry only failed); their sources stay for merges. The toolbox is core, so it is only hidden from the panel picker and Find (`KisStudioPanelPicker::isRetired`). After dropping a plugin, delete its DLL from the install: `cmake --install` never removes old files.
 - **Small systems:**
   - Studio popups (`widgets/KisStudioPopup`): a glass panel in its own window, closed by a press elsewhere unless pinned; popups opened from it count as inside (`KisPopupCloser`). A plain `QWidget` (no `Q_OBJECT`, no mouse tracking) counts as background that drags the window (`KisStudioGlass::setMovableByBackground`): give interactive widgets their own class. A widget that ignores presses lets them reach that background too (`KisStudioChips` takes its own).
   - Empty lists say why they're empty (`KisStudioEmptyStates`).
@@ -125,8 +125,20 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - **Back up the dev profile before a test writes to it,** and restore exactly what was there. The owner also works in the dev build; tests have overwritten their saved curves and theme before.
 - **It's fine to close the dev Krita** (unsaved changes and all) to rebuild. Only kill processes whose path is under `C:\code\krita-deps`.
 - **README clips:** `devtools\rec.py` (Python, Pillow) drives the app and captures frames; save them as animated WebP (sharper and smaller than GIF). A capture takes ~1 s, so clips are stop-motion with chosen frame times.
+- **Startup:** `KRITA_DEV_SAMPLE=<file>` samples it, `profile.py <file> --timeline 250` shows where the time went (`--callers`/`--callees` follow a function). `QT_LOGGING_RULES=krita.performance.debug=true` prints Krita's own phase timings. Most of it is Krita's (the OpenGL probe ~0.9 s, mostly the driver starting; opening the image), not the fork's.
 - `KRITA_DEV_TOUR=<folder>` runs `krita/KisDevTour.cpp`, which photographs the whole UI. `KRITA_DEV_FRAMELOG` and `KRITA_DEV_SAMPLE` are for performance work.
 - **The test image** is `C:\code\krita-deps\sunset.png` (the default in `launchdev.ps1`); `glass-test.jpg` is the Krita artwork.
+
+## Updating from Krita
+
+`origin` is Krita (KDE), `skissa` is the fork's own repo. Merge Krita in often (small merges are easy); never rebase the branch.
+
+- **One step:** `devtools\update.ps1` runs `packaging/skissa-update.py`: fetch, merge (rerere on, so a conflict settled once is settled again the same way), the fork's translations refreshed and committed, build and install, start and capture. Exit 2 leaves the merge open with the files to settle: settle, commit, run it again. Check the capture, then push.
+- **Keep Krita's files mergeable:**
+  - Put new code in new files and call it from Krita's with a line or two.
+  - Turn Krita's code off in the build (CMake), don't delete it: an unbuilt file stays as upstream has it and merges cleanly.
+  - Don't append to Krita's lists or files when a file of the fork's own can hold it (`po-skissa/`, `libs/ui/skissa.cmake`).
+- **Check a merge before doing it:** `git merge-tree --write-tree --name-only HEAD origin/master` lists the files that would conflict.
 
 ## Legal and credit
 
