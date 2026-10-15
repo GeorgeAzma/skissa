@@ -61,7 +61,6 @@ set(kritaui_LIB_SRCS
     dialogs/kis_dlg_image_properties.cc
     dialogs/kis_dlg_layer_properties.cc
     dialogs/kis_dlg_paste_format.cpp
-    dialogs/KisKeysPage.cpp
     dialogs/slider_and_spin_box_sync.cpp
     dialogs/kis_dlg_layer_style.cpp
     dialogs/kis_dlg_png_import.cpp
@@ -190,7 +189,6 @@ set(kritaui_LIB_SRCS
     opengl/KisOpenGLSync.cpp
     opengl/KisOpenGLBufferCreationGuard.cpp
     opengl/KisOpenGLCanvasRenderer.cpp
-    opengl/KisOpenGLGlass.cpp
     opengl/KisOpenGLContextSwitchLock.cpp
     kis_fps_decoration.cpp
 
@@ -207,7 +205,6 @@ set(kritaui_LIB_SRCS
     tool/kis_painting_information_builder.cpp
     tool/kis_stabilized_events_sampler.cpp
     tool/kis_tool_freehand_helper.cpp
-    tool/KisStrokeShape.cpp
     tool/kis_tool_multihand_helper.cpp
     tool/kis_figure_painting_tool_helper.cpp
     tool/KisAsynchronousStrokeUpdateHelper.cpp
@@ -245,15 +242,6 @@ set(kritaui_LIB_SRCS
 
     widgets/kis_canvas_drop.cpp
     widgets/kis_cmb_composite.cc
-    widgets/KisBlendModePicker.cpp
-    widgets/KisStudioPicker.cpp
-    widgets/KisPopupCloser.cpp
-    widgets/KisStudioPopup.cpp
-    widgets/KisStudioValueRow.cpp
-    widgets/KisStudioChips.cpp
-    widgets/KisStudioDabPictures.cpp
-    widgets/KisStudioInlineEdit.cpp
-    widgets/KisCurvePresetStrip.cpp
     widgets/KisCompositeOpListConnectionHelper.cpp
     widgets/kis_cmb_contour.cpp
     widgets/kis_cmb_gradient.cpp
@@ -308,7 +296,6 @@ set(kritaui_LIB_SRCS
     widgets/kis_layer_filter_widget.cpp
     widgets/kis_elided_label.cpp
     widgets/kis_preset_live_preview_view.cpp
-    widgets/KisPresetStrokeThumbnails.cpp
     widgets/KisScreenColorSampler.cpp
     widgets/KoDualColorButton.cpp
     widgets/KoForegroundColour.cpp
@@ -375,7 +362,6 @@ set(kritaui_LIB_SRCS
     input/kis_gamma_exposure_action.cpp
     input/KisPopupWidgetAction.cpp
     input/kis_change_primary_setting_action.cpp
-    input/KisDragValueAction.cpp
     input/kis_abstract_shortcut.cpp
     input/kis_native_gesture_shortcut.cpp
     input/kis_single_action_shortcut.cpp
@@ -443,41 +429,6 @@ set(kritaui_LIB_SRCS
     KisImportUserFeedbackInterface.cpp
     kis_async_action_feedback.cpp
     KisMainWindow.cpp
-    KisColorDrop.cpp
-    KisStudioLayout.cpp
-    KisStudioFind.cpp
-    KisStudioSettings.cpp
-    KisSettingsRegistry.cpp
-    KisSettingsTransfer.cpp
-    KisStudioHoldKeys.cpp
-    KisStudioRings.cpp
-    KisStudioCanvasHud.cpp
-    KisStudioColorPanel.cpp
-    KisStudioToolStrip.cpp
-    KisStudioBarButtons.cpp
-    KisStudioScrubber.cpp
-    KisStudioSmoothing.cpp
-    KisStudioBrushEditor.cpp
-    KisStudioBrushSheet.cpp
-    KisStudioControls.cpp
-    KisLastStrokeReplay.cpp
-    KisStudioPenPopup.cpp
-    KisStudioItemCard.cpp
-    KisUpdatePacer.cpp
-    KisStudioEffectOverlay.cpp
-    KisStudioWindowFrame.cpp
-    KisStudioToolRail.cpp
-    KisStudioMotion.cpp
-    KisStudioEffectsPicker.cpp
-    KisStudioPanelPicker.cpp
-    KisStudioGlass.cpp
-    KisStudioBrushPicker.cpp
-    KisStudioBrushMemory.cpp
-    KisStudioTheme.cpp
-    KisStudioSymmetry.cpp
-    KisSettingsUndo.cpp
-    KisStudioEmptyStates.cpp
-    KisStudioCanvasRing.cpp
     KisOpenPane.cpp
     KisPart.cpp
     KisTemplate.cpp
@@ -855,6 +806,8 @@ target_include_directories(kritaui
 set_target_properties(kritaui
     PROPERTIES VERSION ${GENERIC_KRITA_LIB_VERSION} SOVERSION ${GENERIC_KRITA_LIB_SOVERSION}
 )
+include(skissa.cmake)
+
 install(TARGETS kritaui  ${INSTALL_TARGETS_DEFAULT_ARGS})
 
 
