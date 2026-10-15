@@ -1,0 +1,1900 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <author>
+    SPDX-FileCopyrightText: none
+    SPDX-License-Identifier: GPL-3.0-or-later
+  </author>
+ <class>WdgGeneralSettings</class>
+ <widget class="QWidget" name="WdgGeneralSettings">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1693</width>
+    <height>829</height>
+   </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>552</width>
+    <height>295</height>
+   </size>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_6">
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>5</number>
+     </property>
+     <property name="movable">
+      <bool>false</bool>
+     </property>
+     <widget class="QWidget" name="File">
+      <attribute name="title">
+       <string>File Handling</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayout_4">
+       <item row="0" column="0" colspan="2">
+        <widget class="QGroupBox" name="m_autosaveCheckBox">
+         <property name="title">
+          <string>Enable Autosaving</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <layout class="QFormLayout" name="formLayout_6">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_6">
+            <property name="text">
+             <string>Autosave Interval:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="KisIntParseSpinBox" name="m_autosaveSpinBox">
+            <property name="suffix">
+             <string comment="Suffix: “Every x min”"> min</string>
+            </property>
+            <property name="prefix">
+             <string comment="Prefix: “Every x min”">Every </string>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>1440</number>
+            </property>
+            <property name="singleStep">
+             <number>5</number>
+            </property>
+            <property name="value">
+             <number>15</number>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0" colspan="2">
+           <widget class="QCheckBox" name="chkHideAutosaveFiles">
+            <property name="text">
+             <string>Unnamed autosave files are hidden by default</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="1" column="0" colspan="2">
+        <widget class="QGroupBox" name="m_backupFileCheckBox">
+         <property name="title">
+          <string>Create a Backup File on Saving</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <layout class="QFormLayout" name="formLayout_5">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_13">
+            <property name="text">
+             <string>Backup File Location</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="cmbBackupFileLocation">
+            <item>
+             <property name="text">
+              <string>Same Folder as Original File</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>User Folder</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Temporary File Location</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_8">
+            <property name="text">
+             <string>Backup File Suffix:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="txtBackupFileSuffix">
+            <property name="text">
+             <string>~</string>
+            </property>
+            <property name="maxLength">
+             <number>10</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_7">
+            <property name="text">
+             <string>Number of Backup Files Kept:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QSpinBox" name="intNumBackupFiles">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="value">
+             <number>1</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="2" column="0" colspan="2">
+        <widget class="QGroupBox" name="groupBox_2">
+         <property name="title">
+          <string>KRA File Compression</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_3">
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="chkZip64">
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Only use this option for &lt;span style=&quot; font-weight:600;&quot;&gt;very&lt;/span&gt; large files: larger than 4 GiB on disk.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="text">
+             <string>Use Zip64 (for very large files: cannot be opened in versions of Krita older than 4.2.0)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QCheckBox" name="m_chkCompressKra">
+            <property name="text">
+             <string>Compress .kra files more (slows loading/saving)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QCheckBox" name="m_chkTrimKra">
+            <property name="toolTip">
+             <string extracomment="(information outside the image boundaries will get lost. Saving will be slower.)"/>
+            </property>
+            <property name="text">
+             <string>Trim files before saving</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QCheckBox" name="m_chkTrimFramesImport">
+            <property name="toolTip">
+             <string extracomment="(information outside the image boundaries will get lost. Importing frames will be slower.)"/>
+            </property>
+            <property name="text">
+             <string>Trim frames when importing animations</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="3" column="0" colspan="2">
+        <widget class="QGroupBox" name="m_defaultExportFileTypeBox">
+         <layout class="QFormLayout" name="formLayout_15">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_22">
+            <property name="text">
+             <string>Default Export Filetype: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="cmbDefaultExportFileType"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="Pasting">
+      <attribute name="title">
+       <string>Pasting</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayout_18">
+       <item row="0" column="0" colspan="2">
+        <widget class="QGroupBox" name="grpPasteFrom">
+         <property name="title">
+          <string>When Pasting Into Krita From Other Applications</string>
+         </property>
+         <layout class="QFormLayout" name="formLayout_8">
+          <item row="1" column="0" colspan="2">
+           <widget class="QRadioButton" name="btnDownload">
+            <property name="text">
+             <string>Prefer downloading the original source (this requires Internet access)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0" colspan="2">
+           <widget class="QLabel" name="lblPasteNote">
+            <property name="text">
+             <string>Note: This applies to drops in the Info window, the canvas, and paste actions.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0" colspan="2">
+           <widget class="QLabel" name="lblPasteContext">
+            <property name="text">
+             <string>Some applications, like Google Chrome, provide multiple formats when pasting or dropping an image.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="QRadioButton" name="btnLocal">
+            <property name="text">
+             <string>Prefer a local copy (if available; metadata may be lost)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0" colspan="2">
+           <widget class="QRadioButton" name="btnBitmap">
+            <property name="text">
+             <string>Paste the attached sRGB bitmap (no filesystem or Internet access required, but metadata will be lost)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0" colspan="2">
+           <widget class="QRadioButton" name="btnAsk">
+            <property name="text">
+             <string>Ask each time</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="Window">
+      <attribute name="title">
+       <string>Window</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayout">
+       <property name="labelAlignment">
+        <set>Qt::AlignLeading</set>
+       </property>
+       <item row="0" column="0" colspan="2">
+        <widget class="QGroupBox" name="groupBox_3">
+         <property name="title">
+          <string>General</string>
+         </property>
+         <layout class="QFormLayout" name="formLayout_17">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_2">
+            <property name="text">
+             <string>Multiple Document Mode:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="m_cmbMDIType">
+            <property name="currentIndex">
+             <number>1</number>
+            </property>
+            <item>
+             <property name="text">
+              <string>Subwindows</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Tabs</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QCheckBox" name="m_chkCanvasMessages">
+            <property name="text">
+             <string>Show on-canvas popup messages</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="lblZoomMarginSize">
+            <property name="text">
+             <string>Zoom Margin Size:</string>
+            </property>
+            <property name="buddy">
+             <cstring>intZoomMarginSize</cstring>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="KisIntParseSpinBox" name="intZoomMarginSize">
+            <property name="toolTip">
+             <string>Spacing between the image and the page when zoomed to fit, in pixels</string>
+            </property>
+            <property name="suffix">
+             <string> px</string>
+            </property>
+            <property name="maximum">
+             <number>1024</number>
+            </property>
+            <property name="value">
+             <number>0</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="1" column="0" colspan="2">
+        <widget class="QGroupBox" name="group_subWinMode">
+         <property name="enabled">
+          <bool>true</bool>
+         </property>
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="title">
+          <string>Subwindow mode</string>
+         </property>
+         <layout class="QFormLayout" name="formLayout_16">
+          <item row="0" column="1">
+           <widget class="QWidget" name="widget" native="true">
+            <layout class="QHBoxLayout" name="horizontalLayout">
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="QLabel" name="m_backgroundimage">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="minimumSize">
+                <size>
+                 <width>200</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="frameShape">
+                <enum>QFrame::NoFrame</enum>
+               </property>
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QToolButton" name="m_bnFileName">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Fixed" vsizetype="Minimum">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>...</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="clearBgImageButton">
+               <property name="text">
+                <string>Clear</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_5">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Background Image (overrides color):</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_4">
+            <property name="text">
+             <string>Window Background:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="KisColorButton" name="m_mdiColor">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QCheckBox" name="m_chkRubberBand">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Don't show contents when moving sub-windows</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_23">
+         <property name="text">
+          <string>Icons in menu:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QFrame" name="frame2">
+         <layout class="QHBoxLayout" name="horizontalLayout_5">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QComboBox" name="cmbIconsInMenu">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_6">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>0</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_24">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string>(Needs restart)</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="3" column="0" colspan="2">
+        <widget class="QGroupBox" name="chkUseCustomFont">
+         <property name="title">
+          <string>Use custom interface font</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <layout class="QFormLayout" name="formLayout_2">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_3">
+            <property name="text">
+             <string>Font:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QFrame" name="frame_7">
+            <layout class="QHBoxLayout" name="horizontalLayout_6">
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="KisFontComboBoxes" name="cmbCustomFont" native="true">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="intFontSize"/>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="4" column="0" colspan="2">
+        <widget class="QGroupBox" name="m_chkHiDPI">
+         <property name="title">
+          <string>Enable HiDPI support</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_4">
+          <item>
+           <widget class="QWidget" name="m_wdgHiDPIFractionalScaling" native="true">
+            <layout class="QHBoxLayout" name="horizontalLayout_8">
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="QCheckBox" name="m_chkHiDPIFractionalScaling">
+               <property name="text">
+                <string>Enable fractional scale factor</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="horizontalSpacer_4">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>0</width>
+                 <height>0</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QLabel" name="label_16">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>(needs restart)</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="5" column="0" colspan="2">
+        <spacer name="verticalSpacer_4">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="Cursor">
+      <attribute name="title">
+       <string>Cursor</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_9">
+       <item>
+        <widget class="QScrollArea" name="scrollArea_2">
+         <property name="widgetResizable">
+          <bool>true</bool>
+         </property>
+         <widget class="QWidget" name="scrollAreaWidgetContents_2">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>1669</width>
+            <height>781</height>
+           </rect>
+          </property>
+          <layout class="QFormLayout" name="formLayout_19">
+           <item row="0" column="0">
+            <widget class="QLabel" name="textLabel1">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>Brush Cursor Icon:</string>
+             </property>
+             <property name="buddy">
+              <cstring>frame</cstring>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QComboBox" name="m_cmbCursorShape"/>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="textLabel1_2">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>Brush Outline Shape:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QWidget" name="widget_2" native="true">
+             <layout class="QVBoxLayout" name="verticalLayout_8">
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
+               <number>0</number>
+              </property>
+              <item>
+               <widget class="QComboBox" name="m_cmbOutlineShape"/>
+              </item>
+              <item>
+               <widget class="QGroupBox" name="groupBox">
+                <property name="title">
+                 <string>While painting...</string>
+                </property>
+                <layout class="QVBoxLayout" name="verticalLayout_2">
+                 <property name="spacing">
+                  <number>3</number>
+                 </property>
+                 <property name="leftMargin">
+                  <number>9</number>
+                 </property>
+                 <property name="topMargin">
+                  <number>3</number>
+                 </property>
+                 <property name="bottomMargin">
+                  <number>3</number>
+                 </property>
+                 <item>
+                  <widget class="QCheckBox" name="m_showOutlinePainting">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="minimumSize">
+                    <size>
+                     <width>200</width>
+                     <height>0</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>Show outline</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QCheckBox" name="m_changeBrushOutline">
+                   <property name="toolTip">
+                    <string>Dynamically adjust outline to match the effective size of the brush. (For example, as brush size changes due to pen pressure.)</string>
+                   </property>
+                   <property name="text">
+                    <string>Use effective outline size</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_11">
+             <property name="text">
+              <string>Brush Outline Color:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="KisColorButton" name="cursorColorButton">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0" colspan="2">
+            <widget class="QGroupBox" name="m_chkSeparateEraserCursor">
+             <property name="title">
+              <string>Use separate settings for eraser</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <property name="checked">
+              <bool>false</bool>
+             </property>
+             <layout class="QFormLayout" name="formLayout_14">
+              <item row="0" column="1">
+               <widget class="QComboBox" name="m_cmbEraserCursorShape"/>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="label_19">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>Eraser Cursor Icon:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="label_20">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>Eraser Outline Shape:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QWidget" name="widget_7" native="true">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <layout class="QVBoxLayout" name="verticalLayout_10">
+                 <property name="leftMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="topMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="rightMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="bottomMargin">
+                  <number>0</number>
+                 </property>
+                 <item>
+                  <widget class="QComboBox" name="m_cmbEraserOutlineShape"/>
+                 </item>
+                 <item>
+                  <widget class="QGroupBox" name="groupBox_6">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="title">
+                    <string>While painting with an eraser...</string>
+                   </property>
+                   <layout class="QVBoxLayout" name="verticalLayout_5">
+                    <property name="spacing">
+                     <number>3</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>3</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>3</number>
+                    </property>
+                    <item>
+                     <widget class="QCheckBox" name="m_showEraserOutlinePainting">
+                      <property name="text">
+                       <string>Show outline</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QCheckBox" name="m_changeEraserBrushOutline">
+                      <property name="toolTip">
+                       <string>Dynamically adjust outline to match the effective size of the brush. (For example, as brush size changes due to pen pressure.)</string>
+                      </property>
+                      <property name="text">
+                       <string>Use effective outline size</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="label_21">
+                <property name="text">
+                 <string>Eraser Outline Color:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="KisColorButton" name="eraserCursorColorButton">
+                <property name="maximumSize">
+                 <size>
+                  <width>48</width>
+                  <height>25</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string/>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="m_lblColorSamplerPreviewStyle">
+             <property name="text">
+              <string>Color Sampler Shape:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QComboBox" name="m_cmbColorSamplerPreviewStyle"/>
+           </item>
+           <item row="5" column="0" colspan="2">
+            <widget class="QFrame" name="m_frmColorSamplerCircleSettings">
+             <property name="frameShape">
+              <enum>QFrame::StyledPanel</enum>
+             </property>
+             <property name="frameShadow">
+              <enum>QFrame::Raised</enum>
+             </property>
+             <layout class="QFormLayout" name="m_frmColorSamplerCircleSettingsLayout">
+              <item row="0" column="0" colspan="2">
+               <widget class="KisColorSamplerPreviewPreview" name="m_lblColorSamplerPreviewSizePreview">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="m_lblColorSamplerPreviewSize">
+                <property name="text">
+                 <string>Diameter:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="KisSliderSpinBox" name="m_nmbColorSamplerPreviewSize"/>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="m_lblColorSamplerPreviewThickness">
+                <property name="text">
+                 <string>Thickness:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="KisDoubleSliderSpinBox" name="m_ssbColorSamplerPreviewThickness"/>
+              </item>
+              <item row="3" column="1">
+               <widget class="QCheckBox" name="m_chkColorSamplerPreviewOutlineEnabled">
+                <property name="text">
+                 <string>Enable Outline</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QCheckBox" name="m_chkColorSamplerPreviewExtraCircles">
+                <property name="text">
+                 <string>Extra Comparison Space</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0" colspan="2">
+               <widget class="QGroupBox" name="m_grpColorSamplerZoomPreview">
+                <property name="title">
+                 <string>Enable Zoom Preview (Pixel-Perfect Color Sampler)</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+                <layout class="QFormLayout" name="formLayout_3">
+                 <item row="0" column="0">
+                  <widget class="QLabel" name="m_lblColorSamplerZoomPreviewScale">
+                   <property name="text">
+                    <string>Zoom Preview Scale:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="1">
+                  <widget class="KisSliderSpinBox" name="m_ssbColorSamplerZoomPreviewScale">
+                   <property name="suffix">
+                    <string>x</string>
+                   </property>
+                   <property name="minimum">
+                    <number>1</number>
+                   </property>
+                   <property name="maximum">
+                    <number>20</number>
+                   </property>
+                   <property name="singleStep">
+                    <number>1</number>
+                   </property>
+                   <property name="value">
+                    <number>1</number>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="0">
+                  <widget class="QLabel" name="m_lblColorSamplerPreviewCirclePosition">
+                   <property name="text">
+                    <string>Color Sampler Position:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="1">
+                  <widget class="QComboBox" name="m_cmbColorSamplerPreviewCirclePosition"/>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="6" column="0">
+            <widget class="QLabel" name="m_lblColorSamplerPreviewSizePreviewEmpty">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="Tools">
+      <attribute name="title">
+       <string>Tools</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayout_12">
+       <item row="0" column="0" colspan="2">
+        <widget class="QGroupBox" name="groupBox_4">
+         <property name="title">
+          <string>Tool Options Location (needs restart)</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_3">
+          <item>
+           <widget class="QRadioButton" name="m_radioToolOptionsInDocker">
+            <property name="text">
+             <string>In Doc&amp;ker</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="m_radioToolOptionsInToolbar">
+            <property name="text">
+             <string>I&amp;n Toolbar</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="lblFlowMode">
+         <property name="text">
+          <string>Brush Flow Mode (needs restart):</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QComboBox" name="cmbFlowMode">
+         <item>
+          <property name="text">
+           <string>Creamy (Krita 4.2+)</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Hard (Krita 4.1 and earlier versions)</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="lblCmykBlendingMode">
+         <property name="text">
+          <string>CMYK blending mode (needs restart):</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QComboBox" name="cmbCmykBlendingMode">
+         <item>
+          <property name="text">
+           <string>Subtractive (Krita 5.2+)</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Additive (Krita 5.1 and earlier versions)</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="7" column="1">
+        <widget class="QCheckBox" name="m_chkSwitchSelectionCtrlAlt">
+         <property name="text">
+          <string>Switch Control/Alt Selection Modifiers</string>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="0">
+        <widget class="QLabel" name="lblTouchPainting">
+         <property name="text">
+          <string>Touch Painting:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="1">
+        <widget class="QComboBox" name="cmbTouchPainting"/>
+       </item>
+       <item row="9" column="1">
+        <widget class="QCheckBox" name="chkTouchPressureSensitivity">
+         <property name="toolTip">
+          <string>Enable reading of pressure state for touch events. This data may be broken on some platforms, e.g. on some Android devices, where pressure may be reported as 0.0 all the time.</string>
+         </property>
+         <property name="text">
+          <string>Enable Touch Pressure Sensitivity (may be broken)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="10" column="1">
+        <widget class="QCheckBox" name="chkEnableTransformToolAfterPaste">
+         <property name="text">
+          <string>Activate transform tool after pasting</string>
+         </property>
+        </widget>
+       </item>
+       <item row="11" column="0">
+        <widget class="QLabel" name="lblZoomSteps">
+         <property name="text">
+          <string>Zoom steps between powers of 2</string>
+         </property>
+        </widget>
+       </item>
+       <item row="11" column="1">
+        <widget class="QSpinBox" name="spnZoomSteps">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>32</number>
+         </property>
+        </widget>
+       </item>
+       <item row="12" column="1">
+        <widget class="QCheckBox" name="chkZoomHorizontally">
+         <property name="text">
+          <string>Use horizontal axis for Canvas Zoom Action</string>
+         </property>
+        </widget>
+       </item>
+       <item row="13" column="0" colspan="2">
+        <widget class="QGroupBox" name="groupBox_5">
+         <property name="alignment">
+          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+         </property>
+         <layout class="QFormLayout" name="formLayout_3">
+          <item row="0" column="0">
+           <widget class="QCheckBox" name="chkEnableSelectionActionBar">
+            <property name="toolTip">
+             <string>When enabled, any selections will produce a small floating panel of useful selection-related actions.</string>
+            </property>
+            <property name="text">
+             <string>Enable Selection Actions Bar</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="Animation">
+      <attribute name="title">
+       <string>Animation</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_11">
+       <item>
+        <widget class="QGroupBox" name="grpAnimation">
+         <property name="title">
+          <string>Animation Settings</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_12">
+          <item>
+           <widget class="QCheckBox" name="m_chkAutoPin">
+            <property name="toolTip">
+             <string>When this option is checked newly created layers will be automatically pinned to the animation timeline. This is useful when animating with a small number of layers or when many elements on different animated layers are interacting with each other.</string>
+            </property>
+            <property name="text">
+             <string>Automatically pin new layers to timeline</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="m_chkAdaptivePlaybackRange">
+            <property name="toolTip">
+             <string>When checked, this option automatically adjusts the document's &quot;start&quot; and &quot;end&quot; frames so that newly created keyframes are always within the animation playback range. This feature is recommended to speed up animation workflow when improvising a scene without a predetermined length.</string>
+            </property>
+            <property name="text">
+             <string>Automatically adapt playback range to keyframes</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="m_chkAutoZoom">
+            <property name="toolTip">
+             <string>When checked, this option will automatically scale the Animation Timeline Docker's frames view to best fit the document's playback range. A smaller playback range will cause the timeline to zoom in, while a larger playback range will cause the timeline to zoom out.</string>
+            </property>
+            <property name="text">
+             <string>Automatically zoom timeline to fit playback range</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="Resources">
+      <attribute name="title">
+       <string>Resources</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayout_7">
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_15">
+         <property name="text">
+          <string>Resource Folder:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <layout class="QHBoxLayout" name="horizontalLayout_1">
+         <item>
+          <widget class="KisFileNameRequester" name="m_urlResourceFolder" native="true">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="m_resourceFolderSelector"/>
+         </item>
+        </layout>
+       </item>
+       <item row="2" column="1">
+        <widget class="KisWarningBlock" name="grpWindowsAppData"/>
+       </item>
+       <item row="1" column="1">
+        <widget class="KisWarningBlock" name="grpNonWritableLocation"/>
+       </item>
+       <item row="3" column="1">
+        <widget class="KisWarningBlock" name="grpRestartMessage"/>
+       </item>
+       <item row="4" column="1">
+        <widget class="KisWarningBlock" name="grpAndroidWarningMessage"/>
+       </item>
+       <item row="5" column="0" colspan="2">
+        <spacer name="verticalSpacer_5">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="Miscellaneous">
+      <attribute name="title">
+       <string>Miscellaneous</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QScrollArea" name="scrollArea">
+         <property name="frameShape">
+          <enum>QFrame::NoFrame</enum>
+         </property>
+         <property name="horizontalScrollBarPolicy">
+          <enum>Qt::ScrollBarAsNeeded</enum>
+         </property>
+         <property name="sizeAdjustPolicy">
+          <enum>QAbstractScrollArea::AdjustIgnored</enum>
+         </property>
+         <property name="widgetResizable">
+          <bool>true</bool>
+         </property>
+         <widget class="QWidget" name="scrollAreaWidgetContents">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>1689</width>
+            <height>801</height>
+           </rect>
+          </property>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <layout class="QFormLayout" name="formLayout_13">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_12">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="text">
+              <string>When Krita starts:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QComboBox" name="cmbStartupSession">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QCheckBox" name="chkSaveSessionOnQuit">
+             <property name="text">
+              <string>Save session when Krita closes</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QCheckBox" name="m_chkConvertOnImport">
+             <property name="text">
+              <string>On importing images as layers, convert to the image colorspace</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="toolTip">
+              <string>Only applies to new or newly opened images.</string>
+             </property>
+             <property name="text">
+              <string>Undo stack size:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="KisIntParseSpinBox" name="m_undoStackSize">
+             <property name="toolTip">
+              <string>Only applies to new or newly opened images.</string>
+             </property>
+             <property name="minimum">
+              <number>0</number>
+             </property>
+             <property name="maximum">
+              <number>1000</number>
+             </property>
+             <property name="singleStep">
+              <number>5</number>
+             </property>
+             <property name="value">
+              <number>30</number>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <layout class="QHBoxLayout" name="horizontalLayout_4">
+             <item>
+              <widget class="QCheckBox" name="chkCumulativeUndo">
+               <property name="text">
+                <string>Use cumulative undo</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="horizontalSpacer_2">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>40</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btnAdvancedCumulativeUndo">
+               <property name="text">
+                <string>Advanced...</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item row="5" column="1">
+            <widget class="QCheckBox" name="chkShowRootLayer">
+             <property name="text">
+              <string>Show root layer</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="1">
+            <widget class="QCheckBox" name="chkUsageLogging">
+             <property name="text">
+              <string>Enable Logging for bug reports</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="1">
+            <widget class="QFrame" name="frame_4">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <layout class="QHBoxLayout" name="horizontalLayout_3">
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
+               <number>0</number>
+              </property>
+              <item>
+               <widget class="QCheckBox" name="m_chkNativeFileDialog">
+                <property name="toolTip">
+                 <string>Warning: if you enable this setting and the file dialogs do weird stuff, do not report a bug.</string>
+                </property>
+                <property name="text">
+                 <string>Enable native file dialogs</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer_3">
+                <property name="orientation">
+                 <enum>Qt::Vertical</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>0</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QLabel" name="label_18">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="text">
+                 <string>(Warning: may not work correctly on some systems)</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="10" column="0">
+            <widget class="QLabel" name="label_9">
+             <property name="text">
+              <string>Maximum brush size:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="10" column="1">
+            <widget class="QFrame" name="frame">
+             <layout class="QHBoxLayout" name="horizontalLayout_2">
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
+               <number>0</number>
+              </property>
+              <item>
+               <widget class="QSpinBox" name="intMaxBrushSize">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="toolTip">
+                 <string>The maximum diameter of a brush in pixels.</string>
+                </property>
+                <property name="suffix">
+                 <string comment="pixel">px</string>
+                </property>
+                <property name="minimum">
+                 <number>100</number>
+                </property>
+                <property name="maximum">
+                 <number>10000</number>
+                </property>
+                <property name="value">
+                 <number>1000</number>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer">
+                <property name="orientation">
+                 <enum>Qt::Vertical</enum>
+                </property>
+                <property name="sizeType">
+                 <enum>QSizePolicy::Fixed</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>0</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QLabel" name="label_10">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="text">
+                 <string>(Needs restart)</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="11" column="0" colspan="2">
+            <widget class="QGroupBox" name="chkForcedFontDPI">
+             <property name="title">
+              <string>Font DPI Workaround</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <layout class="QFormLayout" name="formLayout_11">
+              <item row="0" column="0">
+               <widget class="QLabel" name="label_17">
+                <property name="toolTip">
+                 <string>In some Krita versions before 5.0 text size could be dependent on the current display DPI (which was a bug).
+In Krita 5.0 this bug has been fixed, which may cause files created in previous versions look different. 
+
+When loading old files Krita will try to adjust font size to the DPI of the current screen.
+If the file has been created on a different display, try adjusting this value manually.
+
+After saving the file in Krita 5.0 at least once, no conversions will be needed anymore.</string>
+                </property>
+                <property name="text">
+                 <string>DPI:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QSpinBox" name="intForcedFontDPI">
+                <property name="toolTip">
+                 <string>In some versions of Krita before 4.4.3 text size could be dependent on the current display DPI (which was a bug).
+In Krita 4.4.3 this bug has been fixed, which may cause files created in previous versions look different.
+To restore the old behavior you can force Krita to use Display DPI for fonts by entering it in this field.</string>
+                </property>
+                <property name="maximum">
+                 <number>1000</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="12" column="0" colspan="2">
+            <widget class="QGroupBox" name="groupBox_51">
+             <property name="title">
+              <string>Automatic layer naming</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_7">
+              <item>
+               <widget class="QCheckBox" name="chkRenameMergedLayers">
+                <property name="text">
+                 <string>Append &quot;Merged&quot; to merged group layers</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="chkRenamePastedLayers">
+                <property name="text">
+                 <string>Append &quot;(pasted)&quot; to pasted layers</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="chkRenameDuplicatedLayers">
+                <property name="text">
+                 <string>Prepend &quot;Copy of&quot; to duplicated layers</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="13" column="0" colspan="2">
+            <widget class="QCheckBox" name="chkEnableLongPress">
+             <property name="text">
+              <string>Long-press to open context menus</string>
+             </property>
+            </widget>
+           </item>
+           <item row="14" column="0" colspan="2">
+            <widget class="QGroupBox" name="m_groupBoxKineticScrollingSettings">
+             <property name="title">
+              <string>Kinetic Scrolling (needs restart)</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+             <layout class="QFormLayout" name="formLayout_10">
+              <item row="0" column="0" colspan="2">
+               <widget class="QComboBox" name="m_cmbKineticScrollingGesture"/>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="labelKineticScrollingSensitivity">
+                <property name="text">
+                 <string>Sensitivity:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="KisSliderSpinBox" name="m_kineticScrollingSensitivitySlider"/>
+              </item>
+              <item row="2" column="1">
+               <widget class="QWidget" name="widget_3" native="true">
+                <layout class="QHBoxLayout" name="horizontalLayout_9">
+                 <property name="leftMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="topMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="rightMargin">
+                  <number>0</number>
+                 </property>
+                 <property name="bottomMargin">
+                  <number>0</number>
+                 </property>
+                 <item>
+                  <widget class="QCheckBox" name="m_chkKineticScrollingHideScrollbars">
+                   <property name="text">
+                    <string>Hide docker scrollbars if kinetic scrolling is enabled</string>
+                   </property>
+                   <property name="checked">
+                    <bool>false</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <spacer name="horizontalSpacer_5">
+                   <property name="orientation">
+                    <enum>Qt::Vertical</enum>
+                   </property>
+                   <property name="sizeHint" stdset="0">
+                    <size>
+                     <width>0</width>
+                     <height>0</height>
+                    </size>
+                   </property>
+                  </spacer>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="label_14">
+                   <property name="enabled">
+                    <bool>false</bool>
+                   </property>
+                   <property name="text">
+                    <string>(needs restart)</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item row="15" column="0" colspan="2">
+            <spacer name="verticalSpacer">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>0</width>
+               <height>0</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item row="9" column="1">
+            <widget class="QCheckBox" name="chkIgnoreHighFunctionKeys">
+             <property name="toolTip">
+              <string>Some applications may emulate presses of function keys with high numbers (e.g. F22) to bring themselves to the foreground. This may break Krita's shortcuts and actions system. If you have a keyboard with F13 or higher function keys, and you wish to use them, try disabling this option, but take this potential problem into account.</string>
+             </property>
+             <property name="text">
+              <string>Ignore high function keys (F13-F24)</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>KisSliderSpinBox</class>
+   <extends>QSpinBox</extends>
+   <header location="global">kis_slider_spin_box.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>KisIntParseSpinBox</class>
+   <extends>QSpinBox</extends>
+   <header>kis_int_parse_spin_box.h</header>
+  </customwidget>
+  <customwidget>
+   <class>KisFileNameRequester</class>
+   <extends>QWidget</extends>
+   <header>kis_file_name_requester.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>KisColorButton</class>
+   <extends>QPushButton</extends>
+   <header location="global">kis_color_button.h</header>
+  </customwidget>
+  <customwidget>
+   <class>KisFontComboBoxes</class>
+   <extends>QWidget</extends>
+   <header location="global">kis_font_family_combo_box.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>KisWarningBlock</class>
+   <extends>QGroupBox</extends>
+   <header location="global">kis_warning_block.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>KisDoubleSliderSpinBox</class>
+   <extends>QSpinBox</extends>
+   <header>kis_slider_spin_box.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>KisColorSamplerPreviewPreview</class>
+   <extends>QLabel</extends>
+   <header>KisColorSamplerPreviewPreview.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

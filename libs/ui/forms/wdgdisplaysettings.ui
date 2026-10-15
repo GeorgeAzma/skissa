@@ -1,0 +1,629 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <author>
+    SPDX-FileCopyrightText: none
+    SPDX-License-Identifier: GPL-3.0-or-later
+  </author>
+ <class>WdgDisplaySettings</class>
+ <widget class="QWidget" name="WdgDisplaySettings">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>674</width>
+    <height>454</height>
+   </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="windowTitle">
+   <string>Display</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="CanvasAcceleration">
+      <attribute name="title">
+       <string>Canvas Acceleration</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout">
+       <item row="0" column="0">
+        <widget class="QGroupBox" name="grpOpenGL">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="title">
+          <string>Canvas &amp;Graphics Acceleration</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <layout class="QFormLayout" name="formLayout_4">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_6">
+            <property name="text">
+             <string>Current Renderer:</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLabel" name="lblCurrentRenderer">
+            <property name="text">
+             <string>Unknown</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="lblPreferredRenderer">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Minimum">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Preferred Renderer (needs restart):</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="cmbPreferredRenderer">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="lblPreferredXcbGlApi">
+            <property name="text">
+             <string>Preferred openGL interface
+(needs restart):</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QComboBox" name="cmbPreferredXcbGlApi"/>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Scaling Mode:</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QComboBox" name="cmbFilterMode">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="currentIndex">
+             <number>0</number>
+            </property>
+            <item>
+             <property name="text">
+              <string>Nearest Neighbour</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Bilinear Filtering</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Trilinear Filtering</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>High Quality Filtering</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="lblAssistantsDrawMode">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Assistants Mode:</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QComboBox" name="cmbAssistantsDrawMode">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Can be used to troubleshoot performance or artifacting problems with drawing assistants.
+              &lt;/p&gt;&lt;p&gt;Changing the pixmap cache size requires a restart.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="currentIndex">
+             <number>0</number>
+            </property>
+            <item>
+             <property name="text">
+              <string>Direct (Recommended)</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Pixmap Cache</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Large Pixmap Cache</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QCheckBox" name="chkUseTextureBuffer">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Use Texture Buffering. This can be faster on some GPU/Driver combinations (like Intel) or broken on some others (like AMD/Radeon).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="text">
+             <string>Use texture buffer</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
+           <widget class="KisWarningBlock" name="grpOpenGLWarnings">
+            <property name="title">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="0" colspan="2">
+           <spacer name="verticalSpacer">
+            <property name="orientation">
+             <enum>Qt::Orientation::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="HDR">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <attribute name="title">
+       <string>HDR Settings</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayout">
+       <item row="0" column="1">
+        <widget class="QLabel" name="lblCurrentDisplayFormat">
+         <property name="text">
+          <string>Current Display Format</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_7">
+         <property name="text">
+          <string>Display Format:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLabel" name="lblCurrentRootSurfaceFormat">
+         <property name="text">
+          <string>Current Surface Value</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_5">
+         <property name="text">
+          <string>Current Output Format:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QComboBox" name="cmbPreferedRootSurfaceFormat"/>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_9">
+         <property name="text">
+          <string>Preferred Output Format:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="KisWarningBlock" name="grpHDRWarning">
+         <property name="title">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0" colspan="2">
+        <spacer name="verticalSpacer_2">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="CanvasDecoration">
+      <attribute name="title">
+       <string>Canvas Decorations</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayout_2">
+       <item row="0" column="0" colspan="2">
+        <widget class="QGroupBox" name="groupBox">
+         <property name="title">
+          <string>Transparency Checkerboard:</string>
+         </property>
+         <layout class="QFormLayout" name="formLayout_9">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_4">
+            <property name="text">
+             <string>Color 1:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="KisColorButton" name="colorChecks1">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="KisColorButton" name="colorChecks2">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_10">
+            <property name="text">
+             <string>Color 2:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="lblCheckSize">
+            <property name="text">
+             <string>Size:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="KisIntParseSpinBox" name="intCheckSize">
+            <property name="suffix">
+             <string> px</string>
+            </property>
+            <property name="maximum">
+             <number>256</number>
+            </property>
+            <property name="value">
+             <number>32</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="lblCanvasBorderColor">
+         <property name="text">
+          <string>Canvas Border Color:</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="KisColorButton" name="canvasBorder">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0" colspan="2">
+        <widget class="QGroupBox" name="groupBox_2">
+         <property name="title">
+          <string>Pixel Grid:</string>
+         </property>
+         <layout class="QFormLayout" name="formLayout_3">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_11">
+            <property name="text">
+             <string>Color:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="KisColorButton" name="pixelGridColorButton">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="gridThresholdLabel">
+            <property name="text">
+             <string>Start showing at:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QDoubleSpinBox" name="pixelGridDrawingThresholdBox">
+            <property name="suffix">
+             <string>%</string>
+            </property>
+            <property name="maximum">
+             <double>9999.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="3" column="0" colspan="2">
+        <widget class="QGroupBox" name="groupBox_3">
+         <property name="title">
+          <string>Selection Overlay:</string>
+         </property>
+         <layout class="QFormLayout" name="formLayout_6">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_2">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Outline opacity:</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="KisDoubleSliderSpinBox" name="sldSelectionOutlineOpacity"/>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_12">
+            <property name="text">
+             <string>Overlay color:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="KisColorButton" name="btnSelectionOverlayColor">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_3">
+            <property name="text">
+             <string>Overlay opacity:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="KisDoubleSliderSpinBox" name="sldSelectionOverlayOpacity">
+            <property name="minimumSize">
+             <size>
+              <width>50</width>
+              <height>20</height>
+             </size>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="Miscellaneous">
+      <attribute name="title">
+       <string>Miscellaneous</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayout_5">
+       <item row="6" column="0" colspan="2">
+        <spacer name="verticalSpacer_5">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>0</width>
+           <height>0</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item row="0" column="1">
+        <widget class="QCheckBox" name="hideScrollbars">
+         <property name="text">
+          <string>Hide Canvas Scrollbars</string>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QCheckBox" name="chkCurveAntialiasing">
+         <property name="text">
+          <string>Enable curve anti-aliasing</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QCheckBox" name="chkHidePopups">
+         <property name="text">
+          <string>Hide layer thumbnail popup</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QCheckBox" name="chkChannelsAsColor">
+         <property name="text">
+          <string>Color channels in color</string>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QCheckBox" name="chkSelectionOutlineAntialiasing">
+         <property name="text">
+          <string>Enable selection outline anti-aliasing</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QCheckBox" name="chkMoving">
+         <property name="toolTip">
+          <string>If checked, the checkers will move when scrolling the canvas.</string>
+         </property>
+         <property name="whatsThis">
+          <string>Determines whether the checks will stay put or whether they will scroll together with the canvas</string>
+         </property>
+         <property name="text">
+          <string>&amp;Move checkers when scrolling</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>KisIntParseSpinBox</class>
+   <extends>QSpinBox</extends>
+   <header>kis_int_parse_spin_box.h</header>
+  </customwidget>
+  <customwidget>
+   <class>KisDoubleSliderSpinBox</class>
+   <extends>QDoubleSpinBox</extends>
+   <header location="global">kis_slider_spin_box.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>KisColorButton</class>
+   <extends>QPushButton</extends>
+   <header>kis_color_button.h</header>
+  </customwidget>
+  <customwidget>
+   <class>KisWarningBlock</class>
+   <extends>QGroupBox</extends>
+   <header location="global">kis_warning_block.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,490 @@
+/*
+ *  preferencesdlg.h - part of KImageShop^WKrita
+ *
+ *  SPDX-FileCopyrightText: 1999 Michael Koch <koch@kde.org>
+ *  SPDX-FileCopyrightText: 2003-2011 Boudewijn Rempt <boud@valdyas.org>
+ *
+ *  SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+#ifndef _KIS_DLG_PREFERENCES_H_
+#define _KIS_DLG_PREFERENCES_H_
+
+#include <QWidget>
+#include <QButtonGroup>
+#include <QMap>
+#include <QString>
+
+#include <kpagedialog.h>
+#include <kis_config.h>
+
+#include "kis_cie_tongue_widget.h"
+#include "kis_global.h"
+#include <KisSqueezedComboBox.h>
+#include <KisScreenMigrationTracker.h>
+
+#include "ui_wdggeneralsettings.h"
+#include "ui_wdgdisplaysettings.h"
+#include "ui_wdgcolorsettings.h"
+#include "ui_wdgtabletsettings.h"
+#include "ui_wdgperformancesettings.h"
+#include "ui_wdgfullscreensettings.h"
+#include "ui_WdgPopupPaletteSettings.h"
+#include "KisShortcutsDialog.h"
+#include "KisCumulativeUndoData.h"
+
+class KoID;
+class KisInputConfigurationPage;
+class KoConfigAuthorPage;
+class KisProofingConfigModel;
+class KisFrameRateLimitModel;
+
+/**
+ *  "General"-tab for preferences dialog
+ */
+
+class WdgGeneralSettings : public QWidget, public Ui::WdgGeneralSettings
+{
+    Q_OBJECT
+
+public:
+    WdgGeneralSettings(QWidget *parent, const char *name) : QWidget(parent) {
+        setObjectName(name);
+        setupUi(this);
+        formLayout_13->takeRow(chkShowRootLayer);
+        chkShowRootLayer->setVisible(false);
+    }
+};
+
+class KRITAUI_EXPORT GeneralTab : public WdgGeneralSettings
+{
+    Q_OBJECT
+
+public:
+
+    GeneralTab(QWidget *parent = 0, const char *name = 0);
+
+    CursorStyle cursorStyle();
+    OutlineStyle outlineStyle();
+    CursorStyle eraserCursorStyle();
+    OutlineStyle eraserOutlineStyle();
+    KisConfig::ColorSamplerPreviewStyle colorSamplerPreviewStyle() const;
+    int colorSamplerPreviewCircleDiameter() const;
+    qreal colorSamplerPreviewCircleThickness() const;
+    bool colorSamplerPreviewCircleOutlineEnabled() const;
+    bool colorSamplerPreviewCircleExtraCirclesEnabled() const;
+    qreal colorSamplerZoomPreviewScale() const;
+    bool colorSamplerZoomPreviewEnabled() const;
+    KisConfig::ColorSamplerPreviewCirclePosition colorSamplerPreviewCirclePosition() const;
+
+    KisConfig::SessionOnStartup sessionOnStartup() const;
+    KisConfig::IconsInMenu iconsInMenu() const;
+    bool saveSessionOnQuit() const;
+
+    bool showRootLayer();
+    int autoSaveInterval();
+    void setDefault();
+    int undoStackSize();
+    bool showOutlineWhilePainting();
+    bool showEraserOutlineWhilePainting();
+
+    int mdiMode();
+    bool showCanvasMessages();
+    bool compressKra();
+    bool trimKra();
+    bool trimFramesImport();
+    bool useZip64();
+    bool toolOptionsInDocker();
+    int zoomSteps();
+    bool longPressEnabled();
+    bool kineticScrollingEnabled();
+    int kineticScrollingGesture();
+    int kineticScrollingSensitivity();
+    bool kineticScrollingHiddenScrollbars();
+    int zoomMarginSize();
+    bool switchSelectionCtrlAlt();
+    bool convertToImageColorspaceOnImport();
+
+    bool autopinLayersToTimeline();
+    bool adaptivePlaybackRange();
+    bool autoZoomTimelineToPlaybackRange();
+
+    bool renameMergedLayers();
+    bool renamePastedLayers();
+    bool renameDuplicatedLayers();
+    QString exportMimeType();
+    int forcedFontDpi();
+
+    static void setColorSamplerPreviewStyleItems(QComboBox *cmb);
+    static void setColorSamplerPreviewStyleIndexByValue(QComboBox *cmb, KisConfig::ColorSamplerPreviewStyle style);
+    static KisConfig::ColorSamplerPreviewStyle getColorSamplerPreviewStyleValue(const QComboBox *cmb);
+
+private Q_SLOTS:
+    void getBackgroundImage();
+    void clearBackgroundImage();
+    void checkResourcePath();
+    void enableSubWindowOptions(int);
+    void updateTouchPressureSensitivityEnabled(int);
+    void showAdvancedCumulativeUndoSettings();
+
+    void colorSamplePreviewStyleChanged(int index);
+    void colorSamplePreviewSizeChanged(int value);
+    void colorSamplePreviewThicknessChanged(qreal value);
+    void colorSamplePreviewOutlineEnabledChanged(int value);
+
+    static void setButtonGroupEnabled(const QButtonGroup& buttonGroup, bool value);
+
+public:
+    QButtonGroup m_pasteFormatGroup;
+    KisCumulativeUndoData m_cumulativeUndoData;
+};
+
+
+
+/**
+ *  "Shortcuts" tab for preferences dialog
+ */
+
+class WdgShortcutSettings : public KisShortcutsDialog
+{
+    Q_OBJECT
+
+public:
+    WdgShortcutSettings(QWidget *parent)
+        : KisShortcutsDialog(KisShortcutsEditor::AllActions,
+                             KisShortcutsEditor::LetterShortcutsAllowed,
+                             parent)
+    { }
+};
+
+class KisActionsSnapshot;
+
+class ShortcutSettingsTab : public QWidget
+{
+    Q_OBJECT
+
+public:
+
+    ShortcutSettingsTab(QWidget *parent = 0, const char *name = 0);
+    ~ShortcutSettingsTab() override;
+
+public:
+    void setDefault();
+    WdgShortcutSettings  *m_page;
+    QScopedPointer<KisActionsSnapshot> m_snapshot;
+
+public Q_SLOTS:
+    void saveChanges();
+    void cancelChanges();
+};
+
+
+
+/**
+ *  "Color" tab for preferences dialog
+ */
+
+class WdgColorSettings : public QWidget, public Ui::WdgColorSettings
+{
+    Q_OBJECT
+
+public:
+    WdgColorSettings(QWidget *parent) : QWidget(parent) {
+        setupUi(this);
+    }
+};
+
+class ColorSettingsTab : public QWidget
+{
+    Q_OBJECT
+
+public:
+
+    ColorSettingsTab(QWidget *parent = 0, const char  *name = 0);
+
+    enum PreferredSpaceType {
+        PreferredSpace,
+        MasteringSpace
+    };
+
+private Q_SLOTS:
+
+    void refillMonitorProfiles(const KoID & s);
+    void installProfile();
+    void toggleUseDefaultColorSpace(bool useDefColorSpace);
+
+    void updateProofingDisplayInfo();
+
+    void updatePreferredSpaceGraphic();
+
+public:
+    void setDefault();
+    WdgColorSettings  *m_page;
+    QButtonGroup m_pasteBehaviourGroup;
+    QList<QLabel*> m_monitorProfileLabels;
+    QList<KisSqueezedComboBox*> m_monitorProfileWidgets;
+    QScopedPointer<KisProofingConfigModel> m_proofModel;
+    QScopedPointer<KisScreenMigrationTracker> m_screenMigrationTracker;
+
+    using CanvasSurfaceMode = KisConfig::CanvasSurfaceMode;
+    using CanvasSurfaceBitDepthMode = KisConfig::CanvasSurfaceBitDepthMode;
+
+    bool m_colorManagedByOS {false};
+    QPointer<QCheckBox> m_chkEnableCanvasColorSpaceManagement;
+    QPointer<KisSqueezedComboBox> m_canvasSurfaceColorSpace;
+    QPointer<KisSqueezedComboBox> m_canvasSurfaceBitDepth;
+    QPointer<KisCIETongueWidget> m_preferredSpaceGraphic;
+    QButtonGroup m_preferredSpaceGraphicMode;
+};
+
+//=======================
+
+class WdgTabletSettings : public QWidget, public Ui::WdgTabletSettings {
+
+    Q_OBJECT
+
+public:
+    WdgTabletSettings(QWidget *parent) : QWidget(parent) {
+        setupUi(this);
+    }
+
+};
+
+class TabletSettingsTab : public QWidget {
+    Q_OBJECT
+public:
+    TabletSettingsTab(QWidget *parent = 0, const char  *name = 0);
+
+private Q_SLOTS:
+    void slotTabletTest();
+    void slotResolutionSettings();
+
+public:
+    void setDefault();
+    WdgTabletSettings  *m_page;
+
+
+};
+
+//=======================
+
+/**
+  * "Performance"-tab for preferences dialog
+ */
+
+class SliderAndSpinBoxSync;
+
+class WdgPerformanceSettings : public QWidget, public Ui::WdgPerformanceSettings
+{
+    Q_OBJECT
+
+public:
+    WdgPerformanceSettings(QWidget *parent, const char *name) : QWidget(parent) {
+        setObjectName(name); setupUi(this);
+    }
+};
+
+class PerformanceTab : public WdgPerformanceSettings
+{
+    Q_OBJECT
+
+public:
+    PerformanceTab(QWidget *parent = 0, const char *name = 0);
+
+    ~PerformanceTab() override;
+
+    void load(bool requestDefault);
+    void save();
+
+private Q_SLOTS:
+    void slotThreadsLimitChanged(int value);
+    void slotFrameClonesLimitChanged(int value);
+
+private:
+    int realTilesRAM();
+
+private:
+    QVector<SliderAndSpinBoxSync*> m_syncs;
+    int m_lastUsedThreadsLimit;
+    int m_lastUsedClonesLimit;
+    QScopedPointer<KisFrameRateLimitModel> m_frameRateModel;
+};
+
+//=======================
+
+class WdgDisplaySettings : public QWidget, public Ui::WdgDisplaySettings
+{
+    Q_OBJECT
+
+public:
+    WdgDisplaySettings(QWidget *parent, const char *name) : QWidget(parent) {
+        setObjectName(name); setupUi(this);
+    }
+};
+
+/**
+ *  Display settings tab for preferences dialog
+ */
+
+
+class DisplaySettingsTab : public WdgDisplaySettings
+{
+    Q_OBJECT
+
+public:
+    DisplaySettingsTab(QWidget *parent = 0, const char *name = 0);
+
+public:
+    void setDefault();
+protected Q_SLOTS:
+    void slotUseOpenGLToggled(bool isChecked);
+    void slotPreferredSurfaceFormatChanged(int index);
+
+public:
+};
+
+//=======================
+
+/**
+ *  Full screen settings tab for preferences dialog
+ */
+
+class WdgFullscreenSettingsBase : public QWidget, public Ui::WdgFullscreenSettings
+{
+    Q_OBJECT
+
+public:
+    WdgFullscreenSettingsBase(QWidget *parent) : QWidget(parent) {
+        setupUi(this);
+    }
+};
+
+class FullscreenSettingsTab : public WdgFullscreenSettingsBase
+{
+    Q_OBJECT
+public:
+    FullscreenSettingsTab(QWidget *parent);
+public:
+    void setDefault();
+};
+
+//=======================
+
+/**
+  * "Pop-up Palette"-tab for preferences dialog
+ */
+
+class WdgPopupPaletteSettingsBase : public QWidget, public Ui::WdgPopupPaletteSettings
+{
+    Q_OBJECT
+
+public:
+    WdgPopupPaletteSettingsBase(QWidget *parent, const char *name) : QWidget(parent) {
+        setObjectName(name); setupUi(this);
+    }
+};
+
+class PopupPaletteTab : public WdgPopupPaletteSettingsBase
+{
+    Q_OBJECT
+
+public:
+    PopupPaletteTab(QWidget *parent = 0, const char *name = 0);
+
+    void load();
+    void save();
+    void setDefault();
+protected Q_SLOTS:
+    void slotSelectorTypeChanged(int index);
+};
+
+//=======================
+
+
+/**
+ *  Preferences dialog of KImageShop^WKrayon^WKrita
+ */
+class KisDlgPreferences : public KPageDialog
+{
+    Q_OBJECT
+
+public:
+    enum Page {
+        General,
+        Shortucts,
+        Color,
+        Performance,
+        Display,
+        Tablet,
+        Fullscreen,
+        Input,
+        PopupPalette,
+    };
+    enum GeneralTabs {
+        File,
+        Pasting,
+        Window,
+        Cursor,
+        Tools,
+        Animation,
+        Resources,
+        MiscellaneousGeneral
+    };
+    enum ColorTabs {
+        GeneralColor,
+        DisplayTab,
+        SoftProofing
+    };
+    enum DisplayTabs {
+        CanvasAcceleration,
+        HDR,
+        CanvasDecoration,
+        MiscellaneousDisplay
+    };
+    enum PerformaceTabs {
+        GeneralPerformance,
+        Advanced,
+        AnimationCache,
+        InstantPreview,
+    };
+
+    struct PageDesc {
+        Page page;
+        int tab;
+    };
+
+    KisDlgPreferences(QWidget *parent = 0, const char *name = 0);
+    ~KisDlgPreferences() override;
+
+    bool editPreferences(std::optional<PageDesc> page);
+
+    void showEvent(QShowEvent *event) override;
+
+private:
+    KPageWidgetItem* getPage(Page page_enum);
+    void switchTab (PageDesc tab);
+
+    GeneralTab *m_general;
+    ShortcutSettingsTab  *m_shortcutSettings;
+    ColorSettingsTab *m_colorSettings;
+    PerformanceTab *m_performanceSettings;
+    DisplaySettingsTab  *m_displaySettings;
+    TabletSettingsTab *m_tabletSettings;
+    FullscreenSettingsTab *m_fullscreenSettings;
+    KisInputConfigurationPage *m_inputConfiguration;
+    PopupPaletteTab *m_popupPaletteSettings;
+    KoConfigAuthorPage *m_authorPage;
+
+    QList<KPageWidgetItem*> m_pages;
+
+private Q_SLOTS:
+
+    void slotButtonClicked(QAbstractButton *button);
+    void slotDefault();
+
+private:
+
+    bool m_cancelClicked {false};
+};
+
+#endif

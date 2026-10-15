@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>WdgPopupPaletteSettings</class>
+ <widget class="QWidget" name="WdgPopupPaletteSettings">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>430</width>
+    <height>309</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QFormLayout" name="formLayout">
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item row="0" column="0">
+    <widget class="QLabel" name="label_3">
+     <property name="text">
+      <string>Maximum Number of Brush Presets:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <widget class="QSpinBox" name="sbNumPresets">
+     <property name="minimum">
+      <number>1</number>
+     </property>
+     <property name="maximum">
+      <number>45</number>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QCheckBox" name="chkUseDynamicSlotCount">
+     <property name="text">
+      <string>Dynamically Adjust Slot Count</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QLabel" name="label_6">
+     <property name="text">
+      <string>Palette Size:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="1">
+    <widget class="KisSliderSpinBox" name="sbPaletteSize">
+     <property name="suffix">
+      <string>px</string>
+     </property>
+     <property name="minimum">
+      <number>380</number>
+     </property>
+     <property name="maximum">
+      <number>550</number>
+     </property>
+     <property name="value">
+      <number>385</number>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="QLabel" name="label_4">
+     <property name="text">
+      <string>Color Selector:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="1">
+    <widget class="QComboBox" name="cmbSelectorType">
+     <item>
+      <property name="text">
+       <string>sRGB Triangle Selector</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>Wide Gamut Selector</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="5" column="0">
+    <widget class="QLabel" name="label_5">
+     <property name="text">
+      <string>Selector Size:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="1">
+    <widget class="KisSliderSpinBox" name="sbSelectorSize">
+     <property name="suffix">
+      <string>px</string>
+     </property>
+     <property name="minimum">
+      <number>100</number>
+     </property>
+     <property name="maximum">
+      <number>240</number>
+     </property>
+     <property name="value">
+      <number>144</number>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="1">
+    <widget class="QCheckBox" name="chkShowColorHistory">
+     <property name="text">
+      <string>Show Color History Ring</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="8" column="1">
+    <widget class="QCheckBox" name="chkShowRotationTrack">
+     <property name="text">
+      <string>Show Rotation Ring</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="9" column="0" colspan="2">
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>0</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item row="7" column="1">
+    <widget class="QComboBox" name="cmbColorHistorySorting">
+     <item>
+      <property name="text">
+       <string>Last Used</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>Hue/Saturation/Value</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="7" column="0">
+    <widget class="QLabel" name="lblColorHistorySorting">
+     <property name="text">
+      <string>Sort Color History Ring By:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="0" colspan="2">
+    <widget class="QGroupBox" name="grpFixTriangleRotation">
+     <property name="title">
+      <string>Fix sRGB Triangle Selector Rotation</string>
+     </property>
+     <property name="checkable">
+      <bool>true</bool>
+     </property>
+     <property name="checked">
+      <bool>false</bool>
+     </property>
+     <layout class="QFormLayout" name="formLayout_2">
+      <item row="0" column="0">
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Rotation Angle:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="KisSliderSpinBox" name="sbTriangleRotationAngle">
+        <property name="suffix">
+         <string>°</string>
+        </property>
+        <property name="maximum">
+         <number>359</number>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>KisSliderSpinBox</class>
+   <extends>QSpinBox</extends>
+   <header location="global">kis_slider_spin_box.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
