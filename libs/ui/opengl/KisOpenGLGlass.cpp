@@ -571,7 +571,7 @@ void main()
         float facing = abs(dot(outward, vec2(-0.70710678, 0.70710678)));
         color = mix(color, gathered, clamp(line * (0.3 + 0.6 * facing) * rim.z, 0.0, 1.0));
         if (imageLit) {
-            color += imageLightAt(p, outward) * line;
+            color += imageLightAt(p, outward) * line * rim.z;
         }
     }
 
