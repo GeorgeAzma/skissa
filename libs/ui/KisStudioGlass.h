@@ -52,11 +52,11 @@ public:
     /// Share of the tint that veils the chroma of what is behind.
     static constexpr qreal veil = 0.3;
 
-    /// The refracting edge and its lit, reflecting rim, in widget pixels.
+    /// The refracting edge, in widget pixels.
     struct Rim {
-        qreal band {20};        ///< of the band along the edge that bends what is behind
-        qreal width {2.5};      ///< of the lit rim
-        qreal reflection {14}; ///< how far out it reflects
+        qreal band {20}; ///< of the band along the edge that bends what is behind
+        /// How far outside the panel its edge sees, reflecting what is there
+        qreal reach() const { return 2 * band + 2; }
     };
     static Rim rim() { return {}; }
 

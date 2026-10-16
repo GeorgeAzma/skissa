@@ -675,11 +675,14 @@ public:
 
     QRectF quietTrack(qreal thickness) const
     {
+        // inset by the hovered knob's radius, so it is never cut off at either end
         const QRectF rect = m_lineEdit->rect();
         if (isQuietWide()) {
-            return QRectF(rect.left() + 6, rect.center().y() - thickness / 2, rect.width() - quietTextWidth() - 20, thickness);
+            const qreal knob = 9;
+            return QRectF(rect.left() + knob, rect.center().y() - thickness / 2, rect.width() - quietTextWidth() - 14 - 2 * knob, thickness);
         }
-        return QRectF(rect.left() + 4, rect.bottom() - thickness - 3, rect.width() - 8, thickness);
+        const qreal knob = 5;
+        return QRectF(rect.left() + knob, rect.bottom() - thickness - 3, rect.width() - 2 * knob, thickness);
     }
 
     /// A position on the line mapped to the whole field, where values are computed

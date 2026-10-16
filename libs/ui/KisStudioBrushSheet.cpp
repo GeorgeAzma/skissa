@@ -355,6 +355,15 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
     d->preview = new KisPresetLivePreviewView(this);
     d->preview->setFixedSize(460, 64);
     d->preview->setFrameShape(QFrame::NoFrame);
+    {
+        // the stroke right on the glass, with no box behind it: the preview paints over its window color
+        QPalette clear;
+        clear.setColor(QPalette::Window, Qt::transparent);
+        clear.setColor(QPalette::Base, Qt::transparent);
+        d->preview->setPalette(clear);
+        d->preview->setBackgroundBrush(Qt::NoBrush);
+        d->preview->viewport()->setAutoFillBackground(false);
+    }
     if (mainWindow->viewManager() && mainWindow->viewManager()->canvasResourceProvider()) {
         d->preview->setup(mainWindow->viewManager()->canvasResourceProvider()->resourceManager());
     }

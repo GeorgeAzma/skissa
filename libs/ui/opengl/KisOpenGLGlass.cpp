@@ -217,8 +217,9 @@ void main()
  *  - The frost follows how thick the glass is, (1 - u^4)(1 - v^4) with u and v from -1 to 1 across the
  *    panel: clear at the edges, the most in the middle, changing evenly as the blur narrows by octaves
  *    toward the canvas itself.
- *  - At the edge itself, a thin rim lit by the room (from the top left, and as much from the bottom right)
- *    that catches a reflection of what is just outside, laid over the glass by Lighten.
+ *  - Where the bend is steepest the glass also reflects (Fresnel): what is just outside, mirrored across the
+ *    edge, and the room's light from the top left and bottom right as a fine line, both growing from nothing
+ *    along the same curve as the bend, so the rim is part of the refraction and not a stroke around it.
  *
  * Everything is computed in linear light, tinted like real tinted glass (see KisStudioGlass::veil).
  */
@@ -245,8 +246,8 @@ uniform float sigma;
 uniform vec4 beyond;
 uniform float dither;
 uniform float veil;
-// The refracting band's width, the lit rim's width and how far out it reflects.
-uniform vec3 rim;
+// The refracting band's width.
+uniform float rim;
 // The power each color's bend grows by toward the edge: a little more for blue than for red.
 uniform vec3 ior;
 uniform vec4 reach;
@@ -547,7 +548,7 @@ void main()
     float blur = levelSigma(0) * thickness;
     // The band along the rim bends what is behind toward the edge. It stays within the corners' curve,
     // where the distance to the rim has no crease and its direction turns smoothly.
-    float band = min(rim.x, min(0.9 * corner.x, min(shape.z, shape.w)));
+    float band = min(rim, min(0.9 * corner.x, min(shape.z, shape.w)));
     float bent = band > 0.5 ? 1.0 - cos(clamp(1.0 - d / band, 0.0, 1.0) * quarterTurn) : 0.0;
     vec3 seen;
     if (bent > 0.0) {
@@ -561,16 +562,19 @@ void main()
     }
     vec3 color = tintedLab(mix(tintLab, seen, canvas), tintLab, strength);
 
-    // The rim: lit, and reflecting what is just outside.
-    float caught = 1.0 - cos(clamp(1.0 - d / max(rim.y, 0.5), 0.0, 1.0) * quarterTurn);
-    if (caught > 0.0) {
-        vec3 lit = vec3(0.1 * abs(dot(outward, vec2(-0.70710678, 0.70710678))));
-        vec3 reflection = clamp(tintedLab(frostedLab(held(p + outward * rim.z * (1.0 + 0.15 * caught))), tintLab, strength), 0.0, 1.0);
-        vec3 edge = max(color, 1.0 - (1.0 - lit) * (1.0 - reflection));
+    // Where the bend is steepest the glass also reflects (Fresnel), as part of the same curve: the canvas
+    // just outside, mirrored across the edge so it continues what is there, and the room's light from the
+    // top left and bottom right as a fine line. Both grow from nothing in the band to the edge.
+    float steep = bent * bent;
+    steep *= steep;
+    if (steep > 0.001) {
+        vec3 mirrored = max(fromOklab(frostAt(held(p + outward * (2.0 * max(d, 0.0) + 1.0)), 1.5)), 0.0);
+        color = mix(color, tintedLab(toOklab(mirrored), tintLab, 0.5 * strength), 0.35 * steep);
+        float facing = abs(dot(outward, vec2(-0.70710678, 0.70710678)));
+        color += vec3(0.12 * facing * steep * steep);
         if (imageLit) {
-            edge += imageLightAt(p, outward);
+            color += imageLightAt(p, outward) * steep;
         }
-        color = mix(color, edge, caught);
     }
 
     /**
@@ -1042,7 +1046,7 @@ qreal KisOpenGLGlass::reach()
 {
     // Three sigma of the widest blur, plus the pixels merged by downsampling and sampling, plus how far
     // the rim looks out.
-    return 3 * KisStudioGlass::blurSigma() * KisStudioGlass::maxBlurScale + 16 + 1.15 * KisStudioGlass::rim().reflection;
+    return 3 * KisStudioGlass::blurSigma() * KisStudioGlass::maxBlurScale + 16 + KisStudioGlass::rim().reach();
 }
 
 qreal KisOpenGLGlass::ambientReach()
@@ -1102,7 +1106,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     };
     QVector<Region> regions(surfaces.size());
     // How far the rim looks: in from the edge, and out for its reflection.
-    const int rimReach = qCeil(1.15 * KisStudioGlass::rim().reflection * pixelRatio) + 2;
+    const int rimReach = qCeil(KisStudioGlass::rim().reach() * pixelRatio) + 2;
     {
         // Pack the slots in rows, left to right.
         QPoint next;
@@ -1252,7 +1256,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform2f(d->glass["viewport"], viewport.width(), viewport.height());
     f->glUniform1f(d->glass["dither"], dither);
     const KisStudioGlass::Rim rim = KisStudioGlass::rim();
-    f->glUniform3f(d->glass["rim"], rim.band * pixelRatio, rim.width * pixelRatio, rim.reflection * pixelRatio);
+    f->glUniform1f(d->glass["rim"], rim.band * pixelRatio);
     // crown glass's 1.51, 1.52 and 1.53 for red, green and blue, their spread made five times as wide
     f->glUniform3f(d->glass["ior"], 1.47f, 1.52f, 1.57f);
     // The image's glow, if it has been rendered.
