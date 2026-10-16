@@ -444,19 +444,27 @@ vec4 canvasAt(vec2 p)
  * white keeps its chroma. Chroma lost where hues disagree is partly restored, never beyond the mean
  * chroma.
  */
+vec4 pyramidAt(int k, vec2 p)
+{
+    return k <= 0 ? canvasAt(p) : levelAt(min(k, levels), p);
+}
+
 vec3 frostLab(vec2 p, float blur)
 {
-    int k = 0;
-    for (int i = 1; i < 8; i++) {
-        if (i <= levels && levelSigma[i] <= blur) k = i;
+    // where the blur lies among the levels, in octaves; below the canvas's own, down to half an octave
+    float level = log2(max(blur, 1e-3) / levelSigma[0]);
+    for (int i = 0; i < 7; i++) {
+        if (i < levels && blur > levelSigma[i]) {
+            level = float(i) + clamp(log2(blur / levelSigma[i]) / log2(levelSigma[i + 1] / levelSigma[i]), 0.0, 1.0);
+        }
     }
-    vec4 m;
-    if (k >= levels) {
-        m = levelAt(levels, p);
-    } else {
-        float a = clamp(log2(max(blur, levelSigma[0]) / levelSigma[k]) / log2(levelSigma[k + 1] / levelSigma[k]), 0.0, 1.0);
-        m = mix(k == 0 ? canvasAt(p) : levelAt(k, p), levelAt(k + 1, p), a);
-    }
+    level = clamp(level, -0.5, float(levels));
+    // three levels around it with quadratic B-spline weights, which change smoothly as the blur does:
+    // mixing only two leaves a kink where one level hands over to the next, which shows as a line
+    int k = int(floor(level + 0.5));
+    float f = level - float(k);
+    vec4 m = 0.5 * (0.5 - f) * (0.5 - f) * pyramidAt(k - 1, p) + (0.75 - f * f) * pyramidAt(k, p)
+        + 0.5 * (0.5 + f) * (0.5 + f) * pyramidAt(k + 1, p);
     vec4 lab = labOf(m);
     float agree = clamp(length(lab.yz) / max(lab.w, 1e-4), 0.0, 1.0);
     return vec3(lab.x, lab.yz * (1.0 + restore * (1.0 - agree)));
@@ -546,14 +554,16 @@ void main()
     vec2 gradient;
     float d = insideOf(p, shape, corner, gradient);
 
-    // The curve down to the rim is no wider than the corner reach or the panel itself; its thickness
-    // scales with it.
-    float w = min(bevel.x, min(corner.x, min(shape.z, shape.w)));
-    bool curved = w > 0.5;
-    float thick = curved ? bevel.y * w / max(bevel.x, 1e-3) : 0.0;
-    float u = curved ? clamp(d / w, 0.0, 1.0) : 1.0;
-    float height = thick * (1.0 - (1.0 - u) * (1.0 - u) * (1.0 - u));
-    vec2 slope = curved ? gradient * (3.0 * thick / w * (1.0 - u) * (1.0 - u)) : vec2(0.0);
+    // The top falls to the rim as an exponential: steepest at the edge, flattening fast and never ending
+    // anywhere, so nothing draws a line along the edge. Its length is short enough to have died out
+    // within the corner reach, where the distance stops following the corner. The steepness at the rim
+    // stays the same when it is shortened.
+    float fall = min(bevel.x, min(corner.x, min(shape.z, shape.w)) / 4.0);
+    bool curved = fall > 0.25;
+    float thick = curved ? bevel.y * fall / max(bevel.x, 1e-3) : 0.0;
+    float decay = curved ? exp(-max(d, 0.0) / fall) : 0.0;
+    float height = thick * (1.0 - decay);
+    vec2 slope = gradient * (curved ? thick / fall * decay : 0.0);
     vec3 normal = normalize(vec3(-slope, 1.0));
     vec2 offset = through(normal, height, ior.g);
     vec2 q = p + offset;
@@ -569,14 +579,14 @@ void main()
     float canvas = within(p.x, beyond.x) * within(viewport.x - p.x, beyond.y) * within(p.y, beyond.z) * within(viewport.y - p.y, beyond.w);
     vec3 tintLab = toOklab(fromSrgb(tint));
 
-    // The frost: rough on the face, spread over the distance still to travel. Polished, the rim is clear over
-    // the outer part of its curve, and the roughness comes back gradually, all the way into the face, so the
-    // clear rim and the frost read as one piece.
-    float clearing = curved ? 1.0 - smoothstep(0.3 * w, w + 0.6 * sigma, d) : 0.0;
-    float rough = 1.0 - polish * clearing;
+    // The frost: rough on the face, spread over the distance still to travel. Polished, the rim is clear, and
+    // the frost comes back by ratios (the eye sees blur in octaves) as the same kind of decay, a little slower
+    // than the bend fades: sharp at the edge, a few pixels of blur a few pixels in, the full frost soon after.
+    float frosted = curved ? 1.0 - polish * exp(-max(d, 0.0) / (2.0 * fall)) : 1.0;
     float full = thick / ior.g + bevel.z;
     float travel = full > 1e-3 ? (height / ior.g + bevel.z) / full : 1.0;
-    float spread = sigma * rough * travel;
+    const float sharp = 0.4;
+    float spread = exp(mix(log(sharp), log(max(sigma * travel, sharp)), frosted));
     // only as much as keeps canvas squeezed into a pixel from shimmering
     float blur = sqrt(spread * spread + 0.12 * footprint * footprint);
 
@@ -597,16 +607,14 @@ void main()
     float s = 1.0 - pow(1.0 - clamp(strength, 0.0, 1.0), crossed);
     vec3 color = tintedLab(mix(tintLab, seen, canvas), tintLab, s);
 
-    if (curved && u < 1.0) {
-        // Steep parts reflect (Fresnel) the canvas around the panel, frosted. Upward reflections of the
-        // room are already part of the tint, so there is no gloss.
+    // Sloped parts reflect (Fresnel) the canvas just around the panel, frosted, by as much as they slope:
+    // nothing on the flat face. Upward reflections of the room are already part of the tint, so there is no gloss.
+    float faceOn = fresnel(1.0, ior.g);
+    float reflected = curved ? (fresnel(normal.z, ior.g) - faceOn) / (1.0 - faceOn) : 0.0;
+    if (reflected > 0.002) {
         vec3 mirrored = reflect(vec3(0.0, 0.0, -1.0), normal);
-        float faceOn = fresnel(1.0, ior.g);
-        float reflected = (fresnel(normal.z, ior.g) - faceOn) / (1.0 - faceOn) * smoothstep(0.0, 0.25, -mirrored.z);
-        if (reflected > 0.0) {
-            vec3 around = max(fromOklab(frostLab(held(p + mirrored.xy / max(-mirrored.z, 0.2) * bevel.z), sigma)), 0.0);
-            color = mix(color, around, reflected);
-        }
+        vec3 around = max(fromOklab(frostLab(held(p + mirrored.xy * 2.0 * bevel.z), 0.5 * sigma)), 0.0);
+        color = mix(color, around, reflected);
         if (imageLit) {
             color += imageLightAt(p, normal, -gradient / max(length(gradient), 1e-3));
         }

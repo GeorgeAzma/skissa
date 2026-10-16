@@ -58,7 +58,7 @@ public:
 
     /// The edge bevel in widget pixels; all zero for a plain line.
     struct Bevel {
-        qreal width {0};       ///< from the edge in to the flat face
+        qreal width {0};       ///< how far in the top's fall to the rim fades to a third
         qreal thickness {0};   ///< of the pane at the flat face
         qreal lift {0};        ///< gap between the pane and the canvas
         qreal polish {0};      ///< 0 frosted at the rim like the face, 1 polished smooth there
