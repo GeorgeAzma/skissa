@@ -55,8 +55,8 @@ public:
     /// The refracting edge, in widget pixels.
     struct Rim {
         qreal band {20}; ///< of the band along the edge that bends what is behind
-        /// How far outside the panel its edge sees, reflecting what is there
-        qreal reach() const { return 2 * band + 2; }
+        /// How far outside the panel its edge sees: the bend looks inward, so only the sampling's margin
+        qreal reach() const { return 2; }
     };
     static Rim rim() { return {}; }
 

@@ -217,9 +217,8 @@ void main()
  *  - The frost follows how thick the glass is, (1 - u^4)(1 - v^4) with u and v from -1 to 1 across the
  *    panel: clear at the edges, the most in the middle, changing evenly as the blur narrows by octaves
  *    toward the canvas itself.
- *  - Where the bend is steepest the glass also reflects (Fresnel): what is just outside, mirrored across the
- *    edge, and the room's light from the top left and bottom right as a fine line, both growing from nothing
- *    along the same curve as the bend, so the rim is part of the refraction and not a stroke around it.
+ *  - At the very edge, where the bend is steepest, light gathers into a hairline: what is seen there,
+ *    brighter and more vivid, brightest facing the room's light (top left and bottom right).
  *
  * Everything is computed in linear light, tinted like real tinted glass (see KisStudioGlass::veil).
  */
@@ -246,8 +245,8 @@ uniform float sigma;
 uniform vec4 beyond;
 uniform float dither;
 uniform float veil;
-// The refracting band's width.
-uniform float rim;
+// The refracting band's width, and the size of a widget pixel in surface pixels.
+uniform vec2 rim;
 // The power each color's bend grows by toward the edge: a little more for blue than for red.
 uniform vec3 ior;
 uniform vec4 reach;
@@ -548,7 +547,7 @@ void main()
     float blur = levelSigma(0) * thickness;
     // The band along the rim bends what is behind toward the edge. It stays within the corners' curve,
     // where the distance to the rim has no crease and its direction turns smoothly.
-    float band = min(rim, min(0.9 * corner.x, min(shape.z, shape.w)));
+    float band = min(rim.x, min(0.9 * corner.x, min(shape.z, shape.w)));
     float bent = band > 0.5 ? 1.0 - cos(clamp(1.0 - d / band, 0.0, 1.0) * quarterTurn) : 0.0;
     vec3 seen;
     if (bent > 0.0) {
@@ -562,18 +561,16 @@ void main()
     }
     vec3 color = tintedLab(mix(tintLab, seen, canvas), tintLab, strength);
 
-    // Where the bend is steepest the glass also reflects (Fresnel), as part of the same curve: the canvas
-    // just outside, mirrored across the edge so it continues what is there, and the room's light from the
-    // top left and bottom right as a fine line. Both grow from nothing in the band to the edge.
-    float steep = bent * bent;
-    steep *= steep;
-    if (steep > 0.001) {
-        vec3 mirrored = max(fromOklab(frostAt(held(p + outward * (2.0 * max(d, 0.0) + 1.0)), 1.5)), 0.0);
-        color = mix(color, tintedLab(toOklab(mirrored), tintLab, 0.5 * strength), 0.35 * steep);
+    // At the very edge, where the bend is steepest, light gathers into a hairline: what is seen there,
+    // brighter and more vivid, brightest on the sides facing the room's light (top left and bottom right).
+    float line = exp(-max(d - 0.5, 0.0) / rim.y);
+    if (line > 0.004) {
+        vec3 lab = toOklab(max(color, 0.0));
+        vec3 gathered = inGamut(min(lab.x + 0.35, 1.0), lab.yz * 2.0);
         float facing = abs(dot(outward, vec2(-0.70710678, 0.70710678)));
-        color += vec3(0.12 * facing * steep * steep);
+        color = mix(color, gathered, line * (0.45 + 0.45 * facing));
         if (imageLit) {
-            color += imageLightAt(p, outward) * steep;
+            color += imageLightAt(p, outward) * line;
         }
     }
 
@@ -1256,7 +1253,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform2f(d->glass["viewport"], viewport.width(), viewport.height());
     f->glUniform1f(d->glass["dither"], dither);
     const KisStudioGlass::Rim rim = KisStudioGlass::rim();
-    f->glUniform1f(d->glass["rim"], rim.band * pixelRatio);
+    f->glUniform2f(d->glass["rim"], rim.band * pixelRatio, pixelRatio);
     // crown glass's 1.51, 1.52 and 1.53 for red, green and blue, their spread made five times as wide
     f->glUniform3f(d->glass["ior"], 1.47f, 1.52f, 1.57f);
     // The image's glow, if it has been rendered.
