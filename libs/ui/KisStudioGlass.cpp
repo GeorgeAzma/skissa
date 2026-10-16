@@ -1629,10 +1629,10 @@ KisStudioGlass::Bevel KisStudioGlass::bevel()
     auto at = [r](qreal none, qreal middle, qreal all) {
         return r < 0.5 ? none + (middle - none) * r * 2 : middle + (all - middle) * (r - 0.5) * 2;
     };
-    // A polished rim, clear at its edge and growing frosted toward the face. The rim's slope
-    // (thickness over width) stays below where the bend folds the canvas over by much.
+    // A polished rim, clear at its edge and growing frosted toward the face. The rim is steep (thickness
+    // over width, about 3 at full), so it bends the canvas at the edge like a rounded pane.
     const qreal fadeIn = qMin<qreal>(1, r * 2);
-    return {at(3, 4, 5), at(0, 6, 9), at(0, 8, 12), fadeIn, 40};
+    return {at(5, 7, 8), at(0, 17, 24), at(0, 8, 12), fadeIn, 40};
 }
 
 void KisStudioGlass::setOverOverlays(QWidget *panel)

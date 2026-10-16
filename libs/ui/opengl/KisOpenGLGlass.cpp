@@ -378,6 +378,27 @@ float insideOf(vec2 p, vec4 shape, vec2 corner, out vec2 gradient)
     return min(edge.x, edge.y);
 }
 
+/**
+ * The depth the glass's top is built on: like insideOf(), but smooth everywhere, so the surface has no
+ * crease inside the corners (where the exact distance switches between two sides). Each side's part of the
+ * corner's norm is a softplus instead of a clamp, which leaves the rim where it is and fades to nothing a
+ * little past the corner reach, so the depth levels off there at the reach.
+ */
+float surfaceOf(vec2 p, vec4 shape, vec2 corner, out vec2 gradient)
+{
+    vec2 from = p - shape.xy;
+    vec2 side = vec2(from.x < 0.0 ? -1.0 : 1.0, from.y < 0.0 ? -1.0 : 1.0);
+    vec2 edge = shape.zw - abs(from);
+    float n = corner.y;
+    float soft = max(0.2 * corner.x, 0.5);
+    vec2 x = (corner.x - edge) / soft;
+    vec2 q = soft * (max(x, 0.0) + log(1.0 + exp(-abs(x))));
+    vec2 rising = 1.0 / (1.0 + exp(-x));
+    float g = pow(pow(q.x, n) + pow(q.y, n), 1.0 / n);
+    gradient = g > 1e-4 ? -pow(q / g, vec2(n - 1.0)) * rising * side : vec2(0.0);
+    return corner.x - g;
+}
+
 // Where the view ray through a top with this normal lands on the canvas, from the top `height` above
 // the underside, through glass of index n.
 vec2 through(vec3 normal, float height, float n)
@@ -554,16 +575,18 @@ void main()
     vec2 gradient;
     float d = insideOf(p, shape, corner, gradient);
 
-    // The top falls to the rim as an exponential: steepest at the edge, flattening fast and never ending
-    // anywhere, so nothing draws a line along the edge. Its length is short enough to have died out
-    // within the corner reach, where the distance stops following the corner. The steepness at the rim
-    // stays the same when it is shortened.
-    float fall = min(bevel.x, min(corner.x, min(shape.z, shape.w)) / 4.0);
+    // The top falls to the rim as an exponential on the smooth depth: steepest at the edge, flattening fast
+    // and never ending at a line. It is at most half the corner reach long (the depth levels off there), and
+    // shortening it keeps the steepness at the rim. Its height is scaled to be the thickness where it levels off.
+    vec2 rise;
+    float depth = max(surfaceOf(p, shape, corner, rise), 0.0);
+    float fall = min(bevel.x, min(0.5 * corner.x, 0.25 * min(shape.z, shape.w)));
     bool curved = fall > 0.25;
     float thick = curved ? bevel.y * fall / max(bevel.x, 1e-3) : 0.0;
-    float decay = curved ? exp(-max(d, 0.0) / fall) : 0.0;
-    float height = thick * (1.0 - decay);
-    vec2 slope = gradient * (curved ? thick / fall * decay : 0.0);
+    float topped = curved ? 1.0 / (1.0 - exp(-corner.x / fall)) : 1.0;
+    float decay = curved ? exp(-depth / fall) : 0.0;
+    float height = thick * (1.0 - decay) * topped;
+    vec2 slope = rise * (curved ? thick / fall * decay * topped : 0.0);
     vec3 normal = normalize(vec3(-slope, 1.0));
     vec2 offset = through(normal, height, ior.g);
     vec2 q = p + offset;
@@ -582,7 +605,7 @@ void main()
     // The frost: rough on the face, spread over the distance still to travel. Polished, the rim is clear, and
     // the frost comes back by ratios (the eye sees blur in octaves) as the same kind of decay, a little slower
     // than the bend fades: sharp at the edge, a few pixels of blur a few pixels in, the full frost soon after.
-    float frosted = curved ? 1.0 - polish * exp(-max(d, 0.0) / (2.0 * fall)) : 1.0;
+    float frosted = curved ? 1.0 - polish * exp(-max(d, 0.0) / (1.5 * fall)) : 1.0;
     float full = thick / ior.g + bevel.z;
     float travel = full > 1e-3 ? (height / ior.g + bevel.z) / full : 1.0;
     const float sharp = 0.4;
