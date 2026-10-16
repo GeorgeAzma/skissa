@@ -102,13 +102,13 @@ def main():
     seen, missing = set(), set()
     queue = [os.path.join(install, 'bin', p) for p in PROGRAMS]
     # loaded by name at run time, so no import names them: ANGLE (OpenGL over Direct3D) and the crash handler
-    for name in LOADED:
-        path = os.path.join(install, 'bin', name)
+    for loaded in LOADED:
+        path = os.path.join(install, 'bin', loaded)
         if os.path.exists(path):
-            shutil.copy2(path, os.path.join(release, 'bin', name))
-            seen.add(name.lower())
+            shutil.copy2(path, os.path.join(release, 'bin', loaded))
+            seen.add(loaded.lower())
         else:
-            print('not found:', name)
+            print('not found:', loaded)
     for root, _, files in os.walk(release):
         queue += [os.path.join(root, f) for f in files if f.lower().endswith(('.dll', '.pyd'))]
     while queue:
