@@ -563,12 +563,13 @@ void main()
 
     // At the very edge, where the bend is steepest, light gathers into a hairline: what is seen there,
     // brighter and more vivid, brightest on the sides facing the room's light (top left and bottom right).
-    float line = exp(-max(d - 0.5, 0.0) / rim.y);
-    if (line > 0.004) {
+    // about a widget pixel wide, with a hard inner edge: a soft falloff reads as a blurred band
+    float line = clamp(1.0 + (rim.y - d) / max(0.5 * rim.y, 0.5), 0.0, 1.0);
+    if (line > 0.0) {
         vec3 lab = toOklab(max(color, 0.0));
-        vec3 gathered = inGamut(min(lab.x + 0.35, 1.0), lab.yz * 2.0);
+        vec3 gathered = inGamut(min(lab.x + 0.25, 1.0), lab.yz * 1.7);
         float facing = abs(dot(outward, vec2(-0.70710678, 0.70710678)));
-        color = mix(color, gathered, line * (0.45 + 0.45 * facing));
+        color = mix(color, gathered, line * (0.3 + 0.6 * facing));
         if (imageLit) {
             color += imageLightAt(p, outward) * line;
         }
