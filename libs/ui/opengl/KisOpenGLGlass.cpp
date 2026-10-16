@@ -198,19 +198,20 @@ void main()
 )";
 
 /**
- * A glass panel: one surface over the whole panel, the squircle u^4 + v^4 (u and v run from -1 to 1 across
- * it), flat in the middle and curving ever faster toward the edges, like the panel's own corners.
+ * A glass panel, its edge after Apple's Liquid Glass as preyneyv's Shadertoy ("Liquid Glass", wfGXzh)
+ * draws it:
  *
- *  - What is behind is seen moved toward the middle by the surface's slope (u^3, v^3): hardly at all in the
- *    middle, most at the edges, a little more for blue than for red, so the colors part there.
- *  - It is frosted by how thick the glass is there, (1 - u^4)(1 - v^4): clear at the edges, most in the
- *    middle. The blur narrows by octaves toward the canvas itself, so it changes evenly across the panel.
+ *  - Along the rim, a band where the glass shows what is behind from further in, as if bent toward the
+ *    edge: how far grows slowly from deep in the band and steeply at the edge (1 - cos), to twice the
+ *    band's width, and a little more for blue than for red, so the colors part at the edge. Inside the
+ *    band nothing is moved.
+ *  - The frost follows how thick the glass is, (1 - u^4)(1 - v^4) with u and v from -1 to 1 across the
+ *    panel: clear at the edges, the most in the middle, changing evenly as the blur narrows by octaves
+ *    toward the canvas itself.
  *  - At the edge itself, a thin rim lit by the room (from the top left, and as much from the bottom right)
  *    that catches a reflection of what is just outside, laid over the glass by Lighten.
  *
- * The surface is a polynomial, so it has no creases anywhere, and how far it moves what is behind is kept
- * below where the view would fold over. Everything is computed in linear light, tinted like real tinted
- * glass (see KisStudioGlass::veil).
+ * Everything is computed in linear light, tinted like real tinted glass (see KisStudioGlass::veil).
  */
 const char *const glassSource = R"(
 uniform sampler2D blurred;
@@ -235,9 +236,9 @@ uniform float sigma;
 uniform vec4 beyond;
 uniform float dither;
 uniform float veil;
-// The lit rim's width and how far out it reflects.
-uniform vec2 rim;
-// The index of refraction for red, green and blue: each color is bent toward the edge in proportion.
+// The refracting band's width, the lit rim's width and how far out it reflects.
+uniform vec3 rim;
+// The power each color's bend grows by toward the edge: a little more for blue than for red.
 uniform vec3 ior;
 uniform vec4 reach;
 // The image's ambient glow: where the image is, and its blurred light around it.
@@ -515,32 +516,32 @@ void main()
     vec3 tintLab = toOklab(fromSrgb(tint));
     const float quarterTurn = 1.5707963;
 
-    // Where p is on the surface, its slope (the gradient of (u^4 + v^4) / 4) and how thick the glass is.
+    // How thick the glass is: the frost is clear at the edges and the most in the middle.
     vec2 uv = clamp((p - shape.xy) / shape.zw, -1.0, 1.0);
     vec2 uv2 = uv * uv;
-    vec2 slope = uv * uv2;
     float thickness = (1.0 - uv2.x * uv2.x) * (1.0 - uv2.y * uv2.y);
-    // At the edge what is behind is seen from a quarter of the panel's narrower half in: any more, and the
-    // view near the edge would fold over.
-    vec2 moved = slope * 0.25 * min(shape.z, shape.w);
     float blur = levelSigma(0) * thickness;
-    vec2 green = p - moved;
+    // The band along the rim bends what is behind toward the edge. It stays within the corners' curve,
+    // where the distance to the rim has no crease and its direction turns smoothly.
+    float band = min(rim.x, min(0.9 * corner.x, min(shape.z, shape.w)));
+    float bent = band > 0.5 ? 1.0 - cos(clamp(1.0 - d / band, 0.0, 1.0) * quarterTurn) : 0.0;
     vec3 seen;
-    if (length(moved) * (ior.b - ior.r) / ior.g < 0.25) {
-        seen = throughLower(frostAt(held(green), blur), p);
-    } else {
-        vec3 light = vec3(max(fromOklab(throughLower(frostAt(held(p - moved * ior.r / ior.g), blur), p)).r, 0.0),
-                          max(fromOklab(throughLower(frostAt(held(green), blur), p)).g, 0.0),
-                          max(fromOklab(throughLower(frostAt(held(p - moved * ior.b / ior.g), blur), p)).b, 0.0));
+    if (bent > 0.0) {
+        vec3 reached = pow(vec3(bent), ior) * 2.0 * band;
+        vec3 light = vec3(max(fromOklab(throughLower(frostAt(held(p - outward * reached.r), blur), p)).r, 0.0),
+                          max(fromOklab(throughLower(frostAt(held(p - outward * reached.g), blur), p)).g, 0.0),
+                          max(fromOklab(throughLower(frostAt(held(p - outward * reached.b), blur), p)).b, 0.0));
         seen = toOklab(light);
+    } else {
+        seen = throughLower(frostAt(p, blur), p);
     }
     vec3 color = tintedLab(mix(tintLab, seen, canvas), tintLab, strength);
 
     // The rim: lit, and reflecting what is just outside.
-    float caught = 1.0 - cos(clamp(1.0 - d / max(rim.x, 0.5), 0.0, 1.0) * quarterTurn);
+    float caught = 1.0 - cos(clamp(1.0 - d / max(rim.y, 0.5), 0.0, 1.0) * quarterTurn);
     if (caught > 0.0) {
         vec3 lit = vec3(0.1 * abs(dot(outward, vec2(-0.70710678, 0.70710678))));
-        vec3 reflection = clamp(tintedLab(frostedLab(held(p + outward * rim.y * (1.0 + 0.15 * caught))), tintLab, strength), 0.0, 1.0);
+        vec3 reflection = clamp(tintedLab(frostedLab(held(p + outward * rim.z * (1.0 + 0.15 * caught))), tintLab, strength), 0.0, 1.0);
         vec3 edge = max(color, 1.0 - (1.0 - lit) * (1.0 - reflection));
         if (imageLit) {
             edge += imageLightAt(p, outward);
@@ -1214,7 +1215,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform2f(d->glass["viewport"], viewport.width(), viewport.height());
     f->glUniform1f(d->glass["dither"], dither);
     const KisStudioGlass::Rim rim = KisStudioGlass::rim();
-    f->glUniform2f(d->glass["rim"], rim.width * pixelRatio, rim.reflection * pixelRatio);
+    f->glUniform3f(d->glass["rim"], rim.band * pixelRatio, rim.width * pixelRatio, rim.reflection * pixelRatio);
     // crown glass's 1.51, 1.52 and 1.53 for red, green and blue, their spread made five times as wide
     f->glUniform3f(d->glass["ior"], 1.47f, 1.52f, 1.57f);
     // The image's glow, if it has been rendered.
