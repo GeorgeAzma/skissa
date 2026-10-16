@@ -5,38 +5,33 @@
 
 # Skissa
 
-Krita with a cleaner, more visual interface. Same brushes, same engine, same `.kra` files.
+Krita with a cleaner interface. Same brushes, same engine, same `.kra` files.
 
 ![Skissa](docs/readme/hero.jpg)
 
-I paint in Krita every day and wanted it to feel more like the tablet apps: the canvas gets the screen, and everything else shows up when you need it.
+I paint in Krita every day and wanted it to feel more like the tablet apps: the canvas gets the screen, and the rest shows up when I need it.
 
-> [!IMPORTANT]
-> **All of the code in this fork was written by AI** (Anthropic's Claude). The ideas, the design principles and what it should feel like are mine: I paint with it, say what's wrong, and the AI writes the code. Everything under the interface (the brushes, the engine, the file formats) is Krita's, written by Krita's developers.
+All of the code here was written by AI (Claude). The ideas and the feel are mine: I paint with it, say what's wrong, and it writes the code. Everything underneath, the brushes, the engine and the file formats, is Krita's. If you like it, [support Krita](https://krita.org/support-us/donations).
 
-Skissa is a look at how a painting app could work, next to how Krita works today. It isn't a replacement for Krita.
+![Classic Krita layout, then Skissa](docs/readme/layouts.webp)
 
-[![Donate to Krita](https://img.shields.io/badge/Donate_to_Krita-the_painting_under_all_this-e5484d?style=for-the-badge)](https://krita.org/support-us/donations)
+## Glass panels
 
-![Classic Krita layout, then Studio](docs/readme/layouts.webp)
-
-## Glass you can see through
-
-Panels are frosted glass that bends the picture at its edges. Put them anywhere: against an edge they dock, elsewhere they float.
+They go wherever you drag them.
 
 ![Panels and the top bar dragged into place](docs/readme/move.webp)
 
-## Ctrl+K finds anything
+## Ctrl+K
 
-Tools, brushes, effects, settings and every old menu command. Effects preview live on the canvas.
+Finds tools, brushes, effects, settings and every old menu command.
 
 ![Typing "hue sat" and dragging the hue](docs/readme/effects.webp)
 
-## Drag brush settings
+## Brush settings
 
 ![Dragging size and opacity in the brush editor](docs/readme/brush.webp)
 
-## Blend modes you can see
+## Blend modes
 
 ![Blend modes shown on the picture](docs/readme/blend-modes.jpg)
 
@@ -44,7 +39,7 @@ Tools, brushes, effects, settings and every old menu command. Effects preview li
 
 ![Radial symmetry, center dragged into place](docs/readme/symmetry.webp)
 
-## Start where you left off
+## Start page
 
 ![The start page: new image sizes, the last image, recent work](docs/readme/start.jpg)
 
@@ -54,11 +49,9 @@ Tools, brushes, effects, settings and every old menu command. Effects preview li
 
 ## Get it
 
-**Windows:** download the zip from [Releases](../../releases), unzip it and run `bin\krita.exe`.
+Download the zip from [Releases](../../releases), unzip it and run `bin\krita.exe`. To build it, follow [Krita's build guide](https://docs.krita.org/en/untranslatable_pages/building_krita.html) with this repo.
 
-**Build it:** same as Krita, using [Krita's build guide](https://docs.krita.org/en/untranslatable_pages/building_krita.html) with this repo.
-
-It keeps its own settings and brushes, so a regular Krita on the same computer stays exactly as it is. To bring your Krita settings over: Settings, then ⋯, then Take Krita's settings. The classic layout is a Ctrl+K away: Studio Layout.
+It keeps its own settings and brushes, so your Krita stays as it is. Settings → ⋯ → Take Krita's settings brings yours over.
 
 ---
 
