@@ -311,6 +311,7 @@ uniform float dither;
 uniform float veil;
 uniform vec3 bevel;
 uniform float polish;
+uniform float rimLight;
 uniform vec3 ior;
 uniform vec4 reach;
 // The image's ambient glow: where the image is, and its blurred light around it.
@@ -628,8 +629,8 @@ void main()
     }
     seen = throughLower(seen, held(q));
 
-    // Thinner glass toward the rim tints less (Beer-Lambert), a band along the edge that reads like a border.
-    float crossed = thick > 0.0 ? mix(0.3, 1.0, height / thick) : 1.0;
+    // Thinner glass toward the rim tints a little less (Beer-Lambert); much less reads as a pale band.
+    float crossed = thick > 0.0 ? mix(0.85, 1.0, height / thick) : 1.0;
     float s = 1.0 - pow(1.0 - clamp(strength, 0.0, 1.0), crossed);
     vec3 color = tintedLab(mix(tintLab, seen, canvas), tintLab, s);
 
@@ -640,10 +641,18 @@ void main()
     if (reflected > 0.002) {
         vec3 mirrored = reflect(vec3(0.0, 0.0, -1.0), normal);
         vec3 around = max(fromOklab(frostLab(held(p + mirrored.xy * 2.0 * bevel.z), 0.5 * sigma)), 0.0);
-        color = mix(color, around, reflected);
+        color = mix(color, around, 0.5 * reflected);
         if (imageLit) {
             color += imageLightAt(p, normal, -gradient / max(length(gradient), 1e-3));
         }
+    }
+    if (curved) {
+        // The room's light caught where the top curves over the rim: a thin bright line that gives the pane its
+        // edge, brightest on the sides facing up and to the left, faint on the others.
+        vec2 outward = -gradient / max(length(gradient), 1e-3);
+        float facing = 0.5 + 0.5 * dot(outward, vec2(-0.6, 0.8));
+        float caught = exp(-max(d, 0.0) / max(0.25 * fall, 0.6));
+        color += vec3(rimLight * caught * mix(0.3, 1.0, facing * facing));
     }
 
     /**
@@ -823,7 +832,7 @@ struct Programs {
             && glass.make(QByteArray(pyramidReadSource) + glassVertexSource, QByteArray(pyramidReadSource) + glassSource,
                           {"rect", "shape", "tintLightness", "tintStrength", "spacing", "pyramid", "pyramidTexel", "box", "levelOrigin",
                            "levelSize", "levels", "rooted", "power", "salience", "under", "decode", "restore", "corner", "tint", "opacity",
-                           "viewport", "sigma", "levelSigma", "beyond", "dither", "veil", "bevel", "polish", "ior", "reach",
+                           "viewport", "sigma", "levelSigma", "beyond", "dither", "veil", "bevel", "polish", "rimLight", "ior", "reach",
                            "imageLit", "toImage", "fromImage", "imageLight", "imageLightFactor", "imageLightReach",
                            "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"})
             && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
@@ -1277,6 +1286,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     const KisStudioGlass::Bevel bevel = KisStudioGlass::bevel();
     f->glUniform3f(d->glass["bevel"], bevel.width * pixelRatio, bevel.thickness * pixelRatio, bevel.lift * pixelRatio);
     f->glUniform1f(d->glass["polish"], bevel.polish);
+    f->glUniform1f(d->glass["rimLight"], 0.22 * bevel.polish);
     const QVector3D ior = refractiveIndices(bevel.abbeNumber);
     f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
     // The image's glow, if it has been rendered.
