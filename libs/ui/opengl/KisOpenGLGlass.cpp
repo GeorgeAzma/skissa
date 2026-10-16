@@ -569,12 +569,16 @@ void main()
     float canvas = within(p.x, beyond.x) * within(viewport.x - p.x, beyond.y) * within(p.y, beyond.z) * within(viewport.y - p.y, beyond.w);
     vec3 tintLab = toOklab(fromSrgb(tint));
 
-    // The frost: rough on the face, polished toward the rim, spread over the distance still to travel.
-    float rough = 1.0 - polish * (1.0 - u) * (1.0 - u);
+    // The frost: rough on the face, spread over the distance still to travel. Polished, the rim is clear over
+    // the outer part of its curve, and the roughness comes back gradually, all the way into the face, so the
+    // clear rim and the frost read as one piece.
+    float clearing = curved ? 1.0 - smoothstep(0.3 * w, w + 0.6 * sigma, d) : 0.0;
+    float rough = 1.0 - polish * clearing;
     float full = thick / ior.g + bevel.z;
     float travel = full > 1e-3 ? (height / ior.g + bevel.z) / full : 1.0;
     float spread = sigma * rough * travel;
-    float blur = sqrt(spread * spread + 0.25 * footprint * footprint);
+    // only as much as keeps canvas squeezed into a pixel from shimmering
+    float blur = sqrt(spread * spread + 0.12 * footprint * footprint);
 
     vec3 seen;
     vec2 red = through(normal, height, ior.r);
