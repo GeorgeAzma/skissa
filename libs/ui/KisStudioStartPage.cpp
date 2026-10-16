@@ -28,6 +28,8 @@
 #include <QSet>
 #include <QStandardItemModel>
 #include <QThreadPool>
+#include <QDesktopServices>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <QtConcurrentRun>
 
@@ -47,6 +49,7 @@
 #include "KisDocument.h"
 #include "KisMainWindow.h"
 #include "KisPart.h"
+#include <KisProfile.h>
 #include "dialogs/KisDlgCreateNewDocument.h"
 #include "kis_clipboard.h"
 #include "kis_config.h"
@@ -1035,6 +1038,77 @@ protected:
     }
 };
 
+/// A quiet link at the foot of the page: a small mark and a word, full ink under the pointer
+class FootLink : public QAbstractButton
+{
+public:
+    enum Mark { Heart, Home, Issue };
+
+    FootLink(const QString &text, Mark mark, const QUrl &url, QWidget *parent)
+        : QAbstractButton(parent)
+        , m_mark(mark)
+    {
+        setText(text);
+        setToolTip(url.toString());
+        setCursor(Qt::PointingHandCursor);
+        setAttribute(Qt::WA_Hover);
+        setFocusPolicy(Qt::NoFocus);
+        connect(this, &QAbstractButton::clicked, this, [url]() { QDesktopServices::openUrl(url); });
+    }
+
+    QSize sizeHint() const override
+    {
+        return QSize(fontMetrics().horizontalAdvance(text()) + 14 + 2 * KisModernStyle::space2 + KisModernStyle::space1,
+                     fontMetrics().height() + 2 * KisModernStyle::space1);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QColor ink = palette().color(QPalette::WindowText);
+        if (underMouse()) {
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(withAlpha(ink, 0.08));
+            painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), KisModernStyle::cornerRadius));
+        }
+        const QColor shown = withAlpha(ink, underMouse() ? 1.0 : 0.7);
+        const QRectF mark(KisModernStyle::space2, (height() - 12) / 2.0, 12, 12);
+        if (m_mark == Heart) {
+            // two lobes and a point, in the warm red of Krita's donation badge
+            QPainterPath heart;
+            const QPointF c = mark.center();
+            heart.moveTo(c.x(), mark.bottom() - 0.5);
+            heart.cubicTo(mark.left() - 1, c.y() + 0.5, mark.left() + 1.5, mark.top() - 1.5, c.x(), mark.top() + 2.6);
+            heart.cubicTo(mark.right() - 1.5, mark.top() - 1.5, mark.right() + 1, c.y() + 0.5, c.x(), mark.bottom() - 0.5);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(withAlpha(QColor(229, 72, 77), underMouse() ? 1.0 : 0.85));
+            painter.drawPath(heart);
+        } else {
+            painter.setPen(QPen(shown, 1.3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            painter.setBrush(Qt::NoBrush);
+            if (m_mark == Home) {
+                // the app's own icon
+                qApp->windowIcon().paint(&painter, mark.adjusted(-1, -1, 1, 1).toRect());
+            } else {
+                // a speech bubble
+                const QRectF bubble = mark.adjusted(0.5, 1, -0.5, -3);
+                QPainterPath path = KisModernStyle::squircle(bubble, 3);
+                path.moveTo(bubble.left() + 3, bubble.bottom());
+                path.lineTo(bubble.left() + 2.5, mark.bottom() - 0.5);
+                path.lineTo(bubble.left() + 6, bubble.bottom());
+                painter.drawPath(path);
+            }
+        }
+        painter.setPen(shown);
+        painter.drawText(QRectF(mark.right() + KisModernStyle::space1, 0, width(), height()), Qt::AlignLeft | Qt::AlignVCenter, text());
+    }
+
+private:
+    Mark m_mark;
+};
+
 /// A new image of \p pixels at \p pixelsPerPoint, otherwise as the last image made
 void createImage(const QSize &pixels, qreal pixelsPerPoint)
 {
@@ -1112,6 +1186,19 @@ KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
     galleryRow->addStretch(0);
     outer->addLayout(galleryRow);
     outer->addStretch(1);
+
+    // at the foot, after your work: the painting app under all this, the project, and where to say what's wrong
+    auto *foot = new QHBoxLayout();
+    foot->setSpacing(KisModernStyle::space2);
+    foot->addStretch(1);
+    foot->addWidget(new FootLink(i18nc("@action:button on the start page", "Support Krita"), FootLink::Heart,
+                                 QUrl(QStringLiteral("https://krita.org/support-us/donations")), this));
+    foot->addWidget(new FootLink(KisProfile::name(), FootLink::Home, QUrl(KisProfile::homepage()), this));
+    foot->addWidget(new FootLink(i18nc("@action:button on the start page", "Report a problem"), FootLink::Issue,
+                                 QUrl(KisProfile::homepage() + QStringLiteral("/issues")), this));
+    foot->addStretch(1);
+    outer->addSpacing(KisModernStyle::space4 * 2);
+    outer->addLayout(foot);
 
     Pictures::instance()->watch(this, [this]() { update(); });
     setFocusProxy(d->gallery);
