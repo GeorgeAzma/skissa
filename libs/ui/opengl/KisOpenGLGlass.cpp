@@ -245,8 +245,8 @@ uniform float sigma;
 uniform vec4 beyond;
 uniform float dither;
 uniform float veil;
-// The refracting band's width, and the size of a widget pixel in surface pixels.
-uniform vec2 rim;
+// The refracting band's width, the size of a widget pixel in surface pixels, and how bright the rim's light is.
+uniform vec3 rim;
 // The power each color's bend grows by toward the edge: a little more for blue than for red.
 uniform vec3 ior;
 uniform vec4 reach;
@@ -569,7 +569,7 @@ void main()
         vec3 lab = toOklab(max(color, 0.0));
         vec3 gathered = inGamut(min(lab.x + 0.25, 1.0), lab.yz * 1.7);
         float facing = abs(dot(outward, vec2(-0.70710678, 0.70710678)));
-        color = mix(color, gathered, line * (0.3 + 0.6 * facing));
+        color = mix(color, gathered, clamp(line * (0.3 + 0.6 * facing) * rim.z, 0.0, 1.0));
         if (imageLit) {
             color += imageLightAt(p, outward) * line;
         }
@@ -1254,7 +1254,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform2f(d->glass["viewport"], viewport.width(), viewport.height());
     f->glUniform1f(d->glass["dither"], dither);
     const KisStudioGlass::Rim rim = KisStudioGlass::rim();
-    f->glUniform2f(d->glass["rim"], rim.band * pixelRatio, pixelRatio);
+    f->glUniform3f(d->glass["rim"], rim.band * pixelRatio, pixelRatio, float(KisStudioGlass::rimLight()));
     // crown glass's 1.51, 1.52 and 1.53 for red, green and blue, their spread made five times as wide
     f->glUniform3f(d->glass["ior"], 1.47f, 1.52f, 1.57f);
     // The image's glow, if it has been rendered.

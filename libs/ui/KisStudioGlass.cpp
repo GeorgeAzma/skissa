@@ -60,6 +60,7 @@ namespace {
 const QString settingKey = QStringLiteral("StudioGlass");
 const QString blurKey = QStringLiteral("StudioGlassBlur");
 const QString opacityKey = QStringLiteral("StudioGlassOpacity");
+const QString rimLightKey = QStringLiteral("StudioGlassRimLight");
 
 constexpr qreal blurRadius = 26;    ///< widget pixels
 constexpr qreal sampleScale = 0.25; ///< CPU glass renders at quarter resolution; the blur hides it
@@ -1221,6 +1222,12 @@ qreal &blurSetting()
     return blur;
 }
 
+qreal &rimLightSetting()
+{
+    static qreal strength = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(rimLightKey, 1.0), 2.0);
+    return strength;
+}
+
 qreal &opacitySetting()
 {
     static qreal opacity = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(opacityKey, 0.7), 1.0);
@@ -1568,6 +1575,20 @@ void KisStudioGlass::setBlur(qreal blur)
     blurSetting() = blur;
     KisConfig(false).writeEntry(blurKey, blur);
     Engine::instance().clear();
+    Panels::instance().repaintAll();
+}
+
+qreal KisStudioGlass::rimLight()
+{
+    return rimLightSetting();
+}
+
+void KisStudioGlass::setRimLight(qreal strength)
+{
+    strength = qBound<qreal>(0, strength, 2.0);
+    if (qFuzzyCompare(strength + 1, rimLightSetting() + 1)) return;
+    rimLightSetting() = strength;
+    KisConfig(false).writeEntry(rimLightKey, strength);
     Panels::instance().repaintAll();
 }
 

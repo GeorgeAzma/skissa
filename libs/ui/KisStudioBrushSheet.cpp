@@ -20,6 +20,8 @@
 #include <QPushButton>
 #include <QSet>
 #include <QTimer>
+#include <QStyleOptionToolButton>
+#include <QStylePainter>
 #include <QToolButton>
 #include <QToolTip>
 #include <QVBoxLayout>
@@ -55,6 +57,24 @@
 #include "widgets/kis_preset_live_preview_view.h"
 
 namespace {
+
+/// A name that opens a menu, drawn as the name alone: no arrow beside it
+class MenuNameButton : public QToolButton
+{
+public:
+    using QToolButton::QToolButton;
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QStylePainter painter(this);
+        QStyleOptionToolButton option;
+        initStyleOption(&option);
+        option.features &= ~QStyleOptionToolButton::HasMenu;
+        painter.drawComplexControl(QStyle::CC_ToolButton, option);
+    }
+};
+
 
 constexpr int columnWidth = 300;
 
@@ -327,7 +347,7 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
     d->name = new QLabel(this);
     d->name->setFont(KisModernStyle::textFont(font(), 1.2, QFont::DemiBold));
     title->addWidget(d->name);
-    d->engine = new QToolButton(this);
+    d->engine = new MenuNameButton(this);
     d->engine->setAutoRaise(true);
     d->engine->setPopupMode(QToolButton::InstantPopup);
     d->engine->setToolTip(i18nc("@info:tooltip", "A new brush with another engine"));

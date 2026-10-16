@@ -368,9 +368,10 @@ public:
         case AxisBOpposite:
             return c - across() * size.height();
         case FadeA:
-            return c + along() * size.width() * m_auto->horizontalFade();
-        case FadeB:
-            return c + across() * size.height() * m_auto->verticalFade();
+        case FadeB: {
+            const QPointF k = fadeSpot(part);
+            return c + along() * size.width() * m_auto->horizontalFade() * k.x() + across() * size.height() * m_auto->verticalFade() * k.y();
+        }
         case Turn:
             return c + along() * (size.width() + stalk);
         case Valley:
@@ -380,10 +381,25 @@ public:
         }
     }
 
+    /**
+     * Where a softness handle sits on the hard edge, as shares of the half sizes along and across: off the size
+     * handles, so every handle in the middle of a side sizes and the ones toward a corner soften. Linked, one
+     * handle on the diagonal sets both; unlinked, one each, leaning toward the side it sets.
+     */
+    QPointF fadeSpot(Part part) const
+    {
+        if (isStar()) return QPointF(1, 0);
+        const bool rectangle = m_auto->shape() == Rectangle;
+        if (m_fadeLinked) return rectangle ? QPointF(1, 1) : QPointF(M_SQRT1_2, M_SQRT1_2);
+        if (part == FadeA) return rectangle ? QPointF(1, 0.45) : QPointF(0.906, 0.423);
+        return rectangle ? QPointF(0.45, 1) : QPointF(0.423, 0.906);
+    }
+
     QVector<Part> handles() const
     {
         if (!isAuto()) return {AxisA, AxisAOpposite, Turn};
         if (isStar()) return {AxisA, Valley, FadeA, Turn};
+        if (m_fadeLinked) return {AxisA, AxisAOpposite, AxisB, AxisBOpposite, FadeA, Turn};
         return {AxisA, AxisAOpposite, AxisB, AxisBOpposite, FadeA, FadeB, Turn};
     }
 
@@ -553,61 +569,73 @@ public:
             else painter.drawImage(dabRect, m_dab);
         }
         painter.setBrush(Qt::NoBrush);
-        QPen outline(accent, 1);
-        outline.setCosmetic(true);
-        painter.setPen(outline);
+        // every line twice, dark under light, so it shows on a light dab, a dark one and the background
+        const QColor dark(0, 0, 0, 150);
+        const QColor light(255, 255, 255, 230);
+        auto stroke = [&painter, &dark, &light](const QPainterPath &path, bool dashed) {
+            QPen under(dark, 3, Qt::SolidLine, Qt::RoundCap);
+            under.setCosmetic(true);
+            painter.setPen(under);
+            painter.drawPath(path);
+            QPen over(light, 1, dashed ? Qt::DashLine : Qt::SolidLine);
+            over.setCosmetic(true);
+            painter.setPen(over);
+            painter.drawPath(path);
+        };
+        auto shapePath = [this](const QRectF &rect) {
+            QPainterPath path;
+            if (m_auto->shape() == Rectangle) path.addRect(rect);
+            else path.addEllipse(rect);
+            return path;
+        };
         if (isAuto() && m_auto->spikes() <= 2) {
-            if (m_auto->shape() == Rectangle) painter.drawRect(dabRect);
-            else painter.drawEllipse(dabRect);
-            QPen dashed(accent, 1, Qt::DashLine);
-            dashed.setCosmetic(true);
-            painter.setPen(dashed);
+            stroke(shapePath(dabRect), false);
             const QRectF hard(-dabRect.width() / 2 * m_auto->horizontalFade(), -dabRect.height() / 2 * m_auto->verticalFade(),
                               dabRect.width() * m_auto->horizontalFade(), dabRect.height() * m_auto->verticalFade());
-            if (m_auto->shape() == Rectangle) painter.drawRect(hard);
-            else painter.drawEllipse(hard);
+            // only where it differs from the edge
+            if (m_auto->horizontalFade() < 0.995 || m_auto->verticalFade() < 0.995) stroke(shapePath(hard), true);
         } else if (isStar()) {
             const bool rectangle = m_auto->shape() == Rectangle;
             const qreal a = dabRect.width() / 2;
             const qreal b = dabRect.height() / 2;
-            painter.drawPath(starOutline(a, b, m_auto->spikes(), rectangle));
-            QPen dashed(accent, 1, Qt::DashLine);
-            dashed.setCosmetic(true);
-            painter.setPen(dashed);
-            painter.drawPath(starOutline(a * m_auto->horizontalFade(), b * m_auto->verticalFade(), m_auto->spikes(), rectangle));
+            stroke(starOutline(a, b, m_auto->spikes(), rectangle), false);
+            stroke(starOutline(a * m_auto->horizontalFade(), b * m_auto->verticalFade(), m_auto->spikes(), rectangle), true);
         } else if (!isAuto()) {
-            painter.drawRect(dabRect);
+            QPainterPath path;
+            path.addRect(dabRect);
+            stroke(path, false);
         }
         painter.restore();
 
         // the turning handle's stalk
-        painter.setPen(QPen(accent, 1));
-        painter.drawLine(partPosition(AxisA), partPosition(Turn));
+        {
+            QPainterPath stalk;
+            stalk.moveTo(partPosition(AxisA));
+            stalk.lineTo(partPosition(Turn));
+            stroke(stalk, false);
+        }
 
         Q_FOREACH (Part part, handles()) {
             const QPointF at = partPosition(part);
             const bool hot = part == m_hover || part == m_dragPart;
             const qreal r = handleRadius + (hot ? 1.5 : 0);
+            // light with a dark ring, so each shows on anything; softness is the dark one with a light ring
             if (part == FadeA || part == FadeB) {
+                const qreal d = r + 1;
                 QPainterPath diamond;
-                diamond.moveTo(at + QPointF(0, -r));
-                diamond.lineTo(at + QPointF(r, 0));
-                diamond.lineTo(at + QPointF(0, r));
-                diamond.lineTo(at + QPointF(-r, 0));
+                diamond.moveTo(at + QPointF(0, -d));
+                diamond.lineTo(at + QPointF(d, 0));
+                diamond.lineTo(at + QPointF(0, d));
+                diamond.lineTo(at + QPointF(-d, 0));
                 diamond.closeSubpath();
-                painter.setPen(Qt::NoPen);
-                painter.setBrush(accent);
+                painter.setPen(QPen(light, 1.5));
+                painter.setBrush(hot ? accent : QColor(20, 20, 24));
                 painter.drawPath(diamond);
-            } else if (part == Turn) {
-                painter.setPen(Qt::NoPen);
-                painter.setBrush(accent);
-                painter.drawEllipse(at, r + 1, r + 1);
             } else {
-                QColor fill = palette().color(QPalette::Window);
-                fill.setAlpha(255);
-                painter.setPen(QPen(accent, 2));
-                painter.setBrush(fill);
-                painter.drawEllipse(at, r, r);
+                const qreal size = part == Turn ? r + 1 : r;
+                painter.setPen(QPen(dark, 1.5));
+                painter.setBrush(hot ? accent : QColor(Qt::white));
+                painter.drawEllipse(at, size, size);
             }
         }
 
@@ -840,7 +868,8 @@ private:
         case FadeB: {
             const bool alongAxis = m_dragPart == FadeA;
             const QPointF axis = alongAxis ? m_pressAlong : m_pressAcross;
-            const qreal radius = (alongAxis ? m_pressSize.width() : m_pressSize.height()) * m_scale / 2.0;
+            const QPointF k = fadeSpot(m_dragPart);
+            const qreal radius = (alongAxis ? m_pressSize.width() * k.x() : m_pressSize.height() * k.y()) * m_scale / 2.0;
             const qreal fade = qBound(0.0, qAbs(dot(from, axis)) / qMax(1.0, radius), 1.0);
             const qreal pressFade = alongAxis ? m_pressFadeA : m_pressFadeB;
             const qreal otherPress = alongAxis ? m_pressFadeB : m_pressFadeA;

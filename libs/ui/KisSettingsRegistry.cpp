@@ -241,6 +241,7 @@ QHash<QString, QString> explanations()
         {QStringLiteral("[StudioTheme] TintAmount"), i18nc("@info:tooltip", "0%: plain gray → 100%: fully the tint's hue")},
         {QStringLiteral("[StudioTheme] UseAccent"), i18nc("@info:tooltip", "Selected items, focus and links in color instead of gray")},
         {QStringLiteral("StudioGlassOpacity"), i18nc("@info:tooltip", "0%: see-through → 100%: solid")},
+        {QStringLiteral("StudioGlassRimLight"), i18nc("@info:tooltip", "The line of light along the edges: 0% none → 200% bright")},
         {QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"),
          i18nc("@info:tooltip", "On: exactly 125% or 150%, as the screen is set\nOff: rounded to 100% or 200%, crisper but a bit small or large")},
         {QStringLiteral("newOutlineStyle"), i18nc("@info:tooltip", "Circle: the brush's size\nBrush: its real shape\nWith tilt: its shape, leaning with the pen")},
@@ -399,6 +400,10 @@ QVector<Setting> describeAll()
         blur.read = []() { return KisStudioGlass::blur(); };
         blur.write = [](const QVariant &value) { KisStudioGlass::setBlur(value.toReal()); };
         all << blur;
+        Setting rimLight = number(QStringLiteral("StudioGlassRimLight"), 1.0, 0, 2.0, i18nc("setting", "Glass rim light"), R::Fork);
+        rimLight.read = []() { return KisStudioGlass::rimLight(); };
+        rimLight.write = [](const QVariant &value) { KisStudioGlass::setRimLight(value.toReal()); };
+        all << rimLight;
         Setting opacity = number(QStringLiteral("StudioGlassOpacity"), 0.7, 0, 1, i18nc("setting", "Glass opacity"), R::Fork);
         opacity.read = []() { return KisStudioGlass::opacity(); };
         opacity.write = [](const QVariant &value) { KisStudioGlass::setOpacity(value.toReal()); };

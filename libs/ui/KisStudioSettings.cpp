@@ -999,12 +999,13 @@ QVector<CardDef> makeCards()
             b.showWhen(b.color(QStringLiteral("[StudioTheme] Accent"), false, i18nc("theme", "Accent")), b.isOn(QStringLiteral("[StudioTheme] UseAccent")));
         });
     add(QStringLiteral("appearance"), QStringLiteral("glass"), i18nc("settings card", "Glass"),
-        {QStringLiteral("StudioGlass"), QStringLiteral("StudioGlassBlur"), QStringLiteral("StudioGlassOpacity")},
+        {QStringLiteral("StudioGlass"), QStringLiteral("StudioGlassBlur"), QStringLiteral("StudioGlassOpacity"), QStringLiteral("StudioGlassRimLight")},
         QStringLiteral("transparency blur frosted opacity tint refraction see-through panels edge bends the canvas"), [](Builder &b) {
             b.toggle(QStringLiteral("StudioGlass"), i18nc("glass", "Panels of glass"));
             const auto on = b.isOn(QStringLiteral("StudioGlass"));
             b.showWhen(b.number(QStringLiteral("StudioGlassBlur"), {i18nc("glass", "Blur"), 100, 0, QStringLiteral("%")}), on);
             b.showWhen(b.number(QStringLiteral("StudioGlassOpacity"), {i18nc("glass", "Opacity"), 100, 0, QStringLiteral("%")}), on);
+            b.showWhen(b.number(QStringLiteral("StudioGlassRimLight"), {i18nc("glass", "Rim light"), 100, 0, QStringLiteral("%")}), on);
         });
     add(QStringLiteral("appearance"), QStringLiteral("surround"), i18nc("settings card", "Around the image"), {QStringLiteral("canvasBorderColor")},
         QStringLiteral("canvas border background color ambient glow"), [](Builder &b) {

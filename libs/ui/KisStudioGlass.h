@@ -44,6 +44,9 @@ public:
     /// How strongly the panel color covers what is behind, from 0 to 1 (solid). Defaults to 0.7.
     static qreal opacity();
     static void setOpacity(qreal opacity);
+    /// How bright the line of light along a panel's rim is, from 0 (none) to 2. Defaults to 1.
+    static qreal rimLight();
+    static void setRimLight(qreal strength);
     /**
      * Averaging Oklab a and b lets opposing hues cancel out. This share of the lost chroma is restored,
      * never exceeding the chroma of the colors behind.
