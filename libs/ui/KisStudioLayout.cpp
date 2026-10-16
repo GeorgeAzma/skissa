@@ -121,6 +121,13 @@ const QString columnWidthKey = QStringLiteral("StudioLayoutPanelWidth");
 /// The pinned panels docked on the far side of the canvas, away from the panel buttons
 const QString farKey = QStringLiteral("StudioLayoutFarPanels");
 const QString farWidthKey = QStringLiteral("StudioLayoutFarPanelWidth");
+/// The pinned panels in floating groups of their own, as "id=group" entries (groups from 2 on)
+const QString groupsKey = QStringLiteral("StudioLayoutPanelGroups");
+/// A floating group's own setting: Spot, Width or Side
+QString groupKey(int group, const char *what)
+{
+    return QStringLiteral("StudioLayoutPanelGroup%1%2").arg(group).arg(QLatin1String(what));
+}
 /// "left" or "right"
 const QString panelSideKey = QStringLiteral("StudioLayoutPanelSide");
 const QString toolRailSideKey = QStringLiteral("StudioLayoutToolRailSide");
@@ -291,8 +298,11 @@ private:
 struct PanelDrop {
     bool column {false};
     bool left {false};
-    /// Into the column on the far side, away from the panel buttons
-    bool far {false};
+    /// The group it goes into: 0 the column with the panel buttons, 1 the one across the canvas, then floating ones
+    int group {0};
+    /// Into a new floating group, there (main window coordinates)
+    bool fresh {false};
+    QPoint at;
     QString before;      ///< the panel it goes above; empty for the bottom
     QRect indicator;     ///< in main window coordinates
 };
@@ -815,9 +825,15 @@ public:
     static int gap() { return KisTouchMode::isActive() ? 12 : 6; }
     /// A scrolling panel keeps at least this much of its contents
     static constexpr int minimumContents = 56;
+    /// The height a scrolling panel is first given is its contents', within these: a short list has room to
+    /// grow into, and a long one (measured perhaps before it was filtered) doesn't take the whole column
+    static constexpr int settledMinimum = 160;
+    static constexpr int settledMaximum = 360;
 
-    /// A panel's height set by its handle; 0: fitted to its contents
+    /// A panel's height, set by its handle or when it was first laid out; 0: not set yet
     std::function<int(const QDockWidget *)> userHeight;
+    /// A panel that scrolls was laid out for the first time and fitted to its contents: its height from now on
+    std::function<void(QDockWidget *dock, int height)> settled;
     /// Its handle moved: \p height for \p dock, 0 to fit it again; \p done once let go
     std::function<void(QDockWidget *dock, int height, bool done)> resizedByUser;
     /// How tall the stack would like to be has changed
@@ -936,10 +952,15 @@ private:
             natural = dock->hasHeightForWidth() ? dock->heightForWidth(width()) : dock->sizeHint().height();
             m.minimum = dock->minimumSizeHint().height();
         }
-        const int byHand = userHeight ? userHeight(dock) : 0;
+        int byHand = userHeight ? userHeight(dock) : 0;
+        // a panel that scrolls keeps the height it first fitted, so what grows in it (layers, brushes) scrolls
+        // instead of pushing the panels below it down; its handle sets another, a right click fits it again
+        if (byHand <= 0 && area && contents >= 0 && dock->height() > titleHeight && settled) {
+            byHand = qBound(settledMinimum, natural, settledMaximum);
+            settled(dock, byHand);
+        }
         m.byHand = byHand > 0;
-        // a panel that scrolls is never taller than its contents; one that doesn't takes the height it is given
-        m.want = m.byHand ? (area && contents >= 0 ? qMin(byHand, natural) : byHand) : natural;
+        m.want = m.byHand ? byHand : natural;
         // never below what its own layout needs (Qt wouldn't make it smaller); a fold animating caps it, below that too
         m.minimum = qMax(m.minimum, qMax(titleHeight, qMax(dock->minimumSizeHint().height(), dock->minimumHeight())));
         m.minimum = qMin(m.minimum, dock->maximumHeight());
@@ -1883,12 +1904,14 @@ struct KisStudioLayout::Private
     QSet<QString> folded;
     QHash<QString, QPointer<PanelGrip>> grips;
     QPointer<KisStudioPanelColumn> panelColumn;
-    /// The column on the other side of the canvas, without the panel buttons
-    QPointer<KisStudioPanelColumn> farColumn;
+    /// The groups of pinned panels other than the column with the panel buttons: 1 across the canvas from it,
+    /// then floating ones, each a column of its own
+    QMap<int, QPointer<KisStudioPanelColumn>> groupColumns;
     /// Shown in place of Krita's welcome page, which is kept aside meanwhile
     QPointer<KisStudioStartPage> startPage;
     QPointer<QWidget> classicWelcome;
-    QSet<QString> far;
+    /// Which group each pinned panel is in, where it isn't the column with the panel buttons
+    QHash<QString, int> groups;
     QPointer<TopPill> topPill;
     QPointer<TopPill> windowPill;
     /// In canvas-only mode, what the pointer brought back by nearing its edge (see peek())
@@ -1950,13 +1973,26 @@ struct KisStudioLayout::Private
         return order;
     }
 
-    /// The pinned panels shown in a column, top to bottom, excluding \p without; \p farSide: the far column's
-    QList<QDockWidget *> column(const QString &without, bool farSide = false) const
+    int groupOf(const QString &id) const { return groups.value(id, 0); }
+
+    /// Every column of pinned panels, the one with the panel buttons first
+    QList<KisStudioPanelColumn *> columns() const
+    {
+        QList<KisStudioPanelColumn *> all;
+        if (panelColumn) all << panelColumn;
+        for (const QPointer<KisStudioPanelColumn> &column : groupColumns) {
+            if (column) all << column;
+        }
+        return all;
+    }
+
+    /// The pinned panels shown in a group, top to bottom, excluding \p without
+    QList<QDockWidget *> column(const QString &without, int group = 0) const
     {
         QList<QDockWidget *> docks;
         Q_FOREACH (const QString &id, pinnedOrder()) {
             QDockWidget *dock = mainWindow->dockWidget(id);
-            if (id != without && far.contains(id) == farSide && dock && dock != flyout && !dock->isHidden() && !dock->isFloating()) {
+            if (id != without && groupOf(id) == group && dock && dock != flyout && !dock->isHidden() && !dock->isFloating()) {
                 docks << dock;
             }
         }
@@ -1977,23 +2013,28 @@ struct KisStudioLayout::Private
         if (!canvasArea) return drop;
         const QPoint pos = mainWindow->mapFromGlobal(globalPos);
         const QRect canvas = canvasArea->geometry();
-        // the column with the panel buttons first, then the one across the canvas
-        for (const bool farSide : {false, true}) {
-            const bool left = farSide ? !panelsLeft : panelsLeft;
-            const QList<QDockWidget *> docks = column(moving, farSide);
+        // the column with the panel buttons first, then the one across the canvas, then the floating groups
+        QList<int> order = {0, 1};
+        for (auto it = groupColumns.constBegin(); it != groupColumns.constEnd(); ++it) {
+            if (it.key() >= 2 && it.value()) order << it.key();
+        }
+        for (int group : order) {
+            const QList<QDockWidget *> docks = column(moving, group);
+            const KisStudioPanelColumn *own = group == 0 ? panelColumn.data() : groupColumns.value(group).data();
+            const bool left = group == 0 ? panelsLeft : group == 1 ? !panelsLeft : own && own->isLeft();
             QRect area;
             Q_FOREACH (QDockWidget *dock, docks) {
                 area |= placeOf(dock);
             }
-            // over a column, or near the canvas edge where it has no panels
-            const bool overColumn = !area.isEmpty() && pos.x() >= area.left() - 8 && pos.x() <= area.right() + 8;
-            const bool nearEdge = area.isEmpty() && canvas.contains(pos)
+            // over a group, or near the canvas edge where the two edge columns have no panels
+            const bool overColumn = !area.isEmpty() && area.adjusted(-8, -24, 8, 24).contains(pos);
+            const bool nearEdge = area.isEmpty() && group <= 1 && canvas.contains(pos)
                                   && (left ? pos.x() < canvas.left() + edgeDropZone : pos.x() > canvas.right() - edgeDropZone);
             if (!overColumn && !nearEdge) continue;
 
             drop.column = true;
             drop.left = left;
-            drop.far = farSide;
+            drop.group = group;
             if (area.isEmpty()) {
                 drop.indicator = QRect(left ? canvas.left() + 2 : canvas.right() - 4, canvas.top() + 6, 3, canvas.height() - 12);
                 return drop;
@@ -2009,7 +2050,15 @@ struct KisStudioLayout::Private
             drop.indicator = QRect(area.left() + 4, qMax(area.top(), y - 1), area.width() - 8, 3);
             return drop;
         }
-        return drop;
+        // anywhere else on the canvas: a floating group of its own, there
+        if (canvas.contains(pos)) {
+            const int width = panelColumn ? panelColumn->columnWidth() : 270;
+            drop.column = true;
+            drop.fresh = true;
+            drop.at = pos;
+            drop.indicator = QRect(pos.x() - width / 2, pos.y() - 1, width, 3);
+        }
+                return drop;
     }
 
     void showPanelDrop(const QPoint &globalPos, const QString &moving)
@@ -2126,7 +2175,15 @@ void KisStudioLayout::enter()
         return QSet<QString>(list.begin(), list.end());
     };
     d->pinned = readSet(pinnedKey);
-    d->far = readSet(farKey);
+    d->groups.clear();
+    Q_FOREACH (const QString &id, readSet(farKey)) {
+        d->groups.insert(id, 1);
+    }
+    Q_FOREACH (const QString &entry, cfg.readEntry<QStringList>(groupsKey)) {
+        const int separator = entry.lastIndexOf(QLatin1Char('='));
+        const int group = separator > 0 ? entry.mid(separator + 1).toInt() : 0;
+        if (group >= 2) d->groups.insert(entry.left(separator), group);
+    }
     d->folded = readSet(foldedKey);
     const QString panelSide = cfg.readEntry<QString>(panelSideKey, QString());
     d->panelsLeft = panelSide == QLatin1String("left")
@@ -2518,8 +2575,7 @@ void KisStudioLayout::leave()
     d->classicDocks.clear();
     d->panels.clear();
     d->grips.clear();
-    for (KisStudioPanelColumn *column : {d->panelColumn.data(), d->farColumn.data()}) {
-        if (!column) continue;
+    Q_FOREACH (KisStudioPanelColumn *column, d->columns()) {
         Q_FOREACH (QDockWidget *dock, column->panels()) {
             const bool shown = !dock->isHidden();
             parkPanel(dock);
@@ -2813,8 +2869,9 @@ void KisStudioLayout::positionFlyout()
         if (strip.intersects(global)) global.setTop(strip.bottom() + 1 + margin);
     }
     // beside the panels docked on that side, rather than over them
-    if (KisStudioPanelColumn *far = d->farColumn; far && far->isVisible() && !far->isLeft()) {
-        const QRect pill(far->mapToGlobal(QPoint()), far->size());
+    Q_FOREACH (KisStudioPanelColumn *other, d->columns()) {
+        if (other == d->panelColumn || !other->isVisible() || other->isLeft()) continue;
+        const QRect pill(other->mapToGlobal(QPoint()), other->size());
         if (pill.intersects(global)) global.moveRight(pill.left() - 1 - margin);
     }
     if (d->flyoutAnchor) {
@@ -2863,7 +2920,7 @@ void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
         applyFold(dock, d->folded.contains(id));
     } else {
         d->pinned.remove(id);
-        d->far.remove(id);
+        d->groups.remove(id);
         applyFold(dock, false);
         const bool wasVisible = !dock->isHidden();
         dock->hide();
@@ -2885,7 +2942,7 @@ void KisStudioLayout::arrangePinned()
     const QStringList order = d->pinnedOrder();
     QString arrangement = d->panelsLeft ? QStringLiteral("L:") : QStringLiteral("R:");
     Q_FOREACH (const QString &id, order) {
-        arrangement += (d->far.contains(id) ? QStringLiteral("far ") : QString()) + id + QLatin1Char(',');
+        arrangement += QString::number(d->groupOf(id)) + QLatin1Char(' ') + id + QLatin1Char(',');
     }
     if (arrangement == d->arrangement) {
         updateColumns();
@@ -2894,22 +2951,33 @@ void KisStudioLayout::arrangePinned()
     d->arrangement = arrangement;
 
     KisStudioPanelColumn *column = panelColumn();
-    KisStudioPanelColumn *far = farColumn();
-    if (!column || !far) {
+    if (!column) {
         return;
     }
-    QList<QDockWidget *> near;
-    QList<QDockWidget *> across;
+    QMap<int, QList<QDockWidget *>> lists;
+    lists[0];
     Q_FOREACH (const QString &id, order) {
         QDockWidget *dock = d->mainWindow->dockWidget(id);
-        if (dock && dock != d->flyout) (d->far.contains(id) ? across : near) << dock;
+        if (dock && dock != d->flyout) lists[d->groupOf(id)] << dock;
     }
-    Q_FOREACH (QDockWidget *dock, column->panels() + far->panels()) {
-        if (!near.contains(dock) && !across.contains(dock)) parkPanel(dock);
+    QMap<int, KisStudioPanelColumn *> columns;
+    columns.insert(0, column);
+    for (auto it = lists.constBegin(); it != lists.constEnd(); ++it) {
+        if (it.key() == 0) continue;
+        if (KisStudioPanelColumn *own = groupColumn(it.key())) columns.insert(it.key(), own);
+    }
+    QList<QDockWidget *> placed;
+    for (const QList<QDockWidget *> &list : lists) placed += list;
+    Q_FOREACH (KisStudioPanelColumn *own, d->columns()) {
+        Q_FOREACH (QDockWidget *dock, own->panels()) {
+            if (!placed.contains(dock)) parkPanel(dock);
+        }
     }
     // take them out of the window's dock areas so the canvas extends under the pills
-    Q_FOREACH (QDockWidget *dock, near + across) {
-        if (dock->parentWidget() != column->stack() && dock->parentWidget() != far->stack()) {
+    Q_FOREACH (QDockWidget *dock, placed) {
+        bool inColumn = false;
+        for (KisStudioPanelColumn *own : columns) inColumn = inColumn || dock->parentWidget() == own->stack();
+        if (!inColumn) {
             const bool shown = !dock->isHidden();
             if (dock->isFloating()) dockAway(dock);
             d->mainWindow->removeDockWidget(dock);
@@ -2917,9 +2985,19 @@ void KisStudioLayout::arrangePinned()
         }
     }
     column->setLeft(d->panelsLeft);
-    far->setLeft(!d->panelsLeft);
-    column->setPanels(near);
-    far->setPanels(across);
+    if (columns.contains(1)) columns[1]->setLeft(!d->panelsLeft);
+    for (auto it = columns.constBegin(); it != columns.constEnd(); ++it) {
+        it.value()->setPanels(lists.value(it.key()));
+    }
+    // floating groups left with no panels go; the one across the canvas stays for panels dropped by that edge
+    for (auto it = d->groupColumns.begin(); it != d->groupColumns.end();) {
+        if (it.key() >= 2 && !lists.contains(it.key())) {
+            if (it.value()) it.value()->deleteLater();
+            it = d->groupColumns.erase(it);
+        } else {
+            ++it;
+        }
+    }
     restoreHeights();
     updateColumns();
 }
@@ -2944,24 +3022,61 @@ KisStudioPanelColumn *KisStudioLayout::panelColumn()
     return d->panelColumn;
 }
 
-KisStudioPanelColumn *KisStudioLayout::farColumn()
+KisStudioPanelColumn *KisStudioLayout::groupColumn(int group)
 {
-    if (!d->farColumn) {
-        // as wide as the other until its own width is set
-        const int width = d->panelColumn ? d->panelColumn->columnWidth() : 270;
-        d->farColumn = createColumn(!d->panelsLeft, KisConfig(true).readEntry<int>(farWidthKey, width), farWidthKey);
-        if (!d->farColumn) return nullptr;
-        d->farColumn->setObjectName(QStringLiteral("studioFarPanels"));
-        // it has no panel buttons to drag it by
-        d->farColumn->setStrip(new DragGrip(d->farColumn));
-        d->farColumn->setSpot(readSpot(farSpotKey));
-        d->farColumn->moved = [this](bool left, const QPointF &spot) {
-            writeSpot(farSpotKey, spot);
-            if (left == d->panelsLeft) setPanelsSide(!left);
-            else updateCanvasInsets();
-        };
-    }
-    return d->farColumn;
+    if (group <= 0) return panelColumn();
+    if (KisStudioPanelColumn *column = d->groupColumns.value(group)) return column;
+    KisConfig cfg(true);
+    // as wide as the column with the panel buttons until its own width is set
+    const int width = d->panelColumn ? d->panelColumn->columnWidth() : 270;
+    const QString widthKey = group == 1 ? farWidthKey : groupKey(group, "Width");
+    const QString spotKey = group == 1 ? farSpotKey : groupKey(group, "Spot");
+    const bool left = group == 1 ? !d->panelsLeft : cfg.readEntry<QString>(groupKey(group, "Side"), QString()) == QLatin1String("left");
+    KisStudioPanelColumn *column = createColumn(left, cfg.readEntry<int>(widthKey, width), widthKey);
+    if (!column) return nullptr;
+    column->setObjectName(group == 1 ? QStringLiteral("studioFarPanels") : QStringLiteral("studioPanelGroup%1").arg(group));
+    // it has no panel buttons to drag it by
+    column->setStrip(new DragGrip(column));
+    column->setSpot(readSpot(spotKey));
+    column->moved = [this, group, spotKey](bool left, const QPointF &spot) {
+        writeSpot(spotKey, spot);
+        if (group == 1) {
+            if (left == d->panelsLeft) {
+                setPanelsSide(!left);
+                return;
+            }
+        } else {
+            KisConfig(false).writeEntry(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
+        }
+        updateCanvasInsets();
+    };
+    d->groupColumns.insert(group, column);
+    return column;
+}
+
+int KisStudioLayout::newPanelGroup(const QPoint &windowPos)
+{
+    int group = 2;
+    while (d->groupColumns.contains(group) || std::find(d->groups.cbegin(), d->groups.cend(), group) != d->groups.cend()) group++;
+    QMdiArea *mdi = mdiArea();
+    QWidget *area = mdi ? mdi->parentWidget() : nullptr;
+    if (!area) return group;
+    // where it was dropped, as the shares a column keeps (see shareOf()): its top middle under the pointer
+    const QPoint at = area->mapFrom(d->mainWindow, windowPos);
+    const bool left = at.x() < area->width() / 2;
+    const int width = d->panelColumn ? d->panelColumn->columnWidth() : 270;
+    const int margin = KisStudioPanelColumn::margin;
+    const int x = at.x() - width / 2;
+    const int across = left ? x - margin : area->width() - margin - width - x;
+    const int top = area->property(topInsetProperty).toInt() + margin;
+    const int bottom = area->height() - area->property(bottomInsetProperty).toInt() - margin;
+    // its height is not known yet: a guess, so the share puts its top about where it was dropped
+    const int guess = qMin(320, bottom - top);
+    KisConfig cfg(false);
+    cfg.writeEntry(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
+    cfg.writeEntry(groupKey(group, "Width"), width);
+    writeSpot(groupKey(group, "Spot"), QPointF(shareOf(across, area->width() - 2 * margin - width), shareOf(at.y() - 12 - top, bottom - top - guess)));
+    return group;
 }
 
 KisStudioPanelColumn *KisStudioLayout::createColumn(bool left, int width, const QString &widthKey)
@@ -2976,6 +3091,10 @@ KisStudioPanelColumn *KisStudioLayout::createColumn(bool left, int width, const 
         if (done && self) KisConfig(false).writeEntry(widthKey, self->columnWidth());
     };
     column->stack()->userHeight = [this](const QDockWidget *dock) { return d->heights.value(dock->objectName(), 0); };
+    column->stack()->settled = [this](QDockWidget *dock, int height) {
+        d->heights.insert(dock->objectName(), height);
+        saveHeights();
+    };
     column->stack()->resizedByUser = [this](QDockWidget *dock, int height, bool done) {
         if (height > 0) d->heights.insert(dock->objectName(), height);
         else d->heights.remove(dock->objectName());
@@ -3097,14 +3216,13 @@ void KisStudioLayout::placeWelcomePage()
 
 void KisStudioLayout::updateColumns()
 {
-    for (KisStudioPanelColumn *column : {d->panelColumn.data(), d->farColumn.data()}) {
-        if (!column) continue;
+    Q_FOREACH (KisStudioPanelColumn *column, d->columns()) {
         bool any = false;
         Q_FOREACH (QDockWidget *dock, column->panels()) {
             any = any || !dock->isHidden();
         }
         column->setPanelsShown(any && !arePanelsHidden() && !d->panelsTucked);
-        // the far column is nothing without its panels; the other keeps its strip
+        // the other groups are nothing without their panels; the column with the panel buttons keeps its strip
         const bool kept = column == d->panelColumn || column->panelsShown();
         column->setVisible(d->active && kept && (!isRailHidden() || d->peeking.contains(QPointer<QWidget>(column))));
     }
@@ -3124,9 +3242,9 @@ void KisStudioLayout::updateCanvasInsets(bool views)
     int pillRight = 0;
     int fullLeft = 0;
     int fullRight = 0;
-    for (KisStudioPanelColumn *column : {d->panelColumn.data(), d->farColumn.data()}) {
+    Q_FOREACH (KisStudioPanelColumn *column, d->columns()) {
         // one floating over the canvas leaves it be
-        if (!column || column->isHidden() || !column->isDocked()) continue;
+        if (column->isHidden() || !column->isDocked()) continue;
         const bool left = column->isLeft();
         const int reach = left ? column->geometry().right() + 1 : area->width() - column->x();
         // the tool rail sits beside the pill, even when only its strip shows
@@ -3150,8 +3268,8 @@ void KisStudioLayout::updateCanvasInsets(bool views)
         area->setProperty(rightInsetProperty, insets.right());
         area->setProperty(topInsetProperty, insets.top());
         area->setProperty(bottomInsetProperty, insets.bottom());
-        for (KisStudioPanelColumn *column : {d->panelColumn.data(), d->farColumn.data()}) {
-            if (column) column->place();
+        Q_FOREACH (KisStudioPanelColumn *column, d->columns()) {
+            column->place();
         }
         area->setProperty(leftPillProperty, pillLeft);
         area->setProperty(rightPillProperty, pillRight);
@@ -3185,8 +3303,8 @@ void KisStudioLayout::restoreHeights()
         Q_FOREACH (const QString &id, d->pinnedOrder()) {
             applyFold(d->mainWindow->dockWidget(id), d->folded.contains(id) && d->pinned.contains(id));
         }
-        for (KisStudioPanelColumn *column : {d->panelColumn.data(), d->farColumn.data()}) {
-            if (column) column->stack()->later();
+        Q_FOREACH (KisStudioPanelColumn *column, d->columns()) {
+            column->stack()->later();
         }
     });
 }
@@ -3322,8 +3440,9 @@ void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool
     }
 
     d->pinned.insert(id);
-    if (drop.far) d->far.insert(id);
-    else d->far.remove(id);
+    const int group = drop.fresh ? newPanelGroup(drop.at) : drop.group;
+    if (group > 0) d->groups.insert(id, group);
+    else d->groups.remove(id);
     savePinned();
     if (dock == d->flyout) {
         releaseFlyout();
@@ -3335,7 +3454,7 @@ void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool
     panels.removeAll(id);
     int at = drop.before.isEmpty() ? -1 : panels.indexOf(drop.before);
     if (at < 0) {
-        Q_FOREACH (QDockWidget *other, d->column(id, drop.far)) {
+        Q_FOREACH (QDockWidget *other, d->column(id, group)) {
             at = qMax(at, panels.indexOf(other->objectName()) + 1);
         }
     }
@@ -3350,9 +3469,17 @@ void KisStudioLayout::savePinned()
     QStringList pinned = d->pinned.values();
     pinned.sort();
     KisConfig(false).writeEntry(pinnedKey, pinned);
-    QStringList far = d->far.values();
+    QStringList far;
+    QStringList floating;
+    for (auto it = d->groups.constBegin(); it != d->groups.constEnd(); ++it) {
+        if (!d->pinned.contains(it.key())) continue;
+        if (it.value() == 1) far << it.key();
+        else if (it.value() >= 2) floating << it.key() + QLatin1Char('=') + QString::number(it.value());
+    }
     far.sort();
+    floating.sort();
     KisConfig(false).writeEntry(farKey, far);
+    KisConfig(false).writeEntry(groupsKey, floating);
 }
 
 void KisStudioLayout::createRail()
@@ -4256,12 +4383,15 @@ void KisStudioLayout::peek(const QPoint &global)
         bool near;
     };
     const int reach = 6;
-    const QList<Edge> edges = {
+    QList<Edge> edges = {
         {d->topPill.data(), d->topPill && !d->topPill->isAtTop() ? at.y() >= area->height() - reach : at.y() < reach},
         {d->brushRail.data(), toolsLeft ? at.x() < reach : at.x() >= area->width() - reach},
         {d->panelColumn.data(), d->panelColumn && d->panelColumn->isLeft() ? at.x() < reach : at.x() >= area->width() - reach},
-        {d->farColumn.data(), d->farColumn && d->farColumn->panelsShown() && (d->farColumn->isLeft() ? at.x() < reach : at.x() >= area->width() - reach)},
     };
+    Q_FOREACH (KisStudioPanelColumn *other, d->columns()) {
+        if (other == d->panelColumn) continue;
+        edges.append({other, other->panelsShown() && (other->isLeft() ? at.x() < reach : at.x() >= area->width() - reach)});
+    }
     for (const Edge &edge : edges) {
         QWidget *widget = edge.widget;
         if (!widget) continue;

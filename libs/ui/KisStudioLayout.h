@@ -79,8 +79,11 @@ private:
     void saveHeights();
     /// The column with the panel buttons
     KisStudioPanelColumn *panelColumn();
-    /// The column across the canvas from it
-    KisStudioPanelColumn *farColumn();
+    /// The column of a group of pinned panels: 0 the one with the panel buttons, 1 across the canvas from it,
+    /// then floating groups
+    KisStudioPanelColumn *groupColumn(int group);
+    /// A new floating group, dropped at \p windowPos: its number, with its place written
+    int newPanelGroup(const QPoint &windowPos);
     KisStudioPanelColumn *createColumn(bool left, int width, const QString &widthKey);
     void setPanelsSide(bool left);
     void setToolRailSide(bool left);
