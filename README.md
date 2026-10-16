@@ -20,6 +20,12 @@ Skissa is a look at how a painting app could work, next to how Krita works today
 
 ![Classic Krita layout, then Studio](docs/readme/layouts.webp)
 
+## Glass you can see through
+
+Panels are frosted glass that bends the picture at its edges. Put them anywhere: against an edge they dock, elsewhere they float.
+
+![Panels and the top bar dragged into place](docs/readme/move.webp)
+
 ## Ctrl+K finds anything
 
 Tools, brushes, effects, settings and every old menu command. Effects preview live on the canvas.
@@ -37,6 +43,10 @@ Tools, brushes, effects, settings and every old menu command. Effects preview li
 ## Symmetry
 
 ![Radial symmetry, center dragged into place](docs/readme/symmetry.webp)
+
+## Start where you left off
+
+![The start page: new image sizes, the last image, recent work](docs/readme/start.jpg)
 
 ## Themes
 
