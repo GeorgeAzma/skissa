@@ -603,9 +603,12 @@ void main()
     vec3 tintLab = toOklab(fromSrgb(tint));
 
     // The frost: rough on the face, spread over the distance still to travel. Polished, the rim is clear, and
-    // the frost comes back by ratios (the eye sees blur in octaves) as the same kind of decay, a little slower
-    // than the bend fades: sharp at the edge, a few pixels of blur a few pixels in, the full frost soon after.
-    float frosted = curved ? 1.0 - polish * exp(-max(d, 0.0) / (1.5 * fall)) : 1.0;
+    // the frost comes back by ratios (the eye sees blur in octaves): quickly at first, a little slower than
+    // the bend fades, to a light blur a few pixels in, then gently on to the full frost in the middle of the
+    // panel, so the blur itself goes from slight to heavy across it.
+    float quick = curved ? 1.0 - exp(-max(d, 0.0) / (1.5 * fall)) : 1.0;
+    float inward = 1.0 - clamp(d / max(min(shape.z, shape.w), 1.0), 0.0, 1.0);
+    float frosted = 1.0 - polish * (1.0 - (0.55 * quick + 0.45 * (1.0 - inward * inward)));
     float full = thick / ior.g + bevel.z;
     float travel = full > 1e-3 ? (height / ior.g + bevel.z) / full : 1.0;
     const float sharp = 0.4;
