@@ -63,6 +63,7 @@
 #include "kis_splash_screen.h"
 #ifdef Q_OS_WIN
 #include "KisDevTour.h"
+#include "KisHangWatch.h"
 #endif
 #include "config-qt-patches-present.h"
 
@@ -1100,6 +1101,7 @@ if (!qEnvironmentVariableIsEmpty("KRITA_OPENGL_DEBUG")) {
     KisFrameRate::installAnimationDriver();
 
 #if defined Q_OS_WIN
+    KisHangWatch::start();
     if (useDevProfile) {
         app.installNativeEventFilter(new DevCaptureFilter);
         KisDevTour::start();

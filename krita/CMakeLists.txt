@@ -15,6 +15,8 @@ set(krita_SRCS main.cc)
 if (WIN32)
     # a development tool for reviewing the UI, started by KRITA_DEV_TOUR
     list(APPEND krita_SRCS KisDevTour.cpp)
+    # logs where the app is stuck when it stops responding
+    list(APPEND krita_SRCS KisHangWatch.cpp)
 endif()
 
 # Set the application icon on the application
