@@ -15,9 +15,10 @@
 class KisMainWindow;
 
 /**
- * What the window shows with no image open, in the Studio layout: new images
- * as pictures of their shape, the recent ones as large thumbnails, and Open.
- * Files dropped anywhere on it open.
+ * What the window shows with no image open, in the Studio layout: over the last
+ * image, blurred, a pane with the new images drawn to scale and Open; then the
+ * last image large and the others in rows that keep their shapes. Typing filters
+ * them, the arrow keys and Enter pick, and files dropped anywhere on it open.
  */
 class KRITAUI_EXPORT KisStudioStartPage : public QWidget
 {
@@ -31,6 +32,7 @@ public:
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    void showEvent(QShowEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragLeaveEvent(QDragLeaveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
