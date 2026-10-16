@@ -17,9 +17,8 @@ class QOpenGLFramebufferObject;
 class QTransform;
 
 /**
- * GPU renderer for the glass panels over the canvas (see KisStudioGlass). It makes a pyramid of ever
- * more blurred copies of the canvas FBO around the panels, in Oklab, and draws each panel as one pane
- * of frosted glass that refracts and frosts what is behind it.
+ * GPU renderer for the glass panels over the canvas (see KisStudioGlass). It downsamples the canvas
+ * FBO, blurs it in Oklab under each panel, tints it and draws a refracting edge bevel.
  */
 class KisOpenGLGlass
 {
