@@ -1239,9 +1239,10 @@ void KisStudioStartPage::paintEvent(QPaintEvent *)
             + QLatin1Char('x') + QString::number(size.height()) + palette().color(QPalette::Window).name();
         if (key != d->backdropKey) {
             d->backdropKey = key;
-            // blurred small, then larger, so it is smooth when stretched over the page
-            QImage soft = blurred(picture.scaled(48, 48, Qt::KeepAspectRatio, Qt::SmoothTransformation), 2);
-            soft = blurred(soft.scaled(soft.size() * 8, Qt::IgnoreAspectRatio, Qt::SmoothTransformation), 8);
+            // blurred at a third of the page's size, where stretching it the rest of the way leaves no creases
+            const QSize third = (size / 3).expandedTo(QSize(1, 1));
+            QImage soft = picture.scaled(third, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            soft = blurred(soft, qMax(2, qMax(soft.width(), soft.height()) / 36));
             QImage cover = soft.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
             cover = cover.copy((cover.width() - size.width()) / 2, (cover.height() - size.height()) / 2, size.width(), size.height());
             // veiled in the window's color, so what is over it reads

@@ -202,8 +202,8 @@ void main()
  *
  *  - Inside, the frost: the blur, tinted.
  *  - Along the rim, a band where the glass shows the frost from further in, as if bent toward the edge:
- *    how far grows slowly from deep in the band and steeply at the edge (1 - cos), and a little more for
- *    blue than for red, so the colors part at the edge. It grows clearer toward the edge, its blur narrowing
+ *    how far grows as a cubic toward the edge, never so fast that it folds the image over, and a little
+ *    more for blue than for red, so the colors part at the edge. It grows clearer toward the edge, its blur narrowing
  *    by octaves toward the canvas itself (how far: KisStudioGlass::clarity), from nothing deep in the band
  *    like the bend, so the band and the inside are one surface.
  *  - At the edge itself, a thin rim lit by the room (from the top left, and as much from the bottom right)
@@ -237,7 +237,7 @@ uniform float dither;
 uniform float veil;
 // The rim band's width, how far in its edge looks, the lit rim's width and how far out it reflects.
 uniform vec4 bevel;
-// How much more each color is bent toward the edge than green, as exponents of the bend.
+// The index of refraction for red, green and blue: each color is bent toward the edge in proportion.
 uniform vec3 ior;
 uniform vec4 reach;
 // The image's ambient glow: where the image is, and its blurred light around it.
@@ -310,18 +310,32 @@ float outside(vec2 p, out vec2 normal)
     return outsideOf(p, shape, corner, normal);
 }
 
-// Bilinear sample of a weighted downsampled texture (the blur or its statistics) at p (surface
-// pixels), within this surface's slot. The weights are interpolated too.
+// Weights of the four texels around a point t of the way from the second to the third (cubic B-spline).
+vec4 bspline(float t)
+{
+    float t2 = t * t;
+    float t3 = t2 * t;
+    return vec4(1.0 - 3.0 * t + 3.0 * t2 - t3, 4.0 - 6.0 * t2 + 3.0 * t3, 1.0 + 3.0 * t + 3.0 * t2 - 3.0 * t3, t3) / 6.0;
+}
+
+// Smooth sample of a weighted downsampled texture (the blur or its statistics) at p (surface pixels),
+// within this surface's slot: a cubic B-spline over 4 x 4 texels, since stretching a small texture
+// bilinearly leaves creases along its grid. The weights are interpolated too.
 vec3 softAt(sampler2D source, vec2 p)
 {
     vec2 t = p / factor - 0.5 + shift;
     ivec2 i = ivec2(floor(t));
     vec2 f = t - floor(t);
-    vec4 a = weighted(texelFetch(source, clamp(i, slot.xy, slot.zw), 0));
-    vec4 b = weighted(texelFetch(source, clamp(i + ivec2(1, 0), slot.xy, slot.zw), 0));
-    vec4 c = weighted(texelFetch(source, clamp(i + ivec2(0, 1), slot.xy, slot.zw), 0));
-    vec4 d = weighted(texelFetch(source, clamp(i + ivec2(1, 1), slot.xy, slot.zw), 0));
-    vec4 m = mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+    vec4 wx = bspline(f.x);
+    vec4 wy = bspline(f.y);
+    vec4 m = vec4(0.0);
+    for (int y = 0; y < 4; y++) {
+        vec4 row = vec4(0.0);
+        for (int x = 0; x < 4; x++) {
+            row += wx[x] * weighted(texelFetch(source, clamp(i + ivec2(x - 1, y - 1), slot.xy, slot.zw), 0));
+        }
+        m += wy[y] * row;
+    }
     return m.rgb / max(m.a, 1e-5);
 }
 
@@ -383,22 +397,27 @@ float levelSigma(int k)
 }
 
 /**
- * The frost at q blurred by `blur` pixels, from the full frost down to the canvas itself: between the two
- * levels around it, mixed by where it lies between their widths in octaves, so as it changes across the rim
- * the blur narrows evenly, each level only ever mixed with its neighbor.
+ * The frost at q blurred by `blur` pixels, from the full frost down to the canvas itself. Where it lies
+ * among the levels is measured in octaves between their widths, and the three levels around it are mixed
+ * with quadratic B-spline weights, which change smoothly with it: mixing only two would crease where one
+ * hands over to the next.
  */
 vec3 frostAt(vec2 q, float blur)
 {
-    if (blur >= levelSigma(0)) return frostedLab(q);
-    for (int k = 0; k < 5; k++) {
+    float t = 5.0;
+    for (int k = 4; k >= 0; k--) {
         float wide = levelSigma(k);
         float narrow = levelSigma(k + 1);
-        if (blur >= narrow && narrow < wide) {
-            float f = clamp(log2(wide / blur) / log2(wide / narrow), 0.0, 1.0);
-            return mix(levelLab(k, q), levelLab(k + 1, q), f);
-        }
+        if (blur >= narrow && narrow < wide) t = float(k) + clamp(log2(wide / blur) / log2(wide / narrow), 0.0, 1.0);
     }
-    return clearLab(q);
+    if (blur >= levelSigma(0)) t = 0.0;
+    if (t <= 0.0) return frostedLab(q);
+    int k = int(floor(t + 0.5));
+    float f = t - float(k);
+    vec3 lab = (0.75 - f * f) * levelLab(k, q);
+    lab += 0.5 * (0.5 - f) * (0.5 - f) * levelLab(max(k - 1, 0), q);
+    lab += 0.5 * (0.5 + f) * (0.5 + f) * levelLab(min(k + 1, 5), q);
+    return lab;
 }
 
 // Clamps a point the rim sees to the area around the panel that was blurred (reach).
@@ -498,15 +517,18 @@ void main()
 
     // The band along the rim shows the frost from further in, bent, and clearer toward the edge: the blur
     // narrows by octaves toward the canvas itself, rising a little ahead of the bend and, like it, from
-    // nothing deep in the band, so the bend, the clear edge and the frost are one surface.
-    float band = min(bevel.x, min(shape.z, shape.w));
+    // nothing deep in the band, so the bend, the clear edge and the frost are one surface. The band stays
+    // within the corners' curve, where the distance to the rim has no crease and its direction turns smoothly.
+    float band = min(bevel.x, min(0.9 * corner.x, min(shape.z, shape.w)));
     float across = band > 0.5 ? clamp(1.0 - d / band, 0.0, 1.0) : 0.0;
-    float bent = 1.0 - cos(across * quarterTurn);
     vec3 seen;
-    if (bent > 0.0) {
-        vec3 reached = pow(vec3(bent), ior) * bevel.y;
+    if (across > 0.0) {
+        // How far further in each color is seen: up to a third of the band at the edge, falling off as a cubic
+        // with no slope or bend where it ends, so the glass magnifies toward the edge without ever folding
+        // what is behind it over (which shows as streaks along the edge).
+        vec3 reached = across * across * across * 0.3 * band * ior / ior.g;
         float frostWidth = levelSigma(0);
-        float blur = frostWidth * pow(0.5 / frostWidth, clarity * smoothstep(0.0, 1.0, across));
+        float blur = frostWidth * pow(0.5 / frostWidth, clarity * across * across * (3.0 - 2.0 * across));
         vec3 light = vec3(max(fromOklab(throughLower(frostAt(held(p - outward * reached.r), blur), p)).r, 0.0),
                           max(fromOklab(throughLower(frostAt(held(p - outward * reached.g), blur), p)).g, 0.0),
                           max(fromOklab(throughLower(frostAt(held(p - outward * reached.b), blur), p)).b, 0.0));
