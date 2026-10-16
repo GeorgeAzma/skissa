@@ -56,14 +56,12 @@ public:
     static qreal refraction();
     static void setRefraction(qreal refraction);
 
-    /// The edge bevel in widget pixels; all zero for a plain line.
+    /// The refracting rim in widget pixels; all zero for a plain line.
     struct Bevel {
-        qreal width {0};       ///< from the edge in to the flat face
-        qreal thickness {0};   ///< of the pane at the flat face
-        qreal lift {0};        ///< gap between the pane and the canvas
-        qreal polish {0};      ///< 0 frosted, 1 clear at the rim
-        qreal clear {0};       ///< share of the bevel that is fully clear
-        qreal abbeNumber {40}; ///< dispersion: lower spreads colors more
+        qreal width {0};      ///< of the band along the edge that is bent
+        qreal depth {0};      ///< how far in the frost its very edge shows
+        qreal rim {0};        ///< of the lit, reflecting rim
+        qreal reflection {0}; ///< how far out the rim reflects
     };
     static Bevel bevel();
 

@@ -198,19 +198,17 @@ void main()
 )";
 
 /**
- * A glass panel: a pane held slightly above the canvas, with a frosted face and a polished bevel
- * curving down to the rim. Each pixel follows the view ray down through the glass to the canvas:
+ * A glass panel, after Apple's Liquid Glass as preyneyv's Shadertoy ("Liquid Glass", wfGXzh) draws it:
  *
- *  - On the flat face it passes straight through and the frost scatters it: the blur, tinted.
- *  - On the bevel it refracts on entry (Snell's law) and again leaving the flat underside, so the
- *    frost appears bent and magnified toward the rim and joins the face without a seam. Each color
- *    channel has its own index of refraction, giving a faint dispersion fringe. Where the bevel is
- *    steep the ray is totally internally reflected and shows the frost at that point.
- *  - Where the bevel is steep the face also reflects (Fresnel) the canvas around the panel, so the
- *    rim picks up the surrounding colors.
+ *  - Inside, the canvas through clear, tinted glass.
+ *  - Along the rim, a band where the glass shows the canvas from further in, as if bent toward the edge:
+ *    how far grows slowly from deep in the band and steeply at the edge (1 - cos), and a little more for
+ *    blue than for red, so the colors part at the edge. It is the same view, moved, so the band and the
+ *    inside are one surface.
+ *  - At the edge itself, a thin rim lit by the room (from the top left, and as much from the bottom right)
+ *    that catches a reflection of what is just outside, laid over the glass by Lighten.
  *
- * There are no highlights or lighting; the edge shows only through refraction. Everything is computed
- * in linear light, tinted like real tinted glass (see KisStudioGlass::veil).
+ * Everything is computed in linear light, tinted like real tinted glass (see KisStudioGlass::veil).
  */
 const char *const glassSource = R"(
 uniform sampler2D blurred;
@@ -231,9 +229,9 @@ uniform float sigma;
 uniform vec4 beyond;
 uniform float dither;
 uniform float veil;
-uniform vec3 bevel;
-uniform float polish;
-uniform float clearing;
+// The rim band's width, how far in its edge looks, the lit rim's width and how far out it reflects.
+uniform vec4 bevel;
+// How much more each color is bent toward the edge than green, as exponents of the bend.
 uniform vec3 ior;
 uniform vec4 reach;
 // The image's ambient glow: where the image is, and its blurred light around it.
@@ -306,57 +304,6 @@ float outside(vec2 p, out vec2 normal)
     return outsideOf(p, shape, corner, normal);
 }
 
-// Height above the underside and slope of a bevel w wide and h thick, d pixels in from the rim.
-// The profile is a quarter superellipse of exponent 4: steep at the rim and flat at the face,
-// with no crease where they meet.
-vec2 profile(float d, float w, float h)
-{
-    float u = 1.0 - clamp(d / w, 0.0, 1.0);
-    float u3 = u * u * u;
-    float k = max(1.0 - u3 * u, 1e-5);
-    return vec2(h * pow(k, 0.25), h / w * u3 * pow(k, -0.75));
-}
-
-// The bevel's height at the pixel d in from the edge and its slope averaged over the pixel rather
-// than at its center. The slope is unbounded at the rim, but the rise across a pixel is finite, so
-// this antialiases the rim into a clean line instead of scattered steep pixels.
-vec2 bevelOver(float d, float w, float h)
-{
-    float a = max(d - 0.5, 0.0);
-    float b = max(d + 0.5, a + 1e-3);
-    return vec2(profile(0.5 * (a + b), w, h).x, (profile(b, w, h).x - profile(a, w, h).x) / (b - a));
-}
-
-// Traces the view ray through a bevel point with surface normal `normal`, glass index n and the face
-// `height` above the underside. Returns the offset to where it meets the canvas (xy); z is 1 if it
-// reaches the canvas, 0 if it is totally internally reflected, and w is 1 if that reflected ray
-// leaves through the face (its direction in `back`).
-vec4 trace(vec3 normal, float height, float n, out vec3 back)
-{
-    // Refract into the face.
-    vec3 t = refract(vec3(0.0, 0.0, -1.0), normal, 1.0 / n);
-    vec2 offset = t.xy / max(-t.z, 1e-3) * height;
-    // Leave through the flat underside and cross the gap down to the canvas.
-    float sinGlass = length(t.xy);
-    float sinAir = n * sinGlass;
-    if (sinAir >= 1.0) {
-        // Reflected by the underside, then possibly out through the face.
-        back = refract(vec3(t.xy, -t.z), -normal, n);
-        return vec4(offset, 0.0, dot(back, back) > 0.0 ? 1.0 : 0.0);
-    }
-    back = vec3(0.0);
-    offset += t.xy / max(sinGlass, 1e-6) * (sinAir / sqrt(1.0 - sinAir * sinAir)) * bevel.z;
-    return vec4(offset, 1.0, 0.0);
-}
-
-// Reflectance of the glass at an angle of acos(c) to its normal (Schlick's approximation).
-float fresnel(float c, float n)
-{
-    float r = (n - 1.0) / (n + 1.0);
-    r *= r;
-    return r + (1.0 - r) * pow(1.0 - clamp(c, 0.0, 1.0), 5.0);
-}
-
 // Bilinear sample of a weighted downsampled texture (the blur or its statistics) at p (surface
 // pixels), within this surface's slot. The weights are interpolated too.
 vec3 softAt(sampler2D source, vec2 p)
@@ -372,19 +319,11 @@ vec3 softAt(sampler2D source, vec2 p)
     return m.rgb / max(m.a, 1e-5);
 }
 
-vec3 inGamut(float l, vec2 ab);
-
 // The Oklab mean stored in source at p, decoding the lightness power and the a, b offset.
 vec3 meanAt(sampler2D source, vec2 p)
 {
     vec3 m = softAt(source, p);
     return vec3(pow(max(m.x, 0.0), 1.0 / power), m.yz - 0.5);
-}
-
-// The same in linear light, not yet gamut mapped (that happens once, in tintedLab).
-vec3 meanLightAt(sampler2D source, vec2 p)
-{
-    return max(fromOklab(meanAt(source, p)), 0.0);
 }
 
 /**
@@ -401,46 +340,17 @@ vec3 frostedLab(vec2 p)
     return vec3(wide.x, wide.yz * (1.0 + restore * (1.0 - agree)));
 }
 
-// The unblurred canvas at q in linear light, as seen through the clear polished rim.
-vec3 canvasLightAt(vec2 q)
+// The canvas at q in Oklab, as clear glass shows it.
+vec3 clearLab(vec2 q)
 {
     vec3 c = texture(under, q / viewport).rgb;
-    return decode ? fromSrgb(c) : c;
+    return toOklab(clamp(decode ? fromSrgb(c) : c, 0.0, 1.0));
 }
 
-/**
- * The canvas area a pixel at q sees through the bevel (jx, jy: its footprint across and down),
- * averaged in linear light. Where the bevel bends little this is about one pixel, keeping all detail;
- * where it compresses a lot of canvas into one pixel, taps are spread along the compression so
- * nothing is skipped (no shimmer or stair steps) and nothing is blurred beyond it.
- */
-vec3 clearLab(vec2 q, vec2 jx, vec2 jy)
-{
-    bool across = dot(jx, jx) > dot(jy, jy);
-    vec2 major = across ? jx : jy;
-    vec2 minor = across ? jy : jx;
-    int n = int(clamp(ceil(length(major)), 1.0, 12.0));
-    vec3 sum = vec3(0.0);
-    for (int i = 0; i < 12; i++) {
-        if (i >= n) break;
-        vec2 o = major * ((float(i) + 0.5) / float(n) - 0.5);
-        sum += canvasLightAt(q + o + 0.25 * minor) + canvasLightAt(q + o - 0.25 * minor);
-    }
-    return toOklab(sum / float(2 * n));
-}
-
-// Clamps a point the rim sees to the area around the panel that was blurred (reach). A steep rim
-// can look further than that.
+// Clamps a point the rim sees to the area around the panel that was blurred (reach).
 vec2 held(vec2 q)
 {
     return clamp(q, reach.xy, reach.zw);
-}
-
-// The canvas where the reflected ray d (z toward the viewer) from p meets it, blurred because
-// the frosted glass is not a mirror.
-vec3 reflectedAt(vec3 d, vec2 p)
-{
-    return meanLightAt(blurred, held(p + d.xy / max(-d.z, 0.2) * bevel.z));
 }
 
 // Lightness l with hue ab, its chroma reduced by bisection until it fits the sRGB gamut.
@@ -473,11 +383,6 @@ vec3 tintedLab(vec3 b, vec3 tintLab, float s)
     return inGamut(l, mix(b.yz, tintLab.yz, scattered));
 }
 
-vec3 tinted(vec3 behind, vec3 tintLab, float s)
-{
-    return tintedLab(toOklab(behind), tintLab, s);
-}
-
 /**
  * Applies the tint of each glass panel below this one (e.g. a panel under a menu) to lab at p, so
  * stacked glass looks like glass over glass. Their edges are softened by this glass' frost.
@@ -495,15 +400,11 @@ vec3 throughLower(vec3 lab, vec2 p)
 }
 
 /**
- * Light the glowing image casts on the glass beside it. The rim catches it where it faces the image
- * and the bevel is steep enough to reflect it (Fresnel): a thin line in the colors of the image's
- * nearest edge, fading with distance. Nothing over the image itself.
+ * Light the glowing image casts on the rim beside it, where the rim faces the image: in the colors of the
+ * image's nearest edge, fading with distance. Nothing over the image itself.
  */
-vec3 imageLightAt(vec2 p, vec3 normal, vec2 normal2d, bool onBevel)
+vec3 imageLightAt(vec2 p, vec2 outward)
 {
-    if (!onBevel) {
-        return vec3(0.0);
-    }
     vec3 u = toImage * vec3(p, 1.0);
     vec3 n = fromImage * vec3(clamp(u.xy / u.z, 0.0, 1.0), 1.0);
     vec2 q = n.xy / n.z;
@@ -523,78 +424,49 @@ vec3 imageLightAt(vec2 p, vec3 normal, vec2 normal2d, bool onBevel)
     vec4 m = mix(mix(a, b, f.x), mix(c, e, f.x), f.y);
     vec3 light = m.rgb / max(m.a, 1e-4);
     float falloff = 1.0 / (1.0 + (dist / imageLightReach) * (dist / imageLightReach));
-    float facing = max(dot(normal2d, (q - p) / dist), 0.0);
-    float faceOn = fresnel(1.0, ior.g);
-    float edge = (fresnel(normal.z, ior.g) - faceOn) / (1.0 - faceOn);
-    return light * falloff * 0.45 * facing * edge * smoothstep(0.0, 24.0, dist);
+    float facing = max(dot(outward, (q - p) / dist), 0.0);
+    return light * falloff * 0.45 * facing * smoothstep(0.0, 24.0, dist);
 }
 
 void main()
 {
     vec2 p = gl_FragCoord.xy;
-    vec2 normal2d;
-    float d = -outside(p, normal2d);
-
-    // The bevel is no wider than the corner radius or the panel itself.
-    float w = min(bevel.x, min(corner.x, min(shape.z, shape.w)));
-    bool onBevel = w > 0.5 && d < w;
-    float h = bevel.y * w / max(bevel.x, 1e-3);
-    vec2 bend = vec2(0.0);
-    vec3 normal = vec3(0.0, 0.0, 1.0);
-    // Where this pixel sees the canvas (green ray) and its footprint. Computed before any discard,
-    // since derivatives are taken across the 2x2 pixel quad.
-    vec2 seenAt = p;
-    if (onBevel) {
-        bend = bevelOver(d, w, h);
-        normal = normalize(vec3(normal2d * bend.y, 1.0));
-        vec3 back;
-        seenAt = p + trace(normal, bend.x, ior.g, back).xy;
-    }
-    vec2 jx = dFdx(seenAt);
-    vec2 jy = dFdy(seenAt);
-
+    vec2 outward;
+    float d = -outside(p, outward);
     float coverage = clamp(d + 0.5, 0.0, 1.0) * opacity;
     if (coverage <= 0.0) {
         discard;
     }
     // How much comes from the canvas rather than the plain panel beyond its edges.
     float canvas = within(p.x, beyond.x) * within(viewport.x - p.x, beyond.y) * within(p.y, beyond.z) * within(viewport.y - p.y, beyond.w);
-    vec3 tintLight = fromSrgb(tint);
-    vec3 tintLab = toOklab(tintLight);
+    vec3 tintLab = toOklab(fromSrgb(tint));
+    const float quarterTurn = 1.5707963;
 
-    vec3 color;
-    if (onBevel) {
-        // Polished toward the rim it shows the bent canvas itself, fading into the frost of the face.
-        float clear = polish * (1.0 - smoothstep(clearing, 1.0, d / w));
-
-        vec3 light3 = vec3(0.0);
-        for (int i = 0; i < 3; i++) {
-            vec3 back;
-            vec4 ray = trace(normal, bend.x, ior[i], back);
-            // A ray reflected back inside shows the frost at this pixel. The result is mixed with the
-            // tint in Oklab like the face, so the bevel blends into it without a step.
-            bool leaves = ray.z > 0.0;
-            vec2 q = leaves ? held(p + ray.xy) : p;
-            vec3 seen = frostedLab(q);
-            if (leaves && clear > 0.0) seen = mix(seen, clearLab(q, jx, jy), clear);
-            seen = throughLower(seen, q);
-            vec3 through = max(fromOklab(mix(tintLab, seen, canvas)), 0.0);
-            light3[i] = through[i];
-        }
-        // Thinner glass toward the rim tints less (Beer-Lambert), giving a band along the edge that reads
-        // like a border.
-        color = tinted(light3, tintLab, strength * mix(0.3, 1.0, bend.x / h));
-        // Steep parts reflect (Fresnel) the canvas around the panel. Upward reflections of the room
-        // are already part of the tint, so there is no gloss.
-        vec3 mirrored = reflect(vec3(0.0, 0.0, -1.0), normal);
-        float faceOn = fresnel(1.0, ior.g);
-        float reflected = (fresnel(normal.z, ior.g) - faceOn) / (1.0 - faceOn) * smoothstep(0.0, 0.25, -mirrored.z);
-        color = mix(color, reflectedAt(mirrored, p), reflected);
+    // The band along the rim shows the frost from further in.
+    float band = min(bevel.x, min(shape.z, shape.w));
+    float bent = band > 0.5 ? 1.0 - cos(clamp(1.0 - d / band, 0.0, 1.0) * quarterTurn) : 0.0;
+    vec3 seen;
+    if (bent > 0.0) {
+        vec3 reached = pow(vec3(bent), ior) * bevel.y;
+        vec3 light = vec3(max(fromOklab(throughLower(clearLab(held(p - outward * reached.r)), p)).r, 0.0),
+                          max(fromOklab(throughLower(clearLab(held(p - outward * reached.g)), p)).g, 0.0),
+                          max(fromOklab(throughLower(clearLab(held(p - outward * reached.b)), p)).b, 0.0));
+        seen = toOklab(light);
     } else {
-        color = tintedLab(mix(tintLab, throughLower(frostedLab(p), p), canvas), tintLab, strength);
+        seen = throughLower(clearLab(p), p);
     }
-    if (imageLit) {
-        color += imageLightAt(p, normal, normal2d, onBevel);
+    vec3 color = tintedLab(mix(tintLab, seen, canvas), tintLab, strength);
+
+    // The rim: lit, and reflecting what is just outside.
+    float caught = band > 0.5 ? 1.0 - cos(clamp(1.0 - d / max(bevel.z, 0.5), 0.0, 1.0) * quarterTurn) : 0.0;
+    if (caught > 0.0) {
+        vec3 lit = vec3(0.15 * abs(dot(outward, vec2(-0.70710678, 0.70710678))));
+        vec3 reflection = clamp(tintedLab(frostedLab(held(p + outward * bevel.w * (1.0 + 0.15 * caught))), tintLab, strength), 0.0, 1.0);
+        vec3 edge = max(color, 1.0 - (1.0 - lit) * (1.0 - reflection));
+        if (imageLit) {
+            edge += imageLightAt(p, outward);
+        }
+        color = mix(color, edge, caught);
     }
 
     /**
@@ -742,21 +614,6 @@ struct Program {
     QOpenGLShaderProgram *operator->() const { return program.data(); }
 };
 
-/**
- * Refractive indices for red, green and blue light (610, 550 and 465 nm), derived from the index for
- * yellow light and the Abbe number using Cauchy's equation n = A + B / wavelength^2.
- */
-QVector3D refractiveIndices(qreal abbeNumber)
-{
-    const qreal nd = KisStudioGlass::refractiveIndex;
-    // Spread from blue (F line, 486.1 nm) to red (C line, 656.3 nm).
-    const qreal spread = (nd - 1) / abbeNumber;
-    const qreal b = spread / (1 / (0.4861 * 0.4861) - 1 / (0.6563 * 0.6563));
-    const qreal a = nd - b / (0.5876 * 0.5876);
-    auto at = [a, b](qreal micrometers) { return float(a + b / (micrometers * micrometers)); };
-    return QVector3D(at(0.610), at(0.550), at(0.465));
-}
-
 struct Programs {
     Program shrink;
     Program blur;
@@ -772,7 +629,7 @@ struct Programs {
             && glass.make(glassVertexSource, glassSource,
                           {"rect", "blurred", "statistics", "shift", "slot", "restore", "power",
                            "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
-                           "beyond", "spacing", "dither", "veil", "bevel", "polish", "clearing", "ior", "under", "decode", "reach",
+                           "beyond", "spacing", "dither", "veil", "bevel", "ior", "under", "decode", "reach",
                            "imageLit", "toImage", "fromImage", "imageLight", "imageLightFactor", "imageLightReach",
                            "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"})
             && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
@@ -1061,7 +918,8 @@ qreal KisOpenGLGlass::reach()
 {
     // Three sigma of the widest blur, plus the pixels merged by downsampling and sampling, plus how far
     // the rim looks out.
-    return 3 * KisStudioGlass::blurSigma() * KisStudioGlass::maxBlurScale + 16 + KisStudioGlass::bevel().lift;
+    return 3 * KisStudioGlass::blurSigma() * KisStudioGlass::maxBlurScale + 16
+        + qMax(KisStudioGlass::bevel().depth, 1.15 * KisStudioGlass::bevel().reflection);
 }
 
 qreal KisOpenGLGlass::ambientReach()
@@ -1118,7 +976,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         Kernel wide;
     };
     QVector<Region> regions(surfaces.size());
-    const int rimReach = qCeil(KisStudioGlass::bevel().lift * pixelRatio);
+    // How far the rim looks: in from the edge, and out for its reflection.
+    const int rimReach = qCeil(qMax(KisStudioGlass::bevel().depth, 1.15 * KisStudioGlass::bevel().reflection) * pixelRatio) + 2;
     {
         // Pack the slots in rows, left to right.
         QPoint next;
@@ -1256,11 +1115,9 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform2f(d->glass["viewport"], viewport.width(), viewport.height());
     f->glUniform1f(d->glass["dither"], dither);
     const KisStudioGlass::Bevel bevel = KisStudioGlass::bevel();
-    f->glUniform3f(d->glass["bevel"], bevel.width * pixelRatio, bevel.thickness * pixelRatio, bevel.lift * pixelRatio);
-    f->glUniform1f(d->glass["polish"], bevel.polish);
-    f->glUniform1f(d->glass["clearing"], bevel.clear);
-    const QVector3D ior = refractiveIndices(bevel.abbeNumber);
-    f->glUniform3f(d->glass["ior"], ior.x(), ior.y(), ior.z());
+    f->glUniform4f(d->glass["bevel"], bevel.width * pixelRatio, bevel.depth * pixelRatio, bevel.rim * pixelRatio, bevel.reflection * pixelRatio);
+    // crown glass's 1.51, 1.52 and 1.53 for red, green and blue, their spread made five times as wide
+    f->glUniform3f(d->glass["ior"], 1.47f, 1.52f, 1.57f);
     // The image's glow, if it has been rendered.
     const bool imageLit = KisStudioGlass::ambientSurround() && d->ambientBlurred && d->ambientFactor > 0;
     f->glUniform1i(d->glass["imageLit"], imageLit);
