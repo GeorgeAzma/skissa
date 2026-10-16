@@ -210,12 +210,9 @@ class TipCanvas : public QWidget
 public:
     enum Part {
         None,
-        AxisA,       ///< along the tip's angle (its width)
-        AxisAOpposite,
+        AxisA,       ///< along the tip's angle (its width, or its size while in proportion)
         AxisB,       ///< across it (its height)
-        AxisBOpposite,
-        FadeA,
-        FadeB,
+        Fade,        ///< the softness
         Turn,
         Valley,      ///< a star's notch between two points: how deep they go
         ChipWidth,
@@ -361,15 +358,10 @@ public:
         switch (part) {
         case AxisA:
             return c + along() * size.width();
-        case AxisAOpposite:
-            return c - along() * size.width();
         case AxisB:
             return c + across() * size.height();
-        case AxisBOpposite:
-            return c - across() * size.height();
-        case FadeA:
-        case FadeB: {
-            const QPointF k = fadeSpot(part);
+        case Fade: {
+            const QPointF k = fadeSpot();
             return c + along() * size.width() * m_auto->horizontalFade() * k.x() + across() * size.height() * m_auto->verticalFade() * k.y();
         }
         case Turn:
@@ -385,7 +377,7 @@ public:
      * Where the softness handle sits on the hard edge, as shares of the half sizes along and across: toward the
      * top right corner, away from the size handle, so each handle does one thing.
      */
-    QPointF fadeSpot(Part) const
+    QPointF fadeSpot() const
     {
         if (isStar()) return QPointF(1, 0);
         return m_auto->shape() == Rectangle ? QPointF(1, 1) : QPointF(M_SQRT1_2, M_SQRT1_2);
@@ -395,9 +387,9 @@ public:
     QVector<Part> handles() const
     {
         if (!isAuto()) return {AxisA, Turn};
-        if (isStar()) return {AxisA, Valley, FadeA, Turn};
-        if (m_linked) return {AxisA, FadeA, Turn};
-        return {AxisA, AxisB, FadeA, Turn};
+        if (isStar()) return {AxisA, Valley, Fade, Turn};
+        if (m_linked) return {AxisA, Fade, Turn};
+        return {AxisA, AxisB, Fade, Turn};
     }
 
     QFont chipFont() const
@@ -517,7 +509,7 @@ public:
         Q_FOREACH (Part part, handles()) {
             const qreal distance = QLineF(partPosition(part), pos).length();
             // the softness handle can come to lie on another: it wins when as near
-            if (distance < nearest || (distance <= nearest && (part == FadeA || part == FadeB))) {
+            if (distance < nearest || (distance <= nearest && part == Fade)) {
                 nearest = distance;
                 best = part;
             }
@@ -617,7 +609,7 @@ public:
             const bool hot = part == m_hover || part == m_dragPart;
             const qreal r = handleRadius + (hot ? 1.5 : 0);
             // light with a dark ring, so each shows on anything; softness is the dark one with a light ring
-            if (part == FadeA || part == FadeB) {
+            if (part == Fade) {
                 const qreal d = r + 1;
                 QPainterPath diamond;
                 diamond.moveTo(at + QPointF(0, -d));
@@ -791,10 +783,10 @@ public:
         const Part part = partAt(event->pos());
         if (part == ChipAngle || part == Turn) {
             setAngle(0);
-        } else if (isAuto() && (part == ChipFadeA || part == ChipFadeB || part == FadeA || part == FadeB)) {
+        } else if (isAuto() && (part == ChipFadeA || part == ChipFadeB || part == Fade)) {
             m_auto->sethorizontalFade(1.0);
             m_auto->setverticalFade(1.0);
-        } else if (isAuto() && (part == ChipHeight || part == AxisB || part == AxisBOpposite || part == Valley)) {
+        } else if (isAuto() && (part == ChipHeight || part == AxisB || part == Valley)) {
             m_auto->setratio(1.0);
         }
         event->accept();
@@ -845,10 +837,8 @@ private:
         const qreal step = moved.x();
         switch (m_dragPart) {
         case AxisA:
-        case AxisAOpposite:
-        case AxisB:
-        case AxisBOpposite: {
-            const bool alongAxis = m_dragPart == AxisA || m_dragPart == AxisAOpposite;
+        case AxisB: {
+            const bool alongAxis = m_dragPart == AxisA;
             const QPointF axis = alongAxis ? m_pressAlong : m_pressAcross;
             const qreal pressExtent = alongAxis ? m_pressSize.width() : m_pressSize.height();
             const qreal otherExtent = alongAxis ? m_pressSize.height() : m_pressSize.width();
@@ -861,8 +851,7 @@ private:
             }
             break;
         }
-        case FadeA:
-        case FadeB: {
+        case Fade: {
             if (isStar()) {
                 const qreal radius = m_pressSize.width() * m_scale / 2.0;
                 const qreal fade = qBound(0.0, qAbs(dot(from, m_pressAlong)) / qMax(1.0, radius), 1.0);
@@ -871,7 +860,7 @@ private:
                 break;
             }
             // along the handle's own line from the middle to the corner: both softnesses move by as much
-            const QPointF k = fadeSpot(m_dragPart);
+            const QPointF k = fadeSpot();
             const QPointF ray = (m_pressAlong * m_pressSize.width() * k.x() + m_pressAcross * m_pressSize.height() * k.y()) * m_scale / 2.0;
             const qreal length = qMax(1.0, dot(ray, ray));
             const qreal delta = (dot(from, ray) - dot(m_press - c, ray)) / length;
