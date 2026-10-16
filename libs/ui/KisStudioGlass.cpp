@@ -59,6 +59,7 @@ namespace {
 
 const QString settingKey = QStringLiteral("StudioGlass");
 const QString refractionKey = QStringLiteral("StudioGlassRefraction");
+const QString clarityKey = QStringLiteral("StudioGlassClarity");
 const QString blurKey = QStringLiteral("StudioGlassBlur");
 const QString opacityKey = QStringLiteral("StudioGlassOpacity");
 /// The legacy edge setting (line, subtle or strong), read when no refraction is set.
@@ -1228,6 +1229,12 @@ qreal &opacitySetting()
     return opacity;
 }
 
+qreal &claritySetting()
+{
+    static qreal clarity = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(clarityKey, 0.6), 1.0);
+    return clarity;
+}
+
 qreal &refractionSetting()
 {
     static qreal refraction = []() {
@@ -1600,6 +1607,22 @@ void KisStudioGlass::setOpacity(qreal opacity)
     opacitySetting() = opacity;
     KisConfig(false).writeEntry(opacityKey, opacity);
     Engine::instance().clear();
+    Panels::instance().repaintAll();
+}
+
+qreal KisStudioGlass::clarity()
+{
+    return claritySetting();
+}
+
+void KisStudioGlass::setClarity(qreal clarity)
+{
+    clarity = qBound<qreal>(0, clarity, 1);
+    if (qFuzzyCompare(clarity + 1, claritySetting() + 1)) {
+        return;
+    }
+    claritySetting() = clarity;
+    KisConfig(false).writeEntry(clarityKey, clarity);
     Panels::instance().repaintAll();
 }
 

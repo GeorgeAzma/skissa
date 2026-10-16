@@ -203,8 +203,9 @@ void main()
  *  - Inside, the frost: the blur, tinted.
  *  - Along the rim, a band where the glass shows the frost from further in, as if bent toward the edge:
  *    how far grows slowly from deep in the band and steeply at the edge (1 - cos), and a little more for
- *    blue than for red, so the colors part at the edge. It is the same frost, bent, so the band and the
- *    inside are one surface.
+ *    blue than for red, so the colors part at the edge. It grows clearer toward the edge, its blur narrowing
+ *    by octaves toward the canvas itself (how far: KisStudioGlass::clarity), from nothing deep in the band
+ *    like the bend, so the band and the inside are one surface.
  *  - At the edge itself, a thin rim lit by the room (from the top left, and as much from the bottom right)
  *    that catches a reflection of what is just outside, laid over the glass by Lighten.
  *
@@ -212,6 +213,11 @@ void main()
  */
 const char *const glassSource = R"(
 uniform sampler2D blurred;
+// The frost at a half, a quarter and an eighth of its width, for a rim clearer than the face.
+uniform sampler2D halfFrost;
+uniform sampler2D quarterFrost;
+uniform sampler2D eighthFrost;
+uniform float clarity;
 uniform sampler2D statistics;
 uniform vec2 shift;
 uniform ivec4 slot;
@@ -340,6 +346,61 @@ vec3 frostedLab(vec2 p)
     return vec3(wide.x, wide.yz * (1.0 + restore * (1.0 - agree)));
 }
 
+// The canvas at q in Oklab, as clear glass shows it.
+vec3 clearLab(vec2 q)
+{
+    vec3 c = texture(under, q / viewport).rgb;
+    return toOklab(clamp(decode ? fromSrgb(c) : c, 0.0, 1.0));
+}
+
+// The canvas at q softened over about 1.5 pixels: four bilinear taps around it, and q itself.
+vec3 softClearLab(vec2 q)
+{
+    vec3 sum = 2.0 * clearLab(q);
+    sum += clearLab(q + vec2(1.2, 1.2)) + clearLab(q + vec2(-1.2, 1.2)) + clearLab(q + vec2(1.2, -1.2)) + clearLab(q + vec2(-1.2, -1.2));
+    return sum / 6.0;
+}
+
+// Level k of the frost at q: 0 the full frost, 1 to 3 a half, a quarter and an eighth of it, 4 the canvas
+// slightly softened, 5 the canvas itself.
+vec3 levelLab(int k, vec2 q)
+{
+    if (k <= 0) return frostedLab(q);
+    if (k == 1) return meanAt(halfFrost, q);
+    if (k == 2) return meanAt(quarterFrost, q);
+    if (k == 3) return meanAt(eighthFrost, q);
+    if (k == 4) return softClearLab(q);
+    return clearLab(q);
+}
+
+// How wide level k blurs, in surface pixels: the blur at its width, with what the downsampling adds.
+float levelSigma(int k)
+{
+    if (k >= 5) return 0.5;
+    if (k == 4) return 1.5;
+    float s = sigma / exp2(float(k));
+    return sqrt(s * s + 0.25 * factor * factor);
+}
+
+/**
+ * The frost at q blurred by `blur` pixels, from the full frost down to the canvas itself: between the two
+ * levels around it, mixed by where it lies between their widths in octaves, so as it changes across the rim
+ * the blur narrows evenly, each level only ever mixed with its neighbor.
+ */
+vec3 frostAt(vec2 q, float blur)
+{
+    if (blur >= levelSigma(0)) return frostedLab(q);
+    for (int k = 0; k < 5; k++) {
+        float wide = levelSigma(k);
+        float narrow = levelSigma(k + 1);
+        if (blur >= narrow && narrow < wide) {
+            float f = clamp(log2(wide / blur) / log2(wide / narrow), 0.0, 1.0);
+            return mix(levelLab(k, q), levelLab(k + 1, q), f);
+        }
+    }
+    return clearLab(q);
+}
+
 // Clamps a point the rim sees to the area around the panel that was blurred (reach).
 vec2 held(vec2 q)
 {
@@ -435,16 +496,20 @@ void main()
     vec3 tintLab = toOklab(fromSrgb(tint));
     const float quarterTurn = 1.5707963;
 
-    // The band along the rim shows the frost from further in: the same frost, bent, so the band and the
-    // inside are one surface.
+    // The band along the rim shows the frost from further in, bent, and clearer toward the edge: the blur
+    // narrows by octaves toward the canvas itself, rising a little ahead of the bend and, like it, from
+    // nothing deep in the band, so the bend, the clear edge and the frost are one surface.
     float band = min(bevel.x, min(shape.z, shape.w));
-    float bent = band > 0.5 ? 1.0 - cos(clamp(1.0 - d / band, 0.0, 1.0) * quarterTurn) : 0.0;
+    float across = band > 0.5 ? clamp(1.0 - d / band, 0.0, 1.0) : 0.0;
+    float bent = 1.0 - cos(across * quarterTurn);
     vec3 seen;
     if (bent > 0.0) {
         vec3 reached = pow(vec3(bent), ior) * bevel.y;
-        vec3 light = vec3(max(fromOklab(throughLower(frostedLab(held(p - outward * reached.r)), p)).r, 0.0),
-                          max(fromOklab(throughLower(frostedLab(held(p - outward * reached.g)), p)).g, 0.0),
-                          max(fromOklab(throughLower(frostedLab(held(p - outward * reached.b)), p)).b, 0.0));
+        float frostWidth = levelSigma(0);
+        float blur = frostWidth * pow(0.5 / frostWidth, clarity * smoothstep(0.0, 1.0, across));
+        vec3 light = vec3(max(fromOklab(throughLower(frostAt(held(p - outward * reached.r), blur), p)).r, 0.0),
+                          max(fromOklab(throughLower(frostAt(held(p - outward * reached.g), blur), p)).g, 0.0),
+                          max(fromOklab(throughLower(frostAt(held(p - outward * reached.b), blur), p)).b, 0.0));
         seen = toOklab(light);
     } else {
         seen = throughLower(frostedLab(p), p);
@@ -621,7 +686,7 @@ struct Programs {
         valid = shrink.make(quadSource, shrinkSource, {"rect", "source", "shift", "factor", "decode", "salience", "power", "statistics"})
             && blur.make(quadSource, blurSource, {"rect", "source", "slot", "direction", "taps", "weights"})
             && glass.make(glassVertexSource, glassSource,
-                          {"rect", "blurred", "statistics", "shift", "slot", "restore", "power",
+                          {"rect", "blurred", "halfFrost", "quarterFrost", "eighthFrost", "clarity", "statistics", "shift", "slot", "restore", "power",
                            "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
                            "beyond", "spacing", "dither", "veil", "bevel", "ior", "under", "decode", "reach",
                            "imageLit", "toImage", "fromImage", "imageLight", "imageLightFactor", "imageLightReach",
@@ -671,6 +736,9 @@ struct KisOpenGLGlass::Private : Programs
     QScopedPointer<QOpenGLFramebufferObject> small;
     QScopedPointer<QOpenGLFramebufferObject> across;
     QScopedPointer<QOpenGLFramebufferObject> blurred;
+    /// The frost at a half, a quarter and an eighth of its width (across, then down), for the rim.
+    QScopedPointer<QOpenGLFramebufferObject> finerAcross[3];
+    QScopedPointer<QOpenGLFramebufferObject> finer[3];
     QScopedPointer<QOpenGLFramebufferObject> smallStatistics;
     QScopedPointer<QOpenGLFramebufferObject> acrossStatistics;
     QScopedPointer<QOpenGLFramebufferObject> statistics;
@@ -725,6 +793,10 @@ struct KisOpenGLGlass::Private : Programs
         const QSize grown = small ? size.expandedTo(small->size()) : size;
         for (QScopedPointer<QOpenGLFramebufferObject> *fbo : {&small, &across, &blurred, &smallStatistics, &acrossStatistics, &statistics}) {
             fbo->reset(texture(grown));
+        }
+        for (int i = 0; i < 3; i++) {
+            finerAcross[i].reset(texture(grown));
+            finer[i].reset(texture(grown));
         }
         return true;
     }
@@ -968,6 +1040,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         QPoint shift;
         qreal sigma {0};
         Kernel wide;
+        /// The frost at a half, a quarter and an eighth of its width
+        Kernel finer[3];
     };
     QVector<Region> regions(surfaces.size());
     // How far the rim looks: in from the edge, and out for its reflection.
@@ -984,6 +1058,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
             region.area = QRect(QPoint(r.left() / factor - 1, r.top() / factor - 1), QPoint(r.right() / factor + 1, r.bottom() / factor + 1)) & smallWhole;
             region.sigma = KisStudioGlass::blurSigma() * scaleOf(surfaces[i]) * pixelRatio / factor;
             region.wide = gaussian(region.sigma);
+            for (int k = 0; k < 3; k++) region.finer[k] = gaussian(region.sigma / (2 << k));
             region.around = region.area.adjusted(-region.wide.taps, -region.wide.taps, region.wide.taps, region.wide.taps) & smallWhole;
             if (next.x() + region.around.width() > smallSize.width()) {
                 next = QPoint(0, next.y() + rowHeight);
@@ -1058,19 +1133,27 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         }
     }
     d->timing.mark();
-    // Run each pass for all panels at once, so the render target (which stalls the GPU) switches four
-    // times in total rather than four times per panel.
+    // Run each pass for all panels at once, so the render target (which stalls the GPU) switches once a
+    // pass in total rather than once a pass per panel.
     d->blur->bind();
     struct Pass {
         QOpenGLFramebufferObject *source;
         QOpenGLFramebufferObject *target;
         bool across;
+        /// -1 the full frost, otherwise which of the finer ones
+        int finer;
     };
     const Pass passes[] = {
-        {d->small.data(), d->across.data(), true},
-        {d->smallStatistics.data(), d->acrossStatistics.data(), true},
-        {d->across.data(), d->blurred.data(), false},
-        {d->acrossStatistics.data(), d->statistics.data(), false},
+        {d->small.data(), d->across.data(), true, -1},
+        {d->smallStatistics.data(), d->acrossStatistics.data(), true, -1},
+        {d->small.data(), d->finerAcross[0].data(), true, 0},
+        {d->small.data(), d->finerAcross[1].data(), true, 1},
+        {d->small.data(), d->finerAcross[2].data(), true, 2},
+        {d->across.data(), d->blurred.data(), false, -1},
+        {d->acrossStatistics.data(), d->statistics.data(), false, -1},
+        {d->finerAcross[0].data(), d->finer[0].data(), false, 0},
+        {d->finerAcross[1].data(), d->finer[1].data(), false, 1},
+        {d->finerAcross[2].data(), d->finer[2].data(), false, 2},
     };
     for (const Pass &pass : passes) {
         if (blurring.isEmpty()) break;
@@ -1078,7 +1161,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glBindTexture(GL_TEXTURE_2D, pass.source->texture());
         f->glUniform2i(d->blur["direction"], pass.across ? 1 : 0, pass.across ? 0 : 1);
         for (const Region &region : qAsConst(blurring)) {
-            const Kernel &k = region.wide;
+            const Kernel &k = pass.finer < 0 ? region.wide : region.finer[pass.finer];
             f->glUniform1i(d->blur["taps"], k.taps);
             f->glUniform1fv(d->blur["weights"], maxTaps + 1, k.weights);
             const QRect place = region.around.translated(region.shift);
@@ -1100,6 +1183,10 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1i(d->glass["blurred"], 0);
     f->glUniform1i(d->glass["statistics"], 1);
     f->glUniform1i(d->glass["under"], 2);
+    f->glUniform1i(d->glass["halfFrost"], 4);
+    f->glUniform1i(d->glass["quarterFrost"], 5);
+    f->glUniform1i(d->glass["eighthFrost"], 6);
+    f->glUniform1f(d->glass["clarity"], float(KisStudioGlass::clarity()));
     f->glUniform1i(d->glass["decode"], !linearCanvas);
     f->glUniform1f(d->glass["restore"], KisStudioGlass::restore);
     f->glUniform1f(d->glass["power"], KisStudioGlass::lightnessPower);
@@ -1132,6 +1219,10 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glBindTexture(GL_TEXTURE_2D, d->ambientBlurred->texture());
     }
     f->glUniform1f(d->glass["lowerStrength"], float(0.5 * (KisStudioGlass::tintOverDark() + KisStudioGlass::tintOverBright())));
+    for (int k = 0; k < 3; k++) {
+        f->glActiveTexture(GL_TEXTURE4 + k);
+        f->glBindTexture(GL_TEXTURE_2D, d->finer[k]->texture());
+    }
     f->glActiveTexture(GL_TEXTURE2);
     f->glBindTexture(GL_TEXTURE_2D, canvas);
     f->glActiveTexture(GL_TEXTURE1);
@@ -1192,6 +1283,10 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     d->timing.mark();
     f->glDisable(GL_BLEND);
     f->glDisable(GL_SCISSOR_TEST);
+    for (int k = 0; k < 3; k++) {
+        f->glActiveTexture(GL_TEXTURE4 + k);
+        f->glBindTexture(GL_TEXTURE_2D, 0);
+    }
     f->glActiveTexture(GL_TEXTURE3);
     f->glBindTexture(GL_TEXTURE_2D, 0);
     f->glActiveTexture(GL_TEXTURE2);

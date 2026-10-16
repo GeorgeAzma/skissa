@@ -242,6 +242,7 @@ QHash<QString, QString> explanations()
         {QStringLiteral("[StudioTheme] UseAccent"), i18nc("@info:tooltip", "Selected items, focus and links in color instead of gray")},
         {QStringLiteral("StudioGlassOpacity"), i18nc("@info:tooltip", "0%: see-through → 100%: solid")},
         {QStringLiteral("StudioGlassRefraction"), i18nc("@info:tooltip", "Panel edges bend what's behind them, like the rim of a lens")},
+        {QStringLiteral("StudioGlassClarity"), i18nc("@info:tooltip", "0%: the rim as frosted as the panel → 100%: clear where it bends most")},
         {QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"),
          i18nc("@info:tooltip", "On: exactly 125% or 150%, as the screen is set\nOff: rounded to 100% or 200%, crisper but a bit small or large")},
         {QStringLiteral("newOutlineStyle"), i18nc("@info:tooltip", "Circle: the brush's size\nBrush: its real shape\nWith tilt: its shape, leaning with the pen")},
@@ -400,6 +401,10 @@ QVector<Setting> describeAll()
         refraction.read = []() { return KisStudioGlass::refraction(); };
         refraction.write = [](const QVariant &value) { KisStudioGlass::setRefraction(value.toReal()); };
         all << refraction;
+        Setting clarity = number(QStringLiteral("StudioGlassClarity"), 0.6, 0, 1, i18nc("setting", "Glass edge clarity"), R::Fork);
+        clarity.read = []() { return KisStudioGlass::clarity(); };
+        clarity.write = [](const QVariant &value) { KisStudioGlass::setClarity(value.toReal()); };
+        all << clarity;
         Setting blur = number(QStringLiteral("StudioGlassBlur"), 1.0, 0.25, 2.0, i18nc("setting", "Glass blur"), R::Fork);
         blur.read = []() { return KisStudioGlass::blur(); };
         blur.write = [](const QVariant &value) { KisStudioGlass::setBlur(value.toReal()); };

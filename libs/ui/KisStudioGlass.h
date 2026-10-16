@@ -55,6 +55,9 @@ public:
     /// How much the edge bevel bends the canvas, from 0 (a plain line) to 1.
     static qreal refraction();
     static void setRefraction(qreal refraction);
+    /// How clear the rim is where it bends most, from 0 (as frosted as the face) to 1 (the canvas itself).
+    static qreal clarity();
+    static void setClarity(qreal clarity);
 
     /// The refracting rim in widget pixels; all zero for a plain line.
     struct Bevel {
