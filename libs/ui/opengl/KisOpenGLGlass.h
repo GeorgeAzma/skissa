@@ -39,6 +39,8 @@ public:
     /// Compiles the shaders, shared by all canvases. Returns false without OpenGL 3 or OpenGL ES 3.
     bool initialize();
     bool isValid() const;
+    /// The shaders are still being linked (on the driver's threads): it becomes valid later
+    bool isPending() const;
 
     /**
      * Draws \p surfaces into the bound framebuffer from the \p canvas texture (GL_RGBA16F is linear HDR,

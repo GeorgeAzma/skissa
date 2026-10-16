@@ -7,6 +7,7 @@
 
 #define GL_GLEXT_PROTOTYPES
 
+#include <QTimer>
 #include <QWindow>
 
 #include "opengl/kis_opengl_canvas2.h"
@@ -78,6 +79,8 @@ public:
     bool shouldSkipRenderingPass = false;
 #endif
     QRect canvasImageDirtyRect;
+    /// Whether the panels over it were last told the canvas draws their glass
+    bool drawsGlass {false};
     /// For development: how long the GPU takes for what this canvas draws (see KisOpenGLGpuTiming)
     KisOpenGLGpuTiming gpuTiming {QStringLiteral("canvas gpu:"), {QStringLiteral("canvas"), QStringLiteral("decorations")}};
     KisOpenGLCanvasRenderer *renderer;
@@ -233,7 +236,8 @@ void KisOpenGLCanvas2::resizeGL(int width, int height)
 {
     d->renderer->resizeGL(width, height);
     d->canvasImageDirtyRect = QRect(0, 0, width, height);
-    KisStudioGlass::setDrawnByCanvas(this, d->renderer->drawsGlass());
+    d->drawsGlass = d->renderer->drawsGlass();
+    KisStudioGlass::setDrawnByCanvas(this, d->drawsGlass);
 }
 
 void KisOpenGLCanvas2::paintGL()
@@ -245,6 +249,16 @@ void KisOpenGLCanvas2::paintGL()
 #endif
 
     const QRect updateRect = d->updateRect ? *d->updateRect : QRect();
+
+    // the glass shaders may still be linking: the panels paint solid until then, and look again soon
+    const bool drawsGlass = d->renderer->drawsGlass();
+    if (drawsGlass != d->drawsGlass) {
+        d->drawsGlass = drawsGlass;
+        KisStudioGlass::setDrawnByCanvas(this, drawsGlass);
+        d->canvasImageDirtyRect = rect();
+    } else if (!drawsGlass && d->renderer->glassPending()) {
+        QTimer::singleShot(200, this, [this]() { update(); });
+    }
 
     if (!OPENGL_SUCCESS) {
         KisConfig cfg(false);

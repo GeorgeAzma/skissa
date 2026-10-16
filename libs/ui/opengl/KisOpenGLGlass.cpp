@@ -11,10 +11,8 @@
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
-#include <QOpenGLShaderProgram>
 #include <QOpenGLVertexArrayObject>
 #include <QPolygonF>
-#include <QSharedPointer>
 #include <QTransform>
 #include <QVector3D>
 #include <QtMath>
@@ -549,15 +547,17 @@ void main()
     // where the distance to the rim has no crease and its direction turns smoothly.
     float band = min(rim.x, min(0.9 * corner.x, min(shape.z, shape.w)));
     float bent = band > 0.5 ? 1.0 - cos(clamp(1.0 - d / band, 0.0, 1.0) * quarterTurn) : 0.0;
-    vec3 seen;
-    if (bent > 0.0) {
-        vec3 reached = pow(vec3(bent), ior) * 2.0 * band;
-        vec3 light = vec3(max(fromOklab(throughLower(frostAt(held(p - outward * reached.r), blur), p)).r, 0.0),
-                          max(fromOklab(throughLower(frostAt(held(p - outward * reached.g), blur), p)).g, 0.0),
-                          max(fromOklab(throughLower(frostAt(held(p - outward * reached.b), blur), p)).b, 0.0));
+    // The frost is read once, where green is bent to (the shader stays small enough to link quickly); the
+    // colors part only where the glass is clear, so red and blue come from the canvas itself, a little apart.
+    vec3 reached = pow(vec3(bent), ior) * 2.0 * band;
+    vec2 q = bent > 0.0 ? held(p - outward * reached.g) : p;
+    vec3 seen = throughLower(frostAt(q, blur), p);
+    float sharp = bent > 0.0 ? (1.0 - thickness) * (1.0 - thickness) : 0.0;
+    if (sharp > 0.01) {
+        vec3 light = max(fromOklab(seen), 0.0);
+        light.r = mix(light.r, max(fromOklab(throughLower(clearLab(held(p - outward * reached.r)), p)).r, 0.0), sharp);
+        light.b = mix(light.b, max(fromOklab(throughLower(clearLab(held(p - outward * reached.b)), p)).b, 0.0), sharp);
         seen = toOklab(light);
-    } else {
-        seen = throughLower(frostAt(p, blur), p);
     }
     vec3 color = tintedLab(mix(tintLab, seen, canvas), tintLab, strength);
 
@@ -695,33 +695,74 @@ QByteArray header(bool keptLinear)
     return version + (keptLinear ? "#define KEPT_LINEAR 1\n" : "#define KEPT_LINEAR 0\n");
 }
 
-QOpenGLShaderProgram *compile(const char *vertex, const char *fragment, bool keptLinear)
-{
-    QScopedPointer<QOpenGLShaderProgram> result(new QOpenGLShaderProgram());
-    if (!result->addShaderFromSourceCode(QOpenGLShader::Vertex, header(keptLinear) + commonSource + vertex)
-        || !result->addShaderFromSourceCode(QOpenGLShader::Fragment, header(keptLinear) + "out vec4 fragColor;\n" + commonSource + fragment)
-        || !result->link()) {
-        warnOpenGL << "Glass is drawn without OpenGL:" << result->log();
-        return nullptr;
-    }
-    return result.take();
-}
+#ifndef GL_COMPLETION_STATUS_KHR
+#define GL_COMPLETION_STATUS_KHR 0x91B1
+#endif
 
-/// A shader program and its uniform locations.
+/**
+ * A shader program and its uniform locations. It is linked without waiting: where the driver links on
+ * threads of its own (KHR_parallel_shader_compile, as ANGLE does) the glass shader takes seconds, and
+ * waiting for it would freeze the window; until it is done the panels paint solid.
+ */
 struct Program {
-    QSharedPointer<QOpenGLShaderProgram> program;
+    GLuint id {0};
+    QList<QByteArray> names;
     QHash<QByteArray, int> locations;
+    bool pending {false};
+    bool linked {false};
 
     bool make(const char *vertex, const char *fragment, const QList<QByteArray> &uniforms, bool keptLinear)
     {
-        program.reset(compile(vertex, fragment, keptLinear));
-        if (!program) return false;
-        for (const QByteArray &uniform : uniforms) locations.insert(uniform, program->uniformLocation(uniform.constData()));
+        QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+        const QByteArray sources[2] = {header(keptLinear) + commonSource + vertex,
+                                       header(keptLinear) + "out vec4 fragColor;\n" + commonSource + fragment};
+        const GLenum kinds[2] = {GL_VERTEX_SHADER, GL_FRAGMENT_SHADER};
+        id = f->glCreateProgram();
+        if (!id) return false;
+        for (int i = 0; i < 2; i++) {
+            const GLuint shader = f->glCreateShader(kinds[i]);
+            const char *text = sources[i].constData();
+            f->glShaderSource(shader, 1, &text, nullptr);
+            f->glCompileShader(shader);
+            f->glAttachShader(id, shader);
+            // freed with the program
+            f->glDeleteShader(shader);
+        }
+        f->glLinkProgram(id);
+        names = uniforms;
+        pending = true;
         return true;
     }
 
+    /// Whether it is linked and ready; while the driver is still linking (\p parallel), false without waiting
+    bool finish(bool parallel)
+    {
+        if (!pending) return linked;
+        QOpenGLContext *context = QOpenGLContext::currentContext();
+        if (!context) return false;
+        QOpenGLFunctions *f = context->functions();
+        if (parallel) {
+            GLint done = 0;
+            f->glGetProgramiv(id, GL_COMPLETION_STATUS_KHR, &done);
+            if (!done) return false;
+        }
+        pending = false;
+        GLint ok = 0;
+        f->glGetProgramiv(id, GL_LINK_STATUS, &ok);
+        linked = ok;
+        if (!linked) {
+            char log[4096] = {};
+            f->glGetProgramInfoLog(id, sizeof(log) - 1, nullptr, log);
+            warnOpenGL << "Glass is drawn without OpenGL:" << log;
+            return false;
+        }
+        for (const QByteArray &name : names) locations.insert(name, f->glGetUniformLocation(id, name.constData()));
+        return true;
+    }
+
+    void bind() const { QOpenGLContext::currentContext()->functions()->glUseProgram(id); }
+    void release() const { QOpenGLContext::currentContext()->functions()->glUseProgram(0); }
     int operator[](const char *uniform) const { return locations.value(QByteArray(uniform), -1); }
-    QOpenGLShaderProgram *operator->() const { return program.data(); }
 };
 
 struct Programs {
@@ -730,10 +771,37 @@ struct Programs {
     Program glass;
     Program ambientShrink;
     Program ambient;
+    /// Every program was handed to the driver
     bool valid {false};
+    /// The driver links them on threads of its own
+    bool parallel {false};
+
+    /// Whether all of them are linked; false without waiting while they are being linked
+    bool ready()
+    {
+        if (!valid) return false;
+        bool all = true;
+        for (Program *program : {&shrink, &blur, &glass, &ambientShrink, &ambient}) {
+            if (!program->finish(parallel)) all = false;
+        }
+        if (all) return true;
+        // one that failed to link never will
+        for (Program *program : {&shrink, &blur, &glass, &ambientShrink, &ambient}) {
+            if (!program->pending && !program->linked) valid = false;
+        }
+        return false;
+    }
 
     void make(bool keptLinear)
     {
+        QOpenGLContext *context = QOpenGLContext::currentContext();
+        parallel = context->hasExtension("GL_KHR_parallel_shader_compile");
+        if (parallel) {
+            using MaxThreads = void(QOPENGLF_APIENTRYP)(GLuint);
+            if (auto *maxThreads = reinterpret_cast<MaxThreads>(context->getProcAddress("glMaxShaderCompilerThreadsKHR"))) {
+                maxThreads(0xFFFFFFFF);
+            }
+        }
         valid = shrink.make(quadSource, shrinkSource, {"rect", "source", "shift", "factor", "decode", "salience", "power", "statistics"}, keptLinear)
             && blur.make(quadSource, blurSource, {"rect", "source", "slot", "direction", "taps", "weights"}, keptLinear)
             && glass.make(glassVertexSource, glassSource,
@@ -889,7 +957,12 @@ bool KisOpenGLGlass::initialize()
 
 bool KisOpenGLGlass::isValid() const
 {
-    return d->valid;
+    return d->ready();
+}
+
+bool KisOpenGLGlass::isPending() const
+{
+    return !d->ready() && d->valid;
 }
 
 namespace {
@@ -942,7 +1015,7 @@ Kernel gaussian(qreal sigma)
 void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvasFormat, qreal pixelRatio, const QTransform &surfaceToImage,
                                    const QColor &base)
 {
-    if (!d->valid || !canvas) {
+    if (!d->ready() || !canvas) {
         return;
     }
     const QSize viewport = canvas->size();
@@ -975,7 +1048,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     f->glViewport(0, 0, smallSize.width(), smallSize.height());
 
     // Downsample the image's light.
-    d->ambientShrink->bind();
+    d->ambientShrink.bind();
     f->glUniform4f(d->ambientShrink["rect"], -1, -1, 1, 1);
     f->glUniform1i(d->ambientShrink["source"], 0);
     f->glUniform1i(d->ambientShrink["factor"], factor);
@@ -986,7 +1059,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     // Blur it so the light falls off with distance.
-    d->blur->bind();
+    d->blur.bind();
     f->glUniform4f(d->blur["rect"], -1, -1, 1, 1);
     f->glUniform1i(d->blur["source"], 0);
     f->glUniform1i(d->blur["taps"], kernel.taps);
@@ -1005,7 +1078,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     // Draw the glow around the image on the canvas.
     canvas->bind();
     f->glViewport(0, 0, viewport.width(), viewport.height());
-    d->ambient->bind();
+    d->ambient.bind();
     f->glUniform4f(d->ambient["rect"], -1, -1, 1, 1);
     f->glUniform1i(d->ambient["ambient"], 0);
     f->glUniform1f(d->ambient["factor"], factor);
@@ -1018,7 +1091,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     f->glBindTexture(GL_TEXTURE_2D, 0);
-    d->ambient->release();
+    d->ambient.release();
     if (d->vao.isCreated()) d->vao.release();
     f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(target));
 }
@@ -1065,7 +1138,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         d->changedAll = true;
     }
     d->reported = false;
-    if (!d->valid || surfaces.isEmpty() || viewport.isEmpty()) {
+    if (!d->ready() || surfaces.isEmpty() || viewport.isEmpty()) {
         return;
     }
     const QRect whole(QPoint(), viewport);
@@ -1144,14 +1217,14 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glViewport(0, 0, placesSize.width(), placesSize.height());
     auto scissor = [f](const QRect &r) { f->glScissor(r.x(), r.y(), r.width(), r.height()); };
 
-    d->shrink->bind();
+    d->shrink.bind();
     f->glUniform4f(d->shrink["rect"], -1, -1, 1, 1);
     f->glUniform1i(d->shrink["source"], 0);
     f->glUniform1i(d->shrink["factor"], factor);
     f->glUniform1i(d->shrink["decode"], !linearCanvas);
     f->glUniform1f(d->shrink["salience"], KisStudioGlass::salience);
     f->glUniform1f(d->shrink["power"], KisStudioGlass::lightnessPower);
-    d->blur->bind();
+    d->blur.bind();
     f->glUniform4f(d->blur["rect"], -1, -1, 1, 1);
     f->glUniform1i(d->blur["source"], 0);
 
@@ -1180,7 +1253,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     d->blurredCanvas = canvas;
     d->blurredFormat = canvasFormat;
     // Downsample the canvas, as colors and as statistics.
-    d->shrink->bind();
+    d->shrink.bind();
     f->glBindTexture(GL_TEXTURE_2D, canvas);
     for (int statistics = 0; statistics < 2; statistics++) {
         (statistics ? d->smallStatistics : d->small)->bind();
@@ -1194,7 +1267,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     d->timing.mark();
     // Run each pass for all panels at once, so the render target (which stalls the GPU) switches once a
     // pass in total rather than once a pass per panel.
-    d->blur->bind();
+    d->blur.bind();
     struct Pass {
         QOpenGLFramebufferObject *source;
         QOpenGLFramebufferObject *target;
@@ -1238,7 +1311,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     scissor(drawn);
     f->glEnable(GL_BLEND);
     f->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
-    d->glass->bind();
+    d->glass.bind();
     f->glUniform1i(d->glass["blurred"], 0);
     f->glUniform1i(d->glass["statistics"], 1);
     f->glUniform1i(d->glass["under"], 2);
@@ -1353,6 +1426,6 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glBindTexture(GL_TEXTURE_2D, 0);
     f->glActiveTexture(GL_TEXTURE0);
     f->glBindTexture(GL_TEXTURE_2D, 0);
-    d->glass->release();
+    d->glass.release();
     if (d->vao.isCreated()) d->vao.release();
 }

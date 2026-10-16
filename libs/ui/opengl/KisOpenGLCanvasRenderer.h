@@ -68,6 +68,8 @@ public:
     /// The glass of \p surfaces over the canvas just drawn; \p canvasChanged: the image part changed, not only decorations
     void paintGlass(const QVector<KisStudioGlass::Surface> &surfaces, const QRect &viewportUpdateRect = QRect(), bool canvasChanged = true);
     bool drawsGlass() const;
+    /// The glass will be drawn once its shaders are linked
+    bool glassPending() const;
     /// Whether drawing \p canvasImageDirtyRect (widget pixels) again changes the image's glow, which is then drawn again all around it
     bool changesAmbient(const QRect &canvasImageDirtyRect);
 

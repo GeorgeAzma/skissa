@@ -543,6 +543,11 @@ bool KisOpenGLCanvasRenderer::changesAmbient(const QRect &canvasImageDirtyRect)
     return !QRectF(coordinatesConverter()->imageRectInImagePixels()).contains(inImage);
 }
 
+bool KisOpenGLCanvasRenderer::glassPending() const
+{
+    return d->canvasFBO && d->glass.isPending();
+}
+
 bool KisOpenGLCanvasRenderer::drawsGlass() const
 {
     // blurred from the canvas FBO, which has no decorations
