@@ -382,25 +382,22 @@ public:
     }
 
     /**
-     * Where a softness handle sits on the hard edge, as shares of the half sizes along and across: off the size
-     * handles, so every handle in the middle of a side sizes and the ones toward a corner soften. Linked, one
-     * handle on the diagonal sets both; unlinked, one each, leaning toward the side it sets.
+     * Where the softness handle sits on the hard edge, as shares of the half sizes along and across: toward the
+     * top right corner, away from the size handle, so each handle does one thing.
      */
-    QPointF fadeSpot(Part part) const
+    QPointF fadeSpot(Part) const
     {
         if (isStar()) return QPointF(1, 0);
-        const bool rectangle = m_auto->shape() == Rectangle;
-        if (m_fadeLinked) return rectangle ? QPointF(1, 1) : QPointF(M_SQRT1_2, M_SQRT1_2);
-        if (part == FadeA) return rectangle ? QPointF(1, 0.45) : QPointF(0.906, 0.423);
-        return rectangle ? QPointF(0.45, 1) : QPointF(0.423, 0.906);
+        return m_auto->shape() == Rectangle ? QPointF(1, 1) : QPointF(M_SQRT1_2, M_SQRT1_2);
     }
 
+    /// One handle for each thing: the size, the softness, the angle; the height of its own only while the size chain is open
     QVector<Part> handles() const
     {
-        if (!isAuto()) return {AxisA, AxisAOpposite, Turn};
+        if (!isAuto()) return {AxisA, Turn};
         if (isStar()) return {AxisA, Valley, FadeA, Turn};
-        if (m_fadeLinked) return {AxisA, AxisAOpposite, AxisB, AxisBOpposite, FadeA, Turn};
-        return {AxisA, AxisAOpposite, AxisB, AxisBOpposite, FadeA, FadeB, Turn};
+        if (m_linked) return {AxisA, FadeA, Turn};
+        return {AxisA, AxisB, FadeA, Turn};
     }
 
     QFont chipFont() const
@@ -519,7 +516,7 @@ public:
         qreal nearest = grabRadius;
         Q_FOREACH (Part part, handles()) {
             const qreal distance = QLineF(partPosition(part), pos).length();
-            // the fade handles lie inside the size handles: they win when as near
+            // the softness handle can come to lie on another: it wins when as near
             if (distance < nearest || (distance <= nearest && (part == FadeA || part == FadeB))) {
                 nearest = distance;
                 best = part;
@@ -866,16 +863,20 @@ private:
         }
         case FadeA:
         case FadeB: {
-            const bool alongAxis = m_dragPart == FadeA;
-            const QPointF axis = alongAxis ? m_pressAlong : m_pressAcross;
+            if (isStar()) {
+                const qreal radius = m_pressSize.width() * m_scale / 2.0;
+                const qreal fade = qBound(0.0, qAbs(dot(from, m_pressAlong)) / qMax(1.0, radius), 1.0);
+                m_auto->sethorizontalFade(fade);
+                m_auto->setverticalFade(fadeLinked ? qBound(0.0, m_pressFadeB + (fade - m_pressFadeA), 1.0) : m_pressFadeB);
+                break;
+            }
+            // along the handle's own line from the middle to the corner: both softnesses move by as much
             const QPointF k = fadeSpot(m_dragPart);
-            const qreal radius = (alongAxis ? m_pressSize.width() * k.x() : m_pressSize.height() * k.y()) * m_scale / 2.0;
-            const qreal fade = qBound(0.0, qAbs(dot(from, axis)) / qMax(1.0, radius), 1.0);
-            const qreal pressFade = alongAxis ? m_pressFadeA : m_pressFadeB;
-            const qreal otherPress = alongAxis ? m_pressFadeB : m_pressFadeA;
-            const qreal other = fadeLinked ? qBound(0.0, otherPress + (fade - pressFade), 1.0) : otherPress;
-            m_auto->sethorizontalFade(alongAxis ? fade : other);
-            m_auto->setverticalFade(alongAxis ? other : fade);
+            const QPointF ray = (m_pressAlong * m_pressSize.width() * k.x() + m_pressAcross * m_pressSize.height() * k.y()) * m_scale / 2.0;
+            const qreal length = qMax(1.0, dot(ray, ray));
+            const qreal delta = (dot(from, ray) - dot(m_press - c, ray)) / length;
+            m_auto->sethorizontalFade(qBound(0.0, m_pressFadeA + delta, 1.0));
+            m_auto->setverticalFade(qBound(0.0, m_pressFadeB + delta, 1.0));
             break;
         }
         case Turn:
