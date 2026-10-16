@@ -58,12 +58,8 @@
 namespace {
 
 const QString settingKey = QStringLiteral("StudioGlass");
-const QString refractionKey = QStringLiteral("StudioGlassRefraction");
-const QString clarityKey = QStringLiteral("StudioGlassClarity");
 const QString blurKey = QStringLiteral("StudioGlassBlur");
 const QString opacityKey = QStringLiteral("StudioGlassOpacity");
-/// The legacy edge setting (line, subtle or strong), read when no refraction is set.
-const QString oldEdgeKey = QStringLiteral("StudioGlassEdge");
 
 constexpr qreal blurRadius = 26;    ///< widget pixels
 constexpr qreal sampleScale = 0.25; ///< CPU glass renders at quarter resolution; the blur hides it
@@ -1219,7 +1215,7 @@ bool &enabled()
 
 qreal &blurSetting()
 {
-    static qreal blur = qBound<qreal>(0.25, KisConfig(true).readEntry<qreal>(blurKey, 1.0), 2.0);
+    static qreal blur = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(blurKey, 1.0), 2.0);
     return blur;
 }
 
@@ -1227,24 +1223,6 @@ qreal &opacitySetting()
 {
     static qreal opacity = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(opacityKey, 0.7), 1.0);
     return opacity;
-}
-
-qreal &claritySetting()
-{
-    static qreal clarity = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(clarityKey, 0.6), 1.0);
-    return clarity;
-}
-
-qreal &refractionSetting()
-{
-    static qreal refraction = []() {
-        KisConfig cfg(true);
-        const qreal set = cfg.readEntry<qreal>(refractionKey, -1);
-        if (set >= 0) return qMin<qreal>(set, 1);
-        static const qreal shares[] = {0, 0.5, 0.7};
-        return shares[qBound(0, cfg.readEntry<int>(oldEdgeKey, 1), 2)];
-    }();
-    return refraction;
 }
 
 bool &ambientSetting()
@@ -1557,11 +1535,6 @@ qreal KisStudioGlass::blurScale(const QSizeF &size)
     return qBound<qreal>(1, std::sqrt(qMax<qreal>(0, size.width() * size.height())) / 300, maxBlurScale);
 }
 
-qreal KisStudioGlass::refraction()
-{
-    return refractionSetting();
-}
-
 qreal KisStudioGlass::blurSigma()
 {
     return 18 * blur();
@@ -1587,7 +1560,7 @@ qreal KisStudioGlass::blur()
 
 void KisStudioGlass::setBlur(qreal blur)
 {
-    blur = qBound<qreal>(0.25, blur, 2.0);
+    blur = qBound<qreal>(0, blur, 2.0);
     if (qFuzzyCompare(blur, blurSetting())) return;
     blurSetting() = blur;
     KisConfig(false).writeEntry(blurKey, blur);
@@ -1610,51 +1583,9 @@ void KisStudioGlass::setOpacity(qreal opacity)
     Panels::instance().repaintAll();
 }
 
-qreal KisStudioGlass::clarity()
-{
-    return claritySetting();
-}
-
-void KisStudioGlass::setClarity(qreal clarity)
-{
-    clarity = qBound<qreal>(0, clarity, 1);
-    if (qFuzzyCompare(clarity + 1, claritySetting() + 1)) {
-        return;
-    }
-    claritySetting() = clarity;
-    KisConfig(false).writeEntry(clarityKey, clarity);
-    Panels::instance().repaintAll();
-}
-
-void KisStudioGlass::setRefraction(qreal refraction)
-{
-    refraction = qBound<qreal>(0, refraction, 1);
-    if (qFuzzyCompare(refraction + 1, refractionSetting() + 1)) {
-        return;
-    }
-    refractionSetting() = refraction;
-    KisConfig(false).writeEntry(refractionKey, refraction);
-    Panels::instance().repaintAll();
-}
-
 bool KisStudioGlass::ambientSurround()
 {
     return ambientSetting();
-}
-
-KisStudioGlass::Bevel KisStudioGlass::bevel()
-{
-    const qreal r = refraction();
-    if (r <= 0) {
-        return {};
-    }
-    // Interpolates through the values at refraction 0, 0.5 and 1.
-    auto at = [r](qreal none, qreal middle, qreal all) {
-        return r < 0.5 ? none + (middle - none) * r * 2 : middle + (all - middle) * (r - 0.5) * 2;
-    };
-    // In the proportions of the Liquid Glass Shadertoy: the edge shows the frost from twice the band's width
-    // in, and the rim reflects from about two thirds of it out.
-    return {at(10, 16, 20), at(0, 24, 40), 2.5, at(0, 11, 14)};
 }
 
 void KisStudioGlass::setOverOverlays(QWidget *panel)
@@ -1692,7 +1623,7 @@ void KisStudioGlass::installMenuGlass()
 
 void KisStudioGlass::paintBorder(QPainter &painter, QWidget *widget, const QPainterPath &shape, const QColor &color, qreal width)
 {
-    QWidget *canvas = isEnabled() && refraction() > 0 ? canvasWidgetOf(widget) : nullptr;
+    QWidget *canvas = isEnabled() ? canvasWidgetOf(widget) : nullptr;
     if (!drawnByCanvas(canvas) || !canvas->isVisible() || !Panels::instance().isDrawn(widget)) {
         painter.strokePath(shape, QPen(color, width));
         return;
@@ -1793,8 +1724,7 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
             catcher.setAlpha(1);
             painter.fillPath(shape.intersected(over), catcher);
         }
-        // A bevel provides its own highlight.
-        if (refraction() <= 0) sheen();
+        // the canvas's lit rim is its highlight
         return shape;
     }
 

@@ -198,18 +198,19 @@ void main()
 )";
 
 /**
- * A glass panel, after Apple's Liquid Glass as preyneyv's Shadertoy ("Liquid Glass", wfGXzh) draws it:
+ * A glass panel: one surface over the whole panel, the squircle u^4 + v^4 (u and v run from -1 to 1 across
+ * it), flat in the middle and curving ever faster toward the edges, like the panel's own corners.
  *
- *  - Inside, the frost: the blur, tinted.
- *  - Along the rim, a band where the glass shows the frost from further in, as if bent toward the edge:
- *    how far grows as a cubic toward the edge, never so fast that it folds the image over, and a little
- *    more for blue than for red, so the colors part at the edge. It grows clearer toward the edge, its blur narrowing
- *    by octaves toward the canvas itself (how far: KisStudioGlass::clarity), from nothing deep in the band
- *    like the bend, so the band and the inside are one surface.
+ *  - What is behind is seen moved toward the middle by the surface's slope (u^3, v^3): hardly at all in the
+ *    middle, most at the edges, a little more for blue than for red, so the colors part there.
+ *  - It is frosted by how thick the glass is there, (1 - u^4)(1 - v^4): clear at the edges, most in the
+ *    middle. The blur narrows by octaves toward the canvas itself, so it changes evenly across the panel.
  *  - At the edge itself, a thin rim lit by the room (from the top left, and as much from the bottom right)
  *    that catches a reflection of what is just outside, laid over the glass by Lighten.
  *
- * Everything is computed in linear light, tinted like real tinted glass (see KisStudioGlass::veil).
+ * The surface is a polynomial, so it has no creases anywhere, and how far it moves what is behind is kept
+ * below where the view would fold over. Everything is computed in linear light, tinted like real tinted
+ * glass (see KisStudioGlass::veil).
  */
 const char *const glassSource = R"(
 uniform sampler2D blurred;
@@ -217,7 +218,6 @@ uniform sampler2D blurred;
 uniform sampler2D halfFrost;
 uniform sampler2D quarterFrost;
 uniform sampler2D eighthFrost;
-uniform float clarity;
 uniform sampler2D statistics;
 uniform vec2 shift;
 uniform ivec4 slot;
@@ -235,8 +235,8 @@ uniform float sigma;
 uniform vec4 beyond;
 uniform float dither;
 uniform float veil;
-// The rim band's width, how far in its edge looks, the lit rim's width and how far out it reflects.
-uniform vec4 bevel;
+// The lit rim's width and how far out it reflects.
+uniform vec2 rim;
 // The index of refraction for red, green and blue: each color is bent toward the edge in proportion.
 uniform vec3 ior;
 uniform vec4 reach;
@@ -515,34 +515,32 @@ void main()
     vec3 tintLab = toOklab(fromSrgb(tint));
     const float quarterTurn = 1.5707963;
 
-    // The band along the rim shows the frost from further in, bent, and clearer toward the edge: the blur
-    // narrows by octaves toward the canvas itself, rising a little ahead of the bend and, like it, from
-    // nothing deep in the band, so the bend, the clear edge and the frost are one surface. The band stays
-    // within the corners' curve, where the distance to the rim has no crease and its direction turns smoothly.
-    float band = min(bevel.x, min(0.9 * corner.x, min(shape.z, shape.w)));
-    float across = band > 0.5 ? clamp(1.0 - d / band, 0.0, 1.0) : 0.0;
+    // Where p is on the surface, its slope (the gradient of (u^4 + v^4) / 4) and how thick the glass is.
+    vec2 uv = clamp((p - shape.xy) / shape.zw, -1.0, 1.0);
+    vec2 uv2 = uv * uv;
+    vec2 slope = uv * uv2;
+    float thickness = (1.0 - uv2.x * uv2.x) * (1.0 - uv2.y * uv2.y);
+    // At the edge what is behind is seen from a quarter of the panel's narrower half in: any more, and the
+    // view near the edge would fold over.
+    vec2 moved = slope * 0.25 * min(shape.z, shape.w);
+    float blur = levelSigma(0) * thickness;
+    vec2 green = p - moved;
     vec3 seen;
-    if (across > 0.0) {
-        // How far further in each color is seen: up to a third of the band at the edge, falling off as a cubic
-        // with no slope or bend where it ends, so the glass magnifies toward the edge without ever folding
-        // what is behind it over (which shows as streaks along the edge).
-        vec3 reached = across * across * across * 0.3 * band * ior / ior.g;
-        float frostWidth = levelSigma(0);
-        float blur = frostWidth * pow(0.5 / frostWidth, clarity * across * across * (3.0 - 2.0 * across));
-        vec3 light = vec3(max(fromOklab(throughLower(frostAt(held(p - outward * reached.r), blur), p)).r, 0.0),
-                          max(fromOklab(throughLower(frostAt(held(p - outward * reached.g), blur), p)).g, 0.0),
-                          max(fromOklab(throughLower(frostAt(held(p - outward * reached.b), blur), p)).b, 0.0));
-        seen = toOklab(light);
+    if (length(moved) * (ior.b - ior.r) / ior.g < 0.25) {
+        seen = throughLower(frostAt(held(green), blur), p);
     } else {
-        seen = throughLower(frostedLab(p), p);
+        vec3 light = vec3(max(fromOklab(throughLower(frostAt(held(p - moved * ior.r / ior.g), blur), p)).r, 0.0),
+                          max(fromOklab(throughLower(frostAt(held(green), blur), p)).g, 0.0),
+                          max(fromOklab(throughLower(frostAt(held(p - moved * ior.b / ior.g), blur), p)).b, 0.0));
+        seen = toOklab(light);
     }
     vec3 color = tintedLab(mix(tintLab, seen, canvas), tintLab, strength);
 
     // The rim: lit, and reflecting what is just outside.
-    float caught = band > 0.5 ? 1.0 - cos(clamp(1.0 - d / max(bevel.z, 0.5), 0.0, 1.0) * quarterTurn) : 0.0;
+    float caught = 1.0 - cos(clamp(1.0 - d / max(rim.x, 0.5), 0.0, 1.0) * quarterTurn);
     if (caught > 0.0) {
         vec3 lit = vec3(0.1 * abs(dot(outward, vec2(-0.70710678, 0.70710678))));
-        vec3 reflection = clamp(tintedLab(frostedLab(held(p + outward * bevel.w * (1.0 + 0.15 * caught))), tintLab, strength), 0.0, 1.0);
+        vec3 reflection = clamp(tintedLab(frostedLab(held(p + outward * rim.y * (1.0 + 0.15 * caught))), tintLab, strength), 0.0, 1.0);
         vec3 edge = max(color, 1.0 - (1.0 - lit) * (1.0 - reflection));
         if (imageLit) {
             edge += imageLightAt(p, outward);
@@ -708,9 +706,9 @@ struct Programs {
         valid = shrink.make(quadSource, shrinkSource, {"rect", "source", "shift", "factor", "decode", "salience", "power", "statistics"})
             && blur.make(quadSource, blurSource, {"rect", "source", "slot", "direction", "taps", "weights"})
             && glass.make(glassVertexSource, glassSource,
-                          {"rect", "blurred", "halfFrost", "quarterFrost", "eighthFrost", "clarity", "statistics", "shift", "slot", "restore", "power",
+                          {"rect", "blurred", "halfFrost", "quarterFrost", "eighthFrost", "statistics", "shift", "slot", "restore", "power",
                            "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
-                           "beyond", "spacing", "dither", "veil", "bevel", "ior", "under", "decode", "reach",
+                           "beyond", "spacing", "dither", "veil", "rim", "ior", "under", "decode", "reach",
                            "imageLit", "toImage", "fromImage", "imageLight", "imageLightFactor", "imageLightReach",
                            "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"})
             && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
@@ -1006,8 +1004,7 @@ qreal KisOpenGLGlass::reach()
 {
     // Three sigma of the widest blur, plus the pixels merged by downsampling and sampling, plus how far
     // the rim looks out.
-    return 3 * KisStudioGlass::blurSigma() * KisStudioGlass::maxBlurScale + 16
-        + qMax(KisStudioGlass::bevel().depth, 1.15 * KisStudioGlass::bevel().reflection);
+    return 3 * KisStudioGlass::blurSigma() * KisStudioGlass::maxBlurScale + 16 + 1.15 * KisStudioGlass::rim().reflection;
 }
 
 qreal KisOpenGLGlass::ambientReach()
@@ -1067,7 +1064,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     };
     QVector<Region> regions(surfaces.size());
     // How far the rim looks: in from the edge, and out for its reflection.
-    const int rimReach = qCeil(qMax(KisStudioGlass::bevel().depth, 1.15 * KisStudioGlass::bevel().reflection) * pixelRatio) + 2;
+    const int rimReach = qCeil(1.15 * KisStudioGlass::rim().reflection * pixelRatio) + 2;
     {
         // Pack the slots in rows, left to right.
         QPoint next;
@@ -1078,7 +1075,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
             Region &region = regions[i];
             // Bilinear sampling reaches into the pixel before the first one as well as past the last.
             region.area = QRect(QPoint(r.left() / factor - 1, r.top() / factor - 1), QPoint(r.right() / factor + 1, r.bottom() / factor + 1)) & smallWhole;
-            region.sigma = KisStudioGlass::blurSigma() * scaleOf(surfaces[i]) * pixelRatio / factor;
+            region.sigma = qMax<qreal>(0.35, KisStudioGlass::blurSigma() * scaleOf(surfaces[i]) * pixelRatio / factor);
             region.wide = gaussian(region.sigma);
             for (int k = 0; k < 3; k++) region.finer[k] = gaussian(region.sigma / (2 << k));
             region.around = region.area.adjusted(-region.wide.taps, -region.wide.taps, region.wide.taps, region.wide.taps) & smallWhole;
@@ -1208,7 +1205,6 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1i(d->glass["halfFrost"], 4);
     f->glUniform1i(d->glass["quarterFrost"], 5);
     f->glUniform1i(d->glass["eighthFrost"], 6);
-    f->glUniform1f(d->glass["clarity"], float(KisStudioGlass::clarity()));
     f->glUniform1i(d->glass["decode"], !linearCanvas);
     f->glUniform1f(d->glass["restore"], KisStudioGlass::restore);
     f->glUniform1f(d->glass["power"], KisStudioGlass::lightnessPower);
@@ -1217,8 +1213,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1f(d->glass["veil"], KisStudioGlass::veil);
     f->glUniform2f(d->glass["viewport"], viewport.width(), viewport.height());
     f->glUniform1f(d->glass["dither"], dither);
-    const KisStudioGlass::Bevel bevel = KisStudioGlass::bevel();
-    f->glUniform4f(d->glass["bevel"], bevel.width * pixelRatio, bevel.depth * pixelRatio, bevel.rim * pixelRatio, bevel.reflection * pixelRatio);
+    const KisStudioGlass::Rim rim = KisStudioGlass::rim();
+    f->glUniform2f(d->glass["rim"], rim.width * pixelRatio, rim.reflection * pixelRatio);
     // crown glass's 1.51, 1.52 and 1.53 for red, green and blue, their spread made five times as wide
     f->glUniform3f(d->glass["ior"], 1.47f, 1.52f, 1.57f);
     // The image's glow, if it has been rendered.
@@ -1271,7 +1267,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glUniform1f(d->glass["opacity"], surface.opacity);
         const qreal scale = scaleOf(surface);
         f->glUniform1f(d->glass["sigma"], KisStudioGlass::blurSigma() * scale * pixelRatio);
-        f->glUniform1f(d->glass["spacing"], 2 * KisStudioGlass::blurSigma() * scale * pixelRatio);
+        f->glUniform1f(d->glass["spacing"], qMax<qreal>(8 * pixelRatio, 2 * KisStudioGlass::blurSigma() * scale * pixelRatio));
         // Which sides extend beyond the canvas: left, right, bottom, top.
         f->glUniform4f(d->glass["beyond"], r.left() < 0, r.right() > viewport.width(), r.top() < 0, r.bottom() > viewport.height());
         const QRectF reach = r.adjusted(-rimReach, -rimReach, rimReach, rimReach) & QRectF(whole).adjusted(0.5, 0.5, -0.5, -0.5);

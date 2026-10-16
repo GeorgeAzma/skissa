@@ -220,7 +220,7 @@ QHash<QString, QString> explanations()
 {
     return {
         {QStringLiteral("StudioGlass"), i18nc("@info:tooltip", "On: frosted see-through panels\nOff: solid")},
-        {QStringLiteral("StudioGlassBlur"), i18nc("@info:tooltip", "25% clear → 200% frosted")},
+        {QStringLiteral("StudioGlassBlur"), i18nc("@info:tooltip", "0%: clear → 200% frosted")},
         {QStringLiteral("PresetStrokeThumbnails"), i18nc("@info:tooltip", "Brush lists show a sample stroke, not the icon")},
         {QStringLiteral("colorSamplerPreviewStyle"), i18nc("@info:tooltip", "Ring: around the cursor\nLeft, Right, Above: a swatch beside it")},
         {QStringLiteral("colorSamplerZoomPreviewEnabled"), i18nc("@info:tooltip", "The pixels under the cursor, enlarged")},
@@ -241,8 +241,6 @@ QHash<QString, QString> explanations()
         {QStringLiteral("[StudioTheme] TintAmount"), i18nc("@info:tooltip", "0%: plain gray → 100%: fully the tint's hue")},
         {QStringLiteral("[StudioTheme] UseAccent"), i18nc("@info:tooltip", "Selected items, focus and links in color instead of gray")},
         {QStringLiteral("StudioGlassOpacity"), i18nc("@info:tooltip", "0%: see-through → 100%: solid")},
-        {QStringLiteral("StudioGlassRefraction"), i18nc("@info:tooltip", "Panel edges bend what's behind them, like the rim of a lens")},
-        {QStringLiteral("StudioGlassClarity"), i18nc("@info:tooltip", "0%: the rim as frosted as the panel → 100%: clear where it bends most")},
         {QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"),
          i18nc("@info:tooltip", "On: exactly 125% or 150%, as the screen is set\nOff: rounded to 100% or 200%, crisper but a bit small or large")},
         {QStringLiteral("newOutlineStyle"), i18nc("@info:tooltip", "Circle: the brush's size\nBrush: its real shape\nWith tilt: its shape, leaning with the pen")},
@@ -397,15 +395,7 @@ QVector<Setting> describeAll()
         glass.read = []() { return KisStudioGlass::isEnabled(); };
         glass.write = [](const QVariant &value) { KisStudioGlass::setEnabled(value.toBool()); };
         all << glass;
-        Setting refraction = number(QStringLiteral("StudioGlassRefraction"), 0.5, 0, 1, i18nc("setting", "Glass refraction"), R::Fork);
-        refraction.read = []() { return KisStudioGlass::refraction(); };
-        refraction.write = [](const QVariant &value) { KisStudioGlass::setRefraction(value.toReal()); };
-        all << refraction;
-        Setting clarity = number(QStringLiteral("StudioGlassClarity"), 0.6, 0, 1, i18nc("setting", "Glass edge clarity"), R::Fork);
-        clarity.read = []() { return KisStudioGlass::clarity(); };
-        clarity.write = [](const QVariant &value) { KisStudioGlass::setClarity(value.toReal()); };
-        all << clarity;
-        Setting blur = number(QStringLiteral("StudioGlassBlur"), 1.0, 0.25, 2.0, i18nc("setting", "Glass blur"), R::Fork);
+        Setting blur = number(QStringLiteral("StudioGlassBlur"), 1.0, 0, 2.0, i18nc("setting", "Glass blur"), R::Fork);
         blur.read = []() { return KisStudioGlass::blur(); };
         blur.write = [](const QVariant &value) { KisStudioGlass::setBlur(value.toReal()); };
         all << blur;
@@ -788,7 +778,7 @@ QVector<Setting> describeAll()
  */
 void forgetRetired()
 {
-    constexpr int version = 6;
+    constexpr int version = 7;
     KConfigGroup top = KSharedConfig::openConfig()->group(QString());
     if (top.readEntry("StudioRetiredSettings", 0) >= version) return;
     const char *const keys[] = {
@@ -807,6 +797,8 @@ void forgetRetired()
         "calculateAnimationCacheInBackground", "disableAVXOptimizations", "amdDisableVectorWorkaround",
         // pinned panels now fit their contents; only heights set by hand are kept, under another key
         "StudioLayoutPanelHeights",
+        // the glass's refraction is its shape now, with no strength of its own
+        "StudioGlassRefraction", "StudioGlassEdge", "StudioGlassClarity",
     };
     // Krita's "don't rename copied/pasted/merged layers" options become empty name affixes
     const struct { const char *old; KisImageConfig::LayerNaming kind; } renames[] = {

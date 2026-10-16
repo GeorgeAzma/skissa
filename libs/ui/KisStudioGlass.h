@@ -38,7 +38,7 @@ public:
     static qreal tintOverDark();
     static qreal tintOverBright();
 
-    /// How frosted the glass is, from 0.25 (nearly clear) to 2. Defaults to 1.
+    /// How frosted the glass is in the middle of a panel, from 0 (clear) to 2. Defaults to 1.
     static qreal blur();
     static void setBlur(qreal blur);
     /// How strongly the panel color covers what is behind, from 0 to 1 (solid). Defaults to 0.7.
@@ -52,21 +52,12 @@ public:
     /// Share of the tint that veils the chroma of what is behind.
     static constexpr qreal veil = 0.3;
 
-    /// How much the edge bevel bends the canvas, from 0 (a plain line) to 1.
-    static qreal refraction();
-    static void setRefraction(qreal refraction);
-    /// How clear the rim is where it bends most, from 0 (as frosted as the face) to 1 (the canvas itself).
-    static qreal clarity();
-    static void setClarity(qreal clarity);
-
-    /// The refracting rim in widget pixels; all zero for a plain line.
-    struct Bevel {
-        qreal width {0};      ///< of the band along the edge that is bent
-        qreal depth {0};      ///< how far in the frost its very edge shows
-        qreal rim {0};        ///< of the lit, reflecting rim
-        qreal reflection {0}; ///< how far out the rim reflects
+    /// The lit, reflecting rim, in widget pixels.
+    struct Rim {
+        qreal width {2.5};      ///< of the rim
+        qreal reflection {14}; ///< how far out it reflects
     };
-    static Bevel bevel();
+    static Rim rim() { return {}; }
 
     /// Whether the image casts an ambient glow on the canvas around it (only with a black border color).
     static bool ambientSurround();
