@@ -49,7 +49,8 @@ void main()
 )";
 
 /**
- * Intermediate textures store square roots, which keeps about sRGB's precision near 0 in eight bits.
+ * In eight bits, intermediate textures store square roots, which keeps about sRGB's precision near 0;
+ * in half floats (KEPT_LINEAR) they store the values themselves, so the GPU can interpolate them.
  * The blur weights colors (see KisStudioGlass::salience): RGB holds value times weight and alpha holds
  * the weight, both normalized by the maximum weight, so a mean is RGB divided by alpha.
  */
@@ -68,12 +69,20 @@ vec3 toSrgb(vec3 c)
 /// Decodes a stored texel into weighted value and weight.
 vec4 weighted(vec4 kept)
 {
+#if KEPT_LINEAR
+    return kept;
+#else
     return vec4(kept.rgb * kept.rgb, kept.a);
+#endif
 }
 
 vec4 keep(vec4 weighted)
 {
+#if KEPT_LINEAR
+    return weighted;
+#else
     return vec4(sqrt(max(weighted.rgb, 0.0)), weighted.a);
+#endif
 }
 
 /// Oklab (Bjoern Ottosson, 2020): a perceptual lightness and two color axes.
@@ -325,18 +334,31 @@ vec4 bspline(float t)
 vec3 softAt(sampler2D source, vec2 p)
 {
     vec2 t = p / factor - 0.5 + shift;
-    ivec2 i = ivec2(floor(t));
-    vec2 f = t - floor(t);
+    vec2 i = floor(t);
+    vec2 f = t - i;
     vec4 wx = bspline(f.x);
     vec4 wy = bspline(f.y);
+#if KEPT_LINEAR
+    // Four bilinear fetches, each placed between two texels so the hardware gives their weighted sum.
+    vec2 g0 = vec2(wx.x + wx.y, wy.x + wy.y);
+    vec2 g1 = vec2(wx.z + wx.w, wy.z + wy.w);
+    vec2 h0 = i - 1.0 + vec2(wx.y, wy.y) / g0;
+    vec2 h1 = i + 1.0 + vec2(wx.w, wy.w) / g1;
+    vec2 size = vec2(textureSize(source, 0));
+    vec2 lo = vec2(slot.xy);
+    vec2 hi = vec2(slot.zw);
+    vec4 m = g0.y * (g0.x * texture(source, (clamp(h0, lo, hi) + 0.5) / size) + g1.x * texture(source, (clamp(vec2(h1.x, h0.y), lo, hi) + 0.5) / size))
+        + g1.y * (g0.x * texture(source, (clamp(vec2(h0.x, h1.y), lo, hi) + 0.5) / size) + g1.x * texture(source, (clamp(h1, lo, hi) + 0.5) / size));
+#else
     vec4 m = vec4(0.0);
     for (int y = 0; y < 4; y++) {
         vec4 row = vec4(0.0);
         for (int x = 0; x < 4; x++) {
-            row += wx[x] * weighted(texelFetch(source, clamp(i + ivec2(x - 1, y - 1), slot.xy, slot.zw), 0));
+            row += wx[x] * weighted(texelFetch(source, clamp(ivec2(i) + ivec2(x - 1, y - 1), slot.xy, slot.zw), 0));
         }
         m += wy[y] * row;
     }
+#endif
     return m.rgb / max(m.a, 1e-5);
 }
 
@@ -453,7 +475,9 @@ vec3 inGamut(float l, vec2 ab)
 vec3 tintedLab(vec3 b, vec3 tintLab, float s)
 {
     float l = clamp(mix(b.x, tintLab.x, s), 0.0, 1.0);
-    float scattered = s * mix(veil, 1.0, smoothstep(-0.02, 0.06, l - b.x));
+    // a share of the chroma veiled, all of it at full strength, where the glass is solid
+    float m = mix(veil, 1.0, smoothstep(-0.02, 0.06, l - b.x));
+    float scattered = s * m + (1.0 - m) * s * s * s;
     return inGamut(l, mix(b.yz, tintLab.yz, scattered));
 }
 
@@ -653,23 +677,27 @@ void main()
 }
 )";
 
-QByteArray header()
+/// The GLSL version, and whether intermediate textures keep values as they are (see commonSource)
+QByteArray header(bool keptLinear)
 {
+    QByteArray version;
     if (KisOpenGL::hasOpenGLES()) {
-        return "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
-    }
+        version = "#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
+    } else {
 #ifdef Q_OS_MACOS
-    return "#version 150 core\n";
+        version = "#version 150 core\n";
 #else
-    return "#version 130\n";
+        version = "#version 130\n";
 #endif
+    }
+    return version + (keptLinear ? "#define KEPT_LINEAR 1\n" : "#define KEPT_LINEAR 0\n");
 }
 
-QOpenGLShaderProgram *compile(const char *vertex, const char *fragment)
+QOpenGLShaderProgram *compile(const char *vertex, const char *fragment, bool keptLinear)
 {
     QScopedPointer<QOpenGLShaderProgram> result(new QOpenGLShaderProgram());
-    if (!result->addShaderFromSourceCode(QOpenGLShader::Vertex, header() + commonSource + vertex)
-        || !result->addShaderFromSourceCode(QOpenGLShader::Fragment, header() + "out vec4 fragColor;\n" + commonSource + fragment)
+    if (!result->addShaderFromSourceCode(QOpenGLShader::Vertex, header(keptLinear) + commonSource + vertex)
+        || !result->addShaderFromSourceCode(QOpenGLShader::Fragment, header(keptLinear) + "out vec4 fragColor;\n" + commonSource + fragment)
         || !result->link()) {
         warnOpenGL << "Glass is drawn without OpenGL:" << result->log();
         return nullptr;
@@ -682,9 +710,9 @@ struct Program {
     QSharedPointer<QOpenGLShaderProgram> program;
     QHash<QByteArray, int> locations;
 
-    bool make(const char *vertex, const char *fragment, const QList<QByteArray> &uniforms)
+    bool make(const char *vertex, const char *fragment, const QList<QByteArray> &uniforms, bool keptLinear)
     {
-        program.reset(compile(vertex, fragment));
+        program.reset(compile(vertex, fragment, keptLinear));
         if (!program) return false;
         for (const QByteArray &uniform : uniforms) locations.insert(uniform, program->uniformLocation(uniform.constData()));
         return true;
@@ -702,18 +730,18 @@ struct Programs {
     Program ambient;
     bool valid {false};
 
-    void make()
+    void make(bool keptLinear)
     {
-        valid = shrink.make(quadSource, shrinkSource, {"rect", "source", "shift", "factor", "decode", "salience", "power", "statistics"})
-            && blur.make(quadSource, blurSource, {"rect", "source", "slot", "direction", "taps", "weights"})
+        valid = shrink.make(quadSource, shrinkSource, {"rect", "source", "shift", "factor", "decode", "salience", "power", "statistics"}, keptLinear)
+            && blur.make(quadSource, blurSource, {"rect", "source", "slot", "direction", "taps", "weights"}, keptLinear)
             && glass.make(glassVertexSource, glassSource,
                           {"rect", "blurred", "halfFrost", "quarterFrost", "eighthFrost", "statistics", "shift", "slot", "restore", "power",
                            "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
                            "beyond", "spacing", "dither", "veil", "rim", "ior", "under", "decode", "reach",
                            "imageLit", "toImage", "fromImage", "imageLight", "imageLightFactor", "imageLightReach",
-                           "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"})
-            && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"})
-            && ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"});
+                           "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"}, keptLinear)
+            && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"}, keptLinear)
+            && ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"}, keptLinear);
     }
 };
 
@@ -725,13 +753,13 @@ struct SharedPrograms : public QObject {
     Programs programs;
 };
 
-const Programs &programsOf(QOpenGLContextGroup *group)
+const Programs &programsOf(QOpenGLContextGroup *group, bool keptLinear)
 {
     for (QObject *child : group->children()) {
         if (auto *shared = dynamic_cast<SharedPrograms *>(child)) return shared->programs;
     }
     auto *shared = new SharedPrograms;
-    shared->programs.make();
+    shared->programs.make(keptLinear);
     shared->setParent(group);
     return shared->programs;
 }
@@ -801,6 +829,15 @@ struct KisOpenGLGlass::Private : Programs
         f->glGetIntegerv(GL_FRAMEBUFFER_BINDING, &bound);
         auto *fbo = new QOpenGLFramebufferObject(size, QOpenGLFramebufferObject::NoAttachment, GL_TEXTURE_2D, keptFormat);
         f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(bound));
+        // read bilinearly by softAt() where the values are kept as they are
+        GLint texture = 0;
+        f->glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture);
+        f->glBindTexture(GL_TEXTURE_2D, fbo->texture());
+        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        f->glBindTexture(GL_TEXTURE_2D, GLuint(texture));
         return fbo;
     }
 
@@ -841,7 +878,7 @@ bool KisOpenGLGlass::initialize()
     const bool halfFloats = !context->isOpenGLES() || context->hasExtension("GL_EXT_color_buffer_half_float")
         || context->hasExtension("GL_EXT_color_buffer_float");
     d->keptFormat = halfFloats ? GL_RGBA16F : GL_RGBA;
-    static_cast<Programs &>(*d) = programsOf(context->shareGroup());
+    static_cast<Programs &>(*d) = programsOf(context->shareGroup(), halfFloats);
     if (d->valid && KisOpenGL::supportsVAO()) {
         d->vao.create();
     }

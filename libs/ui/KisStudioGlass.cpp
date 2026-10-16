@@ -165,7 +165,9 @@ QImage tinted(const QImage &image, const QColor &tint, qreal strength)
             const float l = qBound(0.0f, b.l + (t.l - b.l) * s, 1.0f);
             // Keep the chroma, veiled by light the glass scatters (fully where the glass lightens).
             const float lighter = qBound(0.0f, (l - b.l + 0.02f) / 0.08f, 1.0f);
-            const float scattered = s * (veil + (1.0f - veil) * lighter * lighter * (3 - 2 * lighter));
+            // all of it at full strength, where the glass is solid
+            const float m = veil + (1.0f - veil) * lighter * lighter * (3 - 2 * lighter);
+            const float scattered = s * m + (1 - m) * s * s * s;
             const std::array<float, 3> c = inGamut({l, b.a * (1 - scattered) + t.a * scattered, b.b * (1 - scattered) + t.b * scattered});
             out[x] = qRgb(toSrgb(c[0]), toSrgb(c[1]), toSrgb(c[2]));
         }
@@ -1542,15 +1544,16 @@ qreal KisStudioGlass::blurSigma()
 
 qreal KisStudioGlass::tintOverDark()
 {
-    // At the default opacity (0.7): 0.56 over a dark canvas, 0.84 over a bright one; solid at 1, clear at 0.
+    // Clear at 0 and solid at 1, along one smooth curve each: less over a dark canvas, more over a bright one
+    // (0.63 and 0.77 at the default 0.7).
     const qreal o = opacity();
-    return o <= 0.7 ? 0.8 * o : 0.56 + 0.44 * (o - 0.7) / 0.3;
+    return o * (0.8 + 0.2 * o * o);
 }
 
 qreal KisStudioGlass::tintOverBright()
 {
     const qreal o = opacity();
-    return o <= 0.7 ? 1.2 * o : 0.84 + 0.16 * (o - 0.7) / 0.3;
+    return o * (1.2 - 0.2 * o * o);
 }
 
 qreal KisStudioGlass::blur()
