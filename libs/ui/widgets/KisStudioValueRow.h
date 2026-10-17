@@ -56,6 +56,8 @@ public:
     void setPinnable(bool pinnable, bool pinned);
     /// A cross under the pointer that takes the row away (removeClicked())
     void setRemovable(bool removable);
+    /// An Auto switch before the value (Spacing: chosen from the brush size), lit while \p on (automaticToggled())
+    void setAutomatic(bool shown, bool on);
     /// The pin only under the pointer, even when pinned (where being pinned is plain, as on the bar)
     void setPinOnHoverOnly(bool onHoverOnly) { m_pinOnHoverOnly = onHoverOnly; }
 
@@ -69,6 +71,8 @@ Q_SIGNALS:
     void clicked();
     void pinClicked();
     void removeClicked();
+    /// Its Auto switch clicked: \p on is what it is now
+    void automaticToggled(bool on);
     /// Its value is about to be typed (a double click): what its first click opened can go
     void typingStarted();
     /// Pulled up or down out of its place, to be dropped elsewhere (the top bar)
@@ -104,12 +108,15 @@ private:
 
     QRectF pinRect() const;
     QRectF removeRect() const;
+    QRectF automaticRect() const;
     /// What shows only under the pointer is shown: hovered, or always in touch mode
     bool revealed() const;
     bool showsPin() const;
     /// Where the name and the value are written, between the row's edges and what is drawn at its end
     QRectF textArea() const;
     bool m_removable {false};
+    bool m_automatic {false};
+    bool m_automaticOn {false};
     bool m_editing {false};
 
     bool m_pressed {false};

@@ -195,7 +195,8 @@ QWidget *KisTextureOptionWidget::createQuickPage(PaintopCategory category, QWidg
         chips << more;
         patterns->setChips(chips);
     };
-    auto use = [model, refreshPatterns](const QString &md5) {
+    // by value: picking it refreshes the patterns, which clears the list a picked id could refer into
+    auto use = [model, refreshPatterns](QString md5) {
         auto source = KisGlobalResourcesInterface::instance()->source<KoPattern>(ResourceType::Patterns);
         const KoPatternSP match = source.bestMatch(md5, QString(), QString());
         if (!match) return;

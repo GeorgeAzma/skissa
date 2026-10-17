@@ -1624,7 +1624,7 @@ struct KisBrushTipQuickPage::Private
 
     std::optional<lager::cursor<PrecisionData>> precision;
     bool withRest {true};
-    /// Anti-aliasing, auto spacing, auto precision, auto neutral point: those that apply
+    /// Anti-aliasing, auto neutral point: those that apply
     KisStudioChips *switches {nullptr};
     QVector<std::function<void()>> flips;
     KisStudioValueRow *precisionRow {nullptr};
@@ -1757,8 +1757,16 @@ KisBrushTipQuickPage::KisBrushTipQuickPage(KisAutoBrushModel *autoModel,
     layout->addWidget(d->precisionRow);
     connect(d->precisionRow, &KisStudioValueRow::valueChanged, this, [this](qreal value) {
         if (!d->precision) return;
+        // a level chosen by hand is the level, not the size's
         PrecisionData data = d->precision->get();
         data.precisionLevel = qBound(1, qRound(value), 5);
+        data.useAutoPrecision = false;
+        d->precision->set(data);
+    });
+    connect(d->precisionRow, &KisStudioValueRow::automaticToggled, this, [this](bool on) {
+        if (!d->precision) return;
+        PrecisionData data = d->precision->get();
+        data.useAutoPrecision = on;
         d->precision->set(data);
     });
 
@@ -1792,8 +1800,6 @@ KisBrushTipQuickPage::KisBrushTipQuickPage(KisAutoBrushModel *autoModel,
     connect(autoModel, &KisAutoBrushModel::spikesChanged, this, &KisBrushTipQuickPage::updateShapes);
     connect(predefinedModel, &KisPredefinedBrushModel::resourceSignatureChanged, this, &KisBrushTipQuickPage::updateShapes);
     connect(autoModel, &KisAutoBrushModel::antialiasEdgesChanged, this, &KisBrushTipQuickPage::updateRest);
-    connect(autoModel, &KisAutoBrushModel::useAutoSpacingChanged, this, &KisBrushTipQuickPage::updateRest);
-    connect(predefinedModel, &KisPredefinedBrushModel::useAutoSpacingChanged, this, &KisBrushTipQuickPage::updateRest);
     connect(predefinedModel, &KisPredefinedBrushModel::applicationSwitchStateChanged, this, &KisBrushTipQuickPage::updateRest);
     connect(predefinedModel, &KisPredefinedBrushModel::brightnessAdjustmentChanged, this, &KisBrushTipQuickPage::updateRest);
     connect(predefinedModel, &KisPredefinedBrushModel::contrastAdjustmentChanged, this, &KisBrushTipQuickPage::updateRest);
@@ -1930,20 +1936,6 @@ void KisBrushTipQuickPage::updateRest()
         add(i18nc("brush tip switch", "Anti-aliasing"), i18nc("@info:tooltip", "Smooth hard edges"), d->autoModel->antialiasEdges(),
             [this]() { d->autoModel->setantialiasEdges(!d->autoModel->antialiasEdges()); });
     }
-    if (isAuto || isPicture) {
-        const bool autoSpacing = isAuto ? d->autoModel->useAutoSpacing() : d->predefinedModel->useAutoSpacing();
-        add(i18nc("brush tip switch", "Auto spacing"), i18nc("@info:tooltip", "Dabs closer as the brush grows"), autoSpacing, [this, isAuto]() {
-            if (isAuto) d->autoModel->setuseAutoSpacing(!d->autoModel->useAutoSpacing());
-            else d->predefinedModel->setuseAutoSpacing(!d->predefinedModel->useAutoSpacing());
-        });
-    }
-    if (d->precision) {
-        add(i18nc("brush tip switch", "Auto precision"), i18nc("@info:tooltip", "Precision by the brush size"), d->precision->get().useAutoPrecision, [this]() {
-            PrecisionData data = d->precision->get();
-            data.useAutoPrecision = !data.useAutoPrecision;
-            d->precision->set(data);
-        });
-    }
     if (lightness) {
         add(i18nc("brush tip switch", "Auto neutral point"), i18nc("@info:tooltip", "The tip's own middle lightness"), d->predefinedModel->autoAdjustMidPoint(),
             [this]() { d->predefinedModel->setautoAdjustMidPoint(!d->predefinedModel->autoAdjustMidPoint()); });
@@ -1951,10 +1943,14 @@ void KisBrushTipQuickPage::updateRest()
     d->switches->setChips(switches);
     d->switches->setVisible(!switches.isEmpty());
 
-    d->precisionRow->setVisible(d->precision && !d->precision->get().useAutoPrecision);
+    // auto spacing is on the Spacing row; auto precision on this one, the level quiet while the size chooses it
+    d->precisionRow->setVisible(bool(d->precision));
     if (d->precision) {
         KisSignalsBlocker blocker(d->precisionRow);
-        d->precisionRow->setValue(d->precision->get().precisionLevel);
+        const PrecisionData precision = d->precision->get();
+        d->precisionRow->setValue(precision.precisionLevel);
+        d->precisionRow->setAutomatic(true, precision.useAutoPrecision);
+        d->precisionRow->setInactive(precision.useAutoPrecision);
     }
 
     // a picture tip in color: as a mask, as it is, or lighting the brush color

@@ -142,6 +142,24 @@ bool KisStudioValueRow::showsPin() const
     return m_pinnable && ((m_pinned && !m_pinOnHoverOnly) || revealed());
 }
 
+void KisStudioValueRow::setAutomatic(bool shown, bool on)
+{
+    if (shown == m_automatic && on == m_automaticOn) return;
+    m_automatic = shown;
+    m_automaticOn = on;
+    update();
+}
+
+QRectF KisStudioValueRow::automaticRect() const
+{
+    // before the value, as wide as its word
+    const QRectF content = textArea();
+    const qreal width = fontMetrics().horizontalAdvance(i18nc("chosen for itself, as a switch on a setting's row", "Auto")) + 2 * KisModernStyle::space2;
+    const qreal height = qMin<qreal>(20, content.height() - 2 * KisModernStyle::space1);
+    const qreal right = content.right() - fontMetrics().horizontalAdvance(text()) - KisModernStyle::space2;
+    return QRectF(right - width, content.center().y() - height / 2.0, width, height);
+}
+
 QRectF KisStudioValueRow::removeRect() const
 {
     const qreal right = m_pinnable ? pinRect().left() - KisModernStyle::space1 : width() - KisModernStyle::space2;
@@ -268,6 +286,20 @@ void KisStudioValueRow::paintEvent(QPaintEvent *)
 
     painter.setPen(m_inactive ? KisModernStyle::secondaryInk(ink) : ink);
     painter.drawText(content, Qt::AlignVCenter | Qt::AlignLeft, m_name);
+    if (m_automatic) {
+        // lit while on, as the editors' switches are
+        const QRectF pill = automaticRect();
+        QColor fill = ink;
+        fill.setAlphaF(m_automaticOn ? 0.16 : 0.0);
+        QColor edge = ink;
+        edge.setAlphaF(m_automaticOn ? 0.0 : 0.16);
+        painter.setBrush(fill);
+        painter.setPen(QPen(edge, 1));
+        painter.drawPath(KisModernStyle::squircle(pill.adjusted(0.5, 0.5, -0.5, -0.5), KisModernStyle::cornerRadius));
+        painter.setPen(m_automaticOn ? ink : KisModernStyle::secondaryInk(ink));
+        painter.drawText(pill, Qt::AlignCenter, i18nc("chosen for itself, as a switch on a setting's row", "Auto"));
+        painter.setBrush(Qt::NoBrush);
+    }
     // while it is typed, the editor stands where the value is
     if (m_editing) return;
     painter.setPen(KisModernStyle::secondaryInk(ink));
@@ -288,6 +320,13 @@ void KisStudioValueRow::mousePressEvent(QMouseEvent *event)
     }
     if (m_removable && revealed() && removeRect().adjusted(-3, -6, 3, 6).contains(event->pos())) {
         Q_EMIT removeClicked();
+        event->accept();
+        return;
+    }
+    if (m_automatic && automaticRect().adjusted(-3, -4, 3, 4).contains(event->pos())) {
+        m_automaticOn = !m_automaticOn;
+        update();
+        Q_EMIT automaticToggled(m_automaticOn);
         event->accept();
         return;
     }

@@ -43,6 +43,7 @@ public:
 
     std::function<std::optional<RowValue>()> rowValueGet;
     std::function<void(qreal)> rowValueSet;
+    std::function<void(bool)> rowAutomaticSet;
 };
 
 KisPaintOpOption::KisPaintOpOption(const QString &label, PaintopCategory category, bool checked)
@@ -170,11 +171,18 @@ void KisPaintOpOption::setRowValue(qreal value)
     }
 }
 
-void KisPaintOpOption::setRowValueSource(std::function<std::optional<RowValue>()> get, std::function<void(qreal)> set)
+void KisPaintOpOption::setRowValueSource(std::function<std::optional<RowValue>()> get, std::function<void(qreal)> set,
+                                         std::function<void(bool)> setAutomatic)
 {
     m_d->rowValueGet = get;
     m_d->rowValueSet = set;
+    m_d->rowAutomaticSet = setAutomatic;
     notifyRowValueChanged();
+}
+
+void KisPaintOpOption::setRowAutomatic(bool on)
+{
+    if (m_d->rowAutomaticSet) m_d->rowAutomaticSet(on);
 }
 
 void KisPaintOpOption::notifyRowValueChanged()

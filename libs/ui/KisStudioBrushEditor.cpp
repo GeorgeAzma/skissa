@@ -177,6 +177,7 @@ struct KisStudioBrushEditor::Private
         row->setRange(range);
         row->setValue(value->value);
         row->setValueText(value->text);
+        row->setAutomatic(value->automatic.has_value(), value->automatic.value_or(false));
         const std::optional<qreal> picked = settings ? settings->pickedRowValue(option) : std::nullopt;
         row->setDefaultValue(picked ? *picked : qQNaN());
         row->setPenCurve(penCurve(option));
@@ -267,6 +268,9 @@ void KisStudioBrushEditor::bindRow(KisStudioValueRow *row, KisPaintOpOption *opt
         const std::optional<KisPaintOpOption::RowValue> row = target->rowValue();
         if (target->isCheckable() && !target->isChecked() && row && !row->appliesUnchecked) target->setChecked(true);
         target->setRowValue(value);
+    });
+    QObject::connect(row, &KisStudioValueRow::automaticToggled, option, [target](bool on) {
+        if (target) target->setRowAutomatic(on);
     });
     QObject::connect(option, &KisPaintOpOption::sigRowValueChanged, row, apply);
     QObject::connect(option, &KisPaintOpOption::sigSettingChanged, row, apply);

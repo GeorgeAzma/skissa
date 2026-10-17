@@ -105,15 +105,20 @@ public:
         bool size {false};
         /// Used while the row is unchecked too (Opacity: the checkbox is only the pen's)
         bool appliesUnchecked {false};
-        /// Shown instead of the number (Spacing: "Auto 1.0×"); dragging sets a number
+        /// Shown instead of the number; dragging sets a number
         QString text;
+        /// An Auto switch on the row and whether it is on (Spacing: from the brush size); none: no switch
+        std::optional<bool> automatic;
     };
 
     /// None for an option whose row has no value
     std::optional<RowValue> rowValue() const;
     void setRowValue(qreal value);
     /// Another value for the row than its own (the Size row is the brush's diameter); an empty \p get: its own again
-    void setRowValueSource(std::function<std::optional<RowValue>()> get, std::function<void(qreal)> set);
+    void setRowValueSource(std::function<std::optional<RowValue>()> get, std::function<void(qreal)> set,
+                           std::function<void(bool)> setAutomatic = {});
+    /// Turns the row's Auto switch on or off, for a row that has one
+    void setRowAutomatic(bool on);
     /// Says the row's value changed, for a value of another source
     void notifyRowValueChanged();
 

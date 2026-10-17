@@ -6,8 +6,6 @@
 
 #include "kis_brush_based_paintop_options_widget.h"
 
-#include <QLocale>
-
 #include "kis_brush_option_widget.h"
 #include <klocalizedstring.h>
 
@@ -87,6 +85,7 @@ void KisBrushBasedPaintopOptionWidget::addSpacingRow(KisSpacingOptionWidget *spa
             KisPaintOpOption::RowValue value;
             value.size = true;
             value.appliesUnchecked = true;
+            value.automatic = data.useAutoSpacing;
             if (data.useAutoSpacing) {
                 // chosen from the brush size, times this factor: Krita's slider is the factor then
                 value.value = data.autoSpacingCoeff * share();
@@ -94,8 +93,6 @@ void KisBrushBasedPaintopOptionWidget::addSpacingRow(KisSpacingOptionWidget *spa
                 value.maximum = 10.0;
                 value.decimals = 1;
                 value.suffix = QStringLiteral("×");
-                value.text = i18nc("spacing chosen from the brush size, %1 is how much wider, as 1.0×", "Auto %1",
-                                   QLocale().toString(value.value, 'f', 1) + QStringLiteral("×"));
                 return value;
             }
             value.value = data.spacing * 100.0 * share();
@@ -109,6 +106,11 @@ void KisBrushBasedPaintopOptionWidget::addSpacingRow(KisSpacingOptionWidget *spa
             // within the range Krita's own spacing slider has
             if (data.useAutoSpacing) data.autoSpacingCoeff = qBound(0.02, value / share(), 10.0);
             else data.spacing = qBound(0.02, value / 100.0 / share(), 10.0);
+            common.set(data);
+        },
+        [common](bool on) mutable {
+            KisBrushModel::CommonData data = common.get();
+            data.useAutoSpacing = on;
             common.set(data);
         });
     connect(m_brushOption, &KisPaintOpOption::sigSettingChanged, spacing, &KisPaintOpOption::notifyRowValueChanged);
