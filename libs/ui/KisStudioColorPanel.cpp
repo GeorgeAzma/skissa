@@ -912,65 +912,61 @@ static QIcon styleIcon(PickerStyle style)
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.setPen(Qt::NoPen);
 
-    // hues around a ring with a clear center
+    // a faint dark edge, so light hues show on a light panel too
+    const QPen edge(QColor(0, 0, 0, 70), 0.8);
+    const QRectF bounds(1, 1, size - 2, size - 2);
+    const qreal hole = 4.2;
+    // hues around a thick ring
     auto ring = [&](const std::function<QColor(qreal hue)> &hueAt) {
-        const QRectF bounds(1, 1, size - 2, size - 2);
         for (int i = 0; i < 72; i++) {
             painter.setBrush(hueAt(i * 5.0));
             painter.drawPie(bounds, int((90 - i * 5) * 16), -6 * 16);
         }
         painter.setCompositionMode(QPainter::CompositionMode_Clear);
         painter.setBrush(Qt::black);
-        painter.drawEllipse(bounds.center(), 6.6, 6.6);
+        painter.drawEllipse(bounds.center(), hole, hole);
         painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(edge);
+        painter.drawEllipse(bounds.adjusted(0.4, 0.4, -0.4, -0.4));
+        painter.setPen(Qt::NoPen);
     };
     const QColor hue = hueColor(35);
 
     switch (style) {
     case PickerStyle::Ring: {
+        // a square in the hole, as the picker has one in its ring
         ring(hueColor);
-        const QRectF plane(6.5, 6.5, 7, 7);
-        QLinearGradient lightness(plane.topLeft(), plane.bottomLeft());
-        lightness.setColorAt(0, Qt::white);
-        lightness.setColorAt(1, Qt::black);
-        painter.setBrush(lightness);
-        painter.drawRoundedRect(plane, 1.5, 1.5);
-        QLinearGradient chroma(plane.topLeft(), plane.topRight());
-        QColor gray = hue;
-        gray.setAlpha(0);
-        chroma.setColorAt(0, gray);
-        chroma.setColorAt(1, hue);
-        painter.setBrush(chroma);
-        painter.drawRoundedRect(plane, 1.5, 1.5);
+        const QRectF plane(bounds.center() - QPointF(2.6, 2.6), QSizeF(5.2, 5.2));
+        painter.setBrush(hue);
+        painter.setPen(edge);
+        painter.drawRoundedRect(plane, 1, 1);
         break;
     }
     case PickerStyle::Pill: {
+        // three thick bars: lightness, chroma, hue
         auto bar = [&](qreal y, const QGradientStops &stops) {
-            QLinearGradient gradient(QPointF(2, 0), QPointF(size - 2, 0));
+            QLinearGradient gradient(QPointF(1, 0), QPointF(size - 1, 0));
             gradient.setStops(stops);
             painter.setBrush(gradient);
-            painter.drawRoundedRect(QRectF(2, y, size - 4, 3.6), 1.8, 1.8);
+            painter.setPen(edge);
+            painter.drawRoundedRect(QRectF(1.5, y, size - 3, 4.6), 2.3, 2.3);
         };
-        bar(3.2, {{0, Qt::black}, {1, Qt::white}});
-        bar(8.2, {{0, QColor(150, 150, 150)}, {1, hue}});
+        bar(1.8, {{0, Qt::black}, {1, Qt::white}});
+        bar(7.7, {{0, QColor(150, 150, 150)}, {1, hue}});
         QGradientStops hues;
         for (int i = 0; i <= 6; i++) hues << QGradientStop(i / 6.0, hueColor(i * 60.0));
-        bar(13.2, hues);
+        bar(13.6, hues);
         break;
     }
     case PickerStyle::Hsv: {
+        // a triangle in the hole, as the wheel has one
         ring([](qreal h) { return QColor::fromHsvF(std::fmod(h + 270.0, 360.0) / 360.0, 1.0, 1.0); });
+        const QPointF c = bounds.center();
         QPolygonF triangle;
-        triangle << QPointF(10, 4.8) << QPointF(14.5, 12.6) << QPointF(5.5, 12.6);
-        QLinearGradient value(QPointF(10, 4.8), QPointF(10, 12.6));
-        value.setColorAt(0, Qt::black);
-        value.setColorAt(1, Qt::white);
-        painter.setBrush(value);
-        painter.drawPolygon(triangle);
-        QLinearGradient saturation(QPointF(5.5, 12.6), QPointF(14.5, 12.6));
-        saturation.setColorAt(0, QColor(255, 0, 0, 0));
-        saturation.setColorAt(1, QColor(255, 0, 0));
-        painter.setBrush(saturation);
+        triangle << c + QPointF(0, -3.4) << c + QPointF(3.0, 2.0) << c + QPointF(-3.0, 2.0);
+        painter.setBrush(QColor(230, 40, 40));
+        painter.setPen(edge);
         painter.drawPolygon(triangle);
         break;
     }
@@ -1343,8 +1339,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->styleButton = new QToolButton(contents);
     d->styleButton->setAutoRaise(true);
     d->styleButton->setFocusPolicy(Qt::NoFocus);
-    d->styleButton->setIconSize(QSize(18, 18));
-    d->styleButton->setPopupMode(QToolButton::InstantPopup);
+    d->styleButton->setIconSize(QSize(20, 20));
     d->styleButton->setToolTip(i18nc("@info:tooltip", "Picker style"));
     auto *styles = new QMenu(d->styleButton);
     auto *styleGroup = new QActionGroup(styles);
@@ -1386,7 +1381,13 @@ KisStudioColorPanel::KisStudioColorPanel()
             fitHeight();
         });
     }
-    d->styleButton->setMenu(styles);
+    // opened by a click, without a menu button's arrow; a click while it is open closes it
+    auto closed = std::make_shared<QElapsedTimer>();
+    connect(styles, &QMenu::aboutToHide, this, [closed]() { closed->start(); });
+    connect(d->styleButton, &QToolButton::clicked, this, [this, styles, closed]() {
+        if (closed->isValid() && closed->elapsed() < 300) return;
+        styles->popup(d->styleButton->mapToGlobal(QPoint(0, d->styleButton->height())));
+    });
     row->addWidget(d->styleButton);
     d->hex = new HexField(contents);
     d->hex->setFrame(false);
