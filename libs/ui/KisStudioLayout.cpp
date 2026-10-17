@@ -51,6 +51,7 @@
 
 #include <cmath>
 #include <functional>
+#include <limits>
 
 #include <KoCanvasController.h>
 #include <KoToolFactoryBase.h>
@@ -1676,6 +1677,12 @@ public:
         m_grip->setAttribute(Qt::WA_NoSystemBackground);
         m_grip->installEventFilter(this);
         canvasArea->installEventFilter(this);
+        m_glide.setDuration(KisModernStyle::changeDuration);
+        m_glide.setEasingCurve(KisModernStyle::motionCurve());
+        QObject::connect(&m_glide, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
+            setGeometry(m_target.translated(value.toPoint()));
+            placeOwnClips();
+        });
         hide();
     }
 
@@ -1689,6 +1696,8 @@ public:
     bool isLeft() const { return m_left; }
     /// Against its side's edge, rather than floating over the canvas
     bool isDocked() const { return m_spot.x() <= 0; }
+    /// Where it is going, or is when it isn't gliding
+    QRect targetGeometry() const { return m_target.isNull() ? geometry() : m_target; }
 
     /// Where it was dragged to, from its side, as shares of the room it has (see shareOf())
     void setSpot(const QPointF &spot)
@@ -1819,7 +1828,12 @@ public:
         const QPoint boxAt(leader->m_left ? margin + across : area->width() - margin - box.width() - across,
                            span.first + offsetOf(leader->m_spot.y(), span.second - span.first - box.height()));
         const QRect wanted = box.translated(boxAt - box.topLeft());
-        const QPoint cleared = clearOfOthers(wanted, span, members, settled, leader->m_moving).topLeft() - wanted.topLeft();
+        // while dragged, it makes way for all the others, as it will once dropped: it shows where it will stay
+        const bool dragged = leader->m_moving;
+        if (dragged) settled = std::numeric_limits<quint64>::max();
+        const QPoint cleared = clearOfOthers(wanted, span, members, settled).topLeft() - wanted.topLeft();
+        // what the pointer doesn't move glides: making way, catching onto a group
+        const QPoint extra = cleared + (dragged ? leader->m_joining.by : QPoint());
         bool changed = false;
         for (int i = 0; i < members.size(); i++) {
             KisStudioPanelColumn *member = members[i].first;
@@ -1828,10 +1842,8 @@ public:
             member->m_cleared = cleared;
             // a column on the right keeps its right edge when only its strip shows
             const QRect geometry(member->m_left ? at.x() : at.right() + 1 - sizes[i].width(), at.y(), sizes[i].width(), sizes[i].height());
-            if (geometry != member->geometry()) {
-                member->setGeometry(geometry);
-                changed = true;
-            }
+            changed = changed || geometry != member->m_target;
+            member->glideTo(geometry, extra, dragged);
             member->raise();
         }
         placeClips(members);
@@ -1888,6 +1900,7 @@ protected:
     void showEvent(QShowEvent *event) override
     {
         QWidget::showEvent(event);
+        m_shown.start();
         place();
         placeGrip();
     }
@@ -2137,21 +2150,78 @@ private:
                     join.clip->hide();
                     continue;
                 }
-                const QRect a = member.first->m_placed;
-                const QRect b = join.other->m_placed;
-                QPoint middle;
-                if (join.clip->isUpright()) {
-                    const int x = join.edge == Qt::RightEdge ? a.right() + 1 + b.left() : b.right() + 1 + a.left();
-                    middle = QPoint(x / 2, (qMax(a.top(), b.top()) + qMin(a.bottom(), b.bottom())) / 2);
-                } else {
-                    const int y = join.edge == Qt::BottomEdge ? a.bottom() + 1 + b.top() : b.bottom() + 1 + a.top();
-                    middle = QPoint((qMax(a.left(), b.left()) + qMin(a.right(), b.right())) / 2, y / 2);
-                }
-                join.clip->move(middle - QPoint(join.clip->width() / 2, join.clip->height() / 2));
-                join.clip->show();
-                join.clip->raise();
+                placeClip(member.first, join);
             }
         }
+    }
+
+    /// The clips on its own seams, where it shows now (gliding)
+    void placeOwnClips()
+    {
+        for (const Join &join : joins()) {
+            if (join.clip && join.clip->isVisible()) placeClip(this, join);
+            for (const Join &back : join.other->joins()) {
+                if (back.other == this && back.clip && back.clip->isVisible()) placeClip(join.other, back);
+            }
+        }
+    }
+
+    /// \p join's clip on the middle of its seam with \p owner, as they show
+    static void placeClip(const KisStudioPanelColumn *owner, const Join &join)
+    {
+        const QRect a = owner->m_placed.translated(owner->glideNow());
+        const QRect b = join.other->m_placed.translated(join.other->glideNow());
+        QPoint middle;
+        if (join.clip->isUpright()) {
+            const int x = join.edge == Qt::RightEdge ? a.right() + 1 + b.left() : b.right() + 1 + a.left();
+            middle = QPoint(x / 2, (qMax(a.top(), b.top()) + qMin(a.bottom(), b.bottom())) / 2);
+        } else {
+            const int y = join.edge == Qt::BottomEdge ? a.bottom() + 1 + b.top() : b.bottom() + 1 + a.top();
+            middle = QPoint((qMax(a.left(), b.left()) + qMin(a.right(), b.right())) / 2, y / 2);
+        }
+        join.clip->move(middle - QPoint(join.clip->width() / 2, join.clip->height() / 2));
+        join.clip->show();
+        join.clip->raise();
+    }
+
+    /// How far it still is from where it is going
+    QPoint glideNow() const { return m_glide.state() == QAbstractAnimation::Running ? m_glide.currentValue().toPoint() : QPoint(); }
+
+    /**
+     * Goes to \p target: at once where the pointer takes it, gliding the rest, so a group making way or catching
+     * onto another is seen going there. While \p dragged, \p extra is the part of its place the pointer didn't make.
+     */
+    void glideTo(const QRect &target, const QPoint &extra, bool dragged)
+    {
+        const QWidget *area = parentWidget();
+        // nothing to glide from: just shown (and settling in), or the window changed size
+        const bool fresh = !isVisible() || m_target.isNull() || area->size() != m_areaSize || !m_shown.isValid() || m_shown.elapsed() < 500;
+        const QPoint now = glideNow();
+        QPoint from = fresh ? QPoint() : pos() - target.topLeft();
+        if (dragged && !fresh) {
+            // dragged, it follows the pointer or stays put (held off a group) at once; only a jump glides
+            // each way apart: sliding along a group it is held off follows the pointer one way and stays the other
+            const QPoint moved = target.topLeft() - m_target.topLeft();
+            const QPoint byPointer = moved - (extra - m_extra);
+            auto jump = [](int moved, int byPointer) { return qAbs(moved) > 3 && qAbs(moved - byPointer) > 3 ? moved : 0; };
+            from = now - QPoint(jump(moved.x(), byPointer.x()), jump(moved.y(), byPointer.y()));
+        }
+        m_areaSize = area->size();
+        m_target = target;
+        m_extra = extra;
+        if (from.manhattanLength() < 2) {
+            m_glide.stop();
+            setGeometry(target);
+            return;
+        }
+        // a new jump starts the glide again; else it keeps going
+        if (m_glide.state() != QAbstractAnimation::Running || from != now) {
+            m_glide.stop();
+            m_glide.setStartValue(from);
+            m_glide.setEndValue(QPoint());
+            m_glide.start();
+        }
+        setGeometry(target.translated(glideNow()));
     }
 
     /// Its size now: as tall as its panels want within the room, or just the strip without them
@@ -2205,21 +2275,16 @@ private:
         return count;
     }
 
-    /**
-     * \p wanted moved the least it takes off the tool rail and the groups that settled before \p settled (those it
-     * overlaps, but not \p members); only off the rail while \p moving
-     */
-    QRect clearOfOthers(QRect wanted, const QPair<int, int> &span, const Members &members, quint64 settled, bool moving)
+    /// \p wanted moved the least it takes off the tool rail and the groups that settled before \p settled (those it overlaps, but not \p members)
+    QRect clearOfOthers(QRect wanted, const QPair<int, int> &span, const Members &members, quint64 settled)
     {
         QVector<QRect> obstacles;
         const QRect rail = parentWidget()->property(railRectProperty).toRect();
         if (!rail.isEmpty()) obstacles << rail;
-        if (!moving) {
-            const QList<KisStudioPanelColumn *> columns = columnsBeside();
-            for (KisStudioPanelColumn *other : columns) {
-                if (other->isHidden() || contains(members, other) || other->settledOfAll() > settled) continue;
-                obstacles << other->geometry();
-            }
+        const QList<KisStudioPanelColumn *> columns = columnsBeside();
+        for (KisStudioPanelColumn *other : columns) {
+            if (other->isHidden() || contains(members, other) || other->settledOfAll() > settled) continue;
+            obstacles << other->targetGeometry();
         }
         auto clear = [&](const QRect &at, int count) {
             for (int i = 0; i < count; i++) {
@@ -2281,6 +2346,12 @@ private:
     QPoint m_cleared;
     QVector<Join> m_joins;
     Joining m_joining;
+    /// Where it is going (see glideTo()), from what and in which window size
+    QRect m_target;
+    QVariantAnimation m_glide;
+    QPoint m_extra;
+    QSize m_areaSize;
+    QElapsedTimer m_shown;
     int m_width {0};
     bool m_resizing {false};
     int m_outer {0};
@@ -3806,7 +3877,7 @@ void KisStudioLayout::updateCanvasInsets(bool views)
         // one floating over the canvas leaves it be
         if (column->isHidden() || !column->isDocked()) continue;
         const bool left = column->isLeft();
-        const int reach = left ? column->geometry().right() + 1 : area->width() - column->x();
+        const int reach = left ? column->targetGeometry().right() + 1 : area->width() - column->targetGeometry().x();
         // the tool rail sits beside the pill, even when only its strip shows
         (left ? pillLeft : pillRight) = qMax(left ? pillLeft : pillRight, reach);
         if (column->panelsShown()) (left ? fullLeft : fullRight) = qMax(left ? fullLeft : fullRight, reach);
