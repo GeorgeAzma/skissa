@@ -31,31 +31,47 @@ QString KoZoomMode::toString(Mode mode)
     return "";
 }
 
+namespace {
+
+/**
+ * The simplest ratio near \p zoom (5/4, 3/2, 5/2...; its inverse below 100%), within \p tolerance as a log
+ * ratio: the pixels land on the screen most evenly there. Smaller denominators win unless much further.
+ */
+qreal sharpened(qreal zoom, qreal tolerance)
+{
+    const bool down = zoom < 1.0;
+    const qreal up = down ? 1.0 / zoom : zoom;
+    qreal best = up;
+    qreal bestScore = tolerance + 1.0;
+    // halves and quarters only near 100%: further out, whole steps are the even ones
+    const int finest = up < 2.0 ? 4 : up < 4.0 ? 2 : 1;
+    for (int denominator = 1; denominator <= finest; denominator++) {
+        const qreal ratio = qMax(1.0, std::round(up * denominator)) / denominator;
+        const qreal distance = std::abs(std::log(ratio / up));
+        const qreal score = distance + 0.02 * denominator;
+        if (distance <= tolerance && score < bestScore) {
+            best = ratio;
+            bestScore = score;
+        }
+    }
+    return down ? 1.0 / best : best;
+}
+
+}
+
 QVector<qreal> KoZoomMode::generateStandardZoomLevels(qreal minZoom, qreal maxZoom)
 {
     KConfigGroup config = KSharedConfig::openConfig()->group("");
-    int steps = config.readEntry("zoomSteps", 2);
-    qreal k = steps / M_LN2;
+    const int steps = qMax(1, config.readEntry("zoomSteps", 3));
 
-    int first =  ceil(log(minZoom) * k);
-    int size  = floor(log(maxZoom) * k) - first + 1;
-    QVector<qreal> zoomLevels(size);
-
-    // enforce zoom levels relating to thirds (33.33%, 66.67%, ...)
-    QVector<qreal> snap(steps);
-    if (steps > 1) {
-        qreal third = log(4./ 3.) * k;
-        int i = round(third);
-        snap[(i - first) % steps] = third - i;
-    }
-
-    k = 1./ k;
-    for (int i = 0; i < steps; i++) {
-        qreal f = exp((i + first + snap[i]) * k);
-        f = floor(f * 0x1p48 + 0.5) / 0x1p48; // round off inaccuracies
-        for (int j = i; j < size; j += steps, f *= 2.) {
-            zoomLevels[j] = f;
-        }
+    // evenly spaced by ratio, each level then caught by the simplest ratio near it
+    const int first = std::ceil(std::log2(minZoom) * steps);
+    const int last = std::floor(std::log2(maxZoom) * steps);
+    const qreal tolerance = 0.4 * M_LN2 / steps;
+    QVector<qreal> zoomLevels;
+    for (int i = first; i <= last; i++) {
+        const qreal zoom = qBound(minZoom, sharpened(std::exp2(qreal(i) / steps), tolerance), maxZoom);
+        if (zoomLevels.isEmpty() || zoom > zoomLevels.last() * (1.0 + 1e-6)) zoomLevels << zoom;
     }
     return zoomLevels;
 }

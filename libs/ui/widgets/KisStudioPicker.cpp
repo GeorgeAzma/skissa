@@ -26,6 +26,7 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QWheelEvent>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -705,6 +706,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     d->scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     d->scroll->setWidgetResizable(false);
     d->scroll->viewport()->setAutoFillBackground(false);
+    d->scroll->viewport()->installEventFilter(this);
     d->grid->setAutoFillBackground(false);
     layout->addWidget(d->scroll);
 
@@ -961,6 +963,15 @@ void KisStudioPicker::keepOnScreen()
 
 bool KisStudioPicker::eventFilter(QObject *watched, QEvent *event)
 {
+    // scrolled down past the end of the user's own: the rest comes, without a click
+    if (watched == d->scroll->viewport() && event->type() == QEvent::Wheel && !d->showAll && d->allButton->isVisible()) {
+        const QScrollBar *bar = d->scroll->verticalScrollBar();
+        if (static_cast<QWheelEvent *>(event)->angleDelta().y() < 0 && bar->value() >= bar->maximum()) {
+            d->showAll = true;
+            d->relayout();
+            return true;
+        }
+    }
     if (watched == d->search && event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
         const int count = d->items.size();

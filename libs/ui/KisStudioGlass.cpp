@@ -1358,13 +1358,18 @@ bool isTooltip(const QWidget *widget)
     return widget->windowType() == Qt::ToolTip && (widget->inherits("QTipLabel") || widget->inherits("KoItemToolTip"));
 }
 
-void makeGlassTooltip(QWidget *tooltip)
+/// Tints a glass tooltip like a menu rather than with the near-black tooltip color
+void tintGlassTooltip(QWidget *tooltip)
 {
-    makeSeeThroughWindow(tooltip);
-    // Tint it like a menu rather than with the near-black tooltip color.
     QPalette palette = tooltip->palette();
     palette.setColor(QPalette::Window, QApplication::palette().color(QPalette::Window));
     tooltip->setPalette(palette);
+}
+
+void makeGlassTooltip(QWidget *tooltip)
+{
+    makeSeeThroughWindow(tooltip);
+    tintGlassTooltip(tooltip);
 }
 
 /// Makes menus, tooltips, dropdowns and dialogs glass as they are polished, and paints their glass.
@@ -1382,6 +1387,12 @@ protected:
                 dialog->setProperty(glassDialogProperty, panel);
                 if (panel) makeSeeThroughWindow(dialog);
             }
+            return false;
+        }
+        if (type == QEvent::ApplicationPaletteChange) {
+            // a tooltip a list keeps (resource lists do) takes the new theme's tint, not the one it was made in
+            auto *tooltip = qobject_cast<QWidget *>(watched);
+            if (tooltip && isTooltip(tooltip) && tooltip->testAttribute(Qt::WA_TranslucentBackground)) tintGlassTooltip(tooltip);
             return false;
         }
         if (type != QEvent::Polish && type != QEvent::Paint && type != QEvent::MouseButtonPress && type != QEvent::KeyPress) {

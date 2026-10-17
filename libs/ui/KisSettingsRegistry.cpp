@@ -247,7 +247,7 @@ QHash<QString, QString> explanations()
         {QStringLiteral("newOutlineStyle"), i18nc("@info:tooltip", "Circle: the brush's size\nBrush: its real shape\nWith tilt: its shape, leaning with the pen")},
         {QStringLiteral("newCursorStyle"), i18nc("@info:tooltip", "A mark at the pen's tip, with the outline")},
         {QStringLiteral("showSingleChannelAsColor"), i18nc("@info:tooltip", "One channel shown alone in its own color: Red in red, not gray")},
-        {QStringLiteral("zoomSteps"), i18nc("@info:tooltip", "Steps from 100% to 200%. 2: 100% → 141% → 200%")},
+        {QStringLiteral("zoomSteps"), i18nc("@info:tooltip", "Steps from 100% to 200%. 3: 100% → 125% → 150% → 200%")},
         {QStringLiteral("OpenGLFilterMode"),
          i18nc("@info:tooltip",
                "Nearest: crisp square pixels, for pixel art\nBilinear: smooth, fastest\nTrilinear: smooth, less shimmer zoomed out\n"
@@ -495,7 +495,7 @@ QVector<Setting> describeAll()
             }
         };
         all << channels;
-        all << number(QStringLiteral("zoomSteps"), 2, 1, 32, i18nc("setting", "Zoom steps"), R::NewViews);
+        all << number(QStringLiteral("zoomSteps"), 3, 1, 32, i18nc("setting", "Zoom steps"), R::NewViews);
         all << toggle(QStringLiteral("zoomHorizontal"), false, i18nc("setting", "Zoom by dragging sideways"));
         all << choice(QStringLiteral("OpenGLFilterMode"), 3,
                       {{0, i18nc("canvas scaling", "Nearest")}, {1, i18nc("canvas scaling", "Bilinear")},
@@ -784,7 +784,7 @@ QVector<Setting> describeAll()
  */
 void forgetRetired()
 {
-    constexpr int version = 7;
+    constexpr int version = 8;
     KConfigGroup top = KSharedConfig::openConfig()->group(QString());
     if (top.readEntry("StudioRetiredSettings", 0) >= version) return;
     const char *const keys[] = {
@@ -824,6 +824,8 @@ void forgetRetired()
     if (top.readEntry("StudioRetiredSettings", 0) < 4 && top.readEntry("sessionOnStartup", 0) == 0) top.deleteEntry("sessionOnStartup");
     // Likewise for the sampler magnifier, which upstream Krita defaults to off
     if (top.readEntry("StudioRetiredSettings", 0) < 5 && !top.readEntry("colorSamplerZoomPreviewEnabled", true)) top.deleteEntry("colorSamplerZoomPreviewEnabled");
+    // and the zoom steps, whose old default of 2 went from 100% to 133% to 200%
+    if (top.readEntry("StudioRetiredSettings", 0) < 8 && top.readEntry("zoomSteps", 0) == 2) top.deleteEntry("zoomSteps");
     KSharedConfig::openConfig()->group(QStringLiteral("StudioTheme")).deleteEntry("Contrast");
     QSettings display(displayrcPath(), QSettings::IniFormat);
     display.remove(QStringLiteral("EnableHiDPI"));

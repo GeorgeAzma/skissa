@@ -2398,7 +2398,7 @@ void KisConfig::setKineticScrollingHideScrollbars(bool scrollbar)
 
 int KisConfig::zoomSteps(bool defaultValue) const
 {
-    return (defaultValue ? 2 : m_cfg.readEntry("zoomSteps", 2));
+    return (defaultValue ? 3 : m_cfg.readEntry("zoomSteps", 3));
 }
 
 void KisConfig::setZoomSteps(int steps)

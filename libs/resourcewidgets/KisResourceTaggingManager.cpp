@@ -28,7 +28,7 @@
 
 #include "KisTagFilterWidget.h"
 #include "KisTagChooserWidget.h"
-#include "KisResourceItemChooserContextMenu.h"
+#include "KisResourceTagMenu.h"
 #include "kis_debug.h"
 #include "KisTag.h"
 
@@ -109,7 +109,7 @@ void KisResourceTaggingManager::contextMenuRequested(KoResourceSP resource, QPoi
     if (!resource || !d->tagChooser->isVisible())
         return;
 
-    KisResourceItemChooserContextMenu menu(resource, d->tagChooser->currentlySelectedTag(), d->tagChooser);
+    KisResourceTagMenu menu(resource, d->tagChooser);
     menu.exec(pos);
 
 }

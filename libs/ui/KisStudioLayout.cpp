@@ -545,7 +545,7 @@ QMargins canvasInsets(const QWidget *canvasArea)
  */
 qreal shareOf(int offset, int room)
 {
-    const int snap = 48;
+    const int snap = 20;
     if (room <= 0 || offset < snap) return 0;
     if (offset > room - snap) return 1;
     if (qAbs(offset - room / 2) < snap / 2) return 0.5;
@@ -573,6 +573,8 @@ void writeSpot(const QString &key, const QPointF &spot)
 /// How far the pinned panels' pill reaches in from the left and right edges, even when only its strip shows
 const char *const leftPillProperty = "studioPanelPillLeft";
 const char *const rightPillProperty = "studioPanelPillRight";
+/// Where the window's handle in the top left corner ends, or 0 while it is hidden
+const char *const handleBottomProperty = "studioWindowHandleBottom";
 
 /// Paints \p widget as glass with a rim of opacity \p rim
 void paintGlass(QPainter &painter, QWidget *widget, qreal radius, qreal rim)
@@ -1253,7 +1255,9 @@ private:
         const int bottom = area->property(bottomInsetProperty).toInt();
         const int minX = 10 + area->property(leftPillProperty).toInt();
         const int maxX = area->width() - 10 - area->property(rightPillProperty).toInt() - width();
-        const int minY = top > 0 ? top + 6 : 10;
+        // below the window's handle too, which stays when the top bar goes elsewhere
+        const int handle = area->property(handleBottomProperty).toInt();
+        const int minY = qMax(top > 0 ? top + 6 : 10, handle > 0 ? handle + 6 : 0);
         // placed as if open, so the grip stays where it was when tucked
         const int maxY = area->height() - (bottom > 0 ? bottom + 6 : 10) - (m_tucked ? qMax(height(), m_openHeight) : height());
         return QRect(minX, minY, qMax(0, maxX - minX), qMax(0, maxY - minY));
@@ -4091,6 +4095,7 @@ void KisStudioLayout::placeWindowHandle()
     }
     if (handle->geometry() != place) handle->setGeometry(place);
     handle->raise();
+    area->setProperty(handleBottomProperty, handle->isVisible() ? place.bottom() + 1 : 0);
     TopPill *window = d->windowPill;
     pill->setInsets(handle->isVisible() ? place.right() + 1 : 0, window && window->isVisible() ? area->width() - window->x() : 0);
 }

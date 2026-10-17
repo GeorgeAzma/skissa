@@ -105,7 +105,7 @@ public:
         bool size {false};
         /// Used while the row is unchecked too (Opacity: the checkbox is only the pen's)
         bool appliesUnchecked {false};
-        /// Shown instead of the number (Spacing: "Auto"); dragging sets a number
+        /// Shown instead of the number (Spacing: "Auto 1.0×"); dragging sets a number
         QString text;
     };
 

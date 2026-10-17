@@ -226,7 +226,7 @@ void KisStudioValueRow::paintEvent(QPaintEvent *)
     }
     painter.fillPath(shape, ground);
 
-    if (m_draggable && m_valueText.isEmpty() && !m_inactive) {
+    if (m_draggable && !m_inactive) {
         QColor bar = ink;
         bar.setAlphaF(0.08);
         painter.save();

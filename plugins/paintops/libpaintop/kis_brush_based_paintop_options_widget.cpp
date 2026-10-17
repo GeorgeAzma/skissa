@@ -6,6 +6,8 @@
 
 #include "kis_brush_based_paintop_options_widget.h"
 
+#include <QLocale>
+
 #include "kis_brush_option_widget.h"
 #include <klocalizedstring.h>
 
@@ -83,20 +85,30 @@ void KisBrushBasedPaintopOptionWidget::addSpacingRow(KisSpacingOptionWidget *spa
         [common, share]() -> std::optional<KisPaintOpOption::RowValue> {
             const KisBrushModel::CommonData data = common.get();
             KisPaintOpOption::RowValue value;
+            value.size = true;
+            value.appliesUnchecked = true;
+            if (data.useAutoSpacing) {
+                // chosen from the brush size, times this factor: Krita's slider is the factor then
+                value.value = data.autoSpacingCoeff * share();
+                value.minimum = 0.02;
+                value.maximum = 10.0;
+                value.decimals = 1;
+                value.suffix = QStringLiteral("×");
+                value.text = i18nc("spacing chosen from the brush size, %1 is how much wider, as 1.0×", "Auto %1",
+                                   QLocale().toString(value.value, 'f', 1) + QStringLiteral("×"));
+                return value;
+            }
             value.value = data.spacing * 100.0 * share();
             value.minimum = 2.0;
             value.maximum = 1000.0;
             value.suffix = i18nc("percent, after the number", "%");
-            value.size = true;
-            value.appliesUnchecked = true;
-            if (data.useAutoSpacing) value.text = i18nc("spacing chosen from the brush size", "Auto");
             return value;
         },
         [common, share](qreal value) mutable {
             KisBrushModel::CommonData data = common.get();
             // within the range Krita's own spacing slider has
-            data.spacing = qBound(0.02, value / 100.0 / share(), 10.0);
-            data.useAutoSpacing = false;
+            if (data.useAutoSpacing) data.autoSpacingCoeff = qBound(0.02, value / share(), 10.0);
+            else data.spacing = qBound(0.02, value / 100.0 / share(), 10.0);
             common.set(data);
         });
     connect(m_brushOption, &KisPaintOpOption::sigSettingChanged, spacing, &KisPaintOpOption::notifyRowValueChanged);

@@ -1,6 +1,7 @@
 set(kritaresourcewidgets_LIB_SRCS
     KisIconToolTip.cpp
     KisResourceItemChooserContextMenu.cpp
+    KisResourceTagMenu.cpp
     KisResourceItemChooser.cpp
     KisResourceItemChooserSync.cpp
     KisResourceItemDelegate.cpp
