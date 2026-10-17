@@ -81,9 +81,21 @@ private:
     void arrangePinned();
     void restoreHeights();
     void saveHeights();
-    /// Joins the groups saved as joined, once both are there
-    void restoreJoins();
-    void saveJoins();
+    /// Each lane's width in \p group, as saved (see KisStudioPanelColumn::laneWidths())
+    QVector<int> readWidths(int group) const;
+    void saveWidths(int group);
+    QString widthKeyOf(int group) const;
+    /// \p column dragged to \p placed (canvas area coordinates) and perhaps \p dropped there: whether it joins a
+    /// group there, shown while dragged and done once dropped
+    bool joinAt(KisStudioPanelColumn *column, const QRect &placed, bool dropped);
+    /// Puts \p from's panels beside \p to (\p edge: which of its sides), or into \p lane at its top or bottom
+    void joinGroups(KisStudioPanelColumn *from, KisStudioPanelColumn *to, Qt::Edge edge, int lane, const QRect &placed);
+    /// The lanes of \p column from \p lane on, as a group of their own
+    void separateLanes(KisStudioPanelColumn *column, int lane);
+    /// Each lane's panels' ids, top to bottom
+    QList<QStringList> lanesOf(const KisStudioPanelColumn *column) const;
+    /// A group number no group has
+    int freeGroup() const;
     /// The column with the panel buttons
     KisStudioPanelColumn *panelColumn();
     /// The column of a group of pinned panels: 0 the one with the panel buttons, 1 across the canvas from it,
@@ -91,7 +103,7 @@ private:
     KisStudioPanelColumn *groupColumn(int group);
     /// A new floating group, dropped at \p windowPos: its number, with its place written
     int newPanelGroup(const QPoint &windowPos);
-    KisStudioPanelColumn *createColumn(bool left, int width, const QString &widthKey);
+    KisStudioPanelColumn *createColumn(int group, bool left);
     void setPanelsSide(bool left);
     void setToolRailSide(bool left);
     /// Tucked away by tapping their grip: the pinned panels (but not their strip), the tool rail's tools, the top bar
