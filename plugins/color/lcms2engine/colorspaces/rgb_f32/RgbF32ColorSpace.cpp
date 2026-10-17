@@ -13,6 +13,7 @@
 
 #include "LcmsRGBP2020PQColorSpace.h"
 #include "compositeops/KoCompositeOps.h"
+#include "compositeops/KoCompositeOpMix.h"
 #include "compositeops/RgbCompositeOps.h"
 #include "dithering/KisRgbDitherOpFactory.h"
 #include <KoColorConversions.h>
@@ -42,6 +43,8 @@ RgbF32ColorSpace::RgbF32ColorSpace(const QString &name, KoColorProfile *p) :
     addCompositeOp(new RgbCompositeOpIn<KoRgbF32Traits>(this));
     addCompositeOp(new RgbCompositeOpOut<KoRgbF32Traits>(this));
     addCompositeOp(new RgbCompositeOpBumpmap<KoRgbF32Traits>(this));
+    // brushes that mix as paint (see KoMixing)
+    Q_FOREACH (KoCompositeOp *op, KoCompositeOpMix::all(this)) addCompositeOp(op);
 }
 
 bool RgbF32ColorSpace::willDegrade(ColorSpaceIndependence independence) const

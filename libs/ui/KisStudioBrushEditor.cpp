@@ -38,6 +38,7 @@
 #include "KisStudioBarButtons.h"
 #include "KisStudioBrushPicker.h"
 #include "KisStudioBrushSheet.h"
+#include "KisStudioMixing.h"
 #include "KisStudioPenPopup.h"
 #include "KisStudioSmoothing.h"
 #include "KisViewManager.h"
@@ -524,6 +525,11 @@ void KisStudioBrushEditor::showPart(int part)
 
     const QList<KisPaintOpOption *> options = d->options();
     const auto category = KisPaintOpOption::PaintopCategory(part);
+
+    // how its paint mixes with paint, for every brush that has colors
+    if (category == KisPaintOpOption::COLOR) {
+        if (QWidget *mixing = KisStudioMixing::chooser(d->mainWindow, d->page)) d->pageLayout->addWidget(mixing);
+    }
 
     // the pictures first: the tip to shape, the patterns to pick
     // the part's own first (the patterns), then what others add to it (the tip's grain)

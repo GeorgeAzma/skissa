@@ -14,6 +14,7 @@
 
 #include "LcmsRGBP2020PQColorSpace.h"
 #include "compositeops/KoCompositeOps.h"
+#include "compositeops/KoCompositeOpMix.h"
 #include "compositeops/RgbCompositeOps.h"
 #include "dithering/KisRgbDitherOpFactory.h"
 #include <KoColorConversions.h>
@@ -42,6 +43,8 @@ RgbU8ColorSpace::RgbU8ColorSpace(const QString &name, KoColorProfile *p) :
     addCompositeOp(new RgbCompositeOpIn<KoBgrU8Traits>(this));
     addCompositeOp(new RgbCompositeOpOut<KoBgrU8Traits>(this));
     addCompositeOp(new RgbCompositeOpBumpmap<KoBgrU8Traits>(this));
+    // brushes that mix as paint (see KoMixing)
+    Q_FOREACH (KoCompositeOp *op, KoCompositeOpMix::all(this)) addCompositeOp(op);
 }
 
 KoColorSpace *RgbU8ColorSpace::clone() const

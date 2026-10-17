@@ -91,6 +91,9 @@ public:
 
     virtual QString finalCompositeOp(bool smearAlpha) const;
 
+    /// \p id mixed as the brush mixes (its blend from the stroke says how)
+    QString mixedCompositeOp(const QString &id) const;
+
     virtual qreal finalPainterOpacity(qreal opacity, qreal smudgeRateValue);
 
     virtual qreal colorRateOpacity(qreal opacity, qreal smudgeRateValue, qreal colorRateValue, qreal maxPossibleSmudgeRateValue);
@@ -121,6 +124,7 @@ protected:
 private:
     KisFixedPaintDeviceSP m_blendDevice;
     bool m_useDullingMode {true};
+    int m_mixing {0};
 };
 
 

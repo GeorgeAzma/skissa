@@ -6,6 +6,7 @@
  */
 
 #include <KoCompositeOpRegistry.h>
+#include <compositeops/KoCompositeOpMix.h>
 #include "KisColorSmudgeStrategyBase.h"
 #include "kis_painter.h"
 #include "kis_fixed_paint_device.h"
@@ -121,6 +122,9 @@ void KisColorSmudgeStrategyBase::initializePaintingImpl(const KoColorSpace *dstC
     m_blendDevice = new KisFixedPaintDevice(dstColorSpace, m_memoryAllocator);
     m_smearOp = dstColorSpace->compositeOp(smearCompositeOp(smearAlpha));
     m_colorRateOp = dstColorSpace->compositeOp(colorRateCompositeOpId);
+    // a brush that mixes evenly or as paint (its blend says so) carries what it smudges mixed alike
+    m_mixing = KoMixing::modeOf(colorRateCompositeOpId);
+    m_smearOp = dstColorSpace->compositeOp(mixedCompositeOp(m_smearOp->id()));
     m_preparedDullingColor.convertTo(dstColorSpace);
 }
 
@@ -135,6 +139,12 @@ const KoColorSpace *KisColorSmudgeStrategyBase::preciseColorSpace() const
 QString KisColorSmudgeStrategyBase::smearCompositeOp(bool smearAlpha) const
 {
     return smearAlpha ? COMPOSITE_COPY : COMPOSITE_OVER;
+}
+
+QString KisColorSmudgeStrategyBase::mixedCompositeOp(const QString &id) const
+{
+    const QString mixed = KoMixing::opId(m_mixing, id);
+    return !mixed.isEmpty() && m_blendDevice && m_blendDevice->colorSpace()->hasCompositeOp(mixed) ? mixed : id;
 }
 
 QString KisColorSmudgeStrategyBase::finalCompositeOp(bool smearAlpha) const

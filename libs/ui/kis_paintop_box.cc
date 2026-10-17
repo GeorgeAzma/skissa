@@ -85,6 +85,7 @@
 #include "KisResourceLoaderRegistry.h"
 #include "kis_acyclic_signal_connector.h"
 #include "KisMainWindow.h"
+#include "compositeops/KoCompositeOpMix.h"
 
 
 KisPaintopBox::KisPaintopBox(KisViewManager *viewManager, QWidget *parent, const char *name)
@@ -1520,7 +1521,8 @@ void KisPaintopBox::slotGuiChangedCurrentPreset() // Called only when UI is chan
         // some of the options add the values incrementally
         // (e.g. KisPaintOpUtils::RequiredBrushFilesListTag), therefore they
         // may add up if we pass the same preset multiple times
-        preset->settings()->resetSettings();
+        // the brush's mixing (the fork's, see KoMixing) has no option widget to write it again
+        preset->settings()->resetSettings({KoMixing::settingName()});
 
         m_presetsEditor->writeOptionSetting(const_cast<KisPaintOpSettings*>(preset->settings().data()));
     }

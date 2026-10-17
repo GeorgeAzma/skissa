@@ -23,6 +23,7 @@
 #include "kis_selection_mask.h"
 #include "kis_algebra_2d.h"
 #include "KisGlobalResourcesInterface.h"
+#include "compositeops/KoCompositeOpMix.h"
 
 struct KisResourcesSnapshot::Private {
     Private()
@@ -139,6 +140,13 @@ KisResourcesSnapshot::KisResourcesSnapshot(KisImageSP image, KisNodeSP currentNo
 
     m_d->compositeOpId = resourceManager->resource(KoCanvasResource::CurrentEffectiveCompositeOp).toString();
     setCurrentNode(currentNode);
+
+    // a brush that mixes evenly or as paint lays its paint on so, where the layer can (see KoMixing)
+    if (m_d->currentPaintOpPreset && m_d->compositeOpId == COMPOSITE_OVER) {
+        const QString mixed = KoMixing::opId(m_d->currentPaintOpPreset->settings()->getInt(KoMixing::settingName(), KoMixing::Normal), COMPOSITE_OVER);
+        KisPaintDeviceSP device = m_d->currentNode ? m_d->currentNode->paintDevice() : KisPaintDeviceSP();
+        if (!mixed.isEmpty() && device && device->colorSpace()->hasCompositeOp(mixed)) m_d->compositeOpId = mixed;
+    }
 
     m_d->selectedNodes = selectedNodes;
 

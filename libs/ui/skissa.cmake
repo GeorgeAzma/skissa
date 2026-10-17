@@ -31,6 +31,7 @@ set(skissa_ui_SRCS
     KisStudioItemCard.cpp
     KisStudioLayout.cpp
     KisStudioMakeBrush.cpp
+    KisStudioMixing.cpp
     KisStudioMotion.cpp
     KisStudioPanelPicker.cpp
     KisStudioPenPopup.cpp

@@ -46,6 +46,7 @@
 #include "KisMainWindow.h"
 #include "KisStudioBarButtons.h"
 #include "KisStudioBrushEditor.h"
+#include "KisStudioMixing.h"
 #include "KisStudioBrushPicker.h"
 #include "KisStudioGlass.h"
 #include "KisStudioPenPopup.h"
@@ -710,6 +711,7 @@ void KisStudioBrushSheet::rebuild()
             if (QWidget *blend = blends ? d->blendRow(column) : nullptr) {
                 columnLayout->addSpacing(KisModernStyle::space1);
                 columnLayout->addWidget(blend);
+                if (QWidget *mixing = KisStudioMixing::chooser(d->mainWindow, column)) columnLayout->addWidget(mixing);
             }
         }
 
