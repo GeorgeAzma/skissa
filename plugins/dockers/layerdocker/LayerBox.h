@@ -149,8 +149,12 @@ private:
     /// A new layer right above the layer at \p index
     void addLayerAbove(const QModelIndex &index);
     void startFiltering(const QString &typed);
-    /// Puts the blend mode and opacity controls in the current layer's row
+    /// Puts the blend mode in the current layer's row
     void placeRowControls();
+    /// What the current layer's row shows: its blend mode and opacity when unusual, both on hover (see NodeDelegate::opacityRect())
+    void updateRowShown();
+    /// The current layer's opacity typed where it is written
+    void typeOpacity();
     /// The row just below the line between two rows near \p pos (\p gapY is the line), if any
     QModelIndex gapAt(const QPoint &pos, int *gapY) const;
     /// A sideways drag on a row sets its opacity, a quarter as fast when \p fine; true while it does
@@ -207,6 +211,10 @@ private:
     KisSignalAutoConnectionsStore m_activeNodeConnections;
     QScopedPointer<KisScreenMigrationTracker> m_screenMigrationTracker;
     QWidget *m_rowControls {nullptr};
+    /// The row under the pointer
+    QPersistentModelIndex m_hoverRow;
+    /// The blend mode's width in the current layer's row
+    int m_modeWidth {0};
     QWidget *m_gapIndicator {nullptr};
     QPersistentModelIndex m_gapIndex;
     QAbstractButton *m_addStrip {nullptr};

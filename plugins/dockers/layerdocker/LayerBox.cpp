@@ -51,6 +51,7 @@
 #include <kis_icon.h>
 #include <KoColorSpace.h>
 #include <KoCompositeOpRegistry.h>
+#include <QContextMenuEvent>
 #include <KisDocument.h>
 #include <kis_time_span.h>
 
@@ -92,6 +93,9 @@
 #include "kis_selection.h"
 #include "kis_processing_applicator.h"
 #include "commands/kis_set_global_selection_command.h"
+#include "commands/kis_node_property_list_command.h"
+#include "kis_layer_properties_icons.h"
+#include "widgets/KisStudioInlineEdit.h"
 #include "KisSelectionActionsAdapter.h"
 #include "KisIdleTasksManager.h"
 
@@ -188,7 +192,10 @@ protected:
         font.setBold(true);
         painter.setFont(font);
         painter.setPen(Qt::white);
-        painter.drawText(r.adjusted(0, 0, -10, 0), Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("%1%").arg(qRound(m_percent)));
+        // let go at nothing, the layer is hidden instead
+        const QString text = qRound(m_percent) == 0 ? i18nc("a layer's opacity dragged to nothing: it will be hidden, its opacity kept", "Hidden")
+                                                    : QStringLiteral("%1%").arg(qRound(m_percent));
+        painter.drawText(r.adjusted(0, 0, -10, 0), Qt::AlignRight | Qt::AlignVCenter, text);
     }
 
 private:
@@ -372,20 +379,16 @@ LayerBox::LayerBox()
 
         ui->verticalLayout->setContentsMargins(6, 2, 6, 6);
 
-        // placed in the current layer's row by placeRowControls()
+        // placed in the current layer's row by placeRowControls(); its opacity is written beside it by the
+        // list and set by a sideways drag on the row, so Krita's slider is kept only for its value
         m_rowControls = new QWidget(ui->listLayers->viewport());
         auto *row = new QHBoxLayout(m_rowControls);
         row->setContentsMargins(0, 3, 2, 3);
         row->setSpacing(2);
         ui->cmbComposite->setFrame(false);
         row->addWidget(ui->cmbComposite);
-        ui->doubleOpacity->setToolTip(i18nc("@info:tooltip", "Layer opacity"));
-        ui->doubleOpacity->setButtonSymbols(QAbstractSpinBox::NoButtons);
-        ui->doubleOpacity->setFrame(false);
-        ui->doubleOpacity->setProperty(KisModernStyle::quietFieldProperty, true);
-        ui->doubleOpacity->setFixedWidth(46);
-        row->addWidget(ui->doubleOpacity);
-        // as wide as the mode's name; the row's name ends where they begin
+        ui->doubleOpacity->hide();
+        // as wide as the mode's name; the row's name ends where it begins
         auto fit = [this]() {
             Ui_WdgLayerBox *ui = m_wdgLayerBox;
             QStyleOptionComboBox option;
@@ -396,18 +399,17 @@ LayerBox::LayerBox()
             ui->cmbComposite->setFixedWidth(mode);
             // computed, not read back: width() changes only once the layout has run
             const QMargins margins = m_rowControls->layout()->contentsMargins();
-            const int width = mode + m_rowControls->layout()->spacing() + 46 + margins.left() + margins.right();
-            if (ui->listLayers->property("rowControlsWidth").toInt() != width) {
-                ui->listLayers->setProperty("rowControlsWidth", width);
-                ui->listLayers->viewport()->update();
-            }
+            m_modeWidth = mode + margins.left() + margins.right();
+            updateRowShown();
         };
         connect(ui->cmbComposite, QOverload<int>::of(&QComboBox::currentIndexChanged), this, fit);
         fit();
         // once its font is the panel's
         QTimer::singleShot(0, this, fit);
+        // fingers can't hover: what shows on hover shows always
+        connect(KisTouchMode::instance(), &KisTouchMode::changed, this, [this]() { updateRowShown(); });
         // quieter than the layer's name
-        for (QWidget *quiet : std::initializer_list<QWidget *>{ui->cmbComposite, ui->doubleOpacity}) {
+        for (QWidget *quiet : std::initializer_list<QWidget *>{ui->cmbComposite}) {
             QPalette palette = quiet->palette();
             for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::Text, QPalette::WindowText}) {
                 QColor ink = palette.color(role);
@@ -1094,23 +1096,84 @@ void LayerBox::placeRowControls()
         if (m_rowControls->isVisible()) m_rowControls->hide();
         return;
     }
+    updateRowShown();
     auto *delegate = qobject_cast<NodeDelegate *>(view->itemDelegate());
-    const QRect rect = delegate ? delegate->inlineControlsRect(main, row, view->layoutDirection()) : QRect();
-    // in tall rows the opacity slider spans the row, otherwise it is as wide as its number
-    QWidget *opacity = m_wdgLayerBox->doubleOpacity;
-    const bool tall = delegate && delegate->isTall();
-    if (tall && opacity->maximumWidth() == 46) {
-        opacity->setMinimumWidth(46);
-        opacity->setMaximumWidth(QWIDGETSIZE_MAX);
-    } else if (!tall && opacity->maximumWidth() != 46) {
-        opacity->setFixedWidth(46);
+    QRect rect = delegate ? delegate->inlineControlsRect(main, row, view->layoutDirection()) : QRect();
+    // the blend mode where the controls begin (the second line's start in tall rows), the opacity after it
+    const bool rtl = view->layoutDirection() == Qt::RightToLeft;
+    if (!rect.isEmpty()) {
+        rect = QRect(rtl ? rect.right() + 1 - m_modeWidth : rect.left(), rect.top(), m_modeWidth, rect.height());
+        if (delegate && !delegate->isTall()) {
+            const QRect opacity = delegate->opacityRect(main, row, view->layoutDirection());
+            if (!opacity.isEmpty()) rect.moveLeft(rtl ? opacity.right() + 1 : opacity.left() - m_modeWidth);
+        }
     }
-    if (rect.isEmpty()) {
+    if (rect.isEmpty() || !view->property("rowModeShown").toBool()) {
         if (m_rowControls->isVisible()) m_rowControls->hide();
         return;
     }
     if (m_rowControls->geometry() != rect) m_rowControls->setGeometry(rect);
     if (!m_rowControls->isVisible()) m_rowControls->show();
+}
+
+void LayerBox::updateRowShown()
+{
+    NodeView *view = m_wdgLayerBox->listLayers;
+    auto *delegate = qobject_cast<NodeDelegate *>(view->itemDelegate());
+    const QModelIndex current = view->currentIndex();
+    // on hover, or always for fingers: the mode even when it is the usual one, the opacity even when full
+    const bool hovered = KisTouchMode::isActive()
+                         || (m_hoverRow.isValid() && current.isValid() && m_hoverRow.row() == current.row() && m_hoverRow.parent() == current.parent());
+    bool usualMode = true;
+    bool full = true;
+    if (KisNodeSP node = m_activeNode) {
+        const QString usual = node->inherits("KisAdjustmentLayer") ? COMPOSITE_COPY : node->inherits("KisColorizeMask") ? COMPOSITE_BEHIND : COMPOSITE_OVER;
+        usualMode = node->compositeOpId() == usual;
+        full = node->opacity() == OPACITY_OPAQUE_U8;
+    }
+    const bool mode = hovered || !usualMode;
+    const bool opacity = hovered || !full;
+    const int width = (mode ? m_modeWidth : 0) + (opacity && delegate ? delegate->opacityWidth() : 0);
+    if (view->property("rowModeShown").toBool() == mode && view->property("rowOpacityShown").toBool() == opacity
+        && view->property("rowControlsWidth").toInt() == width && view->property("rowModeWidth").toInt() == m_modeWidth) {
+        return;
+    }
+    view->setProperty("rowModeShown", mode);
+    view->setProperty("rowOpacityShown", opacity);
+    view->setProperty("rowModeWidth", m_modeWidth);
+    view->setProperty("rowControlsWidth", width);
+    view->viewport()->update();
+}
+
+void LayerBox::typeOpacity()
+{
+    NodeView *view = m_wdgLayerBox->listLayers;
+    auto *delegate = qobject_cast<NodeDelegate *>(view->itemDelegate());
+    const QModelIndex current = view->currentIndex();
+    const QModelIndex main = current.isValid() ? current.sibling(current.row(), NodeView::DEFAULT_COL) : QModelIndex();
+    KisNodeSP node = m_activeNode;
+    if (!delegate || !main.isValid() || !node || !node->isEditable(false)) return;
+    const QRect rect = delegate->opacityRect(main, view->visualRect(main), view->layoutDirection());
+    if (rect.isEmpty()) return;
+    const QString now = QString::number(qRound(node->opacity() * 100.0 / 255.0));
+    KisNodeWSP edited = node;
+    // the number written there gives way to the one typed
+    view->setProperty("rowOpacityTyped", true);
+    QLineEdit *editor = KisStudioInlineEdit::open(view->viewport(), rect, now, Qt::AlignRight | Qt::AlignVCenter, view->font(), [this, edited](const QString &typed) {
+        bool ok = false;
+        const double percent = QString(typed).remove(QLatin1Char('%')).trimmed().toDouble(&ok);
+        if (!ok || !edited || !m_nodeManager) return;
+        m_nodeManager->setNodeOpacity(KisNodeSP(edited), convertOpacityToInt(qBound(0.0, percent, 100.0)));
+    });
+    QPointer<NodeView> shown = view;
+    if (editor) {
+        connect(editor, &QObject::destroyed, this, [shown]() {
+            if (!shown) return;
+            shown->setProperty("rowOpacityTyped", false);
+            shown->viewport()->update();
+        });
+    }
+    view->viewport()->update();
 }
 
 QModelIndex LayerBox::gapAt(const QPoint &pos, int *gapY) const
@@ -1146,6 +1209,11 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
             break;
         case QEvent::MouseMove: {
             auto *mouse = static_cast<QMouseEvent *>(event);
+            const QModelIndex under = static_cast<QAbstractItemView *>(view)->indexAt(mouse->pos());
+            if (QPersistentModelIndex(under) != m_hoverRow) {
+                m_hoverRow = under;
+                updateRowShown();
+            }
             if (m_opacityPress.isValid() && (mouse->buttons() & Qt::LeftButton) && handleOpacityDrag(mouse->pos(), mouse->modifiers() & Qt::ShiftModifier)) {
                 return true;
             }
@@ -1174,7 +1242,24 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
         case QEvent::Leave:
             m_gapIndicator->hide();
             m_gapIndex = QModelIndex();
+            m_hoverRow = QModelIndex();
+            updateRowShown();
             break;
+        case QEvent::MouseButtonDblClick:
+        case QEvent::ContextMenu: {
+            // on the opacity: a double-click types it, a right-click makes it full
+            auto *delegate = qobject_cast<NodeDelegate *>(view->itemDelegate());
+            const QPoint pos = event->type() == QEvent::ContextMenu ? static_cast<QContextMenuEvent *>(event)->pos() : static_cast<QMouseEvent *>(event)->pos();
+            const QModelIndex at = static_cast<QAbstractItemView *>(view)->indexAt(pos);
+            const QModelIndex main = at.isValid() ? at.sibling(at.row(), NodeView::DEFAULT_COL) : QModelIndex();
+            if (!delegate || !main.isValid() || !delegate->opacityRect(main, view->visualRect(main), view->layoutDirection()).contains(pos)) break;
+            if (event->type() == QEvent::ContextMenu) {
+                if (m_activeNode && m_activeNode->isEditable(false)) m_nodeManager->setNodeOpacity(m_activeNode, OPACITY_OPAQUE_U8);
+            } else {
+                typeOpacity();
+            }
+            return true;
+        }
         case QEvent::MouseButtonPress: {
             auto *mouse = static_cast<QMouseEvent *>(event);
             int y = 0;
@@ -1197,9 +1282,20 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
                 m_opacityPress = QModelIndex();
                 m_opacityScrub->hide();
                 view->viewport()->unsetCursor();
-                // the last value now, not after the compressor's wait
-                if (m_nodeOpacityCompressor.isActive()) {
-                    m_nodeOpacityCompressor.stop();
+                m_nodeOpacityCompressor.stop();
+                if (qRound(m_newOpacity) == 0 && m_opacityNode && m_canvas) {
+                    // let go at nothing: hidden, keeping the opacity it had (the opacity steps undo each other,
+                    // so hiding is the one step)
+                    m_newOpacity = m_opacityStart >= 1 ? m_opacityStart : 100;
+                    m_changedOpacityNode = m_opacityNode;
+                    slotOpacityChanged();
+                    KisBaseNode::PropertyList props = m_opacityNode->sectionModelProperties();
+                    for (KisBaseNode::Property &prop : props) {
+                        if (prop.id == KisLayerPropertiesIcons::visible.id()) prop.state = false;
+                    }
+                    KisNodePropertyListCommand::setNodePropertiesAutoUndo(m_opacityNode, m_canvas->image(), props);
+                } else {
+                    // the last value now, not after the compressor's wait
                     slotOpacityChanged();
                 }
                 return true;

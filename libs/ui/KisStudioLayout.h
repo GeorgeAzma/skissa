@@ -96,6 +96,10 @@ private:
     QList<QStringList> lanesOf(const KisStudioPanelColumn *column) const;
     /// A group number no group has
     int freeGroup() const;
+    /// The panels below \p above in \p lane of \p column, as a group of their own
+    void separateBelow(KisStudioPanelColumn *column, int lane, QDockWidget *above);
+    /// Writes where \p group goes: the place of \p rect in \p area
+    void writeGroupPlace(int group, const QRect &rect, QWidget *area);
     /// The column with the panel buttons
     KisStudioPanelColumn *panelColumn();
     /// The column of a group of pinned panels: 0 the one with the panel buttons, 1 across the canvas from it,

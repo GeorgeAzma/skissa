@@ -698,13 +698,24 @@ public:
     /// Moved \p dy pixels since the press; \p done on release
     std::function<void(int dy, bool done)> dragged;
     std::function<void()> fit;
+    /// Let go without moving; none under the last panel
+    std::function<void()> tapped;
 
     explicit PanelHandle(QWidget *parent)
         : QWidget(parent)
     {
         setAttribute(Qt::WA_Hover);
         setCursor(Qt::SizeVerCursor);
-        setToolTip(i18nc("@info:tooltip the handle between two panels", "Drag: resize\nRight-click: fit"));
+        setBetween(false);
+    }
+
+    /// Between two panels, where a tap takes them apart, or under the last
+    void setBetween(bool between)
+    {
+        if (between == m_between && !toolTip().isEmpty()) return;
+        m_between = between;
+        setToolTip(between ? i18nc("@info:tooltip the handle between two panels", "Drag: resize\nClick: separate\nRight-click: fit")
+                           : i18nc("@info:tooltip the handle under the last panel", "Drag: resize\nRight-click: fit"));
     }
 
 protected:
@@ -729,6 +740,7 @@ protected:
     {
         if (event->button() != Qt::LeftButton) return;
         m_pressed = true;
+        m_moved = false;
         m_pressY = globalMousePos(event).y();
         update();
         if (pressed) pressed();
@@ -736,7 +748,12 @@ protected:
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (m_pressed && dragged) dragged(globalMousePos(event).y() - m_pressY, false);
+        if (!m_pressed) return;
+        const int dy = globalMousePos(event).y() - m_pressY;
+        // a tap (or a pen's wobble) isn't a resize
+        if (!m_moved && qAbs(dy) < QApplication::startDragDistance()) return;
+        m_moved = true;
+        if (dragged) dragged(dy, false);
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override
@@ -744,7 +761,11 @@ protected:
         if (!m_pressed || event->button() != Qt::LeftButton) return;
         m_pressed = false;
         update();
-        if (dragged) dragged(globalMousePos(event).y() - m_pressY, true);
+        if (m_moved) {
+            if (dragged) dragged(globalMousePos(event).y() - m_pressY, true);
+        } else if (m_between && tapped) {
+            tapped();
+        }
     }
 
     void contextMenuEvent(QContextMenuEvent *event) override
@@ -755,6 +776,8 @@ protected:
 
 private:
     bool m_pressed {false};
+    bool m_moved {false};
+    bool m_between {false};
     int m_pressY {0};
 };
 
@@ -849,6 +872,8 @@ public:
     std::function<void(QDockWidget *dock, int height, bool done)> resizedByUser;
     /// How tall the stack would like to be has changed
     std::function<void()> wantsHeight;
+    /// The handle under \p above was tapped: the panels below it go apart
+    std::function<void(QDockWidget *above)> separated;
 
     explicit PanelStack(QWidget *parent)
         : QWidget(parent)
@@ -1055,6 +1080,13 @@ private:
             handle->fit = [this, target]() {
                 if (target && resizedByUser) resizedByUser(target, 0, true);
                 relayout(true);
+            };
+            handle->setBetween(i < shown.size() - 1);
+            // after the tap is done with: taking the panels apart moves them to another stack
+            handle->tapped = [this, target]() {
+                QTimer::singleShot(0, this, [this, target]() {
+                    if (target && separated) separated(target);
+                });
             };
             y += gap();
         }
@@ -1671,6 +1703,8 @@ public:
     std::function<bool(KisStudioPanelColumn *column, const QRect &placed, bool dropped)> joining;
     /// The line before \p lane was clicked: the lanes from it on go apart
     std::function<void(int lane)> separated;
+    /// The handle under \p above in \p lane was tapped: the panels below it go apart
+    std::function<void(int lane, QDockWidget *above)> separatedBelow;
     /// Its group (see groupColumn())
     int group {0};
 
@@ -1776,6 +1810,9 @@ public:
         while (m_stacks.size() < count) {
             auto *stack = new PanelStack(this);
             stack->wantsHeight = [this]() { place(); };
+            stack->separated = [this, stack](QDockWidget *above) {
+                if (separatedBelow) separatedBelow(m_stacks.indexOf(stack), above);
+            };
             if (stackMade) stackMade(stack);
             stack->setVisible(m_shownPanels);
             m_stacks << stack;
@@ -3687,23 +3724,58 @@ void KisStudioLayout::separateLanes(KisStudioPanelColumn *column, int lane)
     saveWidths(group);
     saveWidths(column->group);
     // the lanes taken off are a group of their own where they were, a little apart
-    const QRect apart = go.translated(go.center().x() > stay.center().x() ? KisModernStyle::space3 : -KisModernStyle::space3, 0);
-    const int margin = KisStudioPanelColumn::margin;
-    const bool left = apart.center().x() < area->width() / 2;
-    const int across = left ? apart.x() - margin : area->width() - margin - apart.right() - 1;
-    const int top = area->property(topInsetProperty).toInt() + margin;
-    const int bottom = area->height() - area->property(bottomInsetProperty).toInt() - margin;
-    const int roomX = area->width() - 2 * margin - apart.width();
-    const int roomY = bottom - top - apart.height();
-    KisConfig cfg(false);
-    cfg.writeEntry(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
-    writeSpot(groupKey(group, "Spot"), QPointF(roomX > 0 ? qBound(0.0, qreal(across) / roomX, 1.0) : 0.0,
-                                               roomY > 0 ? qBound(0.0, qreal(apart.y() - top) / roomY, 1.0) : 0.0));
+    writeGroupPlace(group, go.translated(go.center().x() > stay.center().x() ? KisModernStyle::space3 : -KisModernStyle::space3, 0), area);
     savePinned();
     d->arrangement.clear();
     arrangePinned();
     // the lanes left keep their place
     column->placeAt(stay);
+}
+
+void KisStudioLayout::separateBelow(KisStudioPanelColumn *column, int lane, QDockWidget *above)
+{
+    const QList<QStringList> lanes = lanesOf(column);
+    if (!above || lane < 0 || lane >= lanes.size()) return;
+    const QStringList ids = lanes[lane];
+    const int at = ids.indexOf(above->objectName());
+    if (at < 0 || at >= ids.size() - 1) return;
+    QWidget *area = column->parentWidget();
+    // the panels below, as tall as they are and as wide as their lane
+    const QRect laneAt = column->laneRect(lane);
+    QRect below;
+    for (int i = at + 1; i < ids.size(); i++) {
+        if (QDockWidget *dock = d->mainWindow->dockWidget(ids[i])) below |= QRect(dock->mapTo(area, QPoint()), dock->size());
+    }
+    below = QRect(laneAt.left(), below.top(), laneAt.width(), below.height() + 2 * KisStudioPanelColumn::margin);
+    const QRect stay = column->targetGeometry();
+    const int group = freeGroup();
+    for (int i = at + 1; i < ids.size(); i++) {
+        d->groups.insert(ids[i], group);
+        d->lanes.remove(ids[i]);
+    }
+    d->laneWidths.insert(group, {column->laneWidths().value(lane, column->columnWidth())});
+    saveWidths(group);
+    // a group of their own where they were, a little apart
+    writeGroupPlace(group, below.translated(0, KisModernStyle::space3), area);
+    savePinned();
+    d->arrangement.clear();
+    arrangePinned();
+    // the panels left keep their place
+    column->placeAt(stay);
+}
+
+void KisStudioLayout::writeGroupPlace(int group, const QRect &rect, QWidget *area)
+{
+    const int margin = KisStudioPanelColumn::margin;
+    const bool left = rect.center().x() < area->width() / 2;
+    const int across = left ? rect.x() - margin : area->width() - margin - rect.right() - 1;
+    const int top = area->property(topInsetProperty).toInt() + margin;
+    const int bottom = area->height() - area->property(bottomInsetProperty).toInt() - margin;
+    const int roomX = area->width() - 2 * margin - rect.width();
+    const int roomY = bottom - top - rect.height();
+    KisConfig(false).writeEntry(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
+    writeSpot(groupKey(group, "Spot"), QPointF(roomX > 0 ? qBound(0.0, qreal(across) / roomX, 1.0) : 0.0,
+                                               roomY > 0 ? qBound(0.0, qreal(rect.y() - top) / roomY, 1.0) : 0.0));
 }
 
 int KisStudioLayout::freeGroup() const
@@ -3815,6 +3887,9 @@ KisStudioPanelColumn *KisStudioLayout::createColumn(int group, bool left)
     column->joining = [this](KisStudioPanelColumn *dragged, const QRect &placed, bool dropped) { return joinAt(dragged, placed, dropped); };
     column->separated = [this, self](int lane) {
         if (self) separateLanes(self, lane);
+    };
+    column->separatedBelow = [this, self](int lane, QDockWidget *above) {
+        if (self) separateBelow(self, lane, above);
     };
     return column;
 }

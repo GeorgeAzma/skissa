@@ -44,6 +44,11 @@ public:
     /// Rows tall enough for two lines: the name and icons, then the blend mode and opacity
     bool isTall() const;
 
+    /// Where in \p row the current layer's opacity is written, if it is (see LayerBox::updateRowShown())
+    QRect opacityRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const;
+    /// How wide the opacity is written
+    int opacityWidth() const;
+
     void slotUpdateIcon();
 
 Q_SIGNALS:

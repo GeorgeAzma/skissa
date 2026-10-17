@@ -36,6 +36,7 @@
 #include "kis_node_view_color_scheme.h"
 #include "kis_icon_utils.h"
 #include "kis_layer_properties_icons.h"
+#include <KoCompositeOpRegistry.h>
 #include "krita_utils.h"
 #include "kis_config_notifier.h"
 #include <kis_painting_tweaks.h>
@@ -152,6 +153,34 @@ QRect NodeDelegate::inlineControlsRect(const QModelIndex &index, const QRect &ro
     const int width = d->view->property("rowControlsWidth").toInt();
     const int left = direction == Qt::RightToLeft ? icons.right() + 1 : icons.left() - width;
     return QRect(left, row.top(), width, d->rowHeight);
+}
+
+int NodeDelegate::opacityWidth() const
+{
+    return d->view->fontMetrics().horizontalAdvance(QStringLiteral("100%")) + 8;
+}
+
+QRect NodeDelegate::opacityRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const
+{
+    if (!holdsControls(d->view, index) || !d->view->property("rowOpacityShown").toBool()) return QRect();
+    // at the end of the controls, by the icons (or of the second line in tall rows)
+    const QRect controls = inlineControlsRect(index, row, direction);
+    const int width = opacityWidth();
+    return QRect(direction == Qt::RightToLeft ? controls.left() : controls.right() + 1 - width, controls.top(), width, controls.height());
+}
+
+/// A layer's opacity in percent, from its properties; -1 if it has none
+static int opacityPercentOf(const QModelIndex &index)
+{
+    const KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
+    for (const KisBaseNode::Property &prop : props) {
+        if (prop.id == QLatin1String("opacity")) {
+            QString digits = prop.state.toString();
+            digits.remove(QRegularExpression(QStringLiteral("[^0-9]")));
+            return digits.isEmpty() ? -1 : digits.toInt();
+        }
+    }
+    return -1;
 }
 
 QSize NodeDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
@@ -478,21 +507,28 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
                 opacity = digits.isEmpty() ? -1 : digits.toInt();
             }
         }
-        if (!controls && !mode.isEmpty() && opacity >= 0) {
+        if (!mode.isEmpty() && opacity >= 0) {
             const QRect line = inlineControlsRect(index, option.rect, option.direction);
             QFont small = p->font();
             small.setPointSizeF(small.pointSizeF() * 0.9);
             p->setFont(small);
             p->setOpacity(p->opacity() * 0.55);
-            const QString percent = QStringLiteral("%1%").arg(opacity);
-            const int modeWidth = p->fontMetrics().horizontalAdvance(mode);
+            // what is unusual: a mode other than Normal, an opacity below full; the current layer's row has its
+            // mode's control, and shows both on hover
+            const bool usualMode = mode == KoCompositeOpRegistry::instance().getKoID(COMPOSITE_OVER).name();
+            const QString shownMode = controls || usualMode ? QString() : mode;
+            const bool shownOpacity = controls ? d->view->property("rowOpacityShown").toBool() : opacity < 100;
+            const QString percent = shownOpacity ? QStringLiteral("%1%").arg(opacity) : QString();
+            const int modeWidth = controls ? (d->view->property("rowModeShown").toBool() ? d->view->property("rowModeWidth").toInt() : 0)
+                                           : p->fontMetrics().horizontalAdvance(shownMode);
             const int percentWidth = p->fontMetrics().horizontalAdvance(percent);
             const QRect modeRect(line.left() + 2, line.top(), modeWidth, line.height());
             const QRect percentRect(line.right() - percentWidth - 2, line.top(), percentWidth, line.height());
-            p->drawText(modeRect, Qt::AlignLeft | Qt::AlignVCenter, mode);
+            if (!controls) p->drawText(modeRect, Qt::AlignLeft | Qt::AlignVCenter, shownMode);
             p->drawText(percentRect, Qt::AlignRight | Qt::AlignVCenter, percent);
             // the opacity as a hairline filled to it, like the current layer's slider
-            const QRectF track(modeRect.right() + 10, line.center().y(), percentRect.left() - modeRect.right() - 20, 2);
+            const QRectF track(modeWidth ? modeRect.right() + 10 : line.left() + 2, line.center().y(),
+                               (percentWidth ? percentRect.left() - 10 : line.right() - 2) - (modeWidth ? modeRect.right() + 10 : line.left() + 2), 2);
             if (track.width() > 8) {
                 QColor ink = option.palette.color(QPalette::Text);
                 p->save();
@@ -517,6 +553,13 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
         if (!info.isEmpty()) {
             p->setOpacity(p->opacity() * 0.55);
             p->drawText(rc, end | Qt::AlignVCenter, p->fontMetrics().elidedText(info, Qt::ElideLeft, infoWidth));
+        }
+        // the current layer's opacity beside its mode, when below full or hovered
+        const QRect opacityAt = opacityRect(index, option.rect, option.direction);
+        const int opacity = opacityPercentOf(index);
+        if (!opacityAt.isEmpty() && opacity >= 0 && !d->view->property("rowOpacityTyped").toBool()) {
+            p->setOpacity(oldOpacity * (opacity < 100 ? 0.62 : 0.4));
+            p->drawText(opacityAt.adjusted(0, 0, -4, 0), Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("%1%").arg(opacity));
         }
     }
     p->setPen(oldPen);
@@ -1332,6 +1375,13 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
             text = (hovered->id == KisLayerPropertiesIcons::layerError.id() || hovered->id == KisLayerPropertiesIcons::layerColorSpaceMismatch.id())
                 ? hovered->state.toString()
                 : said(*hovered);
+        } else if (opacityRect(index, option.rect, option.direction).contains(pos)) {
+            text = KisStudioTips::tip(i18nc("@info:tooltip a layer's opacity", "Opacity"),
+                                      {KisStudioTips::dragChange(), KisStudioTips::doubleClickType(),
+                                       KisStudioTips::rightClickReset()});
+        } else if (!(QApplication::mouseButtons() & Qt::LeftButton)) {
+            text = KisStudioTips::tip(QString(), {i18nc("@info:tooltip a gesture on a layer's row: dragged sideways, it sets the opacity", "Drag: opacity"),
+                                                  i18nc("@info:tooltip a gesture on a layer's row", "Double-click: rename")});
         }
         if (text.isEmpty()) QToolTip::hideText();
         else QToolTip::showText(helpEvent->globalPos(), KisStudioTips::html(text), d->view);

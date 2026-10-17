@@ -6,6 +6,7 @@
 
 #include "kis_canvas_controller.h"
 
+#include <QElapsedTimer>
 #include <QMouseEvent>
 #include <QScrollBar>
 #include <QTabletEvent>
@@ -55,6 +56,8 @@ struct KisCanvasController::Private {
     qreal physicalDpiX {72.0};
     qreal physicalDpiY {72.0};
     qreal devicePixelRatio {1.0};
+    /// Since the view's panels first covered part of it (see setViewportInsets())
+    QElapsedTimer insetsSince;
 
     void emitPointerPositionChangedSignals(QPoint pointerPos);
     void showRotationValueOnCanvas();
@@ -474,8 +477,11 @@ void KisCanvasController::setViewportInsets(const QMarginsF &insets)
         return;
     }
     m_d->coordinatesConverter->setViewportInsets(insets);
+    // a view fitted to the window fits the part left uncovered while the panels settle in around it; after
+    // that, a panel docked or moved leaves the zoom be
+    if (!m_d->insetsSince.isValid()) m_d->insetsSince.start();
     const KoZoomMode::Mode mode = m_d->coordinatesConverter->zoomMode();
-    if (mode != KoZoomMode::ZOOM_CONSTANT) {
+    if (mode != KoZoomMode::ZOOM_CONSTANT && m_d->insetsSince.elapsed() < 2000) {
         setZoom(mode, 1.0);
     }
 }
