@@ -40,6 +40,7 @@ public:
 
     void begin(int shortcut, QEvent *event) override;
     void inputEvent(QEvent *event) override;
+    void end(QEvent *event) override;
 
 private:
     class Private;

@@ -21,6 +21,7 @@
 
 #include "kis_input_manager.h"
 #include "kis_tool_utils.h"
+#include "tool/strokes/move_stroke_strategy.h"
 #include <kis_group_layer.h>
 
 #include <kis_assert.h>
@@ -173,6 +174,14 @@ public:
     static constexpr qreal againDistance = 8;
     static constexpr qint64 againTime = 4000;
 
+    /// A press picks when let go (pendingPick); pressed on paint and dragged, the layer pressed on moves with the
+    /// pointer instead
+    KisNodeSP pendingPick;
+    int pendingOverride {SelectionOverrideMode_Replace};
+    KisNodeSP pressedNode;
+    QPoint pressedImageAt;
+    KisStrokeId moveStroke;
+
     /// The layers with paint at \p imagePos, the top one first
     KisNodeList stackAt(const QPoint &imagePos) const
     {
@@ -183,6 +192,7 @@ public:
     }
 
     /// What a click at \p widgetPos picks: the top layer there, or the one under the current one when clicking again
+    /// (or when the top one is the current one already, so a click always changes something)
     KisNodeSP pickAt(const QPointF &widgetPos) const
     {
         KisCanvas2 *canvas = q->inputManager()->canvas();
@@ -192,7 +202,7 @@ public:
         const KisNodeSP active = canvas->viewManager()->nodeManager()->activeNode();
         const bool again = lastPick.isValid() && lastPick.elapsed() < againTime
             && QLineF(widgetPos, lastPickAt).length() < againDistance && stack.contains(active);
-        return again ? stack[(stack.indexOf(active) + 1) % stack.size()] : stack.first();
+        return again || stack.first() == active ? stack[(stack.indexOf(active) + 1) % stack.size()] : stack.first();
     }
 
     Private(KisSelectLayerAction *q)
@@ -337,12 +347,28 @@ void KisSelectLayerAction::begin(int shortcut, QEvent *event)
     inputEvent(event);
 }
 
+void KisSelectLayerAction::end(QEvent *event)
+{
+    if (d->moveStroke) {
+        if (KisCanvas2 *canvas = inputManager()->canvas()) canvas->image()->endStroke(d->moveStroke);
+        d->moveStroke.clear();
+    } else if (d->pendingPick) {
+        // let go without dragging: the click picks
+        d->selectNodes({d->pendingPick}, d->pendingOverride, true);
+        if (d->hover) d->hover->pointAt(d->pressedAt);
+    }
+    d->pendingPick.clear();
+    d->pressedNode.clear();
+    KisAbstractInputAction::end(event);
+}
+
 void KisSelectLayerAction::inputEvent(QEvent *event)
 {
-    // Event not recognized
+    // Event not recognized (a quick second click comes as a double click: a press too)
     if (!event || (event->type() != QEvent::MouseMove && event->type() != QEvent::TabletMove &&
                    event->type() != QTouchEvent::TouchUpdate && event->type() != QEvent::MouseButtonPress &&
-                   event->type() != QEvent::TabletPress && event->type() != QTouchEvent::TouchBegin)) {
+                   event->type() != QEvent::MouseButtonDblClick && event->type() != QEvent::TabletPress
+                   && event->type() != QTouchEvent::TouchBegin)) {
         return;
     }
 
@@ -367,17 +393,36 @@ void KisSelectLayerAction::inputEvent(QEvent *event)
 
     if (layerSelectionMode == LayerSelectionMode_TopLayer) {
         const QPointF widgetPos = eventPosF(event);
-        const bool press = event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TabletPress
-            || event->type() == QTouchEvent::TouchBegin;
+        const bool press = event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick
+            || event->type() == QEvent::TabletPress || event->type() == QTouchEvent::TouchBegin;
         KisNodeSP foundNode;
         if (press) {
-            // a click: the top layer, or the next one down when clicking again where the last one picked
-            foundNode = d->pickAt(widgetPos);
+            // a click: the top layer, or the next one down when clicking again where the last one picked; picked
+            // when let go, as a drag moves the one pressed on instead
+            d->pendingPick = d->pickAt(widgetPos);
+            d->pendingOverride = selectionOverrideMode;
             d->pressedAt = widgetPos;
             d->lastPickAt = widgetPos;
             d->lastPick.restart();
+            const KisNodeList stack = d->stackAt(pos);
+            d->pressedNode = stack.isEmpty() ? KisNodeSP() : stack.first();
+            d->pressedImageAt = pos;
+            return;
+        } else if (selectionOverrideMode == SelectionOverrideMode_Replace && d->pressedNode
+                   && (d->moveStroke || QLineF(widgetPos, d->pressedAt).length() >= Private::againDistance)) {
+            // pressed on paint and dragged: the layer pressed on is picked and moves along
+            KisImageSP image = inputManager()->canvas()->image();
+            if (!d->moveStroke) {
+                d->pendingPick.clear();
+                d->lastPick.invalidate();
+                d->selectNodes({d->pressedNode}, SelectionOverrideMode_Replace, true);
+                d->moveStroke = image->startStroke(new MoveStrokeStrategy(KisNodeList{d->pressedNode}, image.data(), image.data()));
+            }
+            image->addJob(d->moveStroke, new MoveStrokeStrategy::Data(pos - d->pressedImageAt));
+            return;
         } else if (QLineF(widgetPos, d->pressedAt).length() >= Private::againDistance) {
-            // dragged: the top layer under the pointer, as it goes
+            // dragged from nothing (or adding to the selection): the top layer under the pointer, as it goes
+            d->pendingPick.clear();
             foundNode = KisToolUtils::findNode(inputManager()->canvas()->image()->root(), pos, false);
             d->lastPick.invalidate();
         }
