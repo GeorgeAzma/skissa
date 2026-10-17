@@ -396,6 +396,7 @@ QMenu* KisSelectionToolHelper::getSelectionContextMenu(KisCanvas2* canvas)
     if (selection && canvas->viewManager()->selectionEditable()) {
         menu->addSeparator();
         add(menu, action("KisToolTransform"), i18nc("@action:inmenu", "Transform"));
+        add(menu, action("studio_make_brush"), i18nc("@action:inmenu a brush of what is selected", "Make Brush"));
         QMenu *modify = menu->addMenu(i18nc("@title:menu change the selection's shape", "Modify"));
         add(modify, action("growselection"), i18nc("@action:inmenu", "Grow…"));
         add(modify, action("shrinkselection"), i18nc("@action:inmenu", "Shrink…"));
