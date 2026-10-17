@@ -987,7 +987,7 @@ struct TypedColor {
 };
 
 /**
- * Reads a color in any of the ways it is written: 00F2FC, #0ef, rgb(0, 242, 252), 0 242 252, 0 0.95 0.99,
+ * Reads a color in any of the ways it is written: 00F2FC, #0ef, rgb(0, 242, 252), rgb(0 0.95 0.99), 0 242 252,
  * oklch(0.86 0.15 196), hsv(184, 100%, 99%), hsl(…). Bare numbers are red, green and blue.
  */
 std::optional<TypedColor> readColor(const QString &text)
@@ -1003,13 +1003,11 @@ std::optional<TypedColor> readColor(const QString &text)
     ColorFormat format = ColorFormat::Rgb;
     QString body = typed;
     bool hsl = false;
-    bool named = false;
     static const QRegularExpression call(QStringLiteral("^([a-z]+)\\s*\\((.*)\\)$"));
     match = call.match(typed);
     if (match.hasMatch()) {
         const QString name = match.captured(1);
         body = match.captured(2);
-        named = true;
         if (name == QLatin1String("rgb") || name == QLatin1String("rgba")) format = ColorFormat::Rgb;
         else if (name == QLatin1String("oklch")) format = ColorFormat::Oklch;
         else if (name == QLatin1String("hsv") || name == QLatin1String("hsb")) format = ColorFormat::Hsv;
@@ -1038,8 +1036,8 @@ std::optional<TypedColor> readColor(const QString &text)
     }
     switch (format) {
     case ColorFormat::Rgb: {
-        // 0 to 1 when every part is a fraction and it isn't written as rgb(), which counts to 255
-        const bool floats = fractions && !named && body.contains(QLatin1Char('.'));
+        // 0 to 1 when every part is at most 1 and one has a point (rgb(1 1 1) counts to 255, rgb(1. 1. 1.) is white)
+        const bool floats = fractions && body.contains(QLatin1Char('.'));
         for (int i = 0; i < 3; i++) {
             if (percent[i]) values[i] = values[i] / 100.0 * (floats ? 1.0 : 255.0);
             values[i] = qBound(0.0, values[i], floats ? 1.0 : 255.0);
