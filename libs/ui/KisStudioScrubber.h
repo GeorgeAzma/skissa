@@ -27,6 +27,7 @@ public:
         Opacity, ///< in %, shown as a swatch with matching opacity
         Grow,    ///< px to grow (or, below 0, shrink) something by, named while 0
         Soft,    ///< px to soften an edge by, named while 0
+        Threshold, ///< how alike colors count as one, 1 to 100
     };
 
     KisStudioScrubber(Kind kind, const QString &toolTip, QWidget *parent = nullptr);

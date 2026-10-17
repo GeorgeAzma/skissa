@@ -88,6 +88,7 @@ QString KisStudioScrubber::text() const
         return (m_kind == Kind::Grow ? (amount > 0 ? QStringLiteral("+") : QStringLiteral("−")) : QString())
             + QString::number(qAbs(amount));
     }
+    if (m_kind == Kind::Threshold) return QString::number(qRound(m_value));
     return QString::number(m_value, 'f', m_value < 10.0 ? 1 : 0);
 }
 
@@ -136,6 +137,13 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
         painter.setBrush(Qt::NoBrush);
         painter.setPen(QPen(ink, 1.3, Qt::DashLine));
         painter.drawPath(KisModernStyle::squircle(icon.adjusted(2.5, 2.5, -2.5, -2.5), 4));
+    } else if (m_kind == Kind::Threshold) {
+        // two shades that count as one, more alike the lower it is
+        const qreal t = qBound(0.0, (m_value - m_minimum) / (m_maximum - m_minimum), 1.0);
+        painter.setBrush(mix(window, text, 0.85));
+        painter.drawPie(icon.adjusted(2, 2, -2, -2), 90 * 16, 180 * 16);
+        painter.setBrush(mix(window, text, 0.85 - 0.6 * t));
+        painter.drawPie(icon.adjusted(2, 2, -2, -2), 270 * 16, 180 * 16);
     } else if (m_kind == Kind::Soft) {
         // a dot whose edge fades
         QRadialGradient fade(icon.center(), iconSize / 2.0);
