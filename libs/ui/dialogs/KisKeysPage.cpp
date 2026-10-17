@@ -303,7 +303,8 @@ public:
     bool hasHeightForWidth() const override { return true; }
     int heightForWidth(int width) const override
     {
-        return int(5.85 * qMin<qreal>(width / m_units, 52.0)) + 4;
+        // the bottom row's raised side and its legend too
+        return int(5.85 * qMin<qreal>(width / m_units, 52.0)) + 10;
     }
 
 protected:
@@ -557,6 +558,8 @@ struct KisKeysPage::Private
 {
     struct Command {
         QPointer<QAction> action;
+        /// Other actions of the same name (a copy in another collection), given the same keys
+        QList<QPointer<QAction>> copies;
         QString id;
         QString title;
         QString group;
@@ -732,10 +735,15 @@ struct KisKeysPage::Private
         const QString rings = i18nc("keys group", "Rings");
         const QString other = i18nc("keys group", "Other");
         QStringList toolGroups;
-        contextTools.clear();
+        QHash<QString, int> byId;
         Q_FOREACH (QAction *action, KisStudioShortcuts::allActions(mainWindow)) {
             if (!action) continue;
             const QString id = action->objectName();
+            // one row per command: a second action of the same name is a copy of it
+            if (!id.isEmpty() && byId.contains(id)) {
+                commands[byId.value(id)].copies << action;
+                continue;
+            }
             const QString title = plainText(action->text());
             auto *widgetAction = qobject_cast<QWidgetAction *>(action);
             if (id.isEmpty() || title.isEmpty() || action->isSeparator() || action->menu() || (widgetAction && widgetAction->defaultWidget())) continue;
@@ -774,6 +782,7 @@ struct KisKeysPage::Private
             KisStudioFind::Item item;
             if (find && find->item(QStringLiteral("action:") + id, &item)) words += item.aliases;
             command.search = words.join(QLatin1Char(' ')).toLower();
+            byId.insert(id, commands.size());
             commands.append(command);
         }
         toolGroups.sort(Qt::CaseInsensitive);
@@ -1768,6 +1777,9 @@ void KisKeysPage::apply()
                                                                     : QKeySequence::listToString(command.current, QKeySequence::PortableText));
         }
         if (command.action) command.action->setShortcuts(command.current);
+        for (const QPointer<QAction> &copy : command.copies) {
+            if (copy) copy->setShortcuts(command.current);
+        }
     }
     custom.sync();
     for (Private::Command &command : d->commands) command.edited = false;

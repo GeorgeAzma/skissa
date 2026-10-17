@@ -575,6 +575,10 @@ const char *const leftPillProperty = "studioPanelPillLeft";
 const char *const rightPillProperty = "studioPanelPillRight";
 /// Where the window's handle in the top left corner ends, or 0 while it is hidden
 const char *const handleBottomProperty = "studioWindowHandleBottom";
+/// How far the tool rail reaches in from the left or the right edge when it is against that edge, else 0:
+/// the panels on that side go beside it, never between it and the edge
+const char *const railLeftProperty = "studioToolRailLeft";
+const char *const railRightProperty = "studioToolRailRight";
 
 /// Paints \p widget as glass with a rim of opacity \p rim
 void paintGlass(QPainter &painter, QWidget *widget, qreal radius, qreal rim)
@@ -1127,6 +1131,8 @@ public:
     /// Called when dragged and dropped: the side of the canvas it is on and its place from that side (see shareOf())
     std::function<void(bool left, const QPointF &spot)> moved;
     std::function<void()> tapped;
+    /// How far it reaches in from an edge changed (see railLeftProperty)
+    std::function<void()> reachChanged;
 
     explicit RailOverlay(QWidget *canvasArea)
         : QWidget(canvasArea)
@@ -1176,6 +1182,20 @@ public:
         const int across = offsetOf(m_spot.x(), room.width());
         move(m_left ? room.left() + across : room.left() + room.width() - across, room.top() + offsetOf(m_spot.y(), room.height()));
         raise();
+        updateReach();
+    }
+
+    /// Tells the panels how far it reaches in from the edge it is against
+    void updateReach()
+    {
+        QWidget *area = parentWidget();
+        const bool against = isVisibleTo(area) && m_spot.x() <= 0;
+        const int left = against && m_left ? geometry().right() + 1 : 0;
+        const int right = against && !m_left ? area->width() - x() : 0;
+        if (area->property(railLeftProperty).toInt() == left && area->property(railRightProperty).toInt() == right) return;
+        area->setProperty(railLeftProperty, left);
+        area->setProperty(railRightProperty, right);
+        if (reachChanged) reachChanged();
     }
 
 protected:
@@ -1246,15 +1266,27 @@ protected:
         paintGlass(painter, this, 14, m_moving ? 0.3 : 0.12);
     }
 
+    void showEvent(QShowEvent *event) override
+    {
+        QWidget::showEvent(event);
+        updateReach();
+    }
+
+    void hideEvent(QHideEvent *event) override
+    {
+        QWidget::hideEvent(event);
+        updateReach();
+    }
+
 private:
-    /// Where its corner can go, as offset and extent: beside the pinned panels' pills and clear of the bars
+    /// Where its corner can go, as offset and extent: the whole width (the panels go beside it), clear of the bars
     QRect room() const
     {
         const QWidget *area = parentWidget();
         const int top = area->property(topInsetProperty).toInt();
         const int bottom = area->property(bottomInsetProperty).toInt();
-        const int minX = 10 + area->property(leftPillProperty).toInt();
-        const int maxX = area->width() - 10 - area->property(rightPillProperty).toInt() - width();
+        const int minX = 10;
+        const int maxX = area->width() - 10 - width();
         // below the window's handle too, which stays when the top bar goes elsewhere
         const int handle = area->property(handleBottomProperty).toInt();
         const int minY = qMax(top > 0 ? top + 6 : 10, handle > 0 ? handle + 6 : 0);
@@ -1547,6 +1579,7 @@ public:
 
     KisStudioPanelColumn(QWidget *canvasArea, bool left, int width)
         : QWidget(canvasArea)
+        , m_settled(++settledCount())
         , m_left(left)
         , m_width(width)
     {
@@ -1628,9 +1661,11 @@ public:
         }
         // with only the strip showing, placed as if open, so the strip stays where it was
         const QSize placed = placedSize(size);
-        const int across = offsetOf(m_spot.x(), area->width() - 2 * margin - placed.width());
-        const QRect geometry(m_left ? margin + across : area->width() - margin - size.width() - across,
-                             span.first + offsetOf(m_spot.y(), span.second - span.first - placed.height()), size.width(), size.height());
+        const int across = offsetOf(m_spot.x(), roomX(placed.width()));
+        QRect geometry(m_left ? sideMargin(true) + across : area->width() - sideMargin(false) - size.width() - across,
+                       span.first + offsetOf(m_spot.y(), span.second - span.first - placed.height()), size.width(), size.height());
+        // clear of the groups placed before it, while it isn't being dragged
+        if (!m_moving) geometry = clearOfOthers(geometry, span);
         if (geometry != this->geometry()) {
             setGeometry(geometry);
             if (resized) resized(false);
@@ -1661,8 +1696,8 @@ protected:
                     const int x = area->mapFromGlobal(globalMousePos(static_cast<QMouseEvent *>(event))).x();
                     m_width = qBound(minimumColumnWidth, m_left ? x - m_outer : m_outer - x, qMax(minimumColumnWidth, area->width() / 2));
                     if (!isDocked()) {
-                        const int from = m_left ? m_outer - margin : area->width() - margin - m_outer;
-                        m_spot.setX(qBound(0.0, qreal(from) / qMax(1, area->width() - 2 * margin - m_width), 1.0));
+                        const int from = m_left ? m_outer - sideMargin(true) : area->width() - sideMargin(false) - m_outer;
+                        m_spot.setX(qBound(0.0, qreal(from) / qMax(1, roomX(m_width)), 1.0));
                     }
                     place();
                     return true;
@@ -1741,8 +1776,8 @@ protected:
         }
         const QPair<int, int> span = spanY();
         const QSize placed = placedSize(size());
-        const int across = m_left ? at.x() - margin : area->width() - margin - width() - at.x();
-        m_spot = QPointF(shareOf(across, area->width() - 2 * margin - placed.width()),
+        const int across = m_left ? at.x() - sideMargin(true) : area->width() - sideMargin(false) - width() - at.x();
+        m_spot = QPointF(shareOf(across, roomX(placed.width())),
                          shareOf(at.y() - span.first, span.second - span.first - placed.height()));
         place();
     }
@@ -1761,6 +1796,9 @@ protected:
         m_moving = false;
         unsetCursor();
         update();
+        // the group moved last makes way for the others
+        m_settled = ++settledCount();
+        place();
         if (moved) moved(m_left, m_spot);
     }
 
@@ -1772,6 +1810,60 @@ private:
     {
         const QWidget *area = parentWidget();
         return {area->property(topInsetProperty).toInt() + margin, area->height() - area->property(bottomInsetProperty).toInt() - margin};
+    }
+
+    /// From an edge to where the column's room begins: past the tool rail when the rail is against that edge
+    int sideMargin(bool left) const
+    {
+        return margin + parentWidget()->property(left ? railLeftProperty : railRightProperty).toInt();
+    }
+
+    /// How far a column \p columnWidth wide can move across from its side
+    int roomX(int columnWidth) const
+    {
+        return parentWidget()->width() - sideMargin(true) - sideMargin(false) - columnWidth;
+    }
+
+    /// One more each time a group is made or moved: the one moved last makes way for the others
+    static quint64 &settledCount()
+    {
+        static quint64 count = 0;
+        return count;
+    }
+
+    /// \p wanted moved the least it takes off the groups that settled before this one (those it overlaps)
+    QRect clearOfOthers(QRect wanted, const QPair<int, int> &span) const
+    {
+        const QList<KisStudioPanelColumn *> columns = parentWidget()->findChildren<KisStudioPanelColumn *>(QString(), Qt::FindDirectChildrenOnly);
+        const int gap = margin;
+        for (int pass = 0; pass < columns.size(); pass++) {
+            bool moved = false;
+            for (KisStudioPanelColumn *other : columns) {
+                if (other == this || other->m_settled > m_settled) continue;
+                if (other->isHidden() || !other->geometry().intersects(wanted)) continue;
+                // below, above or beside it: whichever fits and moves it least
+                const QRect them = other->geometry();
+                const int minX = sideMargin(true);
+                const int maxX = parentWidget()->width() - sideMargin(false) - wanted.width();
+                const QVector<QPoint> places = {
+                    QPoint(wanted.x(), them.bottom() + 1 + gap),
+                    QPoint(wanted.x(), them.top() - gap - wanted.height()),
+                    QPoint(them.right() + 1 + gap, wanted.y()),
+                    QPoint(them.left() - gap - wanted.width(), wanted.y()),
+                };
+                int best = -1;
+                for (int i = 0; i < places.size(); i++) {
+                    const QPoint at = places[i];
+                    if (at.y() < span.first || at.y() + wanted.height() > span.second || at.x() < minX || at.x() > maxX) continue;
+                    if (best < 0 || (at - wanted.topLeft()).manhattanLength() < (places[best] - wanted.topLeft()).manhattanLength()) best = i;
+                }
+                if (best < 0) continue;
+                wanted.moveTopLeft(places[best]);
+                moved = true;
+            }
+            if (!moved) break;
+        }
+        return wanted;
     }
 
     /// The resize grip covers the inner edge, only while the panels are shown
@@ -1791,6 +1883,8 @@ private:
     PanelStack *m_stack {nullptr};
     QPointer<QWidget> m_strip;
     QWidget *m_grip {nullptr};
+    /// When it was made or last moved (see settledCount())
+    quint64 m_settled {0};
     bool m_left {false};
     QPointF m_spot;
     QSize m_openSize;
@@ -3082,8 +3176,11 @@ int KisStudioLayout::newPanelGroup(const QPoint &windowPos)
     const bool left = at.x() < area->width() / 2;
     const int width = d->panelColumn ? d->panelColumn->columnWidth() : 270;
     const int margin = KisStudioPanelColumn::margin;
+    // past the tool rail when it is against that edge, as the column has it
+    const int leftMargin = margin + area->property(railLeftProperty).toInt();
+    const int rightMargin = margin + area->property(railRightProperty).toInt();
     const int x = at.x() - width / 2;
-    const int across = left ? x - margin : area->width() - margin - width - x;
+    const int across = left ? x - leftMargin : area->width() - rightMargin - width - x;
     const int top = area->property(topInsetProperty).toInt() + margin;
     const int bottom = area->height() - area->property(bottomInsetProperty).toInt() - margin;
     // its height is not known yet: a guess, so the share puts its top about where it was dropped
@@ -3091,7 +3188,7 @@ int KisStudioLayout::newPanelGroup(const QPoint &windowPos)
     KisConfig cfg(false);
     cfg.writeEntry(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
     cfg.writeEntry(groupKey(group, "Width"), width);
-    writeSpot(groupKey(group, "Spot"), QPointF(shareOf(across, area->width() - 2 * margin - width), shareOf(at.y() - 12 - top, bottom - top - guess)));
+    writeSpot(groupKey(group, "Spot"), QPointF(shareOf(across, area->width() - leftMargin - rightMargin - width), shareOf(at.y() - 12 - top, bottom - top - guess)));
     return group;
 }
 
@@ -3864,6 +3961,11 @@ void KisStudioLayout::createBrushRail()
         setToolRailSide(left);
     };
     rail->tapped = [this]() { setToolRailTucked(!d->toolRailTucked); };
+    // the panels on its side go beside it
+    rail->reachChanged = [this]() {
+        Q_FOREACH (KisStudioPanelColumn *column, d->columns()) column->place();
+        updateCanvasInsets();
+    };
     rail->setPlace(d->toolRailLeft, d->toolRailSpot);
     rail->setTucked(d->toolRailTucked);
     d->brushRail = rail;
