@@ -384,19 +384,19 @@ QMenu* KisSelectionToolHelper::getSelectionContextMenu(KisCanvas2* canvas)
     };
     auto action = [actionCollection](const char *id) { return actionCollection->action(QLatin1String(id)); };
 
-    add(menu, action("select_all"), i18nc("@action:inmenu", "Select All"));
+    add(menu, action("select_all"), i18nc("@action:inmenu", "Select all"));
     add(menu, action("deselect"), i18nc("@action:inmenu", "Deselect"));
     add(menu, action("reselect"), i18nc("@action:inmenu", "Reselect"));
     add(menu, action("invert_selection"), i18nc("@action:inmenu", "Invert"));
     menu->addSeparator();
-    add(menu, action("cut_selection_to_new_layer"), i18nc("@action:inmenu", "Cut to New Layer"));
-    add(menu, action("copy_selection_to_new_layer"), i18nc("@action:inmenu", "Copy to New Layer"));
+    add(menu, action("cut_selection_to_new_layer"), i18nc("@action:inmenu", "Cut to new layer"));
+    add(menu, action("copy_selection_to_new_layer"), i18nc("@action:inmenu", "Copy to new layer"));
 
     KisSelectionSP selection = canvas->viewManager()->selection();
     if (selection && canvas->viewManager()->selectionEditable()) {
         menu->addSeparator();
         add(menu, action("KisToolTransform"), i18nc("@action:inmenu", "Transform"));
-        add(menu, action("studio_make_brush"), i18nc("@action:inmenu a brush of what is selected", "Make Brush"));
+        add(menu, action("studio_make_brush"), i18nc("@action:inmenu a brush of what is selected", "Make brush"));
         QMenu *modify = menu->addMenu(i18nc("@title:menu change the selection's shape", "Modify"));
         add(modify, action("growselection"), i18nc("@action:inmenu", "Grow…"));
         add(modify, action("shrinkselection"), i18nc("@action:inmenu", "Shrink…"));
@@ -408,18 +408,18 @@ QMenu* KisSelectionToolHelper::getSelectionContextMenu(KisCanvas2* canvas)
         add(menu, action("edit_selection"), i18nc("@action:inmenu", "Edit"));
         QMenu *convert = menu->addMenu(i18nc("@title:menu", "Convert"));
         if (!selection->hasShapeSelection()) {
-            add(convert, action("convert_to_vector_selection"), i18nc("@action:inmenu", "To Vector"));
+            add(convert, action("convert_to_vector_selection"), i18nc("@action:inmenu", "To vector"));
         } else {
-            add(convert, action("convert_to_raster_selection"), i18nc("@action:inmenu", "To Raster"));
+            add(convert, action("convert_to_raster_selection"), i18nc("@action:inmenu", "To raster"));
         }
-        add(convert, action("convert_selection_to_shape"), i18nc("@action:inmenu", "To Shape"));
+        add(convert, action("convert_selection_to_shape"), i18nc("@action:inmenu", "To shape"));
     }
 
     menu->addSeparator();
-    add(menu, action("resizeimagetoselection"), i18nc("@action:inmenu", "Crop Image to It"));
+    add(menu, action("resizeimagetoselection"), i18nc("@action:inmenu", "Crop image to it"));
     QMenu *show = menu->addMenu(i18nc("@title:menu", "Show"));
     add(show, action("toggle_display_selection"), i18nc("@action:inmenu", "Selection"));
-    add(show, action("show-global-selection-mask"), i18nc("@action:inmenu", "As a Layer"));
+    add(show, action("show-global-selection-mask"), i18nc("@action:inmenu", "As a layer"));
 
     return menu;
 }

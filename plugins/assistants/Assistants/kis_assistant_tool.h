@@ -191,7 +191,7 @@ class KisAssistantToolFactory : public KoToolFactoryBase
 public:
     KisAssistantToolFactory()
             : KoToolFactoryBase("KisAssistantTool") {
-        setToolTip(i18n("Assistant Tool"));
+        setToolTip(i18nc("the tool that places drawing guides (assistants)", "Guides Tool"));
         setSection(ToolBoxSection::View);
         setIconName(koIconNameCStr("krita_tool_assistant"));
         setPriority(0);

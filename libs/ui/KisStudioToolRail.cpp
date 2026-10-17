@@ -5,6 +5,8 @@
  */
 #include "KisStudioToolRail.h"
 
+#include <KisSentenceCase.h>
+
 #include "KisStudioBrushEditor.h"
 
 #include <QAction>
@@ -584,7 +586,7 @@ QString KisStudioToolRail::toolName(KoToolFactoryBase *factory)
     if (name.endsWith(QStringLiteral(" Tool"))) {
         name.chop(5);
     }
-    return name;
+    return KisSentenceCase::of(name);
 }
 
 KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)

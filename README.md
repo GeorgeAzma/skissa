@@ -33,6 +33,14 @@ Fork of Krita, with a redesigned UI targeting intuition.
 <td><img width="420" src="docs/readme/symmetry.webp" alt="Radial symmetry, center dragged into place"><br><b>Symmetry</b></td>
 <td><img width="420" src="docs/readme/start.jpg" alt="The start page"><br><b>Start page</b></td>
 </tr>
+<tr>
+<td><img width="420" src="docs/readme/brush-sheet.jpg" alt="Every setting of a brush on one sheet, its modes as pictures"><br><b>A whole brush on one sheet</b></td>
+<td><img width="420" src="docs/readme/mixing.jpg" alt="Blue smudged into yellow in RGB, OKLab and as pigment, which turns green"><br><b>Paint that mixes like paint</b></td>
+</tr>
+<tr>
+<td><img width="420" src="docs/readme/guides.jpg" alt="The guides tool: line, perspective, ellipse and curve on the top bar"><br><b>Guides</b></td>
+<td><img width="420" src="docs/readme/make-brush.jpg" alt="A brush made from a selection of the picture"><br><b>A brush from any selection</b></td>
+</tr>
 </table>
 
 The code was written by an LLM, on top of Krita's code. All the UI designs were done manually.
