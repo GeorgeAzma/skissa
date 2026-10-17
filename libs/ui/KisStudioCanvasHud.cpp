@@ -6,14 +6,18 @@
 #include "KisStudioCanvasHud.h"
 
 #include <QAction>
+#include <QApplication>
+#include <QContextMenuEvent>
 #include <QEvent>
 #include <QHBoxLayout>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
 #include <QProgressBar>
 #include <QStatusBar>
 #include <QStyleOptionToolButton>
+#include <QTimer>
 #include <QToolButton>
 #include <QWheelEvent>
 #include <QtMath>
@@ -23,12 +27,16 @@
 
 #include <KoCanvasController.h>
 #include <kactioncollection.h>
+#include <kis_config.h>
 #include <klocalizedstring.h>
 
 #include "KisMainWindow.h"
 #include "KisPart.h"
+#include "KisSettingsRegistry.h"
+#include "KisStudioBarButtons.h"
 #include "KisStudioGlass.h"
-#include "KisStudioItemCard.h" // KisStudioShortcuts
+#include "KisStudioItemCard.h"
+#include "KisStudioLayout.h"
 #include "KisView.h"
 #include "KisViewManager.h"
 #include "canvas/kis_canvas2.h"
@@ -40,6 +48,9 @@
 #include <kis_icon_utils.h>
 
 namespace {
+
+const QString spotKey = QStringLiteral("StudioLayoutViewPillSpot");
+const QString shownKey = QStringLiteral("StudioViewPill");
 
 QToolButton *hudButton(QWidget *parent)
 {
@@ -154,8 +165,29 @@ struct KisStudioCanvasHud::Private
     QToolButton *value {nullptr};
     QToolButton *rotation {nullptr};
     QToolButton *zoom {nullptr};
+    /// Buttons added to it
+    KisStudioBarButtons *buttons {nullptr};
+
+    /// Where it was dragged to, as shares of the room it has (see KisStudioLayout::spotShare()); bottom right at first
+    QPointF spot {1, 1};
+    bool pressed {false};
+    bool moving {false};
+    QPoint pressPos;
+    QPoint grab;
 
     QList<QMetaObject::Connection> viewConnections;
+
+    /// The canvas area less what the bars and pinned panels cover, and a margin
+    QRect room(const QWidget *hud) const
+    {
+        const QWidget *area = hud->parentWidget();
+        const int margin = 10;
+        const int left = area->property("studioCanvasLeftInset").toInt() + margin;
+        const int top = area->property("studioCanvasTopInset").toInt() + margin;
+        const int right = area->property("studioCanvasRightInset").toInt() + margin;
+        const int bottom = area->property("studioCanvasBottomInset").toInt() + margin;
+        return QRect(left, top, area->width() - left - right - hud->width(), area->height() - top - bottom - hud->height());
+    }
 
     QAction *action(const char *name) const
     {
@@ -219,6 +251,10 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
         connect(selections, &KisSelectionManager::displaySelectionChanged, this, &KisStudioCanvasHud::updateBadges);
     }
 
+    d->buttons = new KisStudioBarButtons(mainWindow, this, KisStudioBarButtons::ViewPill);
+    d->buttons->installEventFilter(this);
+    layout->addWidget(d->buttons);
+
     d->mirror = hudButton(this);
     // named because their text changes, and Find tracks a button (its shortcut, its place on the rail) by name
     d->mirror->setObjectName(QStringLiteral("studio_hud_mirror"));
@@ -266,10 +302,20 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     d->zoom->setAutoRaise(true);
     d->zoom->setFocusPolicy(Qt::NoFocus);
     d->zoom->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    d->zoom->setToolTip(i18nc("@info:tooltip", "Zoom\nClick: fit ↔ last zoom\nScroll: zoom"));
+    d->zoom->setToolTip(i18nc("@info:tooltip", "Zoom\nClick: fit ↔ last zoom\nScroll: zoom\nDrag: move"));
     d->zoom->installEventFilter(this);
     connect(d->zoom, &QToolButton::clicked, this, [this]() { d->trigger("toggle_zoom_to_fit"); });
     layout->addWidget(d->zoom);
+
+    // a drag on any of its own buttons moves the pill
+    for (QToolButton *button : {d->alphaLock.button, d->mirrorX.button, d->mirrorY.button, d->selectionHidden, d->mirror, d->value, d->rotation}) {
+        button->installEventFilter(this);
+    }
+    const QStringList spot = KisConfig(true).readEntry<QString>(spotKey, QString()).split(QLatin1Char(','));
+    if (spot.size() == 2) d->spot = QPointF(qBound(0.0, spot[0].toDouble(), 1.0), qBound(0.0, spot[1].toDouble(), 1.0));
+    connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::valueChanged, this, [this](const QString &id) {
+        if (id == shownKey) viewChanged();
+    });
 
     parentWidget()->installEventFilter(this);
     if (QAction *canvasOnly = d->action("view_show_canvas_only")) {
@@ -335,7 +381,7 @@ void KisStudioCanvasHud::viewChanged()
     KisView *view = viewManager && viewManager->canvasBase() ? d->mainWindow->activeView() : nullptr;
     // canvas-only means only the canvas
     QAction *canvasOnly = d->action("view_show_canvas_only");
-    if (!view || !d->active || (canvasOnly && canvasOnly->isChecked())) {
+    if (!view || !d->active || (canvasOnly && canvasOnly->isChecked()) || !KisConfig(true).readEntry(shownKey, true)) {
         hide();
         return;
     }
@@ -397,18 +443,88 @@ void KisStudioCanvasHud::reposition()
         return;
     }
     adjustSize();
-    const int margin = 10;
-    // stay left of any panels pinned over the canvas
-    const int right = parentWidget()->property("studioCanvasRightInset").toInt();
-    const int bottom = parentWidget()->property("studioCanvasBottomInset").toInt();
-    move(parentWidget()->width() - right - width() - margin, parentWidget()->height() - bottom - height() - margin);
+    // clear of the bars and of any panels pinned over the canvas
+    const QRect room = d->room(this);
+    move(room.left() + KisStudioLayout::spotOffset(d->spot.x(), room.width()), room.top() + KisStudioLayout::spotOffset(d->spot.y(), room.height()));
     raise();
+}
+
+bool KisStudioCanvasHud::drag(QMouseEvent *event, QWidget *from)
+{
+    const QPoint global = event->globalPos();
+    switch (event->type()) {
+    case QEvent::MouseButtonPress:
+        if (event->button() != Qt::LeftButton) return false;
+        d->pressed = true;
+        d->moving = false;
+        d->pressPos = global;
+        d->grab = mapFromGlobal(global);
+        return false;
+    case QEvent::MouseMove: {
+        if (!d->pressed || !(event->buttons() & Qt::LeftButton)) return false;
+        // pens wobble, so only a clear move counts as a drag
+        if (!d->moving) {
+            if ((global - d->pressPos).manhattanLength() <= 2 * QApplication::startDragDistance()) return false;
+            d->moving = true;
+            if (auto *button = qobject_cast<QAbstractButton *>(from)) button->setDown(false);
+            setCursor(Qt::ClosedHandCursor);
+        }
+        // caught by the edges, the corners and the middle as it goes, so it shows where it will stay
+        const QRect room = d->room(this);
+        const QPoint at = parentWidget()->mapFromGlobal(global) - d->grab;
+        d->spot = QPointF(KisStudioLayout::spotShare(at.x() - room.left(), room.width()), KisStudioLayout::spotShare(at.y() - room.top(), room.height()));
+        reposition();
+        return true;
+    }
+    case QEvent::MouseButtonRelease:
+        if (event->button() != Qt::LeftButton || !d->pressed) return false;
+        d->pressed = false;
+        if (!d->moving) return false;
+        d->moving = false;
+        unsetCursor();
+        if (auto *button = qobject_cast<QAbstractButton *>(from)) button->setDown(false);
+        KisConfig(false).writeEntry(spotKey, QString(QString::number(d->spot.x()) + QLatin1Char(',') + QString::number(d->spot.y())));
+        return true;
+    default:
+        return false;
+    }
+}
+
+void KisStudioCanvasHud::mousePressEvent(QMouseEvent *event)
+{
+    drag(event, this);
+    event->accept();
+}
+
+void KisStudioCanvasHud::mouseMoveEvent(QMouseEvent *event)
+{
+    drag(event, this);
+}
+
+void KisStudioCanvasHud::mouseReleaseEvent(QMouseEvent *event)
+{
+    drag(event, this);
+}
+
+void KisStudioCanvasHud::contextMenuEvent(QContextMenuEvent *event)
+{
+    event->accept();
+    d->buttons->showRestoreCard(event->globalPos(), {[](KisStudioItemCard *card) {
+        card->addCommand({KisIconUtils::loadIcon(QStringLiteral("studio_hidden")), i18nc("@info:tooltip", "Hide"),
+                          []() { KisSettingsRegistry::instance()->setValue(shownKey, false); }});
+    }});
 }
 
 bool KisStudioCanvasHud::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == parentWidget() && (event->type() == QEvent::Resize || event->type() == QEvent::LayoutRequest)) {
         reposition();
+    } else if (watched == d->buttons) {
+        // its buttons came or went
+        if (event->type() == QEvent::LayoutRequest) QTimer::singleShot(0, this, &KisStudioCanvasHud::reposition);
+    } else if ((event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseMove || event->type() == QEvent::MouseButtonRelease)
+               && drag(static_cast<QMouseEvent *>(event), qobject_cast<QWidget *>(watched))) {
+        return true;
     } else if (watched == d->zoom && event->type() == QEvent::Wheel) {
         // one zoom step per wheel notch, however fine the wheel
         const int steps = KisModernStyle::wheelSteps(static_cast<QWheelEvent *>(event), watched);

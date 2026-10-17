@@ -46,6 +46,7 @@ namespace
 {
 
 const QString itemsKey = QStringLiteral("StudioBarItems");
+const QString pillItemsKey = QStringLiteral("StudioViewPillItems");
 const QString symmetryItem = QStringLiteral("bar:symmetry");
 const QString shapesItem = QStringLiteral("action:stroke_shapes");
 const QString brushEditorItem = QStringLiteral("action:show_brush_editor");
@@ -184,6 +185,7 @@ private:
 
 struct KisStudioBarButtons::Private {
     KisMainWindow *mainWindow {nullptr};
+    Place place {TopBar};
     QHBoxLayout *layout {nullptr};
     QStringList items;
     QList<QWidget *> widgets;
@@ -200,6 +202,9 @@ struct KisStudioBarButtons::Private {
     {
         return mainWindow->actionCollection();
     }
+
+    QString key() const { return place == TopBar ? itemsKey : pillItemsKey; }
+    QStringList defaults() const { return place == TopBar ? defaultItems() : QStringList(); }
 
     /// What a button needs for \p key: a window action directly, anything else through Find
     bool resolve(const QString &key, KisStudioFind::Item *item) const
@@ -227,15 +232,20 @@ struct KisStudioBarButtons::Private {
     }
 };
 
-KisStudioBarButtons::KisStudioBarButtons(KisMainWindow *mainWindow, QWidget *parent)
+KisStudioBarButtons::KisStudioBarButtons(KisMainWindow *mainWindow, QWidget *parent, Place place)
     : QWidget(parent)
     , d(new Private)
 {
     d->mainWindow = mainWindow;
-    setObjectName(QStringLiteral("studioBarButtons"));
+    d->place = place;
+    setObjectName(place == TopBar ? QStringLiteral("studioBarButtons") : QStringLiteral("studioPillButtons"));
     setAcceptDrops(true);
     d->layout = new QHBoxLayout(this);
-    d->layout->setContentsMargins(KisModernStyle::space2, 0, KisModernStyle::space1, 0);
+    if (place == TopBar) {
+        d->layout->setContentsMargins(KisModernStyle::space2, 0, KisModernStyle::space1, 0);
+    } else {
+        d->layout->setContentsMargins(0, 0, 0, 0);
+    }
     d->layout->setSpacing(KisModernStyle::hairline);
 
     d->indicator = new QFrame(this);
@@ -243,9 +253,9 @@ KisStudioBarButtons::KisStudioBarButtons(KisMainWindow *mainWindow, QWidget *par
     d->indicator->setBackgroundRole(QPalette::Highlight);
     d->indicator->hide();
 
-    d->items = KisConfig(true).readEntry<QStringList>(itemsKey, defaultItems());
+    d->items = KisConfig(true).readEntry<QStringList>(d->key(), d->defaults());
     // the brush's chip opens the brush editor: a bar saved with the editor's button loses it once, and keeps it if put back
-    if (!KisConfig(true).readEntry("StudioBarBrushEditorRetired", false)) {
+    if (place == TopBar && !KisConfig(true).readEntry("StudioBarBrushEditorRetired", false)) {
         KisConfig cfg(false);
         cfg.writeEntry("StudioBarBrushEditorRetired", true);
         if (d->items.removeAll(brushEditorItem) && cfg.readEntry(itemsKey, QString()).size()) cfg.writeEntry(itemsKey, d->items);
@@ -278,7 +288,7 @@ void KisStudioBarButtons::setItems(const QStringList &items)
         if (!unique.contains(item)) unique << item;
     }
     d->items = unique;
-    KisConfig(false).writeEntry(itemsKey, d->items);
+    KisConfig(false).writeEntry(d->key(), d->items);
     rebuild();
     Q_EMIT sigItemsChanged();
 }
@@ -296,6 +306,7 @@ void KisStudioBarButtons::rebuild()
     d->widgetItem.clear();
 
     d->missing = false;
+    const QString prefix = d->place == TopBar ? QStringLiteral("studio_bar_") : QStringLiteral("studio_pill_");
     for (int i = 0; i < d->items.size(); i++) {
         const QString key = d->items[i];
         const int index = i;
@@ -309,7 +320,7 @@ void KisStudioBarButtons::rebuild()
             value->setPinOnHoverOnly(true);
             // a right click resets it; Find's card doesn't take it
             value->setProperty("ownContextMenu", true);
-            value->setObjectName(QStringLiteral("studio_bar_") + QString(key).replace(QLatin1Char(':'), QLatin1Char('_')));
+            value->setObjectName(prefix + QString(key).replace(QLatin1Char(':'), QLatin1Char('_')));
             connect(value, &KisStudioValueRow::pinClicked, this, [this, key]() {
                 QTimer::singleShot(0, this, [this, key]() { toggle(d->mainWindow, key); });
             });
@@ -320,8 +331,9 @@ void KisStudioBarButtons::rebuild()
             continue;
         }
         auto *button = new BarButton(this);
+        if (d->place == ViewPill) button->setIconSize(QSize(16, 16));
         // named by its item, so Find knows the button and its shortcut
-        button->setObjectName(QStringLiteral("studio_bar_") + QString(key).replace(QLatin1Char(':'), QLatin1Char('_')));
+        button->setObjectName(prefix + QString(key).replace(QLatin1Char(':'), QLatin1Char('_')));
 
         if (key == symmetryItem) {
             // a click toggles it, a long press or right click opens its modes
@@ -380,8 +392,8 @@ void KisStudioBarButtons::rebuild()
         d->widgetItem << i;
     }
 
-    // with nothing on it, a "+" to bring buttons back
-    if (d->widgets.isEmpty()) {
+    // with nothing on it, a "+" to bring buttons back; the pill is added to by its right click
+    if (d->widgets.isEmpty() && d->place == TopBar) {
         auto *plus = new BarButton(this);
         plus->setIcon(KisIconUtils::loadIcon(QStringLiteral("list-add")));
         connect(plus, &QToolButton::clicked, this, [this, plus]() { showRestoreCard(plus->mapToGlobal(plus->rect().bottomLeft())); });
@@ -442,12 +454,12 @@ void KisStudioBarButtons::showCard(int index)
     card->popupBeside(d->widgets[widgetIndex]);
 }
 
-void KisStudioBarButtons::showRestoreCard(const QPoint &globalPos)
+void KisStudioBarButtons::showRestoreCard(const QPoint &globalPos, const QList<std::function<void(KisStudioItemCard *)>> &extra)
 {
     auto *card = new KisStudioItemCard(d->mainWindow, KisIconUtils::loadIcon(QStringLiteral("studio_more")),
                                        i18nc("@title the top bar's buttons", "Buttons"), nullptr);
     QVector<KisStudioItemCard::Choice> choices;
-    Q_FOREACH (const QString &key, defaultItems()) {
+    Q_FOREACH (const QString &key, d->defaults()) {
         if (d->items.contains(key)) continue;
         KisStudioItemCard::Choice choice;
         choice.key = key;
@@ -475,7 +487,8 @@ void KisStudioBarButtons::showRestoreCard(const QPoint &globalPos)
                           }
                       }});
     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("view-refresh")), i18nc("@info:tooltip", "Reset buttons"),
-                      [this]() { setItems(defaultItems()); }});
+                      [this]() { setItems(d->defaults()); }});
+    for (const auto &add : extra) add(card);
     // an invisible anchor at the click
     auto *anchor = new QWidget(this);
     anchor->setGeometry(QRect(mapFromGlobal(globalPos), QSize(1, 1)));
@@ -485,6 +498,11 @@ void KisStudioBarButtons::showRestoreCard(const QPoint &globalPos)
 
 void KisStudioBarButtons::contextMenuEvent(QContextMenuEvent *event)
 {
+    // the pill's card has its own commands too
+    if (d->place == ViewPill) {
+        event->ignore();
+        return;
+    }
     showRestoreCard(event->globalPos());
 }
 
@@ -613,7 +631,8 @@ void KisStudioBarButtons::dropEvent(QDropEvent *event)
         if (to > from) to--;
     }
     items.insert(qBound(0, to, items.size()), key);
-    event->setDropAction(from >= 0 && event->mimeData()->hasFormat(indexMimeType) ? Qt::MoveAction : Qt::CopyAction);
+    // from a bar (this one or the other): moved, so the other one lets go of it
+    event->setDropAction(event->mimeData()->hasFormat(indexMimeType) ? Qt::MoveAction : Qt::CopyAction);
     d->droppedHere = true;
     event->accept();
     // deferred: the dragged widget is still in use by its drag

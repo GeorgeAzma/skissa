@@ -1116,10 +1116,11 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("selectionActionBar"), i18nc("selection", "Actions bar"));
         });
     add(QStringLiteral("canvas"), QStringLiteral("zoom"), i18nc("settings card", "Zoom"),
-        {QStringLiteral("zoomSteps"), QStringLiteral("zoomHorizontal")}, QStringLiteral("zooming steps per doubling dragging sideways"),
-        [](Builder &b) {
+        {QStringLiteral("zoomSteps"), QStringLiteral("zoomHorizontal"), QStringLiteral("StudioViewPill")},
+        QStringLiteral("zooming steps per doubling dragging sideways pill percent status bar corner"), [](Builder &b) {
             b.number(QStringLiteral("zoomSteps"), {i18nc("zoom", "Steps per doubling")});
             b.toggle(QStringLiteral("zoomHorizontal"));
+            b.toggle(QStringLiteral("StudioViewPill"));
         });
     add(QStringLiteral("canvas"), QStringLiteral("drawing"), i18nc("settings card", "Drawing"),
         {QStringLiteral("OpenGLFilterMode"), QStringLiteral("showSingleChannelAsColor")},

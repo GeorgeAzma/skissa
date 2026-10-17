@@ -27,6 +27,8 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPointer>
+#include <QScreen>
+#include <QScrollBar>
 #include <QStyledItemDelegate>
 #include <QTimer>
 #include <QToolButton>
@@ -357,6 +359,25 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
         } else if (event->type() == QEvent::FocusOut) {
             d->editor->deleteLater();
             d->editor = nullptr;
+        }
+        return false;
+    }
+
+    if (watched == d->comboBox->view()->window() && event->type() == QEvent::Show) {
+        // as wide as the longest tag and its delete button: the list opens as narrow as the tag shown
+        QAbstractItemView *view = d->comboBox->view();
+        QWidget *list = view->window();
+        int widest = 0;
+        for (int row = 0; row < d->comboBox->count(); row++) {
+            widest = qMax(widest, view->fontMetrics().horizontalAdvance(d->comboBox->itemText(row)));
+        }
+        const int wanted = widest + 48 + view->verticalScrollBar()->sizeHint().width();
+        if (list->width() < wanted) {
+            QRect geometry = list->geometry();
+            geometry.setWidth(wanted);
+            const QRect room = list->screen() ? list->screen()->availableGeometry() : geometry;
+            if (geometry.right() > room.right()) geometry.moveRight(room.right());
+            list->setGeometry(geometry);
         }
         return false;
     }

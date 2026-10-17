@@ -34,6 +34,10 @@ public:
     /// Whether the Studio layout is enabled in kritarc (on by default)
     static bool isEnabledInConfig();
 
+    /// Where a pill dragged anywhere sits along one axis, as a share of the room it moves in: the edges and the middle catch it
+    static qreal spotShare(int offset, int room);
+    static int spotOffset(qreal share, int room);
+
     bool isActive() const;
     /// Switches between the studio layout and Krita's classic dockers
     void setActive(bool active);

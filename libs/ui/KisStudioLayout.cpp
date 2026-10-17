@@ -13,6 +13,7 @@
 #include <QListView>
 #include <QAbstractItemView>
 #include <QAction>
+#include <QElapsedTimer>
 #include <QApplication>
 #include <QDockWidget>
 #include <QFileInfo>
@@ -821,7 +822,7 @@ int contentsHeight(QAbstractScrollArea *area)
 class PanelStack : public QWidget
 {
 public:
-    /// Height of the handle between two panels; taller for fingers
+    /// Height of the handle under each panel; taller for fingers
     static int gap() { return KisTouchMode::isActive() ? 12 : 6; }
     /// A scrolling panel keeps at least this much of its contents
     static constexpr int minimumContents = 56;
@@ -884,7 +885,8 @@ public:
             total += measure(dock).want;
             shown++;
         }
-        return total + qMax(0, shown - 1) * gap();
+        // a handle under the last one too, so it can be made taller
+        return total + shown * gap();
     }
 
     QSize sizeHint() const override { return QSize(width(), m_wanted); }
@@ -976,7 +978,7 @@ private:
             if (!dock->isHidden()) shown << dock;
         }
         QVector<Measure> sizes;
-        int total = qMax(0, shown.size() - 1) * gap();
+        int total = shown.size() * gap();
         for (QDockWidget *dock : shown) {
             sizes << measure(dock);
             total += sizes.last().want;
@@ -1029,9 +1031,7 @@ private:
             if (dock->geometry() != place) dock->setGeometry(place);
             y += sizes[i].want;
             PanelHandle *handle = m_handles[i];
-            const bool between = i + 1 < shown.size();
-            handle->setVisible(between);
-            if (!between) continue;
+            handle->setVisible(true);
             handle->setGeometry(0, y, width(), gap());
             handle->raise();
             QPointer<QDockWidget> target = dock;
@@ -1871,6 +1871,8 @@ struct KisStudioLayout::Private
     QPointer<QAction> settingsButtonAction;
     QPointer<KisStudioSettings> settings;
     QPointer<QMenu> mainMenu;
+    /// When the main menu last closed: a press on its button closes it, and the click that follows mustn't open it again
+    QElapsedTimer mainMenuClosed;
     /// The brush bar whose menu buttons were switched to open on a long press, and those buttons
     QPointer<QToolBar> placedOnBar;
     QList<QPointer<QToolButton>> delayedPopups;
@@ -2132,6 +2134,16 @@ KisStudioLayout::~KisStudioLayout()
     if (d->active) {
         qApp->removeEventFilter(this);
     }
+}
+
+qreal KisStudioLayout::spotShare(int offset, int room)
+{
+    return shareOf(offset, room);
+}
+
+int KisStudioLayout::spotOffset(qreal share, int room)
+{
+    return offsetOf(share, room);
 }
 
 bool KisStudioLayout::isEnabledInConfig()
@@ -4138,8 +4150,10 @@ void KisStudioLayout::openSettings(const QString &cardId, bool toggle)
 void KisStudioLayout::showMainMenu(QWidget *button)
 {
     // the most used file commands, then the menu bar's menus; rebuilt each time to pick up recent files
+    if (d->mainMenuClosed.isValid() && d->mainMenuClosed.elapsed() < 300 && button->underMouse()) return;
     if (!d->mainMenu) {
         d->mainMenu = new QMenu(d->mainWindow);
+        connect(d->mainMenu, &QMenu::aboutToHide, this, [this]() { d->mainMenuClosed.start(); });
     }
     QMenu *menu = d->mainMenu;
     menu->clear();

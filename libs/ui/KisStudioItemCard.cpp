@@ -447,6 +447,7 @@ struct KisStudioItemCard::Private
     QHBoxLayout *choices {nullptr};
     QVBoxLayout *commands {nullptr};
     bool recording {false};
+    KisPopupCloser *closer {nullptr};
 };
 
 KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &icon, const QString &title, QAction *shortcutAction)
@@ -458,7 +459,7 @@ KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &ico
     d->action = shortcutAction;
     setAttribute(Qt::WA_TranslucentBackground, KisStudioGlass::seeThroughWindows());
     setAttribute(Qt::WA_DeleteOnClose);
-    new KisPopupCloser(this);
+    d->closer = new KisPopupCloser(this);
 
     auto *layout = new QVBoxLayout(this);
     const int shadowMargin = shadowMarginOf(this);
@@ -590,6 +591,8 @@ void KisStudioItemCard::addCommand(const Command &command)
 
 void KisStudioItemCard::popupBeside(QWidget *anchor)
 {
+    // a click on what opened it closes it again
+    d->closer->setAnchor(anchor);
     adjustSize();
     const QRect anchorRect(anchor->mapToGlobal(QPoint(0, 0)), anchor->size());
     QScreen *screen = anchor->screen();

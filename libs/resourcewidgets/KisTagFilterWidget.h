@@ -26,9 +26,14 @@ public Q_SLOTS:
 
 Q_SIGNALS:
     void filterTextChanged(const QString &filterText);
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
 private Q_SLOTS:
     void onTextChanged(const QString &lineEditText);
 private:
+    /// The field while it is used; otherwise only the magnifier
+    void setOpen(bool open);
+
     class Private;
     Private* const d;
 };

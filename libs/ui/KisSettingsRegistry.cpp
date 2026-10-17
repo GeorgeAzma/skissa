@@ -549,6 +549,7 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("useEraserBrushSize"), false, i18nc("setting", "Eraser keeps its own size"));
         all << toggle(QStringLiteral("useEraserBrushOpacity"), false, i18nc("setting", "Eraser keeps its own opacity"));
         all << toggle(QStringLiteral("StrokeShapeSnap"), false, i18nc("setting", "Hold to make a shape"), R::Fork);
+        all << toggle(QStringLiteral("StudioViewPill"), true, i18nc("setting", "Zoom pill"), R::Fork);
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in effects")), QStringLiteral("filterdialog"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in Transform")), QStringLiteral("KisToolTransform"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), false, i18nc("setting", "Instant preview in Move")), QStringLiteral("KritaTransform/KisToolMove"));

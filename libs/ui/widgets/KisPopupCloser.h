@@ -28,6 +28,8 @@ public:
 
     /// Off: the popup stays when the pointer goes elsewhere (pinned)
     void setEnabled(bool enabled) { m_enabled = enabled; }
+    /// What opened the popup, if it wasn't known when the closer was made
+    void setAnchor(QWidget *anchor) { m_anchor = anchor; }
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

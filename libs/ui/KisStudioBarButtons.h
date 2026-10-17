@@ -9,9 +9,11 @@
 #include <QPointer>
 #include <QWidget>
 
+#include <functional>
 #include <memory>
 
 class KisMainWindow;
+class KisStudioItemCard;
 class QMenu;
 
 /**
@@ -23,7 +25,10 @@ class KisStudioBarButtons : public QWidget
 {
     Q_OBJECT
 public:
-    explicit KisStudioBarButtons(KisMainWindow *mainWindow, QWidget *parent = nullptr);
+    /// Where the buttons are: the top bar, or the pill with the zoom (its own buttons, none at first)
+    enum Place { TopBar, ViewPill };
+
+    explicit KisStudioBarButtons(KisMainWindow *mainWindow, QWidget *parent = nullptr, Place place = TopBar);
     ~KisStudioBarButtons() override;
 
     /// Shows the buttons that apply to the active tool (the brush's own only with the tools that use it)
@@ -40,6 +45,9 @@ public:
     /// Drags \p key from \p source, to be dropped on a bar (or the Controls panel); returns what the drop did
     static Qt::DropAction dragItem(const QString &key, QWidget *source);
 
+    /// The card to bring buttons back or add any command, at \p globalPos, with \p extra commands of the place's own
+    void showRestoreCard(const QPoint &globalPos, const QList<std::function<void(KisStudioItemCard *)>> &extra = {});
+
 Q_SIGNALS:
     void sigItemsChanged();
 
@@ -55,7 +63,6 @@ private:
     void rebuild();
     void startDrag(int index, QWidget *source, const QPixmap &pixmap);
     void showCard(int index);
-    void showRestoreCard(const QPoint &globalPos);
     int dropIndex(int x) const;
     /// The menu with the symmetry modes and their settings
     QMenu *symmetryMenu();
