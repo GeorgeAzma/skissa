@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioTips.h"
+#include "KisSettingsRegistry.h"
 
 #include <QAbstractButton>
 #include <QApplication>
@@ -183,6 +184,11 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
         if (event->type() != QEvent::ToolTip) return false;
+        // all of them off in Settings, the lists' and the brushes' cards too
+        if (!KisSettingsRegistry::instance()->value(QStringLiteral("StudioTooltips")).toBool()) {
+            QToolTip::hideText();
+            return true;
+        }
         auto *widget = qobject_cast<QWidget *>(watched);
         if (!widget) return false;
         QString plain = widget->toolTip();

@@ -1054,6 +1054,8 @@ QVector<CardDef> makeCards()
             b.showWhen(familyRow, b.isOn(QStringLiteral("use_custom_system_font")));
             b.showWhen(size, b.isOn(QStringLiteral("use_custom_system_font")));
         });
+    addToggle(QStringLiteral("appearance"), QStringLiteral("tooltips"), i18nc("settings card", "Tooltips"), QStringLiteral("StudioTooltips"),
+              QStringLiteral("tooltips hints hover help popups bubbles"));
     add(QStringLiteral("appearance"), QStringLiteral("brushes"), i18nc("settings card", "Brushes"), {QStringLiteral("PresetStrokeThumbnails")},
         QStringLiteral("brush thumbnails strokes presets"), [](Builder &b) {
             b.toggle(QStringLiteral("PresetStrokeThumbnails"), i18nc("setting", "Show brushes as strokes"));

@@ -248,6 +248,7 @@ QHash<QString, QString> explanations()
         {QStringLiteral("newCursorStyle"), i18nc("@info:tooltip", "A mark at the pen's tip, with the outline")},
         {QStringLiteral("showSingleChannelAsColor"), i18nc("@info:tooltip", "One channel shown alone in its own color: Red in red, not gray")},
         {QStringLiteral("StudioColorIntensity"), i18nc("@info:tooltip", "In floating-point images, a value beside the color code: stops past white")},
+        {QStringLiteral("StudioTooltips"), i18nc("@info:tooltip", "What a control is and its gestures, when the pointer rests on it")},
         {QStringLiteral("zoomSteps"), i18nc("@info:tooltip", "Steps from 100% to 200%. 3: 100% → 125% → 150% → 200%")},
         {QStringLiteral("OpenGLFilterMode"),
          i18nc("@info:tooltip",
@@ -552,6 +553,7 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("StrokeShapeSnap"), false, i18nc("setting", "Hold to make a shape"), R::Fork);
         all << toggle(QStringLiteral("StudioViewPill"), true, i18nc("setting", "Zoom pill"), R::Fork);
         all << toggle(QStringLiteral("StudioColorIntensity"), true, i18nc("setting", "Brighter than white"), R::Fork);
+        all << toggle(QStringLiteral("StudioTooltips"), true, i18nc("setting", "Tooltips"), R::Fork);
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in effects")), QStringLiteral("filterdialog"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in Transform")), QStringLiteral("KisToolTransform"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), false, i18nc("setting", "Instant preview in Move")), QStringLiteral("KritaTransform/KisToolMove"));
