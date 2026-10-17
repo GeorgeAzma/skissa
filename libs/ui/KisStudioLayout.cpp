@@ -874,6 +874,8 @@ public:
     std::function<void()> wantsHeight;
     /// The handle under \p above was tapped: the panels below it go apart
     std::function<void(QDockWidget *above)> separated;
+    /// One of its panels was shown or hidden
+    std::function<void()> shownChanged;
 
     explicit PanelStack(QWidget *parent)
         : QWidget(parent)
@@ -1136,6 +1138,12 @@ private:
             case QEvent::Hide:
             case QEvent::LayoutRequest:
                 m_stack->later();
+                break;
+            case QEvent::ShowToParent:
+            case QEvent::HideToParent:
+                // also while its group is hidden (it has no other panel shown), when Show doesn't come
+                m_stack->later();
+                if (m_stack->shownChanged) m_stack->shownChanged();
                 break;
             default:
                 break;
@@ -2093,6 +2101,8 @@ private:
         m_areaSize = area->size();
         m_target = target;
         m_extra = extra;
+        // what keeps off it (the zoom pill) keeps off where it is going
+        setProperty("studioTarget", target);
         if (from.manhattanLength() < 2) {
             m_glide.stop();
             setGeometry(target);
@@ -3873,6 +3883,8 @@ KisStudioPanelColumn *KisStudioLayout::createColumn(int group, bool left)
         }
     };
     column->stackMade = [this](PanelStack *stack) {
+        // a group with no panel shown is hidden: one shown again brings it back
+        stack->shownChanged = [this]() { QTimer::singleShot(0, this, [this]() { updateColumns(); }); };
         stack->userHeight = [this](const QDockWidget *dock) { return d->heights.value(dock->objectName(), 0); };
         stack->settled = [this](QDockWidget *dock, int height) {
             d->heights.insert(dock->objectName(), height);
@@ -4023,6 +4035,8 @@ void KisStudioLayout::updateColumns()
 void KisStudioLayout::updateCanvasInsets(bool views)
 {
     placeWindowHandle();
+    // the zoom pill keeps off the panels wherever they go, not only off those docked
+    if (d->hud) d->hud->reposition();
     QMdiArea *mdi = mdiArea();
     QWidget *area = mdi ? mdi->parentWidget() : nullptr;
     if (!area) {

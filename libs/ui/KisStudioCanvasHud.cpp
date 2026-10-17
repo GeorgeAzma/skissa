@@ -179,16 +179,60 @@ struct KisStudioCanvasHud::Private
 
     QList<QMetaObject::Connection> viewConnections;
 
-    /// The canvas area less what the bars and pinned panels cover, and a margin
+    /// Where its corner can go, as offset and extent: the canvas area less a margin
     QRect room(const QWidget *hud) const
     {
         const QWidget *area = hud->parentWidget();
         const int margin = 10;
-        const int left = area->property("studioCanvasLeftInset").toInt() + margin;
-        const int top = area->property("studioCanvasTopInset").toInt() + margin;
-        const int right = area->property("studioCanvasRightInset").toInt() + margin;
-        const int bottom = area->property("studioCanvasBottomInset").toInt() + margin;
-        return QRect(left, top, area->width() - left - right - hud->width(), area->height() - top - bottom - hud->height());
+        return QRect(margin, margin, area->width() - 2 * margin - hud->width(), area->height() - 2 * margin - hud->height());
+    }
+
+    /// What it keeps off: the bars, the tool rail and the groups of panels over the canvas, where they are going
+    QVector<QRect> taken(const QWidget *hud) const
+    {
+        static const QStringList pills = {QStringLiteral("studioToolRail"), QStringLiteral("studioPanels"), QStringLiteral("studioFarPanels"),
+                                          QStringLiteral("studioTopPill"), QStringLiteral("studioWindowPill"), QStringLiteral("studioWindowHandle")};
+        QVector<QRect> rects;
+        for (QObject *child : hud->parentWidget()->children()) {
+            auto *widget = qobject_cast<QWidget *>(child);
+            if (!widget || widget == hud || widget->isHidden()) continue;
+            const QString name = widget->objectName();
+            if (!pills.contains(name) && !name.startsWith(QLatin1String("studioPanelGroup"))) continue;
+            // a group gliding somewhere is already there
+            const QRect target = widget->property("studioTarget").toRect();
+            rects << (target.isValid() ? target : widget->geometry());
+        }
+        return rects;
+    }
+
+    /// \p wanted moved the least it takes to be clear of \p taken, its corner within \p room
+    static QRect clearOf(const QRect &wanted, const QVector<QRect> &taken, const QRect &room)
+    {
+        auto clear = [&taken](const QRect &at) {
+            for (const QRect &them : taken) {
+                if (them.intersects(at)) return false;
+            }
+            return true;
+        };
+        if (clear(wanted)) return wanted;
+        // beside, above or below any of them, or in a corner two of them make
+        const int gap = 6;
+        QVector<int> xs{wanted.x()};
+        QVector<int> ys{wanted.y()};
+        for (const QRect &them : taken) {
+            xs << them.right() + 1 + gap << them.left() - gap - wanted.width();
+            ys << them.bottom() + 1 + gap << them.top() - gap - wanted.height();
+        }
+        QRect best;
+        for (int x : qAsConst(xs)) {
+            for (int y : qAsConst(ys)) {
+                if (x < room.left() || x > room.left() + room.width() || y < room.top() || y > room.top() + room.height()) continue;
+                const QRect at(QPoint(x, y), wanted.size());
+                if (!clear(at)) continue;
+                if (best.isNull() || (at.topLeft() - wanted.topLeft()).manhattanLength() < (best.topLeft() - wanted.topLeft()).manhattanLength()) best = at;
+            }
+        }
+        return best.isNull() ? wanted : best;
     }
 
     QAction *action(const char *name) const
@@ -449,9 +493,12 @@ void KisStudioCanvasHud::reposition()
         return;
     }
     adjustSize();
-    // clear of the bars and of any panels pinned over the canvas
+    // anywhere that is free: off the bars, the tool rail and the panels, the least it takes (while dragged too,
+    // so it shows where it will stay)
     const QRect room = d->room(this);
-    move(room.left() + KisStudioLayout::spotOffset(d->spot.x(), room.width()), room.top() + KisStudioLayout::spotOffset(d->spot.y(), room.height()));
+    const QPoint wanted(room.left() + KisStudioLayout::spotOffset(d->spot.x(), room.width()), room.top() + KisStudioLayout::spotOffset(d->spot.y(), room.height()));
+    const QRect at = Private::clearOf(QRect(wanted, size()), d->taken(this), room);
+    if (at.topLeft() != pos()) move(at.topLeft());
     raise();
 }
 

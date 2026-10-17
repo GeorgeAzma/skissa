@@ -26,6 +26,8 @@ public:
 
     /// Borrows the status bar's progress bar while active and returns it when deactivated
     void setActive(bool active);
+    /// Where it was dragged to, or the nearest place free of the bars, the tool rail and the panels
+    void reposition();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -41,7 +43,6 @@ private:
     void updateBadges();
     void updateZoom(qreal zoom);
     void updateRotation(qreal angle);
-    void reposition();
     /// The pill follows a drag begun on it or on one of its own buttons; true while it does
     bool drag(QMouseEvent *event, QWidget *from);
 
