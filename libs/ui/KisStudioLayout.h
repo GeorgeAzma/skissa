@@ -81,6 +81,9 @@ private:
     void arrangePinned();
     void restoreHeights();
     void saveHeights();
+    /// Joins the groups saved as joined, once both are there
+    void restoreJoins();
+    void saveJoins();
     /// The column with the panel buttons
     KisStudioPanelColumn *panelColumn();
     /// The column of a group of pinned panels: 0 the one with the panel buttons, 1 across the canvas from it,

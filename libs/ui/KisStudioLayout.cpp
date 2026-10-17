@@ -124,6 +124,8 @@ const QString farKey = QStringLiteral("StudioLayoutFarPanels");
 const QString farWidthKey = QStringLiteral("StudioLayoutFarPanelWidth");
 /// The pinned panels in floating groups of their own, as "id=group" entries (groups from 2 on)
 const QString groupsKey = QStringLiteral("StudioLayoutPanelGroups");
+/// Groups joined to move together (see KisStudioLayout::restoreJoins())
+const QString joinsKey = QStringLiteral("StudioLayoutPanelJoins");
 /// A floating group's own setting: Spot, Width or Side
 QString groupKey(int group, const char *what)
 {
@@ -575,10 +577,8 @@ const char *const leftPillProperty = "studioPanelPillLeft";
 const char *const rightPillProperty = "studioPanelPillRight";
 /// Where the window's handle in the top left corner ends, or 0 while it is hidden
 const char *const handleBottomProperty = "studioWindowHandleBottom";
-/// How far the tool rail reaches in from the left or the right edge when it is against that edge, else 0:
-/// the panels on that side go beside it, never between it and the edge
-const char *const railLeftProperty = "studioToolRailLeft";
-const char *const railRightProperty = "studioToolRailRight";
+/// Where the tool rail is over the canvas area, or empty while it is hidden: the panels keep off it
+const char *const railRectProperty = "studioToolRailRect";
 
 /// Paints \p widget as glass with a rim of opacity \p rim
 void paintGlass(QPainter &painter, QWidget *widget, qreal radius, qreal rim)
@@ -1131,7 +1131,7 @@ public:
     /// Called when dragged and dropped: the side of the canvas it is on and its place from that side (see shareOf())
     std::function<void(bool left, const QPointF &spot)> moved;
     std::function<void()> tapped;
-    /// How far it reaches in from an edge changed (see railLeftProperty)
+    /// It was placed somewhere else (see railRectProperty)
     std::function<void()> reachChanged;
 
     explicit RailOverlay(QWidget *canvasArea)
@@ -1185,17 +1185,14 @@ public:
         updateReach();
     }
 
-    /// Tells the panels how far it reaches in from the edge it is against
+    /// Tells the panels where it is, so they keep off it: where it lands, not on the way while dragged
     void updateReach()
     {
         QWidget *area = parentWidget();
-        const bool against = isVisibleTo(area) && m_spot.x() <= 0;
-        const int left = against && m_left ? geometry().right() + 1 : 0;
-        const int right = against && !m_left ? area->width() - x() : 0;
-        if (area->property(railLeftProperty).toInt() == left && area->property(railRightProperty).toInt() == right) return;
-        area->setProperty(railLeftProperty, left);
-        area->setProperty(railRightProperty, right);
-        if (reachChanged) reachChanged();
+        const QRect at = isVisibleTo(area) ? geometry() : QRect();
+        if (area->property(railRectProperty).toRect() == at) return;
+        area->setProperty(railRectProperty, at);
+        if (!m_moving && reachChanged) reachChanged();
     }
 
 protected:
@@ -1258,6 +1255,7 @@ protected:
         unsetCursor();
         update();
         if (moved) moved(m_left, m_spot);
+        if (reachChanged) reachChanged();
     }
 
     void paintEvent(QPaintEvent *) override
@@ -1272,6 +1270,12 @@ protected:
         updateReach();
     }
 
+    void resizeEvent(QResizeEvent *event) override
+    {
+        QWidget::resizeEvent(event);
+        updateReach();
+    }
+
     void hideEvent(QHideEvent *event) override
     {
         QWidget::hideEvent(event);
@@ -1279,7 +1283,7 @@ protected:
     }
 
 private:
-    /// Where its corner can go, as offset and extent: the whole width (the panels go beside it), clear of the bars
+    /// Where its corner can go, as offset and extent: the whole width (the panels keep off it), clear of the bars
     QRect room() const
     {
         const QWidget *area = parentWidget();
@@ -1554,13 +1558,72 @@ private:
     QString m_iconName;
 };
 
+/// The clip on the seam between two joined groups of panels: a click parts them
+class JoinClip : public QWidget
+{
+public:
+    std::function<void()> clicked;
+
+    /// \p upright: on a seam that runs up and down, between groups side by side
+    JoinClip(QWidget *canvasArea, bool upright)
+        : QWidget(canvasArea)
+        , m_upright(upright)
+    {
+        setObjectName(QStringLiteral("studioPanelsJoin"));
+        setAttribute(Qt::WA_Hover);
+        setCursor(Qt::PointingHandCursor);
+        setToolTip(i18nc("@info:tooltip two groups of panels joined so they move together", "Joined\nClick: separate"));
+        resize(upright ? QSize(10, 32) : QSize(32, 10));
+    }
+
+    bool isUpright() const { return m_upright; }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        // a bridge in the panels' color over the gap between them, with a line along the seam
+        const QRectF bridge = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+        QColor rim = palette().color(QPalette::WindowText);
+        rim.setAlphaF(0.2);
+        painter.setPen(QPen(rim, 1));
+        painter.setBrush(palette().color(QPalette::Window));
+        painter.drawRoundedRect(bridge, 4, 4);
+        QColor ink = palette().color(QPalette::WindowText);
+        ink.setAlphaF(underMouse() ? 0.85 : 0.4);
+        painter.setPen(QPen(ink, 2, Qt::SolidLine, Qt::RoundCap));
+        const QPointF middle = bridge.center();
+        if (m_upright) painter.drawLine(middle + QPointF(0, -8), middle + QPointF(0, 8));
+        else painter.drawLine(middle + QPointF(-8, 0), middle + QPointF(8, 0));
+    }
+
+    bool event(QEvent *event) override
+    {
+        if (event->type() == QEvent::HoverEnter || event->type() == QEvent::HoverLeave) update();
+        return QWidget::event(event);
+    }
+
+    void mousePressEvent(QMouseEvent *event) override { event->accept(); }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton && rect().contains(event->pos()) && clicked) clicked();
+    }
+
+private:
+    bool m_upright {true};
+};
+
 } // namespace
 
 /**
  * The pinned panels in a glass pill over the canvas, below the strip of panel
  * buttons (or a grip). Dragging the strip moves it: against an edge it is
  * docked there and the canvas makes room for it, anywhere else it floats.
- * Dragging the inner edge sets the width.
+ * Dragging the inner edge sets the width. Dropped against another group's
+ * edge, it joins it: joined groups move as one, until the clip on their seam
+ * parts them.
  */
 class KisStudioPanelColumn : public QWidget
 {
@@ -1570,12 +1633,27 @@ public:
     /// Width of the draggable inner edge
     static constexpr int edge = 5;
     static constexpr int minimumColumnWidth = 220;
+    /// Between joined groups
+    static constexpr int joinGap = KisModernStyle::hairline;
+
+    /// Another group joined along one of its edges; \c along is how far the other's top (or left, for the top and
+    /// bottom edges) is from its own. Each of the two has the join, mirrored; one of them has the clip.
+    struct Join {
+        QPointer<KisStudioPanelColumn> other;
+        Qt::Edge edge;
+        int along;
+        QPointer<JoinClip> clip;
+    };
 
     /// Called when the geometry changes; \p done is true once a width drag ends
     std::function<void(bool done)> resized;
     /// Called when dragged by the strip and dropped, or resized: the side of the canvas it is on and its place from that side
     std::function<void(bool left, const QPointF &spot)> moved;
     std::function<void()> tapped;
+    /// Called when it is joined to another group by a drag, or parted from one
+    std::function<void()> joinsChanged;
+    /// Its group (see groupColumn()), by which its joins are saved
+    int group {0};
 
     KisStudioPanelColumn(QWidget *canvasArea, bool left, int width)
         : QWidget(canvasArea)
@@ -1601,6 +1679,11 @@ public:
         hide();
     }
 
+    ~KisStudioPanelColumn() override
+    {
+        for (const Join &join : qAsConst(m_joins)) delete join.clip.data();
+    }
+
     PanelStack *stack() const { return m_stack; }
     int columnWidth() const { return m_width; }
     bool isLeft() const { return m_left; }
@@ -1623,10 +1706,8 @@ public:
 
     void setLeft(bool left)
     {
-        m_left = left;
-        updateMargins();
+        setSide(left);
         place();
-        placeGrip();
     }
 
     /// Shows the panels below the strip, or only the strip
@@ -1643,34 +1724,118 @@ public:
     /// Takes \p docks in this order, each keeping its visibility
     void setPanels(const QList<QDockWidget *> &docks) { m_stack->setPanels(docks); }
 
-    /// Places the column over the canvas area, as tall as its panels want within it; just the strip without them
+    /// The groups it is joined to, along which of its edges
+    QVector<Join> joins() const
+    {
+        QVector<Join> joins;
+        for (const Join &join : m_joins) {
+            if (join.other) joins << join;
+        }
+        return joins;
+    }
+
+    /// Joins \p other along this one's \p edge, \p along from it (see Join), unless they are joined already; placed later
+    void join(KisStudioPanelColumn *other, Qt::Edge edge, int along)
+    {
+        if (!other || other == this) return;
+        for (const Join &join : m_joins) {
+            if (join.other == other) return;
+        }
+        auto *clip = new JoinClip(parentWidget(), edge == Qt::LeftEdge || edge == Qt::RightEdge);
+        QPointer<KisStudioPanelColumn> self = this;
+        QPointer<KisStudioPanelColumn> them = other;
+        clip->clicked = [self, them]() {
+            if (!self || !them) return;
+            self->part(them);
+            if (self->joinsChanged) self->joinsChanged();
+        };
+        m_joins << Join{other, edge, along, clip};
+        other->m_joins << Join{this, opposite(edge), -along, nullptr};
+    }
+
+    /// Parts it from \p other; each keeps where it is
+    void part(KisStudioPanelColumn *other)
+    {
+        unjoin(this, other);
+        unjoin(other, this);
+        settle();
+        other->settle();
+    }
+
+    /// Parts it from every group, leaving their places be (it is going)
+    void partAll()
+    {
+        for (const Join &join : joins()) unjoin(join.other, this);
+        unjoin(this, nullptr);
+    }
+
+    /// Keeps it and the groups joined to it where they are now: their place becomes theirs (see moved)
+    void settle()
+    {
+        const Members members = laidOut();
+        QRect box;
+        for (const auto &member : members) box |= member.first->m_placed.translated(-member.first->m_cleared);
+        const bool left = box.center().x() < parentWidget()->width() / 2;
+        const QPointF spot = spotOf(box, left, false);
+        for (const auto &member : members) {
+            member.first->m_spot = spot;
+            member.first->setSide(left);
+        }
+        place();
+        for (const auto &member : members) {
+            if (member.first->moved) member.first->moved(left, spot);
+        }
+    }
+
+    /**
+     * Places it over the canvas area, as tall as its panels want within it (just the strip without them), with the
+     * groups joined to it: all of them as one box, where the one being dragged (or else the one moved last) puts it
+     */
     void place()
     {
         QWidget *area = parentWidget();
         const QPair<int, int> span = spanY();
-        QSize size;
-        if (panelsShown()) {
-            const QMargins margins = m_layout->contentsMargins();
-            const int strip = m_strip && !m_strip->isHidden() ? m_strip->sizeHint().height() : 0;
-            const int wanted = margins.top() + margins.bottom() + strip + m_stack->wantedHeight();
-            size = QSize(qBound(minimumColumnWidth, m_width, qMax(minimumColumnWidth, area->width() / 2)),
-                         qBound(0, wanted, qMax(0, span.second - span.first)));
-            m_openSize = size;
-        } else {
-            size = m_layout->sizeHint();
+        const Members members = laidOut();
+        int lead = 0;
+        for (int i = 1; i < members.size(); i++) {
+            const KisStudioPanelColumn *member = members[i].first;
+            const KisStudioPanelColumn *leader = members[lead].first;
+            if (member->m_moving || (!leader->m_moving && member->m_settled > leader->m_settled)) lead = i;
         }
-        // with only the strip showing, placed as if open, so the strip stays where it was
-        const QSize placed = placedSize(size);
-        const int across = offsetOf(m_spot.x(), roomX(placed.width()));
-        QRect geometry(m_left ? sideMargin(true) + across : area->width() - sideMargin(false) - size.width() - across,
-                       span.first + offsetOf(m_spot.y(), span.second - span.first - placed.height()), size.width(), size.height());
-        // clear of the groups placed before it, while it isn't being dragged
-        if (!m_moving) geometry = clearOfOthers(geometry, span);
-        if (geometry != this->geometry()) {
-            setGeometry(geometry);
-            if (resized) resized(false);
+        const KisStudioPanelColumn *leader = members[lead].first;
+        QVector<QSize> sizes;
+        QVector<QRect> placed;
+        QRect box;
+        quint64 settled = 0;
+        for (const auto &member : members) {
+            // with only the strip showing, placed as if open, so the strip stays where it was
+            const QSize size = member.first->sizeNow();
+            sizes << size;
+            placed << QRect(member.second - members[lead].second, member.first->placedSize(size));
+            box |= placed.last();
+            settled = qMax(settled, member.first->m_settled);
         }
-        raise();
+        const int across = offsetOf(leader->m_spot.x(), area->width() - 2 * margin - box.width());
+        const QPoint boxAt(leader->m_left ? margin + across : area->width() - margin - box.width() - across,
+                           span.first + offsetOf(leader->m_spot.y(), span.second - span.first - box.height()));
+        const QRect wanted = box.translated(boxAt - box.topLeft());
+        const QPoint cleared = clearOfOthers(wanted, span, members, settled, leader->m_moving).topLeft() - wanted.topLeft();
+        bool changed = false;
+        for (int i = 0; i < members.size(); i++) {
+            KisStudioPanelColumn *member = members[i].first;
+            const QRect at = placed[i].translated(boxAt - box.topLeft() + cleared);
+            member->m_placed = at;
+            member->m_cleared = cleared;
+            // a column on the right keeps its right edge when only its strip shows
+            const QRect geometry(member->m_left ? at.x() : at.right() + 1 - sizes[i].width(), at.y(), sizes[i].width(), sizes[i].height());
+            if (geometry != member->geometry()) {
+                member->setGeometry(geometry);
+                changed = true;
+            }
+            member->raise();
+        }
+        placeClips(members);
+        if (changed && resized) resized(false);
     }
 
 protected:
@@ -1695,9 +1860,10 @@ protected:
                     const QWidget *area = parentWidget();
                     const int x = area->mapFromGlobal(globalMousePos(static_cast<QMouseEvent *>(event))).x();
                     m_width = qBound(minimumColumnWidth, m_left ? x - m_outer : m_outer - x, qMax(minimumColumnWidth, area->width() / 2));
-                    if (!isDocked()) {
-                        const int from = m_left ? m_outer - sideMargin(true) : area->width() - sideMargin(false) - m_outer;
-                        m_spot.setX(qBound(0.0, qreal(from) / qMax(1, roomX(m_width)), 1.0));
+                    // joined, the box of them all keeps its place
+                    if (!isDocked() && joins().isEmpty()) {
+                        const int from = m_left ? m_outer - margin : area->width() - margin - m_outer;
+                        m_spot.setX(qBound(0.0, qreal(from) / qMax(1, area->width() - 2 * margin - m_width), 1.0));
                     }
                     place();
                     return true;
@@ -1724,6 +1890,17 @@ protected:
         QWidget::showEvent(event);
         place();
         placeGrip();
+    }
+
+    void hideEvent(QHideEvent *event) override
+    {
+        QWidget::hideEvent(event);
+        for (const Join &join : joins()) {
+            if (join.clip) join.clip->hide();
+            for (const Join &back : join.other->joins()) {
+                if (back.other == this && back.clip) back.clip->hide();
+            }
+        }
     }
 
     void resizeEvent(QResizeEvent *event) override
@@ -1765,20 +1942,20 @@ protected:
             setCursor(Qt::ClosedHandCursor);
             update();
         }
-        // caught by the edges and the middle as it goes, so it shows where it will stay
+        // caught by the edges, the middle and other groups as it goes, so it shows where it will stay
         const QWidget *area = parentWidget();
         const QPoint at = area->mapFromGlobal(global) - m_grab;
-        const bool left = at.x() + width() / 2 < area->width() / 2;
-        if (left != m_left) {
-            m_left = left;
-            updateMargins();
-            placeGrip();
-        }
-        const QPair<int, int> span = spanY();
-        const QSize placed = placedSize(size());
-        const int across = m_left ? at.x() - sideMargin(true) : area->width() - sideMargin(false) - width() - at.x();
-        m_spot = QPointF(shareOf(across, roomX(placed.width())),
-                         shareOf(at.y() - span.first, span.second - span.first - placed.height()));
+        const Members members = laidOut();
+        QRect box;
+        for (const auto &member : members) box |= QRect(member.second, member.first->placedSize(member.first->sizeNow()));
+        const int placedX = m_left ? at.x() : at.x() + width() - placedSize(size()).width();
+        const QPoint shift(placedX, at.y());
+        m_joining = joinNear(members, shift);
+        const QRect dropped = box.translated(shift + m_joining.by);
+        const bool left = dropped.center().x() < area->width() / 2;
+        for (const auto &member : members) member.first->setSide(left);
+        // held flush against the group it is joining
+        m_spot = spotOf(dropped, left, !m_joining.other);
         place();
     }
 
@@ -1798,11 +1975,199 @@ protected:
         update();
         // the group moved last makes way for the others
         m_settled = ++settledCount();
+        const Joining joining = m_joining;
+        m_joining = Joining();
+        if (joining.mine && joining.other) {
+            joining.other->join(joining.mine, joining.edge, joining.along);
+            settle();
+            if (joinsChanged) joinsChanged();
+            return;
+        }
+        const Members members = laidOut();
+        for (const auto &member : members) member.first->m_spot = m_spot;
         place();
-        if (moved) moved(m_left, m_spot);
+        for (const auto &member : members) {
+            if (member.first->moved) member.first->moved(m_left, m_spot);
+        }
     }
 
 private:
+    /// Groups joined to one, each with its corner from that one's (as if open)
+    using Members = QVector<QPair<KisStudioPanelColumn *, QPoint>>;
+
+    /// A join that dropping it here would make: \c other's \c edge to \c mine, once moved \c by
+    struct Joining {
+        QPointer<KisStudioPanelColumn> mine;
+        QPointer<KisStudioPanelColumn> other;
+        Qt::Edge edge {Qt::RightEdge};
+        int along {0};
+        QPoint by;
+    };
+
+    static Qt::Edge opposite(Qt::Edge edge)
+    {
+        switch (edge) {
+        case Qt::LeftEdge: return Qt::RightEdge;
+        case Qt::RightEdge: return Qt::LeftEdge;
+        case Qt::TopEdge: return Qt::BottomEdge;
+        default: return Qt::TopEdge;
+        }
+    }
+
+    static void unjoin(KisStudioPanelColumn *from, const KisStudioPanelColumn *to)
+    {
+        for (int i = from->m_joins.size() - 1; i >= 0; i--) {
+            if (to && from->m_joins[i].other && from->m_joins[i].other != to) continue;
+            if (JoinClip *clip = from->m_joins[i].clip) {
+                // it may be what was clicked
+                clip->hide();
+                clip->deleteLater();
+            }
+            from->m_joins.remove(i);
+        }
+    }
+
+    /// The columns over the canvas area, itself too (it has no meta object, so findChildren() would take any widget)
+    QList<KisStudioPanelColumn *> columnsBeside() const
+    {
+        QList<KisStudioPanelColumn *> columns;
+        for (QObject *child : parentWidget()->children()) {
+            if (auto *column = dynamic_cast<KisStudioPanelColumn *>(child)) columns << column;
+        }
+        return columns;
+    }
+
+    static bool contains(const Members &members, const KisStudioPanelColumn *column)
+    {
+        for (const auto &member : members) {
+            if (member.first == column) return true;
+        }
+        return false;
+    }
+
+    /// It and the shown groups joined to it, through others too, laid out from its corner
+    Members laidOut()
+    {
+        Members members{{this, QPoint()}};
+        if (isHidden()) return members;
+        for (int i = 0; i < members.size(); i++) {
+            KisStudioPanelColumn *from = members[i].first;
+            const QSize fromSize = from->placedSize(from->sizeNow());
+            for (const Join &join : from->m_joins) {
+                KisStudioPanelColumn *to = join.other;
+                if (!to || to->isHidden() || contains(members, to)) continue;
+                const QSize toSize = to->placedSize(to->sizeNow());
+                const QPoint corner = members[i].second;
+                QPoint at;
+                switch (join.edge) {
+                case Qt::RightEdge: at = QPoint(corner.x() + fromSize.width() + joinGap, corner.y() + join.along); break;
+                case Qt::LeftEdge: at = QPoint(corner.x() - joinGap - toSize.width(), corner.y() + join.along); break;
+                case Qt::BottomEdge: at = QPoint(corner.x() + join.along, corner.y() + fromSize.height() + joinGap); break;
+                default: at = QPoint(corner.x() + join.along, corner.y() - joinGap - toSize.height()); break;
+                }
+                members << qMakePair(to, at);
+            }
+        }
+        return members;
+    }
+
+    /// When it or a group joined to it was made or last moved
+    quint64 settledOfAll()
+    {
+        quint64 settled = 0;
+        for (const auto &member : laidOut()) settled = qMax(settled, member.first->m_settled);
+        return settled;
+    }
+
+    /**
+     * The join to make if \p members, moved by \p shift from their corners, were dropped: one of them within a
+     * snap of another group's edge, beside it along enough of it, moved flush against it (and lined up with its
+     * ends when they are near)
+     */
+    Joining joinNear(const Members &members, const QPoint &shift) const
+    {
+        const int snap = 20;
+        const int overlapAtLeast = 40;
+        Joining best;
+        int bestDistance = snap + 1;
+        bool hasMain = false;
+        bool hasFar = false;
+        for (const auto &member : members) {
+            hasMain = hasMain || member.first->group == 0;
+            hasFar = hasFar || member.first->group == 1;
+        }
+        const QList<KisStudioPanelColumn *> columns = columnsBeside();
+        for (KisStudioPanelColumn *other : columns) {
+            if (other->isHidden() || contains(members, other)) continue;
+            // the panel buttons' column and the one across the canvas from it keep to opposite sides
+            if ((hasMain && other->group == 1) || (hasFar && other->group == 0)) continue;
+            const QRect them = other->m_placed;
+            for (const auto &member : members) {
+                const QRect mine(member.second + shift, member.first->placedSize(member.first->size()));
+                auto consider = [&](Qt::Edge edge, int distance, bool upright) {
+                    const int overlap = upright ? qMin(mine.bottom(), them.bottom()) - qMax(mine.top(), them.top())
+                                                : qMin(mine.right(), them.right()) - qMax(mine.left(), them.left());
+                    if (qAbs(distance) >= bestDistance || overlap < overlapAtLeast) return;
+                    QPoint by = upright ? QPoint(-distance, 0) : QPoint(0, -distance);
+                    // lined up with its start or its end when near
+                    const int start = upright ? them.top() - mine.top() : them.left() - mine.left();
+                    const int end = upright ? them.bottom() - mine.bottom() : them.right() - mine.right();
+                    const int line = qAbs(start) <= snap ? start : qAbs(end) <= snap ? end : 0;
+                    (upright ? by.ry() : by.rx()) += line;
+                    const QRect flush = mine.translated(by);
+                    bestDistance = qAbs(distance);
+                    best = Joining{member.first, other, edge, upright ? flush.top() - them.top() : flush.left() - them.left(), by};
+                };
+                consider(Qt::RightEdge, mine.left() - (them.right() + 1 + joinGap), true);
+                consider(Qt::LeftEdge, mine.right() + 1 + joinGap - them.left(), true);
+                consider(Qt::BottomEdge, mine.top() - (them.bottom() + 1 + joinGap), false);
+                consider(Qt::TopEdge, mine.bottom() + 1 + joinGap - them.top(), false);
+            }
+        }
+        return best;
+    }
+
+    /// The clips on the seams between \p members
+    void placeClips(const Members &members)
+    {
+        for (const auto &member : members) {
+            for (const Join &join : member.first->m_joins) {
+                if (!join.clip) continue;
+                if (!join.other || !contains(members, join.other) || member.first->isHidden()) {
+                    join.clip->hide();
+                    continue;
+                }
+                const QRect a = member.first->m_placed;
+                const QRect b = join.other->m_placed;
+                QPoint middle;
+                if (join.clip->isUpright()) {
+                    const int x = join.edge == Qt::RightEdge ? a.right() + 1 + b.left() : b.right() + 1 + a.left();
+                    middle = QPoint(x / 2, (qMax(a.top(), b.top()) + qMin(a.bottom(), b.bottom())) / 2);
+                } else {
+                    const int y = join.edge == Qt::BottomEdge ? a.bottom() + 1 + b.top() : b.bottom() + 1 + a.top();
+                    middle = QPoint((qMax(a.left(), b.left()) + qMin(a.right(), b.right())) / 2, y / 2);
+                }
+                join.clip->move(middle - QPoint(join.clip->width() / 2, join.clip->height() / 2));
+                join.clip->show();
+                join.clip->raise();
+            }
+        }
+    }
+
+    /// Its size now: as tall as its panels want within the room, or just the strip without them
+    QSize sizeNow()
+    {
+        if (!panelsShown()) return m_layout->sizeHint();
+        const QWidget *area = parentWidget();
+        const QPair<int, int> span = spanY();
+        const QMargins margins = m_layout->contentsMargins();
+        const int strip = m_strip && !m_strip->isHidden() ? m_strip->sizeHint().height() : 0;
+        const int wanted = margins.top() + margins.bottom() + strip + m_stack->wantedHeight();
+        m_openSize = QSize(qBound(minimumColumnWidth, m_width, qMax(minimumColumnWidth, area->width() / 2)),
+                           qBound(0, wanted, qMax(0, span.second - span.first)));
+        return m_openSize;
+    }
+
     QSize placedSize(const QSize &size) const { return panelsShown() || m_openSize.isEmpty() ? size : m_openSize; }
 
     /// The top and bottom it can reach, clear of the bars along the canvas's top and bottom
@@ -1812,16 +2177,25 @@ private:
         return {area->property(topInsetProperty).toInt() + margin, area->height() - area->property(bottomInsetProperty).toInt() - margin};
     }
 
-    /// From an edge to where the column's room begins: past the tool rail when the rail is against that edge
-    int sideMargin(bool left) const
+    /// The place of a box at \p box, from its side, as shares of the room it has; \p snap: caught by the edges and the middle
+    QPointF spotOf(const QRect &box, bool left, bool snap) const
     {
-        return margin + parentWidget()->property(left ? railLeftProperty : railRightProperty).toInt();
+        const QWidget *area = parentWidget();
+        const QPair<int, int> span = spanY();
+        const int across = left ? box.x() - margin : area->width() - margin - box.x() - box.width();
+        const int down = box.y() - span.first;
+        const int roomX = area->width() - 2 * margin - box.width();
+        const int roomY = span.second - span.first - box.height();
+        if (snap) return QPointF(shareOf(across, roomX), shareOf(down, roomY));
+        return QPointF(roomX > 0 ? qBound(0.0, qreal(across) / roomX, 1.0) : 0.0, roomY > 0 ? qBound(0.0, qreal(down) / roomY, 1.0) : 0.0);
     }
 
-    /// How far a column \p columnWidth wide can move across from its side
-    int roomX(int columnWidth) const
+    void setSide(bool left)
     {
-        return parentWidget()->width() - sideMargin(true) - sideMargin(false) - columnWidth;
+        if (left == m_left) return;
+        m_left = left;
+        updateMargins();
+        placeGrip();
     }
 
     /// One more each time a group is made or moved: the one moved last makes way for the others
@@ -1831,37 +2205,51 @@ private:
         return count;
     }
 
-    /// \p wanted moved the least it takes off the groups that settled before this one (those it overlaps)
-    QRect clearOfOthers(QRect wanted, const QPair<int, int> &span) const
+    /**
+     * \p wanted moved the least it takes off the tool rail and the groups that settled before \p settled (those it
+     * overlaps, but not \p members); only off the rail while \p moving
+     */
+    QRect clearOfOthers(QRect wanted, const QPair<int, int> &span, const Members &members, quint64 settled, bool moving)
     {
-        const QList<KisStudioPanelColumn *> columns = parentWidget()->findChildren<KisStudioPanelColumn *>(QString(), Qt::FindDirectChildrenOnly);
-        const int gap = margin;
-        for (int pass = 0; pass < columns.size(); pass++) {
-            bool moved = false;
+        QVector<QRect> obstacles;
+        const QRect rail = parentWidget()->property(railRectProperty).toRect();
+        if (!rail.isEmpty()) obstacles << rail;
+        if (!moving) {
+            const QList<KisStudioPanelColumn *> columns = columnsBeside();
             for (KisStudioPanelColumn *other : columns) {
-                if (other == this || other->m_settled > m_settled) continue;
-                if (other->isHidden() || !other->geometry().intersects(wanted)) continue;
-                // below, above or beside it: whichever fits and moves it least
-                const QRect them = other->geometry();
-                const int minX = sideMargin(true);
-                const int maxX = parentWidget()->width() - sideMargin(false) - wanted.width();
-                const QVector<QPoint> places = {
-                    QPoint(wanted.x(), them.bottom() + 1 + gap),
-                    QPoint(wanted.x(), them.top() - gap - wanted.height()),
-                    QPoint(them.right() + 1 + gap, wanted.y()),
-                    QPoint(them.left() - gap - wanted.width(), wanted.y()),
-                };
-                int best = -1;
-                for (int i = 0; i < places.size(); i++) {
-                    const QPoint at = places[i];
-                    if (at.y() < span.first || at.y() + wanted.height() > span.second || at.x() < minX || at.x() > maxX) continue;
-                    if (best < 0 || (at - wanted.topLeft()).manhattanLength() < (places[best] - wanted.topLeft()).manhattanLength()) best = i;
-                }
-                if (best < 0) continue;
-                wanted.moveTopLeft(places[best]);
-                moved = true;
+                if (other->isHidden() || contains(members, other) || other->settledOfAll() > settled) continue;
+                obstacles << other->geometry();
             }
-            if (!moved) break;
+        }
+        auto clear = [&](const QRect &at, int count) {
+            for (int i = 0; i < count; i++) {
+                if (obstacles[i].intersects(at)) return false;
+            }
+            return true;
+        };
+        if (clear(wanted, obstacles.size())) return wanted;
+        // the nearest place clear of them all: beside, above or below any of them, or in a corner two of them make
+        const int gap = margin;
+        QVector<int> xs{wanted.x()};
+        QVector<int> ys{wanted.y()};
+        for (const QRect &them : qAsConst(obstacles)) {
+            xs << them.right() + 1 + gap << them.left() - gap - wanted.width();
+            ys << them.bottom() + 1 + gap << them.top() - gap - wanted.height();
+        }
+        const int minX = margin;
+        const int maxX = parentWidget()->width() - margin - wanted.width();
+        // the rail first: when nothing is clear of all, at least off it
+        for (int count : {int(obstacles.size()), rail.isEmpty() ? 0 : 1}) {
+            QRect best;
+            for (int x : qAsConst(xs)) {
+                for (int y : qAsConst(ys)) {
+                    if (x < minX || x > maxX || y < span.first || y + wanted.height() > span.second) continue;
+                    const QRect at(QPoint(x, y), wanted.size());
+                    if (!clear(at, count)) continue;
+                    if (best.isNull() || (at.topLeft() - wanted.topLeft()).manhattanLength() < (best.topLeft() - wanted.topLeft()).manhattanLength()) best = at;
+                }
+            }
+            if (!best.isNull()) return best;
         }
         return wanted;
     }
@@ -1888,6 +2276,11 @@ private:
     bool m_left {false};
     QPointF m_spot;
     QSize m_openSize;
+    /// Where it was last placed, as if open, and how far that was moved off others
+    QRect m_placed;
+    QPoint m_cleared;
+    QVector<Join> m_joins;
+    Joining m_joining;
     int m_width {0};
     bool m_resizing {false};
     int m_outer {0};
@@ -3100,16 +3493,71 @@ void KisStudioLayout::arrangePinned()
         it.value()->setPanels(lists.value(it.key()));
     }
     // floating groups left with no panels go; the one across the canvas stays for panels dropped by that edge
+    QList<QPointer<KisStudioPanelColumn>> wereJoined;
+    bool parted = false;
     for (auto it = d->groupColumns.begin(); it != d->groupColumns.end();) {
         if (it.key() >= 2 && !lists.contains(it.key())) {
-            if (it.value()) it.value()->deleteLater();
+            if (KisStudioPanelColumn *going = it.value()) {
+                for (const KisStudioPanelColumn::Join &join : going->joins()) wereJoined << join.other;
+                parted = parted || !going->joins().isEmpty();
+                going->partAll();
+                going->hide();
+                going->deleteLater();
+            }
             it = d->groupColumns.erase(it);
         } else {
             ++it;
         }
     }
+    restoreJoins();
     restoreHeights();
     updateColumns();
+    if (parted) {
+        for (const QPointer<KisStudioPanelColumn> &column : wereJoined) {
+            if (column) column->settle();
+        }
+        saveJoins();
+    }
+}
+
+void KisStudioLayout::restoreJoins()
+{
+    QMap<int, KisStudioPanelColumn *> byGroup;
+    Q_FOREACH (KisStudioPanelColumn *column, d->columns()) byGroup.insert(column->group, column);
+    // "group group edge along", the edge (l, r, t or b) the first group's, along it as KisStudioPanelColumn::Join has it
+    const QStringList entries = KisConfig(true).readEntry<QString>(joinsKey, QString()).split(QLatin1Char(';'), Qt::SkipEmptyParts);
+    bool joined = false;
+    Q_FOREACH (const QString &entry, entries) {
+        const QStringList parts = entry.split(QLatin1Char(' '));
+        if (parts.size() != 4 || parts[2].size() != 1) continue;
+        KisStudioPanelColumn *a = byGroup.value(parts[0].toInt());
+        KisStudioPanelColumn *b = byGroup.value(parts[1].toInt());
+        const int edge = QStringLiteral("lrtb").indexOf(parts[2]);
+        if (!a || !b || a == b || edge < 0) continue;
+        bool known = false;
+        for (const KisStudioPanelColumn::Join &join : a->joins()) known = known || join.other == b;
+        if (known) continue;
+        const Qt::Edge edges[] = {Qt::LeftEdge, Qt::RightEdge, Qt::TopEdge, Qt::BottomEdge};
+        a->join(b, edges[edge], parts[3].toInt());
+        joined = true;
+    }
+    if (joined) {
+        Q_FOREACH (KisStudioPanelColumn *column, d->columns()) column->place();
+    }
+}
+
+void KisStudioLayout::saveJoins()
+{
+    QStringList entries;
+    Q_FOREACH (KisStudioPanelColumn *column, d->columns()) {
+        for (const KisStudioPanelColumn::Join &join : column->joins()) {
+            // each join once: from the group with its clip
+            if (!join.clip) continue;
+            const char edge = join.edge == Qt::LeftEdge ? 'l' : join.edge == Qt::RightEdge ? 'r' : join.edge == Qt::TopEdge ? 't' : 'b';
+            entries << QStringLiteral("%1 %2 %3 %4").arg(column->group).arg(join.other->group).arg(QLatin1Char(edge)).arg(join.along);
+        }
+    }
+    KisConfig(false).writeEntry(joinsKey, entries.join(QLatin1Char(';')));
 }
 
 KisStudioPanelColumn *KisStudioLayout::panelColumn()
@@ -3145,6 +3593,7 @@ KisStudioPanelColumn *KisStudioLayout::groupColumn(int group)
     KisStudioPanelColumn *column = createColumn(left, cfg.readEntry<int>(widthKey, width), widthKey);
     if (!column) return nullptr;
     column->setObjectName(group == 1 ? QStringLiteral("studioFarPanels") : QStringLiteral("studioPanelGroup%1").arg(group));
+    column->group = group;
     // it has no panel buttons to drag it by
     column->setStrip(new DragGrip(column));
     column->setSpot(readSpot(spotKey));
@@ -3176,11 +3625,8 @@ int KisStudioLayout::newPanelGroup(const QPoint &windowPos)
     const bool left = at.x() < area->width() / 2;
     const int width = d->panelColumn ? d->panelColumn->columnWidth() : 270;
     const int margin = KisStudioPanelColumn::margin;
-    // past the tool rail when it is against that edge, as the column has it
-    const int leftMargin = margin + area->property(railLeftProperty).toInt();
-    const int rightMargin = margin + area->property(railRightProperty).toInt();
     const int x = at.x() - width / 2;
-    const int across = left ? x - leftMargin : area->width() - rightMargin - width - x;
+    const int across = left ? x - margin : area->width() - margin - width - x;
     const int top = area->property(topInsetProperty).toInt() + margin;
     const int bottom = area->height() - area->property(bottomInsetProperty).toInt() - margin;
     // its height is not known yet: a guess, so the share puts its top about where it was dropped
@@ -3188,7 +3634,7 @@ int KisStudioLayout::newPanelGroup(const QPoint &windowPos)
     KisConfig cfg(false);
     cfg.writeEntry(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
     cfg.writeEntry(groupKey(group, "Width"), width);
-    writeSpot(groupKey(group, "Spot"), QPointF(shareOf(across, area->width() - leftMargin - rightMargin - width), shareOf(at.y() - 12 - top, bottom - top - guess)));
+    writeSpot(groupKey(group, "Spot"), QPointF(shareOf(across, area->width() - 2 * margin - width), shareOf(at.y() - 12 - top, bottom - top - guess)));
     return group;
 }
 
@@ -3198,6 +3644,7 @@ KisStudioPanelColumn *KisStudioLayout::createColumn(bool left, int width, const 
     if (!area) return nullptr;
     auto *column = new KisStudioPanelColumn(area->parentWidget(), left, width);
     QPointer<KisStudioPanelColumn> self = column;
+    column->joinsChanged = [this]() { saveJoins(); };
     column->resized = [this, self, widthKey](bool done) {
         // refit the views only when a width drag ends; doing it on every move costs most of a frame
         updateCanvasInsets(done);
