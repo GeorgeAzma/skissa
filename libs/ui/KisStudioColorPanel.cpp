@@ -8,6 +8,8 @@
 
 #include <QActionGroup>
 #include <QApplication>
+#include <QClipboard>
+#include <QKeyEvent>
 #include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QHBoxLayout>
@@ -1066,12 +1068,61 @@ std::optional<TypedColor> readColor(const QString &text)
 class HexField : public QLineEdit
 {
 public:
+    /// The color written as each format copies it, in ColorFormat order
+    std::function<QStringList()> written;
+
     explicit HexField(QWidget *parent) : QLineEdit(parent)
     {
         fade();
     }
 
 protected:
+    /// Copy, with nothing selected, copies the color in the format copied last (hex at first); Copy as, in any
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        QMenu *menu = createStandardContextMenu();
+        const QStringList formats = written ? written() : QStringList();
+        QAction *copy = nullptr;
+        // Qt's own Copy, by its name, which some Qt versions follow with a tab and the shortcut
+        const QString copyName = QCoreApplication::translate("QLineEdit", "&Copy");
+        Q_FOREACH (QAction *action, menu->actions()) {
+            const QString text = action->text();
+            if (action->objectName() == QLatin1String("edit-copy") || text == copyName || text.startsWith(copyName + QLatin1Char('\t'))) {
+                copy = action;
+            }
+        }
+        if (copy && !hasSelectedText() && !formats.isEmpty()) {
+            const QString chosen = formats.value(copyFormat(formats.size()));
+            auto *color = new QAction(i18nc("@action:inmenu %1 is a color as written, like #00F2FC", "Copy %1", chosen), menu);
+            connect(color, &QAction::triggered, this, [chosen]() { QApplication::clipboard()->setText(chosen); });
+            QMenu *as = new QMenu(i18nc("@title:menu copying the color in another format", "Copy as"), menu);
+            for (int i = 0; i < formats.size(); i++) {
+                const QString text = formats[i];
+                as->addAction(text, this, [i, text]() {
+                    QApplication::clipboard()->setText(text);
+                    KisConfig(false).writeEntry("StudioColorCopyFormat", i);
+                });
+            }
+            menu->insertAction(copy, color);
+            menu->insertMenu(copy, as);
+            menu->removeAction(copy);
+        }
+        menu->exec(event->globalPos());
+        delete menu;
+    }
+
+    void keyPressEvent(QKeyEvent *event) override
+    {
+        // Ctrl+C with nothing selected: the color, as Copy has it
+        const QStringList formats = written && event->matches(QKeySequence::Copy) && !hasSelectedText() ? written() : QStringList();
+        if (!formats.isEmpty()) {
+            QApplication::clipboard()->setText(formats.value(copyFormat(formats.size())));
+            event->accept();
+            return;
+        }
+        QLineEdit::keyPressEvent(event);
+    }
+
     void focusInEvent(QFocusEvent *event) override
     {
         QLineEdit::focusInEvent(event);
@@ -1102,6 +1153,11 @@ private:
         m_fading = false;
     }
 
+    static int copyFormat(int count)
+    {
+        return qBound(0, KisConfig(true).readEntry("StudioColorCopyFormat", 0), count - 1);
+    }
+
     bool m_fading {false};
 };
 
@@ -1123,7 +1179,7 @@ struct KisStudioColorPanel::Private
     HsvWheel *wheel {nullptr};
     Swatches *currentRow {nullptr};
     Swatches *recentRow {nullptr};
-    QLineEdit *hex {nullptr};
+    HexField *hex {nullptr};
     QToolButton *styleButton {nullptr};
     QMap<PickerStyle, QAction *> styleActions;
 
@@ -1189,6 +1245,33 @@ struct KisStudioColorPanel::Private
         }
         currentRow->setColors({current, previous ? previous->toQColor() : current});
         hex->setText(current.name().mid(1).toUpper());
+    }
+
+    /// The color as copied in each format (ColorFormat order), as CSS writes them where it can, each picker's coordinates kept
+    QStringList written() const
+    {
+        const auto number = [](qreal value, int decimals) { return QString::number(value, 'f', decimals); };
+        Oklch lch = color;
+        if (style == PickerStyle::Hsv) {
+            lch = oklchFromRgb(current);
+            if (lch.c <= 0.012) lch.h = color.h;
+        }
+        qreal h, sat, val;
+        current.getHsvF(&h, &sat, &val);
+        if (style == PickerStyle::Hsv) {
+            h = hsvHue;
+            sat = hsvS;
+            val = hsvV;
+        } else if (h < 0.0) {
+            h = hsvHue;
+        }
+        return {
+            QLatin1Char('#') + current.name().mid(1).toUpper(),
+            QStringLiteral("rgb(%1, %2, %3)").arg(current.red()).arg(current.green()).arg(current.blue()),
+            QStringLiteral("rgb(%1, %2, %3)").arg(number(current.redF(), 3), number(current.greenF(), 3), number(current.blueF(), 3)),
+            QStringLiteral("oklch(%1 %2 %3)").arg(number(lch.l, 3), number(lch.c, 3), number(lch.h, 0)),
+            QStringLiteral("hsv(%1, %2%, %3%)").arg(number(h * 360.0, 0), number(sat * 100.0, 0), number(val * 100.0, 0)),
+        };
     }
 
     /// A color typed in the hex field, in any format; the one before becomes the previous
@@ -1392,6 +1475,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->hex->setFixedWidth(64);
     d->hex->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     d->hex->setToolTip(i18nc("@info:tooltip", "Hex code, or any color: rgb(…), oklch(…), hsv(…)"));
+    d->hex->written = [this]() { return d->written(); };
     row->addWidget(d->hex);
     layout->addLayout(row);
     d->filler = new QWidget(contents);
