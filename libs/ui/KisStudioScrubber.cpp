@@ -44,7 +44,9 @@ KisStudioScrubber::KisStudioScrubber(Kind kind, const QString &toolTip, QWidget 
     : QWidget(parent)
     , m_kind(kind)
 {
-    setToolTip(KisStudioTips::tip(toolTip, KisStudioTips::valueGestures() << KisStudioTips::scrollStep()));
+    // an amount to apply has nothing to reset to
+    const bool amount = kind == Kind::Grow || kind == Kind::Soft;
+    setToolTip(KisStudioTips::tip(toolTip, KisStudioTips::valueGestures(!amount) << KisStudioTips::scrollStep()));
     setAccessibleName(toolTip);
     setCursor(Qt::SizeHorCursor);
     setAttribute(Qt::WA_Hover);
@@ -79,12 +81,20 @@ QString KisStudioScrubber::text() const
     if (m_kind == Kind::Opacity) {
         return QString::number(qRound(m_value)) + QLatin1Char('%');
     }
+    // an amount to apply: named until dragged
+    if (m_kind == Kind::Grow || m_kind == Kind::Soft) {
+        const int amount = qRound(m_value);
+        if (amount == 0) return accessibleName();
+        return (m_kind == Kind::Grow ? (amount > 0 ? QStringLiteral("+") : QStringLiteral("−")) : QString())
+            + QString::number(qAbs(amount));
+    }
     return QString::number(m_value, 'f', m_value < 10.0 ? 1 : 0);
 }
 
 QSize KisStudioScrubber::sizeHint() const
 {
-    const int textWidth = fontMetrics().horizontalAdvance(m_kind == Kind::Opacity ? QStringLiteral("100%") : QStringLiteral("1000"));
+    const int textWidth = qMax(fontMetrics().horizontalAdvance(m_kind == Kind::Opacity ? QStringLiteral("100%") : QStringLiteral("1000")),
+                               m_kind == Kind::Grow || m_kind == Kind::Soft ? fontMetrics().horizontalAdvance(accessibleName()) : 0);
     return QSize(8 + iconSize + 6 + textWidth + 8, 30);
 }
 
@@ -118,6 +128,23 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
         const qreal diameter = 3.0 + (iconSize - 3.0) * position;
         painter.setBrush(mix(window, text, 0.85));
         painter.drawEllipse(icon.center(), diameter / 2, diameter / 2);
+    } else if (m_kind == Kind::Grow) {
+        // a shape and the outline it grows (or shrinks) to
+        const QColor ink = mix(window, text, 0.85);
+        painter.setBrush(ink);
+        painter.drawPath(KisModernStyle::squircle(QRectF(icon.center() - QPointF(4, 4), QSizeF(8, 8)), 2));
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(ink, 1.3, Qt::DashLine));
+        painter.drawPath(KisModernStyle::squircle(icon.adjusted(2.5, 2.5, -2.5, -2.5), 4));
+    } else if (m_kind == Kind::Soft) {
+        // a dot whose edge fades
+        QRadialGradient fade(icon.center(), iconSize / 2.0);
+        QColor ink = mix(window, text, 0.85);
+        fade.setColorAt(0.3, ink);
+        ink.setAlphaF(0);
+        fade.setColorAt(1, ink);
+        painter.setBrush(fade);
+        painter.drawEllipse(icon.center(), iconSize / 2.0, iconSize / 2.0);
     } else {
         QPainterPath tile;
         tile.addPath(KisModernStyle::squircle(icon.adjusted(1, 1, -1, -1), 4));
@@ -173,15 +200,21 @@ void KisStudioScrubber::mouseMoveEvent(QMouseEvent *event)
     if (!m_moved && qAbs(eventX(event) - m_pressX) <= 2) {
         return;
     }
+    if (!m_moved) Q_EMIT dragStarted();
     m_moved = true;
     const qreal dx = (eventX(event) - m_pressX) * (fine ? 0.25 : 1.0);
+    const qreal before = m_value;
     if (m_kind == Kind::Size) {
         // 100 px of drag doubles or halves the size
         m_value = bounded(m_pressValue * std::pow(2.0, dx / 100.0));
+    } else if (m_kind == Kind::Grow || m_kind == Kind::Soft) {
+        // whole pixels, 3 px of drag each
+        m_value = bounded(qRound(m_pressValue + dx / 3.0));
     } else {
         // 2 px of drag per percent
         m_value = bounded(m_pressValue + dx * (m_maximum - m_minimum) / 200.0);
     }
+    if (m_value != before) Q_EMIT valueChanging(m_value);
     update();
 }
 
@@ -241,6 +274,8 @@ void KisStudioScrubber::wheelEvent(QWheelEvent *event)
     }
     if (m_kind == Kind::Size) {
         commit(m_value * std::pow(1.15, steps));
+    } else if (m_kind == Kind::Grow || m_kind == Kind::Soft) {
+        commit(m_value + steps);
     } else {
         commit(m_value + steps * (m_maximum - m_minimum) / 20.0);
     }

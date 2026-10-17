@@ -19,6 +19,10 @@
 #include <KoGroupButton.h>
 
 #include "widgets/kis_selection_options.h"
+#include "KisStudioScrubber.h"
+#include "KisStudioSelectionAdjust.h"
+
+#include <klocalizedstring.h>
 
 namespace {
 
@@ -215,6 +219,34 @@ void KisStudioToolStrip::mirrorCombo(QComboBox *combo, const QVector<int> &index
     }
 }
 
+void KisStudioToolStrip::addSelectionAdjust()
+{
+    if (!m_adjust) m_adjust = new KisStudioSelectionAdjust(this);
+    addGap();
+    // the selection there is, changed as the value is dragged; at rest each is named, as it is an amount to apply
+    KisStudioScrubber *grow = new KisStudioScrubber(KisStudioScrubber::Kind::Grow, i18nc("@info:tooltip grow the selection", "Grow"), this);
+    grow->setAccessibleName(i18nc("the selection's grow scrubber, at rest", "Grow"));
+    grow->setRange(-200, 200);
+    KisStudioScrubber *soft = new KisStudioScrubber(KisStudioScrubber::Kind::Soft, i18nc("@info:tooltip soften the selection's edge", "Soft edge"), this);
+    soft->setAccessibleName(i18nc("the selection's soft edge scrubber, at rest", "Soft"));
+    soft->setRange(0, 200);
+    for (KisStudioScrubber *scrubber : {grow, soft}) {
+        const bool growing = scrubber == grow;
+        connect(scrubber, &KisStudioScrubber::dragStarted, this, [this]() { m_adjust->begin(); });
+        connect(scrubber, &KisStudioScrubber::valueChanging, this, [this, growing](qreal value) {
+            m_adjust->set(growing ? qRound(value) : 0, growing ? 0 : qRound(value));
+        });
+        connect(scrubber, &KisStudioScrubber::valueCommitted, this, [this, scrubber, growing](qreal value) {
+            // a step, a typed amount: at once
+            if (!m_adjust->isActive()) m_adjust->begin();
+            m_adjust->set(growing ? qRound(value) : 0, growing ? 0 : qRound(value));
+            m_adjust->end();
+            scrubber->setValue(0);
+        });
+        m_layout->addWidget(scrubber);
+    }
+}
+
 void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widgets)
 {
     clear();
@@ -248,6 +280,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
                     mirror(actions->button(index));
                 }
             }
+            addSelectionAdjust();
         }
 
         // gradient shape and direction

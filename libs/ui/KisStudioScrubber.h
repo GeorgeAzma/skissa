@@ -25,6 +25,8 @@ public:
     enum class Kind {
         Size,    ///< in px, shown as a dot that grows with the value
         Opacity, ///< in %, shown as a swatch with matching opacity
+        Grow,    ///< px to grow (or, below 0, shrink) something by, named while 0
+        Soft,    ///< px to soften an edge by, named while 0
     };
 
     KisStudioScrubber(Kind kind, const QString &toolTip, QWidget *parent = nullptr);
@@ -41,6 +43,9 @@ public:
 Q_SIGNALS:
     /// Emitted when a drag ends, on a wheel step or after typing; not during a drag, since applying it can be expensive
     void valueCommitted(qreal value);
+    /// A drag began moving the value, then moved it: for what is cheap enough to follow it
+    void dragStarted();
+    void valueChanging(qreal value);
 
 protected:
     void paintEvent(QPaintEvent *event) override;

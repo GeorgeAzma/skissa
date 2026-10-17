@@ -14,10 +14,12 @@ class QAbstractButton;
 class QHBoxLayout;
 class QComboBox;
 class QToolButton;
+class KisStudioSelectionAdjust;
 
 /**
  * Shows the active tool's most used options in the top bar: transform modes,
- * selection modes, gradient shapes, and what the fill tool fills and with what.
+ * selection modes with Grow and Soft for the selection there is, gradient
+ * shapes, and what the fill tool fills and with what.
  * The buttons drive the tool's own option widgets, so the two always agree.
  */
 class KisStudioToolStrip : public QWidget
@@ -38,7 +40,11 @@ private:
     void mirror(QAbstractButton *source, const QIcon &icon = QIcon());
     void mirrorCombo(QComboBox *combo, const QVector<int> &indexes, const QVector<QIcon> &icons);
 
+    /// Grow and Soft, on the selection there is (selection tools)
+    void addSelectionAdjust();
+
     QHBoxLayout *m_layout {nullptr};
+    KisStudioSelectionAdjust *m_adjust {nullptr};
     bool m_hasOptions {false};
 };
 

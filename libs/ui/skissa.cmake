@@ -35,6 +35,7 @@ set(skissa_ui_SRCS
     KisStudioPenPopup.cpp
     KisStudioRings.cpp
     KisStudioScrubber.cpp
+    KisStudioSelectionAdjust.cpp
     KisStudioSettings.cpp
     KisStudioSmoothing.cpp
     KisStudioStartPage.cpp
