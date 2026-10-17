@@ -247,6 +247,7 @@ QHash<QString, QString> explanations()
         {QStringLiteral("newOutlineStyle"), i18nc("@info:tooltip", "Circle: the brush's size\nBrush: its real shape\nWith tilt: its shape, leaning with the pen")},
         {QStringLiteral("newCursorStyle"), i18nc("@info:tooltip", "A mark at the pen's tip, with the outline")},
         {QStringLiteral("showSingleChannelAsColor"), i18nc("@info:tooltip", "One channel shown alone in its own color: Red in red, not gray")},
+        {QStringLiteral("StudioColorIntensity"), i18nc("@info:tooltip", "In floating-point images, a value beside the color code: stops past white")},
         {QStringLiteral("zoomSteps"), i18nc("@info:tooltip", "Steps from 100% to 200%. 3: 100% → 125% → 150% → 200%")},
         {QStringLiteral("OpenGLFilterMode"),
          i18nc("@info:tooltip",
@@ -550,6 +551,7 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("useEraserBrushOpacity"), false, i18nc("setting", "Eraser keeps its own opacity"));
         all << toggle(QStringLiteral("StrokeShapeSnap"), false, i18nc("setting", "Hold to make a shape"), R::Fork);
         all << toggle(QStringLiteral("StudioViewPill"), true, i18nc("setting", "Zoom pill"), R::Fork);
+        all << toggle(QStringLiteral("StudioColorIntensity"), true, i18nc("setting", "Brighter than white"), R::Fork);
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in effects")), QStringLiteral("filterdialog"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in Transform")), QStringLiteral("KisToolTransform"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), false, i18nc("setting", "Instant preview in Move")), QStringLiteral("KritaTransform/KisToolMove"));

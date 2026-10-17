@@ -1355,6 +1355,10 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("useDefaultColorSpace"));
             b.showWhen(b.choice(QStringLiteral("workingColorSpace"), i18nc("new images", "Model")), b.isOn(QStringLiteral("useDefaultColorSpace")));
         });
+    add(QStringLiteral("color"), QStringLiteral("picker"), i18nc("settings card", "Color panel"), {QStringLiteral("StudioColorIntensity")},
+        QStringLiteral("hdr intensity stops exposure brighter than white float floating point glow"), [](Builder &b) {
+            b.toggle(QStringLiteral("StudioColorIntensity"));
+        });
     add(QStringLiteral("color"), QStringLiteral("display"), i18nc("settings card", "Display"),
         {QStringLiteral("renderIntent"), QStringLiteral("useBlackPointCompensation"), QStringLiteral("allowLCMSOptimization")},
         QStringLiteral("rendering intent black point lcms monitor display"), [](Builder &b) {

@@ -23,6 +23,9 @@
 #include <QRegularExpression>
 #include <QScreen>
 #include <QToolButton>
+#include <QToolTip>
+#include <QHelpEvent>
+#include <QLocale>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
@@ -37,6 +40,7 @@
 #include <KoCanvasResourcesIds.h>
 #include <KoColor.h>
 #include <KoColorSpaceRegistry.h>
+#include <KoColorModelStandardIds.h>
 #include <KoDockRegistry.h>
 #include <klocalizedstring.h>
 
@@ -47,6 +51,10 @@
 #include <KisUniqueColorSet.h>
 #include <KoCompositeOpRegistry.h>
 #include "canvas/kis_canvas2.h"
+#include "kis_image.h"
+#include "KisSettingsRegistry.h"
+#include "KisStudioTips.h"
+#include "widgets/KisStudioInlineEdit.h"
 #include "kis_config.h"
 #include <KisModernStyle.h>
 
@@ -1161,6 +1169,164 @@ private:
     bool m_fading {false};
 };
 
+/**
+ * How many stops brighter than white the color is painted, for images that can hold it (floating point):
+ * a sun and the number. +1 is twice as bright as white, +2 four times. Dragged, typed, reset by a right click.
+ */
+class IntensityChip : public QWidget
+{
+public:
+    /// A change begins (the color before becomes the previous one)
+    std::function<void()> started;
+    std::function<void(qreal stops)> changed;
+
+    explicit IntensityChip(QWidget *parent)
+        : QWidget(parent)
+    {
+        setMouseTracking(true);
+        setAttribute(Qt::WA_Hover);
+        setFixedSize(48, 26);
+        setCursor(Qt::SizeHorCursor);
+    }
+
+    void setStops(qreal stops)
+    {
+        m_stops = stops;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QColor ink = palette().color(QPalette::WindowText);
+        const QColor shown = m_stops > 0.0 || underMouse() ? ink : KisModernStyle::secondaryInk(ink);
+        // a sun: brighter than white
+        const QPointF sun(8, height() / 2.0);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(shown);
+        painter.drawEllipse(sun, 2.8, 2.8);
+        painter.setPen(QPen(shown, 1.3, Qt::SolidLine, Qt::RoundCap));
+        for (int i = 0; i < 8; i++) {
+            const qreal a = i * M_PI / 4.0;
+            const QPointF ray(std::cos(a), std::sin(a));
+            painter.drawLine(sun + ray * 4.6, sun + ray * 6.4);
+        }
+        painter.setPen(shown);
+        if (!m_editing) painter.drawText(textRect(), Qt::AlignRight | Qt::AlignVCenter, text());
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton) return;
+        m_pressed = true;
+        m_moved = false;
+        m_pressX = event->pos().x();
+        m_pressStops = m_stops;
+        event->accept();
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (!m_pressed) return;
+        const int moved = event->pos().x() - m_pressX;
+        if (!m_moved && qAbs(moved) <= 3) return;
+        if (!m_moved && started) started();
+        m_moved = true;
+        // a stop for each 40 px; Shift: finer
+        const qreal fine = event->modifiers() & Qt::ShiftModifier ? 0.25 : 1.0;
+        set(m_pressStops + moved / 40.0 * fine);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton) m_pressed = false;
+    }
+
+    void mouseDoubleClickEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton) return;
+        m_editing = true;
+        QLineEdit *editor = KisStudioInlineEdit::open(this, textRect().toRect(), QString::number(m_stops, 'f', 1), Qt::AlignRight, font(),
+                                                      [this](const QString &typed) {
+            bool ok = false;
+            const qreal stops = QLocale().toDouble(QString(typed).remove(QLatin1Char('+')).trimmed(), &ok);
+            if (!ok) return;
+            if (started) started();
+            set(stops);
+        });
+        connect(editor, &QObject::destroyed, this, [this]() {
+            m_editing = false;
+            update();
+        });
+        update();
+    }
+
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        event->accept();
+        if (qFuzzyIsNull(m_stops)) return;
+        if (started) started();
+        set(0.0);
+    }
+
+    void wheelEvent(QWheelEvent *event) override
+    {
+        event->accept();
+        const int steps = event->angleDelta().y() / 120;
+        if (steps) set(m_stops + 0.5 * steps);
+    }
+
+    bool event(QEvent *event) override
+    {
+        if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) update();
+        if (event->type() == QEvent::ToolTip) {
+            QStringList gestures = KisStudioTips::valueGestures();
+            gestures << KisStudioTips::scrollStep();
+            const QString tip = KisStudioTips::tip(i18nc("@info:tooltip", "Brighter than white: +1 twice, +2 four times"), gestures);
+            QToolTip::showText(static_cast<QHelpEvent *>(event)->globalPos(), KisStudioTips::html(tip), this);
+            return true;
+        }
+        return QWidget::event(event);
+    }
+
+private:
+    QRectF textRect() const
+    {
+        return QRectF(16, 0, width() - 16, height());
+    }
+
+    QString text() const
+    {
+        return m_stops > 0.0 ? QLatin1Char('+') + QLocale().toString(m_stops, 'f', 1) : QStringLiteral("0");
+    }
+
+    void set(qreal stops)
+    {
+        stops = qBound(0.0, std::round(stops * 10.0) / 10.0, maxStops);
+        if (qFuzzyCompare(stops + 1.0, m_stops + 1.0)) return;
+        m_stops = stops;
+        update();
+        if (changed) changed(stops);
+    }
+
+    static constexpr qreal maxStops = 10.0;
+    qreal m_stops {0.0};
+    qreal m_pressStops {0.0};
+    int m_pressX {0};
+    bool m_pressed {false};
+    bool m_moved {false};
+    bool m_editing {false};
+};
+
+/// The linear space with sRGB's primaries that intensity is applied in: what is past white stays past it there
+const KoColorSpace *linearSpace()
+{
+    KoColorSpaceRegistry *registry = KoColorSpaceRegistry::instance();
+    return registry->colorSpace(RGBAColorModelID.id(), Float32BitsColorDepthID.id(), registry->p709G10Profile());
+}
+
 struct KisStudioColorPanel::Private
 {
     QPointer<KoCanvasBase> canvas;
@@ -1180,6 +1346,9 @@ struct KisStudioColorPanel::Private
     Swatches *currentRow {nullptr};
     Swatches *recentRow {nullptr};
     HexField *hex {nullptr};
+    IntensityChip *intensityChip {nullptr};
+    /// Stops brighter than white the color is painted, in images that can hold it
+    qreal intensity {0.0};
     QToolButton *styleButton {nullptr};
     QMap<PickerStyle, QAction *> styleActions;
 
@@ -1293,7 +1462,7 @@ struct KisStudioColorPanel::Private
         case ColorFormat::Hsv: rgb = QColor::fromHsvF(parts[0] / 360.0, parts[1] / 100.0, parts[2] / 100.0); break;
         }
         if (!rgb.isValid()) return;
-        setColor(koColorFromRgb(rgb));
+        setBase(rgb);
         // the model it was written in keeps its numbers, a gray's hue too
         if (written.format == ColorFormat::Oklch) {
             color = lch;
@@ -1310,14 +1479,73 @@ struct KisStudioColorPanel::Private
     /// Shows a color set elsewhere; the one before becomes the previous color. Taken by value, as it may be \c previous itself.
     void showColor(KoColor color)
     {
-        const QColor rgb = color.toQColor();
-        if (rgb != current) {
+        // a color past white is shown as the color it is at white, and how many stops past
+        QColor rgb;
+        const qreal stops = intensityOf(color, rgb);
+        if (rgb != current || !qFuzzyCompare(stops + 1.0, intensity + 1.0)) {
             if (current.isValid()) previous = currentColor;
             current = rgb;
+            intensity = stops;
+            intensityChip->setStops(stops);
             readCoordinates(rgb);
             refresh();
         }
         currentColor = color;
+    }
+
+    /// The image's colors are floating point: they can be past white
+    bool holdsBrighterThanWhite() const
+    {
+        auto *kisCanvas = dynamic_cast<KisCanvas2 *>(canvas.data());
+        KisImageSP image = kisCanvas ? KisImageSP(kisCanvas->image()) : KisImageSP();
+        if (!image) return false;
+        const QString depth = image->colorSpace()->colorDepthId().id();
+        return depth == Float16BitsColorDepthID.id() || depth == Float32BitsColorDepthID.id() || depth == Float64BitsColorDepthID.id();
+    }
+
+    bool showsIntensity() const
+    {
+        return holdsBrighterThanWhite() && KisSettingsRegistry::instance()->value(QStringLiteral("StudioColorIntensity")).toBool();
+    }
+
+    void updateIntensityShown()
+    {
+        intensityChip->setVisible(showsIntensity());
+    }
+
+    /// \p base made the intensity's stops brighter, where the image can hold it
+    KoColor brightened(const KoColor &base) const
+    {
+        if (intensity <= 0.0 || !showsIntensity()) return base;
+        KoColor light = base.convertedTo(linearSpace());
+        float *pixel = reinterpret_cast<float *>(light.data());
+        const float factor = float(std::exp2(intensity));
+        for (int i = 0; i < 3; i++) pixel[i] *= factor;
+        return light;
+    }
+
+    /// How many stops past white \p color is (0 if it isn't), and in \p base the color it is at white
+    static qreal intensityOf(const KoColor &color, QColor &base)
+    {
+        base = color.toQColor();
+        if (!color.colorSpace() || !color.colorSpace()->colorDepthId().id().startsWith(QLatin1Char('F'))) return 0.0;
+        KoColor light = color.convertedTo(linearSpace());
+        float *pixel = reinterpret_cast<float *>(light.data());
+        const float brightest = qMax(pixel[0], qMax(pixel[1], pixel[2]));
+        if (brightest <= 1.0001f) return 0.0;
+        for (int i = 0; i < 3; i++) pixel[i] /= brightest;
+        base = light.toQColor();
+        return std::round(std::log2(brightest) * 10.0) / 10.0;
+    }
+
+    /// A new color at white, keeping the intensity; the one before becomes the previous
+    void setBase(const QColor &rgb)
+    {
+        if (current.isValid()) previous = currentColor;
+        current = QColor::fromRgb(rgb.rgb());
+        readCoordinates(rgb);
+        refresh();
+        applyColor(brightened(koColorFromRgb(rgb)));
     }
 
     /// Shows the color and sends it to the canvas
@@ -1334,7 +1562,7 @@ struct KisStudioColorPanel::Private
         // follows the pointer even where the color doesn't change (e.g. along black)
         current = QColor::fromRgb(rgb.rgb());
         refresh();
-        applyColor(koColorFromRgb(rgb));
+        applyColor(brightened(koColorFromRgb(rgb)));
     }
 
     void remember()
@@ -1470,6 +1698,17 @@ KisStudioColorPanel::KisStudioColorPanel()
         styles->popup(d->styleButton->mapToGlobal(QPoint(0, d->styleButton->height())));
     });
     row->addWidget(d->styleButton);
+    d->intensityChip = new IntensityChip(contents);
+    d->intensityChip->hide();
+    d->intensityChip->started = [this]() { d->remember(); };
+    d->intensityChip->changed = [this](qreal stops) {
+        d->intensity = stops;
+        d->applyColor(d->brightened(koColorFromRgb(d->current)));
+    };
+    row->addWidget(d->intensityChip);
+    connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::valueChanged, this, [this](const QString &id) {
+        if (id == QLatin1String("StudioColorIntensity")) d->updateIntensityShown();
+    });
     d->hex = new HexField(contents);
     d->hex->setFrame(false);
     d->hex->setFixedWidth(64);
@@ -1603,6 +1842,10 @@ void KisStudioColorPanel::setCanvas(KoCanvasBase *canvas)
     d->showColor(canvas->resourceManager()->foregroundColor());
 
     auto *kisCanvas = dynamic_cast<KisCanvas2 *>(canvas);
+    d->updateIntensityShown();
+    if (kisCanvas && kisCanvas->image()) {
+        d->canvasConnections << connect(kisCanvas->image().data(), &KisImage::sigColorSpaceChanged, this, [this]() { d->updateIntensityShown(); });
+    }
     // the colors painted in this image, newest first: Krita keeps them with the image
     d->document = kisCanvas && kisCanvas->imageView() ? kisCanvas->imageView()->document() : nullptr;
     KisUniqueColorSet *history = d->document ? d->document->colorHistoryModel() : nullptr;
@@ -1630,6 +1873,7 @@ void KisStudioColorPanel::unsetCanvas()
     d->canvasConnections.clear();
     d->canvas = nullptr;
     d->document = nullptr;
+    d->updateIntensityShown();
     setEnabled(false);
 }
 
