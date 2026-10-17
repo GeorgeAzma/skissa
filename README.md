@@ -4,8 +4,7 @@
 </picture>
 
 # Skissa
-
-Krita, redesigned around the canvas.
+Fork of Krita, with a redesigned UI targeting intuition.
 
 ![Skissa](docs/readme/hero.jpg)
 
@@ -36,9 +35,19 @@ Krita, redesigned around the canvas.
 </tr>
 </table>
 
-The code is AI-written (Claude); the ideas are mine. Underneath, it's all Krita. [Support Krita](https://krita.org/support-us/donations).
+The code was written by an LLM, on top of Krita's code. All the UI designs were done manually.
 
-**Get it:** [Releases](../../releases) → unzip → `bin\krita.exe`. Your Krita stays as it is.
+[Support Krita](https://krita.org/support-us/donations)
+
+### [Install](../../releases)
+- unzip
+- launch `bin\krita.exe`
+
+> [!NOTE]
+> Skissa uses separate settings files from Krita, so your Krita settings stay unchanged and can be imported into Skissa.
+
+### Philosophy Behind It
+I've always wondered why the UI of so much software is so cluttered, for example you know those menu bars, where you have a bunch of different items like: `File`, `Edit`, `View`, `Help`... and to actually find what you want you have to go through them; like why? clearly if someone were to make an ideal UI, you would not need to search for anything, it would all intuitively be available in front of you; so I made Skissa to demonstrate my ideas of what an intuitive UI might look like, I have reworked every UI from scratch, based on first principles, meaning forgetting everything about previous conceptions of how UI is done and designing from fundamentals, like the way human perception works, what purpose people have when they open the canvas, how frequent certain actions are, so that we can minimize the amount of effort needed for using them, whilst keeping the screen as clear as possible so that the canvas is the center of attention. I've made every UI customizable to accommodate different styles, you can literally drag anything onto your tool overlay to add it as a tool. This is not supposed to be a product or anything, it is a demonstration of ideas for intuitive UI design, in hopes that maybe someone might get inspired by some UI design choices, or give feedback.
 
 ---
 
