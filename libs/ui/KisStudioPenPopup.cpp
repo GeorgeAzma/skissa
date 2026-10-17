@@ -107,6 +107,8 @@ KisStudioPenPopup::KisStudioPenPopup(KisPaintOpOption *option, QWidget *parent, 
 {
     d->option = option;
     d->selected = input;
+    // opened on one input (a cell of the pen grid, whose column is the input): only that curve
+    const bool oneInput = !input.isEmpty();
     if (d->selected.isEmpty()) {
         Q_FOREACH (const KisPaintOpOption::PenInput &each, option->penInputs()) {
             if (each.active) {
@@ -123,7 +125,10 @@ KisStudioPenPopup::KisStudioPenPopup(KisPaintOpOption *option, QWidget *parent, 
 
     auto *header = new QHBoxLayout();
     header->setSpacing(KisModernStyle::space2);
-    d->title = new QLabel(option->label(), this);
+    d->title = new QLabel(oneInput ? i18nc("a pen input drives a brush setting: %1 the input, %2 the setting", "%1 → %2",
+                                           inputName(input, d->input(input).name), option->label())
+                                   : option->label(),
+                          this);
     d->title->setFont(KisModernStyle::textFont(font(), 1.0, QFont::DemiBold));
     header->addWidget(d->title, 1);
     const std::optional<KisPaintOpOption::RowValue> value = option->rowValue();
@@ -140,6 +145,7 @@ KisStudioPenPopup::KisStudioPenPopup(KisPaintOpOption *option, QWidget *parent, 
 
     d->inputs = new KisStudioChips(this);
     layout->addWidget(d->inputs);
+    d->inputs->setVisible(!oneInput);
     connect(d->inputs, &KisStudioChips::clicked, this, [this](int index) {
         if (!d->option) return;
         if (index >= d->shown.size()) {
