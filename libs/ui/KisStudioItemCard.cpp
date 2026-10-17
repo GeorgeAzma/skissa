@@ -4,6 +4,9 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioItemCard.h"
+
+#include <QSet>
+#include <KoToolRegistry.h>
 #include <KisProfile.h>
 #include "KisStudioGlass.h"
 
@@ -320,14 +323,22 @@ void KisStudioShortcuts::paintBadge(QPainter &painter, const QRect &rect, const 
 
 QList<QAction *> KisStudioShortcuts::allActions(KisMainWindow *mainWindow)
 {
-    QList<QAction *> actions = mainWindow->actionCollection()->actions() + mainWindow->actions();
+    // each once: the collection's actions are the window's too
+    QList<QAction *> actions;
+    QSet<QAction *> seen;
+    auto add = [&](const QList<QAction *> &more) {
+        Q_FOREACH (QAction *action, more) {
+            if (action && !seen.contains(action)) {
+                seen.insert(action);
+                actions << action;
+            }
+        }
+    };
+    add(mainWindow->actionCollection()->actions());
+    add(mainWindow->actions());
     if (mainWindow->guiFactory()) {
         Q_FOREACH (KisKXMLGUIClient *client, mainWindow->guiFactory()->clients()) {
-            if (client && client->actionCollection()) {
-                Q_FOREACH (QAction *action, client->actionCollection()->actions()) {
-                    if (!actions.contains(action)) actions << action;
-                }
-            }
+            if (client && client->actionCollection()) add(client->actionCollection()->actions());
         }
     }
     return actions;
@@ -391,6 +402,23 @@ void KisStudioShortcuts::restore(QAction *action)
     }
 }
 
+QStringList KisStudioShortcuts::toolsOf(const QAction *action)
+{
+    if (!action) return QStringList();
+    // as KoToolManager has it: a tool's own switch, and an action marked always enabled, work everywhere
+    if (action->property("always_enabled").toBool() || KoToolRegistry::instance()->keys().contains(action->objectName())) return QStringList();
+    return action->property("tool_action").toStringList();
+}
+
+bool KisStudioShortcuts::shareContext(const QStringList &toolsOfA, const QStringList &toolsOfB)
+{
+    if (toolsOfA.isEmpty() || toolsOfB.isEmpty()) return toolsOfA.isEmpty() && toolsOfB.isEmpty();
+    Q_FOREACH (const QString &tool, toolsOfA) {
+        if (toolsOfB.contains(tool)) return true;
+    }
+    return false;
+}
+
 QString KisStudioShortcuts::assign(KisMainWindow *mainWindow, QAction *action, const QKeySequence &sequence)
 {
     KConfigGroup group = savedShortcuts();
@@ -417,7 +445,7 @@ QString KisStudioShortcuts::assign(KisMainWindow *mainWindow, QAction *action, c
                 other->setShortcuts(keys);
                 continue;
             }
-            if (sequence.isEmpty() || !other->shortcuts().contains(sequence)) {
+            if (sequence.isEmpty() || !other->shortcuts().contains(sequence) || !shareContext(toolsOf(action), toolsOf(other))) {
                 continue;
             }
             QList<QKeySequence> remaining = other->shortcuts();

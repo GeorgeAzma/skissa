@@ -45,6 +45,13 @@ QString itemMimeType();
 /// All of the window's actions: those in its action collections plus those added directly
 QList<QAction *> allActions(KisMainWindow *mainWindow);
 
+/// The tools whose own shortcut \p action is, working only while one of them is in use (Krita's tool actions); empty: everywhere
+QStringList toolsOf(const QAction *action);
+
+/// Whether one key on both would clash: both work everywhere, or both in a tool they share. A tool's own key
+/// covers a key that works everywhere only while that tool is in use, so those two don't.
+bool shareContext(const QStringList &toolsOfA, const QStringList &toolsOfB);
+
 /// "&Gaussian Blur..." -> "Gaussian Blur"
 QString plainText(QString text);
 

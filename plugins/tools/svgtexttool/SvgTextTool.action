@@ -44,7 +44,7 @@
     </Action>
     <Action name="svg_align_justified">
       <iconText>Align Block</iconText>
-      <shortcut>Ctrl+Alt+R</shortcut>
+      <shortcut/>
       <toolTip>Align Block</toolTip>
       <icon>format-justify-fill</icon>
       <whatsThis/>

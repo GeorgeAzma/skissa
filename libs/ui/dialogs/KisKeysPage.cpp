@@ -42,6 +42,9 @@
 #include <KisModernStyle.h>
 #include <KoResourcePaths.h>
 #include <kis_action_registry.h>
+#include <KisSentenceCase.h>
+#include <KoToolFactoryBase.h>
+#include <KoToolRegistry.h>
 
 #include "KisMainWindow.h"
 #include "KisPart.h"
@@ -265,6 +268,8 @@ struct KeyUse {
     QString name;
     QIcon icon;
     bool held {false};
+    /// Covered by the shown tool's own key while that tool is in use
+    bool elsewhere {false};
 };
 
 /**
@@ -437,7 +442,9 @@ protected:
                                                                      : KisModernStyle::keyCapText(QKeySequence(chordAt(cell)));
                 QStringList lines;
                 for (const KeyUse &use : uses) {
-                    lines << (use.held ? i18nc("@info:tooltip a key held on the canvas", "%1 (held)", use.name) : use.name);
+                    lines << (use.held ? i18nc("@info:tooltip a key held on the canvas", "%1 (held)", use.name)
+                              : use.elsewhere ? i18nc("@info:tooltip a key's command that the tool's own key covers while the tool is in use", "%1 (elsewhere)", use.name)
+                                              : use.name);
                 }
                 QToolTip::showText(help->globalPos(), lines.isEmpty() ? i18nc("@info:tooltip a key with no shortcut", "%1: free", key)
                                                                       : QStringLiteral("<b>%1</b><br>%2").arg(key.toHtmlEscaped(), lines.join(QStringLiteral("<br>")).toHtmlEscaped().replace(QStringLiteral("&lt;br&gt;"), QStringLiteral("<br>"))),
@@ -555,6 +562,8 @@ struct KisKeysPage::Private
         QString group;
         QString search;   ///< lowercase search text: name, id, group and the names other apps use
         QList<QKeySequence> current;
+        /// The tools it is a shortcut of, only while one is in use; empty: everywhere
+        QStringList tools;
         /// Changed on this page: only these are written, so keys set elsewhere meanwhile stay
         bool edited {false};
         bool registered {false};
@@ -587,6 +596,12 @@ struct KisKeysPage::Private
     QToolButton *pressKeys {nullptr};
     QToolButton *changedOnly {nullptr};
     QComboBox *startFrom {nullptr};
+    /// Which keys the keyboard shows: those that work everywhere, or while a tool is in use
+    QComboBox *contextBox {nullptr};
+    /// The tool shown (its id), or empty for everywhere
+    QString context;
+    /// The tools that have shortcuts of their own, by name
+    QList<QPair<QString, QString>> contextTools;
     QList<QToolButton *> layerButtons;
     KeyboardMap *map {nullptr};
     KeysTree *tree {nullptr};
@@ -716,6 +731,8 @@ struct KisKeysPage::Private
         const QString panels = i18nc("keys group", "Panels");
         const QString rings = i18nc("keys group", "Rings");
         const QString other = i18nc("keys group", "Other");
+        QStringList toolGroups;
+        contextTools.clear();
         Q_FOREACH (QAction *action, KisStudioShortcuts::allActions(mainWindow)) {
             if (!action) continue;
             const QString id = action->objectName();
@@ -731,8 +748,14 @@ struct KisKeysPage::Private
             command.title = title;
             command.registered = registry->hasAction(id);
             command.current = action->shortcuts();
+            command.tools = KisStudioShortcuts::toolsOf(action);
             const QString category = command.registered ? registry->fetchActionCategory(id).categoryName : QString();
-            if (id.startsWith(QLatin1String("studio_ring_"))) {
+            if (!command.tools.isEmpty() && command.tools.size() <= ownToolsAtMost) {
+                // a tool's own keys, under that tool; those many tools share (the brush size) stay in their groups
+                const QString tool = toolName(command.tools.first());
+                command.group = i18nc("keys group: shortcuts that work only while this tool is in use, %1 is a tool", "While using %1", tool);
+                if (!toolGroups.contains(command.group)) toolGroups << command.group;
+            } else if (id.startsWith(QLatin1String("studio_ring_"))) {
                 command.group = rings;
             } else if (id.startsWith(QLatin1String("studio_panel_")) || id.startsWith(QLatin1String("studio_button_"))) {
                 command.group = panels;
@@ -753,7 +776,50 @@ struct KisKeysPage::Private
             command.search = words.join(QLatin1Char(' ')).toLower();
             commands.append(command);
         }
-        groupOrder = QStringList{tools, painting, heldTitle(), rings} + menuOrder + QStringList{panels, other};
+        toolGroups.sort(Qt::CaseInsensitive);
+        groupOrder = QStringList{tools, painting, heldTitle(), rings} + menuOrder + toolGroups + QStringList{panels, other};
+    }
+
+    /// A command of at most this many tools is theirs; more (the brush size, for every painting tool) is common
+    static constexpr int ownToolsAtMost = 2;
+
+    /// The tools whose own keys cover a key that works everywhere while they are in use: those worth a view
+    void findContextTools()
+    {
+        contextTools.clear();
+        QSet<int> everywhere;
+        for (const Command &command : qAsConst(commands)) {
+            if (!command.tools.isEmpty()) continue;
+            Q_FOREACH (const QKeySequence &sequence, command.current) everywhere << chordOf(sequence);
+        }
+        everywhere.remove(0);
+        QStringList ids;
+        for (const Command &command : qAsConst(commands)) {
+            if (command.tools.isEmpty()) continue;
+            bool covers = false;
+            Q_FOREACH (const QKeySequence &sequence, command.current) covers = covers || everywhere.contains(chordOf(sequence));
+            if (!covers) continue;
+            Q_FOREACH (const QString &id, command.tools) {
+                if (!ids.contains(id)) ids << id;
+            }
+        }
+        Q_FOREACH (const QString &id, ids) contextTools << qMakePair(id, toolName(id));
+        std::sort(contextTools.begin(), contextTools.end(), [](const auto &a, const auto &b) { return a.second.localeAwareCompare(b.second) < 0; });
+    }
+
+    static QString toolName(const QString &id)
+    {
+        KoToolFactoryBase *factory = KoToolRegistry::instance()->value(id);
+        // the name, without the help some tools add after it ("Bezier curve tool: Shift-click ends the curve")
+        if (!factory) return id;
+        const QString name = plainText(factory->toolTip()).section(QLatin1Char(':'), 0, 0).section(QLatin1Char('\n'), 0, 0);
+        return KisSentenceCase::of(name.trimmed());
+    }
+
+    /// Whether one key on both would clash (see KisStudioShortcuts::shareContext())
+    static bool clash(const Command &a, const Command &b)
+    {
+        return KisStudioShortcuts::shareContext(a.tools, b.tools);
     }
 
     /// Friendlier names for Krita's canvas input actions
@@ -954,26 +1020,87 @@ struct KisKeysPage::Private
         if (keyFilter) {
             map->lit << keyFilter;
         } else if (QTreeWidgetItem *item = tree->currentItem()) {
-            if (item->data(0, RowRole).isValid()) map->lit = chordsOfRow(item->data(0, RowRole).toInt());
+            if (item->data(0, RowRole).isValid()) {
+                const int row = item->data(0, RowRole).toInt();
+                map->lit = chordsOfRow(row);
+                // a tool's own command is shown on the keyboard of that tool
+                if (row >= 0 && row < commands.size() && !commands[row].tools.contains(context)) {
+                    Q_FOREACH (const QString &tool, commands[row].tools) {
+                        if (contextBox && contextBox->findData(tool) >= 0) {
+                            showContext(tool);
+                            break;
+                        }
+                    }
+                }
+            }
         }
         map->update();
     }
 
-    /// What \p chord does: commands first, then actions held on the canvas
+    void showContext(const QString &tool)
+    {
+        context = tool;
+        if (contextBox) {
+            const QSignalBlocker blocker(contextBox);
+            contextBox->setCurrentIndex(qMax(0, contextBox->findData(tool)));
+        }
+        map->update();
+    }
+
+    void fillContexts()
+    {
+        if (!contextBox) return;
+        findContextTools();
+        const QSignalBlocker blocker(contextBox);
+        contextBox->clear();
+        contextBox->addItem(i18nc("keys page: the keys that work everywhere, not only in one tool", "Everywhere"), QString());
+        for (const auto &tool : qAsConst(contextTools)) {
+            contextBox->addItem(i18nc("keys page: the keys while a tool is in use, %1 is a tool", "While using %1", tool.second), tool.first);
+        }
+        contextBox->setCurrentIndex(qMax(0, contextBox->findData(context)));
+        contextBox->setVisible(!contextTools.isEmpty());
+    }
+
+    /**
+     * What \p chord does where the keyboard is shown, then actions held on the canvas. Everywhere: the commands
+     * that work everywhere, then the tools' own. While using a tool: its own first (they cover the others there),
+     * then those that work everywhere. \p commandCount is above 1 only when two of them clash.
+     */
     QVector<KeyUse> usesOn(int chord, int *commandCount) const
     {
         QVector<KeyUse> uses;
         *commandCount = 0;
         if (!chord) return uses;
+        QVector<const Command *> mine;
+        QVector<const Command *> everywhere;
+        QVector<const Command *> tools;
         for (const Command &command : commands) {
-            Q_FOREACH (const QKeySequence &sequence, command.current) {
-                if (sequence.count() == 1 && chordOf(sequence) == chord) {
-                    uses.append({command.title, command.action ? command.action->icon() : QIcon(), false});
-                    (*commandCount)++;
-                    break;
-                }
-            }
+            bool on = false;
+            Q_FOREACH (const QKeySequence &sequence, command.current) on = on || (sequence.count() == 1 && chordOf(sequence) == chord);
+            if (!on) continue;
+            if (command.tools.isEmpty()) everywhere << &command;
+            else if (context.isEmpty()) tools << &command;
+            else if (command.tools.contains(context)) mine << &command;
         }
+        auto use = [](const Command *command, bool elsewhere) {
+            return KeyUse{command->title, command->action ? command->action->icon() : QIcon(), false, elsewhere};
+        };
+        for (const Command *command : mine) uses << use(command, false);
+        for (const Command *command : everywhere) uses << use(command, !mine.isEmpty());
+        for (const Command *command : tools) {
+            KeyUse own = use(command, false);
+            if (command->tools.size() <= ownToolsAtMost) {
+                own.name = i18nc("keys page: a command and the tool it works in, e.g. Bold, while using Text tool", "%1, while using %2", own.name, toolName(command->tools.first()));
+            }
+            uses << own;
+        }
+        // red only for two that would fire in the same place
+        const QVector<const Command *> all = mine + everywhere + tools;
+        bool clashes = false;
+        for (int a = 0; a < all.size() && !clashes; a++) {
+            for (int b = a + 1; b < all.size() && !clashes; b++) clashes = clash(*all[a], *all[b]);
+        }
+        *commandCount = clashes ? 2 : qMin(1, int(all.size()));
         QSet<QString> heldNames;
         for (const Hold &hold : holds) {
             if (!hold.removed && chordOf(hold.staged.keys()) == chord && !heldNames.contains(hold.title)) {
@@ -995,6 +1122,8 @@ struct KisKeysPage::Private
             for (int i = 0; i < commands.size(); i++) {
                 QList<QKeySequence> &current = commands[i].current;
                 const int before = current.size();
+                // a key works everywhere and also as a tool's own, which covers it while the tool is in use
+                if (i != row && !clash(commands[i], command)) continue;
                 for (int k = current.size() - 1; k >= 0; k--) {
                     // the edited place itself is replaced below; one before it moves it up
                     if (i == row && k == index) continue;
@@ -1288,6 +1417,15 @@ KisKeysPage::KisKeysPage(QWidget *parent)
         layers->addWidget(button);
         d->layerButtons << button;
     }
+    // the keys of a tool in use: its own cover the others there
+    d->contextBox = new QComboBox(this);
+    d->contextBox->setToolTip(i18nc("@info:tooltip", "Keys that work everywhere, or while a tool is in use (its own keys win there)"));
+    connect(d->contextBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
+        d->context = d->contextBox->currentData().toString();
+        d->map->update();
+    });
+    layers->addSpacing(KisModernStyle::space3);
+    layers->addWidget(d->contextBox);
     layers->addStretch();
     // Legend for the key marks
     layers->addWidget(new KeyLegend(KeyLegend::Held, i18nc("@info keys page legend: a key held on the canvas", "Held"), this));
@@ -1368,6 +1506,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     d->note->setText(d->hint());
 
     d->collectCommands();
+    d->fillContexts();
     d->collectHolds();
     d->rebuildTree();
 
