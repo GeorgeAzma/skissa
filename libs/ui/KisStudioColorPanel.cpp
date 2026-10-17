@@ -8,9 +8,11 @@
 
 #include <QActionGroup>
 #include <QApplication>
+#include <QClipboard>
 #include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QHelpEvent>
 #include <QLineEdit>
 #include <QMap>
 #include <QMenu>
@@ -21,6 +23,7 @@
 #include <QRegularExpression>
 #include <QScreen>
 #include <QToolButton>
+#include <QToolTip>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
@@ -47,6 +50,8 @@
 #include "canvas/kis_canvas2.h"
 #include "kis_config.h"
 #include <KisModernStyle.h>
+#include "KisStudioTips.h"
+#include "widgets/KisStudioInlineEdit.h"
 
 namespace {
 
@@ -979,48 +984,417 @@ static QIcon styleIcon(PickerStyle style)
     return QIcon(QPixmap::fromImage(image));
 }
 
-/// The hex code field: dimmed unless it has focus
-class HexField : public QLineEdit
+namespace {
+
+/// How the color is written: as a code, or as the numbers of a model
+enum class ColorFormat { Hex, Rgb, RgbFloat, Oklch, Hsv };
+const QStringList formatNames = {QStringLiteral("hex"), QStringLiteral("rgb"), QStringLiteral("rgb01"), QStringLiteral("oklch"), QStringLiteral("hsv")};
+constexpr int formatCount = 5;
+
+QString formatLabel(ColorFormat format)
+{
+    switch (format) {
+    case ColorFormat::Hex: return i18nc("a color written as a hex code", "Hex");
+    case ColorFormat::Rgb: return QStringLiteral("RGB");
+    case ColorFormat::RgbFloat: return i18nc("a color written as red, green and blue from 0 to 1", "RGB 0–1");
+    case ColorFormat::Oklch: return QStringLiteral("OKLCH");
+    case ColorFormat::Hsv: return QStringLiteral("HSV");
+    }
+    return QString();
+}
+
+/// A part as written: with a point, never the locale's comma, so it can be copied anywhere
+QString partText(ColorFormat format, int part, qreal value)
+{
+    switch (format) {
+    case ColorFormat::RgbFloat: return QString::number(value, 'f', 3);
+    case ColorFormat::Oklch: return part == 2 ? QString::number(qRound(value)) : QString::number(value, 'f', 3);
+    default: return QString::number(qRound(value));
+    }
+}
+
+/// How far a part moves for a pixel dragged, and its range; a hue goes round
+struct PartRange {
+    qreal minimum;
+    qreal maximum;
+    qreal perPixel;
+    bool wraps;
+};
+
+PartRange partRange(ColorFormat format, int part)
+{
+    switch (format) {
+    case ColorFormat::RgbFloat: return {0.0, 1.0, 0.004, false};
+    case ColorFormat::Oklch:
+        if (part == 0) return {0.0, 1.0, 0.004, false};
+        if (part == 1) return {0.0, 0.37, 0.0015, false};
+        return {0.0, 360.0, 1.0, true};
+    case ColorFormat::Hsv: return part == 0 ? PartRange{0.0, 360.0, 1.0, true} : PartRange{0.0, 100.0, 0.5, false};
+    default: return {0.0, 255.0, 1.0, false};
+    }
+}
+
+/// A color as typed: a code, or a model's numbers
+struct TypedColor {
+    ColorFormat format {ColorFormat::Hex};
+    QVector<qreal> parts;
+    QColor code;
+};
+
+/**
+ * Reads a color in any of the ways it is written: 00F2FC, #0ef, rgb(0, 242, 252), 0 242 252, 0 0.95 0.99,
+ * oklch(0.86 0.15 196), hsv(184, 100%, 99%), hsl(…). Bare numbers are read as \p shown has them.
+ */
+std::optional<TypedColor> readColor(const QString &text, ColorFormat shown)
+{
+    const QString typed = text.trimmed().toLower();
+    static const QRegularExpression code(QStringLiteral("^#?([0-9a-f]{3}|[0-9a-f]{6})$"));
+    QRegularExpressionMatch match = code.match(typed);
+    if (match.hasMatch()) {
+        QString digits = match.captured(1);
+        if (digits.size() == 3) digits = QString(digits[0]) + digits[0] + digits[1] + digits[1] + digits[2] + digits[2];
+        return TypedColor{ColorFormat::Hex, {}, QColor(QLatin1Char('#') + digits)};
+    }
+    ColorFormat format = shown == ColorFormat::Hex ? ColorFormat::Rgb : shown;
+    QString body = typed;
+    bool hsl = false;
+    bool named = false;
+    static const QRegularExpression call(QStringLiteral("^([a-z]+)\\s*\\((.*)\\)$"));
+    match = call.match(typed);
+    if (match.hasMatch()) {
+        const QString name = match.captured(1);
+        body = match.captured(2);
+        named = true;
+        if (name == QLatin1String("rgb") || name == QLatin1String("rgba")) format = ColorFormat::Rgb;
+        else if (name == QLatin1String("oklch")) format = ColorFormat::Oklch;
+        else if (name == QLatin1String("hsv") || name == QLatin1String("hsb")) format = ColorFormat::Hsv;
+        else if (name == QLatin1String("hsl") || name == QLatin1String("hsla")) hsl = true;
+        else return std::nullopt;
+    }
+    const QStringList pieces = body.split(QRegularExpression(QStringLiteral("[\\s,;/]+")), Qt::SkipEmptyParts);
+    if (pieces.size() < 3) return std::nullopt;
+    QVector<qreal> values;
+    QVector<bool> percent;
+    bool fractions = true;
+    for (int i = 0; i < 3; i++) {
+        QString piece = pieces[i];
+        percent << piece.endsWith(QLatin1Char('%'));
+        piece.remove(QLatin1Char('%')).remove(QStringLiteral("°")).remove(QStringLiteral("deg"));
+        bool ok = false;
+        const qreal value = piece.toDouble(&ok);
+        if (!ok) return std::nullopt;
+        values << value;
+        if (value > 1.0 || percent.last()) fractions = false;
+    }
+    if (hsl) {
+        auto share = [&](int i) { return qBound(0.0, percent[i] || values[i] > 1.0 ? values[i] / 100.0 : values[i], 1.0); };
+        const QColor rgb = QColor::fromHslF(std::fmod(std::fmod(values[0], 360.0) + 360.0, 360.0) / 360.0, share(1), share(2));
+        return TypedColor{ColorFormat::Rgb, {qreal(rgb.red()), qreal(rgb.green()), qreal(rgb.blue())}, QColor()};
+    }
+    switch (format) {
+    case ColorFormat::Rgb:
+    case ColorFormat::RgbFloat: {
+        // 0 to 1 when every part is a fraction and it isn't written as rgb(), which counts to 255
+        const bool floats = format == ColorFormat::RgbFloat ? !percent.contains(true) : fractions && !named && body.contains(QLatin1Char('.'));
+        for (int i = 0; i < 3; i++) {
+            if (percent[i]) values[i] = values[i] / 100.0 * (floats ? 1.0 : 255.0);
+            values[i] = qBound(0.0, values[i], floats ? 1.0 : 255.0);
+        }
+        return TypedColor{floats ? ColorFormat::RgbFloat : ColorFormat::Rgb, values, QColor()};
+    }
+    case ColorFormat::Oklch:
+        // as CSS has it: lightness 100% is 1, chroma 100% is 0.4
+        if (percent[0]) values[0] /= 100.0;
+        if (percent[1]) values[1] *= 0.4 / 100.0;
+        return TypedColor{ColorFormat::Oklch, {qBound(0.0, values[0], 1.0), qBound(0.0, values[1], 0.4), values[2]}, QColor()};
+    case ColorFormat::Hsv:
+        for (int i = 1; i < 3; i++) {
+            if (!percent[i] && values[i] <= 1.0 && pieces[i].contains(QLatin1Char('.'))) values[i] *= 100.0;
+            values[i] = qBound(0.0, values[i], 100.0);
+        }
+        return TypedColor{ColorFormat::Hsv, values, QColor()};
+    default:
+        return std::nullopt;
+    }
+}
+
+/**
+ * The color written out: its format named, quietly, then its parts. A click on the name shows the next format;
+ * a part is dragged to change it, a click types the color in any format, a right click copies it.
+ */
+class ColorField : public QWidget
 {
 public:
-    explicit HexField(QWidget *parent) : QLineEdit(parent)
+    /// The current color's parts in a format; empty for the code
+    std::function<QVector<qreal>(ColorFormat)> partsOf;
+    /// The current color as a code, without #
+    std::function<QString()> codeOf;
+    /// A drag of a part begins
+    std::function<void()> started;
+    /// Parts changed by a drag, or a color typed
+    std::function<void(const TypedColor &, bool dragged)> picked;
+
+    explicit ColorField(QWidget *parent)
+        : QWidget(parent)
     {
-        fade();
+        setMouseTracking(true);
+        setAttribute(Qt::WA_Hover);
+        setFixedHeight(26);
+        const int saved = formatNames.indexOf(KisConfig(true).readEntry<QString>("StudioColorFormat", QString()));
+        m_format = saved >= 0 ? ColorFormat(saved) : ColorFormat::Hex;
     }
+
+    ColorFormat format() const { return m_format; }
+
+    /// Written again, for a new color
+    void refresh()
+    {
+        updateGeometry();
+        update();
+    }
+
+    QString text(ColorFormat format) const
+    {
+        if (format == ColorFormat::Hex) return codeOf ? codeOf() : QString();
+        QStringList parts;
+        const QVector<qreal> values = partsOf ? partsOf(format) : QVector<qreal>();
+        for (int i = 0; i < values.size(); i++) parts << partText(format, i, values[i]);
+        return parts.join(QLatin1Char(' '));
+    }
+
+    /// As copied: in the way it is written elsewhere (CSS, mostly)
+    QString copied(ColorFormat format) const
+    {
+        const QString shown = text(format);
+        switch (format) {
+        case ColorFormat::Hex: return QLatin1Char('#') + shown;
+        case ColorFormat::Rgb: return QStringLiteral("rgb(%1)").arg(QString(shown).replace(QLatin1Char(' '), QStringLiteral(", ")));
+        case ColorFormat::RgbFloat: return QString(shown).replace(QLatin1Char(' '), QStringLiteral(", "));
+        case ColorFormat::Oklch: return QStringLiteral("oklch(%1)").arg(shown);
+        case ColorFormat::Hsv: {
+            const QStringList parts = shown.split(QLatin1Char(' '));
+            return parts.size() == 3 ? QStringLiteral("hsv(%1, %2%, %3%)").arg(parts[0], parts[1], parts[2]) : shown;
+        }
+        }
+        return shown;
+    }
+
+    QSize sizeHint() const override
+    {
+        // as wide as the widest the format writes, so nothing moves under the pointer as numbers change
+        static const QStringList widest = {QStringLiteral("DDDDDD"), QStringLiteral("255 255 255"), QStringLiteral("0.000 0.000 0.000"),
+                                           QStringLiteral("0.000 0.000 360"), QStringLiteral("360 100 100")};
+        const QFontMetrics value(font());
+        const QFontMetrics label(labelFont());
+        return QSize(label.horizontalAdvance(formatLabel(m_format)) + KisModernStyle::space2 + value.horizontalAdvance(widest[int(m_format)]) + 2, 26);
+    }
+
+    QSize minimumSizeHint() const override { return sizeHint(); }
 
 protected:
-    void focusInEvent(QFocusEvent *event) override
+    void paintEvent(QPaintEvent *) override
     {
-        QLineEdit::focusInEvent(event);
-        fade();
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QColor ink = palette().color(QPalette::WindowText);
+        const QColor quiet = KisModernStyle::secondaryInk(ink);
+        // while it is typed, the editor has the whole field
+        if (m_editing) return;
+        painter.setFont(labelFont());
+        painter.setPen(m_hover == Label ? ink : quiet);
+        painter.drawText(labelRect(), Qt::AlignLeft | Qt::AlignVCenter, formatLabel(m_format));
+        painter.setFont(font());
+        // quiet but for the part under the pointer or being dragged
+        const QVector<QRectF> rects = partRects();
+        const QStringList parts = text(m_format).split(QLatin1Char(' '));
+        for (int i = 0; i < parts.size() && i < rects.size(); i++) {
+            const bool hot = (m_hover == Part && m_hoverPart == i) || m_dragPart == i || (m_hover == Part && m_format == ColorFormat::Hex);
+            painter.setPen(hot ? ink : quiet);
+            painter.drawText(rects[i], Qt::AlignCenter, parts[i]);
+        }
     }
 
-    void focusOutEvent(QFocusEvent *event) override
+    void mousePressEvent(QMouseEvent *event) override
     {
-        QLineEdit::focusOutEvent(event);
-        fade();
+        if (event->button() != Qt::LeftButton) return;
+        event->accept();
+        if (labelRect().adjusted(-2, -4, 2, 4).contains(event->pos())) {
+            setFormat(ColorFormat((int(m_format) + 1) % formatCount));
+            return;
+        }
+        m_pressed = true;
+        m_moved = false;
+        m_pressX = event->pos().x();
+        m_dragPart = m_format == ColorFormat::Hex ? -1 : partAt(event->pos());
+        m_pressParts = partsOf ? partsOf(m_format) : QVector<qreal>();
     }
 
-    void changeEvent(QEvent *event) override
+    void mouseMoveEvent(QMouseEvent *event) override
     {
-        QLineEdit::changeEvent(event);
-        if (event->type() == QEvent::PaletteChange && !m_fading) fade();
+        if (!m_pressed) {
+            const Hover hover = labelRect().adjusted(-2, -4, 2, 4).contains(event->pos()) ? Label : valueRect().contains(event->pos()) ? Part : None;
+            const int part = partAt(event->pos());
+            if (hover != m_hover || part != m_hoverPart) {
+                m_hover = hover;
+                m_hoverPart = part;
+                setCursor(hover == Label ? Qt::PointingHandCursor : hover == Part && m_format != ColorFormat::Hex ? Qt::SizeHorCursor : Qt::IBeamCursor);
+                update();
+            }
+            return;
+        }
+        if (m_dragPart < 0 || m_dragPart >= m_pressParts.size()) return;
+        const int moved = event->pos().x() - m_pressX;
+        if (!m_moved && qAbs(moved) <= 3) return;
+        if (!m_moved && started) started();
+        m_moved = true;
+        const PartRange range = partRange(m_format, m_dragPart);
+        const qreal fine = event->modifiers() & Qt::ShiftModifier ? 0.25 : 1.0;
+        QVector<qreal> parts = m_pressParts;
+        qreal value = parts[m_dragPart] + moved * range.perPixel * fine;
+        if (range.wraps) value = std::fmod(std::fmod(value, range.maximum) + range.maximum, range.maximum);
+        parts[m_dragPart] = qBound(range.minimum, value, range.maximum);
+        if (picked) picked(TypedColor{m_format, parts, QColor()}, true);
+        update();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton || !m_pressed) return;
+        m_pressed = false;
+        const bool moved = m_moved;
+        m_dragPart = -1;
+        update();
+        // a click types it
+        if (!moved && rect().contains(event->pos())) type();
+    }
+
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        event->accept();
+        QMenu menu(this);
+        const QString clip = QApplication::clipboard()->text().trimmed();
+        const std::optional<TypedColor> pasted = clip.size() < 64 ? readColor(clip, m_format) : std::nullopt;
+        if (pasted) {
+            menu.addAction(i18nc("@action:inmenu %1 is a color as written, like #00F2FC", "Paste %1", clip), this, [this, pasted]() {
+                if (picked) picked(*pasted, false);
+            });
+            menu.addSeparator();
+        }
+        for (int i = 0; i < formatCount; i++) {
+            const QString written = copied(ColorFormat(i));
+            menu.addAction(i18nc("@action:inmenu %1 is a color as written, like #00F2FC", "Copy %1", written), this, [written]() {
+                QApplication::clipboard()->setText(written);
+            });
+        }
+        menu.exec(event->globalPos());
+    }
+
+    void leaveEvent(QEvent *) override
+    {
+        m_hover = None;
+        m_hoverPart = -1;
+        update();
+    }
+
+    bool event(QEvent *event) override
+    {
+        if (event->type() == QEvent::ToolTip) {
+            auto *help = static_cast<QHelpEvent *>(event);
+            QString tip;
+            if (labelRect().adjusted(-2, -4, 2, 4).contains(help->pos())) {
+                tip = KisStudioTips::tip(formatLabel(m_format), {i18nc("@info:tooltip a gesture", "Click: next format")});
+            } else if (m_format == ColorFormat::Hex) {
+                tip = KisStudioTips::tip(i18nc("@info:tooltip", "Hex code, or any color typed"),
+                                         {i18nc("@info:tooltip a gesture", "Click: type"), i18nc("@info:tooltip a gesture", "Right-click: copy")});
+            } else {
+                tip = KisStudioTips::tip(i18nc("@info:tooltip", "Any color typed: #00F2FC, rgb(…), oklch(…)"),
+                                         {KisStudioTips::dragChange(), i18nc("@info:tooltip a gesture", "Click: type"),
+                                          i18nc("@info:tooltip a gesture", "Right-click: copy")});
+            }
+            QToolTip::showText(help->globalPos(), KisStudioTips::html(tip), this);
+            return true;
+        }
+        return QWidget::event(event);
     }
 
 private:
-    void fade()
+    enum Hover { None, Label, Part };
+
+    QFont labelFont() const
     {
-        m_fading = true;
-        QPalette palette = this->palette();
-        QColor ink = QApplication::palette(this).color(QPalette::Text);
-        ink.setAlphaF(hasFocus() ? 1.0 : 0.5);
-        palette.setColor(QPalette::Text, ink);
-        setPalette(palette);
-        m_fading = false;
+        return KisModernStyle::textFont(font(), 0.8);
     }
 
-    bool m_fading {false};
+    QRectF labelRect() const
+    {
+        const qreal width = QFontMetricsF(labelFont()).horizontalAdvance(formatLabel(m_format));
+        return QRectF(0, 0, width, height());
+    }
+
+    QRectF valueRect() const
+    {
+        return QRectF(labelRect().right() + KisModernStyle::space2, 0, width() - labelRect().right() - KisModernStyle::space2, height());
+    }
+
+    /// Each part where it is written, right-aligned, a space apart
+    QVector<QRectF> partRects() const
+    {
+        const QFontMetricsF metrics(font());
+        const QStringList parts = text(m_format).split(QLatin1Char(' '));
+        const qreal gap = metrics.horizontalAdvance(QLatin1Char(' '));
+        QVector<QRectF> rects;
+        qreal x = width();
+        for (int i = parts.size() - 1; i >= 0; i--) {
+            const qreal w = metrics.horizontalAdvance(parts[i]);
+            rects.prepend(QRectF(x - w, 0, w, height()));
+            x -= w + gap;
+        }
+        return rects;
+    }
+
+    int partAt(const QPoint &pos) const
+    {
+        const QVector<QRectF> rects = partRects();
+        for (int i = 0; i < rects.size(); i++) {
+            if (rects[i].adjusted(-3, 0, 3, 0).contains(pos)) return i;
+        }
+        return -1;
+    }
+
+    void setFormat(ColorFormat format)
+    {
+        m_format = format;
+        KisConfig(false).writeEntry("StudioColorFormat", formatNames[int(format)]);
+        refresh();
+    }
+
+    /// Typed over the value, in any format
+    void type()
+    {
+        m_editing = true;
+        QLineEdit *editor = KisStudioInlineEdit::open(this, rect(), text(m_format), Qt::AlignRight, font(), [this](const QString &typed) {
+            const std::optional<TypedColor> color = readColor(typed, m_format);
+            if (color && picked) picked(*color, false);
+        });
+        connect(editor, &QObject::destroyed, this, [this]() {
+            m_editing = false;
+            update();
+        });
+        update();
+    }
+
+    ColorFormat m_format {ColorFormat::Hex};
+    Hover m_hover {None};
+    int m_hoverPart {-1};
+    bool m_pressed {false};
+    bool m_moved {false};
+    bool m_editing {false};
+    int m_pressX {0};
+    int m_dragPart {-1};
+    QVector<qreal> m_pressParts;
 };
+
+} // namespace
 
 struct KisStudioColorPanel::Private
 {
@@ -1040,7 +1414,7 @@ struct KisStudioColorPanel::Private
     HsvWheel *wheel {nullptr};
     Swatches *currentRow {nullptr};
     Swatches *recentRow {nullptr};
-    QLineEdit *hex {nullptr};
+    ColorField *field {nullptr};
     QToolButton *styleButton {nullptr};
     QMap<PickerStyle, QAction *> styleActions;
 
@@ -1105,7 +1479,66 @@ struct KisStudioColorPanel::Private
             break;
         }
         currentRow->setColors({current, previous ? previous->toQColor() : current});
-        hex->setText(current.name().mid(1).toUpper());
+        field->refresh();
+    }
+
+    /// The current color's parts in \p format, each picker's own coordinates kept where it has them
+    QVector<qreal> partsOf(ColorFormat format) const
+    {
+        switch (format) {
+        case ColorFormat::Rgb: return {qreal(current.red()), qreal(current.green()), qreal(current.blue())};
+        case ColorFormat::RgbFloat: return {current.redF(), current.greenF(), current.blueF()};
+        case ColorFormat::Oklch: {
+            if (style != PickerStyle::Hsv) return {color.l, color.c, color.h};
+            const Oklch shown = oklchFromRgb(current);
+            return {shown.l, shown.c, shown.c > 0.012 ? shown.h : color.h};
+        }
+        case ColorFormat::Hsv: {
+            if (style == PickerStyle::Hsv) return {hsvHue * 360.0, hsvS * 100.0, hsvV * 100.0};
+            qreal h, s, v;
+            current.getHsvF(&h, &s, &v);
+            return {h >= 0.0 ? h * 360.0 : hsvHue * 360.0, s * 100.0, v * 100.0};
+        }
+        default: return {};
+        }
+    }
+
+    /// A color written in the field: typed (the one before becomes the previous) or dragged part by part
+    void pickWritten(const TypedColor &written, bool dragged)
+    {
+        const QVector<qreal> &parts = written.parts;
+        QColor rgb;
+        Oklch lch;
+        switch (written.format) {
+        case ColorFormat::Hex: rgb = written.code; break;
+        case ColorFormat::Rgb: rgb = QColor(qRound(parts[0]), qRound(parts[1]), qRound(parts[2])); break;
+        case ColorFormat::RgbFloat: rgb = QColor::fromRgbF(parts[0], parts[1], parts[2]); break;
+        case ColorFormat::Oklch:
+            lch = {parts[0], parts[1], std::fmod(std::fmod(parts[2], 360.0) + 360.0, 360.0)};
+            // past what the screen shows: as vivid as it goes at this lightness and hue
+            lch.c = qMin(lch.c, maxChroma(lch.l, lch.h));
+            rgb = rgbFromOklch(lch);
+            break;
+        case ColorFormat::Hsv: rgb = QColor::fromHsvF(parts[0] / 360.0, parts[1] / 100.0, parts[2] / 100.0); break;
+        }
+        if (!rgb.isValid()) return;
+        if (dragged) {
+            readCoordinates(rgb);
+        } else {
+            setColor(koColorFromRgb(rgb));
+        }
+        // the model it was written in keeps its numbers, a gray's hue too
+        if (written.format == ColorFormat::Oklch) {
+            color = lch;
+            // the chroma asked for is held, as the ring holds it, where the screen can't show it all
+            heldChroma = parts[1];
+        } else if (written.format == ColorFormat::Hsv) {
+            hsvHue = parts[0] / 360.0;
+            hsvS = parts[1] / 100.0;
+            hsvV = parts[2] / 100.0;
+        }
+        if (dragged) pickColor(rgb);
+        else refresh();
     }
 
     /// Shows a color set elsewhere; the one before becomes the previous color. Taken by value, as it may be \c previous itself.
@@ -1266,12 +1699,13 @@ KisStudioColorPanel::KisStudioColorPanel()
     }
     d->styleButton->setMenu(styles);
     row->addWidget(d->styleButton);
-    d->hex = new HexField(contents);
-    d->hex->setFrame(false);
-    d->hex->setFixedWidth(64);
-    d->hex->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    d->hex->setToolTip(i18nc("@info:tooltip", "Hex code"));
-    row->addWidget(d->hex);
+    d->field = new ColorField(contents);
+    d->field->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    d->field->partsOf = [this](ColorFormat format) { return d->partsOf(format); };
+    d->field->codeOf = [this]() { return d->current.name().mid(1).toUpper(); };
+    d->field->started = [this]() { d->remember(); };
+    d->field->picked = [this](const TypedColor &written, bool dragged) { d->pickWritten(written, dragged); };
+    row->addWidget(d->field);
     layout->addLayout(row);
     d->filler = new QWidget(contents);
     d->filler->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
@@ -1340,18 +1774,6 @@ KisStudioColorPanel::KisStudioColorPanel()
             d->setColor(history->color(index));
         }
     };
-    connect(d->hex, &QLineEdit::editingFinished, this, [this]() {
-        // focus leaving the field is not an edit
-        if (!d->hex->isModified()) return;
-        d->hex->setModified(false);
-        static const QRegularExpression hexCode(QStringLiteral("^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$"));
-        const QString text = d->hex->text().trimmed();
-        if (!hexCode.match(text).hasMatch()) {
-            d->hex->setText(d->current.name().mid(1).toUpper());
-            return;
-        }
-        d->setColor(koColorFromRgb(QColor(text.startsWith(QLatin1Char('#')) ? text : QLatin1Char('#') + text)));
-    });
 
     // the last chosen picker, falling back to the legacy OKLCH/HSV switch
     KisConfig config(true);
