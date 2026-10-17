@@ -280,12 +280,16 @@ public:
         const auto intent = KoColorConversionTransformation::internalRenderingIntent();
         const auto flags = KoColorConversionTransformation::internalConversionFlags();
 
-        // the alpha channel switched off is the layer's alpha lock: its opacity stays
+        // channels switched off keep their values (the alpha channel off is the layer's alpha lock), but where
+        // nothing was painted they are cleared, as Krita's own blends do
+        const QList<KoChannelInfo *> channels = own->channels();
         bool alphaLocked = false;
+        bool someLocked = false;
         if (!params.channelFlags.isEmpty()) {
-            const QList<KoChannelInfo *> channels = own->channels();
             for (int i = 0; i < channels.size() && i < params.channelFlags.size(); i++) {
-                if (channels[i]->channelType() == KoChannelInfo::ALPHA && !params.channelFlags.testBit(i)) alphaLocked = true;
+                if (params.channelFlags.testBit(i)) continue;
+                someLocked = true;
+                if (channels[i]->channelType() == KoChannelInfo::ALPHA) alphaLocked = true;
             }
         }
 
@@ -294,6 +298,7 @@ public:
         QVector<float> under(cols * 4);
         QVector<quint8> back(cols * pixelSize);
         QVector<bool> changed(cols);
+        QVector<bool> wasClear(cols);
         if (oneSource) own->convertPixelsTo(params.srcRowStart, reinterpret_cast<quint8 *>(source.data()), linear, 1, intent, flags);
 
         // a color seen again (one paint color, a flat area under it) isn't made into pigment again
@@ -318,6 +323,7 @@ public:
                 changed[x] = false;
                 const float *s = oneSource ? source.data() : source.data() + 4 * x;
                 float *d = under.data() + 4 * x;
+                wasClear[x] = d[3] <= 0;
                 const float amount = params.opacity * (mask ? mask[x] / 255.0f : 1.0f);
                 // how much of each there is in the result: Normal is paint over paint, Copy replaces by the amount
                 const float ofSource = amount * s[3];
@@ -345,7 +351,22 @@ public:
             // only the pixels painted on are written back, so the rest keep their exact values
             linear->convertPixelsTo(reinterpret_cast<const quint8 *>(under.data()), back.data(), own, cols, intent, flags);
             for (int x = 0; x < cols; x++) {
-                if (changed[x]) std::copy(back.data() + x * pixelSize, back.data() + (x + 1) * pixelSize, dst + x * pixelSize);
+                if (!changed[x]) continue;
+                const quint8 *mixed = back.data() + x * pixelSize;
+                quint8 *out = dst + x * pixelSize;
+                if (!someLocked) {
+                    std::copy(mixed, mixed + pixelSize, out);
+                    continue;
+                }
+                for (int i = 0; i < channels.size(); i++) {
+                    const int at = channels[i]->pos();
+                    const int size = channels[i]->size();
+                    if (i < params.channelFlags.size() && !params.channelFlags.testBit(i)) {
+                        if (wasClear[x]) std::fill(out + at, out + at + size, quint8(0));
+                    } else {
+                        std::copy(mixed + at, mixed + at + size, out + at);
+                    }
+                }
             }
         }
     }
