@@ -356,6 +356,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Prichytiť k vodiacim čiaram"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Otvoriť"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Štvorec"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Portrét"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Premiešavanie"
@@ -555,6 +567,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Pripnúť na časovú os"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Viditeľná"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Späť"
@@ -640,6 +656,22 @@ msgstr "Výška"
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Štvorec"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Vyhladzovanie"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Maska"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Svetlosť"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Prechod"
 
 msgctxt "pattern group"
 msgid "Patterns"

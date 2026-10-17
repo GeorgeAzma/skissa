@@ -372,6 +372,22 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Alinha à grade"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Abrir"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Quadrado"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Retrato"
+
+msgctxt "a new image: from the image on the clipboard"
+msgid "Clipboard"
+msgstr "Área de transferência"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Misturar"
@@ -598,6 +614,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Fixar na linha do tempo"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Visível"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Desfazer"
@@ -686,6 +706,22 @@ msgstr "Altura"
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Quadrado"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Suavização de curvas"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Máscara"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Luminosidade"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Gradiente"
 
 msgctxt "pattern group"
 msgid "Patterns"

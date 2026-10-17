@@ -264,6 +264,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Jepret ke  panduan"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Buka"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Potret"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Kustom"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Padu"
@@ -426,6 +438,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Sematkan ke Linimasa"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Terlihat"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Urung"
@@ -481,6 +497,26 @@ msgstr "Ukuran"
 msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "Tinggi"
+
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "Kecerahan"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "Kontras"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Anti-aliasing"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Kecahayaan"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Gradien"
 
 msgctxt "no mask on the brush"
 msgid "None"

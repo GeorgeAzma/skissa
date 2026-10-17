@@ -240,6 +240,10 @@ msgctxt "@action:inmenu"
 msgid "Flatten Image"
 msgstr "Fladgør billede"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Synlig"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Fortryd"
@@ -259,6 +263,10 @@ msgstr "Tilføj til palet"
 msgctxt "Save the time-lapse video"
 msgid "Save"
 msgstr "Gem"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Overgang"
 
 msgctxt "no mask on the brush"
 msgid "None"

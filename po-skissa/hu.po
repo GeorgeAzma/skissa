@@ -403,6 +403,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Illesztés segédvonalakhoz"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Megnyitás"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Négyzet"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Egyéni"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Keverés"
@@ -639,6 +651,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Rögzítés az idővonalhoz"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Látható"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Visszavonás"
@@ -724,9 +740,33 @@ msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "Magasság"
 
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "Fényerő"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "Kontraszt"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Négyzet"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Élsimítás"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Maszk"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Világosság"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Átmenet"
 
 msgctxt "no mask on the brush"
 msgid "None"

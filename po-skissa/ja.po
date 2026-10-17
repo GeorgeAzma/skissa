@@ -317,6 +317,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "基準線に合わせる"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "開く"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "四角"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "カスタム"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
 msgstr "選択"
@@ -597,9 +609,29 @@ msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "高さ"
 
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "明度"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "コントラスト"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "四角"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "アンチエイリアシング"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "マスク"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "グラデーション"
 
 msgctxt "pattern group"
 msgid "Patterns"

@@ -318,6 +318,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Instantaneo a Guida"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Aperi"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Quadrato"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Vertical"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Mixtura"
@@ -458,6 +470,10 @@ msgctxt "@action:inmenu"
 msgid "Flatten Image"
 msgstr "Face plan imagine"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Visibile"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Annulla"
@@ -505,6 +521,22 @@ msgstr "Altessa"
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Quadrato"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Anti-aliasing"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Mascara"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Brillantia"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Gradiente"
 
 msgctxt "pattern group"
 msgid "Patterns"

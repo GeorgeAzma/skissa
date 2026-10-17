@@ -244,6 +244,10 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "मार्गदर्शिकाओं से स्नेप करें"
 
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "मनपसंद"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "मिश्रण"
@@ -423,6 +427,18 @@ msgstr "आकार"
 msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "ऊंचाई"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "मास्क"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "उजालापन"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "ग्रेडिएंट"
 
 msgctxt "pattern group"
 msgid "Patterns"

@@ -235,6 +235,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "سېتكىغا توغرىلا"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "ئاچ"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "تۆت چاسا"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "ئىختىيارى"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
 msgstr "تاللا"
@@ -355,6 +367,10 @@ msgctxt "@action:inmenu"
 msgid "Write as Alpha"
 msgstr "ئالفا سۈپىتىدە ياز"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "كۆرۈنۈشچان"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "يېنىۋال"
@@ -394,6 +410,14 @@ msgstr "ئېگىزلىك"
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "تۆت چاسا"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "يورۇقلۇق دەرىجىسى"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "گۈل نۇسخىسى"
 
 msgctxt "no mask on the brush"
 msgid "None"

@@ -372,6 +372,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Прилепяне към водачите"
 
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Квадрат"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Портрет"
+
+msgctxt "a new image: from the image on the clipboard"
+msgid "Clipboard"
+msgstr "Клипборд"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Смесване"
@@ -582,6 +594,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Прикачване към времевата линия"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Видим"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Отмяна"
@@ -667,9 +683,29 @@ msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "Височина"
 
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "Яркост"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "Контраст"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Квадрат"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Изглаждане"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Маска"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Преливка"
 
 msgctxt "texture setting"
 msgid "Scale"

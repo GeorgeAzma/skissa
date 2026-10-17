@@ -20,6 +20,10 @@ msgctxt "author"
 msgid "None"
 msgstr "Nouk"
 
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Cwåré"
+
 msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "Nouk"

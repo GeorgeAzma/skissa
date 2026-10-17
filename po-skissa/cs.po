@@ -321,6 +321,22 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Přichytávat k vodítkům"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Otevřít"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Čtverec"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Na výšku"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Vlastní"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
 msgstr "Vybrat"
@@ -480,6 +496,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Připnout k časové ose"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Viditelná"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Zpět"
@@ -524,9 +544,33 @@ msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "Výška"
 
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "Jas"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "Kontrast"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Čtverec"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Vyhlazování"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Maska"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Jas"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Přechod"
 
 msgctxt "no mask on the brush"
 msgid "None"

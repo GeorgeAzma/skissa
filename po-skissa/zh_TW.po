@@ -328,6 +328,10 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "吸附到參考線"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "開啟"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "混色"
@@ -535,6 +539,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "釘選至時間軸"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "可見"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "復原"
@@ -607,6 +615,26 @@ msgstr "大小"
 msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "高度"
+
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "亮度"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "對比度"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "反鋸齒"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "遮罩"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "亮度"
 
 msgctxt "no mask on the brush"
 msgid "None"

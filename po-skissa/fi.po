@@ -265,6 +265,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Kohdista apuviivoihin"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Avaa"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Neliö"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Pystysuuntainen"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
 msgstr "Valitse"
@@ -433,6 +445,10 @@ msgstr "Korkeus"
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Neliö"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Liukuväri"
 
 msgctxt "pattern group"
 msgid "Patterns"

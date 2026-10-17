@@ -396,6 +396,22 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Snap to guides"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Open"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Square"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Portrait"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Custom"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Blend"
@@ -631,6 +647,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Pin to Timeline"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Visible"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Undo"
@@ -715,6 +735,22 @@ msgstr "Height"
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Square"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Anti-aliasing"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Mask"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Lightness"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Gradient"
 
 msgctxt "no mask on the brush"
 msgid "None"

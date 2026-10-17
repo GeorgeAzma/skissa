@@ -364,6 +364,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Pripni na vodila"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Odpri"
+
+msgctxt "a new image: from the image on the clipboard"
+msgid "Clipboard"
+msgstr "Odložišče"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Po meri"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Zmešaj"
@@ -557,6 +569,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Pripni na časovnico"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Vidno"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Razveljavi"
@@ -630,6 +646,26 @@ msgstr "Velikost"
 msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "Višina"
+
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "Svetlost"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "Kontrast"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Glajenje robov"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Maska"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Preliv"
 
 msgctxt "pattern group"
 msgid "Patterns"

@@ -12,6 +12,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Амалдан қайту"
 
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Шаршы"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Амалдан қайту"

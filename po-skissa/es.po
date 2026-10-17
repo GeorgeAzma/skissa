@@ -368,6 +368,26 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Ajustar a las guías"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Abrir"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Cuadrado"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Retrato"
+
+msgctxt "a new image: from the image on the clipboard"
+msgid "Clipboard"
+msgstr "Portapapeles"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Personalizado"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Mezclar"
@@ -602,6 +622,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Fijar en la línea de tiempo"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Visible"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Deshacer"
@@ -687,9 +711,29 @@ msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "Altura"
 
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "Brillo"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "Contraste"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Cuadrado"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Suavizado de contorno"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Máscara"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Degradado"
 
 msgctxt "pattern group"
 msgid "Patterns"

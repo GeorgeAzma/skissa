@@ -324,6 +324,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Axustar ás guías."
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Abrir"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Cadrado"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Personalizado"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Transform"
 msgstr "Transformar"
@@ -519,6 +531,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Fixar na cronoloxía"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Visíbel"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Desfacer"
@@ -599,6 +615,18 @@ msgstr "Altura"
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Cadrado"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Máscara"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Claridade"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Gradación"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

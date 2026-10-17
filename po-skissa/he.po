@@ -382,6 +382,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "הצמדה לקווים המנחים"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "פתיחה"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "ריבוע"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "לאורך"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
 msgstr "בחירה"
@@ -572,6 +584,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "הצמדה לציר הזמן"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "גלוי"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "הסגה"
@@ -646,9 +662,33 @@ msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "גובה"
 
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "בהירות"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "ניגודיות"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "ריבוע"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "החלקת קצוות"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "מסכה"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "בהירות"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "מדרג"
 
 msgctxt "no mask on the brush"
 msgid "None"

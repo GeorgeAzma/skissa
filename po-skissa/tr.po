@@ -408,6 +408,22 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Kılavuzlara tuttur"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Aç"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Kare"
+
+msgctxt "a new image: from the image on the clipboard"
+msgid "Clipboard"
+msgstr "Pano"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Özel"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Transform"
 msgstr "Dönüştür"
@@ -618,6 +634,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Zaman Akışına Sabitle"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Görünür"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Geri Al"
@@ -699,9 +719,25 @@ msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "Yükseklik"
 
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "Parlaklık"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "Karşıtlık"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Kare"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Maske"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Açıklık"
 
 msgctxt "no mask on the brush"
 msgid "None"

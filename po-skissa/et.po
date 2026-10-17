@@ -280,6 +280,14 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Tõmme tõmbejoontele"
 
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Ruut"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Kohandatud"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
 msgstr "Valimine"
@@ -411,6 +419,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Kinnista ajateljele"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Nähtav"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Võta tagasi"
@@ -449,6 +461,10 @@ msgstr "Fail on sellele Skissa versioonile (%1) liiga uus."
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Ruut"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Üleminek"
 
 msgctxt "no mask on the brush"
 msgid "None"

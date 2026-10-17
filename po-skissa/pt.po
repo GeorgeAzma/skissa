@@ -344,6 +344,22 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Ajustar às guias"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Abrir"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Quadrado"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Retrato"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Personalizado"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Misturar"
@@ -628,9 +644,33 @@ msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "Altura"
 
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "Brilho"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "Contraste"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Quadrado"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Suavização"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Máscara"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Iluminação"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Gradiente"
 
 msgctxt "pattern group"
 msgid "Patterns"

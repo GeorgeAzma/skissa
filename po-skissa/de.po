@@ -289,6 +289,14 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "An Hilfslinien ausrichten"
 
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Quadrat"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Benutzerdefiniert"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
 msgstr "Auswählen"
@@ -434,6 +442,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "An Zeitleiste anheften"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Sichtbar"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Rückgängig"
@@ -476,6 +488,18 @@ msgstr "Größe"
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Quadrat"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Maske"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Helligkeit"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Verlauf"
 
 msgctxt "pattern group"
 msgid "Patterns"

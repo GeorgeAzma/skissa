@@ -358,6 +358,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "안내선에 스냅"
 
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "사각형"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "세로"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "사용자 정의"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "혼합하기"
@@ -551,6 +563,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "타임라인에 고정"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "보이기"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "실행 취소"
@@ -616,6 +632,22 @@ msgstr "높이"
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "사각형"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "앤티에일리어싱"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "마스크"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "광도"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "그라디언트"
 
 msgctxt "no mask on the brush"
 msgid "None"

@@ -338,6 +338,14 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Lås til hjelpelinjer"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Opna"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Tilpassa"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Transform"
 msgstr "Transformer"
@@ -514,6 +522,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Fest til tidslinja"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Synleg"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Angra"
@@ -587,6 +599,26 @@ msgstr "Storleik"
 msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "Høgd"
+
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "Lysstyrke"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "Kontrast"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Kantutjamning"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Maske"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Lysstyrke"
 
 msgctxt "pattern group"
 msgid "Patterns"

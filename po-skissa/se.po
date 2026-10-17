@@ -4,6 +4,10 @@ msgctxt "@label:textbox"
 msgid "Name"
 msgstr "Namma"
 
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Boksa"
+
 msgctxt "@action:inmenu"
 msgid "Smooth"
 msgstr "Čábbát"

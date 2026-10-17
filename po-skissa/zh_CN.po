@@ -268,6 +268,14 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "吸附到参考线"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "打开"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "自定义"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "混合"
@@ -470,6 +478,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "固定到动画时间轴"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "可见"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "撤销"
@@ -542,6 +554,18 @@ msgstr "大小"
 msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "高度"
+
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "亮度"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "对比度"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "抗锯齿"
 
 msgctxt "pattern group"
 msgid "Patterns"

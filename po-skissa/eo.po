@@ -372,6 +372,14 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Alklaki al gvidiloj"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Malfermi"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Vertikale"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Miksi"
@@ -583,6 +591,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Alpinglu al Templinio"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Videbla"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Malfari"
@@ -663,6 +675,26 @@ msgstr "Grandeco"
 msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "Alto"
+
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "Brilo"
+
+msgctxt "picture brush tip adjustment"
+msgid "Contrast"
+msgstr "Kontrasto"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Kontraŭaliasing"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Masko"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Heleco"
 
 msgctxt "no mask on the brush"
 msgid "None"

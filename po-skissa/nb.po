@@ -96,6 +96,14 @@ msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Legg til palett"
 
+msgctxt "picture brush tip adjustment"
+msgid "Brightness"
+msgstr "Lysstyrke"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Overgang"
+
 msgctxt "no mask on the brush"
 msgid "None"
 msgstr "Ingen"

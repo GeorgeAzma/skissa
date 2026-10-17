@@ -384,6 +384,26 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Vastzetten op hulplijnen"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Openen"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Vierkant"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Portret"
+
+msgctxt "a new image: from the image on the clipboard"
+msgid "Clipboard"
+msgstr "Klembord"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Aangepast"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Vermengen"
@@ -602,6 +622,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Op tijdlijn vastzetten"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Zichtbaar"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Ongedaan maken"
@@ -686,6 +710,18 @@ msgstr "Hoogte"
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Vierkant"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Anti-aliasing"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Masker"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Kleurverloop"
 
 msgctxt "no mask on the brush"
 msgid "None"

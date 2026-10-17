@@ -348,6 +348,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Lås till hjälplinjer"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Öppna"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Porträtt"
+
+msgctxt "a new image: from the image on the clipboard"
+msgid "Clipboard"
+msgstr "Klippbord"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Blanda"
@@ -614,6 +626,22 @@ msgstr "Storlek"
 msgctxt "@info:tooltip brush tip"
 msgid "Height"
 msgstr "Höjd"
+
+msgctxt "brush tip switch"
+msgid "Anti-aliasing"
+msgstr "Kantutjämning"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Mask"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Ljushet"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Toning"
 
 msgctxt "pattern group"
 msgid "Patterns"

@@ -28,6 +28,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Poništi"
 
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Kvadratni"
+
 msgctxt "shortcut set"
 msgid "Krita"
 msgstr "Krita"
@@ -71,6 +75,10 @@ msgstr "Dodaj u paletu"
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Kvadratni"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Gradijent"
 
 msgctxt "spacing chosen from the brush size"
 msgid "Auto"

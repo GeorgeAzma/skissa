@@ -32,6 +32,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Torüchnehmen"
 
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Quadraat"
+
 msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "Keen"

@@ -368,6 +368,22 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Snap chuig treoracha"
 
+msgctxt "@action:button open an image"
+msgid "Open"
+msgstr "Oscail"
+
+msgctxt "a new image's size"
+msgid "Square"
+msgstr "Cearnóg"
+
+msgctxt "a new image's size: a phone's screen, upright"
+msgid "Portrait"
+msgstr "Portráid"
+
+msgctxt "a new image: of a size of your own"
+msgid "Custom"
+msgstr "Saincheaptha"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Blend"
 msgstr "Cumasc"
@@ -598,6 +614,10 @@ msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Prínnigh chuig an Amchlár"
 
+msgctxt "a layer's eye when the layer shows"
+msgid "Visible"
+msgstr "Infheicthe"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Cuir ar ceal"
@@ -686,6 +706,18 @@ msgstr "Airde"
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Cearnóg"
+
+msgctxt "picture brush tip used as"
+msgid "Mask"
+msgstr "Masc"
+
+msgctxt "picture brush tip used as"
+msgid "Lightness"
+msgstr "Éadromacht"
+
+msgctxt "picture brush tip used as"
+msgid "Gradient"
+msgstr "Grádán"
 
 msgctxt "pattern group"
 msgid "Patterns"
