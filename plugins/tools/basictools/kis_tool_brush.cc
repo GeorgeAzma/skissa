@@ -657,6 +657,7 @@ QWidget * KisToolBrush::createOptionWidget()
     assistantLayout->setSpacing(5);
 
     m_chkAssistant = new QCheckBox(optionsWidget);
+    m_chkAssistant->setObjectName("chkAssistant");
     m_chkAssistant->setText(i18n("Snap to Assistants"));
 
     assistantWidget->setToolTip(i18n("You need to add Assistants before this tool will work."));

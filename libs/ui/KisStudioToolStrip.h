@@ -50,6 +50,8 @@ private:
     void mirrorSpin(QSpinBox *spin, int kind, const QString &toolTip, int defaultValue);
     /// The crop tool's shape: free or a ratio (the image's own too), held by its ratio lock
     void addCropAspects(QWidget *options);
+    /// The guides tool: its kinds as pictures, each with its ways, the chosen one's switches, showing them, the rest
+    void addGuides(QWidget *options, QComboBox *types);
 
     QHBoxLayout *m_layout {nullptr};
     KisStudioSelectionAdjust *m_adjust {nullptr};

@@ -1315,6 +1315,7 @@ void KisAssistantTool::slotChangeFixedLengthUnit(int index) {
 void KisAssistantTool::mouseMoveEvent(KoPointerEvent *event)
 {
     m_handleHover = 0;
+    m_hoverPoint = event->point;
     if (m_newAssistant && m_internalMode == MODE_CREATION) {
 
         KisPaintingAssistantHandleSP new_handle = m_newAssistant->handles().back();

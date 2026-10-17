@@ -470,42 +470,27 @@ void KisPaintingAssistantsDecoration::drawDecoration(QPainter& gc, const QRectF&
 
 void KisPaintingAssistantsDecoration::drawHandles(KisPaintingAssistantSP assistant, QPainter& gc, const KisCoordinatesConverter *converter, const KoColorDisplayRendererInterface *renderInterface)
 {
-        QTransform initialTransform = converter->documentToWidgetTransform();
+    Q_UNUSED(renderInterface);
+    QTransform initialTransform = converter->documentToWidgetTransform();
 
-    KoColor c;
-        c.fromQColor(assistant->effectiveAssistantColor());
-        QColor colorToPaint = renderInterface->convertColorToDisplayColorSpace(c);
+    // white with a dark ring, seen on any image; larger on the chosen guide, only a ring on a locked one
+    const bool chosen = selectedAssistant() && selectedAssistant().data() == assistant.data();
+    const qreal radius = handleSize() * (chosen ? 0.4 : 0.32);
+    QList<KisPaintingAssistantHandleSP> handles = assistant->handles();
+    handles.append(assistant->sideHandles());
 
-        Q_FOREACH (const KisPaintingAssistantHandleSP handle, assistant->handles()) {
-
-
-            QPointF transformedHandle = initialTransform.map(*handle);
-            QRectF ellipse(transformedHandle -  QPointF(handleSize() * 0.5, handleSize() * 0.5), QSizeF(handleSize(), handleSize()));
-
-            QPainterPath path;
-            path.addEllipse(ellipse);
-
-            gc.save();
-            gc.setPen(Qt::NoPen);
-            gc.setBrush(colorToPaint);
-            gc.drawPath(path);
-            gc.restore();
-        }
-
-         // some assistants have side handles like the vanishing point assistant
-         Q_FOREACH (const KisPaintingAssistantHandleSP handle, assistant->sideHandles()) {
-             QPointF transformedHandle = initialTransform.map(*handle);
-             QRectF ellipse(transformedHandle -  QPointF(handleSize() * 0.5, handleSize() * 0.5), QSizeF(handleSize(), handleSize()));
-
-             QPainterPath path;
-             path.addEllipse(ellipse);
-
-             gc.save();
-             gc.setPen(Qt::NoPen);
-             gc.setBrush(colorToPaint);
-             gc.drawPath(path);
-             gc.restore();
-         }
+    gc.save();
+    gc.setRenderHint(QPainter::Antialiasing, true);
+    Q_FOREACH (const KisPaintingAssistantHandleSP handle, handles) {
+        const QPointF at = initialTransform.map(*handle);
+        gc.setPen(QPen(QColor(0, 0, 0, 170), 1.5));
+        gc.setBrush(assistant->isLocked() ? QBrush(Qt::NoBrush) : QBrush(Qt::white));
+        gc.drawEllipse(at, radius, radius);
+        gc.setPen(QPen(QColor(255, 255, 255, 200), 1.0));
+        gc.setBrush(Qt::NoBrush);
+        gc.drawEllipse(at, radius + 1.25, radius + 1.25);
+    }
+    gc.restore();
 }
 
 int KisPaintingAssistantsDecoration::handleSize()

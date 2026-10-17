@@ -8,7 +8,9 @@
 #ifndef _KIS_ASSISTANT_TOOL_H_
 #define _KIS_ASSISTANT_TOOL_H_
 
+#include <QMenu>
 #include <QPointer>
+#include <QScopedPointer>
 
 #include <KoToolFactoryBase.h>
 #include <KoIcon.h>
@@ -67,6 +69,7 @@ public:
     void endAlternateAction(KoPointerEvent *event, AlternateAction action) override;
     void mouseMoveEvent(KoPointerEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
+    QMenu *popupActionsMenu() override;
 
 
     QWidget *createOptionWidget() override;
@@ -169,6 +172,8 @@ protected:
     QPointF m_dragEnd;
     int m_handleSize {17}; // how large the editor handles will appear
     int m_handleMaxDist {81}; // how far away the user can click and still select a handle
+    QPointF m_hoverPoint;
+    QScopedPointer<QMenu> m_popupMenu;
     bool assistantDuplicatingFlag {false}; // this flag is set during an assistant duplication
 
 private:

@@ -8,6 +8,7 @@ set(kritaassistanttool_SOURCES
     FisheyePointAssistant.cc
     InfiniteRulerAssistant.cc
     kis_assistant_tool.cc
+    KisAssistantToolMenu.cc
     ParallelRulerAssistant.cc
     PerspectiveBasedAssistantHelper.cpp
     PerspectiveAssistant.cc
