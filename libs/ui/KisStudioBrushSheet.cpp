@@ -279,6 +279,30 @@ private:
     QPointer<QWidget> m_page;
 };
 
+/// A part's column, asking to be as tall as its contents are at its width: chips that wrap take more rows
+class Column : public QWidget
+{
+public:
+    using QWidget::QWidget;
+
+    QSize sizeHint() const override
+    {
+        return fitted(QWidget::sizeHint());
+    }
+
+    QSize minimumSizeHint() const override
+    {
+        return fitted(QWidget::minimumSizeHint());
+    }
+
+private:
+    QSize fitted(QSize size) const
+    {
+        if (layout() && layout()->hasHeightForWidth()) size.setHeight(qMax(size.height(), layout()->totalHeightForWidth(minimumWidth())));
+        return size;
+    }
+};
+
 } // namespace
 
 struct KisStudioBrushSheet::Private
@@ -602,7 +626,7 @@ void KisStudioBrushSheet::rebuild()
         }
         if (!has) continue;
 
-        auto *column = new QWidget(d->columns);
+        auto *column = new Column(d->columns);
         column->setFixedWidth(columnWidth);
         auto *columnLayout = new QVBoxLayout(column);
         columnLayout->setContentsMargins(0, 0, 0, 0);

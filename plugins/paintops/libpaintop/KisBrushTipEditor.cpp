@@ -14,7 +14,6 @@
 #include <QPainter>
 #include <QToolTip>
 #include <QPainterPath>
-#include <QPointer>
 #include <QVBoxLayout>
 #include <QVariantAnimation>
 #include <QtMath>
@@ -23,6 +22,7 @@
 
 #include <KisGlobalResourcesInterface.h>
 #include <KisModernStyle.h>
+#include <KisStudioTips.h>
 #include <KisResourceModel.h>
 #include <KoColorSpaceRegistry.h>
 #include <kis_auto_brush.h>
@@ -36,13 +36,10 @@
 #include <kis_paint_information.h>
 #include <kis_predefined_brush_factory.h>
 #include <kis_signals_blocker.h>
-#include <widgets/KisCurvePresetStrip.h>
 #include <widgets/KisStudioChips.h>
 #include <widgets/KisStudioInlineEdit.h>
 #include <widgets/KisStudioPicker.h>
-#include <widgets/KisStudioPopup.h>
 #include <widgets/KisStudioValueRow.h>
-#include <widgets/kis_curve_widget.h>
 
 #include "KisAutoBrushModel.h"
 #include "KisPredefinedBrushModel.h"
@@ -52,11 +49,14 @@ using namespace KisBrushModel;
 namespace {
 
 const QString linkedKey = QStringLiteral("BrushTipSizeLinked");
-const QString fadeLinkedKey = QStringLiteral("BrushTipFadeLinked");
 const QString recentTipsKey = QStringLiteral("StudioRecentBrushTips");
 constexpr int handleRadius = 5;
 constexpr int grabRadius = 10;
 constexpr int stalk = 26;
+/// Where the values along the top of the tip's box end
+constexpr int chipsBottom = 32;
+/// Where the edge's softness and shapes end, under the tip
+constexpr int edgeChipsBottom = 26;
 
 /// A tip's axis at \p degrees, as a direction on screen (Krita's angles turn counterclockwise)
 QPointF axisVector(qreal degrees)
@@ -159,25 +159,191 @@ QPainterPath starOutline(qreal a, qreal b, int spikes, bool rectangle)
     return path;
 }
 
-/// The edge's falloff from the middle (x = 0) out (x = 1), for drawing it
-qreal falloff(int type, const QString &curve, qreal fade, qreal x)
+/**
+ * A generated tip's edge: Round (Krita's Default), Smooth (its Gaussian) or a curve of one's own (its Soft).
+ * Each has a solid middle that reaches some share of the radius, its hardness: Round's fade, how far Smooth
+ * stays solid, a curve's flat start.
+ */
+struct Edge
 {
-    if (type == Gaussian) return std::exp(-x * x * 4.0);
-    if (type == Soft && !curve.isEmpty()) return qBound(0.0, KisCubicCurve(curve).value(x), 1.0);
-    if (x <= fade) return 1.0;
-    return qBound(0.0, 1.0 - (x - fade) / qMax(0.01, 1.0 - fade), 1.0);
+    int type {Default};
+    qreal fadeA {1};
+    qreal fadeB {1};
+    QString curve;
+
+    static Edge of(KisAutoBrushModel *model)
+    {
+        return Edge{model->type(), model->horizontalFade(), model->verticalFade(), model->curveString()};
+    }
+};
+
+/// A curve's points from the middle (x 0) to the rim (x 1); Krita reads a curve at the square of the distance
+QList<KisCubicCurvePoint> curvePoints(const QString &curve)
+{
+    QList<KisCubicCurvePoint> points = KisCubicCurve(curve.isEmpty() ? QStringLiteral("0,1;1,0;") : curve).curvePoints();
+    if (points.isEmpty()) points << KisCubicCurvePoint(0, 1) << KisCubicCurvePoint(1, 0);
+    if (points.first().x() > 0.0) points.prepend(KisCubicCurvePoint(0, points.first().y()));
+    if (points.last().x() < 1.0) points.append(KisCubicCurvePoint(1, points.last().y()));
+    return points;
 }
 
-QPainterPath falloffPath(const QRectF &box, int type, const QString &curve, qreal fade)
+/// Where a curve's solid middle ends, as a share of the radius: at its second point, when that is as high as the first
+qreal curveHold(const QList<KisCubicCurvePoint> &points)
 {
-    QPainterPath path;
-    for (int i = 0; i <= 24; i++) {
-        const qreal x = i / 24.0;
-        const QPointF point(box.left() + x * box.width(), box.bottom() - falloff(type, curve, fade, x) * box.height());
-        if (i) path.lineTo(point);
-        else path.moveTo(point);
+    if (points.size() > 2 && points[1].y() >= points[0].y() - 0.002) return std::sqrt(points[1].x());
+    return 0.0;
+}
+
+/// \p points with their solid middle reaching \p hold of the radius, the fall after it squeezed or spread to fit
+QList<KisCubicCurvePoint> heldAt(QList<KisCubicCurvePoint> points, qreal hold)
+{
+    const qreal was = curveHold(points);
+    hold = qBound(0.0, hold, 0.95);
+    const bool flat = was > 0.0;
+    if (was >= 0.999 || (!flat && hold < 0.005)) return points;
+    for (int i = 1; i < points.size(); i++) {
+        const qreal r = std::sqrt(points[i].x());
+        points[i].setX(std::pow(hold + (r - was) * (1.0 - hold) / (1.0 - was), 2));
     }
-    return path;
+    if (!flat) {
+        points.insert(1, KisCubicCurvePoint(hold * hold, points[0].y(), true));
+    } else if (hold < 0.005) {
+        points.removeAt(1);
+    }
+    return points;
+}
+
+/// How solid the edge is from the middle (0) out to the rim (1), as Krita paints a round tip
+class EdgeProfile
+{
+public:
+    explicit EdgeProfile(const Edge &edge)
+        : m_edge(edge)
+    {
+        if (edge.type == Soft) m_curve = KisCubicCurve(curvePoints(edge.curve));
+        if (edge.type == Gaussian) {
+            // as KisGaussCircleMaskGenerator has it: erf around a plateau as wide as the fade
+            const qreal fade = qBound(1e-6, 1.0 - (edge.fadeA + edge.fadeB) / 2.0, 1.0 - 1e-6);
+            m_factor = M_SQRT2 * 12500.0 / (6761.0 * fade);
+            m_center = 2.5 * (6761.0 * fade - 10000.0) / (M_SQRT2 * 6761.0 * fade);
+        }
+    }
+
+    qreal at(qreal r) const
+    {
+        r = qBound(0.0, r, 1.0);
+        if (m_edge.type == Soft) return qBound(0.0, m_curve.value(r * r), 1.0);
+        if (m_edge.type == Gaussian) {
+            return qBound(0.0, (std::erf(r * m_factor + m_center) - std::erf(r * m_factor - m_center)) / (2.0 * std::erf(m_center)), 1.0);
+        }
+        // Default: solid to the fade, then 1 - r² made to meet it
+        const qreal fade = m_edge.fadeA;
+        if (r <= fade) return 1.0;
+        return qBound(0.0, (1.0 - r * r) / qMax(1e-6, 1.0 - fade * fade), 1.0);
+    }
+
+    /// From the middle at the left of \p box to the rim at its right
+    QPainterPath half(const QRectF &box) const
+    {
+        QPainterPath path;
+        for (int i = 0; i <= 32; i++) {
+            const qreal r = i / 32.0;
+            const QPointF point(box.left() + r * box.width(), box.bottom() - at(r) * box.height());
+            if (i) path.lineTo(point);
+            else path.moveTo(point);
+        }
+        return path;
+    }
+
+private:
+    Edge m_edge;
+    KisCubicCurve m_curve;
+    qreal m_factor {1};
+    qreal m_center {0};
+};
+
+/// How far a Smooth edge of Krita's \p fade stays solid (within 1% of its middle), as a share of the radius
+qreal smoothReach(qreal fade)
+{
+    const EdgeProfile profile(Edge{Gaussian, fade, fade, QString()});
+    qreal low = 0.0;
+    qreal high = 1.0;
+    for (int i = 0; i < 24; i++) {
+        const qreal middle = (low + high) / 2.0;
+        if (profile.at(middle) >= 0.99) low = middle;
+        else high = middle;
+    }
+    return low;
+}
+
+/// Krita's fade for a Smooth edge solid to \p reach, or as near as a Smooth edge comes
+qreal smoothFadeFor(qreal reach)
+{
+    qreal low = 0.0;
+    qreal high = 1.0;
+    for (int i = 0; i < 24; i++) {
+        const qreal middle = (low + high) / 2.0;
+        if (smoothReach(middle) < reach) low = middle;
+        else high = middle;
+    }
+    return (low + high) / 2.0;
+}
+
+/// How far the edge stays solid, as a share of the radius: the same measure for every shape
+qreal hardnessOf(const Edge &edge)
+{
+    if (edge.type == Soft) return curveHold(curvePoints(edge.curve));
+    if (edge.type == Gaussian) return smoothReach((edge.fadeA + edge.fadeB) / 2.0);
+    return edge.fadeA;
+}
+
+/// Sets the solid middle to reach \p hold of the radius, from \p press, the edge as it was when the change began
+void setHardness(KisAutoBrushModel *model, const Edge &press, qreal hold)
+{
+    hold = qBound(0.0, hold, 1.0);
+    if (press.type == Soft) {
+        model->setcurveString(KisCubicCurve(heldAt(curvePoints(press.curve), hold)).toString());
+        return;
+    }
+    if (press.type == Gaussian) {
+        // Krita's Gaussian is as soft one way as the other
+        const qreal fade = smoothFadeFor(hold);
+        model->sethorizontalFade(fade);
+        model->setverticalFade(fade);
+        return;
+    }
+    // both ways by as much, so a tip softer one way stays so
+    model->sethorizontalFade(hold);
+    model->setverticalFade(qBound(0.0, press.fadeB + hold - press.fadeA, 1.0));
+}
+
+void makeHard(KisAutoBrushModel *model)
+{
+    model->settype(Default);
+    model->sethorizontalFade(1.0);
+    model->setverticalFade(1.0);
+}
+
+/// The edge as a curve that looks as it does and is as hard, to be bent
+QList<KisCubicCurvePoint> seeded(const Edge &edge)
+{
+    if (edge.type == Soft) return curvePoints(edge.curve);
+    if (edge.type == Default) {
+        // Round falls along a straight line in a curve's terms (x = r²)
+        const qreal fade = qMin(edge.fadeA, 0.95);
+        if (fade < 0.005) return {KisCubicCurvePoint(0, 1), KisCubicCurvePoint(1, 0)};
+        return {KisCubicCurvePoint(0, 1), KisCubicCurvePoint(fade * fade, 1, true), KisCubicCurvePoint(1, 0)};
+    }
+    // solid to where Smooth is, then its fall
+    const EdgeProfile profile(edge);
+    const qreal reach = qMin(hardnessOf(edge), 0.95);
+    QList<KisCubicCurvePoint> points{KisCubicCurvePoint(0, 1)};
+    if (reach > 0.01) points << KisCubicCurvePoint(reach * reach, 1);
+    for (qreal t : {0.3, 0.6, 0.85, 1.0}) {
+        const qreal r = reach + (1.0 - reach) * t;
+        points << KisCubicCurvePoint(r * r, profile.at(r));
+    }
+    return points;
 }
 
 /// Sets \p tip as the brush's picture tip, keeping its size, angle and spacing
@@ -219,10 +385,6 @@ public:
         ChipLink,
         ChipHeight,
         ChipAngle,
-        ChipFadeA,
-        ChipFadeLink,
-        ChipFadeB,
-        ChipEdge,
         ChipPoints,
     };
 
@@ -242,9 +404,8 @@ public:
     {
         setMouseTracking(true);
         setAttribute(Qt::WA_Hover);
-        setFixedHeight(184);
+        setFixedHeight(152);
         m_linked = KisConfig(true).readEntry(linkedKey, true);
-        m_fadeLinked = KisConfig(true).readEntry(fadeLinkedKey, true);
 
         auto changed = [this]() {
             m_dabDirty = true;
@@ -315,15 +476,26 @@ public:
         return QSizeF(width, base.width() > 0 ? width * base.height() / base.width() : width);
     }
 
+    /// Under the values along the top
     QPointF center() const
     {
-        return QRectF(rect()).center() + QPointF(0, 4);
+        return QPointF(width() / 2.0, (chipsBottom + height()) / 2.0);
     }
 
     /// How far the tip may reach from the middle of the box
     qreal room() const
     {
-        return qMax(20.0, qMin(width() / 2.0 - 46, height() / 2.0 - 36));
+        return qMax(20.0, qMin(width() / 2.0 - 46, (height() - chipsBottom) / 2.0 - 8));
+    }
+
+    /// How far the solid middle reaches along the tip and across it, as shares of the half sizes
+    QPointF hardness() const
+    {
+        if (m_auto->type() != Default) {
+            const qreal hold = hardnessOf(Edge::of(m_auto));
+            return QPointF(hold, hold);
+        }
+        return QPointF(m_auto->horizontalFade(), m_auto->verticalFade());
     }
 
     void fit(bool animated)
@@ -362,7 +534,8 @@ public:
             return c + across() * size.height();
         case Fade: {
             const QPointF k = fadeSpot();
-            return c + along() * size.width() * m_auto->horizontalFade() * k.x() + across() * size.height() * m_auto->verticalFade() * k.y();
+            const QPointF hold = hardness();
+            return c + along() * size.width() * hold.x() * k.x() + across() * size.height() * hold.y() * k.y();
         }
         case Turn:
             return c + along() * (size.width() + stalk);
@@ -408,7 +581,7 @@ public:
             qreal total = 0;
             QVector<qreal> widths;
             Q_FOREACH (const Chip &chip, parts) {
-                const qreal w = chip.part == ChipEdge ? 52 : chip.icon.isEmpty() ? metrics.horizontalAdvance(chip.text) + 2 * pad : 22;
+                const qreal w = chip.icon.isEmpty() ? metrics.horizontalAdvance(chip.text) + 2 * pad : 22;
                 widths << w;
                 total += w;
             }
@@ -434,17 +607,6 @@ public:
                                                           {ChipLink, {}, {}, m_linked ? QStringLiteral("studio_link") : QStringLiteral("studio_unlink")},
                                                           {ChipHeight, {}, locale.toString(size.height(), 'f', 0) + px, {}}});
             }
-            const int softA = qRound((1.0 - m_auto->horizontalFade()) * 100);
-            const int softB = qRound((1.0 - m_auto->verticalFade()) * 100);
-            if (softA == softB && m_fadeLinked) {
-                row(QPointF(inset, height() - inset), false, true, {{ChipFadeA, {}, QLocale().toString(softA) + i18nc("percent, after the number", "%"), {}},
-                                                                    {ChipFadeLink, {}, {}, QStringLiteral("studio_link")}});
-            } else {
-                row(QPointF(inset, height() - inset), false, true, {{ChipFadeA, {}, QLocale().toString(softA) + i18nc("percent, after the number", "%"), {}},
-                                                                    {ChipFadeLink, {}, {}, m_fadeLinked ? QStringLiteral("studio_link") : QStringLiteral("studio_unlink")},
-                                                                    {ChipFadeB, {}, QLocale().toString(softB) + i18nc("percent, after the number", "%"), {}}});
-            }
-            row(QPointF(width() - inset, height() - inset), true, true, {{ChipEdge, {}, {}, {}}});
             if (m_auto->spikes() > 2) {
                 const QString points = QStringLiteral("✶ ") + QString::number(m_auto->spikes());
                 const qreal w = metrics.horizontalAdvance(points) + 2 * pad;
@@ -468,15 +630,8 @@ public:
             return m_linked ? i18nc("@info:tooltip brush tip", "Linked: width = height") : i18nc("@info:tooltip brush tip", "Unlinked: stretch freely");
         case ChipAngle:
             return i18nc("@info:tooltip brush tip", "Tip angle");
-        case ChipFadeA:
-            return m_fadeLinked ? i18nc("@info:tooltip brush tip", "Soft edge: 0% crisp → 100% all fade") : i18nc("@info:tooltip brush tip", "Soft edge, across");
-        case ChipFadeB:
-            return i18nc("@info:tooltip brush tip", "Soft edge, down");
-        case ChipFadeLink:
-            return m_fadeLinked ? i18nc("@info:tooltip brush tip", "Linked: the same softness all round")
-                                : i18nc("@info:tooltip brush tip", "Unlinked: softer one way");
-        case ChipEdge:
-            return i18nc("@info:tooltip brush tip", "Edge falloff: hard, curve or gaussian");
+        case Fade:
+            return i18nc("@info:tooltip brush tip", "Soft edge: 0% crisp → 100% all fade");
         case ChipPoints:
             return i18nc("@info:tooltip brush tip", "Points of the star");
         default:
@@ -527,7 +682,9 @@ public:
         const QRectF box = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
         QColor well = ink;
         well.setAlphaF(0.045);
-        painter.fillPath(KisModernStyle::squircle(box, KisModernStyle::cardRadius), well);
+        // a generated tip's edge goes on under it, in the same box
+        const QRectF wellBox = isAuto() ? box.adjusted(0, 0, 0, 2 * KisModernStyle::cardRadius) : box;
+        painter.fillPath(KisModernStyle::squircle(wellBox, KisModernStyle::cardRadius), well);
 
         const QSizeF size = tipSize() * m_scale;
         if (isAuto()) {
@@ -579,16 +736,17 @@ public:
         };
         if (isAuto() && m_auto->spikes() <= 2) {
             stroke(shapePath(dabRect), false);
-            const QRectF hard(-dabRect.width() / 2 * m_auto->horizontalFade(), -dabRect.height() / 2 * m_auto->verticalFade(),
-                              dabRect.width() * m_auto->horizontalFade(), dabRect.height() * m_auto->verticalFade());
+            const QPointF hold = hardness();
+            const QRectF hard(-dabRect.width() / 2 * hold.x(), -dabRect.height() / 2 * hold.y(), dabRect.width() * hold.x(), dabRect.height() * hold.y());
             // only where it differs from the edge
-            if (m_auto->horizontalFade() < 0.995 || m_auto->verticalFade() < 0.995) stroke(shapePath(hard), true);
+            if (hold.x() < 0.995 || hold.y() < 0.995) stroke(shapePath(hard), true);
         } else if (isStar()) {
             const bool rectangle = m_auto->shape() == Rectangle;
             const qreal a = dabRect.width() / 2;
             const qreal b = dabRect.height() / 2;
             stroke(starOutline(a, b, m_auto->spikes(), rectangle), false);
-            stroke(starOutline(a * m_auto->horizontalFade(), b * m_auto->verticalFade(), m_auto->spikes(), rectangle), true);
+            const QPointF hold = hardness();
+            stroke(starOutline(a * hold.x(), b * hold.y(), m_auto->spikes(), rectangle), true);
         } else if (!isAuto()) {
             QPainterPath path;
             path.addRect(dabRect);
@@ -654,11 +812,6 @@ public:
                 const QIcon icon = KisIconUtils::loadIcon(chip.icon);
                 const QRectF iconRect(chip.rect.center() - QPointF(7, 7), QSizeF(14, 14));
                 icon.paint(&painter, iconRect.toRect());
-            } else if (chip.part == ChipEdge) {
-                painter.setPen(QPen(ink, 1.5));
-                painter.setBrush(Qt::NoBrush);
-                const QRectF graph = chip.rect.adjusted(8, 6, -8, -6);
-                painter.drawPath(falloffPath(graph, m_auto->type(), m_auto->curveString(), m_auto->horizontalFade()));
             } else if (chip.part != m_editing) {
                 painter.setPen(ink);
                 painter.drawText(chip.rect, Qt::AlignCenter, chip.text);
@@ -679,16 +832,6 @@ public:
             update();
             return;
         }
-        if (part == ChipFadeLink) {
-            m_fadeLinked = !m_fadeLinked;
-            KisConfig(false).writeEntry(fadeLinkedKey, m_fadeLinked);
-            update();
-            return;
-        }
-        if (part == ChipEdge) {
-            showEdge();
-            return;
-        }
         m_dragPart = part;
         m_dragging = true;
         m_moved = false;
@@ -697,6 +840,7 @@ public:
         m_pressAngle = angle();
         m_pressFadeA = m_auto->horizontalFade();
         m_pressFadeB = m_auto->verticalFade();
+        m_pressEdge = Edge::of(m_auto);
         m_pressSpikes = m_auto->spikes();
         m_pressAlong = along();
         m_pressAcross = across();
@@ -715,15 +859,11 @@ public:
                     unsetCursor();
                     break;
                 case ChipLink:
-                case ChipFadeLink:
-                case ChipEdge:
                     setCursor(Qt::PointingHandCursor);
                     break;
                 case ChipWidth:
                 case ChipHeight:
                 case ChipAngle:
-                case ChipFadeA:
-                case ChipFadeB:
                 case ChipPoints:
                     setCursor(Qt::SizeHorCursor);
                     break;
@@ -753,8 +893,7 @@ public:
     {
         const Part part = partAt(event->pos());
         Q_FOREACH (const Chip &chip, chips()) {
-            if (chip.part == part && (part == ChipWidth || part == ChipHeight || part == ChipAngle || part == ChipFadeA
-                                      || part == ChipFadeB || part == ChipPoints)) {
+            if (chip.part == part && (part == ChipWidth || part == ChipHeight || part == ChipAngle || part == ChipPoints)) {
                 type(chip);
                 return;
             }
@@ -783,9 +922,8 @@ public:
         const Part part = partAt(event->pos());
         if (part == ChipAngle || part == Turn) {
             setAngle(0);
-        } else if (isAuto() && (part == ChipFadeA || part == ChipFadeB || part == Fade)) {
-            m_auto->sethorizontalFade(1.0);
-            m_auto->setverticalFade(1.0);
+        } else if (isAuto() && part == Fade) {
+            makeHard(m_auto);
         } else if (isAuto() && (part == ChipHeight || part == AxisB || part == Valley)) {
             m_auto->setratio(1.0);
         }
@@ -833,7 +971,6 @@ private:
         const QPointF from = pos - c;
         const QPointF moved = pos - m_press;
         const bool linked = m_linked != flip;
-        const bool fadeLinked = m_fadeLinked != flip;
         const qreal step = moved.x();
         switch (m_dragPart) {
         case AxisA:
@@ -854,18 +991,15 @@ private:
         case Fade: {
             if (isStar()) {
                 const qreal radius = m_pressSize.width() * m_scale / 2.0;
-                const qreal fade = qBound(0.0, qAbs(dot(from, m_pressAlong)) / qMax(1.0, radius), 1.0);
-                m_auto->sethorizontalFade(fade);
-                m_auto->setverticalFade(fadeLinked ? qBound(0.0, m_pressFadeB + (fade - m_pressFadeA), 1.0) : m_pressFadeB);
+                setHardness(m_auto, m_pressEdge, qAbs(dot(from, m_pressAlong)) / qMax(1.0, radius));
                 break;
             }
-            // along the handle's own line from the middle to the corner: both softnesses move by as much
+            // along the handle's own line from the middle to the corner
             const QPointF k = fadeSpot();
             const QPointF ray = (m_pressAlong * m_pressSize.width() * k.x() + m_pressAcross * m_pressSize.height() * k.y()) * m_scale / 2.0;
             const qreal length = qMax(1.0, dot(ray, ray));
             const qreal delta = (dot(from, ray) - dot(m_press - c, ray)) / length;
-            m_auto->sethorizontalFade(qBound(0.0, m_pressFadeA + delta, 1.0));
-            m_auto->setverticalFade(qBound(0.0, m_pressFadeB + delta, 1.0));
+            setHardness(m_auto, m_pressEdge, hardnessOf(m_pressEdge) + delta);
             break;
         }
         case Turn:
@@ -901,16 +1035,6 @@ private:
         case ChipAngle:
             setAngle(qRound(m_pressAngle + step / 2.0));
             break;
-        case ChipFadeA:
-        case ChipFadeB: {
-            const bool a = m_dragPart == ChipFadeA;
-            const qreal delta = -step / 200.0;
-            const qreal fade = qBound(0.0, (a ? m_pressFadeA : m_pressFadeB) + delta, 1.0);
-            const qreal other = fadeLinked ? qBound(0.0, (a ? m_pressFadeB : m_pressFadeA) + delta, 1.0) : (a ? m_pressFadeB : m_pressFadeA);
-            m_auto->sethorizontalFade(a ? fade : other);
-            m_auto->setverticalFade(a ? other : fade);
-            break;
-        }
         case ChipPoints:
             m_auto->setspikes(qBound(3, m_pressSpikes + int(step / 14.0), 20));
             break;
@@ -928,8 +1052,6 @@ private:
         case ChipWidth: value = size.width(); break;
         case ChipHeight: value = size.height(); break;
         case ChipAngle: value = angle(); break;
-        case ChipFadeA: value = (1.0 - m_auto->horizontalFade()) * 100; break;
-        case ChipFadeB: value = (1.0 - m_auto->verticalFade()) * 100; break;
         case ChipPoints: value = m_auto->spikes(); break;
         default: break;
         }
@@ -956,14 +1078,6 @@ private:
             case ChipAngle:
                 setAngle(typed);
                 break;
-            case ChipFadeA:
-                m_auto->sethorizontalFade(qBound(0.0, 1.0 - typed / 100.0, 1.0));
-                if (m_fadeLinked) m_auto->setverticalFade(qBound(0.0, 1.0 - typed / 100.0, 1.0));
-                break;
-            case ChipFadeB:
-                m_auto->setverticalFade(qBound(0.0, 1.0 - typed / 100.0, 1.0));
-                if (m_fadeLinked) m_auto->sethorizontalFade(qBound(0.0, 1.0 - typed / 100.0, 1.0));
-                break;
             case ChipPoints:
                 m_auto->setspikes(qBound(3, qRound(typed), 20));
                 break;
@@ -979,8 +1093,6 @@ private:
         update();
     }
 
-    void showEdge();
-
     KisAutoBrushModel *m_auto;
     KisPredefinedBrushModel *m_predefined;
     lager::cursor<BrushType> m_type;
@@ -988,7 +1100,6 @@ private:
     qreal m_scale {0};
     QVariantAnimation m_fitAnimation;
     bool m_linked {true};
-    bool m_fadeLinked {true};
 
     mutable QImage m_dab;
     mutable bool m_dabDirty {true};
@@ -1008,113 +1119,491 @@ private:
     qreal m_pressAngle {0};
     qreal m_pressFadeA {1};
     qreal m_pressFadeB {1};
+    Edge m_pressEdge;
     int m_pressSpikes {2};
     QPointF m_pressAlong;
     QPointF m_pressAcross;
-    QPointer<KisStudioPopup> m_edge;
 };
 
-/// The edge's falloff: hard, soft along a curve, or Gaussian
-class EdgePopup : public KisStudioPopup
+/**
+ * The edge, across the tip: how solid it is from rim to rim. Its diamond is where the fade begins (the
+ * same softness as the tip's own diamond); a curve's points bend it, and pressing the line anywhere else
+ * makes the edge a curve and bends it there. The softness is on its top left, the shapes on its top right.
+ */
+class EdgeCanvas : public QWidget
 {
+    // a class of its own: a press on it shapes the edge, it doesn't move the window
+    Q_OBJECT
 public:
-    EdgePopup(KisAutoBrushModel *model, QWidget *parent)
-        : KisStudioPopup(parent)
+    enum Part {
+        None,
+        Knee,       ///< where the fade begins
+        Point,      ///< a curve's point
+        Line,       ///< anywhere else on the edge
+        ChipSoft,
+        TileRound,
+        TileSmooth,
+        TileCurve,
+    };
+
+    EdgeCanvas(KisAutoBrushModel *model, QWidget *parent)
+        : QWidget(parent)
         , m_model(model)
     {
-        auto *layout = new QVBoxLayout(this);
-        fitLayout(layout, KisModernStyle::space3);
-        layout->setSpacing(KisModernStyle::space2);
+        setMouseTracking(true);
+        setAttribute(Qt::WA_Hover);
+        setFixedHeight(72);
+        for (auto signal : {&KisAutoBrushModel::horizontalFadeChanged, &KisAutoBrushModel::verticalFadeChanged}) {
+            connect(m_model, signal, this, QOverload<>::of(&QWidget::update));
+        }
+        connect(m_model, &KisAutoBrushModel::typeChanged, this, QOverload<>::of(&QWidget::update));
+        connect(m_model, &KisAutoBrushModel::curveStringChanged, this, QOverload<>::of(&QWidget::update));
+    }
 
-        m_kinds = new KisStudioChips(this);
-        m_kinds->setTabs(true);
-        m_kinds->setTileSize(44);
-        layout->addWidget(m_kinds);
-        connect(m_kinds, &KisStudioChips::clicked, this, [this](int index) {
-            m_model->settype(index);
-            refresh();
-        });
+    QRectF graph() const
+    {
+        return QRectF(rect()).adjusted(KisModernStyle::space3, edgeChipsBottom + KisModernStyle::space1, -KisModernStyle::space3, -KisModernStyle::space2);
+    }
 
-        m_curve = new KisCurveWidget(this);
-        m_curve->setFixedHeight(130);
-        layout->addWidget(m_curve);
-        connect(m_curve, &KisCurveWidget::modified, this, [this]() {
-            m_model->setcurveString(m_curve->curve().toString());
-            if (m_model->type() != Soft) m_model->settype(Soft);
-            m_saved->setCurrent(m_curve->curve().toString());
-            refreshKinds();
-        });
+    qreal half() const
+    {
+        return graph().width() / 2.0;
+    }
 
-        m_saved = new KisCurvePresetStrip(this);
-        layout->addWidget(m_saved);
-        connect(m_saved, &KisCurvePresetStrip::picked, this, [this](const QString &curve) {
-            m_model->setcurveString(curve);
+    QPointF spot(qreal r, qreal value) const
+    {
+        const QRectF box = graph();
+        return QPointF(box.center().x() + r * half(), box.bottom() - value * box.height());
+    }
+
+    /// How far out \p pos is, either side of the middle, as a share of the radius
+    qreal reachAt(const QPointF &pos) const
+    {
+        return qBound(0.0, qAbs(pos.x() - graph().center().x()) / qMax(1.0, half()), 1.0);
+    }
+
+    /// \p pos brought over to the right side, where the handles are
+    QPointF mirrored(const QPointF &pos) const
+    {
+        const qreal middle = graph().center().x();
+        return QPointF(middle + qAbs(pos.x() - middle), pos.y());
+    }
+
+    int softPercent() const
+    {
+        return qRound((1.0 - hardnessOf(Edge::of(m_model))) * 100);
+    }
+
+    QFont chipFont() const
+    {
+        return KisModernStyle::textFont(font(), 0.88);
+    }
+
+    QRectF chipRect(Part part) const
+    {
+        const qreal inset = KisModernStyle::space2;
+        const qreal top = edgeChipsBottom - 24;
+        if (part == ChipSoft) {
+            const QString text = QLocale().toString(softPercent()) + i18nc("percent, after the number", "%");
+            return QRectF(inset, top, QFontMetricsF(chipFont()).horizontalAdvance(text) + 16, 24);
+        }
+        const int index = part - TileRound;
+        const qreal tile = 34;
+        return QRectF(width() - inset - (3 - index) * tile, top, tile, 24);
+    }
+
+    /// The curve's points shown as handles: not the one where its solid middle ends, which is the diamond
+    QVector<int> pointHandles() const
+    {
+        QVector<int> handles;
+        if (m_model->type() != Soft) return handles;
+        const QList<KisCubicCurvePoint> points = curvePoints(m_model->curveString());
+        // the diamond stands for the second point, or the first when the edge falls from the middle
+        const int knee = curveHold(points) > 0.0 ? 1 : 0;
+        for (int i = 0; i < points.size(); i++) {
+            if (i != knee) handles << i;
+        }
+        return handles;
+    }
+
+    QPointF pointSpot(const KisCubicCurvePoint &point) const
+    {
+        return spot(std::sqrt(qMax(0.0, point.x())), point.y());
+    }
+
+    Part partAt(const QPointF &pos, int *index = nullptr) const
+    {
+        for (Part part : {ChipSoft, TileRound, TileSmooth, TileCurve}) {
+            if (chipRect(part).contains(pos)) return part;
+        }
+        const QPointF right = mirrored(pos);
+        const Edge edge = Edge::of(m_model);
+        const EdgeProfile profile(edge);
+        const qreal hold = hardnessOf(edge);
+        if (QLineF(spot(hold, profile.at(hold)), right).length() <= grabRadius) return Knee;
+        const QList<KisCubicCurvePoint> points = curvePoints(m_model->curveString());
+        qreal nearest = grabRadius;
+        int best = -1;
+        Q_FOREACH (int i, pointHandles()) {
+            const qreal distance = QLineF(pointSpot(points[i]), right).length();
+            if (distance <= nearest) {
+                nearest = distance;
+                best = i;
+            }
+        }
+        if (best >= 0) {
+            if (index) *index = best;
+            return Point;
+        }
+        const QRectF box = graph();
+        if (qAbs(pos.x() - box.center().x()) <= half() + 2) {
+            if (qAbs(spot(reachAt(pos), profile.at(reachAt(pos))).y() - pos.y()) <= 8) return Line;
+        }
+        return None;
+    }
+
+    QString partTip(Part part) const
+    {
+        switch (part) {
+        case Knee:
+        case ChipSoft:
+            return KisStudioTips::tip(i18nc("@info:tooltip brush tip", "Soft edge: 0% crisp → 100% all fade"), KisStudioTips::valueGestures());
+        case Point:
+            return KisStudioTips::tip(i18nc("@info:tooltip brush tip edge", "Curve point"),
+                                      {i18nc("@info:tooltip a gesture", "Drag: move"), i18nc("@info:tooltip a gesture", "Right-click: remove")});
+        case Line:
+            return KisStudioTips::tip(i18nc("@info:tooltip brush tip", "Edge, across the tip"),
+                                      {i18nc("@info:tooltip a gesture", "Drag: bend"), KisStudioTips::rightClickReset()});
+        case TileRound:
+            return i18nc("@info:tooltip brush tip edge", "Round: fades fastest at the rim");
+        case TileSmooth:
+            return i18nc("@info:tooltip brush tip edge", "Smooth: fades out gently, like an airbrush");
+        case TileCurve:
+            return i18nc("@info:tooltip brush tip edge", "Curve: your own, bent on the line");
+        default:
+            return QString();
+        }
+    }
+
+    bool event(QEvent *event) override
+    {
+        if (event->type() == QEvent::ToolTip) {
+            auto *help = static_cast<QHelpEvent *>(event);
+            const QString tip = partTip(partAt(help->pos()));
+            if (tip.isEmpty()) {
+                QToolTip::hideText();
+            } else {
+                QToolTip::showText(help->globalPos(), KisStudioTips::html(tip), this);
+            }
+            return true;
+        }
+        return QWidget::event(event);
+    }
+
+    /**
+     * The edge in the shape \p type, solid to \p hold of the radius. A curve is the one the tip keeps, or the
+     * edge as it looks.
+     */
+    Edge reshaped(int type, qreal hold) const
+    {
+        const Edge edge = Edge::of(m_model);
+        Edge shaped{type, hold, hold, QString()};
+        if (type == Soft) {
+            const QList<KisCubicCurvePoint> points = edge.type == Soft || edge.curve.isEmpty() ? seeded(edge) : curvePoints(edge.curve);
+            shaped.curve = KisCubicCurve(heldAt(points, hold)).toString();
+        }
+        if (type == Gaussian) shaped.fadeA = shaped.fadeB = smoothFadeFor(hold);
+        return shaped;
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QColor ink = palette().color(QPalette::WindowText);
+        const QColor accent = palette().color(QPalette::Highlight);
+        auto faint = [&ink](qreal alpha) {
+            QColor color = ink;
+            color.setAlphaF(alpha);
+            return color;
+        };
+        // the bottom of the tip's box
+        painter.fillPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, -2 * KisModernStyle::cardRadius, -0.5, -0.5), KisModernStyle::cardRadius), faint(0.045));
+
+        // the edge from rim to rim, filled like the cross-section of a dab
+        const Edge edge = Edge::of(m_model);
+        const EdgeProfile profile(edge);
+        const QRectF box = graph();
+        QPainterPath line;
+        for (int i = -48; i <= 48; i++) {
+            const qreal r = i / 48.0;
+            const QPointF point = spot(r, profile.at(qAbs(r)));
+            if (i > -48) line.lineTo(point);
+            else line.moveTo(point);
+        }
+        QPainterPath area = line;
+        area.lineTo(box.bottomRight());
+        area.lineTo(box.bottomLeft());
+        area.closeSubpath();
+        painter.fillPath(area, faint(0.12));
+        QPen pen(ink, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPath(line);
+
+        const QColor dark(0, 0, 0, 150);
+        const QColor light(255, 255, 255, 230);
+        const QList<KisCubicCurvePoint> points = curvePoints(m_model->curveString());
+        const qreal kneeReach = hardnessOf(edge);
+        const QPointF knee = spot(kneeReach, profile.at(kneeReach));
+        Q_FOREACH (int i, pointHandles()) {
+            // under the diamond, which wins the press there anyway
+            if (QLineF(pointSpot(points[i]), knee).length() < 2 * handleRadius) continue;
+            const bool hot = (m_hover == Point && m_hoverIndex == i) || (m_dragPart == Point && m_dragIndex == i);
+            painter.setPen(QPen(dark, 1.5));
+            painter.setBrush(hot ? accent : QColor(Qt::white));
+            painter.drawEllipse(pointSpot(points[i]), handleRadius - 1 + (hot ? 1.5 : 0), handleRadius - 1 + (hot ? 1.5 : 0));
+        }
+        {
+            const qreal hold = hardnessOf(edge);
+            const QPointF at = spot(hold, profile.at(hold));
+            const bool hot = m_hover == Knee || m_dragPart == Knee || m_hover == ChipSoft || m_dragPart == ChipSoft;
+            const qreal d = handleRadius + 1 + (hot ? 1.5 : 0);
+            QPainterPath diamond;
+            diamond.moveTo(at + QPointF(0, -d));
+            diamond.lineTo(at + QPointF(d, 0));
+            diamond.lineTo(at + QPointF(0, d));
+            diamond.lineTo(at + QPointF(-d, 0));
+            diamond.closeSubpath();
+            painter.setPen(QPen(light, 1.5));
+            painter.setBrush(hot ? accent : QColor(20, 20, 24));
+            painter.drawPath(diamond);
+        }
+
+        // the softness and the shapes, each a picture of the edge it gives
+        painter.setFont(chipFont());
+        const QRectF soft = chipRect(ChipSoft);
+        painter.fillPath(KisModernStyle::squircle(soft, 6), faint(m_hover == ChipSoft ? 0.16 : 0.08));
+        if (!m_editing) {
+            painter.setPen(ink);
+            painter.drawText(soft, Qt::AlignCenter, QLocale().toString(softPercent()) + i18nc("percent, after the number", "%"));
+        }
+        painter.fillPath(KisModernStyle::squircle(chipRect(TileRound).united(chipRect(TileCurve)), 6), faint(0.08));
+        painter.setBrush(Qt::NoBrush);
+        for (Part part : {TileRound, TileSmooth, TileCurve}) {
+            const QRectF tile = chipRect(part);
+            const int type = part == TileRound ? Default : part == TileSmooth ? Gaussian : Soft;
+            const bool on = edge.type == type;
+            if (on || m_hover == part) painter.fillPath(KisModernStyle::squircle(tile, 6), faint(on ? 0.16 : 0.08));
+            painter.setPen(QPen(on || m_hover == part ? ink : KisModernStyle::secondaryInk(ink), 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            // soft enough that the shape shows
+            painter.drawPath(EdgeProfile(reshaped(type, qMin(hardnessOf(edge), 0.5))).half(tile.adjusted(8, 6, -8, -6)));
+        }
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        m_moved = false;
+        if (event->button() != Qt::LeftButton) return;
+        int index = -1;
+        const Part part = partAt(event->pos(), &index);
+        const Edge edge = Edge::of(m_model);
+        switch (part) {
+        case TileRound:
+        case TileSmooth: {
+            const int type = part == TileRound ? Default : Gaussian;
+            if (edge.type == type) return;
+            // as hard as it was; a hard tip turning Smooth is made half soft
+            const qreal hold = hardnessOf(edge);
+            const Edge shaped = reshaped(type, type == Gaussian ? qMin(hold, 0.5) : hold);
+            m_model->sethorizontalFade(shaped.fadeA);
+            m_model->setverticalFade(shaped.fadeB);
+            m_model->settype(type);
+            return;
+        }
+        case TileCurve:
+            if (edge.type != Soft) {
+                m_model->setcurveString(reshaped(Soft, hardnessOf(edge)).curve);
+                m_model->settype(Soft);
+            }
+            return;
+        case None:
+            return;
+        case Line: {
+            // the edge becomes a curve that looks as it did, with a point here to bend it by
+            QList<KisCubicCurvePoint> points = seeded(edge);
+            const qreal r = reachAt(event->pos());
+            const qreal x = r * r;
+            int at = 1;
+            while (at < points.size() - 1 && points[at].x() < x) at++;
+            // close to a point the curve already has, that one is bent
+            if (at > 1 && qAbs(std::sqrt(points[at - 1].x()) - r) < 0.03) {
+                at--;
+            } else if (at == points.size() - 1 || qAbs(std::sqrt(points[at].x()) - r) >= 0.03) {
+                points.insert(at, KisCubicCurvePoint(x, KisCubicCurve(points).value(x)));
+            }
+            m_model->setcurveString(KisCubicCurve(points).toString());
             m_model->settype(Soft);
-            refresh();
-        });
+            m_dragIndex = at;
+            m_dragPart = Point;
+            break;
+        }
+        case Point:
+            m_dragIndex = index;
+            m_dragPart = Point;
+            break;
+        default:
+            m_dragPart = part;
+            break;
+        }
+        m_press = event->pos();
+        m_pressEdge = Edge::of(m_model);
+        m_pressPoints = curvePoints(m_pressEdge.curve);
+        update();
+    }
 
-        setFixedWidth(280 + 2 * shadowMargin());
-        connect(m_model, &KisAutoBrushModel::curveStringChanged, this, [this]() { refresh(); });
-        refresh();
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        const QPointF pos = event->pos();
+        if (m_dragPart == None) {
+            int index = -1;
+            const Part hover = partAt(pos, &index);
+            if (hover != m_hover || index != m_hoverIndex) {
+                m_hover = hover;
+                m_hoverIndex = index;
+                switch (hover) {
+                case None:
+                    unsetCursor();
+                    break;
+                case TileRound:
+                case TileSmooth:
+                case TileCurve:
+                    setCursor(Qt::PointingHandCursor);
+                    break;
+                case Knee:
+                case ChipSoft:
+                    setCursor(Qt::SizeHorCursor);
+                    break;
+                default:
+                    setCursor(Qt::CrossCursor);
+                }
+                update();
+            }
+            return;
+        }
+        if (!m_moved && QLineF(pos, m_press).length() < 3) return;
+        m_moved = true;
+        switch (m_dragPart) {
+        case Knee:
+            setHardness(m_model, m_pressEdge, reachAt(pos));
+            break;
+        case ChipSoft:
+            // more soft to the right, as the value reads
+            setHardness(m_model, m_pressEdge, hardnessOf(m_pressEdge) - (pos.x() - m_press.x()) / 200.0);
+            break;
+        case Point: {
+            QList<KisCubicCurvePoint> points = m_pressPoints;
+            const int i = m_dragIndex;
+            if (i < 0 || i >= points.size()) break;
+            const QRectF box = graph();
+            const bool end = i == 0 || i == points.size() - 1;
+            // pulled well off the edge, a point goes
+            if (!end && (pos.y() < box.top() - 24 || pos.y() > height() + 24)) {
+                points.removeAt(i);
+            } else {
+                qreal r = i == 0 ? 0.0 : i == points.size() - 1 ? 1.0 : reachAt(pos);
+                if (!end) r = qBound(std::sqrt(points[i - 1].x()) + 0.02, r, std::sqrt(points[i + 1].x()) - 0.02);
+                const qreal value = qBound(0.0, (box.bottom() - pos.y()) / qMax(1.0, box.height()), 1.0);
+                points[i].setPosition(QPointF(r * r, value));
+            }
+            m_model->setcurveString(KisCubicCurve(points).toString());
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton) return;
+        m_dragPart = None;
+        m_dragIndex = -1;
+        update();
+    }
+
+    void mouseDoubleClickEvent(QMouseEvent *event) override
+    {
+        const Part part = partAt(event->pos());
+        if (part != Knee && part != ChipSoft) return;
+        m_editing = true;
+        // typed where it is written, in the chip's own text
+        QLineEdit *editor = KisStudioInlineEdit::open(this, chipRect(ChipSoft).toRect(), QLocale().toString(softPercent()), Qt::AlignHCenter,
+                                                      chipFont(), [this](const QString &text) {
+            bool ok = false;
+            const qreal typed = QLocale().toDouble(QString(text).remove(i18nc("percent, after the number", "%")).remove(QLatin1Char('%')).trimmed(), &ok);
+            if (ok) setHardness(m_model, Edge::of(m_model), 1.0 - typed / 100.0);
+        });
+        connect(editor, &QObject::destroyed, this, [this]() {
+            m_editing = false;
+            update();
+        });
+        update();
+    }
+
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        event->accept();
+        // a finger held still at the end of a drag isn't asking for a reset
+        if (m_moved) return;
+        int index = -1;
+        const Part part = partAt(event->pos(), &index);
+        if (part == Point) {
+            QList<KisCubicCurvePoint> points = curvePoints(m_model->curveString());
+            if (index > 0 && index < points.size() - 1) {
+                points.removeAt(index);
+                m_model->setcurveString(KisCubicCurve(points).toString());
+            }
+            return;
+        }
+        if (part == Knee || part == ChipSoft || part == Line) makeHard(m_model);
+    }
+
+    void leaveEvent(QEvent *) override
+    {
+        m_hover = None;
+        m_hoverIndex = -1;
+        update();
     }
 
 private:
-    QString curveOrDefault() const
-    {
-        // a soft tip without a curve of its own falls off in a straight line
-        return m_model->curveString().isEmpty() ? QStringLiteral("0,1;1,0;") : m_model->curveString();
-    }
-
-    void refreshKinds()
-    {
-        QVector<KisStudioChips::Chip> chips;
-        const QStringList names = {i18nc("@info:tooltip brush tip edge", "Hard: solid, softened only by the edge %"),
-                                   i18nc("@info:tooltip brush tip edge", "Curve: your own falloff, drawn below"),
-                                   i18nc("@info:tooltip brush tip edge", "Gaussian: soft, natural falloff, like an airbrush")};
-        for (int kind = 0; kind < 3; kind++) {
-            KisStudioChips::Chip chip;
-            chip.toolTip = names[kind];
-            chip.on = m_model->type() == kind;
-            const QString curve = curveOrDefault();
-            const qreal fade = m_model->horizontalFade();
-            const QColor ink = palette().color(QPalette::WindowText);
-            chip.picture = [kind, curve, fade, ink](QPainter &painter, const QRectF &box) {
-                painter.setPen(QPen(ink, 1.6));
-                painter.setBrush(Qt::NoBrush);
-                painter.drawPath(falloffPath(box.adjusted(4, 6, -4, -6), kind, curve, kind == Default ? qMax(0.3, fade) : fade));
-            };
-            chips << chip;
-        }
-        m_kinds->setChips(chips);
-    }
-
-    void refresh()
-    {
-        refreshKinds();
-        const QString curve = curveOrDefault();
-        if (m_curve->curve().toString() != curve) {
-            KisSignalsBlocker blocker(m_curve);
-            m_curve->setCurve(KisCubicCurve(curve));
-        }
-        m_saved->setCurrent(curve);
-    }
-
     KisAutoBrushModel *m_model;
-    KisStudioChips *m_kinds {nullptr};
-    KisCurveWidget *m_curve {nullptr};
-    KisCurvePresetStrip *m_saved {nullptr};
+    Part m_hover {None};
+    int m_hoverIndex {-1};
+    Part m_dragPart {None};
+    int m_dragIndex {-1};
+    bool m_moved {false};
+    bool m_editing {false};
+    QPointF m_press;
+    Edge m_pressEdge;
+    QList<KisCubicCurvePoint> m_pressPoints;
 };
 
-void TipCanvas::showEdge()
+/// Shows a page only for generated tips, as the tip's kind changes; watching while the page lives
+class AutoShown : public QObject
 {
-    if (m_edge) {
-        m_edge->close();
-        return;
+public:
+    AutoShown(lager::cursor<BrushType> type, QWidget *page)
+        : QObject(page)
+        , m_type(type)
+    {
+        page->setVisible(m_type.get() != Predefined);
+        m_type.watch([page](BrushType kind) { page->setVisible(kind != Predefined); });
     }
-    auto *edge = new EdgePopup(m_auto, this);
-    m_edge = edge;
-    edge->popupBeside(this, Qt::RightEdge);
-}
+
+private:
+    lager::cursor<BrushType> m_type;
+};
 
 } // namespace
 
@@ -1124,6 +1613,7 @@ struct KisBrushTipQuickPage::Private
     KisPredefinedBrushModel *predefinedModel {nullptr};
     lager::cursor<BrushType> type;
     TipCanvas *canvas {nullptr};
+    EdgeCanvas *edge {nullptr};
     KisStudioChips *shapes {nullptr};
     /// The picture tips the shapes row shows, after round, square and star
     QStringList tipIds;
@@ -1164,8 +1654,17 @@ KisBrushTipQuickPage::KisBrushTipQuickPage(KisAutoBrushModel *autoModel,
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(KisModernStyle::space2);
 
-    d->canvas = new TipCanvas(autoModel, predefinedModel, type, this);
-    layout->addWidget(d->canvas);
+    // the tip and, for a generated one, its edge under it: one box
+    auto *card = new QWidget(this);
+    auto *cardLayout = new QVBoxLayout(card);
+    cardLayout->setContentsMargins(0, 0, 0, 0);
+    cardLayout->setSpacing(0);
+    d->canvas = new TipCanvas(autoModel, predefinedModel, type, card);
+    cardLayout->addWidget(d->canvas);
+    d->edge = new EdgeCanvas(autoModel, card);
+    cardLayout->addWidget(d->edge);
+    new AutoShown(type, d->edge);
+    layout->addWidget(card);
 
     d->shapes = new KisStudioChips(this);
     d->shapes->setTileSize(36);
@@ -1486,24 +1985,6 @@ void KisBrushTipQuickPage::updateRest()
     d->neutral->setValue(d->predefinedModel->adjustmentMidPoint());
 }
 
-namespace {
-/// Shows the grain page for the tips that have a grain, as the tip's kind changes; watching while the page lives
-class GrainShown : public QObject
-{
-public:
-    GrainShown(lager::cursor<BrushType> type, QWidget *page)
-        : QObject(page)
-        , m_type(type)
-    {
-        page->setVisible(m_type.get() != Predefined);
-        m_type.watch([page](BrushType kind) { page->setVisible(kind != Predefined); });
-    }
-
-private:
-    lager::cursor<BrushType> m_type;
-};
-}
-
 QWidget *KisBrushTipQuickPage::createGrainPage(KisAutoBrushModel *autoModel, lager::cursor<BrushType> type, QWidget *parent)
 {
     auto *page = new QWidget(parent);
@@ -1538,7 +2019,7 @@ QWidget *KisBrushTipQuickPage::createGrainPage(KisAutoBrushModel *autoModel, lag
     QObject::connect(coverage, &KisStudioValueRow::valueChanged, autoModel, [autoModel](qreal value) { autoModel->setdensity(value); });
 
     // a picture tip has no grain of its own, whichever kind of tip is picked
-    new GrainShown(type, page);
+    new AutoShown(type, page);
     return page;
 }
 
