@@ -212,7 +212,8 @@ public:
     }
     bool isFolded() const { return m_folded; }
 
-    QSize sizeHint() const override { return QSize(40, height()); }
+    // its height is fixed (see fit()), and right after it shows again its geometry may not be yet
+    QSize sizeHint() const override { return QSize(40, minimumHeight()); }
 
 protected:
     void fit()
@@ -567,13 +568,23 @@ int offsetOf(qreal share, int room)
 QPointF readSpot(const QString &key)
 {
     const QStringList parts = KisConfig(true).readEntry<QString>(key, QString()).split(QLatin1Char(','));
-    if (parts.size() != 2) return QPointF();
+    if (parts.size() < 2) return QPointF();
     return QPointF(qBound(0.0, parts[0].toDouble(), 1.0), qBound(0.0, parts[1].toDouble(), 1.0));
 }
 
-void writeSpot(const QString &key, const QPointF &spot)
+/// The height a group of panels had when its place was taken, written after its spot; 0 if not
+int readSpotHeight(const QString &key)
 {
-    KisConfig(false).writeEntry(key, QString(QString::number(spot.x()) + QLatin1Char(',') + QString::number(spot.y())));
+    const QStringList parts = KisConfig(true).readEntry<QString>(key, QString()).split(QLatin1Char(','));
+    return parts.size() >= 3 ? qMax(0, parts[2].toInt()) : 0;
+}
+
+/// \p height: the height of a group of panels when its place was taken, so a folded one keeps its top
+void writeSpot(const QString &key, const QPointF &spot, int height = 0)
+{
+    QString value = QString::number(spot.x()) + QLatin1Char(',') + QString::number(spot.y());
+    if (height > 0) value += QLatin1Char(',') + QString::number(height);
+    KisConfig(false).writeEntry(key, value);
 }
 
 /// How far the pinned panels' pill reaches in from the left and right edges, even when only its strip shows
@@ -970,7 +981,8 @@ private:
     {
         Measure m;
         QWidget *title = dock->titleBarWidget();
-        const int titleHeight = title ? title->height() : 0;
+        // hidden on the only panel of a group, whose grip moves and folds it instead
+        const int titleHeight = title && !title->isHidden() ? qMax(title->height(), title->minimumHeight()) : 0;
         if (dock->widget() && dock->widget()->property("studioFolded").toBool()) {
             m.want = m.minimum = titleHeight;
             return m;
@@ -1760,11 +1772,14 @@ public:
     QRect targetGeometry() const { return m_target.isNull() ? geometry() : m_target; }
 
     /// Where it was dragged to, from its side, as shares of the room it has (see shareOf())
-    void setSpot(const QPointF &spot)
+    void setSpot(const QPointF &spot, int refHeight = 0)
     {
         m_spot = spot;
+        m_refHeight = refHeight;
         place();
     }
+    /// Its height when its place was taken (see place()), 0 if not known
+    int refHeight() const { return m_refHeight; }
 
     /// Takes the place of \p box (canvas area coordinates) from its top and its side's edge, as if dropped there
     void placeAt(const QRect &box)
@@ -1773,6 +1788,7 @@ public:
         setSide(left);
         const QSize size = placedSize(sizeNow());
         m_spot = spotOf(QRect(QPoint(left ? box.left() : box.right() + 1 - size.width(), box.top()), size), left, false);
+        m_refHeight = size.height();
         m_settled = ++settledCount();
         place();
         if (moved) moved(m_left, m_spot);
@@ -1865,15 +1881,22 @@ public:
         const QSize size = sizeNow();
         const QSize placed = placedSize(size);
         const int across = offsetOf(m_spot.x(), area->width() - 2 * margin - placed.width());
-        const QRect wanted(QPoint(m_left ? margin + across : area->width() - margin - placed.width() - across,
-                                  span.first + offsetOf(m_spot.y(), span.second - span.first - placed.height())),
-                           placed);
+        // the height its place was taken at: as it grows or folds it keeps its top, or against the bottom its bottom
+        // a place saved without it gets the height it settled at, kept with it from then on
+        const bool learnt = m_refHeight <= 0 && isVisible() && m_shown.isValid() && m_shown.elapsed() >= 500;
+        if (learnt) m_refHeight = placed.height();
+        const int refHeight = m_refHeight > 0 ? m_refHeight : placed.height();
+        int y = span.first + offsetOf(m_spot.y(), span.second - span.first - refHeight);
+        if (m_spot.y() >= 1) y = span.second - placed.height();
+        y = qMax(span.first, qMin(y, span.second - placed.height()));
+        const QRect wanted(QPoint(m_left ? margin + across : area->width() - margin - placed.width() - across, y), placed);
         // while dragged, it makes way for all the others, as it will once dropped: it shows where it will stay
         const QRect at = clearOfOthers(wanted, span, m_moving ? std::numeric_limits<quint64>::max() : m_settled);
         m_placed = at;
         // the group placed last made way by choice: where it went is its place, so the next start agrees
         if (!m_moving && at != wanted && m_settled == settledCount() && isVisible() && m_shown.isValid() && m_shown.elapsed() >= 500) {
             m_spot = spotOf(at, m_left, false);
+            m_refHeight = at.height();
             if (moved) moved(m_left, m_spot);
         }
         // a column on the right keeps its right edge when only its strip shows
@@ -1882,6 +1905,7 @@ public:
         glideTo(geometry, at.topLeft() - wanted.topLeft(), m_moving);
         raise();
         if (changed && resized) resized(false);
+        if (learnt && moved) moved(m_left, m_spot);
     }
 
 protected:
@@ -1939,6 +1963,8 @@ protected:
         m_shown.start();
         place();
         placeGrip();
+        // settled in: the height its place is kept with (see place())
+        if (m_refHeight <= 0) QTimer::singleShot(600, this, [this]() { place(); });
     }
 
     void resizeEvent(QResizeEvent *event) override
@@ -1987,6 +2013,7 @@ protected:
         const QRect rect(QPoint(m_left ? at.x() : at.x() + width() - placed.width(), at.y()), placed);
         setSide(rect.center().x() < area->width() / 2);
         m_spot = spotOf(rect, m_left, true);
+        m_refHeight = rect.height();
         place();
         if (joining) joining(this, m_placed, false);
     }
@@ -2123,7 +2150,8 @@ private:
     {
         const QPair<int, int> span = spanY();
         const QMargins margins = m_layout->contentsMargins();
-        const int strip = m_strip && !m_strip->isHidden() ? m_strip->sizeHint().height() : 0;
+        // a grip of fixed height has no size hint
+        const int strip = m_strip && !m_strip->isHidden() ? qMax(m_strip->sizeHint().height(), m_strip->minimumHeight()) : 0;
         // tucked, just the strip, as wide as when open
         if (!panelsShown()) return QSize(m_openSize.isEmpty() ? totalWidth() : m_openSize.width(), margins.top() + margins.bottom() + strip);
         int tallest = 0;
@@ -2246,6 +2274,8 @@ private:
     quint64 m_settled {0};
     bool m_left {false};
     QPointF m_spot;
+    /// Its height when its place was taken (see place())
+    int m_refHeight {0};
     QSize m_openSize;
     bool m_shownPanels {true};
     /// Where it was last placed, as if open
@@ -3785,7 +3815,7 @@ void KisStudioLayout::writeGroupPlace(int group, const QRect &rect, QWidget *are
     const int roomY = bottom - top - rect.height();
     KisConfig(false).writeEntry(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
     writeSpot(groupKey(group, "Spot"), QPointF(roomX > 0 ? qBound(0.0, qreal(across) / roomX, 1.0) : 0.0,
-                                               roomY > 0 ? qBound(0.0, qreal(rect.y() - top) / roomY, 1.0) : 0.0));
+                                               roomY > 0 ? qBound(0.0, qreal(rect.y() - top) / roomY, 1.0) : 0.0), rect.height());
 }
 
 int KisStudioLayout::freeGroup() const
@@ -3800,9 +3830,9 @@ KisStudioPanelColumn *KisStudioLayout::panelColumn()
     if (!d->panelColumn) {
         d->panelColumn = createColumn(0, d->panelsLeft);
         if (!d->panelColumn) return nullptr;
-        d->panelColumn->setSpot(readSpot(panelSpotKey));
+        d->panelColumn->setSpot(readSpot(panelSpotKey), readSpotHeight(panelSpotKey));
         d->panelColumn->moved = [this](bool left, const QPointF &spot) {
-            writeSpot(panelSpotKey, spot);
+            writeSpot(panelSpotKey, spot, d->panelColumn ? d->panelColumn->refHeight() : 0);
             if (left != d->panelsLeft) setPanelsSide(left);
             else updateCanvasInsets();
         };
@@ -3822,11 +3852,16 @@ KisStudioPanelColumn *KisStudioLayout::groupColumn(int group)
     KisStudioPanelColumn *column = createColumn(group, left);
     if (!column) return nullptr;
     column->setObjectName(group == 1 ? QStringLiteral("studioFarPanels") : QStringLiteral("studioPanelGroup%1").arg(group));
-    // it has no panel buttons to drag it by
-    column->setStrip(new DragGrip(column));
-    column->setSpot(readSpot(spotKey));
+    // it has no panel buttons to drag it by; a tap folds its panels
+    auto *grip = new DragGrip(column);
+    grip->setObjectName(QStringLiteral("studioGroupGrip"));
+    grip->setToolTip(i18nc("@info:tooltip a group of panels' grip", "Drag: move\nClick: fold"));
+    column->setStrip(grip);
+    column->tapped = [this, group]() { foldGroup(group); };
+    column->setSpot(readSpot(spotKey), readSpotHeight(spotKey));
     column->moved = [this, group, spotKey](bool left, const QPointF &spot) {
-        writeSpot(spotKey, spot);
+        KisStudioPanelColumn *own = d->groupColumns.value(group);
+        writeSpot(spotKey, spot, own ? own->refHeight() : 0);
         if (group == 1) {
             if (left == d->panelsLeft) {
                 setPanelsSide(!left);
@@ -3862,7 +3897,7 @@ int KisStudioLayout::newPanelGroup(const QPoint &windowPos)
     cfg.writeEntry(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
     d->laneWidths.insert(group, {width});
     saveWidths(group);
-    writeSpot(groupKey(group, "Spot"), QPointF(shareOf(across, area->width() - 2 * margin - width), shareOf(at.y() - 12 - top, bottom - top - guess)));
+    writeSpot(groupKey(group, "Spot"), QPointF(shareOf(across, area->width() - 2 * margin - width), shareOf(at.y() - 12 - top, bottom - top - guess)), guess);
     return group;
 }
 
@@ -4017,8 +4052,41 @@ void KisStudioLayout::placeWelcomePage()
     if (welcome->contentsMargins() != room) welcome->setContentsMargins(room);
 }
 
+void KisStudioLayout::foldGroup(int group)
+{
+    KisStudioPanelColumn *column = group == 0 ? d->panelColumn.data() : d->groupColumns.value(group).data();
+    if (!column) return;
+    // folded all, unless all are folded already
+    bool open = false;
+    Q_FOREACH (QDockWidget *dock, column->panels()) open = open || (!dock->isHidden() && !d->folded.contains(dock->objectName()));
+    Q_FOREACH (QDockWidget *dock, column->panels()) {
+        if (!dock->isHidden() && d->folded.contains(dock->objectName()) != open) gripClicked(dock->objectName());
+    }
+}
+
 void KisStudioLayout::updateColumns()
 {
+    Q_FOREACH (KisStudioPanelColumn *column, d->columns()) {
+        // the only panel of a group needs no title bar of its own: the group's grip moves and folds it; folded,
+        // the bar shows its name
+        const QList<QDockWidget *> docks = column->panels();
+        const bool alone = column != d->panelColumn && docks.size() == 1;
+        bool allFolded = !docks.isEmpty();
+        Q_FOREACH (QDockWidget *dock, docks) {
+            PanelGrip *title = d->grips.value(dock->objectName());
+            allFolded = allFolded && d->folded.contains(dock->objectName());
+            if (!title) continue;
+            const bool shown = !alone || title->isFolded();
+            if (title->isHidden() == shown) {
+                title->setVisible(shown);
+                for (PanelStack *stack : column->stacks()) stack->later();
+            }
+        }
+        if (QWidget *grip = column->findChild<QWidget *>(QStringLiteral("studioGroupGrip"), Qt::FindDirectChildrenOnly)) {
+            grip->setToolTip(allFolded ? i18nc("@info:tooltip a group of panels' grip", "Drag: move\nClick: unfold")
+                                       : i18nc("@info:tooltip a group of panels' grip", "Drag: move\nClick: fold"));
+        }
+    }
     Q_FOREACH (KisStudioPanelColumn *column, d->columns()) {
         bool any = false;
         Q_FOREACH (QDockWidget *dock, column->panels()) {
@@ -4162,9 +4230,11 @@ void KisStudioLayout::gripClicked(const QString &id)
         content->setProperty("studioMaxHeight", content->maximumHeight());
         content->setMinimumHeight(0);
         grip->setFolded(true, dock->windowTitle());
-        to = grip->height();
+        updateColumns();
+        to = grip->minimumHeight();
     } else {
         applyFold(dock, false);
+        updateColumns();
         to = d->heights.value(id, qMax(160, dock->sizeHint().height()));
         dock->setMaximumHeight(from);
     }
@@ -4222,7 +4292,8 @@ void KisStudioLayout::applyFold(QDockWidget *dock, bool fold)
     if (grip) {
         grip->setFolded(fold, dock->windowTitle());
     }
-    dock->setMaximumHeight(fold && grip ? grip->height() : QWIDGETSIZE_MAX);
+    dock->setMaximumHeight(fold && grip ? grip->minimumHeight() : QWIDGETSIZE_MAX);
+    updateColumns();
     if (auto *stack = dynamic_cast<PanelStack *>(dock->parentWidget())) stack->later();
 }
 

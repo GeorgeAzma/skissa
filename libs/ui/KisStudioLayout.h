@@ -96,6 +96,8 @@ private:
     QList<QStringList> lanesOf(const KisStudioPanelColumn *column) const;
     /// A group number no group has
     int freeGroup() const;
+    /// Folds the panels of \p group, or unfolds them when all are folded
+    void foldGroup(int group);
     /// The panels below \p above in \p lane of \p column, as a group of their own
     void separateBelow(KisStudioPanelColumn *column, int lane, QDockWidget *above);
     /// Writes where \p group goes: the place of \p rect in \p area

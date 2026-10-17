@@ -575,8 +575,10 @@ bool KisStudioCanvasHud::eventFilter(QObject *watched, QEvent *event)
     } else if (watched == d->buttons) {
         // its buttons came or went
         if (event->type() == QEvent::LayoutRequest) QTimer::singleShot(0, this, &KisStudioCanvasHud::reposition);
-    } else if ((event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseMove || event->type() == QEvent::MouseButtonRelease)
+    } else if (watched != parentWidget()
+               && (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseMove || event->type() == QEvent::MouseButtonRelease)
                && drag(static_cast<QMouseEvent *>(event), qobject_cast<QWidget *>(watched))) {
+        // only on itself: a press another pill let through to the canvas area isn't its drag
         return true;
     } else if (watched == d->zoom && event->type() == QEvent::Wheel) {
         // one zoom step per wheel notch, however fine the wheel
