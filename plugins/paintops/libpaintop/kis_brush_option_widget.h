@@ -50,6 +50,8 @@ public:
 
     bool hasQuickPage(PaintopCategory category) const override;
     QWidget *createQuickPage(PaintopCategory category, QWidget *parent) override;
+    /// All but a text tip's settings
+    bool quickPageIsWhole() const override;
 
 protected:
     OptionalLodLimitationsReader lodLimitationsReader() const override;

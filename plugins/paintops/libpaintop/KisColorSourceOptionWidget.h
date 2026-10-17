@@ -23,6 +23,7 @@ public:
 
     bool hasQuickPage(PaintopCategory category) const override;
     QWidget *createQuickPage(PaintopCategory category, QWidget *parent) override;
+    bool quickPageIsWhole() const override { return true; }
 
 private:
     struct Private;

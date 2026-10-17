@@ -163,13 +163,20 @@ bool KisBrushOptionWidget::hasQuickPage(PaintopCategory category) const
 QWidget *KisBrushOptionWidget::createQuickPage(PaintopCategory category, QWidget *parent)
 {
     if (category == GENERAL) {
+        std::optional<lager::cursor<KisBrushModel::PrecisionData>> precision;
+        if (m_d->flags & KisBrushOptionWidgetFlag::SupportsPrecision) precision = lager::cursor<KisBrushModel::PrecisionData>(m_d->brushPrecisionData);
         return new KisBrushTipQuickPage(&m_d->autoBrushModel, &m_d->predefinedBrushModel,
-                                        m_d->brushData[&BrushData::type], parent);
+                                        m_d->brushData[&BrushData::type], precision, parent);
     }
     if (category == TEXTURE) {
         return KisBrushTipQuickPage::createGrainPage(&m_d->autoBrushModel, m_d->brushData[&BrushData::type], parent);
     }
     return nullptr;
+}
+
+bool KisBrushOptionWidget::quickPageIsWhole() const
+{
+    return m_d->brushData.get().type != KisBrushModel::Text;
 }
 
 KisPaintOpOption::OptionalLodLimitationsReader KisBrushOptionWidget::lodLimitationsReader() const

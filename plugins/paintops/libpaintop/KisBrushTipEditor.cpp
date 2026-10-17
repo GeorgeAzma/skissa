@@ -1131,18 +1131,34 @@ struct KisBrushTipQuickPage::Private
     QHash<QString, QImage> tipPictures;
     QHash<QString, QString> tipNames;
     QColor tipInk;
+
+    std::optional<lager::cursor<PrecisionData>> precision;
+    bool withRest {true};
+    /// Anti-aliasing, auto spacing, auto precision, auto neutral point: those that apply
+    KisStudioChips *switches {nullptr};
+    QVector<std::function<void()>> flips;
+    KisStudioValueRow *precisionRow {nullptr};
+    /// How a picture tip in color is used, and its adjustments
+    KisStudioChips *application {nullptr};
+    KisStudioValueRow *brightness {nullptr};
+    KisStudioValueRow *contrast {nullptr};
+    KisStudioValueRow *neutral {nullptr};
 };
 
 KisBrushTipQuickPage::KisBrushTipQuickPage(KisAutoBrushModel *autoModel,
                                            KisPredefinedBrushModel *predefinedModel,
                                            lager::cursor<BrushType> type,
-                                           QWidget *parent)
+                                           std::optional<lager::cursor<PrecisionData>> precision,
+                                           QWidget *parent,
+                                           bool withRest)
     : QWidget(parent)
     , d(new Private)
 {
     d->autoModel = autoModel;
     d->predefinedModel = predefinedModel;
     d->type = type;
+    d->precision = precision;
+    d->withRest = withRest;
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -1224,9 +1240,67 @@ KisBrushTipQuickPage::KisBrushTipQuickPage(KisAutoBrushModel *autoModel,
         updateShapes();
     });
 
+    d->switches = new KisStudioChips(this);
+    layout->addWidget(d->switches);
+    connect(d->switches, &KisStudioChips::clicked, this, [this](int index) {
+        if (index >= 0 && index < d->flips.size()) d->flips[index]();
+        updateRest();
+    });
+
+    KisStudioValueRow::Range levels;
+    levels.minimum = 1;
+    levels.maximum = 5;
+    d->precisionRow = new KisStudioValueRow(i18nc("brush tip precision", "Precision"), this);
+    d->precisionRow->setCompact(true);
+    d->precisionRow->setRange(levels);
+    d->precisionRow->setDefaultValue(5);
+    d->precisionRow->setToolTip(i18nc("@info:tooltip", "1 fast → 5 exact"));
+    layout->addWidget(d->precisionRow);
+    connect(d->precisionRow, &KisStudioValueRow::valueChanged, this, [this](qreal value) {
+        if (!d->precision) return;
+        PrecisionData data = d->precision->get();
+        data.precisionLevel = qBound(1, qRound(value), 5);
+        d->precision->set(data);
+    });
+
+    d->application = new KisStudioChips(this);
+    layout->addWidget(d->application);
+    connect(d->application, &KisStudioChips::clicked, this, [this](int index) {
+        d->predefinedModel->setapplication(index);
+        updateRest();
+    });
+    auto adjustment = [this, layout](const QString &name, const QString &tip, qreal minimum, qreal maximum, qreal standard) {
+        auto *row = new KisStudioValueRow(name, this);
+        row->setCompact(true);
+        KisStudioValueRow::Range range;
+        range.minimum = minimum;
+        range.maximum = maximum;
+        row->setRange(range);
+        row->setDefaultValue(standard);
+        row->setToolTip(tip);
+        layout->addWidget(row);
+        return row;
+    };
+    d->brightness = adjustment(i18nc("picture brush tip adjustment", "Brightness"), i18nc("@info:tooltip", "-100 darker → 100 lighter"), -100, 100, 0);
+    d->contrast = adjustment(i18nc("picture brush tip adjustment", "Contrast"), i18nc("@info:tooltip", "-100 flat → 100 strong"), -100, 100, 0);
+    d->neutral = adjustment(i18nc("picture brush tip adjustment: the lightness that leaves the color as it is", "Neutral point"),
+                            i18nc("@info:tooltip", "The tip's lightness that leaves the color as it is"), 0, 255, 127);
+    connect(d->brightness, &KisStudioValueRow::valueChanged, this, [this](qreal value) { d->predefinedModel->setbrightnessAdjustment(qRound(value)); });
+    connect(d->contrast, &KisStudioValueRow::valueChanged, this, [this](qreal value) { d->predefinedModel->setcontrastAdjustment(qRound(value)); });
+    connect(d->neutral, &KisStudioValueRow::valueChanged, this, [this](qreal value) { d->predefinedModel->setadjustmentMidPoint(qRound(value)); });
+
     connect(autoModel, &KisAutoBrushModel::shapeChanged, this, &KisBrushTipQuickPage::updateShapes);
     connect(autoModel, &KisAutoBrushModel::spikesChanged, this, &KisBrushTipQuickPage::updateShapes);
     connect(predefinedModel, &KisPredefinedBrushModel::resourceSignatureChanged, this, &KisBrushTipQuickPage::updateShapes);
+    connect(autoModel, &KisAutoBrushModel::antialiasEdgesChanged, this, &KisBrushTipQuickPage::updateRest);
+    connect(autoModel, &KisAutoBrushModel::useAutoSpacingChanged, this, &KisBrushTipQuickPage::updateRest);
+    connect(predefinedModel, &KisPredefinedBrushModel::useAutoSpacingChanged, this, &KisBrushTipQuickPage::updateRest);
+    connect(predefinedModel, &KisPredefinedBrushModel::applicationSwitchStateChanged, this, &KisBrushTipQuickPage::updateRest);
+    connect(predefinedModel, &KisPredefinedBrushModel::brightnessAdjustmentChanged, this, &KisBrushTipQuickPage::updateRest);
+    connect(predefinedModel, &KisPredefinedBrushModel::contrastAdjustmentChanged, this, &KisBrushTipQuickPage::updateRest);
+    connect(predefinedModel, &KisPredefinedBrushModel::adjustmentMidPointChanged, this, &KisBrushTipQuickPage::updateRest);
+    connect(predefinedModel, &KisPredefinedBrushModel::autoAdjustMidPointChanged, this, &KisBrushTipQuickPage::updateRest);
+    if (d->precision) d->precision->watch([this](const PrecisionData &) { updateRest(); });
     updateShapes();
 }
 
@@ -1327,6 +1401,89 @@ void KisBrushTipQuickPage::updateShapes()
     };
     chips << more;
     d->shapes->setChips(chips);
+    updateRest();
+}
+
+void KisBrushTipQuickPage::updateRest()
+{
+    if (!d->withRest) {
+        for (QWidget *widget : std::initializer_list<QWidget *>{d->switches, d->precisionRow, d->application, d->brightness, d->contrast, d->neutral}) {
+            widget->hide();
+        }
+        return;
+    }
+    const bool isAuto = d->type.get() == Auto;
+    const bool isPicture = d->type.get() == Predefined;
+    const ComboBoxState uses = d->predefinedModel->applicationSwitchState();
+    const bool lightness = isPicture && uses.currentIndex == LIGHTNESSMAP;
+
+    QVector<KisStudioChips::Chip> switches;
+    d->flips.clear();
+    auto add = [&](const QString &text, const QString &tip, bool on, std::function<void()> flip) {
+        KisStudioChips::Chip chip;
+        chip.text = text;
+        chip.toolTip = tip;
+        chip.on = on;
+        switches << chip;
+        d->flips << flip;
+    };
+    if (isAuto) {
+        add(i18nc("brush tip switch", "Anti-aliasing"), i18nc("@info:tooltip", "Smooth hard edges"), d->autoModel->antialiasEdges(),
+            [this]() { d->autoModel->setantialiasEdges(!d->autoModel->antialiasEdges()); });
+    }
+    if (isAuto || isPicture) {
+        const bool autoSpacing = isAuto ? d->autoModel->useAutoSpacing() : d->predefinedModel->useAutoSpacing();
+        add(i18nc("brush tip switch", "Auto spacing"), i18nc("@info:tooltip", "Dabs closer as the brush grows"), autoSpacing, [this, isAuto]() {
+            if (isAuto) d->autoModel->setuseAutoSpacing(!d->autoModel->useAutoSpacing());
+            else d->predefinedModel->setuseAutoSpacing(!d->predefinedModel->useAutoSpacing());
+        });
+    }
+    if (d->precision) {
+        add(i18nc("brush tip switch", "Auto precision"), i18nc("@info:tooltip", "Precision by the brush size"), d->precision->get().useAutoPrecision, [this]() {
+            PrecisionData data = d->precision->get();
+            data.useAutoPrecision = !data.useAutoPrecision;
+            d->precision->set(data);
+        });
+    }
+    if (lightness) {
+        add(i18nc("brush tip switch", "Auto neutral point"), i18nc("@info:tooltip", "The tip's own middle lightness"), d->predefinedModel->autoAdjustMidPoint(),
+            [this]() { d->predefinedModel->setautoAdjustMidPoint(!d->predefinedModel->autoAdjustMidPoint()); });
+    }
+    d->switches->setChips(switches);
+    d->switches->setVisible(!switches.isEmpty());
+
+    d->precisionRow->setVisible(d->precision && !d->precision->get().useAutoPrecision);
+    if (d->precision) {
+        KisSignalsBlocker blocker(d->precisionRow);
+        d->precisionRow->setValue(d->precision->get().precisionLevel);
+    }
+
+    // a picture tip in color: as a mask, as it is, or lighting the brush color
+    QVector<KisStudioChips::Chip> applications;
+    if (isPicture && uses.enabled) {
+        const QStringList names = {i18nc("picture brush tip used as", "Mask"), i18nc("picture brush tip used as", "Its colors"),
+                                   i18nc("picture brush tip used as", "Lightness"), i18nc("picture brush tip used as", "Gradient")};
+        const QStringList tips = {i18nc("@info:tooltip", "In the brush color"), i18nc("@info:tooltip", "Painted as it is"),
+                                  i18nc("@info:tooltip", "The brush color, lit by the tip"), i18nc("@info:tooltip", "The tip's lights in the gradient's colors")};
+        for (int i = 0; i < uses.items.size() && i < names.size(); i++) {
+            KisStudioChips::Chip chip;
+            chip.text = names[i];
+            chip.toolTip = tips[i];
+            chip.on = i == uses.currentIndex;
+            applications << chip;
+        }
+    }
+    d->application->setChips(applications);
+    d->application->setVisible(!applications.isEmpty());
+
+    const bool adjusted = isPicture && d->predefinedModel->adjustmentsEnabled();
+    d->brightness->setVisible(adjusted);
+    d->contrast->setVisible(adjusted);
+    d->neutral->setVisible(lightness && !d->predefinedModel->autoAdjustMidPoint());
+    KisSignalsBlocker blocker(d->brightness, d->contrast, d->neutral);
+    d->brightness->setValue(d->predefinedModel->brightnessAdjustment());
+    d->contrast->setValue(d->predefinedModel->contrastAdjustment());
+    d->neutral->setValue(d->predefinedModel->adjustmentMidPoint());
 }
 
 namespace {

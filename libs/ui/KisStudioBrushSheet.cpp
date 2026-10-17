@@ -30,6 +30,8 @@
 
 #include <KisModernStyle.h>
 #include <KoCanvasResourceProvider.h>
+#include <KoCanvasResourcesIds.h>
+#include <KoID.h>
 #include <brushengine/KisPaintOpPresetUpdateProxy.h>
 #include <brushengine/kis_paintop_preset.h>
 #include <brushengine/kis_paintop_registry.h>
@@ -49,11 +51,13 @@
 #include "KisStudioPenPopup.h"
 #include "KisViewManager.h"
 #include "kis_canvas_resource_provider.h"
+#include "kis_node.h"
 #include "kis_paintop_box.h"
 #include "kis_paintop_option.h"
 #include "kis_paintop_settings_widget.h"
 #include "widgets/KisStudioChips.h"
 #include "widgets/KisStudioValueRow.h"
+#include "widgets/kis_cmb_composite.h"
 #include "widgets/kis_preset_live_preview_view.h"
 
 namespace {
@@ -310,6 +314,47 @@ struct KisStudioBrushSheet::Private
     QList<KisPaintOpOption *> options() const
     {
         return settings ? settings->options() : QList<KisPaintOpOption *>();
+    }
+
+    /// The brush's blend mode, as the top bar has it, and its eraser mode
+    QWidget *blendRow(QWidget *parent)
+    {
+        KisViewManager *view = mainWindow ? mainWindow->viewManager() : nullptr;
+        KisCanvasResourceProvider *resources = view ? view->canvasResourceProvider() : nullptr;
+        if (!resources) return nullptr;
+        auto *row = new QWidget(parent);
+        auto *layout = new QHBoxLayout(row);
+        layout->setContentsMargins(KisModernStyle::space2, 0, 0, 0);
+        layout->setSpacing(KisModernStyle::hairline);
+        layout->addWidget(new QLabel(i18nc("brush setting", "Blend mode"), row));
+        layout->addStretch(1);
+        auto *mode = new KisCompositeOpComboBox(row);
+        mode->setFrame(false);
+        mode->setMaximumWidth(150);
+        if (KisNodeSP node = view->activeNode()) mode->validate(node->colorSpace());
+        mode->selectCompositeOp(KoID(resources->currentCompositeOp()));
+        QPointer<KisViewManager> owner(view);
+        mode->setPreviewPictures([owner, mode, resources]() {
+            if (!owner) return KisBlendModePicker::Pictures();
+            return KisBlendModePicker::brushPictures(owner->image(), KisBlendModePicker::pictureSize(mode), resources->fgColor().toQColor());
+        });
+        QObject::connect(mode, QOverload<int>::of(&QComboBox::currentIndexChanged), mode, [mode, resources]() {
+            resources->setCurrentCompositeOp(mode->selectedCompositeOp().id());
+        });
+        QObject::connect(resources->resourceManager(), &KoCanvasResourceProvider::canvasResourceChanged, mode, [mode](int key, const QVariant &value) {
+            if (key != KoCanvasResource::CurrentCompositeOp) return;
+            QSignalBlocker blocker(mode);
+            mode->selectCompositeOp(KoID(value.toString()));
+        });
+        layout->addWidget(mode);
+        if (QAction *eraser = mainWindow->actionCollection()->action(QStringLiteral("erase_action"))) {
+            auto *button = new QToolButton(row);
+            button->setAutoRaise(true);
+            button->setDefaultAction(eraser);
+            button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+            layout->addWidget(button);
+        }
+        return row;
     }
 };
 
@@ -598,6 +643,9 @@ void KisStudioBrushSheet::rebuild()
         });
         Q_FOREACH (KisPaintOpOption *option, inPart) {
             if (!option->rowValue()) {
+                // shown whole above, or as the blend mode below
+                if (option->quickPageIsWhole() && option->hasQuickPage(category)) continue;
+                if (option->objectName() == QLatin1String("KisCompositeOpOption")) continue;
                 details << option;
                 continue;
             }
@@ -628,6 +676,17 @@ void KisStudioBrushSheet::rebuild()
             });
             columnLayout->addWidget(row);
             partSettings << row;
+        }
+
+        if (part == KisPaintOpOption::GENERAL) {
+            bool blends = false;
+            Q_FOREACH (KisPaintOpOption *option, inPart) {
+                if (option->objectName() == QLatin1String("KisCompositeOpOption")) blends = true;
+            }
+            if (QWidget *blend = blends ? d->blendRow(column) : nullptr) {
+                columnLayout->addSpacing(KisModernStyle::space1);
+                columnLayout->addWidget(blend);
+            }
         }
 
         // the rest of a part, as Krita shows it

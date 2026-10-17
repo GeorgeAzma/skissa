@@ -159,7 +159,7 @@ KisBrushSelectionWidget::KisBrushSelectionWidget(int maxBrushSize,
     setCurrentWidget(m_autoBrushWidget);
 
     // one row of tips (round, square, star, pictures) above the dab, in place of the Auto, Predefined and Text modes
-    uiWdgBrushChooser.verticalLayout->insertWidget(0, new KisBrushTipQuickPage(autoBrushModel, predefinedBrushModel, brushType, this));
+    uiWdgBrushChooser.verticalLayout->insertWidget(0, new KisBrushTipQuickPage(autoBrushModel, predefinedBrushModel, brushType, std::nullopt, this, false));
     Q_FOREACH (QAbstractButton *button, m_buttonGroup->buttons()) {
         button->setVisible(false);
     }

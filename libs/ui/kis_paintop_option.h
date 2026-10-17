@@ -144,6 +144,8 @@ public:
     virtual QWidget *createQuickPage(PaintopCategory category, QWidget *parent);
     /// Whether createQuickPage() makes a page for \p category
     virtual bool hasQuickPage(PaintopCategory category) const;
+    /// Whether its quick page has all its own page has, so the full page needn't be offered beside it
+    virtual bool quickPageIsWhole() const { return false; }
 
 protected:
     virtual OptionalLodLimitationsReader lodLimitationsReader() const;

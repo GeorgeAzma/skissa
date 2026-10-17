@@ -358,7 +358,7 @@ QWidget *KisMaskingBrushOption::createQuickPage(PaintopCategory category, QWidge
 
     // the mask's own tip, shaped as the brush's is
     auto *tip = new KisBrushTipQuickPage(&m_d->maskingModel.autoBrushModel, &m_d->maskingModel.predefinedBrushModel,
-                                         m_d->maskingData[&MaskingBrushData::brush][&BrushData::type], page);
+                                         m_d->maskingData[&MaskingBrushData::brush][&BrushData::type], std::nullopt, page, false);
     layout->addWidget(tip);
     tip->setVisible(m_d->maskingModel.isEnabled());
     connect(&m_d->maskingModel, &MaskingBrushModel::isEnabledChanged, tip, &QWidget::setVisible);
