@@ -147,6 +147,8 @@ struct KisStudioCanvasHud::Private
 {
     KisMainWindow *mainWindow {nullptr};
     bool active {false};
+    /// The view's zoom as shown, 1 at 100%
+    qreal zoomLevel {1.0};
 
     QWidget *progressBox {nullptr};
     QPointer<QWidget> progress;
@@ -296,15 +298,18 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     connect(d->rotation, &QToolButton::clicked, this, [this]() { d->trigger("reset_canvas_rotation"); });
     layout->addWidget(d->rotation);
 
-    // no menu: a click toggles between fit-to-window and the last zoom, the wheel zooms
+    // no menu: a click goes to 100%, and from there to fit the window; the wheel zooms
     d->zoom = new ZoomButton(this);
     d->zoom->setObjectName(QStringLiteral("studio_hud_zoom"));
     d->zoom->setAutoRaise(true);
     d->zoom->setFocusPolicy(Qt::NoFocus);
     d->zoom->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    d->zoom->setToolTip(i18nc("@info:tooltip", "Zoom\nClick: fit ↔ last zoom\nScroll: zoom\nDrag: move"));
+    d->zoom->setToolTip(i18nc("@info:tooltip", "Zoom\nClick: 100% ↔ fit\nScroll: zoom\nDrag: move"));
     d->zoom->installEventFilter(this);
-    connect(d->zoom, &QToolButton::clicked, this, [this]() { d->trigger("toggle_zoom_to_fit"); });
+    connect(d->zoom, &QToolButton::clicked, this, [this]() {
+        // what shows as 100% counts as 100%
+        d->trigger(qRound(d->zoomLevel * 100.0) == 100 ? "zoom_to_fit" : "zoom_to_100pct");
+    });
     layout->addWidget(d->zoom);
 
     // a drag on any of its own buttons moves the pill
@@ -422,6 +427,7 @@ void KisStudioCanvasHud::updateBadges()
 
 void KisStudioCanvasHud::updateZoom(qreal zoom)
 {
+    d->zoomLevel = zoom;
     d->zoom->setText(i18nc("zoom level, %1 is the percentage", "%1%", QString::number(zoom * 100.0, 'f', zoom < 0.1 ? 1 : 0)));
     reposition();
 }
