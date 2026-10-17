@@ -232,3 +232,4 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - A panel shown inside a hidden group (one with no other panel shown) gets no Show event, so its toggle never told the layout: the stack watches ShowToParent and HideToParent and asks for the columns again (`shownChanged`).
 - A widget with a fixed height and no layout has no size hint (-1): the groups' dot strip made every floating group 15 px short. Read `minimumHeight()` for such widgets.
 - The zoom pill watched the canvas area for its resizes and also took the mouse events that reached it: a press a panel group let through started dragging the pill. A widget's drag filter takes events only from its own children.
+- A hidden QDockWidget title bar widget still keeps its room (an empty strip at the panels top): give it no height instead (`PanelGrip::setAlone`).

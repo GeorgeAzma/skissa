@@ -212,6 +212,17 @@ public:
     }
     bool isFolded() const { return m_folded; }
 
+    /// The only panel of its group, whose grip moves and folds it: no bar of its own (but its name when folded).
+    /// Hidden, a dock's title bar would still keep its room.
+    bool isAlone() const { return m_alone; }
+    void setAlone(bool alone)
+    {
+        if (alone == m_alone) return;
+        m_alone = alone;
+        fit();
+        update();
+    }
+
     // its height is fixed (see fit()), and right after it shows again its geometry may not be yet
     QSize sizeHint() const override { return QSize(40, minimumHeight()); }
 
@@ -220,7 +231,7 @@ protected:
     {
         // taller in touch mode, for fingers
         const bool touch = KisTouchMode::isActive();
-        setFixedHeight(m_folded ? (touch ? 32 : 22) : (touch ? 22 : 10));
+        setFixedHeight(m_folded ? (touch ? 32 : 22) : m_alone ? 0 : (touch ? 22 : 10));
         auto *dock = qobject_cast<QDockWidget *>(parentWidget());
         if (m_folded && dock) dock->setMaximumHeight(height());
     }
@@ -296,6 +307,7 @@ private:
     bool m_pressed {false};
     bool m_dragging {false};
     bool m_folded {false};
+    bool m_alone {false};
     QString m_title;
 };
 
@@ -981,7 +993,7 @@ private:
     {
         Measure m;
         QWidget *title = dock->titleBarWidget();
-        // hidden on the only panel of a group, whose grip moves and folds it instead
+        // none on the only panel of a group, whose grip moves and folds it instead (see PanelGrip::setAlone())
         const int titleHeight = title && !title->isHidden() ? qMax(title->height(), title->minimumHeight()) : 0;
         if (dock->widget() && dock->widget()->property("studioFolded").toBool()) {
             m.want = m.minimum = titleHeight;
@@ -4075,12 +4087,9 @@ void KisStudioLayout::updateColumns()
         Q_FOREACH (QDockWidget *dock, docks) {
             PanelGrip *title = d->grips.value(dock->objectName());
             allFolded = allFolded && d->folded.contains(dock->objectName());
-            if (!title) continue;
-            const bool shown = !alone || title->isFolded();
-            if (title->isHidden() == shown) {
-                title->setVisible(shown);
-                for (PanelStack *stack : column->stacks()) stack->later();
-            }
+            if (!title || title->isAlone() == alone) continue;
+            title->setAlone(alone);
+            for (PanelStack *stack : column->stacks()) stack->later();
         }
         if (QWidget *grip = column->findChild<QWidget *>(QStringLiteral("studioGroupGrip"), Qt::FindDirectChildrenOnly)) {
             grip->setToolTip(allFolded ? i18nc("@info:tooltip a group of panels' grip", "Drag: move\nClick: unfold")
