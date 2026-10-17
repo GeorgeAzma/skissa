@@ -31,6 +31,10 @@
 #include <lager/constant.hpp>
 #include <KisWidgetConnectionUtils.h>
 #include <functional>
+#include <cmath>
+#include <QPainter>
+#include <strokes/KisMaskingBrushCompositeOpBase.h>
+#include <KoChannelInfo.h>
 #include "KisAutoBrushModel.h"
 #include "KisPredefinedBrushModel.h"
 #include "KisTextBrushModel.h"
@@ -293,6 +297,44 @@ bool KisMaskingBrushOption::hasQuickPage(PaintopCategory category) const
     return category == MASKING_BRUSH;
 }
 
+namespace
+{
+/// A soft dab with a striped mask cut into it by Krita's own masking blend \p id (none: the dab alone), in \p ink
+QImage maskModePicture(const QString &id, const QSize &size, const QColor &ink)
+{
+    const int w = size.width();
+    const int h = size.height();
+    QVector<quint8> dab(w * h);
+    QVector<quint8> mask(w * h);
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            // a stroke, solid along its middle and fading at its sides and ends
+            const qreal u = (x + 0.5) / w * 2 - 1;
+            const qreal v = (y + 0.5) / h * 2 - 1;
+            const qreal r = std::sqrt(std::pow(u / 0.95, 6) + std::pow(v / 0.8, 2));
+            dab[y * w + x] = quint8(qBound(0.0, 1.0 - std::pow(r, 3), 1.0) * 255);
+            // bristles: soft diagonal stripes
+            const qreal stripe = 0.5 + 0.5 * std::sin((x + 0.6 * y) * 2 * M_PI / (h * 0.35));
+            mask[y * w + x] = quint8(stripe * 255);
+        }
+    }
+    if (!id.isEmpty()) {
+        QScopedPointer<KisMaskingBrushCompositeOpBase> op(
+            KisMaskingBrushCompositeOpFactory::createForAlphaSrc(id, KoChannelInfo::UINT8, 1, 0));
+        if (op) op->composite(mask.constData(), w, dab.data(), w, w, h);
+    }
+    QImage picture(size, QImage::Format_ARGB32_Premultiplied);
+    for (int y = 0; y < h; y++) {
+        QRgb *line = reinterpret_cast<QRgb *>(picture.scanLine(y));
+        for (int x = 0; x < w; x++) {
+            const int a = dab[y * w + x];
+            line[x] = qPremultiply(qRgba(ink.red(), ink.green(), ink.blue(), a));
+        }
+    }
+    return picture;
+}
+}
+
 QWidget *KisMaskingBrushOption::createQuickPage(PaintopCategory category, QWidget *parent)
 {
     if (category != MASKING_BRUSH) return nullptr;
@@ -301,8 +343,9 @@ QWidget *KisMaskingBrushOption::createQuickPage(PaintopCategory category, QWidge
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(KisModernStyle::space2);
 
-    // how the mask cuts into the tip, or no mask; the commonest first
+    // how the mask cuts into the tip, or no mask, each drawn as it does it; the commonest first
     auto *modes = new KisStudioChips(page);
+    modes->setTileColumns(4, 54);
     layout->addWidget(modes);
     const QStringList all = KisMaskingBrushCompositeOpFactory::supportedCompositeOpIds();
     const QStringList common = {COMPOSITE_MULT, COMPOSITE_DARKEN, COMPOSITE_OVERLAY, COMPOSITE_SUBTRACT, COMPOSITE_BURN};
@@ -313,10 +356,19 @@ QWidget *KisMaskingBrushOption::createQuickPage(PaintopCategory category, QWidge
         const QString current = m_d->maskingModel.compositeOpId();
         shown->clear();
         QVector<KisStudioChips::Chip> chips;
+        auto pictureOf = [modes](const QString &id) {
+            return [modes, id](QPainter &painter, const QRectF &box) {
+                const qreal ratio = modes->devicePixelRatioF();
+                QImage image = maskModePicture(id, (box.size() * ratio).toSize(), modes->palette().color(QPalette::WindowText));
+                image.setDevicePixelRatio(ratio);
+                painter.drawImage(box.topLeft(), image);
+            };
+        };
         KisStudioChips::Chip off;
         off.text = i18nc("no mask on the brush", "None");
-        off.toolTip = i18nc("@info:tooltip", "No mask: the tip as it is");
+        off.toolTip = i18nc("@info:tooltip", "The tip as it is");
         off.on = !on;
+        off.picture = pictureOf(QString());
         chips << off;
         Q_FOREACH (const QString &id, all) {
             if (!*showAll && !common.contains(id) && id != current) continue;
@@ -332,12 +384,21 @@ QWidget *KisMaskingBrushOption::createQuickPage(PaintopCategory category, QWidge
                 {COMPOSITE_BURN, i18nc("@info:tooltip mask mode", "The mask darkens the tip, strongly")},
             };
             chip.toolTip = tips.value(id);
+            chip.picture = pictureOf(id);
             chips << chip;
             *shown << id;
         }
         KisStudioChips::Chip more;
-        more.text = *showAll ? i18nc("show fewer choices", "Less") : QStringLiteral("···");
-        more.toolTip = *showAll ? QString() : i18nc("@info:tooltip", "More modes");
+        more.toolTip = *showAll ? i18nc("@info:tooltip show fewer choices", "Fewer") : i18nc("@info:tooltip", "More modes");
+        more.picture = [modes, showAll](QPainter &painter, const QRectF &box) {
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(KisModernStyle::secondaryInk(modes->palette().color(QPalette::WindowText)));
+            if (*showAll) {
+                painter.drawRoundedRect(QRectF(box.center() - QPointF(8, 1), QSizeF(16, 2)), 1, 1);
+                return;
+            }
+            for (int i = -1; i <= 1; i++) painter.drawEllipse(box.center() + QPointF(i * 6, 0), 1.6, 1.6);
+        };
         chips << more;
         modes->setChips(chips);
     };

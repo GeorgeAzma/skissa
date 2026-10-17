@@ -250,8 +250,8 @@ void KisZoomManager::slotUpdateGuiAfterZoomChange()
     if (m_view->viewManager()) {
         m_view->viewManager()->
                 showFloatingZoomMessage(
-                    i18nc("floating message about zoom", "Zoom: %1 %",
-                          KritaUtils::prettyFormatReal(humanZoom)));
+                    i18nc("floating message about zoom", "%1%",
+                          humanZoom >= 10 ? QString::number(qRound(humanZoom)) : KritaUtils::prettyFormatReal(humanZoom)));
     }
 
     updateCurrentZoomResource();

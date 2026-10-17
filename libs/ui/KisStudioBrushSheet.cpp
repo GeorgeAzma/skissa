@@ -24,6 +24,9 @@
 #include <QStylePainter>
 #include <QToolButton>
 #include <QToolTip>
+#include <QHelpEvent>
+#include <ksharedconfig.h>
+#include <kconfiggroup.h>
 #include <QVBoxLayout>
 
 #include <klocalizedstring.h>
@@ -50,6 +53,7 @@
 #include "KisStudioBrushPicker.h"
 #include "KisStudioGlass.h"
 #include "KisStudioPenPopup.h"
+#include "KisStudioTips.h"
 #include "KisViewManager.h"
 #include "kis_canvas_resource_provider.h"
 #include "kis_node.h"
@@ -105,50 +109,62 @@ public:
     {
         setMouseTracking(true);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        m_extraColumns = KSharedConfig::openConfig()->group(QStringLiteral("StudioBrushSheet")).readEntry("PenColumns", QStringList());
     }
 
+    /// A cell to edit: its curve's popup, opened beside \p anchor (the input turned on first if it was off)
     std::function<void(KisPaintOpOption *, const QString &, QWidget *)> onCell;
+    /// A cell to turn off
+    std::function<void(KisPaintOpOption *, const QString &)> onCellOff;
 
+    /// Settings in use the pen can drive: those it does, the main ones and any added; a part that is off drives nothing
     QList<KisPaintOpOption *> rows() const
     {
-        QList<KisPaintOpOption *> rows;
-        // a part that is off (no mask, no texture) drives nothing
         QSet<int> off;
         Q_FOREACH (KisPaintOpOption *option, m_options()) {
             const auto category = option->category();
             if (option->hasQuickPage(category) && option->isCheckable() && !option->isChecked()) off << category;
         }
-        Q_FOREACH (KisPaintOpOption *option, m_options()) {
+        static const QStringList main = {QStringLiteral("Size"), QStringLiteral("Opacity"), QStringLiteral("Flow")};
+        QList<KisPaintOpOption *> rows;
+        Q_FOREACH (KisPaintOpOption *option, candidates()) {
             if (off.contains(option->category())) continue;
-            if (!option->isEnabled() || (option->isCheckable() && !option->isChecked())) continue;
-            Q_FOREACH (const KisPaintOpOption::PenInput &input, option->penInputs()) {
-                if (input.active) {
-                    rows << option;
-                    break;
-                }
-            }
+            if (followsPen(option) || main.contains(option->id()) || m_extraRows.contains(option->id())) rows << option;
         }
         return rows;
     }
 
-    QVector<KisPaintOpOption::PenInput> inputs() const
+    /// The pen inputs shown: the main ones, those any row uses and any added
+    QVector<KisPaintOpOption::PenInput> columns() const
     {
+        QVector<KisPaintOpOption::PenInput> all;
         Q_FOREACH (KisPaintOpOption *option, m_options()) {
-            const QVector<KisPaintOpOption::PenInput> inputs = option->penInputs();
-            if (!inputs.isEmpty()) return inputs;
+            all = option->penInputs();
+            if (!all.isEmpty()) break;
         }
-        return {};
+        QSet<QString> used;
+        Q_FOREACH (KisPaintOpOption *option, rows()) {
+            Q_FOREACH (const KisPaintOpOption::PenInput &input, option->penInputs()) {
+                if (input.active) used << input.id;
+            }
+        }
+        const QStringList main = KisStudioPenPopup::mainInputs();
+        QVector<KisPaintOpOption::PenInput> shown;
+        Q_FOREACH (const KisPaintOpOption::PenInput &input, all) {
+            if (main.contains(input.id) || used.contains(input.id) || m_extraColumns.contains(input.id)) shown << input;
+        }
+        return shown;
     }
 
     void refresh()
     {
-        setFixedHeight(header + rowHeight * qMax(1, rows().size()));
+        setFixedHeight(header + rowHeight * (rows().size() + 1));
         update();
     }
 
     QSize sizeHint() const override
     {
-        return QSize(600, header + rowHeight * qMax(1, rows().size()));
+        return QSize(600, header + rowHeight * (rows().size() + 1));
     }
 
 protected:
@@ -158,39 +174,47 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
         const QColor ink = palette().color(QPalette::WindowText);
         const QColor quiet = KisModernStyle::secondaryInk(ink);
-        const QVector<KisPaintOpOption::PenInput> columns = inputs();
+        const QVector<KisPaintOpOption::PenInput> heads = columns();
         const QList<KisPaintOpOption *> lines = rows();
-        if (columns.isEmpty()) return;
-        const qreal cell = (width() - label) / qreal(columns.size());
+        if (heads.isEmpty()) return;
+        const qreal cell = cellWidth(heads.size());
+        const qreal left = labelWidth();
+
         painter.setFont(KisModernStyle::textFont(font(), 0.85));
-        for (int c = 0; c < columns.size(); c++) {
+        for (int c = 0; c < heads.size(); c++) {
             painter.setPen(quiet);
-            const QRectF head(label + c * cell, 0, cell, header);
-            painter.drawText(head, Qt::AlignCenter | Qt::TextWordWrap, KisStudioPenPopup::inputName(columns[c].id, columns[c].name));
+            const QRectF head(left + c * cell, 0, cell, header);
+            const QString name = KisStudioPenPopup::inputName(heads[c].id, heads[c].name);
+            painter.drawText(head.adjusted(2, 0, -2, 0), Qt::AlignCenter, painter.fontMetrics().elidedText(name, Qt::ElideRight, int(cell) - 4));
         }
+        // more inputs and more settings, each a "+"
+        drawPlus(painter, plusColumnRect(heads.size()), plusColumnRect(heads.size()).contains(m_hover));
         painter.setFont(font());
         for (int r = 0; r < lines.size(); r++) {
             KisPaintOpOption *option = lines[r];
             const qreal y = header + r * rowHeight;
-            painter.setPen(ink);
-            // the mask's and the texture's own settings say whose they are
-            const QString name = option->category() == KisPaintOpOption::GENERAL || option->category() == KisPaintOpOption::COLOR
-                ? option->label()
-                : i18nc("a brush setting of a part, e.g. Mask opacity: %1 the part, %2 the setting", "%1 %2",
-                        KisStudioBrushEditor::partName(option->category()), option->label().toLower());
-            painter.drawText(QRectF(0, y, label - 8, rowHeight), Qt::AlignVCenter | Qt::AlignLeft, name);
+            painter.setPen(followsPen(option) ? ink : quiet);
+            painter.drawText(QRectF(0, y, left - KisModernStyle::space2, rowHeight), Qt::AlignVCenter | Qt::AlignLeft,
+                             painter.fontMetrics().elidedText(rowName(option), Qt::ElideRight, int(left) - KisModernStyle::space2));
             const QVector<KisPaintOpOption::PenInput> inputs = option->penInputs();
-            for (int c = 0; c < columns.size() && c < inputs.size(); c++) {
-                const QRectF box = QRectF(label + c * cell, y, cell, rowHeight).adjusted(1.5, 1.5, -1.5, -1.5);
+            for (int c = 0; c < heads.size(); c++) {
+                const KisPaintOpOption::PenInput input = inputOf(inputs, heads[c].id);
+                const QRectF box = cellRect(r, c, heads.size());
+                const bool hovered = box.contains(m_hover);
                 QColor ground = ink;
-                ground.setAlphaF(inputs[c].active ? 0.09 : QRectF(box).contains(m_hover) ? 0.06 : 0.025);
-                painter.fillPath(KisModernStyle::squircle(box, 5), ground);
-                if (!inputs[c].active) continue;
-                const KisCubicCurve curve(inputs[c].curve.isEmpty() ? QStringLiteral("0,0;1,1;") : inputs[c].curve);
-                const QRectF glyph = box.adjusted(box.width() / 2 - 13, 6, -(box.width() / 2 - 13), -6);
+                ground.setAlphaF(input.active ? (hovered ? 0.13 : 0.10) : hovered ? 0.07 : 0.03);
+                painter.fillPath(KisModernStyle::squircle(box, KisModernStyle::cornerRadius), ground);
+                if (!input.active) {
+                    if (hovered) drawPlus(painter, box, false);
+                    continue;
+                }
+                // the curve, as the input drives the setting
+                const KisCubicCurve curve(input.curve.isEmpty() ? QStringLiteral("0,0;1,1;") : input.curve);
+                const qreal side = qMin(box.height() - 8, 26.0);
+                const QRectF glyph(box.center().x() - side * 0.7, box.center().y() - side / 2, side * 1.4, side);
                 QPainterPath path;
-                for (int i = 0; i <= 12; i++) {
-                    const qreal x = i / 12.0;
+                for (int i = 0; i <= 16; i++) {
+                    const qreal x = i / 16.0;
                     const QPointF point(glyph.left() + x * glyph.width(), glyph.bottom() - qBound(0.0, curve.value(x), 1.0) * glyph.height());
                     if (i) path.lineTo(point);
                     else path.moveTo(point);
@@ -200,11 +224,8 @@ protected:
                 painter.drawPath(path);
             }
         }
-        if (lines.isEmpty()) {
-            painter.setPen(quiet);
-            painter.drawText(QRectF(0, header, width(), rowHeight), Qt::AlignVCenter | Qt::AlignLeft,
-                             i18nc("the pen grid when no setting follows the pen", "Nothing follows the pen"));
-        }
+        const QRectF addRow = plusRowRect(lines.size());
+        drawPlus(painter, QRectF(addRow.left(), addRow.top(), rowHeight, rowHeight), addRow.contains(m_hover));
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
@@ -226,26 +247,196 @@ protected:
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
-        if (event->button() != Qt::LeftButton) return;
-        const QVector<KisPaintOpOption::PenInput> columns = inputs();
+        const QVector<KisPaintOpOption::PenInput> heads = columns();
         const QList<KisPaintOpOption *> lines = rows();
-        if (columns.isEmpty() || event->pos().x() < label || event->pos().y() < header) return;
-        const int c = int((event->pos().x() - label) / ((width() - label) / qreal(columns.size())));
-        const int r = (event->pos().y() - header) / rowHeight;
-        if (r < 0 || r >= lines.size() || c < 0 || c >= columns.size()) return;
-        // the cell itself is what its popup opens beside
-        const qreal cell = (width() - label) / qreal(columns.size());
-        auto *anchor = new QWidget(this);
-        anchor->setGeometry(QRectF(label + c * cell, header + r * rowHeight, cell, rowHeight).toRect());
-        if (onCell) onCell(lines[r], columns[c].id, anchor);
-        anchor->deleteLater();
+        if (heads.isEmpty()) return;
+        if (event->button() == Qt::LeftButton && plusColumnRect(heads.size()).contains(event->pos())) {
+            addColumn(event->globalPos());
+            return;
+        }
+        if (event->button() == Qt::LeftButton && plusRowRect(lines.size()).contains(event->pos())) {
+            addRow(event->globalPos());
+            return;
+        }
+        for (int r = 0; r < lines.size(); r++) {
+            for (int c = 0; c < heads.size(); c++) {
+                if (!cellRect(r, c, heads.size()).contains(event->pos())) continue;
+                const KisPaintOpOption::PenInput input = inputOf(lines[r]->penInputs(), heads[c].id);
+                if (event->button() == Qt::RightButton) {
+                    if (input.active && onCellOff) onCellOff(lines[r], heads[c].id);
+                } else if (event->button() == Qt::LeftButton && onCell) {
+                    // the cell itself is what its popup opens beside, and a press on it closes the popup
+                    auto *anchor = new QWidget(this);
+                    anchor->setGeometry(cellRect(r, c, heads.size()).toRect());
+                    anchor->show();
+                    onCell(lines[r], heads[c].id, anchor);
+                }
+                update();
+                return;
+            }
+        }
+    }
+
+    bool event(QEvent *event) override
+    {
+        if (event->type() == QEvent::ToolTip) {
+            auto *help = static_cast<QHelpEvent *>(event);
+            const QString tip = toolTipAt(help->pos());
+            if (tip.isEmpty()) QToolTip::hideText();
+            else QToolTip::showText(help->globalPos(), KisStudioTips::html(tip), this);
+            return true;
+        }
+        return QWidget::event(event);
     }
 
 private:
-    static constexpr int label = 130;
-    static constexpr int header = 30;
+    static constexpr int header = 24;
     static constexpr int rowHeight = 30;
+
+    QList<KisPaintOpOption *> candidates() const
+    {
+        QList<KisPaintOpOption *> all;
+        Q_FOREACH (KisPaintOpOption *option, m_options()) {
+            if (option->penInputs().isEmpty() || !option->isEnabled()) continue;
+            // an effect that is off has nothing to drive; a setting whose switch is only the pen's still does
+            const std::optional<KisPaintOpOption::RowValue> value = option->rowValue();
+            if (option->isCheckable() && !option->isChecked() && !(value && value->appliesUnchecked)) continue;
+            all << option;
+        }
+        return all;
+    }
+
+    static bool followsPen(KisPaintOpOption *option)
+    {
+        if (option->isCheckable() && !option->isChecked()) return false;
+        Q_FOREACH (const KisPaintOpOption::PenInput &input, option->penInputs()) {
+            if (input.active) return true;
+        }
+        return false;
+    }
+
+    static KisPaintOpOption::PenInput inputOf(const QVector<KisPaintOpOption::PenInput> &inputs, const QString &id)
+    {
+        Q_FOREACH (const KisPaintOpOption::PenInput &input, inputs) {
+            if (input.id == id) return input;
+        }
+        return {};
+    }
+
+    static QString rowName(KisPaintOpOption *option)
+    {
+        // the mask's and the texture's own settings say whose they are
+        if (option->category() == KisPaintOpOption::GENERAL || option->category() == KisPaintOpOption::COLOR) return option->label();
+        return i18nc("a brush setting of a part, e.g. Mask opacity: %1 the part, %2 the setting", "%1 %2",
+                     KisStudioBrushEditor::partName(option->category()), option->label().toLower());
+    }
+
+    qreal labelWidth() const
+    {
+        int widest = 0;
+        Q_FOREACH (KisPaintOpOption *option, candidates()) widest = qMax(widest, fontMetrics().horizontalAdvance(rowName(option)));
+        return qBound(90, widest + KisModernStyle::space3, 170);
+    }
+
+    qreal cellWidth(int count) const
+    {
+        return qMin(84.0, (width() - labelWidth() - rowHeight) / qreal(qMax(1, count)));
+    }
+
+    QRectF cellRect(int row, int column, int count) const
+    {
+        const qreal cell = cellWidth(count);
+        return QRectF(labelWidth() + column * cell, header + row * rowHeight, cell, rowHeight).adjusted(1.5, 1.5, -1.5, -1.5);
+    }
+
+    QRectF plusColumnRect(int count) const
+    {
+        return QRectF(labelWidth() + count * cellWidth(count), 0, rowHeight, header);
+    }
+
+    QRectF plusRowRect(int count) const
+    {
+        return QRectF(0, header + count * rowHeight, labelWidth(), rowHeight);
+    }
+
+    void drawPlus(QPainter &painter, const QRectF &box, bool hovered) const
+    {
+        QColor color = KisModernStyle::secondaryInk(palette().color(QPalette::WindowText));
+        if (hovered) color = palette().color(QPalette::WindowText);
+        painter.setPen(QPen(color, 1.4, Qt::SolidLine, Qt::RoundCap));
+        const QPointF c = box.center();
+        painter.drawLine(c - QPointF(4.5, 0), c + QPointF(4.5, 0));
+        painter.drawLine(c - QPointF(0, 4.5), c + QPointF(0, 4.5));
+    }
+
+    QString toolTipAt(const QPoint &pos) const
+    {
+        const QVector<KisPaintOpOption::PenInput> heads = columns();
+        const QList<KisPaintOpOption *> lines = rows();
+        if (plusColumnRect(heads.size()).contains(pos)) return i18nc("@info:tooltip", "More pen inputs");
+        if (plusRowRect(lines.size()).contains(pos)) return i18nc("@info:tooltip", "More settings");
+        for (int c = 0; c < heads.size(); c++) {
+            if (QRectF(labelWidth() + c * cellWidth(heads.size()), 0, cellWidth(heads.size()), header).contains(pos)) {
+                return KisStudioPenPopup::inputTip(heads[c].id);
+            }
+        }
+        for (int r = 0; r < lines.size(); r++) {
+            for (int c = 0; c < heads.size(); c++) {
+                if (!cellRect(r, c, heads.size()).contains(pos)) continue;
+                const QString what = i18nc("@info:tooltip a pen input drives a brush setting: %1 the input, %2 the setting", "%1 → %2",
+                                           KisStudioPenPopup::inputName(heads[c].id, heads[c].name), rowName(lines[r]));
+                if (!inputOf(lines[r]->penInputs(), heads[c].id).active) {
+                    return KisStudioTips::tip(what, {i18nc("@info:tooltip a gesture", "Click: on")});
+                }
+                return KisStudioTips::tip(what, {i18nc("@info:tooltip a gesture", "Click: curve"), i18nc("@info:tooltip a gesture", "Right-click: off")});
+            }
+        }
+        return QString();
+    }
+
+    void addColumn(const QPoint &at)
+    {
+        QVector<KisPaintOpOption::PenInput> all;
+        Q_FOREACH (KisPaintOpOption *option, m_options()) {
+            all = option->penInputs();
+            if (!all.isEmpty()) break;
+        }
+        QStringList shown;
+        Q_FOREACH (const KisPaintOpOption::PenInput &input, columns()) shown << input.id;
+        QMenu menu;
+        Q_FOREACH (const KisPaintOpOption::PenInput &input, all) {
+            if (shown.contains(input.id)) continue;
+            QAction *action = menu.addAction(KisStudioPenPopup::inputName(input.id, input.name));
+            action->setData(input.id);
+            action->setToolTip(KisStudioPenPopup::inputTip(input.id));
+        }
+        if (menu.isEmpty()) return;
+        if (QAction *picked = menu.exec(at)) {
+            m_extraColumns << picked->data().toString();
+            KSharedConfig::openConfig()->group(QStringLiteral("StudioBrushSheet")).writeEntry("PenColumns", m_extraColumns);
+            refresh();
+        }
+    }
+
+    void addRow(const QPoint &at)
+    {
+        const QList<KisPaintOpOption *> shown = rows();
+        QMenu menu;
+        Q_FOREACH (KisPaintOpOption *option, candidates()) {
+            if (shown.contains(option)) continue;
+            menu.addAction(rowName(option))->setData(option->id());
+        }
+        if (menu.isEmpty()) return;
+        if (QAction *picked = menu.exec(at)) {
+            m_extraRows << picked->data().toString();
+            refresh();
+            if (QWidget *sheet = window()) sheet->adjustSize();
+        }
+    }
+
     std::function<QList<KisPaintOpOption *>()> m_options;
+    QStringList m_extraColumns;
+    QStringList m_extraRows;
     QPointF m_hover {-1, -1};
 };
 
@@ -278,6 +469,23 @@ private:
     QPointer<KisPaintOpSettingsWidget> m_settings;
     QPointer<KisPaintOpOption> m_option;
     QPointer<QWidget> m_page;
+};
+
+/// The ground the brush's stroke is shown on, a tile as the rows are
+class StrokeTile : public QWidget
+{
+public:
+    using QWidget::QWidget;
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QColor ground = palette().color(QPalette::WindowText);
+        ground.setAlphaF(0.05);
+        painter.fillPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), KisModernStyle::tileRadius), ground);
+    }
 };
 
 /// A part's column, asking to be as tall as its contents are at its width: chips that wrap take more rows
@@ -351,8 +559,29 @@ struct KisStudioBrushSheet::Private
         auto *layout = new QHBoxLayout(row);
         layout->setContentsMargins(KisModernStyle::space2, 0, 0, 0);
         layout->setSpacing(KisModernStyle::hairline);
-        layout->addWidget(new QLabel(i18nc("brush setting", "Blend mode"), row));
-        layout->addStretch(1);
+        row->setToolTip(i18nc("brush setting", "Blend mode"));
+        // the mode at a glance: a stroke of the color in it, over the image
+        auto *glance = new QLabel(row);
+        const qreal ratio = row->devicePixelRatioF();
+        const QSize glanceSize(36, 22);
+        glance->setFixedSize(glanceSize);
+        const KisBlendModePicker::Pictures pictures =
+            KisBlendModePicker::brushPictures(view->image(), glanceSize * ratio, resources->fgColor().toQColor());
+        auto showGlance = [glance, pictures, ratio, glanceSize](const QString &id) {
+            QImage picture = KisBlendModePicker::modePicture(pictures, id);
+            if (picture.isNull()) return glance->clear();
+            QPixmap rounded(glanceSize * ratio);
+            rounded.fill(Qt::transparent);
+            QPainter painter(&rounded);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            painter.setClipPath(KisModernStyle::squircle(QRectF(QPointF(0, 0), QSizeF(glanceSize) * ratio), KisModernStyle::cornerRadius * ratio));
+            painter.drawImage(0, 0, picture);
+            painter.end();
+            rounded.setDevicePixelRatio(ratio);
+            glance->setPixmap(rounded);
+        };
+        showGlance(resources->currentCompositeOp());
+        layout->addWidget(glance);
         auto *mode = new KisCompositeOpComboBox(row);
         mode->setFrame(false);
         mode->setMaximumWidth(150);
@@ -366,12 +595,14 @@ struct KisStudioBrushSheet::Private
         QObject::connect(mode, QOverload<int>::of(&QComboBox::currentIndexChanged), mode, [mode, resources]() {
             resources->setCurrentCompositeOp(mode->selectedCompositeOp().id());
         });
-        QObject::connect(resources->resourceManager(), &KoCanvasResourceProvider::canvasResourceChanged, mode, [mode](int key, const QVariant &value) {
+        QObject::connect(resources->resourceManager(), &KoCanvasResourceProvider::canvasResourceChanged, mode, [mode, showGlance](int key, const QVariant &value) {
             if (key != KoCanvasResource::CurrentCompositeOp) return;
             QSignalBlocker blocker(mode);
             mode->selectCompositeOp(KoID(value.toString()));
+            showGlance(value.toString());
         });
         layout->addWidget(mode);
+        layout->addStretch(1);
         if (QAction *eraser = mainWindow->actionCollection()->action(QStringLiteral("erase_action"))) {
             auto *button = new QToolButton(row);
             button->setAutoRaise(true);
@@ -442,11 +673,15 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
     }
     d->engine->setMenu(engines);
     header->addLayout(title);
-    d->preview = new KisPresetLivePreviewView(this);
-    d->preview->setFixedSize(460, 64);
+    auto *strokeTile = new StrokeTile(this);
+    auto *strokeLayout = new QHBoxLayout(strokeTile);
+    strokeLayout->setContentsMargins(KisModernStyle::space2, KisModernStyle::space1, KisModernStyle::space2, KisModernStyle::space1);
+    d->preview = new KisPresetLivePreviewView(strokeTile);
+    strokeLayout->addWidget(d->preview);
+    d->preview->setFixedSize(444, 60);
     d->preview->setFrameShape(QFrame::NoFrame);
     {
-        // the stroke right on the glass, with no box behind it: the preview paints over its window color
+        // the stroke on its tile: the preview paints over its window color
         QPalette clear;
         clear.setColor(QPalette::Window, Qt::transparent);
         clear.setColor(QPalette::Base, Qt::transparent);
@@ -457,7 +692,7 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
     if (mainWindow->viewManager() && mainWindow->viewManager()->canvasResourceProvider()) {
         d->preview->setup(mainWindow->viewManager()->canvasResourceProvider()->resourceManager());
     }
-    header->addWidget(d->preview);
+    header->addWidget(strokeTile);
     header->addStretch(1);
 
     auto iconButton = [this](const QString &icon, const QString &toolTip) {
@@ -529,7 +764,14 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
         if (!wasOn) option->setPenInputActive(input, true);
         auto *pen = new KisStudioPenPopup(option, this, input);
         d->pen = pen;
+        connect(pen, &QObject::destroyed, anchor, &QObject::deleteLater);
         pen->popupBeside(anchor, Qt::TopEdge);
+        d->refreshGrid.start();
+    };
+    d->grid->onCellOff = [this](KisPaintOpOption *option, const QString &input) {
+        if (d->pen && d->pen->option() == option) d->pen->close();
+        option->setPenInputActive(input, false);
+        d->refreshGrid.start();
     };
     layout->addWidget(d->grid);
 

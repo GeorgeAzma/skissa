@@ -43,6 +43,8 @@ public:
     void setTileSize(int side);
     /// Tiles of this height, \p columns to a row sharing its width
     void setTileColumns(int columns, int height);
+    /// Each chip a row as wide as the widget, with a switch showing whether it is on: switches among value rows
+    void setSwitches(bool switches);
     /// The chip outlined as the one being edited; -1: none
     void setCurrent(int index);
 
@@ -68,6 +70,7 @@ private:
     int chipHeight() const;
 
     QVector<Chip> m_chips;
+    bool m_switches {false};
     bool m_tabs {false};
     int m_tile {0};
     int m_columns {0};

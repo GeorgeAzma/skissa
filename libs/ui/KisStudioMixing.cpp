@@ -79,8 +79,8 @@ QWidget *KisStudioMixing::chooser(KisMainWindow *mainWindow, QWidget *parent)
         const KisPaintOpPresetSP preset = resources->currentPreset();
         const int mode = preset ? preset->settings()->getInt(KoMixing::settingName(), KoMixing::Normal) : KoMixing::Normal;
         KisStudioChips::Chip normal;
-        normal.text = i18nc("how paint mixes", "Normal");
-        normal.toolTip = i18nc("@info:tooltip", "As Krita mixes");
+        normal.text = i18nc("how paint mixes: in the image's own red, green and blue, as Krita does", "RGB");
+        normal.toolTip = i18nc("@info:tooltip", "As Krita mixes, in the image's own values");
         KisStudioChips::Chip even;
         even.text = i18nc("how paint mixes: in the OKLab color space", "OKLab");
         even.toolTip = i18nc("@info:tooltip", "Even steps from color to color");

@@ -1940,6 +1940,7 @@ void KisBrushTipQuickPage::updateRest()
         add(i18nc("brush tip switch", "Auto neutral point"), i18nc("@info:tooltip", "The tip's own middle lightness"), d->predefinedModel->autoAdjustMidPoint(),
             [this]() { d->predefinedModel->setautoAdjustMidPoint(!d->predefinedModel->autoAdjustMidPoint()); });
     }
+    d->switches->setSwitches(true);
     d->switches->setChips(switches);
     d->switches->setVisible(!switches.isEmpty());
 

@@ -49,6 +49,8 @@ public:
     static Pictures layerPictures(KisNodeSP node, const QSize &size, const QColor &color);
     /// A brush stroke in \p color over the image
     static Pictures brushPictures(KisImageSP image, const QSize &size, const QColor &color);
+    /// \p pictures' source over their backdrop in mode \p id
+    static QImage modePicture(const Pictures &pictures, const QString &id);
 
     /// Order used when scrolling through modes: the user's modes, then the rest as the picker lists them
     static QStringList scrollOrder();

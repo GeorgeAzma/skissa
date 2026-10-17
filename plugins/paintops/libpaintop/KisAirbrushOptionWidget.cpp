@@ -64,6 +64,20 @@ KisAirbrushOptionWidget::KisAirbrushOptionWidget(lager::cursor<KisAirbrushOption
     connectControl(page->checkBoxIgnoreSpacing, &m_d->model, "ignoreSpacing");
 
     m_d->model.airbrushOptionData.bind(std::bind(&KisAirbrushOptionWidget::emitSettingChanged, this));
+
+    // its rate as the row, so it sits among the other settings (dabs a second, by ratios as Krita's slider)
+    setRowValueSource(
+        [this]() -> std::optional<KisPaintOpOption::RowValue> {
+            KisPaintOpOption::RowValue value;
+            value.value = m_d->model.airbrushRate();
+            value.minimum = MINIMUM_RATE;
+            value.maximum = MAXIMUM_RATE;
+            value.suffix = i18nc("airbrush rate: dabs a second, after the number", "/s");
+            value.size = true;
+            return value;
+        },
+        [this](qreal value) { m_d->model.setairbrushRate(qBound(MINIMUM_RATE, value, MAXIMUM_RATE)); });
+    connect(&m_d->model, &KisAirbrushOptionModel::airbrushRateChanged, this, &KisPaintOpOption::notifyRowValueChanged);
 }
 
 KisAirbrushOptionWidget::~KisAirbrushOptionWidget()

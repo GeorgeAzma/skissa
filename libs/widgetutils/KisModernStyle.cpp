@@ -734,8 +734,26 @@ QIcon KisModernStyle::standardIcon(StandardPixmap standardIcon, const QStyleOpti
     return icon;
 }
 
+namespace
+{
+/// An icon button whose whole press opens its menu (⋯) needs no arrow saying it has one
+bool menuArrowLeftOut(const QStyleOptionToolButton *tool)
+{
+    return tool && tool->toolButtonStyle == Qt::ToolButtonIconOnly && tool->features.testFlag(QStyleOptionToolButton::HasMenu)
+        && !tool->features.testFlag(QStyleOptionToolButton::MenuButtonPopup);
+}
+}
+
 QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &contentsSize, const QWidget *widget) const
 {
+    if (type == CT_ToolButton) {
+        const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option);
+        if (menuArrowLeftOut(tool)) {
+            QStyleOptionToolButton plain = *tool;
+            plain.features &= ~QStyleOptionToolButton::HasMenu;
+            return sizeFromContents(type, &plain, contentsSize, widget);
+        }
+    }
     QSize size = QProxyStyle::sizeFromContents(type, option, contentsSize, widget);
 
     // In touch mode, make everything pressable a bit bigger.
@@ -1401,6 +1419,12 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
                 proxy()->drawControl(CE_ToolButtonLabel, &label, painter, widget);
             }
             painter->restore();
+            return;
+        }
+        if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option); menuArrowLeftOut(tool)) {
+            QStyleOptionToolButton plain = *tool;
+            plain.features &= ~QStyleOptionToolButton::HasMenu;
+            QProxyStyle::drawComplexControl(control, &plain, painter, widget);
             return;
         }
         break;

@@ -555,7 +555,7 @@
       <icon>draw-eraser</icon>
       <text>Set eraser mode</text>
       <whatsThis/>
-      <toolTip>Eraser: this brush erases</toolTip>
+      <toolTip>Eraser</toolTip>
       <iconText>Set eraser mode</iconText>
       <activationFlags>0</activationFlags>
       <activationConditions>0</activationConditions>
@@ -614,7 +614,7 @@
       <icon>transparency-unlocked</icon>
       <text>Preserve Alpha</text>
       <whatsThis/>
-      <toolTip>Alpha lock: paint only over existing paint</toolTip>
+      <toolTip>Alpha lock: only over paint</toolTip>
       <iconText>Preserve Alpha</iconText>
       <activationFlags>0</activationFlags>
       <shortcut/>
@@ -2707,7 +2707,7 @@
       <icon>studio_shapes</icon>
       <text>Hold for &amp;Shapes</text>
       <whatsThis/>
-      <toolTip>Hold still at the end: wobbly line → clean line, circle, box</toolTip>
+      <toolTip>Hold at the end → clean line, circle, box</toolTip>
       <iconText>Shapes</iconText>
       <activationFlags>0</activationFlags>
       <activationConditions>0</activationConditions>

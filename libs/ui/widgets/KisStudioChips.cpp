@@ -45,6 +45,13 @@ void KisStudioChips::setTabs(bool tabs)
     update();
 }
 
+void KisStudioChips::setSwitches(bool switches)
+{
+    m_switches = switches;
+    updateGeometry();
+    update();
+}
+
 void KisStudioChips::setTileSize(int side)
 {
     m_tile = side;
@@ -77,6 +84,12 @@ QVector<QRectF> KisStudioChips::layoutFor(int width) const
 {
     QVector<QRectF> rects;
     const int height = chipHeight();
+    if (m_switches) {
+        for (int i = 0; i < m_chips.size(); i++) {
+            rects << QRectF(0, i * (height + KisModernStyle::hairline), width, height);
+        }
+        return rects;
+    }
     if (m_tabs && !m_chips.isEmpty()) {
         const qreal each = (width - gap * (m_chips.size() - 1)) / qreal(m_chips.size());
         for (int i = 0; i < m_chips.size(); i++) {
@@ -144,6 +157,22 @@ void KisStudioChips::paintEvent(QPaintEvent *)
         const QRectF box = rects[i].adjusted(0.5, 0.5, -0.5, -0.5);
         const QPainterPath shape = KisModernStyle::squircle(box, KisModernStyle::tileRadius);
         QColor ground = ink;
+        if (m_switches) {
+            // as a value row: the name, and the switch at the end
+            ground.setAlphaF(i == m_hovered ? 0.075 : 0.05);
+            painter.fillPath(shape, ground);
+            painter.setPen(ink);
+            painter.drawText(box.adjusted(KisModernStyle::space2, 0, -KisModernStyle::space2, 0), Qt::AlignLeft | Qt::AlignVCenter, chip.text);
+            const QRectF track(box.right() - KisModernStyle::space2 - 26, box.center().y() - 7, 26, 14);
+            QColor fill = ink;
+            fill.setAlphaF(chip.on ? 0.85 : 0.16);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(fill);
+            painter.drawRoundedRect(track, 7, 7);
+            painter.setBrush(chip.on ? palette().color(QPalette::Window) : ink);
+            painter.drawEllipse(QPointF(chip.on ? track.right() - 7 : track.left() + 7, track.center().y()), 5, 5);
+            continue;
+        }
         ground.setAlphaF(chip.on ? 0.14 : i == m_hovered ? 0.08 : 0.05);
         painter.fillPath(shape, ground);
         if (i == m_current) {

@@ -278,7 +278,7 @@ void KisCanvasController::Private::showRotationValueOnCanvas()
     }
     view->viewManager()->
         showFloatingRotationMessage(
-            i18nc("floating message about rotation", "Rotation: %1° ",
+            i18nc("floating message about rotation", "%1°",
                   KritaUtils::prettyFormatReal(rotationAngle)));
 }
 

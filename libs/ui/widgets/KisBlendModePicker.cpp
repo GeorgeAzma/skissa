@@ -347,6 +347,12 @@ QStringList KisBlendModePicker::scrollOrder()
     return KisStudioPicker::scrollOrder(source());
 }
 
+QImage KisBlendModePicker::modePicture(const Pictures &pictures, const QString &id)
+{
+    if (!pictures.isValid()) return QImage();
+    return compositeWith(pictures.backdrop, pictures.source, pictures.sourceOpacity, id);
+}
+
 QSize KisBlendModePicker::pictureSize(const QWidget *widget)
 {
     // A default tile's picture size, see KisStudioPicker
