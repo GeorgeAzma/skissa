@@ -6,6 +6,7 @@
 #include "KisColorSourceOptionWidget.h"
 
 #include <QGroupBox>
+#include <memory>
 #include <QHash>
 #include <QLinearGradient>
 #include <QPainter>
@@ -174,10 +175,16 @@ QWidget *KisColorSourceOptionWidget::createQuickPage(PaintopCategory category, Q
     sources->setTileColumns(3, 54);
     KisColorSourceOptionModel *model = &m_d->model;
     const QPointer<KisColorSourceOptionWidget> self(this);
-    auto refresh = [sources, model, self]() {
+    auto shown = std::make_shared<QVector<KisColorSourceOptionData::Type>>();
+    auto refresh = [sources, model, self, shown]() {
         QVector<KisStudioChips::Chip> chips;
+        shown->clear();
         Q_FOREACH (const KoID &id, KisColorSourceOptionData::colorSourceTypeIds()) {
             const KisColorSourceOptionData::Type type = KisColorSourceOptionData::id2Type(id);
+            // random hues from the whole wheel: only kept for the brushes that have them
+            const bool random = type == KisColorSourceOptionData::UNIFORM_RANDOM || type == KisColorSourceOptionData::TOTAL_RANDOM;
+            if (random && type != model->type()) continue;
+            *shown << type;
             KisStudioChips::Chip chip;
             chip.text = id.name();
             chip.on = type == model->type();
@@ -203,11 +210,12 @@ QWidget *KisColorSourceOptionWidget::createQuickPage(PaintopCategory category, Q
             };
             chips << chip;
         }
+        // four as two pairs, rather than three and one left over
+        sources->setTileColumns(chips.size() == 4 ? 2 : 3, 54);
         sources->setChips(chips);
     };
-    connect(sources, &KisStudioChips::clicked, sources, [model, refresh](int index) {
-        const QVector<KoID> ids = KisColorSourceOptionData::colorSourceTypeIds();
-        if (index >= 0 && index < ids.size()) model->settype(KisColorSourceOptionData::id2Type(ids[index]));
+    connect(sources, &KisStudioChips::clicked, sources, [model, refresh, shown](int index) {
+        if (index >= 0 && index < shown->size()) model->settype(shown->at(index));
         refresh();
     });
     connect(model, &KisColorSourceOptionModel::typeChanged, sources, refresh);
