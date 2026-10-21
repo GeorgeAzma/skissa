@@ -127,29 +127,68 @@ inline void linearToOklab(const float rgb[3], float lab[3])
 
 inline void oklabToLinear(const float lab[3], float rgb[3])
 {
-    const float l = std::pow(lab[0] + 0.3963377774f * lab[1] + 0.2158037573f * lab[2], 3.0f);
-    const float m = std::pow(lab[0] - 0.1055613458f * lab[1] - 0.0638541728f * lab[2], 3.0f);
-    const float s = std::pow(lab[0] - 0.0894841775f * lab[1] - 1.2914855480f * lab[2], 3.0f);
+    const float l1 = lab[0] + 0.3963377774f * lab[1] + 0.2158037573f * lab[2];
+    const float m1 = lab[0] - 0.1055613458f * lab[1] - 0.0638541728f * lab[2];
+    const float s1 = lab[0] - 0.0894841775f * lab[1] - 1.2914855480f * lab[2];
+    const float l = l1 * l1 * l1, m = m1 * m1 * m1, s = s1 * s1 * s1;
     rgb[0] = 4.0767416621f * l - 3.3077115913f * m + 0.2309699292f * s;
     rgb[1] = -1.2684380046f * l + 2.6097574011f * m - 0.3413193965f * s;
     rgb[2] = -0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s;
+}
+
+/// \p t of \p b (in OKLab) into \p a (linear sRGB)
+inline void mixEven(const float a[3], const float bLab[3], float t, float out[3])
+{
+    float lab[3];
+    linearToOklab(a, lab);
+    for (int c = 0; c < 3; c++) lab[c] += (bLab[c] - lab[c]) * t;
+    oklabToLinear(lab, out);
+}
+
+/// The wavelengths padded to a multiple of four, with no light in the padding, so the loops over them vectorize
+constexpr int spectralLanes = 40;
+
+/// The tables above in floats, padded
+struct SpectralTables {
+    alignas(16) float basis[7][spectralLanes];
+    alignas(16) float observer[3][spectralLanes];
+};
+
+inline const SpectralTables &spectralTables()
+{
+    static const SpectralTables tables = []() {
+        SpectralTables t {};
+        for (int i = 0; i < spectralSize; i++) {
+            for (int k = 0; k < 7; k++) t.basis[k][i] = float(spectralBasis[k][i]);
+            for (int c = 0; c < 3; c++) t.observer[c][i] = float(spectralObserver[i][c]);
+        }
+        return t;
+    }();
+    return tables;
 }
 
 /// A color as pigment: its absorption over scattering per wavelength, how much light it gives back, and the color
 /// its spectrum makes again (a little off the color itself: the mix is corrected by it, so a color mixed with
 /// itself stays exactly itself)
 struct Paint {
-    double ks[spectralSize];
-    double luminance {0};
+    alignas(16) float ks[spectralLanes];
+    float luminance {0};
     float again[3] {0, 0, 0};
 };
 
-inline void colorOfReflectance(const double reflectance[spectralSize], float rgb[3])
+inline void colorOfReflectance(const float reflectance[spectralLanes], float rgb[3])
 {
-    double xyz[3] = {0, 0, 0};
-    for (int i = 0; i < spectralSize; i++) {
-        for (int c = 0; c < 3; c++) xyz[c] += reflectance[i] * spectralObserver[i][c];
+    const SpectralTables &tables = spectralTables();
+    // four sums each, so the loop vectorizes without reordering a sum
+    float x[4] = {0, 0, 0, 0}, y[4] = {0, 0, 0, 0}, z[4] = {0, 0, 0, 0};
+    for (int i = 0; i < spectralLanes; i += 4) {
+        for (int j = 0; j < 4; j++) {
+            x[j] += reflectance[i + j] * tables.observer[0][i + j];
+            y[j] += reflectance[i + j] * tables.observer[1][i + j];
+            z[j] += reflectance[i + j] * tables.observer[2][i + j];
+        }
     }
+    const double xyz[3] = {double(x[0] + x[1] + x[2] + x[3]), double(y[0] + y[1] + y[2] + y[3]), double(z[0] + z[1] + z[2] + z[3])};
     for (int c = 0; c < 3; c++) {
         rgb[c] = float(spectralXyzToRgb[c][0] * xyz[0] + spectralXyzToRgb[c][1] * xyz[1] + spectralXyzToRgb[c][2] * xyz[2]);
     }
@@ -160,38 +199,49 @@ inline void paintOf(const float color[3], Paint &paint)
     // pigment has no light beyond white
     float rgb[3];
     for (int c = 0; c < 3; c++) rgb[c] = std::clamp(color[c], 0.0f, 1.0f);
-    const double w = std::min({rgb[0], rgb[1], rgb[2]});
-    const double r0 = rgb[0] - w, g0 = rgb[1] - w, b0 = rgb[2] - w;
-    const double cyan = std::min(g0, b0), magenta = std::min(r0, b0), yellow = std::min(r0, g0);
-    const double red = std::min(std::max(0.0, r0 - b0), std::max(0.0, r0 - g0));
-    const double green = std::min(std::max(0.0, g0 - b0), std::max(0.0, g0 - r0));
-    const double blue = std::min(std::max(0.0, b0 - g0), std::max(0.0, b0 - r0));
-    const double weights[7] = {w, cyan, magenta, yellow, red, green, blue};
-    double reflectance[spectralSize];
-    paint.luminance = 0;
-    for (int i = 0; i < spectralSize; i++) {
-        double value = 0;
-        for (int k = 0; k < 7; k++) value += weights[k] * spectralBasis[k][i];
-        reflectance[i] = std::max(1e-16, value);
-        paint.luminance += reflectance[i] * spectralObserver[i][1];
-        paint.ks[i] = (1.0 - reflectance[i]) * (1.0 - reflectance[i]) / (2.0 * reflectance[i]);
+    const float w = std::min({rgb[0], rgb[1], rgb[2]});
+    const float r0 = rgb[0] - w, g0 = rgb[1] - w, b0 = rgb[2] - w;
+    const float cyan = std::min(g0, b0), magenta = std::min(r0, b0), yellow = std::min(r0, g0);
+    const float red = std::min(std::max(0.0f, r0 - b0), std::max(0.0f, r0 - g0));
+    const float green = std::min(std::max(0.0f, g0 - b0), std::max(0.0f, g0 - r0));
+    const float blue = std::min(std::max(0.0f, b0 - g0), std::max(0.0f, b0 - r0));
+    const float weights[7] = {w, cyan, magenta, yellow, red, green, blue};
+    const SpectralTables &tables = spectralTables();
+    // at most three of the curves are in a color
+    alignas(16) float reflectance[spectralLanes] = {};
+    for (int k = 0; k < 7; k++) {
+        if (weights[k] <= 0) continue;
+        for (int i = 0; i < spectralLanes; i++) reflectance[i] += weights[k] * tables.basis[k][i];
     }
+    float luminance[4] = {0, 0, 0, 0};
+    for (int i = 0; i < spectralLanes; i += 4) {
+        for (int j = 0; j < 4; j++) {
+            const float r = std::max(1e-16f, reflectance[i + j]);
+            reflectance[i + j] = r;
+            luminance[j] += r * tables.observer[1][i + j];
+            paint.ks[i + j] = (1 - r) * (1 - r) / (2 * r);
+        }
+    }
+    paint.luminance = luminance[0] + luminance[1] + luminance[2] + luminance[3];
     colorOfReflectance(reflectance, paint.again);
 }
 
 /// \p t of \p b into \p a, as paint: by concentration, each weighed by how much light it gives back
 inline void mixPaint(const Paint &a, const float aColor[3], const Paint &b, const float bColor[3], float t, float out[3])
 {
-    const double ca = double(1 - t) * (1 - t) * a.luminance;
-    const double cb = double(t) * t * b.luminance;
-    if (ca + cb <= 0) {
+    const float ca = (1 - t) * (1 - t) * a.luminance;
+    const float cb = t * t * b.luminance;
+    if (!(ca + cb > 0)) {
         for (int c = 0; c < 3; c++) out[c] = aColor[c] + (bColor[c] - aColor[c]) * t;
         return;
     }
-    double reflectance[spectralSize];
-    for (int i = 0; i < spectralSize; i++) {
-        const double ks = (a.ks[i] * ca + b.ks[i] * cb) / (ca + cb);
-        reflectance[i] = 1.0 + ks - std::sqrt(ks * ks + 2.0 * ks);
+    const float wa = ca / (ca + cb), wb = cb / (ca + cb);
+    alignas(16) float reflectance[spectralLanes];
+    for (int i = 0; i < spectralLanes; i++) {
+        const float ks = a.ks[i] * wa + b.ks[i] * wb;
+        // 1 + ks - sqrt(ks² + 2ks) without the cancellation (dark paint's ks is in the millions); fmax tells the
+        // compiler the root is of no negative number, so it needs no errno and vectorizes
+        reflectance[i] = 1 / (1 + ks + std::sqrt(std::fmax(ks * (ks + 2), 0.0f)));
     }
     colorOfReflectance(reflectance, out);
     for (int c = 0; c < 3; c++) {
@@ -203,11 +253,9 @@ inline void mixPaint(const Paint &a, const float aColor[3], const Paint &b, cons
 inline void mix(int mode, const float a[3], const float b[3], float t, float out[3])
 {
     if (mode == Even) {
-        float la[3], lb[3], lab[3];
-        linearToOklab(a, la);
+        float lb[3];
         linearToOklab(b, lb);
-        for (int c = 0; c < 3; c++) lab[c] = la[c] + (lb[c] - la[c]) * t;
-        oklabToLinear(lab, out);
+        mixEven(a, lb, t, out);
     } else if (mode == Pigment) {
         Paint pa, pb;
         paintOf(a, pa);
@@ -301,7 +349,7 @@ public:
         QVector<bool> wasClear(cols);
         if (oneSource) own->convertPixelsTo(params.srcRowStart, reinterpret_cast<quint8 *>(source.data()), linear, 1, intent, flags);
 
-        // a color seen again (one paint color, a flat area under it) isn't made into pigment again
+        // a color seen again (one paint color, a flat area under it) isn't made into pigment or OKLab again
         KoMixing::Paint sourcePaint, underPaint;
         float sourceSeen[3] = {-1, -1, -1};
         float underSeen[3] = {-1, -1, -1};
@@ -311,6 +359,8 @@ public:
                 std::copy(color, color + 3, seen);
             }
         };
+        float sourceLab[3];
+        float sourceLabSeen[3] = {-1, -1, -1};
 
         for (int row = 0; row < params.rows; row++) {
             quint8 *dst = params.dstRowStart + row * params.dstRowStride;
@@ -341,7 +391,11 @@ public:
                     paintFor(d, underSeen, underPaint);
                     KoMixing::mixPaint(underPaint, d, sourcePaint, s, t, mixed);
                 } else {
-                    KoMixing::mix(m_mode, d, s, t, mixed);
+                    if (sourceLabSeen[0] != s[0] || sourceLabSeen[1] != s[1] || sourceLabSeen[2] != s[2]) {
+                        KoMixing::linearToOklab(s, sourceLab);
+                        std::copy(s, s + 3, sourceLabSeen);
+                    }
+                    KoMixing::mixEven(d, sourceLab, t, mixed);
                 }
                 std::copy(mixed, mixed + 3, d);
                 if (!alphaLocked) d[3] = std::clamp(total, 0.0f, 1.0f);
