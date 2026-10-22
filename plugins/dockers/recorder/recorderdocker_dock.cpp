@@ -128,7 +128,7 @@ public:
         m_frames = frames;
         if (m_index >= m_frames.size()) m_index = -1;
         if (m_frames.isEmpty() || m_frames.last() != last) m_cache.clear();
-        updateGeometry();
+        // its height follows the frames' shape (set when one is read), not their number
         update();
     }
 
@@ -849,7 +849,13 @@ public:
         q->setWidget(page);
 
         framesTimer.setInterval(1500);
-        QObject::connect(&framesTimer, &QTimer::timeout, q, [this]() { refreshFrames(); });
+        // the folder listed only while the panel is seen: it holds thousands of frames after a long session
+        QObject::connect(&framesTimer, &QTimer::timeout, q, [this]() {
+            if (q->isVisible()) refreshFrames();
+        });
+        QObject::connect(q, &QDockWidget::visibilityChanged, q, [this](bool visible) {
+            if (visible && framesTimer.isActive()) refreshFrames();
+        });
         showTimer.setSingleShot(true);
         showTimer.setInterval(8000);
         QObject::connect(&showTimer, &QTimer::timeout, q, [this]() {
@@ -979,6 +985,8 @@ public:
         settings->realTimeCaptureMode = realTimeCaptureMode;
         RecorderExportPreprocessor preprocessor(settings->inputDirectory, settings->format);
         preprocessor.doPreprocessing();
+        // it renames the frames: the preview reads them by their new names
+        refreshFrames();
         const QStringList all = frames();
         settings->framesCount = all.size();
         if (all.isEmpty()) return;

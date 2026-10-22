@@ -158,6 +158,7 @@ public:
 
     void refresh()
     {
+        m_labelWidth = -1;
         setFixedHeight(header + rowHeight * (rows().size() + 1));
         update();
     }
@@ -179,6 +180,7 @@ protected:
         if (heads.isEmpty()) return;
         const qreal cell = cellWidth(heads.size());
         const qreal left = labelWidth();
+        m_cell = cell;
 
         painter.setFont(KisModernStyle::textFont(font(), 0.85));
         for (int c = 0; c < heads.size(); c++) {
@@ -231,13 +233,26 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override
     {
         m_hover = event->pos();
-        update();
+        // painted again only when the pointer goes over another cell or "+", not at every move
+        const QPointF at = m_hover - QPointF(labelWidth(), header);
+        const QPoint place(at.x() < 0 ? -1 : int(at.x() / qMax(1.0, m_cell)), at.y() < 0 ? -1 : int(at.y() / rowHeight));
+        if (place != m_hoverPlace) {
+            m_hoverPlace = place;
+            update();
+        }
     }
 
     void leaveEvent(QEvent *) override
     {
         m_hover = QPointF(-1, -1);
+        m_hoverPlace = QPoint(-2, -2);
         update();
+    }
+
+    void changeEvent(QEvent *event) override
+    {
+        if (event->type() == QEvent::FontChange) m_labelWidth = -1;
+        QWidget::changeEvent(event);
     }
 
     void mousePressEvent(QMouseEvent *event) override
@@ -331,11 +346,15 @@ private:
                      KisStudioBrushEditor::partName(option->category()), option->label().toLower());
     }
 
+    /// Measured once until the rows change: every cell's place asks for it
     qreal labelWidth() const
     {
-        int widest = 0;
-        Q_FOREACH (KisPaintOpOption *option, candidates()) widest = qMax(widest, fontMetrics().horizontalAdvance(rowName(option)));
-        return qBound(90, widest + KisModernStyle::space3, 170);
+        if (m_labelWidth < 0) {
+            int widest = 0;
+            Q_FOREACH (KisPaintOpOption *option, candidates()) widest = qMax(widest, fontMetrics().horizontalAdvance(rowName(option)));
+            m_labelWidth = qBound(90, widest + KisModernStyle::space3, 170);
+        }
+        return m_labelWidth;
     }
 
     qreal cellWidth(int count) const
@@ -440,6 +459,9 @@ private:
     QStringList m_extraColumns;
     QStringList m_extraRows;
     QPointF m_hover {-1, -1};
+    QPoint m_hoverPlace {-2, -2};
+    mutable qreal m_labelWidth {-1};
+    qreal m_cell {1};
 };
 
 /// A setting's full page, as Krita shows it, lent by the full editor while this is open

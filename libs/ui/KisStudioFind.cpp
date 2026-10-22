@@ -260,6 +260,19 @@ struct Entry {
     mutable std::function<QIcon()> makeIcon;
     /// Id of a boolean setting (see KisSettingsRegistry); its row gets a switch
     QString toggleId;
+    /// Every word it is found by, split once rather than at every key typed (see allWords())
+    mutable QStringList words;
+    mutable bool wordsMade {false};
+
+    const QStringList &allWords() const
+    {
+        if (!wordsMade) {
+            wordsMade = true;
+            const QString text = title + QLatin1Char(' ') + aliases.join(QLatin1Char(' ')) + QLatin1Char(' ') + keywords + QLatin1Char(' ') + detail;
+            words = text.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        }
+        return words;
+    }
 
     const QIcon &shownIcon() const
     {
@@ -1200,11 +1213,10 @@ void KisStudioFind::updateResults()
 
     for (int i = 0; i < d->entries.size(); i++) {
         const Entry &entry = d->entries[i];
-        const qreal frecency = entry.key.isEmpty() ? 0.0 : d->frecency(entry.key);
-
         if (d->picker && !d->pickPrefix.isEmpty() && !entry.key.startsWith(d->pickPrefix)) {
             continue;
         }
+        auto frecency = [&]() { return entry.key.isEmpty() ? 0.0 : d->frecency(entry.key); };
         if (query.isEmpty() && d->picker) {
             const bool browsable = d->pickPrefix.isEmpty() ? (entry.kind == Kind::Tool || entry.kind == Kind::Effect) : true;
             if (browsable && !entry.key.isEmpty()) {
@@ -1214,8 +1226,9 @@ void KisStudioFind::updateResults()
             continue;
         }
         if (query.isEmpty()) {
-            if (frecency > 0.0) {
-                scored.append({i, frecency});
+            const qreal used = frecency();
+            if (used > 0.0) {
+                scored.append({i, used});
             }
             continue;
         }
@@ -1231,15 +1244,12 @@ void KisStudioFind::updateResults()
         if (total < 0.0) {
             // each query word must start a word of the name, aliases, keywords or detail; fuzzy matching
             // across words finds nonsense ("blur" in "tablet ... pressure")
-            const QString text = entry.title + QLatin1Char(' ') + entry.aliases.join(QLatin1Char(' ')) + QLatin1Char(' ')
-                + entry.keywords + QLatin1Char(' ') + entry.detail;
-            const QStringList words = text.split(QLatin1Char(' '), Qt::SkipEmptyParts);
-            if (query.size() < 2 || !everyWordStarts(queryWords, words)) {
+            if (query.size() < 2 || !everyWordStarts(queryWords, entry.allWords())) {
                 continue;
             }
             total = 30;
         }
-        scored.append({i, total + frecency + kindBias(entry.kind)});
+        scored.append({i, total + frecency() + kindBias(entry.kind)});
     }
 
     // with few predictable matches, add typo-tolerant fuzzy ones (not for one or two letters, which match almost anything)

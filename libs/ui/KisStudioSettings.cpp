@@ -2179,10 +2179,19 @@ public:
         activateWindow();
     }
 
+    /// One retry waiting at a time, however often a rebuild is asked for meanwhile
+    bool m_rebuildPending {false};
+
     void rebuild()
     {
         if (cardsBusy || cardDialogOpen()) {
-            QTimer::singleShot(50, this, [this]() { rebuild(); });
+            if (!m_rebuildPending) {
+                m_rebuildPending = true;
+                QTimer::singleShot(50, this, [this]() {
+                    m_rebuildPending = false;
+                    rebuild();
+                });
+            }
             return;
         }
         auto *page = new Page(m_scroll);
@@ -2524,12 +2533,22 @@ struct KisStudioSettings::Private
         rebuild();
     }
 
+    /// One retry waiting at a time, however often a rebuild is asked for meanwhile
+    bool rebuildPending {false};
+    bool paletteRebuildPending {false};
+
     /// Rebuilds the cards for the section, search or changed list being shown
     void rebuild()
     {
         if (cardsBusy || cardDialogOpen()) {
             // Retry once the card's drag, menu or dialog is over
-            QTimer::singleShot(50, q, [this]() { rebuild(); });
+            if (!rebuildPending) {
+                rebuildPending = true;
+                QTimer::singleShot(50, q, [this]() {
+                    rebuildPending = false;
+                    rebuild();
+                });
+            }
             return;
         }
         const QString shown = shownSection();
@@ -3040,9 +3059,12 @@ bool KisStudioSettings::flip(const QString &settingId)
 
 bool KisStudioSettings::event(QEvent *event)
 {
-    if (event->type() == QEvent::ApplicationPaletteChange) {
-        // Rebuild what was drawn in the old theme's colors (dimmed text, marks, icons)
+    if (event->type() == QEvent::ApplicationPaletteChange && !d->paletteRebuildPending) {
+        // Rebuild what was drawn in the old theme's colors (dimmed text, marks, icons); once for a burst of
+        // changes (a lightness dragged)
+        d->paletteRebuildPending = true;
         QTimer::singleShot(0, this, [this]() {
+            d->paletteRebuildPending = false;
             d->footer->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_refresh")));
             d->updateRail();
             if (isVisible() && d->stack->currentWidget() != d->review) d->rebuild();

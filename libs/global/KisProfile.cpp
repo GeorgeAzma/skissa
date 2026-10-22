@@ -32,7 +32,12 @@ QString configFolder()
     QString folder = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     if (isApart()) {
         folder += QLatin1Char('/') + name();
-        QDir().mkpath(folder);
+        // made once: settings kept in files of their own ask for the folder at every read
+        thread_local QString made;
+        if (folder != made) {
+            QDir().mkpath(folder);
+            made = folder;
+        }
     }
     return folder;
 }

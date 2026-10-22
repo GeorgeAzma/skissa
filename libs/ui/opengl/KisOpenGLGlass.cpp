@@ -845,6 +845,10 @@ struct KisOpenGLGlass::Private : Programs
     QScopedPointer<QOpenGLFramebufferObject> ambientBlurred;
     /// Where the image was when the glow was last made (unit square to surface), and the downsampling factor.
     QTransform imageToSurface;
+    /// The glow around the image was drawn again since the last blur: what is wholly inside the image (in surface
+    /// pixels, empty if it is turned) kept its look
+    bool ambientChanged {false};
+    QRect ambientInside;
     int ambientFactor {0};
     /// What the glow was last made for; it is in the canvas until the canvas is drawn again without it.
     QTransform ambientSurfaceToImage;
@@ -1035,8 +1039,11 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     d->ambientBase = base;
     d->ambientViewport = viewport;
     d->ambientRatio = pixelRatio;
-    // The glow is drawn all around the image.
-    d->changedAll = true;
+    // The glow is drawn all around the image, not over it: panels over the image keep their blur.
+    d->ambientChanged = true;
+    d->ambientInside = d->imageToSurface.type() <= QTransform::TxScale
+        ? d->imageToSurface.mapRect(QRectF(0, 0, 1, 1)).toAlignedRect().adjusted(1, 1, -1, -1)
+        : QRect();
     const Kernel kernel = gaussian(KisStudioGlass::ambientSigma * pixelRatio / factor);
 
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
@@ -1243,12 +1250,15 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         const Private::Blur blur {region.area, region.around, region.shift, region.sigma};
         // The canvas pixels the slot is downsampled from.
         const QRect read(region.around.topLeft() * factor, region.around.size() * factor);
-        if (!d->blurs.contains(blur) || read.intersects(d->changed)) blurring << region;
+        if (!d->blurs.contains(blur) || read.intersects(d->changed) || (d->ambientChanged && !d->ambientInside.contains(read))) {
+            blurring << region;
+        }
         blurs << blur;
     }
     d->blurs = blurs;
     d->changed = QRect();
     d->changedAll = false;
+    d->ambientChanged = false;
     d->blurredViewport = viewport;
     d->blurredFactor = factor;
     d->blurredCanvas = canvas;

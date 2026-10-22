@@ -10,6 +10,7 @@
 #include <cmath>
 
 #include <QFile>
+#include <QCoreApplication>
 #include <QTimer>
 
 #include <KConfig>
@@ -228,15 +229,16 @@ void apply(const Params &params)
     // Bumping the revision makes the window reload the scheme even when its name is unchanged
     KConfigGroup theme = KSharedConfig::openConfig()->group("theme");
     theme.writeEntry("Revision", theme.readEntry("Revision", 0) + 1);
-    // once for all the values a preset changes at a time
-    static bool notifying = false;
-    if (!notifying) {
-        notifying = true;
-        QTimer::singleShot(0, []() {
-            notifying = false;
-            KisConfigNotifier::instance()->notifyConfigChanged();
-        });
-    }
+    // once for all the values a preset changes at a time, and at most every few frames while a lightness or
+    // tint is dragged: each notice reloads the theme into every widget
+    static QTimer *notify = []() {
+        auto *timer = new QTimer(qApp);
+        timer->setSingleShot(true);
+        timer->setInterval(40);
+        QObject::connect(timer, &QTimer::timeout, []() { KisConfigNotifier::instance()->notifyConfigChanged(); });
+        return timer;
+    }();
+    if (!notify->isActive()) notify->start();
 }
 
 QString schemeName()
