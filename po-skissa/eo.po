@@ -404,6 +404,50 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Gvidistoj"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Libera"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Kreskigi"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Kreskigi"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "Mola"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspektivo"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Krado"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Elipso"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Elipso"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Kurbo"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Plenigi"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Alklaki al gvidiloj"
+
 msgctxt "@action:button"
 msgid "Close"
 msgstr "Fermi"
@@ -471,6 +515,10 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nAVERTO:\tMemoro mankas! Interŝanĝo estis komencita.\n\t\tBonvolu agordi pli da RAM por Skissa en Agorda dialogo"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa ne povis pravalorigi la OpenGL-kanvason:\n\n%1\n\n Skissa malŝaltos OpenGL kaj fermos nun."
 
@@ -497,6 +545,10 @@ msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineara"
 
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Aŭtomate"
+
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
 msgstr "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, estas la modelo uzata de presiloj kaj aliaj ink-bazitaj datumportiloj.<br/>CMYK estas subtraha modelo, tio signifas, ke aldonado de koloroj kune mallumigos ilin. Ĉar CMYK-profiloj estas tre specifaj por presilo, oni rekomendas labori en RGB-spaco, kaj poste konverti al CMYK-profilo, prefere unu liverita de via presilo. <br/>CMYK <b>ne</b> estas rekomendita por pentrado. Bedaŭrinde, Skissa ne povas preni koloraĵojn aŭ la TRC por ĉi tiu spaco."
@@ -515,6 +567,10 @@ msgstr "<p><b>Kromaj notoj pri profiloj de Elle Stone:</b></p><p><i>Skissa venas
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "La elektita dosiernomo ne havas dosieran etendon, kiun Skissa komprenas.\nCergu, ke la dosiernomo finiĝas per '.%1' ekzemple."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Ŝlosi"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Forigitaj kadroj ne haveblas en ĉi tiu Skissa-instanco"
@@ -594,6 +650,10 @@ msgstr "Alpinglu al Templinio"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Videbla"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Travidebleco"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -715,10 +775,6 @@ msgstr "Brilo"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontrasto"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Aŭtomate"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

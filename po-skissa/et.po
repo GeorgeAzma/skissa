@@ -300,6 +300,22 @@ msgctxt "@info:tooltip tool slot"
 msgid "Fill"
 msgstr "Täitmine"
 
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Ruut"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspektiiv"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Täitmine"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Tõmme tõmbejoontele"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Uue malli kasutamine alati, kui Skissa käivitatakse"
 
@@ -362,6 +378,10 @@ msgstr "Teisendamine"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "Uus AppImage laaditi alla asukohta %1. Uuendamise lõpetamiseks sulge Skissa ja käivita uus AppImage."
+
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Automaatne"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -477,10 +497,6 @@ msgstr "Puudub"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Mustrid"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Automaatne"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

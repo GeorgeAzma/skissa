@@ -36,6 +36,10 @@ msgctxt "a new image's size"
 msgid "Square"
 msgstr "Quadraat"
 
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Quadraat"
+
 msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "Keen"

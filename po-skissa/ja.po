@@ -233,6 +233,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "速度"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "リセット"
+
 msgctxt "glass"
 msgid "Blur"
 msgstr "ぼかし"
@@ -345,6 +349,46 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "基準線"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "自由"
+
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "四角"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "拡大"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "拡大"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "ソフト"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "グリッド"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "楕円"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "楕円"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "塗りつぶし"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "基準線に合わせる"
+
 msgctxt "@action:button"
 msgid "Close"
 msgstr "閉じる"
@@ -416,12 +460,12 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\n警告:\tメモリ不足です!  スワッピングが発生しています。\n\t\tSkissa の設定ダイアログで使用可能メモリを増やしてください"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa は OpenGL キャンバスを初期化できませんでした:\n\n%1\n\nSkissa は OpenGL を無効にし、終了します。"
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "すべて選択"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"
@@ -442,6 +486,10 @@ msgstr "編集"
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "新しい AppImage が %1 にダウンロードされました。更新を完了するには、Skissa を閉じて新しい AppImage を実行してください。"
 
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "自動"
+
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
 msgstr "<b><a href=\"https://ja.wikipedia.org/wiki/CMYK\">CMYK (Cがシアン (Cyan)、Mがマゼンタ (Magenta)、Yが黄色 (Yellow)、Kがキー (Key) )</a></b>はプリンタやその他インクを用いるメディアで使用される色モデルです。<br/>CMYK は減法混合に基づく色モデルです。減法混合とは色を混ぜ合わせると元の色より暗い色になることを意味します。CMYK プロファイルはプリンタごとに大きく異なるため、作業は RGB 色空間で行い、その後に使用するプリンタに最も適した CMYK プロファイルに変換することを推奨します。<br/>CMYK はお絵描きに用には推奨<b>できません</b>。残念ながら、Skissa には CMYK 色空間用にインク組成や TRC (トーン応答曲線) の情報を引き出す機能はありません。"
@@ -460,6 +508,10 @@ msgstr "<p><b>Elle Stone のプロファイルについての追加情報:</b></
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "選択されたファイル名には Skissa が理解できるファイル拡張子が付いていません。\n例えばファイル名が '.%1' で終わるようにしてください。"
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "ロック"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "フレーム落ちしたフレームはこの Skissa インスタンスでは使用できません"
@@ -527,6 +579,10 @@ msgstr "画像を統合"
 msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "タイムラインにピン留めする"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "不透明度"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -644,10 +700,6 @@ msgstr "明度"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "コントラスト"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "自動"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

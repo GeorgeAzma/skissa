@@ -312,6 +312,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "Hız"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "Sıfırla"
+
 msgctxt "theme"
 msgid "Lightness"
 msgstr "Açıklık"
@@ -440,6 +444,54 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Kılavuzlar"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Serbest"
+
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Kare"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Genişlet"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Genişlet"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "Yumuşak"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspektif"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Izgara"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Elips"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Elips"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Eğri"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Doldur"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Kılavuzlara tuttur"
+
 msgctxt "@action:button"
 msgid "Close"
 msgstr "Kapat"
@@ -514,12 +566,12 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nUYARI:\tBellek yetersiz! Takas dosyası kullanılmaya başladı.\n\t\tLütfen Skissa Ayarlar penceresinden daha fazla RAM ayırın"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%​%1"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa OpenGL tuvalini ilklendiremedi:\n\n%1\n\n Skissa OpenGL’yi devre dışı bırakacak ve şimdi kapanacak."
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "Tümünü Seç"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"
@@ -544,6 +596,10 @@ msgctxt "curve preset"
 msgid "Linear"
 msgstr "Doğrusal"
 
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Kendiliğinden"
+
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
 msgstr "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Camgöbeği, Mor, Sarı, Anahtar)</a></b>, yazıcılar ve diğer mürekkep tabanlı medyalar tarafından kullanılan modeldir.<br/>CMYK, renkleri bir araya getirmenin onları daha koyu hale getireceği, çıkarımcı bir modeldir. CMYK profilleri yazıcı başına çok spesifik olduğundan, RGB alanında çalışılması ve daha sonra tercihen CMYK profiline, tercihen yazıcınız tarafından gönderilen bir profile dönüştürülmesi önerilir.<br/>CMYK boyama için <b>önerilmez</b>. Maalesef, Skissa bu alan için renklendiriciler veya TRC’yi alamaz."
@@ -562,6 +618,10 @@ msgstr "<p><b>Elle Stone tarafından profilleri üzerine fazladan notlar:</b></p
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "Seçili dosya adında Skissa’nın anlamadığı bir uzantı var.\nDosya adının örneğin “.%1” ile bittiğinden emin olun."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Kilitle"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Silinen kareler, bu Skissa örneğinde kullanılabilir değil"
@@ -637,6 +697,10 @@ msgstr "Zaman Akışına Sabitle"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Görünür"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Matlık"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -762,10 +826,6 @@ msgstr "Parlaklık"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Karşıtlık"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Kendiliğinden"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

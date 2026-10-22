@@ -418,6 +418,54 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "მიმმართველები"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "თავისუფალი"
+
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "კვადრატი"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "გაზრდა"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "გაზრდა"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "რბილი"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "პერსპექტივა"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "ბადე"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "ოვალი"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "ოვალი"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "მრუდი"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "შევსება"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "მიმაგრება მიმმართველებზე"
+
 msgctxt "@action:button"
 msgid "Close"
 msgstr "დახურვა"
@@ -490,12 +538,12 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nგაფრთხილება:\tარასაკმარისი მეხსიერება! დაწყებულია სვოპის გამოყენება.\n\t\tმიანიჭეთ Skissa-ს მეტი RAM მორგების დიალოგიდან"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa-მა ვერ შეძლო OpenGL ტილოს ინიციალიზაცია:\n\n%1\n\nSkissa ახლა გამორთავს OpenGL-ს და დაიხურება."
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "ყველაფრის მონიშვნა"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"
@@ -530,6 +578,10 @@ msgstr "ხაზოვანი"
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "არჩეული ფაილის სახელს არ აქვს გაფართოება, რომელიც Skissa-ს ესმის.\nდარწმუნდით, რომ ფაილის სახელი სრულდება, მაგალითად, '.%1'-ით."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "ჩაკეტვა"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Skissa-ის ამ გაშვებულ ასლში გამოტოვებული კადრები ხელმისაწვდომი არაა"
@@ -609,6 +661,10 @@ msgstr "დროის ხაზზე მიჭიკარტება"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "ხილული"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "გაუმჭვირვალობა"
 
 msgctxt "@info:tooltip"
 msgid "Undo"

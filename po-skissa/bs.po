@@ -32,6 +32,14 @@ msgctxt "a new image's size"
 msgid "Square"
 msgstr "Kvadratni"
 
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Kvadratni"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Mreža"
+
 msgctxt "shortcut set"
 msgid "Krita"
 msgstr "Krita"
@@ -47,6 +55,10 @@ msgstr "Filter"
 msgctxt "@action:inmenu"
 msgid "Smooth"
 msgstr "Glatko"
+
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Automatski"
 
 msgctxt "@action:inmenu"
 msgid "Copy"
@@ -79,8 +91,4 @@ msgstr "Kvadratni"
 msgctxt "picture brush tip used as"
 msgid "Gradient"
 msgstr "Gradijent"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Automatski"
 

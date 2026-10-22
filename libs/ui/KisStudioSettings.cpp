@@ -68,6 +68,7 @@
 #include "KisStudioGlass.h"
 #include "KisStudioMotion.h"
 #include "KisStudioTheme.h"
+#include "widgets/KisStudioInlineEdit.h"
 #include "widgets/KisStudioPicker.h"
 #include "KisViewManager.h"
 #include "KisView.h"
@@ -394,24 +395,11 @@ public:
         update();
     }
 
-    /// At most \p columns across (three unless set)
-    void setColumns(int columns)
-    {
-        m_columns = qMax(1, columns);
-        updateGeometry();
-        setFixedHeight(heightFor(width()));
-        update();
-    }
-
-    QSize sizeHint() const override
-    {
-        const int width = m_columns * m_size.width() + 8 * (m_columns - 1);
-        return QSize(width, heightFor(width));
-    }
+    QSize sizeHint() const override { return QSize(3 * m_size.width() + 16, heightFor(3 * m_size.width() + 16)); }
 
 protected:
-    /// Up to three across (or as set), each as large as fits but no larger than its natural size
-    int columns() const { return qMax(1, qMin(m_columns, int(m_tiles.size()))); }
+    /// Up to three across, each as large as fits but no larger than its natural size
+    int columns() const { return qMax(1, qMin(3, int(m_tiles.size()))); }
     QSize tileSize(int width) const
     {
         const int w = qMin(m_size.width(), (width - 8 * (columns() - 1)) / columns());
@@ -517,7 +505,6 @@ protected:
 private:
     QVector<Tile> m_tiles;
     QSize m_size;
-    int m_columns {3};
     int m_current {-1};
     int m_hovered {-1};
 };
@@ -950,6 +937,294 @@ void paintSurround(QPainter &painter, const QRectF &r, const QColor &around, boo
     painter.drawImage(image, sample);
 }
 
+/**
+ * The themes, each pictured in its own colors: the dark ones in rows above the light ones, then a + that
+ * adds a copy of the one in use. The theme in use is the one the settings below edit.
+ */
+class ThemePicker : public QWidget
+{
+    struct Item {
+        QString id;
+        QString name;
+        KisStudioTheme::Look look;
+        bool dark {true};
+    };
+    struct Place {
+        int theme; ///< in m_themes; -1 for the +
+        int at;    ///< cell, row by row
+    };
+
+public:
+    explicit ThemePicker(QWidget *parent)
+        : QWidget(parent)
+    {
+        setCursor(Qt::PointingHandCursor);
+        setFocusPolicy(Qt::StrongFocus);
+        setMouseTracking(true);
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    }
+
+    /// Reads the themes again
+    void refresh()
+    {
+        m_themes.clear();
+        Q_FOREACH (const KisStudioTheme::Theme &theme, KisStudioTheme::themes()) {
+            const KisStudioTheme::Params params = KisStudioTheme::paramsOf(theme);
+            m_themes << Item{theme.id, KisStudioTheme::nameOf(theme), KisStudioTheme::look(params), params.lightness < 0.5};
+        }
+        // a scheme of Krita's in use is none of these
+        m_current = R::instance()->value(QStringLiteral("[theme] Theme")).toString().startsWith(KisStudioTheme::schemeName())
+            ? KisStudioTheme::currentTheme()
+            : QString();
+        m_places.clear();
+        int place = 0;
+        for (const bool dark : {true, false}) {
+            for (int i = 0; i < m_themes.size(); i++) {
+                if (m_themes[i].dark == dark) m_places << Place{i, place++};
+            }
+            // the light ones start a row of their own
+            if (dark && place % columns) place += columns - place % columns;
+        }
+        m_places << Place{-1, place};
+        setFixedHeight(heightFor(width()));
+        update();
+    }
+
+    QSize sizeHint() const override
+    {
+        const int width = columns * natural.width() + gap * (columns - 1);
+        return QSize(width, heightFor(width));
+    }
+
+protected:
+    static constexpr int columns = 4;
+    static constexpr int gap = 8;
+    static constexpr int label = 26;
+    static constexpr QSize natural {96, 56};
+
+    QSize tileSize(int width) const
+    {
+        const int w = qMin(natural.width(), (width - gap * (columns - 1)) / columns);
+        return QSize(qMax(40, w), qMax(24, w * natural.height() / natural.width()));
+    }
+
+    int heightFor(int width) const
+    {
+        const int rows = m_places.isEmpty() ? 1 : m_places.last().at / columns + 1;
+        return rows * (tileSize(width).height() + label) + (rows - 1) * 6;
+    }
+
+    void resizeEvent(QResizeEvent *) override { setFixedHeight(heightFor(width())); }
+
+    QRect cell(const Place &place) const
+    {
+        const QSize tile = tileSize(width());
+        return QRect((place.at % columns) * (tile.width() + gap), (place.at / columns) * (tile.height() + label + 6), tile.width(),
+                     tile.height() + label);
+    }
+
+    QRectF pictureOf(const Place &place) const
+    {
+        const QRect c = cell(place);
+        const QSize tile = tileSize(width());
+        return QRectF(c.left() + 1, c.top() + 1, tile.width() - 2, tile.height() - 2);
+    }
+
+    QRect labelOf(const Place &place) const
+    {
+        const QRect c = cell(place);
+        return QRect(c.left(), c.top() + tileSize(width()).height() + 2, c.width(), label - 4);
+    }
+
+    /// The place under \p pos; -1 for none
+    int at(const QPoint &pos) const
+    {
+        for (int i = 0; i < m_places.size(); i++) {
+            if (cell(m_places[i]).contains(pos)) return i;
+        }
+        return -1;
+    }
+
+    int placeOf(const QString &id) const
+    {
+        for (int i = 0; i < m_places.size(); i++) {
+            if (m_places[i].theme >= 0 && m_themes[m_places[i].theme].id == id) return i;
+        }
+        return -1;
+    }
+
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QColor text = palette().color(QPalette::WindowText);
+        for (int i = 0; i < m_places.size(); i++) {
+            const QRectF picture = pictureOf(m_places[i]);
+            const QPainterPath outline = KisModernStyle::squircle(picture.adjusted(-0.5, -0.5, 0.5, 0.5), KisModernStyle::tileRadius);
+            if (m_places[i].theme < 0) {
+                painter.setPen(QPen(ink(this, i == m_hovered ? 0.35 : 0.14), 1));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawPath(outline);
+                // the +
+                const QPointF middle = picture.center();
+                const qreal arm = qMin(picture.width(), picture.height()) * 0.16;
+                painter.setPen(QPen(i == m_hovered ? text : KisModernStyle::secondaryInk(text), 1.5, Qt::SolidLine, Qt::RoundCap));
+                painter.drawLine(middle - QPointF(arm, 0), middle + QPointF(arm, 0));
+                painter.drawLine(middle - QPointF(0, arm), middle + QPointF(0, arm));
+                continue;
+            }
+            const Item &item = m_themes[m_places[i].theme];
+            painter.save();
+            painter.setClipPath(KisModernStyle::squircle(picture, KisModernStyle::tileRadius));
+            paintScheme(painter, picture, item.look);
+            painter.restore();
+            const bool current = item.id == m_current;
+            painter.setBrush(Qt::NoBrush);
+            painter.setPen(QPen(current ? (hasFocus() ? palette().color(QPalette::Highlight) : palette().color(QPalette::Link))
+                                        : ink(this, i == m_hovered ? 0.35 : 0.14),
+                                current ? 2 : 1));
+            painter.drawPath(outline);
+            if (item.id == m_editing) continue;
+            painter.setPen(current ? text : KisModernStyle::secondaryInk(text));
+            const QRect name = labelOf(m_places[i]);
+            painter.drawText(name, Qt::AlignHCenter | Qt::AlignVCenter, fontMetrics().elidedText(item.name, Qt::ElideRight, name.width()));
+        }
+    }
+
+    bool event(QEvent *event) override
+    {
+        if (event->type() == QEvent::ToolTip) {
+            auto *help = static_cast<QHelpEvent *>(event);
+            const int i = at(help->pos());
+            if (i < 0) {
+                QToolTip::hideText();
+            } else if (m_places[i].theme < 0) {
+                QToolTip::showText(help->globalPos(), i18nc("@info:tooltip", "New theme: a copy of this one"), this, cell(m_places[i]));
+            } else {
+                QToolTip::showText(help->globalPos(),
+                                   i18nc("@info:tooltip a theme in the picker", "%1\nDouble-click: rename\nRight-click: more",
+                                         m_themes[m_places[i].theme].name),
+                                   this, cell(m_places[i]));
+            }
+            return true;
+        }
+        return QWidget::event(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        const int hovered = at(event->pos());
+        if (hovered != m_hovered) {
+            m_hovered = hovered;
+            update();
+        }
+    }
+
+    void leaveEvent(QEvent *) override
+    {
+        m_hovered = -1;
+        update();
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton) return;
+        const int i = at(event->pos());
+        if (i >= 0) choose(i);
+    }
+
+    void mouseDoubleClickEvent(QMouseEvent *event) override
+    {
+        const int i = at(event->pos());
+        if (event->button() == Qt::LeftButton && i >= 0 && m_places[i].theme >= 0) rename(i);
+    }
+
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        const int i = at(mapFromGlobal(event->globalPos()));
+        const QString id = i >= 0 && m_places[i].theme >= 0 ? m_themes[m_places[i].theme].id : QString();
+        QMenu menu(this);
+        QAction *rename = nullptr, *reset = nullptr, *remove = nullptr, *restore = nullptr;
+        if (!id.isEmpty()) {
+            rename = menu.addAction(i18nc("@action:inmenu a theme", "Rename"));
+            if (KisStudioTheme::isChanged(id)) reset = menu.addAction(i18nc("@action:inmenu a theme", "Reset"));
+            if (m_themes.size() > 1) remove = menu.addAction(i18nc("@action:inmenu a theme", "Delete"));
+        }
+        if (KisStudioTheme::anyDeleted()) {
+            if (!menu.isEmpty()) menu.addSeparator();
+            restore = menu.addAction(i18nc("@action:inmenu", "Restore deleted themes"));
+        }
+        if (menu.isEmpty()) return;
+        // what is chosen changes the settings, which may rebuild this card
+        QPointer<ThemePicker> self(this);
+        QAction *chosen = menu.exec(event->globalPos());
+        if (!self || !chosen) return;
+        if (chosen == rename) this->rename(i);
+        else if (chosen == reset) KisStudioTheme::reset(id);
+        else if (chosen == remove) KisStudioTheme::remove(id);
+        else if (chosen == restore) KisStudioTheme::restoreDeleted();
+    }
+
+    void keyPressEvent(QKeyEvent *event) override
+    {
+        const int at = qMax(0, placeOf(m_current));
+        // steps between the places in order, the + included
+        auto stepped = [this, at](int by) { return qBound(0, at + by, int(m_places.size()) - 1); };
+        auto below = [this, at](int rows) {
+            const int wanted = m_places[at].at + rows * columns;
+            int best = at;
+            for (int i = 0; i < m_places.size(); i++) {
+                if (qAbs(m_places[i].at - wanted) < qAbs(m_places[best].at - wanted)) best = i;
+            }
+            return best;
+        };
+        switch (event->key()) {
+        case Qt::Key_Left: choose(stepped(-1)); break;
+        case Qt::Key_Right: if (m_places[stepped(1)].theme >= 0) choose(stepped(1)); break;
+        case Qt::Key_Up: choose(below(-1)); break;
+        case Qt::Key_Down: if (m_places[below(1)].theme >= 0) choose(below(1)); break;
+        case Qt::Key_F2: if (m_places[at].theme >= 0) rename(at); break;
+        default: QWidget::keyPressEvent(event); return;
+        }
+    }
+
+    void focusInEvent(QFocusEvent *) override { update(); }
+    void focusOutEvent(QFocusEvent *) override { update(); }
+
+    void choose(int i)
+    {
+        if (m_places[i].theme < 0) {
+            KisStudioTheme::add();
+            return;
+        }
+        const QString id = m_themes[m_places[i].theme].id;
+        if (id != m_current) KisStudioTheme::pick(id);
+    }
+
+    /// The name typed in place
+    void rename(int i)
+    {
+        const QString id = m_themes[m_places[i].theme].id;
+        m_editing = id;
+        update();
+        QLineEdit *edit = KisStudioInlineEdit::open(this, labelOf(m_places[i]), m_themes[m_places[i].theme].name, Qt::AlignHCenter | Qt::AlignVCenter,
+                                                    font(), [id](const QString &typed) { KisStudioTheme::rename(id, typed); });
+        QPointer<ThemePicker> self(this);
+        QObject::connect(edit, &QObject::destroyed, this, [self]() {
+            if (!self) return;
+            self->m_editing.clear();
+            self->update();
+        });
+    }
+
+private:
+    QVector<Item> m_themes;
+    QVector<Place> m_places;
+    QString m_current;
+    QString m_editing;
+    int m_hovered {-1};
+};
+
 QVector<CardDef> makeCards()
 {
     QVector<CardDef> cards;
@@ -967,43 +1242,10 @@ QVector<CardDef> makeCards()
         {QStringLiteral("[theme] Theme"), QStringLiteral("[StudioTheme] Lightness"), QStringLiteral("[StudioTheme] Tint"),
          QStringLiteral("[StudioTheme] TintAmount"), QStringLiteral("[StudioTheme] UseAccent"), QStringLiteral("[StudioTheme] Accent")},
         QStringLiteral("dark light colors color scheme palette accent tint contrast lightness"), [](Builder &b) {
-            b.explain(i18nc("@info:tooltip", "Presets, then tint and lightness"));
-            // The presets, each pictured in its own colors
-            const QVector<KisStudioTheme::Preset> presets = KisStudioTheme::presets();
-            QVector<Tiles::Tile> tiles;
-            Q_FOREACH (const KisStudioTheme::Preset &preset, presets) {
-                const KisStudioTheme::Look look = KisStudioTheme::look(preset.params);
-                tiles << Tiles::Tile{preset.name, [look](QPainter &painter, const QRectF &r) { paintScheme(painter, r, look); }};
-            }
-            auto *picker = new Tiles(tiles, QSize(96, 56), b.card);
-            // the dark ones in a row, the light ones under them
-            picker->setColumns(4);
-            // one step of the undo history, through the registry
-            picker->picked = [presets](int i) {
-                const KisStudioTheme::Params p = presets[i].params;
-                QVector<QPair<QString, QVariant>> values = {{QStringLiteral("[StudioTheme] Lightness"), p.lightness},
-                                                            {QStringLiteral("[StudioTheme] Tint"), p.tint},
-                                                            {QStringLiteral("[StudioTheme] TintAmount"), p.tintAmount},
-                                                            {QStringLiteral("[StudioTheme] UseAccent"), p.accent.isValid()}};
-                if (p.accent.isValid()) values << qMakePair(QStringLiteral("[StudioTheme] Accent"), QVariant(p.accent));
-                R::instance()->setValues(values);
-                // the same values as now, from a shipped theme: the generated one in its place
-                if (R::instance()->value(QStringLiteral("[theme] Theme")).toString() != KisStudioTheme::schemeName()) {
-                    KisStudioTheme::apply(KisStudioTheme::current());
-                }
-            };
-            b.follow([picker, presets]() {
-                int current = -1;
-                if (R::instance()->value(QStringLiteral("[theme] Theme")).toString() == KisStudioTheme::schemeName()) {
-                    const KisStudioTheme::Params now = KisStudioTheme::current();
-                    for (int i = 0; i < presets.size() && current < 0; i++) {
-                        if (presets[i].params == now) current = i;
-                    }
-                }
-                picker->setCurrent(current);
-            });
+            auto *picker = new ThemePicker(b.card);
+            b.follow([picker]() { picker->refresh(); });
             b.layout->addWidget(picker);
-            // The theme parameters; regenerating the theme is costly, so sliders apply on release
+            // The theme in use, as the parameters it is made of; regenerating it is costly, so sliders apply on release
             Number lightness(i18nc("theme", "Lightness"), 100, 0, QStringLiteral("%"));
             lightness.onRelease = true;
             b.number(QStringLiteral("[StudioTheme] Lightness"), lightness);

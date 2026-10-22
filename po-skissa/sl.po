@@ -272,6 +272,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "Hitrost"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "Ponastavi"
+
 msgctxt "glass"
 msgid "Blur"
 msgstr "Zabriši"
@@ -392,6 +396,46 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Vodila"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Prosto"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Pusti rasti"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Pusti rasti"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "Mehko"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspektiva"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Mreža"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Elipsa"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Elipsa"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Krivulja"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Pripni na vodila"
+
 msgctxt "@action:button"
 msgid "Close"
 msgstr "Zapri"
@@ -483,6 +527,10 @@ msgctxt "curve preset"
 msgid "Linear"
 msgstr "Linearno"
 
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Samodejno"
+
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
 msgstr "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b> je model, ki ga uporabljajo tiskalniki in drugi mediji na osnovi črnil.<br/>CMYK je subtraktiven model, kar pomeni, da dodajanje barv le-te spremeni v temnejše. Ker so profili CMYK zelo specifični za tiskalnike, je priporočljivo, da delate v prostoru RGB, nato pa pozneje rezultat pretvorite v profil CMYK, po možnosti v profil, ki je določen za vaš tiskalnik.<br/>CMYK <b>ni</b> priporočen za slikanje. Žal Skissa ne more pridobiti barvil ali TRC za ta prostor."
@@ -497,6 +545,10 @@ msgstr "<p><b>Dodatne opombe o profilih Elle Stone:</b></p><p><i>Skissa vsebuje 
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "Izbrano ime datoteke nima pripone datoteke, ki jo Skissa razume.\nPreverite, ali se ime datoteke konča npr. z ».%1«."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Zakleni"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Izpuščene sličice niso na voljo v tem primerku Skissa"
@@ -572,6 +624,10 @@ msgstr "Pripni na časovnico"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Vidno"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Prekrivnost"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -678,10 +734,6 @@ msgstr "Svetlost"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontrast"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Samodejno"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

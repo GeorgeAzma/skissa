@@ -296,6 +296,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "Speed"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "Reset"
+
 msgctxt "theme"
 msgid "Lightness"
 msgstr "Lightness"
@@ -436,6 +440,54 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guides"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Free"
+
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Square"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Grow"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Grow"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "Soft"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspective"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Grid"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Ellipse"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Ellipse"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Curve"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Fill"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Snap to guides"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Use the new template every time Skissa starts"
 
@@ -511,12 +563,12 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialogue"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "Select All"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"
@@ -549,6 +601,10 @@ msgctxt "curve preset"
 msgid "Linear"
 msgstr "Linear"
 
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Auto"
+
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
 msgstr "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colours together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colourants or the TRC for this space."
@@ -567,6 +623,10 @@ msgstr "<p><b>Extra notes on profiles by Elle Stone:</b></p><p><i>Skissa comes w
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Lock"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Dropped frames are not available in this Skissa instance"
@@ -650,6 +710,10 @@ msgstr "Pin to Timeline"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Visible"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Opacity"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -767,10 +831,6 @@ msgstr "Patterns"
 msgctxt "texture setting"
 msgid "Scale"
 msgstr "Scale"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Auto"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

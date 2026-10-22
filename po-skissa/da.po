@@ -176,6 +176,22 @@ msgctxt "@info:tooltip tool slot"
 msgid "Transform"
 msgstr "Transformér"
 
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspektiv"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Gitter"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Ellipse"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Ellipse"
+
 msgctxt "shortcut set"
 msgid "Krita"
 msgstr "Krita"
@@ -211,6 +227,10 @@ msgstr "Glat"
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineær"
+
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Auto"
 
 msgctxt "@action:inmenu select layers"
 msgid "Visible"
@@ -279,8 +299,4 @@ msgstr "Ingen"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Mønstre"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Auto"
 

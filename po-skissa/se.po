@@ -8,6 +8,10 @@ msgctxt "a new image's size"
 msgid "Square"
 msgstr "Boksa"
 
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Boksa"
+
 msgctxt "@action:inmenu"
 msgid "Smooth"
 msgstr "Čábbát"

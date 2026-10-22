@@ -264,6 +264,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "Швидкість"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "Скинути"
+
 msgctxt "theme"
 msgid "Lightness"
 msgstr "Освітленість"
@@ -368,6 +372,42 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Напрямні"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Довільне"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Збільшити"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Збільшити"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Перспектива"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Ґратка"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Еліпс"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Еліпс"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Крива"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Прилипання до напрямних"
+
 msgctxt "@action:button"
 msgid "Close"
 msgstr "Закрити"
@@ -430,6 +470,10 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nУВАГА!\tНе вистачає оперативної пам’яті! Розпочато використання резервної.\n\t\tБудь ласка, збільште об’єм оперативної пам’яті для Skissa за допомогою вікна «Параметри»."
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa не вдалося ініціалізувати полотно OpenGL:\n\n%1.\n\n У Skissa буде вимкнено OpenGL. Роботу програми буде завершено."
 
@@ -443,6 +487,10 @@ msgstr "Зміни"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "Новий пакунок AppImage було збережено до %1. Щоб завершити оновлення, закрийте вікно Skissa і запустіть новий AppImage."
+
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Авто"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -458,6 +506,10 @@ msgstr "<p><b>Додаткові нотатки щодо профілів від
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "У вибраної назви немає придатного до обробки у Skissa суфікса.\nНазва файла, наприклад, може завершуватися суфіксом «.%1»."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Заблокувати"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Пропущені кадри у цьому екземплярі Skissa не є доступними"
@@ -505,6 +557,10 @@ msgstr "Записати як канал прозорості"
 msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Пришпилити до монтажного столу"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Непрозорість"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -622,10 +678,6 @@ msgstr "Яскравість"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Контрастність"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Авто"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

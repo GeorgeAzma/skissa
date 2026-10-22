@@ -108,6 +108,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Afturkalla"
 
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Hnitanet"
+
 msgctxt "shortcut set"
 msgid "Krita"
 msgstr "Krita"

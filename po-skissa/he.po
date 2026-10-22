@@ -294,6 +294,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "מהירות"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "איפוס"
+
 msgctxt "theme"
 msgid "Lightness"
 msgstr "בהירות"
@@ -414,6 +418,50 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "קווים מנחים"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "חופשי"
+
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "ריבוע"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "תפיחה"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "תפיחה"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "רכה"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "נקודת מבט"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "רשת"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "אליפסה"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "אליפסה"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "מילוי"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "הצמדה לקווים המנחים"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "להשתמש בתבנית החדשה עם כל הפעלה של Skissa"
 
@@ -470,12 +518,12 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nאזהרה:\tנגמר הזיכרון! החל שימוש בזיכרון ההחלפה.\n\t\tנא להגדיר יותר RAM ל־Skissa בחלונית ההגדרות"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa לא הצליח לאתחל את משטח הציור OpenGL:\n\n%1\n\n Skissa תשבית את OpenGL ותיסגר כעת."
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "בחירה בהכול"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"
@@ -504,6 +552,14 @@ msgstr "עריכה"
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "קווי"
+
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "אוטו׳"
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "נעילה"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "תמוניות שהושמטו אינן זמינות בעותק הזה של Skissa"
@@ -587,6 +643,10 @@ msgstr "הצמדה לציר הזמן"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "גלוי"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "אטימות"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -713,10 +773,6 @@ msgstr "בהירות"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "ניגודיות"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "אוטו׳"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

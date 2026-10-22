@@ -272,6 +272,42 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "मार्गदर्शिका"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "मुफ़्त"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "बढ़त"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "बढ़त"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "परिप्रेक्ष्य"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "ग्रिड"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "दीर्घवृत्त"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "दीर्घवृत्त"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "भरें"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "मार्गदर्शिकाओं से स्नेप करें"
+
 msgctxt "new image: one made to measure"
 msgid "Custom"
 msgstr "मनपसंद"
@@ -387,6 +423,10 @@ msgstr "चित्र समतल करें"
 msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "समय-रेखा पर पिन करें"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "अपार्दरशिता"
 
 msgctxt "@info:tooltip"
 msgid "Undo"

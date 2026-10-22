@@ -11,6 +11,10 @@
 
 #include <QFile>
 #include <QCoreApplication>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QRegularExpression>
 #include <QTimer>
 
 #include <KConfig>
@@ -179,7 +183,21 @@ bool Params::operator==(const Params &other) const
         && accent == other.accent;
 }
 
-QVector<Preset> presets()
+namespace
+{
+
+using R = KisSettingsRegistry;
+
+const QString listId = QStringLiteral("[StudioThemes] List");
+const QString currentId = QStringLiteral("[StudioThemes] Current");
+
+struct Shipped {
+    QString id;
+    QString name;
+    Params params;
+};
+
+QVector<Shipped> shipped()
 {
     auto params = [](qreal lightness, const QColor &tint, qreal amount, const QColor &accent) {
         Params p;
@@ -190,15 +208,289 @@ QVector<Preset> presets()
         return p;
     };
     return {
-        {i18nc("theme preset", "Dark"), params(0.252, Qt::gray, 0, QColor())},
-        {i18nc("theme preset", "Darker"), params(0.17, Qt::gray, 0, QColor())},
-        {i18nc("theme preset", "Night"), params(0.22, QColor(60, 90, 200), 0.4, QColor(92, 124, 250))},
-        {i18nc("theme preset", "Moss"), params(0.24, QColor(80, 140, 90), 0.33, QColor(104, 170, 116))},
-        {i18nc("theme preset", "Light"), params(0.955, Qt::gray, 0, QColor())},
-        {i18nc("theme preset", "Paper"), params(0.93, QColor(214, 170, 120), 0.3, QColor(176, 106, 50))},
-        {i18nc("theme preset", "Sky"), params(0.94, QColor(110, 150, 220), 0.25, QColor(50, 110, 210))},
-        {i18nc("theme preset", "Blossom"), params(0.94, QColor(240, 120, 175), 0.45, QColor(226, 78, 150))},
+        {QStringLiteral("dark"), i18nc("theme preset", "Dark"), params(0.252, Qt::gray, 0, QColor())},
+        {QStringLiteral("darker"), i18nc("theme preset", "Darker"), params(0.17, Qt::gray, 0, QColor())},
+        {QStringLiteral("night"), i18nc("theme preset", "Night"), params(0.22, QColor(60, 90, 200), 0.4, QColor(92, 124, 250))},
+        {QStringLiteral("moss"), i18nc("theme preset", "Moss"), params(0.24, QColor(80, 140, 90), 0.33, QColor(104, 170, 116))},
+        {QStringLiteral("light"), i18nc("theme preset", "Light"), params(0.955, Qt::gray, 0, QColor())},
+        {QStringLiteral("paper"), i18nc("theme preset", "Paper"), params(0.93, QColor(214, 170, 120), 0.3, QColor(176, 106, 50))},
+        {QStringLiteral("sky"), i18nc("theme preset", "Sky"), params(0.94, QColor(110, 150, 220), 0.25, QColor(50, 110, 210))},
+        {QStringLiteral("blossom"), i18nc("theme preset", "Blossom"), params(0.94, QColor(240, 120, 175), 0.45, QColor(226, 78, 150))},
     };
+}
+
+const Shipped *shippedOf(const QString &id)
+{
+    static const QVector<Shipped> all = shipped();
+    for (const Shipped &s : all) {
+        if (s.id == id) return &s;
+    }
+    return nullptr;
+}
+
+/// A shipped theme as it ships: its colors, and the defaults for the rest
+Theme themeOf(const Shipped &s)
+{
+    Theme theme {s.id, QString(), {}};
+    Q_FOREACH (const QString &id, held()) theme.values.insert(id, R::instance()->defaultValue(id));
+    theme.values.insert(QStringLiteral("[StudioTheme] Lightness"), s.params.lightness);
+    theme.values.insert(QStringLiteral("[StudioTheme] Tint"), s.params.tint);
+    theme.values.insert(QStringLiteral("[StudioTheme] TintAmount"), s.params.tintAmount);
+    theme.values.insert(QStringLiteral("[StudioTheme] UseAccent"), s.params.accent.isValid());
+    if (s.params.accent.isValid()) theme.values.insert(QStringLiteral("[StudioTheme] Accent"), s.params.accent);
+    return theme;
+}
+
+QVector<Theme> parse(const QString &text)
+{
+    QVector<Theme> list;
+    const QJsonDocument document = QJsonDocument::fromJson(text.toUtf8());
+    Q_FOREACH (const QJsonValue &item, document.array()) {
+        const QJsonObject object = item.toObject();
+        Theme theme {object.value(QStringLiteral("id")).toString(), object.value(QStringLiteral("name")).toString(), {}};
+        if (theme.id.isEmpty()) continue;
+        const QJsonObject values = object.value(QStringLiteral("values")).toObject();
+        Q_FOREACH (const QString &id, held()) {
+            const R::Setting *setting = R::instance()->setting(id);
+            if (!setting || !values.contains(id)) continue;
+            QVariant raw = values.value(id).toVariant();
+            if (setting->kind == R::Kind::Color) raw = QColor(raw.toString());
+            const QVariant value = R::instance()->normalized(*setting, raw);
+            if (value.isValid()) theme.values.insert(id, value);
+        }
+        list << theme;
+    }
+    // never stored, or not readable: the shipped ones
+    if (list.isEmpty()) {
+        Q_FOREACH (const Shipped &s, shipped()) list << themeOf(s);
+    }
+    return list;
+}
+
+QString serialized(const QVector<Theme> &list)
+{
+    QJsonArray array;
+    for (const Theme &theme : list) {
+        QJsonObject values;
+        for (auto it = theme.values.constBegin(); it != theme.values.constEnd(); ++it) {
+            values.insert(it.key(), it.value().userType() == QMetaType::QColor ? QJsonValue(it.value().value<QColor>().name(QColor::HexArgb))
+                                                                                : QJsonValue::fromVariant(it.value()));
+        }
+        QJsonObject object {{QStringLiteral("id"), theme.id}, {QStringLiteral("values"), values}};
+        if (!theme.name.isEmpty()) object.insert(QStringLiteral("name"), theme.name);
+        array << object;
+    }
+    return QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact));
+}
+
+int indexOf(const QVector<Theme> &list, const QString &id)
+{
+    for (int i = 0; i < list.size(); i++) {
+        if (list[i].id == id) return i;
+    }
+    return -1;
+}
+
+/// \p first, then the values that make \p theme the one in use
+QVector<QPair<QString, QVariant>> choosing(const Theme &theme, QVector<QPair<QString, QVariant>> first)
+{
+    first << qMakePair(currentId, QVariant(theme.id));
+    Q_FOREACH (const QString &id, held()) {
+        if (theme.values.contains(id)) first << qMakePair(id, theme.values.value(id));
+    }
+    return first;
+}
+
+void write(const QVector<QPair<QString, QVariant>> &values)
+{
+    R::instance()->setValues(values);
+    // the same colors as now, from a shipped scheme: the generated one in its place
+    if (R::instance()->value(QStringLiteral("[theme] Theme")).toString() != schemeName()) apply(current());
+}
+
+/**
+ * The first time themes are kept: the look in use stays with the shipped theme of its colors, or
+ * becomes a theme of its own. Written straight to kritarc, as nothing the user did.
+ */
+void settle()
+{
+    static bool done = false;
+    if (done) return;
+    done = true;
+    KConfigGroup g = KSharedConfig::openConfig()->group("StudioThemes");
+    if (g.hasKey("Current")) return;
+    QVector<Theme> list = parse(g.readEntry("List", QString()));
+    const Params now = current();
+    int match = -1;
+    for (int i = 0; i < list.size() && match < 0; i++) {
+        if (paramsOf(list[i]) == now) match = i;
+    }
+    if (match < 0) {
+        list << Theme {QStringLiteral("own1"), i18nc("theme name", "Mine"), {}};
+        match = list.size() - 1;
+    }
+    Q_FOREACH (const QString &id, held()) list[match].values.insert(id, R::instance()->value(id));
+    g.writeEntry("List", serialized(list));
+    g.writeEntry("Current", list[match].id);
+}
+
+} // namespace
+
+QStringList held()
+{
+    // the font's switch before its family and size, which turning it on or off fills in or clears
+    return {QStringLiteral("[StudioTheme] Lightness"), QStringLiteral("[StudioTheme] Tint"), QStringLiteral("[StudioTheme] TintAmount"),
+            QStringLiteral("[StudioTheme] UseAccent"), QStringLiteral("[StudioTheme] Accent"), QStringLiteral("StudioGlass"),
+            QStringLiteral("StudioGlassBlur"), QStringLiteral("StudioGlassOpacity"), QStringLiteral("StudioGlassRimLight"),
+            QStringLiteral("canvasBorderColor"), QStringLiteral("use_custom_system_font"), QStringLiteral("custom_system_font"),
+            QStringLiteral("custom_font_size")};
+}
+
+QVector<Theme> themes()
+{
+    settle();
+    return parse(R::instance()->value(listId).toString());
+}
+
+QString nameOf(const Theme &theme)
+{
+    if (!theme.name.isEmpty()) return theme.name;
+    const Shipped *s = shippedOf(theme.id);
+    return s ? s->name : theme.id;
+}
+
+Params paramsOf(const Theme &theme)
+{
+    Params p;
+    p.lightness = theme.values.value(QStringLiteral("[StudioTheme] Lightness"), p.lightness).toReal();
+    p.tint = theme.values.value(QStringLiteral("[StudioTheme] Tint"), p.tint).value<QColor>();
+    p.tintAmount = theme.values.value(QStringLiteral("[StudioTheme] TintAmount"), p.tintAmount).toReal();
+    if (theme.values.value(QStringLiteral("[StudioTheme] UseAccent")).toBool()) {
+        p.accent = theme.values.value(QStringLiteral("[StudioTheme] Accent"), QColor(92, 124, 250)).value<QColor>();
+    }
+    return p;
+}
+
+QString currentTheme()
+{
+    const QVector<Theme> list = themes();
+    const QString id = R::instance()->value(currentId).toString();
+    return indexOf(list, id) >= 0 ? id : QString();
+}
+
+void pick(const QString &id)
+{
+    const QVector<Theme> list = themes();
+    const int i = indexOf(list, id);
+    if (i >= 0) write(choosing(list[i], {}));
+}
+
+void add()
+{
+    QVector<Theme> list = themes();
+    const int from = indexOf(list, currentTheme());
+    int number = 1;
+    for (const Theme &theme : list) {
+        if (theme.id.startsWith(QLatin1String("own"))) number = qMax(number, theme.id.mid(3).toInt() + 1);
+    }
+    // "Dark" → "Dark 2", "Dark 2" → "Dark 3"
+    QString base = from >= 0 ? nameOf(list[from]) : i18nc("theme name", "Mine");
+    const QRegularExpressionMatch numbered = QRegularExpression(QStringLiteral("^(.*\\S) (\\d+)$")).match(base);
+    if (numbered.hasMatch()) base = numbered.captured(1);
+    QStringList names;
+    for (const Theme &theme : list) names << nameOf(theme);
+    int n = 2;
+    while (names.contains(QStringLiteral("%1 %2").arg(base).arg(n))) n++;
+    Theme theme {QStringLiteral("own%1").arg(number), QStringLiteral("%1 %2").arg(base).arg(n), {}};
+    Q_FOREACH (const QString &setting, held()) theme.values.insert(setting, R::instance()->value(setting));
+    list.insert(from >= 0 ? from + 1 : list.size(), theme);
+    R::instance()->setValues({{listId, serialized(list)}, {currentId, theme.id}});
+}
+
+void rename(const QString &id, const QString &name)
+{
+    QVector<Theme> list = themes();
+    const int i = indexOf(list, id);
+    const QString typed = name.simplified();
+    if (i < 0 || typed.isEmpty()) return;
+    const Shipped *s = shippedOf(id);
+    list[i].name = s && s->name == typed ? QString() : typed;
+    R::instance()->setValue(listId, serialized(list));
+}
+
+void remove(const QString &id)
+{
+    QVector<Theme> list = themes();
+    const int i = indexOf(list, id);
+    if (i < 0 || list.size() < 2) return;
+    const bool inUse = id == currentTheme();
+    list.remove(i);
+    const QVector<QPair<QString, QVariant>> stored {{listId, serialized(list)}};
+    if (inUse) write(choosing(list[qMin(i, int(list.size()) - 1)], stored));
+    else R::instance()->setValues(stored);
+}
+
+void reset(const QString &id)
+{
+    QVector<Theme> list = themes();
+    const int i = indexOf(list, id);
+    const Shipped *s = shippedOf(id);
+    if (i < 0 || !s) return;
+    list[i] = themeOf(*s);
+    const QVector<QPair<QString, QVariant>> stored {{listId, serialized(list)}};
+    if (id == currentTheme()) write(choosing(list[i], stored));
+    else R::instance()->setValues(stored);
+}
+
+bool isChanged(const QString &id)
+{
+    const Shipped *s = shippedOf(id);
+    const QVector<Theme> list = themes();
+    const int i = indexOf(list, id);
+    if (!s || i < 0) return false;
+    if (!list[i].name.isEmpty()) return true;
+    const Theme original = themeOf(*s);
+    Q_FOREACH (const QString &setting, held()) {
+        const R::Setting *described = R::instance()->setting(setting);
+        if (described && list[i].values.contains(setting)
+            && !R::instance()->sameValue(*described, list[i].values.value(setting), original.values.value(setting))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool anyDeleted()
+{
+    const QVector<Theme> list = themes();
+    Q_FOREACH (const Shipped &s, shipped()) {
+        if (indexOf(list, s.id) < 0) return true;
+    }
+    return false;
+}
+
+void restoreDeleted()
+{
+    QVector<Theme> list = themes();
+    QString before;
+    Q_FOREACH (const Shipped &s, shipped()) {
+        if (indexOf(list, s.id) < 0) list.insert(before.isEmpty() ? 0 : indexOf(list, before) + 1, themeOf(s));
+        before = s.id;
+    }
+    R::instance()->setValue(listId, serialized(list));
+}
+
+void remember(const QString &id, const QVariant &value)
+{
+    // an undo puts the list back by itself
+    if (R::instance()->replaying()) return;
+    QVector<Theme> list = themes();
+    const int i = indexOf(list, R::instance()->value(currentId).toString());
+    const R::Setting *setting = R::instance()->setting(id);
+    if (i < 0 || !setting) return;
+    if (list[i].values.contains(id) && R::instance()->sameValue(*setting, list[i].values.value(id), value)) return;
+    list[i].values.insert(id, value);
+    R::instance()->setValue(listId, serialized(list));
 }
 
 Params current()

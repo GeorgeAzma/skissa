@@ -24,6 +24,10 @@ msgctxt "a new image's size"
 msgid "Square"
 msgstr "वर्ग"
 
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "वर्ग"
+
 msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "कुछ नइ"

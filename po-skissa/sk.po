@@ -388,6 +388,46 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Vodiace čiary"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Voľné"
+
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Štvorec"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Zväčšiť"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Zväčšiť"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspektíva"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Mriežka"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Elipsa"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Elipsa"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Krivka"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Prichytiť k vodiacim čiaram"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Použiť novú šablónu vždy keď sa spustí Skissa"
 
@@ -451,12 +491,12 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nVAROVANIE:\tNedostatok pamäte! Spustilo sa používanie odkladacieho priestoru.\n\t\tProsím, nakonfigurujte viac RAM pre Skissa v dialógu Nastavenia"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa nemohla inicializovať OpenGL plátno:\n\n%1\n\n Skissa zakáže OpenGL a zavrie sa."
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "Vybrať všetko"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"
@@ -499,6 +539,10 @@ msgstr "<p><b>Extra poznámky k profilom od Elle Stone:</b></p><p><i>Skissa pric
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "Vybraný názov súboru nemá príponu, ktorej Skissa rozumie.\nUistite sa, že názov súboru končí napríklad na '.%1'."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Zamknúť"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Vypustené snímky nie sú v tejto inštancii Skissa k dispozícii"
@@ -570,6 +614,10 @@ msgstr "Pripnúť na časovú os"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Viditeľná"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Nepriehľadnosť"
 
 msgctxt "@info:tooltip"
 msgid "Undo"

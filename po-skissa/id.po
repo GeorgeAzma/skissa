@@ -172,6 +172,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "Kecepatan"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "Atur ulang"
+
 msgctxt "theme"
 msgid "Lightness"
 msgstr "Kecahayaan"
@@ -296,6 +300,46 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Panduan"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Bebas"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Tumbuh"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Tumbuh"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "Lembut"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Kisi"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Elips"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Elips"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Kurva"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Isi"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Jepret ke  panduan"
+
 msgctxt "@action:button"
 msgid "Close"
 msgstr "Tutup"
@@ -351,10 +395,6 @@ msgid "Difference"
 msgstr "Beda"
 
 msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "Pilih Semua"
-
-msgctxt "@action:inmenu"
 msgid "Deselect"
 msgstr "Nonpilih"
 
@@ -373,6 +413,14 @@ msgstr "Halus"
 msgctxt "@action:inmenu"
 msgid "Edit"
 msgstr "Edit"
+
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Gembok"
 
 msgctxt "@title:menu"
 msgid "Select"
@@ -441,6 +489,10 @@ msgstr "Sematkan ke Linimasa"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Terlihat"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Opasitas"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -541,10 +593,6 @@ msgstr "Kecerahan"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontras"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Auto"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

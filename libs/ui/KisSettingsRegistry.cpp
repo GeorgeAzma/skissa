@@ -392,6 +392,9 @@ QVector<Setting> describeAll()
             all << made(grouped(number(QStringLiteral("TintAmount"), 0.0, 0, 1, i18nc("setting", "Theme tint strength"), R::Fork), themeGroup));
             all << made(grouped(toggle(QStringLiteral("UseAccent"), false, i18nc("setting", "Theme accent"), R::Fork), themeGroup));
             all << made(grouped(color(QStringLiteral("Accent"), QColor(92, 124, 250), i18nc("setting", "Theme accent color"), R::Fork), themeGroup));
+            // The picker's themes and the one in use (KisStudioTheme::themes)
+            all << grouped(text(QStringLiteral("List"), QLatin1String(""), i18nc("setting", "Themes"), R::Fork), QStringLiteral("StudioThemes"));
+            all << grouped(text(QStringLiteral("Current"), QLatin1String(""), i18nc("setting", "Theme"), R::Fork), QStringLiteral("StudioThemes"));
         }
 
         Setting glass = toggle(QStringLiteral("StudioGlass"), true, i18nc("setting", "Glass"), R::Fork);
@@ -779,6 +782,17 @@ QVector<Setting> describeAll()
     }
     const QHash<QString, QString> help = explanations();
     for (Setting &s : all) s.help = help.value(s.id);
+    // the theme in use keeps what it holds as it changes
+    const QStringList held = KisStudioTheme::held();
+    for (Setting &s : all) {
+        if (!held.contains(s.id)) continue;
+        const auto written = s.written;
+        const QString id = s.id;
+        s.written = [written, id](const QVariant &value) {
+            if (written) written(value);
+            KisStudioTheme::remember(id, value);
+        };
+    }
     return all;
 }
 

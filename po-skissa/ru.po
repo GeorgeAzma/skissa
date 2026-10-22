@@ -240,6 +240,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "Скорость"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "Сброс"
+
 msgctxt "theme"
 msgid "Lightness"
 msgstr "Светлота"
@@ -344,6 +348,42 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Направляющие"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Свободная"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Увеличение"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Увеличение"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "Мягкий"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Перспектива"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Эллипс"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Эллипс"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Заливка"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Прилипание к направляющим"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Использовать новый шаблон при каждом запуске Skissa"
 
@@ -403,6 +443,10 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nВнимание!\tЗакончилась оперативная память. Начато использование подкачки.\n\t\tПопробуйте выделить для Skissa больше памяти в диалоге настройки."
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa не удалось инициализировать холст OpenGL:\n\n%1\n\n Skissa отключит OpenGL и сейчас будет закрыта."
 
@@ -431,6 +475,10 @@ msgstr "<p><b>Дополнительные комментарии к профи�
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "У выбранного названия нет суффикса, распознаваемого программой Skissa.\nНазвание файла, например, может завершаться суффиксом «.%1»."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Заблокировать"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Сброшенные кадры недоступны в этом экземпляре Skissa"
@@ -486,6 +534,10 @@ msgstr "Прикреплять к временной шкале"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Видимый"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Непрозрачность"
 
 msgctxt "@info:tooltip"
 msgid "Undo"

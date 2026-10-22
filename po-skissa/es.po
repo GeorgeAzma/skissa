@@ -280,6 +280,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "Velocidad"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "Reiniciar"
+
 msgctxt "glass"
 msgid "Blur"
 msgstr "Desenfocar"
@@ -412,6 +416,54 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guías"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Libre"
+
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Cuadrado"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Expandir"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Expandir"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "Suave"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspectiva"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Cuadrícula"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Elipse"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Elipse"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Curva"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Rellenar"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Ajustar a las guías"
+
 msgctxt "@action:button"
 msgid "Close"
 msgstr "Cerrar"
@@ -486,12 +538,12 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nAdvertencia:\tSe ha quedado sin memoria. Se ha iniciado el intercambio.\n\t\tReserve más RAM para Skissa en el diálogo de preferencias."
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1 %"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa no ha podido inicializar el lienzo OpenGL:\n\n%1\n\nSkissa desactivará OpenGL y se cerrará ahora."
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "Seleccionar todo"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"
@@ -538,6 +590,10 @@ msgstr "<p><b>Notas adicionales sobre los perfiles de Elle Stone:</b></p><p><i>S
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "El archivo seleccionado tiene una extensión que Skissa no reconoce.\nAsegúrese de que el nombre de archivo termina en «.%1», por ejemplo."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Bloquear"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Los fotogramas descartados no están disponibles en esta instancia de Skissa"
@@ -625,6 +681,10 @@ msgstr "Fijar en la línea de tiempo"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Visible"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Opacidad"
 
 msgctxt "@info:tooltip"
 msgid "Undo"

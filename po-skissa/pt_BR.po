@@ -412,6 +412,54 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guias"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Livre"
+
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Quadrado"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Crescer"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Crescer"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "Suave"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspectiva"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Grade"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Elipse"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Elipse"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Curva"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Preenchimento"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Alinha à grade"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Usa o novo modelo sempre que iniciar o Skissa"
 
@@ -478,12 +526,12 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nATENÇÃO:\tMemória insuficiente! Foi ativada a paginação da memória virtual.\n\t\tConfigure mais memória RAM para o Skissa na janela de Configurações"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "O Skissa não conseguiu inicializar a tela de pintura em OpenGL:\n\n%1\n\n O Skissa irá desativar o OpenGL e fechar agora."
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "Selecionar tudo"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"
@@ -534,6 +582,10 @@ msgstr "<p><b>Observações adicionais sobre os perfis de Elle Stone:</b></p><p>
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "O nome do arquivo selecionado não obtém uma extensão de arquivo que o Skissa compreende.\nCertifique-se de que o nome do arquivo termine em '.%1', por exemplo."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Bloquear"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Os quadros descartados não estão disponíveis nesta instância do Skissa"
@@ -617,6 +669,10 @@ msgstr "Fixar na linha do tempo"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Visível"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Opacidade"
 
 msgctxt "@info:tooltip"
 msgid "Undo"

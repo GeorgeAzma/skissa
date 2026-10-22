@@ -313,6 +313,34 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Hilfslinien"
 
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Quadrat"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspektive"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Gitter"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Ellipse"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Ellipse"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Füllen"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "An Hilfslinien ausrichten"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Die neue Vorlage immer beim Start von Skissa als Standard setzen"
 
@@ -353,10 +381,6 @@ msgstr "Hinzufügen"
 
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Die OpenGL-Leinwand lässt sich nicht initialisieren:\n\n %1\n\n OpenGL wird deaktiviert und Skissa jetzt geschlossen."
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "Alles auswählen"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"

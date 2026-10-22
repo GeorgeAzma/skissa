@@ -200,6 +200,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "速度"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "重置"
+
 msgctxt "glass"
 msgid "Blur"
 msgstr "模糊"
@@ -296,6 +300,30 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "参考线"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "自由变形"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "柔和"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "网格"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "曲线"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "填充"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "吸附到参考线"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Skissa 每次启动时加载此新模板"
 
@@ -358,12 +386,12 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\n警告：\t内存不足！数据将被交换到硬盘，造成拖慢。\n\t\t请在设置对话框的性能页面为 Skissa 分配更多内存。"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa 无法初始化 OpenGL 画布：\n\n%1\n\nSkissa 将在禁用 OpenGL 选项后立即关闭。"
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "选择全部"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"
@@ -481,6 +509,10 @@ msgstr "固定到动画时间轴"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "可见"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "不透明度"
 
 msgctxt "@info:tooltip"
 msgid "Undo"

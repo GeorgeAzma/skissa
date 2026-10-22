@@ -268,6 +268,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "Velocitat"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "Reinicia"
+
 msgctxt "theme"
 msgid "Lightness"
 msgstr "Claredat"
@@ -388,6 +392,54 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guies"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Lliure"
+
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Quadrat"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Fes créixer"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Fes créixer"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "Suau"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspectiva"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Quadrícula"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "El·lipse"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "El·lipse"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Corba"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Emplenat"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Ajusta a les guies"
+
 msgctxt "@action:button"
 msgid "Close"
 msgstr "Tanca"
@@ -458,12 +510,12 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nAVÍS:\tS'ha exhaurit la memòria! Ha començat l'ús de la memòria d'intercanvi.\n\t\tConfigureu més RAM per a Skissa en el diàleg de configuració"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa no ha pogut restablir el llenç d'OpenGL:\n\n%1\n\n Ara Skissa desactivarà OpenGL i es tancarà."
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "Selecciona-ho tot"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"
@@ -510,6 +562,10 @@ msgstr "<p><b>Notes extres quant als perfils per l'Elle Stone:</b></p><p><i>Skis
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "El nom de fitxer seleccionat no té una extensió de fitxer que entenga Skissa.\nAssegureu-vos que el nom del fitxer acaba amb «.%1», per exemple."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Bloqueja"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "No es poden deixar anar fotogrames en esta instància de Skissa"
@@ -585,6 +641,10 @@ msgstr "Fixa en la línia de temps"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Visible"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Opacitat"
 
 msgctxt "@info:tooltip"
 msgid "Undo"

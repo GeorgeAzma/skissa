@@ -4,6 +4,10 @@ msgctxt "a new image's size"
 msgid "Square"
 msgstr "Fjouwerkant"
 
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Fjouwerkant"
+
 msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Oan palet tafoegje"

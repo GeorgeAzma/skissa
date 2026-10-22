@@ -388,6 +388,46 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guide"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Libera"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Accresci"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Accresci"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Prospettiva"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Griglia"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Ellisse"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Ellisse"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Curva"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Riempi"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Aggancia alle guide"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Usa il nuovo modello ogni volta che si avvia Skissa"
 
@@ -458,12 +498,12 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nATTENZIONE:\tMemoria insufficiente! Lo swap è stato avviato.\n\t\tConfigura più RAM per Skissa nelle Impostazioni"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa non ha potuto inizializzare la tela OpenGL:\n\n%1\n\n Skissa ora disabiliterà OpenGL e terminerà."
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "Seleziona tutto"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"
@@ -514,6 +554,10 @@ msgstr "<p><b>Note aggiuntive sui profili di Elle Stone:</b></p><p><i>Skissa è 
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "Il nome del file selezionato non contiene un'estensione di file che Skissa è in grado di interpretare.\nAccertati che il nome del file termini in '.%1', per esempio."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Blocca"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "I fotogrammi tralasciati non sono disponibili in questa istanza di Skissa"
@@ -581,6 +625,10 @@ msgstr "Appunta nella linea temporale"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Visibile"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Opacità"
 
 msgctxt "@info:tooltip"
 msgid "Undo"

@@ -264,6 +264,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "Hastighet"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "Återställ"
+
 msgctxt "theme"
 msgid "Lightness"
 msgstr "Ljushet"
@@ -380,6 +384,42 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Hjälplinjer"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Fri"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Öka"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Öka"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "Mjuk"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspektiv"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Rutnät"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Kurva"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Fyll"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Lås till hjälplinjer"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Använd den nya mallen varje gång Skissa startas"
 
@@ -434,12 +474,12 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\nVarning:\tMinnet är slut! Växling har startats.\n\t\tStäll in mer RAM för Skissa i inställningsdialogrutan."
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1 %"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa kunde inte initiera OpenGL-duken:\n\n%1\n\n Skissa inaktiverar OpenGL och avslutas nu."
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "Markera alla"
 
 msgctxt "@action:inmenu"
 msgid "Deselect"
@@ -486,6 +526,10 @@ msgstr "<p><b>Extra anmärkningar om profiler av Elle Stone:</b></p><p><i>Skissa
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "Det valda filnamnet har inte en filändelse som Skissa förstår.\nSäkerställ att filnamnet slutar på exempelvis '.%1'."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Lås"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Överhoppade bildrutor är inte tillgängliga i den här instansen av Skissa"
@@ -541,6 +585,10 @@ msgstr "Platta ut bild"
 msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Fäst på tidslinje"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Ogenomskinlighet"
 
 msgctxt "@info:tooltip"
 msgid "Undo"

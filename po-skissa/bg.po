@@ -404,6 +404,54 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Водачи"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Свободен"
+
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Квадрат"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Увеличаване"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Увеличаване"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "Меко"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Перспектива"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Мрежа"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Елипса"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Елипса"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Крива"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Запълване"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Прилепяне към водачите"
+
 msgctxt "@action:button"
 msgid "Close"
 msgstr "Затваряне"
@@ -478,6 +526,10 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\n\t\tПРЕДУПРЕЖДЕНИЕ: \tИзчерпана памет! Започна се използване на swap файл.\nМоля, конфигурирайте повече RAM за Skissa в диалоговия прозорец „Настройки“"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa не успя да инициализира OpenGL платното:\n\n%1\n\nSkissa ще деактивира OpenGL и ще се затвори."
 
@@ -508,6 +560,10 @@ msgctxt "curve preset"
 msgid "Linear"
 msgstr "Линейно"
 
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Автоматично"
+
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
 msgstr "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Циан,Магента, Жълто, Ключ) </a> </b>, е моделът, използван от принтери и други мастилно-базирани медии. <br/> CMYK е субтрактивен модел, което означава, че добавянето на цветовезаедно ще ги направи по -тъмни. Поради това, че CMYK профилите са много сп. <br/> CMYK  е<b> не </b> се препоръчва за рисуване. За съжаление Skissa не може да извлечеоцветители или TRC от CMYK."
@@ -522,6 +578,10 @@ msgstr "<p><b>Допълнителни бележки за профилите н
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "Избраното име на файла няма разширение, което Skissa да разпознава.\nУверете се, че името на файла завършва например на '.%1'."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Заключване"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Изпуснатите кадри не са налични в този екземпляр на Skissa"
@@ -597,6 +657,10 @@ msgstr "Прикачване към времевата линия"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Видим"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Непрозрачност"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -718,10 +782,6 @@ msgstr "Яркост"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Контраст"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Автоматично"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

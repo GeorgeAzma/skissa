@@ -253,6 +253,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "Abiadura"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "Berrezarri"
+
 msgctxt "theme"
 msgid "Lightness"
 msgstr "Argitasuna"
@@ -377,6 +381,46 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Gidak"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Askea"
+
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Karratua"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Handitu"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Handitu"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspektiba"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Sareta"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Elipsea"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Elipsea"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Kurba"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Atxiki saretara"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Erabili txantiloi berria Skissa hasten den bakoitzean"
 
@@ -452,9 +496,17 @@ msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineala"
 
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Automatikoa"
+
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
 msgstr "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key /Zian, Magenta, Horia, Gakoa)</a></b>, inprimagailuek eta tinta oinarri duten beste euskarri batzuek erabiltzen duten eredua da.<br/>CMYK eredu kentzaile bat da, koloreak elkartzea haiek ilunduko dituela esan nahi du. CMYK profilak inprimagailu bakoitzarekiko oso espezifikoak direnez, RGB eremuarekin lan egitea gomendatzen da, eta ondoren CMYK profil batera bihurtzea, hobeto zure inprimagailuarentzako egindako bat. <br/>CMYK <b>ez</b> da margotzeko gomendatzen. Zoritxarrez, Skissak ezin ditu eremu honetarako koloragarriak edo TRC-a berreskuratu."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Giltzatu"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "Skissaren instantzia honetan baztertutako fotogramak ez daude erabilgarri"
@@ -518,6 +570,10 @@ msgstr "Iltzatu denbora-lerroan"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "Ikusgai"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Opakutasuna"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -616,10 +672,6 @@ msgstr "Bat ere ez"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Ereduak"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Automatikoa"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

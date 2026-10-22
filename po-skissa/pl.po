@@ -192,6 +192,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "Szybkość"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "Wyzeruj"
+
 msgctxt "glass"
 msgid "Blur"
 msgstr "Rozmycie"
@@ -304,6 +308,42 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Prowadnice"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Dowolnie"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Zwiększ"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Zwiększ"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspektywa"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Elipsa"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Elipsa"
+
+msgctxt "a guide: a spline"
+msgid "Curve"
+msgstr "Krzywa"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "Wypełnienie"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Przyciągaj do prowadnic"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Użyj nowego wzorca za każdym razem, kiedy Skissa się uruchamia"
 
@@ -360,12 +400,12 @@ msgctxt "pen inputs combined"
 msgid "Difference"
 msgstr "Różnica"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa nie może zainicjować płótna OpenGL:\n\n%1\n\n Skissa wyłączy OpenGL i zakończy działanie."
-
-msgctxt "@action:inmenu"
-msgid "Select All"
-msgstr "Zaznacz wszystko"
 
 msgctxt "@action:inmenu"
 msgid "Reselect"
@@ -393,6 +433,10 @@ msgstr "<p><b>Dodatkowe uwagi do profili stworzonych przez Elle Stone:</b></p><p
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "W nazwie wybranego pliku nie ma rozszerzania, które rozumie Skissa.\nUpewnij się, że nazwa jest zakończona na na przykład '.%1'."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Zablokuj"
 
 msgctxt "@title:menu"
 msgid "Select"
@@ -449,6 +493,10 @@ msgstr "Spłaszcz obraz"
 msgctxt "@action:inmenu"
 msgid "Pin to Timeline"
 msgstr "Przypnij na osi czasu"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Nieprzezroczystość"
 
 msgctxt "@info:tooltip"
 msgid "Undo"

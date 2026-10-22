@@ -72,6 +72,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Angre"
 
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Rutenett"
+
 msgctxt "shortcut set"
 msgid "Krita"
 msgstr "Krita"
@@ -87,6 +91,10 @@ msgstr "Ingen"
 msgctxt "default name of a filter layer, followed by a number"
 msgid "Filter"
 msgstr "Filter"
+
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Auto"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -115,8 +123,4 @@ msgstr "Ingen"
 msgctxt "texture setting"
 msgid "Brightness"
 msgstr "Lysstyrke"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Auto"
 

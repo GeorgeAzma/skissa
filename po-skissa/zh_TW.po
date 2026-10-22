@@ -248,6 +248,10 @@ msgctxt "settings section"
 msgid "Speed"
 msgstr "速度"
 
+msgctxt "@action:inmenu a theme"
+msgid "Reset"
+msgstr "重設"
+
 msgctxt "theme"
 msgid "Lightness"
 msgstr "亮度"
@@ -352,6 +356,42 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "參考線"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "自由"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "擴張"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "擴張"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "柔和"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "透視"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "橢圓"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "橢圓"
+
+msgctxt "@info:tooltip a shape's fill"
+msgid "Fill"
+msgstr "填充"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "吸附到參考線"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Skissa 每次啟動時使用此新範本"
 
@@ -419,6 +459,10 @@ msgctxt "tooltip on statusbar memory reporting button"
 msgid "\n\nWARNING:\tOut of memory! Swapping has been started.\n\t\tPlease configure more RAM for Skissa in Settings dialog"
 msgstr "\n\n警告：\t記憶體不足！已啟用記憶體置換。\n\t\t請在設定對話框中為 Skissa 分配更多記憶體"
 
+msgctxt "floating message about zoom"
+msgid "%1%"
+msgstr "%1%"
+
 msgid "Skissa could not initialize the OpenGL canvas:\n\n%1\n\n Skissa will disable OpenGL and close now."
 msgstr "Skissa 無法初始化 OpenGL 畫布：\n\n%1\n\nSkissa 將在停用 OpenGL 選項後立即關閉。"
 
@@ -449,6 +493,10 @@ msgctxt "curve preset"
 msgid "Linear"
 msgstr "線性"
 
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "自動"
+
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
 msgstr "<b><a href=\"https://zh.wikipedia.org/wiki/印刷四分色模式\">CMYK (青、品紅、 黃、黑)</a></b>是一種用於印表機以及其他運用色料產生影像的媒體使用的色彩模型。<br/>CMYK 是一種減色模型，色彩在相互疊加時結果變暗。每台印表機的 CMYK 特性檔案都有差異，因此我們推薦先使用 RGB 色彩模型繪製作品，然後再把影像用目標印表機的 CMYK 特性檔案來進行轉換。<br/>我們<b>不建議</b> 把 CMYK 用於繪畫過程。Skissa 也無法獲取此色彩空間的色料特性或階調響應曲線 (TRC) 。"
@@ -467,6 +515,10 @@ msgstr "<p><b>Elle Stone 色彩特性檔案說明：</b></p><p><b>Skissa 內建�
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "所選檔案名稱不含 Skissa 能理解的副檔名。\n舉個例，請確認檔案名稱以「.%1」結尾。"
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "鎖定"
 
 msgid "Dropped frames are not available in this Skissa instance"
 msgstr "此 Skissa 實體不支援拋棄的影格"
@@ -542,6 +594,10 @@ msgstr "釘選至時間軸"
 msgctxt "a layer's eye when the layer shows"
 msgid "Visible"
 msgstr "可見"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "不透明度"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -659,10 +715,6 @@ msgstr "亮度"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "對比度"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "自動"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

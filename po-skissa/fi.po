@@ -285,6 +285,46 @@ msgctxt "@info:tooltip tool slot"
 msgid "Text"
 msgstr "Teksti"
 
+msgctxt "@info:tooltip a crop of any shape"
+msgid "Free"
+msgstr "Vapaa"
+
+msgctxt "@info:tooltip a crop's shape"
+msgid "Square"
+msgstr "Neliö"
+
+msgctxt "@info:tooltip grow the selection"
+msgid "Grow"
+msgstr "Kasvata"
+
+msgctxt "the selection's grow scrubber, at rest"
+msgid "Grow"
+msgstr "Kasvata"
+
+msgctxt "the selection's soft edge scrubber, at rest"
+msgid "Soft"
+msgstr "Pehmeä"
+
+msgctxt "a guide"
+msgid "Perspective"
+msgstr "Perspektiivi"
+
+msgctxt "perspective guide: a grid on a plane"
+msgid "Grid"
+msgstr "Ruudukko"
+
+msgctxt "a guide"
+msgid "Ellipse"
+msgstr "Ellipsi"
+
+msgctxt "an ellipse guide"
+msgid "Ellipse"
+msgstr "Ellipsi"
+
+msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
+msgid "Snap to guides"
+msgstr "Kohdista apuviivoihin"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Käytä pohjaa aina kun Skissa käynnistyy"
 
@@ -333,9 +373,17 @@ msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineaarinen"
 
+msgctxt "chosen for itself, as a switch on a setting's row"
+msgid "Auto"
+msgstr "Automaattinen"
+
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
 msgstr "<b><a href=\"https://fi.wikipedia.org/wiki/CMYK\">CMYK</a></b> (syaani, magenta, keltainen, avainväri) on tulostimien ja muiden musteeseen perustuvien laitteiden käyttämä värimalli.<br/>CMYK on subtraktiivinen malli, jossa väriarvon kasvattaminen tummentaa väriä. Koska CMYK-profiilit ovat hyvin tulostinkohtaisia, työ suositellaan tehtäväksi RGB-väriavaruudessa ja muuttamaan myöhemmin CMYK-profiiliin, mieluiten tulostimen mukana tulleeseen.<br/>CMYK:ta <b>ei suositella</b> maalauksiin. Skissa ei valitettavasti osaa noutaa tämän avaruuden väriaineita tai TRC:tä."
+
+msgctxt "a guide kept from being moved"
+msgid "Lock"
+msgstr "Lukitse"
 
 msgctxt "@title:menu"
 msgid "Select"
@@ -388,6 +436,10 @@ msgstr "Alfa maskiksi"
 msgctxt "@action:inmenu"
 msgid "Write as Alpha"
 msgstr "Kirjoita alfaksi"
+
+msgctxt "@info:tooltip a layer's opacity"
+msgid "Opacity"
+msgstr "Peittävyys"
 
 msgctxt "@info:tooltip"
 msgid "Undo"
@@ -453,10 +505,6 @@ msgstr "Liukuväri"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Kuviot"
-
-msgctxt "spacing chosen from the brush size"
-msgid "Auto"
-msgstr "Automaattinen"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"
