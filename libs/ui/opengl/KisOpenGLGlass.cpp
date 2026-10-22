@@ -762,7 +762,8 @@ struct Program {
 
     void bind() const { QOpenGLContext::currentContext()->functions()->glUseProgram(id); }
     void release() const { QOpenGLContext::currentContext()->functions()->glUseProgram(0); }
-    int operator[](const char *uniform) const { return locations.value(QByteArray(uniform), -1); }
+    /// looked up without a copy of the name: about fifty a frame
+    int operator[](const char *uniform) const { return locations.value(QByteArray::fromRawData(uniform, int(qstrlen(uniform))), -1); }
 };
 
 struct Programs {

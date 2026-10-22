@@ -84,7 +84,13 @@ bool KisTouchMode::eventFilter(QObject *watched, QEvent *event)
     switch (event->type()) {
     case QEvent::TouchBegin: {
         auto *touch = static_cast<QTouchEvent *>(event);
-        if (touch->device() && touch->device()->type() == QTouchDevice::TouchScreen) {
+        // fingers on the canvas pan and zoom there, also between pen strokes on a pen display: only a touch on
+        // the interface makes it touch-friendly (each switch restyles every widget)
+        bool onCanvas = false;
+        for (QObject *object = watched; object && !onCanvas; object = object->parent()) {
+            onCanvas = object->inherits("KisOpenGLCanvas2") || object->inherits("KisQPainterCanvas");
+        }
+        if (!onCanvas && touch->device() && touch->device()->type() == QTouchDevice::TouchScreen) {
             setActive(true);
         }
         break;

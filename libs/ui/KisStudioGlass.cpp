@@ -1326,11 +1326,15 @@ class DialogMover : public QObject
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
+        // on every child of a glass popup, so the event's type first
+        const QEvent::Type type = event->type();
+        if (type != QEvent::MouseButtonPress && type != QEvent::MouseMove && type != QEvent::MouseButtonRelease) return false;
+        if ((type == QEvent::MouseMove || type == QEvent::MouseButtonRelease) && !m_moving) return false;
         auto *widget = qobject_cast<QWidget *>(watched);
         if (!widget) return false;
         QWidget *dialog = widget->window();
         if (!dialog->property(glassDialogProperty).toBool() && !dialog->property(movableProperty).toBool()) return false;
-        switch (event->type()) {
+        switch (type) {
         case QEvent::MouseButtonPress: {
             auto *mouse = static_cast<QMouseEvent *>(event);
             // Presses on the background, labels, group boxes or plain frames start a drag.

@@ -10,6 +10,7 @@
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QAction>
+#include <QHash>
 #include <QApplication>
 #include <QComboBox>
 #include <QDockWidget>
@@ -400,17 +401,25 @@ QPainterPath KisModernStyle::squircle(const QRectF &rect, qreal radius)
         path.addRect(rect);
         return path;
     }
-    // Each corner is a quarter of |x|^n + |y|^n = 1, scaled to the reach.
-    const int steps = qBound(6, qCeil(reach), 32);
-    QPolygonF corner;
-    for (int i = 0; i <= steps; i++) {
-        const qreal t = M_PI / 2 * i / steps;
-        // Clamped, as t may round past a right angle.
-        corner << QPointF(std::pow(qMax<qreal>(0, std::sin(t)), 2 / n), std::pow(qMax<qreal>(0, std::cos(t)), 2 / n)) * reach;
+    // Each corner is a quarter of |x|^n + |y|^n = 1, scaled to the reach; kept, since every rounded control
+    // asks for the same few at each paint (per thread: thumbnails are drawn on others)
+    thread_local QHash<QPair<qreal, qreal>, QPolygonF> corners;
+    auto known = corners.find(qMakePair(reach, n));
+    if (known == corners.end()) {
+        const int steps = qBound(6, qCeil(reach), 32);
+        QPolygonF made;
+        for (int i = 0; i <= steps; i++) {
+            const qreal t = M_PI / 2 * i / steps;
+            // Clamped, as t may round past a right angle.
+            made << QPointF(std::pow(qMax<qreal>(0, std::sin(t)), 2 / n), std::pow(qMax<qreal>(0, std::cos(t)), 2 / n)) * reach;
+        }
+        if (corners.size() > 256) corners.clear();
+        known = corners.insert(qMakePair(reach, n), made);
     }
+    const QPolygonF &corner = *known;
     // Clockwise; a corner point's (x, y) maps to (across, along) its sides.
     struct Corner { QPointF center; QPointF across; QPointF along; };
-    const Corner corners[] = {
+    const Corner sides[] = {
         {rect.topRight() + QPointF(-reach, reach), {1, 0}, {0, -1}},
         {rect.bottomRight() + QPointF(-reach, -reach), {0, 1}, {1, 0}},
         {rect.bottomLeft() + QPointF(reach, -reach), {-1, 0}, {0, 1}},
@@ -418,7 +427,7 @@ QPainterPath KisModernStyle::squircle(const QRectF &rect, qreal radius)
     };
     QPolygonF outline;
     outline.reserve(4 * corner.size());
-    for (const Corner &c : corners) {
+    for (const Corner &c : sides) {
         for (const QPointF &p : corner) {
             outline << c.center + p.x() * c.across + p.y() * c.along;
         }

@@ -54,6 +54,9 @@
 #include <kxmlguiclient.h>
 #include <kxmlguifactory.h>
 #include <KisResourceModel.h>
+#include <KisResourceModelProvider.h>
+#include <KisTagResourceModel.h>
+#include <KisResourceTypes.h>
 
 #include "KisMainWindow.h"
 #include "KisStudioMotion.h"
@@ -506,10 +509,16 @@ struct KisStudioFind::Private
     }
     bool isStale() const
     {
-        return entries.isEmpty() || indexedClients != clientCount() || indexedActions != mainWindow->actionCollection()->actions().size();
+        return entries.isEmpty() || indexedClients != clientCount() || indexedActions != mainWindow->actionCollection()->count();
     }
 
     QVector<Entry> entries;
+    /// Where each key's first entry is, for item() and run(): the rail and the Keys page ask for hundreds
+    QHash<QString, int> byKey;
+    /// The brushes' entries, kept until the presets or their tags change: each one's tags are a query of their own
+    QVector<Entry> brushes;
+    bool brushesStale {true};
+    bool watchingBrushes {false};
     QHash<QString, Usage> usage;
     /// Window buttons without an action of their own, by key, with the hidden action holding their shortcut
     struct Button {
@@ -667,7 +676,7 @@ void KisStudioFind::rebuildIndex()
 {
     d->entries.clear();
     d->indexedClients = d->clientCount();
-    d->indexedActions = d->mainWindow->actionCollection()->actions().size();
+    d->indexedActions = d->mainWindow->actionCollection()->count();
     // attach the aliases once every source has added its entries
     auto attachAliases = qScopeGuard([this]() {
         static const QHash<QString, QStringList> aliases = aliasTable();
@@ -680,6 +689,11 @@ void KisStudioFind::rebuildIndex()
                     entry.aliases << word.trimmed();
                 }
             }
+        }
+        d->byKey.clear();
+        for (int i = 0; i < d->entries.size(); i++) {
+            const QString &key = d->entries[i].key;
+            if (!key.isEmpty() && !d->byKey.contains(key)) d->byKey.insert(key, i);
         }
     });
     KisMainWindow *mainWindow = d->mainWindow;
@@ -802,8 +816,26 @@ void KisStudioFind::rebuildIndex()
     }
 
     // brushes, read from the model so that only a chosen preset gets loaded; thumbnails are slow to decode, so made on demand
-    if (KisPaintOpPresetResourceServer *server = KisResourceServerProvider::instance()->paintOpPresetServer()) {
-        KisResourceModel *model = server->resourceModel();
+    KisPaintOpPresetResourceServer *presetServer = KisResourceServerProvider::instance()->paintOpPresetServer();
+    if (presetServer && !d->watchingBrushes) {
+        d->watchingBrushes = true;
+        const QList<QAbstractItemModel *> models{static_cast<QAbstractItemModel *>(presetServer->resourceModel()),
+                                                 KisResourceModelProvider::tagResourceModel(ResourceType::PaintOpPresets)};
+        Q_FOREACH (QAbstractItemModel *model, models) {
+            if (!model) continue;
+            auto stale = [this]() { d->brushesStale = true; };
+            connect(model, &QAbstractItemModel::modelReset, this, stale);
+            connect(model, &QAbstractItemModel::layoutChanged, this, stale);
+            connect(model, &QAbstractItemModel::rowsInserted, this, stale);
+            connect(model, &QAbstractItemModel::rowsRemoved, this, stale);
+            connect(model, &QAbstractItemModel::dataChanged, this, stale);
+        }
+    }
+    if (presetServer && d->brushesStale) {
+        d->brushesStale = false;
+        d->brushes.clear();
+        std::swap(d->entries, d->brushes);
+        KisResourceModel *model = presetServer->resourceModel();
         for (int row = 0; row < model->rowCount(); row++) {
             const QModelIndex index = model->index(row, 0);
             const QString name = index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString();
@@ -827,7 +859,9 @@ void KisStudioFind::rebuildIndex()
                 return QIcon(QPixmap::fromImage(index.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>()));
             };
         }
+        std::swap(d->entries, d->brushes);
     }
+    d->entries += d->brushes;
 
     // brush blend modes
     const auto ops = KoCompositeOpRegistry::instance().getCompositeOps();
@@ -1335,15 +1369,15 @@ bool KisStudioFind::item(const QString &key, Item *item)
     if (d->isStale()) {
         rebuildIndex();
     }
-    Q_FOREACH (const Entry &entry, d->entries) {
-        if (entry.key == key) {
-            if (item) {
-                *item = {entry.key, entry.title, entry.shownIcon(), entry.action, entry.aliases};
-            }
-            return true;
-        }
+    const int at = d->byKey.value(key, -1);
+    if (at < 0) {
+        return false;
     }
-    return false;
+    if (item) {
+        const Entry &entry = d->entries[at];
+        *item = {entry.key, entry.title, entry.shownIcon(), entry.action, entry.aliases};
+    }
+    return true;
 }
 
 bool KisStudioFind::run(const QString &key)

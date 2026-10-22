@@ -81,6 +81,8 @@ public:
     QRect canvasImageDirtyRect;
     /// Whether the panels over it were last told the canvas draws their glass
     bool drawsGlass {false};
+    /// A look at whether the glass shaders have linked is on its way
+    bool glassRecheck {false};
     /// For development: how long the GPU takes for what this canvas draws (see KisOpenGLGpuTiming)
     KisOpenGLGpuTiming gpuTiming {QStringLiteral("canvas gpu:"), {QStringLiteral("canvas"), QStringLiteral("decorations")}};
     KisOpenGLCanvasRenderer *renderer;
@@ -256,8 +258,12 @@ void KisOpenGLCanvas2::paintGL()
         d->drawsGlass = drawsGlass;
         KisStudioGlass::setDrawnByCanvas(this, drawsGlass);
         d->canvasImageDirtyRect = rect();
-    } else if (!drawsGlass && d->renderer->glassPending()) {
-        QTimer::singleShot(200, this, [this]() { update(); });
+    } else if (!drawsGlass && d->renderer->glassPending() && !d->glassRecheck) {
+        d->glassRecheck = true;
+        QTimer::singleShot(200, this, [this]() {
+            d->glassRecheck = false;
+            update();
+        });
     }
 
     if (!OPENGL_SUCCESS) {

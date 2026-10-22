@@ -6,6 +6,9 @@
 #include "KisStudioColorPanel.h"
 #include "KisColorDrop.h"
 
+#include <algorithm>
+#include <array>
+
 #include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
@@ -410,6 +413,27 @@ private:
         QImage image(pixels, QImage::Format_ARGB32_Premultiplied);
         if (pixels.isEmpty()) return image;
         const qreal h = m_color.h;
+        // made again at every hue while the ring is dragged: the hue's angle once, and 8-bit sRGB found among
+        // the 255 steps' linear thresholds rather than through a power per channel and pixel
+        const qreal cosH = std::cos(h * M_PI / 180.0);
+        const qreal sinH = std::sin(h * M_PI / 180.0);
+        static const std::array<qreal, 255> steps = []() {
+            std::array<qreal, 255> thresholds;
+            for (int i = 0; i < 255; i++) thresholds[i] = toLinear((i + 0.5) / 255.0);
+            return thresholds;
+        }();
+        auto channel = [](qreal linear) { return int(std::upper_bound(steps.begin(), steps.end(), linear) - steps.begin()); };
+        auto rgbAt = [&](qreal l, qreal c) {
+            const qreal A = c * cosH;
+            const qreal B = c * sinH;
+            const qreal lc = l + 0.3963377774 * A + 0.2158037573 * B;
+            const qreal mc = l - 0.1055613458 * A - 0.0638541728 * B;
+            const qreal sc = l - 0.0894841775 * A - 1.2914855480 * B;
+            const qreal L = lc * lc * lc, M = mc * mc * mc, S = sc * sc * sc;
+            return qRgb(channel(4.0767416621 * L - 3.3077115913 * M + 0.2309699292 * S),
+                        channel(-1.2684380046 * L + 2.6097574011 * M - 0.3413193965 * S),
+                        channel(-0.0041960863 * L - 0.7034186147 * M + 1.7076147010 * S));
+        };
         QPolygonF edge;
         for (int y = 0; y < pixels.height(); y++) {
             QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
@@ -418,7 +442,7 @@ private:
             const QRgb past = veiled(rgbFromOklch({l, widest, h}));
             for (int x = 0; x < pixels.width(); x++) {
                 const qreal c = maxPlaneChroma * x / qMax(1, pixels.width() - 1);
-                line[x] = c <= widest ? rgbFromOklch({l, c, h}).rgb() : past;
+                line[x] = c <= widest ? rgbAt(l, c) : past;
             }
             edge << QPointF(qMin(1.0, widest / maxPlaneChroma) * (pixels.width() - 1) + 0.5, y + 0.5);
         }

@@ -183,11 +183,17 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
+        // an app-wide filter: the event's type before anything else
+        const QEvent::Type type = event->type();
+        if (type != QEvent::MouseButtonPress && type != QEvent::MouseButtonRelease && type != QEvent::ShortcutOverride
+            && type != QEvent::KeyPress && type != QEvent::Hide) {
+            return false;
+        }
         QMenu *menu = qobject_cast<QMenu *>(watched);
         if (!menu) {
             return false;
         }
-        switch (event->type()) {
+        switch (type) {
         case QEvent::MouseButtonPress: {
             auto *mouse = static_cast<QMouseEvent *>(event);
             QAction *entry = menu->actionAt(mouse->pos());
