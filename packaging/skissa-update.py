@@ -27,12 +27,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SOURCE = os.path.normpath(os.path.join(HERE, '..'))
 UPSTREAM_REMOTE = 'origin'
 UPSTREAM_BRANCH = 'master'
-# Skissa's own copies of some of Krita's files, built in their place (the folder, and Krita's beside it): Krita's
-# changes to those files don't reach them by merging, so they are listed to bring over by hand
+# Skissa's own copies of some of Krita's files, built in their place (a folder and Krita's beside it, or a file and
+# Krita's): Krita's changes to those files don't reach them by merging, so they are listed to bring over by hand
 KEPT = [
     ('plugins/dockers/skissa_layers', 'plugins/dockers/layerdocker'),
     ('plugins/dockers/skissa_palette', 'plugins/dockers/palettedocker'),
     ('plugins/dockers/skissa_recorder', 'plugins/dockers/recorder'),
+    ('plugins/tools/basictools/KisStudioMultiBrush.cpp', 'plugins/tools/basictools/kis_tool_multihand.cpp'),
+    ('plugins/tools/basictools/KisStudioMultiBrush.h', 'plugins/tools/basictools/kis_tool_multihand.h'),
 ]
 
 
@@ -58,6 +60,8 @@ def report_kept(since, upstream):
     paths = []
     for own, krita in KEPT:
         folder = os.path.join(SOURCE, own)
+        if os.path.isfile(folder):
+            paths.append(krita)
         for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
             if name != 'CMakeLists.txt' and os.path.exists(os.path.join(SOURCE, krita, name)):
                 paths.append('%s/%s' % (krita, name))
