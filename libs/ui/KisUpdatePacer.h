@@ -20,6 +20,8 @@ KRITAUI_EXPORT void install();
 
 /// Development aid: appends \p what, timestamped, to the KRITA_DEV_FRAMELOG frame log if enabled.
 KRITAUI_EXPORT void log(const QString &what);
+/// Whether log() writes anywhere, to skip building lines nobody reads
+KRITAUI_EXPORT bool logging();
 }
 
 #endif

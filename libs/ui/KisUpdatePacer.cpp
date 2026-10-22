@@ -511,6 +511,15 @@ private:
 #endif
 } // namespace
 
+bool KisUpdatePacer::logging()
+{
+#ifdef Q_OS_WIN
+    return frameLog != nullptr;
+#else
+    return false;
+#endif
+}
+
 void KisUpdatePacer::log(const QString &what)
 {
 #ifdef Q_OS_WIN

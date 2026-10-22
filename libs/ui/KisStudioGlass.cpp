@@ -42,6 +42,7 @@
 #include "KisUpdatePacer.h"
 #include "KisViewManager.h"
 #include "canvas/kis_canvas2.h"
+#include "KisSettingsRegistry.h"
 #include "kis_config.h"
 #include "kis_config_notifier.h"
 #include "kis_coordinates_converter.h"
@@ -664,6 +665,8 @@ QList<QWidget *> overlaysOf(QWidget *canvas)
     return overlays;
 }
 
+bool isTooltip(const QWidget *widget);
+
 /// Tracks the glass panels over canvases that draw the glass themselves.
 class Panels : public QObject
 {
@@ -748,6 +751,21 @@ public:
         }
     }
 
+    /// Hides the glass tooltips \p menu overlaps: Qt paints a window's content unclipped, so a tooltip under
+    /// a menu would show through the menu's glass (a layer's picture stays up after a right-click)
+    void hideTooltipsUnder(QWidget *menu)
+    {
+        const QRect area(menu->mapToGlobal(QPoint()), menu->size());
+        QList<QWidget *> under;
+        for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
+            QWidget *widget = it.key();
+            if (widget != menu && widget->isVisible() && isTooltip(widget) && area.intersects(QRect(widget->mapToGlobal(QPoint()), widget->size()))) {
+                under << widget;
+            }
+        }
+        Q_FOREACH (QWidget *tooltip, under) tooltip->hide();
+    }
+
     bool isDrawn(QWidget *widget) const
     {
         return m_panels.value(widget).drawn;
@@ -772,7 +790,7 @@ public:
      */
     void changed(QWidget *widget, bool everywhere = false)
     {
-        KisUpdatePacer::log(QStringLiteral("glass changed ") + QString::fromLatin1(widget->metaObject()->className()) + QLatin1Char(' ') + widget->objectName());
+        if (KisUpdatePacer::logging()) KisUpdatePacer::log(QStringLiteral("glass changed ") + QString::fromLatin1(widget->metaObject()->className()) + QLatin1Char(' ') + widget->objectName());
         QWidget *window = widget->window();
         QHash<QWidget *, QRegion> canvases;
         for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
@@ -805,6 +823,10 @@ public:
      */
     void hideUnderWindows(QWidget *canvas)
     {
+        // another image's canvas has no panels over it, and would unmask what the current one masked
+        if (canvasWidgetOf(canvas) != canvas) {
+            return;
+        }
         // Glass above the overlays, lowest first, and their shapes on screen.
         QList<QWidget *> windows;
         for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
@@ -1372,6 +1394,18 @@ void makeGlassTooltip(QWidget *tooltip)
     tintGlassTooltip(tooltip);
 }
 
+/**
+ * Windows fades menus and tooltips in through the window opacity without notifying Qt, so the canvas would
+ * draw their glass only once, at the faint initial opacity; a combo box's list rolls out as a grabbed picture.
+ */
+void stopFades()
+{
+    QApplication::setEffectEnabled(Qt::UI_AnimateMenu, false);
+    QApplication::setEffectEnabled(Qt::UI_FadeTooltip, false);
+    QApplication::setEffectEnabled(Qt::UI_AnimateTooltip, false);
+    QApplication::setEffectEnabled(Qt::UI_AnimateCombo, false);
+}
+
 /// Makes menus, tooltips, dropdowns and dialogs glass as they are polished, and paints their glass.
 class MenuGlass : public QObject
 {
@@ -1395,11 +1429,20 @@ protected:
             if (tooltip && isTooltip(tooltip) && tooltip->testAttribute(Qt::WA_TranslucentBackground)) tintGlassTooltip(tooltip);
             return false;
         }
-        if (type != QEvent::Polish && type != QEvent::Paint && type != QEvent::MouseButtonPress && type != QEvent::KeyPress) {
+        if (type != QEvent::Polish && type != QEvent::Paint && type != QEvent::MouseButtonPress && type != QEvent::KeyPress
+            && type != QEvent::Show) {
             return false;
         }
         QWidget *widget = qobject_cast<QWidget *>(watched);
         if (!widget) {
+            return false;
+        }
+        // everything painted or shown here is a window: every other widget's paint passes straight through
+        if ((type == QEvent::Paint || type == QEvent::Show) && (!widget->isWindow() || !widget->property(glassMenuProperty).toBool())) {
+            return false;
+        }
+        if (type == QEvent::Show) {
+            if (qobject_cast<QMenu *>(widget)) Panels::instance().hideTooltipsUnder(widget);
             return false;
         }
         if (type == QEvent::MouseButtonPress || type == QEvent::KeyPress) {
@@ -1430,10 +1473,9 @@ protected:
                     makeSeeThroughWindow(widget);
                 }
             }
-        } else if (widget->property(glassDialogProperty).toBool() && widget->property(glassMenuProperty).toBool()) {
+        } else if (widget->property(glassDialogProperty).toBool()) {
             paintMenuGlass(widget, KisModernStyle::panelRadius);
-        } else if ((qobject_cast<QMenu *>(widget) || isTooltip(widget) || widget->property(glassDropdownProperty).toBool())
-                   && widget->property(glassMenuProperty).toBool()) {
+        } else if (qobject_cast<QMenu *>(widget) || isTooltip(widget) || widget->property(glassDropdownProperty).toBool()) {
             paintMenuGlass(widget, KisModernStyle::cornerRadius + 2);
         }
         return false;
@@ -1546,6 +1588,7 @@ void KisStudioGlass::setEnabled(bool on)
         return;
     }
     enabled() = on;
+    if (on) stopFades();
     KisConfig(false).writeEntry(settingKey, on);
     Panels::instance().repaintAll();
 }
@@ -1584,7 +1627,7 @@ void KisStudioGlass::setBlur(qreal blur)
     blur = qBound<qreal>(0, blur, 2.0);
     if (qFuzzyCompare(blur, blurSetting())) return;
     blurSetting() = blur;
-    KisConfig(false).writeEntry(blurKey, blur);
+    KisSettingsRegistry::writeLater(blurKey, blur);
     Engine::instance().clear();
     Panels::instance().repaintAll();
 }
@@ -1599,7 +1642,7 @@ void KisStudioGlass::setRimLight(qreal strength)
     strength = qBound<qreal>(0, strength, 2.0);
     if (qFuzzyCompare(strength + 1, rimLightSetting() + 1)) return;
     rimLightSetting() = strength;
-    KisConfig(false).writeEntry(rimLightKey, strength);
+    KisSettingsRegistry::writeLater(rimLightKey, strength);
     Panels::instance().repaintAll();
 }
 
@@ -1613,7 +1656,7 @@ void KisStudioGlass::setOpacity(qreal opacity)
     opacity = qBound<qreal>(0, opacity, 1.0);
     if (qFuzzyCompare(opacity + 1, opacitySetting() + 1)) return;
     opacitySetting() = opacity;
-    KisConfig(false).writeEntry(opacityKey, opacity);
+    KisSettingsRegistry::writeLater(opacityKey, opacity);
     Engine::instance().clear();
     Panels::instance().repaintAll();
 }
@@ -1648,11 +1691,7 @@ void KisStudioGlass::installMenuGlass()
         }
     }
     if (isEnabled()) {
-        // Windows fades menus and tooltips in through the window opacity without notifying Qt, so the
-        // canvas would draw their glass only once, at the faint initial opacity.
-        QApplication::setEffectEnabled(Qt::UI_AnimateMenu, false);
-        QApplication::setEffectEnabled(Qt::UI_FadeTooltip, false);
-        QApplication::setEffectEnabled(Qt::UI_AnimateTooltip, false);
+        stopFades();
     }
 }
 
@@ -1664,10 +1703,15 @@ void KisStudioGlass::paintBorder(QPainter &painter, QWidget *widget, const QPain
         return;
     }
     // The canvas draws a bevel instead, so only stroke the part outside the canvas.
+    const QRectF overRect(widget->mapFromGlobal(canvas->mapToGlobal(QPoint())), canvas->size());
+    const QRectF beyondRect = QRectF(widget->rect()).adjusted(-width, -width, width, width);
+    if (overRect.contains(beyondRect)) {
+        return;
+    }
     QPainterPath beyond;
-    beyond.addRect(QRectF(widget->rect()).adjusted(-width, -width, width, width));
+    beyond.addRect(beyondRect);
     QPainterPath over;
-    over.addRect(QRectF(widget->mapFromGlobal(canvas->mapToGlobal(QPoint())), canvas->size()));
+    over.addRect(overRect);
     painter.save();
     painter.setClipPath(beyond.subtracted(over), Qt::IntersectClip);
     painter.strokePath(shape, QPen(color, width));
@@ -1750,14 +1794,18 @@ QPainterPath KisStudioGlass::paint(QPainter &painter, QWidget *widget, const QRe
             return shape;
         }
         // The canvas draws the glass; outside the canvas use the panel color.
-        QPainterPath over;
-        over.addRect(QRectF(widget->mapFromGlobal(canvas->mapToGlobal(QPoint())), canvas->size()));
-        painter.fillPath(shape.subtracted(over), window);
-        if (widget->isWindow()) {
-            // Never fully clear: Windows passes the pointer through fully transparent pixels to the canvas below.
-            QColor catcher = window;
-            catcher.setAlpha(1);
-            painter.fillPath(shape.intersected(over), catcher);
+        const QRectF overRect(widget->mapFromGlobal(canvas->mapToGlobal(QPoint())), canvas->size());
+        // Never fully clear: Windows passes the pointer through fully transparent pixels to the canvas below.
+        QColor catcher = window;
+        catcher.setAlpha(1);
+        if (overRect.contains(shape.boundingRect())) {
+            // all over the canvas, as panels nearly always are: no path to cut
+            if (widget->isWindow()) painter.fillPath(shape, catcher);
+        } else {
+            QPainterPath over;
+            over.addRect(overRect);
+            painter.fillPath(shape.subtracted(over), window);
+            if (widget->isWindow()) painter.fillPath(shape.intersected(over), catcher);
         }
         // the canvas's lit rim is its highlight
         return shape;
