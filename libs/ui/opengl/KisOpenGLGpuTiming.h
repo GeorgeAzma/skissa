@@ -13,7 +13,7 @@
 #include <QVector>
 
 /**
- * Development aid (KRITA_DEV_FRAMELOG): writes the GPU time of each drawing stage to stderr. Uses
+ * Development aid (KRITA_DEV_FRAMELOG, in the dev build): writes the GPU time of each drawing stage to stderr. Uses
  * timer queries (ARB_timer_query, or EXT_disjoint_timer_query on ES) read a frame later to avoid
  * stalling. Qt's QOpenGLTimerQuery needs OpenGL 3.3, which Krita does not request.
  */
@@ -28,7 +28,7 @@ public:
 
     static bool enabled()
     {
-        static const bool on = qEnvironmentVariableIsSet("KRITA_DEV_FRAMELOG");
+        static const bool on = qEnvironmentVariableIsSet("KRITA_DEV_PROFILE") && qEnvironmentVariableIsSet("KRITA_DEV_FRAMELOG");
         return on;
     }
 
