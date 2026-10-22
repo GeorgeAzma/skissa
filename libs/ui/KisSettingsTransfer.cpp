@@ -8,6 +8,7 @@
 #include <QColor>
 #include <QCoreApplication>
 #include <QDir>
+#include <QDirIterator>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -22,6 +23,8 @@
 #include <KritaVersionWrapper.h>
 
 #include "KisSettingsRegistry.h"
+#include <KisResourceLocator.h>
+#include <KisResourceTypes.h>
 #include <KisProfile.h>
 
 namespace KisSettingsTransfer
@@ -199,6 +202,59 @@ Plan planFromKrita()
     }
     KConfig krita(path, KConfig::SimpleConfig);
     return plan(&krita);
+}
+
+QString kritaResourcesPath()
+{
+    QString path = qEnvironmentVariable("KRITA_DEV_KRITA_RESOURCES");
+    if (path.isEmpty()) {
+        // where Krita's settings say, or where it keeps them by default
+        const QString settings = kritaSettingsPath();
+        if (!settings.isEmpty()) {
+            KConfig krita(settings, KConfig::SimpleConfig);
+            path = krita.group(QString()).readEntry(KisResourceLocator::resourceLocationKey, QString());
+        }
+    }
+    if (path.isEmpty()) {
+#if defined(Q_OS_WIN)
+        path = qEnvironmentVariable("APPDATA") + QStringLiteral("/krita");
+#elif defined(Q_OS_MACOS)
+        path = QDir::homePath() + QStringLiteral("/Library/Application Support/krita");
+#else
+        path = qEnvironmentVariable("XDG_DATA_HOME", QDir::homePath() + QStringLiteral("/.local/share")) + QStringLiteral("/krita");
+#endif
+    }
+    if (samePath(path) == samePath(KisResourceLocator::instance()->resourceLocationBase())) return QString();
+    return QFileInfo(path).isDir() ? path : QString();
+}
+
+int takeKritaResources(QString *error)
+{
+    const QString from = kritaResourcesPath();
+    if (from.isEmpty()) {
+        if (error) *error = i18nc("@info", "Krita's brushes weren't found.");
+        return -1;
+    }
+    const QDir to(KisResourceLocator::instance()->resourceLocationBase());
+    // the resources, not Krita's caches, scripts, input profiles or shortcuts
+    const QStringList folders = {ResourceType::PaintOpPresets, ResourceType::Brushes,      ResourceType::Gradients,  ResourceType::Palettes,
+                                 ResourceType::Patterns,       ResourceType::Workspaces,   ResourceType::Symbols,    ResourceType::WindowLayouts,
+                                 ResourceType::Sessions,       ResourceType::GamutMasks,   ResourceType::SeExprScripts,
+                                 ResourceType::LayerStyles,    QStringLiteral("bundles")};
+    int copied = 0;
+    Q_FOREACH (const QString &folder, folders) {
+        const QDir source(QDir(from).filePath(folder));
+        if (!source.exists()) continue;
+        QDirIterator it(source.path(), QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            const QString file = it.next();
+            const QString target = to.filePath(folder + QLatin1Char('/') + source.relativeFilePath(file));
+            if (QFileInfo::exists(target)) continue;
+            QDir().mkpath(QFileInfo(target).absolutePath());
+            if (QFile::copy(file, target)) copied++;
+        }
+    }
+    return copied;
 }
 
 } // namespace KisSettingsTransfer

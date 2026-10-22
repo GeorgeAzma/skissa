@@ -2589,6 +2589,8 @@ struct KisStudioSettings::Private
     QWidget *review {nullptr};
     /// Restarts Krita; shown while changes are waiting for a restart
     QPushButton *footer {nullptr};
+    /// Krita's resources were copied here; the resource list reads them at the next start
+    bool resourcesTaken {false};
     QPushButton *undo {nullptr};
     QLabel *status {nullptr};
     QTimer statusTimer;
@@ -2660,6 +2662,7 @@ struct KisStudioSettings::Private
         Q_FOREACH (const QString &id, R::instance()->waitingForRestart()) {
             if (const Setting *s = R::instance()->setting(id)) waiting << s->label;
         }
+        if (resourcesTaken) waiting << i18nc("what a restart applies", "Krita's brushes");
         footer->setToolTip(i18nc("@info:tooltip what a restart applies", "Applies %1", waiting.join(QStringLiteral(", "))));
         footer->setVisible(!waiting.isEmpty());
         bool differs = false;
@@ -3082,22 +3085,42 @@ struct KisStudioSettings::Private
                  [this](const QVector<KisSettingsTransfer::Change> &chosen, bool) { applyHere(chosen, QByteArray()); });
     }
 
+    /// Krita's own brushes, patterns, palettes and bundles, copied here; they are read at the next start
+    void brushesFromKrita()
+    {
+        QString error;
+        const int copied = KisSettingsTransfer::takeKritaResources(&error);
+        if (copied < 0) {
+            q->say(error);
+        } else if (copied == 0) {
+            q->say(i18nc("@info", "Krita's brushes are all here already."));
+        } else {
+            q->say(i18ncp("@info", "Took %1 file of Krita's brushes, patterns and palettes.",
+                          "Took %1 files of Krita's brushes, patterns and palettes.", copied));
+            resourcesTaken = true;
+            updateFooter();
+        }
+    }
+
     void moreMenu(QWidget *anchor)
     {
         QMenu menu(q);
         QAction *exportAction = menu.addAction(i18nc("@action:inmenu", "Export settings"));
         QAction *importAction = menu.addAction(i18nc("@action:inmenu", "Import settings"));
         QAction *from = nullptr;
-        // Krita's settings are only ever read
-        if (!KisSettingsTransfer::kritaSettingsPath().isEmpty()) {
-            menu.addSeparator();
-            from = menu.addAction(i18nc("@action:inmenu", "Take Krita's settings"));
-        }
+        QAction *resources = nullptr;
+        // Krita's settings and resources are only ever read
+        const bool settings = !KisSettingsTransfer::kritaSettingsPath().isEmpty();
+        const bool brushes = !KisSettingsTransfer::kritaResourcesPath().isEmpty();
+        if (settings || brushes) menu.addSeparator();
+        if (settings) from = menu.addAction(i18nc("@action:inmenu", "Take Krita's settings"));
+        if (brushes) resources = menu.addAction(i18nc("@action:inmenu", "Take Krita's brushes"));
         QAction *chosen = menu.exec(anchor->mapToGlobal(QPoint(0, anchor->height())));
         if (!chosen) return;
         if (chosen == exportAction) exportFile();
         else if (chosen == importAction) importFile();
         else if (chosen == from) fromKrita();
+        else if (chosen == resources) brushesFromKrita();
     }
 };
 

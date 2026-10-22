@@ -51,6 +51,12 @@ KRITAUI_EXPORT QString kritaSettingsPath();
 /// The changes taking Krita's settings would make here
 KRITAUI_EXPORT Plan planFromKrita();
 
+/// The regular Krita's resource folder (its brushes, bundles…), or empty if there is none or it is this one's own
+KRITAUI_EXPORT QString kritaResourcesPath();
+/// Copies the resources Krita has that aren't here yet into this one's resource folder: brushes, presets,
+/// patterns, gradients, palettes, bundles and the like; Krita's are only read. How many files, or -1 on failure
+KRITAUI_EXPORT int takeKritaResources(QString *error);
+
 } // namespace KisSettingsTransfer
 
 #endif // KISSETTINGSTRANSFER_H
