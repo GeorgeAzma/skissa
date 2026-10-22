@@ -14,6 +14,7 @@ set(skissa_ui_SRCS
     KisSettingsRegistry.cpp
     KisSettingsTransfer.cpp
     KisSettingsUndo.cpp
+    KisSkissaUpdater.cpp
     KisStudioBarButtons.cpp
     KisStudioBrushEditor.cpp
     KisStudioBrushMemory.cpp
@@ -67,6 +68,11 @@ set(skissa_ui_SRCS
     widgets/KisStudioPopup.cpp
     widgets/KisStudioValueRow.cpp
 )
+
+# the version releases are made as and updates compare with
+file(STRINGS ${CMAKE_SOURCE_DIR}/packaging/skissa-version.txt SKISSA_VERSION LIMIT_COUNT 1)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/packaging/skissa-version.txt)
+set_source_files_properties(KisSkissaUpdater.cpp PROPERTIES COMPILE_DEFINITIONS SKISSA_VERSION="${SKISSA_VERSION}")
 
 kis_add_library(kritaui_skissa OBJECT ${skissa_ui_SRCS} PCH_FILE kis_image_pch.h)
 # built as kritaui itself: its exports, defines, include paths and dependencies

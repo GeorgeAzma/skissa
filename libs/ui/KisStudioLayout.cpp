@@ -68,6 +68,7 @@
 #include "KisModernStyle.h"
 #include "KisResourceServerProvider.h"
 #include "KisSettingsRegistry.h"
+#include "KisSkissaUpdater.h"
 #include "KisStudioBarButtons.h"
 #include "KisStudioBrushEditor.h"
 #include "KisStudioMakeBrush.h"
@@ -2871,6 +2872,7 @@ void KisStudioLayout::enter()
     addPicker(QStringLiteral("studio_make_brush"), QStringLiteral("krita_tool_freehand"), i18nc("@action", "Make Brush from Selection"), [mainWindow]() {
         KisStudioMakeBrush::fromSelection(mainWindow->viewManager());
     });
+    KisSkissaUpdater::addActions(mainWindow);
     addPicker(QStringLiteral("studio_brush_picker"), QStringLiteral("paintop_settings_01"), i18nc("@action", "Brushes"), [mainWindow]() {
         (new KisStudioBrushPicker(mainWindow))->popupNear(QCursor::pos());
     });

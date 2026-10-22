@@ -34,7 +34,6 @@
 #include <QMimeData>
 #include <QPainter>
 #include <QPointer>
-#include <QProcess>
 #include <QPushButton>
 #include <QScreen>
 #include <QScrollArea>
@@ -65,6 +64,7 @@
 #include "KisModernStyle.h"
 #include "KisSettingsRegistry.h"
 #include "KisSettingsTransfer.h"
+#include "KisSkissaUpdater.h"
 #include "KisStudioGlass.h"
 #include "KisStudioMotion.h"
 #include "KisStudioTheme.h"
@@ -866,18 +866,6 @@ struct SectionDef {
     QString icon;
 };
 
-/// Closes Krita like the window's close button (asking about unsaved images) and starts it again
-void restartKrita()
-{
-    Q_FOREACH (QPointer<KisMainWindow> window, KisPart::instance()->mainWindows()) {
-        if (window && !window->close()) return; // the user cancelled at an unsaved image
-    }
-    QObject::connect(qApp, &QCoreApplication::aboutToQuit, []() {
-        QProcess::startDetached(QCoreApplication::applicationFilePath(), QStringList());
-    });
-    QTimer::singleShot(0, qApp, &QCoreApplication::quit);
-}
-
 QVector<SectionDef> builtinSections()
 {
     return {
@@ -1584,6 +1572,10 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("saveSessionOnQuit"));
             b.toggle(QStringLiteral("[File Dialogs] DontUseNativeFileDialog"));
         });
+    if (KisSkissaUpdater::canUpdate()) {
+        addToggle(QStringLiteral("files"), QStringLiteral("updates"), i18nc("settings card", "Update automatically"), QStringLiteral("StudioUpdates"),
+                  QStringLiteral("updates new version download upgrade release"));
+    }
     add(QStringLiteral("files"), QStringLiteral("author"), i18nc("settings card", "Author"), {}, QStringLiteral("name profile contact metadata nickname"),
         [](Builder &b) {
             // The active author, on the button that changes it
@@ -3211,7 +3203,7 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
     auto *footer = new QHBoxLayout();
     d->footer = new QPushButton(KisIconUtils::loadIcon(QStringLiteral("studio_refresh")), i18nc("@action:button restart the app", "Restart"), this);
     d->footer->hide();
-    connect(d->footer, &QPushButton::clicked, this, []() { restartKrita(); });
+    connect(d->footer, &QPushButton::clicked, this, []() { KisSkissaUpdater::restart(); });
     footer->addWidget(d->footer, 0, Qt::AlignLeft);
     footer->addStretch(1);
     d->undo = new QPushButton(i18nc("@action:button undo the changes made since Settings opened", "Undo"), this);

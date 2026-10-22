@@ -8,7 +8,9 @@
 Makes a portable Windows release of Skissa: a zip that runs on its own, with the licenses of
 everything in it and where to find the sources.
 
-    python make-release.py --install <install prefix> --toolchain <llvm-mingw> --version 0.1.0 --tag v0.1.0
+    python make-release.py --install <install prefix> --toolchain <llvm-mingw> [--version 0.1.0] [--tag v0.1.0]
+
+The version is packaging/skissa-version.txt's unless given, and the tag v<version>.
 
 The DLLs come from following the imports of krita.exe, every plugin and the tools the app runs
 (ffmpeg for videos), so nothing the app doesn't load is shipped and nothing it loads is missed.
@@ -30,6 +32,8 @@ HOMEPAGE = 'https://github.com/GeorgeAzma/skissa'
 # programs the app runs or that run it
 PROGRAMS = ['krita.exe', 'krita_version.exe', 'ffmpeg.exe', 'ffprobe.exe']
 LOADED = ['libEGL.dll', 'libGLESv2.dll', 'exchndl.dll', 'mgwhelp.dll', 'dbghelp.dll', 'symsrv.dll', 'symsrv.yes']
+# the release's version and files, read by the app's updater (KisSkissaUpdater)
+LIST = 'skissa-files.txt'
 # folders that only matter for building
 SHARE_SKIP = {'aclocal', 'cmake', 'doc', 'man', 'pkgconfig', 'eigen3', 'ECM', 'gettext', 'metainfo', 'applications',
               'kservices5', 'unofficial-angle', 'dlfcn-win32'}
@@ -71,10 +75,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--install', required=True, help='the install prefix the build installed into')
     parser.add_argument('--toolchain', required=True, help='the llvm-mingw toolchain, for its runtime and objdump')
-    parser.add_argument('--version', required=True)
-    parser.add_argument('--tag', required=True, help='the git tag of this release')
+    parser.add_argument('--version', help='by default the one in packaging/skissa-version.txt')
+    parser.add_argument('--tag', help='the git tag of this release, by default v<version>')
     parser.add_argument('--out', default=os.path.join(SOURCE, 'dist'))
     args = parser.parse_args()
+    if not args.version:
+        with open(os.path.join(SOURCE, 'packaging', 'skissa-version.txt')) as text:
+            args.version = text.read().strip()
+    args.tag = args.tag or 'v' + args.version
 
     install = os.path.abspath(args.install)
     objdump = os.path.join(args.toolchain, 'bin', 'llvm-objdump.exe')
@@ -160,6 +168,12 @@ def main():
                   'version 3 or later. The libraries it ships are built by KDE for Krita; their sources and the exact\n'
                   'versions are listed at https://invent.kde.org/packaging/krita-deps-management, and the license of\n'
                   'each is in licenses/third-party.\n')
+
+    # what the updater checks an unpacked update against and tells from the user's own files in the folder
+    files = sorted(os.path.relpath(os.path.join(root, f), release).replace(os.sep, '/') for root, _, names in os.walk(release) for f in names)
+    with open(os.path.join(release, LIST), 'w', newline='\n', encoding='utf-8') as out:
+        out.write('Skissa %s\n' % args.version)
+        out.writelines(f + '\n' for f in files)
 
     archive = os.path.join(os.path.abspath(args.out), name + '.zip')
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:

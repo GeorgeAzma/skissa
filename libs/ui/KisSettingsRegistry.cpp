@@ -509,6 +509,7 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("StudioViewPill"), true, i18nc("setting", "Zoom pill"), R::Fork);
         all << toggle(QStringLiteral("StudioColorIntensity"), true, i18nc("setting", "Brighter than white"), R::Fork);
         all << toggle(QStringLiteral("StudioTooltips"), true, i18nc("setting", "Tooltips"), R::Fork);
+        all << toggle(QStringLiteral("StudioUpdates"), true, i18nc("setting", "Update automatically"), R::Fork);
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in effects")), QStringLiteral("filterdialog"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in Transform")), QStringLiteral("KisToolTransform"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), false, i18nc("setting", "Instant preview in Move")), QStringLiteral("KritaTransform/KisToolMove"));

@@ -48,8 +48,9 @@ The code was written by an LLM, on top of Krita's code. All the UI designs were 
 [Support Krita](https://krita.org/support-us/donations)
 
 ### [Install](../../releases)
-- unzip
+- unzip (somewhere you can write, not Program Files)
 - launch `bin\krita.exe`
+- it updates itself: a new version downloads while you paint and starts the next time you open it
 
 > [!NOTE]
 > Skissa uses separate settings files from Krita, so your Krita settings stay unchanged and can be imported into Skissa.
