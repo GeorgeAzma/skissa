@@ -55,6 +55,7 @@ set(skissa_ui_SRCS
     input/KisLayerHover.cpp
     opengl/KisOpenGLGlass.cpp
     tool/KisStrokeShape.cpp
+    tool/strokes/KisCoarseFilterPreview.cpp
     widgets/KisBlendModePicker.cpp
     widgets/KisCurvePresetStrip.cpp
     widgets/KisPopupCloser.cpp
