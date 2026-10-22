@@ -24,6 +24,7 @@
 #define GL_RGB10_A2 0x8059
 #endif
 
+#include "KisColorMath.h"
 #include "KisStudioGlass.h"
 #include "KisOpenGLGpuTiming.h"
 #include "kis_debug.h"
@@ -975,20 +976,13 @@ bool KisOpenGLGlass::isPending() const
 }
 
 namespace {
-qreal srgbToLinear(qreal c)
-{
-    return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4);
-}
+using KisColorMath::toLinear;
 
 /// \p color (sRGB) in Oklab.
 QVector3D oklabOf(const QColor &color)
 {
-    const qreal r = srgbToLinear(color.redF()), g = srgbToLinear(color.greenF()), b = srgbToLinear(color.blueF());
-    const qreal l = std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
-    const qreal m = std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
-    const qreal s = std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
-    return QVector3D(float(0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s), float(1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s),
-                     float(0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s));
+    const KisColorMath::Oklab lab = KisColorMath::oklabOf(color);
+    return QVector3D(float(lab.l), float(lab.a), float(lab.b));
 }
 
 /// Uploads \p transform as a GLSL mat3 (column-major).
@@ -1095,7 +1089,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     f->glUniform1i(d->ambient["ambient"], 0);
     f->glUniform1f(d->ambient["factor"], factor);
     setMatrix(f, d->ambient["toImage"], surfaceToImage);
-    f->glUniform3f(d->ambient["base"], float(srgbToLinear(base.redF())), float(srgbToLinear(base.greenF())), float(srgbToLinear(base.blueF())));
+    f->glUniform3f(d->ambient["base"], float(toLinear(base.redF())), float(toLinear(base.greenF())), float(toLinear(base.blueF())));
     f->glUniform1f(d->ambient["strength"], float(KisStudioGlass::ambientStrength));
     f->glUniform1f(d->ambient["backlight"], float(KisStudioGlass::ambientBacklight));
     f->glUniform1i(d->ambient["encode"], !linearCanvas);
@@ -1390,8 +1384,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glUniform2f(d->glass["corner"], surface.reach, surface.exponent);
         f->glUniform3f(d->glass["tint"], surface.tint.redF(), surface.tint.greenF(), surface.tint.blueF());
         // Perceived lightness (about the cube root of luminance), measured like the background.
-        const qreal luminance = 0.2126 * srgbToLinear(surface.tint.redF()) + 0.7152 * srgbToLinear(surface.tint.greenF())
-            + 0.0722 * srgbToLinear(surface.tint.blueF());
+        const qreal luminance = 0.2126 * toLinear(surface.tint.redF()) + 0.7152 * toLinear(surface.tint.greenF())
+            + 0.0722 * toLinear(surface.tint.blueF());
         f->glUniform1f(d->glass["tintLightness"], float(std::cbrt(luminance)));
         f->glUniform1f(d->glass["opacity"], surface.opacity);
         const qreal scale = scaleOf(surface);

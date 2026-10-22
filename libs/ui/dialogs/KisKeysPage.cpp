@@ -204,12 +204,6 @@ QVector<KeyCell> keyboardLayout()
     return cells;
 }
 
-QColor mixed(const QColor &a, const QColor &b, qreal t)
-{
-    return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t, a.greenF() + (b.greenF() - a.greenF()) * t,
-                            a.blueF() + (b.blueF() - a.blueF()) * t, a.alphaF() + (b.alphaF() - a.alphaF()) * t);
-}
-
 /// A legend entry for a key mark: a bar for keys held on the canvas, a red badge for conflicts
 class KeyLegend : public QWidget
 {
@@ -237,9 +231,9 @@ protected:
         const QColor window = palette().color(QPalette::Window);
         const QColor text = palette().color(QPalette::WindowText);
         const QRectF r(0.5, (height() - cap - 2.5) / 2.0, cap, cap);
-        const QColor face = mixed(window, text, 0.15);
+        const QColor face = KisModernStyle::mix(window, text, 0.15);
         painter.setPen(Qt::NoPen);
-        painter.setBrush(mixed(face, QColor(0, 0, 0), 0.45));
+        painter.setBrush(KisModernStyle::mix(face, QColor(0, 0, 0), 0.45));
         painter.drawPath(KisModernStyle::squircle(r.translated(0, 2.5), 4));
         painter.setBrush(face);
         painter.drawPath(KisModernStyle::squircle(r, 4));
@@ -366,10 +360,10 @@ protected:
             const bool hovered = i == m_hover || i == m_dropTarget;
 
             // The cap's face, with a darker side below so the key looks raised
-            QColor face = mixed(window, text, used ? 0.15 : 0.06);
-            if (hovered) face = mixed(face, text, 0.08);
-            if (modifierOn || isLit) face = mixed(window, accent, 0.75);
-            const QColor side = mixed(face, QColor(0, 0, 0), 0.45);
+            QColor face = KisModernStyle::mix(window, text, used ? 0.15 : 0.06);
+            if (hovered) face = KisModernStyle::mix(face, text, 0.08);
+            if (modifierOn || isLit) face = KisModernStyle::mix(window, accent, 0.75);
+            const QColor side = KisModernStyle::mix(face, QColor(0, 0, 0), 0.45);
             const qreal radius = qMin<qreal>(7, r.height() * 0.18);
             painter.setPen(Qt::NoPen);
             painter.setBrush(side);
@@ -422,7 +416,7 @@ protected:
                     const qreal d = u * 0.3;
                     const QRectF badge(r.right() - d - u * 0.05, r.top() + u * 0.05, d, d);
                     painter.setPen(Qt::NoPen);
-                    painter.setBrush(commandCount > 1 ? clashColor : mixed(face, text, 0.35));
+                    painter.setBrush(commandCount > 1 ? clashColor : KisModernStyle::mix(face, text, 0.35));
                     painter.drawEllipse(badge);
                     painter.setPen(commandCount > 1 ? QColor(Qt::white) : window);
                     painter.setFont(badgeFont);

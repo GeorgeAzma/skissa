@@ -103,6 +103,8 @@ public:
 
     /// \p ink faded for secondary text (hints, captions, units), still readable on glass.
     static QColor secondaryInk(QColor ink);
+    /// \p a toward \p b by \p t, alpha too
+    static QColor mix(const QColor &a, const QColor &b, qreal t);
 
     /// The action whose shortcut a menu entry shows: the entry or its "kisShortcutTarget". Null for submenus, separators and unnamed actions.
     static QAction *shortcutTarget(QAction *entry);

@@ -139,12 +139,6 @@ QColor ink(const QWidget *widget, qreal alpha)
     return color;
 }
 
-QColor mix(const QColor &a, const QColor &b, qreal t)
-{
-    return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t, a.greenF() + (b.greenF() - a.greenF()) * t,
-                            a.blueF() + (b.blueF() - a.blueF()) * t, a.alphaF() + (b.alphaF() - a.alphaF()) * t);
-}
-
 QLabel *titleLabel(const QString &text, QWidget *parent)
 {
     auto *label = new QLabel(text, parent);
@@ -223,7 +217,7 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         const QRectF track = QRectF(0, 0, 34, 20).translated((width() - 34) / 2.0, (height() - 20) / 2.0);
-        QColor fill = mix(ink(this, underMouse() ? 0.3 : 0.22), ink(this, 1.0), m_position);
+        QColor fill = KisModernStyle::mix(ink(this, underMouse() ? 0.3 : 0.22), ink(this, 1.0), m_position);
         if (!isEnabled()) fill.setAlphaF(fill.alphaF() * 0.4);
         painter.setPen(Qt::NoPen);
         painter.setBrush(fill);
@@ -231,7 +225,7 @@ protected:
         // The knob is light on the faint track and dark on the bright one
         QColor dark = palette().color(QPalette::Window);
         dark.setAlpha(255);
-        QColor knob = mix(ink(this, 1.0), dark, m_position);
+        QColor knob = KisModernStyle::mix(ink(this, 1.0), dark, m_position);
         if (!isEnabled()) knob.setAlphaF(0.5);
         painter.setBrush(knob);
         painter.drawEllipse(QPointF(track.left() + 10 + 14 * m_position, track.center().y()), 7, 7);
@@ -2387,24 +2381,15 @@ private:
     bool m_compact {false};
 };
 
-/// How well \p query matches \p text: at the start beats at a word start beats mid-word; 0 for no match
-int matchScore(const QString &query, const QString &text)
-{
-    const int at = text.indexOf(query, 0, Qt::CaseInsensitive);
-    if (at < 0) return 0;
-    const bool wordStart = at == 0 || !text.at(at - 1).isLetterOrNumber();
-    return 1000 - (wordStart ? 0 : 200) - at;
-}
-
 /// How well one search word matches a card's title, setting names, aliases or section
 int wordScore(const CardDef &card, const QString &word)
 {
-    int score = matchScore(word, card.title) * 2;
+    int score = KisStudioPicker::matchScore(word, card.title) * 2;
     Q_FOREACH (const QString &id, card.settings) {
-        if (const Setting *s = R::instance()->setting(id)) score = qMax(score, matchScore(word, s->label));
+        if (const Setting *s = R::instance()->setting(id)) score = qMax(score, KisStudioPicker::matchScore(word, s->label));
     }
-    score = qMax(score, matchScore(word, card.aliases) / 2);
-    return qMax(score, matchScore(word, sectionTitle(card.section)) / 4);
+    score = qMax(score, KisStudioPicker::matchScore(word, card.aliases) / 2);
+    return qMax(score, KisStudioPicker::matchScore(word, sectionTitle(card.section)) / 4);
 }
 
 /// A card's search score: every word of \p query must match somewhere ("pen pressure"), or the title fuzzily
@@ -2882,7 +2867,7 @@ struct KisStudioSettings::Private
                 const QString keysWords = i18nc("find result", "Keys and shortcuts") + QStringLiteral(" keyboard hotkeys keybindings mouse held rings");
                 bool keysFound = !query.isEmpty();
                 Q_FOREACH (const QString &word, query.split(QLatin1Char(' '), Qt::SkipEmptyParts)) {
-                    keysFound = keysFound && matchScore(word, keysWords) > 0;
+                    keysFound = keysFound && KisStudioPicker::matchScore(word, keysWords) > 0;
                 }
                 if (keysFound) {
                     auto *keysButton = new QPushButton(i18nc("@action:button", "Keys and shortcuts"), fresh);

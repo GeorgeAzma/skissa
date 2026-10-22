@@ -1750,6 +1750,11 @@ void KisStudioGlass::paintBorder(QPainter &painter, QWidget *widget, const QPain
     painter.restore();
 }
 
+int KisStudioGlass::shadowMargin(const QWidget *window, int margin)
+{
+    return window->testAttribute(Qt::WA_TranslucentBackground) ? margin : 0;
+}
+
 bool KisStudioGlass::seeThroughWindows()
 {
     static const bool solid = qEnvironmentVariableIntValue("KRITA_STUDIO_SOLID_WINDOWS") != 0;

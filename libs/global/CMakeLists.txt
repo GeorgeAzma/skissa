@@ -55,6 +55,7 @@ if(WIN32)
         ${kritaglobal_LIB_SRCS}
         KisWindowsPackageUtils.cpp
         KisDevSampler.cpp
+        KisStackWalk.cpp
     )
 endif(WIN32)
 

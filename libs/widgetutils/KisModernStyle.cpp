@@ -88,14 +88,6 @@ private:
 
 constexpr qreal radius = KisModernStyle::cornerRadius;
 
-QColor mix(const QColor &a, const QColor &b, qreal t)
-{
-    return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t,
-                            a.greenF() + (b.greenF() - a.greenF()) * t,
-                            a.blueF() + (b.blueF() - a.blueF()) * t,
-                            a.alphaF() + (b.alphaF() - a.alphaF()) * t);
-}
-
 /// Focus rings use the bright accent; fills use the muted selection color.
 QColor focusColor(const QPalette &pal)
 {
@@ -113,7 +105,7 @@ QColor chromeColor(const QPalette &pal)
 QColor selectionTint(const QPalette &pal)
 {
     const QColor base = pal.color(QPalette::Base);
-    return mix(base, pal.color(QPalette::Highlight), base.lightness() >= 128 ? 0.75 : 0.55);
+    return KisModernStyle::mix(base, pal.color(QPalette::Highlight), base.lightness() >= 128 ? 0.75 : 0.55);
 }
 
 /// A rect whose 1px outline lands exactly on the pixels of \p rect.
@@ -196,9 +188,9 @@ void drawButtonPanel(QPainter *painter, const QStyleOption *option, bool flat)
 
     QColor fill;
     if (s.pressed || s.checked) {
-        fill = mix(bg, fg, 0.16);
+        fill = KisModernStyle::mix(bg, fg, 0.16);
     } else if (s.hovered) {
-        fill = mix(bg, fg, 0.08);
+        fill = KisModernStyle::mix(bg, fg, 0.08);
     } else if (!flat) {
         fill = bg;
     }
@@ -235,7 +227,7 @@ void drawField(QPainter *painter, const QStyleOption *option, bool fill)
     if (s.enabled && option->state.testFlag(QStyle::State_HasFocus)) {
         border = focusColor(pal);
     } else if (s.hovered) {
-        border = mix(bg, fg, 0.18);
+        border = KisModernStyle::mix(bg, fg, 0.18);
     }
 
     drawRounded(painter, strokeRect(option->rect), radius, fill ? bg : QColor(), border);
@@ -458,6 +450,12 @@ QFont KisModernStyle::keyCapFont(const QFont &font)
     return textFont(font, 0.86);
 }
 
+QColor KisModernStyle::mix(const QColor &a, const QColor &b, qreal t)
+{
+    return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t, a.greenF() + (b.greenF() - a.greenF()) * t,
+                            a.blueF() + (b.blueF() - a.blueF()) * t, a.alphaF() + (b.alphaF() - a.alphaF()) * t);
+}
+
 QColor KisModernStyle::secondaryInk(QColor ink)
 {
     ink.setAlphaF(ink.alphaF() * 0.62);
@@ -536,11 +534,11 @@ void KisModernStyle::drawKeyCap(QPainter *painter, const QRectF &rect, const QFo
     painter->setPen(Qt::NoPen);
     if (state != KeyCap::Add) {
         // A darker edge below the face makes it read as a key rather than a button.
-        painter->setBrush(mix(window, Qt::black, 0.3));
+        painter->setBrush(KisModernStyle::mix(window, Qt::black, 0.3));
         painter->drawPath(squircle(face.translated(0, 1.5), r));
     }
     const qreal lift = state == KeyCap::Pointed || state == KeyCap::Recording ? 0.24 : state == KeyCap::Add ? 0.1 : 0.15;
-    painter->setBrush(mix(window, ink, lift));
+    painter->setBrush(KisModernStyle::mix(window, ink, lift));
     painter->drawPath(squircle(face, r));
     if (state == KeyCap::Recording) {
         painter->setPen(QPen(palette.color(QPalette::Link), 1.25));
@@ -920,15 +918,15 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
             fill = fg;
             fill.setAlphaF(s.checked ? (s.hovered ? 0.24 : 0.2) : s.pressed ? 0.16 : 0.08);
         } else if (s.checked) {
-            fill = mix(bg, accent, s.hovered ? 0.55 : 0.45);
-            border = mix(bg, accent, 0.8);
+            fill = KisModernStyle::mix(bg, accent, s.hovered ? 0.55 : 0.45);
+            border = KisModernStyle::mix(bg, accent, 0.8);
         } else if (s.pressed) {
-            fill = mix(bg, fg, 0.16);
+            fill = KisModernStyle::mix(bg, fg, 0.16);
         } else if (s.hovered) {
-            fill = mix(bg, fg, 0.08);
+            fill = KisModernStyle::mix(bg, fg, 0.08);
         } else if (!option->state.testFlag(State_AutoRaise)) {
             fill = bg;
-            border = mix(bg, fg, 0.14);
+            border = KisModernStyle::mix(bg, fg, 0.14);
         }
         if (s.keyboardFocus) {
             border = accent;
@@ -976,7 +974,7 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         box.moveCenter(QRectF(option->rect).center());
         box.adjust(0.5, 0.5, -0.5, -0.5);
 
-        QColor border = marked ? accent : mix(bg, fg, s.hovered ? 0.5 : 0.35);
+        QColor border = marked ? accent : KisModernStyle::mix(bg, fg, s.hovered ? 0.5 : 0.35);
         if (s.keyboardFocus) {
             border = marked ? fg : accent;
         }
@@ -1011,7 +1009,7 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         circle.moveCenter(QRectF(option->rect).center());
         circle.adjust(0.5, 0.5, -0.5, -0.5);
 
-        QColor border = s.checked ? accent : mix(bg, fg, s.hovered ? 0.5 : 0.35);
+        QColor border = s.checked ? accent : KisModernStyle::mix(bg, fg, s.hovered ? 0.5 : 0.35);
         if (s.keyboardFocus) {
             border = s.checked ? fg : accent;
         }
@@ -1050,7 +1048,7 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     case PE_FrameTabWidget: {
         const QColor bg = option->palette.color(QPalette::Window);
         const QColor fg = option->palette.color(QPalette::WindowText);
-        drawRounded(painter, strokeRect(option->rect), radius + 1, QColor(), mix(bg, fg, 0.12));
+        drawRounded(painter, strokeRect(option->rect), radius + 1, QColor(), KisModernStyle::mix(bg, fg, 0.12));
         return;
     }
 
@@ -1070,7 +1068,7 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         const QColor bg = option->palette.color(QPalette::Window);
         const QColor fg = option->palette.color(QPalette::WindowText);
         painter->save();
-        painter->setPen(mix(bg, fg, 0.18));
+        painter->setPen(KisModernStyle::mix(bg, fg, 0.18));
         painter->setBrush(Qt::NoBrush);
         painter->drawRect(QRectF(option->rect).adjusted(0.5, 0.5, -0.5, -0.5));
         painter->restore();
@@ -1098,7 +1096,7 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         const QColor fg = option->palette.color(QPalette::WindowText);
         const QRect r = option->rect;
         painter->save();
-        painter->setPen(mix(bg, fg, 0.18));
+        painter->setPen(KisModernStyle::mix(bg, fg, 0.18));
         if (option->state.testFlag(State_Horizontal)) {
             const int x = r.center().x();
             painter->drawLine(x, r.top() + 4, x, r.bottom() - 4);
@@ -1136,7 +1134,7 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
 
             const QColor fill = selected
                 ? selectionTint(item->palette)
-                : mix(item->palette.color(QPalette::Base), item->palette.color(QPalette::Text), 0.06);
+                : KisModernStyle::mix(item->palette.color(QPalette::Base), item->palette.color(QPalette::Text), 0.06);
 
             // A row spanning several columns forms one pill: inner ends extend past the clip.
             const qreal extend = radius + 1;
@@ -1283,7 +1281,7 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
             if (open) {
                 drawRounded(painter, shape, radius - 1, pal.color(QPalette::Highlight));
             } else if (selected) {
-                drawRounded(painter, shape, radius - 1, mix(pal.color(QPalette::Window), pal.color(QPalette::WindowText), 0.08));
+                drawRounded(painter, shape, radius - 1, KisModernStyle::mix(pal.color(QPalette::Window), pal.color(QPalette::WindowText), 0.08));
             }
 
             int alignment = Qt::AlignCenter | Qt::TextShowMnemonic | Qt::TextDontClip | Qt::TextSingleLine;
@@ -1313,10 +1311,10 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
             const QColor fg = header->palette.color(QPalette::WindowText);
             const QRect r = header->rect;
 
-            painter->fillRect(r, s.pressed ? mix(bg, fg, 0.12) : s.hovered ? mix(bg, fg, 0.06) : bg);
+            painter->fillRect(r, s.pressed ? KisModernStyle::mix(bg, fg, 0.12) : s.hovered ? KisModernStyle::mix(bg, fg, 0.06) : bg);
 
             painter->save();
-            painter->setPen(mix(bg, fg, 0.15));
+            painter->setPen(KisModernStyle::mix(bg, fg, 0.15));
             const bool last = header->position == QStyleOptionHeader::End
                 || header->position == QStyleOptionHeader::OnlyOneSection;
             if (header->orientation == Qt::Horizontal) {
@@ -1349,9 +1347,9 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
 
             const QRectF shape = QRectF(tab->rect).adjusted(1.5, 2, -1.5, -2);
             if (selected) {
-                drawRounded(painter, shape, radius, mix(bg, fg, 0.13));
+                drawRounded(painter, shape, radius, KisModernStyle::mix(bg, fg, 0.13));
             } else if (s.hovered) {
-                drawRounded(painter, shape, radius, mix(bg, fg, 0.06));
+                drawRounded(painter, shape, radius, KisModernStyle::mix(bg, fg, 0.06));
             }
             return;
         }
@@ -1360,7 +1358,7 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
     case CE_ProgressBarGroove:
         drawRounded(painter, QRectF(option->rect).adjusted(0.5, 0.5, -0.5, -0.5),
                     qMin<qreal>(radius, qMin(option->rect.width(), option->rect.height()) / 2.0),
-                    mix(option->palette.color(QPalette::Base), option->palette.color(QPalette::Text), 0.1));
+                    KisModernStyle::mix(option->palette.color(QPalette::Base), option->palette.color(QPalette::Text), 0.1));
         return;
 
     case CE_ProgressBarContents:
@@ -1473,12 +1471,12 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
 
             if (hovered || dragging) {
                 const QRect groove = proxy()->subControlRect(CC_ScrollBar, bar, SC_ScrollBarGroove, widget);
-                drawRounded(painter, thin(groove), thickness / 2, mix(bg, fg, 0.06));
+                drawRounded(painter, thin(groove), thickness / 2, KisModernStyle::mix(bg, fg, 0.06));
             }
 
             const QRect slider = proxy()->subControlRect(CC_ScrollBar, bar, SC_ScrollBarSlider, widget);
             drawRounded(painter, thin(slider), thickness / 2,
-                        mix(bg, fg, dragging ? 0.55 : hovered ? 0.45 : 0.3));
+                        KisModernStyle::mix(bg, fg, dragging ? 0.55 : hovered ? 0.45 : 0.3));
             return;
         }
         break;
@@ -1509,7 +1507,7 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
                     full.setLeft(QRectF(groove).center().x() - track / 2);
                     full.setWidth(track);
                 }
-                drawRounded(painter, full, track / 2, mix(bg, fg, 0.2));
+                drawRounded(painter, full, track / 2, KisModernStyle::mix(bg, fg, 0.2));
 
                 QRectF filled = full;
                 if (horizontal) {
@@ -1539,9 +1537,9 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
                 if (active && s.pressed) {
                     fill = accent;
                 } else if (active && s.hovered) {
-                    fill = mix(button, fg, 0.1);
+                    fill = KisModernStyle::mix(button, fg, 0.1);
                 }
-                const QColor border = s.keyboardFocus ? accent : mix(button, fg, 0.3);
+                const QColor border = s.keyboardFocus ? accent : KisModernStyle::mix(button, fg, 0.3);
 
                 painter->save();
                 painter->setRenderHint(QPainter::Antialiasing, true);
@@ -1595,7 +1593,7 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
                     const QRect r = proxy()->subControlRect(CC_SpinBox, spin, sc, widget);
 
                     if (sunken || (active && spin->state.testFlag(State_MouseOver))) {
-                        drawRounded(painter, QRectF(r).adjusted(1, 1, -1, -1), radius - 2, mix(bg, fg, sunken ? 0.16 : 0.08));
+                        drawRounded(painter, QRectF(r).adjusted(1, 1, -1, -1), radius - 2, KisModernStyle::mix(bg, fg, sunken ? 0.16 : 0.08));
                     }
 
                     const QColor color = stepEnabled ? pal.color(QPalette::Text) : pal.color(QPalette::Disabled, QPalette::Text);

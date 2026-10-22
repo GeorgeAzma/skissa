@@ -5,6 +5,8 @@
  */
 #include "KisBlendModePicker.h"
 
+#include "KisColorMath.h"
+
 #include <QHash>
 #include <QPainter>
 #include <QPainterPath>
@@ -151,10 +153,6 @@ QImage blendBackdrop(const QSize &size)
         return *it;
     }
 
-    auto toSrgb = [](qreal c) {
-        c = qBound(0.0, c, 1.0);
-        return c <= 0.0031308 ? 12.92 * c : 1.055 * std::pow(c, 1.0 / 2.4) - 0.055;
-    };
     QImage image(size, QImage::Format_ARGB32);
     const int w = size.width(), h = size.height();
     for (int y = 0; y < h; y++) {
@@ -167,13 +165,11 @@ QImage blendBackdrop(const QSize &size)
             const qreal L = 0.2 + 0.74 * u;
             // Less chroma near black and white, where the gamut is narrow
             const qreal C = 0.085 * std::sin(M_PI * qBound(0.0, (L - 0.08) / 0.9, 1.0));
-            const qreal A = C * std::cos(hue), B = C * std::sin(hue);
-            const qreal l = std::pow(L + 0.3963377774 * A + 0.2158037573 * B, 3);
-            const qreal m = std::pow(L - 0.1055613458 * A - 0.0638541728 * B, 3);
-            const qreal s = std::pow(L - 0.0894841775 * A - 1.2914855480 * B, 3);
-            const qreal r = toSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s);
-            const qreal g = toSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s);
-            const qreal b = toSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s);
+            qreal r, g, b;
+            KisColorMath::linearFromOklab({L, C * std::cos(hue), C * std::sin(hue)}, r, g, b);
+            r = KisColorMath::toSrgb(r);
+            g = KisColorMath::toSrgb(g);
+            b = KisColorMath::toSrgb(b);
             // Dither below one 8-bit step to avoid banding
             const qreal noise = (((x * 7 + y * 13) % 16) + 0.5) / 16.0 - 0.5;
             line[x] = qRgb(qBound(0, int(r * 255 + 0.5 + noise), 255), qBound(0, int(g * 255 + 0.5 + noise), 255),

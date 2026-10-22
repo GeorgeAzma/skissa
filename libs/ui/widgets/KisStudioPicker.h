@@ -66,6 +66,8 @@ public:
 
     /// A picture to preview effects or blend modes on when the canvas is blank
     static QImage samplePicture(const QSize &size);
+    /// How well \p query matches \p text: a prefix beats a word start beats the middle; 0 means no match
+    static int matchScore(const QString &query, const QString &text);
     /// Whether \p image is one flat color or transparent, so useless for showing an effect
     static bool isFlat(const QImage &image);
 

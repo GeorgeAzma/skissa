@@ -43,11 +43,6 @@ namespace {
 constexpr int glassShadowMargin = 16;
 constexpr int headerHeight = 26;
 
-/// Room for the drop shadow; none on an opaque window (see KisStudioGlass::seeThroughWindows)
-int shadowMarginOf(const QWidget *window)
-{
-    return window->testAttribute(Qt::WA_TranslucentBackground) ? glassShadowMargin : 0;
-}
 
 /// Moves \p pos so that a window of \p size placed there fits on \p screen
 QPoint onScreen(QPoint pos, const QSize &size, const QScreen *screen)
@@ -579,16 +574,15 @@ protected:
     }
 };
 
-/// How well \p query matches \p text: a prefix beats a word start beats the middle; 0 means no match
-int matchScore(const QString &query, const QString &text)
+} // namespace
+
+int KisStudioPicker::matchScore(const QString &query, const QString &text)
 {
     const int at = text.indexOf(query, 0, Qt::CaseInsensitive);
     if (at < 0) return 0;
     const bool wordStart = at == 0 || !text.at(at - 1).isLetterOrNumber();
     return 1000 - (wordStart ? 0 : 200) - at;
 }
-
-} // namespace
 
 QImage KisStudioPicker::samplePicture(const QSize &size)
 {
@@ -689,7 +683,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     });
 
     auto *layout = new QVBoxLayout(this);
-    const int shadowMargin = shadowMarginOf(this);
+    const int shadowMargin = KisStudioGlass::shadowMargin(this, glassShadowMargin);
     layout->setContentsMargins(shadowMargin + 10, shadowMargin + 10, shadowMargin + 10, shadowMargin + 8);
     layout->setSpacing(4);
 
@@ -917,7 +911,7 @@ const KisStudioPicker::Source &KisStudioPicker::pickerSource() const
 void KisStudioPicker::popupBelow(QWidget *anchor)
 {
     adjustSize();
-    const int shadowMargin = shadowMarginOf(this);
+    const int shadowMargin = KisStudioGlass::shadowMargin(this, glassShadowMargin);
     QPoint pos = anchor->mapToGlobal(QPoint(0, anchor->height())) - QPoint(shadowMargin, shadowMargin - 4);
     // if it would extend past the window, align it with the anchor's right edge instead
     const QWidget *window = anchor->window();
@@ -932,12 +926,12 @@ void KisStudioPicker::popupNear(const QPoint &globalPos)
 {
     adjustSize();
     // the search field just above the pointer, the items below it
-    popupAt(globalPos - QPoint(width() / 2, shadowMarginOf(this) + 26), nullptr);
+    popupAt(globalPos - QPoint(width() / 2, KisStudioGlass::shadowMargin(this, glassShadowMargin) + 26), nullptr);
 }
 
 void KisStudioPicker::popupAt(QPoint pos, QWidget *anchor)
 {
-    QScreen *screen = anchor ? anchor->screen() : QGuiApplication::screenAt(pos + QPoint(width() / 2, shadowMarginOf(this) + 26));
+    QScreen *screen = anchor ? anchor->screen() : QGuiApplication::screenAt(pos + QPoint(width() / 2, KisStudioGlass::shadowMargin(this, glassShadowMargin) + 26));
     move(onScreen(pos, size(), screen));
     KisStudioGlass::setMovableByBackground(this);
     new KisPopupCloser(this, anchor);
@@ -1031,7 +1025,7 @@ void KisStudioPicker::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    const int shadowMargin = shadowMarginOf(this);
+    const int shadowMargin = KisStudioGlass::shadowMargin(this, glassShadowMargin);
     const QRectF panel = QRectF(rect()).adjusted(shadowMargin, shadowMargin, -shadowMargin, -shadowMargin);
     const qreal radius = 12;
     if (shadowMargin) KisStudioGlass::paintShadow(painter, panel, radius, shadowMargin, 34, 4);

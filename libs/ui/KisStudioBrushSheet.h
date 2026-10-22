@@ -32,7 +32,6 @@ protected:
 private:
     explicit KisStudioBrushSheet(KisMainWindow *mainWindow);
     void rebuild();
-    void rebuildGrid();
     void updateHeader();
     void copyPicture();
 

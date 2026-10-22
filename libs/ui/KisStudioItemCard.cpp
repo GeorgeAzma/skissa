@@ -48,17 +48,6 @@ namespace {
 
 constexpr int glassShadowMargin = 14;
 
-/// Opaque windows have no shadow (see KisStudioGlass::seeThroughWindows)
-int shadowMarginOf(const QWidget *window)
-{
-    return window->testAttribute(Qt::WA_TranslucentBackground) ? glassShadowMargin : 0;
-}
-
-QColor mix(const QColor &a, const QColor &b, qreal t)
-{
-    return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t, a.greenF() + (b.greenF() - a.greenF()) * t,
-                            a.blueF() + (b.blueF() - a.blueF()) * t);
-}
 
 /// Shows the shortcut as a key cap; clicking it records a new one
 class KeyCap : public QAbstractButton
@@ -121,8 +110,8 @@ protected:
         const QPalette &pal = palette();
         if (m_choice.current || underMouse()) {
             painter.setPen(Qt::NoPen);
-            painter.setBrush(m_choice.current ? mix(pal.color(QPalette::Window), pal.color(QPalette::Highlight), 0.55)
-                                              : mix(pal.color(QPalette::Window), pal.color(QPalette::ButtonText), 0.1));
+            painter.setBrush(m_choice.current ? KisModernStyle::mix(pal.color(QPalette::Window), pal.color(QPalette::Highlight), 0.55)
+                                              : KisModernStyle::mix(pal.color(QPalette::Window), pal.color(QPalette::ButtonText), 0.1));
             painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), KisModernStyle::tileRadius));
         }
         m_choice.icon.paint(&painter, QRect(9, 9, 22, 22));
@@ -496,7 +485,7 @@ KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &ico
     d->closer = new KisPopupCloser(this);
 
     auto *layout = new QVBoxLayout(this);
-    const int shadowMargin = shadowMarginOf(this);
+    const int shadowMargin = KisStudioGlass::shadowMargin(this, glassShadowMargin);
     layout->setContentsMargins(shadowMargin + 12, shadowMargin + 10, shadowMargin + 12, shadowMargin + 10);
     layout->setSpacing(KisModernStyle::space3);
 
@@ -632,7 +621,7 @@ void KisStudioItemCard::popupBeside(QWidget *anchor)
     QScreen *screen = anchor->screen();
     const QRect available = screen ? screen->availableGeometry() : QRect(0, 0, 1920, 1080);
     const bool leftHalf = anchorRect.center().x() < available.center().x();
-    const int shadowMargin = shadowMarginOf(this);
+    const int shadowMargin = KisStudioGlass::shadowMargin(this, glassShadowMargin);
     QPoint pos(leftHalf ? anchorRect.right() + 4 - shadowMargin + 6 : anchorRect.left() - width() + shadowMargin - 6,
                anchorRect.top() - shadowMargin);
     pos.setX(qBound(available.left(), pos.x(), available.right() - width()));
@@ -713,7 +702,7 @@ void KisStudioItemCard::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    const int shadowMargin = shadowMarginOf(this);
+    const int shadowMargin = KisStudioGlass::shadowMargin(this, glassShadowMargin);
     const QRectF panel = QRectF(rect()).adjusted(shadowMargin, shadowMargin, -shadowMargin, -shadowMargin);
     const qreal radius = 12;
     if (shadowMargin) KisStudioGlass::paintShadow(painter, panel, radius, shadowMargin, 30, 3);

@@ -23,12 +23,6 @@ namespace {
 
 constexpr int iconSize = 20;
 
-QColor mix(const QColor &a, const QColor &b, qreal t)
-{
-    return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t, a.greenF() + (b.greenF() - a.greenF()) * t,
-                            a.blueF() + (b.blueF() - a.blueF()) * t);
-}
-
 int eventX(QMouseEvent *event)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -116,7 +110,7 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
 
     if (underMouse() || m_dragging) {
         painter.setPen(Qt::NoPen);
-        painter.setBrush(mix(window, text, m_dragging ? 0.16 : 0.09));
+        painter.setBrush(KisModernStyle::mix(window, text, m_dragging ? 0.16 : 0.09));
         painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 2, -1, -2), KisModernStyle::tileRadius));
     }
 
@@ -127,11 +121,11 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
         const qreal low = qMax(m_minimum, 1.0);
         const qreal position = qBound(0.0, std::log(qMax(m_value, low) / low) / std::log(m_maximum / low), 1.0);
         const qreal diameter = 3.0 + (iconSize - 3.0) * position;
-        painter.setBrush(mix(window, text, 0.85));
+        painter.setBrush(KisModernStyle::mix(window, text, 0.85));
         painter.drawEllipse(icon.center(), diameter / 2, diameter / 2);
     } else if (m_kind == Kind::Grow) {
         // a shape and the outline it grows (or shrinks) to
-        const QColor ink = mix(window, text, 0.85);
+        const QColor ink = KisModernStyle::mix(window, text, 0.85);
         painter.setBrush(ink);
         painter.drawPath(KisModernStyle::squircle(QRectF(icon.center() - QPointF(4, 4), QSizeF(8, 8)), 2));
         painter.setBrush(Qt::NoBrush);
@@ -140,14 +134,14 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
     } else if (m_kind == Kind::Threshold) {
         // two shades that count as one, more alike the lower it is
         const qreal t = qBound(0.0, (m_value - m_minimum) / (m_maximum - m_minimum), 1.0);
-        painter.setBrush(mix(window, text, 0.85));
+        painter.setBrush(KisModernStyle::mix(window, text, 0.85));
         painter.drawPie(icon.adjusted(2, 2, -2, -2), 90 * 16, 180 * 16);
-        painter.setBrush(mix(window, text, 0.85 - 0.6 * t));
+        painter.setBrush(KisModernStyle::mix(window, text, 0.85 - 0.6 * t));
         painter.drawPie(icon.adjusted(2, 2, -2, -2), 270 * 16, 180 * 16);
     } else if (m_kind == Kind::Soft) {
         // a dot whose edge fades
         QRadialGradient fade(icon.center(), iconSize / 2.0);
-        QColor ink = mix(window, text, 0.85);
+        QColor ink = KisModernStyle::mix(window, text, 0.85);
         fade.setColorAt(0.3, ink);
         ink.setAlphaF(0);
         fade.setColorAt(1, ink);
@@ -162,10 +156,10 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
         for (int y = 0; y < 3; y++) {
             for (int x = 0; x < 3; x++) {
                 painter.fillRect(QRectF(icon.left() + 1 + x * cell, icon.top() + 1 + y * cell, cell, cell),
-                                 (x + y) % 2 ? mix(window, text, 0.18) : mix(window, text, 0.36));
+                                 (x + y) % 2 ? KisModernStyle::mix(window, text, 0.18) : KisModernStyle::mix(window, text, 0.36));
             }
         }
-        QColor fill = mix(window, text, 0.85);
+        QColor fill = KisModernStyle::mix(window, text, 0.85);
         fill.setAlphaF(qBound(0.0, (m_value - m_minimum) / (m_maximum - m_minimum), 1.0));
         painter.fillRect(icon, fill);
         painter.restore();

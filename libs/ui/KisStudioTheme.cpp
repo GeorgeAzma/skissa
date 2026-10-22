@@ -5,6 +5,7 @@
  */
 #include "KisStudioTheme.h"
 
+#include "KisColorMath.h"
 #include "KisSettingsRegistry.h"
 
 #include <cmath>
@@ -32,41 +33,9 @@ namespace KisStudioTheme
 namespace
 {
 
-struct Lab {
-    qreal l, a, b;
-};
-
-qreal toLinear(qreal c)
-{
-    return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4);
-}
-
-qreal toSrgb(qreal c)
-{
-    c = qBound<qreal>(0, c, 1);
-    return c <= 0.0031308 ? 12.92 * c : 1.055 * std::pow(c, 1 / 2.4) - 0.055;
-}
-
-Lab toOklab(const QColor &color)
-{
-    const qreal r = toLinear(color.redF()), g = toLinear(color.greenF()), b = toLinear(color.blueF());
-    const qreal l = std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
-    const qreal m = std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
-    const qreal s = std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
-    return {0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
-            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s};
-}
-
-QColor fromOklab(Lab lab)
-{
-    lab.l = qBound<qreal>(0, lab.l, 1);
-    const qreal l = std::pow(lab.l + 0.3963377774 * lab.a + 0.2158037573 * lab.b, 3);
-    const qreal m = std::pow(lab.l - 0.1055613458 * lab.a - 0.0638541728 * lab.b, 3);
-    const qreal s = std::pow(lab.l - 0.0894841775 * lab.a - 1.2914855480 * lab.b, 3);
-    return QColor::fromRgbF(toSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
-                            toSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
-                            toSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s));
-}
+using KisColorMath::colorOf;
+using KisColorMath::Oklab;
+using KisColorMath::oklabOf;
 
 const char *const group = "StudioTheme";
 
@@ -79,12 +48,12 @@ Colors colorsOf(const Params &p)
 {
     const bool dark = p.lightness < 0.5;
     // At full strength the tint clearly colors the backgrounds but stays quieter than the accent
-    const Lab tint = toOklab(p.tint.isValid() ? p.tint : QColor(Qt::gray));
+    const Oklab tint = oklabOf(p.tint.isValid() ? p.tint : QColor(Qt::gray));
     const qreal chroma = std::hypot(tint.a, tint.b);
     const qreal reach = 0.11 * qBound<qreal>(0, p.tintAmount, 1);
     const qreal ta = chroma > 1e-4 ? tint.a / chroma * reach : 0;
     const qreal tb = chroma > 1e-4 ? tint.b / chroma * reach : 0;
-    auto bg = [&](qreal l) { return fromOklab({qBound<qreal>(0, l, 1), ta, tb}); };
+    auto bg = [&](qreal l) { return colorOf({qBound<qreal>(0, l, 1), ta, tb}); };
 
     const qreal w = qBound<qreal>(0.05, p.lightness, 1.0);
     // a surface raised off the window is lighter, or darker by as much near white, where there is no lighter
@@ -99,21 +68,21 @@ Colors colorsOf(const Params &p)
     c.header = bg(w - (dark ? 0.05 : 0.06));
     c.tooltip = bg(raised(dark ? 0.13 : 0.03));
     const qreal textL = dark ? 0.94 : 0.2;
-    c.text = fromOklab({qBound<qreal>(0, textL, 1), ta * 0.3, tb * 0.3});
-    c.inactive = fromOklab({w + (textL - w) * 0.5, ta * 0.5, tb * 0.5});
+    c.text = colorOf({qBound<qreal>(0, textL, 1), ta * 0.3, tb * 0.3});
+    c.inactive = colorOf({w + (textL - w) * 0.5, ta * 0.5, tb * 0.5});
     if (p.accent.isValid()) {
         c.selection = p.accent;
         // links and focus lines are ink on the window: the accent's hue at a lightness that reads
-        Lab ink = toOklab(p.accent);
+        Oklab ink = oklabOf(p.accent);
         ink.l = dark ? qMax<qreal>(ink.l, 0.78) : qMin<qreal>(ink.l, 0.45);
-        c.decoration = fromOklab(ink);
+        c.decoration = colorOf(ink);
     } else {
         // A gray that contrasts with the window. It fills sliders, checks and lines, so it takes
         // the faint tint of the text rather than the stronger one of the backgrounds.
-        c.selection = fromOklab({dark ? w + 0.21 : 0.31, ta * 0.3, tb * 0.3});
+        c.selection = colorOf({dark ? w + 0.21 : 0.31, ta * 0.3, tb * 0.3});
         c.decoration = c.text;
     }
-    c.selectionText = toOklab(c.selection).l < 0.68 ? QColor(250, 250, 250) : QColor(24, 24, 24);
+    c.selectionText = oklabOf(c.selection).l < 0.68 ? QColor(250, 250, 250) : QColor(24, 24, 24);
     return c;
 }
 

@@ -127,6 +127,8 @@ public:
      * KRITA_STUDIO_SOLID_WINDOWS=1 forces solid windows.
      */
     static bool seeThroughWindows();
+    /// Room around a popup window for its drop shadow: \p margin when it is see-through, none when opaque
+    static int shadowMargin(const QWidget *window, int margin);
 
     /**
      * Window type of Studio popups over the main window: Qt::Tool on Windows, where a translucent Qt::Popup

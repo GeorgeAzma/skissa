@@ -481,11 +481,6 @@ public:
 
 constexpr int glassShadowMargin = 18;
 
-/// Room for the drop shadow; none on an opaque window (see KisStudioGlass::seeThroughWindows)
-int shadowMarginOf(const QWidget *window)
-{
-    return window->testAttribute(Qt::WA_TranslucentBackground) ? glassShadowMargin : 0;
-}
 constexpr int maxResults = 40;
 
 } // namespace
@@ -601,7 +596,7 @@ KisStudioFind::KisStudioFind(KisMainWindow *mainWindow)
     setObjectName(QStringLiteral("studioFind"));
 
     auto *layout = new QVBoxLayout(this);
-    const int shadowMargin = shadowMarginOf(this);
+    const int shadowMargin = KisStudioGlass::shadowMargin(this, glassShadowMargin);
     layout->setContentsMargins(shadowMargin + 8, shadowMargin + 8, shadowMargin + 8, shadowMargin + 8);
     layout->setSpacing(KisModernStyle::space2);
 
@@ -1455,7 +1450,7 @@ void KisStudioFind::runRow(int row)
 
 void KisStudioFind::adjustGeometry()
 {
-    const int width = 640 + 2 * shadowMarginOf(this);
+    const int width = 640 + 2 * KisStudioGlass::shadowMargin(this, glassShadowMargin);
     int listHeight = 0;
     for (int row = 0; row < d->model->rowCount(); row++) {
         listHeight += d->list->sizeHintForRow(row);
@@ -1466,7 +1461,7 @@ void KisStudioFind::adjustGeometry()
     // apply the new minimum size now, or the window stays tall until the next layout pass
     layout()->activate();
 
-    const int height = d->edit->sizeHint().height() + 36 + (d->list->isVisible() ? listHeight + 6 : 0) + 2 * shadowMarginOf(this);
+    const int height = d->edit->sizeHint().height() + 36 + (d->list->isVisible() ? listHeight + 6 : 0) + 2 * KisStudioGlass::shadowMargin(this, glassShadowMargin);
     const QRect window = d->mainWindow->geometry();
     setGeometry(window.center().x() - width / 2, window.top() + int(window.height() * 0.12), width, height);
 }
@@ -1669,7 +1664,7 @@ void KisStudioFind::paintEvent(QPaintEvent *)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
 
-    const int shadowMargin = shadowMarginOf(this);
+    const int shadowMargin = KisStudioGlass::shadowMargin(this, glassShadowMargin);
     const QRectF panel = QRectF(rect()).adjusted(shadowMargin, shadowMargin, -shadowMargin, -shadowMargin);
     const qreal radius = 12;
 
