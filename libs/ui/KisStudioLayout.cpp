@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioLayout.h"
+#include "KisStudioTools.h"
 
 #include <KisResourceItemChooser.h>
 #include "KisColorDrop.h"
@@ -2927,19 +2928,21 @@ void KisStudioLayout::enter()
     if (KisCanvasResourceProvider *resources = viewManager ? viewManager->canvasResourceProvider() : nullptr) {
         d->connections << connect(resources, &KisCanvasResourceProvider::sigPaintOpPresetChanged, this, [this]() { updateToolChip(); });
     }
-    d->connections << connect(KoToolManager::instance(), &KoToolManager::changedTool, this,
-                              [this](KoCanvasController *controller) {
-                                  if (KisStudioToolRail::isOwnController(d->mainWindow, controller)) updateContextBar();
-                              });
-    d->connections << connect(KoToolManager::instance(), &KoToolManager::toolOptionWidgetsChanged, this,
-                              [this](KoCanvasController *controller, const QList<QPointer<QWidget>> &widgets) {
-                                  // ignore tool changes in other windows
-                                  if (!KisStudioToolRail::isOwnController(d->mainWindow, controller) || !d->toolStrip) return;
-                                  d->toolStrip->setOptionWidgets(widgets);
-                                  if (d->toolStripAction) {
-                                      d->toolStripAction->setVisible(d->toolStrip->hasOptions() && (!isRailHidden() || d->peeking.contains(QPointer<QWidget>(d->topPill.data()))));
-                                  }
-                              });
+    KoToolManager *tools = viewManager ? viewManager->toolManager() : nullptr;
+    if (tools) {
+        d->connections << connect(tools, &KoToolManager::changedTool, this, [this](KoCanvasController *controller) {
+            if (KisStudioToolRail::isOwnController(d->mainWindow, controller)) updateContextBar();
+        });
+        d->connections << connect(tools, &KoToolManager::toolOptionWidgetsChanged, this,
+                                  [this](KoCanvasController *controller, const QList<QPointer<QWidget>> &widgets) {
+                                      // ignore tool changes in other windows
+                                      if (!KisStudioToolRail::isOwnController(d->mainWindow, controller) || !d->toolStrip) return;
+                                      d->toolStrip->setOptionWidgets(widgets);
+                                      if (d->toolStripAction) {
+                                          d->toolStripAction->setVisible(d->toolStrip->hasOptions() && (!isRailHidden() || d->peeking.contains(QPointer<QWidget>(d->topPill.data()))));
+                                      }
+                                  });
+    }
     if (QMdiArea *area = mdiArea()) {
         d->connections << connect(area, &QMdiArea::subWindowActivated, this, [this]() {
             adoptDocuments();
@@ -2974,8 +2977,8 @@ void KisStudioLayout::enter()
     }
 
     // fill the strip with the current tool's options without waiting for a tool change
-    if (mainWindow->activeView()) {
-        KoToolManager::instance()->initializeCurrentToolForCanvas();
+    if (mainWindow->activeView() && tools) {
+        tools->initializeCurrentToolForCanvas();
     }
 
     normalize();
@@ -5178,7 +5181,7 @@ void KisStudioLayout::updateToolChip()
     if (!d->toolChip) {
         return;
     }
-    const QString tool = KoToolManager::instance()->activeToolId();
+    const QString tool = KisStudioTools::activeToolId();
     KoToolFactoryBase *factory = KoToolRegistry::instance()->value(tool);
     if (d->toolChipAction) {
         d->toolChipAction->setVisible(factory && (!isRailHidden() || d->peeking.contains(QPointer<QWidget>(d->topPill.data()))));
@@ -5214,7 +5217,7 @@ void KisStudioLayout::updateContextBar()
         return;
     }
 
-    const QString tool = KoToolManager::instance()->activeToolId();
+    const QString tool = KisStudioTools::activeToolId();
     auto any = [&tool](std::initializer_list<const char *> ids) {
         for (const char *id : ids) {
             if (tool == QLatin1String(id)) return true;

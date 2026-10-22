@@ -62,6 +62,9 @@
 namespace
 {
 
+/// The new image settings Krita's own dialog keeps for a custom image
+const QLatin1String newImageSection("");
+
 QColor withAlpha(QColor color, qreal alpha)
 {
     color.setAlphaF(alpha);
@@ -310,8 +313,8 @@ protected:
             m_glyph.paint(&painter, at);
         } else if (m_pixels.isValid()) {
             KisConfig cfg(true);
-            QColor paper = cfg.defaultBackgroundColor();
-            paper.setAlpha(qMax(40, int(cfg.defaultBackgroundOpacity())));
+            QColor paper = cfg.defaultBackgroundColor(newImageSection);
+            paper.setAlpha(qMax(40, int(cfg.defaultBackgroundOpacity(newImageSection))));
             painter.setBrush(paper);
             painter.setPen(QPen(withAlpha(ink, 0.25), 1));
             painter.drawPath(KisModernStyle::squircle(shapeRect(), 3));
@@ -393,8 +396,8 @@ protected:
         const QSizeF fitted = QSizeF(m_size).scaled(box.size(), Qt::KeepAspectRatio);
         const QRectF shape(box.center() - QPointF(fitted.width(), fitted.height()) / 2, fitted);
         KisConfig cfg(true);
-        QColor paper = cfg.defaultBackgroundColor();
-        paper.setAlpha(qMax(40, int(cfg.defaultBackgroundOpacity())));
+        QColor paper = cfg.defaultBackgroundColor(newImageSection);
+        paper.setAlpha(qMax(40, int(cfg.defaultBackgroundOpacity(newImageSection))));
         painter.setBrush(paper);
         painter.setPen(QPen(withAlpha(ink, m_dragging ? 0.6 : 0.3), 1));
         painter.drawPath(KisModernStyle::squircle(shape, 3));
@@ -1156,11 +1159,11 @@ void createImage(const QSize &pixels, qreal pixelsPerPoint)
     KisConfig cfg(true);
     const KoColorSpace *cs = KoColorSpaceRegistry::instance()->colorSpace(cfg.defColorModel(), cfg.defaultColorDepth(), cfg.defColorProfile());
     if (!cs) cs = KoColorSpaceRegistry::instance()->rgb8();
-    QColor background = cfg.defaultBackgroundColor();
-    background.setAlpha(cfg.defaultBackgroundOpacity());
+    QColor background = cfg.defaultBackgroundColor(newImageSection);
+    background.setAlpha(cfg.defaultBackgroundOpacity(newImageSection));
     KisDocument *doc = KisPart::instance()->createDocument();
-    if (!doc->newImage(i18n("Unnamed"), pixels.width(), pixels.height(), cs, KoColor(background, cs), cfg.defaultBackgroundStyle(),
-                       cfg.numDefaultLayers(), QString(), pixelsPerPoint)) {
+    if (!doc->newImage(i18n("Unnamed"), pixels.width(), pixels.height(), cs, KoColor(background, cs), cfg.defaultBackgroundStyle(newImageSection),
+                       cfg.numDefaultLayers(newImageSection), QString(), pixelsPerPoint)) {
         delete doc;
         return;
     }

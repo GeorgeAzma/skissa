@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioSymmetry.h"
+#include "KisStudioTools.h"
 
 #include <QAction>
 
@@ -122,7 +123,7 @@ bool KisStudioSymmetry::isOn(KisKActionCollection *actions)
 {
     QAction *across = mirrorAction(actions, true);
     QAction *down = mirrorAction(actions, false);
-    return (across && across->isChecked()) || (down && down->isChecked()) || KoToolManager::instance()->activeToolId() == multiBrushTool;
+    return (across && across->isChecked()) || (down && down->isChecked()) || KisStudioTools::activeToolId() == multiBrushTool;
 }
 
 void KisStudioSymmetry::setOn(KisKActionCollection *actions, bool on)
@@ -140,13 +141,13 @@ void KisStudioSymmetry::setOn(KisKActionCollection *actions, bool on)
     setChecked(downAction, mirror && symmetry->mirrorDown());
     // Radial and tile use the Multibrush tool; switch back to the previous tool when done
     static QString toolBefore;
-    const QString tool = KoToolManager::instance()->activeToolId();
+    const QString tool = KisStudioTools::activeToolId();
     if (on && !mirror) {
         if (tool != multiBrushTool) {
             toolBefore = tool;
-            KoToolManager::instance()->switchToolRequested(multiBrushTool);
+            KisStudioTools::switchTo(multiBrushTool);
         }
     } else if (tool == multiBrushTool) {
-        KoToolManager::instance()->switchToolRequested(toolBefore.isEmpty() ? brushTool : toolBefore);
+        KisStudioTools::switchTo(toolBefore.isEmpty() ? brushTool : toolBefore);
     }
 }

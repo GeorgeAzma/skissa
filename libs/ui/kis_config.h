@@ -588,14 +588,14 @@ public:
     void setShowSingleChannelAsColor(bool asColor);
 
 
-    int numDefaultLayers(bool defaultValue = false) const;
-    void setNumDefaultLayers(int num);
+    int numDefaultLayers(const QLatin1String &dialogType, bool defaultValue = false) const;
+    void setNumDefaultLayers(const QLatin1String &dialogType, int num);
 
-    quint8 defaultBackgroundOpacity(bool defaultValue = false) const;
-    void setDefaultBackgroundOpacity(quint8 value);
+    quint8 defaultBackgroundOpacity(const QLatin1String &dialogType, bool defaultValue = false) const;
+    void setDefaultBackgroundOpacity(const QLatin1String &dialogType, quint8 value);
 
-    QColor defaultBackgroundColor(bool defaultValue = false) const;
-    void setDefaultBackgroundColor(const QColor &value);
+    QColor defaultBackgroundColor(const QLatin1String &dialogType, bool defaultValue = false) const;
+    void setDefaultBackgroundColor(const QLatin1String &dialogType, const QColor &value);
 
     enum BackgroundStyle {
         RASTER_LAYER = 0,
@@ -603,8 +603,8 @@ public:
         FILL_LAYER = 2
     };
 
-    BackgroundStyle defaultBackgroundStyle(bool defaultValue = false) const;
-    void setDefaultBackgroundStyle(BackgroundStyle value);
+    BackgroundStyle defaultBackgroundStyle(const QLatin1String &dialogType, bool defaultValue = false) const;
+    void setDefaultBackgroundStyle(const QLatin1String &dialogType, BackgroundStyle value);
 
     int lineSmoothingType(bool defaultValue = false) const;
     void setLineSmoothingType(int value);

@@ -158,6 +158,7 @@ public:
         , selectionManager(_q)
         , statusBar(_q)
         , controlFrame(_q, _q_parent)
+        , toolManager()
         , nodeManager(_q)
         , imageManager(_q)
         , gridManager(_q)
@@ -169,7 +170,7 @@ public:
         , guiUpdateCompressor(30, KisSignalCompressor::POSTPONE, _q)
         , actionCollection(_actionCollection)
         , mirrorManager(_q)
-        , inputManager(_q)
+        , inputManager(_q, &toolManager)
         , zoomRotationMessageTimer(Qt::CoarseTimer)
     {
         KisViewManager::initializeResourceManager(&canvasResourceManager);
@@ -215,6 +216,7 @@ public:
     QPointer<KoUpdater> persistentUnthreadedProgressUpdater;
 
     KisControlFrame controlFrame;
+    KoToolManager toolManager;
     KisNodeManager nodeManager;
     KisImageManager imageManager;
     KisGridManager gridManager;
@@ -321,12 +323,12 @@ KisViewManager::KisViewManager(QWidget *parent, KisKActionCollection *_actionCol
     //Check to draw scrollbars after "Canvas only mode" toggle is created.
     this->showHideScrollbars();
 
-    KoToolManager::instance()->initializeToolActions();
+    d->toolManager.initializeToolActions();
 
-    connect(KoToolManager::instance(), SIGNAL(inputDeviceChanged(KoInputDevice)),
+    connect(&d->toolManager, SIGNAL(inputDeviceChanged(KoInputDevice)),
             d->controlFrame.paintopBox(), SLOT(slotInputDeviceChanged(KoInputDevice)));
 
-    connect(KoToolManager::instance(), SIGNAL(changedTool(KoCanvasController*)),
+    connect(&d->toolManager, SIGNAL(changedTool(KoCanvasController*)),
             d->controlFrame.paintopBox(), SLOT(slotToolChanged(KoCanvasController*)));
 
     connect(&d->nodeManager, SIGNAL(sigNodeActivated(KisNodeSP)),
@@ -340,7 +342,7 @@ KisViewManager::KisViewManager(QWidget *parent, KisKActionCollection *_actionCol
     connect(KisConfigNotifier::instance(), SIGNAL(configChanged()), SLOT(slotUpdateAuthorProfileActions()));
     connect(KisConfigNotifier::instance(), SIGNAL(pixelGridModeChanged()), SLOT(slotUpdatePixelGridAction()));
 
-    connect(KoToolManager::instance(), SIGNAL(createOpacityResource(bool, KoToolBase*)), SLOT(slotCreateOpacityResource(bool, KoToolBase*)));
+    connect(&d->toolManager, SIGNAL(createOpacityResource(bool, KoToolBase*)), SLOT(slotCreateOpacityResource(bool, KoToolBase*)));
 
     KisInputProfileManager::instance()->loadProfiles();
 
@@ -564,6 +566,10 @@ void KisViewManager::setCurrentView(KisView *view)
     d->statusBar.setView(imageView);
     d->paintingAssistantsManager.setView(imageView);
     d->mirrorManager.setView(imageView);
+    // the tool manager is initialized the latest, since
+    // it may activate some tools which will request canvas
+    // managers
+    d->toolManager.setCurrentCanvas(imageView ? imageView->canvasController() : nullptr);
 
     if (d->currentImageView) {
         d->currentImageView->notifyCurrentStateChanged(true);
@@ -866,6 +872,11 @@ void KisViewManager::updateGUI()
 KisNodeManager * KisViewManager::nodeManager() const
 {
     return &d->nodeManager;
+}
+
+KoToolManager * KisViewManager::toolManager() const
+{
+    return &d->toolManager;
 }
 
 KisActionManager* KisViewManager::actionManager() const
@@ -1728,16 +1739,16 @@ void KisViewManager::slotUpdatePixelGridAction()
 
 void KisViewManager::slotActivateTransformTool()
 {
-    if(KoToolManager::instance()->activeToolId() == "KisToolTransform") {
-        KoToolBase* tool = KoToolManager::instance()->toolById(canvasBase(), "KisToolTransform");
+    if(d->toolManager.activeToolId() == "KisToolTransform") {
+        KoToolBase* tool = d->toolManager.toolById(canvasBase(), "KisToolTransform");
 
         QSet<KoShape*> dummy;
         // Start a new stroke
         tool->deactivate();
         tool->activate(dummy);
+    } else {
+        d->toolManager.switchToolRequested("KisToolTransform");
     }
-
-    KoToolManager::instance()->switchToolRequested("KisToolTransform");
 }
 
 void KisViewManager::slotToggleFgBg()
@@ -1792,9 +1803,9 @@ void KisViewManager::slotResetDisplay()
 void KisViewManager::slotCreateOpacityResource(bool isOpacityPresetMode, KoToolBase *tool)
 {
     if (isOpacityPresetMode) {
-        KoToolManager::instance()->setConverter(toQShared(new KisOpacityToPresetOpacityResourceConverter), tool);
+        d->toolManager.setConverter(toQShared(new KisOpacityToPresetOpacityResourceConverter), tool);
     }
     else {
-        KoToolManager::instance()->setAbstractResource(toQShared(new ToolOpacityAbstractResource(KoCanvasResource::Opacity, 1.0)), tool);
+        d->toolManager.setAbstractResource(toQShared(new ToolOpacityAbstractResource(KoCanvasResource::Opacity, 1.0)), tool);
     }
 }

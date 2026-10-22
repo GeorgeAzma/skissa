@@ -37,6 +37,7 @@
 #include "KisMainWindow.h"
 #include "KisStudioBarButtons.h"
 #include "KisStudioBrushPicker.h"
+#include "KisStudioTools.h"
 #include "KisStudioBrushSheet.h"
 #include "KisStudioMixing.h"
 #include "KisStudioPenPopup.h"
@@ -399,9 +400,11 @@ KisStudioBrushEditor::KisStudioBrushEditor(KisMainWindow *mainWindow)
     // the last stroke follows the smoothing (the Stroke tab, the chip) as it does the brush
     connect(KisStudioSmoothing::instance(), &KisStudioSmoothing::sigChanged, this, &KisStudioBrushEditor::followLastStroke);
     // the Stroke tab is there for the tools that paint freehand
-    connect(KoToolManager::instance(), &KoToolManager::changedTool, this, [this]() {
-        if (d->parts.contains(strokePart) != KisStudioStrokePage::applies(d->mainWindow)) rebuild();
-    });
+    if (KoToolManager *tools = KisStudioTools::manager(mainWindow)) {
+        connect(tools, &KoToolManager::changedTool, this, [this]() {
+            if (d->parts.contains(strokePart) != KisStudioStrokePage::applies(d->mainWindow)) rebuild();
+        });
+    }
     rebuild();
 }
 

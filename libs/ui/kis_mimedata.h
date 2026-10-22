@@ -10,8 +10,12 @@
 #include <QMimeData>
 #include <QRect>
 
+#include <optional>
+
 #include <kis_types.h>
 #include <kritaui_export.h>
+
+#include <kis_default_bounds_base.h>
 
 class KisShapeController;
 class KisNodeDummy;
@@ -19,6 +23,7 @@ class KisNodeInsertionAdapter;
 class KisNodeGraphListener;
 class KisProcessingApplicator;
 class KisDisplayConfig;
+class KoColorSpace;
 
 /**
  * KisMimeData implements delayed retrieval of nodes for d&d and copy/paste.
@@ -29,10 +34,26 @@ class KRITAUI_EXPORT KisMimeData : public QMimeData
 {
     Q_OBJECT
 public:
-    KisMimeData(QList<KisNodeSP> nodes, KisImageSP image, bool forceCopy = false);
+    enum MimeSource {
+        MimeFromDragAndDrop = 0x0,
+        MimeFromClipboard = 0x1,
+    };
+
+public:
+    KisMimeData(QList<KisNodeSP> nodes, KisImageSP image, const QRect referenceRect, bool forceCopy = false);
 
     /// return the node set on this mimedata object -- for internal use
     QList<KisNodeSP> nodes() const;
+
+    /**
+     * If mime data contains Krita layers, then referenceColorSpace()
+     * will return the color space associated with those layers.
+     *
+     * NOTE: this color space may be **not** the color space the layers
+     * are written in. Usually, it is the color space of the image that
+     * contained the layers.
+     */
+    const KoColorSpace* referenceColorSpace() const;
 
     /**
      * For Cut/Copy/Paste operations we should detach the contents of
@@ -61,12 +82,14 @@ public:
 
     static KisNodeList loadNodesFast(
         const QMimeData *data,
+        MimeSource mimeSource,
         KisImageSP image,
         KisShapeController *shapeController,
         bool &copyNode);
 
     static KisNodeList loadNodesFastAndRecenter(const QPoint &preferredCenter,
             const QMimeData *data,
+            MimeSource mimeSource,
             KisImageSP image,
             KisShapeController *shapeController,
             bool &copyNode);
@@ -82,6 +105,9 @@ public:
      */
     static KisDisplayConfig displayConfigForMimePastes();
 
+    KisPaintDeviceSP clipFromKritaLayers(const KoColorSpace *cs, KisDefaultBoundsBaseSP defaultBounds) const;
+    KisImageSP clipImageFromKritaLayers(const KoColorSpace *cs) const;
+
 private:
     /**
      * Loads a node from a mime container
@@ -95,22 +121,23 @@ private:
      * that is can be fetched without serialization
      */
     static KisNodeList tryLoadInternalNodes(const QMimeData *data,
+                                            MimeSource mimeSource,
                                                  KisImageSP image,
                                                  KisShapeController *shapeController,
                                                  bool /* IN-OUT */ &copyNode);
 
 public:
     static QMimeData* mimeForLayers(const KisNodeList &nodes, KisImageSP image, bool forceCopy = false);
-    static QMimeData* mimeForLayersDeepCopy(const KisNodeList &nodes, KisImageSP image, bool forceCopy);
+    static QMimeData* mimeForLayersDeepCopy(const KisNodeList &nodes, KisImageSP image, const QRect referenceRect, bool forceCopy);
     static bool insertMimeLayers(const QMimeData *data,
+                                 MimeSource mimeSource,
                                  KisImageSP image,
                                  KisShapeController *shapeController,
                                  KisNodeDummy *parentDummy,
                                  KisNodeDummy *aboveThisDummy,
                                  bool copyNode,
                                  KisNodeInsertionAdapter *nodeInsertionAdapter,
-                                 bool changeOffset = false,
-                                 QPointF offset = QPointF(),
+                                 std::optional<QPoint> preferredClipCenter = std::nullopt,
                                  KisProcessingApplicator *applicator = nullptr);
 
 protected:
@@ -125,12 +152,17 @@ private:
                                        KisImageSP srcImage, KisImageSP dstImage,
                                        KisShapeController *shapeController);
 
+
+    KisPaintDeviceSP clipFromKritaLayersImpl(const KoColorSpace *cs, const QRect &referenceImageRect) const;
 private:
 
     QList<KisNodeSP> m_nodes;
     bool m_forceCopy;
     KisImageSP m_image;
-    QRect m_copiedBounds;
+    QRect m_referenceRect;
+    qreal m_referenceResX {1.0};
+    qreal m_referenceResY {1.0};
+    const KoColorSpace *m_referenceColorSpace {nullptr};
 };
 
 #endif // KIS_MIMEDATA_H

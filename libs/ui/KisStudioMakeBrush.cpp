@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioMakeBrush.h"
+#include "KisStudioTools.h"
 
 #include <QFileInfo>
 #include <QImage>
@@ -248,7 +249,7 @@ void KisStudioMakeBrush::fromSelection(KisViewManager *view)
     // in use as if picked in the brush panel (the stored one, not this copy), its tip open in the quick editor
     const KisPaintOpPresetSP stored = KisResourceModel(ResourceType::PaintOpPresets).resourceForId(preset->resourceId()).dynamicCast<KisPaintOpPreset>();
     // painting with it: the brush tool first, or switching to it later brings back the brush it had
-    KoToolManager::instance()->switchToolRequested(QStringLiteral("KritaShape/KisToolBrush"));
+    KisStudioTools::switchTo(QStringLiteral("KritaShape/KisToolBrush"));
     if (resources) resources->setPaintOpPreset(stored ? stored : preset);
     KisConfig(false).writeEntry(QStringLiteral("StudioBrushEditorPart"), int(KisPaintOpOption::GENERAL));
     QPointer<KisViewManager> self = view;

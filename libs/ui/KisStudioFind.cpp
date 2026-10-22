@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioFind.h"
+#include "KisStudioTools.h"
 #include "KisStudioTips.h"
 #include "KisStudioPanelPicker.h"
 #include "KisStudioGlass.h"
@@ -717,7 +718,7 @@ void KisStudioFind::rebuildIndex()
         d->entries.append({QStringLiteral("tool:") + id, Kind::Tool,
                            KisStudioToolRail::toolName(factory), QString(),
                            factory->section(), shortcut, KisIconUtils::loadIcon(factory->iconName()),
-                           [id]() { KoToolManager::instance()->switchToolRequested(id); }});
+                           [id]() { KisStudioTools::switchTo(id); }});
         d->entries.last().action = action;
     }
 

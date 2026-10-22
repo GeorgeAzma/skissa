@@ -60,6 +60,7 @@
 #include <kactioncollection.h>
 #include <KoToolFactoryBase.h>
 #include <KoToolManager.h>
+#include <KisStudioTools.h>
 #include <KoToolRegistry.h>
 
 #include "KisDocument.h"
@@ -1156,9 +1157,9 @@ private:
         QDockWidget *options = m_win->dockWidget(QStringLiteral("sharedtooldocker"));
         QList<KoToolFactoryBase *> later;
         auto visit = [&](KoToolFactoryBase *f) {
-            KoToolManager::instance()->switchToolRequested(f->id());
+            KisStudioTools::switchTo(f->id());
             wait(500);
-            if (KoToolManager::instance()->activeToolId() != f->id()) return false;
+            if (KisStudioTools::activeToolId() != f->id()) return false;
             const QString key = QStringLiteral("tool ") + f->id();
             const Step step = begin(key);
             if (step == Step::Skip) return true;
@@ -1193,7 +1194,7 @@ private:
             }
         }
         if (m_studio) m_studio->closeFlyout();
-        KoToolManager::instance()->switchToolRequested(QStringLiteral("KritaShape/KisToolBrush"));
+        KisStudioTools::switchTo(QStringLiteral("KritaShape/KisToolBrush"));
         wait(400);
     }
 
@@ -1238,25 +1239,25 @@ private:
             }
             wait(400);
         };
-        KoToolManager::instance()->switchToolRequested(QStringLiteral("KritaShape/KisToolBrush"));
+        KisStudioTools::switchTo(QStringLiteral("KritaShape/KisToolBrush"));
         wait(400);
         if (phase("canvasonly")) {
             Q_FOREACH (KoToolFactoryBase *f, KoToolRegistry::instance()->values()) {
-                KoToolManager::instance()->switchToolRequested(f->id());
+                KisStudioTools::switchTo(f->id());
                 wait(300);
-                if (KoToolManager::instance()->activeToolId() != f->id()) continue;
+                if (KisStudioTools::activeToolId() != f->id()) continue;
                 rightClick(QStringLiteral("Right click, ") + fileName(f->toolTip().isEmpty() ? f->id() : f->toolTip()));
             }
-            KoToolManager::instance()->switchToolRequested(QStringLiteral("KritaShape/KisToolBrush"));
+            KisStudioTools::switchTo(QStringLiteral("KritaShape/KisToolBrush"));
             wait(300);
             end(key);
             return;
         }
         rightClick(QStringLiteral("Right click, brush"));
-        KoToolManager::instance()->switchToolRequested(QStringLiteral("KisToolSelectRectangular"));
+        KisStudioTools::switchTo(QStringLiteral("KisToolSelectRectangular"));
         wait(400);
         rightClick(QStringLiteral("Right click, selection tool"));
-        KoToolManager::instance()->switchToolRequested(QStringLiteral("KritaShape/KisToolBrush"));
+        KisStudioTools::switchTo(QStringLiteral("KritaShape/KisToolBrush"));
         wait(400);
         static const char *const popups[] = {"show_brush_editor", "show_brush_presets", "find_anything", "studio_brush_picker", "studio_effects",
                                              "show_snap_options_popup", "show_color_selector", "show_mypaint_shade_selector", "show_minimal_shade_selector",
@@ -1444,9 +1445,9 @@ private:
         Q_FOREACH (KoToolFactoryBase *f, KoToolRegistry::instance()->values()) {
             const QString key = QStringLiteral("pages ") + f->id();
             if (begin(key) == Step::Skip) continue;
-            KoToolManager::instance()->switchToolRequested(f->id());
+            KisStudioTools::switchTo(f->id());
             wait(400);
-            if (KoToolManager::instance()->activeToolId() == f->id()) {
+            if (KisStudioTools::activeToolId() == f->id()) {
                 if (m_studio) m_studio->showPanel(options);
                 else options->show();
                 wait(400);
@@ -1464,7 +1465,7 @@ private:
             end(key);
         }
         if (m_studio) m_studio->closeFlyout();
-        KoToolManager::instance()->switchToolRequested(QStringLiteral("KritaShape/KisToolBrush"));
+        KisStudioTools::switchTo(QStringLiteral("KritaShape/KisToolBrush"));
         wait(300);
     }
 

@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioBarButtons.h"
+#include "KisStudioTools.h"
 
 #include "KisStudioBrushEditor.h"
 #include "KisStudioControls.h"
@@ -260,7 +261,9 @@ KisStudioBarButtons::KisStudioBarButtons(KisMainWindow *mainWindow, QWidget *par
         cfg.writeEntry("StudioBarBrushEditorRetired", true);
         if (d->items.removeAll(brushEditorItem) && cfg.readEntry(itemsKey, QString()).size()) cfg.writeEntry(itemsKey, d->items);
     }
-    connect(KoToolManager::instance(), &KoToolManager::changedTool, this, &KisStudioBarButtons::updateForTool);
+    if (KoToolManager *tools = KisStudioTools::manager(mainWindow)) {
+        connect(tools, &KoToolManager::changedTool, this, &KisStudioBarButtons::updateForTool);
+    }
     if (KisPaintopBox *box = mainWindow->viewManager() ? mainWindow->viewManager()->paintOpBox() : nullptr) {
         connect(box, &KisPaintopBox::sigOptionWidgetChanged, this, [this]() {
             Q_FOREACH (const QString &key, d->items) {
@@ -414,7 +417,7 @@ void KisStudioBarButtons::showEvent(QShowEvent *event)
 void KisStudioBarButtons::updateForTool()
 {
     // the brush's own buttons only with the tools they apply to; anything added stays
-    const QString tool = KoToolManager::instance()->activeToolId();
+    const QString tool = KisStudioTools::activeToolId();
     const QStringList brushOnly = {symmetryItem, shapesItem, brushEditorItem, QStringLiteral("action:reload_preset_action")};
     const QStringList painting = {QStringLiteral("action:erase_action"), QStringLiteral("action:preserve_alpha")};
     for (int w = 0; w < d->widgets.size(); w++) {

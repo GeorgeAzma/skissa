@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioToolRail.h"
+#include "KisStudioTools.h"
 
 #include <KisSentenceCase.h>
 
@@ -659,9 +660,11 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     }
     d->q = this;
 
-    connect(KoToolManager::instance(), &KoToolManager::changedTool, this, [this](KoCanvasController *controller) {
-        if (isOwnController(d->mainWindow, controller)) updateActiveSlot();
-    });
+    if (KoToolManager *tools = KisStudioTools::manager(d->mainWindow)) {
+        connect(tools, &KoToolManager::changedTool, this, [this](KoCanvasController *controller) {
+            if (isOwnController(d->mainWindow, controller)) updateActiveSlot();
+        });
+    }
     if (QAction *erase = d->eraseAction()) {
         connect(erase, &QAction::toggled, this, &KisStudioToolRail::updateActiveSlot);
     }
@@ -1001,7 +1004,7 @@ void KisStudioToolRail::runItem(int index)
         return;
     }
     if (key.startsWith(toolPrefix)) {
-        KoToolManager::instance()->switchToolRequested(key.mid(toolPrefix.size()));
+        KisStudioTools::switchTo(key.mid(toolPrefix.size()));
     } else if (KisStudioFind *find = d->mainWindow->studioFind()) {
         find->run(key);
     }
@@ -1203,7 +1206,7 @@ void KisStudioToolRail::activateTool(const QString &slotId, const QString &toolI
 
     QAction *erase = d->eraseAction();
     if (s.brush == BrushMode::Erase) {
-        KoToolManager::instance()->switchToolRequested(toolId);
+        KisStudioTools::switchTo(toolId);
         if (erase && !erase->isChecked()) {
             erase->setChecked(true);
         }
@@ -1218,19 +1221,19 @@ void KisStudioToolRail::activateTool(const QString &slotId, const QString &toolI
         if (erase && erase->isChecked()) {
             erase->setChecked(false);
         }
-        KoToolManager::instance()->switchToolRequested(toolId);
+        KisStudioTools::switchTo(toolId);
         if (switchingBrush) {
             loadPresetForSlot(slotId);
         }
     } else {
-        KoToolManager::instance()->switchToolRequested(toolId);
+        KisStudioTools::switchTo(toolId);
     }
     updateActiveSlot();
 }
 
 void KisStudioToolRail::updateActiveSlot()
 {
-    const QString toolId = KoToolManager::instance()->activeToolId();
+    const QString toolId = KisStudioTools::activeToolId();
     QAction *erase = d->eraseAction();
     const bool erasing = erase && erase->isChecked();
 
@@ -1306,7 +1309,7 @@ void KisStudioToolRail::rememberPreset()
     }
 
     QAction *erase = d->eraseAction();
-    if (!isBrushTool(KoToolManager::instance()->activeToolId()) || (erase && erase->isChecked()) || d->brushSlot.isEmpty()) {
+    if (!isBrushTool(KisStudioTools::activeToolId()) || (erase && erase->isChecked()) || d->brushSlot.isEmpty()) {
         return;
     }
     // a brush picked in Paint or Blend becomes that slot's brush

@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioBrushPicker.h"
+#include "KisStudioTools.h"
 
 #include <QApplication>
 #include <QElapsedTimer>
@@ -924,7 +925,7 @@ bool KisStudioBrushPicker::paintToolActive()
         QStringLiteral("KritaShape/KisToolBrush"), QStringLiteral("KritaShape/KisToolDyna"),
         QStringLiteral("KritaShape/KisToolMultiBrush"), QStringLiteral("KritaShape/KisToolLine"),
     };
-    return tools.contains(KoToolManager::instance()->activeToolId());
+    return tools.contains(KisStudioTools::activeToolId());
 }
 
 QStringList KisStudioBrushPicker::yourBrushes()

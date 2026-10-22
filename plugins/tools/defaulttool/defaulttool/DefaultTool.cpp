@@ -406,20 +406,20 @@ class SelectionHandler : public KoToolSelection
 public:
     SelectionHandler(DefaultTool *parent)
         : KoToolSelection(parent)
-        , m_selection(parent->koSelection())
+        , m_parent(parent)
     {
     }
 
-    bool hasSelection() override
-    {
-        if (m_selection) {
-            return m_selection->count();
+    bool hasSelection() override {
+        KoSelection *selection = m_parent->koSelection();
+        if (selection) {
+            return selection->count() > 0;
         }
         return false;
     }
 
 private:
-    QPointer<KoSelection> m_selection;
+    DefaultTool *m_parent;
 };
 
 DefaultTool::DefaultTool(KoCanvasBase *canvas, bool connectToSelectedShapesProxy)
@@ -2349,9 +2349,12 @@ void DefaultTool::addTransformActions(QMenu *menu) const {
 void DefaultTool::explicitUserStrokeEndRequest()
 {
     QList<KoShape *> shapes = koSelection()->selectedEditableShapesAndDelegates();
-    QString tool = KoToolManager::instance()->preferredToolForSelection(shapes);
-    QTimer::singleShot(0, [tool = std::move(tool)]() {
-        KoToolManager::instance()->switchToolRequested(tool);
+    KoToolManager *toolManager = canvas()->canvasController()->toolManager();
+    QString tool = toolManager->preferredToolForSelection(shapes);
+    QTimer::singleShot(0, [toolManager, tool = std::move(tool)]() {
+        if (toolManager) {
+            toolManager->switchToolRequested(tool);
+        }
     });
 }
 

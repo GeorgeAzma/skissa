@@ -1,4 +1,4 @@
- <!--
+<!--
   SPDX-FileCopyrightText: none
   SPDX-License-Identifier: CC0-1.0
 -->
@@ -833,5 +833,37 @@
         <file>light_wrap-both.svg</file>
         <file>light_wrap-horizontally.svg</file>
         <file>light_wrap-vertically.svg</file>
+        <file>dark_column-insert-hold.svg</file>
+        <file>dark_column-insert-hold-multiple.svg</file>
+        <file>dark_column-insert-left.svg</file>
+        <file>dark_column-insert-multiple.svg</file>
+        <file>dark_column-insert-right.svg</file>
+        <file>dark_column-mirror.svg</file>
+        <file>dark_column-remove.svg</file>
+        <file>dark_column-remove-and-pull.svg</file>
+        <file>dark_column-remove-hold.svg</file>
+        <file>dark_column-remove-hold-multiple.svg</file>
+        <file>light_column-insert-hold.svg</file>
+        <file>light_column-insert-hold-multiple.svg</file>
+        <file>light_column-insert-left.svg</file>
+        <file>light_column-insert-multiple.svg</file>
+        <file>light_column-insert-right.svg</file>
+        <file>light_column-mirror.svg</file>
+        <file>light_column-remove.svg</file>
+        <file>light_column-remove-and-pull.svg</file>
+        <file>light_column-remove-hold-.svg</file>
+        <file>light_column-remove-hold-multiple.svg</file>
+        <file>dark_clear-cache.svg</file>
+        <file>dark_time-set-end.svg</file>
+        <file>dark_time-set-start.svg</file>
+        <file>light_clear-cache.svg</file>
+        <file>light_time-set-end.svg</file>
+        <file>light_time-set-start.svg</file>
+        <file>light_edit-copy-16.svg</file>
+        <file>dark_edit-copy-16.svg</file>
+        <file>light_document-open-recent.svg</file>
+        <file>dark_document-open-recent.svg</file>
+        <file>light_scripts.svg</file>
+        <file>dark_scripts.svg</file>
     </qresource>
 </RCC>

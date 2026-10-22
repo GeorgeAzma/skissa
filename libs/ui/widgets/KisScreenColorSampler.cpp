@@ -28,6 +28,7 @@
 #include "KisDlgInternalColorSelector.h"
 #include <KisStaticInitializer.h>
 #include <KisPortingUtils.h>
+#include <KoColorProfileQuery.h>
 
 #include <KisGrabKeyboardFocusRecoveryWorkaround.h>
 
@@ -109,6 +110,12 @@ void KisScreenColorSampler::setPerformRealColorSamplingOfCanvas(bool enable)
 
 void KisScreenColorSampler::sampleScreenColor()
 {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (tryToUsePlatformIntegration()) {
+        return;
+    }
+#endif
+
     m_d->updateInputGrabberWidget();
     if (m_d->inputGrabberWidget == nullptr) {
         Q_EMIT sigNewColorSampled(currentColor());
@@ -325,3 +332,40 @@ KIS_DECLARE_STATIC_INITIALIZER {
     KisDlgInternalColorSelector::setScreenColorSamplerFactory(KisScreenColorSampler::createScreenColorSampler);
 }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtGui/private/qguiapplication_p.h>
+#include <QtGui/qpa/qplatformintegration.h>
+#include <qpa/qplatformservices.h>
+
+bool KisScreenColorSampler::tryToUsePlatformIntegration()
+{
+    //Uses the screenshot portal on linux, since we can't just look at raw pixels anymore
+    auto *services = QGuiApplicationPrivate::platformIntegration()->services();
+
+    if (services && services->hasCapability(QPlatformServices::Capability::ColorPicking)) {
+        QPlatformServiceColorPicker *colorPicker = services->colorPicker(QGuiApplication::allWindows().first());
+
+        if (colorPicker) {
+            connect(colorPicker, SIGNAL(colorPicked(const QColor&)), this, SLOT(colorPicked(const QColor&)));
+
+            colorPicker->pickColor();
+            return true;
+        }
+    }
+    return false;
+}
+
+void KisScreenColorSampler::colorPicked(const QColor& color)
+{
+    KoColor col(Qt::white, KoColorSpaceRegistry::instance()->rgb8());
+    col.fromQColor(color);
+    if (qEnvironmentVariableIsSet("KRITA_USE_GAMMA22_FOR_COLOR_PICKING")) {
+        const KoColorProfile *profile = KoColorSpaceRegistry::instance()->profileFor(KoColorProfileQuery(PRIMARIES_ITU_R_BT_709_5, TRC_ITU_R_BT_470_6_SYSTEM_M));
+        col.setProfile(profile);
+    }
+
+    setCurrentColor(col);
+
+    Q_EMIT sigNewColorSampled(currentColor());
+}
+#endif

@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioHoldKeys.h"
+#include "KisStudioTools.h"
 
 #include <QAction>
 #include <QApplication>
@@ -99,10 +100,10 @@ private:
         if (action->isCheckable()) action->setAutoRepeat(false);
         m_action = action;
         m_wasChecked = action->isChecked();
-        m_toolBefore = KoToolManager::instance()->activeToolId();
+        m_toolBefore = KisStudioTools::activeToolId();
         // the tool the action switches to, known once it has run
         m_toolGiven.clear();
-        QTimer::singleShot(0, this, [this]() { m_toolGiven = KoToolManager::instance()->activeToolId(); });
+        QTimer::singleShot(0, this, [this]() { m_toolGiven = KisStudioTools::activeToolId(); });
     }
 
     /// The key was released at \p timestamp (0 if unknown)
@@ -126,11 +127,11 @@ private:
     void revert()
     {
         if (!m_action) return;
-        const QString tool = KoToolManager::instance()->activeToolId();
+        const QString tool = KisStudioTools::activeToolId();
         if (!m_toolBefore.isEmpty() && tool != m_toolBefore) {
             // switch back only if the held tool was used; a tool picked some other way meanwhile stays
             const bool givenKnown = !m_toolGiven.isEmpty() && m_toolGiven != m_toolBefore;
-            if (m_used && (!givenKnown || tool == m_toolGiven)) KoToolManager::instance()->switchToolRequested(m_toolBefore);
+            if (m_used && (!givenKnown || tool == m_toolGiven)) KisStudioTools::switchTo(m_toolBefore);
         } else if (m_action->isCheckable() && m_action->isChecked() != m_wasChecked) {
             m_action->trigger();
         }

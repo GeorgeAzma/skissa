@@ -465,9 +465,11 @@ KisColorDrop::KisColorDrop(KisView *view)
     d->chipTimeout.setInterval(3500);
     connect(&d->chipTimeout, &QTimer::timeout, this, [this]() { d->hideChip(); });
     // picking another tool ends keeping on filling
-    connect(KoToolManager::instance(), &KoToolManager::changedTool, this, [this]() {
-        if (d->keepFilling) d->hideChip();
-    });
+    if (KoToolManager *tools = view && view->viewManager() ? view->viewManager()->toolManager() : nullptr) {
+        connect(tools, &KoToolManager::changedTool, this, [this]() {
+            if (d->keepFilling) d->hideChip();
+        });
+    }
 }
 
 KisColorDrop::~KisColorDrop() = default;

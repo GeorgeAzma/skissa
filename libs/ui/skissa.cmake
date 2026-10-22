@@ -44,6 +44,7 @@ set(skissa_ui_SRCS
     KisStudioTips.cpp
     KisStudioSymmetry.cpp
     KisStudioTheme.cpp
+    KisStudioTools.cpp
     KisStudioToolRail.cpp
     KisStudioToolStrip.cpp
     KisStudioWindowFrame.cpp

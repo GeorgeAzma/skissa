@@ -65,84 +65,8 @@
 #include "kis_figure_painting_tool_helper.h"
 #include "kis_update_outline_job.h"
 
-namespace ActionHelper {
+#include <kis_tool_utils.h>
 
-    void trimDevice(KisViewManager *view,
-                        KisPaintDeviceSP device,
-                        bool makeSharpClip = false,
-                        const KisTimeSpan &range = KisTimeSpan())
-    {
-        Q_UNUSED(range); // TODO: Allow multiple frame operation across a timespan.
-
-        KisImageWSP image = view->image();
-        if (!image) return;
-
-        KisSelectionSP selection = view->selection();
-
-        QRect rc = (selection) ? selection->selectedExactRect() : image->bounds();
-
-        const KoColorSpace *cs = device->colorSpace();
-
-        // We need to allow for trimming from non-transparent defaultPixel layers.
-        // Default color should be phased out of use when the area in question is not aligned with image bounds.
-        // Otherwise, we can maintain default pixel.
-        const bool hasNonTransparentDefaultPixel = device->defaultPixel() != KoColor::createTransparent(device->colorSpace());
-        const bool needsTransparentPixel = selection && rc != image->bounds() && hasNonTransparentDefaultPixel;
-
-        if (selection) {
-            // Apply selection mask.
-            KisPaintDeviceSP selectionProjection = selection->projection();
-            const KoColorSpace *selCs = selection->projection()->colorSpace();
-
-            KisSequentialIterator layerIt(device, rc);
-            KisSequentialConstIterator selectionIt(selectionProjection, rc);
-
-            while (layerIt.nextPixel() && selectionIt.nextPixel()) {
-
-                /**
-                 * Sharp method is an exact reverse of COMPOSITE_OVER
-                 * so if you cover the cut/copied piece over its source
-                 * you get an exactly the same image without any seams
-                 */
-                if (makeSharpClip) {
-                    qreal dstAlpha = cs->opacityF(layerIt.rawData());
-                    qreal sel = selCs->opacityF(selectionIt.oldRawData());
-                    qreal newAlpha = sel * dstAlpha / (1.0 - dstAlpha + sel * dstAlpha);
-                    float mask = newAlpha / dstAlpha;
-
-                    cs->applyAlphaNormedFloatMask(layerIt.rawData(), &mask, 1);
-                } else {
-                    cs->applyAlphaU8Mask(layerIt.rawData(), selectionIt.oldRawData(), 1);
-                }
-            }
-        }
-
-
-
-        if ( needsTransparentPixel ) {
-            device->setDefaultPixel(KoColor::createTransparent(device->colorSpace()));
-            device->purgeDefaultPixels();
-        }
-
-        device->crop(rc);
-    }
-
-    KisImageSP makeImage(KisViewManager *view, KisNodeList nodes)
-    {
-        KisImageWSP image = view->image();
-
-        KisImageSP clipImage = new KisImage(0, image->width(), image->height(), image->colorSpace(), "ClipImage");
-        clipImage->setResolution(image->xRes(), image->yRes());
-        Q_FOREACH (KisNodeSP node, nodes) {
-            clipImage->addNode(node, clipImage->root());
-        }
-
-        clipImage->refreshGraphAsync();
-        clipImage->waitForDone();
-
-        return clipImage;
-    }
-}
 
 void KisSelectAllActionFactory::run(KisViewManager *view)
 {
@@ -347,7 +271,12 @@ void KisCutCopyActionFactory::run(Flags flags, KisViewManager *view)
         KisNodeList nodes;
         Q_FOREACH (KisNodeSP node, selectedNodes) {
             KisNodeSP dupNode;
-            if (node->inherits("KisShapeLayer") || node->inherits("KisFileLayer")) {
+            if (node->inherits("KisShapeLayer") || node->inherits("KisFileLayer")
+
+                // also recreate the node for animated layers, since we have no
+                // API for making a node non-animated
+                || (node->inherits("KisPaintLayer") && node->isAnimated())) {
+
                 KisPaintDeviceSP dev = new KisPaintDevice(*node->projection());
                 // might have to change node's name (vector to paint layer)
                 dupNode = new KisPaintLayer(image, node->name(), node->opacity(), dev);
@@ -359,32 +288,23 @@ void KisCutCopyActionFactory::run(Flags flags, KisViewManager *view)
 
         Q_FOREACH (KisNodeSP node, nodes) {
             KisLayerUtils::recursiveApplyNodes(node, [image, view, flags] (KisNodeSP node) {
-                if (node && node->paintDevice()) {
-                    node->paintDevice()->burnKeyframe();
-                }
-
-                KisTimeSpan range;
-
-                KisKeyframeChannel *channel = node->getKeyframeChannel(KisKeyframeChannel::Raster.id());
-                if (channel) {
-                    const int currentTime = image->animationInterface()->currentTime();
-                    range = channel->affectedFrames(currentTime);
-                }
-
                 if (node && node->paintDevice() && !node->inherits("KisMask")) {
-                    ActionHelper::trimDevice(view, node->paintDevice(), flags.testFlag(SharpClip), range);
+                    KisToolUtils::trimDeviceForClipboard(image, node->paintDevice(), view->selection(), flags.testFlag(SharpClip));
                 }
             });
         }
 
-        KisImageSP tempImage = ActionHelper::makeImage(view, nodes);
-        KisClipboard::instance()->setLayers(nodes, tempImage);
+        KisImageSP tempImage = KisToolUtils::buildImageForClipboard(image, nodes);
+        KisClipboard::instance()->setLayers(nodes, tempImage, selection->selectedExactRect());
 
 
         KUndo2MagicString actionName = flags & CutClip ?
                     kundo2_i18n("Cut") :
                     kundo2_i18n("Copy");
-        KisProcessingApplicator *ap = beginAction(view, actionName);
+        KisProcessingApplicator *ap =
+            beginAction(view,
+                        actionName,
+                        flags & CutClip ? KisOperation::Normal : KisOperation::ReadOnly);
 
         if (flags & CutClip) {
             selectedNodes.append(masks);
@@ -460,16 +380,16 @@ void KisCopyMergedActionFactory::run(KisViewManager *view)
 
     image->barrierLock();
     KisPaintDeviceSP dev = new KisPaintDevice(*image->root()->projection());
-    ActionHelper::trimDevice(view, dev);
+    KisToolUtils::trimDeviceForClipboard(image, dev, view->selection());
 
     KisNodeSP node = new KisPaintLayer(image, "Projection", OPACITY_OPAQUE_U8, dev);
     KisNodeList nodes{node};
 
-    KisImageSP tempImage = ActionHelper::makeImage(view, nodes);
-    KisClipboard::instance()->setLayers(nodes, tempImage);
+    KisImageSP tempImage = KisToolUtils::buildImageForClipboard(image, nodes);
+    KisClipboard::instance()->setLayers(nodes, tempImage, view->selection() ? view->selection()->selectedExactRect() : image->bounds());
     image->unlock();
 
-    KisProcessingApplicator *ap = beginAction(view, kundo2_i18n("Copy Merged"));
+    KisProcessingApplicator *ap = beginAction(view, kundo2_i18n("Copy Merged"), KisOperation::ReadOnly);
     endAction(ap, KisOperationConfiguration(id()).toXML());
 }
 

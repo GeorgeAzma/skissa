@@ -277,7 +277,7 @@ KisView::~KisView()
      */
     d->canvas.disconnectImage();
 
-    KoToolManager::instance()->removeCanvasController(&d->canvasController);
+    d->canvasController.setToolManager(0);
     d->canvasController.setCanvas(0);
 
     KisPart::instance()->removeView(this);
@@ -341,13 +341,16 @@ bool KisView::canvasIsMirrored() const
 
 void KisView::setViewManager(KisViewManager *view)
 {
+    // we never call this method with nullptr and the code here is not
+    // capable of detaching from the previous connections
+    KIS_SAFE_ASSERT_RECOVER_RETURN(view);
+
     d->viewManager = view;
 
-    if (!d->viewManager) {
-        return;
+    if (!d->canvasController.toolManager()) {
+        d->canvasController.setToolManager(d->viewManager->toolManager());
     }
 
-    KoToolManager::instance()->addController(&d->canvasController);
     KisShapeController* shapeController = dynamic_cast<KisShapeController*>(d->document->shapeController());
     shapeController->setInitialShapeForCanvas(&d->canvas);
 
@@ -370,7 +373,7 @@ void KisView::setViewManager(KisViewManager *view)
 
     d->viewManager->updateGUI();
 
-    KoToolManager::instance()->switchToolRequested("KritaShape/KisToolBrush");
+    d->canvasController.toolManager()->switchToolRequested("KritaShape/KisToolBrush");
 }
 
 KisViewManager* KisView::viewManager() const
@@ -507,9 +510,9 @@ void KisView::dropEvent(QDropEvent *event)
         QList<KisNodeSP> nodes;
 
         if (forcedCenter) {
-            nodes = KisMimeData::loadNodesFastAndRecenter(*forcedCenter, event->mimeData(), kisimage, kritaShapeController, copyNode);
+            nodes = KisMimeData::loadNodesFastAndRecenter(*forcedCenter, event->mimeData(), KisMimeData::MimeFromDragAndDrop, kisimage, kritaShapeController, copyNode);
         } else {
-            nodes = KisMimeData::loadNodesFast(event->mimeData(), kisimage, kritaShapeController, copyNode);
+            nodes = KisMimeData::loadNodesFast(event->mimeData(), KisMimeData::MimeFromDragAndDrop, kisimage, kritaShapeController, copyNode);
         }
 
         Q_FOREACH (KisNodeSP node, nodes) {
@@ -592,12 +595,13 @@ void KisView::dropEvent(QDropEvent *event)
                 }
             }
 
-            KisPaintDeviceSP clip = KisClipboard::instance()->clipFromBoardContentsWithData(qimage, urls, QRect(), true, -1, source);
-            if (clip) {
+            KisImageSP clipImage = KisClipboard::instance()->clipFromBoardContentsWithData(qimage, urls, true, -1, source);
+            if (clipImage) {
                 const auto pos = this->viewConverter()
                                      ->imageToDocument(imgCursorPos)
                                      .toPoint();
 
+                KisPaintDeviceSP clip = new KisPaintDevice(*clipImage->projection());
                 clip->moveTo(pos.x(), pos.y());
 
                 KisImportCatcher::adaptClipToImageColorSpace(clip,
@@ -619,8 +623,10 @@ void KisView::dropEvent(QDropEvent *event)
             }
         } else if (action == KisCanvasDrop::INSERT_AS_REFERENCE_IMAGE) {
 
-            KisPaintDeviceSP clip = KisClipboard::instance()-> clipFromBoardContentsWithData(qimage, urls, QRect(), true);
-            if (clip) {
+            KisImageSP clipImage = KisClipboard::instance()->clipFromBoardContentsWithData(qimage, urls, true);
+            if (clipImage) {
+                KisPaintDeviceSP clip = new KisPaintDevice(*clipImage->projection());
+
                 KisImportCatcher::adaptClipToImageColorSpace(clip,
                                                              this->image());
 
@@ -644,7 +650,7 @@ void KisView::dropEvent(QDropEvent *event)
                     this->canvasBase()
                         ->referenceImagesDecoration()
                         ->addReferenceImage(reference);
-                    KoToolManager::instance()->switchToolRequested(
+                    d->viewManager->toolManager()->switchToolRequested(
                         "ToolReferenceImages");
                     return;
                 }
@@ -748,7 +754,7 @@ void KisView::dropEvent(QDropEvent *event)
                                 ->referenceImagesDecoration()
                                 ->addReferenceImage(reference);
 
-                            KoToolManager::instance()->switchToolRequested(
+                            d->viewManager->toolManager()->switchToolRequested(
                                 "ToolReferenceImages");
                         }
                     }

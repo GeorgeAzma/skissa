@@ -244,6 +244,11 @@ void KisNodeManager::setView(QPointer<KisView>imageView)
             }
         }
 
+        // TODO: ideally, we should move "selected nodes" property into KisView
+        // to make sure the selection persists after window switching; right now
+        // we just reset it to the active node on every switch
+        m_d->selectedNodes = m_d->imageView->currentNode() ? KisNodeList{m_d->imageView->currentNode()} : KisNodeList{};
+
         m_d->activateNodeConnection.connectInputSignal(m_d->imageView->image(), &KisImage::sigRequestNodeReselection);
         m_d->imageView->resourceProvider()->slotNodeActivated(m_d->imageView->currentNode());
         connect(m_d->imageView->image(), SIGNAL(sigIsolatedModeChanged()), this, SLOT(handleExternalIsolationChange()));
@@ -767,7 +772,7 @@ void KisNodeManager::createReferenceImage(bool fromLayer) {
         }
         canvas->addCommand(KisReferenceImagesLayer::addReferenceImages(document, {reference.release()}));
 
-        KoToolManager::instance()->switchToolRequested("ToolReferenceImages");
+        m_d->view->toolManager()->switchToolRequested("ToolReferenceImages");
 
     } else {
         if (canvas->canvasWidget()) {
@@ -859,13 +864,13 @@ void KisNodeManager::slotUiActivatedNode(KisNodeSP node)
                 (selectionMask && selectionMask->selection()->hasShapeSelection());
 
         if (nodeHasVectorAbilities) {
-            if (pixelTools.contains(KoToolManager::instance()->activeToolId())) {
-                KoToolManager::instance()->switchToolRequested("InteractionTool");
+            if (pixelTools.contains(m_d->view->toolManager()->activeToolId())) {
+                m_d->view->toolManager()->switchToolRequested("InteractionTool");
             }
         }
         else {
-            if (vectorTools.contains(KoToolManager::instance()->activeToolId())) {
-                KoToolManager::instance()->switchToolRequested("KritaShape/KisToolBrush");
+            if (vectorTools.contains(m_d->view->toolManager()->activeToolId())) {
+                m_d->view->toolManager()->switchToolRequested("KritaShape/KisToolBrush");
             }
         }
     }
@@ -1574,7 +1579,7 @@ void KisNodeManager::cutLayersToClipboard()
         it++;
     }
 
-    KisClipboard::instance()->setLayers(nodes, m_d->view->image(), false);
+    KisClipboard::instance()->setLayers(nodes, m_d->view->image(), m_d->view->image()->bounds(), false);
 
     if (canModifyLayers(nodes)) {
         KUndo2MagicString actionName = kundo2_i18n("Cut Nodes");
@@ -1586,10 +1591,10 @@ void KisNodeManager::cutLayersToClipboard()
 void KisNodeManager::copyLayersToClipboard()
 {
     KisNodeList nodes = this->selectedNodes();
-    KisClipboard::instance()->setLayers(nodes, m_d->view->image(), true);
+    KisClipboard::instance()->setLayers(nodes, m_d->view->image(), m_d->view->image()->bounds(), true);
 }
 
-void KisNodeManager::pasteLayersFromClipboard(bool changeOffset, QPointF offset, KisProcessingApplicator *applicator)
+void KisNodeManager::pasteLayersFromClipboard(std::optional<QPoint> preferredClipCenter, KisProcessingApplicator *applicator)
 {
     const QMimeData *data = KisClipboard::instance()->layersMimeData();
     if (!data) return;
@@ -1608,14 +1613,14 @@ void KisNodeManager::pasteLayersFromClipboard(bool changeOffset, QPointF offset,
     KisNodeDummy *aboveThisDummy = parentDummy ? parentDummy->lastChild() : 0;
 
     KisMimeData::insertMimeLayers(data,
+                                  KisMimeData::MimeFromClipboard,
                                   image,
                                   shapeController,
                                   parentDummy,
                                   aboveThisDummy,
                                   copyNode,
                                   nodeInsertionAdapter(),
-                                  changeOffset,
-                                  offset,
+                                  preferredClipCenter,
                                   applicator);
 }
 

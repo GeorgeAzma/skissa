@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioSmoothing.h"
+#include "KisStudioTools.h"
 
 #include <QAction>
 #include <QCheckBox>
@@ -51,10 +52,10 @@ KisToolFreehand *brushTool(KisMainWindow *mainWindow)
 {
     KisViewManager *view = mainWindow ? mainWindow->viewManager() : nullptr;
     if (!view || !view->canvasBase()) return nullptr;
-    const QString id = KoToolManager::instance()->activeToolId();
+    const QString id = view->toolManager()->activeToolId();
     // the tools with smoothing in their options
     if (id != QLatin1String("KritaShape/KisToolBrush") && id != QLatin1String("KritaShape/KisToolMultiBrush")) return nullptr;
-    return dynamic_cast<KisToolFreehand *>(KoToolManager::instance()->toolById(view->canvasBase(), id));
+    return dynamic_cast<KisToolFreehand *>(view->toolManager()->toolById(view->canvasBase(), id));
 }
 
 /// Both distances (fast and slow strokes) to \p distance, in the proportion they have
@@ -362,7 +363,9 @@ public:
         : QObject(mainWindow)
         , m_mainWindow(mainWindow)
     {
-        connect(KoToolManager::instance(), &KoToolManager::changedTool, this, [this]() { follow(); });
+        if (KoToolManager *tools = KisStudioTools::manager(mainWindow)) {
+            connect(tools, &KoToolManager::changedTool, this, [this]() { follow(); });
+        }
         connect(KisStudioSmoothing::instance(), &KisStudioSmoothing::sigChangedIn, this, [this](KisMainWindow *window) {
             if (window == m_mainWindow) save();
         });
@@ -418,7 +421,8 @@ private:
         m_options = KisStudioSmoothing::options(m_mainWindow);
         m_preset = presetKey();
         if (!m_options || m_preset.isEmpty()) return;
-        if (KoToolBase *tool = KoToolManager::instance()->toolById(m_mainWindow->viewManager()->canvasBase(), KoToolManager::instance()->activeToolId())) {
+        KoToolManager *tools = m_mainWindow->viewManager()->toolManager();
+        if (KoToolBase *tool = tools->toolById(m_mainWindow->viewManager()->canvasBase(), tools->activeToolId())) {
             // changed in the tool's own options: kept as well
             for (const char *name : {"smoothingTypeChanged()", "smoothnessQualityChanged()", "smoothnessFactorChanged()", "smoothPressureChanged()",
                                      "useDelayDistanceChanged()", "delayDistanceChanged()", "finishStabilizedCurveChanged()",
@@ -455,7 +459,7 @@ QObject *activeTool(KisMainWindow *mainWindow)
 {
     KisViewManager *view = mainWindow ? mainWindow->viewManager() : nullptr;
     if (!view || !view->canvasBase()) return nullptr;
-    return KoToolManager::instance()->toolById(view->canvasBase(), KoToolManager::instance()->activeToolId());
+    return view->toolManager()->toolById(view->canvasBase(), view->toolManager()->activeToolId());
 }
 
 } // namespace
@@ -595,7 +599,7 @@ struct KisStudioStrokePage::Private
 
 bool KisStudioStrokePage::applies(KisMainWindow *mainWindow)
 {
-    return mainWindow && brushTools().contains(KoToolManager::instance()->activeToolId());
+    return mainWindow && brushTools().contains(KisStudioTools::activeToolId());
 }
 
 KisStudioStrokePage::KisStudioStrokePage(KisMainWindow *mainWindow, QWidget *parent)
@@ -607,7 +611,9 @@ KisStudioStrokePage::KisStudioStrokePage(KisMainWindow *mainWindow, QWidget *par
     d->layout->setContentsMargins(0, 0, 0, 0);
     d->layout->setSpacing(KisModernStyle::space1);
     connect(KisStudioSmoothing::instance(), &KisStudioSmoothing::sigChanged, this, &KisStudioStrokePage::rebuild);
-    connect(KoToolManager::instance(), &KoToolManager::changedTool, this, &KisStudioStrokePage::rebuild);
+    if (KoToolManager *tools = KisStudioTools::manager(mainWindow)) {
+        connect(tools, &KoToolManager::changedTool, this, &KisStudioStrokePage::rebuild);
+    }
     rebuild();
 }
 
@@ -632,7 +638,7 @@ void KisStudioStrokePage::rebuild()
     // a row's own change keeps the rows, so the drag goes on
     const bool linked = !options || options->smoothnessDistanceKeepAspectRatio();
     // all it shows but the values of the rows, which follow without a rebuild (one may be dragged)
-    QString shown = KoToolManager::instance()->activeToolId() + QStringLiteral(" %1 %2 %3 %4 %5").arg(bool(options)).arg(int(type)).arg(guides).arg(pixel).arg(linked);
+    QString shown = KisStudioTools::activeToolId() + QStringLiteral(" %1 %2 %3 %4 %5").arg(bool(options)).arg(int(type)).arg(guides).arg(pixel).arg(linked);
     if (options) {
         shown += QStringLiteral(" %1 %2 %3 %4 %5 %6").arg(options->tailAggressiveness()).arg(options->smoothPressure()).arg(options->stabilizeSensors())
                      .arg(options->useScalableDistance()).arg(options->finishStabilizedCurve()).arg(quintptr(options.data()));
@@ -879,7 +885,7 @@ void KisStudioStrokePage::rebuild()
     }
 
     // the brush tool's options are all here; Dyna and Multibrush have more of their own
-    if (KoToolManager::instance()->activeToolId() != QLatin1String("KritaShape/KisToolBrush")) {
+    if (KisStudioTools::activeToolId() != QLatin1String("KritaShape/KisToolBrush")) {
         auto *rest = new KisStudioValueRow(i18nc("the rest of the tool's options", "Tool options"), this);
         rest->setDraggable(false);
         rest->setValueText(QStringLiteral("›"));
