@@ -168,6 +168,14 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "色彩"
 
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "亮度"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "色相"
+
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"

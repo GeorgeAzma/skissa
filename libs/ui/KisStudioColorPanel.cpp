@@ -1646,11 +1646,11 @@ KisStudioColorPanel::KisStudioColorPanel()
     auto *tracks = new QVBoxLayout();
     tracks->setSpacing(KisModernStyle::space2);
     d->lightTrack = new Track(18, d->pill);
-    d->lightTrack->setToolTip(i18nc("@info:tooltip", "Lightness: black → white"));
+    d->lightTrack->setToolTip(i18nc("@info:tooltip", "Lightness"));
     d->chromaTrack = new Track(18, d->pill);
-    d->chromaTrack->setToolTip(i18nc("@info:tooltip", "Chroma: gray → vivid"));
+    d->chromaTrack->setToolTip(i18nc("@info:tooltip", "Chroma"));
     d->hueTrack = new Track(18, d->pill);
-    d->hueTrack->setToolTip(i18nc("@info:tooltip", "Hue: red → yellow → green → blue"));
+    d->hueTrack->setToolTip(i18nc("@info:tooltip", "Hue"));
     tracks->addWidget(d->lightTrack);
     tracks->addWidget(d->chromaTrack);
     tracks->addWidget(d->hueTrack);
@@ -1737,7 +1737,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->hex->setFrame(false);
     d->hex->setFixedWidth(64);
     d->hex->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    d->hex->setToolTip(i18nc("@info:tooltip", "A hex code, or any color like rgb(…), oklch(…) or hsv(…)"));
+    d->hex->setToolTip(i18nc("@info:tooltip", "Type a hex code, or rgb(…), oklch(…), hsv(…)"));
     d->hex->written = [this]() { return d->written(); };
     row->addWidget(d->hex);
     layout->addLayout(row);

@@ -198,6 +198,10 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "ფერი"
 
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "ტონი"
+
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"

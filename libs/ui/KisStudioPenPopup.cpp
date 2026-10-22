@@ -76,10 +76,10 @@ QString KisStudioPenPopup::inputTip(const QString &id)
 {
     static const QHash<QString, QString> tips = {
         {QStringLiteral("pressure"), i18nc("@info:tooltip pen input", "Light → firm press")},
-        {QStringLiteral("pressurein"), i18nc("@info:tooltip pen input", "The hardest you've pressed so far, so it never lightens mid-stroke")},
+        {QStringLiteral("pressurein"), i18nc("@info:tooltip pen input", "Only ever goes up during a stroke")},
         {QStringLiteral("declination"), i18nc("@info:tooltip pen input", "Pen upright → lying flat")},
         {QStringLiteral("speed"), i18nc("@info:tooltip pen input", "Slow → fast strokes")},
-        {QStringLiteral("drawingangle"), i18nc("@info:tooltip pen input", "Which way the stroke is heading, → ↓ ← ↑")},
+        {QStringLiteral("drawingangle"), i18nc("@info:tooltip pen input", "Which way the stroke is heading")},
         {QStringLiteral("fade"), i18nc("@info:tooltip pen input", "Start of the stroke → further along it")},
         {QStringLiteral("fuzzy"), i18nc("@info:tooltip pen input", "A new random amount every dab")},
         {QStringLiteral("fuzzystroke"), i18nc("@info:tooltip pen input", "One random amount for the whole stroke")},
@@ -135,7 +135,6 @@ KisStudioPenPopup::KisStudioPenPopup(KisPaintOpOption *option, QWidget *parent, 
     if (option->isCheckable() && value && !value->appliesUnchecked) {
         // an effect the brush can go without (Rotation, Scatter): its own switch
         d->on = new QCheckBox(this);
-        d->on->setToolTip(i18nc("@info:tooltip a brush effect's switch", "Unchecked, the brush paints without it"));
         header->addWidget(d->on);
         connect(d->on, &QCheckBox::toggled, this, [this](bool checked) {
             if (d->option) d->option->setChecked(checked);
@@ -165,7 +164,6 @@ KisStudioPenPopup::KisStudioPenPopup(KisPaintOpOption *option, QWidget *parent, 
 
     d->curve = new KisCurveWidget(this);
     d->curve->setFixedHeight(150);
-    d->curve->setToolTip(i18nc("@info:tooltip a pen curve", "Across: the pen's input\nUp: how much"));
     layout->addWidget(d->curve);
     connect(d->curve, &KisCurveWidget::modified, this, [this]() {
         if (!d->option) return;
@@ -267,9 +265,9 @@ void KisStudioPenPopup::refresh()
         // how two inputs make one amount, with an example
         const QStringList tips = {i18nc("@info:tooltip pen inputs combined", "50% × 50% → 25%"),
                                   i18nc("@info:tooltip pen inputs combined", "50% + 30% → 80%"),
-                                  i18nc("@info:tooltip pen inputs combined", "The stronger: 50%, 30% → 50%"),
-                                  i18nc("@info:tooltip pen inputs combined", "The weaker: 50%, 30% → 30%"),
-                                  i18nc("@info:tooltip pen inputs combined", "The gap: 50%, 30% → 20%")};
+                                  i18nc("@info:tooltip pen inputs combined", "50% and 30% → 50%"),
+                                  i18nc("@info:tooltip pen inputs combined", "50% and 30% → 30%"),
+                                  i18nc("@info:tooltip pen inputs combined", "50% and 30% → 20%")};
         const QStringList names = KisPaintOpOption::penModeNames();
         for (int i = 0; i < names.size(); i++) {
             KisStudioChips::Chip chip;

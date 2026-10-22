@@ -197,6 +197,14 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Couleur"
 
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "Luminosité"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "Teinte"
+
 msgctxt "a group of settings"
 msgid "Settings"
 msgstr "Configuration"

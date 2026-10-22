@@ -12,6 +12,10 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Culoare"
 
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "Nuanță"
+
 msgctxt "effect group"
 msgid "Color"
 msgstr "Culoare"

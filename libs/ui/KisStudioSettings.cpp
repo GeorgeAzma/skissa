@@ -621,7 +621,7 @@ struct Builder {
             QStringList notes;
             if (!s->help.isEmpty()) notes << s->help;
             if (s->flags & R::NewViews) notes << i18nc("@info:tooltip", "For images opened from now on");
-            if (s->flags & R::Machine) notes << i18nc("@info:tooltip", "Stays on this computer and isn't exported");
+            if (s->flags & R::Machine) notes << i18nc("@info:tooltip", "Not included when you export settings");
             if (!notes.isEmpty()) row->setToolTip(notes.join(QStringLiteral("\n\n")));
             if (s->flags & R::Restart) line->insertWidget(1, restartMark(id, row));
             if (KisStudioControls::canPinSetting(id) && !controlBelow) line->addWidget(pinButton(id, row));
@@ -1278,7 +1278,6 @@ QVector<CardDef> makeCards()
             });
             b.layout->addWidget(picker);
             b.showWhen(b.color(QStringLiteral("canvasBorderColor"), false, i18nc("around the image", "Color")), [current]() { return current() == 1; });
-            b.explain(i18nc("@info:tooltip", "Glow: the image's colors light the dark around it\nColor: one color all around"));
         });
     add(QStringLiteral("appearance"), QStringLiteral("font"), i18nc("settings card", "Interface font"),
         {QStringLiteral("use_custom_system_font"), QStringLiteral("custom_system_font"), QStringLiteral("custom_font_size")},
@@ -1399,7 +1398,6 @@ QVector<CardDef> makeCards()
             QObject::connect(curve, &KisCurveWidget::curveChanged, b.card,
                              [](const KisCubicCurve &c) { R::instance()->setValue(QStringLiteral("tabletPressureCurve"), c.toString()); });
             b.layout->addWidget(curve);
-            b.explain(i18nc("@info:tooltip", "Across: how hard you press\nUp: how much it paints"));
         });
     add(QStringLiteral("pen"), QStringLiteral("tablet"), i18nc("settings card", "Tablet"),
         {QStringLiteral("kritadisplayrc useWin8PointerInput"), QStringLiteral("useRightMiddleTabletButtonWorkaround")},
@@ -1465,7 +1463,7 @@ QVector<CardDef> makeCards()
          KisImageConfig::layerNameKey(KisImageConfig::PastedLayer, true), KisImageConfig::layerNameKey(KisImageConfig::PastedLayer, false),
          KisImageConfig::layerNameKey(KisImageConfig::MergedLayer, true), KisImageConfig::layerNameKey(KisImageConfig::MergedLayer, false)},
         QStringLiteral("copy of duplicate pasted merged rename prefix suffix naming"), [](Builder &b) {
-            b.explain(i18nc("@info:tooltip", "The words added to a copied, pasted or merged layer's name, as in Ink → Copy of Ink"));
+            b.explain(i18nc("@info:tooltip", "As in Copy of Ink"));
             // Laid out as the name will read: [before] Layer [after]
             auto *grid = new QGridLayout();
             grid->setHorizontalSpacing(6);
@@ -1636,7 +1634,7 @@ QVector<CardDef> makeCards()
         }
         add(QStringLiteral("color"), QStringLiteral("screens"), i18nc("settings card", "Screens"), screenSettings,
             QStringLiteral("monitor profile screen display icc hdr calibration surface"), [screenSettings](Builder &b) {
-                b.explain(i18nc("@info:tooltip", "Each screen's calibrated profile, so the canvas shows colors right"));
+                b.explain(i18nc("@info:tooltip", "Each screen's calibrated color profile"));
                 const bool osManaged = KisPlatformPluginInterfaceFactory::instance()->surfaceColorManagedByOS();
                 Q_FOREACH (const QString &id, screenSettings) {
                     if (id == QLatin1String("canvasSurfaceColorSpaceManagementMode") || id == QLatin1String("canvasSurfaceBitDepthMode")) {

@@ -145,6 +145,14 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Barva"
 
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "Jas"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "Tón"
+
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"

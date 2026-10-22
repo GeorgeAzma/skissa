@@ -182,6 +182,14 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "색상"
 
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "광도"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "색조"
+
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"

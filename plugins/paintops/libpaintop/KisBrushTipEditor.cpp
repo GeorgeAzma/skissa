@@ -627,11 +627,11 @@ public:
         case ChipHeight:
             return i18nc("@info:tooltip brush tip", "Height");
         case ChipLink:
-            return m_linked ? i18nc("@info:tooltip brush tip", "Linked: width = height") : i18nc("@info:tooltip brush tip", "Unlinked: stretch freely");
+            return m_linked ? i18nc("@info:tooltip brush tip", "Keep width and height equal") : i18nc("@info:tooltip brush tip", "Stretch width and height separately");
         case ChipAngle:
             return i18nc("@info:tooltip brush tip", "Tip angle");
         case Fade:
-            return i18nc("@info:tooltip brush tip", "Soft edge: 0% crisp → 100% all fade");
+            return i18nc("@info:tooltip brush tip", "Soft edge");
         case ChipPoints:
             return i18nc("@info:tooltip brush tip", "Points of the star");
         default:
@@ -1272,7 +1272,7 @@ public:
         switch (part) {
         case Knee:
         case ChipSoft:
-            return KisStudioTips::tip(i18nc("@info:tooltip brush tip", "Soft edge: 0% crisp → 100% all fade"), KisStudioTips::valueGestures());
+            return KisStudioTips::tip(i18nc("@info:tooltip brush tip", "Soft edge"), KisStudioTips::valueGestures());
         case Point:
             return KisStudioTips::tip(i18nc("@info:tooltip brush tip edge", "Curve point"),
                                       {i18nc("@info:tooltip a gesture", "Drag: move"), i18nc("@info:tooltip a gesture", "Right-click: remove")});
@@ -1280,11 +1280,11 @@ public:
             return KisStudioTips::tip(i18nc("@info:tooltip brush tip", "Edge, across the tip"),
                                       {i18nc("@info:tooltip a gesture", "Drag: bend"), KisStudioTips::rightClickReset()});
         case TileRound:
-            return i18nc("@info:tooltip brush tip edge", "Round: fades fastest at the rim");
+            return i18nc("@info:tooltip brush tip edge", "Fades out fastest near the rim");
         case TileSmooth:
-            return i18nc("@info:tooltip brush tip edge", "Smooth: fades out gently, like an airbrush");
+            return i18nc("@info:tooltip brush tip edge", "A gentle falloff, like an airbrush");
         case TileCurve:
-            return i18nc("@info:tooltip brush tip edge", "Curve: your own, bent on the line");
+            return i18nc("@info:tooltip brush tip edge", "Shape the falloff yourself on the line");
         default:
             return QString();
         }

@@ -96,6 +96,10 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Warna"
 
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "Kecahayaan"
+
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"

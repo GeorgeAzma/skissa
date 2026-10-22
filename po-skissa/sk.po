@@ -180,6 +180,14 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Farba"
 
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "Svetlosť"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "Odtieň"
+
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"

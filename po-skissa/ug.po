@@ -116,6 +116,14 @@ msgid "Color"
 msgstr "رەڭ"
 
 msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "يورۇقلۇق دەرىجىسى"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "رەڭگى"
+
+msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "ئالدىن كۆزەت"
 

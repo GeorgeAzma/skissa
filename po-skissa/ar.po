@@ -88,6 +88,10 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "اللون"
 
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "الصّبغة"
+
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"

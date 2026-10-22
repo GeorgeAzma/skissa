@@ -221,7 +221,7 @@ public:
         , m_mark(mark)
         , m_text(text)
     {
-        setToolTip(mark == Held ? i18nc("@info:tooltip", "Works while held, e.g. Space pans") : i18nc("@info:tooltip", "Two commands on one key"));
+        setToolTip(mark == Held ? i18nc("@info:tooltip", "Works while held, like Space to pan") : i18nc("@info:tooltip", "Two commands on one key"));
     }
 
     QSize sizeHint() const override
@@ -448,7 +448,7 @@ protected:
                               : use.elsewhere ? i18nc("@info:tooltip a key's command that the tool's own key covers while the tool is in use", "%1 (elsewhere)", use.name)
                                               : use.name);
                 }
-                QToolTip::showText(help->globalPos(), lines.isEmpty() ? KisStudioTips::html(i18nc("@info:tooltip a key with no shortcut", "%1: free", key))
+                QToolTip::showText(help->globalPos(), lines.isEmpty() ? KisStudioTips::html(i18nc("@info:tooltip a key with no shortcut", "Nothing on %1", key))
                                                                       : QStringLiteral("<b>%1</b><br>%2").arg(key.toHtmlEscaped(), lines.join(QStringLiteral("<br>")).toHtmlEscaped().replace(QStringLiteral("&lt;br&gt;"), QStringLiteral("<br>"))),
                                    this);
             } else {
@@ -1365,7 +1365,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     // Creates a ring and records its key right away
     auto *newRing = new QToolButton(this);
     newRing->setText(i18nc("@action:button keys page", "New ring"));
-    newRing->setToolTip(i18nc("@info:tooltip", "A ring of commands on a key. Tap the key to open it, or hold it and point to pick"));
+    newRing->setToolTip(i18nc("@info:tooltip", "Tap the key to open the ring, or hold it and point to pick"));
     bar->addWidget(newRing);
     connect(newRing, &QToolButton::clicked, this, [this]() {
         KisStudioRings *rings = d->mainWindow ? d->mainWindow->studioRings() : nullptr;
@@ -1429,7 +1429,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     }
     // the keys of a tool in use: its own cover the others there
     d->contextBox = new QComboBox(this);
-    d->contextBox->setToolTip(i18nc("@info:tooltip", "Keys that work everywhere, or while a tool is in use (its own keys win there)"));
+    d->contextBox->setToolTip(i18nc("@info:tooltip", "Keys that work everywhere, or only with a tool"));
     connect(d->contextBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
         d->context = d->contextBox->currentData().toString();
         d->map->update();

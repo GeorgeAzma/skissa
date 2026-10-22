@@ -701,7 +701,7 @@ void KisStudioStrokePage::rebuild()
         const QStringList names = {i18nc("smoothing is off", "Off"), i18nc("@item:inlistbox Brush Smoothing", "Weighted"),
                                    i18nc("@item:inlistbox Brush Smoothing", "Stabilizer")};
         const QStringList tips = {i18nc("@info:tooltip", "Your line, exactly"), i18nc("@info:tooltip", "Trails behind the pen and evens out"),
-                                  i18nc("@info:tooltip", "Follows the pen on a string. The steadiest, with some lag")};
+                                  i18nc("@info:tooltip", "Pulls the line along on a string. The steadiest")};
         for (int i = 0; i < 3; i++) {
             KisStudioChips::Chip chip;
             chip.text = names[i];
@@ -739,7 +739,6 @@ void KisStudioStrokePage::rebuild()
             if (linked) {
                 auto *amount = strengthRow(i18nc("how much a line is smoothed", "Strength"), options->smoothnessDistanceMin());
                 amount->setProperty("amount", true);
-                amount->setToolTip(i18nc("@info:tooltip line smoothing", "More smoothing makes a steadier line, but it lags further behind the pen"));
                 connect(amount, &KisStudioValueRow::valueChanged, this, [change](qreal value) {
                     change([value](KisSmoothingOptions &options) { setDistance(options, value); });
                 });
@@ -759,8 +758,8 @@ void KisStudioStrokePage::rebuild()
             auto *link = new QToolButton(strengths);
             link->setAutoRaise(true);
             link->setIcon(KisIconUtils::loadIcon(linked ? QStringLiteral("studio_link") : QStringLiteral("studio_unlink")));
-            link->setToolTip(linked ? i18nc("@info:tooltip", "Linked: the same for slow and fast strokes")
-                                    : i18nc("@info:tooltip", "Unlinked: slow and fast strokes apart"));
+            link->setToolTip(linked ? i18nc("@info:tooltip", "Same for slow and fast strokes")
+                                    : i18nc("@info:tooltip", "Separate for slow and fast strokes"));
             connect(link, &QToolButton::clicked, this, [mainWindow, linked]() {
                 KisSmoothingOptionsSP options = KisStudioSmoothing::options(mainWindow);
                 if (!options) return;
@@ -813,7 +812,7 @@ void KisStudioStrokePage::rebuild()
         }
         if (type == KisSmoothingOptions::WEIGHTED_SMOOTHING) {
             addSwitch(i18nc("line smoothing measured on the screen, not the image", "Follows zoom"),
-                      i18nc("@info:tooltip", "On: the same on screen at any zoom\nOff: the same on the image, so it shrinks as you zoom in"), options->useScalableDistance(),
+                      i18nc("@info:tooltip", "Smoothing stays the same on screen as you zoom"), options->useScalableDistance(),
                       [change](bool on) { change([on](KisSmoothingOptions &options) { options.setUseScalableDistance(on); }); });
         }
         if (pixel) {

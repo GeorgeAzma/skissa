@@ -215,6 +215,14 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Szín"
 
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "Világosság"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "Árnyalat"
+
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"

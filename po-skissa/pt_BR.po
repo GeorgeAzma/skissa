@@ -196,6 +196,14 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Cor"
 
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "Luminosidade"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "Matiz"
+
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"

@@ -368,7 +368,7 @@ public:
         : QWidget(parent)
     {
         setCursor(Qt::SizeHorCursor);
-        setToolTip(i18nc("@info:tooltip", "How long the whole painting plays, e.g. 30 s"));
+        setToolTip(i18nc("@info:tooltip", "How long the whole time-lapse plays"));
         setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     }
 
@@ -497,7 +497,7 @@ const QVector<VideoFormat> &videoFormats()
 {
     static const QVector<VideoFormat> formats = {
         {QStringLiteral("MP4"), 0, i18nc("@info:tooltip video format", "Plays anywhere")},
-        {QStringLiteral("GIF"), 1, i18nc("@info:tooltip video format", "Loops in chats; the largest file")},
+        {QStringLiteral("GIF"), 1, i18nc("@info:tooltip video format", "Loops in chats. Big files")},
         {QStringLiteral("WebM"), 3, i18nc("@info:tooltip video format", "Small, for the web")}};
     return formats;
 }

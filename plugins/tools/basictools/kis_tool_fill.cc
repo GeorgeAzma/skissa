@@ -653,7 +653,7 @@ QWidget* KisToolFill::createOptionWidget()
     m_buttonFillWithPattern->setToolTip(i18n("Pattern"));
     m_sliderPatternScale->setToolTip(i18nc("@info:tooltip", "Pattern size"));
     m_angleSelectorPatternRotation->setToolTip(i18nc("@info:tooltip", "Pattern angle"));
-    m_checkBoxCustomBlendingOptions->setToolTip(i18nc("@info:tooltip", "Own opacity and blend mode, not the brush's"));
+    m_checkBoxCustomBlendingOptions->setToolTip(i18nc("@info:tooltip", "Use the fill's own opacity and blend mode"));
     m_sliderCustomOpacity->setToolTip(i18nc("@info:tooltip", "The fill's opacity"));
     m_comboBoxCustomCompositeOp->setToolTip(i18nc("@info:tooltip", "The fill's blend mode"));
 
@@ -663,7 +663,7 @@ QWidget* KisToolFill::createOptionWidget()
     m_sliderThreshold->setToolTip(i18nc("@info:tooltip", "0% this exact color → 100% every color"));
     m_sliderSpread->setToolTip(i18nc("@info:tooltip", "0% fades with the color difference → 100% solid"));
     m_sliderCloseGap->setToolTip(i18n("Close gaps in lines up to the set amount"));
-    m_checkBoxUnderLines->setToolTip(i18nc("@info:tooltip", "Fill to the middle of the lines, on another layer than them"));
+    m_checkBoxUnderLines->setToolTip(i18nc("@info:tooltip", "Fill under the line art, when it's on another layer"));
     m_sliderSpecks->setToolTip(i18nc("@info:tooltip", "Fill spots up to this size too"));
     m_checkBoxSelectionAsBoundary->setToolTip(i18nc("@info:tooltip", "The selection's edge stops the fill too"));
 
@@ -679,7 +679,7 @@ QWidget* KisToolFill::createOptionWidget()
 
     m_buttonDragFillDoNotUse->setToolTip(i18nc("@info:tooltip", "Dragging fills nothing more"));
     m_buttonDragFillAny->setToolTip(i18nc("@info:tooltip", "Dragging fills every region it crosses"));
-    m_buttonDragFillSimilar->setToolTip(i18nc("@info:tooltip", "Dragging fills only regions like the first, e.g. inside line art"));
+    m_buttonDragFillSimilar->setToolTip(i18nc("@info:tooltip", "Dragging fills only regions like the first, like the inside of line art"));
 
     buttonReset->setToolTip(i18n("Reset the options to their default values"));
 

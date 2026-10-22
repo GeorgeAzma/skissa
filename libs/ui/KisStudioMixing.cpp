@@ -80,13 +80,13 @@ QWidget *KisStudioMixing::chooser(KisMainWindow *mainWindow, QWidget *parent)
         const int mode = preset ? preset->settings()->getInt(KoMixing::settingName(), KoMixing::Normal) : KoMixing::Normal;
         KisStudioChips::Chip normal;
         normal.text = i18nc("how paint mixes: in the image's own red, green and blue, as Krita does", "RGB");
-        normal.toolTip = i18nc("@info:tooltip", "As Krita mixes, in the image's own values");
+        normal.toolTip = i18nc("@info:tooltip", "Krita's usual mixing");
         KisStudioChips::Chip even;
         even.text = i18nc("how paint mixes: in the OKLab color space", "OKLab");
-        even.toolTip = i18nc("@info:tooltip", "Even steps from color to color");
+        even.toolTip = i18nc("@info:tooltip", "Smooth, even blends between colors");
         KisStudioChips::Chip pigment;
         pigment.text = i18nc("how paint mixes: as real pigments do", "Pigment");
-        pigment.toolTip = i18nc("@info:tooltip", "Like real paint: blue and yellow make green");
+        pigment.toolTip = i18nc("@info:tooltip", "Blue and yellow make green, like real paint");
         QVector<KisStudioChips::Chip> chips {normal, even, pigment};
         for (int i = 0; i < chips.size(); i++) {
             chips[i].picture = picture(i);

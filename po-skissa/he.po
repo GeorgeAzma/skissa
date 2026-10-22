@@ -210,6 +210,14 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "צבע"
 
+msgctxt "@info:tooltip"
+msgid "Lightness"
+msgstr "בהירות"
+
+msgctxt "@info:tooltip"
+msgid "Hue"
+msgstr "גוון"
+
 msgctxt "a group of settings"
 msgid "Settings"
 msgstr "הגדרות"
