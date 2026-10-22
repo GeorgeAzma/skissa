@@ -2,7 +2,7 @@ Skissa
 
 An independent fork of Krita (https://krita.org, https://invent.kde.org/graphics/krita),
 modified by GeorgeAzma since 2026. The changes are in this repository's git history,
-on the modern-style branch.
+on the main branch.
 
 The fork's code was written by AI (Anthropic's Claude), to GeorgeAzma's ideas and design;
 Krita itself, which it is built on, is the work of Krita's developers.
