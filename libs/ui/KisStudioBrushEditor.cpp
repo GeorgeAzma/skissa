@@ -485,7 +485,9 @@ void KisStudioBrushEditor::rebuild()
 void KisStudioBrushEditor::followLastStroke()
 {
     KisPaintOpPresetSP current = d->preset();
-    if (current && d->follow->isChecked()) KisLastStrokeReplay::instance()->brushChanged(current->name(), current->settings()->toXML());
+    if (current && d->follow->isChecked() && KisLastStrokeReplay::instance()->follows(current->name())) {
+        KisLastStrokeReplay::instance()->brushChanged(current->name(), current->settings()->toXML());
+    }
 }
 
 void KisStudioBrushEditor::updateHeader()

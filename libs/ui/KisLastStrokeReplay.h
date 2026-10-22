@@ -35,6 +35,8 @@ public:
     void strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack *stack, const QString &preset, const QString &settings);
     /// The brush \p preset changed to \p settings (its XML): its last stroke is painted again with it
     void brushChanged(const QString &preset, const QString &settings);
+    /// Whether a change of \p preset would paint a stroke again, before its settings are written out for brushChanged()
+    bool follows(const QString &preset) const;
 
 private:
     KisLastStrokeReplay();

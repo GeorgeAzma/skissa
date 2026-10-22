@@ -693,7 +693,11 @@ public:
                 m_dabInk = ink;
                 m_dabSize = size.toSize();
                 m_dabPicture.clear();
-                m_dab = autoDab(m_auto->bakedOptionData(), size.width(), size.height(), ink);
+                // a dab grown far past the box by a drag can't be seen whole: it is made at most twice the
+                // box and drawn stretched, rather than as a picture of millions of pixels per move
+                const qreal shrink = qMin(1.0, 2.0 * qMax(width(), height()) / qMax(1.0, qMax(size.width(), size.height())));
+                m_dabStretched = shrink < 1.0;
+                m_dab = autoDab(m_auto->bakedOptionData(), size.width() * shrink, size.height() * shrink, ink);
             }
         } else {
             // a picture tip is drawn scaled into its place: made again only for another picture or ink, not for its size
@@ -711,7 +715,7 @@ public:
         painter.rotate(-angle());
         const QRectF dabRect(-size.width() / 2, -size.height() / 2, size.width(), size.height());
         if (!m_dab.isNull()) {
-            if (isAuto()) painter.drawImage(QPointF(-m_dab.width() / 2.0, -m_dab.height() / 2.0), m_dab);
+            if (isAuto() && !m_dabStretched) painter.drawImage(QPointF(-m_dab.width() / 2.0, -m_dab.height() / 2.0), m_dab);
             else painter.drawImage(dabRect, m_dab);
         }
         painter.setBrush(Qt::NoBrush);
@@ -1105,6 +1109,7 @@ private:
     mutable bool m_dabDirty {true};
     mutable QColor m_dabInk;
     mutable QSize m_dabSize;
+    mutable bool m_dabStretched {false};
     /// The picture tip and ink the dab was made for; empty for a round one
     mutable QString m_dabPicture;
 

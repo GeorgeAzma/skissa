@@ -403,7 +403,8 @@ private:
         }
         QStringList shown;
         Q_FOREACH (const KisPaintOpOption::PenInput &input, columns()) shown << input.id;
-        QMenu menu;
+        // the sheet as its parent, so a pick counts as inside it and doesn't close it
+        QMenu menu(this);
         Q_FOREACH (const KisPaintOpOption::PenInput &input, all) {
             if (shown.contains(input.id)) continue;
             QAction *action = menu.addAction(KisStudioPenPopup::inputName(input.id, input.name));
@@ -421,7 +422,8 @@ private:
     void addRow(const QPoint &at)
     {
         const QList<KisPaintOpOption *> shown = rows();
-        QMenu menu;
+        // the sheet as its parent, so a pick counts as inside it and doesn't close it
+        QMenu menu(this);
         Q_FOREACH (KisPaintOpOption *option, candidates()) {
             if (shown.contains(option)) continue;
             menu.addAction(rowName(option))->setData(option->id());
@@ -839,7 +841,9 @@ void KisStudioBrushSheet::rebuild()
             d->presetConnections.addConnection(preset->updateProxy(), &KisPaintOpPresetUpdateProxy::sigSettingsChangedUncompressed, this,
                                                [this]() {
                                                    KisPaintOpPresetSP current = d->preset();
-                                                   if (current && d->follow->isChecked()) KisLastStrokeReplay::instance()->brushChanged(current->name(), current->settings()->toXML());
+                                                   if (current && d->follow->isChecked() && KisLastStrokeReplay::instance()->follows(current->name())) {
+                                                       KisLastStrokeReplay::instance()->brushChanged(current->name(), current->settings()->toXML());
+                                                   }
                                                });
             d->presetConnections.addConnection(preset->updateProxy(), &KisPaintOpPresetUpdateProxy::sigSettingsChanged, this, [this]() {
                 d->preview->requestUpdateStroke();

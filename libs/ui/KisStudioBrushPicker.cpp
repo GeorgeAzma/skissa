@@ -61,13 +61,26 @@ struct KisStudioBrushStrokes {
         QString title;
         QString engine;
         QStringList tags;
-        QImage icon;
+        QPersistentModelIndex index;    ///< in the catalog's model
         QString kind;
     };
 
     struct Catalog {
         QStringList ids;                ///< sorted by title
         QHash<QString, Brush> brushes;
+        /// the presets, kept for their icons: decoding them all took most of the loading
+        std::shared_ptr<KisResourceModel> model;
+        QHash<QString, QImage> icons;
+
+        QImage icon(const QString &id)
+        {
+            auto it = icons.constFind(id);
+            if (it != icons.constEnd()) return *it;
+            const QModelIndex index = brushes.value(id).index;
+            const QImage image = index.isValid() ? index.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>() : QImage();
+            icons.insert(id, image);
+            return image;
+        }
     };
 
     struct Job {
@@ -169,7 +182,8 @@ QString kindOf(const QString &name, const QString &engine)
 std::shared_ptr<Catalog> loadCatalog()
 {
     auto catalog = std::make_shared<Catalog>();
-    KisResourceModel model(ResourceType::PaintOpPresets);
+    catalog->model = std::make_shared<KisResourceModel>(ResourceType::PaintOpPresets);
+    const KisResourceModel &model = *catalog->model;
     for (int row = 0; row < model.rowCount(); row++) {
         const QModelIndex index = model.index(row, 0);
         Brush brush;
@@ -181,7 +195,7 @@ std::shared_ptr<Catalog> loadCatalog()
         brush.title = KisStudioBrushPicker::title(brush.name).replace(QLatin1Char('_'), QLatin1Char(' '));
         brush.tags = index.data(Qt::UserRole + KisAbstractResourceModel::Tags).toStringList();
         brush.engine = index.data(Qt::UserRole + KisAbstractResourceModel::MetaData).toMap().value(QStringLiteral("paintopid")).toString();
-        brush.icon = index.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>();
+        brush.index = index;
         brush.kind = kindOf(brush.name, brush.engine);
         catalog->ids << brush.name;
         catalog->brushes.insert(brush.name, brush);
@@ -290,7 +304,7 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
                 return;
             }
             // Not painted yet: show the preset's icon, faded
-            const QImage icon = catalog->brushes.value(id).icon;
+            const QImage icon = catalog->icon(id);
             if (!icon.isNull()) {
                 const int side = rect.height() - 8;
                 painter.save();

@@ -30,11 +30,16 @@
 #ifndef KOCOMPOSITEOPMIX_H
 #define KOCOMPOSITEOPMIX_H
 
+#include <QMutex>
+#include <QMutexLocker>
 #include <QString>
 #include <QVector>
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <memory>
+#include <vector>
 
 #include "KoChannelInfo.h"
 #include "KoColorModelStandardIds.h"
@@ -325,8 +330,6 @@ public:
         if (!linear || params.rows <= 0 || params.cols <= 0) return;
         const int pixelSize = own->pixelSize();
         const int cols = params.cols;
-        const auto intent = KoColorConversionTransformation::internalRenderingIntent();
-        const auto flags = KoColorConversionTransformation::internalConversionFlags();
 
         // channels switched off keep their values (the alpha channel off is the layer's alpha lock), but where
         // nothing was painted they are cleared, as Krita's own blends do
@@ -342,12 +345,24 @@ public:
         }
 
         const bool oneSource = params.srcRowStride == 0;
-        QVector<float> source(oneSource ? 4 : cols * 4);
-        QVector<float> under(cols * 4);
-        QVector<quint8> back(cols * pixelSize);
-        QVector<bool> changed(cols);
-        QVector<bool> wasClear(cols);
-        if (oneSource) own->convertPixelsTo(params.srcRowStart, reinterpret_cast<quint8 *>(source.data()), linear, 1, intent, flags);
+        std::unique_ptr<Workspace> workspace = take(linear);
+        QVector<float> &source = workspace->source;
+        QVector<float> &under = workspace->under;
+        QVector<quint8> &back = workspace->back;
+        QVector<bool> &changed = workspace->changed;
+        QVector<bool> &wasClear = workspace->wasClear;
+        source.resize(oneSource ? 4 : cols * 4);
+        under.resize(cols * 4);
+        back.resize(cols * pixelSize);
+        changed.resize(cols);
+        wasClear.resize(cols);
+        // an image already in linear sRGB floats needs no conversion
+        const bool same = !workspace->toLinear;
+        auto toLinear = [&](const quint8 *from, float *to, int count) {
+            if (same) std::memcpy(to, from, size_t(count) * pixelSize);
+            else workspace->toLinear->transform(from, reinterpret_cast<quint8 *>(to), count);
+        };
+        if (oneSource) toLinear(params.srcRowStart, source.data(), 1);
 
         // a color seen again (one paint color, a flat area under it) isn't made into pigment or OKLab again
         KoMixing::Paint sourcePaint, underPaint;
@@ -366,8 +381,8 @@ public:
             quint8 *dst = params.dstRowStart + row * params.dstRowStride;
             const quint8 *src = params.srcRowStart + row * params.srcRowStride;
             const quint8 *mask = params.maskRowStart ? params.maskRowStart + row * params.maskRowStride : nullptr;
-            own->convertPixelsTo(dst, reinterpret_cast<quint8 *>(under.data()), linear, cols, intent, flags);
-            if (!oneSource) own->convertPixelsTo(src, reinterpret_cast<quint8 *>(source.data()), linear, cols, intent, flags);
+            toLinear(dst, under.data(), cols);
+            if (!oneSource) toLinear(src, source.data(), cols);
             bool any = false;
             for (int x = 0; x < cols; x++) {
                 changed[x] = false;
@@ -403,7 +418,8 @@ public:
             }
             if (!any) continue;
             // only the pixels painted on are written back, so the rest keep their exact values
-            linear->convertPixelsTo(reinterpret_cast<const quint8 *>(under.data()), back.data(), own, cols, intent, flags);
+            if (same) std::memcpy(back.data(), under.data(), size_t(cols) * pixelSize);
+            else workspace->toOwn->transform(reinterpret_cast<const quint8 *>(under.data()), back.data(), cols);
             for (int x = 0; x < cols; x++) {
                 if (!changed[x]) continue;
                 const quint8 *mixed = back.data() + x * pixelSize;
@@ -423,11 +439,56 @@ public:
                 }
             }
         }
+        giveBack(std::move(workspace));
     }
 
 private:
+    /**
+     * What one composite() works with: the color conversions, which can't be shared between threads and are
+     * costly to make (through the color spaces each row looked them up in a cache under a lock), and its rows
+     */
+    struct Workspace {
+        std::unique_ptr<KoColorConversionTransformation> toLinear;
+        std::unique_ptr<KoColorConversionTransformation> toOwn;
+        QVector<float> source;
+        QVector<float> under;
+        QVector<quint8> back;
+        QVector<bool> changed;
+        QVector<bool> wasClear;
+    };
+
+    /// A workspace no other thread is using
+    std::unique_ptr<Workspace> take(const KoColorSpace *linear) const
+    {
+        {
+            QMutexLocker lock(&m_spareMutex);
+            if (!m_spare.empty()) {
+                std::unique_ptr<Workspace> spare = std::move(m_spare.back());
+                m_spare.pop_back();
+                return spare;
+            }
+        }
+        auto made = std::make_unique<Workspace>();
+        const KoColorSpace *own = colorSpace();
+        if (!(*own == *linear)) {
+            const auto intent = KoColorConversionTransformation::internalRenderingIntent();
+            const auto flags = KoColorConversionTransformation::internalConversionFlags();
+            made->toLinear.reset(own->createColorConverter(linear, intent, flags));
+            made->toOwn.reset(linear->createColorConverter(own, intent, flags));
+        }
+        return made;
+    }
+
+    void giveBack(std::unique_ptr<Workspace> workspace) const
+    {
+        QMutexLocker lock(&m_spareMutex);
+        m_spare.push_back(std::move(workspace));
+    }
+
     int m_mode;
     bool m_copy;
+    mutable QMutex m_spareMutex;
+    mutable std::vector<std::unique_ptr<Workspace>> m_spare;
 };
 
 #endif // KOCOMPOSITEOPMIX_H

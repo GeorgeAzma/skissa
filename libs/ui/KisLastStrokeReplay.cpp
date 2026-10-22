@@ -42,6 +42,8 @@ struct KisLastStrokeReplay::Private
     /// The brush changed since the stroke was last painted
     bool dirty {false};
     int retries {0};
+    /// The next look, one at a time however often the brush changes while it waits
+    QTimer retry;
 };
 
 KisLastStrokeReplay *KisLastStrokeReplay::instance()
@@ -53,6 +55,8 @@ KisLastStrokeReplay *KisLastStrokeReplay::instance()
 KisLastStrokeReplay::KisLastStrokeReplay()
     : d(new Private)
 {
+    d->retry.setSingleShot(true);
+    connect(&d->retry, &QTimer::timeout, this, &KisLastStrokeReplay::replay);
 }
 
 KisLastStrokeReplay::~KisLastStrokeReplay()
@@ -95,17 +99,22 @@ void KisLastStrokeReplay::strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack
     d->expectedIndex = stack ? stack->index() + 1 : -1;
 }
 
+bool KisLastStrokeReplay::follows(const QString &preset) const
+{
+    return d->helper && preset == d->preset && isEnabled();
+}
+
 void KisLastStrokeReplay::brushChanged(const QString &preset, const QString &settings)
 {
     // the brush read back as it was (the editor following the preset) changes nothing
-    if (!isEnabled() || preset != d->preset || !d->helper) return;
+    if (!follows(preset)) return;
     const QString look = settings + d->helper->smoothingKey();
     if (look == d->settings) return;
     d->settings = look;
     d->dirty = true;
     d->retries = 0;
     // after the change has reached the brush the stroke is painted with
-    QTimer::singleShot(0, this, &KisLastStrokeReplay::replay);
+    d->retry.start(0);
 }
 
 void KisLastStrokeReplay::replay()
@@ -129,7 +138,7 @@ void KisLastStrokeReplay::replay()
         // idle twice in a row: a stroke that finished instead has pushed its step by then
         if (!image->isIdle() || !d->idleSeen) {
             d->idleSeen = image->isIdle();
-            if (++d->retries < 600) QTimer::singleShot(16, this, &KisLastStrokeReplay::replay);
+            if (++d->retries < 600) d->retry.start(16);
             return;
         }
         // finished after all: its step arrived, and painting goes on from there
@@ -143,7 +152,7 @@ void KisLastStrokeReplay::replay()
 
     if (!d->step) {
         // the stroke's own step isn't in the history yet: it is still being painted
-        if (d->expectedIndex > 0 && ++d->retries < 600) QTimer::singleShot(16, this, &KisLastStrokeReplay::replay);
+        if (d->expectedIndex > 0 && ++d->retries < 600) d->retry.start(16);
         return;
     }
     // only while the stroke is still the newest step, with nothing undone after it
@@ -153,7 +162,7 @@ void KisLastStrokeReplay::replay()
         return;
     }
     if (!image->isIdle()) {
-        if (++d->retries < 600) QTimer::singleShot(16, this, &KisLastStrokeReplay::replay);
+        if (++d->retries < 600) d->retry.start(16);
         return;
     }
     d->step = nullptr;
