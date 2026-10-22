@@ -1649,8 +1649,10 @@ public:
         if (def.build) def.build(m_builder);
         if (const Setting *s = def.toggleId.isEmpty() ? nullptr : R::instance()->setting(def.toggleId)) m_builder.explain(s->help);
 
-        connect(R::instance(), &R::valueChanged, this, [this]() { refresh(); });
-        connect(KisConfigNotifier::instance(), &KisConfigNotifier::configChanged, this, [this]() { refresh(); });
+        // while hidden (the Settings panel closed) only noted, and shown right when seen: every card follows
+        // every change, a dragged setting makes many
+        connect(R::instance(), &R::valueChanged, this, [this]() { refreshWhenSeen(); });
+        connect(KisConfigNotifier::instance(), &KisConfigNotifier::configChanged, this, [this]() { refreshWhenSeen(); });
         refresh();
     }
 
@@ -1664,8 +1666,15 @@ public:
 
     const CardDef &def() const { return m_def; }
 
+    void refreshWhenSeen()
+    {
+        if (isVisible()) refresh();
+        else m_stale = true;
+    }
+
     void refresh()
     {
+        m_stale = false;
         // A follower may rebuild the cards, deleting this one
         const QPointer<Card> alive(this);
         const QVector<std::function<void()>> followers = m_builder.refresh;
@@ -1692,6 +1701,15 @@ public:
     }
 
 protected:
+    void showEvent(QShowEvent *event) override
+    {
+        QFrame::showEvent(event);
+        // right after, not inside the show: a follower may rebuild the cards
+        if (m_stale) QTimer::singleShot(0, this, [this]() {
+            if (m_stale) refresh();
+        });
+    }
+
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
@@ -1751,6 +1769,8 @@ private:
     QLabel *m_title {nullptr};
     QLabel *m_mark {nullptr};
     QToolButton *m_more {nullptr};
+    /// A change came while it was hidden
+    bool m_stale {false};
     QPoint m_pressed {-1, -1};
     qreal m_flash {0};
 };

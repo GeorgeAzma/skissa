@@ -1909,10 +1909,11 @@ public:
         const QRect at = clearOfOthers(wanted, span, m_moving ? std::numeric_limits<quint64>::max() : m_settled);
         m_placed = at;
         // the group placed last made way by choice: where it went is its place, so the next start agrees
+        bool madeWay = false;
         if (!m_moving && at != wanted && m_settled == settledCount() && isVisible() && m_shown.isValid() && m_shown.elapsed() >= 500) {
             m_spot = spotOf(at, m_left, false);
             m_refHeight = at.height();
-            if (moved) moved(m_left, m_spot);
+            madeWay = true;
         }
         // a column on the right keeps its right edge when only its strip shows
         const QRect geometry(m_left ? at.x() : at.right() + 1 - size.width(), at.y(), size.width(), size.height());
@@ -1920,7 +1921,8 @@ public:
         glideTo(geometry, at.topLeft() - wanted.topLeft(), m_moving);
         KisStudioLayout::keepAbove(this);
         if (changed && resized) resized(false);
-        if (learnt && moved) moved(m_left, m_spot);
+        // told once it is on its way there: what it sets off (the insets) places the groups again, this one too
+        if ((madeWay || learnt) && moved) moved(m_left, m_spot);
     }
 
 protected:

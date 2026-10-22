@@ -294,8 +294,15 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
 
     m_mode = ViewMode::THUMBNAIL;
 
-    connect(KisPresetStrokeThumbnails::instance(), &KisPresetStrokeThumbnails::changed, this, [this]() {
+    // once for the strokes finished within a moment of each other: they arrive one by one
+    auto *strokesShown = new QTimer(this);
+    strokesShown->setSingleShot(true);
+    strokesShown->setInterval(50);
+    connect(strokesShown, &QTimer::timeout, this, [this]() {
         if (m_delegate->strokes()) m_chooser->itemView()->viewport()->update();
+    });
+    connect(KisPresetStrokeThumbnails::instance(), &KisPresetStrokeThumbnails::changed, strokesShown, [strokesShown]() {
+        if (!strokesShown->isActive()) strokesShown->start();
     });
 
     connect(KisConfigNotifier::instance(), SIGNAL(configChanged()),

@@ -5,6 +5,7 @@
  */
 
 #include "kis_tool_freehand_helper.h"
+#include "kis_image_animation_interface.h"
 
 #include "KisLastStrokeReplay.h"
 
@@ -72,6 +73,8 @@ struct KisToolFreehandHelper::Private
     KisPaintInformation piecesStart;
     KisImageWSP piecesImage;
     KisNodeWSP piecesNode;
+    /// The animation frame it was painted on: on another one, painting it again would undo it there and paint here
+    int piecesTime {0};
     KisDefaultBoundsBaseSP piecesBounds;
     KoColor piecesColor;
     /// The pen's own path, before any smoothing: painted again when the smoothing changes
@@ -387,6 +390,7 @@ void KisToolFreehandHelper::initPaintImpl(qreal startAngle,
         m_d->piecesStartAngle = startAngle;
         m_d->piecesStart = pi;
         m_d->piecesImage = image;
+        m_d->piecesTime = image->animationInterface()->currentUITime();
         m_d->piecesNode = overrideNode ? overrideNode : currentNode;
         m_d->piecesBounds = bounds;
         m_d->piecesColor = m_d->resources->currentFgColor();
@@ -864,7 +868,8 @@ void KisToolFreehandHelper::repaintAs(const QVector<KisPaintInformation> &points
 
 bool KisToolFreehandHelper::hasLastStroke() const
 {
-    return !m_d->pieces.isEmpty() && m_d->piecesImage && m_d->piecesNode;
+    KisImageSP image = m_d->piecesImage;
+    return !m_d->pieces.isEmpty() && image && m_d->piecesNode && image->animationInterface()->currentUITime() == m_d->piecesTime;
 }
 
 KisImageWSP KisToolFreehandHelper::lastStrokeImage() const

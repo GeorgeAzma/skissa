@@ -27,6 +27,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QElapsedTimer>
 #include <QPointer>
 #include <QRegion>
 #include <QSet>
@@ -617,6 +618,33 @@ QImage glassOverWindow(QWidget *widget, const QRect &rect, QWidget *behind)
 {
     const int reach = qCeil(blurRadius * KisStudioGlass::blur());
     const QRect global(widget->mapToGlobal(rect.topLeft()), rect.size());
+    // kept a moment while it stays put over the same window: a menu repaints at every item the pointer passes,
+    // and grabbing and blurring the window behind takes milliseconds
+    struct Made {
+        QPointer<QWidget> widget;
+        QPointer<QWidget> behind;
+        QRect global;
+        QColor tint;
+        qreal blur {0};
+        QElapsedTimer age;
+        QImage glass;
+    };
+    static QHash<QWidget *, Made> made;
+    const QColor tint = widget->palette().color(QPalette::Window);
+    auto known = made.constFind(widget);
+    if (known != made.constEnd() && known->widget == widget && known->behind == behind && known->global == global
+        && known->tint == tint && known->blur == KisStudioGlass::blur() && known->age.elapsed() < 1000) {
+        return known->glass;
+    }
+    if (made.size() > 32) {
+        for (auto it = made.begin(); it != made.end();) it = it->widget ? std::next(it) : made.erase(it);
+    }
+    auto keep = [&](const QImage &glass) {
+        Made entry {widget, behind, global, tint, KisStudioGlass::blur(), QElapsedTimer(), glass};
+        entry.age.start();
+        made.insert(widget, entry);
+        return glass;
+    };
     const QRect inside(behind->mapFromGlobal(global.topLeft()), global.size());
     const QRect around = inside.adjusted(-reach, -reach, reach, reach) & behind->rect();
     if (around.isEmpty()) return QImage();
@@ -624,9 +652,9 @@ QImage glassOverWindow(QWidget *widget, const QRect &rect, QWidget *behind)
     if (seen.isNull()) return QImage();
     const QSize small = (QSizeF(around.size()) * sampleScale).toSize().expandedTo(QSize(1, 1));
     seen = blurred(seen.scaled(small, Qt::IgnoreAspectRatio, Qt::SmoothTransformation), qMax(1, qRound(blurRadius * KisStudioGlass::blur() * sampleScale)));
-    seen = tintedForText(seen, widget->palette().color(QPalette::Window));
+    seen = tintedForText(seen, tint);
     const QRectF part(QPointF(inside.topLeft() - around.topLeft()) * sampleScale, QSizeF(inside.size()) * sampleScale);
-    return seen.copy(part.toAlignedRect()).scaled(rect.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    return keep(seen.copy(part.toAlignedRect()).scaled(rect.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
 }
 
 // ------------------------------------------------------------ glass drawn by the canvas
