@@ -142,8 +142,6 @@ void KoQuaZipStore::init(const QByteArray &appIdentification)
 {
     Q_D(KoStore);
 
-    // as Krita: only when asked for (UseZip64). Zip64 moves the mimetype entry's text from where file
-    // managers look for it, and Krita before 4.2 can't open those files
     bool enableZip64 = false;
     if (appIdentification == "application/x-krita") {
         enableZip64 = KSharedConfig::openConfig()->group("").readEntry<bool>("UseZip64", false);
@@ -172,6 +170,11 @@ void KoQuaZipStore::init(const QByteArray &appIdentification)
             }
             f.write(appIdentification);
             f.close();
+        }
+        // Skissa: the entries after the mimetype in Zip64, so that a layer of 4 GB or more saves too; the
+        // mimetype entry stays where file managers look for it
+        if (appIdentification == "application/x-krita") {
+            dd->archive->setZip64Enabled(true);
         }
     }
     else {
