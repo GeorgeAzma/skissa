@@ -655,8 +655,8 @@ void KisPaintopBox::useOptionWidget(bool use)
     m_optionWidgetUsers = qMax(0, m_optionWidgetUsers + (use ? 1 : -1));
     // changes reach the brush (and the stroke painted again with it) quicker while it is edited
     if (m_optionWidget) m_optionWidget->setUpdateDelay(m_optionWidgetUsers > 0 ? 25 : 100);
-    // what changed while nothing used them
-    if (use) slotUpdateOptionsWidgetPopup();
+    // what changed while nothing used them (each pinned row asks when the bar is rebuilt)
+    if (use && m_optionWidgetStale) slotUpdateOptionsWidgetPopup();
 }
 
 void KisPaintopBox::showFullEditor()
@@ -772,6 +772,7 @@ void KisPaintopBox::setCurrentPaintop(KisPaintOpPresetSP preset)
 
     m_presetsEditor->setPaintOpSettingsWidget(m_optionWidget);
     m_presetsEditor->readOptionSetting(preset->settings());
+    m_optionWidgetStale = false;
     if (auto *settingsWidget = dynamic_cast<KisPaintOpSettingsWidget *>(m_optionWidget)) {
         settingsWidget->rememberRowValues();
     }
@@ -837,14 +838,22 @@ void KisPaintopBox::slotUpdateOptionsWidgetPopup()
 
     // the connection to the preset is maintained even when the editor
     // is hidden, so skip the updates
-    if (!m_presetsEditor->isVisible() && m_optionWidgetUsers == 0) return;
+    if (!m_presetsEditor->isVisible() && m_optionWidgetUsers == 0) {
+        m_optionWidgetStale = true;
+        return;
+    }
 
     KIS_SAFE_ASSERT_RECOVER_RETURN(preset);
     KIS_SAFE_ASSERT_RECOVER_RETURN(m_optionWidget);
 
     m_presetsEditor->readOptionSetting(preset->settings());
-    m_presetsEditor->resourceSelected(preset);
-    m_presetsEditor->updateViewSettings();
+    m_optionWidgetStale = false;
+    // the editor's own parts only while it shows (it reads them again when shown): rows pinned elsewhere
+    // need the option widget alone
+    if (m_presetsEditor->isVisible()) {
+        m_presetsEditor->resourceSelected(preset);
+        m_presetsEditor->updateViewSettings();
+    }
 
     // the m_viewManager->image() is set earlier, but the reference will be missing when the stamp button is pressed
     // need to later do some research on how and when we should be using weak shared pointers (WSP) that creates this situation

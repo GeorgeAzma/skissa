@@ -299,6 +299,8 @@ private:
     TabletToolID     m_currTabletToolID {KoInputDevice::invalid()};
     bool             m_presetsEnabled {true};
     int              m_optionWidgetUsers {0};
+    /// The preset changed while nothing read it into the option widget
+    bool             m_optionWidgetStale {true};
     bool             m_studio {false};
     bool             m_blockUpdate {false};
     bool             m_dirtyPresetsEnabled {false};

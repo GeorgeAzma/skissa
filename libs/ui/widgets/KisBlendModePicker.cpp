@@ -239,6 +239,15 @@ QImage cropTo(QImage image, const QSize &full, const QSize &size)
     return image.copy((full.width() - size.width()) / 2, (full.height() - size.height()) / 2, size.width(), size.height());
 }
 
+/// The middle of \p bounds that \p size's shape covers, as a picture \p size big: only that part is made, not a
+/// picture of the whole image cut down afterwards (thousands of pixels long for a very long image)
+QImage middleOf(KisPaintDeviceSP device, const QRect &bounds, const QSize &size)
+{
+    QRect source(QPoint(), size.scaled(bounds.size(), Qt::KeepAspectRatio));
+    source.moveCenter(bounds.center());
+    return cropTo(device->createThumbnailUncached(size.width(), size.height(), source), size, size);
+}
+
 /// "Soft Light (Photoshop)" -> "Soft Light"; used in the user's list, where the variant rarely matters
 QString withoutQualifier(QString name)
 {
@@ -369,8 +378,6 @@ KisBlendModePicker::Pictures KisBlendModePicker::layerPictures(KisNodeSP node, c
     if (!node || !image || !node->parent() || size.isEmpty()) {
         return Pictures();
     }
-    const QSize full = image->bounds().size().scaled(size, Qt::KeepAspectRatioByExpanding);
-
     // Composite everything below the layer, bottom up, each in its own mode. Groups are flattened
     // into their children rather than blended as one, which is close enough at this size
     QImage backdrop(size, QImage::Format_ARGB32);
@@ -392,9 +399,7 @@ KisBlendModePicker::Pictures KisBlendModePicker::layerPictures(KisNodeSP node, c
             if (!child->visible(true)) {
                 continue;
             }
-            const QImage picture = child->projection()
-                ? cropTo(child->projection()->createThumbnailUncached(full.width(), full.height(), image->bounds()), full, size)
-                : QImage();
+            const QImage picture = child->projection() ? middleOf(child->projection(), image->bounds(), size) : QImage();
             if (!picture.isNull()) {
                 backdrop = compositeWith(backdrop, picture, child->opacity() / 255.0, child->compositeOpId());
             }
@@ -405,9 +410,7 @@ KisBlendModePicker::Pictures KisBlendModePicker::layerPictures(KisNodeSP node, c
     Pictures pictures;
     pictures.backdrop = KisStudioPicker::isFlat(backdrop) ? blendBackdrop(size) : backdrop;
     // Cover the whole image so it lines up with the layers below (a cached thumbnail covers only the painted part)
-    const QImage layer = node->projection()
-        ? cropTo(node->projection()->createThumbnailUncached(full.width(), full.height(), image->bounds()), full, size)
-        : QImage();
+    const QImage layer = node->projection() ? middleOf(node->projection(), image->bounds(), size) : QImage();
     pictures.source = KisStudioPicker::isFlat(layer) ? sampleShape(size, color) : layer;
     pictures.sourceOpacity = node->opacity() / 255.0;
     return pictures;
@@ -420,10 +423,9 @@ KisBlendModePicker::Pictures KisBlendModePicker::brushPictures(KisImageSP image,
     }
     QImage backdrop;
     if (image && image->projection()) {
-        const QSize full = image->bounds().size().scaled(size, Qt::KeepAspectRatioByExpanding);
         backdrop = QImage(size, QImage::Format_ARGB32);
         backdrop.fill(image->defaultProjectionColor().toQColor());
-        const QImage projection = cropTo(image->projection()->createThumbnailUncached(full.width(), full.height(), image->bounds()), full, size);
+        const QImage projection = middleOf(image->projection(), image->bounds(), size);
         backdrop = compositeWith(backdrop, projection, 1.0, QStringLiteral("normal"));
     }
     Pictures pictures;

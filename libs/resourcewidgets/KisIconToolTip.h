@@ -45,6 +45,9 @@ private:
 private:
     QSize m_fixedToolTipThumbnailSize;
     QScopedPointer<KoCheckerBoardPainter> m_checkersPainter;
+    /// The last card and what it was made of: asked again at every move over the same item
+    QString m_cardKey;
+    QImage m_card;
 };
 
 #endif // KISICONTOOLTIP_H

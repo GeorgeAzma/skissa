@@ -24,7 +24,9 @@
 #include <KoColorSpace.h>
 
 #include <Eigen/Core>
+#include <atomic>
 #include <cmath>
+#include <memory>
 
 namespace {
 
@@ -66,11 +68,12 @@ private:
 
 /// The selection made again from how it was: grown or shrunk, then softened
 struct Readjust : public KisTransactionBasedCommand {
-    Readjust(KisSelectionSP selection, KisPixelSelectionSP original, int grow, int soft)
+    Readjust(KisSelectionSP selection, KisPixelSelectionSP original, int grow, int soft, std::shared_ptr<std::atomic<bool>> busy)
         : m_selection(selection)
         , m_original(original)
         , m_grow(grow)
         , m_soft(soft)
+        , m_busy(busy)
     {
     }
 
@@ -92,6 +95,7 @@ struct Readjust : public KisTransactionBasedCommand {
         if (m_soft > 0) run(SoftEdge(m_soft));
         KUndo2Command *command = transaction.endAndTake();
         pixels->setDirty(before | rect);
+        *m_busy = false;
         return command;
     }
 
@@ -99,6 +103,7 @@ struct Readjust : public KisTransactionBasedCommand {
     KisPixelSelectionSP m_original;
     int m_grow;
     int m_soft;
+    std::shared_ptr<std::atomic<bool>> m_busy;
 };
 
 } // namespace
@@ -128,6 +133,7 @@ void KisStudioSelectionAdjust::begin()
     m_original = new KisPixelSelection(*selection->pixelSelection());
     m_grow = 0;
     m_soft = 0;
+    m_busy = std::make_shared<std::atomic<bool>>(false);
     m_applicator = new KisProcessingApplicator(view->image(), KisNodeSP(), KisProcessingApplicator::NONE, KisImageSignalVector(),
                                                kundo2_i18n("Grow or Soften Selection"));
 }
@@ -144,8 +150,15 @@ void KisStudioSelectionAdjust::set(int grow, int soft)
 void KisStudioSelectionAdjust::apply()
 {
     if (!m_applicator || !m_pending) return;
+    // one at a time while dragging: a wide soft edge takes longer than the drag's steps, which queued up behind
+    // it (each also keeping a copy of the selection for the drag's undo)
+    if (*m_busy && !m_ending) {
+        m_timer.start();
+        return;
+    }
     m_pending = false;
-    m_applicator->applyCommand(new Readjust(m_selection, m_original, m_grow, m_soft), KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::NORMAL);
+    *m_busy = true;
+    m_applicator->applyCommand(new Readjust(m_selection, m_original, m_grow, m_soft, m_busy), KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::NORMAL);
 }
 
 void KisStudioSelectionAdjust::end()
@@ -156,7 +169,10 @@ void KisStudioSelectionAdjust::end()
     if (m_grow == 0 && m_soft == 0) {
         m_applicator->cancel();
     } else {
+        // the value let go at, even while the one before it is still being made
+        m_ending = true;
         apply();
+        m_ending = false;
         m_applicator->end();
     }
     delete m_applicator;

@@ -151,6 +151,8 @@ public:
 
     void setCurrentColor(const QColor &color)
     {
+        // the foreground color changes at every move of a color wheel's drag, most often to one not here
+        if (m_current == color.rgb()) return;
         m_current = color.rgb();
         update();
     }
@@ -255,11 +257,13 @@ protected:
         return QWidget::event(event);
     }
 
-    void paintEvent(QPaintEvent *) override
+    void paintEvent(QPaintEvent *event) override
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         painter.translate(0, -m_scroll);
+        // only the swatches in view: a large palette has thousands
+        const QRect exposed = event->rect().translated(0, m_scroll);
         const QColor ink = palette().color(QPalette::WindowText);
 
         QColor headerInk = ink;
@@ -274,6 +278,7 @@ protected:
         empty.setAlphaF(0.05);
         const qreal radius = qMin(4.0, m_cell / 5.0);
         Q_FOREACH (const Cell &cell, m_cells) {
+            if (!cell.rect.intersects(exposed)) continue;
             const QRectF rect = QRectF(cell.rect).adjusted(1, 1, -1, -1);
             if (!isOccupied(cell.index)) {
                 painter.setPen(Qt::NoPen);

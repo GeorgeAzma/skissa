@@ -11,6 +11,9 @@
 
 #include <kis_types.h>
 
+#include <atomic>
+#include <memory>
+
 class KisProcessingApplicator;
 
 /**
@@ -41,6 +44,9 @@ private:
     int m_grow {0};
     int m_soft {0};
     bool m_pending {false};
+    bool m_ending {false};
+    /// A value is being made; the next waits for it
+    std::shared_ptr<std::atomic<bool>> m_busy {std::make_shared<std::atomic<bool>>(false)};
     QTimer m_timer;
 };
 

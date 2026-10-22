@@ -72,6 +72,9 @@ QImage KisIconToolTip::card(const QModelIndex &index)
     name.remove(QRegularExpression(QStringLiteral("^[a-z]\\)\\s+")));
     const QStringList tags = index.data(Qt::UserRole + KisAbstractResourceModel::Tags).toStringList();
     QString location = index.data(Qt::UserRole + KisAbstractResourceModel::Location).toString();
+    const qint64 pictureKey = picture.cacheKey();
+    const QString key = QStringLiteral("%1|%2|%3|%4|%5|%6").arg(pictureKey).arg(name, tags.join(QLatin1Char(',')), location, ink.name(QColor::HexArgb)).arg(ratio);
+    if (key == m_cardKey) return m_card;
 
     const int width = 240;
     const int pad = 2;
@@ -143,6 +146,8 @@ QImage KisIconToolTip::card(const QModelIndex &index)
         painter.drawText(QRectF(pad, top, width, smallMetrics.height()), Qt::AlignLeft | Qt::AlignVCenter, where);
     }
     painter.end();
+    m_cardKey = key;
+    m_card = card;
     return card;
 }
 

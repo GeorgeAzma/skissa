@@ -57,33 +57,50 @@ public:
         if (rect().contains(cursor)) pointAt(cursor);
     }
 
+    /// What a click picks changed (a layer was picked): picked again where the pointer is
+    void picksChanged(const QPointF &widgetPos)
+    {
+        m_picked = false;
+        pointAt(widgetPos);
+    }
+
     void pointAt(const QPointF &widgetPos)
     {
+        const QRect before = pillRect();
         m_cursor = widgetPos;
         if (!m_canvas || !m_canvas->image()) {
             return;
         }
-        const KisNodeSP node = m_picks(widgetPos);
-        if (node != m_node) {
-            m_node = node;
-            m_tint = QImage();
-            m_bounds = QRect();
-            if (node && node->projection()) {
-                m_bounds = node->exactBounds();
-                if (!m_bounds.isEmpty()) {
-                    // in the selection color, at a size good enough over the canvas
-                    const QSize size = m_bounds.size().scaled(QSize(480, 480), Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
-                    QImage alpha = node->projection()->createThumbnailUncached(size.width(), size.height(), m_bounds)
-                                       .convertToFormat(QImage::Format_ARGB32);
-                    const QColor ink = palette().color(QPalette::Highlight);
-                    for (int y = 0; y < alpha.height(); y++) {
-                        QRgb *line = reinterpret_cast<QRgb *>(alpha.scanLine(y));
-                        for (int x = 0; x < alpha.width(); x++) {
-                            line[x] = qRgba(ink.red(), ink.green(), ink.blue(), qAlpha(line[x]) * 110 / 255);
-                        }
+        // picking reads every layer's pixel there: not again for a pointer that barely moved
+        KisNodeSP node = m_node;
+        if (!m_picked || QLineF(widgetPos, m_pickedAt).length() >= 2) {
+            node = m_picks(widgetPos);
+            m_pickedAt = widgetPos;
+            m_picked = true;
+        }
+        if (node == m_node) {
+            // only the name moved with the pointer: not the whole canvas's overlay
+            update(before.united(pillRect()));
+            return;
+        }
+        m_node = node;
+        m_tint = QImage();
+        m_bounds = QRect();
+        if (node && node->projection()) {
+            m_bounds = node->exactBounds();
+            if (!m_bounds.isEmpty()) {
+                // in the selection color, at a size good enough over the canvas
+                const QSize size = m_bounds.size().scaled(QSize(480, 480), Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
+                QImage alpha = node->projection()->createThumbnailUncached(size.width(), size.height(), m_bounds)
+                                   .convertToFormat(QImage::Format_ARGB32);
+                const QColor ink = palette().color(QPalette::Highlight);
+                for (int y = 0; y < alpha.height(); y++) {
+                    QRgb *line = reinterpret_cast<QRgb *>(alpha.scanLine(y));
+                    for (int x = 0; x < alpha.width(); x++) {
+                        line[x] = qRgba(ink.red(), ink.green(), ink.blue(), qAlpha(line[x]) * 110 / 255);
                     }
-                    m_tint = alpha;
                 }
+                m_tint = alpha;
             }
         }
         update();
@@ -133,14 +150,9 @@ protected:
             painter.restore();
         }
         // the name, by the pointer
-        QFont font = this->font();
-        font.setBold(true);
-        painter.setFont(font);
+        painter.setFont(nameFont());
         const QString name = m_node->name();
-        const QFontMetrics metrics(font);
-        QRectF pill(m_cursor + QPointF(18, 14), QSizeF(metrics.horizontalAdvance(name) + 20, metrics.height() + 10));
-        if (pill.right() > width() - 4) pill.moveRight(m_cursor.x() - 10);
-        if (pill.bottom() > height() - 4) pill.moveBottom(m_cursor.y() - 10);
+        const QRectF pill = pillAt();
         painter.setPen(Qt::NoPen);
         painter.setBrush(ink);
         painter.drawPath(KisModernStyle::squircle(pill, pill.height() / 2));
@@ -149,8 +161,33 @@ protected:
     }
 
 private:
+    QFont nameFont() const
+    {
+        QFont font = this->font();
+        font.setBold(true);
+        return font;
+    }
+
+    /// Where the name is written, by the pointer
+    QRectF pillAt() const
+    {
+        if (!m_node) return QRectF();
+        const QFontMetrics metrics(nameFont());
+        QRectF pill(m_cursor + QPointF(18, 14), QSizeF(metrics.horizontalAdvance(m_node->name()) + 20, metrics.height() + 10));
+        if (pill.right() > width() - 4) pill.moveRight(m_cursor.x() - 10);
+        if (pill.bottom() > height() - 4) pill.moveBottom(m_cursor.y() - 10);
+        return pill;
+    }
+
+    QRect pillRect() const
+    {
+        return pillAt().toAlignedRect().adjusted(-2, -2, 2, 2);
+    }
+
     std::function<KisNodeSP(const QPointF &)> m_picks;
     QPointer<KisCanvas2> m_canvas;
+    bool m_picked {false};
+    QPointF m_pickedAt;
     KisNodeSP m_node;
     QRect m_bounds;
     QImage m_tint;
@@ -181,6 +218,8 @@ public:
     KisNodeSP pressedNode;
     QPoint pressedImageAt;
     KisStrokeId moveStroke;
+    /// The image the layer moves in, to end its stroke even when the canvas is gone by then
+    KisImageWSP moveImage;
 
     /// The layers with paint at \p imagePos, the top one first
     KisNodeList stackAt(const QPoint &imagePos) const
@@ -350,12 +389,13 @@ void KisSelectLayerAction::begin(int shortcut, QEvent *event)
 void KisSelectLayerAction::end(QEvent *event)
 {
     if (d->moveStroke) {
-        if (KisCanvas2 *canvas = inputManager()->canvas()) canvas->image()->endStroke(d->moveStroke);
+        if (KisImageSP image = d->moveImage) image->endStroke(d->moveStroke);
         d->moveStroke.clear();
+        d->moveImage = KisImageWSP();
     } else if (d->pendingPick) {
         // let go without dragging: the click picks
         d->selectNodes({d->pendingPick}, d->pendingOverride, true);
-        if (d->hover) d->hover->pointAt(d->pressedAt);
+        if (d->hover) d->hover->picksChanged(d->pressedAt);
     }
     d->pendingPick.clear();
     d->pressedNode.clear();
@@ -417,6 +457,7 @@ void KisSelectLayerAction::inputEvent(QEvent *event)
                 d->lastPick.invalidate();
                 d->selectNodes({d->pressedNode}, SelectionOverrideMode_Replace, true);
                 d->moveStroke = image->startStroke(new MoveStrokeStrategy(KisNodeList{d->pressedNode}, image.data(), image.data()));
+                d->moveImage = image;
             }
             image->addJob(d->moveStroke, new MoveStrokeStrategy::Data(pos - d->pressedImageAt));
             return;
@@ -496,6 +537,6 @@ void KisSelectLayerAction::inputEvent(QEvent *event)
     // Now select the nodes
     d->selectNodes(nodesToSelect, selectionOverrideMode, true);
     if (d->hover) {
-        d->hover->pointAt(eventPosF(event));
+        d->hover->picksChanged(eventPosF(event));
     }
 }

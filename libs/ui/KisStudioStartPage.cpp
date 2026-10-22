@@ -9,6 +9,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QDragEnterEvent>
 #include <QFileInfo>
 #include <QFutureWatcher>
@@ -168,7 +169,7 @@ public:
     QImage get(const QString &path, int longest)
     {
         const QString key = path + QLatin1Char('|') + QString::number(longest);
-        const QDateTime time = QFileInfo(path).lastModified();
+        const QDateTime time = modified(path);
         const auto found = m_pictures.constFind(key);
         if ((found == m_pictures.constEnd() || found->time != time) && !m_reading.contains(key)) {
             m_reading.insert(key);
@@ -193,6 +194,20 @@ private:
         : QObject(parent)
     {
         m_pool.setMaxThreadCount(2);
+        m_clock.start();
+    }
+
+    /// When \p path last changed, looked at no more than every two seconds: asked at every paint and layout of
+    /// the gallery, and a file on a network drive can take long to answer
+    QDateTime modified(const QString &path)
+    {
+        auto it = m_modified.find(path);
+        if (it == m_modified.end() || m_clock.elapsed() - it->second > 2000) {
+            const QDateTime time = QFileInfo(path).lastModified();
+            if (it == m_modified.end()) it = m_modified.insert(path, {time, m_clock.elapsed()});
+            else *it = {time, m_clock.elapsed()};
+        }
+        return it->first;
     }
 
     struct Picture {
@@ -200,6 +215,8 @@ private:
         QDateTime time;
     };
     QHash<QString, Picture> m_pictures;
+    QHash<QString, QPair<QDateTime, qint64>> m_modified;
+    QElapsedTimer m_clock;
     QSet<QString> m_reading;
     QThreadPool m_pool;
     QList<QPair<QPointer<QObject>, std::function<void()>>> m_viewers;
