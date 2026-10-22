@@ -10,61 +10,82 @@
 
 #include "kis_tool_brush.h"
 #include <kis_icon.h>
+#include "kis_tool_multihand_config.h"
+#include <QRandomGenerator>
 
+class QPushButton;
+class QCheckBox;
+class QComboBox;
+class QStackedWidget;
+class KisSliderSpinBox;
 class KisToolMultihandHelper;
 
-/**
- * The brush, painting Symmetry's radial and tiled copies (see
- * KisStudioSymmetry, whose settings it follows). Radial copies turn around a
- * center that is dragged on the canvas, as is the knob that turns them; a
- * double click on the center puts it back in the middle of the image.
- */
 class KisToolMultihand : public KisToolBrush
 {
     Q_OBJECT
 public:
     KisToolMultihand(KoCanvasBase *canvas);
     ~KisToolMultihand() override;
-
     void beginPrimaryAction(KoPointerEvent *event) override;
     void continuePrimaryAction(KoPointerEvent *event) override;
     void endPrimaryAction(KoPointerEvent *event) override;
-    void beginPrimaryDoubleClickAction(KoPointerEvent *event) override;
-    void mouseMoveEvent(KoPointerEvent *event) override;
+
+    void beginAlternateAction(KoPointerEvent *event, AlternateAction action) override;
+    void continueAlternateAction(KoPointerEvent *event, AlternateAction action) override;
+    void endAlternateAction(KoPointerEvent *event, AlternateAction action) override;
+
+    void mouseMoveEvent(KoPointerEvent* event) override;
+
 
 protected:
-    void paint(QPainter &gc, const KoViewConverter &converter) override;
+    void paint(QPainter& gc, const KoViewConverter &converter) override;
+    
+    QWidget* createOptionWidget() override;
 
 private:
-    enum class Handle { None, Center, Knob };
-
-    /// The handle at \p point (document coordinates), if any
-    Handle handleAt(const QPointF &point) const;
-    /// Where the knob that turns the copies is, in image pixels
-    QPointF knob() const;
     void initTransformations();
-    /// Tile: the part of the image the copies are spread over (the selection, or all of it)
-    QRect tileBounds() const;
+    void finishAxesSetup();
     void updateCanvas();
+    QVector<QPoint> intervalLocations();
 
 private Q_SLOTS:
-    void readSettings();
-    void resetCenter();
+    void activateAxesPointModeSetup();
+    void resetAxes();
+    void slotSetHandsCount(int count);
+    void slotSetAxesAngle(qreal angle);
+    void slotSetTransformMode(int qcomboboxIndex);
+    void slotSetAxesVisible(bool vis);
+    void slotSetMirrorVertically(bool mirror);
+    void slotSetMirrorHorizontally(bool mirror);
+    void slotSetTranslateRadius(int radius);
+    void slotAddSubbrushesMode(bool checked);
+    void slotRemoveAllSubbrushes();
+    void slotSetIntervals();
+    void slotSetKeepAspect();
 
 private:
     KisToolMultihandHelper *m_helper;
 
-    bool m_tile {false};
-    int m_copies {6};
-    bool m_mirrored {false};
-    QSize m_spacing;
-    QPointF m_center;
-    /// Tile: where the stroke started, its place in its cell the same in every cell
-    QPointF m_tileStart;
-    /// Of the first axis, from straight up, clockwise
-    qreal m_angle {0};
-    Handle m_dragging {Handle::None};
-    Handle m_hovered {Handle::None};
+    enum enumTransformModes:int { SYMMETRY=0, MIRROR, TRANSLATE, SNOWFLAKE, COPYTRANSLATE, COPYTRANSLATEINTERVALS };
+    enumTransformModes m_transformMode;
+    QPointF m_axesPoint;
+    qreal m_angle;
+    int m_handsCount;
+    bool m_mirrorVertically;
+    bool m_mirrorHorizontally;
+    bool m_showAxes;
+    int m_translateRadius;
+
+    bool m_setupAxesFlag;
+    bool m_addSubbrushesMode;
+    QPointF m_lastToolPos;
+    QVector<QPointF> m_subbrOriginalLocations;
+
+    int m_intervalX;
+    int m_intervalY;
+    QRandomGenerator m_randomGenerator;
+
+    KisToolMultiHandConfigWidget* customUI;
 };
 
 

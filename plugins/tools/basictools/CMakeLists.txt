@@ -15,7 +15,7 @@ set(kritadefaulttools_static_SRCS
     kis_tool_movetooloptionswidget.cpp
     strokes/move_selection_stroke_strategy.cpp
     KisMoveBoundsCalculationJob.cpp
-    kis_tool_multihand.cpp
+    KisStudioMultiBrush.cpp
     kis_tool_pencil.cc
     kis_tool_pan.cpp
 )
