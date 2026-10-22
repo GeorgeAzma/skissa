@@ -146,7 +146,11 @@ void KisLastStrokeReplay::replay()
         // stopped before its step was pushed: the stroke stays taken back, ready to be painted again
         d->cancelling = false;
         d->dirty = false;
-        d->helper->replayLastStroke();
+        if (!d->helper->replayLastStroke()) {
+            // it can't be: the stroke comes back as it was
+            d->stack->setIndex(d->expectedIndex);
+            d->expectedIndex = -1;
+        }
         return;
     }
 

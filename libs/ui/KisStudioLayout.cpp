@@ -1892,8 +1892,10 @@ public:
         QWidget *area = parentWidget();
         const QPair<int, int> span = spanY();
         applyWidths();
-        // with only the strip showing, placed as if open, so the strip stays where it was
-        const QSize size = sizeNow();
+        // with only the strip showing, placed as if open, so the strip stays where it was; while the group is
+        // dragged its panels don't change, so they are measured once rather than at every move
+        if (!m_moving || m_movingSize.isEmpty()) m_movingSize = sizeNow();
+        const QSize size = m_movingSize;
         const QSize placed = placedSize(size);
         const int across = offsetOf(m_spot.x(), area->width() - 2 * margin - placed.width());
         // the height its place was taken at: as it grows or folds it keeps its top, or against the bottom its bottom
@@ -2020,6 +2022,7 @@ protected:
         if (!m_moving) {
             if ((global - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
             m_moving = true;
+            m_movingSize = QSize();
             // what is carried goes over the other overlays
             raise();
             setCursor(Qt::ClosedHandCursor);
@@ -2299,6 +2302,8 @@ private:
     bool m_shownPanels {true};
     /// Where it was last placed, as if open
     QRect m_placed;
+    /// Its size while dragged (see place())
+    QSize m_movingSize;
     /// Where it is going (see glideTo()), from what and in which window size
     QRect m_target;
     QVariantAnimation m_glide;

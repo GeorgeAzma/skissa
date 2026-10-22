@@ -1077,9 +1077,17 @@ void KisStudioFind::updateCommands(const QString &query)
 void KisStudioFind::registerButtons()
 {
     // tooltips show a button's shortcut after its name
-    KisStudioTips::install([self = QPointer<KisStudioFind>(this)](QAbstractButton *button) {
+    KisStudioTips::install([fallback = QPointer<KisStudioFind>(this)](QAbstractButton *button) {
         auto *tool = qobject_cast<QToolButton *>(button);
         if (tool && tool->defaultAction()) return tool->defaultAction()->shortcut();
+        // the Find of the button's own window: each window installs this, the last one replacing the others
+        QPointer<KisStudioFind> self = fallback;
+        for (QWidget *w = button; w; w = w->parentWidget()) {
+            if (auto *window = qobject_cast<KisMainWindow *>(w)) {
+                if (window->studioFind()) self = window->studioFind();
+                break;
+            }
+        }
         if (!self) return QKeySequence();
         // a button that runs one of the window's actions
         const QString runs = button->property("runsAction").toString();

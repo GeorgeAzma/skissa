@@ -892,6 +892,9 @@ bool KisToolFreehandHelper::replayLastStroke()
     KisNodeSP node = m_d->piecesNode;
     if (isRunning() || m_d->pieces.isEmpty() || !image || !node || !m_d->strokesFacade) return false;
     if (smoothingKey() != m_d->piecesSmoothing && !m_d->rawInputs.isEmpty()) {
+        // the stabilizer is replayed a sample per millisecond, on this thread: not for a pen held for minutes
+        const qreal duration = m_d->rawInputs.last().currentTime() - m_d->rawInputs.first().currentTime();
+        if (m_d->smoothingOptions->smoothingType() == KisSmoothingOptions::STABILIZER && duration > 60000) return false;
         replayFromInput();
         return true;
     }
