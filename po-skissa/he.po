@@ -406,6 +406,10 @@ msgctxt "a new image's size: a phone's screen, upright"
 msgid "Portrait"
 msgstr "לאורך"
 
+msgctxt "a new image: from the image on the clipboard"
+msgid "Clipboard"
+msgstr "לוח גזירים"
+
 msgctxt "@info:tooltip tool slot"
 msgid "Select"
 msgstr "בחירה"
