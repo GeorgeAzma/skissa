@@ -31,7 +31,7 @@ struct KisEqualizerWidget::Private
     QMap<int, KisEqualizerColumn*> columns;
     int maxDistance;
     KisSignalCompressor updateCompressor;
-    QMenu *contextMenu; 
+    QMenu *contextMenu {nullptr};
 };
 
 KisEqualizerWidget::KisEqualizerWidget(int maxDistance, QWidget *parent)
