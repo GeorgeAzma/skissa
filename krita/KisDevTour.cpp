@@ -1476,17 +1476,20 @@ private:
         if (begin(QStringLiteral("brusheditor")) != Step::Full) return;
         const QString section = QStringLiteral("12 brush editor");
         QAction *show = action("show_brush_editor");
-        if (!show) return;
-        show->trigger();
-        wait(800);
         QWidget *editor = nullptr;
-        Q_FOREACH (QWidget *top, visibleTops()) {
-            Q_FOREACH (QWidget *w, top->findChildren<QWidget *>()) {
-                if (!editor && w->inherits("KisPaintOpPresetsEditor") && w->isVisible()) editor = w;
+        if (show) {
+            show->trigger();
+            wait(800);
+            Q_FOREACH (QWidget *top, visibleTops()) {
+                Q_FOREACH (QWidget *w, top->findChildren<QWidget *>()) {
+                    if (!editor && w->inherits("KisPaintOpPresetsEditor") && w->isVisible()) editor = w;
+                }
             }
         }
         if (!editor) {
+            // in the Studio the action opens the quick editor instead
             note(QStringLiteral("  no brush editor"));
+            end(QStringLiteral("brusheditor"));
             return;
         }
         QWidget *window = editor->window();
