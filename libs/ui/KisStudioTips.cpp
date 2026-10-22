@@ -170,6 +170,19 @@ QString glyphFile(Gesture gesture, const QColor &ink, const QColor &lit)
     return url;
 }
 
+/**
+ * The length of \p line's lead, a name of a few words before ": " ("Alpha lock: paint only over existing paint"),
+ * shown in bold in place of the colon; 0 for none
+ */
+int leadOf(const QString &line)
+{
+    const int colon = line.indexOf(QLatin1String(": "));
+    if (colon <= 0 || colon > 28) return 0;
+    const QString lead = line.left(colon);
+    if (lead.count(QLatin1Char(' ')) > 2 || lead.contains(QChar(0x2192)) || !lead.at(0).isLetterOrNumber()) return 0;
+    return colon;
+}
+
 QString css(const QColor &color)
 {
     return QStringLiteral("rgba(%1,%2,%3,%4)").arg(color.red()).arg(color.green()).arg(color.blue()).arg(color.alphaF(), 0, 'f', 2);
@@ -225,12 +238,17 @@ QString KisStudioTips::html(const QString &tooltip, const QString &keys)
     }
     QStringList text;
     QList<Line> gestures;
+    bool led = false;
     Q_FOREACH (const QString &part, tooltip.split(QLatin1Char('\n'))) {
         Line line;
-        if (readLine(part, &line)) gestures << line;
-        else text << part;
+        if (readLine(part, &line)) {
+            gestures << line;
+        } else {
+            text << part;
+            led = led || leadOf(part) > 0;
+        }
     }
-    if (gestures.isEmpty() && keys.isEmpty()) return tooltip;
+    if (gestures.isEmpty() && keys.isEmpty() && !led) return tooltip;
 
     const QColor ink = QToolTip::palette().color(QPalette::ToolTipText);
     QColor quiet = ink;
@@ -240,7 +258,11 @@ QString KisStudioTips::html(const QString &tooltip, const QString &keys)
     const QColor lit = QApplication::palette().color(QPalette::Highlight);
     QString out;
     QStringList lines;
-    Q_FOREACH (const QString &line, text) lines << line.toHtmlEscaped();
+    Q_FOREACH (const QString &line, text) {
+        const int lead = leadOf(line);
+        lines << (lead > 0 ? QStringLiteral("<b>%1</b>&nbsp;%2").arg(line.left(lead).toHtmlEscaped(), line.mid(lead + 2).toHtmlEscaped())
+                           : line.toHtmlEscaped());
+    }
     if (!lines.isEmpty() && !keys.isEmpty()) {
         lines[0] += QStringLiteral("&nbsp;&nbsp;&nbsp;<span style=\"color:%1\">%2</span>").arg(css(quiet), keys.toHtmlEscaped());
     }

@@ -76,10 +76,10 @@ QString KisStudioPenPopup::inputTip(const QString &id)
 {
     static const QHash<QString, QString> tips = {
         {QStringLiteral("pressure"), i18nc("@info:tooltip pen input", "Light → firm press")},
-        {QStringLiteral("pressurein"), i18nc("@info:tooltip pen input", "The hardest press so far: never lightens mid-stroke")},
+        {QStringLiteral("pressurein"), i18nc("@info:tooltip pen input", "The hardest you've pressed so far, so it never lightens mid-stroke")},
         {QStringLiteral("declination"), i18nc("@info:tooltip pen input", "Pen upright → lying flat")},
         {QStringLiteral("speed"), i18nc("@info:tooltip pen input", "Slow → fast strokes")},
-        {QStringLiteral("drawingangle"), i18nc("@info:tooltip pen input", "The way the stroke heads: → ↓ ← ↑")},
+        {QStringLiteral("drawingangle"), i18nc("@info:tooltip pen input", "Which way the stroke is heading, → ↓ ← ↑")},
         {QStringLiteral("fade"), i18nc("@info:tooltip pen input", "Start of the stroke → further along it")},
         {QStringLiteral("fuzzy"), i18nc("@info:tooltip pen input", "A new random amount every dab")},
         {QStringLiteral("fuzzystroke"), i18nc("@info:tooltip pen input", "One random amount for the whole stroke")},
@@ -135,7 +135,7 @@ KisStudioPenPopup::KisStudioPenPopup(KisPaintOpOption *option, QWidget *parent, 
     if (option->isCheckable() && value && !value->appliesUnchecked) {
         // an effect the brush can go without (Rotation, Scatter): its own switch
         d->on = new QCheckBox(this);
-        d->on->setToolTip(i18nc("@info:tooltip a brush effect's switch", "Off: the brush goes without it"));
+        d->on->setToolTip(i18nc("@info:tooltip a brush effect's switch", "Off: the brush paints without it"));
         header->addWidget(d->on);
         connect(d->on, &QCheckBox::toggled, this, [this](bool checked) {
             if (d->option) d->option->setChecked(checked);

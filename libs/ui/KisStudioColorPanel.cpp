@@ -1308,7 +1308,7 @@ protected:
         if (event->type() == QEvent::ToolTip) {
             QStringList gestures = KisStudioTips::valueGestures();
             gestures << KisStudioTips::scrollStep();
-            const QString tip = KisStudioTips::tip(i18nc("@info:tooltip", "Brighter than white: +1 twice, +2 four times"), gestures);
+            const QString tip = KisStudioTips::tip(i18nc("@info:tooltip", "Brighter than white: +1 is twice as bright, +2 four times"), gestures);
             QToolTip::showText(static_cast<QHelpEvent *>(event)->globalPos(), KisStudioTips::html(tip), this);
             return true;
         }
@@ -1737,7 +1737,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->hex->setFrame(false);
     d->hex->setFixedWidth(64);
     d->hex->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    d->hex->setToolTip(i18nc("@info:tooltip", "Hex code, or any color: rgb(…), oklch(…), hsv(…)"));
+    d->hex->setToolTip(i18nc("@info:tooltip", "A hex code, or any color like rgb(…), oklch(…) or hsv(…)"));
     d->hex->written = [this]() { return d->written(); };
     row->addWidget(d->hex);
     layout->addLayout(row);

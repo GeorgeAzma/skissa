@@ -68,6 +68,7 @@
 #include "KisStudioGlass.h"
 #include "KisStudioMotion.h"
 #include "KisStudioTheme.h"
+#include "KisStudioTips.h"
 #include "widgets/KisStudioInlineEdit.h"
 #include "widgets/KisStudioPicker.h"
 #include "KisViewManager.h"
@@ -620,7 +621,7 @@ struct Builder {
             QStringList notes;
             if (!s->help.isEmpty()) notes << s->help;
             if (s->flags & R::NewViews) notes << i18nc("@info:tooltip", "For images opened from now on");
-            if (s->flags & R::Machine) notes << i18nc("@info:tooltip", "Stays on this computer: not exported");
+            if (s->flags & R::Machine) notes << i18nc("@info:tooltip", "Stays on this computer and isn't exported");
             if (!notes.isEmpty()) row->setToolTip(notes.join(QStringLiteral("\n\n")));
             if (s->flags & R::Restart) line->insertWidget(1, restartMark(id, row));
             if (KisStudioControls::canPinSetting(id) && !controlBelow) line->addWidget(pinButton(id, row));
@@ -1089,8 +1090,8 @@ protected:
                 QToolTip::hideText();
             } else {
                 QToolTip::showText(help->globalPos(),
-                                   i18nc("@info:tooltip a theme in the picker", "%1\nDouble-click: rename\nRight-click: more",
-                                         m_themes[m_places[i].theme].name),
+                                   KisStudioTips::html(i18nc("@info:tooltip a theme in the picker", "%1\nDouble-click: rename\nRight-click: more",
+                                                             m_themes[m_places[i].theme].name)),
                                    this, cell(m_places[i]));
             }
             return true;
@@ -1233,7 +1234,7 @@ QVector<CardDef> makeCards()
             add->setAutoRaise(true);
             add->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_add")));
             add->setIconSize(QSize(14, 14));
-            add->setToolTip(i18nc("@info:tooltip", "New theme: a copy of this one"));
+            add->setToolTip(i18nc("@info:tooltip", "New theme"));
             QObject::connect(add, &QToolButton::clicked, add, []() { KisStudioTheme::add(); });
             b.header->insertWidget(b.header->count() - 1, add);
             b.layout->addWidget(picker);
@@ -1398,7 +1399,7 @@ QVector<CardDef> makeCards()
             QObject::connect(curve, &KisCurveWidget::curveChanged, b.card,
                              [](const KisCubicCurve &c) { R::instance()->setValue(QStringLiteral("tabletPressureCurve"), c.toString()); });
             b.layout->addWidget(curve);
-            b.explain(i18nc("@info:tooltip", "Across: how hard you press. Up: how much it paints."));
+            b.explain(i18nc("@info:tooltip", "Across: how hard you press\nUp: how much it paints"));
         });
     add(QStringLiteral("pen"), QStringLiteral("tablet"), i18nc("settings card", "Tablet"),
         {QStringLiteral("kritadisplayrc useWin8PointerInput"), QStringLiteral("useRightMiddleTabletButtonWorkaround")},
@@ -1464,7 +1465,7 @@ QVector<CardDef> makeCards()
          KisImageConfig::layerNameKey(KisImageConfig::PastedLayer, true), KisImageConfig::layerNameKey(KisImageConfig::PastedLayer, false),
          KisImageConfig::layerNameKey(KisImageConfig::MergedLayer, true), KisImageConfig::layerNameKey(KisImageConfig::MergedLayer, false)},
         QStringLiteral("copy of duplicate pasted merged rename prefix suffix naming"), [](Builder &b) {
-            b.explain(i18nc("@info:tooltip", "Words around a copied, pasted or merged layer's name: Ink → Copy of Ink. Empty: none"));
+            b.explain(i18nc("@info:tooltip", "The words added to a copied, pasted or merged layer's name, as in Ink → Copy of Ink"));
             // Laid out as the name will read: [before] Layer [after]
             auto *grid = new QGridLayout();
             grid->setHorizontalSpacing(6);
@@ -1635,7 +1636,7 @@ QVector<CardDef> makeCards()
         }
         add(QStringLiteral("color"), QStringLiteral("screens"), i18nc("settings card", "Screens"), screenSettings,
             QStringLiteral("monitor profile screen display icc hdr calibration surface"), [screenSettings](Builder &b) {
-                b.explain(i18nc("@info:tooltip", "Each screen's calibrated profile: the canvas shows its colors right"));
+                b.explain(i18nc("@info:tooltip", "Each screen's calibrated profile, so the canvas shows colors right"));
                 const bool osManaged = KisPlatformPluginInterfaceFactory::instance()->surfaceColorManagedByOS();
                 Q_FOREACH (const QString &id, screenSettings) {
                     if (id == QLatin1String("canvasSurfaceColorSpaceManagementMode") || id == QLatin1String("canvasSurfaceBitDepthMode")) {

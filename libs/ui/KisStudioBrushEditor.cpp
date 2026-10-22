@@ -72,15 +72,15 @@ QString partTip(int part)
 {
     switch (part) {
     case KisPaintOpOption::MASKING_BRUSH:
-        return i18nc("@info:tooltip brush part", "A second tip that cuts into the first: bristles, chalk");
+        return i18nc("@info:tooltip brush part", "A second tip that cuts into the first, for bristles or chalk");
     case KisPaintOpOption::TEXTURE:
         return i18nc("@info:tooltip brush part", "A paper grain the paint catches on");
     case KisPaintOpOption::COLOR:
         return i18nc("@info:tooltip brush part", "Where the color comes from and how it builds up");
     case KisPaintOpOption::FILTER:
-        return i18nc("@info:tooltip brush part", "The effect the brush paints with: blur, sharpen…");
+        return i18nc("@info:tooltip brush part", "Paints with an effect, like blur or sharpen");
     case strokePart:
-        return i18nc("@info:tooltip brush part", "How the line is laid down: smoothing, shapes");
+        return i18nc("@info:tooltip brush part", "How the line is laid down, with smoothing and shapes");
     }
     return QString();
 }
@@ -226,22 +226,22 @@ QString KisStudioBrushEditor::optionTip(KisPaintOpOption *option)
 {
     static const QHash<QString, QString> tips = {
         {QStringLiteral("Opacity"), i18nc("@info:tooltip brush setting", "0% see-through → 100% solid")},
-        {QStringLiteral("Flow"), i18nc("@info:tooltip brush setting", "Each dab: 10% builds up slowly → 100% full")},
-        {QStringLiteral("Spacing"), i18nc("@info:tooltip brush setting", "Gap between dabs: 5% smooth line → 100% beads")},
-        {QStringLiteral("Ratio"), i18nc("@info:tooltip brush setting", "Tip shape: 100% round → 20% flat")},
-        {QStringLiteral("Softness"), i18nc("@info:tooltip brush setting", "Edge: 0% crisp → 100% soft")},
-        {QStringLiteral("Rotation"), i18nc("@info:tooltip brush setting", "The tip turned, e.g. along the stroke")},
-        {QStringLiteral("Mirror"), i18nc("@info:tooltip brush setting", "Dabs flipped, e.g. at random")},
-        {QStringLiteral("Sharpness"), i18nc("@info:tooltip brush setting", "Edges on whole pixels, for pixel art")},
-        {QStringLiteral("Scatter"), i18nc("@info:tooltip brush setting", "Dabs strewn off the line: 0% on it → more, spread out")},
-        {QStringLiteral("Darken"), i18nc("@info:tooltip brush setting", "The color darker, e.g. with pressure")},
-        {QStringLiteral("Mix"), i18nc("@info:tooltip brush setting", "Foreground → background color, e.g. by pressure")},
-        {QStringLiteral("h"), i18nc("@info:tooltip brush setting", "The hue shifts, e.g. at random each dab")},
-        {QStringLiteral("s"), i18nc("@info:tooltip brush setting", "The saturation shifts, e.g. at random each dab")},
-        {QStringLiteral("v"), i18nc("@info:tooltip brush setting", "The lightness shifts, e.g. at random each dab")},
-        {QStringLiteral("Rate"), i18nc("@info:tooltip brush setting", "Airbrush: dabs a second while the pen holds still")},
+        {QStringLiteral("Flow"), i18nc("@info:tooltip brush setting", "10% builds up slowly → 100% lays it on full")},
+        {QStringLiteral("Spacing"), i18nc("@info:tooltip brush setting", "The gap between dabs, from a smooth line at 5% to beads at 100%")},
+        {QStringLiteral("Ratio"), i18nc("@info:tooltip brush setting", "100% round → 20% flat")},
+        {QStringLiteral("Softness"), i18nc("@info:tooltip brush setting", "0% crisp → 100% soft")},
+        {QStringLiteral("Rotation"), i18nc("@info:tooltip brush setting", "Turns the tip, for example along the stroke")},
+        {QStringLiteral("Mirror"), i18nc("@info:tooltip brush setting", "Flips dabs, for example at random")},
+        {QStringLiteral("Sharpness"), i18nc("@info:tooltip brush setting", "Puts edges on whole pixels, for pixel art")},
+        {QStringLiteral("Scatter"), i18nc("@info:tooltip brush setting", "Scatters dabs off the line. At 0% they stay on it")},
+        {QStringLiteral("Darken"), i18nc("@info:tooltip brush setting", "Darkens the color, for example with pressure")},
+        {QStringLiteral("Mix"), i18nc("@info:tooltip brush setting", "Mixes from the foreground to the background color, for example with pressure")},
+        {QStringLiteral("h"), i18nc("@info:tooltip brush setting", "Shifts the hue, for example at random each dab")},
+        {QStringLiteral("s"), i18nc("@info:tooltip brush setting", "Shifts the saturation, for example at random each dab")},
+        {QStringLiteral("v"), i18nc("@info:tooltip brush setting", "Shifts the lightness, for example at random each dab")},
+        {QStringLiteral("Rate"), i18nc("@info:tooltip brush setting", "Airbrush: dabs a second while the pen is held still")},
         {QStringLiteral("LightnessStrength"), i18nc("@info:tooltip brush setting", "The tip's lights and darks shade the paint")},
-        {QStringLiteral("Texture/Strength/"), i18nc("@info:tooltip brush setting", "Texture: 0% none → 100% full")},
+        {QStringLiteral("Texture/Strength/"), i18nc("@info:tooltip brush setting", "0% no texture → 100% full")},
     };
     // the mask's own settings have a prefix before the same names
     const QString id = option->id();

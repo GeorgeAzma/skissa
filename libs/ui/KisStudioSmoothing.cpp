@@ -701,7 +701,7 @@ void KisStudioStrokePage::rebuild()
         const QStringList names = {i18nc("smoothing is off", "Off"), i18nc("@item:inlistbox Brush Smoothing", "Weighted"),
                                    i18nc("@item:inlistbox Brush Smoothing", "Stabilizer")};
         const QStringList tips = {i18nc("@info:tooltip", "Your line, exactly"), i18nc("@info:tooltip", "Trails behind the pen and evens out"),
-                                  i18nc("@info:tooltip", "Follows the pen on a string: steadiest, with some lag")};
+                                  i18nc("@info:tooltip", "Follows the pen on a string. The steadiest, with some lag")};
         for (int i = 0; i < 3; i++) {
             KisStudioChips::Chip chip;
             chip.text = names[i];
@@ -739,7 +739,7 @@ void KisStudioStrokePage::rebuild()
             if (linked) {
                 auto *amount = strengthRow(i18nc("how much a line is smoothed", "Strength"), options->smoothnessDistanceMin());
                 amount->setProperty("amount", true);
-                amount->setToolTip(i18nc("@info:tooltip line smoothing", "More: a steadier line, more lag"));
+                amount->setToolTip(i18nc("@info:tooltip line smoothing", "More: a steadier line, but more lag"));
                 connect(amount, &KisStudioValueRow::valueChanged, this, [change](qreal value) {
                     change([value](KisSmoothingOptions &options) { setDistance(options, value); });
                 });
@@ -813,7 +813,7 @@ void KisStudioStrokePage::rebuild()
         }
         if (type == KisSmoothingOptions::WEIGHTED_SMOOTHING) {
             addSwitch(i18nc("line smoothing measured on the screen, not the image", "Follows zoom"),
-                      i18nc("@info:tooltip", "On: the same on screen at any zoom\nOff: the same on the image"), options->useScalableDistance(),
+                      i18nc("@info:tooltip", "On: the same on screen at any zoom\nOff: the same on the image, so it shrinks as you zoom in"), options->useScalableDistance(),
                       [change](bool on) { change([on](KisSmoothingOptions &options) { options.setUseScalableDistance(on); }); });
         }
         if (pixel) {

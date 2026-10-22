@@ -647,7 +647,7 @@ public:
             if (tip.isEmpty()) {
                 QToolTip::hideText();
             } else {
-                QToolTip::showText(help->globalPos(), tip, this);
+                QToolTip::showText(help->globalPos(), KisStudioTips::html(tip), this);
             }
             return true;
         }

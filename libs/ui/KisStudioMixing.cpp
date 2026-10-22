@@ -86,7 +86,7 @@ QWidget *KisStudioMixing::chooser(KisMainWindow *mainWindow, QWidget *parent)
         even.toolTip = i18nc("@info:tooltip", "Even steps from color to color");
         KisStudioChips::Chip pigment;
         pigment.text = i18nc("how paint mixes: as real pigments do", "Pigment");
-        pigment.toolTip = i18nc("@info:tooltip", "Like paint: blue and yellow make green");
+        pigment.toolTip = i18nc("@info:tooltip", "Like real paint: blue and yellow make green");
         QVector<KisStudioChips::Chip> chips {normal, even, pigment};
         for (int i = 0; i < chips.size(); i++) {
             chips[i].picture = picture(i);

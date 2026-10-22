@@ -51,6 +51,7 @@
 #include "KisStudioFind.h"
 #include "KisStudioItemCard.h"
 #include "KisStudioRings.h"
+#include "KisStudioTips.h"
 #include "input/kis_abstract_input_action.h"
 #include "input/kis_input_profile.h"
 #include "input/kis_input_profile_manager.h"
@@ -447,7 +448,7 @@ protected:
                               : use.elsewhere ? i18nc("@info:tooltip a key's command that the tool's own key covers while the tool is in use", "%1 (elsewhere)", use.name)
                                               : use.name);
                 }
-                QToolTip::showText(help->globalPos(), lines.isEmpty() ? i18nc("@info:tooltip a key with no shortcut", "%1: free", key)
+                QToolTip::showText(help->globalPos(), lines.isEmpty() ? KisStudioTips::html(i18nc("@info:tooltip a key with no shortcut", "%1: free", key))
                                                                       : QStringLiteral("<b>%1</b><br>%2").arg(key.toHtmlEscaped(), lines.join(QStringLiteral("<br>")).toHtmlEscaped().replace(QStringLiteral("&lt;br&gt;"), QStringLiteral("<br>"))),
                                    this);
             } else {
@@ -1364,7 +1365,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     // Creates a ring and records its key right away
     auto *newRing = new QToolButton(this);
     newRing->setText(i18nc("@action:button keys page", "New ring"));
-    newRing->setToolTip(i18nc("@info:tooltip", "Ring on a key: tap to open, hold and point to pick"));
+    newRing->setToolTip(i18nc("@info:tooltip", "A ring of commands on a key. Tap the key to open it, or hold it and point to pick"));
     bar->addWidget(newRing);
     connect(newRing, &QToolButton::clicked, this, [this]() {
         KisStudioRings *rings = d->mainWindow ? d->mainWindow->studioRings() : nullptr;

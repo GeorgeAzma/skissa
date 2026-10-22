@@ -314,7 +314,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     auto *valueView = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_value")), i18nc("@action", "Value View"), mainWindow);
     valueView->setObjectName(QStringLiteral("studio_value_view"));
     valueView->setCheckable(true);
-    valueView->setToolTip(i18nc("@info:tooltip", "Grayscale: see lights and darks"));
+    valueView->setToolTip(i18nc("@info:tooltip", "Grayscale: see the lights and darks"));
     valueView->setShortcutContext(Qt::WindowShortcut);
     KisStudioShortcuts::restore(valueView);
     mainWindow->actionCollection()->addAction(valueView->objectName(), valueView);

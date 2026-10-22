@@ -13,6 +13,8 @@
 
 #include <KisModernStyle.h>
 
+#include "KisStudioTips.h"
+
 namespace {
 constexpr int gap = KisModernStyle::space1;
 constexpr int padding = 10;
@@ -263,7 +265,7 @@ bool KisStudioChips::event(QEvent *event)
         auto *help = static_cast<QHelpEvent *>(event);
         const int index = at(help->pos());
         if (index >= 0 && !m_chips[index].toolTip.isEmpty()) {
-            QToolTip::showText(help->globalPos(), m_chips[index].toolTip, this);
+            QToolTip::showText(help->globalPos(), KisStudioTips::html(m_chips[index].toolTip), this);
         } else {
             QToolTip::hideText();
         }
