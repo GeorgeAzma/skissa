@@ -573,6 +573,8 @@ struct Builder {
     QWidget *card {nullptr};
     QVBoxLayout *layout {nullptr};
     QLabel *title {nullptr};
+    /// The title's row, ending with the card's ⋯
+    QHBoxLayout *header {nullptr};
     KisMainWindow *window {nullptr};
     QVector<std::function<void()>> refresh;
 
@@ -938,8 +940,8 @@ void paintSurround(QPainter &painter, const QRectF &r, const QColor &around, boo
 }
 
 /**
- * The themes, each pictured in its own colors: the dark ones in rows above the light ones, then a + that
- * adds a copy of the one in use. The theme in use is the one the settings below edit.
+ * The themes, each pictured in its own colors, the dark ones in rows above the light ones. The theme in
+ * use is the one the settings below edit.
  */
 class ThemePicker : public QWidget
 {
@@ -950,7 +952,7 @@ class ThemePicker : public QWidget
         bool dark {true};
     };
     struct Place {
-        int theme; ///< in m_themes; -1 for the +
+        int theme; ///< in m_themes
         int at;    ///< cell, row by row
     };
 
@@ -985,7 +987,6 @@ public:
             // the light ones start a row of their own
             if (dark && place % columns) place += columns - place % columns;
         }
-        m_places << Place{-1, place};
         setFixedHeight(heightFor(width()));
         update();
     }
@@ -1061,18 +1062,6 @@ protected:
         for (int i = 0; i < m_places.size(); i++) {
             const QRectF picture = pictureOf(m_places[i]);
             const QPainterPath outline = KisModernStyle::squircle(picture.adjusted(-0.5, -0.5, 0.5, 0.5), KisModernStyle::tileRadius);
-            if (m_places[i].theme < 0) {
-                painter.setPen(QPen(ink(this, i == m_hovered ? 0.35 : 0.14), 1));
-                painter.setBrush(Qt::NoBrush);
-                painter.drawPath(outline);
-                // the +
-                const QPointF middle = picture.center();
-                const qreal arm = qMin(picture.width(), picture.height()) * 0.16;
-                painter.setPen(QPen(i == m_hovered ? text : KisModernStyle::secondaryInk(text), 1.5, Qt::SolidLine, Qt::RoundCap));
-                painter.drawLine(middle - QPointF(arm, 0), middle + QPointF(arm, 0));
-                painter.drawLine(middle - QPointF(0, arm), middle + QPointF(0, arm));
-                continue;
-            }
             const Item &item = m_themes[m_places[i].theme];
             painter.save();
             painter.setClipPath(KisModernStyle::squircle(picture, KisModernStyle::tileRadius));
@@ -1098,8 +1087,6 @@ protected:
             const int i = at(help->pos());
             if (i < 0) {
                 QToolTip::hideText();
-            } else if (m_places[i].theme < 0) {
-                QToolTip::showText(help->globalPos(), i18nc("@info:tooltip", "New theme: a copy of this one"), this, cell(m_places[i]));
             } else {
                 QToolTip::showText(help->globalPos(),
                                    i18nc("@info:tooltip a theme in the picker", "%1\nDouble-click: rename\nRight-click: more",
@@ -1136,13 +1123,13 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent *event) override
     {
         const int i = at(event->pos());
-        if (event->button() == Qt::LeftButton && i >= 0 && m_places[i].theme >= 0) rename(i);
+        if (event->button() == Qt::LeftButton && i >= 0) rename(i);
     }
 
     void contextMenuEvent(QContextMenuEvent *event) override
     {
         const int i = at(mapFromGlobal(event->globalPos()));
-        const QString id = i >= 0 && m_places[i].theme >= 0 ? m_themes[m_places[i].theme].id : QString();
+        const QString id = i >= 0 ? m_themes[m_places[i].theme].id : QString();
         QMenu menu(this);
         QAction *rename = nullptr, *reset = nullptr, *remove = nullptr, *restore = nullptr;
         if (!id.isEmpty()) {
@@ -1167,8 +1154,9 @@ protected:
 
     void keyPressEvent(QKeyEvent *event) override
     {
+        if (m_places.isEmpty()) return QWidget::keyPressEvent(event);
         const int at = qMax(0, placeOf(m_current));
-        // steps between the places in order, the + included
+        // steps between the places in order
         auto stepped = [this, at](int by) { return qBound(0, at + by, int(m_places.size()) - 1); };
         auto below = [this, at](int rows) {
             const int wanted = m_places[at].at + rows * columns;
@@ -1180,10 +1168,10 @@ protected:
         };
         switch (event->key()) {
         case Qt::Key_Left: choose(stepped(-1)); break;
-        case Qt::Key_Right: if (m_places[stepped(1)].theme >= 0) choose(stepped(1)); break;
+        case Qt::Key_Right: choose(stepped(1)); break;
         case Qt::Key_Up: choose(below(-1)); break;
-        case Qt::Key_Down: if (m_places[below(1)].theme >= 0) choose(below(1)); break;
-        case Qt::Key_F2: if (m_places[at].theme >= 0) rename(at); break;
+        case Qt::Key_Down: choose(below(1)); break;
+        case Qt::Key_F2: rename(at); break;
         default: QWidget::keyPressEvent(event); return;
         }
     }
@@ -1193,10 +1181,6 @@ protected:
 
     void choose(int i)
     {
-        if (m_places[i].theme < 0) {
-            KisStudioTheme::add();
-            return;
-        }
         const QString id = m_themes[m_places[i].theme].id;
         if (id != m_current) KisStudioTheme::pick(id);
     }
@@ -1244,6 +1228,14 @@ QVector<CardDef> makeCards()
         QStringLiteral("dark light colors color scheme palette accent tint contrast lightness"), [](Builder &b) {
             auto *picker = new ThemePicker(b.card);
             b.follow([picker]() { picker->refresh(); });
+            // a new theme, beside the card's ⋯, so the themes keep their rows
+            auto *add = new QToolButton(b.card);
+            add->setAutoRaise(true);
+            add->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_add")));
+            add->setIconSize(QSize(14, 14));
+            add->setToolTip(i18nc("@info:tooltip", "New theme: a copy of this one"));
+            QObject::connect(add, &QToolButton::clicked, add, []() { KisStudioTheme::add(); });
+            b.header->insertWidget(b.header->count() - 1, add);
             b.layout->addWidget(picker);
             // The theme in use, as the parameters it is made of; regenerating it is costly, so sliders apply on release
             Number lightness(i18nc("theme", "Lightness"), 100, 0, QStringLiteral("%"));
@@ -1903,6 +1895,7 @@ public:
             if (menuRequested) menuRequested(m_more->mapToGlobal(QPoint(0, m_more->height())));
         });
         header->addWidget(m_more);
+        m_builder.header = header;
         layout->addLayout(header);
         if (def.build) def.build(m_builder);
         if (const Setting *s = def.toggleId.isEmpty() ? nullptr : R::instance()->setting(def.toggleId)) m_builder.explain(s->help);
