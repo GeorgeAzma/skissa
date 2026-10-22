@@ -17,6 +17,8 @@ if (WIN32)
     list(APPEND krita_SRCS KisDevTour.cpp)
     # logs where the app is stuck when it stops responding
     list(APPEND krita_SRCS KisHangWatch.cpp)
+    # the dev build's test hooks, and the check for a tablet driver that refuses WinTab
+    list(APPEND krita_SRCS KisDevHooks.cpp KisWinTab.cpp)
 endif()
 
 # Set the application icon on the application
@@ -59,7 +61,7 @@ endif()
 if (WIN32)
     # Private headers are needed for main.cc to enable WinTab support
     set_source_files_properties(
-        main.cc KisDevTour.cpp
+        main.cc KisDevTour.cpp KisDevHooks.cpp
         PROPERTIES
         INCLUDE_DIRECTORIES "${Qt${QT_MAJOR_VERSION}Gui_PRIVATE_INCLUDE_DIRS}"
         )
