@@ -175,10 +175,35 @@ void drawKnob(QPainter &painter, const QPointF &center, qreal radius, const QCol
     painter.drawEllipse(center, radius - 1.25, radius - 1.25);
 }
 
-/// The color of a hue on the ring and the hue track: vivid, all at the same lightness
+/**
+ * The color of a hue on the ring and the hue track: its most vivid color, the cusp of the sRGB gamut, so that
+ * neighbouring hues tell apart as well as they can. At one lightness and chroma for all, yellows and cyans
+ * came out dull and alike.
+ */
 QColor hueColor(qreal h)
 {
-    return rgbFromOklch({0.72, qMin(0.14, maxChroma(0.72, h)), h});
+    // every 0.5°: the cusps are the colors with one channel full and one empty, the edge of the HSV hue circle
+    static const QVector<QRgb> cusps = []() {
+        constexpr int samples = 7200;
+        QVector<qreal> hues(samples);
+        for (int i = 0; i < samples; i++) hues[i] = oklchFromRgb(QColor::fromHsvF(qreal(i) / samples, 1, 1)).h;
+        QVector<QRgb> table(720);
+        for (int k = 0; k < table.size(); k++) {
+            int nearest = 0;
+            qreal best = 360;
+            for (int i = 0; i < samples; i++) {
+                const qreal apart = std::abs(std::remainder(hues[i] - k * 0.5, 360.0));
+                if (apart < best) {
+                    best = apart;
+                    nearest = i;
+                }
+            }
+            table[k] = QColor::fromHsvF(qreal(nearest) / samples, 1, 1).rgb();
+        }
+        return table;
+    }();
+    const int k = qRound(std::fmod(std::fmod(h, 360.0) + 360.0, 360.0) * 2) % 720;
+    return QColor(cusps[k]);
 }
 
 /// The OKLCH ring's hue at \p offset from its center, in degrees clockwise from the top
