@@ -223,7 +223,7 @@ QHash<QString, QString> explanations()
         {QStringLiteral("selectionActionBar"), i18nc("@info:tooltip", "Deselect, invert, fill and crop buttons beside the selection")},
         {QStringLiteral("CreateBackupFile"), i18nc("@info:tooltip", "Keeps the previous version as Ink.kra~")},
         {QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"),
-         i18nc("@info:tooltip", "Uses Windows' exact scale, like 125%. Off rounds it to 100% or 200%")},
+         i18nc("@info:tooltip", "Turn on if the interface looks too small or too large at 125% or 150% screen scale")},
         {QStringLiteral("showSingleChannelAsColor"), i18nc("@info:tooltip", "Shows the red channel in red instead of gray")},
         {QStringLiteral("StudioColorIntensity"), i18nc("@info:tooltip", "For painting past white in floating-point images")},
         {QStringLiteral("zoomSteps"), i18nc("@info:tooltip", "3 gives 100%, 125%, 150%, 200%")},
@@ -393,7 +393,7 @@ QVector<Setting> describeAll()
         all << number(QStringLiteral("custom_font_size"), -1, -1, 72, i18nc("setting", "Interface font size"));
         all << toggle(QStringLiteral("showOnCanvasMessages"), true, i18nc("setting", "Messages on the canvas"), R::NewViews);
 #if defined(Q_OS_WIN) && defined(HAVE_HIGH_DPI_SCALE_FACTOR_ROUNDING_POLICY)
-        all << inDisplayrc(toggle(QStringLiteral("EnableHiDPIFractionalScaling"), false, i18nc("setting", "Fractional scaling"), R::Machine | R::Restart));
+        all << inDisplayrc(toggle(QStringLiteral("EnableHiDPIFractionalScaling"), false, i18nc("setting", "Exact screen scale"), R::Machine | R::Restart));
 #endif
     }
 

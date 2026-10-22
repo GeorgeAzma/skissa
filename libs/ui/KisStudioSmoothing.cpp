@@ -784,7 +784,8 @@ void KisStudioStrokePage::rebuild()
         }
         if (type == KisSmoothingOptions::STABILIZER) {
             KisStudioValueRow::Range pixels;
-            pixels.maximum = 500;
+            // the useful delays are small; past this the line hardly follows the pen
+            pixels.maximum = 200;
             pixels.suffix = i18n(" px");
             auto *delay = addRow(i18nc("the stabilizer waits until the pen is this far", "Delay"), pixels, options->useDelayDistance() ? options->delayDistance() : 0, 0);
             delay->setProperty("delay", true);

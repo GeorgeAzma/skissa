@@ -540,6 +540,8 @@ struct Number {
     /// An optional narrower range than the setting's, in shown units
     qreal low {NAN};
     qreal high {NAN};
+    /// Above 1, the slider spends more of its length on the low values (sizes, counts that grow by ratios)
+    qreal exponent {1};
     /// Write only when the slider is released, for settings that are costly to change (e.g. clearing undo, restarting threads)
     bool onRelease {false};
 };
@@ -693,11 +695,13 @@ struct Builder {
             auto *slider = quietSlider<KisSliderSpinBox>(card);
             slider->setRange(int(std::ceil(low - 1e-9)), int(std::floor(high + 1e-9)));
             slider->setSingleStep(int(look.step));
+            if (look.exponent != 1) slider->setExponentRatio(look.exponent);
             control = bindSlider(slider, id, look);
         } else {
             auto *slider = quietSlider<KisDoubleSliderSpinBox>(card);
             slider->setRange(low, high, look.decimals);
             slider->setSingleStep(look.step);
+            if (look.exponent != 1) slider->setExponentRatio(look.exponent);
             control = bindSlider(slider, id, look);
         }
         // Lets a right click reset the slider to the default
@@ -1297,7 +1301,7 @@ QVector<CardDef> makeCards()
             Number sizeLook(i18nc("interface font", "Size"), 1, 0, i18nc("font size unit", " pt"));
             // 6 and below means the system size (see KisUiFont)
             sizeLook.low = 7;
-            sizeLook.high = 30;
+            sizeLook.high = 24;
             // Each change relayouts the whole window
             sizeLook.onRelease = true;
             QWidget *size = b.number(QStringLiteral("custom_font_size"), sizeLook);
@@ -1306,13 +1310,12 @@ QVector<CardDef> makeCards()
         });
     addToggle(QStringLiteral("appearance"), QStringLiteral("tooltips"), i18nc("settings card", "Tooltips"), QStringLiteral("StudioTooltips"),
               QStringLiteral("tooltips hints hover help popups bubbles"));
-    add(QStringLiteral("appearance"), QStringLiteral("brushes"), i18nc("settings card", "Brushes"), {QStringLiteral("PresetStrokeThumbnails")},
-        QStringLiteral("brush thumbnails strokes presets"), [](Builder &b) {
-            b.toggle(QStringLiteral("PresetStrokeThumbnails"), i18nc("setting", "Show brushes as strokes"));
-        });
+    addToggle(QStringLiteral("appearance"), QStringLiteral("brushes"), i18nc("settings card", "Brushes as strokes"), QStringLiteral("PresetStrokeThumbnails"),
+              QStringLiteral("brush thumbnails strokes presets show"));
     if (R::instance()->setting(QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"))) {
-        addToggle(QStringLiteral("appearance"), QStringLiteral("screen"), i18nc("settings card", "Fractional scaling"),
-                  QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"), QStringLiteral("hidpi scaling dpi screen scale 125% 150%"));
+        addToggle(QStringLiteral("appearance"), QStringLiteral("screen"), i18nc("settings card", "Exact screen scale"),
+                  QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"),
+                  QStringLiteral("fractional hidpi scaling dpi screen scale interface size too small too large 125% 150% 175%"));
     }
 
     // ---- Canvas
@@ -1342,23 +1345,38 @@ QVector<CardDef> makeCards()
         QStringLiteral("eyedropper picker preview ring size magnifier magnification show the old color too"), [](Builder &b) {
             b.choice(QStringLiteral("colorSamplerPreviewStyle"), i18nc("color sampler", "Preview"));
             auto ring = []() { return R::instance()->value(QStringLiteral("colorSamplerPreviewStyle")).toInt() == 1; };
-            b.showWhen(b.number(QStringLiteral("colorSamplerPreviewCircleDiameter"), {i18nc("color sampler", "Ring size"), 1, 0, i18nc("unit", " px")}), ring);
+            Number ringSize(i18nc("color sampler", "Ring size"), 1, 0, i18nc("unit", " px"));
+            ringSize.low = 60;
+            ringSize.high = 400;
+            b.showWhen(b.number(QStringLiteral("colorSamplerPreviewCircleDiameter"), ringSize), ring);
             b.showWhen(b.toggle(QStringLiteral("colorSamplerPreviewCircleExtraCirclesEnabled"), i18nc("color sampler", "Show the old color too")), ring);
             b.showWhen(b.toggle(QStringLiteral("colorSamplerZoomPreviewEnabled"), i18nc("color sampler", "Magnifier")), ring);
             auto magnified = [ring]() { return ring() && R::instance()->value(QStringLiteral("colorSamplerZoomPreviewEnabled")).toBool(); };
-            b.showWhen(b.number(QStringLiteral("colorSamplerZoomPreviewScale"), {i18nc("color sampler", "Magnification"), 1, 0, QStringLiteral("x")}), magnified);
+            Number magnification(i18nc("color sampler", "Magnification"), 1, 0, QStringLiteral("x"));
+            magnification.low = 2;
+            magnification.high = 30;
+            b.showWhen(b.number(QStringLiteral("colorSamplerZoomPreviewScale"), magnification), magnified);
         });
     add(QStringLiteral("canvas"), QStringLiteral("checkerboard"), i18nc("settings card", "Checkerboard"),
         {QStringLiteral("checkerscolor"), QStringLiteral("checkerscolor2"), QStringLiteral("checksize")},
         QStringLiteral("transparency checkers background transparent squares other squares size"), [](Builder &b) {
             b.color(QStringLiteral("checkerscolor"), false, i18nc("checkerboard", "Squares"));
             b.color(QStringLiteral("checkerscolor2"), false, i18nc("checkerboard", "Other squares"));
-            b.number(QStringLiteral("checksize"), {i18nc("checkerboard", "Size"), 1, 0, i18nc("unit", " px")});
+            Number size(i18nc("checkerboard", "Size"), 1, 0, i18nc("unit", " px"));
+            size.low = 4;
+            size.high = 128;
+            size.exponent = 2;
+            b.number(QStringLiteral("checksize"), size);
         });
     add(QStringLiteral("canvas"), QStringLiteral("pixelgrid"), i18nc("settings card", "Pixel grid"),
         {QStringLiteral("pixelGridColor"), QStringLiteral("pixelGridDrawingThreshold")}, QStringLiteral("grid pixels zoom color shown from zoom"), [](Builder &b) {
             b.color(QStringLiteral("pixelGridColor"), false, i18nc("pixel grid", "Color"));
-            b.number(QStringLiteral("pixelGridDrawingThreshold"), {i18nc("pixel grid", "Shown from zoom"), 100, 0, QStringLiteral("%"), 100});
+            // below 100% there are no pixels to outline; past 3200% each pixel is already a big square
+            Number from(i18nc("pixel grid", "Shown from zoom"), 100, 0, QStringLiteral("%"), 100);
+            from.low = 100;
+            from.high = 3200;
+            from.exponent = 2;
+            b.number(QStringLiteral("pixelGridDrawingThreshold"), from);
         });
     add(QStringLiteral("canvas"), QStringLiteral("selection"), i18nc("settings card", "Selection"),
         {QStringLiteral("selectionOutlineOpacity"), QStringLiteral("selectionOverlayMaskColor"), QStringLiteral("selectionActionBar")},
@@ -1370,7 +1388,9 @@ QVector<CardDef> makeCards()
     add(QStringLiteral("canvas"), QStringLiteral("zoom"), i18nc("settings card", "Zoom"),
         {QStringLiteral("zoomSteps"), QStringLiteral("zoomHorizontal"), QStringLiteral("StudioViewPill")},
         QStringLiteral("zooming steps per doubling dragging sideways pill percent status bar corner"), [](Builder &b) {
-            b.number(QStringLiteral("zoomSteps"), {i18nc("zoom", "Steps per doubling")});
+            Number steps(i18nc("zoom", "Steps per doubling"));
+            steps.high = 8;
+            b.number(QStringLiteral("zoomSteps"), steps);
             b.toggle(QStringLiteral("zoomHorizontal"));
             b.toggle(QStringLiteral("StudioViewPill"));
         });
@@ -1448,6 +1468,8 @@ QVector<CardDef> makeCards()
         {QStringLiteral("undoStackLimit"), QStringLiteral("useCumulativeUndoRedo")},
         QStringLiteral("history redo steps cumulative merge strokes"), [](Builder &b) {
             Number steps(i18nc("undo", "Steps"), 1, 0, QString(), 5);
+            steps.low = 10;
+            steps.exponent = 2;
             steps.onRelease = true;
             b.number(QStringLiteral("undoStackLimit"), steps);
             b.toggle(QStringLiteral("useCumulativeUndoRedo"));
@@ -1509,7 +1531,9 @@ QVector<CardDef> makeCards()
         {QStringLiteral("maximumBrushSize"), QStringLiteral("useDirtyPresets"), QStringLiteral("useEraserBrushSize"), QStringLiteral("useEraserBrushOpacity"),
          QStringLiteral("StrokeShapeSnap")},
         QStringLiteral("brush size largest tweaks dirty presets keep eraser own size opacity shapes snap quickshape line circle rectangle hold"), [](Builder &b) {
-            b.number(QStringLiteral("maximumBrushSize"), {QString(), 1, 0, i18nc("unit", " px"), 100});
+            Number largest(QString(), 1, 0, i18nc("unit", " px"), 100);
+            largest.exponent = 3;
+            b.number(QStringLiteral("maximumBrushSize"), largest);
             b.toggle(QStringLiteral("useDirtyPresets"));
             b.toggle(QStringLiteral("useEraserBrushSize"));
             b.toggle(QStringLiteral("useEraserBrushOpacity"));
@@ -1543,7 +1567,9 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("CreateBackupFile"));
             const auto on = b.isOn(QStringLiteral("CreateBackupFile"));
             b.showWhen(b.choice(QStringLiteral("backupfilelocation")), on);
-            b.showWhen(b.number(QStringLiteral("numberofbackupfiles")), on);
+            Number kept;
+            kept.high = 20;
+            b.showWhen(b.number(QStringLiteral("numberofbackupfiles"), kept), on);
         });
     add(QStringLiteral("files"), QStringLiteral("saving"), i18nc("settings card", "Saving"),
         {QStringLiteral("defaultExportMimeType"), QStringLiteral("compressLayersInKra"), QStringLiteral("TrimKra")},
@@ -1694,7 +1720,11 @@ QVector<CardDef> makeCards()
         {QStringLiteral("memoryHardLimitPercent")}, QStringLiteral("ram limit performance"), [](Builder &b) {
             const int ram = KisImageConfig::totalRAM();
             b.explain(i18nc("@info:tooltip", "This computer has %1 GB.", QLocale().toString(ram / 1024.0, 'f', 1)));
-            b.number(QStringLiteral("memoryHardLimitPercent"), {QString(), 1, 0, QStringLiteral("%")});
+            // too little and every image swaps to the disk; all of it leaves the system nothing
+            Number share(QString(), 1, 0, QStringLiteral("%"));
+            share.low = 10;
+            share.high = 90;
+            b.number(QStringLiteral("memoryHardLimitPercent"), share);
         });
     add(QStringLiteral("speed"), QStringLiteral("threads"), i18nc("settings card", "Processor"),
         {QStringLiteral("maxNumberOfThreads"), QStringLiteral("frameRenderingClones")},
@@ -1707,7 +1737,10 @@ QVector<CardDef> makeCards()
     add(QStringLiteral("speed"), QStringLiteral("framerate"), i18nc("settings card", "Frame rate"),
         {QStringLiteral("detectFpsLimit"), QStringLiteral("fpsLimit")}, QStringLiteral("fps refresh hz performance"), [](Builder &b) {
             b.toggle(QStringLiteral("detectFpsLimit"));
-            b.showWhen(b.number(QStringLiteral("fpsLimit"), {QString(), 1, 0, i18nc("unit", " fps")}),
+            Number limit(QString(), 1, 0, i18nc("unit", " fps"));
+            limit.low = 30;
+            limit.high = 360;
+            b.showWhen(b.number(QStringLiteral("fpsLimit"), limit),
                        []() { return !R::instance()->value(QStringLiteral("detectFpsLimit")).toBool(); });
         });
 

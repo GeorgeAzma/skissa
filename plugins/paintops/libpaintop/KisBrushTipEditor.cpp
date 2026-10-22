@@ -2002,7 +2002,10 @@ QWidget *KisBrushTipQuickPage::createGrainPage(KisAutoBrushModel *autoModel, lag
     percent.maximum = 100;
     percent.suffix = i18nc("percent, after the number", "%");
     noise->setRange(percent);
-    coverage->setRange(percent);
+    // none of the dab painted is no brush at all
+    KisStudioValueRow::Range painted = percent;
+    painted.minimum = 1;
+    coverage->setRange(painted);
     noise->setDefaultValue(0);
     coverage->setDefaultValue(100);
     noise->setToolTip(i18nc("@info:tooltip", "0% smooth → 100% grainy"));
