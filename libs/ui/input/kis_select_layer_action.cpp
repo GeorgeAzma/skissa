@@ -22,185 +22,18 @@
 #include "kis_input_manager.h"
 #include "kis_tool_utils.h"
 #include "tool/strokes/move_stroke_strategy.h"
+#include "input/KisLayerHover.h"
 #include <kis_group_layer.h>
 
 #include <kis_assert.h>
-#include <kis_coordinates_converter.h>
-#include <kis_paint_device.h>
-#include <QPainter>
-#include <QPainterPath>
 #include <QPointer>
 #include <QElapsedTimer>
-#include <QTabletEvent>
-#include <functional>
-#include <KisModernStyle.h>
-
-namespace {
-
-/// While the key is held: the layer a click would pick, tinted where it has pixels, its name by the pointer
-class LayerHover : public QWidget
-{
-public:
-    /// \p picks: what a click at a point (widget pixels) would pick
-    LayerHover(KisCanvas2 *canvas, std::function<KisNodeSP(const QPointF &)> picks)
-        : QWidget(canvas->canvasWidget())
-        , m_picks(std::move(picks))
-        , m_canvas(canvas)
-    {
-        setAttribute(Qt::WA_TransparentForMouseEvents);
-        setAttribute(Qt::WA_NoSystemBackground);
-        setGeometry(parentWidget()->rect());
-        parentWidget()->installEventFilter(this);
-        show();
-        raise();
-        const QPoint cursor = parentWidget()->mapFromGlobal(QCursor::pos());
-        if (rect().contains(cursor)) pointAt(cursor);
-    }
-
-    /// What a click picks changed (a layer was picked): picked again where the pointer is
-    void picksChanged(const QPointF &widgetPos)
-    {
-        m_picked = false;
-        pointAt(widgetPos);
-    }
-
-    void pointAt(const QPointF &widgetPos)
-    {
-        const QRect before = pillRect();
-        m_cursor = widgetPos;
-        if (!m_canvas || !m_canvas->image()) {
-            return;
-        }
-        // picking reads every layer's pixel there: not again for a pointer that barely moved
-        KisNodeSP node = m_node;
-        if (!m_picked || QLineF(widgetPos, m_pickedAt).length() >= 2) {
-            node = m_picks(widgetPos);
-            m_pickedAt = widgetPos;
-            m_picked = true;
-        }
-        if (node == m_node) {
-            // only the name moved with the pointer: not the whole canvas's overlay
-            update(before.united(pillRect()));
-            return;
-        }
-        m_node = node;
-        m_tint = QImage();
-        m_bounds = QRect();
-        if (node && node->projection()) {
-            m_bounds = node->exactBounds();
-            if (!m_bounds.isEmpty()) {
-                // in the selection color, at a size good enough over the canvas
-                const QSize size = m_bounds.size().scaled(QSize(480, 480), Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
-                QImage alpha = node->projection()->createThumbnailUncached(size.width(), size.height(), m_bounds)
-                                   .convertToFormat(QImage::Format_ARGB32);
-                const QColor ink = palette().color(QPalette::Highlight);
-                for (int y = 0; y < alpha.height(); y++) {
-                    QRgb *line = reinterpret_cast<QRgb *>(alpha.scanLine(y));
-                    for (int x = 0; x < alpha.width(); x++) {
-                        line[x] = qRgba(ink.red(), ink.green(), ink.blue(), qAlpha(line[x]) * 110 / 255);
-                    }
-                }
-                m_tint = alpha;
-            }
-        }
-        update();
-    }
-
-protected:
-    bool eventFilter(QObject *watched, QEvent *event) override
-    {
-        if (watched == parentWidget()) {
-            switch (event->type()) {
-            case QEvent::MouseMove:
-                pointAt(static_cast<QMouseEvent *>(event)->localPos());
-                break;
-            case QEvent::TabletMove:
-                pointAt(static_cast<QTabletEvent *>(event)->posF());
-                break;
-            case QEvent::Resize:
-                setGeometry(parentWidget()->rect());
-                break;
-            default:
-                break;
-            }
-        }
-        return false;
-    }
-
-    void paintEvent(QPaintEvent *) override
-    {
-        if (!m_node || !m_canvas) {
-            return;
-        }
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-        const QColor ink = palette().color(QPalette::Highlight);
-        if (!m_tint.isNull()) {
-            // in image coordinates: rotated and mirrored with the canvas
-            painter.save();
-            painter.setTransform(m_canvas->coordinatesConverter()->imageToWidgetTransform());
-            painter.drawImage(QRectF(m_bounds), m_tint);
-            QPen pen(ink, 1.5);
-            pen.setCosmetic(true);
-            pen.setStyle(Qt::DashLine);
-            painter.setPen(pen);
-            painter.setBrush(Qt::NoBrush);
-            painter.drawRect(QRectF(m_bounds));
-            painter.restore();
-        }
-        // the name, by the pointer
-        painter.setFont(nameFont());
-        const QString name = m_node->name();
-        const QRectF pill = pillAt();
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(ink);
-        painter.drawPath(KisModernStyle::squircle(pill, pill.height() / 2));
-        painter.setPen(palette().color(QPalette::HighlightedText));
-        painter.drawText(pill, Qt::AlignCenter, name);
-    }
-
-private:
-    QFont nameFont() const
-    {
-        QFont font = this->font();
-        font.setBold(true);
-        return font;
-    }
-
-    /// Where the name is written, by the pointer
-    QRectF pillAt() const
-    {
-        if (!m_node) return QRectF();
-        const QFontMetrics metrics(nameFont());
-        QRectF pill(m_cursor + QPointF(18, 14), QSizeF(metrics.horizontalAdvance(m_node->name()) + 20, metrics.height() + 10));
-        if (pill.right() > width() - 4) pill.moveRight(m_cursor.x() - 10);
-        if (pill.bottom() > height() - 4) pill.moveBottom(m_cursor.y() - 10);
-        return pill;
-    }
-
-    QRect pillRect() const
-    {
-        return pillAt().toAlignedRect().adjusted(-2, -2, 2, 2);
-    }
-
-    std::function<KisNodeSP(const QPointF &)> m_picks;
-    QPointer<KisCanvas2> m_canvas;
-    bool m_picked {false};
-    QPointF m_pickedAt;
-    KisNodeSP m_node;
-    QRect m_bounds;
-    QImage m_tint;
-    QPointF m_cursor;
-};
-
-} // namespace
 
 class KisSelectLayerAction::Private
 {
 public:
     KisSelectLayerAction *q {nullptr};
-    QPointer<LayerHover> hover;
+    QPointer<KisLayerHover> hover;
     int shortcut {makeShortcut(LayerSelectionMode_TopLayer, SelectionOverrideMode_Replace)};
 
     /// Clicking again where the last click picked a layer picks the next one down with paint there
@@ -367,7 +200,7 @@ void KisSelectLayerAction::activate(int shortcut)
     // which layer a click would pick, shown before the click (not for all of them, or a menu)
     KisCanvas2 *canvas = inputManager()->canvas();
     if (canvas && Private::layerSelectionMode(shortcut) == LayerSelectionMode_TopLayer) {
-        d->hover = new LayerHover(canvas, [this](const QPointF &widgetPos) { return d->pickAt(widgetPos); });
+        d->hover = new KisLayerHover(canvas, [this](const QPointF &widgetPos) { return d->pickAt(widgetPos); });
     }
 }
 

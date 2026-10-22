@@ -52,6 +52,7 @@ set(skissa_ui_SRCS
     KisUpdatePacer.cpp
     dialogs/KisKeysPage.cpp
     input/KisDragValueAction.cpp
+    input/KisLayerHover.cpp
     opengl/KisOpenGLGlass.cpp
     tool/KisStrokeShape.cpp
     widgets/KisBlendModePicker.cpp
