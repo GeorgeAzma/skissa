@@ -84,6 +84,35 @@ struct KisToolFreehandHelper::Private
     /// Whether this stroke is kept to be painted again (only while that is on)
     bool recording {false};
 
+    /// Keeps \p piece of the stroke; a stroke too long to keep (a pen held down for minutes, many symmetry
+    /// copies) is dropped as a whole instead of taking hundreds of megabytes
+    void record(Piece &&piece)
+    {
+        if (!rerecording && pieces.size() >= 100000) {
+            forget();
+            return;
+        }
+        pieces.append(std::move(piece));
+    }
+
+    void recordInput(const KisPaintInformation &info)
+    {
+        if (rawInputs.size() >= 100000) {
+            forget();
+            return;
+        }
+        rawInputs << info;
+    }
+
+    void forget()
+    {
+        recording = false;
+        pieces.clear();
+        pieces.squeeze();
+        rawInputs.clear();
+        rawInputs.squeeze();
+    }
+
     KoCanvasResourceProvider *resourceManager;
     KisPaintingInformationBuilder *infoBuilder;
     KisStrokesFacade *strokesFacade;
@@ -541,7 +570,7 @@ void KisToolFreehandHelper::paintEvent(KoPointerEvent *event)
             m_d->infoBuilder->continueStroke(event,
                                              elapsedStrokeTime());
     KisUpdateTimeMonitor::instance()->reportMouseMove(info.pos());
-    if (m_d->recording) m_d->rawInputs << info;
+    if (m_d->recording) m_d->recordInput(info);
 
     paint(info);
 }
@@ -1055,6 +1084,7 @@ KisToolFreehandHelper::getStabilizedPaintInfo(const QQueue<KisPaintInformation> 
     result.setCanvasRotation(lastPaintInfo.canvasRotation());
     result.setCanvasMirroredH(lastPaintInfo.canvasMirroredH());
     result.setCanvasMirroredV(lastPaintInfo.canvasMirroredV());
+    result.setTiltDirectionOffset(lastPaintInfo.tiltDirectionOffset());
 
     if (queue.size() > 1) {
         QQueue<KisPaintInformation>::const_iterator it = queue.constBegin();
@@ -1103,6 +1133,7 @@ KisToolFreehandHelper::getStabilizedPaintInfo(const QQueue<KisPaintInformation> 
             result.setCanvasRotation(lastPaintInfo.canvasRotation());
             result.setCanvasMirroredH(lastPaintInfo.canvasMirroredH());
             result.setCanvasMirroredV(lastPaintInfo.canvasMirroredV());
+            result.setTiltDirectionOffset(lastPaintInfo.tiltDirectionOffset());
         }
     }
 
@@ -1269,7 +1300,7 @@ void KisToolFreehandHelper::paintAt(int strokeInfoId,
 {
     updateCurrentBrushPosition(pi.pos());
     m_d->hasPaintAtLeastOnce = true;
-    if ((m_d->recording && !m_d->replaying) || m_d->rerecording) m_d->pieces.append({Private::Piece::At, strokeInfoId, pi, {}, {}, {}});
+    if ((m_d->recording && !m_d->replaying) || m_d->rerecording) m_d->record({Private::Piece::At, strokeInfoId, pi, {}, {}, {}});
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId, pi));
 
@@ -1281,7 +1312,7 @@ void KisToolFreehandHelper::paintLine(int strokeInfoId,
 {
     updateCurrentBrushPosition(pi2.pos());
     m_d->hasPaintAtLeastOnce = true;
-    if ((m_d->recording && !m_d->replaying) || m_d->rerecording) m_d->pieces.append({Private::Piece::Line, strokeInfoId, pi1, {}, {}, pi2});
+    if ((m_d->recording && !m_d->replaying) || m_d->rerecording) m_d->record({Private::Piece::Line, strokeInfoId, pi1, {}, {}, pi2});
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId, pi1, pi2));
 
@@ -1320,7 +1351,7 @@ void KisToolFreehandHelper::paintBezierCurve(int strokeInfoId,
 #endif
 
     m_d->hasPaintAtLeastOnce = true;
-    if ((m_d->recording && !m_d->replaying) || m_d->rerecording) m_d->pieces.append({Private::Piece::Bezier, strokeInfoId, pi1, control1, control2, pi2});
+    if ((m_d->recording && !m_d->replaying) || m_d->rerecording) m_d->record({Private::Piece::Bezier, strokeInfoId, pi1, control1, control2, pi2});
     m_d->strokesFacade->addJob(m_d->strokeId,
                                new FreehandStrokeStrategy::Data(strokeInfoId,
                                                                 pi1, control1, control2, pi2));

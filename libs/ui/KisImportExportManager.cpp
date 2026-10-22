@@ -943,15 +943,20 @@ KisImportExportErrorCode KisImportExportManager::doExportImpl(const QString &loc
                 return MoveFileExW(reinterpret_cast<LPCWSTR>(longPath(from).utf16()), reinterpret_cast<LPCWSTR>(longPath(to).utf16()),
                                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
             };
+            // on the disk, not only in the cache; shared, since a virus scanner or a cloud folder may be reading it
+            auto flushFile = [&longPath](const QString &path) {
+                HANDLE handle = CreateFileW(reinterpret_cast<LPCWSTR>(longPath(path).utf16()), GENERIC_WRITE,
+                                            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+                const bool flushed = handle != INVALID_HANDLE_VALUE && FlushFileBuffers(handle);
+                if (handle != INVALID_HANDLE_VALUE) CloseHandle(handle);
+                return flushed;
+            };
             QFile::remove(sibling);
             bool swapped = false;
             if (file.copy(sibling)) {
-                // on the disk before it takes the old file's place, not only in the cache
-                HANDLE copy = CreateFileW(reinterpret_cast<LPCWSTR>(longPath(sibling).utf16()), GENERIC_WRITE, 0, nullptr,
-                                          OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-                const bool flushed = copy != INVALID_HANDLE_VALUE && FlushFileBuffers(copy);
-                if (copy != INVALID_HANDLE_VALUE) CloseHandle(copy);
-                for (int attempt = 0; flushed && attempt < 5 && !swapped; attempt++) {
+                // before it takes the old file's place; swapped in even if that failed, which is no worse than copying over
+                for (int attempt = 0; attempt < 3 && !flushFile(sibling); attempt++) QThread::msleep(50);
+                for (int attempt = 0; attempt < 5 && !swapped; attempt++) {
                     if (attempt) QThread::msleep(100);
                     swapped = moveFile(sibling, location);
                 }
@@ -971,7 +976,8 @@ KisImportExportErrorCode KisImportExportManager::doExportImpl(const QString &loc
                     file.setAutoRemove(false);
                     return KisImportExportErrorCannotWrite(file.error());
                 }
-                if (hadOld) QFile::remove(aside);
+                // the old file goes only once the new one is surely on the disk
+                if (hadOld && flushFile(location)) QFile::remove(aside);
             }
 #else
             {

@@ -55,6 +55,7 @@
 
 #include <QTextBrowser>
 #include <QApplication>
+#include <QThread>
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QMouseEvent>
@@ -1601,7 +1602,10 @@ void KisDocument::slotAutoSaveImpl(std::unique_ptr<KisDocument> &&optionalCloned
     constexpr qint64 pause = 3000;
     // but not for ever: after a minute of waiting it saves as Krita always did (in the background, or later if busy)
     constexpr qint64 longestWait = 60000;
-    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    // a clock the computer's sleep or a clock change doesn't move
+    static QElapsedTimer clock;
+    if (!clock.isValid()) clock.start();
+    const qint64 now = clock.elapsed();
     if (property("autosaveWaitingSince").isNull()) setProperty("autosaveWaitingSince", now);
     const bool waitedEnough = now - property("autosaveWaitingSince").toLongLong() >= longestWait;
     if (!optionalClonedDocument && !waitedEnough && InputClock::instance()->sinceInput() < pause) {
@@ -1620,7 +1624,6 @@ void KisDocument::slotAutoSaveImpl(std::unique_ptr<KisDocument> &&optionalCloned
         }
         return;
     }
-    setProperty("autosaveWaitingSince", QVariant());
     const QString autoSaveFileName = generateAutoSaveFileName(localFilePath());
 
     Q_EMIT statusBarMessage(i18n("Autosaving... %1", autoSaveFileName), successMessageTimeout);
@@ -1653,10 +1656,13 @@ void KisDocument::slotAutoSaveImpl(std::unique_ptr<KisDocument> &&optionalCloned
         d->image->endStroke(strokeId);
 
         setInfiniteAutoSaveInterval();
+        setProperty("autosaveWaitingSince", QVariant());
 
     } else if (result != KritaUtils::BackgroudSavingStartResult::Success) {
+        // still waiting since then: the retry saves without waiting for a pause again
         setEmergencyAutoSaveInterval();
     } else {
+        setProperty("autosaveWaitingSince", QVariant());
         d->modifiedAfterAutosave = false;
     }
 }
@@ -2167,7 +2173,8 @@ bool KisDocument::openFile()
 
     KisMainWindow *window = KisPart::instance()->currentMainwindow();
     KoUpdaterPtr updater;
-    if (window && window->viewManager()) {
+    // a document opened on another thread (a file's picture) must not drive the window's progress bar
+    if (window && window->viewManager() && QThread::currentThread() == qApp->thread()) {
         updater = window->viewManager()->createUnthreadedUpdater(i18n("Opening document"));
         d->importExportManager->setUpdater(updater);
     }
@@ -2175,7 +2182,7 @@ bool KisDocument::openFile()
     KisImportExportErrorCode status = d->importExportManager->importDocument(localFilePath(), typeName);
 
     if (!status.isOk()) {
-        if (window && window->viewManager()) {
+        if (updater) {
             updater->cancel();
         }
         QString msg = status.errorMessage();

@@ -432,6 +432,7 @@ public:
      *  \p target, the layer filled, keeps any ink it holds itself.
      */
     void setLineArt(bool underLines, int speckSize, KisPaintDeviceSP target = nullptr) {
+        m_lineArt = true;
         m_underLines = underLines;
         m_speckSize = speckSize;
         m_lineArtTarget = target;
@@ -475,6 +476,8 @@ private:
     RegionFillingMode m_regionFillingMode;
     KoColor m_regionFillingBoundaryColor;
     bool m_stopGrowingAtDarkestPixel;
+    /// Only fills that asked for it (setLineArt) reach under lines, not a selection made with Close gap
+    bool m_lineArt {false};
     bool m_underLines {false};
     int m_speckSize {0};
     KisPaintDeviceSP m_lineArtTarget;

@@ -66,6 +66,14 @@ KisPropertiesConfigurationSP KisWdgGaussianBlur::configuration() const
 void KisWdgGaussianBlur::setConfiguration(const KisPropertiesConfigurationSP config)
 {
     QVariant value;
+    // a radius saved with a fraction of a pixel (Krita's default is 0.5) is shown, and kept, as it is
+    for (const char *name : {"horizRadius", "vertRadius"}) {
+        const qreal radius = config->getDouble(name, 0.0);
+        if (!qFuzzyCompare(radius + 1.0, qRound(radius) + 1.0)) {
+            for (auto *box : {m_widget->horizontalRadius, m_widget->verticalRadius}) box->setRange(0.0, box->maximum(), 2);
+            break;
+        }
+    }
     if (config->getProperty("horizRadius", value)) {
         m_widget->horizontalRadius->setValue(value.toFloat());
     }
