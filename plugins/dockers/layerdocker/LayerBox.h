@@ -223,6 +223,8 @@ private:
     bool m_opacityScrubbing {false};
     KisNodeSP m_opacityNode;
     qreal m_opacityStart {100};
+    /// The opacity before the drag, which a layer hidden at 0% keeps (m_opacityStart moves with Shift)
+    qreal m_opacityOriginal {100};
     bool m_opacityFine {false};
     OpacityScrub *m_opacityScrub {nullptr};
     /// The list's settings: thumbnail size, indentation, info text

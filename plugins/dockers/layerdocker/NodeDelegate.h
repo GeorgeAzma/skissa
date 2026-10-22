@@ -48,6 +48,8 @@ public:
     QRect opacityRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const;
     /// How wide the opacity is written
     int opacityWidth() const;
+    /// Which of the row's icon places \p pos (in the viewport) is over, as painting lights it; -1 for none
+    int iconSlotAt(const QStyleOptionViewItem &option, const QModelIndex &index, const QPoint &pos) const;
 
     void slotUpdateIcon();
 

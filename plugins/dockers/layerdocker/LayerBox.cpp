@@ -1270,8 +1270,9 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
                 addLayerAbove(gap);
                 return true;
             }
-            // maybe the start of an opacity drag
-            m_opacityPress = mouse->button() == Qt::LeftButton ? QPersistentModelIndex(static_cast<QAbstractItemView *>(view)->indexAt(mouse->pos())) : QPersistentModelIndex();
+            // maybe the start of an opacity drag; not on the eye, whose drag shows or hides the rows passed
+            const QModelIndex pressed = static_cast<QAbstractItemView *>(view)->indexAt(mouse->pos());
+            m_opacityPress = mouse->button() == Qt::LeftButton && pressed.column() != NodeView::VISIBILITY_COL ? QPersistentModelIndex(pressed) : QPersistentModelIndex();
             m_opacityPressPos = mouse->pos();
             m_opacityScrubbing = false;
             break;
@@ -1286,7 +1287,7 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
                 if (qRound(m_newOpacity) == 0 && m_opacityNode && m_canvas) {
                     // let go at nothing: hidden, keeping the opacity it had (the opacity steps undo each other,
                     // so hiding is the one step)
-                    m_newOpacity = m_opacityStart >= 1 ? m_opacityStart : 100;
+                    m_newOpacity = m_opacityOriginal >= 1 ? m_opacityOriginal : 100;
                     m_changedOpacityNode = m_opacityNode;
                     slotOpacityChanged();
                     KisBaseNode::PropertyList props = m_opacityNode->sectionModelProperties();
@@ -1354,6 +1355,7 @@ bool LayerBox::handleOpacityDrag(const QPoint &pos, bool fine)
         m_opacityScrubbing = true;
         m_opacityNode = node;
         m_opacityStart = node->opacity() * 100.0 / 255.0;
+        m_opacityOriginal = m_opacityStart;
         view->viewport()->setCursor(Qt::SizeHorCursor);
     }
     if (!m_opacityNode) {

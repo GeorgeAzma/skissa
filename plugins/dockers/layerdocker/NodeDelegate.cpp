@@ -169,6 +169,13 @@ QRect NodeDelegate::opacityRect(const QModelIndex &index, const QRect &row, Qt::
     return QRect(direction == Qt::RightToLeft ? controls.left() : controls.right() + 1 - width, controls.top(), width, controls.height());
 }
 
+/// What isn't a digit, made once: rows are painted often
+static const QRegularExpression &nonDigits()
+{
+    static const QRegularExpression expression(QStringLiteral("[^0-9]"));
+    return expression;
+}
+
 /// A layer's opacity in percent, from its properties; -1 if it has none
 static int opacityPercentOf(const QModelIndex &index)
 {
@@ -176,7 +183,7 @@ static int opacityPercentOf(const QModelIndex &index)
     for (const KisBaseNode::Property &prop : props) {
         if (prop.id == QLatin1String("opacity")) {
             QString digits = prop.state.toString();
-            digits.remove(QRegularExpression(QStringLiteral("[^0-9]")));
+            digits.remove(nonDigits());
             return digits.isEmpty() ? -1 : digits.toInt();
         }
     }
@@ -409,6 +416,15 @@ void NodeDelegate::drawThumbnail(QPainter *p, const QStyleOptionViewItem &option
     p->restore();
 }
 
+int NodeDelegate::iconSlotAt(const QStyleOptionViewItem &option, const QModelIndex &index, const QPoint &pos) const
+{
+    KisNodeViewColorScheme scm;
+    const QRect rc = iconsRect(option, index);
+    const QPoint pointer = pos - rc.topLeft();
+    const int slot = scm.iconSize() + 2 * scm.iconMargin() + scm.border();
+    return pointer.y() >= 0 && pointer.y() < rc.height() && pointer.x() >= 0 ? pointer.x() / slot : -1;
+}
+
 QRect NodeDelegate::iconsRect(const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
     KisNodeViewColorScheme scm;
@@ -503,7 +519,7 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
             if (prop.id == QLatin1String("compositeop")) mode = prop.state.toString();
             if (prop.id == QLatin1String("opacity")) {
                 QString digits = prop.state.toString();
-                digits.remove(QRegularExpression(QStringLiteral("[^0-9]")));
+                digits.remove(nonDigits());
                 opacity = digits.isEmpty() ? -1 : digits.toInt();
             }
         }
@@ -1057,8 +1073,8 @@ bool NodeDelegate::showsDecoration(const QModelIndex &index) const
 {
     // a paint layer's icon would only repeat itself on every row
     const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
-    static const qint64 paintLayer = KisIconUtils::loadIcon("paintLayer").cacheKey();
-    return !icon.isNull() && icon.cacheKey() != paintLayer;
+    // asked each time: a theme change loads the icons anew
+    return !icon.isNull() && icon.cacheKey() != KisIconUtils::loadIcon("paintLayer").cacheKey();
 }
 
 void NodeDelegate::drawDecoration(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const

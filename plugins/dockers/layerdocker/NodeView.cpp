@@ -70,6 +70,8 @@ public:
     }
     NodeDelegate delegate;
     QPersistentModelIndex hovered;
+    /// The icon place the pointer was last over in the hovered row
+    int hoveredSlot {-1};
     QPoint lastPos;
 
 #ifdef DRAG_WHILE_DRAG_WORKAROUND
@@ -253,6 +255,7 @@ bool NodeView::viewportEvent(QEvent *e)
             QEvent e(QEvent::Leave);
             d->delegate.editorEvent(&e, model(), optionForIndex(d->hovered), d->hovered);
             d->hovered = QModelIndex();
+            d->hoveredSlot = -1;
         } break;
         case QEvent::MouseMove: {
 #ifdef DRAG_WHILE_DRAG_WORKAROUND
@@ -283,7 +286,8 @@ bool NodeView::viewportEvent(QEvent *e)
                 return true;
             }
             QModelIndex hovered = indexAt(pos);
-            if (hovered != d->hovered) {
+            const bool rowChanged = hovered != d->hovered;
+            if (rowChanged) {
                 if (d->hovered.isValid()) {
                     QEvent e(QEvent::Leave);
                     d->delegate.editorEvent(&e, model(), optionForIndex(d->hovered), d->hovered);
@@ -294,10 +298,13 @@ bool NodeView::viewportEvent(QEvent *e)
                 }
                 d->hovered = hovered;
             }
-            // the hovered icon within the row is lit
-            if (hovered.isValid()) {
+            // the hovered icon within the row is lit: repainted when that changes, not at every move (a pen
+            // hovering moves all the time)
+            const int slot = hovered.isValid() ? d->delegate.iconSlotAt(optionForIndex(hovered), hovered, pos) : -1;
+            if (hovered.isValid() && (slot != d->hoveredSlot || rowChanged)) {
                 viewport()->update(QRect(0, visualRect(hovered).top(), viewport()->width(), visualRect(hovered).height()));
             }
+            d->hoveredSlot = slot;
             /* This is a workaround for a bug in QTreeView that immediately begins a dragging action
             when the mouse lands on the decoration/icon of a different index and moves 1 pixel or more */
             Qt::MouseButtons buttons = static_cast<QMouseEvent*>(e)->buttons();
