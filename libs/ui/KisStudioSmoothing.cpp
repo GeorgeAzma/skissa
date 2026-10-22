@@ -739,7 +739,7 @@ void KisStudioStrokePage::rebuild()
             if (linked) {
                 auto *amount = strengthRow(i18nc("how much a line is smoothed", "Strength"), options->smoothnessDistanceMin());
                 amount->setProperty("amount", true);
-                amount->setToolTip(i18nc("@info:tooltip line smoothing", "More: a steadier line, but more lag"));
+                amount->setToolTip(i18nc("@info:tooltip line smoothing", "More smoothing makes a steadier line, but it lags further behind the pen"));
                 connect(amount, &KisStudioValueRow::valueChanged, this, [change](qreal value) {
                     change([value](KisSmoothingOptions &options) { setDistance(options, value); });
                 });

@@ -266,7 +266,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     d->progressBox->hide();
     layout->addWidget(d->progressBox);
 
-    for (auto [badge, name, tip] : {std::make_tuple(&d->alphaLock, "preserve_alpha", i18nc("@info:tooltip", "Alpha lock: paint only over existing paint")),
+    for (auto [badge, name, tip] : {std::make_tuple(&d->alphaLock, "preserve_alpha", i18nc("@info:tooltip", "Alpha lock: paint only where there's already paint")),
                                     std::make_tuple(&d->mirrorX, "hmirror_action", i18nc("@info:tooltip", "Mirrored painting, across")),
                                     std::make_tuple(&d->mirrorY, "vmirror_action", i18nc("@info:tooltip", "Mirrored painting, up and down"))}) {
         badge->action = d->action(name);
@@ -314,7 +314,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     auto *valueView = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_value")), i18nc("@action", "Value View"), mainWindow);
     valueView->setObjectName(QStringLiteral("studio_value_view"));
     valueView->setCheckable(true);
-    valueView->setToolTip(i18nc("@info:tooltip", "Grayscale: see the lights and darks"));
+    valueView->setToolTip(i18nc("@info:tooltip", "Grayscale: the image without its colors, to judge lights and darks"));
     valueView->setShortcutContext(Qt::WindowShortcut);
     KisStudioShortcuts::restore(valueView);
     mainWindow->actionCollection()->addAction(valueView->objectName(), valueView);

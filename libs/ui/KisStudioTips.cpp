@@ -257,16 +257,38 @@ QString KisStudioTips::html(const QString &tooltip, const QString &keys)
     glyphInk.setAlphaF(0.85);
     const QColor lit = QApplication::palette().color(QPalette::Highlight);
     QString out;
+    // "Name: what it is" lines: one alone is the name in bold over its sentence, a run of them (choices) a table
+    // with the names in a column of their own. What follows the colon starts a line, so it starts with a capital.
+    int leads = 0;
+    for (const QString &line : text) leads += leadOf(line) > 0 ? 1 : 0;
+    auto sentence = [](const QString &what) { return (what.isEmpty() ? what : what.at(0).toUpper() + what.mid(1)).toHtmlEscaped(); };
+    const QString shortcut =
+        keys.isEmpty() ? QString() : QStringLiteral("&nbsp;&nbsp;&nbsp;<span style=\"color:%1\">%2</span>").arg(css(quiet), keys.toHtmlEscaped());
     QStringList lines;
-    Q_FOREACH (const QString &line, text) {
-        const int lead = leadOf(line);
-        lines << (lead > 0 ? QStringLiteral("<b>%1</b>&nbsp;%2").arg(line.left(lead).toHtmlEscaped(), line.mid(lead + 2).toHtmlEscaped())
-                           : line.toHtmlEscaped());
+    auto paragraph = [&]() {
+        if (!lines.isEmpty()) out += QStringLiteral("<p style=\"margin:0\">%1</p>").arg(lines.join(QStringLiteral("<br>")));
+        lines.clear();
+    };
+    for (int i = 0; i < text.size(); i++) {
+        const int lead = leadOf(text[i]);
+        const QString after = i == 0 ? shortcut : QString();
+        if (lead <= 0) {
+            lines << text[i].toHtmlEscaped() + after;
+        } else if (leads == 1) {
+            lines << QStringLiteral("<b>%1</b>").arg(text[i].left(lead).toHtmlEscaped()) + after << sentence(text[i].mid(lead + 2));
+        } else {
+            paragraph();
+            out += QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\">");
+            for (; i < text.size() && leadOf(text[i]) > 0; i++) {
+                const int at = leadOf(text[i]);
+                out += QStringLiteral("<tr><td style=\"padding:1px 10px 1px 0; white-space:nowrap\"><b>%1</b></td><td style=\"padding:1px 0\">%2</td></tr>")
+                           .arg(text[i].left(at).toHtmlEscaped(), sentence(text[i].mid(at + 2)));
+            }
+            out += QStringLiteral("</table>");
+            i--;
+        }
     }
-    if (!lines.isEmpty() && !keys.isEmpty()) {
-        lines[0] += QStringLiteral("&nbsp;&nbsp;&nbsp;<span style=\"color:%1\">%2</span>").arg(css(quiet), keys.toHtmlEscaped());
-    }
-    if (!lines.isEmpty()) out += QStringLiteral("<p style=\"margin:0\">%1</p>").arg(lines.join(QStringLiteral("<br>")));
+    paragraph();
     if (gestures.isEmpty()) return out;
 
     // short words go in one row; longer ones a gesture per row, so the tooltip stays narrow
