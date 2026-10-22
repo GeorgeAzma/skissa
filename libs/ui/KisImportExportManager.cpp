@@ -20,10 +20,6 @@
 #include <QTextBrowser>
 #include <QCheckBox>
 #include <QSaveFile>
-#include <QThread>
-#ifdef Q_OS_WIN
-#include <windows.h>
-#endif
 #include <QGroupBox>
 #include <QFuture>
 #include <QtConcurrentRun>
@@ -37,6 +33,7 @@
 #include <KisPart.h>
 #include <KisPopupButton.h>
 #include <KisPreExportChecker.h>
+#include <KisSafeSave.h>
 #include <KisUsageLogger.h>
 #include <KoColorProfile.h>
 #include <KoColorProfileConstants.h>
@@ -929,67 +926,20 @@ KisImportExportErrorCode KisImportExportManager::doExportImpl(const QString &loc
             file.flush();
             file.close();
 #ifdef Q_OS_WIN
-            // Copy the new file beside the old one, then swap it in: the old file stays whole until the
-            // new one is complete on the disk. A cloud folder may hold the file a moment, so try again.
-            const QString sibling = location + QStringLiteral(".saving");
-            // in the form Windows takes for paths longer than MAX_PATH
-            auto longPath = [](const QString &path) -> QString {
-                const QString native = QDir::toNativeSeparators(QFileInfo(path).absoluteFilePath());
-                if (native.startsWith(QLatin1String("\\\\?\\"))) return native;
-                if (native.startsWith(QLatin1String("\\\\"))) return QStringLiteral("\\\\?\\UNC\\") + native.mid(2);
-                return QStringLiteral("\\\\?\\") + native;
-            };
-            auto moveFile = [&longPath](const QString &from, const QString &to) {
-                return MoveFileExW(reinterpret_cast<LPCWSTR>(longPath(from).utf16()), reinterpret_cast<LPCWSTR>(longPath(to).utf16()),
-                                   MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
-            };
-            // on the disk, not only in the cache; shared, since a virus scanner or a cloud folder may be reading it
-            auto flushFile = [&longPath](const QString &path) {
-                HANDLE handle = CreateFileW(reinterpret_cast<LPCWSTR>(longPath(path).utf16()), GENERIC_WRITE,
-                                            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-                const bool flushed = handle != INVALID_HANDLE_VALUE && FlushFileBuffers(handle);
-                if (handle != INVALID_HANDLE_VALUE) CloseHandle(handle);
-                return flushed;
-            };
-            QFile::remove(sibling);
-            bool swapped = false;
-            if (file.copy(sibling)) {
-                // before it takes the old file's place; swapped in even if that failed, which is no worse than copying over
-                for (int attempt = 0; attempt < 3 && !flushFile(sibling); attempt++) QThread::msleep(50);
-                for (int attempt = 0; attempt < 5 && !swapped; attempt++) {
-                    if (attempt) QThread::msleep(100);
-                    swapped = moveFile(sibling, location);
-                }
-                if (!swapped) QFile::remove(sibling);
-            }
-            if (!swapped) {
-                // the old file set aside, not deleted, until the new one is in its place
-                const QString aside = location + QStringLiteral(".old");
-                QFile::remove(aside);
-                const bool hadOld = QFile::exists(location);
-                if (hadOld && !moveFile(location, aside)) {
-                    file.setAutoRemove(false);
-                    return KisImportExportErrorCannotWrite(QFileDevice::RenameError);
-                }
-                if (!file.copy(location)) {
-                    if (hadOld) moveFile(aside, location);
-                    file.setAutoRemove(false);
-                    return KisImportExportErrorCannotWrite(file.error());
-                }
-                // the old file goes only once the new one is surely on the disk
-                if (hadOld && flushFile(location)) QFile::remove(aside);
+            // Skissa: the old file stays whole until the new one is in its place
+            const QFileDevice::FileError replaced = KisSafeSave::replace(file, location);
+            if (replaced != QFileDevice::NoError) {
+                return KisImportExportErrorCannotWrite(replaced);
             }
 #else
-            {
-                QFile target(location);
-                if (target.exists()) {
-                    // There should already be a .kra~ backup
-                    target.remove();
-                }
-                if (!file.copy(location)) {
-                    file.setAutoRemove(false);
-                    return KisImportExportErrorCannotWrite(file.error());
-                }
+            QFile target(location);
+            if (target.exists()) {
+                // There should already be a .kra~ backup
+                target.remove();
+            }
+            if (!file.copy(location)) {
+                file.setAutoRemove(false);
+                return KisImportExportErrorCannotWrite(file.error());
             }
 #endif
 #endif
