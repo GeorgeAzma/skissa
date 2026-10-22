@@ -12,6 +12,7 @@
  */
 
 #include "KisTagChooserWidget.h"
+#include "KisTagChooserRows.h"
 
 #include <QAbstractItemView>
 #include <QComboBox>
@@ -19,7 +20,6 @@
 #include <QHBoxLayout>
 #include <QStyleOption>
 #include <KisModernStyle.h>
-#include <QIdentityProxyModel>
 #include <QSignalBlocker>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -29,7 +29,6 @@
 #include <QPointer>
 #include <QScreen>
 #include <QScrollBar>
-#include <QStyledItemDelegate>
 #include <QTimer>
 #include <QToolButton>
 
@@ -46,103 +45,11 @@
 
 #include <KisTagResourceModel.h>
 
-namespace {
-
-/// A tag's delete button in its list row
-QRect deleteButtonRect(const QRect &row)
-{
-    return QRect(row.right() - 24, row.center().y() - 9, 18, 18);
-}
-
-/// List rows with a delete button on the hovered tag (on every tag in touch mode)
-class TagItemDelegate : public QStyledItemDelegate
-{
-public:
-    std::function<bool(const QModelIndex &)> deletable;
-
-    using QStyledItemDelegate::QStyledItemDelegate;
-
-    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
-    {
-        QStyledItemDelegate::paint(painter, option, index);
-        const bool pointed = option.state & (QStyle::State_MouseOver | QStyle::State_Selected);
-        if ((pointed || KisTouchMode::isActive()) && deletable && deletable(index)) {
-            koIcon("edit-delete").paint(painter, deleteButtonRect(option.rect).adjusted(1, 1, -1, -1));
-        }
-    }
-};
-
-/// The tags, and a last "New tag…" row
-class NewTagRow : public QIdentityProxyModel
-{
-public:
-    using QIdentityProxyModel::QIdentityProxyModel;
-
-    int newTagRow() const
-    {
-        return sourceModel() ? sourceModel()->rowCount() : 0;
-    }
-
-    /// The added row's index has no internal pointer; the tags' rows carry their source's
-    bool isNewTag(const QModelIndex &index) const
-    {
-        return index.isValid() && index.model() == this && !index.internalPointer() && index.row() == newTagRow();
-    }
-
-    int rowCount(const QModelIndex &parent = QModelIndex()) const override
-    {
-        return parent.isValid() ? 0 : QIdentityProxyModel::rowCount(parent) + 1;
-    }
-
-    QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override
-    {
-        if (!parent.isValid() && row == newTagRow() && column == 0) {
-            return createIndex(row, column);
-        }
-        return QIdentityProxyModel::index(row, column, parent);
-    }
-
-    QModelIndex parent(const QModelIndex &child) const override
-    {
-        if (isNewTag(child)) {
-            return QModelIndex();
-        }
-        return QIdentityProxyModel::parent(child);
-    }
-
-    QModelIndex mapToSource(const QModelIndex &proxyIndex) const override
-    {
-        if (isNewTag(proxyIndex)) {
-            return QModelIndex();
-        }
-        return QIdentityProxyModel::mapToSource(proxyIndex);
-    }
-
-    QVariant data(const QModelIndex &index, int role) const override
-    {
-        if (isNewTag(index)) {
-            if (role == Qt::DisplayRole) return i18nc("@item:inlistbox", "New tag…");
-            return QVariant();
-        }
-        return QIdentityProxyModel::data(index, role);
-    }
-
-    Qt::ItemFlags flags(const QModelIndex &index) const override
-    {
-        if (isNewTag(index)) {
-            return Qt::ItemIsEnabled | Qt::ItemIsSelectable;
-        }
-        return QIdentityProxyModel::flags(index);
-    }
-};
-
-} // namespace
-
 class Q_DECL_HIDDEN KisTagChooserWidget::Private
 {
 public:
     QComboBox *comboBox;
-    NewTagRow *rows;
+    KisNewTagRow *rows;
     /// The tag chosen before "New tag…" was picked
     /// The tag chosen before "New tag": followed as tags are added, removed or sorted
     QPersistentModelIndex lastTag;
@@ -177,14 +84,14 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
 
     d->comboBox->setInsertPolicy(QComboBox::InsertAlphabetically);
     model->sort(KisAllTagsModel::Name);
-    d->rows = new NewTagRow(this);
+    d->rows = new KisNewTagRow(this);
     d->rows->setSourceModel(model);
     d->comboBox->setModel(d->rows);
 
     d->model = model;
 
     // in the list, a delete button on the hovered tag; a right click renames
-    auto *delegate = new TagItemDelegate(d->comboBox->view());
+    auto *delegate = new KisTagItemDelegate(d->comboBox->view());
     delegate->deletable = [this](const QModelIndex &index) { return isUserTag(tagAt(index)); };
     d->comboBox->view()->setItemDelegate(delegate);
     d->comboBox->view()->setMouseTracking(true);
@@ -411,7 +318,7 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
             }
             KisTagSP tag = tagAt(index);
             if (mouse->button() == Qt::LeftButton && isUserTag(tag)
-                && deleteButtonRect(view->visualRect(index)).contains(mouse->pos())) {
+                && KisTagItemDelegate::deleteButtonRect(view->visualRect(index)).contains(mouse->pos())) {
                 // the list stays open
                 if (event->type() == QEvent::MouseButtonRelease) deleteTag(tag);
                 return true;
