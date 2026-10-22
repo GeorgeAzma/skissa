@@ -281,4 +281,8 @@ void KisStudioTips::install(std::function<QKeySequence(QAbstractButton *)> short
     filter = new TipFilter();
     filter->setParent(qApp);
     qApp->installEventFilter(filter);
+    // tooltips in the theme's colors: Qt keeps the system's, whose text is white on a light theme in Windows'
+    // dark mode, and the reverse
+    QToolTip::setPalette(QApplication::palette());
+    QObject::connect(qApp, &QGuiApplication::paletteChanged, filter, [](const QPalette &palette) { QToolTip::setPalette(palette); });
 }
