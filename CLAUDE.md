@@ -163,6 +163,8 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
   - Turn Krita's code off in the build (CMake), don't delete it: an unbuilt file stays as upstream has it and merges cleanly.
   - Don't append to Krita's lists or files when a file of the fork's own can hold it (`po-skissa/`, `libs/ui/skissa.cmake`).
 - **Check a merge before doing it:** `git merge-tree --write-tree --name-only HEAD origin/master` lists the files that would conflict.
+- **Skissa's own copies of Krita's files**, built in their place while Krita's stay exactly as upstream has them: the layer, palette and time-lapse panels (`plugins/dockers/skissa_*`, with Krita's other files of those panels taken from its folders) and Multibrush (`KisStudioMultiBrush`). Krita's fixes to the files copied don't arrive by merging: the update script lists Krita's commits that touched them (`KEPT` in `skissa-update.py`), to bring over by hand.
+- **Where the fork still changes Krita's code most** (moving these behind a call or two is the next step for easier merges): `KisMainWindow.cpp`, `kis_tool_freehand_helper.cpp` (stroke recording, stabilizer pressure), the brush option widgets in `plugins/paintops/libpaintop` (texture, curve options), `kis_preset_chooser.cpp` (the brush list's rows), `kis_paintop_settings_widget.cpp` (row scrubbing), `KisOpenGLCanvasRenderer.cpp`, `kis_config.cc`, `kis_slider_spin_box_p.h`, `kis_cmb_composite.cc`, `kis_paintop_box.cc`, `KisTagChooserWidget.cpp`. About 40 of Krita's files only change "Krita" to "Skissa" in their text.
 
 ## Legal and credit
 
