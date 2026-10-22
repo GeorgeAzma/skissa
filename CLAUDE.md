@@ -210,7 +210,7 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - A setting the fork stops showing must still be read correctly, or be migrated. Deleting a key upstream still reads is a bug.
 - Count only deliberate input as "the user is working": pen hover sends moves all the time.
 - When a feature writes test data into the profile, prefer the UI (with the panel's Undo) over editing files.
-- Public text (README, release notes) is shown, not told: a clip or screenshot per feature, a line of words at most, plain first-person voice. Bold lead-ins, feature lists and comparison tables read as machine-written to the owner.
+- Public text (README, release notes) is shown, not told: a clip or screenshot per feature, a line of words at most, plain first-person voice. Release notes are pictures and a line or two of plain facts (how to run it), almost no text; anything that sells reads as marketing to the owner. Bold lead-ins, feature lists and comparison tables read as machine-written to the owner.
 - After a build, check the installed DLL's time: an install can silently keep the old one when the dev Krita was still running.
 - Another session may be driving the dev Krita too (and may have started it with other variables, such as `KRITA_DEV_APART`). If a capture shows a fresh-looking profile, check the process's command line and parent before suspecting the code.
 - Windows caches program icons by path: after the .exe's icon changes, Task Manager and Explorer can keep showing the old one until `ie4uinit.exe -show` refreshes the cache.
