@@ -10,7 +10,6 @@
 #include <KisMainWindow.h>
 #include <KisPart.h>
 #include <KisViewManager.h>
-#include <commands_new/kis_transaction_based_command.h>
 #include <kis_image.h>
 #include <kis_painter.h>
 #include <kis_pixel_selection.h>
@@ -28,7 +27,17 @@
 #include <cmath>
 #include <memory>
 
+/**
+ * One transaction, reverted and made again for each value, so however long the drag, its undo keeps one
+ * copy of the selection
+ */
+struct KisStudioSelectionAdjust::Live {
+    std::unique_ptr<KisTransaction> transaction;
+};
+
 namespace {
+
+using Live = KisStudioSelectionAdjust::Live;
 
 /// A soft edge \p reach px wide each way: a gaussian that has faded out by then (Krita's Feather is cut off at one
 /// sigma, which leaves a faint box around a soft selection)
@@ -66,26 +75,27 @@ private:
     int m_reach;
 };
 
-/// The selection made again from how it was: grown or shrunk, then softened
-struct Readjust : public KisTransactionBasedCommand {
-    Readjust(KisSelectionSP selection, KisPixelSelectionSP original, int grow, int soft, std::shared_ptr<std::atomic<bool>> busy)
+/// One value of the drag: the selection as it was, grown or shrunk, then softened
+struct Preview : public KUndo2Command {
+    Preview(KisSelectionSP selection, std::shared_ptr<Live> live, int grow, int soft, std::shared_ptr<std::atomic<bool>> busy)
         : m_selection(selection)
-        , m_original(original)
+        , m_live(live)
         , m_grow(grow)
         , m_soft(soft)
         , m_busy(busy)
     {
     }
 
-    KUndo2Command *paint() override
+    void redo() override
     {
+        // made once, while dragging; the step is Keep's
+        if (m_done) return;
+        m_done = true;
         KisPixelSelectionSP pixels = m_selection->pixelSelection();
-        KisTransaction transaction(pixels);
         const QRect before = pixels->selectedExactRect();
-        const QRect from = m_original->selectedExactRect();
-        pixels->clear();
-        KisPainter::copyAreaOptimized(from.topLeft(), m_original, pixels, from);
-        QRect rect = from;
+        if (m_live->transaction) m_live->transaction->revert();
+        m_live->transaction.reset(new KisTransaction(pixels));
+        QRect rect = pixels->selectedExactRect();
         auto run = [&](KisSelectionFilter &&filter) {
             rect = filter.changeRect(rect, pixels->defaultBounds());
             filter.process(pixels, rect);
@@ -93,17 +103,54 @@ struct Readjust : public KisTransactionBasedCommand {
         if (m_grow > 0) run(KisGrowSelectionFilter(m_grow, m_grow));
         else if (m_grow < 0) run(KisShrinkSelectionFilter(-m_grow, -m_grow, false));
         if (m_soft > 0) run(SoftEdge(m_soft));
-        KUndo2Command *command = transaction.endAndTake();
         pixels->setDirty(before | rect);
         *m_busy = false;
-        return command;
+    }
+
+    void undo() override
+    {
+        // a cancelled drag: the selection as it was
+        if (!m_live->transaction) return;
+        KisPixelSelectionSP pixels = m_selection->pixelSelection();
+        const QRect before = pixels->selectedExactRect();
+        m_live->transaction->revert();
+        m_live->transaction.reset();
+        pixels->setDirty(before | pixels->selectedExactRect());
     }
 
     KisSelectionSP m_selection;
-    KisPixelSelectionSP m_original;
+    std::shared_ptr<Live> m_live;
     int m_grow;
     int m_soft;
     std::shared_ptr<std::atomic<bool>> m_busy;
+    bool m_done {false};
+};
+
+/// The value let go at, as the drag's one undo step
+struct Keep : public KUndo2Command {
+    explicit Keep(std::shared_ptr<Live> live)
+        : m_live(live)
+    {
+    }
+
+    void redo() override
+    {
+        if (!m_taken) {
+            m_taken = true;
+            if (m_live->transaction) m_command.reset(m_live->transaction->endAndTake());
+            m_live->transaction.reset();
+        }
+        if (m_command) m_command->redo();
+    }
+
+    void undo() override
+    {
+        if (m_command) m_command->undo();
+    }
+
+    std::shared_ptr<Live> m_live;
+    std::unique_ptr<KUndo2Command> m_command;
+    bool m_taken {false};
 };
 
 } // namespace
@@ -130,7 +177,7 @@ void KisStudioSelectionAdjust::begin()
     if (!view || !view->image() || !selection) return;
     m_image = view->image();
     m_selection = selection;
-    m_original = new KisPixelSelection(*selection->pixelSelection());
+    m_live = std::make_shared<KisStudioSelectionAdjust::Live>();
     m_grow = 0;
     m_soft = 0;
     m_busy = std::make_shared<std::atomic<bool>>(false);
@@ -158,7 +205,7 @@ void KisStudioSelectionAdjust::apply()
     }
     m_pending = false;
     *m_busy = true;
-    m_applicator->applyCommand(new Readjust(m_selection, m_original, m_grow, m_soft, m_busy), KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::NORMAL);
+    m_applicator->applyCommand(new Preview(m_selection, m_live, m_grow, m_soft, m_busy), KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::NORMAL);
 }
 
 void KisStudioSelectionAdjust::end()
@@ -173,10 +220,11 @@ void KisStudioSelectionAdjust::end()
         m_ending = true;
         apply();
         m_ending = false;
+        m_applicator->applyCommand(new Keep(m_live), KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::NORMAL);
         m_applicator->end();
     }
     delete m_applicator;
     m_applicator = nullptr;
     m_selection.clear();
-    m_original.clear();
+    m_live.reset();
 }

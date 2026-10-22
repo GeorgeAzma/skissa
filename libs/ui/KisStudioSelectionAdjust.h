@@ -34,12 +34,15 @@ public:
     void end();
     bool isActive() const { return m_applicator; }
 
+    /// What the drag has made of the selection so far
+    struct Live;
+
 private:
     void apply();
 
     KisImageWSP m_image;
     KisSelectionSP m_selection;
-    KisPixelSelectionSP m_original;
+    std::shared_ptr<Live> m_live;
     KisProcessingApplicator *m_applicator {nullptr};
     int m_grow {0};
     int m_soft {0};
