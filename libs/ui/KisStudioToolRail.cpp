@@ -50,6 +50,7 @@
 #include "KisViewManager.h"
 #include "canvas/kis_canvas_controller.h"
 #include "kis_canvas_resource_provider.h"
+#include "KisSettingsRegistry.h"
 #include "kis_config.h"
 #include "kis_icon_utils.h"
 #include "kis_paintop_preset.h"
@@ -456,6 +457,7 @@ struct KisStudioToolRail::Private
     KisMainWindow *mainWindow {nullptr};
     QVBoxLayout *layout {nullptr};
     QVBoxLayout *itemsLayout {nullptr};
+    bool missing {false};
     QFrame *indicator {nullptr};
     QPointer<PlusButton> plus;             ///< a child of the canvas area, below the panel
     QTimer *plusHide {nullptr};            ///< delays hiding so the pointer can cross from the panel to the "+"
@@ -692,6 +694,11 @@ void KisStudioToolRail::refresh()
     updateActiveSlot();
 }
 
+bool KisStudioToolRail::hasMissingItems() const
+{
+    return d->missing;
+}
+
 void KisStudioToolRail::addItem(const QString &key)
 {
     if (!d->items.contains(key)) {
@@ -858,10 +865,11 @@ void KisStudioToolRail::mousePressEvent(QMouseEvent *event)
     QWidget::mousePressEvent(event);
 }
 
-void KisStudioToolRail::startDrag(int index, QWidget *source, const QPixmap &pixmap)
+void KisStudioToolRail::startDrag(int index, const QPixmap &pixmap)
 {
     const QString dragged = d->items.value(index);
-    auto *drag = new QDrag(source);
+    // owned by the application: the rail can be rebuilt while it runs, which deletes its buttons
+    auto *drag = new QDrag(qApp);
     auto *mime = new QMimeData();
     mime->setData(KisStudioShortcuts::itemMimeType(), dragged.toUtf8());
     // the index too, to tell several gaps apart
@@ -871,7 +879,9 @@ void KisStudioToolRail::startDrag(int index, QWidget *source, const QPixmap &pix
         drag->setPixmap(pixmap);
     }
     // dropping it off the rail removes it, unless the drag was cancelled with Esc
-    if (drag->exec(Qt::MoveAction) == Qt::IgnoreAction && !KisModernStyle::pointerHeld()) {
+    const Qt::DropAction done = drag->exec(Qt::MoveAction);
+    drag->deleteLater();
+    if (done == Qt::IgnoreAction && !KisModernStyle::pointerHeld()) {
         QStringList items = d->items;
         if (index < items.size() && items[index] == dragged) {
             items.removeAt(index);
@@ -902,6 +912,7 @@ void KisStudioToolRail::rebuild()
     }
 
     KisStudioFind *find = d->mainWindow->studioFind();
+    d->missing = false;
     for (int i = 0; i < d->items.size(); i++) {
         const QString key = d->items[i];
         const int index = i;
@@ -913,7 +924,7 @@ void KisStudioToolRail::rebuild()
                 if (index < items.size()) items[index] = spacePrefix + name;
                 QTimer::singleShot(0, this, [this, items]() { setItems(items); });
             };
-            space->onDrag = [this, index, space]() { startDrag(index, space, QPixmap()); };
+            space->onDrag = [this, index]() { startDrag(index, QPixmap()); };
             space->installEventFilter(this);
             d->itemsLayout->addWidget(space, 0, Qt::AlignHCenter);
             d->widgets << space;
@@ -926,13 +937,19 @@ void KisStudioToolRail::rebuild()
         bool variants = false;
         if (key.startsWith(slotPrefix)) {
             const QString slotId = key.mid(slotPrefix.size());
-            if (!d->slots.contains(slotId)) continue;
+            if (!d->slots.contains(slotId)) {
+                d->missing = true;
+                continue;
+            }
             icon = KisIconUtils::loadIcon(d->slots[slotId].icon);
             title = d->slots[slotId].title;
             variants = d->visibleVariants(slotId).size() > 1;
         } else {
             KisStudioFind::Item item;
-            if (!find || !find->item(key, &item)) continue;
+            if (!find || !find->item(key, &item)) {
+                d->missing = true;
+                continue;
+            }
             icon = item.icon.isNull() ? KisIconUtils::loadIcon(QStringLiteral("studio_more")) : item.icon;
             title = item.title;
         }
@@ -943,7 +960,7 @@ void KisStudioToolRail::rebuild()
         button->hasVariants = variants;
         button->shortcutAction = d->shortcutActionFor(key);
         button->onCard = [this, index](bool touch) { showCard(index, touch); };
-        button->onDrag = [this, index, button, icon]() { startDrag(index, button, icon.pixmap(32, 32)); };
+        button->onDrag = [this, index, icon]() { startDrag(index, icon.pixmap(32, 32)); };
         connect(button, &QToolButton::clicked, this, [this, index]() { runItem(index); });
         if (variants) {
             // scrolling steps through the variants
@@ -1182,7 +1199,7 @@ void KisStudioToolRail::activateTool(const QString &slotId, const QString &toolI
     }
     const ToolSlot s = d->slots.value(slotId);
     d->currentTool[slotId] = toolId;
-    KisConfig(false).writeEntry(QStringLiteral("StudioToolSlot_") + slotId, toolId);
+    KisSettingsRegistry::writeLater(QStringLiteral("StudioToolSlot_") + slotId, toolId);
 
     QAction *erase = d->eraseAction();
     if (s.brush == BrushMode::Erase) {
@@ -1195,7 +1212,7 @@ void KisStudioToolRail::activateTool(const QString &slotId, const QString &toolI
         KisCanvasResourceProvider *resources = d->resources();
         if (switchingBrush && resources && resources->currentPreset() && !d->brushSlot.isEmpty()) {
             // the slot being left remembers its brush
-            KisConfig(false).writeEntry(QStringLiteral("StudioBrushPreset_") + d->brushSlot, resources->currentPreset()->name());
+            KisSettingsRegistry::writeLater(QStringLiteral("StudioBrushPreset_") + d->brushSlot, resources->currentPreset()->name());
         }
         d->brushSlot = slotId;
         if (erase && erase->isChecked()) {
@@ -1293,7 +1310,7 @@ void KisStudioToolRail::rememberPreset()
         return;
     }
     // a brush picked in Paint or Blend becomes that slot's brush
-    KisConfig(false).writeEntry(QStringLiteral("StudioBrushPreset_") + d->brushSlot, name);
+    KisSettingsRegistry::writeLater(QStringLiteral("StudioBrushPreset_") + d->brushSlot, name);
 }
 
 void KisStudioToolRail::loadPresetForSlot(const QString &slotId)
@@ -1326,6 +1343,6 @@ void KisStudioToolRail::loadPresetForSlot(const QString &slotId)
         d->loadingPreset = true;
         resources->setPaintOpPreset(preset);
         d->loadingPreset = false;
-        KisConfig(false).writeEntry(QStringLiteral("StudioBrushPreset_") + slotId, name);
+        KisSettingsRegistry::writeLater(QStringLiteral("StudioBrushPreset_") + slotId, name);
     }
 }

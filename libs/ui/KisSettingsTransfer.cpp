@@ -8,7 +8,6 @@
 #include <QColor>
 #include <QCoreApplication>
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -60,13 +59,6 @@ QString nameOf(const Setting &setting)
 QString samePath(const QString &path)
 {
     return QDir::cleanPath(QFileInfo(path).absoluteFilePath()).toLower();
-}
-
-QByteArray readAll(const QString &path, bool *ok)
-{
-    QFile file(path);
-    *ok = file.open(QIODevice::ReadOnly);
-    return *ok ? file.readAll() : QByteArray();
 }
 
 /// Lists the changes that taking the settings in \p source would make here

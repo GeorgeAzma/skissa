@@ -37,6 +37,11 @@ public:
     /// Where a pill dragged anywhere sits along one axis, as a share of the room it moves in: the edges and the middle catch it
     static qreal spotShare(int offset, int room);
     static int spotOffset(qreal share, int room);
+    /**
+     * Raises \p overlay over what isn't an overlay (the canvas, the start page), leaving the overlays' order
+     * alone: two raising themselves on the same layout change would swap places and repaint each time
+     */
+    static void keepAbove(QWidget *overlay);
 
     bool isActive() const;
     /// Switches between the studio layout and Krita's classic dockers

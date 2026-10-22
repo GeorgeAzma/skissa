@@ -597,7 +597,7 @@ void writeSpot(const QString &key, const QPointF &spot, int height = 0)
 {
     QString value = QString::number(spot.x()) + QLatin1Char(',') + QString::number(spot.y());
     if (height > 0) value += QLatin1Char(',') + QString::number(height);
-    KisConfig(false).writeEntry(key, value);
+    KisSettingsRegistry::writeLater(key, value);
 }
 
 /// How far the pinned panels' pill reaches in from the left and right edges, even when only its strip shows
@@ -1250,7 +1250,7 @@ public:
         const QRect room = this->room();
         const int across = offsetOf(m_spot.x(), room.width());
         move(m_left ? room.left() + across : room.left() + room.width() - across, room.top() + offsetOf(m_spot.y(), room.height()));
-        raise();
+        KisStudioLayout::keepAbove(this);
         updateReach();
     }
 
@@ -1296,6 +1296,8 @@ protected:
         if (!m_moving) {
             if ((global - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
             m_moving = true;
+            // what is carried goes over the other overlays
+            raise();
             setCursor(Qt::ClosedHandCursor);
             update();
         }
@@ -1459,7 +1461,7 @@ public:
             const QPair<int, int> span = spanAt(y);
             move(span.first + offsetOf(m_spot.x(), span.second - span.first), y);
         }
-        raise();
+        KisStudioLayout::keepAbove(this);
     }
 
     /// Where it was dragged to, as shares of the room it has (see shareOf())
@@ -1916,7 +1918,7 @@ public:
         const QRect geometry(m_left ? at.x() : at.right() + 1 - size.width(), at.y(), size.width(), size.height());
         const bool changed = geometry != m_target;
         glideTo(geometry, at.topLeft() - wanted.topLeft(), m_moving);
-        raise();
+        KisStudioLayout::keepAbove(this);
         if (changed && resized) resized(false);
         if (learnt && moved) moved(m_left, m_spot);
     }
@@ -2016,6 +2018,8 @@ protected:
         if (!m_moving) {
             if ((global - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
             m_moving = true;
+            // what is carried goes over the other overlays
+            raise();
             setCursor(Qt::ClosedHandCursor);
             update();
         }
@@ -2411,7 +2415,12 @@ struct KisStudioLayout::Private
     /// Shows where a dragged panel would land beside the canvas
     QPointer<QFrame> panelIndicator;
 
+    /// Looked up once: canvas-only mode asks at every pointer move
+    QPointer<QAction> canvasOnlyAction;
+    QPointer<QMdiArea> mdiArea;
     QSet<QString> pinned;
+    /// Pinned panels put away with their button: normalize() leaves them hidden
+    QSet<QString> hiddenPinned;
     QHash<QString, int> heights;
     QSet<QString> folded;
     QHash<QString, QPointer<PanelGrip>> grips;
@@ -2669,6 +2678,7 @@ KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
     connect(mainWindow, &KisMainWindow::themeChanged, this, [this]() {
         if (!d->active) return;
         rebuildRailButtons();
+        if (d->toolRail) d->toolRail->refresh();
         if (d->addPanelButton) d->addPanelButton->setIcon(KisIconUtils::loadIcon(QStringLiteral("list-add")));
         updateContextBar();
     });
@@ -2678,6 +2688,22 @@ KisStudioLayout::~KisStudioLayout()
 {
     if (d->active) {
         qApp->removeEventFilter(this);
+    }
+}
+
+void KisStudioLayout::keepAbove(QWidget *overlay)
+{
+    static const char *const overlayProperty = "studioOverlay";
+    overlay->setProperty(overlayProperty, true);
+    QWidget *parent = overlay->parentWidget();
+    if (!parent) return;
+    const QObjectList &siblings = parent->children();
+    for (int i = siblings.indexOf(overlay) + 1; i < siblings.size(); i++) {
+        auto *sibling = qobject_cast<QWidget *>(siblings[i]);
+        if (sibling && !sibling->isWindow() && !sibling->isHidden() && !sibling->property(overlayProperty).toBool()) {
+            overlay->raise();
+            return;
+        }
     }
 }
 
@@ -2989,7 +3015,8 @@ bool KisStudioLayout::isCaptionAt(const QPoint &pos) const
 
 QMdiArea *KisStudioLayout::mdiArea() const
 {
-    return d->mainWindow->findChild<QMdiArea *>();
+    if (!d->mdiArea) d->mdiArea = d->mainWindow->findChild<QMdiArea *>();
+    return d->mdiArea;
 }
 
 void KisStudioLayout::adoptDocuments()
@@ -3224,7 +3251,7 @@ void KisStudioLayout::normalize()
         }
         if (!d->pinned.contains(dock->objectName())) {
             dock->hide();
-        } else if (!panelsHidden) {
+        } else if (!panelsHidden && !d->hiddenPinned.contains(dock->objectName())) {
             dock->show();
         }
     }
@@ -3245,8 +3272,9 @@ void KisStudioLayout::normalize()
         d->brushRail->setVisible(!railHidden);
     }
     adoptTopBars();
-    // the rail's commands only exist once the GUI is built, which happens after the rail
-    if (d->toolRail) {
+    // the rail's commands only exist once the GUI is built, which happens after the rail; this runs at
+    // every setting change, so only then
+    if (d->toolRail && d->toolRail->hasMissingItems()) {
         d->toolRail->refresh();
     }
     placeWindowButtons();
@@ -3317,8 +3345,8 @@ bool KisStudioLayout::isRailHidden() const
 
 bool KisStudioLayout::isCanvasOnly() const
 {
-    QAction *canvasOnly = d->mainWindow->actionCollection()->action(QStringLiteral("view_show_canvas_only"));
-    return canvasOnly && canvasOnly->isChecked();
+    if (!d->canvasOnlyAction) d->canvasOnlyAction = d->mainWindow->actionCollection()->action(QStringLiteral("view_show_canvas_only"));
+    return d->canvasOnlyAction && d->canvasOnlyAction->isChecked();
 }
 
 void KisStudioLayout::closeFlyout()
@@ -3366,6 +3394,7 @@ void KisStudioLayout::showPanel(QDockWidget *dock)
 void KisStudioLayout::togglePanel(QDockWidget *dock, bool show)
 {
     if (show) {
+        d->hiddenPinned.remove(dock->objectName());
         if (d->pinned.contains(dock->objectName())) {
             if (d->panelsTucked) setPanelsTucked(false);
             dock->show();
@@ -3376,6 +3405,7 @@ void KisStudioLayout::togglePanel(QDockWidget *dock, bool show)
     } else if (dock == d->flyout) {
         closeFlyout();
     } else {
+        if (d->pinned.contains(dock->objectName())) d->hiddenPinned.insert(dock->objectName());
         dock->hide();
     }
 }
@@ -3477,6 +3507,7 @@ void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
     const QString id = dock->objectName();
     if (pinned) {
         d->pinned.insert(id);
+        d->hiddenPinned.remove(id);
         if (dock == d->flyout) {
             releaseFlyout();
         }
@@ -4203,7 +4234,7 @@ void KisStudioLayout::saveHeights()
         entries << it.key() + QLatin1Char('=') + QString::number(it.value());
     }
     entries.sort();
-    KisConfig(false).writeEntry(heightsKey, entries);
+    KisSettingsRegistry::writeLater(heightsKey, entries);
 }
 
 void KisStudioLayout::gripClicked(const QString &id)
@@ -4330,6 +4361,7 @@ void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool
     }
 
     d->pinned.insert(id);
+    d->hiddenPinned.remove(id);
     const int group = drop.fresh ? newPanelGroup(drop.at) : drop.group;
     if (group > 0) d->groups.insert(id, group);
     else d->groups.remove(id);
@@ -4371,7 +4403,7 @@ void KisStudioLayout::savePinned()
 {
     QStringList pinned = d->pinned.values();
     pinned.sort();
-    KisConfig(false).writeEntry(pinnedKey, pinned);
+    KisSettingsRegistry::writeLater(pinnedKey, pinned);
     QStringList far;
     QStringList floating;
     for (auto it = d->groups.constBegin(); it != d->groups.constEnd(); ++it) {
@@ -4386,9 +4418,9 @@ void KisStudioLayout::savePinned()
     far.sort();
     floating.sort();
     lanes.sort();
-    KisConfig(false).writeEntry(farKey, far);
-    KisConfig(false).writeEntry(groupsKey, floating);
-    KisConfig(false).writeEntry(lanesKey, lanes);
+    KisSettingsRegistry::writeLater(farKey, far);
+    KisSettingsRegistry::writeLater(groupsKey, floating);
+    KisSettingsRegistry::writeLater(lanesKey, lanes);
 }
 
 void KisStudioLayout::createRail()
@@ -4992,7 +5024,7 @@ void KisStudioLayout::placeWindowHandle()
         place.setWidth(rail->width());
     }
     if (handle->geometry() != place) handle->setGeometry(place);
-    handle->raise();
+    keepAbove(handle);
     area->setProperty(handleBottomProperty, handle->isVisible() ? place.bottom() + 1 : 0);
     TopPill *window = d->windowPill;
     pill->setInsets(handle->isVisible() ? place.right() + 1 : 0, window && window->isVisible() ? area->width() - window->x() : 0);
@@ -5293,13 +5325,17 @@ void KisStudioLayout::peek(const QPoint &global)
     if (!area->rect().contains(at)) {
         return;
     }
+    const int reach = 6;
+    // most moves are nowhere near an edge, with nothing brought back to keep
+    if (d->peeking.isEmpty() && area->rect().adjusted(reach, reach, -reach, -reach).contains(at)) {
+        return;
+    }
     // what each edge brings back: the bars at the top, the tool rail and the panels at their sides
     const bool toolsLeft = d->brushRail && d->brushRail->x() < area->width() / 2;
     struct Edge {
         QWidget *widget;
         bool near;
     };
-    const int reach = 6;
     QList<Edge> edges = {
         {d->topPill.data(), d->topPill && !d->topPill->isAtTop() ? at.y() >= area->height() - reach : at.y() < reach},
         {d->brushRail.data(), toolsLeft ? at.x() < reach : at.x() >= area->width() - reach},

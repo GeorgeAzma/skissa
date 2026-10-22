@@ -115,6 +115,8 @@ bool KisPopupCloser::eventFilter(QObject *watched, QEvent *event)
             break;
         }
         const bool onAnchor = m_anchor && (widget == m_anchor || m_anchor->isAncestorOf(widget));
+        // the mouse press Windows makes from a pen's comes after the popup is gone: it must not open it again
+        if (onAnchor && event->type() == QEvent::TabletPress) AnchorGuard::instance()->arm(m_anchor);
         m_popup->close();
         return onAnchor;
     }

@@ -449,7 +449,7 @@ void KisStudioCanvasHud::viewChanged()
 
     updateBadges();
     show();
-    raise();
+    KisStudioLayout::keepAbove(this);
     reposition();
 }
 
@@ -472,7 +472,10 @@ void KisStudioCanvasHud::updateBadges()
 void KisStudioCanvasHud::updateZoom(qreal zoom)
 {
     d->zoomLevel = zoom;
-    d->zoom->setText(i18nc("zoom level, %1 is the percentage", "%1%", QString::number(zoom * 100.0, 'f', zoom < 0.1 ? 1 : 0)));
+    // a zoom gesture reports every step, most of them showing the same number
+    const QString text = i18nc("zoom level, %1 is the percentage", "%1%", QString::number(zoom * 100.0, 'f', zoom < 0.1 ? 1 : 0));
+    if (text == d->zoom->text()) return;
+    d->zoom->setText(text);
     reposition();
 }
 
@@ -482,8 +485,10 @@ void KisStudioCanvasHud::updateRotation(qreal angle)
     if (normalized > 180.0) normalized -= 360.0;
     if (normalized < -180.0) normalized += 360.0;
     const bool rotated = qAbs(normalized) > 0.05;
+    const QString text = i18nc("canvas rotation, %1 is the angle", "%1°", QString::number(normalized, 'f', 0));
+    if (rotated == d->rotation->isVisibleTo(this) && text == d->rotation->text()) return;
     d->rotation->setVisible(rotated);
-    d->rotation->setText(i18nc("canvas rotation, %1 is the angle", "%1°", QString::number(normalized, 'f', 0)));
+    d->rotation->setText(text);
     reposition();
 }
 
@@ -499,7 +504,7 @@ void KisStudioCanvasHud::reposition()
     const QPoint wanted(room.left() + KisStudioLayout::spotOffset(d->spot.x(), room.width()), room.top() + KisStudioLayout::spotOffset(d->spot.y(), room.height()));
     const QRect at = Private::clearOf(QRect(wanted, size()), d->taken(this), room);
     if (at.topLeft() != pos()) move(at.topLeft());
-    raise();
+    KisStudioLayout::keepAbove(this);
 }
 
 bool KisStudioCanvasHud::drag(QMouseEvent *event, QWidget *from)
@@ -519,6 +524,7 @@ bool KisStudioCanvasHud::drag(QMouseEvent *event, QWidget *from)
         if (!d->moving) {
             if ((global - d->pressPos).manhattanLength() <= 2 * QApplication::startDragDistance()) return false;
             d->moving = true;
+            raise();
             if (auto *button = qobject_cast<QAbstractButton *>(from)) button->setDown(false);
             setCursor(Qt::ClosedHandCursor);
         }

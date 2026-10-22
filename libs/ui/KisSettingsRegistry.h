@@ -14,6 +14,9 @@
 
 #include <functional>
 
+#include <KConfigGroup>
+#include <KSharedConfig>
+
 #include "kritaui_export.h"
 
 class KConfig;
@@ -129,6 +132,19 @@ public:
 
     /// Sends any pending change notification and syncs kritarc right away
     void flush();
+    /// Saves kritarc a moment after the last of a burst of writes
+    void scheduleSync();
+
+    /**
+     * Writes \p value under \p key in kritarc's main group, saved with the next sync: a KisConfig rewrites the
+     * whole file at every write, which a drag or a brush switch does many times in a row
+     */
+    template<typename T>
+    static void writeLater(const QString &key, const T &value)
+    {
+        KSharedConfig::openConfig()->group(QString()).writeEntry(key, value);
+        instance()->scheduleSync();
+    }
 
     /// The setting's value in another kritarc; invalid if it is unset or not valid there
     QVariant valueIn(const Setting &setting, KConfig &config) const;

@@ -553,7 +553,7 @@ struct KisStudioFind::Private
         for (int i = 0; i < sorted.size() && i < 200; i++) {
             stored << QStringLiteral("%1|%2|%3").arg(sorted[i].first).arg(sorted[i].second.count).arg(sorted[i].second.lastUsed);
         }
-        KisConfig(false).writeEntry(QStringLiteral("StudioFindUsage"), stored);
+        KisSettingsRegistry::writeLater(QStringLiteral("StudioFindUsage"), stored);
     }
 
     /// Frequently and recently used results rank higher; recency decays over a few days

@@ -34,6 +34,8 @@
 #include <QtConcurrentRun>
 
 #include <cmath>
+#include <functional>
+#include <memory>
 
 #include <klocalizedstring.h>
 
@@ -204,6 +206,28 @@ private:
 };
 
 /// A size for a new image, drawn as its shape to one scale with the others; or the image on the clipboard, Custom or Open
+/// Calls a function each time the widget it watches is shown
+class ShowWatch : public QObject
+{
+public:
+    ShowWatch(QWidget *widget, std::function<void()> shown)
+        : QObject(widget)
+        , m_shown(std::move(shown))
+    {
+        widget->installEventFilter(this);
+    }
+
+protected:
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        if (event->type() == QEvent::Show) m_shown();
+        return false;
+    }
+
+private:
+    std::function<void()> m_shown;
+};
+
 class NewTile : public QAbstractButton
 {
 public:
@@ -1264,8 +1288,24 @@ QWidget *KisStudioStartPage::createNewTiles(KisMainWindow *mainWindow, QWidget *
         clipboard->setVisible(!image.isNull());
         if (!image.isNull()) clipboard->setPicture(image.scaled(240, 240, Qt::KeepAspectRatio, Qt::SmoothTransformation), image.size());
     };
-    QObject::connect(KisClipboard::instance(), &KisClipboard::clipChanged, row, updateClipboard);
-    updateClipboard();
+    // the clipboard changes with every copy, in other apps too: its picture is made only when the tiles are seen
+    auto stale = std::make_shared<bool>(true);
+    QObject::connect(KisClipboard::instance(), &KisClipboard::clipChanged, row, [row, stale, updateClipboard]() {
+        *stale = true;
+        if (row->isVisible()) {
+            *stale = false;
+            updateClipboard();
+        }
+    });
+    new ShowWatch(row, [stale, updateClipboard]() {
+        if (!*stale) return;
+        *stale = false;
+        updateClipboard();
+    });
+    if (row->isVisible()) {
+        *stale = false;
+        updateClipboard();
+    }
     tiles->addWidget(clipboard);
 
     // Custom opens into a size to drag, in its place

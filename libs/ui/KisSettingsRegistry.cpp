@@ -909,6 +909,7 @@ KisSettingsRegistry::KisSettingsRegistry()
     d->sync.setSingleShot(true);
     d->sync.setInterval(800);
     connect(&d->sync, &QTimer::timeout, this, []() { KSharedConfig::openConfig()->sync(); });
+    connect(qApp, &QCoreApplication::aboutToQuit, this, &KisSettingsRegistry::flush);
 }
 
 const QVector<Setting> &KisSettingsRegistry::settings() const
@@ -1241,6 +1242,11 @@ void KisSettingsRegistry::notifyNow()
 void KisSettingsRegistry::schedule()
 {
     if (!d->notify.isActive()) d->notify.start();
+}
+
+void KisSettingsRegistry::scheduleSync()
+{
+    d->sync.start();
 }
 
 void KisSettingsRegistry::flush()

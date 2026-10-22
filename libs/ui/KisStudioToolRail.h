@@ -37,6 +37,8 @@ public:
     void removeItem(const QString &key);
     /// Rebuilds the buttons, e.g. once the commands they represent exist
     void refresh();
+    /// Whether an item had no command yet when the buttons were last built
+    bool hasMissingItems() const;
 
     /// "Rectangular Selection Tool" -> "Rectangular Selection"
     static QString toolName(KoToolFactoryBase *factory);
@@ -68,7 +70,7 @@ private:
     int gapAt(int y) const;
     void clearGap();
     void showIndicator(int itemIndex, int thickness);
-    void startDrag(int index, QWidget *source, const QPixmap &pixmap);
+    void startDrag(int index, const QPixmap &pixmap);
     void setItems(const QStringList &items);
     int dropIndex(int y) const;
     /// \p touch: opened by a long press, so it offers what a pointer does by clicking between items
