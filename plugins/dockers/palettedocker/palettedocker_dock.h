@@ -12,30 +12,28 @@
 #include <QModelIndex>
 #include <QScopedPointer>
 #include <QPointer>
-#include <QTimer>
+#include <QAction>
+#include <QMenu>
 
+#include <KoResourceServer.h>
 #include <KoResourceServer.h>
 #include <resources/KoColorSet.h>
 
 #include <kis_canvas2.h>
 #include <kis_mainwindow_observer.h>
 #include <KisView.h>
+#include <kis_workspace_resource.h>
+#include <kis_signal_auto_connection.h>
 
 
 class KisViewManager;
 class KisCanvasResourceProvider;
 class KisPaletteChooser;
 class KisPaletteModel;
-class KisPaletteEditor;
-class KisPopupButton;
-class PaletteGrid;
-class RecentStrip;
-class QToolButton;
 
-/**
- * The palette's swatches across the panel's width, under its name and the colors last painted with. A swatch is
- * dragged to move it, off the panel to remove it; its card (right click) edits it; "+" adds the current color.
- */
+class KisPaletteEditor;
+class Ui_WdgPaletteDock;
+
 class PaletteDockerDock : public QDockWidget, public KisMainwindowObserver, public KoResourceServerObserver<KoColorSet>
 {
     Q_OBJECT
@@ -57,63 +55,66 @@ public: //KoResourceServerObserver
     void resourceChanged(QSharedPointer<KoColorSet> resource) override;
 
 private Q_SLOTS:
+    void slotContextMenu(const QModelIndex &);
+
     void slotAddPalette();
     void slotRemovePalette(KoColorSetSP );
     void slotImportPalette();
     void slotExportPalette(KoColorSetSP );
+
+    void slotAddColor();
+    void slotRemoveColor();
+    void slotEditEntry();
+    void slotEditPalette();
+    void slotSavePalette();
+
+    void slotPaletteIndexSelected(const QModelIndex &index);
+    void slotPaletteIndexClicked(const QModelIndex &index);
+    void slotPaletteIndexDoubleClicked(const QModelIndex &index);
+    void slotNameListSelection(const KoColor &color);
     void slotSetColorSet(KoColorSetSP colorSet);
+
     void slotFGColorResourceChanged(const KoColor& color);
-    /// A color painted with: first among the recent ones
-    void slotColorUsed(const KoColor &color);
+
     void slotStoragesChanged(const QString &location);
-    void updateHeader();
+
+    void slotUpdateLblPaletteName();
+
+    void slotLockPalette(bool locked);
+
+    void setUndoToolTip(const QString &text);
+    void setRedoToolTip(const QString &text);
+
+    void undo();
+    void redo();
 
 private:
-    bool canEdit() const;
-    bool isGlobal() const;
-    KisSwatch newSwatch(const KoColor &color) const;
-    void pickSwatch(const QModelIndex &index);
-    void addCurrentColor(const QModelIndex &emptySlot);
-    /// In \p emptySlot, or a new row under the first group when it is invalid
-    void addColor(const KoColor &color, const QModelIndex &emptySlot);
-    void updateRecentStrip();
-    void saveRecent();
-    void pickRecent(int index);
-    void showRecentCard(int index, QWidget *anchor);
-    void moveSwatch(const QModelIndex &from, const QModelIndex &to);
-    void removeSwatch(const QModelIndex &index);
-    void showSwatchCard(const QModelIndex &index, QWidget *anchor);
-    void showPaletteCard();
+    void setEntryByForeground(const QModelIndex &index);
+    void setFGColorByPalette(const KisSwatch &entry);
+
 
 private /* member variables */:
+    QScopedPointer<Ui_WdgPaletteDock> m_ui;
     KisPaletteModel *m_model;
     KisPaletteChooser *m_paletteChooser;
-    PaletteGrid *m_grid {nullptr};
-    RecentStrip *m_recentStrip {nullptr};
-    /// The colors last painted with, newest first
-    QVector<KoColor> m_recent;
-    /// What the row shows: the active layer's colors, or the recent ones
-    QVector<KoColor> m_shownRecent;
-    QMetaObject::Connection m_logConnection;
-    QTimer m_recentUpdate;
-    /// Not written to the config after every stroke
-    QTimer m_recentSave;
-    KisPopupButton *m_paletteButton {nullptr};
-    QToolButton *m_undo {nullptr};
-    QToolButton *m_redo {nullptr};
 
     QPointer<KisViewManager> m_view;
-    KisCanvasResourceProvider *m_resourceProvider {nullptr};
+    KisCanvasResourceProvider *m_resourceProvider;
 
     KoResourceServer<KoColorSet> * const m_rServer;
 
     QPointer<KisDocument> m_activeDocument;
     QSharedPointer<KoColorSet> m_currentColorSet;
     QScopedPointer<KisPaletteEditor> m_paletteEditor;
-    /// To the current palette's undo stack
-    QList<QMetaObject::Connection> m_paletteConnections;
 
-    bool m_colorSelfUpdate {false};
+    QScopedPointer<QAction> m_actAdd;
+    QScopedPointer<QAction> m_actRemove;
+    QScopedPointer<QAction> m_actModify;
+    QScopedPointer<QAction> m_actEditPalette;
+    QScopedPointer<QAction> m_actSavePalette;
+    QMenu m_viewContextMenu;
+
+    bool m_colorSelfUpdate;
 };
 
 

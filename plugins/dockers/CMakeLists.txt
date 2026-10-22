@@ -1,5 +1,6 @@
-# The Studio covers the small, specific and artistic color selectors, brush history, tasksets, the log and the touch docker: they are not built
-add_subdirectory(layerdocker)
+# The Studio covers the small, specific and artistic color selectors, brush history, tasksets, the log and the touch docker: they are not built.
+# The layer, palette and time-lapse panels are Skissa's own (skissa_*), with Krita's other files from their folders.
+add_subdirectory(skissa_layers)
 add_subdirectory(digitalmixer)
 add_subdirectory(advancedcolorselector)
 add_subdirectory(presetdocker)
@@ -13,12 +14,12 @@ if(HAVE_OCIO AND NOT ANDROID AND NOT HAIKU)
     add_subdirectory(lut)
 endif()
 add_subdirectory(overview)
-add_subdirectory(palettedocker)
+add_subdirectory(skissa_palette)
 add_subdirectory(animation)
 add_subdirectory(svgcollectiondocker)
 add_subdirectory(histogram)
 add_subdirectory(gamutmask)
-add_subdirectory(recorder)
+add_subdirectory(skissa_recorder)
 add_subdirectory(snapshotdocker)
 add_subdirectory(storyboarddocker)
 add_subdirectory(widegamutcolorselector)

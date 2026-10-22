@@ -37,8 +37,6 @@ Q_SIGNALS:
      */
     void contextMenuRequested(const QPoint &globalPos, const QModelIndex &index);
     void selectionChanged(const QModelIndexList &);
-    /// The selected layers were dropped outside the panel, where nothing took them
-    void draggedOff();
 public:
 
     enum ColumnIndex {
@@ -101,9 +99,6 @@ public:
 
     void toggleSolo(const QModelIndex &index);
 
-    /// A plain press on \p index's eye: dragging on over other rows gives their layers the visibility it gave this one
-    void startVisibilityDrag(const QModelIndex &index);
-
 protected:
     QItemSelectionModel::SelectionFlags selectionCommand(const QModelIndex &index, const QEvent *event) const override;
     QModelIndex indexAt(const QPoint &point) const override;
@@ -140,8 +135,6 @@ private:
      * @return boolean
      */
     bool isDragging() const;
-
-    void setVisibility(const QModelIndex &row, bool visible);
 
     /**
      * Setter for the dragging flag

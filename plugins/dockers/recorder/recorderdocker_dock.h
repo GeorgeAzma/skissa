@@ -8,6 +8,7 @@
 #ifndef _RECORDER_DOCK_H_
 #define _RECORDER_DOCK_H_
 
+#include <QScroller>
 #include <QDockWidget>
 #include <KoCanvasObserverBase.h>
 #ifdef Q_OS_ANDROID
@@ -19,10 +20,6 @@
 class KisMainWindow;
 struct RecorderExportSettings;
 
-/**
- * The time-lapse panel: what has been recorded of the image, to scrub through and play; one button
- * records, another saves the video next to the image. Less used settings are in its menu.
- */
 class RecorderDockerDock : public QDockWidget, public KoCanvasObserverBase
 {
     Q_OBJECT
@@ -39,10 +36,19 @@ public:
 private Q_SLOTS:
     void onMainWindowIsBeingCreated(KisMainWindow *window);
 
+    void onRecordIsolateLayerModeToggled(bool checked);
+    void onAutoRecordToggled(bool checked);
+    void onRealTimeCaptureModeToggled(bool checked);
+    void onCaptureIntervalChanged(double interval);
+    void onVideoFPSChanged(double interval);
+    void onQualityChanged(int value);
+    void onFormatChanged(int format);
+    void onResolutionChanged(int resolution);
+    void onThreadsChanged(int threads);
+    void onManageRecordingsButtonClicked();
     void slotSelectSnapshotDirectory();
     bool onRecordButtonToggled(bool checked);
     void onExportButtonClicked();
-    void onExportOptionsClicked();
 
     void onWriterStarted();
     void onWriterStopped();
@@ -54,10 +60,7 @@ private Q_SLOTS:
     void onLowPerformanceWarning();
     void onWarningTimeout();
 
-    void onExporterStarted();
-    void onExporterFinished();
-    void onExporterFinishedWithError(QString error);
-    void onExporterProgressUpdated(int frameNo);
+    void slotScrollerStateChanged(QScroller::State state);
 
 #ifdef Q_OS_ANDROID
     void moveFilesFromInternalSnapshotDirectory();

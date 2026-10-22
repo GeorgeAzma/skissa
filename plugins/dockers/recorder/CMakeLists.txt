@@ -19,6 +19,7 @@ set(KRITA_RECORDERDOCKER_SOURCES
 )
 
 set(KRITA_RECORDERDOCKER_UIS
+    recorderdocker.ui
     recorder_export.ui
     recorder_snapshots_manager.ui
 )

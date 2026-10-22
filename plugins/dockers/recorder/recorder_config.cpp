@@ -7,7 +7,6 @@
 #include "recorder_config.h"
 
 #include <kis_config.h>
-#include <KisProfile.h>
 
 #include <QString>
 #include <QDir>
@@ -24,11 +23,7 @@ const QString keyThreads = "recorder/threads";
 const QString keyRealTimeCaptureMode = "recorder/realtimecapturemode";
 const QString keyRecordIsolateLayerMode = "recorder/recordisolatelayermode";
 const QString keyRecordAutomatically = "recorder/recordautomatically";
-// the app's own folder, apart from a regular Krita's
-QString defaultSnapshotDirectory()
-{
-    return QDir::homePath() % QDir::separator() % KisProfile::name() % "Recorder";
-}
+const QString defaultSnapshotDirectory = QDir::homePath() % QDir::separator() % "KritaRecorder";
 }
 
 RecorderConfig::RecorderConfig(bool readOnly)
@@ -49,7 +44,7 @@ QString RecorderConfig::snapshotDirectory() const
 #ifdef Q_OS_ANDROID
     const QString defaultValue;
 #else
-    const QString defaultValue = defaultSnapshotDirectory();
+    const QString &defaultValue = defaultSnapshotDirectory;
 #endif
     return config->readEntry(keySnapshotDirectory, defaultValue);
 }
@@ -156,7 +151,6 @@ void RecorderConfig::setRecordAutomatically(bool value)
 #ifdef Q_OS_ANDROID
 const QString &RecorderConfig::defaultInternalSnapshotDirectory()
 {
-    static const QString directory = defaultSnapshotDirectory();
-    return directory;
+    return defaultSnapshotDirectory;
 }
 #endif

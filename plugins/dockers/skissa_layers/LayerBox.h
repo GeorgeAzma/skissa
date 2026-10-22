@@ -1,0 +1,259 @@
+/*
+ *  LayerBox.h - part of Krita aka Krayon aka KimageShop
+ *
+ *  SPDX-FileCopyrightText: 2002 Patrick Julien <freak@codepimps.org>
+ *  SPDX-FileCopyrightText: 2006 Gábor Lehel <illissius@gmail.com>
+ *  SPDX-FileCopyrightText: 2007 Thomas Zander <zander@kde.org>
+ *  SPDX-FileCopyrightText: 2007-2009 Boudewijn Rempt <boud@valdyas.org>
+ *
+ *  SPDX-License-Identifier: GPL-2.0-or-later
+ */
+#ifndef KIS_LAYERBOX_H
+#define KIS_LAYERBOX_H
+
+#include <QList>
+#include <QDockWidget>
+#include <QPersistentModelIndex>
+#include <QPointer>
+
+#include <kis_debug.h>
+
+#include <KoColorSpace.h>
+#include <KoDockFactoryBase.h>
+
+#include <kis_types.h>
+
+#include "kis_action.h"
+#include "KisViewManager.h"
+#include "kis_mainwindow_observer.h"
+#include "kis_signal_compressor.h"
+#include "kis_layer_filter_widget.h"
+#include "kis_signal_auto_connection.h"
+#include <QSlider>
+#include <QCheckBox>
+#include <kis_slider_spin_box.h>
+#include <QComboBox>
+#include <kis_idle_watcher.h>
+
+#include "kritalayerdocker_export.h"
+
+class QModelIndex;
+class OpacityScrub;
+
+typedef QList<QModelIndex> QModelIndexList;
+
+class QMenu;
+class QAbstractButton;
+class KoCompositeOp;
+class KisCanvas2;
+class KisNodeModel;
+class KisNodeFilterProxyModel;
+class Ui_WdgLayerBox;
+class KisNodeJugglerCompressed;
+class KisColorLabelSelectorWidgetMenuWrapper;
+class QWidgetAction;
+class KisKeyframeChannel;
+class KisSelectionActionsAdapter;
+class KisScreenMigrationTracker;
+
+/**
+ * A widget that shows a visualization of the layer structure.
+ *
+ * The center of the layer box is KisNodeModel, which shows the actual layers.
+ * This widget adds docking functionality and command buttons.
+ *
+ */
+class KRITALAYERDOCKER_EXPORT LayerBox : public QDockWidget, public KisMainwindowObserver
+{
+
+    Q_OBJECT
+
+public:
+
+    LayerBox();
+    ~LayerBox() override;
+    QString observerName() override { return "LayerBox"; }
+    /// reimplemented from KisMainwindowObserver
+    void setViewManager(KisViewManager* kisview) override;
+    void setCanvas(KoCanvasBase *canvas) override;
+    void unsetCanvas() override;
+
+protected:
+    void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
+private Q_SLOTS:
+
+    void notifyImageDeleted();
+
+    void slotContextMenuRequested(const QPoint &pos, const QModelIndex &index);
+
+    // From the node manager to the layerbox
+    void slotSetCompositeOp(const KoCompositeOp* compositeOp);
+    void slotSetOpacity(double opacity);
+    void slotUpdateOpacitySlider(quint8 value);
+    void updateUI();
+    void setCurrentNode(KisNodeSP node);
+    void slotModelReset();
+
+    // from the layerbox to the node manager
+    void slotRmClicked();
+    void slotRaiseClicked();
+    void slotLowerClicked();
+    void slotPropertiesClicked();
+    void slotChangeCloneSourceClicked();
+
+    void slotCompositeOpChanged(int index);
+    void slotPreviewBlendMode(const QString &id);
+    void slotOpacityChanged();
+    void slotOpacitySliderMoved(qreal opacity);
+
+    void slotCollapsed(const QModelIndex &index);
+    void slotExpanded(const QModelIndex &index);
+
+    void slotSelectOpaque();
+    void slotNodeCollapsedChanged();
+
+    void slotEditGlobalSelection(bool showSelections);
+    void slotRenameCurrentNode();
+
+    void slotAdjustCurrentBeforeRemoveRows(const QModelIndex &parent, int first, int last);
+    void selectionChanged(const QModelIndexList &selection);
+    void slotNodeManagerChangedSelection(const QList<KisNodeSP> &nodes);
+    void slotColorLabelChanged(int index);
+    void slotUpdateIcons();
+    void toggleActiveLayerSolo();
+    void updateLayerOpMenu(const QModelIndex &index, QMenu &menu);
+
+    void slotAddLayerBnClicked();
+
+    void updateAvailableLabels();
+    void updateLayerFiltering();
+
+    void slotUpdateThumbnailIconSize();
+    void slotSyncThumbnailIconSize();
+    void slotUpdateTreeIndentation();
+    void slotUpdateLayerInfoTextStyle();
+    void slotUpdateUseLayerSelectionCheckbox();
+
+    void slotImageTimeChanged(int time);
+    void slotForgetAboutSavedNodeBeforeEditSelectionMode();
+
+Q_SIGNALS:
+    void imageChanged();
+
+private:
+    inline void connectActionToButton(KisViewManager* view, QAbstractButton *button, const QString &id);
+    void addLayerBelow();
+    /// A new layer right above the layer at \p index
+    void addLayerAbove(const QModelIndex &index);
+    void startFiltering(const QString &typed);
+    /// Puts the blend mode in the current layer's row
+    void placeRowControls();
+    /// What the current layer's row shows: its blend mode and opacity when unusual, both on hover (see NodeDelegate::opacityRect())
+    void updateRowShown();
+    /// The current layer's opacity typed where it is written
+    void typeOpacity();
+    /// The row just below the line between two rows near \p pos (\p gapY is the line), if any
+    QModelIndex gapAt(const QPoint &pos, int *gapY) const;
+    /// A sideways drag on a row sets its opacity, a quarter as fast when \p fine; true while it does
+    bool handleOpacityDrag(const QPoint &pos, bool fine);
+    inline void addActionToMenu(QMenu *menu, const QString &id);
+    /// A short entry for \p action, its shortcut beside it; none if \p onlyIfEnabled and it is disabled
+    QAction *addMenuEntry(QMenu *menu, QAction *action, const QString &label, bool onlyIfEnabled = false);
+    QAction *addMenuEntry(QMenu *menu, const QString &id, const QString &label, bool onlyIfEnabled = false);
+    /// "New": every kind of layer and mask, and a paint layer below the current one if \p below
+    void addNewLayerMenu(QMenu *menu, bool below);
+    // reimp from KisNodeManager
+    qint32 convertOpacityToInt(qreal opacity);
+
+    KisNodeSP findNonHidableNode(KisNodeSP startNode);
+private:
+
+    QPointer<KisCanvas2> m_canvas;
+    QScopedPointer<KisSelectionActionsAdapter> m_selectionActionsAdapter;
+    QMenu *m_newLayerMenu;
+    KisImageWSP m_image;
+    QPointer<KisNodeModel> m_nodeModel;
+    QPointer<KisNodeFilterProxyModel> m_filteringModel;
+    QPointer<KisNodeManager> m_nodeManager;
+    QPointer<KisColorLabelSelectorWidgetMenuWrapper> m_colorSelector;
+    QPointer<QWidgetAction> m_colorSelectorAction;
+    Ui_WdgLayerBox* m_wdgLayerBox;
+    qreal m_newOpacity {100};
+    KisNodeSP m_changedOpacityNode;
+
+    KisAction *m_removeAction;
+    KisAction *m_propertiesAction;
+    KisAction *m_changeCloneSourceAction;
+    KisAction *m_layerToggleSolo;
+    KisAction *m_showGlobalSelectionMask;
+    KisSignalCompressor m_colorLabelCompressor;
+    KisSignalCompressor m_thumbnailSizeCompressor;
+    KisSignalCompressor m_treeIndentationCompressor;
+    KisSignalCompressor m_nodeOpacityCompressor;
+
+    KisLayerFilterWidget* layerFilterWidget;
+    QSlider *thumbnailSizeSlider;
+    QSlider *indentationSlider;
+    QComboBox *infoTextCombobox;
+    QCheckBox *layerSelectionCheckBox {nullptr};
+
+    KisNodeSP m_activeNode;
+    /// The layer whose blend mode is previewed from the picker, and its real mode
+    KisNodeSP m_previewNode;
+    KisImageWSP m_previewImage;
+    QString m_previewOriginalOp;
+    /// The mode hovered while the image was busy, retried until it shows
+    QString m_pendingPreviewOp;
+    KisNodeWSP m_savedNodeBeforeEditSelectionMode;
+    KisSignalAutoConnectionsStore m_activeNodeConnections;
+    QScopedPointer<KisScreenMigrationTracker> m_screenMigrationTracker;
+    QWidget *m_rowControls {nullptr};
+    /// The row under the pointer
+    QPersistentModelIndex m_hoverRow;
+    /// The blend mode's width in the current layer's row
+    int m_modeWidth {0};
+    QWidget *m_gapIndicator {nullptr};
+    QPersistentModelIndex m_gapIndex;
+    QAbstractButton *m_addStrip {nullptr};
+    QPersistentModelIndex m_opacityPress;
+    QPoint m_opacityPressPos;
+    bool m_opacityScrubbing {false};
+    KisNodeSP m_opacityNode;
+    qreal m_opacityStart {100};
+    /// The opacity before the drag, which a layer hidden at 0% keeps (m_opacityStart moves with Shift)
+    qreal m_opacityOriginal {100};
+    bool m_opacityFine {false};
+    OpacityScrub *m_opacityScrub {nullptr};
+    /// The list's settings: thumbnail size, indentation, info text
+    QMenu *m_configureMenu {nullptr};
+};
+
+class KRITALAYERDOCKER_EXPORT LayerBoxFactory : public KoDockFactoryBase
+{
+
+public:
+    LayerBoxFactory() { }
+
+    QString id() const override {
+        return QString("KisLayerBox");
+    }
+
+    QDockWidget* createDockWidget() override {
+        LayerBox * dockWidget = new LayerBox();
+
+        dockWidget->setObjectName(id());
+
+        return dockWidget;
+    }
+
+    DockPosition defaultDockPosition() const override {
+        return DockRight;
+    }
+
+};
+
+#endif // KIS_LAYERBOX_H
+

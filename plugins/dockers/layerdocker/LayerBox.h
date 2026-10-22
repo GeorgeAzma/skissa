@@ -13,7 +13,6 @@
 
 #include <QList>
 #include <QDockWidget>
-#include <QPersistentModelIndex>
 #include <QPointer>
 
 #include <kis_debug.h>
@@ -38,7 +37,6 @@
 #include "kritalayerdocker_export.h"
 
 class QModelIndex;
-class OpacityScrub;
 
 typedef QList<QModelIndex> QModelIndexList;
 
@@ -81,7 +79,6 @@ public:
 protected:
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
-    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private Q_SLOTS:
 
@@ -105,7 +102,6 @@ private Q_SLOTS:
     void slotChangeCloneSourceClicked();
 
     void slotCompositeOpChanged(int index);
-    void slotPreviewBlendMode(const QString &id);
     void slotOpacityChanged();
     void slotOpacitySliderMoved(qreal opacity);
 
@@ -127,6 +123,8 @@ private Q_SLOTS:
     void updateLayerOpMenu(const QModelIndex &index, QMenu &menu);
 
     void slotAddLayerBnClicked();
+    void slotLayerOpMenuOpened();
+    void slotLayerOpMenuClosed();
 
     void updateAvailableLabels();
     void updateLayerFiltering();
@@ -135,6 +133,8 @@ private Q_SLOTS:
     void slotSyncThumbnailIconSize();
     void slotUpdateTreeIndentation();
     void slotUpdateLayerInfoTextStyle();
+    void slotUpdateLayerInfoTextOpacity();
+    void slotUpdateUseInlineLayerInfoText();
     void slotUpdateUseLayerSelectionCheckbox();
 
     void slotImageTimeChanged(int time);
@@ -145,26 +145,7 @@ Q_SIGNALS:
 
 private:
     inline void connectActionToButton(KisViewManager* view, QAbstractButton *button, const QString &id);
-    void addLayerBelow();
-    /// A new layer right above the layer at \p index
-    void addLayerAbove(const QModelIndex &index);
-    void startFiltering(const QString &typed);
-    /// Puts the blend mode in the current layer's row
-    void placeRowControls();
-    /// What the current layer's row shows: its blend mode and opacity when unusual, both on hover (see NodeDelegate::opacityRect())
-    void updateRowShown();
-    /// The current layer's opacity typed where it is written
-    void typeOpacity();
-    /// The row just below the line between two rows near \p pos (\p gapY is the line), if any
-    QModelIndex gapAt(const QPoint &pos, int *gapY) const;
-    /// A sideways drag on a row sets its opacity, a quarter as fast when \p fine; true while it does
-    bool handleOpacityDrag(const QPoint &pos, bool fine);
     inline void addActionToMenu(QMenu *menu, const QString &id);
-    /// A short entry for \p action, its shortcut beside it; none if \p onlyIfEnabled and it is disabled
-    QAction *addMenuEntry(QMenu *menu, QAction *action, const QString &label, bool onlyIfEnabled = false);
-    QAction *addMenuEntry(QMenu *menu, const QString &id, const QString &label, bool onlyIfEnabled = false);
-    /// "New": every kind of layer and mask, and a paint layer below the current one if \p below
-    void addNewLayerMenu(QMenu *menu, bool below);
     // reimp from KisNodeManager
     qint32 convertOpacityToInt(qreal opacity);
 
@@ -174,6 +155,7 @@ private:
     QPointer<KisCanvas2> m_canvas;
     QScopedPointer<KisSelectionActionsAdapter> m_selectionActionsAdapter;
     QMenu *m_newLayerMenu;
+    QMenu *m_opLayerMenu;
     KisImageWSP m_image;
     QPointer<KisNodeModel> m_nodeModel;
     QPointer<KisNodeFilterProxyModel> m_filteringModel;
@@ -181,7 +163,7 @@ private:
     QPointer<KisColorLabelSelectorWidgetMenuWrapper> m_colorSelector;
     QPointer<QWidgetAction> m_colorSelectorAction;
     Ui_WdgLayerBox* m_wdgLayerBox;
-    qreal m_newOpacity {100};
+    int m_newOpacity;
     KisNodeSP m_changedOpacityNode;
 
     KisAction *m_removeAction;
@@ -192,43 +174,21 @@ private:
     KisSignalCompressor m_colorLabelCompressor;
     KisSignalCompressor m_thumbnailSizeCompressor;
     KisSignalCompressor m_treeIndentationCompressor;
+    KisSignalCompressor m_infoTextOpacityCompressor;
     KisSignalCompressor m_nodeOpacityCompressor;
 
     KisLayerFilterWidget* layerFilterWidget;
     QSlider *thumbnailSizeSlider;
     QSlider *indentationSlider;
     QComboBox *infoTextCombobox;
+    KisSliderSpinBox *infoTextOpacitySlider;
+    QCheckBox *infoTextInlineChkbox;
     QCheckBox *layerSelectionCheckBox {nullptr};
 
     KisNodeSP m_activeNode;
-    /// The layer whose blend mode is previewed from the picker, and its real mode
-    KisNodeSP m_previewNode;
-    KisImageWSP m_previewImage;
-    QString m_previewOriginalOp;
-    /// The mode hovered while the image was busy, retried until it shows
-    QString m_pendingPreviewOp;
     KisNodeWSP m_savedNodeBeforeEditSelectionMode;
     KisSignalAutoConnectionsStore m_activeNodeConnections;
     QScopedPointer<KisScreenMigrationTracker> m_screenMigrationTracker;
-    QWidget *m_rowControls {nullptr};
-    /// The row under the pointer
-    QPersistentModelIndex m_hoverRow;
-    /// The blend mode's width in the current layer's row
-    int m_modeWidth {0};
-    QWidget *m_gapIndicator {nullptr};
-    QPersistentModelIndex m_gapIndex;
-    QAbstractButton *m_addStrip {nullptr};
-    QPersistentModelIndex m_opacityPress;
-    QPoint m_opacityPressPos;
-    bool m_opacityScrubbing {false};
-    KisNodeSP m_opacityNode;
-    qreal m_opacityStart {100};
-    /// The opacity before the drag, which a layer hidden at 0% keeps (m_opacityStart moves with Shift)
-    qreal m_opacityOriginal {100};
-    bool m_opacityFine {false};
-    OpacityScrub *m_opacityScrub {nullptr};
-    /// The list's settings: thumbnail size, indentation, info text
-    QMenu *m_configureMenu {nullptr};
 };
 
 class KRITALAYERDOCKER_EXPORT LayerBoxFactory : public KoDockFactoryBase

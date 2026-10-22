@@ -27,6 +27,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SOURCE = os.path.normpath(os.path.join(HERE, '..'))
 UPSTREAM_REMOTE = 'origin'
 UPSTREAM_BRANCH = 'master'
+# Skissa's own copies of some of Krita's files, built in their place (the folder, and Krita's beside it): Krita's
+# changes to those files don't reach them by merging, so they are listed to bring over by hand
+KEPT = [
+    ('plugins/dockers/skissa_layers', 'plugins/dockers/layerdocker'),
+    ('plugins/dockers/skissa_palette', 'plugins/dockers/palettedocker'),
+    ('plugins/dockers/skissa_recorder', 'plugins/dockers/recorder'),
+]
 
 
 def git(*args, check=True):
@@ -44,6 +51,21 @@ def run(command, what):
 
 def conflicts():
     return git('diff', '--name-only', '--diff-filter=U').stdout.split()
+
+
+def report_kept(since, upstream):
+    """Krita's commits since `since` that changed the files Skissa keeps copies of"""
+    paths = []
+    for own, krita in KEPT:
+        folder = os.path.join(SOURCE, own)
+        for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+            if name != 'CMakeLists.txt' and os.path.exists(os.path.join(SOURCE, krita, name)):
+                paths.append('%s/%s' % (krita, name))
+    if not paths:
+        return
+    log = git('log', '--oneline', '--no-merges', '%s..%s' % (since, upstream), '--', *paths).stdout.strip()
+    if log:
+        print('Krita changed files Skissa keeps its own copies of; bring these over by hand:\n' + log)
 
 
 def main():
@@ -74,6 +96,7 @@ def main():
     new = int(git('rev-list', '--count', 'HEAD..' + upstream).stdout.strip())
     if new:
         print('%d new commits from Krita' % new)
+        report_kept(git('merge-base', 'HEAD', upstream).stdout.strip(), upstream)
         merge = git('merge', '--no-edit', '-m', 'Merge Krita %s' % git('rev-parse', '--short', upstream).stdout.strip(), upstream, check=False)
         if merge.returncode:
             left = conflicts()

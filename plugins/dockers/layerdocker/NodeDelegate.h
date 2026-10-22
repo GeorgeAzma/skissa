@@ -38,19 +38,6 @@ public:
 
     void toggleSolo(const QModelIndex &index);
 
-    /// Where in \p row (the layer's cell) the current layer's blend mode and opacity controls go
-    QRect inlineControlsRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const;
-
-    /// Rows tall enough for two lines: the name and icons, then the blend mode and opacity
-    bool isTall() const;
-
-    /// Where in \p row the current layer's opacity is written, if it is (see LayerBox::updateRowShown())
-    QRect opacityRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const;
-    /// How wide the opacity is written
-    int opacityWidth() const;
-    /// Which of the row's icon places \p pos (in the viewport) is over, as painting lights it; -1 for none
-    int iconSlotAt(const QStyleOptionViewItem &option, const QModelIndex &index, const QPoint &pos) const;
-
     void slotUpdateIcon();
 
 Q_SIGNALS:
@@ -69,6 +56,7 @@ private:
     void drawProgressBar(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
 
     void drawColorLabel(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
+    void drawFrame(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
 
     QRect thumbnailClickRect(const QStyleOptionViewItem &option, const QModelIndex &index) const;
     void drawThumbnail(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
@@ -82,8 +70,6 @@ private:
     void drawVisibilityIcon(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
 
     QRect decorationClickRect(const QStyleOptionViewItem &option, const QModelIndex &index) const;
-    /// Whether the row shows its layer's type icon (not for a plain paint layer)
-    bool showsDecoration(const QModelIndex &index) const;
     void drawDecoration(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
     void drawExpandButton(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
     void drawAnimatedDecoration(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;

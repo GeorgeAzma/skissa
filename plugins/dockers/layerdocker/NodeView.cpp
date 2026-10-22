@@ -8,7 +8,6 @@
 #include "NodeDelegate.h"
 #include "NodeViewVisibilityDelegate.h"
 #include "kis_node_model.h"
-#include "kis_layer_properties_icons.h"
 #include "kis_signals_blocker.h"
 
 
@@ -25,10 +24,7 @@
 #include <QHeaderView>
 #include <QHelpEvent>
 #include <QMenu>
-#include <QDockWidget>
 #include <QDrag>
-#include <QMimeData>
-#include <QTimer>
 #include <QMouseEvent>
 #include <QPersistentModelIndex>
 #include <QApplication>
@@ -70,8 +66,6 @@ public:
     }
     NodeDelegate delegate;
     QPersistentModelIndex hovered;
-    /// The icon place the pointer was last over in the hovered row
-    int hoveredSlot {-1};
     QPoint lastPos;
 
 #ifdef DRAG_WHILE_DRAG_WORKAROUND
@@ -81,9 +75,6 @@ public:
     bool shiftClickFix;
 #endif
     bool ignoreDataChanged = false;
-    /// While a press on an eye drags on: what it made that layer, and the last row it set
-    std::optional<bool> eyeDrag;
-    QPersistentModelIndex eyeDragLast;
 };
 
 
@@ -222,7 +213,6 @@ bool NodeView::viewportEvent(QEvent *e)
         switch(e->type()) {
         case QEvent::MouseButtonPress: {
             DRAG_WHILE_DRAG_WORKAROUND_STOP();
-            d->eyeDrag.reset();
 
             const QPoint pos = static_cast<QMouseEvent*>(e)->pos();
             d->lastPos = pos;
@@ -236,7 +226,6 @@ bool NodeView::viewportEvent(QEvent *e)
             }
         } break;
         case QEvent::MouseButtonRelease: {
-            d->eyeDrag.reset();
             const QPoint pos = static_cast<QMouseEvent*>(e)->pos();
             QModelIndex index = model()->buddy(indexAt(pos));
             if (!indexAt(pos).isValid()) {
@@ -255,7 +244,6 @@ bool NodeView::viewportEvent(QEvent *e)
             QEvent e(QEvent::Leave);
             d->delegate.editorEvent(&e, model(), optionForIndex(d->hovered), d->hovered);
             d->hovered = QModelIndex();
-            d->hoveredSlot = -1;
         } break;
         case QEvent::MouseMove: {
 #ifdef DRAG_WHILE_DRAG_WORKAROUND
@@ -265,29 +253,8 @@ bool NodeView::viewportEvent(QEvent *e)
 #endif
 
             const QPoint pos = static_cast<QMouseEvent*>(e)->pos();
-            if (d->eyeDrag && !(static_cast<QMouseEvent*>(e)->buttons() & Qt::LeftButton)) {
-                // its release never came (a menu took it)
-                d->eyeDrag.reset();
-            }
-            if (d->eyeDrag) {
-                // down the eyes: each row passed over is shown or hidden like the first, also those between two moves
-                const QModelIndex under = indexAt(pos);
-                const QModelIndex row = under.isValid() ? under.sibling(under.row(), DEFAULT_COL) : QModelIndex();
-                if (row.isValid() && row != d->eyeDragLast) {
-                    const bool down = !d->eyeDragLast.isValid() || visualRect(row).top() > visualRect(d->eyeDragLast).top();
-                    QModelIndex step = d->eyeDragLast.isValid() ? QModelIndex(d->eyeDragLast) : row;
-                    while (step.isValid() && step != row) {
-                        step = down ? indexBelow(step) : indexAbove(step);
-                        if (step.isValid()) setVisibility(step, *d->eyeDrag);
-                    }
-                    if (!step.isValid()) setVisibility(row, *d->eyeDrag);
-                    d->eyeDragLast = row;
-                }
-                return true;
-            }
             QModelIndex hovered = indexAt(pos);
-            const bool rowChanged = hovered != d->hovered;
-            if (rowChanged) {
+            if (hovered != d->hovered) {
                 if (d->hovered.isValid()) {
                     QEvent e(QEvent::Leave);
                     d->delegate.editorEvent(&e, model(), optionForIndex(d->hovered), d->hovered);
@@ -298,13 +265,6 @@ bool NodeView::viewportEvent(QEvent *e)
                 }
                 d->hovered = hovered;
             }
-            // the hovered icon within the row is lit: repainted when that changes, not at every move (a pen
-            // hovering moves all the time)
-            const int slot = hovered.isValid() ? d->delegate.iconSlotAt(optionForIndex(hovered), hovered, pos) : -1;
-            if (hovered.isValid() && (slot != d->hoveredSlot || rowChanged)) {
-                viewport()->update(QRect(0, visualRect(hovered).top(), viewport()->width(), visualRect(hovered).height()));
-            }
-            d->hoveredSlot = slot;
             /* This is a workaround for a bug in QTreeView that immediately begins a dragging action
             when the mouse lands on the decoration/icon of a different index and moves 1 pixel or more */
             Qt::MouseButtons buttons = static_cast<QMouseEvent*>(e)->buttons();
@@ -336,8 +296,6 @@ bool NodeView::viewportEvent(QEvent *e)
 
 void NodeView::contextMenuEvent(QContextMenuEvent *e)
 {
-    // a finger held on an eye opens the menu, which takes the release
-    d->eyeDrag.reset();
     QTreeView::contextMenuEvent(e);
     QModelIndex i = indexAt(e->pos());
     if (model())
@@ -413,49 +371,8 @@ QStyleOptionViewItem NodeView::optionForIndex(const QModelIndex &index) const
 
 void NodeView::startDrag(Qt::DropActions supportedActions)
 {
-    // as QAbstractItemView does it, but knowing how it ends
-    QModelIndexList indexes;
-    Q_FOREACH (const QModelIndex &index, selectionModel()->selectedIndexes()) {
-        if (index.column() == DEFAULT_COL && (index.flags() & Qt::ItemIsDragEnabled)) {
-            indexes << index;
-        }
-    }
-    QMimeData *data = indexes.isEmpty() ? nullptr : model()->mimeData(indexes);
-    if (!data) {
-        return;
-    }
     DRAG_WHILE_DRAG_WORKAROUND_START();
-    auto *drag = new QDrag(this);
-    drag->setMimeData(data);
-    const QRect row = visualRect(indexes.first()).intersected(viewport()->rect());
-    if (!row.isEmpty()) {
-        drag->setPixmap(viewport()->grab(row));
-        drag->setHotSpot(viewport()->mapFromGlobal(QCursor::pos()) - row.topLeft());
-    }
-    Qt::DropAction defaultAction = Qt::IgnoreAction;
-    if (defaultDropAction() != Qt::IgnoreAction && (supportedActions & defaultDropAction())) {
-        defaultAction = defaultDropAction();
-    } else if ((supportedActions & Qt::CopyAction) && dragDropMode() != QAbstractItemView::InternalMove) {
-        defaultAction = Qt::CopyAction;
-    }
-    const Qt::DropAction result = drag->exec(supportedActions, defaultAction);
-    DRAG_WHILE_DRAG_WORKAROUND_STOP();
-
-    if (result != Qt::IgnoreAction) {
-        return;
-    }
-    // dropped outside the panel where nothing took it: deleted. Not when cancelled with Esc, which
-    // leaves the button held (checked once the release the platform sends after a drop is processed)
-    QTimer::singleShot(0, this, [this]() {
-        if (QGuiApplication::mouseButtons() & Qt::LeftButton) return;
-        QWidget *panel = this;
-        while (panel->parentWidget() && !qobject_cast<QDockWidget *>(panel)) {
-            panel = panel->parentWidget();
-        }
-        if (!panel->rect().contains(panel->mapFromGlobal(QCursor::pos()))) {
-            Q_EMIT draggedOff();
-        }
-    });
+    QTreeView::startDrag(supportedActions);
 }
 
 QPixmap NodeView::createDragPixmap() const
@@ -615,31 +532,6 @@ void NodeView::mousePressEvent(QMouseEvent *e) {
 
     if (ind.has_value()) {
         setExclusiveActiveItem(ind.value());
-    }
-}
-
-void NodeView::startVisibilityDrag(const QModelIndex &index)
-{
-    const QModelIndex row = index.sibling(index.row(), DEFAULT_COL);
-    const KisBaseNode::PropertyList props = row.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
-    for (const KisBaseNode::Property &prop : props) {
-        if (prop.id == KisLayerPropertiesIcons::visible.id()) {
-            d->eyeDrag = prop.state.toBool();
-            d->eyeDragLast = row;
-        }
-    }
-}
-
-void NodeView::setVisibility(const QModelIndex &row, bool visible)
-{
-    KisBaseNode::PropertyList props = row.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
-    for (KisBaseNode::Property &prop : props) {
-        if (prop.id == KisLayerPropertiesIcons::visible.id() && prop.state.toBool() != visible) {
-            prop.state = visible;
-            prop.isInStasis = false;
-            model()->setData(row, QVariant::fromValue(props), KisNodeModel::PropertiesRole);
-            return;
-        }
     }
 }
 
