@@ -67,6 +67,8 @@ public:
     static bool ambientSurround();
     static constexpr qreal ambientSigma = 110; ///< widget pixels
     static constexpr qreal ambientStrength = 0.5;
+    /// The least light around the image (linear, where all of it is near): a dark image's edge still shows
+    static constexpr qreal ambientBacklight = 0.02;
     /// Crown glass at the sodium d line.
     static constexpr qreal refractiveIndex = 1.52;
 

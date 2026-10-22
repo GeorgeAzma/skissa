@@ -638,6 +638,7 @@ uniform float factor;
 uniform mat3 toImage;
 uniform vec3 base;
 uniform float strength;
+uniform float backlight;
 uniform bool encode;
 uniform float dither;
 
@@ -673,6 +674,9 @@ void main()
     vec3 lab = toOklab(light);
     light = max(fromOklab(vec3(lab.x, lab.yz * 1.25)), 0.0);
     vec3 color = base + light * strength * m.a;
+    // a dark image lights nothing: a dim neutral light near it keeps its edge in sight, and goes where its
+    // own glow is brighter
+    color += max(backlight * m.a - dot(color, vec3(0.2126, 0.7152, 0.0722)), 0.0);
     uvec2 u = uvec2(p);
     float steps = hash(u) + hash(u + uvec2(7919u, 104729u)) - 1.0;
     fragColor = vec4((encode ? toSrgb(color) : color) + steps * dither, 1.0);
@@ -812,7 +816,7 @@ struct Programs {
                            "imageLit", "toImage", "fromImage", "imageLight", "imageLightFactor", "imageLightReach",
                            "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"}, keptLinear)
             && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"}, keptLinear)
-            && ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "encode", "dither"}, keptLinear);
+            && ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "backlight", "encode", "dither"}, keptLinear);
     }
 };
 
@@ -1093,6 +1097,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     setMatrix(f, d->ambient["toImage"], surfaceToImage);
     f->glUniform3f(d->ambient["base"], float(srgbToLinear(base.redF())), float(srgbToLinear(base.greenF())), float(srgbToLinear(base.blueF())));
     f->glUniform1f(d->ambient["strength"], float(KisStudioGlass::ambientStrength));
+    f->glUniform1f(d->ambient["backlight"], float(KisStudioGlass::ambientBacklight));
     f->glUniform1i(d->ambient["encode"], !linearCanvas);
     f->glUniform1f(d->ambient["dither"], linearCanvas ? 0.0f : canvasFormat == GL_RGB10_A2 ? 1.0f / 1023 : 1.0f / 255);
     f->glBindTexture(GL_TEXTURE_2D, d->ambientBlurred->texture());
