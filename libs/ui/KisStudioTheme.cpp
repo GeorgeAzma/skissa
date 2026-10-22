@@ -192,12 +192,12 @@ QVector<Preset> presets()
     return {
         {i18nc("theme preset", "Dark"), params(0.252, Qt::gray, 0, QColor())},
         {i18nc("theme preset", "Darker"), params(0.17, Qt::gray, 0, QColor())},
-        {i18nc("theme preset", "Graphite"), params(0.36, QColor(70, 110, 170), 0.18, QColor())},
         {i18nc("theme preset", "Night"), params(0.22, QColor(60, 90, 200), 0.4, QColor(92, 124, 250))},
         {i18nc("theme preset", "Moss"), params(0.24, QColor(80, 140, 90), 0.33, QColor(104, 170, 116))},
         {i18nc("theme preset", "Light"), params(0.955, Qt::gray, 0, QColor())},
         {i18nc("theme preset", "Paper"), params(0.93, QColor(214, 170, 120), 0.3, QColor(176, 106, 50))},
         {i18nc("theme preset", "Sky"), params(0.94, QColor(110, 150, 220), 0.25, QColor(50, 110, 210))},
+        {i18nc("theme preset", "Blossom"), params(0.94, QColor(240, 120, 175), 0.45, QColor(226, 78, 150))},
     };
 }
 

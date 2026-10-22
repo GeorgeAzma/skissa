@@ -70,7 +70,7 @@ A map, so you know where things are and how they think. Files are in `libs/ui/` 
   - The panel is cards (built with `Builder`: `toggle`, `number`, `choice`, `color`, `row`…), user sections, a Quick section, a Changed filter, a search box and an Undo for changes since it opened.
   - A setting that needs a restart gets a quiet refresh mark that lights up once changed, plus a Restart button. Never write "After a restart" in text.
   - `KisSettingsTransfer` copies settings from a regular Krita (Take); Krita's own files are never written.
-- **Theme** (`KisStudioTheme`): a theme is a few params (lightness, tint, tint amount, accent) turned into a generated `.colors` scheme. The presets are Dark, Darker, Graphite, Night, Moss, Light, Paper and Sky. The generated scheme is "Skissa"; the shipped ones are "Skissa Dark/Light". `remake()` renames themes stored under the old placeholder name. Links and focus lines use the accent's hue at a readable lightness.
+- **Theme** (`KisStudioTheme`): a theme is a few params (lightness, tint, tint amount, accent) turned into a generated `.colors` scheme. The presets are Dark, Darker, Night and Moss, then Light, Paper, Sky and Blossom (shown four by two). The generated scheme is "Skissa"; the shipped ones are "Skissa Dark/Light". `remake()` renames themes stored under the old placeholder name. Links and focus lines use the accent's hue at a readable lightness.
 - **Glass** (`KisStudioGlass`, `opengl/KisOpenGLGlass`):
   - Panels over the canvas are painted *by the canvas* (GL blur/refraction behind them), and the widget paints only its content.
   - A panel is see-through only after a canvas frame has drawn all of it (`Panels::drewOver`); until then it paints solid.

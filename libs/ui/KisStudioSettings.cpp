@@ -394,11 +394,24 @@ public:
         update();
     }
 
-    QSize sizeHint() const override { return QSize(3 * m_size.width() + 16, heightFor(3 * m_size.width() + 16)); }
+    /// At most \p columns across (three unless set)
+    void setColumns(int columns)
+    {
+        m_columns = qMax(1, columns);
+        updateGeometry();
+        setFixedHeight(heightFor(width()));
+        update();
+    }
+
+    QSize sizeHint() const override
+    {
+        const int width = m_columns * m_size.width() + 8 * (m_columns - 1);
+        return QSize(width, heightFor(width));
+    }
 
 protected:
-    /// Up to three across, each as large as fits but no larger than its natural size
-    int columns() const { return qMax(1, qMin(3, int(m_tiles.size()))); }
+    /// Up to three across (or as set), each as large as fits but no larger than its natural size
+    int columns() const { return qMax(1, qMin(m_columns, int(m_tiles.size()))); }
     QSize tileSize(int width) const
     {
         const int w = qMin(m_size.width(), (width - 8 * (columns() - 1)) / columns());
@@ -504,6 +517,7 @@ protected:
 private:
     QVector<Tile> m_tiles;
     QSize m_size;
+    int m_columns {3};
     int m_current {-1};
     int m_hovered {-1};
 };
@@ -962,6 +976,8 @@ QVector<CardDef> makeCards()
                 tiles << Tiles::Tile{preset.name, [look](QPainter &painter, const QRectF &r) { paintScheme(painter, r, look); }};
             }
             auto *picker = new Tiles(tiles, QSize(96, 56), b.card);
+            // the dark ones in a row, the light ones under them
+            picker->setColumns(4);
             // one step of the undo history, through the registry
             picker->picked = [presets](int i) {
                 const KisStudioTheme::Params p = presets[i].params;
