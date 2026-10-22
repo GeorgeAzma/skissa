@@ -237,7 +237,7 @@ QHash<QString, QString> explanations()
          i18nc("@info:tooltip", "Last image: the one you had open\nLast session: every image and window as you left them\nSessions: pick a saved one")},
         {QStringLiteral("saveSessionOnQuit"), i18nc("@info:tooltip", "Reopens these images and windows next time")},
         {QStringLiteral("fpsLimit"), i18nc("@info:tooltip", "The canvas redraws at most this many times a second")},
-        {QStringLiteral("[StudioTheme] Lightness"), i18nc("@info:tooltip", "Near black → near white")},
+        {QStringLiteral("[StudioTheme] Lightness"), i18nc("@info:tooltip", "Near black → white")},
         {QStringLiteral("[StudioTheme] TintAmount"), i18nc("@info:tooltip", "0%: plain gray → 100%: fully the tint's hue")},
         {QStringLiteral("[StudioTheme] UseAccent"), i18nc("@info:tooltip", "Selected items, focus and links in color instead of gray")},
         {QStringLiteral("StudioGlassOpacity"), i18nc("@info:tooltip", "0%: see-through → 100%: solid")},
@@ -387,7 +387,7 @@ QVector<Setting> describeAll()
                 s.written = [](const QVariant &) { KisStudioTheme::apply(KisStudioTheme::current()); };
                 return s;
             };
-            all << made(grouped(number(QStringLiteral("Lightness"), 0.252, 0.05, 0.98, i18nc("setting", "Theme lightness"), R::Fork), themeGroup));
+            all << made(grouped(number(QStringLiteral("Lightness"), 0.252, 0.05, 1.0, i18nc("setting", "Theme lightness"), R::Fork), themeGroup));
             all << made(grouped(color(QStringLiteral("Tint"), QColor(Qt::gray), i18nc("setting", "Theme tint"), R::Fork), themeGroup));
             all << made(grouped(number(QStringLiteral("TintAmount"), 0.0, 0, 1, i18nc("setting", "Theme tint strength"), R::Fork), themeGroup));
             all << made(grouped(toggle(QStringLiteral("UseAccent"), false, i18nc("setting", "Theme accent"), R::Fork), themeGroup));

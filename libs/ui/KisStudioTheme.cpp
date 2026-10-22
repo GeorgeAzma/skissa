@@ -82,16 +82,18 @@ Colors colorsOf(const Params &p)
     const qreal tb = chroma > 1e-4 ? tint.b / chroma * reach : 0;
     auto bg = [&](qreal l) { return fromOklab({qBound<qreal>(0, l, 1), ta, tb}); };
 
-    const qreal w = qBound<qreal>(0.05, p.lightness, 0.98);
+    const qreal w = qBound<qreal>(0.05, p.lightness, 1.0);
+    // a surface raised off the window is lighter, or darker by as much near white, where there is no lighter
+    auto raised = [w](qreal by) { return w + by <= 1.0 ? w + by : w - by; };
     Colors c;
     c.window = bg(w);
     c.view = bg(w);
-    c.windowAlt = bg(w + (dark ? 0.045 : 0.03));
-    c.viewAlt = bg(w + 0.02);
-    c.button = bg(w + (dark ? 0.045 : 0.03));
+    c.windowAlt = bg(raised(dark ? 0.045 : 0.03));
+    c.viewAlt = bg(raised(0.02));
+    c.button = bg(raised(dark ? 0.045 : 0.03));
     c.buttonAlt = bg(w + (dark ? 0.09 : -0.04));
     c.header = bg(w - (dark ? 0.05 : 0.06));
-    c.tooltip = bg(w + (dark ? 0.13 : 0.03));
+    c.tooltip = bg(raised(dark ? 0.13 : 0.03));
     const qreal textL = dark ? 0.94 : 0.2;
     c.text = fromOklab({qBound<qreal>(0, textL, 1), ta * 0.3, tb * 0.3});
     c.inactive = fromOklab({w + (textL - w) * 0.5, ta * 0.5, tb * 0.5});
@@ -203,7 +205,7 @@ Params current()
 {
     const KConfigGroup g = KSharedConfig::openConfig()->group(group);
     Params p;
-    p.lightness = qBound<qreal>(0.05, g.readEntry("Lightness", p.lightness), 0.98);
+    p.lightness = qBound<qreal>(0.05, g.readEntry("Lightness", p.lightness), 1.0);
     p.tint = g.readEntry("Tint", QColor(Qt::gray));
     p.tintAmount = qBound<qreal>(0, g.readEntry("TintAmount", p.tintAmount), 1);
     p.accent = g.readEntry("UseAccent", false) ? g.readEntry("Accent", QColor(92, 124, 250)) : QColor();
