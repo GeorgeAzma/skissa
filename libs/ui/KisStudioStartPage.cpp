@@ -23,6 +23,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
+#include <QPushButton>
 #include <QRegularExpression>
 #include <QScreen>
 #include <QScrollArea>
@@ -40,6 +41,7 @@
 #include <cmath>
 #include <functional>
 #include <memory>
+#include <numeric>
 
 #include <kactioncollection.h>
 #include <klocalizedstring.h>
@@ -47,6 +49,7 @@
 #include <KisMimeDatabase.h>
 #include <KisModernStyle.h>
 #include <KoColor.h>
+#include <KoColorProfile.h>
 #include <KoColorSpaceRegistry.h>
 #include <KoStore.h>
 #include <kis_icon_utils.h>
@@ -60,7 +63,9 @@
 #include "kis_clipboard.h"
 #include "kis_config.h"
 #include "utils/KisRecentDocumentsModelWrapper.h"
+#include "widgets/KisStudioChips.h"
 #include "widgets/KisStudioInlineEdit.h"
+#include "widgets/KisStudioValueRow.h"
 
 namespace
 {
@@ -353,11 +358,46 @@ private:
     qreal m_scale {0};
 };
 
+/// A new image as the Custom panel makes it
+struct NewImage {
+    QSize size;
+    qreal ratio {0}; ///< width over height kept, the wide way (≥ 1); 0: free
+    qreal dpi {72};
+    QString model;
+    QString depth;
+    QString profile;
+    QColor paper;
+    KisConfig::BackgroundStyle paperAs {KisConfig::RASTER_LAYER};
+    int layers {2};
+
+    /// The kept ratio turned the way the image is; 0: free
+    qreal kept() const
+    {
+        if (ratio <= 0) return 0;
+        return size.width() >= size.height() ? ratio : 1 / ratio;
+    }
+    /// Sets the width, the height following a kept ratio
+    void setWidth(int width)
+    {
+        const qreal r = kept();
+        size.setWidth(width);
+        if (r > 0) size.setHeight(qMax(1, int(std::round(width / r))));
+    }
+    /// Sets the height, the width following a kept ratio
+    void setHeight(int height)
+    {
+        const qreal r = kept();
+        size.setHeight(height);
+        if (r > 0) size.setWidth(qMax(1, int(std::round(height * r))));
+    }
+};
+
+constexpr int maxSide = 16384;
+
 /**
- * Custom, opened under the tiles: the new image as a sheet pulled by its corner, among the other sizes drawn
- * as outlines at the same scale from the same corner. It catches on their corners and on the usual ratios
- * (Shift: free); a press anywhere puts the corner there, a side pulls one way. The numbers are dragged or typed
- * (pixels, or cm, mm and in at 300 dpi); a click on × turns the sheet. Paper below them, then Make (or Enter).
+ * The new image as a sheet pulled by its corner (a press anywhere puts the corner there, a side pulls one
+ * way), among the other sizes drawn as outlines at the same scale from the same corner. A kept ratio holds
+ * while it is pulled.
  */
 class SizeStage : public QWidget
 {
@@ -366,32 +406,20 @@ public:
         QString name;
         QSize pixels;
     };
-    std::function<void(const QSize &pixels, qreal pixelsPerPoint, const QColor &paper)> made;
-    std::function<void()> closed;
+    std::function<void()> changed;
+    std::function<void()> made;
+    std::function<void()> reset;
 
-    SizeStage(const QSize &size, const QList<Outline> &outlines, const QSize &screen, qreal pixelsPerPoint, QWidget *parent)
+    SizeStage(NewImage *image, const QList<Outline> &outlines, const QSize &screen, QWidget *parent)
         : QWidget(parent)
-        , m_size(size)
-        , m_initial(size)
+        , m_image(image)
         , m_outlines(outlines)
         , m_screen(screen)
-        , m_pixelsPerPoint(pixelsPerPoint)
     {
-        setObjectName(QStringLiteral("studioSizeStage"));
-        setMinimumWidth(640);
-        setFixedHeight(300);
-        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        setMinimumWidth(360);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         setMouseTracking(true);
-        setAttribute(Qt::WA_Hover);
-        setFocusPolicy(Qt::StrongFocus);
-
-        KisConfig cfg(true);
-        QColor last = cfg.defaultBackgroundColor(newImageSection);
-        last.setAlpha(cfg.defaultBackgroundOpacity(newImageSection));
-        m_papers = {QColor(Qt::white), QColor(Qt::black), QColor(255, 255, 255, 0)};
-        if (!m_papers.contains(last) && last.alpha() > 0) m_papers.insert(1, last);
-        m_paper = last.alpha() == 0 ? m_papers.last() : last;
-
+        setToolTip(i18nc("@info:tooltip a new image's size, pulled by its corner", "Drag: change\nDouble-click: make\nRight-click: reset"));
         m_zoom.setEasingCurve(KisModernStyle::motionCurve());
         m_zoom.setDuration(KisModernStyle::changeDuration);
         connect(&m_zoom, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
@@ -400,16 +428,27 @@ public:
         });
     }
 
+    /// Zooms to show the size as it is now
+    void settle()
+    {
+        if (m_dragging) return;
+        m_zoom.stop();
+        m_zoom.setStartValue(m_scale);
+        m_zoom.setEndValue(scaleFor(m_image->size));
+        m_zoom.start();
+        update();
+    }
+
 protected:
     void resizeEvent(QResizeEvent *) override
     {
         m_zoom.stop();
-        m_scale = scaleFor(m_size);
+        m_scale = scaleFor(m_image->size);
     }
 
     void paintEvent(QPaintEvent *) override
     {
-        if (m_scale <= 0) m_scale = scaleFor(m_size);
+        if (m_scale <= 0) m_scale = scaleFor(m_image->size);
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         const QColor ink = palette().color(QPalette::WindowText);
@@ -417,13 +456,14 @@ protected:
         painter.setBrush(withAlpha(ink, 0.05));
         painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), KisModernStyle::tileRadius));
 
-        // the sheet, from one corner, and the other sizes over it: in ink around it, in the paper's own ink on it
-        const QRectF stage = stageRect();
-        const QRectF sheet = sheetAt(m_size);
+        // the sheet, and the other sizes over it: in ink around it, in the paper's own ink on it
+        const QRectF stage = rect();
+        const QRectF sheet = sheetAt(m_image->size);
         const QPainterPath sheetPath = KisModernStyle::squircle(sheet, 3);
+        const QColor paper = m_image->paper;
         painter.save();
-        painter.setClipRect(stage);
-        if (m_paper.alpha() < 255) {
+        painter.setClipPath(KisModernStyle::squircle(stage, KisModernStyle::tileRadius));
+        if (paper.alpha() < 255) {
             painter.save();
             painter.setClipPath(sheetPath, Qt::IntersectClip);
             const int cell = 8;
@@ -435,11 +475,11 @@ protected:
             }
             painter.restore();
         }
-        painter.setBrush(m_paper);
-        painter.setPen(QPen(withAlpha(ink, m_drag != None ? 0.6 : 0.35), 1));
+        painter.setBrush(paper);
+        painter.setPen(QPen(withAlpha(ink, m_dragging ? 0.6 : 0.35), 1));
         painter.drawPath(sheetPath);
 
-        const QColor paperInk = m_paper.alpha() < 128 || m_paper.lightnessF() > 0.5 ? QColor(Qt::black) : QColor(Qt::white);
+        const QColor paperInk = paper.alpha() < 128 || paper.lightnessF() > 0.5 ? QColor(Qt::black) : QColor(Qt::white);
         QPainterPath around;
         around.addRect(stage);
         painter.setFont(KisModernStyle::textFont(font(), 0.82));
@@ -448,265 +488,74 @@ protected:
             painter.save();
             painter.setClipPath(onSheet ? sheetPath : around.subtracted(sheetPath), Qt::IntersectClip);
             for (const Outline &outline : m_outlines) {
-                const bool caught = (m_drag != None && outline.name == m_caught) || outline.pixels == m_size;
+                const bool same = outline.pixels == m_image->size;
                 const QRectF at = sheetAt(outline.pixels);
-                painter.setPen(QPen(withAlpha(color, caught ? 0.75 : 0.22), caught ? 1.5 : 1));
+                painter.setPen(QPen(withAlpha(color, same ? 0.75 : 0.22), same ? 1.5 : 1));
                 painter.setBrush(Qt::NoBrush);
                 painter.drawPath(KisModernStyle::squircle(at, 3));
-                painter.setPen(withAlpha(color, caught ? 0.9 : 0.4));
+                painter.setPen(withAlpha(color, same ? 0.9 : 0.4));
                 painter.drawText(at.adjusted(0, KisModernStyle::space1, -KisModernStyle::space1 - 1, 0), Qt::AlignRight | Qt::AlignTop, outline.name);
             }
             painter.restore();
         }
         painter.restore();
 
-        // the corner it is pulled by, and what it caught on
+        // the corner it is pulled by
         const QPointF corner = sheet.topRight();
         if (stage.adjusted(-6, -6, 6, 6).contains(corner)) {
             painter.setPen(QPen(QColor(32, 32, 32), 1.5));
             painter.setBrush(Qt::white);
             painter.drawEllipse(corner, 5.5, 5.5);
         }
-        // a ratio caught: its name by the corner (another size names itself)
-        if (m_drag != None && !m_caught.isEmpty() && std::none_of(m_outlines.cbegin(), m_outlines.cend(), [this](const Outline &o) { return o.name == m_caught; })) {
-            painter.setFont(KisModernStyle::textFont(font(), 0.88));
-            painter.setPen(ink);
-            const QFontMetrics metrics(painter.font());
-            QRectF label(corner + QPointF(KisModernStyle::space2, -KisModernStyle::space2 - metrics.height()),
-                         QSizeF(metrics.horizontalAdvance(m_caught) + 2, metrics.height()));
-            if (label.right() > stage.right() - KisModernStyle::space1) label.moveRight(corner.x() - KisModernStyle::space2);
-            if (label.top() < stage.top() + KisModernStyle::space1) label.moveTop(corner.y() + KisModernStyle::space2);
-            painter.drawText(label, Qt::AlignCenter, m_caught);
-        }
-
-        // the numbers, × between them
-        painter.setFont(numberFont());
-        painter.setPen(ink);
-        painter.drawText(widthRect(), Qt::AlignRight | Qt::AlignVCenter, QLocale().toString(m_size.width()));
-        painter.drawText(heightRect(), Qt::AlignLeft | Qt::AlignVCenter, QLocale().toString(m_size.height()));
-        painter.setPen(withAlpha(ink, m_hovered == Turn ? 1.0 : 0.55));
-        painter.drawText(timesRect(), Qt::AlignCenter, QStringLiteral("×"));
-        // quietly, its ratio and, made for print, its size on paper
-        QStringList quiet;
-        Q_FOREACH (const Ratio &ratio, ratios()) {
-            if (std::abs(qreal(m_size.width()) / m_size.height() / ratio.value - 1) < 0.005) {
-                quiet << ratio.name;
-                break;
-            }
-        }
-        if (m_print) {
-            quiet << i18nc("a new image's size on paper: width × height in cm, at 300 dpi", "%1 × %2 cm",
-                           QLocale().toString(m_size.width() * 2.54 / 300, 'f', 1), QLocale().toString(m_size.height() * 2.54 / 300, 'f', 1));
-        }
-        if (!quiet.isEmpty()) {
-            painter.setFont(KisModernStyle::textFont(font(), 0.88));
-            painter.setPen(KisModernStyle::secondaryInk(ink));
-            const QRect under = QRect(columnLeft(), timesRect().bottom() + KisModernStyle::space1, sideWidth, fontMetrics().height());
-            painter.drawText(under, Qt::AlignHCenter | Qt::AlignTop, quiet.join(QStringLiteral("  ·  ")));
-        }
-
-        // paper, then Make
-        for (int i = 0; i < m_papers.size(); i++) {
-            const QRectF at = QRectF(paperRect(i)).adjusted(3, 3, -3, -3);
-            const QColor &paper = m_papers[i];
-            if (paper.alpha() == 0) {
-                painter.setPen(Qt::NoPen);
-                painter.setBrush(Qt::white);
-                painter.drawEllipse(at);
-                painter.setBrush(QColor(190, 190, 190));
-                QPainterPath half;
-                half.moveTo(at.center());
-                half.arcTo(at, 90, 90);
-                half.closeSubpath();
-                half.moveTo(at.center());
-                half.arcTo(at, 270, 90);
-                half.closeSubpath();
-                painter.drawPath(half);
-            } else {
-                painter.setPen(Qt::NoPen);
-                painter.setBrush(paper);
-                painter.drawEllipse(at);
-            }
-            painter.setBrush(Qt::NoBrush);
-            painter.setPen(QPen(withAlpha(ink, 0.3), 1));
-            painter.drawEllipse(at);
-            if (paper == m_paper) {
-                painter.setPen(QPen(ink, 1.5));
-                painter.drawEllipse(QRectF(paperRect(i)).adjusted(0.75, 0.75, -0.75, -0.75));
-            }
-        }
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(withAlpha(ink, m_hovered == Make ? 0.2 : 0.12));
-        painter.drawPath(KisModernStyle::squircle(makeRect(), KisModernStyle::cornerRadius));
-        painter.setPen(ink);
-        painter.setFont(font());
-        painter.drawText(makeRect(), Qt::AlignCenter, i18nc("@action:button make the new image", "Make"));
-    }
-
-    bool event(QEvent *event) override
-    {
-        if (event->type() == QEvent::ToolTip) {
-            const Part part = partAt(static_cast<QHelpEvent *>(event)->pos());
-            QString tip;
-            if (part == Turn) tip = i18nc("@info:tooltip turn a new image's size: swap its width and height", "Turn");
-            else if (part == Width || part == Height) tip = i18nc("@info:tooltip a new image's width or height; 300 dpi for cm, mm and in", "Pixels, cm, mm or in\nDrag: change\nShift+drag: finer\nDouble-click: type\nRight-click: reset");
-            else if (part == Paper) tip = i18nc("@info:tooltip the new image's background", "Paper");
-            else if (part == Sheet) tip = i18nc("@info:tooltip a new image's size, pulled by its corner", "Drag: change\nShift+drag: free\nDouble-click: make\nRight-click: reset");
-            setToolTip(tip);
-        }
-        return QWidget::event(event);
     }
 
     void mousePressEvent(QMouseEvent *event) override
     {
         if (event->button() != Qt::LeftButton) return;
-        const Part part = partAt(event->pos());
-        m_from = event->pos();
-        m_fromSize = m_size;
-        if (part == Make) {
-            make();
-        } else if (part == Turn) {
-            m_size.transpose();
-            settle();
-        } else if (part == Paper) {
-            m_paper = m_papers[paperAt(event->pos())];
-            update();
-        } else if (part == Width || part == Height) {
-            m_drag = part == Width ? WidthNumber : HeightNumber;
-        } else if (part == Sheet) {
-            m_zoom.stop();
-            m_drag = pull(event->pos());
-            follow(event->pos(), event->modifiers());
-        }
+        m_zoom.stop();
+        m_dragging = true;
+        m_pull = pull(event->pos());
+        follow(event->pos());
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (m_drag == None) {
-            const Part part = partAt(event->pos());
-            Qt::CursorShape shape = Qt::ArrowCursor;
-            if (part == Turn || part == Paper || part == Make) shape = Qt::PointingHandCursor;
-            else if (part == Width || part == Height) shape = Qt::SizeHorCursor;
-            else if (part == Sheet) {
-                const Drag pulled = pull(event->pos());
-                shape = pulled == Across ? Qt::SizeHorCursor : pulled == Up ? Qt::SizeVerCursor : Qt::SizeBDiagCursor;
-            }
-            setCursor(shape);
-            if (part != m_hovered) {
-                m_hovered = part;
-                update();
-            }
+        if (!m_dragging) {
+            const Pull pulled = pull(event->pos());
+            setCursor(pulled == Across ? Qt::SizeHorCursor : pulled == Up ? Qt::SizeVerCursor : Qt::SizeBDiagCursor);
             return;
         }
-        if (m_drag == WidthNumber || m_drag == HeightNumber) {
-            // by ratios, a tenth as fast with Shift
-            const bool fine = event->modifiers() & Qt::ShiftModifier;
-            const qreal factor = std::exp((event->pos().x() - m_from.x()) / (fine ? 1200.0 : 120.0));
-            const int value = qBound(1, int(std::round((m_drag == WidthNumber ? m_fromSize.width() : m_fromSize.height()) * factor)), maxSide);
-            if (m_drag == WidthNumber) m_size.setWidth(value);
-            else m_size.setHeight(value);
-            m_caught.clear();
-            update();
-            return;
-        }
-        follow(event->pos(), event->modifiers());
+        follow(event->pos());
     }
 
     void mouseReleaseEvent(QMouseEvent *) override
     {
-        if (m_drag == None) return;
-        m_drag = None;
+        if (!m_dragging) return;
+        m_dragging = false;
         settle();
     }
 
-    void mouseDoubleClickEvent(QMouseEvent *event) override
+    void mouseDoubleClickEvent(QMouseEvent *) override
     {
-        const Part part = partAt(event->pos());
-        if (part == Sheet) {
-            make();
-            return;
-        }
-        if (part != Width && part != Height) return;
-        const bool across = part == Width;
-        KisStudioInlineEdit::open(this, across ? widthRect() : heightRect(), QString::number(across ? m_size.width() : m_size.height()),
-                                  (across ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter, numberFont(), [this, across](const QString &typed) {
-                                      bool physical = false;
-                                      const int value = pixelsOf(typed, &physical);
-                                      if (value <= 0) return;
-                                      if (across) m_size.setWidth(value);
-                                      else m_size.setHeight(value);
-                                      m_print = m_print || physical;
-                                      m_caught.clear();
-                                      settle();
-                                  });
+        if (made) made();
     }
 
     void contextMenuEvent(QContextMenuEvent *event) override
     {
         event->accept();
-        const Part part = partAt(event->pos());
-        if (part == Width) m_size.setWidth(m_initial.width());
-        else if (part == Height) m_size.setHeight(m_initial.height());
-        else if (part == Sheet) m_size = m_initial;
-        else return;
-        m_print = false;
-        m_caught.clear();
-        settle();
-    }
-
-    void keyPressEvent(QKeyEvent *event) override
-    {
-        if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
-            make();
-        } else if (event->key() == Qt::Key_Escape) {
-            if (closed) closed();
-        } else {
-            QWidget::keyPressEvent(event);
-        }
-    }
-
-    void leaveEvent(QEvent *) override
-    {
-        m_hovered = Nothing;
-        update();
+        if (reset) reset();
     }
 
 private:
-    enum Part { Nothing, Sheet, Width, Turn, Height, Paper, Make };
-    enum Drag { None, Corner, Across, Up, WidthNumber, HeightNumber };
-    static constexpr int maxSide = 16384;
-    static constexpr int sideWidth = 220;
+    enum Pull { Corner, Across, Up };
 
-    struct Ratio {
-        qreal value;
-        QString name;
-    };
-    /// The usual ratios, wide and tall
-    static const QVector<Ratio> &ratios()
-    {
-        static const QVector<Ratio> all = {
-            {1.0, QStringLiteral("1:1")}, {4.0 / 3, QStringLiteral("4:3")}, {3.0 / 4, QStringLiteral("3:4")},
-            {3.0 / 2, QStringLiteral("3:2")}, {2.0 / 3, QStringLiteral("2:3")}, {16.0 / 9, QStringLiteral("16:9")},
-            {9.0 / 16, QStringLiteral("9:16")}, {M_SQRT2, QStringLiteral("√2")}, {M_SQRT1_2, QStringLiteral("√2")},
-        };
-        return all;
-    }
-
-    QFont numberFont() const { return KisModernStyle::textFont(font(), 1.3, QFont::DemiBold); }
-    QRectF stageRect() const
-    {
-        return QRectF(KisModernStyle::space2, KisModernStyle::space2, width() - sideWidth - KisModernStyle::space2 - KisModernStyle::space3,
-                      height() - 2 * KisModernStyle::space2);
-    }
-    /// The corner every sheet grows from
+    /// The corner every sheet grows from, the other sizes centred across
     QPointF origin() const
     {
-        // the other sizes centred across
-        const QRectF stage = stageRect();
         int widest = 0;
         for (const Outline &outline : m_outlines) widest = qMax(widest, outline.pixels.width());
-        const qreal left = qMax(stage.left() + KisModernStyle::space4, stage.center().x() - widest * m_scale / 2);
-        return QPointF(left, stage.bottom() - KisModernStyle::space4);
+        const qreal left = qMax(qreal(KisModernStyle::space4), width() / 2.0 - widest * m_scale / 2);
+        return QPointF(left, height() - KisModernStyle::space4);
     }
     QRectF sheetAt(const QSize &pixels) const
     {
@@ -716,144 +565,189 @@ private:
     /// Screen pixels per image pixel that show \p pixels with room to grow, and every other size
     qreal scaleFor(const QSize &pixels) const
     {
-        const QRectF stage = stageRect();
-        const QSizeF room(stage.width() - 2 * KisModernStyle::space4, stage.height() - 2 * KisModernStyle::space4);
+        const QSizeF room(width() - 2 * KisModernStyle::space4, height() - 2 * KisModernStyle::space4);
         QSizeF shown = (QSizeF(pixels) * 1.1).expandedTo(QSizeF(m_screen) * 0.5);
         for (const Outline &outline : m_outlines) shown = shown.expandedTo(QSizeF(outline.pixels));
         return qMax(1e-4, qMin(room.width() / shown.width(), room.height() / shown.height()));
     }
-    int columnLeft() const { return width() - sideWidth - KisModernStyle::space2; }
-    QRect timesRect() const
-    {
-        const QFontMetrics metrics(numberFont());
-        const int side = metrics.horizontalAdvance(QStringLiteral(" × "));
-        return QRect(columnLeft() + (sideWidth - side) / 2, KisModernStyle::space4 + KisModernStyle::space2, side, metrics.height());
-    }
-    QRect widthRect() const
-    {
-        const QRect times = timesRect();
-        return QRect(columnLeft(), times.top(), times.left() - columnLeft(), times.height());
-    }
-    QRect heightRect() const
-    {
-        const QRect times = timesRect();
-        return QRect(times.right() + 1, times.top(), columnLeft() + sideWidth - times.right() - 1, times.height());
-    }
-    QRect makeRect() const
-    {
-        const int h = fontMetrics().height() + 2 * KisModernStyle::space2;
-        return QRect(columnLeft(), height() - KisModernStyle::space2 - h, sideWidth, h);
-    }
-    QRect paperRect(int i) const
-    {
-        const int side = 28;
-        const int all = m_papers.size() * side + (m_papers.size() - 1) * KisModernStyle::space2;
-        const int left = columnLeft() + (sideWidth - all) / 2;
-        return QRect(left + i * (side + KisModernStyle::space2), makeRect().top() - KisModernStyle::space4 - side, side, side);
-    }
-    int paperAt(const QPoint &at) const
-    {
-        for (int i = 0; i < m_papers.size(); i++) {
-            if (paperRect(i).contains(at)) return i;
-        }
-        return -1;
-    }
-    Part partAt(const QPoint &at) const
-    {
-        if (makeRect().contains(at)) return Make;
-        if (timesRect().contains(at)) return Turn;
-        if (widthRect().contains(at)) return Width;
-        if (heightRect().contains(at)) return Height;
-        if (paperAt(at) >= 0) return Paper;
-        if (stageRect().contains(at)) return Sheet;
-        return Nothing;
-    }
     /// What a press at \p at pulls: a side near it, else the corner
-    Drag pull(const QPoint &at) const
+    Pull pull(const QPoint &at) const
     {
-        const QRectF sheet = sheetAt(m_size);
+        const QRectF sheet = sheetAt(m_image->size);
         const qreal reach = 6;
         const bool nearCorner = QLineF(at, sheet.topRight()).length() < 3 * reach;
         if (!nearCorner && std::abs(at.x() - sheet.right()) < reach && at.y() > sheet.top() && at.y() < sheet.bottom()) return Across;
         if (!nearCorner && std::abs(at.y() - sheet.top()) < reach && at.x() > sheet.left() && at.x() < sheet.right()) return Up;
         return Corner;
     }
-
-    /// Rounded to a step a screen pixel spans, so the numbers stay round
-    int rounded(qreal value) const
+    /// The roundest step at least a screen pixel long, so dragged numbers stay round
+    int step() const
     {
         const qreal span = 1 / m_scale;
-        int step = 1;
-        for (int candidate : {1, 2, 5, 10, 20, 50, 100, 200, 500}) {
-            step = candidate;
-            if (candidate >= span) break;
+        for (int candidate : {1, 2, 5, 10, 20, 50, 100, 200}) {
+            if (candidate >= span) return candidate;
         }
-        return qBound(1, int(std::round(value / step)) * step, maxSide);
+        return 500;
+    }
+    int rounded(qreal value) const
+    {
+        return qBound(1, int(std::round(value / step())) * step(), maxSide);
     }
 
-    void follow(const QPoint &at, Qt::KeyboardModifiers modifiers)
+    void follow(const QPoint &at)
     {
         const QPointF from = origin();
         const qreal across = qMax(1.0, (at.x() - from.x()) / m_scale);
         const qreal up = qMax(1.0, (from.y() - at.y()) / m_scale);
-        m_caught.clear();
-        if (m_drag == Across) {
-            m_size.setWidth(rounded(across));
-        } else if (m_drag == Up) {
-            m_size.setHeight(rounded(up));
-        } else if (modifiers & Qt::ShiftModifier) {
-            m_size = QSize(rounded(across), rounded(up));
+        const qreal kept = m_image->kept();
+        if (m_pull == Across) {
+            m_image->setWidth(rounded(across));
+        } else if (m_pull == Up) {
+            m_image->setHeight(rounded(up));
+        } else if (kept > 0) {
+            // the nearest point on the line of the kept ratio, at a width whose height is whole and round too
+            const qreal t = (across * kept + up) / (kept * kept + 1);
+            int width = rounded(t * kept);
+            for (int below = 1; below <= 16; below++) {
+                const qreal above = kept * below;
+                if (std::abs(above - std::round(above)) > 1e-6) continue;
+                const int unit = std::lcm(step(), int(std::round(above)));
+                width = qBound(unit, int(std::round(t * kept / unit)) * unit, maxSide);
+                break;
+            }
+            m_image->setWidth(width);
         } else {
-            m_size = caught(across, up);
+            m_image->size = QSize(rounded(across), rounded(up));
         }
         update();
+        if (changed) changed();
     }
 
-    /// The corner at (\p across, \p up) image pixels, caught on another size's corner or a usual ratio near it
-    QSize caught(qreal across, qreal up)
+    NewImage *m_image;
+    QList<Outline> m_outlines;
+    QSize m_screen;
+    qreal m_scale {0};
+    QVariantAnimation m_zoom;
+    bool m_dragging {false};
+    Pull m_pull {Corner};
+};
+
+/// Width × height: each dragged by ratios, typed on a double-click (pixels, or cm, mm, in), reset by a right click
+class SizeNumbers : public QWidget
+{
+public:
+    std::function<void()> changed;
+
+    SizeNumbers(NewImage *image, const QSize &initial, QWidget *parent)
+        : QWidget(parent)
+        , m_image(image)
+        , m_initial(initial)
     {
-        const qreal reach = 10 / m_scale;
-        for (const Outline &outline : m_outlines) {
-            if (std::abs(across - outline.pixels.width()) < reach && std::abs(up - outline.pixels.height()) < reach) {
-                m_caught = outline.name;
-                return outline.pixels;
-            }
+        setMouseTracking(true);
+        setFixedHeight(QFontMetrics(numberFont()).height() + fontMetrics().height() + KisModernStyle::space1);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        const QColor ink = palette().color(QPalette::WindowText);
+        painter.setFont(numberFont());
+        painter.setPen(ink);
+        painter.drawText(widthRect(), Qt::AlignRight | Qt::AlignVCenter, QLocale().toString(m_image->size.width()));
+        painter.drawText(heightRect(), Qt::AlignLeft | Qt::AlignVCenter, QLocale().toString(m_image->size.height()));
+        painter.setPen(withAlpha(ink, 0.55));
+        painter.drawText(timesRect(), Qt::AlignCenter, QStringLiteral("×"));
+
+        // quietly, its size on paper when it is made for print
+        if (m_image->dpi >= 150) {
+            painter.setFont(KisModernStyle::textFont(font(), 0.88));
+            painter.setPen(KisModernStyle::secondaryInk(ink));
+            const QRect under(0, timesRect().bottom() + KisModernStyle::space1, width(), fontMetrics().height());
+            painter.drawText(under, Qt::AlignHCenter | Qt::AlignTop,
+                             i18nc("a new image's size on paper: width × height in cm", "%1 × %2 cm",
+                                   QLocale().toString(m_image->size.width() * 2.54 / m_image->dpi, 'f', 1),
+                                   QLocale().toString(m_image->size.height() * 2.54 / m_image->dpi, 'f', 1)));
         }
-        qreal nearest = 7 / m_scale;
-        const Ratio *best = nullptr;
-        for (const Ratio &ratio : ratios()) {
-            // the nearest point on the line of this ratio
-            const qreal t = (across * ratio.value + up) / (ratio.value * ratio.value + 1);
-            const qreal distance = std::hypot(across - t * ratio.value, up - t);
-            if (distance < nearest) {
-                nearest = distance;
-                best = &ratio;
-            }
+    }
+
+    bool event(QEvent *event) override
+    {
+        if (event->type() == QEvent::ToolTip) {
+            const QPoint at = static_cast<QHelpEvent *>(event)->pos();
+            setToolTip(widthRect().contains(at) || heightRect().contains(at)
+                           ? i18nc("@info:tooltip a new image's width or height", "Pixels, cm, mm or in\nDrag: change\nShift+drag: finer\nDouble-click: type\nRight-click: reset")
+                           : QString());
         }
-        if (!best) return QSize(rounded(across), rounded(up));
-        m_caught = best->name;
-        const qreal t = (across * best->value + up) / (best->value * best->value + 1);
-        const int width = rounded(t * best->value);
-        return QSize(width, qBound(1, int(std::round(width / best->value)), maxSide));
+        return QWidget::event(event);
     }
 
-    /// Zooms to show the size as it is now
-    void settle()
+    void mousePressEvent(QMouseEvent *event) override
     {
-        m_zoom.stop();
-        m_zoom.setStartValue(m_scale);
-        m_zoom.setEndValue(scaleFor(m_size));
-        m_zoom.start();
-        update();
+        if (event->button() != Qt::LeftButton) return;
+        m_dragging = widthRect().contains(event->pos()) ? Width : heightRect().contains(event->pos()) ? Height : None;
+        m_from = event->pos();
+        m_fromSize = m_image->size;
     }
 
-    void make()
+    void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (made) made(m_size, m_print ? 300.0 / 72.0 : m_pixelsPerPoint, m_paper);
+        if (m_dragging == None) {
+            setCursor(widthRect().contains(event->pos()) || heightRect().contains(event->pos()) ? Qt::SizeHorCursor : Qt::ArrowCursor);
+            return;
+        }
+        // by ratios, a tenth as fast with Shift
+        const bool fine = event->modifiers() & Qt::ShiftModifier;
+        const qreal factor = std::exp((event->pos().x() - m_from.x()) / (fine ? 1200.0 : 120.0));
+        m_image->size = m_fromSize;
+        if (m_dragging == Width) m_image->setWidth(qBound(1, int(std::round(m_fromSize.width() * factor)), maxSide));
+        else m_image->setHeight(qBound(1, int(std::round(m_fromSize.height() * factor)), maxSide));
+        if (changed) changed();
     }
 
-    /// Pixels from typed text: a number, or one in cm, mm or in at 300 dpi
-    static int pixelsOf(const QString &typed, bool *physical)
+    void mouseReleaseEvent(QMouseEvent *) override
+    {
+        m_dragging = None;
+    }
+
+    void mouseDoubleClickEvent(QMouseEvent *event) override
+    {
+        const bool across = widthRect().contains(event->pos());
+        if (!across && !heightRect().contains(event->pos())) return;
+        KisStudioInlineEdit::open(this, across ? widthRect() : heightRect(), QString::number(across ? m_image->size.width() : m_image->size.height()),
+                                  (across ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter, numberFont(), [this, across](const QString &typed) {
+                                      const int value = pixelsOf(typed);
+                                      if (value <= 0) return;
+                                      if (across) m_image->setWidth(value);
+                                      else m_image->setHeight(value);
+                                      if (changed) changed();
+                                  });
+    }
+
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        event->accept();
+        if (widthRect().contains(event->pos())) m_image->setWidth(m_initial.width());
+        else if (heightRect().contains(event->pos())) m_image->setHeight(m_initial.height());
+        else return;
+        if (changed) changed();
+    }
+
+private:
+    enum Part { None, Width, Height };
+
+    QFont numberFont() const { return KisModernStyle::textFont(font(), 1.3, QFont::DemiBold); }
+    QRect timesRect() const
+    {
+        const QFontMetrics metrics(numberFont());
+        const int side = metrics.horizontalAdvance(QStringLiteral(" × "));
+        return QRect((width() - side) / 2, 0, side, metrics.height());
+    }
+    QRect widthRect() const { return QRect(0, 0, timesRect().left(), timesRect().height()); }
+    QRect heightRect() const { return QRect(timesRect().right() + 1, 0, width() - timesRect().right() - 1, timesRect().height()); }
+
+    /// Pixels from typed text: a number, or one in cm, mm or in at the image's resolution (300 dpi when it is a screen's)
+    int pixelsOf(const QString &typed)
     {
         static const QRegularExpression pattern(QStringLiteral("^\\s*([0-9]+(?:[.,][0-9]+)?)\\s*(px|cm|mm|in|\")?\\s*$"),
                                                 QRegularExpression::CaseInsensitiveOption);
@@ -865,25 +759,332 @@ private:
         if (unit == QLatin1String("cm")) inches = number / 2.54;
         else if (unit == QLatin1String("mm")) inches = number / 25.4;
         else if (unit == QLatin1String("in") || unit == QLatin1String("\"")) inches = number;
-        *physical = inches >= 0;
-        return qBound(1, int(std::round(inches >= 0 ? inches * 300 : number)), maxSide);
+        if (inches < 0) return qBound(1, int(std::round(number)), maxSide);
+        if (m_image->dpi < 150) m_image->dpi = 300;
+        return qBound(1, int(std::round(inches * m_image->dpi)), maxSide);
     }
 
-    QSize m_size;
+    NewImage *m_image;
     QSize m_initial;
     QSize m_fromSize;
     QPoint m_from;
-    QList<Outline> m_outlines;
-    QSize m_screen;
-    qreal m_pixelsPerPoint;
-    bool m_print {false};
+    Part m_dragging {None};
+};
+
+/**
+ * Custom, opened under the tiles: the sheet on the left; beside it the numbers, the ratio kept (1:1, …; the lit
+ * one again frees it) and a turn, then what else a new image has (resolution, color, paper, layers) as rows, and Make.
+ */
+class CustomImage : public QWidget
+{
+public:
+    std::function<void(const NewImage &)> made;
+    std::function<void()> closed;
+
+    CustomImage(const QSize &size, const QList<SizeStage::Outline> &outlines, const QSize &screen, QWidget *parent)
+        : QWidget(parent)
+    {
+        setObjectName(QStringLiteral("studioCustomImage"));
+        setFocusPolicy(Qt::StrongFocus);
+        setFixedHeight(360);
+
+        KisConfig cfg(true);
+        m_image.size = size;
+        m_image.dpi = qBound(30.0, std::round(cfg.defImageResolution() * 72.0), 1200.0);
+        m_image.model = cfg.defColorModel();
+        m_image.depth = cfg.defaultColorDepth();
+        m_image.profile = cfg.defColorProfile();
+        m_image.paper = cfg.defaultBackgroundColor(newImageSection);
+        m_image.paper.setAlpha(cfg.defaultBackgroundOpacity(newImageSection));
+        m_image.paperAs = cfg.defaultBackgroundStyle(newImageSection);
+        m_image.layers = cfg.numDefaultLayers(newImageSection);
+        m_initial = m_image;
+
+        auto *layout = new QHBoxLayout(this);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(KisModernStyle::space3);
+        m_stage = new SizeStage(&m_image, outlines, screen, this);
+        layout->addWidget(m_stage, 1);
+
+        auto *side = new QWidget(this);
+        side->setFixedWidth(260);
+        auto *column = new QVBoxLayout(side);
+        column->setContentsMargins(0, KisModernStyle::space2, 0, 0);
+        column->setSpacing(KisModernStyle::space2);
+        layout->addWidget(side);
+
+        m_numbers = new SizeNumbers(&m_image, size, side);
+        column->addWidget(m_numbers);
+
+        m_ratios = new KisStudioChips(side);
+        m_ratios->setTabs(true);
+        column->addWidget(m_ratios);
+        connect(m_ratios, &KisStudioChips::clicked, this, [this](int index) {
+            if (index == ratios().size()) {
+                m_image.size.transpose();
+            } else {
+                // the lit one again frees the size
+                const qreal picked = ratios()[index].value;
+                m_image.ratio = qFuzzyCompare(picked, m_image.ratio) ? 0 : picked;
+                // the longer side stays
+                if (m_image.size.width() >= m_image.size.height()) m_image.setWidth(m_image.size.width());
+                else m_image.setHeight(m_image.size.height());
+            }
+            refresh();
+        });
+
+        column->addSpacing(KisModernStyle::space1);
+        m_dpi = new KisStudioValueRow(i18nc("a new image's resolution", "Resolution"), side);
+        m_dpi->setCompact(true);
+        KisStudioValueRow::Range dpiRange;
+        dpiRange.minimum = 30;
+        dpiRange.maximum = 1200;
+        dpiRange.size = true;
+        dpiRange.suffix = i18nc("dots per inch, after a number", " dpi");
+        m_dpi->setRange(dpiRange);
+        m_dpi->setDefaultValue(m_image.dpi);
+        column->addWidget(m_dpi);
+        connect(m_dpi, &KisStudioValueRow::valueChanged, this, [this](qreal dpi) {
+            m_image.dpi = std::round(dpi);
+            refresh();
+        });
+
+        m_color = new KisStudioValueRow(i18nc("a new image's color model and depth", "Color"), side);
+        m_color->setCompact(true);
+        m_color->setDraggable(false);
+        column->addWidget(m_color);
+        connect(m_color, &KisStudioValueRow::clicked, this, [this]() { colorMenu(); });
+
+        m_layers = new KisStudioValueRow(i18nc("how many layers a new image has", "Layers"), side);
+        m_layers->setCompact(true);
+        KisStudioValueRow::Range layerRange;
+        layerRange.minimum = 1;
+        layerRange.maximum = 20;
+        m_layers->setRange(layerRange);
+        m_layers->setDefaultValue(m_image.layers);
+        column->addWidget(m_layers);
+        connect(m_layers, &KisStudioValueRow::valueChanged, this, [this](qreal layers) {
+            m_image.layers = qRound(layers);
+        });
+
+        m_paperAs = new KisStudioValueRow(i18nc("how a new image's paper is made: a layer, the canvas or a fill layer", "Paper"), side);
+        m_paperAs->setCompact(true);
+        m_paperAs->setDraggable(false);
+        column->addWidget(m_paperAs);
+        connect(m_paperAs, &KisStudioValueRow::clicked, this, [this]() { paperMenu(); });
+
+        m_papers = {QColor(Qt::white), QColor(Qt::black), QColor(255, 255, 255, 0)};
+        if (!m_papers.contains(m_image.paper) && m_image.paper.alpha() > 0) m_papers.insert(1, m_image.paper);
+        if (m_image.paper.alpha() == 0) m_image.paper = m_papers.last();
+        m_paper = new KisStudioChips(side);
+        m_paper->setTileSize(28);
+        column->addWidget(m_paper, 0, Qt::AlignHCenter);
+        connect(m_paper, &KisStudioChips::clicked, this, [this](int index) {
+            m_image.paper = m_papers[index];
+            refresh();
+        });
+
+        column->addStretch(1);
+        auto *make = new QPushButton(i18nc("@action:button make the new image", "Make"), side);
+        column->addWidget(make);
+        connect(make, &QPushButton::clicked, this, [this]() { makeIt(); });
+
+        m_stage->changed = [this]() { refresh(false); };
+        m_stage->made = [this]() { makeIt(); };
+        m_stage->reset = [this]() {
+            m_image = m_initial;
+            refresh();
+        };
+        m_numbers->changed = [this]() { refresh(); };
+        refresh();
+    }
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override
+    {
+        if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+            makeIt();
+        } else if (event->key() == Qt::Key_Escape) {
+            if (closed) closed();
+        } else {
+            QWidget::keyPressEvent(event);
+        }
+    }
+
+private:
+    struct Ratio {
+        qreal value;
+        QString name;
+    };
+    static const QVector<Ratio> &ratios()
+    {
+        static const QVector<Ratio> all = {
+            {1.0, QStringLiteral("1:1")}, {4.0 / 3, QStringLiteral("4:3")},
+            {3.0 / 2, QStringLiteral("3:2")}, {16.0 / 9, QStringLiteral("16:9")}, {M_SQRT2, i18nc("a new image's shape: as A paper (A4, A3…)", "A4")},
+        };
+        return all;
+    }
+
+    /// Everything shown again; \p settle: the stage zooms to the size
+    void refresh(bool settle = true)
+    {
+        QVector<KisStudioChips::Chip> chips;
+        for (const Ratio &ratio : ratios()) {
+            KisStudioChips::Chip chip;
+            chip.text = ratio.name;
+            chip.on = m_image.ratio > 0 && qFuzzyCompare(ratio.value, m_image.ratio);
+            chip.toolTip = ratio.value == M_SQRT2 ? i18nc("@info:tooltip", "A paper's shape") : QString();
+            chips << chip;
+        }
+        KisStudioChips::Chip turn;
+        turn.text = QStringLiteral("↻");
+        turn.toolTip = i18nc("@info:tooltip turn a new image: swap its width and height", "Turn");
+        chips << turn;
+        m_ratios->setChips(chips);
+
+        m_dpi->setValue(m_image.dpi);
+        m_layers->setValue(m_image.layers);
+        m_color->setValueText(colorText());
+        const QString paperAs[] = {i18nc("a new image's paper: a layer", "Layer"), i18nc("a new image's paper: the canvas's color", "Canvas"),
+                                   i18nc("a new image's paper: a fill layer", "Fill layer")};
+        m_paperAs->setValueText(paperAs[qBound(0, int(m_image.paperAs), 2)]);
+
+        QVector<KisStudioChips::Chip> papers;
+        for (const QColor &paper : m_papers) {
+            KisStudioChips::Chip chip;
+            chip.on = paper == m_image.paper;
+            chip.toolTip = paper.alpha() == 0 ? i18nc("@info:tooltip a new image's paper", "Clear") : QString();
+            chip.picture = [paper](QPainter &painter, const QRectF &at) {
+                const qreal side = qMin(at.width(), at.height()) * 0.8;
+                const QRectF dot(at.center() - QPointF(side, side) / 2, QSizeF(side, side));
+                painter.setRenderHint(QPainter::Antialiasing, true);
+                painter.setPen(QPen(QColor(128, 128, 128, 120), 1));
+                if (paper.alpha() == 0) {
+                    painter.setBrush(Qt::white);
+                    painter.drawEllipse(dot);
+                    QPainterPath half;
+                    half.moveTo(dot.center());
+                    half.arcTo(dot, 90, 90);
+                    half.closeSubpath();
+                    half.moveTo(dot.center());
+                    half.arcTo(dot, 270, 90);
+                    half.closeSubpath();
+                    painter.setPen(Qt::NoPen);
+                    painter.setBrush(QColor(190, 190, 190));
+                    painter.drawPath(half);
+                } else {
+                    painter.setBrush(paper);
+                    painter.drawEllipse(dot);
+                }
+            };
+            papers << chip;
+        }
+        m_paper->setChips(papers);
+
+        m_numbers->update();
+        if (settle) m_stage->settle();
+        else m_stage->update();
+    }
+
+    QString colorText() const
+    {
+        // "RGB · 8-bit": the first part of each name
+        const KoColorSpaceRegistry *registry = KoColorSpaceRegistry::instance();
+        QString model = m_image.model;
+        QString depth = m_image.depth;
+        Q_FOREACH (const KoID &id, registry->colorModelsList(KoColorSpaceRegistry::OnlyUserVisible)) {
+            if (id.id() == m_image.model) model = id.name().section(QLatin1Char('/'), 0, 0);
+        }
+        Q_FOREACH (const KoID &id, registry->colorDepthList(m_image.model, KoColorSpaceRegistry::OnlyUserVisible)) {
+            if (id.id() == m_image.depth) depth = id.name().section(QLatin1Char('/'), 0, 0);
+        }
+        return model + QStringLiteral(" · ") + depth;
+    }
+
+    void colorMenu()
+    {
+        const KoColorSpaceRegistry *registry = KoColorSpaceRegistry::instance();
+        QMenu menu(this);
+        Q_FOREACH (const KoID &id, registry->colorModelsList(KoColorSpaceRegistry::OnlyUserVisible)) {
+            QAction *action = menu.addAction(id.name());
+            action->setCheckable(true);
+            action->setChecked(id.id() == m_image.model);
+            connect(action, &QAction::triggered, this, [this, id]() {
+                m_image.model = id.id();
+                // the depth kept where the model has it, the profile its own
+                const QList<KoID> depths = KoColorSpaceRegistry::instance()->colorDepthList(id.id(), KoColorSpaceRegistry::OnlyUserVisible);
+                bool has = false;
+                for (const KoID &depth : depths) has = has || depth.id() == m_image.depth;
+                if (!has && !depths.isEmpty()) m_image.depth = depths.first().id();
+                m_image.profile = defaultProfile();
+                refresh(false);
+            });
+        }
+        menu.addSeparator();
+        Q_FOREACH (const KoID &id, registry->colorDepthList(m_image.model, KoColorSpaceRegistry::OnlyUserVisible)) {
+            QAction *action = menu.addAction(id.name());
+            action->setCheckable(true);
+            action->setChecked(id.id() == m_image.depth);
+            connect(action, &QAction::triggered, this, [this, id]() {
+                m_image.depth = id.id();
+                bool has = false;
+                Q_FOREACH (const KoColorProfile *profile, KoColorSpaceRegistry::instance()->profilesFor(colorSpace())) has = has || profile->name() == m_image.profile;
+                if (!has) m_image.profile = defaultProfile();
+                refresh(false);
+            });
+        }
+        menu.addSeparator();
+        QMenu *profiles = menu.addMenu(i18nc("a new image's color profile", "Profile"));
+        QList<const KoColorProfile *> all = registry->profilesFor(colorSpace());
+        std::sort(all.begin(), all.end(), [](const KoColorProfile *a, const KoColorProfile *b) { return a->name() < b->name(); });
+        for (const KoColorProfile *profile : all) {
+            const QString name = profile->name();
+            QAction *action = profiles->addAction(name);
+            action->setCheckable(true);
+            action->setChecked(name == m_image.profile);
+            connect(action, &QAction::triggered, this, [this, name]() { m_image.profile = name; });
+        }
+        menu.exec(m_color->mapToGlobal(QPoint(0, m_color->height())));
+    }
+
+    void paperMenu()
+    {
+        QMenu menu(this);
+        const QString names[] = {i18nc("a new image's paper", "A layer"), i18nc("a new image's paper", "The canvas's color"),
+                                 i18nc("a new image's paper", "A fill layer")};
+        const KisConfig::BackgroundStyle styles[] = {KisConfig::RASTER_LAYER, KisConfig::CANVAS_COLOR, KisConfig::FILL_LAYER};
+        for (int i = 0; i < 3; i++) {
+            QAction *action = menu.addAction(names[i]);
+            action->setCheckable(true);
+            action->setChecked(m_image.paperAs == styles[i]);
+            const KisConfig::BackgroundStyle style = styles[i];
+            connect(action, &QAction::triggered, this, [this, style]() {
+                m_image.paperAs = style;
+                refresh(false);
+            });
+        }
+        menu.exec(m_paperAs->mapToGlobal(QPoint(0, m_paperAs->height())));
+    }
+
+    QString colorSpace() const { return KoColorSpaceRegistry::instance()->colorSpaceId(m_image.model, m_image.depth); }
+    QString defaultProfile() const { return KoColorSpaceRegistry::instance()->defaultProfileForColorSpace(colorSpace()); }
+
+    void makeIt()
+    {
+        if (made) made(m_image);
+    }
+
+    NewImage m_image;
+    NewImage m_initial;
     QList<QColor> m_papers;
-    QColor m_paper;
-    qreal m_scale {0};
-    QVariantAnimation m_zoom;
-    QString m_caught;
-    Drag m_drag {None};
-    Part m_hovered {Nothing};
+    SizeStage *m_stage {nullptr};
+    SizeNumbers *m_numbers {nullptr};
+    KisStudioChips *m_ratios {nullptr};
+    KisStudioValueRow *m_dpi {nullptr};
+    KisStudioValueRow *m_color {nullptr};
+    KisStudioValueRow *m_paperAs {nullptr};
+    KisStudioValueRow *m_layers {nullptr};
+    KisStudioChips *m_paper {nullptr};
 };
 
 /// When \p time was: today or yesterday at a time, or else the day
@@ -1476,15 +1677,14 @@ private:
     Mark m_mark;
 };
 
-/// A new image of \p pixels at \p pixelsPerPoint, on \p paper or otherwise as the last image made
-void createImage(const QSize &pixels, qreal pixelsPerPoint, const QColor &paper = QColor())
+/// A new image of \p pixels at \p pixelsPerPoint, otherwise as the last image made
+void createImage(const QSize &pixels, qreal pixelsPerPoint)
 {
     KisConfig cfg(true);
     const KoColorSpace *cs = KoColorSpaceRegistry::instance()->colorSpace(cfg.defColorModel(), cfg.defaultColorDepth(), cfg.defColorProfile());
     if (!cs) cs = KoColorSpaceRegistry::instance()->rgb8();
     QColor background = cfg.defaultBackgroundColor(newImageSection);
     background.setAlpha(cfg.defaultBackgroundOpacity(newImageSection));
-    if (paper.isValid()) background = paper;
     KisDocument *doc = KisPart::instance()->createDocument();
     if (!doc->newImage(i18n("Unnamed"), pixels.width(), pixels.height(), cs, KoColor(background, cs), cfg.defaultBackgroundStyle(newImageSection),
                        cfg.numDefaultLayers(newImageSection), QString(), pixelsPerPoint)) {
@@ -1654,37 +1854,43 @@ QWidget *KisStudioStartPage::createNewTiles(KisMainWindow *mainWindow, QWidget *
     }
     tiles->addWidget(clipboard);
 
-    // Custom opens the sheet under the tiles, and closes it again
+    // Custom opens its panel under the tiles, and closes it again
     auto *custom = new NewTile(i18nc("a new image: of a size of your own", "Custom"), QSize(), row);
     custom->setCheckable(true);
     tiles->addWidget(custom);
     QList<SizeStage::Outline> outlines;
     for (const Preset &preset : presets) outlines.append({preset.name, preset.pixels});
-    auto *stage = new SizeStage(last.isValid() ? last : QSize(2000, 1400), outlines, screenPixels, pixelsPerPoint, row);
-    stage->hide();
-    column->addWidget(stage);
+    auto *panel = new CustomImage(last.isValid() ? last : QSize(2000, 1400), outlines, screenPixels, row);
+    panel->hide();
+    column->addWidget(panel);
     // a popup holding the tiles grows and shrinks with them
     auto refit = [row, window]() {
         QWidget *top = row->window();
         if (top && top != window) top->adjustSize();
     };
-    QObject::connect(custom, &QAbstractButton::toggled, row, [stage, refit](bool open) {
-        stage->setVisible(open);
-        if (open) stage->setFocus(Qt::OtherFocusReason);
+    QObject::connect(custom, &QAbstractButton::toggled, row, [panel, refit](bool open) {
+        panel->setVisible(open);
+        if (open) panel->setFocus(Qt::OtherFocusReason);
         refit();
     });
-    stage->closed = [custom]() { custom->setChecked(false); };
-    stage->made = [picked](const QSize &size, qreal pixelsPerPoint, const QColor &paper) {
+    panel->closed = [custom]() { custom->setChecked(false); };
+    panel->made = [picked](const NewImage &image) {
         if (picked) picked();
-        // the next Last, on the same paper
+        // what the next new image starts from
         KisConfig cfg(false);
-        cfg.defImageWidth(size.width());
-        cfg.defImageHeight(size.height());
-        QColor opaque = paper;
+        cfg.defImageWidth(image.size.width());
+        cfg.defImageHeight(image.size.height());
+        cfg.defImageResolution(image.dpi / 72.0);
+        cfg.defColorModel(image.model);
+        cfg.setDefaultColorDepth(image.depth);
+        cfg.defColorProfile(image.profile);
+        QColor opaque = image.paper;
         opaque.setAlpha(255);
         cfg.setDefaultBackgroundColor(newImageSection, opaque);
-        cfg.setDefaultBackgroundOpacity(newImageSection, quint8(paper.alpha()));
-        createImage(size, pixelsPerPoint, paper);
+        cfg.setDefaultBackgroundOpacity(newImageSection, quint8(image.paper.alpha()));
+        cfg.setDefaultBackgroundStyle(newImageSection, image.paperAs);
+        cfg.setNumDefaultLayers(newImageSection, image.layers);
+        createImage(image.size, image.dpi / 72.0);
     };
     return row;
 }
