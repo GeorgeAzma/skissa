@@ -1728,11 +1728,8 @@ KisStudioColorPanel::KisStudioColorPanel()
             fitHeight();
         });
     }
-    // opened by a click, without a menu button's arrow; a click while it is open closes it
-    auto closed = std::make_shared<QElapsedTimer>();
-    connect(styles, &QMenu::aboutToHide, this, [closed]() { closed->start(); });
-    connect(d->styleButton, &QToolButton::clicked, this, [this, styles, closed]() {
-        if (closed->isValid() && closed->elapsed() < 300) return;
+    // opened by a click, without a menu button's arrow (a click while it is open closes it: KisPopupCloser::installToggle)
+    connect(d->styleButton, &QToolButton::clicked, this, [this, styles]() {
         styles->popup(d->styleButton->mapToGlobal(QPoint(0, d->styleButton->height())));
     });
     row->addWidget(d->styleButton);

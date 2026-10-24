@@ -152,6 +152,8 @@ private:
         const QEvent::Type type = event->type();
         m_lastPressPos = type == QEvent::TabletPress ? static_cast<QTabletEvent *>(event)->globalPos() : static_cast<QMouseEvent *>(event)->globalPos();
         m_lastPressAt.start();
+        // a quick press is a press and then a double click, before its release: when the press was swallowed, so is that
+        if (type == QEvent::MouseButtonDblClick && m_swallowRelease && within(m_swallowRelease, widget)) return true;
         // on what opened a popup still open: it closes
         for (const Opened &opened : qAsConst(m_open)) {
             if (opened.popup && opened.popup->isVisible() && within(opened.anchor, widget)) {

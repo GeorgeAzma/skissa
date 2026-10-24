@@ -2430,7 +2430,6 @@ struct KisStudioLayout::Private
     QPointer<KisStudioSettings> settings;
     QPointer<QMenu> mainMenu;
     /// When the main menu last closed: a press on its button closes it, and the click that follows mustn't open it again
-    QElapsedTimer mainMenuClosed;
     /// The brush bar whose menu buttons were switched to open on a long press, and those buttons
     QPointer<QToolBar> placedOnBar;
     QList<QPointer<QToolButton>> delayedPopups;
@@ -5145,11 +5144,7 @@ void KisStudioLayout::openSettings(const QString &cardId, bool toggle)
 void KisStudioLayout::showMainMenu(QWidget *button)
 {
     // the most used file commands, then the menu bar's menus; rebuilt each time to pick up recent files
-    if (d->mainMenuClosed.isValid() && d->mainMenuClosed.elapsed() < 300 && button->underMouse()) return;
-    if (!d->mainMenu) {
-        d->mainMenu = new QMenu(d->mainWindow);
-        connect(d->mainMenu, &QMenu::aboutToHide, this, [this]() { d->mainMenuClosed.start(); });
-    }
+    if (!d->mainMenu) d->mainMenu = new QMenu(d->mainWindow);
     QMenu *menu = d->mainMenu;
     menu->clear();
     qDeleteAll(menu->findChildren<QMenu *>(QString(), Qt::FindDirectChildrenOnly));
