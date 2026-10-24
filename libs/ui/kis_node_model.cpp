@@ -311,6 +311,10 @@ void KisNodeModel::setDummiesFacade(KisDummiesFacadeBase *dummiesFacade,
         }
     }
 
+    // queued dummies belong to the old facade
+    m_d->updateCompressor.stop();
+    m_d->updateQueue.clear();
+
     m_d->image = image;
     m_d->dummiesFacade = dummiesFacade;
     m_d->parentOfRemovedNode = 0;
