@@ -1560,19 +1560,50 @@ private:
     QWidget *m_contents {nullptr};
 };
 
-/// A system caption in the top-left corner showing the application icon; it caps the tool rail
+/// The application icon in the top-left corner, capping the tool rail: a click goes home, a drag moves the window
 class WindowHandle : public QWidget
 {
 public:
+    std::function<void()> clicked;
+
     explicit WindowHandle(QWidget *canvasArea)
         : QWidget(canvasArea)
     {
         setObjectName(QStringLiteral("studioWindowHandle"));
-        setProperty(captionProperty, true);
+        setToolTip(i18nc("@info:tooltip the app's icon in the window's corner: your artworks", "Home\nDrag: move\nDouble-click: maximize"));
         hide();
     }
 
 protected:
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton) return;
+        m_press = event->globalPos();
+        m_pressed = true;
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (!m_pressed || (event->globalPos() - m_press).manhattanLength() < 5) return;
+        m_pressed = false;
+        if (QWindow *window = this->window()->windowHandle()) window->startSystemMove();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *) override
+    {
+        if (!m_pressed) return;
+        m_pressed = false;
+        if (clicked) clicked();
+    }
+
+    void mouseDoubleClickEvent(QMouseEvent *) override
+    {
+        m_pressed = false;
+        QWidget *top = window();
+        if (top->isMaximized()) top->showNormal();
+        else top->showMaximized();
+    }
+
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
@@ -1581,6 +1612,10 @@ protected:
         painter.setOpacity(0.85);
         KisIconUtils::loadIcon(QStringLiteral("krita-branding")).paint(&painter, QRect(QPoint(), QSize(side, side)).translated(rect().center() - QPoint(side / 2, side / 2)));
     }
+
+private:
+    QPoint m_press;
+    bool m_pressed {false};
 };
 
 /// A button on the window pill: the menu, Settings or Find
@@ -2873,6 +2908,9 @@ void KisStudioLayout::enter()
         KisStudioMakeBrush::fromSelection(mainWindow->viewManager());
     });
     KisSkissaUpdater::addActions(mainWindow);
+    addPicker(QStringLiteral("studio_home"), QStringLiteral("krita-branding"), i18nc("@action your artworks: the start page", "Home"), [this]() {
+        showHome(!d->mainWindow->isWelcomeScreenShown());
+    });
     addPicker(QStringLiteral("studio_brush_picker"), QStringLiteral("paintop_settings_01"), i18nc("@action", "Brushes"), [mainWindow]() {
         (new KisStudioBrushPicker(mainWindow))->popupNear(QCursor::pos());
     });
@@ -4068,6 +4106,14 @@ void KisStudioLayout::showNewImagePopup()
     popup->popupAt(QPoint(at.center().x() - popup->width() / 2, at.top() + 64));
 }
 
+void KisStudioLayout::showHome(bool show)
+{
+    // back only to an image that is open
+    if (show == d->mainWindow->isWelcomeScreenShown() || (!show && !d->mainWindow->activeView())) return;
+    d->mainWindow->showWelcomeScreen(show);
+    if (show && d->startPage) d->startPage->setFocus(Qt::OtherFocusReason);
+}
+
 void KisStudioLayout::showStartPage(bool show)
 {
     if (show && !d->startPage) {
@@ -4962,7 +5008,9 @@ void KisStudioLayout::adoptTopBars()
         return;
     }
     if (!d->windowHandle) {
-        d->windowHandle = new WindowHandle(area);
+        auto *handle = new WindowHandle(area);
+        handle->clicked = [this]() { showHome(true); };
+        d->windowHandle = handle;
     }
     ensureSettings();
     if (!d->topPill) {

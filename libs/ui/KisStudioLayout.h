@@ -58,6 +58,8 @@ public:
     void openSettings(const QString &cardId = QString(), bool toggle = false);
     /// New image sizes as tiles in a popup under the top of the window; Custom there opens Krita's dialog
     void showNewImagePopup();
+    /// Your artworks (the start page) over the images that are open, or back to them
+    void showHome(bool show);
 
     bool eventFilter(QObject *watched, QEvent *event) override;
 

@@ -10,6 +10,7 @@
 #include <QContextMenuEvent>
 #include <QEvent>
 #include <QHBoxLayout>
+#include <QStackedWidget>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -371,6 +372,10 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
         connect(canvasOnly, &QAction::toggled, this, &KisStudioCanvasHud::viewChanged);
     }
     connect(mainWindow, &KisMainWindow::activeViewChanged, this, &KisStudioCanvasHud::viewChanged);
+    // home (the start page) over the images, or back
+    if (auto *pages = qobject_cast<QStackedWidget *>(mainWindow->centralWidget())) {
+        connect(pages, &QStackedWidget::currentChanged, this, &KisStudioCanvasHud::viewChanged);
+    }
     // when the last document closes no view becomes active; only the view manager reports it
     if (KisViewManager *viewManager = mainWindow->viewManager()) {
         connect(viewManager, &KisViewManager::viewChanged, this, &KisStudioCanvasHud::viewChanged);
@@ -428,9 +433,10 @@ void KisStudioCanvasHud::viewChanged()
     // while the last document closes the window's active view is still set, but the view manager has none
     KisViewManager *viewManager = d->mainWindow->viewManager();
     KisView *view = viewManager && viewManager->canvasBase() ? d->mainWindow->activeView() : nullptr;
-    // canvas-only means only the canvas
+    // canvas-only means only the canvas, and home (the start page) shows no canvas
     QAction *canvasOnly = d->action("view_show_canvas_only");
-    if (!view || !d->active || (canvasOnly && canvasOnly->isChecked()) || !KisConfig(true).readEntry(shownKey, true)) {
+    if (!view || !d->active || (canvasOnly && canvasOnly->isChecked()) || d->mainWindow->isWelcomeScreenShown()
+        || !KisConfig(true).readEntry(shownKey, true)) {
         hide();
         return;
     }

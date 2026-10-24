@@ -18,6 +18,8 @@
 #include <QHash>
 #include <QImageReader>
 #include <QLocale>
+#include <QMdiArea>
+#include <QMdiSubWindow>
 #include <QMenu>
 #include <QMimeData>
 #include <QPainter>
@@ -59,6 +61,7 @@
 #include "KisDocument.h"
 #include "KisMainWindow.h"
 #include "KisPart.h"
+#include "KisView.h"
 #include <KisProfile.h>
 #include "kis_clipboard.h"
 #include "kis_config.h"
@@ -1142,6 +1145,9 @@ public:
 
     std::function<void(const QString &path)> opened;
     std::function<void(const QString &path)> forgotten;
+    /// Esc with nothing typed: whether there is somewhere to go back to, and going there
+    std::function<bool()> canLeave;
+    std::function<void()> left;
 
     explicit Gallery(QWidget *parent)
         : QWidget(parent)
@@ -1278,7 +1284,8 @@ protected:
             const bool plain = !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
             const bool ours = (!key->text().isEmpty() && key->text().at(0).isPrint()) || key->key() == Qt::Key_Backspace
                 || key->key() == Qt::Key_Left || key->key() == Qt::Key_Right || key->key() == Qt::Key_Up || key->key() == Qt::Key_Down
-                || key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter || (key->key() == Qt::Key_Escape && !m_filter.isEmpty());
+                || key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter
+                || (key->key() == Qt::Key_Escape && (!m_filter.isEmpty() || (canLeave && canLeave())));
             if (plain && ours) {
                 event->accept();
                 return true;
@@ -1309,7 +1316,8 @@ protected:
             if (m_selected >= 0 && m_selected < count && opened) opened(m_items[arranged.placed[m_selected].item].path);
             return;
         case Qt::Key_Escape:
-            setFilter(QString());
+            if (m_filter.isEmpty() && canLeave && canLeave() && left) left();
+            else setFilter(QString());
             return;
         case Qt::Key_Backspace:
             setFilter(m_filter.left(m_filter.size() - 1));
@@ -1773,7 +1781,24 @@ KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
     d->gallery = new Gallery(this);
     d->gallery->setMaximumWidth(1480);
     d->gallery->opened = [this](const QString &path) {
-        if (d->mainWindow) d->mainWindow->openDocument(path, KisMainWindow::None);
+        if (!d->mainWindow) return;
+        // one already open is shown again, not opened twice
+        Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
+            if (!view || view->mainWindow() != d->mainWindow || !view->document()) continue;
+            const QString open = view->document()->localFilePath();
+            if (open.isEmpty() || QFileInfo(open) != QFileInfo(path)) continue;
+            if (auto *tab = qobject_cast<QMdiSubWindow *>(view->parentWidget())) {
+                if (tab->mdiArea()) tab->mdiArea()->setActiveSubWindow(tab);
+            }
+            d->mainWindow->showWelcomeScreen(false);
+            return;
+        }
+        d->mainWindow->openDocument(path, KisMainWindow::None);
+    };
+    // with images open, Esc goes back to them
+    d->gallery->canLeave = [this]() { return d->mainWindow && d->mainWindow->activeView(); };
+    d->gallery->left = [this]() {
+        if (d->mainWindow) d->mainWindow->showWelcomeScreen(false);
     };
     d->gallery->forgotten = [this](const QString &path) {
         if (d->mainWindow) d->mainWindow->removeRecentFile(path);
