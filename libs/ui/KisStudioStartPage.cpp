@@ -361,6 +361,8 @@ private:
     qreal m_scale {0};
 };
 
+constexpr int maxSide = 16384;
+
 /// A new image as the Custom panel makes it
 struct NewImage {
     QSize size;
@@ -391,9 +393,46 @@ struct NewImage {
         size.setHeight(height);
         if (r > 0) size.setWidth(qMax(1, int(std::round(height * r))));
     }
-};
 
-constexpr int maxSide = 16384;
+    bool paperShaped() const { return qFuzzyCompare(ratio, M_SQRT2); }
+
+    struct Step {
+        QString name;
+        int longSide;
+    };
+    /// How big it can be, by its long side: a screen's sizes, or A paper's at the resolution
+    QVector<Step> steps() const
+    {
+        if (paperShaped()) {
+            // the ones that fit
+            QVector<Step> papers;
+            const std::pair<const char *, qreal> sizes[] = {{"A5", 210}, {"A4", 297}, {"A3", 420}, {"A2", 594}};
+            for (const auto &paper : sizes) {
+                const int longSide = int(std::round(paper.second / 25.4 * dpi));
+                if (longSide <= maxSide) papers.append({QString::fromLatin1(paper.first), longSide});
+            }
+            return papers;
+        }
+        return {{QStringLiteral("HD"), 1920}, {QStringLiteral("2K"), 2560}, {QStringLiteral("4K"), 3840}, {QStringLiteral("8K"), 7680}};
+    }
+    /// \p longSide on the longer side, the shorter one by the kept ratio (or as the shape is), turned as it is
+    QSize sized(int longSide) const
+    {
+        const bool wide = size.width() >= size.height();
+        const qreal r = ratio > 0 ? ratio : qreal(qMax(size.width(), size.height())) / qMax(1, qMin(size.width(), size.height()));
+        const int shortSide = qBound(1, int(std::round(longSide / r)), maxSide);
+        return wide ? QSize(longSide, shortSide) : QSize(shortSide, longSide);
+    }
+    /// The step it is at, -1: none
+    int step() const
+    {
+        const QVector<Step> all = steps();
+        for (int i = 0; i < all.size(); i++) {
+            if (size == sized(all[i].longSide)) return i;
+        }
+        return -1;
+    }
+};
 
 /**
  * The new image as a sheet pulled by its corner (a press anywhere puts the corner there, a side pulls one
@@ -427,6 +466,16 @@ public:
             m_scale = value.toReal();
             update();
         });
+    }
+
+    /// The sizes drawn and caught on
+    void setOutlines(const QList<Outline> &outlines)
+    {
+        bool same = outlines.size() == m_outlines.size();
+        for (int i = 0; same && i < outlines.size(); i++) same = outlines[i].name == m_outlines[i].name && outlines[i].pixels == m_outlines[i].pixels;
+        if (same) return;
+        m_outlines = outlines;
+        update();
     }
 
     /// Zooms to show the size as it is now
@@ -631,6 +680,13 @@ private:
                 break;
             }
             m_image->setWidth(width);
+            // caught on the shape's sizes a few screen pixels off
+            for (const Outline &outline : m_outlines) {
+                if (m_free || std::abs(t * kept - outline.pixels.width()) >= 6 / m_scale) continue;
+                m_image->size = outline.pixels;
+                m_caught = outline.name;
+                break;
+            }
         } else if (m_free) {
             m_image->size = QSize(rounded(across), rounded(up));
         } else {
@@ -833,8 +889,8 @@ private:
 };
 
 /**
- * Custom, opened under the tiles: the sheet on the left; beside it the numbers, the ratio kept (1:1, …; the lit
- * one again frees it) and a turn, then its resolution and color as rows, the paper and Make.
+ * Custom, opened under the tiles: the sheet on the left; beside it the numbers, its shape (1:1, …, A paper; the lit
+ * one again frees it) and a turn, how big (HD to 8K, or A5 to A2), its resolution and color as rows, the paper and Make.
  */
 class CustomImage : public QWidget
 {
@@ -862,6 +918,7 @@ public:
         auto *layout = new QHBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(KisModernStyle::space3);
+        m_presets = outlines;
         m_stage = new SizeStage(&m_image, outlines, screen, this);
         layout->addWidget(m_stage, 1);
 
@@ -885,10 +942,21 @@ public:
                 // the lit one again frees the size
                 const qreal picked = ratios()[index].value;
                 m_image.ratio = qFuzzyCompare(picked, m_image.ratio) ? 0 : picked;
+                // paper is for print
+                if (m_image.paperShaped() && m_image.dpi < 150) m_image.dpi = 300;
                 // the longer side stays
                 if (m_image.size.width() >= m_image.size.height()) m_image.setWidth(m_image.size.width());
                 else m_image.setHeight(m_image.size.height());
             }
+            refresh();
+        });
+
+        m_steps = new KisStudioChips(side);
+        m_steps->setTabs(true);
+        column->addWidget(m_steps);
+        connect(m_steps, &KisStudioChips::clicked, this, [this](int index) {
+            const QVector<NewImage::Step> steps = m_image.steps();
+            if (index < steps.size()) m_image.size = m_image.sized(steps[index].longSide);
             refresh();
         });
 
@@ -904,7 +972,10 @@ public:
         m_dpi->setDefaultValue(m_image.dpi);
         column->addWidget(m_dpi);
         connect(m_dpi, &KisStudioValueRow::valueChanged, this, [this](qreal dpi) {
+            // a paper size stays that paper
+            const int step = m_image.paperShaped() ? m_image.step() : -1;
             m_image.dpi = roundDpi(dpi);
+            if (step >= 0) m_image.size = m_image.sized(m_image.steps()[step].longSide);
             refresh();
         });
 
@@ -961,7 +1032,7 @@ private:
     {
         static const QVector<Ratio> all = {
             {1.0, QStringLiteral("1:1")}, {4.0 / 3, QStringLiteral("4:3")},
-            {3.0 / 2, QStringLiteral("3:2")}, {16.0 / 9, QStringLiteral("16:9")}, {M_SQRT2, i18nc("a new image's shape: as A paper (A4, A3…)", "A4")},
+            {3.0 / 2, QStringLiteral("3:2")}, {16.0 / 9, QStringLiteral("16:9")}, {M_SQRT2, i18nc("a new image's shape: as A paper (A4, A3…)", "A")},
         };
         return all;
     }
@@ -982,6 +1053,23 @@ private:
         turn.toolTip = i18nc("@info:tooltip turn a new image: swap its width and height", "Turn");
         chips << turn;
         m_ratios->setChips(chips);
+
+        const QVector<NewImage::Step> steps = m_image.steps();
+        const int at = m_image.step();
+        QVector<KisStudioChips::Chip> sizes;
+        QList<SizeStage::Outline> outlines;
+        for (int i = 0; i < steps.size(); i++) {
+            KisStudioChips::Chip chip;
+            chip.text = steps[i].name;
+            chip.on = i == at;
+            const QSize pixels = m_image.sized(steps[i].longSide);
+            chip.toolTip = i18nc("an image's size in pixels: width × height", "%1 × %2", QLocale().toString(pixels.width()), QLocale().toString(pixels.height()));
+            sizes << chip;
+            outlines.append({steps[i].name, pixels});
+        }
+        m_steps->setChips(sizes);
+        // the sheet among this shape's sizes, or the usual images while it is free
+        m_stage->setOutlines(m_image.ratio > 0 ? outlines : m_presets);
 
         // written as caught, since a row being dragged keeps its own value
         m_dpi->setValue(m_image.dpi);
@@ -1112,9 +1200,11 @@ private:
     NewImage m_image;
     NewImage m_initial;
     QList<QColor> m_papers;
+    QList<SizeStage::Outline> m_presets;
     SizeStage *m_stage {nullptr};
     SizeNumbers *m_numbers {nullptr};
     KisStudioChips *m_ratios {nullptr};
+    KisStudioChips *m_steps {nullptr};
     KisStudioValueRow *m_dpi {nullptr};
     KisStudioValueRow *m_color {nullptr};
     KisStudioChips *m_paper {nullptr};
