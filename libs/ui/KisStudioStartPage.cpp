@@ -367,8 +367,6 @@ struct NewImage {
     QString depth;
     QString profile;
     QColor paper;
-    KisConfig::BackgroundStyle paperAs {KisConfig::RASTER_LAYER};
-    int layers {2};
 
     /// The kept ratio turned the way the image is; 0: free
     qreal kept() const
@@ -419,7 +417,7 @@ public:
         setMinimumWidth(360);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         setMouseTracking(true);
-        setToolTip(i18nc("@info:tooltip a new image's size, pulled by its corner", "Drag: change\nDouble-click: make\nRight-click: reset"));
+        setToolTip(i18nc("@info:tooltip a new image's size, pulled by its corner", "Drag: change\nShift+drag: free\nDouble-click: make\nRight-click: reset"));
         m_zoom.setEasingCurve(KisModernStyle::motionCurve());
         m_zoom.setDuration(KisModernStyle::changeDuration);
         connect(&m_zoom, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
@@ -488,7 +486,7 @@ protected:
             painter.save();
             painter.setClipPath(onSheet ? sheetPath : around.subtracted(sheetPath), Qt::IntersectClip);
             for (const Outline &outline : m_outlines) {
-                const bool same = outline.pixels == m_image->size;
+                const bool same = outline.pixels == m_image->size || outline.name == m_caught;
                 const QRectF at = sheetAt(outline.pixels);
                 painter.setPen(QPen(withAlpha(color, same ? 0.75 : 0.22), same ? 1.5 : 1));
                 painter.setBrush(Qt::NoBrush);
@@ -500,12 +498,22 @@ protected:
         }
         painter.restore();
 
-        // the corner it is pulled by
+        // the corner it is pulled by, and the ratio it caught on
         const QPointF corner = sheet.topRight();
         if (stage.adjusted(-6, -6, 6, 6).contains(corner)) {
             painter.setPen(QPen(QColor(32, 32, 32), 1.5));
             painter.setBrush(Qt::white);
             painter.drawEllipse(corner, 5.5, 5.5);
+        }
+        if (!m_caught.isEmpty() && std::none_of(m_outlines.cbegin(), m_outlines.cend(), [this](const Outline &o) { return o.name == m_caught; })) {
+            painter.setFont(KisModernStyle::textFont(font(), 0.88));
+            painter.setPen(ink);
+            const QFontMetrics metrics(painter.font());
+            QRectF label(corner + QPointF(KisModernStyle::space2, -KisModernStyle::space2 - metrics.height()),
+                         QSizeF(metrics.horizontalAdvance(m_caught) + 2, metrics.height()));
+            if (label.right() > width() - KisModernStyle::space1) label.moveRight(corner.x() - KisModernStyle::space2);
+            if (label.top() < KisModernStyle::space1) label.moveTop(corner.y() + KisModernStyle::space2);
+            painter.drawText(label, Qt::AlignCenter, m_caught);
         }
     }
 
@@ -514,6 +522,7 @@ protected:
         if (event->button() != Qt::LeftButton) return;
         m_zoom.stop();
         m_dragging = true;
+        m_free = event->modifiers() & Qt::ShiftModifier;
         m_pull = pull(event->pos());
         follow(event->pos());
     }
@@ -525,6 +534,7 @@ protected:
             setCursor(pulled == Across ? Qt::SizeHorCursor : pulled == Up ? Qt::SizeVerCursor : Qt::SizeBDiagCursor);
             return;
         }
+        m_free = event->modifiers() & Qt::ShiftModifier;
         follow(event->pos());
     }
 
@@ -532,6 +542,7 @@ protected:
     {
         if (!m_dragging) return;
         m_dragging = false;
+        m_caught.clear();
         settle();
     }
 
@@ -596,6 +607,7 @@ private:
 
     void follow(const QPoint &at)
     {
+        m_caught.clear();
         const QPointF from = origin();
         const qreal across = qMax(1.0, (at.x() - from.x()) / m_scale);
         const qreal up = qMax(1.0, (from.y() - at.y()) / m_scale);
@@ -616,11 +628,55 @@ private:
                 break;
             }
             m_image->setWidth(width);
-        } else {
+        } else if (m_free) {
             m_image->size = QSize(rounded(across), rounded(up));
+        } else {
+            m_image->size = caught(across, up);
         }
         update();
         if (changed) changed();
+    }
+
+    /// The corner at (\p across, \p up) image pixels, caught on another size's corner or a usual ratio a few
+    /// screen pixels from it
+    QSize caught(qreal across, qreal up)
+    {
+        const qreal reach = 6 / m_scale;
+        for (const Outline &outline : m_outlines) {
+            if (std::abs(across - outline.pixels.width()) < reach && std::abs(up - outline.pixels.height()) < reach) {
+                m_caught = outline.name;
+                return outline.pixels;
+            }
+        }
+        struct Ratio {
+            int wide;
+            int high;
+            qreal value;
+            QString name;
+        };
+        static const QVector<Ratio> ratios = {
+            {1, 1, 1.0, QStringLiteral("1:1")}, {4, 3, 4.0 / 3, QStringLiteral("4:3")}, {3, 4, 3.0 / 4, QStringLiteral("3:4")},
+            {3, 2, 3.0 / 2, QStringLiteral("3:2")}, {2, 3, 2.0 / 3, QStringLiteral("2:3")}, {16, 9, 16.0 / 9, QStringLiteral("16:9")},
+            {9, 16, 9.0 / 16, QStringLiteral("9:16")}, {0, 0, M_SQRT2, QStringLiteral("A4")}, {0, 0, M_SQRT1_2, QStringLiteral("A4")},
+        };
+        qreal nearest = 4 / m_scale;
+        const Ratio *best = nullptr;
+        for (const Ratio &ratio : ratios) {
+            // the nearest point on the line of this ratio
+            const qreal t = (across * ratio.value + up) / (ratio.value * ratio.value + 1);
+            const qreal distance = std::hypot(across - t * ratio.value, up - t);
+            if (distance < nearest) {
+                nearest = distance;
+                best = &ratio;
+            }
+        }
+        if (!best) return QSize(rounded(across), rounded(up));
+        m_caught = best->name;
+        const qreal t = (across * best->value + up) / (best->value * best->value + 1);
+        // a width whose height is whole and round too
+        const int unit = best->wide > 0 ? std::lcm(step(), best->wide) : step();
+        const int width = qBound(unit, int(std::round(t * best->value / unit)) * unit, maxSide);
+        return QSize(width, qBound(1, int(std::round(width / best->value)), maxSide));
     }
 
     NewImage *m_image;
@@ -629,6 +685,8 @@ private:
     qreal m_scale {0};
     QVariantAnimation m_zoom;
     bool m_dragging {false};
+    bool m_free {false};
+    QString m_caught; ///< what the corner caught on while dragged
     Pull m_pull {Corner};
 };
 
@@ -773,7 +831,7 @@ private:
 
 /**
  * Custom, opened under the tiles: the sheet on the left; beside it the numbers, the ratio kept (1:1, …; the lit
- * one again frees it) and a turn, then what else a new image has (resolution, color, paper, layers) as rows, and Make.
+ * one again frees it) and a turn, then its resolution and color as rows, the paper and Make.
  */
 class CustomImage : public QWidget
 {
@@ -786,7 +844,7 @@ public:
     {
         setObjectName(QStringLiteral("studioCustomImage"));
         setFocusPolicy(Qt::StrongFocus);
-        setFixedHeight(360);
+        setFixedHeight(300);
 
         KisConfig cfg(true);
         m_image.size = size;
@@ -796,8 +854,6 @@ public:
         m_image.profile = cfg.defColorProfile();
         m_image.paper = cfg.defaultBackgroundColor(newImageSection);
         m_image.paper.setAlpha(cfg.defaultBackgroundOpacity(newImageSection));
-        m_image.paperAs = cfg.defaultBackgroundStyle(newImageSection);
-        m_image.layers = cfg.numDefaultLayers(newImageSection);
         m_initial = m_image;
 
         auto *layout = new QHBoxLayout(this);
@@ -845,7 +901,7 @@ public:
         m_dpi->setDefaultValue(m_image.dpi);
         column->addWidget(m_dpi);
         connect(m_dpi, &KisStudioValueRow::valueChanged, this, [this](qreal dpi) {
-            m_image.dpi = std::round(dpi);
+            m_image.dpi = roundDpi(dpi);
             refresh();
         });
 
@@ -854,24 +910,6 @@ public:
         m_color->setDraggable(false);
         column->addWidget(m_color);
         connect(m_color, &KisStudioValueRow::clicked, this, [this]() { colorMenu(); });
-
-        m_layers = new KisStudioValueRow(i18nc("how many layers a new image has", "Layers"), side);
-        m_layers->setCompact(true);
-        KisStudioValueRow::Range layerRange;
-        layerRange.minimum = 1;
-        layerRange.maximum = 20;
-        m_layers->setRange(layerRange);
-        m_layers->setDefaultValue(m_image.layers);
-        column->addWidget(m_layers);
-        connect(m_layers, &KisStudioValueRow::valueChanged, this, [this](qreal layers) {
-            m_image.layers = qRound(layers);
-        });
-
-        m_paperAs = new KisStudioValueRow(i18nc("how a new image's paper is made: a layer, the canvas or a fill layer", "Paper"), side);
-        m_paperAs->setCompact(true);
-        m_paperAs->setDraggable(false);
-        column->addWidget(m_paperAs);
-        connect(m_paperAs, &KisStudioValueRow::clicked, this, [this]() { paperMenu(); });
 
         m_papers = {QColor(Qt::white), QColor(Qt::black), QColor(255, 255, 255, 0)};
         if (!m_papers.contains(m_image.paper) && m_image.paper.alpha() > 0) m_papers.insert(1, m_image.paper);
@@ -942,12 +980,10 @@ private:
         chips << turn;
         m_ratios->setChips(chips);
 
+        // written as caught, since a row being dragged keeps its own value
         m_dpi->setValue(m_image.dpi);
-        m_layers->setValue(m_image.layers);
+        m_dpi->setValueText(i18nc("a resolution in dots per inch", "%1 dpi", QLocale().toString(int(m_image.dpi))));
         m_color->setValueText(colorText());
-        const QString paperAs[] = {i18nc("a new image's paper: a layer", "Layer"), i18nc("a new image's paper: the canvas's color", "Canvas"),
-                                   i18nc("a new image's paper: a fill layer", "Fill layer")};
-        m_paperAs->setValueText(paperAs[qBound(0, int(m_image.paperAs), 2)]);
 
         QVector<KisStudioChips::Chip> papers;
         for (const QColor &paper : m_papers) {
@@ -1047,23 +1083,19 @@ private:
         menu.exec(m_color->mapToGlobal(QPoint(0, m_color->height())));
     }
 
-    void paperMenu()
+    /// The resolutions people use, caught from a little way off; others by tens
+    static qreal roundDpi(qreal dpi)
     {
-        QMenu menu(this);
-        const QString names[] = {i18nc("a new image's paper", "A layer"), i18nc("a new image's paper", "The canvas's color"),
-                                 i18nc("a new image's paper", "A fill layer")};
-        const KisConfig::BackgroundStyle styles[] = {KisConfig::RASTER_LAYER, KisConfig::CANVAS_COLOR, KisConfig::FILL_LAYER};
-        for (int i = 0; i < 3; i++) {
-            QAction *action = menu.addAction(names[i]);
-            action->setCheckable(true);
-            action->setChecked(m_image.paperAs == styles[i]);
-            const KisConfig::BackgroundStyle style = styles[i];
-            connect(action, &QAction::triggered, this, [this, style]() {
-                m_image.paperAs = style;
-                refresh(false);
-            });
+        qreal nearest = 0.06;
+        qreal caught = std::round(dpi / 10) * 10;
+        for (qreal usual : {72.0, 96.0, 100.0, 150.0, 200.0, 240.0, 250.0, 300.0, 350.0, 400.0, 600.0, 1200.0}) {
+            const qreal off = std::abs(dpi / usual - 1);
+            if (off < nearest) {
+                nearest = off;
+                caught = usual;
+            }
         }
-        menu.exec(m_paperAs->mapToGlobal(QPoint(0, m_paperAs->height())));
+        return caught;
     }
 
     QString colorSpace() const { return KoColorSpaceRegistry::instance()->colorSpaceId(m_image.model, m_image.depth); }
@@ -1082,8 +1114,6 @@ private:
     KisStudioChips *m_ratios {nullptr};
     KisStudioValueRow *m_dpi {nullptr};
     KisStudioValueRow *m_color {nullptr};
-    KisStudioValueRow *m_paperAs {nullptr};
-    KisStudioValueRow *m_layers {nullptr};
     KisStudioChips *m_paper {nullptr};
 };
 
@@ -1677,7 +1707,7 @@ private:
     Mark m_mark;
 };
 
-/// A new image of \p pixels at \p pixelsPerPoint, otherwise as the last image made
+/// A new image of \p pixels at \p pixelsPerPoint, one layer, otherwise as the last image made
 void createImage(const QSize &pixels, qreal pixelsPerPoint)
 {
     KisConfig cfg(true);
@@ -1687,7 +1717,7 @@ void createImage(const QSize &pixels, qreal pixelsPerPoint)
     background.setAlpha(cfg.defaultBackgroundOpacity(newImageSection));
     KisDocument *doc = KisPart::instance()->createDocument();
     if (!doc->newImage(i18n("Unnamed"), pixels.width(), pixels.height(), cs, KoColor(background, cs), cfg.defaultBackgroundStyle(newImageSection),
-                       cfg.numDefaultLayers(newImageSection), QString(), pixelsPerPoint)) {
+                       1, QString(), pixelsPerPoint)) {
         delete doc;
         return;
     }
@@ -1888,8 +1918,6 @@ QWidget *KisStudioStartPage::createNewTiles(KisMainWindow *mainWindow, QWidget *
         opaque.setAlpha(255);
         cfg.setDefaultBackgroundColor(newImageSection, opaque);
         cfg.setDefaultBackgroundOpacity(newImageSection, quint8(image.paper.alpha()));
-        cfg.setDefaultBackgroundStyle(newImageSection, image.paperAs);
-        cfg.setNumDefaultLayers(newImageSection, image.layers);
         createImage(image.size, image.dpi / 72.0);
     };
     return row;
