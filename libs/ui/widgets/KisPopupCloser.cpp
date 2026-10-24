@@ -9,8 +9,14 @@
 #include <QCursor>
 #include <QElapsedTimer>
 #include <QEvent>
+#include <QMouseEvent>
+#include <QTabletEvent>
 #include <QTimer>
 #include <QWidget>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 namespace
 {
@@ -82,7 +88,7 @@ protected:
         case QEvent::MouseButtonPress:
         case QEvent::MouseButtonDblClick:
         case QEvent::TabletPress:
-            return pressed(qobject_cast<QWidget *>(watched), event->type());
+            return pressed(qobject_cast<QWidget *>(watched), event);
         case QEvent::MouseButtonRelease:
             if (m_swallowRelease && watched == m_swallowRelease) {
                 m_swallowRelease = nullptr;
@@ -100,7 +106,7 @@ protected:
             auto *popup = qobject_cast<QWidget *>(watched);
             if (!isPopup(popup)) break;
             for (const Opened &opened : qAsConst(m_open)) {
-                if (opened.popup != popup || !opened.anchor) continue;
+                if (opened.popup != popup || !closedFrom(opened.anchor)) continue;
                 m_closedAnchor = opened.anchor;
                 m_closedAt.start();
             }
@@ -121,9 +127,31 @@ private:
 
     static bool within(const QWidget *anchor, const QWidget *widget) { return anchor && widget && (widget == anchor || anchor->isAncestorOf(widget)); }
 
-    bool pressed(QWidget *widget, QEvent::Type type)
+    static bool over(const QWidget *anchor, const QPoint &global)
+    {
+        return anchor && anchor->isVisible() && anchor->rect().contains(anchor->mapFromGlobal(global));
+    }
+
+    /// Whether a popup closing now was closed by a press on \p anchor: the press just made (a menu closes on it, and
+    /// Qt then gives it to what is under it), or one on its way (the window took the focus back first). A popup that
+    /// closed otherwise (a choice made in it, a press elsewhere) leaves the next press on its anchor alone.
+    bool closedFrom(const QWidget *anchor) const
+    {
+        if (!anchor) return false;
+        if (m_lastPressAt.isValid() && m_lastPressAt.elapsed() < 100 && over(anchor, m_lastPressPos)) return true;
+#ifdef Q_OS_WIN
+        return (GetAsyncKeyState(VK_LBUTTON) & 0x8000) && over(anchor, QCursor::pos());
+#else
+        return false;
+#endif
+    }
+
+    bool pressed(QWidget *widget, QEvent *event)
     {
         if (!widget) return false;
+        const QEvent::Type type = event->type();
+        m_lastPressPos = type == QEvent::TabletPress ? static_cast<QTabletEvent *>(event)->globalPos() : static_cast<QMouseEvent *>(event)->globalPos();
+        m_lastPressAt.start();
         // on what opened a popup still open: it closes
         for (const Opened &opened : qAsConst(m_open)) {
             if (opened.popup && opened.popup->isVisible() && within(opened.anchor, widget)) {
@@ -134,7 +162,7 @@ private:
             }
         }
         // on what opened a popup this press (or one just before) closed: nothing more
-        if (m_closedAnchor && m_closedAt.elapsed() < 400 && within(m_closedAnchor, widget)) {
+        if (m_closedAnchor && m_closedAt.elapsed() < 150 && within(m_closedAnchor, widget)) {
             // the mouse press made from a tablet press comes next
             if (type != QEvent::TabletPress) {
                 m_swallowRelease = widget;
@@ -142,7 +170,7 @@ private:
             }
             return true;
         }
-        if (type != QEvent::MouseButtonDblClick && !isPopup(widget->window())) {
+        if (!isPopup(widget->window())) {
             m_pressed = widget;
             m_pressedAt.start();
         }
@@ -162,6 +190,8 @@ private:
     QPointer<QWidget> m_closedAnchor;
     QElapsedTimer m_closedAt;
     QPointer<QWidget> m_swallowRelease;
+    QPoint m_lastPressPos;
+    QElapsedTimer m_lastPressAt;
 };
 
 } // namespace
