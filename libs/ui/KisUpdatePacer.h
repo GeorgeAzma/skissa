@@ -7,6 +7,7 @@
 
 #include "kritaui_export.h"
 
+class QOpenGLContext;
 class QString;
 
 /**
@@ -17,6 +18,10 @@ class QString;
 namespace KisUpdatePacer
 {
 KRITAUI_EXPORT void install();
+
+/// Lets Qt compose \p context's widget without waiting for the GPU, where the driver keeps shared contexts in order.
+/// Call it with \p context current.
+KRITAUI_EXPORT void composeWithoutWaiting(QOpenGLContext *context);
 
 /// Development aid: appends \p what, timestamped, to the KRITA_DEV_FRAMELOG frame log if enabled.
 KRITAUI_EXPORT void log(const QString &what);

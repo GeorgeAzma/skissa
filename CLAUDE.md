@@ -133,7 +133,7 @@ A map, so you know where things are and how they think. Files are in `libs/ui/` 
   - Autosave waits for a pause in work, at most a minute (`KisDocument`).
   - Per-layer stroke logs are saved in .kra (`image/KisStrokeLog`).
   - Krita reopens the last image at start, guarded against crash loops.
-  - Frame pacing for VRR screens (`KisUpdatePacer`).
+  - Frame pacing for VRR screens (`KisUpdatePacer`). On ANGLE, Qt composes the canvas after a `glFlush`, not a `glFinish` that waited for the GPU (half of painting's GUI time): `composeWithoutWaiting` sets Qt's own private flag for it, since ANGLE runs every context on one D3D device context.
   - Krita keeps a tool manager per window (`KisViewManager::toolManager()`): the fork reaches it through `KisStudioTools` (the window's, or the current one's), and connects each part to its own window's.
   - Shared helpers, one copy each: the sRGB curve and Oklab (`KisColorMath.h`), a color mix (`KisModernStyle::mix`), search scores (`KisStudioPicker::matchScore`), a popup's shadow room (`KisStudioGlass::shadowMargin`), walking a stopped thread's stack (`libs/global/KisStackWalk`). Look for one before writing another.
 
@@ -196,7 +196,6 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - **The owner asked to be reminded** of shader filters and custom blend modes written the same way (shader-like code).
 - **Ideas the owner liked:** shader-based custom filters in the effect panel (Shadertoy-style GLSL; the sliders come from uniforms).
 - **Performance left on the table** (each needs Qt or Krita's own code changed):
-  - Painting's biggest main-thread cost is Qt waiting for the GPU: `glFinish` in `QOpenGLWidgetPrivate::beginCompose` (Qt's `flushShared()` on ANGLE), about half the GUI thread's busy time. Fixing it means patching the Qt in krita-deps (a fence or `glFlush`).
   - Krita's compressor delays on costly slots were set to one frame (`KisFrameRate::frameMs()`, 4–7 ms at high refresh): the transform tool's update, the selection outline, vector layer rendering, zoom, the canvas controller, the color selectors. A floor such as 30 ms for the costly ones would keep most of the smoothness for less work.
   - Seen in passing in Krita's code: `KisFilterManager::apply` waits on the GUI thread when no preview runs; `KisUpdateOutlineJob` redoes the whole selection's outline on every change; `KisToolUtils::findNodes` reads every layer; `KisPaintopBox::slotUpdateOptionsWidgetPopup` re-reads the whole editor for one setting.
   - The fork's own, small at today's sizes: the brush picker paints every stroke again on a color change while open; replaying a long stabilized stroke builds a sample per millisecond on the GUI thread; Find scores every entry per key.

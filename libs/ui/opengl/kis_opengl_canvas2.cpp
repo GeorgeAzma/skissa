@@ -232,6 +232,7 @@ void KisOpenGLCanvas2::initializeGL()
 {
     d->renderer->initializeGL();
     KisOpenGLSync::init(context());
+    KisUpdatePacer::composeWithoutWaiting(context());
 }
 
 void KisOpenGLCanvas2::resizeGL(int width, int height)

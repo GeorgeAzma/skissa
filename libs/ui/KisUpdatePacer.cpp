@@ -13,6 +13,7 @@
 #include <QEvent>
 #include <QFile>
 #include <QHash>
+#include <QOpenGLContext>
 #include <QPaintEvent>
 #include <QPointer>
 #include <QScreen>
@@ -21,10 +22,12 @@
 #include <QWindow>
 
 #include <atomic>
+#include <cstring>
 #include <functional>
 #include <thread>
 
 #ifdef Q_OS_WIN
+#include <QtGui/private/qopenglextensions_p.h>
 #include <windows.h>
 #endif
 
@@ -543,5 +546,21 @@ void KisUpdatePacer::install()
     if (qEnvironmentVariableIsSet("KRITA_DEV_PROFILE") && qEnvironmentVariableIsSet("KRITA_DEV_FRAMELOG")) {
         qApp->installEventFilter(new FrameLog(qEnvironmentVariable("KRITA_DEV_FRAMELOG"), qApp));
     }
+#endif
+}
+
+void KisUpdatePacer::composeWithoutWaiting(QOpenGLContext *context)
+{
+#ifdef Q_OS_WIN
+    // Before composing a GL widget, Qt flushes its commands so the window's context sees them, but with glFinish
+    // (waiting for the GPU, about half of painting's GUI time) for drivers it doesn't know, ANGLE among them. ANGLE
+    // runs every context of a display on one D3D device context, so a flush keeps them in order.
+    QOpenGLExtensions *functions = static_cast<QOpenGLExtensions *>(context->functions());
+    const char *renderer = reinterpret_cast<const char *>(functions->glGetString(GL_RENDERER));
+    if (!renderer || !std::strstr(renderer, "ANGLE")) return;
+    functions->d()->flushVendorChecked = true;
+    functions->d()->flushIsSufficientToSyncContexts = true;
+#else
+    Q_UNUSED(context);
 #endif
 }

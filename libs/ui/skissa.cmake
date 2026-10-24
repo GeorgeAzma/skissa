@@ -78,6 +78,8 @@ kis_add_library(kritaui_skissa OBJECT ${skissa_ui_SRCS} PCH_FILE kis_image_pch.h
 # built as kritaui itself: its exports, defines, include paths and dependencies
 target_compile_definitions(kritaui_skissa PRIVATE kritaui_EXPORTS $<TARGET_PROPERTY:kritaui,COMPILE_DEFINITIONS>)
 target_include_directories(kritaui_skissa PRIVATE $<TARGET_PROPERTY:kritaui,INCLUDE_DIRECTORIES>)
+# Qt's GL composing (KisUpdatePacer::composeWithoutWaiting)
+target_include_directories(kritaui_skissa SYSTEM PRIVATE ${Qt${QT_MAJOR_VERSION}Gui_PRIVATE_INCLUDE_DIRS})
 target_compile_options(kritaui_skissa PRIVATE $<TARGET_PROPERTY:kritaui,COMPILE_OPTIONS>)
 target_link_libraries(kritaui_skissa PRIVATE $<TARGET_PROPERTY:kritaui,LINK_LIBRARIES>)
 target_sources(kritaui PRIVATE $<TARGET_OBJECTS:kritaui_skissa>)
