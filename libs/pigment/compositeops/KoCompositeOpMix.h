@@ -128,26 +128,26 @@ struct Paint {
 inline void colorOfPaints(const float a[4], float color[4], float slope[4][4])
 {
     alignas(16) static constexpr float points[20][4] = {
-        {0.1406857f, 0.09147363f, 0.2775293f, 0}, // blue
-        {0.06543413f, -0.1580722f, 0.3274543f, 0},
-        {0.01112019f, 0.2907245f, 0.2329601f, 0},
-        {-0.1444913f, 0.5028814f, 1.20677f, 0},
-        {0.2672834f, 0.2147136f, 0.3364322f, 0},
-        {0.2985015f, 0.2963663f, -0.03261238f, 0},
-        {0.6341857f, -0.1682934f, 0.4952036f, 0},
-        {-0.2124452f, 0.4912994f, 0.2359678f, 0},
-        {0.4397291f, 1.187265f, 0.05227801f, 0},
-        {0.3563644f, 0.6582994f, 0.9308499f, 0},
-        {0.566494f, 0.05742752f, -0.003538958f, 0}, // red
-        {0.748164f, 0.2255562f, -0.09128919f, 0},
-        {0.860177f, 0.1703138f, 0.5918832f, 0},
-        {0.9801208f, 0.2192346f, 0.4190495f, 0},
-        {0.9594298f, 0.4192392f, 0.2492729f, 0},
-        {0.9260871f, 0.4008786f, 0.6109692f, 0},
-        {0.9935196f, 0.7527797f, 0.01911602f, 0}, // yellow
-        {1.011694f, 0.8214535f, 0.1651485f, 0},
-        {0.9954063f, 0.9112986f, 0.3545238f, 0},
-        {1.003194f, 1.006116f, 1.012645f, 0}, // white
+        {0.1408276f, 0.09427677f, 0.2771976f, 0}, // blue
+        {0.06372603f, -0.1513644f, 0.3334551f, 0},
+        {0.002746013f, 0.2942008f, 0.2296794f, 0},
+        {-0.1343184f, 0.5085892f, 1.202733f, 0},
+        {0.2660939f, 0.2252081f, 0.3348524f, 0},
+        {0.3220368f, 0.2857496f, -0.02211571f, 0},
+        {0.6443775f, -0.1663641f, 0.4947264f, 0},
+        {-0.2010434f, 0.4852608f, 0.2216749f, 0},
+        {0.4305908f, 1.179865f, 0.04487347f, 0},
+        {0.358638f, 0.6626511f, 0.9352975f, 0},
+        {0.578337f, 0.0539748f, -0.002240727f, 0}, // red
+        {0.758479f, 0.2433439f, -0.1130014f, 0},
+        {0.8562825f, 0.1732998f, 0.5905524f, 0},
+        {0.9534689f, 0.2119738f, 0.4188433f, 0},
+        {0.9614567f, 0.4073448f, 0.2677804f, 0},
+        {0.9368071f, 0.399673f, 0.6062817f, 0},
+        {0.9676888f, 0.7450792f, 0.01652574f, 0}, // yellow
+        {1.013269f, 0.8221754f, 0.155246f, 0},
+        {0.9914707f, 0.9108174f, 0.3591574f, 0},
+        {1.003855f, 1.005778f, 1.012156f, 0}, // white
     };
     // which four points of the level above each point of the next two levels mixes
     static constexpr int ten[10][4] = {{0, 1, 2, 3}, {1, 4, 5, 6}, {2, 5, 7, 8}, {3, 6, 8, 9}, {4, 10, 11, 12},
@@ -190,13 +190,13 @@ inline void amountsOf(const float color[3], float a[4])
     // the logits of blue, red and yellow by 1, r, g, b, rr, rg, rb, gg, gb, bb, rrr, rrg, rrb, rgg, rgb, rbb, ggg,
     // ggb, gbb, bbb
     static constexpr float guess[20][3] = {
-        {6.012021f, 4.031786f, 2.753009f},    {-1.951351f, 2.541829f, -2.943336f},  {-3.538982f, -3.401223f, 6.261918f},
-        {-9.158942f, -9.43565f, -6.419333f},  {-6.943133f, -1.841434f, 0.6081696f}, {3.486235f, -1.178201f, 2.700376f},
-        {-0.2614991f, 2.874192f, -5.495195f}, {1.896523f, -4.150289f, -5.147171f},  {-1.033177f, 1.050958f, -0.5081406f},
-        {6.352015f, 4.350923f, -4.255878f},   {-1.58086f, -2.425195f, 0.5121909f},  {9.486713f, 2.580155f, -0.349689f},
-        {2.617461f, -3.75726f, -2.544169f},   {-5.539069f, 3.371077f, 0.04874995f}, {-7.649244f, -0.4619463f, 2.920352f},
-        {5.274422f, 6.279873f, 4.325353f},    {-1.929021f, -2.138671f, -2.761521f}, {3.902634f, 0.6664852f, 1.838669f},
-        {1.689628f, 1.487318f, 6.79435f},     {-3.703003f, -3.764152f, -1.039664f},
+        {6.055599f, 3.940631f, 2.804857f},  {-1.999801f, 2.858038f, -2.904711f},  {-3.312849f, -3.237203f, 6.399474f},
+        {-9.280106f, -9.154124f, -6.504448f},  {-7.280895f, -2.009969f, 0.5767507f},  {3.808748f, -0.9679496f, 2.832994f},
+        {0.3423549f, 2.678068f, -5.11866f},  {1.844443f, -4.038572f, -5.247148f},  {-0.8235854f, 0.9314673f, -0.4751448f},
+        {6.189008f, 4.46046f, -4.509639f},  {-2.17123f, -2.431664f, 0.3123298f},  {9.047656f, 2.75325f, -0.4298195f},
+        {2.393048f, -3.960866f, -2.275873f},  {-5.335266f, 3.424643f, 0.03406293f},  {-7.262702f, -0.5038084f, 3.210757f},
+        {5.905912f, 5.981244f, 4.364719f},  {-2.056164f, -2.219392f, -3.003615f},  {3.69256f, 0.4985808f, 1.871292f},
+        {1.478988f, 1.26659f, 6.594266f},  {-3.860267f, -3.870278f, -1.435659f},
     };
     const float r = color[0], g = color[1], b = color[2];
     const float terms[20] = {1, r, g, b, r * r, r * g, r * b, g * g, g * b, b * b, r * r * r, r * r * g, r * r * b,
@@ -294,24 +294,18 @@ inline void paintOf(const float color[3], Paint &paint)
     for (int c = 0; c < 3; c++) paint.rest[c] = srgb[c] - std::clamp(made[c], 0.0f, 1.0f);
 }
 
-/// \p t of \p b into \p a (linear sRGB), as paint: the color of the mixed amounts plus what they miss, that
-/// shortened as a whole where it would leave sRGB (so no channel is cut), and what lies past sRGB, mixed as light
+/// \p t of \p b into \p a (linear sRGB), as paint: the color of the mixed amounts plus what they miss, clipped to
+/// sRGB channel by channel as Mixbox does (a single color never needs it), and what lies past sRGB, mixed as light
 inline void mixPaint(const Paint &a, const Paint &b, float t, float out[3])
 {
-    float amounts[4], rest[3];
+    float amounts[4];
     for (int k = 0; k < 4; k++) amounts[k] = a.amounts[k] + (b.amounts[k] - a.amounts[k]) * t;
-    for (int c = 0; c < 3; c++) rest[c] = a.rest[c] + (b.rest[c] - a.rest[c]) * t;
     alignas(16) float made[4], slope[4][4];
     colorOfPaints(amounts, made, slope);
-    float room = 1;
-    for (int c = 0; c < 3; c++) {
-        made[c] = std::clamp(made[c], 0.0f, 1.0f);
-        if (rest[c] > 0) room = std::min(room, (1 - made[c]) / rest[c]);
-        else if (rest[c] < 0) room = std::min(room, made[c] / -rest[c]);
-    }
     const Curves &tables = curves();
     for (int c = 0; c < 3; c++) {
-        out[c] = readTable<Curves::toLinearSteps>(tables.toLinear, made[c] + room * rest[c]) + a.past[c]
+        const float rest = a.rest[c] + (b.rest[c] - a.rest[c]) * t;
+        out[c] = readTable<Curves::toLinearSteps>(tables.toLinear, std::clamp(made[c], 0.0f, 1.0f) + rest) + a.past[c]
             + (b.past[c] - a.past[c]) * t;
     }
 }
