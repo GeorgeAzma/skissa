@@ -9,6 +9,7 @@
 #include <QCursor>
 #include <QElapsedTimer>
 #include <QEvent>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QTabletEvent>
 #include <QTimer>
@@ -97,7 +98,7 @@ protected:
             break;
         case QEvent::Show: {
             auto *popup = qobject_cast<QWidget *>(watched);
-            if (!isPopup(popup) || !m_pressed || m_pressedAt.elapsed() > 800 || isPopup(m_pressed->window())) break;
+            if (!isPopup(popup) || !m_pressed || m_pressedAt.elapsed() > 800) break;
             forget(popup);
             m_open.append({popup, m_pressed});
             break;
@@ -172,7 +173,8 @@ private:
             }
             return true;
         }
-        if (!isPopup(widget->window())) {
+        // not a menu's item: a menu opened from it (a submenu) belongs to the menu
+        if (!qobject_cast<QMenu *>(widget->window())) {
             m_pressed = widget;
             m_pressedAt.start();
         }
