@@ -3,29 +3,9 @@
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
  *
- *  The spectral tables and the pigment mixing below are from spectral.js:
- *
- *  MIT License
- *
- *  Copyright (c) 2025 Ronald van Wijnen
- *
- *  Permission is hereby granted, free of charge, to any person obtaining a
- *  copy of this software and associated documentation files (the "Software"),
- *  to deal in the Software without restriction, including without limitation
- *  the rights to use, copy, modify, merge, publish, distribute, sublicense,
- *  and/or sell copies of the Software, and to permit persons to whom the
- *  Software is furnished to do so, subject to the following conditions:
- *
- *  The above copyright notice and this permission notice shall be included in
- *  all copies or substantial portions of the Software.
- *
- *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- *  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- *  DEALINGS IN THE SOFTWARE.
+ *  The pigment mixing below takes Mixbox's shape without its table (Šárka Sochorová and Ondřej Jamriška,
+ *  "Practical Pigment Mixing for Digital Painting", 2021); its numbers are fitted to Mixbox's own mixtures
+ *  (pymixbox, Secret Weapons, CC BY-NC 4.0).
  */
 #ifndef KOCOMPOSITEOPMIX_H
 #define KOCOMPOSITEOPMIX_H
@@ -50,7 +30,7 @@
 
 /**
  * How a brush's paint mixes with what is under it (and, smudging, with what it carries): as Krita does, in the
- * image's own values; evenly, in OKLab; or as pigment, by Kubelka-Munk over spectra, so blue and yellow make green.
+ * image's own values; evenly, in OKLab; or as pigment, as Mixbox mixes, so blue and yellow make green.
  * The image's colors are brought to linear sRGB through its own profile first, so an sRGB image and a linear one
  * mix alike. Only the blending of paint over paint changes: a brush's look (its edges, its build-up) stays.
  */
@@ -60,65 +40,6 @@ enum Mode { Normal = 0, Even = 1, Pigment = 2 };
 
 /// The brush setting holding the mode (kept by Krita when it writes a brush's settings again)
 inline QString settingName() { return QStringLiteral("SkissaMixing"); }
-
-// From spectral.js, MIT License, Copyright (c) 2025 Ronald van Wijnen: seven reflectance curves (white, cyan,
-// magenta, yellow, red, green, blue) over 38 wavelengths that linear sRGB is made of, the CIE 1931 observer
-// under D65 to bring a reflectance back to XYZ, and XYZ to linear sRGB.
-constexpr int spectralSize = 38;
-constexpr double spectralBasis[7][spectralSize] = {
-    {1.0011607271876400, 1.0011606515972800, 1.0011603192274700, 1.0011586727078900, 1.0011525984455200, 1.0011325252899800, 1.0010850066332700, 1.0009968788945300, 1.0008652515227400, 1.0006962900094000, 1.0005049611488800, 1.0003080818799200, 1.0001196660201300, 0.9999527659684070, 0.9998218368992970, 0.9997386095575930, 0.9997095516396120, 0.9997319302106270, 0.9997994363461950, 0.9999003303166710, 1.0000204065261100, 1.0001447879365800, 1.0002599790341200, 1.0003557969708900, 1.0004275378026900, 1.0004762334488800, 1.0005072096750800, 1.0005251915637300, 1.0005350960689600, 1.0005402209748200, 1.0005427281678400, 1.0005438956908700, 1.0005444821215100, 1.0005447695999200, 1.0005448988776200, 1.0005449625468900, 1.0005449892705800, 1.0005449969930000}, // white
-    {0.9705850013229620, 0.9705924981434250, 0.9706253487298910, 0.9707868061190170, 0.9713686732282480, 0.9731632306212520, 0.9767402231587650, 0.9815876054913770, 0.9862802656529490, 0.9899491476891340, 0.9924927015384200, 0.9941456804052560, 0.9951839750332120, 0.9957567501108180, 0.9959128182867100, 0.9956061578345280, 0.9945976009618540, 0.9922157154923700, 0.9862364527832490, 0.9679433372645410, 0.8912850042449430, 0.5362024778620530, 0.1541081190018780, 0.0574575093228929, 0.0315349873107007, 0.0222633920086335, 0.0182022841492439, 0.0162990559732640, 0.0153656239334613, 0.0149111568733976, 0.0146954339898235, 0.0145964146717719, 0.0145470156699655, 0.0145228771899495, 0.0145120341118965, 0.0145066940939832, 0.0145044507314479, 0.0145038009464639}, // cyan
-    {0.9906735573199880, 0.9906715249619790, 0.9906625823534210, 0.9906181076447950, 0.9904514808787100, 0.9898710814002040, 0.9882866087596400, 0.9842906927975040, 0.9739349056253060, 0.9418178384601450, 0.8173903261951560, 0.4324728050657290, 0.1384539782588700, 0.0537347216940033, 0.0292174996673231, 0.0213136517508590, 0.0201349530181136, 0.0241323096280662, 0.0372236145223627, 0.0760506552706601, 0.2053754719423990, 0.5412689034604390, 0.8158416850864860, 0.9128177041239760, 0.9463398301669620, 0.9599276963319910, 0.9662605952303120, 0.9693259700584240, 0.9708545367213990, 0.9716050665281280, 0.9719627697573920, 0.9721272722745090, 0.9722094177458120, 0.9722495776784240, 0.9722676219987420, 0.9722765094621500, 0.9722802433068740, 0.9722813248265600}, // magenta
-    {0.0210523371789306, 0.0210564627517414, 0.0210746178695038, 0.0211649058448753, 0.0215027957272504, 0.0226738799041561, 0.0258235649693629, 0.0334879385639851, 0.0519069663740307, 0.1007490148334730, 0.2391298997068470, 0.5348043122727480, 0.7978075786430300, 0.9114498940673840, 0.9537979630045070, 0.9712416154654290, 0.9793031238075880, 0.9833801195075750, 0.9854612465677550, 0.9864350469766050, 0.9867382506701410, 0.9866178824450320, 0.9862777767586430, 0.9858605924440560, 0.9854749276762100, 0.9851769347655580, 0.9849715740141810, 0.9848463034157120, 0.9847753518111990, 0.9847380666252650, 0.9847196483117650, 0.9847110233919390, 0.9847066833006760, 0.9847045543930910, 0.9847035963093700, 0.9847031240775520, 0.9847029256150900, 0.9847028681227950}, // yellow
-    {0.0315605737777207, 0.0315520718330149, 0.0315148215513658, 0.0313318044982702, 0.0306729857725527, 0.0286480476989607, 0.0246450407045709, 0.0192960753663651, 0.0142066612220556, 0.0102942608878609, 0.0076191460521811, 0.0058980410835420, 0.0048233247781713, 0.0042298748350633, 0.0040599171299341, 0.0043533695594676, 0.0053434425970201, 0.0076917201010463, 0.0135969795736536, 0.0316975442661115, 0.1078611963552490, 0.4638126031687040, 0.8470554052720110, 0.9431854093939180, 0.9688621506965580, 0.9780306674736030, 0.9820436438543060, 0.9839236237187070, 0.9848454841543820, 0.9852942758145960, 0.9855072952198250, 0.9856050715398370, 0.9856538499335780, 0.9856776850338830, 0.9856883918061220, 0.9856936646900310, 0.9856958798482050, 0.9856965214637620}, // red
-    {0.0095560747554212, 0.0095581580120851, 0.0095673245444588, 0.0096129126297349, 0.0097837090401843, 0.0103786227058710, 0.0120026452378567, 0.0160977721473922, 0.0267061902231680, 0.0595555440185881, 0.1860398265328260, 0.5705798201161590, 0.8614677684002920, 0.9458790897676580, 0.9704654864743050, 0.9784136302844500, 0.9795890314112240, 0.9755335369086320, 0.9622887553978130, 0.9231215745131200, 0.7934340189431110, 0.4592701359024290, 0.1855741036663030, 0.0881774959955372, 0.0543630228766700, 0.0406288447060719, 0.0342215204316970, 0.0311185790956966, 0.0295708898336134, 0.0288108739348928, 0.0284486271324597, 0.0282820301724731, 0.0281988376490237, 0.0281581655342037, 0.0281398910216386, 0.0281308901665811, 0.0281271086805816, 0.0281260133612096}, // green
-    {0.9794047525020140, 0.9794007068431300, 0.9793829034702610, 0.9792943649455940, 0.9789630146085700, 0.9778144666940430, 0.9747243211338360, 0.9671984823439730, 0.9490796575305750, 0.9008501289409770, 0.7631504454622400, 0.4659221716493190, 0.2012632804510050, 0.0877524413419623, 0.0457176793291679, 0.0284706050521843, 0.0205271767569850, 0.0165302792310211, 0.0145135107212858, 0.0136003508637687, 0.0133604258769571, 0.0135488943145680, 0.0139594356366992, 0.0144434255753570, 0.0148854440621406, 0.0152254296999746, 0.0154592848180209, 0.0156018026485961, 0.0156824871281936, 0.0157248764360615, 0.0157458108784121, 0.0157556123350225, 0.0157605443964911, 0.0157629637515278, 0.0157640525629106, 0.0157645892329510, 0.0157648147772649, 0.0157648801149616}, // blue
-};
-constexpr double spectralObserver[spectralSize][3] = {
-    {0.0000646919989576, 0.0000018442894440, 0.0003050171476380},
-    {0.0002194098998132, 0.0000062053235865, 0.0010368066663574},
-    {0.0011205743509343, 0.0000310096046799, 0.0053131363323992},
-    {0.0037666134117111, 0.0001047483849269, 0.0179543925899536},
-    {0.0118805536037990, 0.0003536405299538, 0.0570775815345485},
-    {0.0232864424191771, 0.0009514714056444, 0.1136516189362870},
-    {0.0345594181969747, 0.0022822631748318, 0.1733587261835500},
-    {0.0372237901162006, 0.0042073290434730, 0.1962065755586570},
-    {0.0324183761091486, 0.0066887983719014, 0.1860823707062960},
-    {0.0212332056093810, 0.0098883960193565, 0.1399504753832070},
-    {0.0104909907685421, 0.0152494514496311, 0.0891745294268649},
-    {0.0032958375797931, 0.0214183109449723, 0.0478962113517075},
-    {0.0005070351633801, 0.0334229301575068, 0.0281456253957952},
-    {0.0009486742057141, 0.0513100134918512, 0.0161376622950514},
-    {0.0062737180998318, 0.0704020839399490, 0.0077591019215214},
-    {0.0168646241897775, 0.0878387072603517, 0.0042961483736618},
-    {0.0286896490259810, 0.0942490536184085, 0.0020055092122156},
-    {0.0426748124691731, 0.0979566702718931, 0.0008614711098802},
-    {0.0562547481311377, 0.0941521856862608, 0.0003690387177652},
-    {0.0694703972677158, 0.0867810237486753, 0.0001914287288574},
-    {0.0830531516998291, 0.0788565338632013, 0.0001495555858975},
-    {0.0861260963002257, 0.0635267026203555, 0.0000923109285104},
-    {0.0904661376847769, 0.0537414167568200, 0.0000681349182337},
-    {0.0850038650591277, 0.0426460643574120, 0.0000288263655696},
-    {0.0709066691074488, 0.0316173492792708, 0.0000157671820553},
-    {0.0506288916373645, 0.0208852059213910, 0.0000039406041027},
-    {0.0354739618852640, 0.0138601101360152, 0.0000015840125870},
-    {0.0214682102597065, 0.0081026402038399, 0.0000000000000000},
-    {0.0125164567619117, 0.0046301022588030, 0.0000000000000000},
-    {0.0068045816390165, 0.0024913800051319, 0.0000000000000000},
-    {0.0034645657946526, 0.0012593033677378, 0.0000000000000000},
-    {0.0014976097506959, 0.0005416465221680, 0.0000000000000000},
-    {0.0007697004809280, 0.0002779528920067, 0.0000000000000000},
-    {0.0004073680581315, 0.0001471080673854, 0.0000000000000000},
-    {0.0001690104031614, 0.0000610327472927, 0.0000000000000000},
-    {0.0000952245150365, 0.0000343873229523, 0.0000000000000000},
-    {0.0000490309872958, 0.0000177059860053, 0.0000000000000000},
-    {0.0000199961492222, 0.0000072209749130, 0.0000000000000000},
-};
-constexpr double spectralXyzToRgb[3][3] = {
-    {3.2409699419045200, -1.537383177570090, -0.4986107602930030},
-    {-0.9692436362808790, 1.875967501507720, 0.0415550574071756},
-    {0.0556300796969936, -0.203976958888976, 1.0569715142428700},
-};
 
 inline void linearToOklab(const float rgb[3], float lab[3])
 {
@@ -150,107 +71,248 @@ inline void mixEven(const float a[3], const float bLab[3], float t, float out[3]
     oklabToLinear(lab, out);
 }
 
-/// The wavelengths padded to a multiple of four, with no light in the padding, so the loops over them vectorize
-constexpr int spectralLanes = 40;
+/// The sRGB curve, both ways
+inline float srgbOf(float linear)
+{
+    return linear <= 0.0031308f ? 12.92f * linear : 1.055f * std::pow(linear, 1 / 2.4f) - 0.055f;
+}
 
-/// The tables above in floats, padded
-struct SpectralTables {
-    alignas(16) float basis[7][spectralLanes];
-    alignas(16) float observer[3][spectralLanes];
+inline float linearOf(float srgb)
+{
+    return srgb <= 0.04045f ? srgb / 12.92f : std::pow((srgb + 0.055f) / 1.055f, 2.4f);
+}
+
+/// The sRGB curve over 0 to 1 as tables, read between their steps: several times faster than the curve, and off it
+/// by at most 1e-5
+struct Curves {
+    static constexpr int toSrgbSteps = 8192;
+    static constexpr int toLinearSteps = 4096;
+    float toSrgb[toSrgbSteps + 1];
+    float toLinear[toLinearSteps + 1];
 };
 
-inline const SpectralTables &spectralTables()
+inline const Curves &curves()
 {
-    static const SpectralTables tables = []() {
-        SpectralTables t {};
-        for (int i = 0; i < spectralSize; i++) {
-            for (int k = 0; k < 7; k++) t.basis[k][i] = float(spectralBasis[k][i]);
-            for (int c = 0; c < 3; c++) t.observer[c][i] = float(spectralObserver[i][c]);
-        }
-        return t;
+    static Curves tables;
+    static const bool made = []() {
+        for (int i = 0; i <= Curves::toSrgbSteps; i++) tables.toSrgb[i] = srgbOf(float(i) / Curves::toSrgbSteps);
+        for (int i = 0; i <= Curves::toLinearSteps; i++) tables.toLinear[i] = linearOf(float(i) / Curves::toLinearSteps);
+        return true;
     }();
+    Q_UNUSED(made);
     return tables;
 }
 
-/// A color as pigment: its absorption over scattering per wavelength, how much light it gives back, and the color
-/// its spectrum makes again (a little off the color itself: the mix is corrected by it, so a color mixed with
-/// itself stays exactly itself)
+template<int steps>
+inline float readTable(const float *table, float x)
+{
+    const float at = std::clamp(x, 0.0f, 1.0f) * steps;
+    const int i = std::min(int(at), steps - 1);
+    return table[i] + (table[i + 1] - table[i]) * (at - i);
+}
+
+/**
+ * A color as pigment: how much of four paints (blue, red, yellow, white) make it and what they miss of it, in sRGB
+ * values, and what lies past sRGB (light beyond white, colors outside it), which mixes as light does. Weighed sums
+ * of these mix the colors as paint, and every color comes back exactly.
+ */
 struct Paint {
-    alignas(16) float ks[spectralLanes];
-    float luminance {0};
-    float again[3] {0, 0, 0};
+    float amounts[4] {0, 0, 0, 1};
+    float rest[3] {0, 0, 0};
+    float past[3] {0, 0, 0};
 };
 
-inline void colorOfReflectance(const float reflectance[spectralLanes], float rgb[3])
+/// The color of a mixture of the four paints (amounts adding up to 1) in sRGB values, and how it changes with each
+/// amount: a cubic Bézier tetrahedron of 20 control points, its corners the paints, by de Casteljau; the four points
+/// of its second to last level are the slope over 3. Colors are four wide (the last is 0), so the loops vectorize.
+inline void colorOfPaints(const float a[4], float color[4], float slope[4][4])
 {
-    const SpectralTables &tables = spectralTables();
-    // four sums each, so the loop vectorizes without reordering a sum
-    float x[4] = {0, 0, 0, 0}, y[4] = {0, 0, 0, 0}, z[4] = {0, 0, 0, 0};
-    for (int i = 0; i < spectralLanes; i += 4) {
-        for (int j = 0; j < 4; j++) {
-            x[j] += reflectance[i + j] * tables.observer[0][i + j];
-            y[j] += reflectance[i + j] * tables.observer[1][i + j];
-            z[j] += reflectance[i + j] * tables.observer[2][i + j];
+    alignas(16) static constexpr float points[20][4] = {
+        {0.1406857f, 0.09147363f, 0.2775293f, 0}, // blue
+        {0.06543413f, -0.1580722f, 0.3274543f, 0},
+        {0.01112019f, 0.2907245f, 0.2329601f, 0},
+        {-0.1444913f, 0.5028814f, 1.20677f, 0},
+        {0.2672834f, 0.2147136f, 0.3364322f, 0},
+        {0.2985015f, 0.2963663f, -0.03261238f, 0},
+        {0.6341857f, -0.1682934f, 0.4952036f, 0},
+        {-0.2124452f, 0.4912994f, 0.2359678f, 0},
+        {0.4397291f, 1.187265f, 0.05227801f, 0},
+        {0.3563644f, 0.6582994f, 0.9308499f, 0},
+        {0.566494f, 0.05742752f, -0.003538958f, 0}, // red
+        {0.748164f, 0.2255562f, -0.09128919f, 0},
+        {0.860177f, 0.1703138f, 0.5918832f, 0},
+        {0.9801208f, 0.2192346f, 0.4190495f, 0},
+        {0.9594298f, 0.4192392f, 0.2492729f, 0},
+        {0.9260871f, 0.4008786f, 0.6109692f, 0},
+        {0.9935196f, 0.7527797f, 0.01911602f, 0}, // yellow
+        {1.011694f, 0.8214535f, 0.1651485f, 0},
+        {0.9954063f, 0.9112986f, 0.3545238f, 0},
+        {1.003194f, 1.006116f, 1.012645f, 0}, // white
+    };
+    // which four points of the level above each point of the next two levels mixes
+    static constexpr int ten[10][4] = {{0, 1, 2, 3}, {1, 4, 5, 6}, {2, 5, 7, 8}, {3, 6, 8, 9}, {4, 10, 11, 12},
+                                       {5, 11, 13, 14}, {6, 12, 14, 15}, {7, 13, 16, 17}, {8, 14, 17, 18}, {9, 15, 18, 19}};
+    static constexpr int four[4][4] = {{0, 1, 2, 3}, {1, 4, 5, 6}, {2, 5, 7, 8}, {3, 6, 8, 9}};
+    alignas(16) float level[10][4];
+    for (int p = 0; p < 10; p++) {
+        for (int c = 0; c < 4; c++) {
+            level[p][c] = a[0] * points[ten[p][0]][c] + a[1] * points[ten[p][1]][c] + a[2] * points[ten[p][2]][c]
+                + a[3] * points[ten[p][3]][c];
         }
     }
-    const double xyz[3] = {double(x[0] + x[1] + x[2] + x[3]), double(y[0] + y[1] + y[2] + y[3]), double(z[0] + z[1] + z[2] + z[3])};
-    for (int c = 0; c < 3; c++) {
-        rgb[c] = float(spectralXyzToRgb[c][0] * xyz[0] + spectralXyzToRgb[c][1] * xyz[1] + spectralXyzToRgb[c][2] * xyz[2]);
+    for (int c = 0; c < 4; c++) color[c] = 0;
+    for (int k = 0; k < 4; k++) {
+        for (int c = 0; c < 4; c++) {
+            const float q = a[0] * level[four[k][0]][c] + a[1] * level[four[k][1]][c] + a[2] * level[four[k][2]][c]
+                + a[3] * level[four[k][3]][c];
+            slope[k][c] = 3 * q;
+            color[c] += a[k] * q;
+        }
     }
 }
 
+/// The four amounts from three logits, white's being 0
+inline void amountsOfLogits(const float l[3], float a[4])
+{
+    const float top = std::max({l[0], l[1], l[2], 0.0f});
+    float sum = 0;
+    for (int k = 0; k < 4; k++) {
+        a[k] = std::exp((k < 3 ? l[k] : 0.0f) - top);
+        sum += a[k];
+    }
+    for (int k = 0; k < 4; k++) a[k] /= sum;
+}
+
+/// How much of each paint makes \p color (sRGB values, 0 to 1): a first guess in closed form, then a Gauss-Newton
+/// step toward the mixture nearest the color, taken in the logits so the amounts stay positive and add up to 1
+inline void amountsOf(const float color[3], float a[4])
+{
+    // the logits of blue, red and yellow by 1, r, g, b, rr, rg, rb, gg, gb, bb, rrr, rrg, rrb, rgg, rgb, rbb, ggg,
+    // ggb, gbb, bbb
+    static constexpr float guess[20][3] = {
+        {6.012021f, 4.031786f, 2.753009f},    {-1.951351f, 2.541829f, -2.943336f},  {-3.538982f, -3.401223f, 6.261918f},
+        {-9.158942f, -9.43565f, -6.419333f},  {-6.943133f, -1.841434f, 0.6081696f}, {3.486235f, -1.178201f, 2.700376f},
+        {-0.2614991f, 2.874192f, -5.495195f}, {1.896523f, -4.150289f, -5.147171f},  {-1.033177f, 1.050958f, -0.5081406f},
+        {6.352015f, 4.350923f, -4.255878f},   {-1.58086f, -2.425195f, 0.5121909f},  {9.486713f, 2.580155f, -0.349689f},
+        {2.617461f, -3.75726f, -2.544169f},   {-5.539069f, 3.371077f, 0.04874995f}, {-7.649244f, -0.4619463f, 2.920352f},
+        {5.274422f, 6.279873f, 4.325353f},    {-1.929021f, -2.138671f, -2.761521f}, {3.902634f, 0.6664852f, 1.838669f},
+        {1.689628f, 1.487318f, 6.79435f},     {-3.703003f, -3.764152f, -1.039664f},
+    };
+    const float r = color[0], g = color[1], b = color[2];
+    const float terms[20] = {1, r, g, b, r * r, r * g, r * b, g * g, g * b, b * b, r * r * r, r * r * g, r * r * b,
+                             r * g * g, r * g * b, r * b * b, g * g * g, g * g * b, g * b * b, b * b * b};
+    float l[3] = {0, 0, 0};
+    for (int i = 0; i < 20; i++) {
+        for (int k = 0; k < 3; k++) l[k] += terms[i] * guess[i][k];
+    }
+    amountsOfLogits(l, a);
+    alignas(16) float made[4], slope[4][4];
+    colorOfPaints(a, made, slope);
+    // how the color follows each logit (the slope times the amounts is three times the color), and the damped step
+    // (JᵀJ + 0.001)⁻¹ Jᵀ (made − color), by Cramer's rule
+    float J[3][3];
+    for (int c = 0; c < 3; c++) {
+        for (int k = 0; k < 3; k++) J[c][k] = a[k] * (slope[k][c] - 3 * made[c]);
+    }
+    float H[3][3], toward[3];
+    for (int i = 0; i < 3; i++) {
+        toward[i] = J[0][i] * (made[0] - color[0]) + J[1][i] * (made[1] - color[1]) + J[2][i] * (made[2] - color[2]);
+        for (int j = 0; j < 3; j++) {
+            H[i][j] = J[0][i] * J[0][j] + J[1][i] * J[1][j] + J[2][i] * J[2][j] + (i == j ? 1e-3f : 0.0f);
+        }
+    }
+    const float adj[3][3] = {
+        {H[1][1] * H[2][2] - H[1][2] * H[1][2], H[0][2] * H[1][2] - H[0][1] * H[2][2], H[0][1] * H[1][2] - H[0][2] * H[1][1]},
+        {H[0][2] * H[1][2] - H[0][1] * H[2][2], H[0][0] * H[2][2] - H[0][2] * H[0][2], H[0][1] * H[0][2] - H[0][0] * H[1][2]},
+        {H[0][1] * H[1][2] - H[0][2] * H[1][1], H[0][1] * H[0][2] - H[0][0] * H[1][2], H[0][0] * H[1][1] - H[0][1] * H[0][1]},
+    };
+    const float det = H[0][0] * adj[0][0] + H[0][1] * adj[0][1] + H[0][2] * adj[0][2];
+    for (int k = 0; k < 3; k++) l[k] -= (adj[k][0] * toward[0] + adj[k][1] * toward[1] + adj[k][2] * toward[2]) / det;
+    amountsOfLogits(l, a);
+}
+
+/// amountsOf over a grid of sRGB values, made the first time it is needed, as Mixbox keeps its table: read between
+/// its steps it is several times faster, and mixes no differently to the eye
+struct AmountsGrid {
+    static constexpr int steps = 32;
+    std::vector<float> amounts;
+};
+
+inline const AmountsGrid &amountsGrid()
+{
+    static const AmountsGrid grid = []() {
+        constexpr int side = AmountsGrid::steps + 1;
+        AmountsGrid made;
+        made.amounts.resize(size_t(side) * side * side * 4);
+        for (int r = 0; r < side; r++) {
+            for (int g = 0; g < side; g++) {
+                for (int b = 0; b < side; b++) {
+                    const float color[3] = {float(r) / AmountsGrid::steps, float(g) / AmountsGrid::steps, float(b) / AmountsGrid::steps};
+                    amountsOf(color, &made.amounts[((size_t(r) * side + g) * side + b) * 4]);
+                }
+            }
+        }
+        return made;
+    }();
+    return grid;
+}
+
+/// The amounts of \p color (sRGB values, 0 to 1) from the grid
+inline void amountsNear(const float color[3], float a[4])
+{
+    constexpr int side = AmountsGrid::steps + 1;
+    const float *grid = amountsGrid().amounts.data();
+    int at[3];
+    float f[3];
+    for (int c = 0; c < 3; c++) {
+        const float x = std::clamp(color[c], 0.0f, 1.0f) * AmountsGrid::steps;
+        at[c] = std::min(int(x), AmountsGrid::steps - 1);
+        f[c] = x - at[c];
+    }
+    for (int k = 0; k < 4; k++) a[k] = 0;
+    for (int corner = 0; corner < 8; corner++) {
+        const int dr = corner >> 2, dg = (corner >> 1) & 1, db = corner & 1;
+        const float w = (dr ? f[0] : 1 - f[0]) * (dg ? f[1] : 1 - f[1]) * (db ? f[2] : 1 - f[2]);
+        const float *p = grid + ((size_t(at[0] + dr) * side + at[1] + dg) * side + at[2] + db) * 4;
+        for (int k = 0; k < 4; k++) a[k] += w * p[k];
+    }
+}
+
+/// \p color (linear sRGB) as paint
 inline void paintOf(const float color[3], Paint &paint)
 {
-    // pigment has no light beyond white
-    float rgb[3];
-    for (int c = 0; c < 3; c++) rgb[c] = std::clamp(color[c], 0.0f, 1.0f);
-    const float w = std::min({rgb[0], rgb[1], rgb[2]});
-    const float r0 = rgb[0] - w, g0 = rgb[1] - w, b0 = rgb[2] - w;
-    const float cyan = std::min(g0, b0), magenta = std::min(r0, b0), yellow = std::min(r0, g0);
-    const float red = std::min(std::max(0.0f, r0 - b0), std::max(0.0f, r0 - g0));
-    const float green = std::min(std::max(0.0f, g0 - b0), std::max(0.0f, g0 - r0));
-    const float blue = std::min(std::max(0.0f, b0 - g0), std::max(0.0f, b0 - r0));
-    const float weights[7] = {w, cyan, magenta, yellow, red, green, blue};
-    const SpectralTables &tables = spectralTables();
-    // at most three of the curves are in a color
-    alignas(16) float reflectance[spectralLanes] = {};
-    for (int k = 0; k < 7; k++) {
-        if (weights[k] <= 0) continue;
-        for (int i = 0; i < spectralLanes; i++) reflectance[i] += weights[k] * tables.basis[k][i];
+    const Curves &tables = curves();
+    float srgb[3];
+    for (int c = 0; c < 3; c++) {
+        srgb[c] = readTable<Curves::toSrgbSteps>(tables.toSrgb, color[c]);
+        // what the curve there and back doesn't give back, with what lies past sRGB
+        paint.past[c] = color[c] - readTable<Curves::toLinearSteps>(tables.toLinear, srgb[c]);
     }
-    float luminance[4] = {0, 0, 0, 0};
-    for (int i = 0; i < spectralLanes; i += 4) {
-        for (int j = 0; j < 4; j++) {
-            const float r = std::max(1e-16f, reflectance[i + j]);
-            reflectance[i + j] = r;
-            luminance[j] += r * tables.observer[1][i + j];
-            paint.ks[i + j] = (1 - r) * (1 - r) / (2 * r);
-        }
-    }
-    paint.luminance = luminance[0] + luminance[1] + luminance[2] + luminance[3];
-    colorOfReflectance(reflectance, paint.again);
+    amountsNear(srgb, paint.amounts);
+    alignas(16) float made[4], slope[4][4];
+    colorOfPaints(paint.amounts, made, slope);
+    for (int c = 0; c < 3; c++) paint.rest[c] = srgb[c] - std::clamp(made[c], 0.0f, 1.0f);
 }
 
-/// \p t of \p b into \p a, as paint: by concentration, each weighed by how much light it gives back
-inline void mixPaint(const Paint &a, const float aColor[3], const Paint &b, const float bColor[3], float t, float out[3])
+/// \p t of \p b into \p a (linear sRGB), as paint: the color of the mixed amounts plus what they miss, that
+/// shortened as a whole where it would leave sRGB (so no channel is cut), and what lies past sRGB, mixed as light
+inline void mixPaint(const Paint &a, const Paint &b, float t, float out[3])
 {
-    const float ca = (1 - t) * (1 - t) * a.luminance;
-    const float cb = t * t * b.luminance;
-    if (!(ca + cb > 0)) {
-        for (int c = 0; c < 3; c++) out[c] = aColor[c] + (bColor[c] - aColor[c]) * t;
-        return;
-    }
-    const float wa = ca / (ca + cb), wb = cb / (ca + cb);
-    alignas(16) float reflectance[spectralLanes];
-    for (int i = 0; i < spectralLanes; i++) {
-        const float ks = a.ks[i] * wa + b.ks[i] * wb;
-        // 1 + ks - sqrt(ks² + 2ks) without the cancellation (dark paint's ks is in the millions); fmax tells the
-        // compiler the root is of no negative number, so it needs no errno and vectorizes
-        reflectance[i] = 1 / (1 + ks + std::sqrt(std::fmax(ks * (ks + 2), 0.0f)));
-    }
-    colorOfReflectance(reflectance, out);
+    float amounts[4], rest[3];
+    for (int k = 0; k < 4; k++) amounts[k] = a.amounts[k] + (b.amounts[k] - a.amounts[k]) * t;
+    for (int c = 0; c < 3; c++) rest[c] = a.rest[c] + (b.rest[c] - a.rest[c]) * t;
+    alignas(16) float made[4], slope[4][4];
+    colorOfPaints(amounts, made, slope);
+    float room = 1;
     for (int c = 0; c < 3; c++) {
-        out[c] += (1 - t) * (aColor[c] - a.again[c]) + t * (bColor[c] - b.again[c]);
+        made[c] = std::clamp(made[c], 0.0f, 1.0f);
+        if (rest[c] > 0) room = std::min(room, (1 - made[c]) / rest[c]);
+        else if (rest[c] < 0) room = std::min(room, made[c] / -rest[c]);
+    }
+    const Curves &tables = curves();
+    for (int c = 0; c < 3; c++) {
+        out[c] = readTable<Curves::toLinearSteps>(tables.toLinear, made[c] + room * rest[c]) + a.past[c]
+            + (b.past[c] - a.past[c]) * t;
     }
 }
 
@@ -265,7 +327,7 @@ inline void mix(int mode, const float a[3], const float b[3], float t, float out
         Paint pa, pb;
         paintOf(a, pa);
         paintOf(b, pb);
-        mixPaint(pa, a, pb, b, t, out);
+        mixPaint(pa, pb, t, out);
     } else {
         for (int c = 0; c < 3; c++) out[c] = a[c] + (b[c] - a[c]) * t;
     }
@@ -404,7 +466,7 @@ public:
                 } else if (m_mode == KoMixing::Pigment) {
                     paintFor(s, sourceSeen, sourcePaint);
                     paintFor(d, underSeen, underPaint);
-                    KoMixing::mixPaint(underPaint, d, sourcePaint, s, t, mixed);
+                    KoMixing::mixPaint(underPaint, sourcePaint, t, mixed);
                 } else {
                     if (sourceLabSeen[0] != s[0] || sourceLabSeen[1] != s[1] || sourceLabSeen[2] != s[2]) {
                         KoMixing::linearToOklab(s, sourceLab);
