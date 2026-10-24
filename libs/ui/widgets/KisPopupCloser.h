@@ -26,6 +26,9 @@ class KRITAUI_EXPORT KisPopupCloser : public QObject
 public:
     KisPopupCloser(QWidget *popup, QWidget *anchor = nullptr);
 
+    /// For every popup and menu: a press on what opened it closes it, and doesn't open it again
+    static void installToggle();
+
     /// Off: the popup stays when the pointer goes elsewhere (pinned)
     void setEnabled(bool enabled) { m_enabled = enabled; }
     /// What opened the popup, if it wasn't known when the closer was made

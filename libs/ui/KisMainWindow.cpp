@@ -166,6 +166,7 @@
 #include "KisStudioItemCard.h"
 #include "KisUpdatePacer.h"
 #include "KisStudioGlass.h"
+#include "widgets/KisPopupCloser.h"
 #include "KisTouchMode.h"
 #include "KisStudioFind.h"
 #include "KisStudioHoldKeys.h"
@@ -540,6 +541,8 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     // repaints at the screen's rate, also while the mouse moves
     KisUpdatePacer::install();
     KisStudioGlass::installMenuGlass();
+    // a second press on what opened a popup or menu closes it
+    KisPopupCloser::installToggle();
     connect(this, &KisMainWindow::restoringDone, d->studioLayout, &KisStudioLayout::normalize);
 
     d->studioFind = new KisStudioFind(this);

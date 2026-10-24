@@ -60,7 +60,120 @@ private:
     QElapsedTimer m_since;
 };
 
+/**
+ * Any popup or menu opened by a press on something is closed by a press on it again, which then does nothing:
+ * the press isn't replayed to it (as Qt does for menus) to open the popup again. What opened a popup is what
+ * was pressed just before it showed.
+ */
+class PopupToggle : public QObject
+{
+public:
+    static bool isPopup(const QWidget *widget)
+    {
+        if (!widget || !widget->isWindow()) return false;
+        const Qt::WindowType type = widget->windowType();
+        return type == Qt::Popup || (type == Qt::Tool && widget->windowFlags().testFlag(Qt::FramelessWindowHint));
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        switch (event->type()) {
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonDblClick:
+        case QEvent::TabletPress:
+            return pressed(qobject_cast<QWidget *>(watched), event->type());
+        case QEvent::MouseButtonRelease:
+            if (m_swallowRelease && watched == m_swallowRelease) {
+                m_swallowRelease = nullptr;
+                return true;
+            }
+            break;
+        case QEvent::Show: {
+            auto *popup = qobject_cast<QWidget *>(watched);
+            if (!isPopup(popup) || !m_pressed || m_pressedAt.elapsed() > 800 || isPopup(m_pressed->window())) break;
+            forget(popup);
+            m_open.append({popup, m_pressed});
+            break;
+        }
+        case QEvent::Hide: {
+            auto *popup = qobject_cast<QWidget *>(watched);
+            if (!isPopup(popup)) break;
+            for (const Opened &opened : qAsConst(m_open)) {
+                if (opened.popup != popup || !opened.anchor) continue;
+                m_closedAnchor = opened.anchor;
+                m_closedAt.start();
+            }
+            forget(popup);
+            break;
+        }
+        default:
+            break;
+        }
+        return false;
+    }
+
+private:
+    struct Opened {
+        QPointer<QWidget> popup;
+        QPointer<QWidget> anchor;
+    };
+
+    static bool within(const QWidget *anchor, const QWidget *widget) { return anchor && widget && (widget == anchor || anchor->isAncestorOf(widget)); }
+
+    bool pressed(QWidget *widget, QEvent::Type type)
+    {
+        if (!widget) return false;
+        // on what opened a popup still open: it closes
+        for (const Opened &opened : qAsConst(m_open)) {
+            if (opened.popup && opened.popup->isVisible() && within(opened.anchor, widget)) {
+                m_closedAnchor = opened.anchor;
+                m_closedAt.start();
+                opened.popup->close();
+                break;
+            }
+        }
+        // on what opened a popup this press (or one just before) closed: nothing more
+        if (m_closedAnchor && m_closedAt.elapsed() < 400 && within(m_closedAnchor, widget)) {
+            // the mouse press made from a tablet press comes next
+            if (type != QEvent::TabletPress) {
+                m_swallowRelease = widget;
+                m_closedAnchor = nullptr;
+            }
+            return true;
+        }
+        if (type != QEvent::MouseButtonDblClick && !isPopup(widget->window())) {
+            m_pressed = widget;
+            m_pressedAt.start();
+        }
+        return false;
+    }
+
+    void forget(QWidget *popup)
+    {
+        for (int i = m_open.size() - 1; i >= 0; i--) {
+            if (!m_open[i].popup || m_open[i].popup == popup) m_open.removeAt(i);
+        }
+    }
+
+    QVector<Opened> m_open;
+    QPointer<QWidget> m_pressed;
+    QElapsedTimer m_pressedAt;
+    QPointer<QWidget> m_closedAnchor;
+    QElapsedTimer m_closedAt;
+    QPointer<QWidget> m_swallowRelease;
+};
+
 } // namespace
+
+void KisPopupCloser::installToggle()
+{
+    static PopupToggle *toggle = nullptr;
+    if (toggle) return;
+    toggle = new PopupToggle();
+    toggle->setParent(qApp);
+    qApp->installEventFilter(toggle);
+}
 
 KisPopupCloser::KisPopupCloser(QWidget *popup, QWidget *anchor)
     : QObject(popup)
