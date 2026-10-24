@@ -371,7 +371,16 @@ QVector<Setting> describeAll()
         strokes.write = [](const QVariant &value) { KisPresetStrokeThumbnails::setEnabled(value.toBool()); };
         all << strokes;
 
-        all << color(QStringLiteral("canvasBorderColor"), QColor(0, 0, 0), i18nc("setting", "Around the image"));
+        // Black is the glow; the color last chosen is kept apart, so going back to Color brings it back
+        Setting surround = color(QStringLiteral("canvasBorderColor"), QColor(0, 0, 0), i18nc("setting", "Around the image"));
+        surround.written = [](const QVariant &value) {
+            const QColor c = value.value<QColor>();
+            if (c.isValid() && c != QColor(Qt::black)) {
+                KisSettingsRegistry::instance()->setValue(QStringLiteral("StudioSurroundColor"), c);
+            }
+        };
+        all << surround;
+        all << color(QStringLiteral("StudioSurroundColor"), QColor(48, 48, 52), i18nc("setting", "Color around the image"), R::Fork);
         Setting ownFont = toggle(QStringLiteral("use_custom_system_font"), false, i18nc("setting", "Own interface font"));
         // Turning it on starts from the current font; turning it off clears both and uses the system font
         ownFont.written = [](const QVariant &value) {

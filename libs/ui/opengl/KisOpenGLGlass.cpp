@@ -249,13 +249,6 @@ uniform vec3 rim;
 // The power each color's bend grows by toward the edge: a little more for blue than for red.
 uniform vec3 ior;
 uniform vec4 reach;
-// The image's ambient glow: where the image is, and its blurred light around it.
-uniform bool imageLit;
-uniform mat3 toImage;
-uniform mat3 fromImage;
-uniform sampler2D imageLight;
-uniform float imageLightFactor;
-uniform float imageLightReach;
 // Glass panels below this one (e.g. a panel under a menu): shape, corners, Oklab tint and tint strength.
 uniform int lowerCount;
 uniform vec4 lowerShape[4];
@@ -496,35 +489,6 @@ vec3 throughLower(vec3 lab, vec2 p)
     return lab;
 }
 
-/**
- * Light the glowing image casts on the rim beside it, where the rim faces the image: in the colors of the
- * image's nearest edge, fading with distance. Nothing over the image itself.
- */
-vec3 imageLightAt(vec2 p, vec2 outward)
-{
-    vec3 u = toImage * vec3(p, 1.0);
-    vec3 n = fromImage * vec3(clamp(u.xy / u.z, 0.0, 1.0), 1.0);
-    vec2 q = n.xy / n.z;
-    float dist = length(q - p);
-    if (dist < 1.0) {
-        return vec3(0.0);
-    }
-    // Bilinear sample of the small, smooth glow texture at the edge.
-    vec2 t = q / imageLightFactor - 0.5;
-    ivec2 i = ivec2(floor(t));
-    vec2 f = t - floor(t);
-    ivec2 last = textureSize(imageLight, 0) - 1;
-    vec4 a = weighted(texelFetch(imageLight, clamp(i, ivec2(0), last), 0));
-    vec4 b = weighted(texelFetch(imageLight, clamp(i + ivec2(1, 0), ivec2(0), last), 0));
-    vec4 c = weighted(texelFetch(imageLight, clamp(i + ivec2(0, 1), ivec2(0), last), 0));
-    vec4 e = weighted(texelFetch(imageLight, clamp(i + ivec2(1, 1), ivec2(0), last), 0));
-    vec4 m = mix(mix(a, b, f.x), mix(c, e, f.x), f.y);
-    vec3 light = m.rgb / max(m.a, 1e-4);
-    float falloff = 1.0 / (1.0 + (dist / imageLightReach) * (dist / imageLightReach));
-    float facing = max(dot(outward, (q - p) / dist), 0.0);
-    return light * falloff * 0.45 * facing * smoothstep(0.0, 24.0, dist);
-}
-
 void main()
 {
     vec2 p = gl_FragCoord.xy;
@@ -568,12 +532,12 @@ void main()
     float line = clamp(1.0 + (rim.y - d) / max(0.5 * rim.y, 0.5), 0.0, 1.0);
     if (line > 0.0) {
         vec3 lab = toOklab(max(color, 0.0));
-        vec3 gathered = inGamut(min(lab.x + 0.25, 1.0), lab.yz * 1.7);
+        // Gathered light only concentrates what is there: the lightness' odds doubled, so a dark edge
+        // stays dim and a bright one never clips to white.
+        float l = clamp(lab.x, 0.0, 1.0);
+        vec3 gathered = inGamut(2.0 * l / (1.0 + l), lab.yz * 1.5);
         float facing = abs(dot(outward, vec2(-0.70710678, 0.70710678)));
         color = mix(color, gathered, clamp(line * (0.3 + 0.6 * facing) * rim.z, 0.0, 1.0));
-        if (imageLit) {
-            color += imageLightAt(p, outward) * line * rim.z;
-        }
     }
 
     /**
@@ -631,7 +595,8 @@ void main()
 /**
  * Draws the ambient glow around (not over) the image: the blurred image light, scaled by how much
  * image is nearby so it falls off with distance, slightly boosted in chroma (a wall lit by a screen
- * shows its colors more than its grays), added to the surrounding color.
+ * shows its colors more than its grays), added to the surrounding color. Bright light is compressed as
+ * eyes adapt to it (Reinhard, Y / (1 + Y / knee)): a white page glows only a little more than a mid-tone one.
  */
 const char *const ambientSource = R"(
 uniform sampler2D ambient;
@@ -639,6 +604,7 @@ uniform float factor;
 uniform mat3 toImage;
 uniform vec3 base;
 uniform float strength;
+uniform float knee;
 uniform float backlight;
 uniform bool encode;
 uniform float dither;
@@ -674,6 +640,7 @@ void main()
     vec3 light = m.rgb / max(m.a, 1e-5);
     vec3 lab = toOklab(light);
     light = max(fromOklab(vec3(lab.x, lab.yz * 1.25)), 0.0);
+    light /= 1.0 + dot(light, vec3(0.2126, 0.7152, 0.0722)) / knee;
     vec3 color = base + light * strength * m.a;
     // a dark image lights nothing: a dim neutral light near it keeps its edge in sight, and goes where its
     // own glow is brighter
@@ -814,10 +781,9 @@ struct Programs {
                           {"rect", "blurred", "halfFrost", "quarterFrost", "eighthFrost", "statistics", "shift", "slot", "restore", "power",
                            "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
                            "beyond", "spacing", "dither", "veil", "rim", "ior", "under", "decode", "reach",
-                           "imageLit", "toImage", "fromImage", "imageLight", "imageLightFactor", "imageLightReach",
                            "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"}, keptLinear)
             && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"}, keptLinear)
-            && ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "backlight", "encode", "dither"}, keptLinear);
+            && ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "knee", "backlight", "encode", "dither"}, keptLinear);
     }
 };
 
@@ -848,18 +814,17 @@ struct KisOpenGLGlass::Private : Programs
     QScopedPointer<QOpenGLFramebufferObject> ambientSmall;
     QScopedPointer<QOpenGLFramebufferObject> ambientAcross;
     QScopedPointer<QOpenGLFramebufferObject> ambientBlurred;
-    /// Where the image was when the glow was last made (unit square to surface), and the downsampling factor.
-    QTransform imageToSurface;
     /// The glow around the image was drawn again since the last blur: what is wholly inside the image (in surface
     /// pixels, empty if it is turned) kept its look
     bool ambientChanged {false};
     QRect ambientInside;
-    int ambientFactor {0};
     /// What the glow was last made for; it is in the canvas until the canvas is drawn again without it.
     QTransform ambientSurfaceToImage;
     QColor ambientBase;
     QSize ambientViewport;
     qreal ambientRatio {0};
+    int ambientFactor {0}; ///< the downsampling factor, 0 when there is no glow
+
     QOpenGLVertexArrayObject vao;
     /// Downsampled canvas, blurred across, then down; and the same for its Oklab statistics.
     QScopedPointer<QOpenGLFramebufferObject> small;
@@ -1031,7 +996,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
             fbo->reset(d->texture(smallSize));
         }
     }
-    d->imageToSurface = surfaceToImage.inverted();
+    const QTransform imageToSurface = surfaceToImage.inverted();
     d->ambientFactor = factor;
     d->ambientSurfaceToImage = surfaceToImage;
     d->ambientBase = base;
@@ -1039,8 +1004,8 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     d->ambientRatio = pixelRatio;
     // The glow is drawn all around the image, not over it: panels over the image keep their blur.
     d->ambientChanged = true;
-    d->ambientInside = d->imageToSurface.type() <= QTransform::TxScale
-        ? d->imageToSurface.mapRect(QRectF(0, 0, 1, 1)).toAlignedRect().adjusted(1, 1, -1, -1)
+    d->ambientInside = imageToSurface.type() <= QTransform::TxScale
+        ? imageToSurface.mapRect(QRectF(0, 0, 1, 1)).toAlignedRect().adjusted(1, 1, -1, -1)
         : QRect();
     const Kernel kernel = gaussian(KisStudioGlass::ambientSigma * pixelRatio / factor);
 
@@ -1091,6 +1056,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     setMatrix(f, d->ambient["toImage"], surfaceToImage);
     f->glUniform3f(d->ambient["base"], float(toLinear(base.redF())), float(toLinear(base.greenF())), float(toLinear(base.blueF())));
     f->glUniform1f(d->ambient["strength"], float(KisStudioGlass::ambientStrength));
+    f->glUniform1f(d->ambient["knee"], float(KisStudioGlass::ambientKnee));
     f->glUniform1f(d->ambient["backlight"], float(KisStudioGlass::ambientBacklight));
     f->glUniform1i(d->ambient["encode"], !linearCanvas);
     f->glUniform1f(d->ambient["dither"], linearCanvas ? 0.0f : canvasFormat == GL_RGB10_A2 ? 1.0f / 1023 : 1.0f / 255);
@@ -1340,25 +1306,6 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform3f(d->glass["rim"], rim.band * pixelRatio, pixelRatio, float(KisStudioGlass::rimLight()));
     // crown glass's 1.51, 1.52 and 1.53 for red, green and blue, their spread made five times as wide
     f->glUniform3f(d->glass["ior"], 1.47f, 1.52f, 1.57f);
-    // The image's glow, if it has been rendered.
-    const bool imageLit = KisStudioGlass::ambientSurround() && d->ambientBlurred && d->ambientFactor > 0;
-    f->glUniform1i(d->glass["imageLit"], imageLit);
-    if (imageLit) {
-        setMatrix(f, d->glass["toImage"], d->imageToSurface.inverted());
-        setMatrix(f, d->glass["fromImage"], d->imageToSurface);
-        f->glUniform1i(d->glass["imageLight"], 3);
-        f->glUniform1f(d->glass["imageLightFactor"], d->ambientFactor);
-        // A larger image casts light further: its reach grows with the image size.
-        const QPolygonF image = d->imageToSurface.map(QPolygonF(QRectF(0, 0, 1, 1)));
-        qreal area = 0;
-        for (int i = 0; i < image.size(); i++) {
-            const QPointF a = image[i], b = image[(i + 1) % image.size()];
-            area += a.x() * b.y() - b.x() * a.y();
-        }
-        f->glUniform1f(d->glass["imageLightReach"], float(std::sqrt(std::abs(area) / 2) + 160 * pixelRatio));
-        f->glActiveTexture(GL_TEXTURE3);
-        f->glBindTexture(GL_TEXTURE_2D, d->ambientBlurred->texture());
-    }
     f->glUniform1f(d->glass["lowerStrength"], float(0.5 * (KisStudioGlass::tintOverDark() + KisStudioGlass::tintOverBright())));
     for (int k = 0; k < 3; k++) {
         f->glActiveTexture(GL_TEXTURE4 + k);

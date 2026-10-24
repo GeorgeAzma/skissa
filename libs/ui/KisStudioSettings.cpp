@@ -1248,15 +1248,19 @@ QVector<CardDef> makeCards()
         QStringLiteral("canvas border background color ambient glow"), [](Builder &b) {
             auto *picker = new Tiles({{i18nc("around the image", "Glow"), [](QPainter &p, const QRectF &r) { paintSurround(p, r, Qt::black, true); }},
                                       {i18nc("around the image", "Color"), [](QPainter &p, const QRectF &r) {
-                                           // The current color, or the one picking this would set (black means Glow)
-                                           const QColor c = R::instance()->value(QStringLiteral("canvasBorderColor")).value<QColor>();
-                                           paintSurround(p, r, c == QColor(Qt::black) ? QColor(48, 48, 52) : c, false);
+                                           paintSurround(p, r, R::instance()->value(QStringLiteral("StudioSurroundColor")).value<QColor>(), false);
                                        }}},
                                      QSize(128, 72), b.card);
             // Black means Glow (see KisStudioGlass::ambientSurround)
             auto current = []() { return R::instance()->value(QStringLiteral("canvasBorderColor")).value<QColor>() == QColor(Qt::black) ? 0 : 1; };
             picker->picked = [](int i) {
-                R::instance()->setValue(QStringLiteral("canvasBorderColor"), i == 0 ? QColor(Qt::black) : QColor(48, 48, 52));
+                const QColor now = R::instance()->value(QStringLiteral("canvasBorderColor")).value<QColor>();
+                if (i == 0 && now != QColor(Qt::black)) {
+                    // kept for going back, also when it was chosen before the color was kept apart
+                    R::instance()->setValues({{QStringLiteral("StudioSurroundColor"), now}, {QStringLiteral("canvasBorderColor"), QColor(Qt::black)}});
+                } else if (i == 1 && now == QColor(Qt::black)) {
+                    R::instance()->setValue(QStringLiteral("canvasBorderColor"), R::instance()->value(QStringLiteral("StudioSurroundColor")).value<QColor>());
+                }
             };
             b.follow([picker, current]() {
                 picker->setCurrent(current());
