@@ -662,8 +662,14 @@ void KisStudioToolStrip::addSelectionAdjust()
             m_adjust->set(growing ? qRound(value) : 0, growing ? 0 : qRound(value));
         });
         connect(scrubber, &KisStudioScrubber::valueCommitted, this, [this, scrubber, growing](qreal value) {
-            // a step, a typed amount: at once
-            if (!m_adjust->isActive()) m_adjust->begin();
+            // a step, a typed amount: at once; a drag the image ended meanwhile has nothing left to apply
+            if (!m_adjust->isActive()) {
+                if (m_adjust->takeInterrupted()) {
+                    scrubber->setValue(0);
+                    return;
+                }
+                m_adjust->begin();
+            }
             m_adjust->set(growing ? qRound(value) : 0, growing ? 0 : qRound(value));
             m_adjust->end();
             scrubber->setValue(0);

@@ -185,6 +185,19 @@ void KisStudioSelectionAdjust::begin()
     m_busy = std::make_shared<std::atomic<bool>>(false);
     m_applicator = new KisProcessingApplicator(view->image(), KisNodeSP(), KisProcessingApplicator::NONE, KisImageSignalVector(),
                                                kundo2_i18n("Grow or Soften Selection"));
+    // closing the image, saving or undoing mid-drag waits for the strokes there are: this one ends (or is
+    // dropped) then, or the wait would never end
+    m_interrupted = false;
+    m_endRequest = connect(m_image.data(), &KisImage::sigStrokeEndRequested, this, [this]() {
+        m_interrupted = true;
+        end();
+    });
+    m_cancelRequest = connect(m_image.data(), &KisImage::sigStrokeCancellationRequested, this, [this]() {
+        m_interrupted = true;
+        m_grow = 0;
+        m_soft = 0;
+        end();
+    });
 }
 
 void KisStudioSelectionAdjust::set(int grow, int soft)
@@ -215,6 +228,8 @@ void KisStudioSelectionAdjust::apply()
 void KisStudioSelectionAdjust::end()
 {
     m_timer.stop();
+    disconnect(m_endRequest);
+    disconnect(m_cancelRequest);
     if (!m_applicator) return;
     // dragged back to nothing: as it was, and no step
     if (m_grow == 0 && m_soft == 0) {
