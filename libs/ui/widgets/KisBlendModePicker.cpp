@@ -276,7 +276,7 @@ QVector<Group> otherGroups(const QStringList &pinned, bool forBrush)
     QSet<QString> seen(pinned.begin(), pinned.end());
     const auto ops = KoCompositeOpRegistry::instance().getCompositeOps();
     Q_FOREACH (const KoID &category, KoCompositeOpRegistry::instance().getCategories()) {
-        Group group{category.name(), {}};
+        Group group{category.name(), {}, category.id()};
         Q_FOREACH (const KoID &op, ops.values(category)) {
             if (!seen.contains(op.id()) && !(forBrush && KoMixing::isLayerOnly(op.id()))) {
                 seen.insert(op.id());
@@ -308,6 +308,8 @@ KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures, boo
         return pinned;
     };
     source.groupsKey = QStringLiteral("StudioBlendModeGroups");
+    // Krita's categories, as groups of the user's own: every mode, layers' too, so either picker keeps them
+    source.initialGroups = []() { return otherGroups(QStringList(), false); };
     source.allIds = [forBrush]() {
         QStringList ids;
         Q_FOREACH (const KoID &op, allOps(forBrush)) ids << op.id();

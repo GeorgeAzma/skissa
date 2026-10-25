@@ -179,6 +179,16 @@ struct KisStudioPicker::Private
 
     void setPinned(const QStringList &ids) { setLists(ids, groups); }
 
+    /// The title a group the picker started with (a category, \p key) had, or none
+    QString ownTitle(const QString &key) const
+    {
+        if (key.isEmpty() || !source.initialGroups) return QString();
+        Q_FOREACH (const Group &group, source.initialGroups()) {
+            if (group.key == key) return group.title;
+        }
+        return QString();
+    }
+
     void setYoursTitle(const QString &title)
     {
         yoursTitle = title;
@@ -312,7 +322,8 @@ private:
 /**
  * The items. A click picks, a drag reorders, pins or unpins, or moves an item
  * between the user's groups, and a right click pins or unpins, or lists the
- * groups to put it in. A click on the title of one of the user's lists renames it. In touch mode a tap picks, a swipe scrolls and a long press
+ * groups to put it in. A click on the title of one of the user's lists renames it,
+ * and a group's title dragged moves the group. In touch mode a tap picks, a swipe scrolls and a long press
  * previews; releasing after it picks, moving drags.
  */
 class Grid : public QWidget
@@ -344,6 +355,9 @@ public:
         m_dropAt = -1;
         m_dropLine = QRect();
         m_dropRemoves = false;
+        m_pressHeader = -1;
+        m_movingGroup = false;
+        m_groupDropLine = QRect();
     }
 
 protected:
@@ -444,6 +458,22 @@ protected:
             }
         }
         painter.setOpacity(1.0);
+
+        if (m_movingGroup && m_pressHeader >= 0 && m_pressHeader < m_d->headers.size()) {
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(pal.color(QPalette::Highlight));
+            painter.drawPath(KisModernStyle::squircle(QRectF(m_groupDropLine), 1.5));
+            // its title, beside the pointer
+            painter.setFont(headerFont);
+            const QString title = m_d->headers[m_pressHeader].title;
+            const QRect ghost(m_pointer + QPoint(14, -headerHeight / 2),
+                              QSize(QFontMetrics(headerFont).horizontalAdvance(title.toUpper()) + 20, headerHeight));
+            painter.setPen(QPen(pal.color(QPalette::Highlight), 1));
+            painter.setBrush(pal.color(QPalette::Window).lighter(125));
+            painter.drawPath(KisModernStyle::squircle(QRectF(ghost), 6));
+            painter.setPen(pal.color(QPalette::WindowText));
+            painter.drawText(ghost, Qt::AlignCenter, title);
+        }
 
         if (m_dragging >= 0) {
             if (!m_dropLine.isNull()) {
@@ -547,6 +577,20 @@ protected:
             }
             return;
         }
+        if (m_pressHeader >= 0 && (event->buttons() & Qt::LeftButton)) {
+            // a group's title dragged moves the group; the user's own list stays first
+            if (!m_movingGroup && m_d->headers[m_pressHeader].list >= 1
+                && (event->pos() - m_pressPos).manhattanLength() >= QApplication::startDragDistance()) {
+                m_movingGroup = true;
+                setCursor(Qt::ClosedHandCursor);
+            }
+            if (m_movingGroup) {
+                m_pointer = event->pos();
+                updateGroupDrop();
+                update();
+            }
+            return;
+        }
         if (m_press >= 0 && (event->buttons() & Qt::LeftButton)) {
             if (m_dragging < 0 && (event->pos() - m_pressPos).manhattanLength() >= QApplication::startDragDistance()
                 && !m_d->searching()) {
@@ -575,13 +619,20 @@ protected:
     {
         const int pressed = m_press;
         const int pressedHeader = m_pressHeader;
+        const bool movedGroup = m_movingGroup;
         const bool touch = m_touch;
         const bool scrolled = m_scrolling;
         m_press = -1;
         m_pressHeader = -1;
+        m_movingGroup = false;
         m_touch = false;
         m_scrolling = false;
         m_hold.stop();
+        if (movedGroup) {
+            unsetCursor();
+            moveGroup(m_d->headers[pressedHeader].list - 1);
+            return;
+        }
         if (m_dragging >= 0) {
             drop();
             return;
@@ -675,6 +726,10 @@ private:
         QAction *up = group > 0 ? menu.addAction(i18nc("@action:inmenu", "Move up")) : nullptr;
         QAction *down = group >= 0 && group < m_d->groups.size() - 1 ? menu.addAction(i18nc("@action:inmenu", "Move down")) : nullptr;
         QAction *removing = group >= 0 ? menu.addAction(i18nc("@action:inmenu", "Delete")) : nullptr;
+        const QString own = group >= 0 ? m_d->ownTitle(m_d->groups[group].key) : QString();
+        QAction *original = !own.isEmpty() && own != m_d->groups[group].title
+            ? menu.addAction(i18nc("@action:inmenu a group's first name", "Original name"))
+            : nullptr;
         QAction *chosen = menu.exec(at);
         if (!chosen) return;
         if (chosen == renaming) {
@@ -685,7 +740,40 @@ private:
         if (chosen == up) std::swap(groups[group], groups[group - 1]);
         else if (chosen == down) std::swap(groups[group], groups[group + 1]);
         else if (chosen == removing) groups.removeAt(group);
+        else if (chosen == original) groups[group].title = own;
         m_d->setLists(m_d->pinned, groups);
+    }
+
+    /// Where the group being moved would go: before the group whose middle is below the pointer
+    void updateGroupDrop()
+    {
+        const int count = m_d->groups.size();
+        m_groupDropAt = count;
+        for (int g = 0; g < count && g + 1 < m_d->listAreas.size(); g++) {
+            if (m_pointer.y() < m_d->listAreas[g + 1].center().y()) {
+                m_groupDropAt = g;
+                break;
+            }
+        }
+        if (count == 0 || m_d->listAreas.size() <= count) return;
+        const int y = m_groupDropAt < count ? m_d->listAreas[m_groupDropAt + 1].top() - 2 : m_d->listAreas[count].bottom() + 4;
+        m_groupDropLine = QRect(6, y - 1, width() - 12, 3);
+    }
+
+    void moveGroup(int from)
+    {
+        m_groupDropLine = QRect();
+        QVector<KisStudioPicker::Group> groups = m_d->groups;
+        if (from < 0 || from >= groups.size() || m_groupDropAt < 0) {
+            update();
+            return;
+        }
+        int to = m_groupDropAt;
+        const KisStudioPicker::Group moved = groups.takeAt(from);
+        if (to > from) to--;
+        groups.insert(qBound(0, to, groups.size()), moved);
+        if (groups != m_d->groups) m_d->setLists(m_d->pinned, groups);
+        else update();
     }
 
     /// The list's name typed in place of its title; a group given another group's name joins it
@@ -826,6 +914,9 @@ private:
     KisStudioPicker::Private *m_d;
     int m_press {-1};
     int m_pressHeader {-1};
+    bool m_movingGroup {false};
+    int m_groupDropAt {-1};
+    QRect m_groupDropLine;
     QPoint m_pressPos;
     QPoint m_pressGlobal;
     int m_pressScroll {0};
@@ -953,9 +1044,16 @@ QVector<KisStudioPicker::Group> storedGroups(const KisStudioPicker::Source &sour
     const QJsonArray array = QJsonDocument::fromJson(KisConfig(true).readEntry<QString>(source.groupsKey, QString()).toUtf8()).array();
     for (const QJsonValue &value : array) {
         const QJsonObject object = value.toObject();
-        KisStudioPicker::Group group{object.value(QStringLiteral("title")).toString(), {}};
+        KisStudioPicker::Group group{object.value(QStringLiteral("title")).toString(), {}, object.value(QStringLiteral("key")).toString()};
         for (const QJsonValue &id : object.value(QStringLiteral("ids")).toArray()) group.ids << id.toString();
         if (!group.title.isEmpty()) groups << group;
+    }
+    // groups saved before the picker's own groups were the user's too get those, once
+    if (source.initialGroups && KisConfig(true).readEntry<int>(source.groupsKey + QStringLiteral("Version"), 1) < 2) {
+        Q_FOREACH (const KisStudioPicker::Group &group, source.initialGroups()) {
+            const bool have = std::any_of(groups.cbegin(), groups.cend(), [&group](const KisStudioPicker::Group &g) { return g.key == group.key; });
+            if (!have) groups << group;
+        }
     }
     return groups;
 }
@@ -997,9 +1095,12 @@ void KisStudioPicker::setUserGroups(const Source &source, const QVector<Group> &
         QJsonObject object;
         object.insert(QStringLiteral("title"), group.title);
         object.insert(QStringLiteral("ids"), QJsonArray::fromStringList(group.ids));
+        if (!group.key.isEmpty()) object.insert(QStringLiteral("key"), group.key);
         array << object;
     }
-    KisConfig(false).writeEntry(source.groupsKey, QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
+    KisConfig cfg(false);
+    cfg.writeEntry(source.groupsKey, QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
+    cfg.writeEntry(source.groupsKey + QStringLiteral("Version"), 2);
 }
 
 QStringList KisStudioPicker::scrollOrder(const Source &source)
@@ -1157,7 +1258,15 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
                 d->listAreas << QRect(0, top, width, y - top);
             }
 
-            const QVector<Group> groups = d->source.otherGroups(d->pinned + d->grouped());
+            QVector<Group> groups;
+            if (d->source.groupsKey.isEmpty()) {
+                groups = d->source.otherGroups(d->pinned + d->grouped());
+            } else {
+                // the user's groups are all the groups there are: what none of them holds comes last
+                QStringList rest;
+                Q_FOREACH (const Group &group, d->source.otherGroups(d->pinned + d->grouped())) rest << group.ids;
+                if (!rest.isEmpty()) groups << Group{i18nc("picker group of what is in no other", "Other"), rest, QString()};
+            }
             if (tiles) {
                 if (y > 0) y += 8;
                 Q_FOREACH (const Group &group, groups) {
@@ -1186,8 +1295,9 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
                                 std::min(height, maxHeight) + 2);
         d->scroll->setVerticalScrollBarPolicy(height > maxHeight ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
 
+        // an item in several lists: its first place
         d->highlighted = -1;
-        for (int i = 0; i < d->items.size(); i++) {
+        for (int i = 0; i < d->items.size() && d->highlighted < 0; i++) {
             if (d->items[i].id == d->original) d->highlighted = i;
         }
         if (!query.isEmpty()) d->highlighted = d->items.isEmpty() ? -1 : 0;

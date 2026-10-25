@@ -34,7 +34,9 @@ public:
     struct Group {
         QString title;
         QStringList ids;
-        bool operator==(const Group &other) const { return title == other.title && ids == other.ids; }
+        /// What names a group the picker makes (a category) whatever its title; empty for the user's own
+        QString key;
+        bool operator==(const Group &other) const { return title == other.title && ids == other.ids && key == other.key; }
     };
 
     struct Source {
