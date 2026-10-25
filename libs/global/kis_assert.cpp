@@ -73,6 +73,12 @@ void kis_assert_common(const char *assertion, const char *file, int line, bool a
 
     disableAssertMsg |= shouldIgnoreAsserts || forceCrashOnSafeAsserts;
 
+    // releases are made from the build that shows them: outside the dev profile safe ones are only logged,
+    // as in Krita's own releases
+    if (isIgnorable && !qEnvironmentVariableIsSet("KRITA_DEV_PROFILE")) {
+        disableAssertMsg = true;
+    }
+
     QMessageBox::StandardButton button =
         isIgnorable && !forceCrashOnSafeAsserts ?
             QMessageBox::Ignore : QMessageBox::Abort;
