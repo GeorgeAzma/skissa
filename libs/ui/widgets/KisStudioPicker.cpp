@@ -9,6 +9,7 @@
 #include "KisModernStyle.h"
 #include "KisPopupCloser.h"
 #include "KisPopupSelfActivatingLineEdit.h"
+#include "KisStudioInlineEdit.h"
 #include "KisStudioMotion.h"
 #include "KisTouchMode.h"
 #include "kis_config.h"
@@ -89,6 +90,22 @@ struct Header {
     QRect rect;
     int list {-1};  ///< which of the user's lists it heads: 0 their own, then their groups; or -1
 };
+
+/// The groups' titles: small, bold capitals
+QFont headerFontOf(QFont font)
+{
+    font.setPointSizeF(font.pointSizeF() * 0.8);
+    font.setBold(true);
+    font.setCapitalization(QFont::AllUppercase);
+    font.setLetterSpacing(QFont::PercentageSpacing, 106);
+    return font;
+}
+
+/// Where a title's text is drawn in its \p header
+QRect titleRect(const QRect &header)
+{
+    return header.adjusted(8, 0, 0, -2);
+}
 
 QRect previewRect(const QRect &cell, bool tiles, bool numbered)
 {
@@ -369,15 +386,13 @@ protected:
         const bool tiles = m_d->source.tiles;
         const QColor dim = KisModernStyle::secondaryInk(pal.color(QPalette::WindowText));
 
-        QFont headerFont = font();
-        headerFont.setPointSizeF(headerFont.pointSizeF() * 0.8);
-        headerFont.setBold(true);
-        headerFont.setCapitalization(QFont::AllUppercase);
-        headerFont.setLetterSpacing(QFont::PercentageSpacing, 106);
+        const QFont headerFont = headerFontOf(font());
         painter.setFont(headerFont);
         painter.setPen(dim);
         Q_FOREACH (const Header &header, m_d->headers) {
-            painter.drawText(header.rect.adjusted(8, 0, 0, -2), Qt::AlignLeft | Qt::AlignBottom, header.title);
+            // the one being renamed is its editor
+            if (m_renaming && m_renaming->isVisible() && header.list == m_renamingList) continue;
+            painter.drawText(titleRect(header.rect), Qt::AlignLeft | Qt::AlignBottom, header.title);
         }
 
         QFont numberFont = font();
@@ -515,6 +530,8 @@ protected:
 
     void mousePressEvent(QMouseEvent *event) override
     {
+        // a press anywhere here ends the renaming, as one elsewhere does (the items don't take the focus)
+        if (m_renaming) m_renaming->clearFocus();
         m_press = event->button() == Qt::LeftButton ? itemAt(event->pos()) : -1;
         m_pressHeader = event->button() == Qt::LeftButton ? headerAt(event->pos()) : -1;
         m_pressPos = event->pos();
@@ -548,9 +565,9 @@ protected:
 
     bool eventFilter(QObject *watched, QEvent *event) override
     {
+        // left as it was: the keys go back to the search
         if (watched == m_renaming && event->type() == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
-            m_finishRename(false);
-            return true;
+            QTimer::singleShot(0, m_d->search, [search = m_d->search]() { search->setFocus(); });
         }
         return QWidget::eventFilter(watched, event);
     }
@@ -783,26 +800,23 @@ private:
         const auto header = std::find_if(m_d->headers.cbegin(), m_d->headers.cend(), [list](const Header &h) { return h.list == list; });
         if (header == m_d->headers.cend()) return;
         const QString was = list == 0 ? m_d->yoursTitle : m_d->groups[list - 1].title;
-        auto *field = new QLineEdit(was, this);
-        field->setGeometry(header->rect.adjusted(KisModernStyle::space1, KisModernStyle::hairline, -KisModernStyle::space1, 0));
-        field->selectAll();
-        field->installEventFilter(this);
-        field->show();
-        field->setFocus();
-        m_renaming = field;
-        m_finishRename = [this, field, was, list](bool keep) {
-            if (m_renaming != field) return;
-            m_renaming = nullptr;
-            const QString title = field->text().trimmed();
-            field->deleteLater();
+        // the title itself becomes editable, in its own font and place
+        const QFont titleFont = headerFontOf(font());
+        const QRect text = titleRect(header->rect);
+        const int textHeight = QFontMetrics(titleFont).height();
+        m_renamingList = list;
+        // a line edit keeps 2 px before its text
+        m_renaming = KisStudioInlineEdit::open(this, QRect(text.left() - 2, text.bottom() - textHeight + 1, text.width() + 2, textHeight), was,
+                                               Qt::AlignLeft, titleFont, [this, was, list](const QString &typed) {
             m_d->search->setFocus();
+            const QString title = typed.trimmed();
             if (list == 0) {
-                if (keep && !title.isEmpty() && title != was) m_d->setYoursTitle(title);
+                if (!title.isEmpty() && title != was) m_d->setYoursTitle(title);
                 return;
             }
             QVector<KisStudioPicker::Group> groups = m_d->groups;
             const int at = groupNamed(groups, was);
-            if (!keep || title.isEmpty() || title == was || at < 0) return;
+            if (title.isEmpty() || title == was || at < 0) return;
             const int other = groupNamed(groups, title);
             if (other >= 0 && other != at) {
                 groups[other].ids << groups[at].ids;
@@ -812,8 +826,9 @@ private:
                 groups[at].title = title;
             }
             m_d->setLists(m_d->pinned, groups);
-        };
-        QObject::connect(field, &QLineEdit::editingFinished, this, [this]() { m_finishRename(true); });
+        });
+        m_renaming->installEventFilter(this);
+        update();
     }
 
     int itemAt(const QPoint &pos) const
@@ -931,7 +946,7 @@ private:
     bool m_dropRemoves {false};
     QRect m_dropLine;
     QPointer<QLineEdit> m_renaming;
-    std::function<void(bool keep)> m_finishRename;
+    int m_renamingList {-1};
 };
 
 class LinkButton : public QAbstractButton
