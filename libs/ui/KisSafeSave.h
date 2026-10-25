@@ -21,6 +21,15 @@ namespace KisSafeSave
  * the swap can't be done, the old file is set aside until the new one is complete. NoError on success.
  */
 KRITAUI_EXPORT QFileDevice::FileError replace(QTemporaryFile &written, const QString &location);
+
+/// Where a file that writes itself (TIFF, EXR) is written before it takes \p location's place: beside it, its extension kept
+KRITAUI_EXPORT QString besides(const QString &location);
+
+/**
+ * Puts \p written, a finished file beside \p location (see besides()), in its place as replace() does. On failure the
+ * old file is untouched and \p written stays where it is. NoError on success.
+ */
+KRITAUI_EXPORT QFileDevice::FileError replaceWith(const QString &written, const QString &location);
 }
 
 #endif // KISSAFESAVE_H

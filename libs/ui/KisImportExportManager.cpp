@@ -840,7 +840,28 @@ KisImportExportErrorCode KisImportExportManager::doExportImpl(const QString &loc
         return result;
     }
 
+#ifdef Q_OS_WIN
+    // Skissa: a format that writes its own file (TIFF, EXR) writes beside the old one, which stays whole until it is done
+    const QString besides = filter->supportsIO() ? QString() : KisSafeSave::besides(location);
+    if (!besides.isEmpty()) {
+        QFile::remove(besides);
+        filter->setFilename(besides);
+    }
+#endif
+
     KisImportExportErrorCode status = filter->convert(m_document, &file, exportConfiguration);
+
+#ifdef Q_OS_WIN
+    if (!besides.isEmpty()) {
+        filter->setFilename(location);
+        if (!status.isOk()) {
+            QFile::remove(besides);
+        } else {
+            const QFileDevice::FileError replaced = KisSafeSave::replaceWith(besides, location);
+            if (replaced != QFileDevice::NoError) status = KisImportExportErrorCannotWrite(replaced);
+        }
+    }
+#endif
 
     if (filter->supportsIO()) {
         if (!status.isOk()) {

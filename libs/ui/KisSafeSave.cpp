@@ -98,3 +98,28 @@ QFileDevice::FileError KisSafeSave::replace(QTemporaryFile &written, const QStri
     return QFileDevice::NoError;
 #endif
 }
+
+QString KisSafeSave::besides(const QString &location)
+{
+    const QFileInfo info(location);
+    // the extension kept, as some formats are told by it
+    return info.dir().filePath(info.completeBaseName() + QStringLiteral(".saving.") + info.suffix());
+}
+
+QFileDevice::FileError KisSafeSave::replaceWith(const QString &written, const QString &location)
+{
+#ifdef Q_OS_WIN
+    for (int attempt = 0; attempt < 3 && !flushFile(written); attempt++) QThread::msleep(50);
+    const bool hadOld = QFile::exists(location);
+    // a cloud folder may hold the file a moment, so try again
+    for (int attempt = 0; attempt < 5; attempt++) {
+        if (attempt) QThread::msleep(100);
+        if ((hadOld && replaceFile(location, written)) || moveFile(written, location)) return QFileDevice::NoError;
+    }
+    // the new file stays beside the old one, which is untouched
+    return QFileDevice::RenameError;
+#else
+    if (QFile::exists(location) && !QFile::remove(location)) return QFileDevice::RemoveError;
+    return QFile::rename(written, location) ? QFileDevice::NoError : QFileDevice::RenameError;
+#endif
+}
