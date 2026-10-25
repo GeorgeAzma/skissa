@@ -98,7 +98,10 @@ bool inGamut(qreal r, qreal g, qreal b)
 
 QColor rgbFromLinear(qreal r, qreal g, qreal b)
 {
-    return QColor::fromRgbF(KisColorMath::toSrgb(r), KisColorMath::toSrgb(g), KisColorMath::toSrgb(b));
+    // the gamut test lets a hair past the edge through, and QColor makes a value outside 0..1 an invalid (black) color:
+    // blues at their most vivid have red a little below zero
+    auto channel = [](qreal linear) { return qBound(0.0, KisColorMath::toSrgb(linear), 1.0); };
+    return QColor::fromRgbF(channel(r), channel(g), channel(b));
 }
 
 bool inGamut(const Oklch &c)
@@ -131,9 +134,13 @@ qreal maxChroma(qreal l, qreal h)
     if (l < darkest) {
         return l <= 0.0 ? 0.0 : maxChroma(darkest, h) * l / darkest;
     }
+    // out from gray in steps to the first color past the edge, then finer: for some dark blues the colors in
+    // gamut aren't one stretch, and halving the whole range landed on either edge from one lightness to the next
+    const qreal step = 0.005;
     qreal low = 0.0;
-    qreal high = 0.4;
-    for (int i = 0; i < 18; i++) {
+    while (low + step <= 0.4 && inGamut({l, low + step, h})) low += step;
+    qreal high = low + step;
+    for (int i = 0; i < 12; i++) {
         const qreal mid = (low + high) / 2;
         (inGamut({l, mid, h}) ? low : high) = mid;
     }
