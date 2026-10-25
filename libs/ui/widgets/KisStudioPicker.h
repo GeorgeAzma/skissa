@@ -22,8 +22,8 @@ class QPainter;
 /**
  * A popup for picking one of many items (blend modes, effects, brushes,
  * panels). It shows the recent items, the user's own numbered list (reordered
- * by dragging, extended with the star), all other items in groups on request,
- * and a search over everything. Hovering an item emits sigPreview(); a click or
+ * by dragging, extended with the star), the groups they made, all other items
+ * in groups on request, and a search over everything. Hovering an item emits sigPreview(); a click or
  * Enter picks it, and Escape or a click outside leaves things as they were.
  * A Source describes the items.
  */
@@ -34,6 +34,7 @@ public:
     struct Group {
         QString title;
         QStringList ids;
+        bool operator==(const Group &other) const { return title == other.title && ids == other.ids; }
     };
 
     struct Source {
@@ -41,6 +42,10 @@ public:
         QString pinnedKey;
         /// The user's list until they change it
         std::function<QStringList()> initialPinned;
+        /// The kritarc key that stores the groups the user made, shown after their list; empty for none
+        QString groupsKey;
+        /// The user's groups until they change them
+        std::function<QVector<Group>()> initialGroups;
         std::function<QStringList()> allIds;
         /// The items not in the user's list, grouped, in display order
         std::function<QVector<Group>(const QStringList &pinned)> otherGroups;
@@ -73,7 +78,9 @@ public:
 
     static QStringList pinnedIds(const Source &source);
     static void setPinnedIds(const Source &source, const QStringList &ids);
-    /// The user's list followed by all other items, in the order the picker shows them
+    static QVector<Group> userGroups(const Source &source);
+    static void setUserGroups(const Source &source, const QVector<Group> &groups);
+    /// The user's list and groups followed by all other items, in the order the picker shows them
     static QStringList scrollOrder(const Source &source);
 
     /// @param available the ids that can be picked now; empty means all

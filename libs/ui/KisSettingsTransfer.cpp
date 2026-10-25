@@ -66,7 +66,7 @@ QString nameOf(const Setting &setting)
 const QStringList arrangedKeys = {
     QStringLiteral("StudioLayout"), QStringLiteral("StudioBarItems"), QStringLiteral("StudioViewPillItems"), QStringLiteral("StudioControlItems"),
     QStringLiteral("StudioControlsPicked"), QStringLiteral("StudioRailItems"), QStringLiteral("StudioHiddenVariants"), QStringLiteral("StudioBrushes"),
-    QStringLiteral("StudioEffects"), QStringLiteral("StudioPinnedBrushTips"), QStringLiteral("StudioRing"), QStringLiteral("StudioColorStyle"),
+    QStringLiteral("StudioEffects"), QStringLiteral("StudioBlendModeGroups"), QStringLiteral("StudioPinnedBrushTips"), QStringLiteral("StudioRing"), QStringLiteral("StudioColorStyle"),
     QStringLiteral("StudioColorCopyFormat"), QStringLiteral("StudioLastStrokeFollowsBrush"), QStringLiteral("BrushTipSizeLinked"),
     QStringLiteral("recorder/"), QStringLiteral("recorder_export/"),
 };

@@ -53,10 +53,12 @@ public:
     /// \p pictures' source over their backdrop in mode \p id
     static QImage modePicture(const Pictures &pictures, const QString &id);
 
-    /// Order used when scrolling through modes: the user's modes, then the rest as the picker lists them
+    /// Order used when scrolling through modes: the user's modes and groups, then the rest as the picker lists them
     static QStringList scrollOrder(bool forBrush = false);
     /// The modes the user's list starts with
     static QStringList defaultModes();
+    /// The groups after it the user starts with
+    static QVector<Group> defaultGroups();
 
 Q_SIGNALS:
     /// The highlighted mode changed; an empty id ends the preview

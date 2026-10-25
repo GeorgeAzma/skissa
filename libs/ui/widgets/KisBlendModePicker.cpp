@@ -46,15 +46,22 @@ const QString oldFavoritesKey = QStringLiteral("StudioFavoriteBlendModes");
 QStringList KisBlendModePicker::defaultModes()
 {
     return {
-        QStringLiteral("normal"), KoMixing::layerMode().id(),
+        QStringLiteral("normal"),
         // shading, light and glows
-        QStringLiteral("multiply"), QStringLiteral("screen"), QStringLiteral("overlay"), QStringLiteral("soft_light_svg"),
-        QStringLiteral("dodge"), QStringLiteral("easy dodge"), QStringLiteral("add"),
-        // color over values
-        QStringLiteral("color"), QStringLiteral("luminize"),
-        // inking and erasing
-        QStringLiteral("marker"), QStringLiteral("erase"),
+        QStringLiteral("multiply"), QStringLiteral("screen"), QStringLiteral("overlay"), QStringLiteral("soft_light"),
+        QStringLiteral("dodge"),
+        // color over values, paint into paint
+        QStringLiteral("color"), KoMixing::layerMode().id(),
+        QStringLiteral("add"),
     };
+}
+
+QVector<KisStudioPicker::Group> KisBlendModePicker::defaultGroups()
+{
+    return {{i18nc("blend mode group", "More"),
+             {KoOklch::opId(KoOklch::Color), KoOklch::opId(KoOklch::Hue), KoOklch::opId(KoOklch::Chroma),
+              KoOklch::opId(KoOklch::Lightness), QStringLiteral("luminize"), QStringLiteral("soft_light_svg"),
+              QStringLiteral("easy dodge"), QStringLiteral("marker"), QStringLiteral("erase")}}};
 }
 
 namespace {
@@ -308,6 +315,8 @@ KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures, boo
         }
         return pinned;
     };
+    source.groupsKey = QStringLiteral("StudioBlendModeGroups");
+    source.initialGroups = defaultGroups;
     source.allIds = [forBrush]() {
         QStringList ids;
         Q_FOREACH (const KoID &op, allOps(forBrush)) ids << op.id();

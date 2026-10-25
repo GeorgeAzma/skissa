@@ -8,6 +8,7 @@
 
 #include "KisModernStyle.h"
 #include "KisPopupCloser.h"
+#include "KisPopupSelfActivatingLineEdit.h"
 #include "KisStudioMotion.h"
 #include "KisTouchMode.h"
 #include "kis_config.h"
@@ -17,9 +18,14 @@
 #include <QGuiApplication>
 #include <QContextMenuEvent>
 #include <QHBoxLayout>
+#include <QHash>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
@@ -29,6 +35,7 @@
 #include <QWheelEvent>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QWidgetAction>
 
 #include <KSharedConfig>
 #include <kconfiggroup.h>
@@ -74,12 +81,14 @@ struct Item {
     QString id;
     QString name;
     QRect rect;
-    int order {-1}; ///< position in the user's list, or -1
+    int order {-1}; ///< position in its list of the user's, or -1
+    int list {-1};  ///< which of the user's lists it is in: 0 their own, then their groups; or -1
 };
 
 struct Header {
     QString title;
     QRect rect;
+    int group {-1}; ///< the user's group it heads, or -1
 };
 
 QRect previewRect(const QRect &cell, bool tiles, bool numbered)
@@ -135,20 +144,41 @@ struct KisStudioPicker::Private
     QPointer<QWidget> alternate;
     QAbstractButton *alternateButton {nullptr};
 
+    QVector<Group> groups;
+
     QVector<Item> items;
     QVector<Header> headers;
-    /// The area of the user's list, where a drop pins; empty while searching
-    QRect pinnedArea;
+    /// Where each of the user's lists is, their own and then each group, where a drop puts an item; empty while searching
+    QVector<QRect> listAreas;
 
     bool isAvailable(const QString &id) const { return available.isEmpty() || available.contains(id); }
     bool searching() const { return !search->text().trimmed().isEmpty(); }
+    QStringList listIds(int list) const { return list == 0 ? pinned : groups.value(list - 1).ids; }
 
-    void setPinned(const QStringList &ids)
+    QStringList grouped() const
     {
-        pinned = ids;
-        KisStudioPicker::setPinnedIds(source, ids);
+        QStringList ids;
+        Q_FOREACH (const Group &group, groups) ids << group.ids;
+        return ids;
+    }
+
+    /// Keeps the user's list and groups; a group left empty goes
+    void setLists(const QStringList &newPinned, QVector<Group> newGroups)
+    {
+        newGroups.erase(std::remove_if(newGroups.begin(), newGroups.end(), [](const Group &group) { return group.ids.isEmpty(); }),
+                        newGroups.end());
+        if (newPinned != pinned) {
+            pinned = newPinned;
+            KisStudioPicker::setPinnedIds(source, pinned);
+        }
+        if (newGroups != groups) {
+            groups = newGroups;
+            KisStudioPicker::setUserGroups(source, groups);
+        }
         if (relayout) relayout();
     }
+
+    void setPinned(const QStringList &ids) { setLists(ids, groups); }
 
     /// Highlights and previews the item under the pointer or selected with the keys
     void point(int index)
@@ -193,9 +223,90 @@ struct KisStudioPicker::Private
 
 namespace {
 
+int groupNamed(const QVector<KisStudioPicker::Group> &groups, const QString &title)
+{
+    for (int i = 0; i < groups.size(); i++) {
+        if (groups[i].title.compare(title, Qt::CaseInsensitive) == 0) return i;
+    }
+    return -1;
+}
+
+/// One of the user's lists in an item's menu: its name, and ✕ to take the item out of it or + to put it in
+class ListRow : public QWidget
+{
+public:
+    ListRow(const QString &name, bool in, std::function<void()> toggle, QWidget *parent)
+        : QWidget(parent)
+        , m_name(name)
+        , m_in(in)
+        , m_toggle(std::move(toggle))
+    {
+        setMouseTracking(true);
+        setAttribute(Qt::WA_Hover);
+        setFixedHeight(28);
+        setMinimumWidth(qMax(180, fontMetrics().horizontalAdvance(name) + 64));
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QColor ink = palette().color(QPalette::Text);
+        const QRectF box = QRectF(rect()).adjusted(KisModernStyle::space1, 1, -KisModernStyle::space1, -1);
+        if (underMouse()) {
+            QColor hover = ink;
+            hover.setAlphaF(0.08);
+            painter.fillPath(KisModernStyle::squircle(box, KisModernStyle::cornerRadius), hover);
+        }
+        // the ones it is in in ink, the others quiet
+        const QColor text = m_in ? ink : KisModernStyle::secondaryInk(ink);
+        painter.setPen(text);
+        const QRectF name = box.adjusted(KisModernStyle::space2, 0, -28, 0);
+        painter.drawText(name, Qt::AlignLeft | Qt::AlignVCenter, fontMetrics().elidedText(m_name, Qt::ElideRight, int(name.width())));
+
+        const QPointF mark(box.right() - 14, box.center().y());
+        const qreal arm = m_in ? 3.5 : 4.5;
+        painter.setPen(QPen(underMouse() ? ink : text, 1.5, Qt::SolidLine, Qt::RoundCap));
+        if (m_in) {
+            painter.drawLine(mark + QPointF(-arm, -arm), mark + QPointF(arm, arm));
+            painter.drawLine(mark + QPointF(-arm, arm), mark + QPointF(arm, -arm));
+        } else {
+            painter.drawLine(mark + QPointF(-arm, 0), mark + QPointF(arm, 0));
+            painter.drawLine(mark + QPointF(0, -arm), mark + QPointF(0, arm));
+        }
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        // the menu would take it as a click on nothing
+        event->accept();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton || !rect().contains(event->pos())) return;
+        m_toggle();
+        m_in = !m_in;
+        update();
+    }
+
+    bool event(QEvent *event) override
+    {
+        if (event->type() == QEvent::HoverEnter || event->type() == QEvent::HoverLeave) update();
+        return QWidget::event(event);
+    }
+
+private:
+    QString m_name;
+    bool m_in {false};
+    std::function<void()> m_toggle;
+};
+
 /**
- * The items. A click picks, a drag reorders, pins or unpins, and a right click
- * pins or unpins. In touch mode a tap picks, a swipe scrolls and a long press
+ * The items. A click picks, a drag reorders, pins or unpins, or moves an item
+ * between the user's groups, and a right click pins or unpins, or lists the
+ * groups to put it in. A group's title is renamed on a double click. In touch mode a tap picks, a swipe scrolls and a long press
  * previews; releasing after it picks, moving drags.
  */
 class Grid : public QWidget
@@ -223,9 +334,10 @@ public:
         m_dragging = -1;
         m_lifted = false;
         m_hold.stop();
+        m_dropList = -1;
         m_dropAt = -1;
         m_dropLine = QRect();
-        m_dropUnpins = false;
+        m_dropRemoves = false;
     }
 
 protected:
@@ -270,7 +382,7 @@ protected:
                 painter.drawPath(KisModernStyle::squircle(QRectF(item.rect).adjusted(2, 1, -2, -1), tiles ? 8 : 6));
             }
 
-            const QRect preview = previewRect(item.rect, tiles, item.order >= 0);
+            const QRect preview = previewRect(item.rect, tiles, item.list == 0);
             QPainterPath clip;
             clip.addPath(KisModernStyle::squircle(QRectF(preview), tiles ? 6 : 4));
             painter.save();
@@ -279,7 +391,7 @@ protected:
             if (m_d->source.paintPreview) m_d->source.paintPreview(painter, preview, item.id);
             painter.restore();
 
-            if (item.order >= 0) {
+            if (item.list == 0) {
                 painter.setFont(numberFont);
                 const QString number = QString::number(item.order + 1);
                 if (tiles) {
@@ -310,8 +422,8 @@ protected:
             }
 
             // among matches and recent items, pinned ones always show their star: nothing else marks them
-            const bool pinned = item.order >= 0 || m_d->pinned.contains(item.id);
-            if (highlighted || (pinned && item.order < 0) || KisTouchMode::isActive()) {
+            const bool pinned = item.list == 0 || m_d->pinned.contains(item.id);
+            if (highlighted || (pinned && item.list != 0) || KisTouchMode::isActive()) {
                 const QRectF star = starRect(item.rect, tiles);
                 if (tiles) {
                     painter.setPen(Qt::NoPen);
@@ -332,12 +444,17 @@ protected:
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(pal.color(QPalette::Highlight));
                 painter.drawPath(KisModernStyle::squircle(QRectF(m_dropLine), 1.5));
-            } else if (m_dropUnpins) {
+            } else if (m_dropRemoves) {
+                // everywhere but the list it comes out of
                 QColor wash = pal.color(QPalette::WindowText);
                 wash.setAlphaF(0.06);
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(wash);
-                painter.drawPath(KisModernStyle::squircle(QRectF(0, m_d->pinnedArea.bottom() + 4, width(), height() - m_d->pinnedArea.bottom() - 4), 8));
+                const QRect from = m_d->listAreas.value(m_d->items[m_dragging].list);
+                if (from.top() > 8) painter.drawPath(KisModernStyle::squircle(QRectF(0, 0, width(), from.top() - 4), 8));
+                if (from.bottom() + 8 < height()) {
+                    painter.drawPath(KisModernStyle::squircle(QRectF(0, from.bottom() + 4, width(), height() - from.bottom() - 4), 8));
+                }
             }
             // the dragged item, offset from the pointer so that it doesn't hide the drop line
             const Item &dragged = m_d->items[m_dragging];
@@ -379,8 +496,33 @@ protected:
         event->accept();
         // pinning would re-lay out the items under the drag
         if (m_dragging >= 0) return;
-        const int index = itemAt(event->pos());
-        if (index >= 0) togglePinned(m_d->items[index].id);
+        // inside popups Qt can give the position in the window's coordinates
+        const QPoint pos = mapFromGlobal(event->globalPos());
+        const int header = headerAt(pos);
+        if (header >= 0) {
+            groupMenu(m_d->headers[header].group, event->globalPos());
+            return;
+        }
+        const int index = itemAt(pos);
+        if (index < 0) return;
+        if (m_d->source.groupsKey.isEmpty()) togglePinned(m_d->items[index].id);
+        else listsMenu(m_d->items[index].id, event->globalPos());
+    }
+
+    void mouseDoubleClickEvent(QMouseEvent *event) override
+    {
+        const int header = headerAt(event->pos());
+        if (header >= 0) rename(m_d->headers[header].group);
+        else QWidget::mouseDoubleClickEvent(event);
+    }
+
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == m_renaming && event->type() == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+            m_finishRename(false);
+            return true;
+        }
+        return QWidget::eventFilter(watched, event);
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
@@ -467,6 +609,111 @@ private:
         m_d->setPinned(pinned);
     }
 
+    /// Takes \p id out of the group named \p title or puts it in, making the group if there is none
+    void toggleGrouped(const QString &id, const QString &title, bool onlyAdd = false)
+    {
+        QVector<KisStudioPicker::Group> groups = m_d->groups;
+        const int at = groupNamed(groups, title);
+        if (at < 0) {
+            groups << KisStudioPicker::Group{title, {id}};
+        } else if (!groups[at].ids.contains(id)) {
+            groups[at].ids << id;
+        } else if (!onlyAdd) {
+            groups[at].ids.removeAll(id);
+        }
+        m_d->setLists(m_d->pinned, groups);
+    }
+
+    /// The user's list and groups, each with ✕ to take \p id out of it or + to put it in, then a new group typed
+    void listsMenu(const QString &id, const QPoint &at)
+    {
+        QMenu menu(this);
+        auto addRow = [&menu](const QString &name, bool in, std::function<void()> toggle) {
+            auto *action = new QWidgetAction(&menu);
+            action->setDefaultWidget(new ListRow(name, in, std::move(toggle), &menu));
+            menu.addAction(action);
+        };
+        addRow(m_d->source.yoursTitle, m_d->pinned.contains(id), [this, id]() { togglePinned(id); });
+        Q_FOREACH (const KisStudioPicker::Group &group, m_d->groups) {
+            const QString title = group.title;
+            addRow(title, group.ids.contains(id), [this, id, title]() { toggleGrouped(id, title); });
+        }
+        auto *box = new QWidget(&menu);
+        auto *layout = new QHBoxLayout(box);
+        layout->setContentsMargins(KisModernStyle::space1, KisModernStyle::space1, KisModernStyle::space1, KisModernStyle::space1);
+        auto *field = new KisPopupSelfActivatingLineEdit(box);
+        field->setPlaceholderText(i18nc("@info:placeholder", "New group"));
+        layout->addWidget(field);
+        auto *fieldAction = new QWidgetAction(&menu);
+        fieldAction->setDefaultWidget(box);
+        menu.addAction(fieldAction);
+        QObject::connect(field, &QLineEdit::returnPressed, &menu, [this, &menu, field, id]() {
+            const QString title = field->text().trimmed();
+            if (title.isEmpty()) return;
+            toggleGrouped(id, title, true);
+            menu.close();
+        });
+        menu.exec(at);
+    }
+
+    /// A group's title: rename, move, delete; the user's own list has none
+    void groupMenu(int group, const QPoint &at)
+    {
+        if (group < 0 || group >= m_d->groups.size()) return;
+        QMenu menu(this);
+        QAction *renaming = menu.addAction(i18nc("@action:inmenu", "Rename"));
+        QAction *up = group > 0 ? menu.addAction(i18nc("@action:inmenu", "Move up")) : nullptr;
+        QAction *down = group < m_d->groups.size() - 1 ? menu.addAction(i18nc("@action:inmenu", "Move down")) : nullptr;
+        QAction *removing = menu.addAction(i18nc("@action:inmenu", "Delete"));
+        QAction *chosen = menu.exec(at);
+        if (!chosen) return;
+        if (chosen == renaming) {
+            rename(group);
+            return;
+        }
+        QVector<KisStudioPicker::Group> groups = m_d->groups;
+        if (chosen == up) std::swap(groups[group], groups[group - 1]);
+        else if (chosen == down) std::swap(groups[group], groups[group + 1]);
+        else if (chosen == removing) groups.removeAt(group);
+        m_d->setLists(m_d->pinned, groups);
+    }
+
+    /// The group's name typed in place of its title; a name another group has joins them
+    void rename(int group)
+    {
+        if (group < 0 || group >= m_d->groups.size() || m_renaming) return;
+        const auto header = std::find_if(m_d->headers.cbegin(), m_d->headers.cend(), [group](const Header &h) { return h.group == group; });
+        if (header == m_d->headers.cend()) return;
+        const QString was = m_d->groups[group].title;
+        auto *field = new QLineEdit(was, this);
+        field->setGeometry(header->rect.adjusted(KisModernStyle::space1, KisModernStyle::hairline, -KisModernStyle::space1, 0));
+        field->selectAll();
+        field->installEventFilter(this);
+        field->show();
+        field->setFocus();
+        m_renaming = field;
+        m_finishRename = [this, field, was](bool keep) {
+            if (m_renaming != field) return;
+            m_renaming = nullptr;
+            const QString title = field->text().trimmed();
+            field->deleteLater();
+            m_d->search->setFocus();
+            QVector<KisStudioPicker::Group> groups = m_d->groups;
+            const int at = groupNamed(groups, was);
+            if (!keep || title.isEmpty() || title == was || at < 0) return;
+            const int other = groupNamed(groups, title);
+            if (other >= 0 && other != at) {
+                groups[other].ids << groups[at].ids;
+                groups[other].ids.removeDuplicates();
+                groups.removeAt(at);
+            } else {
+                groups[at].title = title;
+            }
+            m_d->setLists(m_d->pinned, groups);
+        };
+        QObject::connect(field, &QLineEdit::editingFinished, this, [this]() { m_finishRename(true); });
+    }
+
     int itemAt(const QPoint &pos) const
     {
         for (int i = 0; i < m_d->items.size(); i++) {
@@ -475,20 +722,38 @@ private:
         return -1;
     }
 
-    /// Finds where the dragged item would go: next to the pinned item nearest the pointer, or out of the list
+    /// The title of one of the user's groups at \p pos, or -1
+    int headerAt(const QPoint &pos) const
+    {
+        for (int i = 0; i < m_d->headers.size(); i++) {
+            if (m_d->headers[i].group >= 0 && m_d->headers[i].rect.contains(pos)) return i;
+        }
+        return -1;
+    }
+
+    /// Finds where the dragged item would go: next to the item nearest the pointer in the list of the user's under
+    /// it, or out of its list
     void updateDrop()
     {
+        m_dropList = -1;
         m_dropAt = -1;
         m_dropLine = QRect();
-        m_dropUnpins = false;
-        if (!m_d->pinnedArea.adjusted(0, 0, 0, m_d->m.cellHeight / 2).contains(m_pointer)) {
-            m_dropUnpins = m_d->items[m_dragging].order >= 0;
+        m_dropRemoves = false;
+        // a little past a list's end still reaches it, unless that is the next list
+        for (int pass = 0; pass < 2 && m_dropList < 0; pass++) {
+            for (int list = 0; list < m_d->listAreas.size() && m_dropList < 0; list++) {
+                const QRect area = m_d->listAreas[list].adjusted(0, 0, 0, pass ? m_d->m.cellHeight / 2 : 0);
+                if (area.contains(m_pointer)) m_dropList = list;
+            }
+        }
+        if (m_dropList < 0) {
+            m_dropRemoves = m_d->items[m_dragging].list >= 0;
             return;
         }
         int nearest = -1;
         qreal distance = 0;
         for (int i = 0; i < m_d->items.size(); i++) {
-            if (m_d->items[i].order < 0) continue;
+            if (m_d->items[i].list != m_dropList) continue;
             const QPointF offset = QPointF(m_pointer) - QRectF(m_d->items[i].rect).center();
             const qreal d = offset.x() * offset.x() + offset.y() * offset.y();
             if (nearest < 0 || d < distance) {
@@ -497,7 +762,7 @@ private:
             }
         }
         if (nearest < 0) {
-            m_dropAt = m_d->pinned.size();
+            m_dropAt = m_d->listIds(m_dropList).size();
             return;
         }
         // rows are ordered downwards, tiles across
@@ -515,24 +780,30 @@ private:
 
     void drop()
     {
-        const QString id = m_d->items[m_dragging].id;
-        const int from = m_d->pinned.indexOf(id);
+        const Item dragged = m_d->items[m_dragging];
         QStringList pinned = m_d->pinned;
-        if (m_dropAt >= 0) {
-            int to = m_dropAt;
-            if (from >= 0) {
-                pinned.removeAt(from);
-                if (to > from) to--;
+        QVector<KisStudioPicker::Group> groups = m_d->groups;
+        auto idsOf = [&pinned, &groups](int list) -> QStringList & { return list == 0 ? pinned : groups[list - 1].ids; };
+        if (m_dropList >= 0) {
+            QStringList &to = idsOf(m_dropList);
+            int at = m_dropAt;
+            const int was = to.indexOf(dragged.id);
+            if (was >= 0) {
+                to.removeAt(was);
+                if (at > was) at--;
             }
-            pinned.insert(qBound(0, to, pinned.size()), id);
-        } else if (m_dropUnpins) {
-            pinned.removeAll(id);
+            to.insert(qBound(0, at, to.size()), dragged.id);
+            // moved here from another of the user's lists
+            if (dragged.list >= 0 && dragged.list != m_dropList) idsOf(dragged.list).removeAll(dragged.id);
+        } else if (m_dropRemoves) {
+            idsOf(dragged.list).removeAll(dragged.id);
         }
         m_dragging = -1;
+        m_dropList = -1;
         m_dropLine = QRect();
-        m_dropUnpins = false;
-        if (pinned != m_d->pinned) {
-            m_d->setPinned(pinned);
+        m_dropRemoves = false;
+        if (pinned != m_d->pinned || groups != m_d->groups) {
+            m_d->setLists(pinned, groups);
         } else {
             update();
         }
@@ -549,9 +820,12 @@ private:
     QTimer m_hold;
     int m_dragging {-1};
     QPoint m_pointer;
-    int m_dropAt {-1};       ///< target position in the user's list
-    bool m_dropUnpins {false};
+    int m_dropList {-1};     ///< which of the user's lists it goes into
+    int m_dropAt {-1};       ///< target position in that list
+    bool m_dropRemoves {false};
     QRect m_dropLine;
+    QPointer<QLineEdit> m_renaming;
+    std::function<void(bool keep)> m_finishRename;
 };
 
 class LinkButton : public QAbstractButton
@@ -654,9 +928,70 @@ void KisStudioPicker::setPinnedIds(const Source &source, const QStringList &ids)
     KisConfig(false).writeEntry(source.pinnedKey, kept);
 }
 
+namespace {
+QVector<KisStudioPicker::Group> storedGroups(const KisStudioPicker::Source &source)
+{
+    if (!KSharedConfig::openConfig()->group(QString()).hasKey(source.groupsKey)) {
+        return source.initialGroups ? source.initialGroups() : QVector<KisStudioPicker::Group>();
+    }
+    QVector<KisStudioPicker::Group> groups;
+    const QJsonArray array = QJsonDocument::fromJson(KisConfig(true).readEntry<QString>(source.groupsKey, QString()).toUtf8()).array();
+    for (const QJsonValue &value : array) {
+        const QJsonObject object = value.toObject();
+        KisStudioPicker::Group group{object.value(QStringLiteral("title")).toString(), {}};
+        for (const QJsonValue &id : object.value(QStringLiteral("ids")).toArray()) group.ids << id.toString();
+        if (!group.title.isEmpty()) groups << group;
+    }
+    return groups;
+}
+} // namespace
+
+QVector<KisStudioPicker::Group> KisStudioPicker::userGroups(const Source &source)
+{
+    if (source.groupsKey.isEmpty()) return {};
+    const QSet<QString> known = knownIds(source);
+    QVector<Group> shown;
+    Q_FOREACH (Group group, storedGroups(source)) {
+        group.ids.erase(std::remove_if(group.ids.begin(), group.ids.end(), [&known](const QString &id) { return !known.contains(id); }),
+                        group.ids.end());
+        group.ids.removeDuplicates();
+        if (!group.ids.isEmpty()) shown << group;
+    }
+    return shown;
+}
+
+void KisStudioPicker::setUserGroups(const Source &source, const QVector<Group> &groups)
+{
+    if (source.groupsKey.isEmpty()) return;
+    // keep ids unknown right now (a plugin not loaded, a mode only layers have in a brush's picker) for when they
+    // return, and the groups only they are in, which this picker never showed
+    const QSet<QString> known = knownIds(source);
+    QVector<Group> kept = groups;
+    Q_FOREACH (const Group &old, storedGroups(source)) {
+        const int same = groupNamed(kept, old.title);
+        if (same >= 0) {
+            Q_FOREACH (const QString &id, old.ids) {
+                if (!known.contains(id) && !kept[same].ids.contains(id)) kept[same].ids << id;
+            }
+        } else if (std::none_of(old.ids.begin(), old.ids.end(), [&known](const QString &id) { return known.contains(id); })) {
+            kept << old;
+        }
+    }
+    QJsonArray array;
+    Q_FOREACH (const Group &group, kept) {
+        QJsonObject object;
+        object.insert(QStringLiteral("title"), group.title);
+        object.insert(QStringLiteral("ids"), QJsonArray::fromStringList(group.ids));
+        array << object;
+    }
+    KisConfig(false).writeEntry(source.groupsKey, QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
+}
+
 QStringList KisStudioPicker::scrollOrder(const Source &source)
 {
     QStringList order = pinnedIds(source);
+    Q_FOREACH (const Group &group, userGroups(source)) order << group.ids;
+    order.removeDuplicates();
     Q_FOREACH (const Group &group, source.otherGroups(order)) {
         order << group.ids;
     }
@@ -674,6 +1009,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     d->original = current;
     d->available = available;
     d->pinned = pinnedIds(source);
+    d->groups = userGroups(source);
     setAttribute(Qt::WA_TranslucentBackground, KisStudioGlass::seeThroughWindows());
     setAttribute(Qt::WA_DeleteOnClose);
 
@@ -719,44 +1055,50 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
         static_cast<Grid *>(d->grid)->forgetPress();
         d->items.clear();
         d->headers.clear();
-        d->pinnedArea = QRect();
+        d->listAreas.clear();
         const Metrics &m = d->m;
         const bool tiles = d->source.tiles;
         const int width = m.columns * m.cellWidth;
         const QString query = d->search->text().trimmed();
         auto nameOf = [this](const QString &id) { return d->source.name(id); };
-        auto addItem = [&](const QString &id, int column, int top, int order) {
-            const QString name = order >= 0 && d->source.pinnedName ? d->source.pinnedName(id) : nameOf(id);
-            d->items << Item{id, name, QRect(column * m.cellWidth, top, m.cellWidth, m.cellHeight), order};
+        auto addItem = [&](const QString &id, int column, int top, int list, int order) {
+            const QString name = list == 0 && d->source.pinnedName ? d->source.pinnedName(id) : nameOf(id);
+            d->items << Item{id, name, QRect(column * m.cellWidth, top, m.cellWidth, m.cellHeight), order, list};
         };
-        auto orderOf = [](int firstOrder, int i) { return firstOrder >= 0 ? firstOrder + i : -1; };
         const auto rowsFor = [&m](const QStringList &ids) { return std::max(1, int((ids.size() + m.columns - 1) / m.columns)); };
 
-        // left to right, then down
-        auto placeAcross = [&](const QStringList &ids, int top, int firstOrder) {
+        // left to right, then down; \p list is which of the user's lists they are, or -1
+        auto placeAcross = [&](const QStringList &ids, int top, int list) {
             for (int i = 0; i < ids.size(); i++) {
-                addItem(ids[i], i % m.columns, top + (i / m.columns) * m.cellHeight, orderOf(firstOrder, i));
+                addItem(ids[i], i % m.columns, top + (i / m.columns) * m.cellHeight, list, list >= 0 ? i : -1);
             }
             return top + rowsFor(ids) * m.cellHeight;
         };
         // down, then the next column
-        auto placeDown = [&](const QStringList &ids, int top, int firstOrder) {
+        auto placeDown = [&](const QStringList &ids, int top, int list) {
             const int perColumn = rowsFor(ids);
             for (int i = 0; i < ids.size(); i++) {
-                addItem(ids[i], i / perColumn, top + (i % perColumn) * m.cellHeight, orderOf(firstOrder, i));
+                addItem(ids[i], i / perColumn, top + (i % perColumn) * m.cellHeight, list, list >= 0 ? i : -1);
             }
             return top + perColumn * m.cellHeight;
         };
-        auto header = [&](const QString &title, int x, int y, int w) {
-            d->headers << Header{title, QRect(x, y, w, headerHeight)};
+        auto header = [&](const QString &title, int x, int y, int w, int group = -1) {
+            d->headers << Header{title, QRect(x, y, w, headerHeight), group};
             return y + headerHeight;
         };
 
         int height = 0;
         if (!query.isEmpty()) {
+            // a group's name finds what is in it
+            QHash<QString, int> byGroup;
+            Q_FOREACH (const Group &group, d->groups) {
+                const int score = matchScore(query, group.title);
+                if (score <= 0) continue;
+                Q_FOREACH (const QString &id, group.ids) byGroup[id] = std::max(byGroup.value(id), score - 25);
+            }
             QVector<QPair<int, QString>> scored;
             Q_FOREACH (const QString &id, d->source.allIds()) {
-                int score = matchScore(query, nameOf(id));
+                int score = std::max(matchScore(query, nameOf(id)), byGroup.value(id));
                 if (d->source.aliases) {
                     Q_FOREACH (const QString &alias, d->source.aliases(id)) {
                         score = std::max(score, matchScore(query, alias) - 50);
@@ -799,11 +1141,17 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
                 y = header(d->source.yoursTitle, 0, y, width);
                 y = tiles ? placeAcross(d->pinned, y, 0) : placeDown(d->pinned, y, 0);
             }
-            d->pinnedArea = QRect(0, yoursTop, width, y - yoursTop);
+            d->listAreas << QRect(0, yoursTop, width, y - yoursTop);
+            for (int g = 0; g < d->groups.size(); g++) {
+                const int top = y > 0 ? y + 8 : y;
+                y = header(d->groups[g].title, 0, top, width, g);
+                y = tiles ? placeAcross(d->groups[g].ids, y, g + 1) : placeDown(d->groups[g].ids, y, g + 1);
+                d->listAreas << QRect(0, top, width, y - top);
+            }
             height = y;
 
             if (d->showAll) {
-                const QVector<Group> groups = d->source.otherGroups(d->pinned);
+                const QVector<Group> groups = d->source.otherGroups(d->pinned + d->grouped());
                 if (tiles) {
                     if (y > 0) y += 8;
                     Q_FOREACH (const Group &group, groups) {
@@ -817,7 +1165,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
                         const int c = int(std::min_element(heights.begin(), heights.end()) - heights.begin());
                         int top = header(group.title, c * m.cellWidth, heights[c], m.cellWidth);
                         Q_FOREACH (const QString &id, group.ids) {
-                            addItem(id, c, top, -1);
+                            addItem(id, c, top, -1, -1);
                             top += m.cellHeight;
                         }
                         heights[c] = top;
@@ -999,7 +1347,7 @@ bool KisStudioPicker::eventFilter(QObject *watched, QEvent *event)
                 && key->key() <= Qt::Key_9) {
                 const int order = key->key() == Qt::Key_0 ? 9 : key->key() - Qt::Key_1;
                 for (int i = 0; i < count; i++) {
-                    if (d->items[i].order == order) {
+                    if (d->items[i].list == 0 && d->items[i].order == order) {
                         d->pick(i);
                         return true;
                     }
