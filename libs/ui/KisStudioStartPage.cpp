@@ -209,6 +209,8 @@ private:
     {
         m_pool.setMaxThreadCount(2);
         m_clock.start();
+        // quitting waits for the pictures being read, not for all those still queued
+        connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() { m_pool.clear(); });
     }
 
     /// When \p path last changed, looked at no more than every two seconds: asked at every paint and layout of
@@ -1233,7 +1235,8 @@ public:
     static constexpr int pictureLength = 480;
     static constexpr int heroLength = 1024;
 
-    std::function<void(const QString &path)> opened;
+    /// by value: opening refreshes the items it would refer into
+    std::function<void(QString path)> opened;
     std::function<void(const QString &path)> forgotten;
     /// Esc with nothing typed: whether there is somewhere to go back to, and going there
     std::function<bool()> canLeave;
@@ -1266,7 +1269,31 @@ public:
     QSize sizeHint() const override { return QSize(960, heightForWidth(960)); }
 
 protected:
-    void paintEvent(QPaintEvent *) override
+    /// \p picture scaled into \p rect's shape once, so scrolling only copies it
+    QPixmap tile(const QImage &picture, const QRectF &rect, qreal radius)
+    {
+        const qreal ratio = devicePixelRatioF();
+        const QString key = QStringLiteral("%1|%2x%3|%4|%5").arg(picture.cacheKey()).arg(rect.width()).arg(rect.height()).arg(radius).arg(ratio);
+        const auto found = m_tiles.constFind(key);
+        if (found != m_tiles.constEnd()) return *found;
+        QPixmap made((rect.size() * ratio).toSize());
+        made.setDevicePixelRatio(ratio);
+        made.fill(Qt::transparent);
+        {
+            QPainter painter(&made);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            const QRectF local(QPointF(), rect.size());
+            painter.fillPath(KisModernStyle::squircle(local, radius), Qt::white);
+            painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+            painter.drawImage(local, picture);
+        }
+        if (m_tiles.size() > 96) m_tiles.clear();
+        m_tiles.insert(key, made);
+        return made;
+    }
+
+    void paintEvent(QPaintEvent *event) override
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
@@ -1295,6 +1322,7 @@ protected:
         }
         for (int i = 0; i < arranged.placed.size(); i++) {
             const Placed &placed = arranged.placed[i];
+            if (!event->rect().intersects(placed.rect.toAlignedRect())) continue;
             const Item &item = m_items[placed.item];
             const qreal radius = placed.hero ? KisModernStyle::panelRadius : KisModernStyle::cardRadius;
             const QPainterPath shape = KisModernStyle::squircle(placed.rect, radius);
@@ -1304,10 +1332,7 @@ protected:
                 painter.setBrush(withAlpha(ink, 0.06));
                 painter.drawPath(shape);
             } else {
-                painter.save();
-                painter.setClipPath(shape);
-                painter.drawImage(placed.rect, picture);
-                painter.restore();
+                painter.drawPixmap(placed.rect.topLeft(), tile(picture, placed.rect, radius));
             }
             const bool hovered = i == m_hovered;
             const bool selected = i == m_selected && m_keyboard && hasFocus();
@@ -1704,6 +1729,8 @@ private:
 
     QPointer<QStandardItemModel> m_model;
     QVector<Item> m_items;
+    /// The pictures as drawn, by picture, size and shape
+    QHash<QString, QPixmap> m_tiles;
     QString m_filter;
     mutable QRect m_clearRect;
     int m_hovered {-1};
@@ -1870,7 +1897,7 @@ KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
     // the recent images, no wider than reads well
     d->gallery = new Gallery(this);
     d->gallery->setMaximumWidth(1480);
-    d->gallery->opened = [this](const QString &path) {
+    d->gallery->opened = [this](const QString path) {
         if (!d->mainWindow) return;
         // one already open is shown again, not opened twice
         Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {

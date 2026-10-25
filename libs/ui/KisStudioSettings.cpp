@@ -37,6 +37,7 @@
 #include <QPushButton>
 #include <QScreen>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QTimer>
@@ -2022,7 +2023,8 @@ protected:
             return;
         }
         m_pressed = QPoint(-1, -1);
-        auto *drag = new QDrag(this);
+        // dropping the card rebuilds the page it came from: the drag isn't its child
+        auto *drag = new QDrag(qApp);
         auto *mime = new QMimeData();
         mime->setData(cardMime, m_def.id.toUtf8());
         drag->setMimeData(mime);
@@ -2032,6 +2034,7 @@ protected:
         drag->setHotSpot(QPoint(16, 12));
         const Busy busy;
         drag->exec(Qt::CopyAction | Qt::MoveAction);
+        drag->deleteLater();
     }
 
     void enterEvent(QEvent *) override { m_title->setCursor(draggable ? Qt::OpenHandCursor : Qt::ArrowCursor); }
@@ -2576,6 +2579,10 @@ struct KisStudioSettings::Private
     Rail *rail {nullptr};
     QScrollArea *railScroll {nullptr};
     QLineEdit *search {nullptr};
+    /// Typing rebuilds the results once it pauses
+    QTimer *searchTimer {nullptr};
+    /// The section the page showed last, whose place is kept when it is rebuilt
+    QString lastShown;
     QToolButton *changedButton {nullptr};
     QStackedWidget *stack {nullptr};
     QScrollArea *scroll {nullptr};
@@ -2827,6 +2834,7 @@ struct KisStudioSettings::Private
     /// Rebuilds the cards for the section, search or changed list being shown
     void rebuild()
     {
+        if (searchTimer) searchTimer->stop();
         if (cardsBusy || cardDialogOpen()) {
             // Retry once the card's drag, menu or dialog is over
             if (!rebuildPending) {
@@ -2849,6 +2857,8 @@ struct KisStudioSettings::Private
             q->reposition();
             return;
         }
+        const int kept = shown == lastShown && shown != searchId ? scroll->verticalScrollBar()->value() : 0;
+        lastShown = shown;
         showInStack(scroll);
         auto *fresh = new Page(scroll);
         fresh->setAutoFillBackground(false);
@@ -2925,6 +2935,11 @@ struct KisStudioSettings::Private
         fresh->box()->addStretch(1);
         scroll->setWidget(fresh);
         page = fresh;
+        if (kept > 0) {
+            // a theme picked or a card moved further down keeps the page where it was
+            scroll->verticalScrollBar()->setValue(kept);
+            QTimer::singleShot(0, fresh, [this, kept]() { scroll->verticalScrollBar()->setValue(kept); });
+        }
         updateFooter();
         q->reposition();
     }
@@ -3216,7 +3231,15 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
     body->addLayout(footer);
     layout->addLayout(body, 1);
 
-    connect(d->search, &QLineEdit::textChanged, this, [this]() { d->rebuild(); });
+    d->searchTimer = new QTimer(this);
+    d->searchTimer->setSingleShot(true);
+    d->searchTimer->setInterval(120);
+    connect(d->searchTimer, &QTimer::timeout, this, [this]() { d->rebuild(); });
+    connect(d->search, &QLineEdit::textChanged, this, [this](const QString &text) {
+        // every match is built as a card: built once typing pauses, and at once when cleared
+        if (text.trimmed().isEmpty()) d->rebuild();
+        else d->searchTimer->start();
+    });
     connect(d->changedButton, &QToolButton::toggled, this, [this](bool on) {
         d->showChanged = on;
         if (on && !d->search->text().isEmpty()) {

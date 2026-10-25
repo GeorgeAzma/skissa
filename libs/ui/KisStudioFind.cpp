@@ -28,6 +28,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QRegularExpression>
+#include <QSharedPointer>
 #include <QStandardItemModel>
 #include <QStyledItemDelegate>
 #include <QTimer>
@@ -860,12 +861,16 @@ void KisStudioFind::rebuildIndex()
                                        viewManager->canvasResourceProvider()->setPaintOpPreset(preset);
                                    }
                                }});
-            d->entries.last().makeIcon = [resourceId]() {
+            // made once for the kept brushes, not again for each opening's copy of them
+            auto made = QSharedPointer<QIcon>::create();
+            d->entries.last().makeIcon = [resourceId, made]() {
+                if (!made->isNull()) return *made;
                 KisPaintOpPresetResourceServer *server = KisResourceServerProvider::instance()->paintOpPresetServer();
                 if (!server) return QIcon();
                 // look up by id: the model may have been reset since
                 const QModelIndex index = server->resourceModel()->indexForResourceId(resourceId);
-                return QIcon(QPixmap::fromImage(index.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>()));
+                *made = QIcon(QPixmap::fromImage(index.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>()));
+                return *made;
             };
         }
         std::swap(d->entries, d->brushes);

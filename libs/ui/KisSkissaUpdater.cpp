@@ -12,6 +12,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFutureWatcher>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -23,6 +24,7 @@
 #include <QTimer>
 #include <QToolTip>
 #include <QVersionNumber>
+#include <QtConcurrent>
 
 #include <kactioncollection.h>
 #include <klocalizedstring.h>
@@ -180,6 +182,8 @@ public:
                 + QStringLiteral("/releases/latest");
         }
         QNetworkRequest request{QUrl(feed)};
+        // a stalled connection fails instead of keeping the updater busy for the rest of the session
+        request.setTransferTimeout(60000);
         request.setRawHeader("Accept", "application/vnd.github+json");
         request.setRawHeader("User-Agent", "Skissa/" + KisSkissaUpdater::version().toUtf8());
         const State before = state;
@@ -229,10 +233,14 @@ private:
         if (!ready.isEmpty() && isNewer(ready, KisSkissaUpdater::version())) {
             state = Ready;
             found = ready;
-        } else if (QFileInfo::exists(readyFolder())) {
-            QDir(readyFolder()).removeRecursively();
+            if (QFileInfo::exists(unpackFolder())) QtConcurrent::run([]() { QDir(unpackFolder()).removeRecursively(); });
+        } else {
+            // what an earlier run left, removed while the window comes up
+            QtConcurrent::run([]() {
+                if (QFileInfo::exists(readyFolder())) QDir(readyFolder()).removeRecursively();
+                if (QFileInfo::exists(unpackFolder())) QDir(unpackFolder()).removeRecursively();
+            });
         }
-        if (QFileInfo::exists(unpackFolder())) QDir(unpackFolder()).removeRecursively();
     }
 
     QString readyText() const
@@ -271,6 +279,7 @@ private:
         if (asked) tell(i18nc("@info, %1 a version", "Getting Skissa %1…", found));
 
         QNetworkRequest request(url);
+        request.setTransferTimeout(60000);
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
         request.setRawHeader("User-Agent", "Skissa/" + KisSkissaUpdater::version().toUtf8());
         QNetworkReply *reply = network.get(request);
@@ -312,20 +321,30 @@ private:
         connect(tar, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [this, tar](int code, QProcess::ExitStatus status) {
             tar->deleteLater();
             QFile::remove(download.fileName());
-            const QStringList inside = QDir(unpackFolder()).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-            const QString unpacked = inside.size() == 1 ? unpackFolder() + QLatin1Char('/') + inside.first() : QString();
-            QDir(readyFolder()).removeRecursively();
-            if (code != 0 || status != QProcess::NormalExit || unpacked.isEmpty() || versionIn(unpacked) != found || !isComplete(unpacked)
-                || !QDir().rename(unpacked, readyFolder())) {
+            // thousands of files checked, moved and removed: off the window's thread
+            const bool unpackedWell = code == 0 && status == QProcess::NormalExit;
+            const QString version = found;
+            auto *done = new QFutureWatcher<bool>(this);
+            connect(done, &QFutureWatcher<bool>::finished, this, [this, done]() {
+                done->deleteLater();
+                if (!done->result()) {
+                    failed();
+                    return;
+                }
+                state = Ready;
+                Q_FOREACH (QPointer<QAction> action, readyActions) {
+                    if (action) action->setVisible(true);
+                }
+            });
+            done->setFuture(QtConcurrent::run([unpackedWell, version]() {
+                const QStringList inside = QDir(unpackFolder()).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+                const QString unpacked = inside.size() == 1 ? unpackFolder() + QLatin1Char('/') + inside.first() : QString();
+                QDir(readyFolder()).removeRecursively();
+                const bool ready = unpackedWell && !unpacked.isEmpty() && versionIn(unpacked) == version && isComplete(unpacked)
+                    && QDir().rename(unpacked, readyFolder());
                 QDir(unpackFolder()).removeRecursively();
-                failed();
-                return;
-            }
-            QDir(unpackFolder()).removeRecursively();
-            state = Ready;
-            Q_FOREACH (QPointer<QAction> action, readyActions) {
-                if (action) action->setVisible(true);
-            }
+                return ready;
+            }));
         });
         connect(tar, &QProcess::errorOccurred, this, [this, tar](QProcess::ProcessError error) {
             if (error != QProcess::FailedToStart) return;
