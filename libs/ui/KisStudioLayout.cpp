@@ -1842,6 +1842,7 @@ public:
         m_spot = spotOf(QRect(QPoint(left ? box.left() : box.right() + 1 - size.width(), box.top()), size), left, false);
         m_refHeight = size.height();
         m_settled = ++settledCount();
+        m_chosen.start();
         place();
         if (moved) moved(m_left, m_spot);
     }
@@ -1947,9 +1948,11 @@ public:
         // while dragged, it makes way for all the others, as it will once dropped: it shows where it will stay
         const QRect at = clearOfOthers(wanted, span, m_moving ? std::numeric_limits<quint64>::max() : m_settled);
         m_placed = at;
-        // the group placed last made way by choice: where it went is its place, so the next start agrees
+        // the group placed last made way by choice: where it went is its place, so the next start agrees; made
+        // to make way later (the window smaller), it goes back once there is room
         bool madeWay = false;
-        if (!m_moving && at != wanted && m_settled == settledCount() && isVisible() && m_shown.isValid() && m_shown.elapsed() >= 500) {
+        if (!m_moving && at != wanted && m_settled == settledCount() && isVisible() && m_shown.isValid() && m_shown.elapsed() >= 500
+            && m_chosen.isValid() && m_chosen.elapsed() < 1500) {
             m_spot = spotOf(at, m_left, false);
             m_refHeight = at.height();
             madeWay = true;
@@ -2055,6 +2058,17 @@ protected:
             QWidget::mouseMoveEvent(event);
             return;
         }
+        if (!(event->buttons() & Qt::LeftButton)) {
+            // its release went elsewhere (the group was hidden or the window lost the pointer): dropped where it is
+            if (!m_moving) {
+                m_pressed = false;
+                return;
+            }
+            QMouseEvent release(QEvent::MouseButtonRelease, event->localPos(), event->windowPos(), event->screenPos(), Qt::LeftButton,
+                                Qt::NoButton, event->modifiers());
+            mouseReleaseEvent(&release);
+            return;
+        }
         const QPoint global = globalMousePos(event);
         if (!m_moving) {
             if ((global - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
@@ -2093,6 +2107,7 @@ protected:
         update();
         // the group moved last makes way for the others
         m_settled = ++settledCount();
+        m_chosen.start();
         if (joining && joining(this, m_placed, true)) return;
         place();
         if (moved) moved(m_left, m_spot);
@@ -2347,6 +2362,8 @@ private:
     QPoint m_extra;
     QSize m_areaSize;
     QElapsedTimer m_shown;
+    /// Since it was dropped or placed
+    QElapsedTimer m_chosen;
     QVector<int> m_widths;
     int m_dividerStart {0};
     bool m_resizing {false};
@@ -3304,8 +3321,13 @@ void KisStudioLayout::normalize()
             dock->show();
         }
     }
-    // in the rail's order, whatever order a restored state had
-    d->arrangement.clear();
+    // in the rail's order, whatever order a restored state had: a restored state puts panels back in the window's
+    // dock areas, otherwise (a setting changed) they are where they were arranged
+    bool restored = false;
+    Q_FOREACH (QDockWidget *dock, d->panels) {
+        if (dock != d->flyout && d->pinned.contains(dock->objectName()) && dock->parentWidget() == mainWindow) restored = true;
+    }
+    if (restored) d->arrangement.clear();
     arrangePinned();
     updateColumns();
 
@@ -3910,7 +3932,7 @@ void KisStudioLayout::writeGroupPlace(int group, const QRect &rect, QWidget *are
     const int bottom = area->height() - area->property(bottomInsetProperty).toInt() - margin;
     const int roomX = area->width() - 2 * margin - rect.width();
     const int roomY = bottom - top - rect.height();
-    KisConfig(false).writeEntry(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
+    KisSettingsRegistry::writeLater(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
     writeSpot(groupKey(group, "Spot"), QPointF(roomX > 0 ? qBound(0.0, qreal(across) / roomX, 1.0) : 0.0,
                                                roomY > 0 ? qBound(0.0, qreal(rect.y() - top) / roomY, 1.0) : 0.0), rect.height());
 }
@@ -3965,7 +3987,7 @@ KisStudioPanelColumn *KisStudioLayout::groupColumn(int group)
                 return;
             }
         } else {
-            KisConfig(false).writeEntry(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
+            KisSettingsRegistry::writeLater(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
         }
         updateCanvasInsets();
     };
@@ -4041,7 +4063,7 @@ KisStudioPanelColumn *KisStudioLayout::createColumn(int group, bool left)
 void KisStudioLayout::setPanelsTucked(bool tucked)
 {
     d->panelsTucked = tucked;
-    KisConfig(false).writeEntry(panelsHiddenKey, tucked);
+    KisSettingsRegistry::writeLater(panelsHiddenKey, tucked);
     if (d->stripGrip) {
         d->stripGrip->setToolTip(tucked ? i18nc("@info:tooltip", "Click: show panels\nDrag: move")
                                         : i18nc("@info:tooltip", "Drag: move\nClick: hide"));
@@ -4052,14 +4074,14 @@ void KisStudioLayout::setPanelsTucked(bool tucked)
 void KisStudioLayout::setToolRailTucked(bool tucked)
 {
     d->toolRailTucked = tucked;
-    KisConfig(false).writeEntry(toolRailHiddenKey, tucked);
+    KisSettingsRegistry::writeLater(toolRailHiddenKey, tucked);
     if (auto *rail = static_cast<RailOverlay *>(d->brushRail.data())) rail->setTucked(tucked);
 }
 
 void KisStudioLayout::setTopBarTucked(bool tucked)
 {
     d->topBarTucked = tucked;
-    KisConfig(false).writeEntry(topBarHiddenKey, tucked);
+    KisSettingsRegistry::writeLater(topBarHiddenKey, tucked);
     if (d->topPill) d->topPill->setTucked(tucked);
     updateCanvasInsets();
 }
@@ -4067,7 +4089,7 @@ void KisStudioLayout::setTopBarTucked(bool tucked)
 void KisStudioLayout::setPanelsSide(bool left)
 {
     d->panelsLeft = left;
-    KisConfig(false).writeEntry(panelSideKey, left ? QStringLiteral("left") : QStringLiteral("right"));
+    KisSettingsRegistry::writeLater(panelSideKey, left ? QStringLiteral("left") : QStringLiteral("right"));
     d->arrangement.clear();
     arrangePinned();
 }
@@ -4075,7 +4097,7 @@ void KisStudioLayout::setPanelsSide(bool left)
 void KisStudioLayout::setToolRailSide(bool left)
 {
     d->toolRailLeft = left;
-    KisConfig(false).writeEntry(toolRailSideKey, left ? QStringLiteral("left") : QStringLiteral("right"));
+    KisSettingsRegistry::writeLater(toolRailSideKey, left ? QStringLiteral("left") : QStringLiteral("right"));
     if (auto *rail = static_cast<RailOverlay *>(d->brushRail.data())) rail->setPlace(left, d->toolRailSpot);
 }
 
@@ -4317,7 +4339,7 @@ void KisStudioLayout::gripClicked(const QString &id)
     } else {
         d->folded.remove(id);
     }
-    KisConfig(false).writeEntry(foldedKey, QStringList(d->folded.values()));
+    KisSettingsRegistry::writeLater(foldedKey, QStringList(d->folded.values()));
     PanelGrip *grip = d->grips.value(id);
     const int from = dock->height();
     QWidget *content = dock->widget();
@@ -4596,7 +4618,7 @@ void KisStudioLayout::rebuildRailButtons()
 void KisStudioLayout::setRailPanels(const QStringList &panels)
 {
     d->railPanels = panels;
-    KisConfig(false).writeEntry(panelsKey, panels);
+    KisSettingsRegistry::writeLater(panelsKey, panels);
     rebuildRailButtons();
     arrangePinned();
 }

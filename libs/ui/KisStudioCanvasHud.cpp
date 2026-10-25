@@ -548,7 +548,7 @@ bool KisStudioCanvasHud::drag(QMouseEvent *event, QWidget *from)
         d->moving = false;
         unsetCursor();
         if (auto *button = qobject_cast<QAbstractButton *>(from)) button->setDown(false);
-        KisConfig(false).writeEntry(spotKey, QString(QString::number(d->spot.x()) + QLatin1Char(',') + QString::number(d->spot.y())));
+        KisSettingsRegistry::writeLater(spotKey, QString(QString::number(d->spot.x()) + QLatin1Char(',') + QString::number(d->spot.y())));
         return true;
     default:
         return false;

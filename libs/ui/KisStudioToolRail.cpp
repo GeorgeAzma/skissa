@@ -729,7 +729,7 @@ void KisStudioToolRail::setItems(const QStringList &items)
         if (item.startsWith(spacePrefix) || !unique.contains(item)) unique << item;
     }
     d->items = unique;
-    KisConfig(false).writeEntry(itemsKey, d->items);
+    KisSettingsRegistry::writeLater(itemsKey, d->items);
     rebuild();
     updateActiveSlot();
 }
@@ -767,6 +767,7 @@ void KisStudioToolRail::resizeEvent(QResizeEvent *event)
 void KisStudioToolRail::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
+    if (parentWidget()) parentWidget()->installEventFilter(this);
     updatePlus();
 }
 
@@ -810,6 +811,10 @@ bool KisStudioToolRail::eventFilter(QObject *watched, QEvent *event)
     // moving from a gap onto an item sends the rail no move or leave event
     if (event->type() == QEvent::Enter && d->hoverGap >= 0) {
         clearGap();
+    }
+    // the panel holding the rail was moved or resized: the "+" below it follows
+    if (watched == parentWidget() && (event->type() == QEvent::Move || event->type() == QEvent::Resize)) {
+        updatePlus();
     }
     return QWidget::eventFilter(watched, event);
 }
@@ -1040,7 +1045,7 @@ void KisStudioToolRail::showCard(int index, bool touch)
                 choice.pick = [this, slotId, toolId]() { activateTool(slotId, toolId); };
                 choice.hide = [this, toolId]() {
                     d->hidden.insert(toolId);
-                    KisConfig(false).writeEntry(hiddenKey, QStringList(d->hidden.values()));
+                    KisSettingsRegistry::writeLater(hiddenKey, QStringList(d->hidden.values()));
                     QTimer::singleShot(0, this, [this]() {
                         rebuild();
                         updateActiveSlot();
@@ -1059,7 +1064,7 @@ void KisStudioToolRail::showCard(int index, bool touch)
                               i18nc("@info:tooltip", "%1 more", hiddenHere.size()),
                               [this, hiddenHere]() {
                                   Q_FOREACH (const QString &toolId, hiddenHere) d->hidden.remove(toolId);
-                                  KisConfig(false).writeEntry(hiddenKey, QStringList(d->hidden.values()));
+                                  KisSettingsRegistry::writeLater(hiddenKey, QStringList(d->hidden.values()));
                                   rebuild();
                                   updateActiveSlot();
                               }});
@@ -1115,7 +1120,7 @@ void KisStudioToolRail::showRestoreCard(const QPoint &globalPos)
                       i18nc("@info:tooltip", "Reset tools"),
                       [this]() {
                           d->hidden.clear();
-                          KisConfig(false).writeEntry(hiddenKey, QStringList());
+                          KisSettingsRegistry::writeLater(hiddenKey, QStringList());
                           setItems(defaultItems());
                       }});
     // an invisible anchor at the click

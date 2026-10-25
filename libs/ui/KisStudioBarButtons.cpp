@@ -8,6 +8,7 @@
 
 #include "KisStudioBrushEditor.h"
 #include "KisStudioControls.h"
+#include "KisSettingsRegistry.h"
 #include "KisViewManager.h"
 #include "kis_paintop_box.h"
 #include "widgets/KisStudioValueRow.h"
@@ -291,7 +292,7 @@ void KisStudioBarButtons::setItems(const QStringList &items)
         if (!unique.contains(item)) unique << item;
     }
     d->items = unique;
-    KisConfig(false).writeEntry(d->key(), d->items);
+    KisSettingsRegistry::writeLater(d->key(), d->items);
     rebuild();
     Q_EMIT sigItemsChanged();
 }
