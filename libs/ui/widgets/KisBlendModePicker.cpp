@@ -332,7 +332,7 @@ KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures, boo
             painter.drawImage(rect, swatchFor(id));
         };
     }
-    source.yoursTitle = i18nc("blend mode group", "Your modes");
+    source.yoursTitle = i18nc("blend mode group", "Favorites");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 blend modes", allOps(forBrush).size());
     return source;
 }
