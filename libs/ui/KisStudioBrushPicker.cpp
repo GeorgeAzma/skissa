@@ -321,8 +321,6 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
     source.tiles = true;
     source.yoursTitle = i18nc("brush group", "Your brushes");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 brushes", catalog->ids.size());
-    // The count is filled in later, so keep %1 as a placeholder
-    source.allLabel = i18nc("@action:button %1 is a number", "All %1 brushes", QStringLiteral("%1"));
     return source;
 }
 

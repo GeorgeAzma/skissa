@@ -252,8 +252,6 @@ KisStudioPicker::Source effectsSource(KisMainWindow *mainWindow, std::shared_ptr
     source.previewDelay = 150;
     source.yoursTitle = i18nc("effect group", "Your effects");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 effects", ids.size());
-    // keep %1 in the string: the picker fills in the number
-    source.allLabel = i18nc("@action:button %1 is a number", "All %1 effects", QStringLiteral("%1"));
     return source;
 }
 

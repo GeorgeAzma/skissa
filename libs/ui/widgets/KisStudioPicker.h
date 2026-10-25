@@ -22,8 +22,8 @@ class QPainter;
 /**
  * A popup for picking one of many items (blend modes, effects, brushes,
  * panels). It shows the recent items, the user's own numbered list (reordered
- * by dragging, extended with the star), the groups they made, all other items
- * in groups on request, and a search over everything. Hovering an item emits sigPreview(); a click or
+ * by dragging, extended with the star), the groups they made, then all other
+ * items in groups, and a search over everything. Hovering an item emits sigPreview(); a click or
  * Enter picks it, and Escape or a click outside leaves things as they were.
  * A Source describes the items.
  */
@@ -65,8 +65,6 @@ public:
         int previewDelay {0};
         QString yoursTitle;
         QString searchPlaceholder;
-        /// Label of the "show all" link; %1 is the number of items
-        QString allLabel;
     };
 
     /// A picture to preview effects or blend modes on when the canvas is blank

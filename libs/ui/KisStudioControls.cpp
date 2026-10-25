@@ -391,7 +391,6 @@ void KisStudioControlsPanel::pickSetting()
     source.recent = []() { return QStringList(); };
     source.yoursTitle = i18nc("a group of settings", "Yours");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 settings", ids.size());
-    source.allLabel = i18nc("@action:button %1 is a number", "All %1 settings", QStringLiteral("%1"));
     auto *picker = new KisStudioPicker(source, QString(), {}, window());
     connect(picker, &KisStudioPicker::sigPicked, this, [this](const QString &id) {
         setItems(d->items + QStringList{KisStudioControls::settingKey(id)});

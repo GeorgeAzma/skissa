@@ -248,7 +248,6 @@ QWidget *KisTextureOptionWidget::createQuickPage(PaintopCategory category, QWidg
         source.tileSize = QSize(84, 96);
         source.yoursTitle = i18nc("pattern group", "Your patterns");
         source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 patterns", all.size());
-        source.allLabel = i18nc("@action:button %1 is a number", "All %1 patterns", QStringLiteral("%1"));
         const KoPatternSP current = model->textureResource().dynamicCast<KoPattern>();
         auto *picker = new KisStudioPicker(source, current ? current->md5Sum() : QString(), {}, patterns->window());
         connect(picker, &KisStudioPicker::sigPicked, patterns, use);

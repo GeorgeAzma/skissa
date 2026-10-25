@@ -32,7 +32,6 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
-#include <QWheelEvent>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidgetAction>
@@ -130,7 +129,6 @@ struct KisStudioPicker::Private
     QSet<QString> available;
     QStringList pinned;
     std::function<void()> relayout;
-    bool showAll {false};
     bool done {false};
     int highlighted {-1};
     QTimer previewTimer;
@@ -139,7 +137,6 @@ struct KisStudioPicker::Private
     QLineEdit *search {nullptr};
     QWidget *grid {nullptr};
     QScrollArea *scroll {nullptr};
-    QAbstractButton *allButton {nullptr};
     QHBoxLayout *footer {nullptr};
     QPointer<QWidget> alternate;
     QAbstractButton *alternateButton {nullptr};
@@ -1040,16 +1037,6 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     d->grid->setAutoFillBackground(false);
     layout->addWidget(d->scroll);
 
-    auto *footer = new QHBoxLayout();
-    d->footer = footer;
-    footer->setContentsMargins(8, 2, 4, 0);
-    footer->addStretch(1);
-    auto *all = new LinkButton(this);
-    all->setCursor(Qt::PointingHandCursor);
-    d->allButton = all;
-    footer->addWidget(all);
-    layout->addLayout(footer);
-
     // lays out the recent items, the user's numbered list, then the other groups; or the search matches
     d->relayout = [this]() {
         static_cast<Grid *>(d->grid)->forgetPress();
@@ -1134,10 +1121,7 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
                 }
             }
             const int yoursTop = y;
-            if (d->pinned.isEmpty()) {
-                // nothing of the user's yet: everything, to pick from (and it stays shown once one is starred)
-                d->showAll = true;
-            } else {
+            if (!d->pinned.isEmpty()) {
                 y = header(d->source.yoursTitle, 0, y, width);
                 y = tiles ? placeAcross(d->pinned, y, 0) : placeDown(d->pinned, y, 0);
             }
@@ -1148,30 +1132,27 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
                 y = tiles ? placeAcross(d->groups[g].ids, y, g + 1) : placeDown(d->groups[g].ids, y, g + 1);
                 d->listAreas << QRect(0, top, width, y - top);
             }
-            height = y;
 
-            if (d->showAll) {
-                const QVector<Group> groups = d->source.otherGroups(d->pinned + d->grouped());
-                if (tiles) {
-                    if (y > 0) y += 8;
-                    Q_FOREACH (const Group &group, groups) {
-                        y = placeAcross(group.ids, header(group.title, 0, y, width), -1) + 4;
-                    }
-                    height = y;
-                } else {
-                    // put each group into the shortest column
-                    QVector<int> heights(m.columns, y + 8);
-                    Q_FOREACH (const Group &group, groups) {
-                        const int c = int(std::min_element(heights.begin(), heights.end()) - heights.begin());
-                        int top = header(group.title, c * m.cellWidth, heights[c], m.cellWidth);
-                        Q_FOREACH (const QString &id, group.ids) {
-                            addItem(id, c, top, -1, -1);
-                            top += m.cellHeight;
-                        }
-                        heights[c] = top;
-                    }
-                    height = *std::max_element(heights.begin(), heights.end());
+            const QVector<Group> groups = d->source.otherGroups(d->pinned + d->grouped());
+            if (tiles) {
+                if (y > 0) y += 8;
+                Q_FOREACH (const Group &group, groups) {
+                    y = placeAcross(group.ids, header(group.title, 0, y, width), -1) + 4;
                 }
+                height = y;
+            } else {
+                // put each group into the shortest column
+                QVector<int> heights(m.columns, y + 8);
+                Q_FOREACH (const Group &group, groups) {
+                    const int c = int(std::min_element(heights.begin(), heights.end()) - heights.begin());
+                    int top = header(group.title, c * m.cellWidth, heights[c], m.cellWidth);
+                    Q_FOREACH (const QString &id, group.ids) {
+                        addItem(id, c, top, -1, -1);
+                        top += m.cellHeight;
+                    }
+                    heights[c] = top;
+                }
+                height = *std::max_element(heights.begin(), heights.end());
             }
         }
 
@@ -1180,9 +1161,6 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
         d->scroll->setFixedSize(width + (height > maxHeight ? d->scroll->verticalScrollBar()->sizeHint().width() : 0),
                                 std::min(height, maxHeight) + 2);
         d->scroll->setVerticalScrollBarPolicy(height > maxHeight ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
-        d->allButton->setText(d->showAll ? i18nc("@action:button", "Only yours")
-                                         : d->source.allLabel.arg(d->source.allIds().size()));
-        d->allButton->setVisible(query.isEmpty() && !d->pinned.isEmpty());
 
         d->highlighted = -1;
         for (int i = 0; i < d->items.size(); i++) {
@@ -1195,12 +1173,6 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     };
 
     connect(d->search, &QLineEdit::textChanged, this, [this]() { d->relayout(); });
-    connect(all, &QAbstractButton::clicked, this, [this]() {
-        d->showAll = !d->showAll;
-        d->relayout();
-    });
-    // show all items when the current one isn't in the user's list
-    d->showAll = !current.isEmpty() && !d->pinned.contains(current);
     d->relayout();
 }
 
@@ -1224,13 +1196,15 @@ void KisStudioPicker::addAlternateView(QWidget *view, const QString &label, cons
     auto *link = new LinkButton(this);
     link->setCursor(Qt::PointingHandCursor);
     d->alternateButton = link;
-    d->footer->insertWidget(d->footer->count() - 1, link);
-    d->footer->insertSpacing(d->footer->count() - 1, 14);
+    d->footer = new QHBoxLayout();
+    d->footer->setContentsMargins(8, 2, 4, 0);
+    d->footer->addStretch(1);
+    d->footer->addWidget(link);
+    if (auto *box = qobject_cast<QVBoxLayout *>(layout())) box->addLayout(d->footer);
     auto apply = [this, label](bool on) {
         d->alternate->setVisible(on);
         d->scroll->setVisible(!on);
         d->search->setVisible(!on);
-        d->allButton->setVisible(!on && d->search->text().trimmed().isEmpty());
         d->alternateButton->setText(on ? i18nc("@action:button back to the list", "List") : label);
         adjustSize();
         keepOnScreen();
@@ -1299,21 +1273,12 @@ void KisStudioPicker::popupAt(QPoint pos, QWidget *anchor)
 
 void KisStudioPicker::keepOnScreen()
 {
-    // it may grow while shown (show all, the alternate view): keep it on screen
+    // it may grow while shown (a search, the alternate view): keep it on screen
     if (isVisible()) move(onScreen(pos(), size(), screen()));
 }
 
 bool KisStudioPicker::eventFilter(QObject *watched, QEvent *event)
 {
-    // scrolled down past the end of the user's own: the rest comes, without a click
-    if (watched == d->scroll->viewport() && event->type() == QEvent::Wheel && !d->showAll && d->allButton->isVisible()) {
-        const QScrollBar *bar = d->scroll->verticalScrollBar();
-        if (static_cast<QWheelEvent *>(event)->angleDelta().y() < 0 && bar->value() >= bar->maximum()) {
-            d->showAll = true;
-            d->relayout();
-            return true;
-        }
-    }
     if (watched == d->search && event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
         const int count = d->items.size();

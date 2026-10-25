@@ -1745,7 +1745,6 @@ KisBrushTipQuickPage::KisBrushTipQuickPage(KisAutoBrushModel *autoModel,
             source.tileSize = QSize(84, 96);
             source.yoursTitle = i18nc("brush tip group", "Your tips");
             source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 tips", ids.size());
-            source.allLabel = i18nc("@action:button %1 is a number", "All %1 tips", QStringLiteral("%1"));
             const QString current = d->type.get() == Predefined ? d->predefinedModel->resourceSignature().md5sum : QString();
             auto *picker = new KisStudioPicker(source, current, {}, window());
             connect(picker, &KisStudioPicker::sigPicked, this, [this](const QString &md5) {
