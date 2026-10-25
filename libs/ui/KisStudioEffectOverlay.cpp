@@ -750,6 +750,8 @@ void KisStudioEffectOverlay::finishEditing()
     d->guard.reset();
     d->setCursor(false);
     d->dragging = false;
+    // its release may not have been seen
+    d->spaceHeld = false;
     if (d->canvasWidget) {
         d->canvasWidget->removeEventFilter(this);
     }
@@ -837,7 +839,11 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
     if (!d->dragging || (release && button != Qt::LeftButton)) {
         return false;
     }
-    if (release) {
+    // a release that went elsewhere (another window took the pointer) ends the drag at the next move
+    const bool held = type == QEvent::MouseMove ? bool(static_cast<QMouseEvent *>(event)->buttons() & Qt::LeftButton)
+        : type == QEvent::TabletMove           ? bool(static_cast<QTabletEvent *>(event)->buttons() & Qt::LeftButton)
+                                               : true;
+    if (release || !held) {
         d->dragging = false;
         if (d->pill) d->pill->hide();
     } else {

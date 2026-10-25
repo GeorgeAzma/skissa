@@ -637,7 +637,7 @@ protected:
         // into the palette
         const int index = m_press;
         m_press = -1;
-        auto *drag = new QDrag(this);
+        auto *drag = new QDrag(qApp);
         auto *mime = new QMimeData();
         mime->setData(recentMimeType, QByteArray::number(index));
         mime->setColorData(m_colors.value(index));
@@ -645,6 +645,7 @@ protected:
         drag->setPixmap(swatchPixmap(m_colors.value(index), m_cell, 4, devicePixelRatioF()));
         drag->setHotSpot(QPoint(m_cell / 2, m_cell / 2));
         drag->exec(Qt::CopyAction);
+        drag->deleteLater();
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override

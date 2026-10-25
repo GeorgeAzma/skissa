@@ -327,6 +327,8 @@ struct KisColorDrop::Private {
     KoColor keepColor;
     QPoint pressAt;
     bool pressed {false};
+    /// Space held on the canvas: its presses pan, as without the chip
+    bool spaceHeld {false};
 
     KisCanvas2 *canvas() const { return view ? view->canvasBase() : nullptr; }
     QWidget *canvasWidget() const { return canvas() ? canvas()->canvasWidget() : nullptr; }
@@ -400,10 +402,15 @@ struct KisColorDrop::Private {
         });
         watcher->setFuture(QtConcurrent::run([reference, at, t, o, bounds, tint]() {
             Result result;
-            // the gap too, as finding the width of the lines nearby reads a piece of the image
-            result.region = regionAt(reference, at, t, gapFor(o, reference, at, bounds), o, bounds);
-            result.rect = result.region->selectedExactRect();
-            result.overlay = tintedOverlay(result.region, result.rect, tint);
+            // out of memory on a huge image: no preview, rather than an exception thrown into the window's thread
+            try {
+                // the gap too, as finding the width of the lines nearby reads a piece of the image
+                result.region = regionAt(reference, at, t, gapFor(o, reference, at, bounds), o, bounds);
+                result.rect = result.region->selectedExactRect();
+                result.overlay = tintedOverlay(result.region, result.rect, tint);
+            } catch (const std::bad_alloc &) {
+                result = Result();
+            }
             return result;
         }));
     }
@@ -614,7 +621,8 @@ void KisColorDrop::startDrag(QWidget *source, const QColor &color)
 {
     auto *data = new QMimeData;
     data->setColorData(color);
-    QDrag *drag = new QDrag(source);
+    // a swatch may be rebuilt while the drag runs (the color it set changes the panel): the drag isn't its child
+    QDrag *drag = new QDrag(qApp);
     drag->setMimeData(data);
     const qreal ratio = source->devicePixelRatioF();
     QPixmap pixmap(QSize(30, 30) * ratio);
@@ -634,6 +642,7 @@ void KisColorDrop::startDrag(QWidget *source, const QColor &color)
     drag->setPixmap(pixmap);
     drag->setHotSpot(QPoint(15, 15));
     drag->exec(Qt::CopyAction);
+    drag->deleteLater();
 }
 
 bool KisColorDrop::canRecolor(KisNodeSP node)
@@ -753,6 +762,12 @@ bool KisColorDrop::eventFilter(QObject *watched, QEvent *event)
             d->hideChip();
             return true;
         }
+        // only a plain tap fills: middle button, modifiers and Space keep panning, zooming and picking
+        const Qt::MouseButton button = event->type() == QEvent::MouseButtonPress ? static_cast<QMouseEvent *>(event)->button()
+                                                                                 : static_cast<QTabletEvent *>(event)->button();
+        if (button != Qt::LeftButton || static_cast<QInputEvent *>(event)->modifiers() != Qt::NoModifier || d->spaceHeld) {
+            return false;
+        }
         d->pressed = true;
         d->pressAt = position();
         return true;
@@ -773,6 +788,13 @@ bool KisColorDrop::eventFilter(QObject *watched, QEvent *event)
             d->hideChip();
             return true;
         }
+        if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Space) d->spaceHeld = true;
+        return false;
+    case QEvent::KeyRelease:
+        if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Space && !static_cast<QKeyEvent *>(event)->isAutoRepeat()) d->spaceHeld = false;
+        return false;
+    case QEvent::FocusOut:
+        d->spaceHeld = false;
         return false;
     default:
         return false;

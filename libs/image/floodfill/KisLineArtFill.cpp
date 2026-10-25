@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <new>
 #include <vector>
 
 #include <QColor>
@@ -107,8 +108,8 @@ int quantile(std::vector<int> &values, qreal quantile, size_t enough)
 
 } // namespace
 
-void KisLineArtFill::grow(KisPixelSelectionSP region, KisPaintDeviceSP reference, const KoColor &seedColor, int threshold,
-                          bool underLines, int speckSize, int closeGap, const QRect &bounds, KisPaintDeviceSP target)
+static void growArea(KisPixelSelectionSP region, KisPaintDeviceSP reference, const KoColor &seedColor, int threshold,
+                     bool underLines, int speckSize, int closeGap, const QRect &bounds, KisPaintDeviceSP target)
 {
     if (!region || !reference || (!underLines && speckSize <= 1 && closeGap <= 0)) return;
     const QRect filled = region->selectedExactRect() & bounds;
@@ -229,6 +230,16 @@ void KisLineArtFill::grow(KisPixelSelectionSP region, KisPaintDeviceSP reference
         i++;
     }
     region->invalidateOutlineCache();
+}
+
+void KisLineArtFill::grow(KisPixelSelectionSP region, KisPaintDeviceSP reference, const KoColor &seedColor, int threshold,
+                          bool underLines, int speckSize, int closeGap, const QRect &bounds, KisPaintDeviceSP target)
+{
+    // a large area takes about a gigabyte: without it the fill stays as Krita's flood fill made it
+    try {
+        growArea(region, reference, seedColor, threshold, underLines, speckSize, closeGap, bounds, target);
+    } catch (const std::bad_alloc &) {
+    }
 }
 
 int KisLineArtFill::lineWidthNear(KisPaintDeviceSP reference, const QPoint &point, const QRect &bounds, qreal share)

@@ -180,6 +180,8 @@ void KisStudioSelectionAdjust::begin()
     m_live = std::make_shared<KisStudioSelectionAdjust::Live>();
     m_grow = 0;
     m_soft = 0;
+    m_madeGrow = 0;
+    m_madeSoft = 0;
     m_busy = std::make_shared<std::atomic<bool>>(false);
     m_applicator = new KisProcessingApplicator(view->image(), KisNodeSP(), KisProcessingApplicator::NONE, KisImageSignalVector(),
                                                kundo2_i18n("Grow or Soften Selection"));
@@ -190,8 +192,8 @@ void KisStudioSelectionAdjust::set(int grow, int soft)
     if (!m_applicator) return;
     m_grow = grow;
     m_soft = soft;
-    m_pending = true;
-    if (!m_timer.isActive()) m_timer.start();
+    m_pending = grow != m_madeGrow || soft != m_madeSoft;
+    if (m_pending && !m_timer.isActive()) m_timer.start();
 }
 
 void KisStudioSelectionAdjust::apply()
@@ -204,6 +206,8 @@ void KisStudioSelectionAdjust::apply()
         return;
     }
     m_pending = false;
+    m_madeGrow = m_grow;
+    m_madeSoft = m_soft;
     *m_busy = true;
     m_applicator->applyCommand(new Preview(m_selection, m_live, m_grow, m_soft, m_busy), KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::NORMAL);
 }

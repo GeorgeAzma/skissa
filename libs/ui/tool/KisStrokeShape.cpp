@@ -359,11 +359,14 @@ QVector<QPointF> squared(const QVector<QPointF> &quad)
 KisStrokeShape KisStrokeShape::recognize(const QVector<QPointF> &input, qreal pixel)
 {
     KisStrokeShape shape;
-    // the hold at the end piles points up; keep ones that moved
+    // the hold at the end piles points up; keep ones that moved, at most about two thousand: finding the
+    // loop compares them pairwise, and a long scribble held still would stall the stroke
+    const qreal spacing = qMax(0.75 * pixel, pathLength(input) / 2000);
     QVector<QPointF> points;
     for (const QPointF &p : input) {
-        if (points.isEmpty() || distance(p, points.last()) >= 0.75 * pixel) points << p;
+        if (points.isEmpty() || distance(p, points.last()) >= spacing) points << p;
     }
+    if (!input.isEmpty() && points.size() > 1 && distance(input.last(), points.last()) >= 0.75 * pixel) points << input.last();
     if (points.size() < 5) return shape;
     const qreal length = pathLength(points);
     if (length < 30 * pixel) return shape;

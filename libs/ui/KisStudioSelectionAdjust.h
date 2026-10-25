@@ -47,6 +47,9 @@ private:
     int m_grow {0};
     int m_soft {0};
     bool m_pending {false};
+    /// The amounts the selection was last made with, so letting go doesn't make it again
+    int m_madeGrow {0};
+    int m_madeSoft {0};
     bool m_ending {false};
     /// A value is being made; the next waits for it
     std::shared_ptr<std::atomic<bool>> m_busy {std::make_shared<std::atomic<bool>>(false)};
