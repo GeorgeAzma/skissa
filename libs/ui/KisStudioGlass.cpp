@@ -374,6 +374,9 @@ public:
         m_epoch++;
     }
 
+    /// Stops following the canvas, whose glass the canvas draws itself now
+    void stop() { follow(nullptr); }
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
@@ -1595,7 +1598,8 @@ QImage shadowImage(const QSizeF &panel, qreal radius, int margin, qreal sigma, q
         }
     }
     image.setDevicePixelRatio(ratio);
-    if (cache.size() > 32) cache.clear();
+    // one makes room, so the other popups' shadows aren't blurred again
+    if (cache.size() > 48) cache.erase(cache.begin());
     cache.insert(key, image);
     return image;
 }
@@ -1894,7 +1898,11 @@ void KisStudioGlass::setDrawnByCanvas(QWidget *canvasWidget, bool on)
         return;
     }
     canvasWidget->setProperty(drawnByCanvasProperty, on);
-    if (on) Panels::instance().addCanvas(canvasWidget);
+    if (on) {
+        Panels::instance().addCanvas(canvasWidget);
+        // the backdrops painted in software until now: no longer kept up with every stroke
+        Engine::instance().stop();
+    }
     Panels::instance().repaintOver(canvasWidget);
     canvasWidget->update();
 }

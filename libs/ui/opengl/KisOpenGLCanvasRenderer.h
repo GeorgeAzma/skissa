@@ -70,8 +70,9 @@ public:
     bool drawsGlass() const;
     /// The glass will be drawn once its shaders are linked
     bool glassPending() const;
-    /// Whether drawing \p canvasImageDirtyRect (widget pixels) again changes the image's glow, which is then drawn again all around it
-    bool changesAmbient(const QRect &canvasImageDirtyRect);
+    /// Where drawing \p canvasImageDirtyRect (widget pixels) again changes the image's glow: empty when nowhere,
+    /// the whole widget when the glow is drawn anew
+    QRect ambientChange(const QRect &canvasImageDirtyRect);
 
 private:
     void renderCanvasGL(const QRect &updateRect);

@@ -495,7 +495,15 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
     // Glass plate with a soft shadow; a corner radius of half the side makes the square a circle
     const qreal plate = (plateRadius - 6) * m_scale;
     const QRectF plateRect(m_center - QPointF(plate, plate), QSizeF(2 * plate, 2 * plate));
-    KisStudioGlass::paintShadow(painter, plateRect, plate, 8, 26, 3);
+    {
+        // the shadow at its full size, scaled while the ring opens: one blurred picture, not one per frame
+        const qreal full = plateRadius - 6;
+        painter.save();
+        painter.translate(m_center);
+        painter.scale(m_scale, m_scale);
+        KisStudioGlass::paintShadow(painter, QRectF(-full, -full, 2 * full, 2 * full), full, 8, 26, 3);
+        painter.restore();
+    }
     painter.save();
     const QPainterPath plateShape = KisStudioGlass::paint(painter, this, plateRect, plate);
     painter.restore();

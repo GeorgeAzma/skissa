@@ -816,7 +816,8 @@ struct KisOpenGLGlass::Private : Programs
     QScopedPointer<QOpenGLFramebufferObject> ambientBlurred;
     /// The glow around the image was drawn again since the last blur: what is wholly inside the image (in surface
     /// pixels, empty if it is turned) kept its look
-    bool ambientChanged {false};
+    /// Where the glow changed since the panels were last blurred, in surface pixels
+    QRect ambientChanged;
     QRect ambientInside;
     /// What the glow was last made for; it is in the canvas until the canvas is drawn again without it.
     QTransform ambientSurfaceToImage;
@@ -981,7 +982,7 @@ Kernel gaussian(qreal sigma)
 } // namespace
 
 void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvasFormat, qreal pixelRatio, const QTransform &surfaceToImage,
-                                   const QColor &base)
+                                   const QColor &base, const QRect &changed)
 {
     if (!d->ready() || !canvas) {
         return;
@@ -1003,7 +1004,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     d->ambientViewport = viewport;
     d->ambientRatio = pixelRatio;
     // The glow is drawn all around the image, not over it: panels over the image keep their blur.
-    d->ambientChanged = true;
+    d->ambientChanged |= changed;
     d->ambientInside = imageToSurface.type() <= QTransform::TxScale
         ? imageToSurface.mapRect(QRectF(0, 0, 1, 1)).toAlignedRect().adjusted(1, 1, -1, -1)
         : QRect();
@@ -1215,7 +1216,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         const Private::Blur blur {region.area, region.around, region.shift, region.sigma};
         // The canvas pixels the slot is downsampled from.
         const QRect read(region.around.topLeft() * factor, region.around.size() * factor);
-        if (!d->blurs.contains(blur) || read.intersects(d->changed) || (d->ambientChanged && !d->ambientInside.contains(read))) {
+        if (!d->blurs.contains(blur) || read.intersects(d->changed) || (d->ambientChanged.intersects(read) && !d->ambientInside.contains(read))) {
             blurring << region;
         }
         blurs << blur;
@@ -1223,7 +1224,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     d->blurs = blurs;
     d->changed = QRect();
     d->changedAll = false;
-    d->ambientChanged = false;
+    d->ambientChanged = QRect();
     d->blurredViewport = viewport;
     d->blurredFactor = factor;
     d->blurredCanvas = canvas;

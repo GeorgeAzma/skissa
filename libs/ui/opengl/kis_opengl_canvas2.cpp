@@ -240,7 +240,8 @@ void KisOpenGLCanvas2::resizeGL(int width, int height)
     d->renderer->resizeGL(width, height);
     d->canvasImageDirtyRect = QRect(0, 0, width, height);
     d->drawsGlass = d->renderer->drawsGlass();
-    KisStudioGlass::setDrawnByCanvas(this, d->drawsGlass);
+    // while the glass shaders link, the panels paint solid rather than blur the canvas in software
+    KisStudioGlass::setDrawnByCanvas(this, d->drawsGlass || d->renderer->glassPending());
 }
 
 void KisOpenGLCanvas2::paintGL()
@@ -257,7 +258,7 @@ void KisOpenGLCanvas2::paintGL()
     const bool drawsGlass = d->renderer->drawsGlass();
     if (drawsGlass != d->drawsGlass) {
         d->drawsGlass = drawsGlass;
-        KisStudioGlass::setDrawnByCanvas(this, drawsGlass);
+        KisStudioGlass::setDrawnByCanvas(this, drawsGlass || d->renderer->glassPending());
         d->canvasImageDirtyRect = rect();
     } else if (!drawsGlass && d->renderer->glassPending() && !d->glassRecheck) {
         d->glassRecheck = true;
@@ -341,11 +342,11 @@ void KisOpenGLCanvas2::paintEvent(QPaintEvent *e)
         d->updateRect = this->rect();
     }
 
-    // the image changed near its edges or moved: the light it casts around it changed, all over (see
-    // KisStudioGlass::ambientSurround)
-    if (KisStudioGlass::ambientSurround() && d->renderer->drawsGlass() && !d->renderer->wrapAroundViewingMode()
-        && d->renderer->changesAmbient(d->canvasImageDirtyRect & rect())) {
-        *d->updateRect = rect();
+    // the image changed near its edges or moved: the light it casts around it changed there, or all over
+    // (see KisStudioGlass::ambientSurround)
+    if (KisStudioGlass::ambientSurround() && d->renderer->drawsGlass() && !d->renderer->wrapAroundViewingMode()) {
+        *d->updateRect |= d->renderer->ambientChange(d->canvasImageDirtyRect & rect());
+        *d->updateRect &= rect();
     }
 
     // the glass blurs what is around it too: the image changed near it, it is drawn again whole (only

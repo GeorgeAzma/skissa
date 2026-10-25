@@ -491,9 +491,10 @@ void KisOpenGLCanvasRenderer::paintCanvasOnly(const QRect &canvasImageDirtyRect,
             d->glass.canvasRedrawn(widgetToSurface(canvasImageDirtyRect).toAlignedRect());
             // the light the image casts around it; none in wrap-around mode, where its copies are all around it
             if (KisStudioGlass::ambientSurround() && d->glass.isValid() && !d->wrapAroundMode) {
-                if (changesAmbient(canvasImageDirtyRect)) {
+                const QRect ambient = ambientChange(canvasImageDirtyRect);
+                if (!ambient.isEmpty()) {
                     d->glass.renderAmbient(d->canvasFBO.data(), d->canvasBridge->internalTextureFormat(), devicePixelRatioF(), surfaceToImage(),
-                                           colorToDisplaySpace(borderColor()));
+                                           colorToDisplaySpace(borderColor()), widgetToSurface(ambient).toAlignedRect());
                 }
             } else {
                 d->glass.dropAmbient();
@@ -528,19 +529,24 @@ QTransform KisOpenGLCanvasRenderer::surfaceToImage()
     return (coordinatesConverter()->imageToWidgetTransform() * widgetToSurface).inverted() * imageToUnit;
 }
 
-bool KisOpenGLCanvasRenderer::changesAmbient(const QRect &canvasImageDirtyRect)
+QRect KisOpenGLCanvasRenderer::ambientChange(const QRect &canvasImageDirtyRect)
 {
     if (canvasImageDirtyRect.isEmpty()) {
-        return false;
+        return QRect();
     }
+    const QRect whole(QPoint(), d->pixelAlignedWidgetSize.toSize());
     if (!d->glass.hasAmbient(d->viewportDevicePixelSize, devicePixelRatioF(), surfaceToImage(), colorToDisplaySpace(borderColor()))) {
-        return true;
+        return whole;
     }
-    // the glow is cast only by the image near its edges: a change deep inside it leaves the glow as it is
+    // the glow is cast only by the image near its edges: a change deep inside it leaves the glow as it is,
+    // and one near them changes it only as far as the glow reaches
     const int reach = qCeil(KisOpenGLGlass::ambientReach());
-    const QRectF around(canvasImageDirtyRect.adjusted(-reach, -reach, reach, reach));
-    const QRectF inImage = coordinatesConverter()->imageToWidgetTransform().inverted().mapRect(around);
-    return !QRectF(coordinatesConverter()->imageRectInImagePixels()).contains(inImage);
+    const QRect around = canvasImageDirtyRect.adjusted(-reach, -reach, reach, reach);
+    const QRectF inImage = coordinatesConverter()->imageToWidgetTransform().inverted().mapRect(QRectF(around));
+    if (QRectF(coordinatesConverter()->imageRectInImagePixels()).contains(inImage)) {
+        return QRect();
+    }
+    return around & whole;
 }
 
 bool KisOpenGLCanvasRenderer::glassPending() const

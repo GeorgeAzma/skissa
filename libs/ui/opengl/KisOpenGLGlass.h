@@ -55,8 +55,9 @@ public:
     void canvasRedrawn(const QRect &surfaceRect);
 
     /// Draws the image's ambient glow into \p canvas around it; \p surfaceToImage maps to 0..1 across the image.
+    /// \p changed is where it differs from the last one (surface pixels), whose panels are blurred again.
     void renderAmbient(QOpenGLFramebufferObject *canvas, uint canvasFormat, qreal pixelRatio, const QTransform &surfaceToImage,
-                       const QColor &base);
+                       const QColor &base, const QRect &changed);
 
     /// Whether the glow last drawn by renderAmbient() was for these arguments, so it is still in the canvas.
     bool hasAmbient(const QSize &viewport, qreal pixelRatio, const QTransform &surfaceToImage, const QColor &base) const;
