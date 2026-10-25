@@ -55,6 +55,8 @@ public:
 
     /// Order used when scrolling through modes: the user's modes, then the rest as the picker lists them
     static QStringList scrollOrder(bool forBrush = false);
+    /// The modes the user's list starts with
+    static QStringList defaultModes();
 
 Q_SIGNALS:
     /// The highlighted mode changed; an empty id ends the preview

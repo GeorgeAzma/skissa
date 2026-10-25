@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisSettingsRegistry.h"
+#include "widgets/KisBlendModePicker.h"
 #include <KisProfile.h>
 
 #include <QApplication>
@@ -518,6 +519,16 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("StudioViewPill"), true, i18nc("setting", "Zoom pill"), R::Fork);
         all << toggle(QStringLiteral("StudioColorIntensity"), true, i18nc("setting", "Brighter than white"), R::Fork);
         all << toggle(QStringLiteral("StudioTooltips"), true, i18nc("setting", "Tooltips"), R::Fork);
+        {
+            // the blend modes listed first (Your modes); Krita's own key, so taking Krita's settings brings them
+            Setting favorites = text(QStringLiteral("favoriteCompositeOps"), QString(), i18nc("setting", "Favorite blend modes"));
+            favorites.fallbackNow = []() { return KisBlendModePicker::defaultModes().join(QLatin1Char(',')); };
+            favorites.format = [](const QVariant &value) {
+                const int count = value.toString().split(QLatin1Char(','), Qt::SkipEmptyParts).size();
+                return i18ncp("how many blend modes are favorites", "%1 mode", "%1 modes", count);
+            };
+            all << favorites;
+        }
         all << toggle(QStringLiteral("StudioUpdates"), true, i18nc("setting", "Update automatically"), R::Fork);
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in effects")), QStringLiteral("filterdialog"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in Transform")), QStringLiteral("KisToolTransform"));

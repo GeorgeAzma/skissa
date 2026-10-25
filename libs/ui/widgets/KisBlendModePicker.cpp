@@ -37,11 +37,13 @@ namespace {
 
 using Group = KisStudioPicker::Group;
 
-/// Legacy setting with starred modes, used to seed the user's list
+/// Earlier places of the user's list: their own order, then starred modes
+const QString oldListKey = QStringLiteral("StudioBlendModes");
 const QString oldFavoritesKey = QStringLiteral("StudioFavoriteBlendModes");
 
-/// The few modes painters reach for, grouped by effect; the rest are a scroll away
-QStringList defaultPinned()
+} // namespace
+
+QStringList KisBlendModePicker::defaultModes()
 {
     return {
         QStringLiteral("normal"), KoMixing::layerMode().id(),
@@ -54,6 +56,8 @@ QStringList defaultPinned()
         QStringLiteral("marker"), QStringLiteral("erase"),
     };
 }
+
+namespace {
 
 /// Blends \p source over \p backdrop using the real composite op \p id
 QImage compositeWith(const QImage &backdrop, const QImage &source, qreal opacity, const QString &id)
@@ -293,13 +297,13 @@ QVector<Group> otherGroups(const QStringList &pinned, bool forBrush)
 KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures, bool forBrush)
 {
     Source source;
-    source.pinnedKey = QStringLiteral("StudioBlendModes");
+    // Krita's own favorites, so Take Krita's settings brings them and Ctrl+Z undoes it
+    source.pinnedKey = QStringLiteral("favoriteCompositeOps");
     source.initialPinned = []() {
         KisConfig cfg(true);
+        if (KSharedConfig::openConfig()->group(QString()).hasKey(oldListKey)) return cfg.readEntry<QStringList>(oldListKey, QStringList());
         QStringList pinned = cfg.readEntry<QStringList>(oldFavoritesKey, QStringList());
-        // or the favorites made in Krita's own layer blend list, when this profile has them
-        if (pinned.isEmpty() && KSharedConfig::openConfig()->group(QString()).hasKey("favoriteCompositeOps")) return cfg.favoriteCompositeOps();
-        Q_FOREACH (const QString &id, defaultPinned()) {
+        Q_FOREACH (const QString &id, defaultModes()) {
             if (!pinned.contains(id)) pinned << id;
         }
         return pinned;
