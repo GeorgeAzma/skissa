@@ -848,8 +848,9 @@ QAbstractScrollArea *mainScrollArea(const QDockWidget *dock)
     return best;
 }
 
-/// How tall \p area's contents are: what it shows without scrolling; -1 if that can't be told
-int contentsHeight(QAbstractScrollArea *area)
+/// How tall \p area's contents are: what it shows without scrolling; -1 if that can't be told. Past \p enough,
+/// just that: a tree's rows are walked one by one
+int contentsHeight(QAbstractScrollArea *area, int enough = std::numeric_limits<int>::max())
 {
     if (auto *scroll = qobject_cast<QScrollArea *>(area)) {
         QWidget *widget = scroll->widget();
@@ -863,10 +864,15 @@ int contentsHeight(QAbstractScrollArea *area)
     if (model->rowCount(root) == 0) return 0;
     const QModelIndex first = model->index(0, 0, root);
     QModelIndex last = model->index(model->rowCount(root) - 1, 0, root);
-    if (auto *tree = qobject_cast<QTreeView *>(view)) {
-        for (QModelIndex i = first; i.isValid(); i = tree->indexBelow(i)) last = i;
-    }
     const QRect top = view->visualRect(first);
+    if (auto *tree = qobject_cast<QTreeView *>(view)) {
+        for (QModelIndex i = first; i.isValid(); i = tree->indexBelow(i)) {
+            last = i;
+            if (enough < std::numeric_limits<int>::max() && top.isValid() && view->visualRect(i).bottom() - top.top() + 1 >= enough) {
+                return enough;
+            }
+        }
+    }
     const QRect bottom = view->visualRect(last);
     if (!top.isValid() || !bottom.isValid()) return -1;
     auto *list = qobject_cast<QListView *>(view);
@@ -1004,7 +1010,10 @@ private:
         }
         int natural;
         QAbstractScrollArea *area = mainScrollArea(dock);
-        const int contents = area ? contentsHeight(area) : -1;
+        int byHand = userHeight ? userHeight(dock) : 0;
+        // with its height set, only whether it has a little to show counts: a long list (layers, the history
+        // after every stroke) isn't walked row by row
+        const int contents = area ? contentsHeight(area, byHand > 0 ? minimumContents : std::numeric_limits<int>::max()) : -1;
         if (area && contents >= 0 && dock->height() <= titleHeight) {
             // not laid out yet: measured again once it is
             m_remeasure = true;
@@ -1018,7 +1027,6 @@ private:
             natural = dock->hasHeightForWidth() ? dock->heightForWidth(width()) : dock->sizeHint().height();
             m.minimum = dock->minimumSizeHint().height();
         }
-        int byHand = userHeight ? userHeight(dock) : 0;
         // a panel that scrolls keeps the height it first fitted, so what grows in it (layers, brushes) scrolls
         // instead of pushing the panels below it down; its handle sets another, a right click fits it again
         if (byHand <= 0 && area && contents >= 0 && dock->height() > titleHeight && settled) {
@@ -5455,6 +5463,17 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
         const QPoint global = event->type() == QEvent::MouseMove ? static_cast<QMouseEvent *>(event)->globalPos()
                                                                   : static_cast<QTabletEvent *>(event)->globalPos();
         if (widget && widget->window() == d->mainWindow) peek(global);
+    }
+    // what the pointer brought back goes when it leaves the window (to another screen), unless it went to a menu
+    // or popup of the window's own
+    if (event->type() == QEvent::Leave && watched == d->mainWindow && isCanvasOnly() && !d->peeking.isEmpty()) {
+        QTimer::singleShot(300, this, [this]() {
+            if (!isCanvasOnly() || QApplication::activePopupWidget() || QApplication::widgetAt(QCursor::pos())) return;
+            for (const QPointer<QWidget> &widget : d->peeking) {
+                if (widget) KisStudioMotion::hideFaded(widget);
+            }
+            d->peeking.clear();
+        });
     }
     // a text field takes Undo and Redo only while it has typing of its own to undo; otherwise they go to the window
     if (event->type() == QEvent::ShortcutOverride) {
