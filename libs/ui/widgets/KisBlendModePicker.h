@@ -57,8 +57,6 @@ public:
     static QStringList scrollOrder(bool forBrush = false);
     /// The modes the user's list starts with
     static QStringList defaultModes();
-    /// The groups after it the user starts with
-    static QVector<Group> defaultGroups();
 
 Q_SIGNALS:
     /// The highlighted mode changed; an empty id ends the preview

@@ -56,14 +56,6 @@ QStringList KisBlendModePicker::defaultModes()
     };
 }
 
-QVector<KisStudioPicker::Group> KisBlendModePicker::defaultGroups()
-{
-    return {{i18nc("blend mode group", "More"),
-             {KoOklch::opId(KoOklch::Color), KoOklch::opId(KoOklch::Hue), KoOklch::opId(KoOklch::Chroma),
-              KoOklch::opId(KoOklch::Lightness), QStringLiteral("luminize"), QStringLiteral("soft_light_svg"),
-              QStringLiteral("easy dodge"), QStringLiteral("marker"), QStringLiteral("erase")}}};
-}
-
 namespace {
 
 /// Blends \p source over \p backdrop using the real composite op \p id
@@ -316,7 +308,6 @@ KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures, boo
         return pinned;
     };
     source.groupsKey = QStringLiteral("StudioBlendModeGroups");
-    source.initialGroups = defaultGroups;
     source.allIds = [forBrush]() {
         QStringList ids;
         Q_FOREACH (const KoID &op, allOps(forBrush)) ids << op.id();
