@@ -70,6 +70,7 @@
 #include "KisSettingsRegistry.h"
 #include "KisSkissaUpdater.h"
 #include "KisStudioBarButtons.h"
+#include "KisStudioBrushTweaks.h"
 #include "KisStudioBrushEditor.h"
 #include "KisStudioMakeBrush.h"
 #include "KisStudioBrushMemory.h"
@@ -2932,6 +2933,8 @@ void KisStudioLayout::enter()
         KisStudioMakeBrush::fromSelection(mainWindow->viewManager());
     });
     KisSkissaUpdater::addActions(mainWindow);
+    // brush tweaks not saved yet come back after a restart
+    KisStudioBrushTweaks::watch(mainWindow);
     addPicker(QStringLiteral("studio_home"), QStringLiteral("krita-branding"), i18nc("@action your artworks: the start page", "Home"), [this]() {
         showHome(!d->mainWindow->isWelcomeScreenShown());
     });
