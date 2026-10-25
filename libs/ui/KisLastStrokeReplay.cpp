@@ -14,6 +14,8 @@
 #include "KisMainWindow.h"
 #include "KisPart.h"
 #include "KisView.h"
+#include "KisViewManager.h"
+#include "kis_canvas_resource_provider.h"
 #include "kis_config.h"
 #include "tool/kis_tool_freehand_helper.h"
 
@@ -21,12 +23,31 @@ namespace {
 const QString enabledKey = QStringLiteral("StudioLastStrokeFollowsBrush");
 }
 
+namespace
+{
+/// What the canvas adds to the brush as it paints, which the replay takes as it is now: the eraser, alpha lock and mirroring
+QString paintMode()
+{
+    KisMainWindow *window = KisPart::instance()->currentMainwindow();
+    KisViewManager *view = window ? window->viewManager() : nullptr;
+    KoCanvasResourceProvider *resources = view && view->canvasResourceProvider() ? view->canvasResourceProvider()->resourceManager() : nullptr;
+    if (!resources) return QString();
+    return QStringList({resources->resource(KoCanvasResource::CurrentEffectiveCompositeOp).toString(),
+                        QString::number(resources->resource(KoCanvasResource::GlobalAlphaLock).toBool()),
+                        QString::number(resources->resource(KoCanvasResource::MirrorHorizontal).toBool()),
+                        QString::number(resources->resource(KoCanvasResource::MirrorVertical).toBool())})
+        .join(QLatin1Char(';'));
+}
+} // namespace
+
 struct KisLastStrokeReplay::Private
 {
     QPointer<KisToolFreehandHelper> helper;
     QPointer<KUndo2Stack> stack;
     QMetaObject::Connection stackConnection;
     QString preset;
+    /// What the canvas added to the brush as the stroke was painted (see paintMode())
+    QString mode;
     /// The brush's settings the stroke was last painted with (or will be)
     QString settings;
     /// The stroke's step in the history, once it is there
@@ -77,6 +98,7 @@ void KisLastStrokeReplay::strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack
 {
     d->helper = helper;
     d->preset = preset;
+    d->mode = paintMode();
     // the smoothing too: a change of it paints the stroke again as well
     d->settings = settings + (helper ? helper->smoothingKey() : QString());
     d->step = nullptr;
@@ -101,7 +123,8 @@ void KisLastStrokeReplay::strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack
 
 bool KisLastStrokeReplay::follows(const QString &preset) const
 {
-    return d->helper && preset == d->preset && isEnabled();
+    // painted again with the eraser switched on since, a stroke would erase what is under it
+    return d->helper && preset == d->preset && isEnabled() && paintMode() == d->mode;
 }
 
 void KisLastStrokeReplay::brushChanged(const QString &preset, const QString &settings)
@@ -110,11 +133,13 @@ void KisLastStrokeReplay::brushChanged(const QString &preset, const QString &set
     if (!follows(preset)) return;
     const QString look = settings + d->helper->smoothingKey();
     if (look == d->settings) return;
+    // only the smoothing changed: it is dragged, and a stabilized stroke is slow to paint again, so once the drag pauses
+    const bool smoothingOnly = d->settings.startsWith(settings);
     d->settings = look;
     d->dirty = true;
     d->retries = 0;
     // after the change has reached the brush the stroke is painted with
-    d->retry.start(0);
+    d->retry.start(smoothingOnly ? 150 : 0);
 }
 
 void KisLastStrokeReplay::replay()

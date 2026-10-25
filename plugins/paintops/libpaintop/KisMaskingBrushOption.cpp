@@ -33,6 +33,7 @@
 #include <functional>
 #include <cmath>
 #include <QPainter>
+#include <QSharedPointer>
 #include <strokes/KisMaskingBrushCompositeOpBase.h>
 #include <KoChannelInfo.h>
 #include "KisAutoBrushModel.h"
@@ -357,11 +358,22 @@ QWidget *KisMaskingBrushOption::createQuickPage(PaintopCategory category, QWidge
         shown->clear();
         QVector<KisStudioChips::Chip> chips;
         auto pictureOf = [modes](const QString &id) {
-            return [modes, id](QPainter &painter, const QRectF &box) {
+            // drawn once per size and ink: the tiles are painted again at every hover
+            struct Made {
+                QImage image;
+                QColor ink;
+            };
+            auto made = QSharedPointer<Made>::create();
+            return [modes, id, made](QPainter &painter, const QRectF &box) {
                 const qreal ratio = modes->devicePixelRatioF();
-                QImage image = maskModePicture(id, (box.size() * ratio).toSize(), modes->palette().color(QPalette::WindowText));
-                image.setDevicePixelRatio(ratio);
-                painter.drawImage(box.topLeft(), image);
+                const QSize size = (box.size() * ratio).toSize();
+                const QColor ink = modes->palette().color(QPalette::WindowText);
+                if (made->image.size() != size || made->ink != ink) {
+                    made->image = maskModePicture(id, size, ink);
+                    made->image.setDevicePixelRatio(ratio);
+                    made->ink = ink;
+                }
+                painter.drawImage(box.topLeft(), made->image);
             };
         };
         KisStudioChips::Chip off;

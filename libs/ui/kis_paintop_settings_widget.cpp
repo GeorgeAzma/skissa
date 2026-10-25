@@ -211,6 +211,10 @@ void KisPaintOpSettingsWidget::setConfiguration(const KisPropertiesConfiguration
         m_d->model->signalDataChanged(m_d->model->indexOf(info));
         indexcount++;
     }
+    // reading kept the options quiet: rows showing values another option holds (the tip's size) catch up now
+    Q_FOREACH (KisPaintOpOption *option, m_d->paintOpOptions) {
+        option->notifyRowValueChanged();
+    }
 }
 
 void KisPaintOpSettingsWidget::writeConfiguration(KisPropertiesConfigurationSP config) const

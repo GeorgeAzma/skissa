@@ -878,6 +878,14 @@ public:
             }
             return;
         }
+        // the release went elsewhere (the window lost the pointer): the drag ended there
+        if (!(event->buttons() & Qt::LeftButton)) {
+            m_dragging = false;
+            m_dragPart = None;
+            fit(true);
+            update();
+            return;
+        }
         if (!m_moved && QLineF(pos, m_press).length() < 3) return;
         m_moved = true;
         const bool flip = event->modifiers() & Qt::ShiftModifier;
@@ -1494,6 +1502,13 @@ public:
                 }
                 update();
             }
+            return;
+        }
+        // the release went elsewhere (the window lost the pointer): the drag ended there
+        if (!(event->buttons() & Qt::LeftButton)) {
+            m_dragPart = None;
+            m_dragIndex = -1;
+            update();
             return;
         }
         if (!m_moved && QLineF(pos, m_press).length() < 3) return;

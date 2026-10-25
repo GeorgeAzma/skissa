@@ -339,7 +339,8 @@ bool recall(const QString &text, KisSmoothingOptions &options)
     options.setSmoothnessDistanceMax(parts[2].toDouble());
     options.setTailAggressiveness(parts[3].toDouble());
     options.setSmoothPressure(parts[4].toInt());
-    options.setUseScalableDistance(parts[5].toInt());
+    // the stabilizer's distance always scales (Krita refuses to set it)
+    if (options.smoothingType() != KisSmoothingOptions::STABILIZER) options.setUseScalableDistance(parts[5].toInt());
     options.setDelayDistance(parts[6].toDouble());
     options.setUseDelayDistance(parts[7].toInt());
     options.setFinishStabilizedCurve(parts[8].toInt());
