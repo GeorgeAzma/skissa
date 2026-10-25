@@ -136,6 +136,15 @@ void write(const QString &stack, qint64 stalled)
            << stack << "\n";
 }
 
+void writeStall(const QString &file, const QString &stack, qint64 stalled)
+{
+    QFile out(file);
+    if (!out.open(QIODevice::Append | QIODevice::Text)) return;
+    QTextStream stream(&out);
+    stream << QDateTime::currentDateTime().toString(Qt::ISODate) << ": stalled " << stalled << " ms, the main thread was at\n"
+           << stack << "\n";
+}
+
 } // namespace
 
 void KisHangWatch::start()
@@ -149,18 +158,35 @@ void KisHangWatch::start()
     beat = now();
     // the beat stops with the event loop on the way out, which is no hang
     QObject::connect(qApp, &QCoreApplication::aboutToQuit, []() { quitting = true; });
+    // development aid (KRITA_DEV_STALLS=ms): shorter stalls too, with where they were, to krita-stalls.log
+    const int stallMs = qEnvironmentVariableIsSet("KRITA_DEV_PROFILE") ? qEnvironmentVariableIntValue("KRITA_DEV_STALLS") : 0;
+    const QString stallFile = stallMs > 0 ? KisProfile::configFile(QStringLiteral("krita-stalls.log")) : QString();
+
     auto *timer = new QTimer(qApp);
-    timer->setInterval(500);
+    timer->setInterval(stallMs > 0 ? 10 : 500);
     QObject::connect(timer, &QTimer::timeout, timer, []() { beat = now(); });
     timer->start();
 
-    std::thread([main]() {
+    std::thread([main, stallMs, stallFile]() {
         qint64 reported = 0;
+        qint64 sampled = 0;
+        QString stack;
         while (!quitting) {
-            Sleep(2000);
+            Sleep(stallMs > 0 ? DWORD(qBound(5, stallMs / 2, 2000)) : 2000);
             if (quitting) break;
             const qint64 last = beat;
             const qint64 stalled = now() - last;
+            if (stallMs > 0) {
+                // the stack once it is a stall, written with its length when it ends
+                if (!stack.isEmpty() && sampled != last) {
+                    writeStall(stallFile, stack, last - sampled);
+                    stack.clear();
+                }
+                if (stalled > stallMs && sampled != last) {
+                    sampled = last;
+                    stack = stackOf(main);
+                }
+            }
             // once per hang, while it lasts
             if (stalled > 10000 && reported != last) {
                 reported = last;
