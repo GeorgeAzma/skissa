@@ -340,6 +340,7 @@ KisPaintopBox::KisPaintopBox(KisViewManager *viewManager, QWidget *parent, const
     }
 
     m_cmbCompositeOp = new KisCompositeOpComboBox();
+    m_cmbCompositeOp->setForBrush(true);
     m_cmbCompositeOp->setFixedHeight(buttonsize);
     // flat, as the rest of the bar: a box only when pointed at; as wide as its mode, the rest of the bar
     // moving up after it

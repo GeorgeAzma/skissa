@@ -27,10 +27,13 @@
 #include "KoColorSpaceRegistry.h"
 #include "KoCompositeOp.h"
 #include "KoCompositeOpRegistry.h"
+#include "KoID.h"
+#include <klocalizedstring.h>
 
 /**
  * How a brush's paint mixes with what is under it (and, smudging, with what it carries): as Krita does, in the
- * image's own values; evenly, in OKLab; or as pigment, as Mixbox mixes, so blue and yellow make green.
+ * image's own values; evenly, in OKLab; or as pigment, as Mixbox mixes, so blue and yellow make green. A layer can
+ * mix into the layers under it as pigment too, as its blend mode.
  * The image's colors are brought to linear sRGB through its own profile first, so an sRGB image and a linear one
  * mix alike. Only the blending of paint over paint changes: a brush's look (its edges, its build-up) stays.
  */
@@ -343,6 +346,18 @@ inline int modeOf(const QString &id)
     if (id.startsWith(QLatin1String("skissa_mix_oklab_"))) return Even;
     if (id.startsWith(QLatin1String("skissa_mix_pigment_"))) return Pigment;
     return Normal;
+}
+
+/// Pigment as a layer's blend mode: the layer's paint mixes into what is under it by how much of it there is
+inline KoID layerMode()
+{
+    return KoID(opId(Pigment, COMPOSITE_OVER), i18nc("Blending mode - Pigment", "Pigment"));
+}
+
+/// Whether blend mode \p id is only for layers: a brush mixes as pigment by its own setting instead
+inline bool isLayerOnly(const QString &id)
+{
+    return id == opId(Pigment, COMPOSITE_OVER);
 }
 
 /// Linear sRGB with alpha, in floats: where the mixing happens

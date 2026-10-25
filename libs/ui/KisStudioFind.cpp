@@ -47,6 +47,7 @@
 #include <cmath>
 
 #include <KoCompositeOpRegistry.h>
+#include <compositeops/KoCompositeOpMix.h>
 #include <KoToolFactoryBase.h>
 #include <KoToolManager.h>
 #include <KoToolRegistry.h>
@@ -881,6 +882,7 @@ void KisStudioFind::rebuildIndex()
     const auto ops = KoCompositeOpRegistry::instance().getCompositeOps();
     for (auto it = ops.constBegin(); it != ops.constEnd(); ++it) {
         const QString opId = it.value().id();
+        if (KoMixing::isLayerOnly(opId)) continue;
         d->entries.append({QStringLiteral("blend:") + opId, Kind::BlendMode, it.value().name(),
                            i18nc("find result detail", "Brush blend mode · %1", it.key().name()),
                            QStringLiteral("blending mode composite"), QString(),

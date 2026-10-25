@@ -13,6 +13,7 @@
 #include <KoID.h>
 #include "KoCompositeOp.h"
 #include "KoColorSpace.h"
+#include "compositeops/KoCompositeOpMix.h"
 
 #include "kis_assert.h"
 #include "DebugPigment.h"
@@ -108,6 +109,7 @@ KoCompositeOpRegistry::KoCompositeOpRegistry()
     m_map.insert(m_categories[5], KoID(COMPOSITE_NEGATION             ,  i18nc("Blending mode - Negation", "Negation")));
 
     m_map.insert(m_categories[6], koidCompositeOverStatic());
+    m_map.insert(m_categories[6], KoMixing::layerMode());
     m_map.insert(m_categories[6], KoID(COMPOSITE_BEHIND          ,  i18nc("Blending mode - Behind", "Behind")));
     m_map.insert(m_categories[6], KoID(COMPOSITE_GREATER         ,  i18nc("Blending mode - Greater", "Greater")));
     m_map.insert(m_categories[6], KoID(COMPOSITE_OVERLAY         ,  i18nc("Blending mode - Overlay", "Overlay")));

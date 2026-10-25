@@ -14,6 +14,7 @@
 
 #include <KoCompositeOp.h>
 #include <KoCompositeOpRegistry.h>
+#include <compositeops/KoCompositeOpMix.h>
 
 #include "kis_composite_ops_model.h"
 #include "kis_categorized_item_delegate.h"
@@ -248,6 +249,7 @@ void KisCompositeOpComboBox::hidePopup()
 
 bool KisCompositeOpComboBox::isUsable(const QString &id) const
 {
+    if (m_forBrush && KoMixing::isLayerOnly(id)) return false;
     const QModelIndex index = m_model->indexOf(KoCompositeOpRegistry::instance().getKoID(id));
     return index.isValid() && (index.flags() & Qt::ItemIsEnabled);
 }
@@ -275,13 +277,13 @@ void KisCompositeOpComboBox::showPopup()
     for (int row = 0; row < m_model->rowCount(); row++) {
         KoID op;
         const QModelIndex index = m_model->index(row, 0);
-        if (m_model->entryAt(op, index) && (index.flags() & Qt::ItemIsEnabled)) {
+        if (m_model->entryAt(op, index) && isUsable(op.id())) {
             available.insert(op.id());
         }
     }
 
     auto *picker = new KisBlendModePicker(selectedCompositeOp().id(), available, this,
-                                          m_pictures ? m_pictures() : KisBlendModePicker::Pictures());
+                                          m_pictures ? m_pictures() : KisBlendModePicker::Pictures(), m_forBrush);
     connect(picker, &KisBlendModePicker::previewed, this, &KisCompositeOpComboBox::sigPreviewBlendMode);
     // reported even when the box shows it already: the preview may have synced the box, not the layer
     connect(picker, &KisBlendModePicker::picked, this, &KisCompositeOpComboBox::pick);
@@ -432,7 +434,7 @@ void KisCompositeOpComboBox::selectNeighbouringBlendMode(bool down)
 {
     // your modes first, then the others; no wrapping, so that up always heads back to your first ones
     if (!m_limitToLayerStyles) {
-        const QStringList order = KisBlendModePicker::scrollOrder();
+        const QStringList order = KisBlendModePicker::scrollOrder(m_forBrush);
         const int position = order.indexOf(selectedCompositeOp().id());
         if (position >= 0) {
             for (int i = position + (down ? 1 : -1); i >= 0 && i < order.size(); i += down ? 1 : -1) {
@@ -455,14 +457,14 @@ void KisCompositeOpComboBox::selectNeighbouringBlendMode(bool down)
         newIndex--;
         while ((newIndex >= 0) &&
                (!(model->flags(model->index(newIndex, modelColumn(), rootModelIndex())) & Qt::ItemIsEnabled) ||
-                !m_model->entryAt(op, m_model->index(newIndex, modelColumn()))))
+                !m_model->entryAt(op, m_model->index(newIndex, modelColumn())) || !isUsable(op.id())))
 
             newIndex--;
     } else {
         newIndex++;
         while (newIndex < rowCount &&
                (!(model->index(newIndex, modelColumn(), rootModelIndex()).flags() & Qt::ItemIsEnabled) ||
-                !m_model->entryAt(op, m_model->index(newIndex, modelColumn()))))
+                !m_model->entryAt(op, m_model->index(newIndex, modelColumn())) || !isUsable(op.id())))
 
             newIndex++;
     }
@@ -480,6 +482,11 @@ void KisCompositeOpComboBox::selectNeighbouringBlendMode(bool down)
 void KisCompositeOpComboBox::setPreviewPictures(std::function<KisBlendModePicker::Pictures()> pictures)
 {
     m_pictures = std::move(pictures);
+}
+
+void KisCompositeOpComboBox::setForBrush(bool forBrush)
+{
+    m_forBrush = forBrush;
 }
 
 void KisCompositeOpComboBox::mousePressEvent(QMouseEvent *e)
@@ -502,7 +509,7 @@ void KisCompositeOpComboBox::mouseMoveEvent(QMouseEvent *e)
         return;
     }
     const QPoint delta = e->pos() - m_pressPos;
-    const QStringList order = KisBlendModePicker::scrollOrder();
+    const QStringList order = KisBlendModePicker::scrollOrder(m_forBrush);
     if (!m_scrubbing) {
         // a scrub as soon as the pointer clearly goes sideways
         if (qAbs(delta.x()) < qMax(3, QApplication::startDragDistance() / 2) || qAbs(delta.x()) < qAbs(delta.y())) {

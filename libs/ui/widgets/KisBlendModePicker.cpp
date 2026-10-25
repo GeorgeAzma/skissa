@@ -21,6 +21,7 @@
 #include <KoColorSpaceRegistry.h>
 #include <KoCompositeOp.h>
 #include <KoCompositeOpRegistry.h>
+#include <compositeops/KoCompositeOpMix.h>
 #include <klocalizedstring.h>
 
 #include "kis_config.h"
@@ -41,7 +42,7 @@ const QString oldFavoritesKey = QStringLiteral("StudioFavoriteBlendModes");
 QStringList defaultPinned()
 {
     return {
-        QStringLiteral("normal"),
+        QStringLiteral("normal"), KoMixing::layerMode().id(),
         // darken
         QStringLiteral("multiply"), QStringLiteral("burn"), QStringLiteral("linear_burn"), QStringLiteral("darken"),
         QStringLiteral("darker color"),
@@ -256,14 +257,14 @@ QString nameOf(const QString &id)
     return KoCompositeOpRegistry::instance().getKoID(id).name();
 }
 
-/// Every registered mode, without duplicates
-QList<KoID> allOps()
+/// Every registered mode, without duplicates; for a brush, without those only layers have
+QList<KoID> allOps(bool forBrush)
 {
     QList<KoID> ops;
     QSet<QString> seen;
     const auto map = KoCompositeOpRegistry::instance().getCompositeOps();
     for (auto it = map.constBegin(); it != map.constEnd(); ++it) {
-        if (!seen.contains(it.value().id())) {
+        if (!seen.contains(it.value().id()) && !(forBrush && KoMixing::isLayerOnly(it.value().id()))) {
             seen.insert(it.value().id());
             ops << it.value();
         }
@@ -272,7 +273,7 @@ QList<KoID> allOps()
 }
 
 /// Modes not in the user's list, by category, without duplicates
-QVector<Group> otherGroups(const QStringList &pinned)
+QVector<Group> otherGroups(const QStringList &pinned, bool forBrush)
 {
     QVector<Group> groups;
     QSet<QString> seen(pinned.begin(), pinned.end());
@@ -280,7 +281,7 @@ QVector<Group> otherGroups(const QStringList &pinned)
     Q_FOREACH (const KoID &category, KoCompositeOpRegistry::instance().getCategories()) {
         Group group{category.name(), {}};
         Q_FOREACH (const KoID &op, ops.values(category)) {
-            if (!seen.contains(op.id())) {
+            if (!seen.contains(op.id()) && !(forBrush && KoMixing::isLayerOnly(op.id()))) {
                 seen.insert(op.id());
                 group.ids << op.id();
             }
@@ -295,7 +296,7 @@ QVector<Group> otherGroups(const QStringList &pinned)
 
 } // namespace
 
-KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures)
+KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures, bool forBrush)
 {
     Source source;
     source.pinnedKey = QStringLiteral("StudioBlendModes");
@@ -306,12 +307,12 @@ KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures)
         }
         return pinned;
     };
-    source.allIds = []() {
+    source.allIds = [forBrush]() {
         QStringList ids;
-        Q_FOREACH (const KoID &op, allOps()) ids << op.id();
+        Q_FOREACH (const KoID &op, allOps(forBrush)) ids << op.id();
         return ids;
     };
-    source.otherGroups = otherGroups;
+    source.otherGroups = [forBrush](const QStringList &pinned) { return otherGroups(pinned, forBrush); };
     source.name = nameOf;
     source.pinnedName = [](const QString &id) { return withoutQualifier(nameOf(id)); };
     if (pictures.isValid()) {
@@ -331,15 +332,15 @@ KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures)
         };
     }
     source.yoursTitle = i18nc("blend mode group", "Your modes");
-    source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 blend modes", allOps().size());
+    source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 blend modes", allOps(forBrush).size());
     // The count is filled in later, so keep %1 as a placeholder
     source.allLabel = i18nc("@action:button %1 is a number", "All %1 modes", QStringLiteral("%1"));
     return source;
 }
 
 KisBlendModePicker::KisBlendModePicker(const QString &current, const QSet<QString> &available, QWidget *parent,
-                                       const Pictures &pictures)
-    : KisStudioPicker(source(pictures), current, available, parent)
+                                       const Pictures &pictures, bool forBrush)
+    : KisStudioPicker(source(pictures, forBrush), current, available, parent)
 {
     connect(this, &KisStudioPicker::sigPreview, this, &KisBlendModePicker::previewed);
     connect(this, &KisStudioPicker::sigPicked, this, [this](const QString &id) {
@@ -347,9 +348,9 @@ KisBlendModePicker::KisBlendModePicker(const QString &current, const QSet<QStrin
     });
 }
 
-QStringList KisBlendModePicker::scrollOrder()
+QStringList KisBlendModePicker::scrollOrder(bool forBrush)
 {
-    return KisStudioPicker::scrollOrder(source());
+    return KisStudioPicker::scrollOrder(source(Pictures(), forBrush));
 }
 
 QImage KisBlendModePicker::modePicture(const Pictures &pictures, const QString &id)

@@ -40,8 +40,9 @@ public:
     using Pictures = KisBlendModePictures;
 
     /// @param available the ids usable in the current color space
+    /// @param forBrush leave out the modes only layers have
     KisBlendModePicker(const QString &current, const QSet<QString> &available, QWidget *parent = nullptr,
-                       const Pictures &pictures = Pictures());
+                       const Pictures &pictures = Pictures(), bool forBrush = false);
 
     /// Size of a tile's picture in device pixels for \p widget's screen
     static QSize pictureSize(const QWidget *widget);
@@ -53,7 +54,7 @@ public:
     static QImage modePicture(const Pictures &pictures, const QString &id);
 
     /// Order used when scrolling through modes: the user's modes, then the rest as the picker lists them
-    static QStringList scrollOrder();
+    static QStringList scrollOrder(bool forBrush = false);
 
 Q_SIGNALS:
     /// The highlighted mode changed; an empty id ends the preview
@@ -61,7 +62,7 @@ Q_SIGNALS:
     void picked(const KoID &op);
 
 private:
-    static Source source(const Pictures &pictures = Pictures());
+    static Source source(const Pictures &pictures = Pictures(), bool forBrush = false);
 };
 
 #endif // KISBLENDMODEPICKER_H

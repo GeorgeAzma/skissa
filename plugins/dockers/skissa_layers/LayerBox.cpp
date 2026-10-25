@@ -394,7 +394,8 @@ LayerBox::LayerBox()
             QStyleOptionComboBox option;
             option.initFrom(ui->cmbComposite);
             option.frame = false;
-            const QSize text(ui->cmbComposite->fontMetrics().horizontalAdvance(ui->cmbComposite->currentText()), ui->cmbComposite->height());
+            // the full name: the box's own text is squeezed to the width it had for the mode before
+            const QSize text(ui->cmbComposite->fontMetrics().horizontalAdvance(ui->cmbComposite->selectedCompositeOp().name()), ui->cmbComposite->height());
             const int mode = qMin(140, ui->cmbComposite->style()->sizeFromContents(QStyle::CT_ComboBox, &option, text, ui->cmbComposite).width());
             ui->cmbComposite->setFixedWidth(mode);
             // computed, not read back: width() changes only once the layout has run

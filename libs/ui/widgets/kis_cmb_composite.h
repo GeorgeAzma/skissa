@@ -65,6 +65,9 @@ public:
     /// What the picker's tiles show the modes doing, made when it opens; without, small swatches
     void setPreviewPictures(std::function<KisBlendModePicker::Pictures()> pictures);
 
+    /// A brush's blend mode: the modes only layers have are left out
+    void setForBrush(bool forBrush);
+
 protected:
     /// A drag sideways steps through the modes, previewing them; a click opens the picker
     void mousePressEvent(QMouseEvent *e) override;
@@ -125,6 +128,7 @@ private:
     KisCategorizedListView *m_view;
     bool m_allowToHidePopup;
     bool m_limitToLayerStyles {false};
+    bool m_forBrush {false};
     std::function<KisBlendModePicker::Pictures()> m_pictures;
     /// A click or a scrub, until released
     bool m_pressed {false};

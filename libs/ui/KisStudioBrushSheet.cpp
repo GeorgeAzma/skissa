@@ -607,6 +607,7 @@ struct KisStudioBrushSheet::Private
         showGlance(resources->currentCompositeOp());
         layout->addWidget(glance);
         auto *mode = new KisCompositeOpComboBox(row);
+        mode->setForBrush(true);
         mode->setFrame(false);
         mode->setMaximumWidth(150);
         if (KisNodeSP node = view->activeNode()) mode->validate(node->colorSpace());
