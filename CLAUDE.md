@@ -265,3 +265,4 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - The release zip is made from the dev install, which is built with `HIDE_SAFE_ASSERTS` off: `kis_assert.cpp` keeps the "internal error" box to the dev profile and only logs it elsewhere.
 - Two sessions building in `C:\code\krita-deps\build` at once break each other's CMake regeneration ("rebuilding 'build.ninja': subcommand failed"): build again.
 - Killing a Krita that changed the test image leaves `.sunset.png-autosave.kra` beside it, and the next start waits on the recovery prompt (a tour then sits before its window shows): delete it after a kill.
+- Pick a brush through `KisPaintopBox::resourceSelected`, as Krita's brush panel does: setting it only on the canvas resources (`setPaintOpPreset`) paints with it but leaves the box's settings widget, and so the quick editor and the brush sheet, on the last brush's engine.
