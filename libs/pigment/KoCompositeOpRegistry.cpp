@@ -193,6 +193,8 @@ KoCompositeOpRegistry::KoCompositeOpRegistry()
     m_map.insert(m_categories[12], KoID(COMPOSITE_REEZE            ,  i18nc("Blending mode - Reflect-Freeze", "Reflect-Freeze")));
     m_map.insert(m_categories[12], KoID(COMPOSITE_FRECT            ,  i18nc("Blending mode - Freeze-Reflect", "Freeze-Reflect")));
     m_map.insert(m_categories[12], KoID(COMPOSITE_FHYRD            ,  i18nc("Blending mode - Heat-Glow & Freeze-Reflect Hybrid", "Heat-Glow & Freeze-Reflect Hybrid")));
+
+    KoOklch::addTo(m_categories, m_map);
 }
 
 const KoCompositeOpRegistry& KoCompositeOpRegistry::instance()
