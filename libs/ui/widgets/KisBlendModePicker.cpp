@@ -22,6 +22,8 @@
 #include <KoCompositeOp.h>
 #include <KoCompositeOpRegistry.h>
 #include <compositeops/KoCompositeOpMix.h>
+#include <KConfigGroup>
+#include <KSharedConfig>
 #include <klocalizedstring.h>
 
 #include "kis_config.h"
@@ -38,26 +40,18 @@ using Group = KisStudioPicker::Group;
 /// Legacy setting with starred modes, used to seed the user's list
 const QString oldFavoritesKey = QStringLiteral("StudioFavoriteBlendModes");
 
-/// The common modes, grouped by effect
+/// The few modes painters reach for, grouped by effect; the rest are a scroll away
 QStringList defaultPinned()
 {
     return {
         QStringLiteral("normal"), KoMixing::layerMode().id(),
-        // darken
-        QStringLiteral("multiply"), QStringLiteral("burn"), QStringLiteral("linear_burn"), QStringLiteral("darken"),
-        QStringLiteral("darker color"),
-        // lighten
-        QStringLiteral("screen"), QStringLiteral("linear_dodge"), QStringLiteral("dodge"), QStringLiteral("lighten"),
-        QStringLiteral("lighter color"),
-        // contrast
-        QStringLiteral("overlay"), QStringLiteral("soft_light"), QStringLiteral("hard_light"), QStringLiteral("vivid_light"),
-        QStringLiteral("linear light"), QStringLiteral("pin_light"), QStringLiteral("hard_mix_photoshop"),
-        // compare
-        QStringLiteral("diff"), QStringLiteral("exclusion"), QStringLiteral("subtract"), QStringLiteral("divide"),
-        // color
-        QStringLiteral("hue"), QStringLiteral("saturation"), QStringLiteral("color"), QStringLiteral("luminize"),
-        // transparency
-        QStringLiteral("erase"), QStringLiteral("behind"), QStringLiteral("dissolve"),
+        // shading, light and glows
+        QStringLiteral("multiply"), QStringLiteral("screen"), QStringLiteral("overlay"), QStringLiteral("soft_light_svg"),
+        QStringLiteral("dodge"), QStringLiteral("easy dodge"), QStringLiteral("add"),
+        // color over values
+        QStringLiteral("color"), QStringLiteral("luminize"),
+        // inking and erasing
+        QStringLiteral("marker"), QStringLiteral("erase"),
     };
 }
 
@@ -301,7 +295,10 @@ KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures, boo
     Source source;
     source.pinnedKey = QStringLiteral("StudioBlendModes");
     source.initialPinned = []() {
-        QStringList pinned = KisConfig(true).readEntry<QStringList>(oldFavoritesKey, QStringList());
+        KisConfig cfg(true);
+        QStringList pinned = cfg.readEntry<QStringList>(oldFavoritesKey, QStringList());
+        // or the favorites made in Krita's own layer blend list, when this profile has them
+        if (pinned.isEmpty() && KSharedConfig::openConfig()->group(QString()).hasKey("favoriteCompositeOps")) return cfg.favoriteCompositeOps();
         Q_FOREACH (const QString &id, defaultPinned()) {
             if (!pinned.contains(id)) pinned << id;
         }
