@@ -8,7 +8,9 @@
 #include <QColor>
 #include <QCoreApplication>
 #include <QDir>
+#include <QDateTime>
 #include <QDirIterator>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -57,6 +59,64 @@ QJsonValue toJson(const Setting &setting, const QVariant &value)
 QString nameOf(const Setting &setting)
 {
     return setting.label.isEmpty() ? setting.id : setting.label;
+}
+
+/// What the user arranged that isn't a setting, by the beginning of its key in kritarc's main group: panels and bars,
+/// their buttons, pinned controls and items, the tool rail, rings, the color panel's style, the recorder's choices
+const QStringList arrangedKeys = {
+    QStringLiteral("StudioLayout"), QStringLiteral("StudioBarItems"), QStringLiteral("StudioViewPillItems"), QStringLiteral("StudioControlItems"),
+    QStringLiteral("StudioControlsPicked"), QStringLiteral("StudioRailItems"), QStringLiteral("StudioHiddenVariants"), QStringLiteral("StudioBrushes"),
+    QStringLiteral("StudioEffects"), QStringLiteral("StudioPinnedBrushTips"), QStringLiteral("StudioRing"), QStringLiteral("StudioColorStyle"),
+    QStringLiteral("StudioColorCopyFormat"), QStringLiteral("StudioLastStrokeFollowsBrush"), QStringLiteral("BrushTipSizeLinked"),
+    QStringLiteral("recorder/"), QStringLiteral("recorder_export/"),
+};
+/// Kept as they are here: the classic layout's window state and the recorder's folder belong to this computer
+const QStringList notArranged = {QStringLiteral("StudioLayoutClassicState"), QStringLiteral("recorder/snapshotdirectory")};
+/// Whole groups the user arranged: saved curves, each brush's smoothing, the brush sheet's columns, guides, the key scheme
+const QStringList arrangedGroups = {QStringLiteral("SavedCurves"), QStringLiteral("StudioBrushSmoothing"), QStringLiteral("StudioBrushSheet"),
+                                    QStringLiteral("StudioGuides"), QStringLiteral("Shortcut Schemes")};
+const QString mainGroup = QStringLiteral("main");
+
+bool isArranged(const QString &key)
+{
+    if (notArranged.contains(key)) return false;
+    for (const QString &start : arrangedKeys) {
+        if (key.startsWith(start)) return true;
+    }
+    return false;
+}
+
+QJsonObject entries(const KConfigGroup &group, bool all)
+{
+    QJsonObject object;
+    const QMap<QString, QString> map = group.entryMap();
+    for (auto it = map.constBegin(); it != map.constEnd(); ++it) {
+        if (all || isArranged(it.key())) object.insert(it.key(), it.value());
+    }
+    return object;
+}
+
+KSharedConfigPtr shortcutsFile()
+{
+    return KSharedConfig::openConfig(KisProfile::configFile(QStringLiteral("kritashortcutsrc")));
+}
+
+/// The arrangement here: {"kritarc": {group: {key: value}}, "shortcuts": {action: keys}}, the main group as "main"
+QJsonObject arrangement()
+{
+    KSharedConfigPtr config = KSharedConfig::openConfig();
+    QJsonObject kritarc;
+    const QJsonObject main = entries(config->group(QString()), false);
+    if (!main.isEmpty()) kritarc.insert(mainGroup, main);
+    for (const QString &name : arrangedGroups) {
+        const QJsonObject group = entries(config->group(name), true);
+        if (!group.isEmpty()) kritarc.insert(name, group);
+    }
+    QJsonObject root;
+    if (!kritarc.isEmpty()) root.insert(QStringLiteral("kritarc"), kritarc);
+    const QJsonObject shortcuts = entries(shortcutsFile()->group(QStringLiteral("Shortcuts")), true);
+    if (!shortcuts.isEmpty()) root.insert(QStringLiteral("shortcuts"), shortcuts);
+    return root;
 }
 
 QString samePath(const QString &path)
@@ -111,6 +171,8 @@ QByteArray exportSettings()
     const QString sections = KSharedConfig::openConfig()->group(QString()).readEntry(sectionsKey, QString());
     const QJsonDocument sectionsDocument = QJsonDocument::fromJson(sections.toUtf8());
     if (sectionsDocument.isObject()) root.insert(QStringLiteral("sections"), sectionsDocument.object());
+    const QJsonObject arranged = arrangement();
+    if (!arranged.isEmpty()) root.insert(QStringLiteral("arrangement"), arranged);
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
@@ -159,7 +221,52 @@ Plan planImport(const QByteArray &data)
     if (root.value(QStringLiteral("sections")).isObject()) {
         plan.sections = QJsonDocument(root.value(QStringLiteral("sections")).toObject()).toJson(QJsonDocument::Compact);
     }
+    const QJsonObject arranged = root.value(QStringLiteral("arrangement")).toObject();
+    if (!arranged.isEmpty() && arranged != arrangement()) plan.arrangement = QJsonDocument(arranged).toJson(QJsonDocument::Compact);
     return plan;
+}
+
+bool applyArrangement(const QByteArray &data, QString *error)
+{
+    const QJsonObject arranged = QJsonDocument::fromJson(data).object();
+    if (arranged.isEmpty()) return fail(error, i18nc("@info", "That arrangement couldn't be read."));
+    KisSettingsRegistry::instance()->flush();
+    // what is replaced kept beside, never lost
+    const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+    for (const QString &name : {QStringLiteral("kritarc"), QStringLiteral("kritashortcutsrc")}) {
+        const QString path = KisProfile::configFile(name);
+        if (QFile::exists(path) && !QFile::copy(path, path + QStringLiteral(".before-import-") + stamp)) {
+            return fail(error, i18nc("@info", "Your current arrangement couldn't be kept aside, so nothing was changed."));
+        }
+    }
+
+    KSharedConfigPtr config = KSharedConfig::openConfig();
+    const QJsonObject kritarc = arranged.value(QStringLiteral("kritarc")).toObject();
+    // the file's arrangement as a whole: what it doesn't have goes back to its default
+    KConfigGroup main = config->group(QString());
+    const QStringList keys = main.keyList();
+    for (const QString &key : keys) {
+        if (isArranged(key)) main.deleteEntry(key);
+    }
+    const QJsonObject mainEntries = kritarc.value(mainGroup).toObject();
+    for (auto it = mainEntries.constBegin(); it != mainEntries.constEnd(); ++it) {
+        if (isArranged(it.key())) main.writeEntry(it.key(), it.value().toString());
+    }
+    for (const QString &name : arrangedGroups) {
+        config->deleteGroup(name);
+        KConfigGroup group = config->group(name);
+        const QJsonObject groupEntries = kritarc.value(name).toObject();
+        for (auto it = groupEntries.constBegin(); it != groupEntries.constEnd(); ++it) group.writeEntry(it.key(), it.value().toString());
+    }
+    if (!config->sync()) return fail(error, i18nc("@info", "The arrangement couldn't be saved."));
+
+    KSharedConfigPtr shortcuts = shortcutsFile();
+    shortcuts->deleteGroup(QStringLiteral("Shortcuts"));
+    KConfigGroup keyGroup = shortcuts->group(QStringLiteral("Shortcuts"));
+    const QJsonObject keyEntries = arranged.value(QStringLiteral("shortcuts")).toObject();
+    for (auto it = keyEntries.constBegin(); it != keyEntries.constEnd(); ++it) keyGroup.writeEntry(it.key(), it.value().toString());
+    if (!shortcuts->sync()) return fail(error, i18nc("@info", "The shortcuts couldn't be saved."));
+    return true;
 }
 
 QString kritaSettingsPath()

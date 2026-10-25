@@ -37,6 +37,9 @@ struct Plan {
     QString error;
     /// The user's sections and Quick from an imported file, empty if it has none
     QByteArray sections;
+    /// What the user arranged from an imported file (panels, buttons, pinned items, curves, shortcuts), empty if it has
+    /// none or it is the same here
+    QByteArray arrangement;
 };
 
 /// The non-default, non-machine settings and the user's sections, as JSON
@@ -45,6 +48,9 @@ KRITAUI_EXPORT QByteArray exportSettings();
 KRITAUI_EXPORT bool writeFile(const QString &path, const QByteArray &data, QString *error);
 /// The changes importing \p data (from exportSettings()) would make here
 KRITAUI_EXPORT Plan planImport(const QByteArray &data);
+/// Replaces what the user arranged here with Plan::arrangement, after keeping the files it changes beside them; it takes
+/// effect at the next start
+KRITAUI_EXPORT bool applyArrangement(const QByteArray &data, QString *error);
 
 /// The regular Krita installation's kritarc, or empty if there is none or it is this instance's own
 KRITAUI_EXPORT QString kritaSettingsPath();

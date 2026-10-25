@@ -2594,6 +2594,8 @@ struct KisStudioSettings::Private
     QPushButton *footer {nullptr};
     /// Krita's resources were copied here; the resource list reads them at the next start
     bool resourcesTaken {false};
+    /// An imported arrangement waits for the next start
+    bool arrangementTaken {false};
     QPushButton *undo {nullptr};
     QLabel *status {nullptr};
     QTimer statusTimer;
@@ -2666,6 +2668,7 @@ struct KisStudioSettings::Private
             if (const Setting *s = R::instance()->setting(id)) waiting << s->label;
         }
         if (resourcesTaken) waiting << i18nc("what a restart applies", "Krita's brushes");
+        if (arrangementTaken) waiting << i18nc("what a restart applies", "the imported panels, buttons and shortcuts");
         footer->setToolTip(i18nc("@info:tooltip what a restart applies", "Applies %1", waiting.join(QStringLiteral(", "))));
         footer->setVisible(!waiting.isEmpty());
         bool differs = false;
@@ -2965,13 +2968,13 @@ struct KisStudioSettings::Private
     // ---- Transferring settings
 
     void showPlan(const KisSettingsTransfer::Plan &plan, const QString &title, const QString &explanation, const QString &applyText,
-                  std::function<void(const QVector<KisSettingsTransfer::Change> &, bool sections)> apply)
+                  std::function<void(const QVector<KisSettingsTransfer::Change> &, bool sections, bool arrangement)> apply)
     {
         if (!plan.error.isEmpty()) {
             q->say(plan.error);
             return;
         }
-        if (plan.changes.isEmpty() && plan.sections.isEmpty()) {
+        if (plan.changes.isEmpty() && plan.sections.isEmpty() && plan.arrangement.isEmpty()) {
             q->say(i18nc("@info", "Nothing would change: they're the same already."));
             return;
         }
@@ -3005,6 +3008,12 @@ struct KisStudioSettings::Private
             sectionsBox = new QCheckBox(i18nc("@option:check", "Quick and your sections, from the file"), rows);
             rowsLayout->addWidget(sectionsBox);
         }
+        QCheckBox *arrangementBox = nullptr;
+        if (!plan.arrangement.isEmpty()) {
+            arrangementBox = new QCheckBox(i18nc("@option:check", "Panels, buttons, pinned items, curves and shortcuts, from the file"), rows);
+            arrangementBox->setChecked(true);
+            rowsLayout->addWidget(arrangementBox);
+        }
         if (!plan.skipped.isEmpty()) {
             rowsLayout->addSpacing(8);
             rowsLayout->addWidget(dimLabel(i18nc("@info", "Left as they are:") + QStringLiteral("\n") + plan.skipped.join(QLatin1Char('\n')), rows));
@@ -3021,12 +3030,12 @@ struct KisStudioSettings::Private
         buttons->addWidget(ok);
         layout->addLayout(buttons);
         QObject::connect(cancel, &QPushButton::clicked, review, [this]() { rebuild(); });
-        QObject::connect(ok, &QPushButton::clicked, review, [boxes, sectionsBox, apply]() {
+        QObject::connect(ok, &QPushButton::clicked, review, [boxes, sectionsBox, arrangementBox, apply]() {
             QVector<KisSettingsTransfer::Change> chosen;
             for (const auto &box : boxes) {
                 if (box.first->isChecked()) chosen << box.second;
             }
-            apply(chosen, sectionsBox && sectionsBox->isChecked());
+            apply(chosen, sectionsBox && sectionsBox->isChecked(), arrangementBox && arrangementBox->isChecked());
         });
         showInStack(review);
         rail->setCurrent(QString());
@@ -3035,7 +3044,7 @@ struct KisStudioSettings::Private
         undo->hide();
     }
 
-    void applyHere(const QVector<KisSettingsTransfer::Change> &changes, const QByteArray &sections)
+    void applyHere(const QVector<KisSettingsTransfer::Change> &changes, const QByteArray &sections, const QByteArray &arrangement = QByteArray())
     {
         int applied = 0;
         Q_FOREACH (const KisSettingsTransfer::Change &change, changes) {
@@ -3046,8 +3055,17 @@ struct KisStudioSettings::Private
             updateRail();
         }
         R::instance()->flush();
-        q->say(i18ncp("@info", "%1 setting changed. Undo puts back what changed since Settings opened.",
-                      "%1 settings changed. Undo puts back what changed since Settings opened.", applied));
+        QString error;
+        if (!arrangement.isEmpty() && !KisSettingsTransfer::applyArrangement(arrangement, &error)) {
+            q->say(error);
+        } else if (!arrangement.isEmpty()) {
+            arrangementTaken = true;
+            q->say(i18ncp("@info", "%1 setting changed. Panels, buttons and shortcuts follow at the next start.",
+                          "%1 settings changed. Panels, buttons and shortcuts follow at the next start.", applied));
+        } else {
+            q->say(i18ncp("@info", "%1 setting changed. Undo puts back what changed since Settings opened.",
+                          "%1 settings changed. Undo puts back what changed since Settings opened.", applied));
+        }
         rebuild();
         updateFooter();
     }
@@ -3084,8 +3102,8 @@ struct KisStudioSettings::Private
         }
         const KisSettingsTransfer::Plan plan = KisSettingsTransfer::planImport(file.readAll());
         showPlan(plan, i18nc("@title", "Import from %1", QFileInfo(path).fileName()), QString(), i18nc("@action:button", "Import"),
-                 [this, plan](const QVector<KisSettingsTransfer::Change> &chosen, bool sections) {
-                     applyHere(chosen, sections ? plan.sections : QByteArray());
+                 [this, plan](const QVector<KisSettingsTransfer::Change> &chosen, bool sections, bool arrangement) {
+                     applyHere(chosen, sections ? plan.sections : QByteArray(), arrangement ? plan.arrangement : QByteArray());
                  });
     }
 
@@ -3093,7 +3111,7 @@ struct KisStudioSettings::Private
     {
         const KisSettingsTransfer::Plan plan = KisSettingsTransfer::planFromKrita();
         showPlan(plan, i18nc("@title", "Krita's settings, here"), i18nc("@info", "What Krita has set that differs here."), i18nc("@action:button", "Take them"),
-                 [this](const QVector<KisSettingsTransfer::Change> &chosen, bool) { applyHere(chosen, QByteArray()); });
+                 [this](const QVector<KisSettingsTransfer::Change> &chosen, bool, bool) { applyHere(chosen, QByteArray()); });
     }
 
     /// Krita's own brushes, patterns, palettes and bundles, copied here; they are read at the next start
