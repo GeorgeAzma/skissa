@@ -367,6 +367,12 @@ private:
                                QStringLiteral("-Id"), QString::number(QCoreApplication::applicationPid()),
                                QStringLiteral("-Install"), QDir::toNativeSeparators(installFolder())};
         if (relaunch) arguments << QStringLiteral("-Relaunch");
+        return powerShell(arguments);
+    }
+
+    /// Runs PowerShell with \p arguments, hidden and on its own after this process ends
+    static bool powerShell(const QStringList &arguments)
+    {
         QProcess process;
         process.setProgram(qEnvironmentVariable("SystemRoot", QStringLiteral("C:\\Windows"))
                            + QStringLiteral("\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"));
@@ -381,8 +387,23 @@ private:
 
     void quitting()
     {
+        // the settings on disk before anything starts that reads them
+        KisSettingsRegistry::instance()->flush();
         if (state == Ready && apply()) return;
-        if (relaunch) QProcess::startDetached(QCoreApplication::applicationFilePath(), QStringList());
+        if (!relaunch) return;
+#ifdef Q_OS_WIN
+        // started once this one has ended: a second one starting while this one still runs would hand itself over to it
+        QString program = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
+        program.replace(QLatin1Char('\''), QStringLiteral("''"));
+        const QString command = QStringLiteral("Wait-Process -Id %1 -Timeout 60 -ErrorAction SilentlyContinue; Start-Process -FilePath '%2'")
+                                    .arg(QCoreApplication::applicationPid())
+                                    .arg(program);
+        if (powerShell({QStringLiteral("-NoProfile"), QStringLiteral("-NonInteractive"), QStringLiteral("-WindowStyle"), QStringLiteral("Hidden"),
+                        QStringLiteral("-Command"), command})) {
+            return;
+        }
+#endif
+        QProcess::startDetached(QCoreApplication::applicationFilePath(), QStringList());
     }
 };
 

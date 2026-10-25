@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioSymmetry.h"
+#include "KisSettingsRegistry.h"
 #include "KisStudioTools.h"
 
 #include <QAction>
@@ -22,6 +23,14 @@ const QString multiBrushTool = QStringLiteral("KritaShape/KisToolMultiBrush");
 KConfigGroup settings()
 {
     return KSharedConfig::openConfig()->group("Symmetry");
+}
+
+/// Written and saved a moment later, so a crash doesn't lose it
+template<typename T>
+void store(const char *key, const T &value)
+{
+    settings().writeEntry(key, value);
+    KisSettingsRegistry::instance()->scheduleSync();
 }
 
 QAction *mirrorAction(KisKActionCollection *actions, bool across)
@@ -51,7 +60,7 @@ KisStudioSymmetry::Mode KisStudioSymmetry::mode() const
 
 void KisStudioSymmetry::setMode(Mode mode)
 {
-    settings().writeEntry("Mode", int(mode));
+    store("Mode", int(mode));
     Q_EMIT changed();
 }
 
@@ -62,7 +71,7 @@ int KisStudioSymmetry::copies() const
 
 void KisStudioSymmetry::setCopies(int copies)
 {
-    settings().writeEntry("Copies", qBound(2, copies, maximumCopies));
+    store("Copies", qBound(2, copies, maximumCopies));
     Q_EMIT changed();
 }
 
@@ -73,7 +82,7 @@ bool KisStudioSymmetry::mirrored() const
 
 void KisStudioSymmetry::setMirrored(bool mirrored)
 {
-    settings().writeEntry("Mirrored", mirrored);
+    store("Mirrored", mirrored);
     Q_EMIT changed();
 }
 
@@ -84,7 +93,7 @@ qreal KisStudioSymmetry::turn() const
 
 void KisStudioSymmetry::setTurn(qreal turn)
 {
-    settings().writeEntry("Turn", turn);
+    store("Turn", turn);
     Q_EMIT changed();
 }
 
@@ -96,7 +105,7 @@ QSize KisStudioSymmetry::spacing() const
 
 void KisStudioSymmetry::setSpacing(const QSize &spacing)
 {
-    settings().writeEntry("Spacing", spacing);
+    store("Spacing", spacing);
     Q_EMIT changed();
 }
 
@@ -116,6 +125,7 @@ void KisStudioSymmetry::setMirrorAxes(bool across, bool down)
     KConfigGroup group = settings();
     group.writeEntry("MirrorAcross", across || !down);
     group.writeEntry("MirrorDown", down);
+    KisSettingsRegistry::instance()->scheduleSync();
     Q_EMIT changed();
 }
 

@@ -268,7 +268,11 @@ void KisStudioMakeBrush::fromSelection(KisViewManager *view)
     tip->setSpacing(0.15);
     tip->setFilename(fileNameOf(name) + QStringLiteral(".gbr"));
     tip->setValid(true);
-    KisResourceModel(ResourceType::Brushes).addResourceDeduplicateFileName(tip, QString());
+    // a brush whose tip isn't on the disk would come back without it
+    if (!KisResourceModel(ResourceType::Brushes).addResourceDeduplicateFileName(tip, QString())) {
+        view->showFloatingMessage(i18nc("@info making a brush failed to write its tip", "The brush couldn't be saved"), QIcon());
+        return;
+    }
 
     // a pixel brush of it: the one in use if it is one, else Krita's plain one
     KisCanvasResourceProvider *resources = view->canvasResourceProvider();

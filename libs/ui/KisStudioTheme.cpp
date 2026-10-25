@@ -301,6 +301,7 @@ void settle()
     Q_FOREACH (const QString &id, held()) list[match].values.insert(id, R::instance()->value(id));
     g.writeEntry("List", serialized(list));
     g.writeEntry("Current", list[match].id);
+    R::instance()->scheduleSync();
 }
 
 } // namespace

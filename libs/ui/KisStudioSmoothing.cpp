@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioSmoothing.h"
+#include "KisSettingsRegistry.h"
 #include "KisStudioTools.h"
 
 #include <QAction>
@@ -411,6 +412,7 @@ private:
     {
         if (m_applying || m_preset.isEmpty() || !m_options) return;
         memory().writeEntry(m_preset, remembered(*m_options));
+        KisSettingsRegistry::instance()->scheduleSync();
     }
 
     /// A brush or tool picked: the smoothing goes with its brush

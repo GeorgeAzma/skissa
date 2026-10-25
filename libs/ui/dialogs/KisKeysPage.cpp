@@ -605,6 +605,8 @@ struct KisKeysPage::Private
     KeysTree *tree {nullptr};
     QLabel *note {nullptr};
     QTimer noteTimer;
+    /// Each edit is saved a moment after it is made, not only when the page is left
+    QTimer storeTimer;
     QTreeWidgetItem *heldGroup {nullptr};
 
     /// Chord to filter by, from a keyboard click or a key pressed into the search
@@ -1196,6 +1198,33 @@ struct KisKeysPage::Private
     {
         tree->viewport()->update();
         filter();
+        // not while another scheme is picked: its keys are saved with it, when the page is left
+        if (scheme == savedScheme) storeTimer.start();
+    }
+
+    /// Saves the shortcuts edited since the last save, those that differ from the scheme, and puts them on the commands
+    void storeEdited()
+    {
+        KConfigGroup custom(KSharedConfig::openConfig(KisProfile::configFile(QStringLiteral("kritashortcutsrc"))), QStringLiteral("Shortcuts"));
+        bool any = false;
+        for (Command &command : commands) {
+            if (!command.edited) continue;
+            command.edited = false;
+            any = true;
+            if (command.registered && command.current == defaultsOf(command, scheme)) {
+                custom.deleteEntry(command.id);
+            } else if (!command.registered && command.action && command.current == command.action->shortcuts()) {
+                continue;
+            } else {
+                custom.writeEntry(command.id, command.current.isEmpty() ? QStringLiteral("none")
+                                                                        : QKeySequence::listToString(command.current, QKeySequence::PortableText));
+            }
+            if (command.action) command.action->setShortcuts(command.current);
+            for (const QPointer<QAction> &copy : command.copies) {
+                if (copy) copy->setShortcuts(command.current);
+            }
+        }
+        if (any) custom.sync();
     }
 
     void startRecording(int row, int index)
@@ -1507,6 +1536,9 @@ KisKeysPage::KisKeysPage(QWidget *parent)
     d->noteTimer.setSingleShot(true);
     d->noteTimer.setInterval(6000);
     connect(&d->noteTimer, &QTimer::timeout, this, [this]() { d->note->setText(d->hint()); });
+    d->storeTimer.setSingleShot(true);
+    d->storeTimer.setInterval(300);
+    connect(&d->storeTimer, &QTimer::timeout, this, [this]() { d->storeEdited(); });
     d->note->setText(d->hint());
 
     d->collectCommands();
@@ -1760,24 +1792,8 @@ void KisKeysPage::apply()
     }
 
     // Store only the shortcuts that differ from the scheme
-    KConfigGroup custom(KSharedConfig::openConfig(KisProfile::configFile(QStringLiteral("kritashortcutsrc"))), QStringLiteral("Shortcuts"));
-    for (const Private::Command &command : d->commands) {
-        if (!command.edited) continue;
-        if (command.registered && command.current == d->defaultsOf(command, d->scheme)) {
-            custom.deleteEntry(command.id);
-        } else if (!command.registered && command.action && command.current == command.action->shortcuts()) {
-            continue;
-        } else {
-            custom.writeEntry(command.id, command.current.isEmpty() ? QStringLiteral("none")
-                                                                    : QKeySequence::listToString(command.current, QKeySequence::PortableText));
-        }
-        if (command.action) command.action->setShortcuts(command.current);
-        for (const QPointer<QAction> &copy : command.copies) {
-            if (copy) copy->setShortcuts(command.current);
-        }
-    }
-    custom.sync();
-    for (Private::Command &command : d->commands) command.edited = false;
+    d->storeTimer.stop();
+    d->storeEdited();
     registry->settingsPageSaved();
 
     // Keys held on the canvas

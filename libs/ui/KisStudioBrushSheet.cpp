@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioBrushSheet.h"
+#include "KisSettingsRegistry.h"
 
 #include <QAction>
 #include <QApplication>
@@ -434,6 +435,7 @@ private:
         if (QAction *picked = menu.exec(at)) {
             m_extraColumns << picked->data().toString();
             KSharedConfig::openConfig()->group(QStringLiteral("StudioBrushSheet")).writeEntry("PenColumns", m_extraColumns);
+            KisSettingsRegistry::instance()->scheduleSync();
             refresh();
         }
     }
