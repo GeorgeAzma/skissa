@@ -1415,6 +1415,7 @@ void LayerBox::slotCompositeOpChanged(int index)
 {
     Q_UNUSED(index);
     if (!m_canvas) return;
+    if (m_restorePending) restorePreview(true);
 
     QString compositeOp = m_wdgLayerBox->cmbComposite->selectedCompositeOp().id();
     m_nodeManager->nodeCompositeOpChanged(m_nodeManager->activeColorSpace()->compositeOp(compositeOp));
@@ -1428,6 +1429,9 @@ void LayerBox::slotPreviewBlendMode(const QString &id)
         if (!m_canvas || !m_activeNode || !m_activeNode->isEditable(false)) {
             return;
         }
+        // a layer still waiting for its own mode back gets it first; the same layer just previews on
+        if (m_restorePending && m_previewNode != m_activeNode) restorePreview(true);
+        m_restorePending = false;
         if (!m_previewNode) {
             m_previewNode = m_activeNode;
             m_previewImage = m_image;
@@ -1451,16 +1455,32 @@ void LayerBox::slotPreviewBlendMode(const QString &id)
         }
     } else if (m_previewNode) {
         m_pendingPreviewOp.clear();
-        KisImageSP image = m_previewImage;
-        if (m_previewNode->compositeOpId() != m_previewOriginalOp && image) {
-            image->barrierLock();
-            m_previewNode->setCompositeOpId(m_previewOriginalOp);
-            image->unlock();
-            m_previewNode->setDirty();
-        }
-        m_previewNode = nullptr;
-        m_previewImage = nullptr;
+        restorePreview(false);
     }
+}
+
+void LayerBox::restorePreview(bool wait)
+{
+    KisImageSP image = m_previewImage;
+    if (m_previewNode && image && m_previewNode->compositeOpId() != m_previewOriginalOp) {
+        // closing the picker doesn't wait for a heavy update to finish; picking a mode does, so its undo step
+        // starts from the real one
+        if (wait) {
+            image->barrierLock();
+        } else if (!image->tryBarrierLock()) {
+            m_restorePending = true;
+            QTimer::singleShot(16, this, [this]() {
+                if (m_restorePending) restorePreview(false);
+            });
+            return;
+        }
+        m_previewNode->setCompositeOpId(m_previewOriginalOp);
+        image->unlock();
+        m_previewNode->setDirty();
+    }
+    m_restorePending = false;
+    m_previewNode = nullptr;
+    m_previewImage = nullptr;
 }
 
 void LayerBox::slotOpacityChanged()

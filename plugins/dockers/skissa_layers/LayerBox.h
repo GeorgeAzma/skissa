@@ -207,6 +207,9 @@ private:
     QString m_previewOriginalOp;
     /// The mode hovered while the image was busy, retried until it shows
     QString m_pendingPreviewOp;
+    /// The real mode is put back once the image is free (see restorePreview())
+    bool m_restorePending {false};
+    void restorePreview(bool wait);
     KisNodeWSP m_savedNodeBeforeEditSelectionMode;
     KisSignalAutoConnectionsStore m_activeNodeConnections;
     QScopedPointer<KisScreenMigrationTracker> m_screenMigrationTracker;
