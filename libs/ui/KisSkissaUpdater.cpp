@@ -93,6 +93,8 @@ bool isNewer(const QString &version, const QString &than)
 
 /// Waits for the app to end, then swaps the folders; run by PowerShell from the profile folder
 const char applyScript[] = R"ps(param([int]$Id, [string]$Install, [switch]$Relaunch)
+# a folder this script is in can't be renamed
+Set-Location -LiteralPath $PSScriptRoot
 $update = "$Install.update"
 $old = "$Install.old"
 $log = Join-Path $PSScriptRoot 'update.log'
@@ -139,7 +141,7 @@ if (Test-Path -LiteralPath (Join-Path $old 'skissa-files.txt')) {
     }
 }
 Note "$Install updated"
-if ($Relaunch) { Start-Process -FilePath (Join-Path $Install 'bin\krita.exe') }
+if ($Relaunch) { Start-Process -FilePath (Join-Path $Install 'bin\krita.exe') -WorkingDirectory $PSScriptRoot }
 )ps";
 
 class Updater : public QObject
@@ -171,7 +173,7 @@ public:
     void look(bool asked)
     {
         if (state == Looking || state == Downloading || state == Unpacking) {
-            if (asked) tell(i18nc("@info, %1 a version", "Getting Skissa %1…", found));
+            if (asked) tell(i18nc("@info, %1 a version", "Downloading Skissa %1…", found));
             return;
         }
         if (!asked && !KisSettingsRegistry::instance()->value(QStringLiteral("StudioUpdates")).toBool()) return;
@@ -204,7 +206,7 @@ public:
                 return;
             }
             if (!isNewer(latest, KisSkissaUpdater::version())) {
-                if (asked) tell(i18nc("@info, %1 a version", "Skissa %1 is the newest", KisSkissaUpdater::version()));
+                if (asked) tell(i18nc("@info", "Skissa is up to date"));
                 return;
             }
             Q_FOREACH (const QJsonValue &value, release.value(QStringLiteral("assets")).toArray()) {
@@ -245,7 +247,7 @@ private:
 
     QString readyText() const
     {
-        return i18nc("@info, %1 a version", "Skissa %1 starts the next time you open it", found);
+        return i18nc("@info, %1 a version", "Restart Skissa to update to %1", found);
     }
 
     void tell(const QString &text)
@@ -271,12 +273,12 @@ private:
         QDir().mkpath(folder);
         download.setFileName(folder + QLatin1Char('/') + name);
         if (!download.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            if (asked) tell(i18nc("@info", "The update didn't download; Skissa tries again later"));
+            if (asked) tell(i18nc("@info", "Couldn't download the update"));
             return;
         }
         state = Downloading;
         found = version;
-        if (asked) tell(i18nc("@info, %1 a version", "Getting Skissa %1…", found));
+        if (asked) tell(i18nc("@info, %1 a version", "Downloading Skissa %1…", found));
 
         QNetworkRequest request(url);
         request.setTransferTimeout(60000);
@@ -377,6 +379,8 @@ private:
         process.setProgram(qEnvironmentVariable("SystemRoot", QStringLiteral("C:\\Windows"))
                            + QStringLiteral("\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"));
         process.setArguments(arguments);
+        // not in the program's folder, which the update renames: Skissa started from a shortcut works in its bin folder
+        process.setWorkingDirectory(KisProfile::configFolder());
 #ifdef Q_OS_WIN
         process.setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments *args) {
             args->flags |= CREATE_NO_WINDOW;
@@ -395,7 +399,7 @@ private:
         // started once this one has ended: a second one starting while this one still runs would hand itself over to it
         QString program = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
         program.replace(QLatin1Char('\''), QStringLiteral("''"));
-        const QString command = QStringLiteral("Wait-Process -Id %1 -Timeout 60 -ErrorAction SilentlyContinue; Start-Process -FilePath '%2'")
+        const QString command = QStringLiteral("Wait-Process -Id %1 -Timeout 60 -ErrorAction SilentlyContinue; Start-Process -FilePath '%2' -WorkingDirectory (Split-Path -Parent '%2')")
                                     .arg(QCoreApplication::applicationPid())
                                     .arg(program);
         if (powerShell({QStringLiteral("-NoProfile"), QStringLiteral("-NonInteractive"), QStringLiteral("-WindowStyle"), QStringLiteral("Hidden"),
