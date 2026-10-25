@@ -176,9 +176,8 @@ void drawKnob(QPainter &painter, const QPointF &center, qreal radius, const QCol
 }
 
 /**
- * The color of a hue on the ring and the hue track: its most vivid color, the cusp of the sRGB gamut, so that
- * neighbouring hues tell apart as well as they can. At one lightness and chroma for all, yellows and cyans
- * came out dull and alike.
+ * The color of a hue: its most vivid color, the cusp of the sRGB gamut. At one lightness and chroma for all,
+ * yellows and cyans came out dull and alike.
  */
 QColor hueColor(qreal h)
 {
@@ -217,10 +216,46 @@ QColor hueColor(qreal h)
     return rgbFromOklch({lightness, lightness * saturation, h});
 }
 
-/// The OKLCH ring's hue at \p offset from its center, in degrees clockwise from the top
-qreal oklchHueAt(const QPointF &offset)
+/// The OKLCH ring's angle at \p offset from its center, in degrees clockwise from the top
+qreal ringAngleAt(const QPointF &offset)
 {
     return std::fmod(std::atan2(offset.x(), -offset.y()) * 180.0 / M_PI + 360.0, 360.0);
+}
+
+/**
+ * The OKLCH ring and hue track are spaced as an HSV wheel is: at \p hsvHue (degrees) is the pure color of that
+ * HSV hue, and picking there picks its OKLCH hue. Spaced by OKLCH hue, greens and blues took most of the ring.
+ */
+qreal oklchHueOfHsv(qreal hsvHue)
+{
+    return oklchFromRgb(QColor::fromHsvF(std::fmod(hsvHue / 360.0 + 1.0, 1.0), 1.0, 1.0)).h;
+}
+
+/// Where OKLCH hue \p oklchHue is on the HSV-spaced ring and track, in HSV degrees (see oklchHueOfHsv())
+qreal hsvHueOfOklch(qreal oklchHue)
+{
+    // the OKLCH hues of the pure colors every quarter degree, unwrapped: they rise all the way round
+    static const QVector<qreal> hues = []() {
+        QVector<qreal> hues(1441);
+        qreal turns = 0;
+        for (int i = 0; i < hues.size(); i++) {
+            qreal h = oklchHueOfHsv(i * 0.25) + turns;
+            if (i > 0 && h < hues[i - 1] - 180.0) {
+                turns += 360.0;
+                h += 360.0;
+            }
+            hues[i] = h;
+        }
+        return hues;
+    }();
+    qreal h = std::fmod(oklchHue - hues.first(), 360.0);
+    if (h < 0) h += 360.0;
+    h += hues.first();
+    const auto above = std::upper_bound(hues.cbegin(), hues.cend(), h);
+    const int i = qBound(1, int(above - hues.cbegin()), hues.size() - 1);
+    const qreal span = hues[i] - hues[i - 1];
+    const qreal along = span > 0 ? (h - hues[i - 1]) / span : 0.0;
+    return std::fmod((i - 1 + along) * 0.25, 360.0);
 }
 
 /// Darkens \p color to mark the area past the edge of sRGB
@@ -373,7 +408,7 @@ protected:
         painter.drawImage(plane.topLeft(), m_plane);
         painter.restore();
 
-        const qreal angle = m_color.h * M_PI / 180.0;
+        const qreal angle = hsvHueOfOklch(m_color.h) * M_PI / 180.0;
         const QPointF direction(std::sin(angle), -std::cos(angle));
         drawKnob(painter, center() + (outerRadius() - ringWidth() / 2) * direction, ringWidth() / 2 + 2, hueColor(m_color.h));
         drawKnob(painter, QPointF(plane.left() + qMin(1.0, m_color.c / maxPlaneChroma) * plane.width(), plane.top() + (1.0 - m_color.l) * plane.height()),
@@ -384,13 +419,7 @@ protected:
 
     QRgb ringColor(const QPointF &offset) const override
     {
-        // computed once, every half degree
-        static const QVector<QRgb> hues = []() {
-            QVector<QRgb> hues(720);
-            for (int i = 0; i < hues.size(); i++) hues[i] = hueColor(i * 0.5).rgb();
-            return hues;
-        }();
-        return hues[qBound(0, int(oklchHueAt(offset) * 2), hues.size() - 1)];
+        return QColor::fromHsvF(ringAngleAt(offset) / 360.0, 1.0, 1.0).rgb();
     }
 
     Part partAt(const QPoint &pos) const override
@@ -404,7 +433,7 @@ protected:
     void pick(Part part, const QPoint &pos) override
     {
         if (part == Ring) {
-            if (huePicked) huePicked(oklchHueAt(QPointF(pos) - center()));
+            if (huePicked) huePicked(oklchHueOfHsv(ringAngleAt(QPointF(pos) - center())));
         } else if (planePicked) {
             const QRectF plane = square();
             planePicked(qBound(0.0, (pos.x() - plane.left()) / plane.width(), 1.0), qBound(0.0, (pos.y() - plane.top()) / plane.height(), 1.0));
@@ -984,7 +1013,7 @@ static QIcon styleIcon(PickerStyle style)
     switch (style) {
     case PickerStyle::Ring: {
         // a square in the hole, as the picker has one in its ring
-        ring(hueColor);
+        ring([](qreal h) { return QColor::fromHsvF(h / 360.0, 1.0, 1.0); });
         const QRectF plane(bounds.center() - QPointF(2.6, 2.6), QSizeF(5.2, 5.2));
         painter.setBrush(hue);
         painter.setPen(edge);
@@ -1003,7 +1032,7 @@ static QIcon styleIcon(PickerStyle style)
         bar(1.8, {{0, Qt::black}, {1, Qt::white}});
         bar(7.7, {{0, QColor(150, 150, 150)}, {1, hue}});
         QGradientStops hues;
-        for (int i = 0; i <= 6; i++) hues << QGradientStop(i / 6.0, hueColor(i * 60.0));
+        for (int i = 0; i <= 6; i++) hues << QGradientStop(i / 6.0, QColor::fromHsvF(std::fmod(i / 6.0, 1.0), 1.0, 1.0));
         bar(13.6, hues);
         break;
     }
@@ -1444,7 +1473,7 @@ struct KisStudioColorPanel::Private
             lightTrack->setContents(QStringLiteral("%1 %2").arg(heldChroma).arg(color.h), color.l, current);
             chromaTrack->setContents(QStringLiteral("%1 %2").arg(color.l).arg(color.h), qMin(1.0, color.c / maxPlaneChroma), current,
                                      maxChroma(color.l, color.h) / maxPlaneChroma);
-            hueTrack->setContents(QStringLiteral("hues"), color.h / 360.0, current);
+            hueTrack->setContents(QStringLiteral("hues"), hsvHueOfOklch(color.h) / 360.0, current);
             break;
         case PickerStyle::Hsv:
             wheel->setContents(hsvHue, hsvS, hsvV);
@@ -1765,7 +1794,7 @@ KisStudioColorPanel::KisStudioColorPanel()
         return rgbIfInGamut({d->color.l, maxPlaneChroma * t, d->color.h});
     };
     d->hueTrack->colorAt = [](qreal t) {
-        return hueColor(360.0 * t);
+        return QColor::fromHsvF(qBound(0.0, t, 1.0) * 0.9999, 1.0, 1.0);
     };
 
     auto remember = [this]() { d->remember(); };
@@ -1799,7 +1828,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     };
     d->lightTrack->picked = pickLightness;
     d->chromaTrack->picked = [pickChroma](qreal t) { pickChroma(maxPlaneChroma * t); };
-    d->hueTrack->picked = [pickHue](qreal t) { pickHue(360.0 * t); };
+    d->hueTrack->picked = [pickHue](qreal t) { pickHue(oklchHueOfHsv(360.0 * t)); };
     d->wheel->huePicked = [this](qreal hue) {
         d->hsvHue = hue;
         d->pickColor(QColor::fromHsvF(d->hsvHue, d->hsvS, d->hsvV));
