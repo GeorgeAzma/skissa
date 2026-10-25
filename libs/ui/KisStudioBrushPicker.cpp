@@ -36,6 +36,7 @@
 #include "KisMainWindow.h"
 #include "KisResourceServerProvider.h"
 #include "KisViewManager.h"
+#include "kis_paintop_box.h"
 #include "kis_canvas_resource_provider.h"
 #include "kis_config.h"
 #include "kis_image.h"
@@ -903,7 +904,12 @@ void KisStudioBrushPicker::use(KisViewManager *view, const QString &presetName)
         return;
     }
     KisPaintOpPresetSP preset = KisResourceServerProvider::instance()->paintOpPresetServer()->resource(QString(), QString(), presetName);
-    if (preset) {
+    if (!preset) return;
+    // through the paintop box, as Krita's brush panel does: set only as the brush in use, one of another engine
+    // kept the last engine's settings in the editors
+    if (KisPaintopBox *box = view->paintOpBox()) {
+        box->resourceSelected(preset);
+    } else {
         resources->setPaintOpPreset(preset);
     }
 }

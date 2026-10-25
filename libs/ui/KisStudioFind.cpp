@@ -72,6 +72,7 @@
 #include "KisResourceServerProvider.h"
 #include "KisView.h"
 #include "KisViewManager.h"
+#include "kis_paintop_box.h"
 #include "KisSettingsRegistry.h"
 #include "KisStudioSettings.h"
 #include "kis_canvas_resource_provider.h"
@@ -858,7 +859,11 @@ void KisStudioFind::rebuildIndex()
                                QString(), QIcon(),
                                [viewManager, md5, name]() {
                                    KisPaintOpPresetSP preset = KisResourceServerProvider::instance()->paintOpPresetServer()->resource(md5, QString(), name);
-                                   if (preset && viewManager && viewManager->canvasResourceProvider()) {
+                                   if (!preset || !viewManager) return;
+                                   // through the paintop box, which switches the editors to the brush's engine
+                                   if (KisPaintopBox *box = viewManager->paintOpBox()) {
+                                       box->resourceSelected(preset);
+                                   } else if (viewManager->canvasResourceProvider()) {
                                        viewManager->canvasResourceProvider()->setPaintOpPreset(preset);
                                    }
                                }});

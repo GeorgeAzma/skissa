@@ -12,10 +12,13 @@
 
 #include <QCloseEvent>
 #include <QHBoxLayout>
+#include <QGuiApplication>
 #include <QHash>
 #include <QLabel>
 #include <QPainter>
 #include <QPointer>
+#include <QScreen>
+#include <QScrollArea>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -112,6 +115,8 @@ struct KisStudioBrushEditor::Private
     KisStudioChips *tabs {nullptr};
     QWidget *page {nullptr};
     QVBoxLayout *pageLayout {nullptr};
+    /// The page scrolls when a brush has more rows than the screen is tall (MyPaint brushes have dozens)
+    QScrollArea *pageScroll {nullptr};
 
     QVector<int> parts;
     int part {KisPaintOpOption::GENERAL};
@@ -369,10 +374,17 @@ KisStudioBrushEditor::KisStudioBrushEditor(KisMainWindow *mainWindow)
     layout->addWidget(d->tabs);
 
     d->page = new QWidget(this);
+    d->page->setAutoFillBackground(false);
     d->pageLayout = new QVBoxLayout(d->page);
     d->pageLayout->setContentsMargins(0, 0, 0, 0);
     d->pageLayout->setSpacing(KisModernStyle::space1);
-    layout->addWidget(d->page);
+    d->pageScroll = new QScrollArea(this);
+    d->pageScroll->setFrameShape(QFrame::NoFrame);
+    d->pageScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    d->pageScroll->setWidgetResizable(true);
+    d->pageScroll->viewport()->setAutoFillBackground(false);
+    d->pageScroll->setWidget(d->page);
+    layout->addWidget(d->pageScroll);
 
     auto *everything = new KisStudioValueRow(i18nc("the whole brush editor", "Everything"), this);
     everything->setDraggable(false);
@@ -511,12 +523,7 @@ void KisStudioBrushEditor::showPart(int part)
 
     if (part == strokePart) {
         auto *stroke = new KisStudioStrokePage(d->mainWindow, d->page);
-        connect(stroke, &KisStudioStrokePage::sigResized, this, [this]() {
-            QTimer::singleShot(0, this, [this]() {
-                adjustSize();
-                if (isVisible()) keepOnScreen();
-            });
-        });
+        connect(stroke, &KisStudioStrokePage::sigResized, this, [this]() { QTimer::singleShot(0, this, [this]() { fitPage(); }); });
         d->pageLayout->addWidget(stroke);
         d->rowOptions.clear();
         d->unusedOptions.clear();
@@ -655,9 +662,20 @@ void KisStudioBrushEditor::showPart(int part)
 
 void KisStudioBrushEditor::fitPage()
 {
-    // the window fits the new page, smaller or larger
+    // the window fits the new page, smaller or larger, and no taller than the screen: the page scrolls past that
     d->pageLayout->activate();
+    // at its width: rows of chips wrap
+    const int pageWidth = d->pageScroll->viewport()->width() > 0 ? d->pageScroll->viewport()->width() : d->page->sizeHint().width();
+    const int wanted = d->page->hasHeightForWidth() ? d->page->heightForWidth(pageWidth) : d->page->sizeHint().height();
+    d->pageScroll->setFixedHeight(wanted);
     layout()->activate();
+    QScreen *screen = this->screen() ? this->screen() : QGuiApplication::primaryScreen();
+    const int room = screen ? screen->availableGeometry().height() + 2 * shadowMargin() - 2 * KisModernStyle::space4 : sizeHint().height();
+    const int over = sizeHint().height() - room;
+    if (over > 0) {
+        d->pageScroll->setFixedHeight(qMax(qMin(wanted, 120), wanted - over));
+        layout()->activate();
+    }
     adjustSize();
     if (isVisible()) keepOnScreen();
     QTimer::singleShot(0, this, [this]() {

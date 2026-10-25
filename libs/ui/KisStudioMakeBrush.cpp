@@ -9,8 +9,10 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QPointer>
+#include <QSet>
 #include <QTimer>
 #include <QVector>
+#include <QtMath>
 
 #include <klocalizedstring.h>
 
@@ -35,6 +37,7 @@
 #include <kis_paintop_preset.h>
 #include <kis_paintop_settings.h>
 #include <kis_predefined_brush_factory.h>
+#include <kis_pixel_selection.h>
 #include <kis_selection.h>
 #include <widgets/kis_preset_chooser.h>
 
@@ -105,6 +108,51 @@ void removePaper(QImage &picture, QRgb paper)
     }
 }
 
+/// What \p device shows in \p area, at most \p longest pixels across, as much there as the selection takes of it
+QImage selectedPicture(KisPaintDeviceSP device, KisSelectionSP selection, const QRect &area, int longest, QVector<quint8> *maskOut)
+{
+    QSize size = area.size();
+    if (qMax(size.width(), size.height()) > longest) size.scale(longest, longest, Qt::KeepAspectRatio);
+    size = size.expandedTo(QSize(1, 1));
+    const KoColorProfile *srgb = KoColorSpaceRegistry::instance()->rgb8()->profile();
+    QVector<quint8> mask(size.width() * size.height());
+    QImage picture;
+    if (size == area.size()) {
+        picture = device->convertToQImage(srgb, area.x(), area.y(), area.width(), area.height());
+        selection->projection()->readBytes(mask.data(), area);
+    } else {
+        picture = device->createThumbnailDevice(size.width(), size.height(), area)->convertToQImage(srgb, 0, 0, size.width(), size.height());
+        selection->projection()->createThumbnailDevice(size.width(), size.height(), area)->readBytes(mask.data(), QRect(QPoint(), size));
+    }
+    picture = picture.convertToFormat(QImage::Format_ARGB32);
+    for (int y = 0; y < picture.height(); y++) {
+        QRgb *line = reinterpret_cast<QRgb *>(picture.scanLine(y));
+        for (int x = 0; x < picture.width(); x++) {
+            const QRgb c = line[x];
+            line[x] = qRgba(qRed(c), qGreen(c), qBlue(c), qAlpha(c) * mask[y * size.width() + x] / 255);
+        }
+    }
+    if (maskOut) *maskOut = mask;
+    return picture;
+}
+
+/// Where \p picture holds paint
+QRect paintIn(const QImage &picture)
+{
+    int left = picture.width(), top = picture.height(), right = -1, bottom = -1;
+    for (int y = 0; y < picture.height(); y++) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(picture.constScanLine(y));
+        for (int x = 0; x < picture.width(); x++) {
+            if (qAlpha(line[x]) <= 8) continue;
+            left = qMin(left, x);
+            right = qMax(right, x);
+            top = qMin(top, y);
+            bottom = qMax(bottom, y);
+        }
+    }
+    return right < 0 ? QRect() : QRect(QPoint(left, top), QPoint(right, bottom));
+}
+
 /// Whether \p picture is gray: then it is a shape, painted in the brush's color
 bool isGray(const QImage &picture)
 {
@@ -135,9 +183,14 @@ KisTagSP userTagShown(KisViewManager *view)
 
 QString uniqueName(const QString &base)
 {
+    // the names only: asking for the presets by name loads each one from its file
     KisResourceModel presets(ResourceType::PaintOpPresets);
+    QSet<QString> taken;
+    for (int row = 0; row < presets.rowCount(); row++) {
+        taken << presets.index(row, 0).data(Qt::UserRole + KisAbstractResourceModel::Name).toString();
+    }
     QString name = base;
-    for (int n = 2; !presets.resourcesForName(name).isEmpty(); n++) name = QStringLiteral("%1 %2").arg(base).arg(n);
+    for (int n = 2; taken.contains(name); n++) name = QStringLiteral("%1 %2").arg(base).arg(n);
     return name;
 }
 
@@ -160,37 +213,39 @@ void KisStudioMakeBrush::fromSelection(KisViewManager *view)
         return;
     }
 
-    // what is seen there, as the selection takes it
-    image->barrierLock();
+    // what is seen there, as the selection takes it: a copy, so strokes still being painted aren't waited for
     KisPaintDeviceSP seen = new KisPaintDevice(*image->projection());
-    image->unlock();
-    QImage picture = seen->convertToQImage(KoColorSpaceRegistry::instance()->rgb8()->profile(), rect.x(), rect.y(), rect.width(), rect.height())
-                         .convertToFormat(QImage::Format_ARGB32);
-    QVector<quint8> mask(rect.width() * rect.height());
-    selection->projection()->readBytes(mask.data(), rect);
-    for (int y = 0; y < picture.height(); y++) {
-        QRgb *line = reinterpret_cast<QRgb *>(picture.scanLine(y));
-        for (int x = 0; x < picture.width(); x++) {
-            const QRgb c = line[x];
-            line[x] = qRgba(qRed(c), qGreen(c), qBlue(c), qAlpha(c) * mask[y * rect.width() + x] / 255);
-        }
-    }
-    const QRgb paper = paperOf(picture, mask);
-    if (qAlpha(paper)) removePaper(picture, paper);
-
-    // only the paint
-    QRect paint;
-    for (int y = 0; y < picture.height(); y++) {
-        const QRgb *line = reinterpret_cast<const QRgb *>(picture.constScanLine(y));
-        for (int x = 0; x < picture.width(); x++) {
-            if (qAlpha(line[x]) > 8) paint |= QRect(x, y, 1, 1);
-        }
-    }
-    if (paint.isEmpty()) {
+    // found on a small picture of it: the paper and where the paint is
+    QVector<quint8> mask;
+    QImage small = selectedPicture(seen, selection, rect, largestTip, &mask);
+    const QRgb paper = paperOf(small, mask);
+    if (qAlpha(paper)) removePaper(small, paper);
+    const QRect smallPaint = paintIn(small);
+    if (smallPaint.isEmpty()) {
         view->showFloatingMessage(i18nc("@info", "There is nothing in the selection to make a brush of"), QIcon());
         return;
     }
-    picture = picture.copy(paint);
+    QImage picture;
+    if (small.size() == rect.size()) {
+        picture = small.copy(smallPaint);
+    } else {
+        // then only the paint, as sharp as the tip can be
+        const qreal sx = qreal(rect.width()) / small.width();
+        const qreal sy = qreal(rect.height()) / small.height();
+        const QRect area = QRectF(smallPaint.x() * sx, smallPaint.y() * sy, smallPaint.width() * sx, smallPaint.height() * sy)
+                               .toAlignedRect()
+                               .adjusted(-qCeil(sx), -qCeil(sy), qCeil(sx), qCeil(sy))
+                               .translated(rect.topLeft())
+            & rect;
+        picture = selectedPicture(seen, selection, area, 2 * largestTip, nullptr);
+        if (qAlpha(paper)) removePaper(picture, paper);
+        const QRect paint = paintIn(picture);
+        if (paint.isEmpty()) {
+            view->showFloatingMessage(i18nc("@info", "There is nothing in the selection to make a brush of"), QIcon());
+            return;
+        }
+        picture = picture.copy(paint);
+    }
     if (qMax(picture.width(), picture.height()) > largestTip) {
         picture = picture.scaled(largestTip, largestTip, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     }
@@ -250,7 +305,13 @@ void KisStudioMakeBrush::fromSelection(KisViewManager *view)
     const KisPaintOpPresetSP stored = KisResourceModel(ResourceType::PaintOpPresets).resourceForId(preset->resourceId()).dynamicCast<KisPaintOpPreset>();
     // painting with it: the brush tool first, or switching to it later brings back the brush it had
     KisStudioTools::switchTo(QStringLiteral("KritaShape/KisToolBrush"));
-    if (resources) resources->setPaintOpPreset(stored ? stored : preset);
+    // through the paintop box, as Krita's brush panel does: set only as the brush in use, one of another engine
+    // kept the last engine's settings in the editors
+    if (KisPaintopBox *box = view->paintOpBox()) {
+        box->resourceSelected(stored ? stored : preset);
+    } else if (resources) {
+        resources->setPaintOpPreset(stored ? stored : preset);
+    }
     KisConfig(false).writeEntry(QStringLiteral("StudioBrushEditorPart"), int(KisPaintOpOption::GENERAL));
     QPointer<KisViewManager> self = view;
     QTimer::singleShot(0, view, [self]() {

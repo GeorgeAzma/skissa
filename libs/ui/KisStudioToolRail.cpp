@@ -49,6 +49,7 @@
 #include "KisTouchMode.h"
 #include "KisView.h"
 #include "KisViewManager.h"
+#include "kis_paintop_box.h"
 #include "canvas/kis_canvas_controller.h"
 #include "kis_canvas_resource_provider.h"
 #include "KisSettingsRegistry.h"
@@ -1349,7 +1350,12 @@ void KisStudioToolRail::loadPresetForSlot(const QString &slotId)
     KisPaintOpPresetSP preset = server->resource(QString(), QString(), name);
     if (preset) {
         d->loadingPreset = true;
-        resources->setPaintOpPreset(preset);
+        // through the paintop box, which switches the editors to the brush's engine
+        if (KisPaintopBox *box = d->mainWindow->viewManager() ? d->mainWindow->viewManager()->paintOpBox() : nullptr) {
+            box->resourceSelected(preset);
+        } else {
+            resources->setPaintOpPreset(preset);
+        }
         d->loadingPreset = false;
         KisSettingsRegistry::writeLater(QStringLiteral("StudioBrushPreset_") + slotId, name);
     }
