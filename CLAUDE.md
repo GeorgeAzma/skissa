@@ -192,7 +192,7 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 
 ## Open questions and known issues
 
-- **The app is named Skissa** everywhere it names itself. The exe stays `krita.exe` and the internal ids (`krita` component, `.kra`) stay, as they should. The splash art is Kiki, Krita's mascot (credited, CC BY-SA); art of the fork's own would separate it further.
+- **The app is named Skissa** everywhere it names itself. The program is `skissa.exe` (`skissa.com` in a console; `krita/skissa.cmake` renames Krita's stub targets), and a tiny `krita.exe` beside it only starts it (`krita/skissa_bridge.cpp`), for pins, shortcuts and the update of a release from before the rename, whose script starts `bin\krita.exe`. The internal ids stay (`krita` component and application name, `.kra`): `main.cc` sets the application name before anything reads it, since Qt otherwise takes it from the program's file. The splash art is Kiki, Krita's mascot (credited, CC BY-SA); art of the fork's own would separate it further.
 - **The homepage is `github.com/GeorgeAzma/skissa`** (`KisProfile::homepage()`, `make-release.py`); change both if the repo moves.
 - **The README says plainly that all the code is AI-written** and the ideas are the owner's; keep that true and visible. Its donate button goes to Krita.
 - Taking Krita's brushes copies files, not Krita's tags (those are in its resource database), except what bundles carry.
@@ -262,7 +262,7 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - With `-fmath-errno` (this build's default) a `std::sqrt` in a loop doesn't vectorize; `std::sqrt(std::fmax(x, 0.0f))` tells the compiler the argument isn't negative (the pigment mix got twice as fast from that and floats).
 - Synthetic drags (`devinput.ps1 drag`) don't move the tip editor's value chips or the selection's Grow and Soft scrubbers: test those by hand, or through what they change.
 - `TestCompositeOpInversion` takes about 520 s when the machine is busy, past ctest's 400 s timeout: a timeout there in `tests.ps1` isn't a failure; run it alone with `--timeout 900`.
-- The owner's installed Krita (Program Files) may be running: anything that waits on or stops `krita.exe` must match the path under `C:\code\krita-deps`, not the name.
+- The owner's installed Krita (Program Files) may be running: anything that waits on or stops the dev build must match the path under `C:\code\krita-deps`, not the name. The dev scripts look for `skissa` and `krita` processes (the bridge).
 - Don't run the UI tour while the unit tests build or run: under that load it stalled in a Windows timer call and died with no stack. A tour step begun and never ended counts as a crash in later runs (only its picture): every early return in a step must `end()` it.
 - Testing brush settings by painting: while the brush editor is open, each change repaints the last stroke with it (re-stroke), so a stroke painted before switching a mixing mode ends up in the next mode. Paint a throwaway dot before each switch.
 - A drag must check `event->buttons()` on every move: a release that lands in another window (Alt-Tab, a popup) never arrives, and with mouse tracking on, hovering kept dragging (the tip editor, the effect overlay, panel groups).

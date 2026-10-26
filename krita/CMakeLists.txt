@@ -353,3 +353,5 @@ if (WIN32)
     endif()
     install(TARGETS krita_windows_stub_com ${INSTALL_TARGETS_DEFAULT_ARGS})
 endif (WIN32)
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/skissa.cmake)

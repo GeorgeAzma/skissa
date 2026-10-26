@@ -66,9 +66,9 @@ BEGIN
             VALUE "CompanyName", KRITA_FOUNDATION_STR
             VALUE "FileDescription", KRITA_DESCRIPTION_STR
             VALUE "FileVersion", KRITA_FILE_VERSION_STR
-            VALUE "InternalName", "krita"
+            VALUE "InternalName", "skissa"
             VALUE "LegalCopyright", "GPL-3.0-or-later, based on Krita"
-            VALUE "OriginalFilename", "krita.exe"
+            VALUE "OriginalFilename", "skissa.exe"
             VALUE "ProductName", "Skissa"
             VALUE "ProductVersion", KRITA_PRODUCT_VERSION_STR
         END

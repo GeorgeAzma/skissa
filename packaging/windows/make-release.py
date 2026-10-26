@@ -12,7 +12,7 @@ everything in it and where to find the sources.
 
 The version is packaging/skissa-version.txt's unless given, and the tag v<version>.
 
-The DLLs come from following the imports of krita.exe, every plugin and the tools the app runs
+The DLLs come from following the imports of skissa.exe, every plugin and the tools the app runs
 (ffmpeg for videos), so nothing the app doesn't load is shipped and nothing it loads is missed.
 """
 
@@ -29,8 +29,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SOURCE = os.path.normpath(os.path.join(HERE, '..', '..'))
 HOMEPAGE = 'https://github.com/GeorgeAzma/skissa'
 
-# programs the app runs or that run it
-PROGRAMS = ['krita.exe', 'krita_version.exe', 'ffmpeg.exe', 'ffprobe.exe']
+# programs the app runs or that run it (krita.exe only starts skissa.exe, for what still points there)
+PROGRAMS = ['skissa.exe', 'krita.exe', 'krita_version.exe', 'ffmpeg.exe', 'ffprobe.exe']
 LOADED = ['libEGL.dll', 'libGLESv2.dll', 'exchndl.dll', 'mgwhelp.dll', 'dbghelp.dll', 'symsrv.dll', 'symsrv.yes']
 # the release's version and files, read by the app's updater (KisSkissaUpdater)
 LIST = 'skissa-files.txt'

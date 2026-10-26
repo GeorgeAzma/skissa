@@ -141,7 +141,12 @@ if (Test-Path -LiteralPath (Join-Path $old 'skissa-files.txt')) {
     }
 }
 Note "$Install updated"
-if ($Relaunch) { Start-Process -FilePath (Join-Path $Install 'bin\krita.exe') -WorkingDirectory $PSScriptRoot }
+if ($Relaunch) {
+    # a release from before the program was renamed has only krita.exe
+    $program = Join-Path $Install 'bin\skissa.exe'
+    if (-not (Test-Path -LiteralPath $program)) { $program = Join-Path $Install 'bin\krita.exe' }
+    Start-Process -FilePath $program -WorkingDirectory $PSScriptRoot
+}
 )ps";
 
 class Updater : public QObject

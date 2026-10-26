@@ -249,6 +249,10 @@ extern "C" MAIN_EXPORT int MAIN_FN(int argc, char **argv)
     // Workaround a bug in QNetworkManager
     qputenv("QT_BEARER_POLL_TIMEOUT", QByteArray::number(-1));
 
+    // the program is skissa.exe, but the app's folders and Krita's own checks go by its internal name, which Qt
+    // takes from the program's file until it is set
+    QCoreApplication::setApplicationName(QStringLiteral("krita"));
+
     // KRITA_DEV_PROFILE: a development build with its own settings and resources, never an installed
     // Krita's (Qt's test mode moves the writable locations into "qttest" subfolders)
     const bool useDevProfile = qEnvironmentVariableIsSet("KRITA_DEV_PROFILE");
