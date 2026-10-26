@@ -229,32 +229,63 @@ qreal ringAngleAt(const QPointF &offset)
     return std::fmod(std::atan2(offset.x(), -offset.y()) * 180.0 / M_PI + 360.0, 360.0);
 }
 
-/**
- * The OKLCH ring and hue track are spaced as an HSV wheel is: at \p hsvHue (degrees) is the pure color of that
- * HSV hue, and picking there picks its OKLCH hue. Spaced by OKLCH hue, greens and blues took most of the ring.
- */
-qreal oklchHueOfHsv(qreal hsvHue)
+const QVector<qreal> &ringHues()
 {
-    return oklchFromRgb(QColor::fromHsvF(std::fmod(hsvHue / 360.0 + 1.0, 1.0), 1.0, 1.0)).h;
-}
-
-/// Where OKLCH hue \p oklchHue is on the HSV-spaced ring and track, in HSV degrees (see oklchHueOfHsv())
-qreal hsvHueOfOklch(qreal oklchHue)
-{
-    // the OKLCH hues of the pure colors every quarter degree, unwrapped: they rise all the way round
+    // the OKLCH hues of the pure colors every quarter degree, unwrapped. Around blue they stall and even fall back a
+    // little (HSV 229° to 240° are all near 264°), which made the ring stick and its knob jump there: where they rise
+    // slower than 0.15° a degree, they rise evenly instead (no hue moves more than 2°)
     static const QVector<qreal> hues = []() {
-        QVector<qreal> hues(1441);
+        const int count = 1441;
+        const qreal least = 0.15 * 0.25;
+        QVector<qreal> hues(count);
         qreal turns = 0;
-        for (int i = 0; i < hues.size(); i++) {
-            qreal h = oklchHueOfHsv(i * 0.25) + turns;
+        for (int i = 0; i < count; i++) {
+            qreal h = oklchFromRgb(QColor::fromHsvF(std::fmod(i * 0.25 / 360.0, 1.0), 1.0, 1.0)).h + turns;
             if (i > 0 && h < hues[i - 1] - 180.0) {
                 turns += 360.0;
                 h += 360.0;
             }
             hues[i] = h;
         }
+        for (int i = 1; i < count;) {
+            if (hues[i] - hues[i - 1] >= least - 1e-9) {
+                i++;
+                continue;
+            }
+            int a = i - 1;
+            int b = i;
+            while (hues[b] - hues[a] < least * (b - a) && (a > 0 || b < count - 1)) {
+                a = qMax(0, a - 1);
+                b = qMin(count - 1, b + 1);
+            }
+            const qreal from = hues[a];
+            const qreal to = hues[b];
+            for (int k = a; k <= b; k++) hues[k] = from + (to - from) * (k - a) / (b - a);
+            i = a + 1;
+        }
         return hues;
     }();
+    return hues;
+}
+
+/**
+ * The OKLCH ring and hue track are spaced as an HSV wheel is: at \p hsvHue (degrees) is the pure color of that
+ * HSV hue, and picking there picks its OKLCH hue. Spaced by OKLCH hue, greens and blues took most of the ring.
+ */
+qreal oklchHueOfHsv(qreal hsvHue)
+{
+    const QVector<qreal> &hues = ringHues();
+    qreal at = std::fmod(hsvHue, 360.0);
+    if (at < 0) at += 360.0;
+    const int i = qMin(int(at * 4), hues.size() - 2);
+    const qreal along = at * 4 - i;
+    return std::fmod(hues[i] + (hues[i + 1] - hues[i]) * along, 360.0);
+}
+
+/// Where OKLCH hue \p oklchHue is on the HSV-spaced ring and track, in HSV degrees (see oklchHueOfHsv())
+qreal hsvHueOfOklch(qreal oklchHue)
+{
+    const QVector<qreal> &hues = ringHues();
     qreal h = std::fmod(oklchHue - hues.first(), 360.0);
     if (h < 0) h += 360.0;
     h += hues.first();
