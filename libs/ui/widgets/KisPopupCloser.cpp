@@ -78,6 +78,8 @@ public:
     static bool isPopup(const QWidget *widget)
     {
         if (!widget || !widget->isWindow()) return false;
+        // a message over the canvas (mirrored, rotated) is no popup: the next press on its button acts again
+        if (widget->windowFlags().testFlag(Qt::WindowTransparentForInput)) return false;
         const Qt::WindowType type = widget->windowType();
         return type == Qt::Popup || (type == Qt::Tool && widget->windowFlags().testFlag(Qt::FramelessWindowHint));
     }
