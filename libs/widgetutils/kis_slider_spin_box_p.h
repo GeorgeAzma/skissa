@@ -124,6 +124,8 @@ public:
         m_lineEdit->setCursor(KisCursor::splitHCursor());
         m_lineEdit->update();
         m_q->update();
+        // what is under it too: over a see-through panel the editing's veil otherwise stays behind
+        if (QWidget *under = m_q->parentWidget()) under->update(m_q->geometry());
         updateQuietHover();
     }
     
@@ -839,6 +841,11 @@ public:
             // Paint the overlay with the base color
             QColor color = m_q->palette().base().color();
             color.setAlpha(128);
+            // a quiet slider (on glass, in cards) becomes a faint field of its ink, not a pale slab
+            if (isQuiet()) {
+                color = m_lineEdit->palette().text().color();
+                color.setAlphaF(0.1);
+            }
             paintSliderRect(painter, m_lineEdit->rect(), color);
         }
         // If we are editing the text then return false and let the QLineEdit
