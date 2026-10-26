@@ -5,7 +5,10 @@
 */
 #include "KoItemToolTip.h"
 
+#include <QAbstractScrollArea>
 #include <QApplication>
+#include <QHelpEvent>
+#include <QMouseEvent>
 #include <QTimer>
 #include <QModelIndex>
 #include <QPainter>
@@ -36,6 +39,7 @@ class Q_DECL_HIDDEN KoItemToolTip::Private
         std::unique_ptr<QTextDocument> document;
         QPersistentModelIndex index;
         QPoint pos;
+        QRect itemRect;
         QTimer timer;
 };
 
@@ -52,6 +56,8 @@ KoItemToolTip::KoItemToolTip(QWidget *parent)
     d->document.reset(new QTextDocument(this));
 
     parent->installEventFilter(this);
+    // the pointer moves over the items' own widget
+    if (auto *area = qobject_cast<QAbstractScrollArea *>(parent)) area->viewport()->installEventFilter(this);
 }
 
 KoItemToolTip::~KoItemToolTip()
@@ -63,6 +69,7 @@ void KoItemToolTip::showTip(const QPoint &pos, const QStyleOptionViewItem &optio
     std::unique_ptr<QTextDocument> doc(createDocument(index));
 
     QPoint p = (isVisible() && index == d->index) ? d->pos : pos;
+    d->itemRect = option.rect;
 
     if (!isVisible() || index != d->index || doc->toHtml() != d->document->toHtml()) {
         d->pos = p;
@@ -136,7 +143,12 @@ void KoItemToolTip::updatePosition(const QPoint &pos, const QStyleOptionViewItem
         if (x + width > availableRect.right()) {
             x = itemRect.right();
 
-            if (x + width > availableRect.right()) {
+            // beside the list, level with the item, rather than over the items around it
+            const int listLeft = widget->mapToGlobal(QPoint(0, 0)).x();
+            if (x + width > availableRect.right() && listLeft - 8 - width >= availableRect.left()) {
+                x = listLeft - 8 - width;
+                y = qBound(availableRect.top(), itemRect.center().y() - height / 2, availableRect.bottom() - height);
+            } else if (x + width > availableRect.right()) {
                 x = gpos.x() - 20 - width;
 
                 if (x < availableRect.left()) {
@@ -173,7 +185,24 @@ bool KoItemToolTip::eventFilter(QObject *object, QEvent *event)
     switch(event->type())
     {
         case QEvent::Leave:
+        case QEvent::Wheel:
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonDblClick:
             hide();
+            break;
+        case QEvent::MouseMove:
+            // shown, it follows the pointer onto the next item at once, as Qt's own tips do, instead of waiting there
+            if (isVisible() && object != parent()) {
+                auto *viewport = static_cast<QWidget *>(object);
+                const auto *move = static_cast<QMouseEvent *>(event);
+                if (!d->itemRect.contains(move->pos())) {
+                    const QPersistentModelIndex was = d->index;
+                    QHelpEvent help(QEvent::ToolTip, move->pos(), move->globalPos());
+                    QApplication::sendEvent(viewport, &help);
+                    if (d->index == was) hide();
+                }
+            }
+            break;
         default: break;
     }
 

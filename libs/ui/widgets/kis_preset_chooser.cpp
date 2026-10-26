@@ -46,6 +46,9 @@
 #include <QCursor>
 #include <QAbstractScrollArea>
 #include <QTimer>
+#include <QRegularExpression>
+#include <QLinearGradient>
+#include <QHash>
 
 
 /// The resource item delegate for rendering the resource preview
@@ -89,6 +92,29 @@ private:
     bool m_showText;
     bool m_useDirtyPresets;
 };
+
+namespace {
+/// \p stroke at \p size, see-through at its start and whole from a third of the way in; kept for the rows on screen
+QImage fadedIn(const QImage &stroke, const QSize &size, qreal ratio)
+{
+    static QHash<QString, QImage> made;
+    const QString key = QStringLiteral("%1 %2x%3").arg(stroke.cacheKey()).arg(size.width()).arg(size.height());
+    auto it = made.constFind(key);
+    if (it != made.constEnd()) return *it;
+    QImage faded = stroke.scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QPainter painter(&faded);
+    painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+    QLinearGradient fade(0, 0, size.width(), 0);
+    fade.setColorAt(0.0, QColor(0, 0, 0, 0));
+    fade.setColorAt(0.35, QColor(0, 0, 0, 255));
+    painter.fillRect(faded.rect(), fade);
+    painter.end();
+    faded.setDevicePixelRatio(ratio);
+    if (made.size() > 300) made.clear();
+    made.insert(key, faded);
+    return faded;
+}
+} // namespace
 
 void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index) const
 {
@@ -189,27 +215,27 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
                                                                index.data(Qt::UserRole + KisAbstractResourceModel::MD5).toString(),
                                                                strokeInk);
     }
-    const QString name = index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString().replace("_", " ");
+    QString name = index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString().replace("_", " ");
+    // the sorting prefix of Krita's own brushes ("b) ") is not part of the name
+    static const QRegularExpression sortingPrefix(QStringLiteral("^[a-z]\\)\\s+"));
+    name.remove(sortingPrefix);
     QColor text = ink;
     text.setAlphaF(selected ? 1.0 : 0.82);
     painter->setFont(option.font);
 
     if (!stroke.isNull()) {
-        // the stroke across the whole row, its name over its start: one line, ringed in the panel's color to read on it
-        const QRectF art = row.adjusted(4, 2, -4, -2);
-        const QSizeF fitted = QSizeF(stroke.size()).scaled(art.size(), Qt::KeepAspectRatioByExpanding);
-        painter->save();
-        painter->setClipRect(art);
-        painter->drawImage(QRectF(art.center() - QPointF(fitted.width(), fitted.height()) / 2, fitted), stroke);
-        painter->restore();
+        // the whole stroke at the row's right, fading in from its start; the name before it, where nothing lies under it
+        const QRectF art = row.adjusted(4, 3, -6, -3);
+        QSizeF fitted = QSizeF(stroke.size()).scaled(art.size(), Qt::KeepAspectRatio);
+        fitted = fitted.boundedTo(QSizeF(art.width() * 0.62, art.height()));
+        const QRectF place(art.right() - fitted.width(), art.center().y() - fitted.height() / 2, fitted.width(), fitted.height());
+        painter->drawImage(place, fadedIn(stroke, (place.size() * devicePixelRatioF).toSize(), devicePixelRatioF));
         const QFontMetricsF metrics(option.font);
-        const QString shown = metrics.elidedText(name, Qt::ElideRight, row.width() * 0.7);
-        QPainterPath path;
-        path.addText(QPointF(row.left() + 8, row.center().y() + (metrics.ascent() - metrics.descent()) / 2), option.font, shown);
-        QColor halo = option.palette.color(QPalette::Window);
-        halo.setAlphaF(0.85);
-        painter->strokePath(path, QPen(halo, 3.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter->fillPath(path, text);
+        const qreal textLeft = row.left() + 8;
+        // up to where the stroke is mostly faded in
+        const QString shown = metrics.elidedText(name, Qt::ElideRight, place.left() + place.width() * 0.3 - textLeft);
+        painter->setPen(text);
+        painter->drawText(QRectF(textLeft, row.top(), row.right() - textLeft, row.height()), Qt::AlignLeft | Qt::AlignVCenter, shown);
         if (dirty) {
             marks(QRectF(row.right() - 12, row.top(), 12, 12));
         }
@@ -429,7 +455,7 @@ void KisPresetChooser::setPresetFilter(const QString& paintOpId)
 
 void KisPresetChooser::compactStrokeRows()
 {
-    // the name lies on the stroke: a row needs only the stroke's height
+    // the name beside the stroke: a row needs only the stroke's height
     m_chooser->setRowHeight(qMax(28, qRound(iconSize() * 0.6)));
 }
 
