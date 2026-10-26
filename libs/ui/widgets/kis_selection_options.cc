@@ -174,7 +174,7 @@ KisSelectionOptions::KisSelectionOptions(QWidget *parent)
 
     m_d->checkBoxSelectionActionsPanel = new QCheckBox(i18n("Enable Selection Actions Bar"));
     m_d->checkBoxSelectionActionsPanel->setToolTip(
-        i18n("When enabled, any selections will produce a small floating panel of useful selection-related actions."));
+        i18nc("@info:tooltip", "A small bar of commands beside every selection"));
 
     KisConfig cfg(true);
 
@@ -225,9 +225,9 @@ KisSelectionOptions::KisSelectionOptions(QWidget *parent)
 
     // Set the tooltips
     m_d->optionButtonStripMode->button(0)->setToolTip(
-        i18nc("@info:tooltip", "Pixel Selection"));
+        i18nc("@info:tooltip", "Pixel selection"));
     m_d->optionButtonStripMode->button(1)->setToolTip(
-        i18nc("@info:tooltip", "Vector Selection"));
+        i18nc("@info:tooltip", "Vector selection"));
 
     m_d->optionButtonStripAction->button(0)->setToolTip(
         i18nc("@info:tooltip", "Replace"));
@@ -245,16 +245,16 @@ KisSelectionOptions::KisSelectionOptions(QWidget *parent)
     m_d->sliderGrowSelection->setToolTip(
         i18n("Grow or shrink the selection by the set amount"));
     m_d->buttonStopGrowingAtDarkestPixel->setToolTip(
-        i18n("Stop growing at the darkest and/or most opaque pixels"));
+        i18nc("@info:tooltip", "Grow up to the darkest, most opaque edge of the lines"));
     m_d->sliderFeatherSelection->setToolTip(
         i18n("Blur the selection by the set amount"));
 
     m_d->optionButtonStripReference->button(0)->setToolTip(
-        i18n("Select regions found from the active layer"));
+        i18nc("@info:tooltip", "Find the areas on this layer"));
     m_d->optionButtonStripReference->button(1)->setToolTip(
-        i18n("Select regions found from the merging of all layers"));
+        i18nc("@info:tooltip", "Find the areas on all layers together"));
     m_d->optionButtonStripReference->button(2)->setToolTip(
-        i18n("Select regions found from the merging of layers with specific color labels"));
+        i18nc("@info:tooltip", "Find the areas on the layers with these color labels"));
 
     // Construct the option widget
     setSeparatorsVisible(true);

@@ -92,7 +92,7 @@
    <item>
     <widget class="QLabel" name="referenceImageOptionsLabel">
      <property name="text">
-      <string>Add/Select an image to show options</string>
+      <string>Pick a reference image to change it</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>

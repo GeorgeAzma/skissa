@@ -644,9 +644,9 @@ QWidget* KisToolFill::createOptionWidget()
     QPushButton *buttonReset = new QPushButton(i18nc("The 'reset' button in fill tool options", "Reset"));
 
     // Set the tooltips
-    m_buttonWhatToFillSelection->setToolTip(i18n("Fill the active selection, or the entire canvas"));
-    m_buttonWhatToFillContiguous->setToolTip(i18n("Fill a contiguous region"));
-    m_buttonWhatToFillSimilar->setToolTip(i18n("Fill all regions of a similar color"));
+    m_buttonWhatToFillSelection->setToolTip(i18nc("@info:tooltip", "The selection, or the whole image"));
+    m_buttonWhatToFillContiguous->setToolTip(i18nc("@info:tooltip", "The area clicked"));
+    m_buttonWhatToFillSimilar->setToolTip(i18nc("@info:tooltip", "Every area of that color"));
 
     m_buttonFillWithFG->setToolTip(i18n("Foreground color"));
     m_buttonFillWithBG->setToolTip(i18n("Background color"));
@@ -657,8 +657,8 @@ QWidget* KisToolFill::createOptionWidget()
     m_sliderCustomOpacity->setToolTip(i18nc("@info:tooltip", "The fill's opacity"));
     m_comboBoxCustomCompositeOp->setToolTip(i18nc("@info:tooltip", "The fill's blend mode"));
 
-    m_buttonContiguousFillModeFloodFill->setToolTip(i18n("Fill regions similar in color to the clicked region"));
-    m_buttonContiguousFillModeBoundaryFill->setToolTip(i18n("Fill all regions until a specific boundary color"));
+    m_buttonContiguousFillModeFloodFill->setToolTip(i18nc("@info:tooltip", "Stops where the color changes"));
+    m_buttonContiguousFillModeBoundaryFill->setToolTip(i18nc("@info:tooltip", "Stops at a color you choose"));
     m_buttonContiguousFillBoundaryColor->setToolTip(i18n("Boundary color"));
     m_sliderThreshold->setToolTip(i18nc("@info:tooltip", "0% this exact color → 100% every color"));
     m_sliderSpread->setToolTip(i18nc("@info:tooltip", "0% fades with the color difference → 100% solid"));
@@ -669,19 +669,18 @@ QWidget* KisToolFill::createOptionWidget()
 
     m_checkBoxAntiAlias->setToolTip(i18n("Smooths the edges of the fill"));
     m_sliderGrow->setToolTip(i18n("Grow or shrink the fill by the set amount"));
-    m_buttonStopGrowingAtDarkestPixel->setToolTip(i18n("Stop growing at the darkest and/or most opaque pixels"));
+    m_buttonStopGrowingAtDarkestPixel->setToolTip(i18nc("@info:tooltip", "Grow up to the darkest, most opaque edge of the lines"));
     m_sliderFeather->setToolTip(i18n("Blur the fill by the set amount"));
 
-    m_buttonReferenceCurrent->setToolTip(i18n("Fill regions found from the active layer"));
-    m_buttonReferenceAll->setToolTip(i18n("Fill regions found from the merging of all layers"));
-    m_buttonReferenceLabeled->setToolTip(i18n("Fill regions found from the merging of layers with specific color labels"));
-    m_checkBoxUseActiveLayer->setToolTip(i18n("Includes the active layer in regions found from merging of layers with specific color labels"));
+    m_buttonReferenceCurrent->setToolTip(i18nc("@info:tooltip", "Find the areas on this layer"));
+    m_buttonReferenceAll->setToolTip(i18nc("@info:tooltip", "Find the areas on all layers together"));
+    m_buttonReferenceLabeled->setToolTip(i18nc("@info:tooltip", "Find the areas on the layers with these color labels"));
+    m_checkBoxUseActiveLayer->setToolTip(i18nc("@info:tooltip", "And on this layer"));
 
     m_buttonDragFillDoNotUse->setToolTip(i18nc("@info:tooltip", "Dragging fills nothing more"));
     m_buttonDragFillAny->setToolTip(i18nc("@info:tooltip", "Dragging fills every region it crosses"));
     m_buttonDragFillSimilar->setToolTip(i18nc("@info:tooltip", "Dragging fills only regions like the first, like the inside of line art"));
 
-    buttonReset->setToolTip(i18n("Reset the options to their default values"));
 
     // Construct the option widget
     m_optionWidget = new KisOptionCollectionWidget;

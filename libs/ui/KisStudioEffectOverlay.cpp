@@ -41,8 +41,10 @@
 #include <kis_paint_layer.h>
 #include <kis_slider_spin_box.h>
 #include <KisGlobalResourcesInterface.h>
+#include <KisSentenceCase.h>
 #include <kis_config_widget.h>
 
+#include "KisDocument.h"
 #include "KisMainWindow.h"
 #include "KisStudioGlass.h"
 #include "KisStudioMotion.h"
@@ -61,6 +63,14 @@
 #include <KisModernStyle.h>
 
 namespace {
+
+/// An effect's name as the app writes it: "Burn..." is "Burn"
+QString effectName(const KisFilter *filter)
+{
+    QString name = KisSentenceCase::of(filter->name()).trimmed();
+    while (name.endsWith(QLatin1Char('.')) || name.endsWith(QChar(0x2026))) name.chop(1);
+    return name;
+}
 
 const QString editableKey = QStringLiteral("StudioEffectsEditable");
 /// The drag distance, in pixels, that covers a setting's whole usual range
@@ -319,12 +329,26 @@ void styleSettings(QWidget *root, bool simple)
             if (QLabel *label = layoutLabel(widget)) {
                 QString text = label->text().trimmed();
                 if (text.endsWith(QLatin1Char(':'))) text.chop(1);
-                label->setText(text);
+                label->setText(KisSentenceCase::of(text));
                 label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-                QPalette palette = label->palette();
-                palette.setColor(QPalette::WindowText, KisModernStyle::secondaryInk(palette.color(QPalette::WindowText)));
-                label->setPalette(palette);
             }
+        }
+        // a name written into the number ("Horizontal Radius:1.00")
+        if (auto *spin = qobject_cast<QSpinBox *>(widget); spin && !spin->prefix().isEmpty()) {
+            QString prefix = KisSentenceCase::of(spin->prefix());
+            if (prefix.endsWith(QLatin1Char(':'))) prefix += QLatin1Char(' ');
+            spin->setPrefix(prefix);
+        }
+        if (auto *spin = qobject_cast<QDoubleSpinBox *>(widget); spin && !spin->prefix().isEmpty()) {
+            QString prefix = KisSentenceCase::of(spin->prefix());
+            if (prefix.endsWith(QLatin1Char(':'))) prefix += QLatin1Char(' ');
+            spin->setPrefix(prefix);
+        }
+        // fonts of their own from Krita's forms (Color balance's bold italic section names): the panel's, bold kept
+        if (widget->font().italic() || widget->font().pointSizeF() != root->font().pointSizeF()) {
+            QFont font = root->font();
+            font.setBold(widget->font().bold());
+            widget->setFont(font);
         }
     }
     root->setAutoFillBackground(false);
@@ -393,6 +417,9 @@ private:
 
 struct KisStudioEffectOverlay::Private
 {
+    /// The image whose autosave waits for the panel
+    QPointer<KisDocument> held;
+
     Private() : compressor(200, KisSignalCompressor::FIRST_ACTIVE)
     {
         // as in the filter dialog: apply each change once the previous preview is done, waiting at most 200 ms
@@ -500,7 +527,7 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     header->addWidget(d->preview);
 
     // back to the effect's own defaults; shown while the settings differ from them
-    d->reset = iconButton(QStringLiteral("studio_reload"), i18nc("@info:tooltip", "Defaults"), this);
+    d->reset = iconButton(QStringLiteral("studio_reload"), i18nc("@info:tooltip back to the effect's defaults", "Reset"), this);
     connect(d->reset, &QToolButton::clicked, this, [this]() {
         KisConfigWidget *settings = d->selector ? d->selector->findChild<KisConfigWidget *>() : nullptr;
         if (!settings || !d->filter) return;
@@ -599,7 +626,7 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
     d->selector = selector;
     selector->adjustSize();
 
-    d->title->setText(filter->name());
+    d->title->setText(effectName(filter.data()));
     d->icon->setPixmap(KisIconUtils::loadIcon(QStringLiteral("studio_effects")).pixmap(18, 18));
     {
         // read each time, as Settings may have changed it
@@ -732,7 +759,7 @@ void KisStudioEffectOverlay::createMask(KisFilterConfigurationSP config)
         }
     }
 
-    KisFilterMaskSP mask = new KisFilterMask(viewManager->image(), d->filter->name());
+    KisFilterMaskSP mask = new KisFilterMask(viewManager->image(), effectName(d->filter.data()));
     mask->initSelection(viewManager->selection(), layer);
     mask->setFilter(config->cloneWithResourcesSnapshot());
     if (layer->allowAsChild(mask)) {
@@ -777,14 +804,48 @@ void KisStudioEffectOverlay::reposition()
     const QSize area = parentWidget()->size();
     // as wide as the effect's settings want, but at least wide enough for a few sliders
     const int wanted = d->selector ? d->selector->sizeHint().width() + 32 : 0;
-    const int width = qMin(qMax(520, wanted), area.width() - 40);
+    int width = qMin(qMax(520, wanted), area.width() - 40);
     const int contents = d->selector ? d->selector->sizeHint().height() : 0;
-    const int height = qMin(46 + contents + (contents ? 14 : 0), int(area.height() * 0.55));
-    // centered in the part of the canvas not covered by pinned panels
+    const int height = qMin(46 + contents + (contents ? 14 : 0), int(area.height() * 0.65));
     const int left = parentWidget()->property("studioCanvasLeftInset").toInt();
     const int right = parentWidget()->property("studioCanvasRightInset").toInt();
     const int bottom = parentWidget()->property("studioCanvasBottomInset").toInt();
-    QRect place(left + (area.width() - left - right - width) / 2, area.height() - bottom - height - 54, width, height);
+    const int top = area.height() - bottom - height - 54;
+    // centered in the widest stretch of the canvas at its height that nothing covers: docked panels make room, but
+    // floating groups, the rail and Settings lie over the canvas
+    int from = left + 10;
+    int to = area.width() - right - 10;
+    QVector<QPair<int, int>> free{{from, to}};
+    static const QStringList over = {QStringLiteral("studioToolRail"), QStringLiteral("studioPanels"), QStringLiteral("studioFarPanels"),
+                                     QStringLiteral("studioSettings")};
+    Q_FOREACH (QWidget *other, window()->findChildren<QWidget *>()) {
+        const QString name = other->objectName();
+        if (other == this || !other->isVisible() || (!over.contains(name) && !name.startsWith(QLatin1String("studioPanelGroup")))) continue;
+        // not all inside this panel's parent: through the screen
+        const QRect them(parentWidget()->mapFromGlobal(other->mapToGlobal(QPoint(0, 0))), other->size());
+        if (them.bottom() < top || them.top() > top + height) continue;
+        QVector<QPair<int, int>> rest;
+        for (const auto &span : qAsConst(free)) {
+            if (them.right() + 8 < span.first || them.left() - 8 > span.second) {
+                rest << span;
+                continue;
+            }
+            if (them.left() - 8 > span.first) rest << qMakePair(span.first, them.left() - 8);
+            if (them.right() + 8 < span.second) rest << qMakePair(them.right() + 8, span.second);
+        }
+        free = rest;
+    }
+    // the widest stretch, if a panel fits it; otherwise across them
+    int widest = -1;
+    for (int i = 0; i < free.size(); i++) {
+        if (widest < 0 || free[i].second - free[i].first > free[widest].second - free[widest].first) widest = i;
+    }
+    if (widest >= 0 && free[widest].second - free[widest].first >= 360) {
+        from = free[widest].first;
+        to = free[widest].second;
+        width = qMin(width, to - from);
+    }
+    QRect place(from + (to - from - width) / 2, top, width, height);
     place.translate(d->moved);
     // keep the title bar inside the window so that the panel can't be dragged out of reach
     place.moveLeft(qBound(-width + 80, place.left(), area.width() - 80));
@@ -922,6 +983,22 @@ bool KisStudioEffectOverlay::eventFilter(QObject *watched, QEvent *event)
         d->spaceHeld = event->type() == QEvent::KeyPress;
     }
     return QWidget::eventFilter(watched, event);
+}
+
+void KisStudioEffectOverlay::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    KisViewManager *view = d->viewManager();
+    if (d->held) d->held->setProperty("autosaveHeld", false);
+    d->held = view ? view->document() : nullptr;
+    if (d->held) d->held->setProperty("autosaveHeld", true);
+}
+
+void KisStudioEffectOverlay::hideEvent(QHideEvent *event)
+{
+    QWidget::hideEvent(event);
+    if (d->held) d->held->setProperty("autosaveHeld", false);
+    d->held = nullptr;
 }
 
 void KisStudioEffectOverlay::keyPressEvent(QKeyEvent *event)

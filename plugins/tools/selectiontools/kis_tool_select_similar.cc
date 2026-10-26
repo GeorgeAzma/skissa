@@ -234,8 +234,7 @@ QWidget* KisToolSelectSimilar::createOptionWidget()
     sliderThreshold->setRange(1, 100);
     sliderThreshold->setSingleStep(1);
     sliderThreshold->setToolTip(
-        i18n("Set the color similarity tolerance of the selection. "
-             "Increasing threshold increases the range of similar colors to be selected."));
+        i18nc("@info:tooltip", "0% this exact color → 100% every color"));
 
     KisSliderSpinBox *sliderSpread = new KisSliderSpinBox;
     sliderSpread->setRange(0, 100);
@@ -246,11 +245,9 @@ QWidget* KisToolSelectSimilar::createOptionWidget()
 
     // Set the tooltips
     sliderThreshold->setToolTip(
-        i18n("Set the color similarity tolerance of the selection. "
-             "Increasing threshold increases the range of similar colors to be selected."));
+        i18nc("@info:tooltip", "0% this exact color → 100% every color"));
     sliderSpread->setToolTip(
-        i18n("Set the extent of the opaque portion of the selection. "
-             "Decreasing spread decreases opacity of selection areas depending on color similarity."));
+        i18nc("@info:tooltip", "0% fades with the color difference → 100% solid"));
 
     // Construct the option widget
     KisOptionCollectionWidgetWithHeader *sectionSelectionExtent =

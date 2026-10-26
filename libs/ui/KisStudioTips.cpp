@@ -7,6 +7,7 @@
 #include "KisSettingsRegistry.h"
 
 #include <QAbstractButton>
+#include <QAbstractSpinBox>
 #include <QApplication>
 #include <QDir>
 #include <QFileInfo>
@@ -16,6 +17,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QRegularExpression>
+#include <QScreen>
 #include <QTextDocument>
 #include <QToolTip>
 #include <QUrl>
@@ -23,6 +25,8 @@
 
 #include <KisModernStyle.h>
 #include <KisProfile.h>
+#include <KisSentenceCase.h>
+#include <KStandardGuiItem>
 
 namespace
 {
@@ -180,6 +184,9 @@ int leadOf(const QString &line)
     if (colon <= 0 || colon > 28) return 0;
     const QString lead = line.left(colon);
     if (lead.count(QLatin1Char(' ')) > 2 || lead.contains(QChar(0x2192)) || !lead.at(0).isLetterOrNumber()) return 0;
+    // a name, not a remark ("Note: …") or the middle of a sentence ("Use ';' (Example: …")
+    static const QRegularExpression notAName(QStringLiteral("[(\"';]|^(Note|Example|Tip|Warning|Hint)$"), QRegularExpression::CaseInsensitiveOption);
+    if (notAName.match(lead).hasMatch()) return 0;
     return colon;
 }
 
@@ -189,6 +196,48 @@ QString css(const QColor &color)
 }
 
 std::function<QKeySequence(QAbstractButton *)> shortcutOf;
+
+/// The widest a tooltip's text runs before it wraps
+constexpr int widestTip = 380;
+
+/**
+ * \p html in a block as wide as its text, up to widestTip: Qt leaves plain text unwrapped however long, and wraps
+ * rich text into a narrow column by a guess of its own
+ */
+QString sized(const QString &html)
+{
+    QTextDocument document;
+    document.setDefaultFont(QToolTip::font());
+    document.setDocumentMargin(0);
+    document.setHtml(html);
+    const int width = qMin(qCeil(document.idealWidth()) + 2, widestTip);
+    return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" width=\"%1\"><tr><td>%2</td></tr></table>").arg(width).arg(html);
+}
+
+/**
+ * Moves the tip just shown for \p widget, a button or a row, beside it, level with it: under the pointer it covers
+ * the next button of a rail or the next row of a panel. Large widgets (lists, the canvas) keep it at the pointer.
+ */
+void placeBeside(QWidget *widget)
+{
+    if (widget->height() > 48 || widget->width() > 600) return;
+    QWidget *tip = nullptr;
+    Q_FOREACH (QWidget *top, QApplication::topLevelWidgets()) {
+        if (top->isVisible() && top->inherits("QTipLabel")) tip = top;
+    }
+    if (!tip) return;
+    tip->adjustSize();
+    const QRect around(widget->mapToGlobal(QPoint(0, 0)), widget->size());
+    QScreen *screen = widget->screen();
+    if (!screen) return;
+    const QRect available = screen->availableGeometry();
+    constexpr int gap = 8;
+    QPoint at(around.right() + 1 + gap, around.top() + (around.height() - tip->height()) / 2);
+    if (at.x() + tip->width() > available.right()) at.setX(around.left() - gap - tip->width());
+    if (at.x() < available.left()) return;
+    at.setY(qBound(available.top(), at.y(), available.bottom() - tip->height()));
+    tip->move(at);
+}
 
 /// Shows tooltips with their gestures drawn and their shortcut, for every widget
 class TipFilter : public QObject
@@ -217,14 +266,27 @@ protected:
             else if (plain.contains(keyText)) keyText.clear();
         }
         const QPoint at = static_cast<QHelpEvent *>(event)->globalPos();
-        if (keyOnly) {
-            if (keyText.isEmpty()) return false;
-            QToolTip::showText(at, keyText, widget);
+        // a tip that says what the button says ("Reset" on Reset, Close's stock "Close the current window or document")
+        // is no tip
+        auto bare = [](QString text) { return text.remove(QLatin1Char('&')).remove(QChar(0x2026)).remove(QStringLiteral("...")).trimmed().toLower(); };
+        if (button && !button->text().isEmpty() && keyText.isEmpty() && !keyOnly) {
+            static const QString stockClose = KStandardGuiItem::close().toolTip();
+            if (bare(plain) == bare(button->text()) || plain == stockClose) return true;
+        }
+        // nor one that a number box already starts with ("Width" on "Width: 200 px")
+        if (auto *spin = qobject_cast<QAbstractSpinBox *>(widget); spin && !plain.contains(QLatin1Char('\n')) && bare(spin->text()).startsWith(bare(plain))) {
             return true;
         }
-        const QString shown = KisStudioTips::html(plain, keyText);
-        if (shown == plain) return false;
-        QToolTip::showText(at, shown, widget);
+        if (keyOnly) {
+            if (keyText.isEmpty()) return false;
+            QToolTip::showText(at, keyText, widget, widget->rect());
+            placeBeside(widget);
+            return true;
+        }
+        // Krita writes much of its own in Title Case ("Add Reference Image From File")
+        if (!Qt::mightBeRichText(plain)) plain = KisSentenceCase::of(plain);
+        QToolTip::showText(at, KisStudioTips::html(plain, keyText), widget, widget->rect());
+        placeBeside(widget);
         return true;
     }
 };
@@ -234,28 +296,27 @@ protected:
 QString KisStudioTips::html(const QString &tooltip, const QString &keys)
 {
     if (Qt::mightBeRichText(tooltip)) {
-        return keys.isEmpty() ? tooltip : QStringLiteral("%1&nbsp;&nbsp;&nbsp;%2").arg(tooltip, keys.toHtmlEscaped());
+        return sized(keys.isEmpty() ? tooltip : QStringLiteral("%1&nbsp;&nbsp;&nbsp;%2").arg(tooltip, keys.toHtmlEscaped()));
     }
     QStringList text;
     QList<Line> gestures;
-    bool led = false;
     Q_FOREACH (const QString &part, tooltip.split(QLatin1Char('\n'))) {
         Line line;
         if (readLine(part, &line)) {
             gestures << line;
         } else {
             text << part;
-            led = led || leadOf(part) > 0;
         }
     }
-    if (gestures.isEmpty() && keys.isEmpty() && !led) return tooltip;
 
     const QColor ink = QToolTip::palette().color(QPalette::ToolTipText);
     QColor quiet = ink;
     quiet.setAlphaF(0.55);
     QColor glyphInk = ink;
     glyphInk.setAlphaF(0.85);
-    const QColor lit = QApplication::palette().color(QPalette::Highlight);
+    QColor lit = QApplication::palette().color(QPalette::Highlight);
+    // a theme with no accent has a grey one, hardly apart from the mouse: the pressed button in full ink then
+    if (lit.hslSaturationF() < 0.2) lit = ink;
     QString out;
     // "Name: what it is" lines: one alone is the name in bold over its sentence, a run of them (choices) a table
     // with the names in a column of their own. What follows the colon starts a line, so it starts with a capital.
@@ -289,7 +350,7 @@ QString KisStudioTips::html(const QString &tooltip, const QString &keys)
         }
     }
     paragraph();
-    if (gestures.isEmpty()) return out;
+    if (gestures.isEmpty()) return sized(out);
 
     // short words go in one row; longer ones a gesture per row, so the tooltip stays narrow
     bool longWords = false;
@@ -314,7 +375,7 @@ QString KisStudioTips::html(const QString &tooltip, const QString &keys)
         if (i % perRow == perRow - 1 || i == gestures.size() - 1) out += QStringLiteral("</tr>");
     }
     out += QStringLiteral("</table>");
-    return out;
+    return sized(out);
 }
 
 void KisStudioTips::install(std::function<QKeySequence(QAbstractButton *)> shortcuts)

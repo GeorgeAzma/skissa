@@ -33,6 +33,7 @@
 #include "kis_image.h"
 #include "kis_node.h"
 #include "kis_paint_device.h"
+#include <kis_selection.h>
 
 /// Tile thumbnails, rendered in a worker thread from a small copy of the image
 struct KisStudioEffectThumbnails {
@@ -311,8 +312,11 @@ KisStudioEffectsPicker::KisStudioEffectsPicker(KisMainWindow *mainWindow, std::s
             KisPaintDeviceSP device = new KisPaintDevice(KoColorSpaceRegistry::instance()->rgb8());
             device->setDefaultBounds(new ThumbnailBounds(rect, thumbnails->levelOfDetail));
             device->convertFromQImage(base, nullptr);
-            job.filter->process(device, rect, job.config);
-            const QImage picture = device->convertToQImage(nullptr, rect.x(), rect.y(), rect.width(), rect.height());
+            // into a device of its own, as Krita's effects run: in place, a convolution (Emboss) reads pixels it has
+            // already changed and draws stripes
+            KisPaintDeviceSP result = new KisPaintDevice(*device);
+            job.filter->process(device, result, KisSelectionSP(), rect, job.config);
+            const QImage picture = result->convertToQImage(nullptr, rect.x(), rect.y(), rect.width(), rect.height());
             QMutexLocker locker(&thumbnails->mutex);
             thumbnails->made.insert(job.id, picture);
         }

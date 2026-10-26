@@ -6,6 +6,8 @@
  */
 
 #include "kis_filter_manager.h"
+
+#include <QTimer>
 #include <KisProfile.h>
 #include "KisUpdatePacer.h"
 
@@ -52,6 +54,8 @@
 #include <KisGlobalResourcesInterface.h>
 
 struct KisFilterManager::Private {
+    /// The effect last asked for while the image was still busy, opened once it is idle
+    int openSerial = 0;
     KisAction* reapplyAction = nullptr;
     KisAction* reapplyActionReprompt = nullptr;
     QHash<QString, KActionMenu*> filterActionMenus;
@@ -231,9 +235,16 @@ void KisFilterManager::showFilterDialog(const QString &filterId, KisFilterConfig
             Qt::UniqueConnection);
 
     /**
-     * The UI should show only after every running stroke is finished,
-     * so a virtual barrier is added here.
+     * The UI should show only after every running stroke is finished. One still running (a cancelled effect finishing
+     * its last piece) is waited for quietly, and the newest effect asked for opens then, instead of a modal wait.
      */
+    if (d->view->image() && !d->view->image()->isIdle(true)) {
+        const int serial = ++d->openSerial;
+        QTimer::singleShot(50, this, [this, serial, filterId, overrideDefaultConfig]() {
+            if (serial == d->openSerial && d->view && d->view->activeNode()) showFilterDialog(filterId, overrideDefaultConfig);
+        });
+        return;
+    }
     if (!d->view->blockUntilOperationsFinished(d->view->image())) {
         return;
     }

@@ -550,34 +550,32 @@ QWidget* KisToolEncloseAndFill::createOptionWidget()
     m_buttonEnclosingMethodPath->setToolTip(i18n("Bezier Curve"));
     m_buttonEnclosingMethodLasso->setToolTip(i18n("Lasso"));
     m_buttonEnclosingMethodBrush->setToolTip(i18n("Brush"));
-    m_comboBoxRegionSelectionMethod->setToolTip(regionSelectionMethodToUserString(m_regionSelectionMethod));
-    m_checkBoxRegionSelectionInvert->setToolTip(i18n("Enable to fill opposite regions instead"));
-    m_checkBoxRegionSelectionIncludeContourRegions->setToolTip(i18n("Enable to also fill shapes that touch the contour of the enclosing region"));
+    m_checkBoxRegionSelectionInvert->setToolTip(i18nc("@info:tooltip", "Fill what is outside the areas instead"));
+    m_checkBoxRegionSelectionIncludeContourRegions->setToolTip(i18nc("@info:tooltip", "Also the areas the outline touches"));
     m_buttonFillWithFG->setToolTip(i18n("Foreground color"));
     m_buttonFillWithBG->setToolTip(i18n("Background color"));
     m_buttonFillWithPattern->setToolTip(i18n("Pattern"));
-    m_sliderPatternScale->setToolTip(i18n("Set the scale of the pattern"));
-    m_angleSelectorPatternRotation->setToolTip(i18n("Set the rotation of the pattern"));
-    m_checkBoxCustomBlendingOptions->setToolTip(i18n("Set custom blending options instead of using the brush ones"));
-    m_sliderCustomOpacity->setToolTip(i18n("Set a custom opacity for the fill"));
-    m_comboBoxCustomCompositeOp->setToolTip(i18n("Set a custom blend mode for the fill"));
+    m_sliderPatternScale->setToolTip(i18nc("@info:tooltip", "Pattern size"));
+    m_angleSelectorPatternRotation->setToolTip(i18nc("@info:tooltip", "Pattern angle"));
+    m_checkBoxCustomBlendingOptions->setToolTip(i18nc("@info:tooltip", "Use the fill's own opacity and blend mode"));
+    m_sliderCustomOpacity->setToolTip(i18nc("@info:tooltip", "The fill's opacity"));
+    m_comboBoxCustomCompositeOp->setToolTip(i18nc("@info:tooltip", "The fill's blend mode"));
 
-    m_sliderFillThreshold->setToolTip(i18n("Set the color similarity tolerance of the fill. Increasing threshold increases the range of similar colors to be filled."));
-    m_sliderFillOpacitySpread->setToolTip(i18n("Set the extent of the opaque portion of the fill. Decreasing spread decreases opacity of fill areas depending on color similarity."));
+    m_sliderFillThreshold->setToolTip(i18nc("@info:tooltip", "0% this exact color → 100% every color"));
+    m_sliderFillOpacitySpread->setToolTip(i18nc("@info:tooltip", "0% fades with the color difference → 100% solid"));
     m_sliderCloseGap->setToolTip(i18n("Close gaps in lines up to the set amount"));
-    m_checkBoxSelectionAsBoundary->setToolTip(i18n("Set if the contour of the active selection should be treated as a boundary when filling the region"));
+    m_checkBoxSelectionAsBoundary->setToolTip(i18nc("@info:tooltip", "The selection's edge stops the fill too"));
 
     m_checkBoxAntiAlias->setToolTip(i18n("Smooths the edges of the fill"));
     m_sliderExpand->setToolTip(i18n("Grow or shrink the fill by the set amount"));
-    m_buttonStopGrowingAtDarkestPixel->setToolTip(i18n("Stop growing at the darkest and/or most opaque pixels"));
+    m_buttonStopGrowingAtDarkestPixel->setToolTip(i18nc("@info:tooltip", "Grow up to the darkest, most opaque edge of the lines"));
     m_sliderFeather->setToolTip(i18n("Blur the fill by the set amount"));
 
-    m_buttonReferenceCurrent->setToolTip(i18n("Fill regions found from the active layer"));
-    m_buttonReferenceAll->setToolTip(i18n("Fill regions found from the merging of all layers"));
-    m_buttonReferenceLabeled->setToolTip(i18n("Fill regions found from the merging of layers with specific color labels"));
-    m_checkBoxUseActiveLayer->setToolTip(i18n("Includes the active layer in regions found from merging of layers with specific color labels"));
+    m_buttonReferenceCurrent->setToolTip(i18nc("@info:tooltip", "Find the areas on this layer"));
+    m_buttonReferenceAll->setToolTip(i18nc("@info:tooltip", "Find the areas on all layers together"));
+    m_buttonReferenceLabeled->setToolTip(i18nc("@info:tooltip", "Find the areas on the layers with these color labels"));
+    m_checkBoxUseActiveLayer->setToolTip(i18nc("@info:tooltip", "And on this layer"));
 
-    buttonReset->setToolTip(i18n("Reset the options to their default values"));
 
     // Construct the option widget
     m_optionWidget = new KisOptionCollectionWidget;
@@ -1097,7 +1095,6 @@ void KisToolEncloseAndFill::slot_comboBoxRegionSelectionMethod_currentIndexChang
         m_regionSelectionMethod == RegionSelectionMethod::SelectAllRegionsExceptFilledWithSpecificColorOrTransparent
     );
 
-    m_comboBoxRegionSelectionMethod->setToolTip(m_comboBoxRegionSelectionMethod->currentText());
 
     saveRegionSelectionMethodToConfig(m_regionSelectionMethod);
 }

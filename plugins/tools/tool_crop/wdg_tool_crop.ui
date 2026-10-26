@@ -155,7 +155,7 @@
          <item row="3" column="1">
           <widget class="QCheckBox" name="boolGrow">
            <property name="toolTip">
-            <string>Allow growing the image by dragging outside bounds of the image</string>
+            <string>Dragging past the image makes it larger</string>
            </property>
            <property name="text">
             <string comment="Grow as in crop tool">Grow</string>

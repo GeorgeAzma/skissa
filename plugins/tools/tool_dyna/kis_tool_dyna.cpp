@@ -302,7 +302,9 @@ QWidget * KisToolDyna::createOptionWidget()
     m_angleSelector->setEnabled(false);
     connect(m_angleSelector, SIGNAL(angleChanged(qreal)), this, SLOT(slotSetAngle(qreal)));
 
-    KisToolFreehand::addOptionWidgetOption(m_angleSelector,m_chkFixedAngle);
+    // unfinished in Krita and always off: not shown, rather than two controls that never come on
+    m_chkFixedAngle->hide();
+    m_angleSelector->hide();
 
     // read settings in from config
     m_massSPBox->setValue(m_configGroup.readEntry("massAmount", 0.01));

@@ -1342,7 +1342,7 @@
              </size>
             </property>
             <property name="toolTip">
-             <string>Rotate selection counter-clockwise 90 degrees</string>
+             <string>Turn 90° left</string>
             </property>
             <property name="text">
              <string/>
@@ -1367,7 +1367,7 @@
              </size>
             </property>
             <property name="toolTip">
-             <string>Rotate the selection clockwise 90 degrees</string>
+             <string>Turn 90° right</string>
             </property>
             <property name="text">
              <string/>

@@ -20,6 +20,8 @@ HistoryDock::HistoryDock()
 {
     setWidget(m_undoView);
     setWindowTitle(i18n("Undo History"));
+    // the image as it was before any step, in place of Qt's "<empty>"
+    m_undoView->setEmptyLabel(i18nc("@item:inlistbox the image before any undoable step", "Opened"));
 }
 
 void HistoryDock::setCanvas(KoCanvasBase *canvas)

@@ -393,19 +393,15 @@ QWidget* KisToolSelectContiguous::createOptionWidget()
 
     // Set the tooltips
     buttonContiguousSelectionModeFloodFill->setToolTip(
-        i18n("Select regions similar in color to the clicked region"));
+        i18nc("@info:tooltip", "Stops where the color changes"));
     buttonContiguousSelectionModeBoundaryFill->setToolTip(
-        i18n("Select all regions until a specific boundary color"));
+        i18nc("@info:tooltip", "Stops at a color you choose"));
     buttonContiguousSelectionBoundaryColor->setToolTip(i18n("Boundary color"));
     sliderThreshold->setToolTip(
-        i18n("Set the color similarity tolerance of the selection. "
-             "Increasing threshold increases the range of similar colors to be selected."));
-    sliderSpread->setToolTip(i18n(
-        "Set the extent of the opaque portion of the selection. "
-        "Decreasing spread decreases opacity of selection areas depending on color similarity."));
+        i18nc("@info:tooltip", "0% this exact color → 100% every color"));
+    sliderSpread->setToolTip(i18nc("@info:tooltip", "0% fades with the color difference → 100% solid"));
     checkBoxSelectionAsBoundary->setToolTip(
-        i18n("Set if the contour of the active selection should be treated as "
-             "a boundary when making a new selection"));
+        i18nc("@info:tooltip", "The selection's edge stops it too"));
 
 
     KisSliderSpinBox *sliderCloseGap = new KisSliderSpinBox;

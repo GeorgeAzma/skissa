@@ -230,7 +230,7 @@ protected:
             painter.drawPolygon(QPolygonF() << corner << corner - QPointF(5, 0) << corner + QPointF(0, 5));
         }
         if (shortcutAction && !shortcutAction->shortcut().isEmpty()) {
-            KisStudioShortcuts::paintBadge(painter, rect(), KisStudioShortcuts::badgeText(shortcutAction->shortcut()), palette());
+            KisStudioShortcuts::paintBadge(painter, rect(), KisStudioShortcuts::cornerBadgeText(shortcutAction->shortcut()), palette());
         }
     }
 

@@ -97,6 +97,7 @@ void KRecentFilesActionPrivate::init()
     clearSeparator = q->menu()->addSeparator();
     clearSeparator->setVisible(false);
     clearSeparator->setObjectName(QLatin1String("separator"));
+    q->menu()->setToolTipsVisible(true);
     clearAction = q->menu()->addAction(KisSentenceCase::of(i18n("Clear List")), q, SLOT(clearActionTriggered()));
     clearAction->setObjectName(QLatin1String("clear_action"));
     clearAction->setVisible(false);
@@ -170,33 +171,13 @@ void KRecentFilesActionPrivate::updateIcon(const QStandardItem *item)
 
 static QString titleWithSensibleWidth(const QString &nameValue, const QString &value)
 {
-    // Calculate 3/4 of screen geometry, we do not want
-    // action titles to be bigger than that
-    // Since we do not know in which screen we are going to show
-    // we choose the min of all the screens
+    // the name alone, its folder in the entry's tooltip: a path after every name makes the menu as wide as the screen
+    Q_UNUSED(value);
     int maxWidthForTitles = INT_MAX;
     Q_FOREACH(const QScreen *screen, QGuiApplication::screens()) {
-        maxWidthForTitles = qMin(maxWidthForTitles, screen->availableGeometry().width() * 3 / 4);
+        maxWidthForTitles = qMin(maxWidthForTitles, screen->availableGeometry().width() / 3);
     }
-    const QFontMetrics fontMetrics = QFontMetrics(QFont());
-
-    QString title = nameValue + " [" + value + ']';
-    if (fontMetrics.boundingRect(title).width() > maxWidthForTitles) {
-        // If it does not fit, try to cut only the whole path, though if the
-        // name is too long (more than 3/4 of the whole text) we cut it a bit too
-        const int nameValueMaxWidth = maxWidthForTitles * 3 / 4;
-        const int nameWidth = fontMetrics.boundingRect(nameValue).width();
-        QString cutNameValue, cutValue;
-        if (nameWidth > nameValueMaxWidth) {
-            cutNameValue = fontMetrics.elidedText(nameValue, Qt::ElideMiddle, nameValueMaxWidth);
-            cutValue = fontMetrics.elidedText(value, Qt::ElideMiddle, maxWidthForTitles - nameValueMaxWidth);
-        } else {
-            cutNameValue = nameValue;
-            cutValue = fontMetrics.elidedText(value, Qt::ElideMiddle, maxWidthForTitles - nameWidth);
-        }
-        title = cutNameValue + " [" + cutValue + ']';
-    }
-    return title;
+    return QFontMetrics(QFont()).elidedText(nameValue, Qt::ElideMiddle, maxWidthForTitles);
 }
 
 void KRecentFilesAction::addAction(QAction *action, const QUrl &url, const QString &/*name*/)
@@ -306,6 +287,7 @@ void KRecentFilesAction::rebuildEntries()
         if (!value.isNull()) {
             thereAreEntries = true;
             QAction *action = new QAction(title);
+            action->setToolTip(value);
             action->setActionGroup(selectableActionGroup());
             addAction(action, item.m_url, nameValue);
         }
@@ -349,6 +331,7 @@ void KRecentFilesAction::fileAdded(const QUrl &url)
     // add file to list
     const QString title = titleWithSensibleWidth(tmpName, file);
     QAction *action = new QAction(title, selectableActionGroup());
+    action->setToolTip(file);
     addAction(action, url, tmpName);
 }
 

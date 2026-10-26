@@ -164,20 +164,20 @@
     </Action>
     <Action name="buginfo">
       <icon>krita_log</icon>
-      <text>Show Skissa log for bug reports.</text>
+      <text>Skissa log</text>
       <whatsThis/>
-      <toolTip>Show Skissa log for bug reports.</toolTip>
-      <iconText>Show Skissa log for bug reports.</iconText>
+      <toolTip>Skissa log</toolTip>
+      <iconText>Skissa log</iconText>
       <shortcut/>
       <isCheckable>false</isCheckable>
       <statusTip/>
     </Action>
     <Action name="sysinfo">
       <icon>system-information</icon>
-      <text>Show system information for bug reports.</text>
+      <text>System information</text>
       <whatsThis/>
-      <toolTip>Show system information for bug reports.</toolTip>
-      <iconText>Show system information for bug reports.</iconText>
+      <toolTip>System information</toolTip>
+      <iconText>System information</iconText>
       <shortcut/>
       <isCheckable>false</isCheckable>
       <statusTip/>
@@ -194,20 +194,20 @@
     </Action>
     <Action name="logcatdump">
       <icon>show_android_log</icon>
-      <text>Show Android log for bug reports.</text>
+      <text>Android log</text>
       <whatsThis/>
-      <toolTip>Show Android log for bug reports.</toolTip>
-      <iconText>Show Android log for bug reports.</iconText>
+      <toolTip>Android log</toolTip>
+      <iconText>Android log</iconText>
       <shortcut/>
       <isCheckable>false</isCheckable>
       <statusTip/>
     </Action>
     <Action name="crashlog">
       <icon>show_crash_log</icon>
-      <text>Show crash log for bug reports.</text>
+      <text>Crash log</text>
       <whatsThis/>
-      <toolTip>Show crash log for bug reports.</toolTip>
-      <iconText>Show crash log for bug reports.</iconText>
+      <toolTip>Crash log</toolTip>
+      <iconText>Crash log</iconText>
       <shortcut/>
       <isCheckable>false</isCheckable>
       <statusTip/>

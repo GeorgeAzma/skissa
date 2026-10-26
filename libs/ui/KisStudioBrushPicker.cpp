@@ -305,12 +305,11 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
                 painter.drawImage(rect, stroke);
                 return;
             }
-            // Not painted yet: show the preset's icon, faded
+            // not painted yet: the brush's own picture, whole, until its stroke is
             const QImage icon = catalog->icon(id);
             if (!icon.isNull()) {
                 const int side = rect.height() - 8;
                 painter.save();
-                painter.setOpacity(painter.opacity() * 0.45);
                 painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
                 painter.drawImage(QRect(rect.center().x() - side / 2, rect.top() + 4, side, side), icon);
                 painter.restore();

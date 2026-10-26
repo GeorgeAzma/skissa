@@ -319,7 +319,8 @@ QList<QPointer<QWidget> > KoPencilTool::createOptionWidgets()
     fittingError->setMaximum(400.0);
     fittingError->setMinimum(0.0);
     fittingError->setValue(m_fittingError);
-    fittingError->setToolTip(i18n("Exactness:"));
+    // its name in the box, not only in a tooltip
+    fittingError->setPrefix(i18nc("@label:spinbox how closely the curve follows the stroke", "Exactness: "));
     curveLayout->addWidget(optimizeCurve);
     curveLayout->addWidget(fittingError);
     curveLayout->setContentsMargins(0, 0, 0, 0);

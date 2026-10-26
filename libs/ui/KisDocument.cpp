@@ -1608,7 +1608,9 @@ void KisDocument::slotAutoSaveImpl(std::unique_ptr<KisDocument> &&optionalCloned
     const qint64 now = clock.elapsed();
     if (property("autosaveWaitingSince").isNull()) setProperty("autosaveWaitingSince", now);
     const bool waitedEnough = now - property("autosaveWaitingSince").toLongLong() >= longestWait;
-    if (!optionalClonedDocument && !waitedEnough && InputClock::instance()->sinceInput() < pause) {
+    // held (an effect previewing on the canvas: its preview can't be saved), it waits however long that lasts
+    const bool held = property("autosaveHeld").toBool();
+    if (!optionalClonedDocument && (held || (!waitedEnough && InputClock::instance()->sinceInput() < pause))) {
         // one wait at a time (the autosave timer may fire again meanwhile)
         if (!property("autosaveWaiting").toBool()) {
             setProperty("autosaveWaiting", true);
@@ -1626,7 +1628,10 @@ void KisDocument::slotAutoSaveImpl(std::unique_ptr<KisDocument> &&optionalCloned
     }
     const QString autoSaveFileName = generateAutoSaveFileName(localFilePath());
 
+    // autosave's own messages are quiet unless asked for (see KisView::slotSavingStatusMessage)
+    setProperty("autosaveMessage", true);
     Q_EMIT statusBarMessage(i18n("Autosaving... %1", autoSaveFileName), successMessageTimeout);
+    setProperty("autosaveMessage", false);
 
     KisUsageLogger::log(QString("Autosaving: %1").arg(autoSaveFileName));
 
@@ -1640,7 +1645,9 @@ void KisDocument::slotAutoSaveImpl(std::unique_ptr<KisDocument> &&optionalCloned
                                              0,
                                              std::move(optionalClonedDocument));
     } else {
+        setProperty("autosaveMessage", true);
         Q_EMIT statusBarMessage(i18n("Autosaving postponed: document is busy..."), errorMessageTimeout);
+        setProperty("autosaveMessage", false);
     }
 
     if (result != KritaUtils::BackgroudSavingStartResult::Success && !hadClonedDocument && d->autoSaveFailureCount >= 3) {
@@ -1800,7 +1807,9 @@ void KisDocument::slotCompleteAutoSaving(const KritaUtils::ExportFileJob &job, K
             setNormalAutoSaveInterval();
         }
 
+        setProperty("autosaveMessage", true);
         Q_EMIT statusBarMessage(i18n("Finished autosaving %1", fileName), successMessageTimeout);
+        setProperty("autosaveMessage", false);
     }
 }
 

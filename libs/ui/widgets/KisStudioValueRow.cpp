@@ -249,7 +249,13 @@ void KisStudioValueRow::paintEvent(QPaintEvent *)
         bar.setAlphaF(0.08);
         painter.save();
         painter.setClipPath(shape);
-        painter.fillRect(QRectF(box.left(), box.top(), box.width() * fraction(), box.height()), bar);
+        // a value either side of zero (−1 to 1) fills from zero, so its neutral 0 shows as no fill, not half
+        qreal from = 0;
+        if (m_range.minimum < 0 && m_range.maximum > 0) {
+            from = -m_range.minimum / (m_range.maximum - m_range.minimum);
+        }
+        const qreal to = fraction();
+        painter.fillRect(QRectF(box.left() + box.width() * qMin(from, to), box.top(), box.width() * qAbs(to - from), box.height()), bar);
         painter.restore();
     }
     if (m_selected) {

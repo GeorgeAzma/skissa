@@ -64,7 +64,7 @@
      <item>
       <widget class="QCheckBox" name="cbPalette">
        <property name="toolTip">
-        <string>&lt;nobr&gt;Checking this box will add a new color swatch&lt;/nobr&gt; to a palette each time you sample a color.</string>
+        <string>Every sampled color goes into the palette too</string>
        </property>
        <property name="text">
         <string>Add to palette:</string>
@@ -103,7 +103,7 @@
         </sizepolicy>
        </property>
        <property name="toolTip">
-        <string>&lt;nobr&gt;Blending controls the percentage of color that is sampled&lt;/nobr&gt; and mixed with your current brush color. A full blending value samples colors completely, ignoring brush color.</string>
+        <string>How much of the sampled color mixes into the brush color</string>
        </property>
       </widget>
      </item>
@@ -130,7 +130,7 @@
       </size>
      </property>
      <property name="toolTip">
-      <string>&lt;nobr&gt;Determines whether the color sampler will sample&lt;/nobr&gt; colors from all visible layers or only the currently selected layer.</string>
+      <string>All visible layers, not only this one</string>
      </property>
      <property name="currentIndex">
       <number>0</number>
@@ -186,7 +186,7 @@
         </sizepolicy>
        </property>
        <property name="toolTip">
-        <string>&lt;nobr&gt;Radius controls the color sampler's sampling area.&lt;/nobr&gt; Pixel colors within this radius are mixed together.</string>
+        <string>Colors this close are averaged</string>
        </property>
        <property name="suffix">
         <string> px</string>
@@ -204,7 +204,7 @@
    <item row="9" column="0">
     <widget class="QCheckBox" name="cbNormaliseValues">
      <property name="toolTip">
-      <string>Displays per-channel color information below as percentages instead of bytes.</string>
+      <string>Channels in percent, not 0–255</string>
      </property>
      <property name="text">
       <string>Show colors as percentages</string>
@@ -245,7 +245,7 @@
      <item>
       <widget class="QCheckBox" name="cbUpdateCurrentColor">
        <property name="toolTip">
-        <string>&lt;nobr&gt;Controls whether the color sampler updates the&lt;/nobr&gt; current foreground or not.</string>
+        <string>Sampling sets the brush color</string>
        </property>
        <property name="text">
         <string>Update color</string>
@@ -259,7 +259,7 @@
      <item>
       <widget class="QLabel" name="lblPreviewStyle">
        <property name="toolTip">
-        <string>Style for the on-canvas popup to comparing sampled colors</string>
+        <string>How the sampled color shows beside the old one</string>
        </property>
        <property name="text">
         <string>Preview:</string>
@@ -278,7 +278,7 @@
         </sizepolicy>
        </property>
        <property name="toolTip">
-        <string>Style for the on-canvas popup to comparing sampled colors</string>
+        <string>How the sampled color shows beside the old one</string>
        </property>
       </widget>
      </item>

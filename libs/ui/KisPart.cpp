@@ -625,7 +625,8 @@ KisInputManager* KisPart::currentInputManager()
 void KisPart::showSessionManager()
 {
     if (d->sessionManager.isNull()) {
-        d->sessionManager = new KisSessionManagerDialog();
+        // the window's own, so it is a panel of glass like the other dialogs
+        d->sessionManager = new KisSessionManagerDialog(currentMainwindow());
         d->sessionManager->setAttribute(Qt::WA_DeleteOnClose);
     }
 

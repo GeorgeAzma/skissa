@@ -11,6 +11,7 @@
 #include <QHBoxLayout>
 #include <QPointer>
 #include <QLabel>
+#include <QRegularExpression>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QScrollArea>
@@ -75,7 +76,7 @@ KisBrushHud::KisBrushHud(KisCanvasResourceProvider *provider, QWidget *parent)
 
     m_d->btnReloadPreset = new QToolButton(this);
     m_d->btnReloadPreset->setAutoRaise(true);
-    m_d->btnReloadPreset->setToolTip(i18n("Reload Original Preset"));
+    m_d->btnReloadPreset->setToolTip(i18nc("@info:tooltip drop the brush's unsaved changes", "Back to the saved brush"));
 
     m_d->btnConfigure = new QToolButton(this);
     m_d->btnConfigure->setAutoRaise(true);
@@ -85,7 +86,8 @@ KisBrushHud::KisBrushHud(KisCanvasResourceProvider *provider, QWidget *parent)
     connect(m_d->btnConfigure, SIGNAL(clicked()), SLOT(slotConfigBrushHud()));
 
     labelLayout->addWidget(m_d->lblPresetIcon);
-    labelLayout->addWidget(m_d->lblPresetName);
+    // the name takes the room the buttons leave, so it is cut only when it must be
+    labelLayout->addWidget(m_d->lblPresetName, 1);
     labelLayout->addWidget(m_d->btnReloadPreset);
     labelLayout->addWidget(m_d->btnConfigure);
 
@@ -96,8 +98,12 @@ KisBrushHud::KisBrushHud(KisCanvasResourceProvider *provider, QWidget *parent)
     m_d->wdgPropertiesArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     m_d->wdgPropertiesArea->setWidgetResizable(true);
+    // the panel's glass behind the settings, not a box of the window's color
+    m_d->wdgPropertiesArea->setFrameShape(QFrame::NoFrame);
+    m_d->wdgPropertiesArea->viewport()->setAutoFillBackground(false);
 
     m_d->wdgProperties = new QWidget(this);
+    m_d->wdgProperties->setAutoFillBackground(false);
     m_d->propertiesLayout = new QVBoxLayout(m_d->wdgProperties);
     m_d->propertiesLayout->setSpacing(0);
     m_d->propertiesLayout->setContentsMargins(0, 0, 22, 0);
@@ -184,7 +190,11 @@ void KisBrushHud::updateProperties()
         this, SLOT(slotReloadProperties()));
 
     m_d->lblPresetIcon->setPixmap(QPixmap::fromImage(preset->image()));
-    m_d->lblPresetName->setLongText(preset->name());
+    // without the sorting prefix of Krita's own brushes ("c) "), as the brush list shows them
+    QString name = preset->name();
+    name.replace(QLatin1Char('_'), QLatin1Char(' '));
+    name.remove(QRegularExpression(QStringLiteral("^[a-z]\\)\\s+")));
+    m_d->lblPresetName->setLongText(name);
 
     QList<KisUniformPaintOpPropertySP> properties;
 
@@ -220,6 +230,13 @@ void KisBrushHud::updateProperties()
         }
     }
 
+    // nothing chosen for this kind of brush: say so, rather than an empty box
+    if (m_d->propertiesLayout->isEmpty()) {
+        auto *none = new QLabel(i18nc("@info the on-canvas brush editor shows no settings", "No settings chosen for this brush"), m_d->wdgProperties);
+        none->setAlignment(Qt::AlignCenter);
+        none->setWordWrap(true);
+        m_d->propertiesLayout->addWidget(none);
+    }
     m_d->propertiesLayout->addStretch();
 }
 

@@ -33,7 +33,7 @@
       <item>
        <widget class="QLabel" name="label">
         <property name="text">
-         <string>Activate the Select Shapes Tool to arrange objects.</string>
+         <string>Arranges shapes picked with the shape selection tool</string>
         </property>
         <property name="wordWrap">
          <bool>true</bool>

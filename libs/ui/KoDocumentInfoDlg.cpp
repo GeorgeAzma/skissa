@@ -189,7 +189,9 @@ void KoDocumentInfoDlg::initAboutTab()
     if (!d->info->aboutInfo("date").isEmpty()) {
         QDateTime t = QDateTime::fromString(d->info->aboutInfo("date"), Qt::ISODate);
         QString s = QLocale().toString(t);
-        d->aboutUi->lblModified->setText(s + ", " + d->info->authorInfo("creator"));
+        // the author after a comma only when there is one ("5:05 AM," without)
+        const QString creator = d->info->authorInfo("creator");
+        d->aboutUi->lblModified->setText(creator.isEmpty() ? s : s + ", " + creator);
     }
 
     d->aboutUi->lblRevision->setText(d->info->aboutInfo("editing-cycles"));
@@ -246,7 +248,9 @@ void KoDocumentInfoDlg::slotResetMetaData()
     if (!d->info->aboutInfo("date").isEmpty()) {
         QDateTime t = QDateTime::fromString(d->info->aboutInfo("date"), Qt::ISODate);
         QString s = QLocale().toString(t);
-        d->aboutUi->lblModified->setText(s + ", " + d->info->authorInfo("creator"));
+        // the author after a comma only when there is one ("5:05 AM," without)
+        const QString creator = d->info->authorInfo("creator");
+        d->aboutUi->lblModified->setText(creator.isEmpty() ? s : s + ", " + creator);
     }
 
     d->aboutUi->lblRevision->setText(d->info->aboutInfo("editing-cycles"));

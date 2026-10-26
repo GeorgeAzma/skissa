@@ -455,7 +455,8 @@ void KisAngleSelector::setFlipOptionsMode(FlipOptionsMode newMode)
 {
     m_d->flipOptionsMode = newMode;
 
-    m_d->toolButtonFlipOptions->setVisible(newMode == FlipOptionsMode_MenuButton);
+    // the app's angles have no flip button (a menu of flips beside every angle); a right click resets instead
+    m_d->toolButtonFlipOptions->setVisible(false);
 
     bool useButtons = newMode == FlipOptionsMode_Buttons;
     m_d->toolButtonFlipHorizontally->setVisible(useButtons);
@@ -598,9 +599,8 @@ bool KisAngleSelector::eventFilter(QObject *o, QEvent *e)
     if (w != m_d->angleGauge || !w->isEnabled() || !e || e->type() != QEvent::ContextMenu) {
         return false;
     }
-    QContextMenuEvent *cme = static_cast<QContextMenuEvent*>(e);
-
-    m_d->menuFlip->exec(cme->globalPos());
+    // a right click resets, as on every value in the app
+    reset();
     return true;
 }
 

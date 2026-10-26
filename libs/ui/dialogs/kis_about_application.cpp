@@ -73,7 +73,7 @@ KisAboutApplication::KisAboutApplication(QWidget *parent)
                     << "</td><td>"
                     << i18n("<p><b>Coding Krita</b></p>")
                     << i18n("<p><a href=\"https://krita-artists.org\"><span style=\" text-decoration: underline;\">User Community</span></a></p>")
-                    << i18n("<p><a href=\"%1\"><span style=\" text-decoration: underline;;\">Source Code</span></a></p>", KisProfile::homepage())
+                    << i18n("<p><a href=\"%1\"><span style=\" text-decoration: underline;;\">Source Code</span></a></p>", QStringLiteral("https://invent.kde.org/graphics/krita"))
                     << i18n("<p><a href=\"https://api.kde.org/krita/html/classKrita.html\"><span style=\" text-decoration: underline;\">Scripting API</span></a></p>")
                     << i18n("<p><a href=\"https://scripting.krita.org/lessons/introduction\"><span style=\" text-decoration: underline;;\">Scripting School</span></a></p>")
                     << "</td></tr></table></body>"

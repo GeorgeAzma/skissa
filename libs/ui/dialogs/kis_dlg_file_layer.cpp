@@ -33,6 +33,9 @@ KisDlgFileLayer::KisDlgFileLayer(const QString &basePath, const QString & name, 
     dlgWidget.setupUi(page);
     QStringList mimes = KisImportExportManager::supportedMimeTypes(KisImportExportManager::Import);
     dlgWidget.wdgUrlRequester->setMimeTypeFilters(mimes);
+    // a tooltip on the file it is about, not grey italic text in the dialog
+    dlgWidget.lblWarning->hide();
+    dlgWidget.wdgUrlRequester->setToolTip(i18nc("@info:tooltip", "Kept as a path from the .kra: move the two together"));
     setMainWidget(page);
 
     //dlgWidget.wdgUrlRequester->setBasePath(m_basePath);
@@ -45,14 +48,8 @@ KisDlgFileLayer::KisDlgFileLayer(const QString &basePath, const QString & name, 
 
     dlgWidget.cmbFilter->setIDList(KisFilterStrategyRegistry::instance()->listKeys());
     dlgWidget.cmbFilter->setCurrent("Bicubic");
-    dlgWidget.cmbFilter->setToolTip(i18nc("@info:tooltip",
-                                "<p>Select filtering mode:\n"
-                                "<ul>"
-                                "<li><b>Nearest neighbor</b> for pixel art. Does not produce new color.</li>"
-                                "<li><b>Bilinear</b> for areas with uniform color to avoid artifacts.</li>"
-                                "<li><b>Bicubic</b> for smoother results.</li>"
-                                "<li><b>Lanczos3</b> for sharp results. May produce aerials.</li>"
-                                "</ul></p>"));
+    dlgWidget.cmbFilter->setToolTip(i18nc("@info:tooltip how the image is resampled",
+                                "Nearest is best for pixel art, Lanczos3 the sharpest"));
     connect(dlgWidget.radioDontScale, SIGNAL(toggled(bool)),
             this, SLOT(slotMethodChanged(bool)));
 

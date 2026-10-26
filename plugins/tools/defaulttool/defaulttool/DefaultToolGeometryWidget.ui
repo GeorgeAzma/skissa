@@ -199,7 +199,7 @@
        <item>
         <widget class="QCheckBox" name="chkUniformScaling">
          <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When &amp;quot;Scale Styles&amp;quot; is &lt;span style=&quot; font-weight:600;&quot;&gt;enabled&lt;/span&gt;, the shape's stroke is scaled with the shape itself.&lt;/p&gt;&lt;p&gt;In the &lt;span style=&quot; font-weight:600;&quot;&gt;disabled&lt;/span&gt; state, only the shape is resized, keeping the stroke width and style unaltered.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          <string>Line widths and effects scale with the shape</string>
          </property>
          <property name="text">
           <string>Scale Styles</string>
@@ -215,7 +215,7 @@
           </size>
          </property>
          <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;In &amp;quot;Global Coordinates&amp;quot; mode Width and Height fields show the size of the shape's bounding box in image-aligned coordinates, even when the shape is rotated or has any other transform. &lt;/p&gt;&lt;p&gt;If &amp;quot;Global Coordinates&amp;quot; mode is disabled, Width and Height fields show the shape's &amp;quot;local&amp;quot; size, before application of any transformations.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          <string>Sizes as seen in the image, not the shape's own</string>
          </property>
          <property name="text">
           <string>Global Coordinates</string>

@@ -1148,6 +1148,8 @@ void KisView::slotSavingStatusMessage(const QString &text, int timeout, bool isA
     if (sb) {
         sb->showMessage(text, timeout);
     }
+    // autosave says so itself (KisDocument): over the canvas, with no status bar, it would interrupt every few minutes
+    isAutoSaving = isAutoSaving || (d->document && d->document->property("autosaveMessage").toBool());
 
     KisConfig cfg(true);
 

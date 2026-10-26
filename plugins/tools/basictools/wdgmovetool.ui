@@ -45,7 +45,7 @@
       <item row="0" column="0">
        <widget class="QRadioButton" name="radioSelectedLayer">
         <property name="toolTip">
-         <string>Move the layer that you have currently selected in the layerbox with its masks. Shortcut: ctrl-click.</string>
+         <string>Moves the selected layer, with its masks</string>
         </property>
         <property name="text">
          <string>&amp;Move current layer</string>
@@ -71,7 +71,7 @@
       <item row="2" column="0">
        <widget class="QRadioButton" name="radioGroup">
         <property name="toolTip">
-         <string>Move the group containing the first layer that contains visible content. Shortcut: ctrl-click.</string>
+         <string>Moves the group of the layer under the pointer</string>
         </property>
         <property name="text">
          <string>Move &amp;the whole group</string>
@@ -102,7 +102,7 @@
          </sizepolicy>
         </property>
         <property name="toolTip">
-         <string>When holding shift, move keyboard shortcuts scale up by this amount.</string>
+         <string>Shift and an arrow key move this many steps</string>
         </property>
         <property name="minimum">
          <double>1.000000000000000</double>

@@ -761,7 +761,10 @@ void KisStudioFind::rebuildIndex()
         }
         filterActions.insert(actionName);
         QPointer<QAction> target = action;
-        d->entries.append({QStringLiteral("effect:") + filterId, Kind::Effect, KisSentenceCase::of(plainText(filter->name())),
+        // "Burn..." is Burn: an effect opens on the canvas, there is no dialog to announce
+        QString effectName = KisSentenceCase::of(plainText(filter->name())).trimmed();
+        while (effectName.endsWith(QLatin1Char('.')) || effectName.endsWith(QChar(0x2026))) effectName.chop(1);
+        d->entries.append({QStringLiteral("effect:") + filterId, Kind::Effect, effectName,
                            KisSentenceCase::of(filter->menuCategory().name()), QStringLiteral("filter"),
                            action->shortcut().toString(QKeySequence::NativeText),
                            action->icon().isNull() ? KisIconUtils::loadIcon(QStringLiteral("studio_effects")) : action->icon(),
@@ -787,9 +790,13 @@ void KisStudioFind::rebuildIndex()
             }
             seen.insert(action);
             QPointer<QAction> target = action;
+            // the commands Find offers at first need a picture; Krita has none for these
+            static const QHash<QString, QString> pictures = {{QStringLiteral("imagesize"), QStringLiteral("studio_transform")},
+                                                             {QStringLiteral("canvassize"), QStringLiteral("studio_crop")}};
+            const QIcon icon = action->icon().isNull() && pictures.contains(name) ? KisIconUtils::loadIcon(pictures.value(name)) : action->icon();
             d->entries.append({QStringLiteral("action:") + name, Kind::Command, text, menuPaths.value(action),
                                plainText(action->toolTip()), action->shortcut().toString(QKeySequence::NativeText),
-                               action->icon(),
+                               icon,
                                [target]() { if (target && target->isEnabled()) target->trigger(); }});
             d->entries.last().action = action;
         }
@@ -1300,7 +1307,7 @@ void KisStudioFind::updateResults()
         }
         QVector<int> document;
         for (const char *name : {"file_new", "file_open", "file_save", "file_save_as", "file_export_file",
-                                 "imagesize", "canvassize", "options_configure"}) {
+                                 "imagesize", "canvassize"}) {
             const QString key = QStringLiteral("action:") + QLatin1String(name);
             for (int i = 0; i < d->entries.size(); i++) {
                 if (d->entries[i].key == key) {

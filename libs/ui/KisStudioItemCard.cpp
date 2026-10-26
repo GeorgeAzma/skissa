@@ -116,7 +116,7 @@ protected:
         }
         m_choice.icon.paint(&painter, QRect(9, 9, 22, 22));
         if (m_choice.action && !m_choice.action->shortcut().isEmpty()) {
-            KisStudioShortcuts::paintBadge(painter, rect(), KisStudioShortcuts::badgeText(m_choice.action->shortcut()), pal);
+            KisStudioShortcuts::paintBadge(painter, rect(), KisStudioShortcuts::cornerBadgeText(m_choice.action->shortcut()), pal);
         }
     }
 
@@ -300,6 +300,13 @@ QString KisStudioShortcuts::itemMimeType()
 QString KisStudioShortcuts::badgeText(const QKeySequence &sequence)
 {
     return KisModernStyle::keyCapText(sequence);
+}
+
+QString KisStudioShortcuts::cornerBadgeText(const QKeySequence &sequence)
+{
+    // a button's corner has room for a key alone: one with Ctrl or Shift covered the icon ("Ctrl R"); its tooltip shows it
+    if (sequence.isEmpty() || (sequence[0] & Qt::KeyboardModifierMask)) return QString();
+    return badgeText(sequence);
 }
 
 void KisStudioShortcuts::paintBadge(QPainter &painter, const QRect &rect, const QString &text, const QPalette &palette)

@@ -38,6 +38,13 @@ QString emptyText(QAbstractItemView *view)
         return i18nc("@info an empty list", "Nothing here yet");
     }
     if (view->inherits("KisPaletteView")) return i18nc("@info an empty palette", "No colors yet");
+    // the lists of Krita's panels that start empty
+    for (QWidget *w = view->parentWidget(); w; w = w->parentWidget()) {
+        if (!w->inherits("QDockWidget")) continue;
+        if (w->objectName() == QLatin1String("Snapshot")) return i18nc("@info an empty list of snapshots", "No snapshots yet");
+        if (w->objectName() == QLatin1String("CompositionDocker")) return i18nc("@info an empty list of compositions", "No compositions yet");
+        break;
+    }
     return QString();
 }
 

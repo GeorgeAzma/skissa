@@ -13,6 +13,7 @@
 #include <kpluginfactory.h>
 
 #include <kis_action.h>
+#include <KisMainWindow.h>
 #include <KisViewManager.h>
 #include <KisPart.h>
 
@@ -65,7 +66,8 @@ void ResourceManager::slotManageBundles()
 
 void ResourceManager::slotManageResources()
 {
-    DlgResourceManager dlg(viewManager()->actionManager());
+    // the window's own, so it is a panel of glass like the other dialogs
+    DlgResourceManager dlg(viewManager()->actionManager(), viewManager()->mainWindow());
     dlg.exec();
 }
 

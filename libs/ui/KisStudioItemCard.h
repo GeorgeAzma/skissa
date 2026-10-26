@@ -26,6 +26,8 @@ namespace KisStudioShortcuts
 {
 /// Compact form for a badge in a button corner: "Ctrl+Shift+K" -> "Ctrl ⇧K"
 QString badgeText(const QKeySequence &sequence);
+/// The badge in a button's corner: a key alone, none for a key with modifiers
+QString cornerBadgeText(const QKeySequence &sequence);
 
 /// Paints a small key cap in the bottom right corner of \p rect
 void paintBadge(QPainter &painter, const QRect &rect, const QString &text, const QPalette &palette);

@@ -47,7 +47,8 @@ QString KisSentenceCase::of(const QString &text)
     static const QRegularExpression word(QStringLiteral("[&\\p{L}][\\p{L}\\p{N}'&]*"));
     // only words that are capitalized and otherwise lower case: acronyms (RGB) and names written so (OpenGL) stay
     static const QRegularExpression capitalized(QStringLiteral("^\\p{Lu}\\p{Ll}+(?:'\\p{Ll}+)?$"));
-    static const QRegularExpression sentenceEnd(QStringLiteral("[.!?]\\s|\\n|<p>|<br"));
+    // a name after " · " or " — " starts again too ("Select · Rectangular selection")
+    static const QRegularExpression sentenceEnd(QStringLiteral("[.!?]\\s|\\n|<p>|<br|\\s[\\x{00B7}\\x{2014}]\\s"));
     QString out = text;
     int previousEnd = -1;
     auto it = word.globalMatch(text);

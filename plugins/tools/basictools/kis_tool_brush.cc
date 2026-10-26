@@ -658,14 +658,14 @@ QWidget * KisToolBrush::createOptionWidget()
 
     m_chkAssistant = new QCheckBox(optionsWidget);
     m_chkAssistant->setObjectName("chkAssistant");
-    m_chkAssistant->setText(i18n("Snap to Assistants"));
+    // the Studio calls Krita's assistants guides
+    m_chkAssistant->setText(i18nc("@option:check snap the stroke to the image's guides (assistants)", "Snap to guides"));
 
-    assistantWidget->setToolTip(i18n("You need to add Assistants before this tool will work."));
     connect(m_chkAssistant, SIGNAL(toggled(bool)), this, SLOT(setAssistant(bool)));
     addOptionWidgetOption(assistantWidget, m_chkAssistant);
 
     m_sliderMagnetism = new KisSliderSpinBox(optionsWidget);
-    m_sliderMagnetism->setToolTip(i18n("Assistant Magnetism"));
+    m_sliderMagnetism->setToolTip(i18nc("@info:tooltip how strongly strokes follow the guides", "How strongly strokes follow the guides"));
     m_sliderMagnetism->setRange(0, MAXIMUM_MAGNETISM);
 
     m_sliderMagnetism->setValue(m_magnetism * MAXIMUM_MAGNETISM);
@@ -674,10 +674,10 @@ QWidget * KisToolBrush::createOptionWidget()
     QLabel* magnetismLabel = new QLabel(i18n("Magnetism:"), optionsWidget);
     addOptionWidgetOption(m_sliderMagnetism, magnetismLabel);
 
-    QLabel* snapSingleLabel = new QLabel(i18n("Snap to Single Line"), optionsWidget);
+    QLabel* snapSingleLabel = new QLabel(i18nc("@option:check follow one guide line, not every one nearby", "One line at a time"), optionsWidget);
 
     m_chkOnlyOneAssistant = new QCheckBox(optionsWidget);
-    m_chkOnlyOneAssistant->setToolTip(i18nc("@info:tooltip","Make it only snap to a single assistant line, prevents snapping mess while using the infinite assistants."));
+    m_chkOnlyOneAssistant->setToolTip(i18nc("@info:tooltip", "Follows the line it starts on, not every guide it passes"));
     m_chkOnlyOneAssistant->setCheckState(Qt::Checked); // turn on by default.
     connect(m_chkOnlyOneAssistant, SIGNAL(toggled(bool)), this, SLOT(setOnlyOneAssistantSnap(bool)));
     addOptionWidgetOption(m_chkOnlyOneAssistant, snapSingleLabel);
@@ -685,7 +685,7 @@ QWidget * KisToolBrush::createOptionWidget()
     QLabel* snapEraserLabel = new QLabel(i18n("Snap Eraser"), optionsWidget);
 
     m_chkSnapEraser = new QCheckBox(optionsWidget);
-    m_chkSnapEraser->setToolTip(i18nc("@info:tooltip","Enable snapping when using erasers"));
+    m_chkSnapEraser->setToolTip(i18nc("@info:tooltip", "Erasing follows the guides too"));
     m_chkSnapEraser->setCheckState(Qt::Unchecked); // turn off by default.
     connect(m_chkSnapEraser, SIGNAL(toggled(bool)), this, SLOT(setSnapEraser(bool)));
     addOptionWidgetOption(m_chkSnapEraser, snapEraserLabel);

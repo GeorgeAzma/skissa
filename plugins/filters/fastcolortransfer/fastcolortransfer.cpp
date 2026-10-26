@@ -84,7 +84,11 @@ void KisFilterFastColorTransfer::processImpl(KisPaintDeviceSP device,
         dbgPlugins << "The LAB colorspace is not available.";
         return;
     }
-    
+    // no reference image picked yet: no colors to take, so the image stays as it is (not Lab zeros, a solid blue)
+    if (!config->hasProperty("meanL")) {
+        return;
+    }
+
     dbgPlugins << "convert a copy of src to lab";
     const KoColorSpace* oldCS = device->colorSpace();
     KisPaintDeviceSP srcLAB = new KisPaintDevice(*device.data());

@@ -11,6 +11,7 @@
  */
 
 #include "LayerBox.h"
+#include <KisSentenceCase.h>
 #include <KisFrameRate.h>
 
 #include <KoCanvasResourceProvider.h>
@@ -999,7 +1000,7 @@ void LayerBox::slotContextMenuRequested(const QPoint &pos, const QModelIndex &in
         menu.addSeparator();
         QAction *filter = menu.addAction(i18nc("@action:inmenu", "Filter…") + QLatin1Char('\t') + QKeySequence(QKeySequence::Find).toString(QKeySequence::NativeText));
         connect(filter, &QAction::triggered, this, [this]() { startFiltering(QString()); });
-        QMenu *select = menu.addMenu(i18nc("@title:menu", "Select"));
+        QMenu *select = menu.addMenu(KisSentenceCase::of(i18nc("@title:menu", "Select")));
         addMenuEntry(select, "select_all_layers", i18nc("@action:inmenu select layers", "All"));
         addMenuEntry(select, "select_visible_layers", i18nc("@action:inmenu select layers", "Visible"));
         addMenuEntry(select, "select_invisible_layers", i18nc("@action:inmenu select layers", "Hidden"));
@@ -1013,7 +1014,8 @@ void LayerBox::slotContextMenuRequested(const QPoint &pos, const QModelIndex &in
 QAction *LayerBox::addMenuEntry(QMenu *menu, QAction *action, const QString &label, bool onlyIfEnabled)
 {
     if (!action || (onlyIfEnabled && !action->isEnabled())) return nullptr;
-    QString text = label.isEmpty() ? action->text() : label;
+    // Krita's Title Case ("Merge Down") the app's way
+    QString text = KisSentenceCase::of(label.isEmpty() ? action->text() : label);
     if (!action->shortcut().isEmpty()) {
         text += QLatin1Char('\t') + action->shortcut().toString(QKeySequence::NativeText);
     }
@@ -1039,7 +1041,7 @@ QAction *LayerBox::addMenuEntry(QMenu *menu, const QString &id, const QString &l
 
 void LayerBox::addNewLayerMenu(QMenu *menu, bool below)
 {
-    QMenu *kinds = menu->addMenu(i18nc("@title:menu other kinds of layer", "New"));
+    QMenu *kinds = menu->addMenu(KisSentenceCase::of(i18nc("@title:menu other kinds of layer", "New")));
     addMenuEntry(kinds, "add_new_paint_layer", i18nc("@action:inmenu", "Paint Layer"));
     if (below) {
         QAction *entry = kinds->addAction(i18nc("@action:inmenu", "Paint Layer Below"));
@@ -1819,7 +1821,7 @@ void LayerBox::updateLayerOpMenu(const QModelIndex &index, QMenu &menu) {
     addMenuEntry(&menu, m_propertiesAction, i18nc("@action:inmenu", "Properties…"));
     KisLayerSP singleLayer = dynamic_cast<KisLayer*>(activeNode.data());
     if (singleLayer) {
-        QMenu *style = menu.addMenu(i18nc("@title:menu layer style", "Style"));
+        QMenu *style = menu.addMenu(KisSentenceCase::of(i18nc("@title:menu layer style", "Style")));
         addMenuEntry(style, "layer_style", i18nc("@action:inmenu layer style", "Edit…"));
         if (singleLayer->layerStyle()) {
             addMenuEntry(style, "copy_layer_style", i18nc("@action:inmenu layer style", "Copy"));
@@ -1835,7 +1837,7 @@ void LayerBox::updateLayerOpMenu(const QModelIndex &index, QMenu &menu) {
     menu.addAction(m_colorSelectorAction);
     menu.addSeparator();
 
-    QMenu *select = menu.addMenu(i18nc("@title:menu", "Select"));
+    QMenu *select = menu.addMenu(KisSentenceCase::of(i18nc("@title:menu", "Select")));
     addMenuEntry(select, "select_all_layers", i18nc("@action:inmenu select layers", "All"));
     addMenuEntry(select, "select_visible_layers", i18nc("@action:inmenu select layers", "Visible"));
     addMenuEntry(select, "select_invisible_layers", i18nc("@action:inmenu select layers", "Hidden"));
@@ -1848,7 +1850,7 @@ void LayerBox::updateLayerOpMenu(const QModelIndex &index, QMenu &menu) {
 
     // only what applies to this layer, no disabled entries
     if (singleNode) {
-        QMenu *convert = menu.addMenu(i18nc("@title:menu", "Convert"));
+        QMenu *convert = menu.addMenu(KisSentenceCase::of(i18nc("@title:menu", "Convert")));
         addMenuEntry(convert, "convert_to_paint_layer", i18nc("@action:inmenu convert to", "To Paint Layer"), true);
         addMenuEntry(convert, "convert_to_transparency_mask", i18nc("@action:inmenu convert to", "To Transparency Mask"), true);
         addMenuEntry(convert, "convert_to_filter_mask", i18nc("@action:inmenu convert to", "To Filter Mask"), true);
@@ -1862,7 +1864,7 @@ void LayerBox::updateLayerOpMenu(const QModelIndex &index, QMenu &menu) {
         addMenuEntry(convert, "split_alpha_save_merged", i18nc("@action:inmenu", "Save Merged…"), true);
     }
 
-    QMenu *more = menu.addMenu(i18nc("@title:menu", "More"));
+    QMenu *more = menu.addMenu(KisSentenceCase::of(i18nc("@title:menu", "More")));
     addMenuEntry(more, "create_quick_clipping_group", i18nc("@action:inmenu", "Clipping Group"));
     if (singleNode) {
         addMenuEntry(more, "flatten_layer", i18nc("@action:inmenu", "Flatten Layer"));

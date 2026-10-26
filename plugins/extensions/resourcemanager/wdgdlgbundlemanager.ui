@@ -96,7 +96,7 @@
              </sizepolicy>
             </property>
             <property name="toolTip">
-             <string>Delete a resource library</string>
+             <string>Turn the library on or off</string>
             </property>
             <property name="text">
              <string/>

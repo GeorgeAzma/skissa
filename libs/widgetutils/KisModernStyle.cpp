@@ -5,11 +5,19 @@
  */
 #include "KisModernStyle.h"
 
+#include "KisSentenceCase.h"
 #include "KisTouchMode.h"
 
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QAction>
+#include <QCheckBox>
+#include <QGroupBox>
+#include <QPushButton>
+#include <QRadioButton>
+#include <QTabWidget>
+#include <QTextDocument>
+#include <QToolButton>
 #include <QHash>
 #include <QApplication>
 #include <QComboBox>
@@ -301,6 +309,32 @@ QString KisModernStyle::underlyingStyleName(const QStyle *style)
 
 namespace {
 /// Whether a label names the field next to it, rather than being standalone text.
+/**
+ * The interface face, Segoe UI Variable, has no italic: Qt slants it itself and cuts the letters' left edges. Text
+ * set in italic (\p widget's font, or a label's rich text) is given Segoe UI's own italic instead.
+ */
+void italicFace(QWidget *widget)
+{
+#ifdef Q_OS_WIN
+    static const QString face = QStringLiteral("Segoe UI");
+    if (!widget->font().family().startsWith(QLatin1String("Segoe UI Variable"))) return;
+    if (widget->font().italic()) {
+        QFont font = widget->font();
+        font.setFamily(face);
+        widget->setFont(font);
+    }
+    auto *label = qobject_cast<QLabel *>(widget);
+    if (label && label->text().contains(QLatin1String("<i>"))) {
+        QString text = label->text();
+        text.replace(QLatin1String("<i>"), QStringLiteral("<span style=\"font-family:'%1'; font-style:italic\">").arg(face));
+        text.replace(QLatin1String("</i>"), QLatin1String("</span>"));
+        label->setText(text);
+    }
+#else
+    Q_UNUSED(widget);
+#endif
+}
+
 bool labelsAField(QLabel *label)
 {
     if (label->buddy()) {
@@ -617,16 +651,33 @@ void KisModernStyle::polish(QWidget *widget)
         widget->setAttribute(Qt::WA_Hover, true);
     }
 
-    // A label beside its field needs no colon.
+    // Krita's forms are in Title Case with colons: their captions (not what they show) are written the app's way,
+    // in sentence case and with no colon, which a caption beside its field doesn't need (see KisSentenceCase)
+    static const QRegularExpression colon(QStringLiteral("\\s*[:\\x{FF1A}]\\s*$"));
+    auto caption = [](QString text) { return KisSentenceCase::of(text.remove(colon)); };
     if (QLabel *label = qobject_cast<QLabel *>(widget)) {
-        if (label->textFormat() != Qt::RichText && labelsAField(label)) {
-            static const QRegularExpression colon(QStringLiteral("\\s*[:\\x{FF1A}]\\s*$"));
-            QString text = label->text();
-            if (text.contains(colon)) {
-                label->setText(text.remove(colon));
-            }
+        const QString text = label->text();
+        const bool plain = label->textFormat() != Qt::RichText && !(label->textFormat() == Qt::AutoText && Qt::mightBeRichText(text));
+        // a short line ending in a colon introduces what follows it: a caption too
+        if (plain && (labelsAField(label) || (text.contains(colon) && text.size() < 48 && !text.contains(QLatin1Char('\n'))))) {
+            const QString shown = caption(text);
+            if (shown != text) label->setText(shown);
         }
+    } else if (qobject_cast<QCheckBox *>(widget) || qobject_cast<QRadioButton *>(widget) || qobject_cast<QPushButton *>(widget)) {
+        auto *button = static_cast<QAbstractButton *>(widget);
+        const QString shown = caption(button->text());
+        if (!button->text().isEmpty() && shown != button->text()) button->setText(shown);
+    } else if (auto *group = qobject_cast<QGroupBox *>(widget)) {
+        const QString shown = caption(group->title());
+        if (shown != group->title()) group->setTitle(shown);
+    } else if (auto *tabs = qobject_cast<QTabWidget *>(widget)) {
+        for (int i = 0; i < tabs->count(); i++) tabs->setTabText(i, KisSentenceCase::of(tabs->tabText(i)));
     }
+    // a tab bar's scroll arrows sit over its tabs: drawn see-through, the tab's text showed through them
+    if (qobject_cast<QToolButton *>(widget) && qobject_cast<QTabBar *>(widget->parentWidget())) {
+        widget->setAutoFillBackground(true);
+    }
+    italicFace(widget);
 }
 
 QRect KisModernStyle::subElementRect(SubElement element, const QStyleOption *option, const QWidget *widget) const
@@ -749,6 +800,15 @@ bool menuArrowLeftOut(const QStyleOptionToolButton *tool)
     return tool && tool->toolButtonStyle == Qt::ToolButtonIconOnly && tool->features.testFlag(QStyleOptionToolButton::HasMenu)
         && !tool->features.testFlag(QStyleOptionToolButton::MenuButtonPopup);
 }
+
+/// A button with words whose press opens its menu ("Export ⌄"): its arrow goes after the words, in room of its own
+bool menuArrowAfterText(const QStyleOptionToolButton *tool)
+{
+    return tool && tool->toolButtonStyle != Qt::ToolButtonIconOnly && !tool->text.isEmpty()
+        && tool->features.testFlag(QStyleOptionToolButton::HasMenu) && !tool->features.testFlag(QStyleOptionToolButton::MenuButtonPopup);
+}
+
+constexpr int textMenuArrowRoom = 16;
 }
 
 QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &contentsSize, const QWidget *widget) const
@@ -759,6 +819,11 @@ QSize KisModernStyle::sizeFromContents(ContentsType type, const QStyleOption *op
             QStyleOptionToolButton plain = *tool;
             plain.features &= ~QStyleOptionToolButton::HasMenu;
             return sizeFromContents(type, &plain, contentsSize, widget);
+        }
+        if (menuArrowAfterText(tool)) {
+            QStyleOptionToolButton plain = *tool;
+            plain.features &= ~QStyleOptionToolButton::HasMenu;
+            return sizeFromContents(type, &plain, contentsSize, widget) + QSize(textMenuArrowRoom, 0);
         }
     }
     QSize size = QProxyStyle::sizeFromContents(type, option, contentsSize, widget);
@@ -836,6 +901,13 @@ QRect KisModernStyle::subControlRect(ComplexControl control, const QStyleOptionC
                 return QRect(field.left(), field.top(), qMax(field.right(), arrow.right()) - field.left() + 1, field.height());
             }
         }
+    }
+    if (control == CC_SpinBox && subControl == SC_SpinBoxEditField) {
+        // Keep the number and cursor clear of the rounded border, as in a line edit.
+        const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option);
+        QRect field = QProxyStyle::subControlRect(control, option, subControl, widget);
+        if (spin && spin->frame) field.adjust(3, 0, 0, 0);
+        return field;
     }
     if (control == CC_ScrollBar) {
         // QCommonStyle's layout without the arrow buttons.
@@ -1180,6 +1252,21 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
 void KisModernStyle::drawControl(ControlElement element, const QStyleOption *option, QPainter *painter, const QWidget *widget) const
 {
     switch (element) {
+    case CE_ShapedFrame:
+        // a boxed frame (a framed label, a list's border) as a soft rounded line, not a bright square
+        if (const auto *frame = qstyleoption_cast<const QStyleOptionFrame *>(option);
+            frame && (frame->frameShape == QFrame::Box || frame->frameShape == QFrame::Panel) && frame->lineWidth > 0) {
+            QColor line = frame->palette.color(QPalette::WindowText);
+            line.setAlphaF(0.14);
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing, true);
+            painter->setPen(QPen(line, 1));
+            painter->setBrush(Qt::NoBrush);
+            painter->drawPath(squircle(QRectF(frame->rect).adjusted(0.5, 0.5, -0.5, -0.5), cornerRadius));
+            painter->restore();
+            return;
+        }
+        break;
     case CE_PushButtonBevel:
         if (const auto *button = qstyleoption_cast<const QStyleOptionButton *>(option)) {
             proxy()->drawPrimitive(PE_PanelButtonCommand, button, painter, widget);
@@ -1432,6 +1519,22 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
             QStyleOptionToolButton plain = *tool;
             plain.features &= ~QStyleOptionToolButton::HasMenu;
             QProxyStyle::drawComplexControl(control, &plain, painter, widget);
+            return;
+        }
+        if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option); menuArrowAfterText(tool)) {
+            // the button and its words in all but the arrow's room, the arrow (a small chevron) in it
+            QStyleOptionToolButton plain = *tool;
+            plain.features &= ~QStyleOptionToolButton::HasMenu;
+            QProxyStyle::drawComplexControl(control, &plain, painter, widget);
+            // the words are centered in the whole button, so half the room lies after them: the chevron at its end
+            const QPointF middle(tool->rect.right() - 7, tool->rect.center().y() + 0.5);
+            painter->save();
+            painter->setRenderHint(QPainter::Antialiasing, true);
+            QColor ink = tool->palette.color(QPalette::ButtonText);
+            if (!tool->state.testFlag(State_Enabled)) ink.setAlphaF(0.4);
+            painter->setPen(QPen(ink, 1.3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            painter->drawPolyline(QPolygonF({middle + QPointF(-3, -1.5), middle + QPointF(0, 1.5), middle + QPointF(3, -1.5)}));
+            painter->restore();
             return;
         }
         break;

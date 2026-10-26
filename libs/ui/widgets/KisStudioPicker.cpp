@@ -449,7 +449,18 @@ protected:
             painter.setPen(enabled ? pal.color(QPalette::WindowText) : dim);
             if (tiles) {
                 const QRect text(item.rect.left() + 8, preview.bottom() + 2, item.rect.width() - 16, item.rect.bottom() - preview.bottom() - 4);
-                painter.drawText(text, Qt::AlignLeft | Qt::AlignVCenter, painter.fontMetrics().elidedText(item.name, Qt::ElideRight, text.width()));
+                // a long name a little smaller, on two lines: cut short, "Emboss horizontal only" and "Emboss horizontal &
+                // vertical" looked the same
+                if (painter.fontMetrics().horizontalAdvance(item.name) <= text.width()) {
+                    painter.drawText(text, Qt::AlignLeft | Qt::AlignVCenter, item.name);
+                } else {
+                    QFont nameFont = font();
+                    nameFont.setPointSizeF(nameFont.pointSizeF() * 0.8);
+                    painter.setFont(nameFont);
+                    const QRect twoLines(text.left(), preview.bottom() + 1, text.width(), item.rect.bottom() - preview.bottom() - 1);
+                    painter.drawText(twoLines, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, item.name);
+                    painter.setFont(font());
+                }
             } else {
                 const int textLeft = preview.right() + 9 - item.rect.left();
                 painter.drawText(item.rect.adjusted(textLeft, 0, -24, 0), Qt::AlignVCenter | Qt::AlignLeft,

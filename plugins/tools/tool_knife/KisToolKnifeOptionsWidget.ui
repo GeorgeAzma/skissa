@@ -21,7 +21,7 @@
    <item>
     <widget class="QLabel" name="warningLabel">
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This tool only works on a vector layer.&lt;br/&gt;Create the first panel using any shape tool on a vector layer.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>Cuts panels drawn on a vector layer</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>

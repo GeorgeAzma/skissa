@@ -116,7 +116,26 @@ QFileDevice::FileError KisSafeSave::replaceWith(const QString &written, const QS
         if (attempt) QThread::msleep(100);
         if ((hadOld && replaceFile(location, written)) || moveFile(written, location)) return QFileDevice::NoError;
     }
-    // the new file stays beside the old one, which is untouched
+    // held open by a program that lets others write to it but not replace it (a viewer showing it): its bytes are
+    // written over in place, and the new file goes only once they are all on the disk, so it is never lost
+    if (hadOld) {
+        QFile source(written);
+        QFile target(location);
+        if (source.open(QIODevice::ReadOnly) && target.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            bool copied = true;
+            while (copied && !source.atEnd()) {
+                const QByteArray chunk = source.read(1 << 20);
+                copied = !chunk.isEmpty() && target.write(chunk) == chunk.size();
+            }
+            target.close();
+            source.close();
+            if (copied && flushFile(location)) {
+                QFile::remove(written);
+                return QFileDevice::NoError;
+            }
+        }
+    }
+    // the new file stays beside the old one
     return QFileDevice::RenameError;
 #else
     if (QFile::exists(location) && !QFile::remove(location)) return QFileDevice::RemoveError;

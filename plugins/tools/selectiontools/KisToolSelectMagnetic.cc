@@ -771,20 +771,10 @@ QWidget * KisToolSelectMagnetic::createOptionWidget()
     buttonDiscardSelection->setEnabled(false);
 
     // Set the tooltips
-    sliderRadius->setToolTip(i18nc("@info:tooltip",
-                                   "Radius of the filter for the detecting "
-                                   "edges, might take some time to calculate"));
-    sliderThreshold->setToolTip(
-        i18nc("@info:tooltip",
-              "Threshold for determining the minimum intensity of the edges"));
-    sliderSearchRadius->setToolTip(
-        i18nc("@info:tooltip", "Extra area to be searched"));
-    sliderAnchorGap->setToolTip(
-        i18nc("@info:tooltip", "Gap between 2 anchors in interactive mode"));
-    buttonCompleteSelection->setToolTip(
-        i18nc("@info:tooltip", "Complete Selection"));
-    buttonDiscardSelection->setToolTip(
-        i18nc("@info:tooltip", "Discard Selection"));
+    sliderRadius->setToolTip(i18nc("@info:tooltip", "Larger finds softer edges"));
+    sliderThreshold->setToolTip(i18nc("@info:tooltip", "How strong an edge must be to follow it"));
+    sliderSearchRadius->setToolTip(i18nc("@info:tooltip", "How far from the pointer it looks for an edge"));
+    sliderAnchorGap->setToolTip(i18nc("@info:tooltip", "How far apart the points it places are"));
 
     // Construct the option widget
     KisOptionCollectionWidgetWithHeader *sectionPathOptions =

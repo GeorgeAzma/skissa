@@ -9,8 +9,6 @@ fontconfig,https://www.freedesktop.org/wiki/Software/fontconfig/,BSD
 freetype,https://www.freetype.org/,FTL or GPLv2
 gettext,https://www.gnu.org/software/gettext/,GPLv3
 giflib,http://giflib.sourceforge.net/,BSD
-gmic,http://gmic.eu/,CeCILLv2.1
-gmic-qt,http://gmic.eu/,GPLv3
 GNU Scientific Library,http://www.gnu.org/software/gsl,GPLv3
 iconv,https://www.gnu.org/software/libiconv/,LGPLv2 or GPLv3
 KDE Frameworks 5,https://develop.kde.org/products/frameworks/,LGPLv2.1+

@@ -113,10 +113,11 @@
 
 namespace {
 
-/// Menu items only the classic layout has: toolbars, styles and themes of their own, a status bar, tiled windows
+/// Menu items only the classic layout has: toolbars, styles and themes of their own, a status bar, tiled windows; and
+/// the resource database's explorer, a developer's tool
 const QStringList &classicOnlyActions()
 {
-    static const QStringList names = {QStringLiteral("options_configure_toolbars"), QStringLiteral("lock_toolbars"),
+    static const QStringList names = {QStringLiteral("options_configure_toolbars"), QStringLiteral("lock_toolbars"), QStringLiteral("dbexplorer"),
                                       QStringLiteral("toolbars_submenu_action"), QStringLiteral("style_menu"),
                                       QStringLiteral("theme_menu"), QStringLiteral("showStatusBar"), QStringLiteral("windows_tile"),
                                       QStringLiteral("windows_cascade"), QStringLiteral("windows_next"),
@@ -2913,6 +2914,15 @@ void KisStudioLayout::enter()
         grip->clicked = [this, id]() { gripClicked(id); };
         d->grips.insert(id, grip);
         dock->setTitleBarWidget(grip);
+        // Krita's panels that run their contents to their edges (the color selectors, the mixer) get the panels' padding,
+        // clear of the rounded corners
+        static const QStringList edgeToEdge = {QStringLiteral("ColorSelectorNg"), QStringLiteral("WideGamutColorSelector"),
+                                               QStringLiteral("DigitalMixer")};
+        // one name for the brushes, as the top bar has it
+        if (id == QLatin1String("PresetDocker")) dock->setWindowTitle(i18nc("@title:window the brushes panel", "Brushes"));
+        if (edgeToEdge.contains(id) && dock->widget()) {
+            dock->widget()->setContentsMargins(KisModernStyle::space2, 0, KisModernStyle::space2, KisModernStyle::space2);
+        }
         // snapshot for the panel picker as the panel goes off screen
         d->connections << connect(dock, &QDockWidget::visibilityChanged, this, [dock](bool visible) {
             if (!visible) KisStudioPanelPicker::rememberLook(dock);
@@ -3003,7 +3013,12 @@ void KisStudioLayout::enter()
             d->hiddenToolbarActions << action;
         }
     }
-    // the commands as they are now; those added or renamed later are tidied as menus get them (eventFilter)
+    // one name for one thing: the brush editors call it so
+    if (QAction *reload = mainWindow->actionCollection()->action(QStringLiteral("reload_preset_action"))) {
+        reload->setText(i18nc("@action drop the brush's unsaved changes", "Back to the saved brush"));
+        reload->setToolTip(reload->text());
+    }
+        // the commands as they are now; those added or renamed later are tidied as menus get them (eventFilter)
     Q_FOREACH (QAction *action, mainWindow->actionCollection()->actions()) tidyCommand(action);
 
     qApp->installEventFilter(this);
@@ -5495,6 +5510,14 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 {
     if ((event->type() == QEvent::ActionAdded || event->type() == QEvent::ActionChanged) && qobject_cast<QMenu *>(watched)) {
         tidyCommand(static_cast<QActionEvent *>(event)->action());
+    }
+    // a number box's right click is Qt's menu of Undo, Cut, Paste and Step up: none of it is wanted on a number (the
+    // app's own values reset on a right click)
+    if (event->type() == QEvent::ContextMenu) {
+        auto *widget = qobject_cast<QWidget *>(watched);
+        if (widget && (qobject_cast<QAbstractSpinBox *>(widget) || qobject_cast<QAbstractSpinBox *>(widget->parentWidget()))) {
+            return true;
+        }
     }
     if ((event->type() == QEvent::MouseMove || event->type() == QEvent::TabletMove) && isCanvasOnly()) {
         // only moves over this window

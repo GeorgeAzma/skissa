@@ -113,14 +113,15 @@ DefaultToolGeometryWidget::DefaultToolGeometryWidget(KoInteractionTool *tool, QW
     cmbPaintOrder->addItem(KisIconUtils::loadIcon("paint-order-marker-stroke-fill"), i18n("Markers, Stroke, Fill"));
     connect(cmbPaintOrder, SIGNAL(currentIndexChanged(int)), SLOT(slotPaintOrderChanged()));
 
-    dblOpacity->setRange(0.0, 1.0, 2);
-    dblOpacity->setSingleStep(0.01);
-    dblOpacity->setFastSliderStep(0.1);
-    dblOpacity->setTextTemplates(i18nc("{n} is the number value, % is the percent sign", "Opacity: {n}"),
-                                 i18nc("{n} is the number value, % is the percent sign", "Opacity [*varies*]: {n}"));
+    // in percent, as opacity is everywhere else
+    dblOpacity->setRange(0.0, 100.0, 0);
+    dblOpacity->setSingleStep(1.0);
+    dblOpacity->setFastSliderStep(10.0);
+    dblOpacity->setTextTemplates(i18nc("{n} is the number value, % is the percent sign", "Opacity: {n}%"),
+                                 i18nc("{n} is the number value, % is the percent sign; the shapes' opacities differ", "Opacity: {n}% · mixed"));
 
     dblOpacity->setValueGetter(
-        [](KoShape *s) { return 1.0 - s->transparency(); }
+        [](KoShape *s) { return 100.0 * (1.0 - s->transparency()); }
     );
 
     connect(dblOpacity, SIGNAL(valueChanged(qreal)), SLOT(slotOpacitySliderChanged(qreal)));
@@ -289,7 +290,7 @@ void DefaultToolGeometryWidget::slotOpacitySliderChanged(qreal newOpacity)
     if (shapes.isEmpty()) return;
 
     KUndo2Command *cmd =
-        new KoShapeTransparencyCommand(shapes, 1.0 - newOpacity);
+        new KoShapeTransparencyCommand(shapes, 1.0 - newOpacity / 100.0);
 
     m_tool->canvas()->addCommand(cmd);
 }
@@ -302,6 +303,8 @@ void DefaultToolGeometryWidget::slotUpdateOpacitySlider()
     QList<KoShape*> shapes = selection->selectedEditableShapes();
 
     dblOpacity->setSelection(shapes);
+    // with nothing selected there is no opacity to show
+    dblOpacity->setEnabled(!shapes.isEmpty());
 }
 
 void DefaultToolGeometryWidget::slotPaintOrderChanged()
