@@ -8,6 +8,7 @@
 #include <QList>
 #include <QSet>
 #include <QTimer>
+#include <QVector>
 
 #include <KoColor.h>
 #include <KoColorSpaceRegistry.h>
@@ -60,6 +61,75 @@ Q_SIGNALS:
     void done();
 };
 
+/// Stripes of \p ink for a brush that only moves paint to smear
+QImage stripes(const QColor &ink)
+{
+    QImage image(strokeWidth, strokeHeight, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    for (int x = 4; x < strokeWidth; x += 20) {
+        for (int y = 0; y < strokeHeight; y++) {
+            QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+            for (int i = x; i < qMin(x + 10, strokeWidth); i++) line[i] = ink.rgba();
+        }
+    }
+    return image;
+}
+
+/// \p values blurred by a box of \p radius, twice, which is close to a gaussian
+void soften(QVector<float> &values, int radius)
+{
+    const int w = strokeWidth, h = strokeHeight;
+    QVector<float> pass(values.size());
+    for (int round = 0; round < 2; round++) {
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                float sum = 0;
+                for (int i = qMax(0, x - radius); i <= qMin(w - 1, x + radius); i++) sum += values[y * w + i];
+                pass[y * w + x] = sum / (2 * radius + 1);
+            }
+        }
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                float sum = 0;
+                for (int i = qMax(0, y - radius); i <= qMin(h - 1, y + radius); i++) sum += pass[i * w + x];
+                values[y * w + x] = sum / (2 * radius + 1);
+            }
+        }
+    }
+}
+
+/// What a brush did to \p before, painted as \p after: the paint it moved whole, the stripes around it faint and
+/// those it never reached gone; nothing when it moved nothing
+QImage smearOf(const QImage &before, const QImage &after)
+{
+    const int w = strokeWidth, h = strokeHeight;
+    QVector<float> changed(w * h);
+    float total = 0;
+    for (int y = 0; y < h; y++) {
+        const QRgb *was = reinterpret_cast<const QRgb *>(before.constScanLine(y));
+        const QRgb *is = reinterpret_cast<const QRgb *>(after.constScanLine(y));
+        for (int x = 0; x < w; x++) {
+            const float change = qAbs(qAlpha(is[x]) - qAlpha(was[x])) / 255.0f;
+            changed[y * w + x] = change;
+            total += change;
+        }
+    }
+    if (total < 40) return QImage();
+    QVector<float> near = changed;
+    soften(changed, 2);
+    soften(near, 12);
+    QImage smear = after.copy();
+    for (int y = 0; y < h; y++) {
+        QRgb *line = reinterpret_cast<QRgb *>(smear.scanLine(y));
+        for (int x = 0; x < w; x++) {
+            const float weight = qMin(1.0f, 0.3f * qMin(1.0f, near[y * w + x] * 8) + 0.7f * qMin(1.0f, changed[y * w + x] * 3));
+            const QRgb pixel = line[x];
+            line[x] = qRgba(qRound(qRed(pixel) * weight), qRound(qGreen(pixel) * weight), qRound(qBlue(pixel) * weight), qRound(qAlpha(pixel) * weight));
+        }
+    }
+    return smear;
+}
+
 /// False for engines that paint nothing on an empty layer or need a real canvas
 bool paintsAlone(const QString &engine)
 {
@@ -75,6 +145,8 @@ struct KisPresetStrokeThumbnails::Private {
         QString md5;
         QColor ink;
         QString key;
+        /// Painted again over stripes, having painted nothing on an empty layer
+        bool overStripes {false};
     };
 
     QHash<QString, QImage> made;
@@ -190,6 +262,7 @@ void KisPresetStrokeThumbnails::next()
             d->layer = new KisPaintLayer(d->image, "stroke", OPACITY_OPAQUE_U8, rgb);
         }
         d->layer->paintDevice()->clear();
+        if (request.overStripes) d->layer->paintDevice()->convertFromQImage(stripes(request.ink), nullptr);
 
         // Shrink brushes that are too big for the strip
         KisPaintOpPresetSP sample = preset->clone().dynamicCast<KisPaintOpPreset>();
@@ -239,21 +312,33 @@ void KisPresetStrokeThumbnails::finished()
     d->watchdog.stop();
     d->busy = false;
 
-    const QImage painted = d->layer->paintDevice()->convertToQImage(nullptr, d->image->bounds());
-    // Treat a (nearly) empty result as nothing painted, e.g. smudging on an empty layer
-    bool any = false;
-    for (int y = 0; y < painted.height() && !any; y += 2) {
-        const QRgb *line = reinterpret_cast<const QRgb *>(painted.constScanLine(y));
-        for (int x = 0; x < painted.width(); x += 2) {
-            if (qAlpha(line[x]) > 24) {
-                any = true;
-                break;
+    const QImage painted = d->layer->paintDevice()->convertToQImage(nullptr, d->image->bounds()).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QImage made;
+    if (d->current.overStripes) {
+        made = smearOf(stripes(d->current.ink), painted);
+    } else {
+        // Treat a (nearly) empty result as nothing painted, e.g. smudging on an empty layer
+        bool any = false;
+        for (int y = 0; y < painted.height() && !any; y += 2) {
+            const QRgb *line = reinterpret_cast<const QRgb *>(painted.constScanLine(y));
+            for (int x = 0; x < painted.width(); x += 2) {
+                if (qAlpha(line[x]) > 24) {
+                    any = true;
+                    break;
+                }
             }
         }
+        if (any) made = painted;
     }
-    if (any) {
+    if (!made.isNull()) {
         if (d->made.size() > 400) d->made.clear();
-        d->made.insert(d->current.key, painted.convertToFormat(QImage::Format_ARGB32_Premultiplied));
+        d->made.insert(d->current.key, made);
+    } else if (!d->current.overStripes) {
+        // a blender: what it does to paint
+        Private::Request again = d->current;
+        again.overStripes = true;
+        d->queue.prepend(again);
+        d->queued.insert(again.key);
     } else {
         d->nothing.insert(d->current.key);
     }
