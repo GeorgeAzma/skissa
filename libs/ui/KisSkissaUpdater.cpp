@@ -99,11 +99,24 @@ $update = "$Install.update"
 $old = "$Install.old"
 $log = Join-Path $PSScriptRoot 'update.log'
 function Note($text) { Add-Content -LiteralPath $log -Value ('{0:yyyy-MM-dd HH:mm:ss} {1}' -f (Get-Date), $text) }
-function Move-Folder($from, $to) {
-    for ($i = 0; $i -lt 60; $i++) {
+function Move-Folder($from, $to, $tries = 60) {
+    for ($i = 0; $i -lt $tries; $i++) {
         try { [IO.Directory]::Move($from, $to); return $true } catch { Start-Sleep -Milliseconds 500 }
     }
     $false
+}
+# what is in $from into $to, all of it or none
+function Move-Contents($from, $to) {
+    New-Item -ItemType Directory -Force -Path $to | Out-Null
+    $moved = @()
+    foreach ($item in Get-ChildItem -LiteralPath $from -Force) {
+        if (-not (Move-Folder $item.FullName (Join-Path $to $item.Name))) {
+            foreach ($name in $moved) { Move-Folder (Join-Path $to $name) (Join-Path $from $name) | Out-Null }
+            return $false
+        }
+        $moved += $item.Name
+    }
+    $true
 }
 # files in a release's folder that the release didn't bring: the user's
 function Strays($folder) {
@@ -124,12 +137,16 @@ if (Test-Path -LiteralPath $old) {
     if (-not $kept) { Remove-Item -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue }
     if (Test-Path -LiteralPath $old) { Move-Folder $old ($old + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss')) | Out-Null }
 }
-if (-not (Move-Folder $Install $old)) { Note "$Install is in use"; exit }
-if (-not (Move-Folder $update $Install)) {
-    Move-Folder $old $Install | Out-Null
+# the folder itself, or what is in it while something holds the folder open (a window or a service working there)
+$whole = Move-Folder $Install $old 20
+if (-not $whole -and -not (Move-Contents $Install $old)) { Note "$Install is in use"; exit }
+$placed = if ($whole) { Move-Folder $update $Install } else { Move-Contents $update $Install }
+if (-not $placed) {
+    if ($whole) { Move-Folder $old $Install | Out-Null } else { Move-Contents $old $Install | Out-Null }
     Note "$update couldn't take its place"
     exit
 }
+if (-not $whole) { Remove-Item -LiteralPath $update -Force -ErrorAction SilentlyContinue }
 # what the user kept in the program's folder comes along
 if (Test-Path -LiteralPath (Join-Path $old 'skissa-files.txt')) {
     foreach ($file in Strays $old) {
