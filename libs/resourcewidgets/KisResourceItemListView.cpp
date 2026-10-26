@@ -6,7 +6,10 @@
 
 #include "KisResourceItemListView.h"
 
+#include <QCoreApplication>
+#include <QCursor>
 #include <QEvent>
+#include <QHoverEvent>
 #include <QScroller>
 #include <QScrollBar>
 #include <QHelpEvent>
@@ -50,6 +53,16 @@ KisResourceItemListView::KisResourceItemListView(QWidget *parent)
     }
 
     connect(this, SIGNAL(clicked(QModelIndex)), SIGNAL(currentResourceClicked(const QModelIndex &)));
+
+    // after a scroll, the item lit is the one now under the pointer, not the one that was (Qt waits for a move)
+    auto hoverAgain = [this]() {
+        const QPoint at = viewport()->mapFromGlobal(QCursor::pos());
+        if (!viewport()->underMouse() || !viewport()->rect().contains(at)) return;
+        QHoverEvent moved(QEvent::HoverMove, at, at);
+        QCoreApplication::sendEvent(viewport(), &moved);
+    };
+    connect(verticalScrollBar(), &QScrollBar::valueChanged, this, hoverAgain);
+    connect(horizontalScrollBar(), &QScrollBar::valueChanged, this, hoverAgain);
 
     m_d->prev_scrollbar_style = horizontalScrollBar()->styleSheet();
 }
