@@ -17,6 +17,8 @@
 #include "krecentfilesaction.h"
 #include "krecentfilesaction_p.h"
 
+#include <KisSentenceCase.h>
+
 #include <QFile>
 #include <QGuiApplication>
 #include <QDir>
@@ -95,7 +97,7 @@ void KRecentFilesActionPrivate::init()
     clearSeparator = q->menu()->addSeparator();
     clearSeparator->setVisible(false);
     clearSeparator->setObjectName(QLatin1String("separator"));
-    clearAction = q->menu()->addAction(i18n("Clear List"), q, SLOT(clearActionTriggered()));
+    clearAction = q->menu()->addAction(KisSentenceCase::of(i18n("Clear List")), q, SLOT(clearActionTriggered()));
     clearAction->setObjectName(QLatin1String("clear_action"));
     clearAction->setVisible(false);
     q->setEnabled(false);

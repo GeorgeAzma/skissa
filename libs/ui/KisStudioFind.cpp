@@ -12,6 +12,7 @@
 #include "widgets/KisPopupCloser.h"
 #include "KisStretchedIconButton.h"
 
+#include <KisSentenceCase.h>
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QDateTime>
@@ -760,8 +761,8 @@ void KisStudioFind::rebuildIndex()
         }
         filterActions.insert(actionName);
         QPointer<QAction> target = action;
-        d->entries.append({QStringLiteral("effect:") + filterId, Kind::Effect, plainText(filter->name()),
-                           filter->menuCategory().name(), QStringLiteral("filter"),
+        d->entries.append({QStringLiteral("effect:") + filterId, Kind::Effect, KisSentenceCase::of(plainText(filter->name())),
+                           KisSentenceCase::of(filter->menuCategory().name()), QStringLiteral("filter"),
                            action->shortcut().toString(QKeySequence::NativeText),
                            action->icon().isNull() ? KisIconUtils::loadIcon(QStringLiteral("studio_effects")) : action->icon(),
                            [target]() { if (target && target->isEnabled()) target->trigger(); }});

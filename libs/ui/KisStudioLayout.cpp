@@ -6,6 +6,7 @@
 #include "KisStudioLayout.h"
 #include "KisStudioTools.h"
 
+#include <KisSentenceCase.h>
 #include <KisResourceItemChooser.h>
 #include "KisColorDrop.h"
 
@@ -27,6 +28,7 @@
 #include <QLineEdit>
 #include <QMdiArea>
 #include <QMdiSubWindow>
+#include <QActionEvent>
 #include <QMenu>
 #include <QMenuBar>
 #include <QContextMenuEvent>
@@ -110,6 +112,27 @@
 #include "kis_workspace_resource.h"
 
 namespace {
+
+/// Menu items only the classic layout has: toolbars, styles and themes of their own, a status bar, tiled windows
+const QStringList &classicOnlyActions()
+{
+    static const QStringList names = {QStringLiteral("options_configure_toolbars"), QStringLiteral("lock_toolbars"),
+                                      QStringLiteral("toolbars_submenu_action"), QStringLiteral("style_menu"),
+                                      QStringLiteral("theme_menu"), QStringLiteral("showStatusBar"), QStringLiteral("windows_tile"),
+                                      QStringLiteral("windows_cascade"), QStringLiteral("windows_next"),
+                                      QStringLiteral("windows_previous"), QStringLiteral("help_about_kde")};
+    return names;
+}
+
+/// Whether \p menu shows anything: a menu whose submenus are all empty (Scripts without scripts) leads nowhere
+bool hasContent(const QMenu *menu)
+{
+    Q_FOREACH (QAction *action, menu->actions()) {
+        if (!action->isVisible() || action->isSeparator()) continue;
+        if (!action->menu() || hasContent(action->menu())) return true;
+    }
+    return false;
+}
 
 const QString toolBoxId = QStringLiteral("ToolBox");
 
@@ -2980,15 +3003,8 @@ void KisStudioLayout::enter()
             d->hiddenToolbarActions << action;
         }
     }
-    // menu items for what only the classic layout has: toolbars, styles and themes of their own, a status bar, tiled windows
-    for (const char *name : {"options_configure_toolbars", "lock_toolbars", "toolbars_submenu_action", "style_menu", "theme_menu",
-                             "showStatusBar", "windows_tile", "windows_cascade", "windows_next", "windows_previous", "help_about_kde"}) {
-        QAction *action = mainWindow->actionCollection()->action(QLatin1String(name));
-        if (action && action->isVisible()) {
-            action->setVisible(false);
-            d->hiddenToolbarActions << action;
-        }
-    }
+    // the commands as they are now; those added or renamed later are tidied as menus get them (eventFilter)
+    Q_FOREACH (QAction *action, mainWindow->actionCollection()->actions()) tidyCommand(action);
 
     qApp->installEventFilter(this);
     KisStudioEmptyStates::install();
@@ -5195,7 +5211,7 @@ void KisStudioLayout::showMainMenu(QWidget *button)
     add({"file_new", "file_open", "file_open_recent"});
     add({"file_save", "file_save_as", "file_export_file"});
     Q_FOREACH (QAction *top, d->mainWindow->menuBar()->actions()) {
-        if (!top->menu() || !top->isVisible()) continue;
+        if (!top->menu() || !top->isVisible() || !hasContent(top->menu())) continue;
         if (top->menu()->objectName() != QLatin1String("file")) {
             menu->addAction(top);
             continue;
@@ -5458,8 +5474,28 @@ void KisStudioLayout::peek(const QPoint &global)
     }
 }
 
+void KisStudioLayout::tidyCommand(QAction *action)
+{
+    if (!action || action->isSeparator() || action->objectName().isEmpty()) return;
+    // what only the classic layout has goes, also when Krita makes it again (the toolbars' menu, About KDE)
+    if (classicOnlyActions().contains(action->objectName())) {
+        if (action->isVisible()) {
+            action->setVisible(false);
+            d->hiddenToolbarActions << action;
+        }
+        return;
+    }
+    // commands Krita names in code keep its Title Case ("Gaussian Blur…", "Merge with Layer Below"); items without
+    // a name of their own (recent files, workspaces) are the user's and keep theirs
+    const QString text = KisSentenceCase::of(action->text());
+    if (text != action->text()) action->setText(text);
+}
+
 bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 {
+    if ((event->type() == QEvent::ActionAdded || event->type() == QEvent::ActionChanged) && qobject_cast<QMenu *>(watched)) {
+        tidyCommand(static_cast<QActionEvent *>(event)->action());
+    }
     if ((event->type() == QEvent::MouseMove || event->type() == QEvent::TabletMove) && isCanvasOnly()) {
         // only moves over this window
         auto *widget = qobject_cast<QWidget *>(watched);

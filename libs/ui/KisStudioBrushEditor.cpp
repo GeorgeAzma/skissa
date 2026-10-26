@@ -662,15 +662,14 @@ void KisStudioBrushEditor::showPart(int part)
 
 void KisStudioBrushEditor::fitPage()
 {
-    // the window fits the new page, smaller or larger, and no taller than the screen: the page scrolls past that
+    // the window fits the new page, smaller or larger, and no taller than the room beside its button: the page scrolls past that
     d->pageLayout->activate();
     // at its width: rows of chips wrap
     const int pageWidth = d->pageScroll->viewport()->width() > 0 ? d->pageScroll->viewport()->width() : d->page->sizeHint().width();
     const int wanted = d->page->hasHeightForWidth() ? d->page->heightForWidth(pageWidth) : d->page->sizeHint().height();
     d->pageScroll->setFixedHeight(wanted);
     layout()->activate();
-    QScreen *screen = this->screen() ? this->screen() : QGuiApplication::primaryScreen();
-    const int room = screen ? screen->availableGeometry().height() + 2 * shadowMargin() - 2 * KisModernStyle::space4 : sizeHint().height();
+    const int room = heightRoom() - KisModernStyle::space4;
     const int over = sizeHint().height() - room;
     if (over > 0) {
         d->pageScroll->setFixedHeight(qMax(qMin(wanted, 120), wanted - over));

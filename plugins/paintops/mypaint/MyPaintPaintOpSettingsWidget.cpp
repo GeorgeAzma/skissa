@@ -190,6 +190,8 @@ void KisMyPaintOpSettingsWidget::addPaintOpOption(KisPaintOpOption *option, MyPa
         break;
     case COLOR:
         category = i18nc("Option Category", "Color");
+        // the quick editor's Color tab, with smudging
+        option->setCategory(KisPaintOpOption::COLOR);
         break;
     case SPEED:
         category = i18nc("Option Category", "Speed");
@@ -205,6 +207,7 @@ void KisMyPaintOpSettingsWidget::addPaintOpOption(KisPaintOpOption *option, MyPa
         break;
     case SMUDGE:
         category = i18nc("Option Category", "Smudge");
+        option->setCategory(KisPaintOpOption::COLOR);
         break;
     case STROKE:
         category = i18nc("Option Category", "Stroke");

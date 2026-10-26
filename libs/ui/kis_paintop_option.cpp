@@ -6,6 +6,8 @@
 
 #include "kis_paintop_option.h"
 
+#include <KisSentenceCase.h>
+
 
 #include <QWidget>
 
@@ -265,6 +267,11 @@ KisPaintOpOption::PaintopCategory KisPaintOpOption::category() const
     return m_d->category;
 }
 
+void KisPaintOpOption::setCategory(KisPaintOpOption::PaintopCategory category)
+{
+    m_d->category = category;
+}
+
 bool KisPaintOpOption::isChecked() const
 {
     return m_d->checkedCursor.get();
@@ -358,5 +365,6 @@ bool KisPaintOpOption::isLocked ()const
 
 QString KisPaintOpOption::label() const
 {
-    return m_d->label;
+    // engines name their settings in Title Case ("Snap To Pixel")
+    return KisSentenceCase::of(m_d->label);
 }

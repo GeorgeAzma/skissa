@@ -7,6 +7,7 @@
 #define KISSTUDIOPOPUP_H
 
 #include <QFrame>
+#include <QPointer>
 
 #include "kritaui_export.h"
 
@@ -34,16 +35,23 @@ public:
     void popupAt(const QPoint &globalPos, QWidget *anchor = nullptr);
     /// Keeps the panel on screen after it grew
     void keepOnScreen();
+    /// How tall the window may be: the room on its anchor's side within the anchor's window, or the screen's height
+    int heightRoom() const;
 
     void setPinned(bool pinned);
 
 protected:
+    /// Called before the panel is placed beside its anchor, so it can fit the room there
+    virtual void fitRoom() {}
+
     void paintEvent(QPaintEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
 private:
     KisPopupCloser *m_closer {nullptr};
     bool m_pinned {false};
+    QPointer<QWidget> m_anchor;
+    Qt::Edge m_edge {Qt::BottomEdge};
 };
 
 #endif // KISSTUDIOPOPUP_H

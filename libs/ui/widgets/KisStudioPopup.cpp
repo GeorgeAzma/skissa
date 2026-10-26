@@ -46,8 +46,27 @@ void KisStudioPopup::fitLayout(QLayout *layout, int padding)
     layout->setContentsMargins(margin, margin, margin, margin);
 }
 
+int KisStudioPopup::heightRoom() const
+{
+    QScreen *screen = m_anchor ? m_anchor->screen() : (this->screen() ? this->screen() : QGuiApplication::primaryScreen());
+    if (!screen) return QWIDGETSIZE_MAX;
+    QRect available = screen->availableGeometry();
+    if (!m_anchor || (m_edge != Qt::TopEdge && m_edge != Qt::BottomEdge)) return available.height() + 2 * shadowMargin();
+    // within the window it belongs to, when the window is on this screen
+    const QWidget *window = m_anchor->window();
+    const QRect windowRect(window->mapToGlobal(QPoint(0, 0)), window->size());
+    if (available.intersects(windowRect)) available &= windowRect;
+    const QRect around(m_anchor->mapToGlobal(QPoint(0, 0)), m_anchor->size());
+    const int below = available.bottom() - around.bottom() - gap;
+    const int above = around.top() - gap - available.top();
+    return qMax(below, above) + 2 * shadowMargin();
+}
+
 void KisStudioPopup::popupBeside(QWidget *anchor, Qt::Edge edge)
 {
+    m_anchor = anchor;
+    m_edge = edge;
+    fitRoom();
     adjustSize();
     const QSize panel = size() - QSize(2 * shadowMargin(), 2 * shadowMargin());
     const QRect around(anchor->mapToGlobal(QPoint(0, 0)), anchor->size());

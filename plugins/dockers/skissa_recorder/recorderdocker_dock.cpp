@@ -869,7 +869,7 @@ public:
     void buildMenu()
     {
         auto *menu = new QMenu(menuButton);
-        autoRecordAction = menu->addAction(i18nc("@action:inmenu record every image from its start", "Record Every Image"));
+        autoRecordAction = menu->addAction(i18nc("@action:inmenu record every image from its start", "Record every image"));
         autoRecordAction->setCheckable(true);
         autoRecordAction->setChecked(recordAutomatically);
         QObject::connect(autoRecordAction, &QAction::toggled, q, [this](bool on) {
@@ -877,7 +877,7 @@ public:
             loadSettings();
         });
 
-        menu->addSection(i18nc("@title:menu how often a frame is taken", "A Frame Every"));
+        menu->addSection(i18nc("@title:menu how often a frame is taken", "A frame every"));
         intervalGroup = new QActionGroup(menu);
         for (const double seconds : {0.5, 1.0, 2.0, 5.0}) {
             QAction *action = menu->addAction(i18nc("a time in seconds, as short as possible", "%1 s", QLocale().toString(seconds)));
@@ -891,7 +891,7 @@ public:
             });
         }
 
-        menu->addSection(i18nc("@title:menu the size of recorded frames", "Frame Size"));
+        menu->addSection(i18nc("@title:menu the size of recorded frames", "Frame size"));
         resolutionGroup = new QActionGroup(menu);
         const QStringList sizes = {i18nc("frames at the image's size", "Full"), i18nc("frames at half the image's size", "Half"),
                                    i18nc("frames at a quarter of the image's size", "Quarter")};
@@ -908,14 +908,14 @@ public:
         }
 
         menu->addSeparator();
-        menu->addAction(KisIconUtils::loadIcon("folder"), i18nc("@action:inmenu where recordings are kept", "Recordings Folder…"), q,
+        menu->addAction(KisIconUtils::loadIcon("folder"), i18nc("@action:inmenu where recordings are kept", "Recordings folder…"), q,
                         SLOT(slotSelectSnapshotDirectory()));
-        menu->addAction(i18nc("@action:inmenu", "Manage Recordings…"), q, [this]() {
+        menu->addAction(i18nc("@action:inmenu", "Manage recordings…"), q, [this]() {
             RecorderSnapshotsManager snapshotsManager(q);
             snapshotsManager.execFor(snapshotDirectory);
             refreshFrames();
         });
-        menu->addAction(i18nc("@action:inmenu the full time-lapse export dialog", "Export Options…"), q, SLOT(onExportOptionsClicked()));
+        menu->addAction(i18nc("@action:inmenu the full time-lapse export dialog", "Export options…"), q, SLOT(onExportOptionsClicked()));
         QObject::connect(menu, &QMenu::aboutToShow, q, [this]() {
             // recording settings take effect from the next recording
             const bool recording = recordButton->isChecked();

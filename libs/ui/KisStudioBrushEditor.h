@@ -53,6 +53,7 @@ private:
     void rebuild();
     void showPart(int part);
     void fitPage();
+    void fitRoom() override { fitPage(); }
     /// The brush or its smoothing changed: the last stroke is painted again with it
     void followLastStroke();
     void updateHeader();

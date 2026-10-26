@@ -82,6 +82,8 @@ KisAboutApplication::KisAboutApplication(QWidget *parent)
 
     QLabel* lblLinks = new QLabel();
     lblLinks->setTextFormat(Qt::RichText);
+    // the fork's notice is a paragraph: unwrapped it made the dialog as wide as the screen
+    lblLinks->setWordWrap(true);
     lblLinks->setText(lblLinksText.join(""));
     lblLinks->setOpenExternalLinks(true);
 

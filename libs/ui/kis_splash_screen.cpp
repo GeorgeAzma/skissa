@@ -5,6 +5,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "kis_splash_screen.h"
+
+#include "KisSkissaUpdater.h"
 #include <KisProfile.h>
 
 #include <QApplication>
@@ -41,7 +43,7 @@ static void addDropShadow(QWidget *widget)
 
 KisSplashScreen::KisSplashScreen(int height, QWidget *parent, Qt::WindowFlags f)
     : QWidget(parent, f)
-      , m_versionHtml(qApp->applicationVersion().toHtmlEscaped())
+      , m_versionHtml(KisSkissaUpdater::version().toHtmlEscaped())
 {
     setWindowTitle(KisProfile::name());
 
@@ -122,7 +124,7 @@ void KisSplashScreen::setLoadingText(QString text)
 {
     int larger = 12;
     int notAsLarge = larger - 1;
-    QString htmlText = QStringLiteral("<span style='font: %3pt;'><span style='font: bold %4pt;'>%1</span><br><i>%2</i></span>")
+    QString htmlText = QStringLiteral("<span style='font: %3pt;'><span style='font: bold %4pt;'>%1</span><br>%2</span>")
             .arg(m_versionHtml, text.toHtmlEscaped(), QString::number(notAsLarge), QString::number(larger));
     m_loadingTextLabel->setText(htmlText);
 }

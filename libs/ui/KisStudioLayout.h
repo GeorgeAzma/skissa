@@ -15,6 +15,7 @@
 
 class KisMainWindow;
 class KisStudioPanelColumn;
+class QAction;
 class QDockWidget;
 class QMdiArea;
 
@@ -167,6 +168,8 @@ private:
     /// Puts the document, menu, Settings, Find and window buttons on the window pill
     void placeWindowButtons();
     void showMainMenu(QWidget *button);
+    /// A command shown the Studio's way: in sentence case, or hidden when only the classic layout has it
+    void tidyCommand(QAction *action);
     /// Moves the tool and brush bars into the top pill and shows or hides the pills
     void adoptTopBars();
     /// Returns the brush bar to the window's top row

@@ -1279,7 +1279,9 @@ void KisStudioToolRail::updateActiveSlot()
             button->shortcutAction = d->slotAction(id);
             QString tip = d->slots.value(id).title;
             if (d->visibleVariants(id).size() > 1) {
-                if (KoToolFactoryBase *factory = KoToolRegistry::instance()->value(d->currentTool.value(id))) {
+                // "Guides · Guides" says nothing more
+                KoToolFactoryBase *factory = KoToolRegistry::instance()->value(d->currentTool.value(id));
+                if (factory && toolName(factory).compare(tip, Qt::CaseInsensitive) != 0) {
                     tip = QStringLiteral("%1 · %2").arg(tip, toolName(factory));
                 }
             }

@@ -64,6 +64,8 @@ public:
     ~KisPaintOpOption() override;
 
     KisPaintOpOption::PaintopCategory category() const;
+    /// For engines that file their options elsewhere (MyPaint's color settings in the editor's Color tab)
+    void setCategory(KisPaintOpOption::PaintopCategory category);
     virtual bool isCheckable() const;
 
     virtual bool isChecked() const;
