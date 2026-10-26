@@ -663,6 +663,11 @@ void KisStudioBrushEditor::showPart(int part)
 void KisStudioBrushEditor::fitPage()
 {
     // the window fits the new page, smaller or larger, and no taller than the room beside its button: the page scrolls past that
+    // What a shown layout was just given shows only a moment later, and until then it isn't measured: shown now
+    for (int i = 0; i < d->pageLayout->count(); i++) {
+        QWidget *widget = d->pageLayout->itemAt(i)->widget();
+        if (widget && widget->isHidden() && !widget->testAttribute(Qt::WA_WState_ExplicitShowHide)) widget->show();
+    }
     d->pageLayout->activate();
     // at its width: rows of chips wrap
     const int pageWidth = d->pageScroll->viewport()->width() > 0 ? d->pageScroll->viewport()->width() : d->page->sizeHint().width();
