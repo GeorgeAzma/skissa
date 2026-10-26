@@ -6,6 +6,7 @@
 
 #include <QHash>
 #include <QList>
+#include <QLinearGradient>
 #include <QPainter>
 #include <QSet>
 #include <QTimer>
@@ -16,7 +17,6 @@
 #include <KisResourceTypes.h>
 
 #include "KisAsynchronousStrokeUpdateHelper.h"
-#include "KisModernStyle.h"
 #include "KisMainWindow.h"
 #include "KisPart.h"
 #include "KisViewManager.h"
@@ -62,47 +62,19 @@ Q_SIGNALS:
     void done();
 };
 
-/// A box of stripes of \p ink in two strengths, as the brush editor's preview has for a brush that only moves paint
-QImage stripes(const QColor &ink)
+/// \p painted fading out along its length, as paint a blender drags runs out
+QImage fadedOut(QImage painted)
 {
-    QColor faint = ink;
-    faint.setAlphaF(0.25);
-    QImage image(strokeWidth, strokeHeight, QImage::Format_ARGB32_Premultiplied);
-    for (int y = 0; y < strokeHeight; y++) {
-        QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
-        for (int x = 0; x < strokeWidth; x++) line[x] = qPremultiply(((x / 16) % 2 ? faint : ink).rgba());
-    }
-    return image;
-}
-
-/// What a brush did to \p before, painted as \p after: the box of stripes quiet, the paint it moved whole, in
-/// rounded corners; nothing when it moved nothing
-QImage smearOf(const QImage &before, const QImage &after)
-{
-    const int w = strokeWidth, h = strokeHeight;
-    QImage smear = after.copy();
-    float total = 0;
-    for (int y = 0; y < h; y++) {
-        const QRgb *was = reinterpret_cast<const QRgb *>(before.constScanLine(y));
-        QRgb *line = reinterpret_cast<QRgb *>(smear.scanLine(y));
-        for (int x = 0; x < w; x++) {
-            const QRgb is = line[x];
-            const int alpha = qAbs(qAlpha(is) - qAlpha(was[x]));
-            const int color = qMax(qAbs(qRed(is) - qRed(was[x])), qMax(qAbs(qGreen(is) - qGreen(was[x])), qAbs(qBlue(is) - qBlue(was[x]))));
-            const float change = qMax(alpha, color) / 255.0f;
-            total += change;
-            const float weight = 0.35f + 0.65f * qMin(1.0f, change * 3);
-            line[x] = qRgba(qRound(qRed(is) * weight), qRound(qGreen(is) * weight), qRound(qBlue(is) * weight), qRound(qAlpha(is) * weight));
-        }
-    }
-    if (total < 40) return QImage();
-    QPainter painter(&smear);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setCompositionMode(QPainter::CompositionMode_Clear);
-    QPainterPath corners;
-    corners.addRect(smear.rect());
-    painter.fillPath(corners.subtracted(KisModernStyle::squircle(QRectF(smear.rect()), 22)), Qt::black);
-    return smear;
+    QPainter painter(&painted);
+    painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+    QLinearGradient fade(strokeWidth * 0.15, 0, strokeWidth * 0.9, 0);
+    fade.setColorAt(0.0, QColor(0, 0, 0, 255));
+    fade.setColorAt(0.25, QColor(0, 0, 0, 170));
+    fade.setColorAt(0.6, QColor(0, 0, 0, 55));
+    fade.setColorAt(1.0, QColor(0, 0, 0, 0));
+    painter.fillRect(painted.rect(), fade);
+    painter.end();
+    return painted;
 }
 
 /// False for engines that paint nothing on an empty layer or need a real canvas
@@ -120,8 +92,8 @@ struct KisPresetStrokeThumbnails::Private {
         QString md5;
         QColor ink;
         QString key;
-        /// Painted again over stripes, having painted nothing on an empty layer
-        bool overStripes {false};
+        /// Painted again laying down the ink, having painted nothing on an empty layer
+        bool asPaint {false};
     };
 
     QHash<QString, QImage> made;
@@ -237,12 +209,17 @@ void KisPresetStrokeThumbnails::next()
             d->layer = new KisPaintLayer(d->image, "stroke", OPACITY_OPAQUE_U8, rgb);
         }
         d->layer->paintDevice()->clear();
-        if (request.overStripes) d->layer->paintDevice()->convertFromQImage(stripes(request.ink), nullptr);
 
         // Shrink brushes that are too big for the strip
         KisPaintOpPresetSP sample = preset->clone().dynamicCast<KisPaintOpPreset>();
         KisPaintOpSettingsSP settings = sample->settings();
         settings->setPaintOpSize(qBound(1.5, settings->paintOpSize(), strokeHeight * 0.3));
+        if (request.asPaint) {
+            // a blender's own tip in the ink: its color rate full, nothing to smudge
+            settings->setProperty("PressureColorRate", true);
+            settings->setProperty("ColorRateValue", 1.0);
+            settings->setProperty("SmudgeRateValue", 0.0);
+        }
         sample->setSettings(settings);
 
         KisResourcesSnapshotSP snapshot = new KisResourcesSnapshot(d->image, d->layer, resources, nullptr, {}, sample);
@@ -288,29 +265,23 @@ void KisPresetStrokeThumbnails::finished()
     d->busy = false;
 
     const QImage painted = d->layer->paintDevice()->convertToQImage(nullptr, d->image->bounds()).convertToFormat(QImage::Format_ARGB32_Premultiplied);
-    QImage made;
-    if (d->current.overStripes) {
-        made = smearOf(stripes(d->current.ink), painted);    } else {
-        // Treat a (nearly) empty result as nothing painted, e.g. smudging on an empty layer
-        bool any = false;
-        for (int y = 0; y < painted.height() && !any; y += 2) {
-            const QRgb *line = reinterpret_cast<const QRgb *>(painted.constScanLine(y));
-            for (int x = 0; x < painted.width(); x += 2) {
-                if (qAlpha(line[x]) > 24) {
-                    any = true;
-                    break;
-                }
+    // Treat a (nearly) empty result as nothing painted, e.g. smudging on an empty layer
+    bool any = false;
+    for (int y = 0; y < painted.height() && !any; y += 2) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(painted.constScanLine(y));
+        for (int x = 0; x < painted.width(); x += 2) {
+            if (qAlpha(line[x]) > 24) {
+                any = true;
+                break;
             }
         }
-        if (any) made = painted;
     }
-    if (!made.isNull()) {
+    if (any) {
         if (d->made.size() > 400) d->made.clear();
-        d->made.insert(d->current.key, made);
-    } else if (!d->current.overStripes) {
-        // a blender: what it does to paint
+        d->made.insert(d->current.key, d->current.asPaint ? fadedOut(painted) : painted);    } else if (!d->current.asPaint) {
+        // a blender: its stroke as if it carried paint
         Private::Request again = d->current;
-        again.overStripes = true;
+        again.asPaint = true;
         d->queue.prepend(again);
         d->queued.insert(again.key);
     } else {
