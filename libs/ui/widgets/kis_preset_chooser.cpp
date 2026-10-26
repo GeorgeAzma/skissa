@@ -94,21 +94,45 @@ private:
 };
 
 namespace {
-/// \p stroke at \p size, see-through at its start and whole from a third of the way in; kept for the rows on screen
-QImage fadedIn(const QImage &stroke, const QSize &size, qreal ratio)
+/// What of \p stroke is painted, without the empty room around it
+QRect paintedPart(const QImage &stroke)
+{
+    static QHash<qint64, QRect> found;
+    auto it = found.constFind(stroke.cacheKey());
+    if (it != found.constEnd()) return *it;
+    int left = stroke.width(), right = -1, top = stroke.height(), bottom = -1;
+    for (int y = 0; y < stroke.height(); y++) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(stroke.constScanLine(y));
+        for (int x = 0; x < stroke.width(); x++) {
+            if (qAlpha(line[x]) < 16) continue;
+            left = qMin(left, x);
+            right = qMax(right, x);
+            top = qMin(top, y);
+            bottom = qMax(bottom, y);
+        }
+    }
+    const QRect part = right < 0 ? stroke.rect() : QRect(QPoint(left, top), QPoint(right, bottom)).adjusted(-2, -2, 2, 2).intersected(stroke.rect());
+    if (found.size() > 400) found.clear();
+    found.insert(stroke.cacheKey(), part);
+    return part;
+}
+
+/// \p stroke's painted part at \p size, faint under the name (up to \p nameEnd) so the name reads on it; kept for the rows on screen
+QImage underName(const QImage &stroke, const QSize &size, int nameEnd, qreal ratio)
 {
     static QHash<QString, QImage> made;
-    const QString key = QStringLiteral("%1 %2x%3").arg(stroke.cacheKey()).arg(size.width()).arg(size.height());
+    const QString key = QStringLiteral("%1 %2x%3 %4").arg(stroke.cacheKey()).arg(size.width()).arg(size.height()).arg(nameEnd);
     auto it = made.constFind(key);
     if (it != made.constEnd()) return *it;
-    QImage faded = stroke.scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_ARGB32_Premultiplied);
-    QPainter painter(&faded);
-    painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-    QLinearGradient fade(0, 0, size.width(), 0);
-    fade.setColorAt(0.0, QColor(0, 0, 0, 0));
-    fade.setColorAt(0.35, QColor(0, 0, 0, 255));
-    painter.fillRect(faded.rect(), fade);
-    painter.end();
+    QImage faded = stroke.copy(paintedPart(stroke)).scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    if (nameEnd > 0) {
+        QPainter painter(&faded);
+        painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+        QLinearGradient fade(nameEnd, 0, nameEnd + 20 * ratio, 0);
+        fade.setColorAt(0.0, QColor(0, 0, 0, 60));
+        fade.setColorAt(1.0, QColor(0, 0, 0, 255));
+        painter.fillRect(faded.rect(), fade);
+    }
     faded.setDevicePixelRatio(ratio);
     if (made.size() > 300) made.clear();
     made.insert(key, faded);
@@ -187,7 +211,9 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
     };
 
     if (!m_showText) {
-        const QRectF tile = QRectF(option.rect).adjusted(3, 3, -3, -3);
+        // square, as the pictures are, whatever the grid's cells are
+        const qreal side = qMin(option.rect.width(), option.rect.height()) - 6;
+        const QRectF tile(QPointF(option.rect.center()) - QPointF(side, side) / 2 + QPointF(0.5, 0.5), QSizeF(side, side));
         const qreal radius = qMax<qreal>(4.0, tile.width() * 0.16);
         picture(tile, radius);
         ring(tile, radius);
@@ -196,7 +222,7 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
         return;
     }
 
-    // a row: the name, then the stroke (or the picture)
+    // a row: the stroke across it with the name over its start (or the name, then the picture)
     const QRectF row = QRectF(option.rect).adjusted(3, 2, -3, -2);
     const qreal radius = 8;
     if (selected || hovered) {
@@ -224,18 +250,21 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
     painter->setFont(option.font);
 
     if (!stroke.isNull()) {
-        // the whole stroke at the row's right, fading in from its start; the name before it, where nothing lies under it
-        const QRectF art = row.adjusted(4, 3, -6, -3);
-        QSizeF fitted = QSizeF(stroke.size()).scaled(art.size(), Qt::KeepAspectRatio);
-        fitted = fitted.boundedTo(QSizeF(art.width() * 0.62, art.height()));
-        const QRectF place(art.right() - fitted.width(), art.center().y() - fitted.height() / 2, fitted.width(), fitted.height());
-        painter->drawImage(place, fadedIn(stroke, (place.size() * devicePixelRatioF).toSize(), devicePixelRatioF));
+        const QRectF art = row.adjusted(4, 1, -4, -1);
         const QFontMetricsF metrics(option.font);
         const qreal textLeft = row.left() + 8;
-        // up to where the stroke is mostly faded in
-        const QString shown = metrics.elidedText(name, Qt::ElideRight, place.left() + place.width() * 0.3 - textLeft);
-        painter->setPen(text);
-        painter->drawText(QRectF(textLeft, row.top(), row.right() - textLeft, row.height()), Qt::AlignLeft | Qt::AlignVCenter, shown);
+        const QString shown = metrics.elidedText(name, Qt::ElideRight, row.width() * 0.7);
+        // the stroke whole, as wide as the row lets it be
+        const QSizeF fitted = QSizeF(paintedPart(stroke).size()).scaled(art.size(), Qt::KeepAspectRatio);
+        const QRectF place(art.right() - fitted.width(), art.center().y() - fitted.height() / 2, fitted.width(), fitted.height());
+        const int nameEnd = qRound((textLeft + metrics.horizontalAdvance(shown) + 2 - place.left()) * devicePixelRatioF);
+        painter->drawImage(place, underName(stroke, (place.size() * devicePixelRatioF).toSize(), nameEnd, devicePixelRatioF));
+        QPainterPath path;
+        path.addText(QPointF(textLeft, row.center().y() + (metrics.ascent() - metrics.descent()) / 2), option.font, shown);
+        QColor halo = option.palette.color(QPalette::Window);
+        halo.setAlphaF(0.6);
+        painter->strokePath(path, QPen(halo, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter->fillPath(path, text);
         if (dirty) {
             marks(QRectF(row.right() - 12, row.top(), 12, 12));
         }
@@ -407,8 +436,9 @@ void KisPresetChooser::updateViewSettings()
         compactStrokeRows();
         return;
     }
-    // back from strokes: rows as tall as the zoom again
+    // back from strokes: cells square at the zoom again
     m_chooser->setRowHeight(iconSize());
+    m_chooser->setColumnWidth(iconSize());
     switch (m_mode) {
     case ViewMode::THUMBNAIL: {
         m_chooser->setListViewMode(ListViewMode::IconGrid);
@@ -455,7 +485,7 @@ void KisPresetChooser::setPresetFilter(const QString& paintOpId)
 
 void KisPresetChooser::compactStrokeRows()
 {
-    // the name beside the stroke: a row needs only the stroke's height
+    // the name lies on the stroke: a row needs only the stroke's height
     m_chooser->setRowHeight(qMax(28, qRound(iconSize() * 0.6)));
 }
 
