@@ -66,10 +66,10 @@ QImage stripes(const QColor &ink)
 {
     QImage image(strokeWidth, strokeHeight, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
-    for (int x = 4; x < strokeWidth; x += 20) {
+    for (int x = 8; x < strokeWidth; x += 32) {
         for (int y = 0; y < strokeHeight; y++) {
             QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
-            for (int i = x; i < qMin(x + 10, strokeWidth); i++) line[i] = ink.rgba();
+            for (int i = x; i < qMin(x + 16, strokeWidth); i++) line[i] = ink.rgba();
         }
     }
     return image;
@@ -109,7 +109,9 @@ QImage smearOf(const QImage &before, const QImage &after)
         const QRgb *was = reinterpret_cast<const QRgb *>(before.constScanLine(y));
         const QRgb *is = reinterpret_cast<const QRgb *>(after.constScanLine(y));
         for (int x = 0; x < w; x++) {
-            const float change = qAbs(qAlpha(is[x]) - qAlpha(was[x])) / 255.0f;
+            const int alpha = qAbs(qAlpha(is[x]) - qAlpha(was[x]));
+            const int color = qMax(qAbs(qRed(is[x]) - qRed(was[x])), qMax(qAbs(qGreen(is[x]) - qGreen(was[x])), qAbs(qBlue(is[x]) - qBlue(was[x]))));
+            const float change = qMax(alpha, color) / 255.0f;
             changed[y * w + x] = change;
             total += change;
         }
