@@ -7,7 +7,6 @@
 #include "KisResourceItemListView.h"
 
 #include <QCoreApplication>
-#include <QCursor>
 #include <QEvent>
 #include <QHoverEvent>
 #include <QScroller>
@@ -29,6 +28,8 @@ struct  Q_DECL_HIDDEN KisResourceItemListView::Private
     QString prev_scrollbar_style;
 
     QSize requestedItemSize = QSize(56, 56);
+    /// Where the pointer is over the items, while it is
+    QPoint hoverPos {-1, -1};
 };
 
 KisResourceItemListView::KisResourceItemListView(QWidget *parent)
@@ -54,11 +55,12 @@ KisResourceItemListView::KisResourceItemListView(QWidget *parent)
 
     connect(this, SIGNAL(clicked(QModelIndex)), SIGNAL(currentResourceClicked(const QModelIndex &)));
 
+    // the item under the pointer is lit (the style gives hover only to buttons and the like)
+    viewport()->setAttribute(Qt::WA_Hover);
     // after a scroll, the item lit is the one now under the pointer, not the one that was (Qt waits for a move)
     auto hoverAgain = [this]() {
-        const QPoint at = viewport()->mapFromGlobal(QCursor::pos());
-        if (!viewport()->underMouse() || !viewport()->rect().contains(at)) return;
-        QHoverEvent moved(QEvent::HoverMove, at, at);
+        if (m_d->hoverPos.x() < 0) return;
+        QHoverEvent moved(QEvent::HoverMove, m_d->hoverPos, m_d->hoverPos);
         QCoreApplication::sendEvent(viewport(), &moved);
     };
     connect(verticalScrollBar(), &QScrollBar::valueChanged, this, hoverAgain);
@@ -207,6 +209,12 @@ void KisResourceItemListView::contextMenuEvent(QContextMenuEvent *event)
 bool KisResourceItemListView::viewportEvent(QEvent *event)
 {
     if (!model()) return true;
+
+    if (event->type() == QEvent::HoverEnter || event->type() == QEvent::HoverMove) {
+        m_d->hoverPos = static_cast<QHoverEvent *>(event)->pos();
+    } else if (event->type() == QEvent::HoverLeave) {
+        m_d->hoverPos = QPoint(-1, -1);
+    }
 
     if (event->type() == QEvent::ToolTip) {
         QHelpEvent *he = static_cast<QHelpEvent *>(event);
