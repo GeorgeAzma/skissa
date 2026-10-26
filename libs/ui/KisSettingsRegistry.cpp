@@ -381,7 +381,7 @@ QVector<Setting> describeAll()
             }
         };
         all << surround;
-        all << color(QStringLiteral("StudioSurroundColor"), QColor(48, 48, 52), i18nc("setting", "Color around the image"), R::Fork);
+        all << color(QStringLiteral("StudioSurroundColor"), QColor(24, 24, 24), i18nc("setting", "Color around the image"), R::Fork);
         Setting ownFont = toggle(QStringLiteral("use_custom_system_font"), false, i18nc("setting", "Own interface font"));
         // Turning it on starts from the current font; turning it off clears both and uses the system font
         ownFont.written = [](const QVariant &value) {

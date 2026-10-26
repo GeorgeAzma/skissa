@@ -66,9 +66,9 @@ public:
     /// Whether the image casts an ambient glow on the canvas around it (only with a black border color).
     static bool ambientSurround();
     static constexpr qreal ambientSigma = 110; ///< widget pixels
-    static constexpr qreal ambientStrength = 0.5;
+    static constexpr qreal ambientStrength = 0.4;
     /// The image's luminance where its glow is compressed to half (linear)
-    static constexpr qreal ambientKnee = 0.25;
+    static constexpr qreal ambientKnee = 0.15;
     /// The least light around the image (linear, where all of it is near): a dark image's edge still shows
     static constexpr qreal ambientBacklight = 0.02;
     /// Crown glass at the sodium d line.
