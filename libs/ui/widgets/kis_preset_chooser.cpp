@@ -226,8 +226,10 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
     const QRectF row = QRectF(option.rect).adjusted(3, 2, -3, -2);
     const qreal radius = 8;
     if (selected || hovered) {
-        QColor fill = selected ? accent : ink;
-        fill.setAlphaF(selected ? 0.22 : 0.06);
+        // a theme with no accent has a grey one, darker than the hover's ink: the chosen row is then more of the ink
+        const bool tinted = selected && accent.hslSaturationF() >= 0.2;
+        QColor fill = tinted ? accent : ink;
+        fill.setAlphaF(tinted ? 0.34 : selected ? 0.13 : 0.06);
         painter->setPen(Qt::NoPen);
         painter->setBrush(fill);
         painter->drawPath(KisModernStyle::squircle(row, radius));
