@@ -250,7 +250,7 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
     painter->setFont(option.font);
 
     if (!stroke.isNull()) {
-        const QRectF art = row.adjusted(4, 1, -4, -1);
+        const QRectF art = row.adjusted(4, 3, -4, -3);
         const QFontMetricsF metrics(option.font);
         const qreal textLeft = row.left() + 8;
         const QString shown = metrics.elidedText(name, Qt::ElideRight, row.width() * 0.7);
