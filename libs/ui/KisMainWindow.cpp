@@ -36,7 +36,9 @@
 #include <QMessageBox>
 #include <QStatusBar>
 #include <QStyleFactory>
+#include <QFileInfo>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QMenuBar>
 #include <KisMimeDatabase.h>
 #include <QMimeData>
@@ -209,7 +211,7 @@ public:
         , styleMenu(new KActionMenu(i18nc("@action:inmenu", "Styles"), parent))
         , dockWidgetMenu(new KActionMenu(i18nc("@action:inmenu", "&Dockers"), parent))
         , windowMenu(new KActionMenu(i18nc("@action:inmenu", "&Window"), parent))
-        , documentMenu(new KActionMenu(i18nc("@action:inmenu", "New &View"), parent))
+        , documentMenu(new KActionMenu(KisSentenceCase::of(i18nc("@action:inmenu", "New &View")), parent))
         , workspaceMenu(new KActionMenu(i18nc("@action:inmenu", "Wor&kspace"), parent))
         , welcomePage(new KisWelcomePageWidget(parent))
         , widgetStack(new QStackedWidget(parent))
@@ -1115,6 +1117,31 @@ void KisMainWindow::clearRecentFiles()
 void KisMainWindow::removeRecentFile(QString url)
 {
     KisRecentFilesManager::instance()->remove(QUrl::fromLocalFile(url));
+}
+
+namespace
+{
+/// A right click on a recent image's entry takes it off the list; the menu stays open
+class ForgetRecentFile : public QObject
+{
+public:
+    using QObject::QObject;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        auto *menu = qobject_cast<QMenu *>(watched);
+        if (!menu || (event->type() != QEvent::MouseButtonPress && event->type() != QEvent::MouseButtonRelease)) return false;
+        auto *mouse = static_cast<QMouseEvent *>(event);
+        if (mouse->button() != Qt::RightButton) return false;
+        QAction *entry = menu->actionAt(mouse->pos());
+        const QUrl url = entry ? entry->data().toUrl() : QUrl();
+        if (url.isEmpty()) return false;
+        // on release, as a click; the press is swallowed too, so the entry doesn't open
+        if (event->type() == QEvent::MouseButtonRelease) KisRecentFilesManager::instance()->remove(url);
+        return true;
+    }
+};
 }
 
 void KisMainWindow::slotUpdateSaveActionTitle(const QString &documentPath)
@@ -2898,18 +2925,17 @@ void KisMainWindow::updateWindowMenu()
     for (int i = 0; i < windows.size(); ++i) {
         QPointer<KisView>child = qobject_cast<KisView*>(windows.at(i)->widget());
         if (child && child->document()) {
-            QString text;
-            if (i < 9) {
-                text = i18n("&%1 %2", i + 1, fontMetrics.elidedText(child->document()->path(), Qt::ElideMiddle, fileStringWidth));
-            }
-            else {
-                text = i18n("%1 %2", i + 1, fontMetrics.elidedText(child->document()->path(), Qt::ElideMiddle, fileStringWidth));
-            }
-
+            // Skissa: each image by its name and picture, the one in view in bold rather than checked
+            const QString path = child->document()->path();
+            const QString text = path.isEmpty() ? i18nc("an image open now that was never saved", "Unsaved")
+                                                : fontMetrics.elidedText(QFileInfo(path).fileName(), Qt::ElideMiddle, fileStringWidth);
             QAction *action  = menu->addAction(text);
-            action->setIcon(qApp->windowIcon());
-            action->setCheckable(true);
-            action->setChecked(child == activeKisView());
+            action->setIcon(QIcon(child->document()->generatePreview(QSize(32, 32))));
+            if (child == activeKisView()) {
+                QFont bold = action->font();
+                bold.setWeight(QFont::DemiBold);
+                action->setFont(bold);
+            }
             connect(action, SIGNAL(triggered()), d->windowMapper, SLOT(map()));
             d->windowMapper->setMapping(action, windows.at(i));
         }
@@ -3169,6 +3195,7 @@ void KisMainWindow::createActions()
 
     d->recentFiles = KStandardAction::openRecent(this, SLOT(slotFileOpenRecent(QUrl)), actionCollection());
     d->recentFiles->setText(KisSentenceCase::of(d->recentFiles->text()));
+    d->recentFiles->menu()->installEventFilter(new ForgetRecentFile(d->recentFiles));
 
     d->saveAction = actionManager->createStandardAction(KStandardAction::Save, this, SLOT(slotFileSave()));
     d->saveAction->setActivationFlags(KisAction::IMAGE_IS_WRITABLE);

@@ -75,6 +75,8 @@
 #include "kis_slider_spin_box.h"
 #include "KisViewManager.h"
 #include "kis_node_manager.h"
+#include "kis_node_commands_adapter.h"
+#include "kis_paint_layer.h"
 #include "kis_node_model.h"
 #include <kis_clipboard.h>
 
@@ -653,6 +655,25 @@ void LayerBox::slotAddLayerBnClicked()
     }
 }
 
+void LayerBox::addLayerBelow()
+{
+    KisNodeSP active = m_nodeManager ? m_nodeManager->activeNode() : KisNodeSP();
+    if (!m_canvas || !m_image || !active) return;
+    // below the layer a mask belongs to
+    while (active->parent() && !qobject_cast<KisLayer *>(active.data())) active = active->parent();
+    KisNodeSP parent = active->parent() ? active->parent() : KisNodeSP(m_image->root());
+    // as Add Paint Layer makes one: its group's colors, pinned to the timeline as set
+    const KisGroupLayer *group = dynamic_cast<const KisGroupLayer *>(parent.data());
+    KisPaintLayerSP layer = new KisPaintLayer(m_image.data(), m_image->nextLayerName(), OPACITY_OPAQUE_U8,
+                                              group ? group->colorSpace() : m_image->colorSpace());
+    layer->setPinnedToTimeline(KisConfig(true).autoPinLayersToTimeline());
+    // at the current layer's place, which moves it up one; one step, where adding above and moving down moved the
+    // old layer (the new one wasn't current yet), and nothing at all under the bottom one. It becomes the current
+    // layer once the image has it, as any added layer does
+    KisNodeCommandsAdapter adapter(m_canvas->viewManager());
+    adapter.addNodeAsync(layer, parent, quint32(parent->index(active)));
+}
+
 void LayerBox::setViewManager(KisViewManager* kisview)
 {
     m_nodeManager = kisview->nodeManager();
@@ -783,6 +804,8 @@ void LayerBox::setCanvas(KoCanvasBase *canvas)
         updateAvailableLabels();
 
         addActionToMenu(m_newLayerMenu, "add_new_paint_layer");
+        connect(m_newLayerMenu->addAction(KisIconUtils::loadIcon(QStringLiteral("arrowdown")), i18nc("@action:inmenu a new paint layer under the current one", "Add paint layer below")),
+                &QAction::triggered, this, &LayerBox::addLayerBelow);
         addActionToMenu(m_newLayerMenu, "add_new_group_layer");
         addActionToMenu(m_newLayerMenu, "add_new_clone_layer");
         addActionToMenu(m_newLayerMenu, "add_new_shape_layer");
@@ -1052,17 +1075,6 @@ void LayerBox::addNewLayerMenu(QMenu *menu, bool below)
     addMenuEntry(kinds, "add_new_colorize_mask", i18nc("@action:inmenu", "Colorize Mask"));
     addMenuEntry(kinds, "add_new_transform_mask", i18nc("@action:inmenu", "Transform Mask"));
     addMenuEntry(kinds, "add_new_selection_mask", i18nc("@action:inmenu", "Local Selection"));
-}
-
-void LayerBox::addLayerBelow()
-{
-    // new layers go above the current one: then one step down
-    slotAddLayerBnClicked();
-    if (m_canvas) {
-        if (KisAction *down = m_canvas->viewManager()->actionManager()->actionByName("move_layer_down")) {
-            down->trigger();
-        }
-    }
 }
 
 void LayerBox::addLayerAbove(const QModelIndex &index)

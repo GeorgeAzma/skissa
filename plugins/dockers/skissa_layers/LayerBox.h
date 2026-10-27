@@ -145,6 +145,7 @@ Q_SIGNALS:
 
 private:
     inline void connectActionToButton(KisViewManager* view, QAbstractButton *button, const QString &id);
+    /// A new paint layer right below the current one, the bottom one too
     void addLayerBelow();
     /// A new layer right above the layer at \p index
     void addLayerAbove(const QModelIndex &index);

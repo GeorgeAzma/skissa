@@ -186,6 +186,8 @@ void KRecentFilesAction::addAction(QAction *action, const QUrl &url, const QStri
 
     menu()->insertAction(menu()->actions().value(0), action);
     d->m_urls.insert(action, url);
+    // Skissa: the entry's file, for removing it from the list with a right click
+    action->setData(url);
 }
 
 QAction *KRecentFilesAction::removeAction(QAction *action)
