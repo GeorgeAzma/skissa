@@ -280,19 +280,25 @@ KisPaintDeviceSP KisLineArtFill::flats(KisPaintDeviceSP lines, const QRect &boun
 {
     auto stop = [&]() { return cancelled && cancelled(); };
     if (!lines || bounds.isEmpty()) return nullptr;
-    const QImage picture = lines->convertToQImage(nullptr, bounds).convertToFormat(QImage::Format_ARGB32);
-    const int width = picture.width(), height = picture.height(), count = width * height;
-    if (!count) return nullptr;
-
-    // How much each pixel is ink: dark and opaque. Paper, white or clear, is none.
-    std::vector<quint8> ink(count);
-    for (int y = 0; y < height; y++) {
-        const QRgb *row = reinterpret_cast<const QRgb *>(picture.constScanLine(y));
-        for (int x = 0; x < width; x++) {
-            const QRgb p = row[x];
-            ink[y * width + x] = quint8(qAlpha(p) * (255 - qGray(p)) / 255);
+    // How much each pixel is ink: dark and opaque. Paper, white or clear, is none. The picture goes once read
+    // (four bytes a pixel, a large share of what this needs on a big image)
+    int width = 0, height = 0;
+    std::vector<quint8> ink;
+    {
+        const QImage picture = lines->convertToQImage(nullptr, bounds).convertToFormat(QImage::Format_ARGB32);
+        width = picture.width();
+        height = picture.height();
+        ink.resize(size_t(width) * height);
+        for (int y = 0; y < height; y++) {
+            const QRgb *row = reinterpret_cast<const QRgb *>(picture.constScanLine(y));
+            for (int x = 0; x < width; x++) {
+                const QRgb p = row[x];
+                ink[y * width + x] = quint8(qAlpha(p) * (255 - qGray(p)) / 255);
+            }
         }
     }
+    const int count = width * height;
+    if (!count) return nullptr;
     const quint8 lineInk = 64;
     if (stop()) return nullptr;
 
@@ -363,6 +369,11 @@ KisPaintDeviceSP KisLineArtFill::flats(KisPaintDeviceSP lines, const QRect &boun
         for (int i : members) labels[i] = label;
     }
     if (areas.size() < 2 || stop()) return nullptr;
+    // not needed from here on
+    std::vector<quint16>().swap(distance);
+    std::vector<quint8>().swap(seen);
+    std::vector<qint32>().swap(stack);
+    std::vector<qint32>().swap(members);
 
     watershed(ink, labels, width, height);
     if (stop()) return nullptr;

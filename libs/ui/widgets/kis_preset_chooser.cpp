@@ -133,9 +133,17 @@ QRect paintedPart(const QImage &stroke)
 QImage underName(const QImage &stroke, const QSize &size, int nameEnd, qreal ratio)
 {
     static QHash<QString, QImage> made;
+    // the one used longest ago first, so the rows in view stay while a panel is resized
+    static QList<QString> used;
     const QString key = QStringLiteral("%1 %2x%3 %4").arg(stroke.cacheKey()).arg(size.width()).arg(size.height()).arg(nameEnd);
     auto it = made.constFind(key);
-    if (it != made.constEnd()) return *it;
+    if (it != made.constEnd()) {
+        if (used.isEmpty() || used.last() != key) {
+            used.removeOne(key);
+            used.append(key);
+        }
+        return *it;
+    }
     QImage faded = stroke.copy(paintedPart(stroke)).scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_ARGB32_Premultiplied);
     if (nameEnd > 0) {
         QPainter painter(&faded);
@@ -147,8 +155,9 @@ QImage underName(const QImage &stroke, const QSize &size, int nameEnd, qreal rat
         painter.fillRect(faded.rect(), fade);
     }
     faded.setDevicePixelRatio(ratio);
-    if (made.size() > 150) made.clear();
+    while (made.size() >= 150 && !used.isEmpty()) made.remove(used.takeFirst());
     made.insert(key, faded);
+    used.append(key);
     return faded;
 }
 } // namespace

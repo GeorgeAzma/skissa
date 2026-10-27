@@ -226,6 +226,8 @@ public:
         : QWidget(canvas)
     {
         setAttribute(Qt::WA_Hover);
+        // a pen's taps stay on the panel (its sliders get them as mouse presses), not on the canvas under it
+        setAttribute(Qt::WA_NoMousePropagation);
         auto *row = new QHBoxLayout(this);
         row->setContentsMargins(KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space3, KisModernStyle::space2);
         row->setSpacing(KisModernStyle::space2);
@@ -416,9 +418,12 @@ struct KisColorDrop::Private {
     QPointer<KUndo2Stack> stack;
     QMetaObject::Connection stackConnection;
     const KUndo2Command *step {nullptr};
-    int expectedIndex {-1};
     QTimer refill;
     int refillTries {0};
+    const KUndo2Command *stepBefore {nullptr};
+    bool expecting {false};
+    /// Making the last fill again: its layer is the one active at the drop, not what is active now
+    bool refilling {false};
     /// The layer active when the last fill was made
     KisNodeWSP lastActive;
     QPoint pressAt;
@@ -576,12 +581,19 @@ struct KisColorDrop::Private {
             stack = undo;
             if (undo) {
                 stackConnection = QObject::connect(undo, &KUndo2Stack::indexChanged, q, [this](int index) {
-                    if (step || !stack || index != expectedIndex || index < 1) return;
-                    step = stack->command(index - 1);
+                    if (step || !stack || !expecting || index < 1) return;
+                    const KUndo2Command *top = stack->command(index - 1);
+                    if (top && top != stepBefore) {
+                        step = top;
+                        expecting = false;
+                    }
                 });
             }
         }
-        expectedIndex = stack ? stack->index() + 1 : -1;
+        // the newest command now: the fill's is the next that differs (a full history drops its oldest instead
+        // of growing, so its index doesn't tell)
+        stepBefore = stack && stack->index() > 0 ? stack->command(stack->index() - 1) : nullptr;
+        expecting = stack;
     }
 };
 
@@ -708,7 +720,7 @@ void KisColorDrop::refillLast()
     if (!image || !d->stack || d->lastSeed == QPoint(-1, -1)) return;
     if (!d->step) {
         // the fill's step isn't in the history yet: it is still being made
-        if (d->expectedIndex > 0 && ++d->refillTries < 300) d->refill.start(16);
+        if (d->expecting && ++d->refillTries < 300) d->refill.start(16);
         return;
     }
     const int index = d->stack->index();
@@ -723,7 +735,11 @@ void KisColorDrop::refillLast()
     }
     d->step = nullptr;
     d->stack->setIndex(index - 1);
+    // the undo runs as a stroke of its own: done before the fill reads which layers there are
+    image->waitForDone();
+    d->refilling = true;
     fillAt(d->lastColor, d->lastSeed);
+    d->refilling = false;
 }
 
 bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
@@ -736,7 +752,7 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
 
     KisNodeSP active = viewManager->activeNode();
     // a fill made again: the layer it made was just taken back with it, and may still be the active one
-    if (active && !active->parent()) active = d->lastActive;
+    if (d->refilling || (active && !active->parent())) active = d->lastActive;
     if (active && !active->isEditable()) {
         d->view->showFloatingMessage(i18nc("@info:status", "Locked"), KisIconUtils::loadIcon(QStringLiteral("object-locked")));
         return false;

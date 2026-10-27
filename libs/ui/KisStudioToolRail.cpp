@@ -711,6 +711,17 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     d->hidden = QSet<QString>(hidden.begin(), hidden.end());
     const QStringList shared = cfg.readEntry<QStringList>(sharedSizeKey, QStringList());
     d->sharedSize = QSet<QString>(shared.begin(), shared.end());
+    if (!KSharedConfig::openConfig()->group(QString()).hasKey(itemsKey)) {
+        // never arranged: a rail that has used its Blend slot keeps it (and the brush it chose); a new one pins a
+        // blending brush. Written down, so the brush found first doesn't change from one start to the next
+        QStringList items = defaultItems();
+        if (!cfg.readEntry<QString>(QStringLiteral("StudioBrushPreset_blend"), QString()).isEmpty()) {
+            for (QString &item : items) {
+                if (item.startsWith(brushPrefix)) item = slotPrefix + QStringLiteral("blend");
+            }
+        }
+        KisSettingsRegistry::writeLater(itemsKey, items);
+    }
     d->items = cfg.readEntry<QStringList>(itemsKey, defaultItems());
     // add the effects button only once, so removing it sticks
     if (!cfg.readEntry<bool>(effectsOfferedKey, false)) {
@@ -722,6 +733,8 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
         writable.writeEntry(effectsOfferedKey, true);
     }
     d->q = this;
+    // every slot's key works, on the rail or not (T for Transform, F for Fill: their tools lost their own)
+    for (auto it = d->slots.constBegin(); it != d->slots.constEnd(); ++it) d->slotAction(it.key());
 
     // an undo or redo of the rail's items
     connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::valueChanged, this, [this](const QString &id) {
@@ -983,9 +996,9 @@ void KisStudioToolRail::rebuild()
     d->widgets.clear();
     d->widgetItem.clear();
 
-    // drop the shortcut actions of items no longer on the rail
+    // drop the shortcut actions of items no longer on the rail; a slot's stays, its key working off the rail too
     for (auto it = d->ownActions.begin(); it != d->ownActions.end();) {
-        const bool used = d->items.contains(it.key());
+        const bool used = d->items.contains(it.key()) || it.key().startsWith(slotPrefix);
         if (!used && it.value()) {
             it.value()->deleteLater();
         }

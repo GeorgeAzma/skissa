@@ -97,6 +97,8 @@ struct KisPresetStrokeThumbnails::Private {
     };
 
     QHash<QString, QImage> made;
+    /// made's keys, the one used longest ago first: the oldest go once there are too many, never the rows in view
+    QList<QString> used;
     /// Presets that painted nothing or failed; their icon is shown instead
     QSet<QString> nothing;
     QList<Request> queue;
@@ -166,6 +168,10 @@ QImage KisPresetStrokeThumbnails::stroke(int id, const QString &md5, const QColo
     const QString key = QStringLiteral("%1 %2 %3").arg(id).arg(md5).arg(ink.rgba(), 0, 16);
     auto it = d->made.constFind(key);
     if (it != d->made.constEnd()) {
+        if (d->used.isEmpty() || d->used.last() != key) {
+            d->used.removeOne(key);
+            d->used.append(key);
+        }
         return *it;
     }
     if (d->nothing.contains(key) || d->queued.contains(key)) {
@@ -277,8 +283,10 @@ void KisPresetStrokeThumbnails::finished()
         }
     }
     if (any) {
-        if (d->made.size() > 400) d->made.clear();
-        d->made.insert(d->current.key, d->current.asPaint ? fadedOut(painted) : painted);    } else if (!d->current.asPaint) {
+        while (d->made.size() >= 400 && !d->used.isEmpty()) d->made.remove(d->used.takeFirst());
+        d->made.insert(d->current.key, d->current.asPaint ? fadedOut(painted) : painted);
+        d->used.removeOne(d->current.key);
+        d->used.append(d->current.key);    } else if (!d->current.asPaint) {
         // a blender: its stroke as if it carried paint
         Private::Request again = d->current;
         again.asPaint = true;

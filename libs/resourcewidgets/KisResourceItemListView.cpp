@@ -224,6 +224,11 @@ QItemSelectionModel::SelectionFlags KisResourceItemListView::selectionCommand(co
     if (!m_d->dragMimeType.isEmpty() && event && event->type() == QEvent::MouseButtonPress) {
         return QItemSelectionModel::NoUpdate;
     }
+    // ...and on the release, which a single-selection view otherwise ignores
+    if (!m_d->dragMimeType.isEmpty() && event && event->type() == QEvent::MouseButtonRelease && index.isValid()
+        && index == m_d->pressed && selectionMode() == SingleSelection) {
+        return QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows;
+    }
     QItemSelectionModel::SelectionFlags cmd = QListView::selectionCommand(index, event);
 
     // avoid deselecting the current item by Ctrl-clicking in single selection mode
