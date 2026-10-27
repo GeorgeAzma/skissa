@@ -48,6 +48,8 @@ public:
         QString groupsKey;
         /// The user's groups until they change them
         std::function<QVector<Group>()> initialGroups;
+        /// Items added since groups may have been saved: each goes once into the group of its initial one
+        QStringList addedLater;
         std::function<QStringList()> allIds;
         /// The items not in the user's list, grouped, in display order
         std::function<QVector<Group>(const QStringList &pinned)> otherGroups;

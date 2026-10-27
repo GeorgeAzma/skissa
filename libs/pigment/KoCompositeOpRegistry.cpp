@@ -14,6 +14,7 @@
 #include "KoCompositeOp.h"
 #include "KoColorSpace.h"
 #include "compositeops/KoCompositeOpMix.h"
+#include "compositeops/KoCompositeOpGlow.h"
 
 #include "kis_assert.h"
 #include "DebugPigment.h"
@@ -195,6 +196,7 @@ KoCompositeOpRegistry::KoCompositeOpRegistry()
     m_map.insert(m_categories[12], KoID(COMPOSITE_FHYRD            ,  i18nc("Blending mode - Heat-Glow & Freeze-Reflect Hybrid", "Heat-Glow & Freeze-Reflect Hybrid")));
 
     KoOklch::addTo(m_categories, m_map);
+    KoGlow::addTo(m_categories, m_map);
 }
 
 const KoCompositeOpRegistry& KoCompositeOpRegistry::instance()

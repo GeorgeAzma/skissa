@@ -21,6 +21,7 @@
 #include <KoColorSpaceRegistry.h>
 #include <KoCompositeOp.h>
 #include <KoCompositeOpRegistry.h>
+#include <compositeops/KoCompositeOpGlow.h>
 #include <compositeops/KoCompositeOpMix.h>
 #include <KConfigGroup>
 #include <KSharedConfig>
@@ -310,6 +311,13 @@ KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures, boo
     source.groupsKey = QStringLiteral("StudioBlendModeGroups");
     // Krita's categories, as groups of the user's own: every mode, layers' too, so either picker keeps them
     source.initialGroups = []() { return otherGroups(QStringList(), false); };
+    source.addedLater = QStringList{KoGlow::dodgeId()};
+    // the names the glow blends have in other apps
+    source.aliases = [](const QString &id) {
+        if (id == COMPOSITE_LUMINOSITY_SAI) return QStringList{QStringLiteral("luminosity"), QStringLiteral("shine"), QStringLiteral("SAI"), QStringLiteral("linear dodge")};
+        if (id == KoGlow::dodgeId()) return QStringList{QStringLiteral("color dodge"), QStringLiteral("dodge glow")};
+        return QStringList();
+    };
     source.allIds = [forBrush]() {
         QStringList ids;
         Q_FOREACH (const KoID &op, allOps(forBrush)) ids << op.id();

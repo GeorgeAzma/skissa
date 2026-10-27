@@ -1095,6 +1095,18 @@ QVector<KisStudioPicker::Group> storedGroups(const KisStudioPicker::Source &sour
             if (!have) groups << group;
         }
     }
+    // an item added later goes where it starts out, once: taken out again, it stays out
+    const QStringList placed = KisConfig(true).readEntry<QStringList>(source.groupsKey + QStringLiteral("Placed"), QStringList());
+    Q_FOREACH (const QString &id, source.addedLater) {
+        if (placed.contains(id)) continue;
+        if (std::any_of(groups.cbegin(), groups.cend(), [&id](const KisStudioPicker::Group &g) { return g.ids.contains(id); })) continue;
+        Q_FOREACH (const KisStudioPicker::Group &initial, initialGroupsOf(source)) {
+            if (!initial.ids.contains(id)) continue;
+            for (KisStudioPicker::Group &group : groups) {
+                if (!group.key.isEmpty() && group.key == initial.key) group.ids << id;
+            }
+        }
+    }
     return groups;
 }
 } // namespace
@@ -1141,6 +1153,12 @@ void KisStudioPicker::setUserGroups(const Source &source, const QVector<Group> &
     KisConfig cfg(false);
     cfg.writeEntry(source.groupsKey, QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
     cfg.writeEntry(source.groupsKey + QStringLiteral("Version"), 2);
+    if (!source.addedLater.isEmpty()) {
+        QStringList placed = cfg.readEntry<QStringList>(source.groupsKey + QStringLiteral("Placed"), QStringList());
+        placed << source.addedLater;
+        placed.removeDuplicates();
+        cfg.writeEntry(source.groupsKey + QStringLiteral("Placed"), placed);
+    }
 }
 
 QStringList KisStudioPicker::scrollOrder(const Source &source)
@@ -1340,7 +1358,13 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
         for (int i = 0; i < d->items.size() && d->highlighted < 0; i++) {
             if (d->items[i].id == d->original) d->highlighted = i;
         }
-        if (!query.isEmpty()) d->highlighted = d->items.isEmpty() ? -1 : 0;
+        // the best match that can be picked now, so Enter takes it
+        if (!query.isEmpty()) {
+            d->highlighted = -1;
+            for (int i = 0; i < d->items.size() && d->highlighted < 0; i++) {
+                if (d->isAvailable(d->items[i].id)) d->highlighted = i;
+            }
+        }
         d->grid->update();
         adjustSize();
         keepOnScreen();

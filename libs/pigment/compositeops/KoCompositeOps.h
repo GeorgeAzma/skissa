@@ -30,6 +30,7 @@
 #include "compositeops/KoAlphaDarkenParamsWrapper.h"
 #include "compositeops/KoColorSpaceBlendingPolicy.h"
 #include "compositeops/KoCompositeOpClampPolicy.h"
+#include "compositeops/KoCompositeOpGlow.h"
 #include "KoOptimizedCompositeOpFactory.h"
 
 namespace _Private {
@@ -399,6 +400,7 @@ struct AddGeneralAlphaOps<Traits, true>
     static void add(KoColorSpace* cs)
     {
         add<&cfAdditionSAI<HSVType,Arg>>(cs, COMPOSITE_LUMINOSITY_SAI, KoCompositeOp::categoryHSV());
+        add<&KoGlow::cfGlowDodge<Arg>>(cs, KoGlow::dodgeId(), KoCompositeOp::categoryLight());
     }
 
 
