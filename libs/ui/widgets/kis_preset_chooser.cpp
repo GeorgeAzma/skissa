@@ -117,31 +117,6 @@ QRect paintedPart(const QImage &stroke)
     return part;
 }
 
-/// \p name in \p ink ringed in \p halo, kept: outlining text is slow, and every row is painted again whenever anything
-/// over the canvas moves
-QImage haloedName(const QString &name, const QFont &font, const QColor &ink, const QColor &halo, qreal ratio)
-{
-    static QHash<QString, QImage> made;
-    const QString key = name + QLatin1Char('\x1f') + font.key() + QStringLiteral(" %1 %2 %3").arg(ink.rgba()).arg(halo.rgba()).arg(ratio);
-    auto it = made.constFind(key);
-    if (it != made.constEnd()) return *it;
-    const QFontMetricsF metrics(font);
-    const QSizeF size(metrics.horizontalAdvance(name) + 6, metrics.height() + 6);
-    QImage image((size * ratio).toSize(), QImage::Format_ARGB32_Premultiplied);
-    image.setDevicePixelRatio(ratio);
-    image.fill(Qt::transparent);
-    QPainter painter(&image);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    QPainterPath path;
-    path.addText(QPointF(3, 3 + metrics.ascent()), font, name);
-    painter.strokePath(path, QPen(halo, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-    painter.fillPath(path, ink);
-    painter.end();
-    if (made.size() > 600) made.clear();
-    made.insert(key, image);
-    return image;
-}
-
 /// \p stroke's painted part at \p size, faint under the name (up to \p nameEnd) so the name reads on it; kept for the rows on screen
 QImage underName(const QImage &stroke, const QSize &size, int nameEnd, qreal ratio)
 {
@@ -153,13 +128,14 @@ QImage underName(const QImage &stroke, const QSize &size, int nameEnd, qreal rat
     if (nameEnd > 0) {
         QPainter painter(&faded);
         painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-        QLinearGradient fade(nameEnd, 0, nameEnd + 20 * ratio, 0);
-        fade.setColorAt(0.0, QColor(0, 0, 0, 60));
+        // the stroke is in the name's own ink: this faint, the name reads on it with no outline, on any theme
+        QLinearGradient fade(nameEnd + 4 * ratio, 0, nameEnd + 28 * ratio, 0);
+        fade.setColorAt(0.0, QColor(0, 0, 0, 38));
         fade.setColorAt(1.0, QColor(0, 0, 0, 255));
         painter.fillRect(faded.rect(), fade);
     }
     faded.setDevicePixelRatio(ratio);
-    if (made.size() > 300) made.clear();
+    if (made.size() > 150) made.clear();
     made.insert(key, faded);
     return faded;
 }
@@ -273,7 +249,7 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
     static const QRegularExpression sortingPrefix(QStringLiteral("^[a-z]\\)\\s+"));
     name.remove(sortingPrefix);
     QColor text = ink;
-    text.setAlphaF(selected ? 1.0 : 0.82);
+    text.setAlphaF(selected ? 1.0 : 0.9);
     painter->setFont(option.font);
 
     if (!stroke.isNull()) {
@@ -286,10 +262,8 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
         const QRectF place(art.right() - fitted.width(), art.center().y() - fitted.height() / 2, fitted.width(), fitted.height());
         const int nameEnd = qRound((textLeft + metrics.horizontalAdvance(shown) + 2 - place.left()) * devicePixelRatioF);
         painter->drawImage(place, underName(stroke, (place.size() * devicePixelRatioF).toSize(), nameEnd, devicePixelRatioF));
-        QColor halo = option.palette.color(QPalette::Window);
-        halo.setAlphaF(0.6);
-        const QImage label = haloedName(shown, option.font, text, halo, devicePixelRatioF);
-        painter->drawImage(QPointF(textLeft - 3, row.center().y() - label.height() / devicePixelRatioF / 2), label);
+        painter->setPen(text);
+        painter->drawText(QRectF(textLeft, row.top(), row.right() - textLeft, row.height()), Qt::AlignLeft | Qt::AlignVCenter, shown);
         if (dirty) {
             marks(QRectF(row.right() - 12, row.top(), 12, 12));
         }

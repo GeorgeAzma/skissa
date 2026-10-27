@@ -191,6 +191,10 @@ public:
             connect(watcher, &QFutureWatcher<QImage>::finished, this, [this, watcher, key, time]() {
                 m_reading.remove(key);
                 m_pictures.insert(key, {watcher->result(), time});
+                // the pictures asked for longest ago go: files dropped from the recent list aren't asked for again
+                m_used.removeOne(key);
+                m_used.append(key);
+                while (m_used.size() > keptPictures) m_pictures.remove(m_used.takeFirst());
                 watcher->deleteLater();
                 for (int i = m_viewers.size() - 1; i >= 0; i--) {
                     if (m_viewers[i].first) m_viewers[i].second();
@@ -200,7 +204,12 @@ public:
             watcher->setFuture(QtConcurrent::run(&m_pool, readPicture, path, longest));
         }
         // a changed file shows its old picture until the new one is read
-        return found != m_pictures.constEnd() ? found->image : QImage();
+        if (found == m_pictures.constEnd()) return QImage();
+        if (m_used.isEmpty() || m_used.last() != key) {
+            m_used.removeOne(key);
+            m_used.append(key);
+        }
+        return found->image;
     }
 
 private:
@@ -230,7 +239,11 @@ private:
         QImage image;
         QDateTime time;
     };
+    /// About a gallery's worth (at most 0.9 MB each, the large one 4 MB)
+    static constexpr int keptPictures = 64;
     QHash<QString, Picture> m_pictures;
+    /// Least recently asked for first
+    QStringList m_used;
     QHash<QString, QPair<QDateTime, qint64>> m_modified;
     QElapsedTimer m_clock;
     QSet<QString> m_reading;
@@ -1269,6 +1282,13 @@ public:
     QSize sizeHint() const override { return QSize(960, heightForWidth(960)); }
 
 protected:
+    void hideEvent(QHideEvent *event) override
+    {
+        // the page is away most of the time: its tiles are made again when it shows
+        m_tiles.clear();
+        QWidget::hideEvent(event);
+    }
+
     /// \p picture scaled into \p rect's shape once, so scrolling only copies it
     QPixmap tile(const QImage &picture, const QRectF &rect, qreal radius)
     {
@@ -1288,7 +1308,7 @@ protected:
             painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
             painter.drawImage(local, picture);
         }
-        if (m_tiles.size() > 96) m_tiles.clear();
+        if (m_tiles.size() > 64) m_tiles.clear();
         m_tiles.insert(key, made);
         return made;
     }

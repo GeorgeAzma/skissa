@@ -642,8 +642,9 @@ QImage glassOverWindow(QWidget *widget, const QRect &rect, QWidget *behind)
         && known->tint == tint && known->blur == KisStudioGlass::blur() && known->age.elapsed() < 1000) {
         return known->glass;
     }
-    if (made.size() > 32) {
-        for (auto it = made.begin(); it != made.end();) it = it->widget ? std::next(it) : made.erase(it);
+    // what is gone or no longer shown, and what was made long ago (a menu not opened for a while), goes
+    for (auto it = made.begin(); it != made.end();) {
+        it = it->widget && it->widget->isVisible() && it->age.elapsed() < 10000 ? std::next(it) : made.erase(it);
     }
     auto keep = [&](const QImage &glass) {
         Made entry {widget, behind, global, tint, KisStudioGlass::blur(), QElapsedTimer(), glass};
@@ -1581,10 +1582,14 @@ void decoratePopupFrame(QFrame *frame, bool detached, bool holdsMenu)
 /// A squircle's shadow as black with alpha: gaussian-blurred, at most \p strength, dithered and cached.
 QImage shadowImage(const QSizeF &panel, qreal radius, int margin, qreal sigma, qreal strength, qreal ratio)
 {
+    // the shadows used last: popups that change height (Find, pickers) make new ones as they go
     static QHash<QString, QImage> cache;
+    static QStringList used;
     const QString key = QStringLiteral("%1 %2 %3 %4 %5 %6 %7").arg(panel.width()).arg(panel.height()).arg(radius).arg(margin).arg(sigma).arg(strength).arg(ratio);
     auto it = cache.constFind(key);
     if (it != cache.constEnd()) {
+        used.removeOne(key);
+        used.append(key);
         return *it;
     }
 
@@ -1611,20 +1616,21 @@ QImage shadowImage(const QSizeF &panel, qreal radius, int margin, qreal sigma, q
         for (int x = 0; x < w; x++) boxLine(alpha.data() + x, h, w, box, scratch);
     }
 
-    // A 4x4 ordered dither keeps the long faint tail from banding.
+    // A 4x4 ordered dither keeps the long faint tail from banding. Only alpha, a quarter of the memory: Qt draws it black.
     static const float bayer[4][4] = {{0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}};
-    QImage image(size, QImage::Format_ARGB32_Premultiplied);
+    QImage image(size, QImage::Format_Alpha8);
     for (int y = 0; y < h; y++) {
-        QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
+        uchar *line = image.scanLine(y);
         for (int x = 0; x < w; x++) {
             const float value = alpha[size_t(y) * w + x] * float(strength) * 255.0f + (bayer[y & 3][x & 3] + 0.5f) / 16.0f - 0.5f;
-            line[x] = qRgba(0, 0, 0, qBound(0, int(value + 0.5f), 255));
+            line[x] = uchar(qBound(0, int(value + 0.5f), 255));
         }
     }
     image.setDevicePixelRatio(ratio);
-    // one makes room, so the other popups' shadows aren't blurred again
-    if (cache.size() > 48) cache.erase(cache.begin());
+    // the one used longest ago makes room, so the other popups' shadows aren't blurred again
+    while (cache.size() >= 24 && !used.isEmpty()) cache.remove(used.takeFirst());
     cache.insert(key, image);
+    used.append(key);
     return image;
 }
 

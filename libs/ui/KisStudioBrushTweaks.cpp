@@ -130,16 +130,20 @@ private:
     /// The tweaks kept from before, back on their brushes
     void restore()
     {
-        const QJsonObject tweaks = read();
+        QJsonObject tweaks = read();
         m_written = tweaks;
         if (tweaks.isEmpty() || !KisConfig(true).useDirtyPresets()) return;
         KisPaintOpPresetResourceServer *server = KisResourceServerProvider::instance()->paintOpPresetServer();
         if (!server) return;
+        QStringList stale;
         for (auto it = tweaks.constBegin(); it != tweaks.constEnd(); ++it) {
             const KisPaintOpPresetSP preset = server->resource(QString(), it.key(), QString());
             const QJsonObject tweak = it.value().toObject();
-            // saved again or replaced since: the file wins, its entry goes at the next store
-            if (!preset || preset->isDirty() || preset->md5Sum(false) != tweak.value(QStringLiteral("md5")).toString()) continue;
+            // saved again or replaced since, or gone: the file wins, and its entry goes
+            if (!preset || preset->isDirty() || preset->md5Sum(false) != tweak.value(QStringLiteral("md5")).toString()) {
+                stale << it.key();
+                continue;
+            }
             if (!preset->settings()->fromXML(tweak.value(QStringLiteral("settings")).toString())) continue;
             preset->setDirty(true);
             m_seen << preset;
@@ -147,6 +151,12 @@ private:
                 connect(proxy.data(), &KisPaintOpPresetUpdateProxy::sigSettingsChanged, this, [this]() { m_store.start(); });
                 proxy->notifySettingsChanged();
             }
+        }
+        // the entries of brushes deleted or changed in their file don't pile up
+        if (!stale.isEmpty()) {
+            for (const QString &file : qAsConst(stale)) tweaks.remove(file);
+            write(tweaks);
+            m_written = tweaks;
         }
     }
 

@@ -127,9 +127,19 @@ QString stackOf(HANDLE thread)
     return out;
 }
 
+/// A log grown past 1 MB starts again, the one before kept beside it as ".old"
+void keepSmall(const QString &path)
+{
+    if (QFileInfo(path).size() < (1 << 20)) return;
+    QFile::remove(path + QStringLiteral(".old"));
+    QFile::rename(path, path + QStringLiteral(".old"));
+}
+
 void write(const QString &stack, qint64 stalled)
 {
-    QFile file(KisProfile::configFile(QStringLiteral("krita-hang.log")));
+    const QString path = KisProfile::configFile(QStringLiteral("krita-hang.log"));
+    keepSmall(path);
+    QFile file(path);
     if (!file.open(QIODevice::Append | QIODevice::Text)) return;
     QTextStream stream(&file);
     stream << QDateTime::currentDateTime().toString(Qt::ISODate) << ": not responding for " << stalled / 1000 << " s, the main thread is at\n"
@@ -138,6 +148,7 @@ void write(const QString &stack, qint64 stalled)
 
 void writeStall(const QString &file, const QString &stack, qint64 stalled)
 {
+    keepSmall(file);
     QFile out(file);
     if (!out.open(QIODevice::Append | QIODevice::Text)) return;
     QTextStream stream(&out);

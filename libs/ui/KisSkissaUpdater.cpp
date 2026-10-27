@@ -133,9 +133,22 @@ if (-not (Test-Path -LiteralPath (Join-Path $update 'skissa-files.txt'))) { exit
 
 # the version before last goes, unless something of the user's is in it
 if (Test-Path -LiteralPath $old) {
-    $kept = (-not (Test-Path -LiteralPath (Join-Path $old 'skissa-files.txt'))) -or [bool](Strays $old)
-    if (-not $kept) { Remove-Item -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue }
-    if (Test-Path -LiteralPath $old) { Move-Folder $old ($old + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss')) | Out-Null }
+    $list = Join-Path $old 'skissa-files.txt'
+    if (-not (Test-Path -LiteralPath $list)) {
+        # not a release: kept whole, aside
+        Move-Folder $old ($old + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss')) | Out-Null
+    } elseif (-not [bool](Strays $old)) {
+        Remove-Item -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue
+    } else {
+        # only the user's files stay aside, not a whole install for each update
+        Get-Content -LiteralPath $list | Select-Object -Skip 1 | ForEach-Object {
+            Remove-Item -LiteralPath (Join-Path $old $_) -Force -ErrorAction SilentlyContinue
+        }
+        Remove-Item -LiteralPath $list -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -LiteralPath $old -Recurse -Directory -Force | Sort-Object { $_.FullName.Length } -Descending |
+            Where-Object { -not (Get-ChildItem -LiteralPath $_.FullName -Force) } | Remove-Item -Force -ErrorAction SilentlyContinue
+        Move-Folder $old ($old + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss')) | Out-Null
+    }
 }
 # the folder itself, or what is in it while something holds the folder open (a window or a service working there)
 $whole = Move-Folder $Install $old 20
