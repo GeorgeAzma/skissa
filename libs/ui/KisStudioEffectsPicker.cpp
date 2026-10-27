@@ -222,6 +222,7 @@ KisStudioPicker::Source effectsSource(KisMainWindow *mainWindow, std::shared_ptr
     KisStudioPicker::Source source;
     source.pinnedKey = QStringLiteral("StudioEffects");
     source.initialPinned = defaultEffects;
+    source.groupsKey = QStringLiteral("StudioEffectGroups");
     source.allIds = [ids]() { return ids; };
     source.otherGroups = [ids](const QStringList &pinned) {
         QVector<Group> groups;
@@ -251,7 +252,7 @@ KisStudioPicker::Source effectsSource(KisMainWindow *mainWindow, std::shared_ptr
     source.tiles = true;
     // don't preview every tile the pointer passes over
     source.previewDelay = 150;
-    source.yoursTitle = i18nc("effect group", "Your effects");
+    source.yoursTitle = i18nc("effect group", "Favorites");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 effects", ids.size());
     return source;
 }

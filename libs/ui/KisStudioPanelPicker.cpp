@@ -152,6 +152,7 @@ KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioP
     KisStudioPicker::Source source;
     source.pinnedKey = rail.key;
     source.initialPinned = rail.defaults;
+    source.groupsKey = rail.key + QStringLiteral("Groups");
     source.allIds = [docks]() {
         const QHash<QString, QDockWidget *> all = docks();
         QStringList ids = all.keys();

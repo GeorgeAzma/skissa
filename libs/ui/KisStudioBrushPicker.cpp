@@ -275,6 +275,7 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
     KisStudioPicker::Source source;
     source.pinnedKey = pinnedKey;
     source.initialPinned = initialBrushes;
+    source.groupsKey = QStringLiteral("StudioBrushGroups");
     source.allIds = [catalog]() { return catalog->ids; };
     source.otherGroups = [catalog](const QStringList &pinned) {
         QVector<Group> groups;
@@ -318,7 +319,7 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
     }
     source.recent = []() { return KisConfig(true).readEntry<QStringList>(recentKey, QStringList()); };
     source.tiles = true;
-    source.yoursTitle = i18nc("brush group", "Your brushes");
+    source.yoursTitle = i18nc("brush group", "Favorites");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 brushes", catalog->ids.size());
     return source;
 }

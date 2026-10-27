@@ -137,6 +137,23 @@ QPolygonF starShape(const QRectF &r)
 
 } // namespace
 
+namespace {
+/// The groups a picker starts with: its own, or the categories it shows its items in, as groups of the user's (one
+/// category is no grouping, so none then)
+QVector<KisStudioPicker::Group> initialGroupsOf(const KisStudioPicker::Source &source)
+{
+    if (source.initialGroups) return source.initialGroups();
+    if (!source.otherGroups) return {};
+    QVector<KisStudioPicker::Group> groups = source.otherGroups(QStringList());
+    if (groups.size() < 2) return {};
+    for (KisStudioPicker::Group &group : groups) {
+        if (group.key.isEmpty()) group.key = group.title;
+    }
+    return groups;
+}
+
+} // namespace
+
 struct KisStudioPicker::Private
 {
     KisStudioPicker *q {nullptr};
@@ -199,8 +216,8 @@ struct KisStudioPicker::Private
     /// The title a group the picker started with (a category, \p key) had, or none
     QString ownTitle(const QString &key) const
     {
-        if (key.isEmpty() || !source.initialGroups) return QString();
-        Q_FOREACH (const Group &group, source.initialGroups()) {
+        if (key.isEmpty()) return QString();
+        Q_FOREACH (const Group &group, initialGroupsOf(source)) {
             if (group.key == key) return group.title;
         }
         return QString();
@@ -1064,7 +1081,7 @@ namespace {
 QVector<KisStudioPicker::Group> storedGroups(const KisStudioPicker::Source &source)
 {
     if (!KSharedConfig::openConfig()->group(QString()).hasKey(source.groupsKey)) {
-        return source.initialGroups ? source.initialGroups() : QVector<KisStudioPicker::Group>();
+        return initialGroupsOf(source);
     }
     QVector<KisStudioPicker::Group> groups;
     const QJsonArray array = QJsonDocument::fromJson(KisConfig(true).readEntry<QString>(source.groupsKey, QString()).toUtf8()).array();
@@ -1075,8 +1092,8 @@ QVector<KisStudioPicker::Group> storedGroups(const KisStudioPicker::Source &sour
         if (!group.title.isEmpty()) groups << group;
     }
     // groups saved before the picker's own groups were the user's too get those, once
-    if (source.initialGroups && KisConfig(true).readEntry<int>(source.groupsKey + QStringLiteral("Version"), 1) < 2) {
-        Q_FOREACH (const KisStudioPicker::Group &group, source.initialGroups()) {
+    if (KisConfig(true).readEntry<int>(source.groupsKey + QStringLiteral("Version"), 1) < 2) {
+        Q_FOREACH (const KisStudioPicker::Group &group, initialGroupsOf(source)) {
             const bool have = std::any_of(groups.cbegin(), groups.cend(), [&group](const KisStudioPicker::Group &g) { return g.key == group.key; });
             if (!have) groups << group;
         }

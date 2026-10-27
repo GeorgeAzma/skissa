@@ -356,6 +356,7 @@ void KisStudioControlsPanel::pickSetting()
     KisStudioPicker::Source source;
     source.pinnedKey = QStringLiteral("StudioControlsPicked");
     source.initialPinned = []() { return QStringList(); };
+    source.groupsKey = QStringLiteral("StudioControlsGroups");
     source.allIds = [ids]() { return ids; };
     source.otherGroups = [ids](const QStringList &pinned) {
         KisStudioPicker::Group group{i18nc("a group of settings", "Settings"), {}};
@@ -389,7 +390,7 @@ void KisStudioControlsPanel::pickSetting()
         }
     };
     source.recent = []() { return QStringList(); };
-    source.yoursTitle = i18nc("a group of settings", "Yours");
+    source.yoursTitle = i18nc("a group of settings", "Favorites");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 settings", ids.size());
     auto *picker = new KisStudioPicker(source, QString(), {}, window());
     connect(picker, &KisStudioPicker::sigPicked, this, [this](const QString &id) {
