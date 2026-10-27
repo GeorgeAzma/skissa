@@ -1,5 +1,9 @@
 # Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
 
+msgctxt "@item:inmenu color picker: HSV square"
+msgid "Square"
+msgstr "Шаршы"
+
 msgctxt "settings card"
 msgid "Undo"
 msgstr "Амалдан қайту"

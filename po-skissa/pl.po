@@ -128,14 +128,6 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Barwa"
 
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "Odcień"
-
-msgctxt "@item:inmenu color picker"
-msgid "HSV"
-msgstr "HSV"
-
 msgctxt "a group of settings"
 msgid "Settings"
 msgstr "Ustawienia"

@@ -96,13 +96,9 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "اللون"
 
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "الصّبغة"
-
-msgctxt "@item:inmenu color picker"
-msgid "HSV"
-msgstr "HSV"
+msgctxt "@item:inmenu color picker: HSV square"
+msgid "Square"
+msgstr "مربع"
 
 msgctxt "a group of settings"
 msgid "Settings"

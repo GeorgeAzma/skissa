@@ -40,10 +40,6 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Litur"
 
-msgctxt "@item:inmenu color picker"
-msgid "HSV"
-msgstr "HSV"
-
 msgctxt "a group of settings"
 msgid "Settings"
 msgstr "Stillingar"

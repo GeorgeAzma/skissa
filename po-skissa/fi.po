@@ -121,9 +121,9 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Väri"
 
-msgctxt "@item:inmenu color picker"
-msgid "HSV"
-msgstr "HSV"
+msgctxt "@item:inmenu color picker: HSV square"
+msgid "Square"
+msgstr "Neliö"
 
 msgctxt "a group of settings"
 msgid "Settings"

@@ -164,6 +164,10 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Värv"
 
+msgctxt "@item:inmenu color picker: HSV square"
+msgid "Square"
+msgstr "Ruut"
+
 msgctxt "a group of settings"
 msgid "Settings"
 msgstr "Seadistused"

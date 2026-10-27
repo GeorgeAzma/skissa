@@ -24,6 +24,10 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "Filter"
 
+msgctxt "@item:inmenu color picker: HSV square"
+msgid "Square"
+msgstr "Kvadratni"
+
 msgctxt "settings card"
 msgid "Undo"
 msgstr "Poništi"

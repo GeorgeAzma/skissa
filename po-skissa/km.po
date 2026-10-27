@@ -16,6 +16,10 @@ msgctxt "tile spacing of 0"
 msgid "None"
 msgstr "គ្មាន"
 
+msgctxt "@item:inmenu color picker: HSV square"
+msgid "Square"
+msgstr "ការេ"
+
 msgctxt "author"
 msgid "None"
 msgstr "គ្មាន"

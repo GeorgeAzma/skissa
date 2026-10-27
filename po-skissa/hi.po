@@ -84,18 +84,6 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "रंग"
 
-msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "उजालापन"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "वर्ण"
-
-msgctxt "@item:inmenu color picker"
-msgid "HSV"
-msgstr "एचएसवी"
-
 msgctxt "a group of settings"
 msgid "Settings"
 msgstr "विन्यास"

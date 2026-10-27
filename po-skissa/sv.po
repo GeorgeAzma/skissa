@@ -184,18 +184,6 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Färg"
 
-msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "Ljushet"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "Färgton"
-
-msgctxt "@item:inmenu color picker"
-msgid "HSV"
-msgstr "HSV"
-
 msgctxt "a group of settings"
 msgid "Settings"
 msgstr "Inställningar"

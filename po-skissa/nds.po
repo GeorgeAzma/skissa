@@ -16,6 +16,10 @@ msgctxt "tile spacing of 0"
 msgid "None"
 msgstr "Keen"
 
+msgctxt "@item:inmenu color picker: HSV square"
+msgid "Square"
+msgstr "Quadraat"
+
 msgctxt "settings card"
 msgid "Undo"
 msgstr "Torüchnehmen"

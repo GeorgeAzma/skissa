@@ -154,17 +154,9 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Color"
 
-msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "Brillantia"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "Tinta"
-
-msgctxt "@item:inmenu color picker"
-msgid "HSV"
-msgstr "HSV"
+msgctxt "@item:inmenu color picker: HSV square"
+msgid "Square"
+msgstr "Quadrato"
 
 msgctxt "a group of settings"
 msgid "Settings"

@@ -140,10 +140,6 @@ msgctxt "zoom level, %1 is the percentage"
 msgid "%1%"
 msgstr "%1%"
 
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "色相"
-
 msgctxt "a group of settings"
 msgid "Settings"
 msgstr "设置"

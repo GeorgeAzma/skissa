@@ -84,10 +84,6 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Farve"
 
-msgctxt "@item:inmenu color picker"
-msgid "HSV"
-msgstr "HSV"
-
 msgctxt "effect group"
 msgid "Color"
 msgstr "Farve"

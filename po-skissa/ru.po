@@ -172,18 +172,6 @@ msgctxt "@title:window"
 msgid "Color"
 msgstr "Цвет"
 
-msgctxt "@info:tooltip"
-msgid "Lightness"
-msgstr "Светлота"
-
-msgctxt "@info:tooltip"
-msgid "Hue"
-msgstr "Тон"
-
-msgctxt "@item:inmenu color picker"
-msgid "HSV"
-msgstr "HSV"
-
 msgctxt "@info:tooltip back to the effect's defaults"
 msgid "Reset"
 msgstr "Сброс"
