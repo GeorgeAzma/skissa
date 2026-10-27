@@ -106,6 +106,11 @@ public:
     /// \p a toward \p b by \p t, alpha too
     static QColor mix(const QColor &a, const QColor &b, qreal t);
 
+    /// A selected row or menu item's fill, as the style draws them; a shade of the text on themes with no accent
+    static QColor selectedRow(const QPalette &palette);
+    /// The text on selectedRow()
+    static QColor selectedRowInk(const QPalette &palette);
+
     /// A color swatch as a button shows it: a squircle of \p color (over checks where it is see-through) with a thin edge;
     /// an invalid color draws the empty swatch
     static void paintSwatch(QPainter &painter, const QRectF &rect, const QColor &color, const QPalette &palette, bool hovered,

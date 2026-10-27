@@ -424,13 +424,10 @@ protected:
             painter.setOpacity(i == m_dragging ? 0.3 : 1.0);
 
             if (highlighted || current) {
-                const QColor base = pal.color(QPalette::Window);
-                const QColor select = pal.color(QPalette::Highlight);
-                const qreal t = highlighted ? 0.55 : 0.28;
+                // as selected rows are everywhere; the one in use at half that
+                const QColor select = KisModernStyle::selectedRow(pal);
                 painter.setPen(Qt::NoPen);
-                painter.setBrush(QColor::fromRgbF(base.redF() + (select.redF() - base.redF()) * t,
-                                                  base.greenF() + (select.greenF() - base.greenF()) * t,
-                                                  base.blueF() + (select.blueF() - base.blueF()) * t));
+                painter.setBrush(highlighted ? select : KisModernStyle::mix(pal.color(QPalette::Window), select, 0.5));
                 painter.drawPath(KisModernStyle::squircle(QRectF(item.rect).adjusted(2, 1, -2, -1), tiles ? 8 : 6));
             }
 

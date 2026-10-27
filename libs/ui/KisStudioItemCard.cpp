@@ -129,7 +129,7 @@ protected:
         const QPalette &pal = palette();
         if (m_choice.current || underMouse()) {
             painter.setPen(Qt::NoPen);
-            painter.setBrush(m_choice.current ? KisModernStyle::mix(pal.color(QPalette::Window), pal.color(QPalette::Highlight), 0.55)
+            painter.setBrush(m_choice.current ? KisModernStyle::selectedRow(pal)
                                               : KisModernStyle::mix(pal.color(QPalette::Window), pal.color(QPalette::ButtonText), 0.1));
             painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), KisModernStyle::tileRadius));
         }

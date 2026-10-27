@@ -109,11 +109,25 @@ QColor chromeColor(const QPalette &pal)
     return window.lightness() < 128 ? window.darker(136) : window.darker(108);
 }
 
-/// Selected rows and menu items: the selection color mixed into the background, stronger on light themes.
+/// Whether the theme has no accent: its selection color is a gray made for checks and slider fills, too heavy for rows
+bool accentless(const QPalette &pal)
+{
+    return pal.color(QPalette::Highlight).hslSaturationF() < 0.2;
+}
+
+/// Selected rows and menu items: the selection color mixed into the background, stronger on light themes; without
+/// an accent, a shade of the text, which the gray selection color made a heavy mid-gray on light themes.
 QColor selectionTint(const QPalette &pal)
 {
     const QColor base = pal.color(QPalette::Base);
+    if (accentless(pal)) return KisModernStyle::mix(base, pal.color(QPalette::Text), base.lightness() >= 128 ? 0.1 : 0.16);
     return KisModernStyle::mix(base, pal.color(QPalette::Highlight), base.lightness() >= 128 ? 0.75 : 0.55);
+}
+
+/// The text on selectionTint()
+QColor selectionInk(const QPalette &pal)
+{
+    return accentless(pal) ? pal.color(QPalette::Text) : pal.color(QPalette::HighlightedText);
 }
 
 /// A rect whose 1px outline lands exactly on the pixels of \p rect.
@@ -419,6 +433,16 @@ QEasingCurve KisModernStyle::motionCurve()
         return (1 - std::exp(-k * t)) / (1 - std::exp(-k));
     });
     return curve;
+}
+
+QColor KisModernStyle::selectedRow(const QPalette &palette)
+{
+    return selectionTint(palette);
+}
+
+QColor KisModernStyle::selectedRowInk(const QPalette &palette)
+{
+    return selectionInk(palette);
 }
 
 void KisModernStyle::paintSwatch(QPainter &painter, const QRectF &rect, const QColor &color, const QPalette &palette, bool hovered,
@@ -1299,6 +1323,15 @@ void KisModernStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
 
 void KisModernStyle::drawControl(ControlElement element, const QStyleOption *option, QPainter *painter, const QWidget *widget) const
 {
+    // a selected row's text in the ink that reads on its tint (see selectionTint)
+    if (element == CE_ItemViewItem && option->state.testFlag(State_Selected) && accentless(option->palette)) {
+        if (const auto *item = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
+            QStyleOptionViewItem readable = *item;
+            readable.palette.setColor(QPalette::HighlightedText, selectionInk(item->palette));
+            QProxyStyle::drawControl(element, &readable, painter, widget);
+            return;
+        }
+    }
     switch (element) {
     case CE_ShapedFrame:
         // a boxed frame (a framed label, a list's border) as a soft rounded line, not a bright square
@@ -1362,7 +1395,7 @@ void KisModernStyle::drawControl(ControlElement element, const QStyleOption *opt
             if (tab >= 0) contents.text = item->text.left(tab);
             if (selected) {
                 contents.state.setFlag(State_Selected, false);
-                const QColor text = item->palette.color(QPalette::HighlightedText);
+                const QColor text = selectionInk(item->palette);
                 contents.palette.setColor(QPalette::Text, text);
                 contents.palette.setColor(QPalette::ButtonText, text);
                 contents.palette.setColor(QPalette::WindowText, text);

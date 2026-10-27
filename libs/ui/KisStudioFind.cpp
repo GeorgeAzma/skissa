@@ -235,7 +235,7 @@ void paintPin(QPainter *painter, const QRectF &rect, const QColor &ink, bool pin
 {
     painter->save();
     painter->translate(rect.center());
-    painter->rotate(45);
+    if (!pinned) painter->rotate(45);
     QPen pen(ink, 1.3);
     pen.setJoinStyle(Qt::RoundJoin);
     pen.setCapStyle(Qt::RoundCap);
@@ -394,21 +394,20 @@ public:
         }
 
         if (option.state.testFlag(QStyle::State_Selected)) {
-            const QColor tint = QColor::fromRgbF(
-                pal.color(QPalette::Base).redF() * 0.45 + pal.color(QPalette::Highlight).redF() * 0.55,
-                pal.color(QPalette::Base).greenF() * 0.45 + pal.color(QPalette::Highlight).greenF() * 0.55,
-                pal.color(QPalette::Base).blueF() * 0.45 + pal.color(QPalette::Highlight).blueF() * 0.55);
             painter->setPen(Qt::NoPen);
-            painter->setBrush(tint);
+            painter->setBrush(KisModernStyle::selectedRow(pal));
             painter->drawPath(KisModernStyle::squircle(QRectF(r).adjusted(4, 1, -4, -1), KisModernStyle::tileRadius));
         }
 
+        // the icon on a faint tile of the ink, which reads on any theme; no tile without an icon
         const QRectF tile(r.left() + 12, r.top() + 6, 28, 28);
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(pal.color(QPalette::Button));
-        painter->drawPath(KisModernStyle::squircle(tile, KisModernStyle::tileRadius));
         const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
         if (!icon.isNull()) {
+            QColor tileFill = text;
+            tileFill.setAlphaF(0.07);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(tileFill);
+            painter->drawPath(KisModernStyle::squircle(tile, KisModernStyle::tileRadius));
             icon.paint(painter, tile.adjusted(5, 5, -5, -5).toRect());
         }
 
@@ -433,8 +432,16 @@ public:
         if (index.data(PinnableRole).toBool()) {
             const bool pinned = index.data(PinnedRole).toBool();
             if (pinned || pointed || KisTouchMode::isActive()) {
-                QColor ink = pinned ? pal.color(QPalette::Link) : text;
-                ink.setAlphaF(pinned ? 0.95 : 0.5);
+                // pinned: upright, filled, on a tile; not: leaning, an outline
+                QColor ink = text;
+                ink.setAlphaF(pinned ? 0.95 : 0.45);
+                if (pinned) {
+                    QColor tileFill = text;
+                    tileFill.setAlphaF(0.12);
+                    painter->setPen(Qt::NoPen);
+                    painter->setBrush(tileFill);
+                    painter->drawPath(KisModernStyle::squircle(QRectF(pinRect(r)).adjusted(-4, -4, 4, 4), KisModernStyle::cornerRadius));
+                }
                 paintPin(painter, pinRect(r), ink, pinned);
             }
             right = pinRect(r).left() - 8;
