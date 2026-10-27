@@ -6,6 +6,8 @@
  * SPDX-License-Identifier: LGPL-2.0-or-later
  */
 #include "dlg_bundle_manager.h"
+
+#include <KisModernStyle.h>
 #include <KisProfile.h>
 
 #include "resourcemanager.h"
@@ -69,62 +71,45 @@ void DlgBundleManager::ItemDelegate::paint(QPainter *painter, const QStyleOption
     int textMargin = 10;
 
     painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
 
-    // paint background
-    QColor bgColor = option.state & QStyle::State_Selected ?
-                qApp->palette().color(QPalette::Highlight) :
-                qApp->palette().color(QPalette::Base);
-
-    QBrush oldBrush(painter->brush());
-    QPen oldPen = painter->pen();
-
-    painter->setBrush(QBrush(bgColor));
-    painter->setPen(Qt::NoPen);
-    painter->drawRect(option.rect);
+    // a rounded row: lit when chosen, faint under the pointer; a bundle that is off is drawn faded, not boxed
+    const QColor ink = option.palette.color(QPalette::Text);
+    const bool selected = option.state & QStyle::State_Selected;
+    const bool hovered = option.state & QStyle::State_MouseOver;
+    if (selected || hovered) {
+        QColor fill = ink;
+        fill.setAlphaF(selected ? 0.16 : 0.07);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(fill);
+        painter->drawPath(KisModernStyle::squircle(QRectF(option.rect).adjusted(1, 1, -1, -1), KisModernStyle::cornerRadius));
+    }
 
     QRect paintRect = kisGrowRect(option.rect, -minMargin);
     int height = paintRect.height();
-
-    // make border around active ones
-    bool active = KisStorageModel::instance()->data(sourceIndex, Qt::UserRole + KisStorageModel::Active).toBool();
-
-    if (active) {
-        QColor borderColor = option.state & QStyle::State_Selected ?
-                    qApp->palette().color(QPalette::HighlightedText) :
-                    qApp->palette().color(QPalette::Text);
-        painter->setBrush(Qt::NoBrush);
-        painter->setPen(QPen(borderColor));
-
-        QRect borderRect = kisGrowRect(paintRect, -painter->pen().widthF());
-
-        painter->drawRect(borderRect);
-
-        painter->setBrush(oldBrush);
-        painter->setPen(oldPen);
-
-    }
+    const bool active = KisStorageModel::instance()->data(sourceIndex, Qt::UserRole + KisStorageModel::Active).toBool();
 
     // paint the image
     QImage thumbnail = KisStorageModel::instance()->data(sourceIndex, Qt::UserRole + KisStorageModel::Thumbnail).value<QImage>();
-
     QRect iconRect = paintRect;
     iconRect.setWidth(height);
+    painter->setOpacity(active ? 1.0 : 0.4);
     painter->drawImage(iconRect, thumbnail);
 
     QRect nameRect = paintRect;
     nameRect.setX(paintRect.x() + height + textMargin);
     nameRect.setWidth(paintRect.width() - height - 1.5*textMargin); // should be 2, but with 1.5 it's more clear that it's cropped when it is
 
-    QColor textColor = option.state & QStyle::State_Selected ?
-                qApp->palette().color(QPalette::HighlightedText) :
-                qApp->palette().color(QPalette::Text);
-    painter->setPen(QPen(textColor));
+    painter->setOpacity(1.0);
+    painter->setPen(active ? ink : KisModernStyle::secondaryInk(ink));
 
     QTextOption textCenterOption;
     textCenterOption.setAlignment(Qt::AlignVCenter);
     textCenterOption.setWrapMode(QTextOption::NoWrap);
     QString name = KisStorageModel::instance()->data(sourceIndex, Qt::UserRole + KisStorageModel::DisplayName).toString();
-    painter->drawText(nameRect, name, textCenterOption);
+    const QString shown = QFontMetrics(painter->font()).elidedText(name, Qt::ElideRight, nameRect.width());
+    painter->drawText(nameRect, shown, textCenterOption);
 
     painter->restore();
 
@@ -175,6 +160,7 @@ DlgBundleManager::DlgBundleManager(QWidget *parent)
 
     m_ui->listView->setModel(m_proxyModel);
     m_ui->listView->setItemDelegate(new ItemDelegate(this, m_proxyModel));
+    m_ui->listView->viewport()->setAttribute(Qt::WA_Hover);
     QScroller *scroller = KisKineticScroller::createPreconfiguredScroller(m_ui->listView);
     if (scroller) {
         connect(scroller, &QScroller::stateChanged, this, [&](QScroller::State state) {

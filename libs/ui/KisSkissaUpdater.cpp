@@ -175,7 +175,7 @@ if ($Relaunch) {
     # a release from before the program was renamed has only krita.exe
     $program = Join-Path $Install 'bin\skissa.exe'
     if (-not (Test-Path -LiteralPath $program)) { $program = Join-Path $Install 'bin\krita.exe' }
-    Start-Process -FilePath $program -WorkingDirectory $PSScriptRoot
+    Start-Process -FilePath $program -WorkingDirectory $PSScriptRoot -WindowStyle Normal
 }
 )ps";
 
@@ -530,7 +530,7 @@ private:
         // started once this one has ended: a second one starting while this one still runs would hand itself over to it
         QString program = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
         program.replace(QLatin1Char('\''), QStringLiteral("''"));
-        const QString command = QStringLiteral("Wait-Process -Id %1 -Timeout 60 -ErrorAction SilentlyContinue; Start-Process -FilePath '%2' -WorkingDirectory (Split-Path -Parent '%2')")
+        const QString command = QStringLiteral("Wait-Process -Id %1 -Timeout 60 -ErrorAction SilentlyContinue; Start-Process -FilePath '%2' -WorkingDirectory (Split-Path -Parent '%2') -WindowStyle Normal")
                                     .arg(QCoreApplication::applicationPid())
                                     .arg(program);
         if (powerShell({QStringLiteral("-NoProfile"), QStringLiteral("-NonInteractive"), QStringLiteral("-WindowStyle"), QStringLiteral("Hidden"),

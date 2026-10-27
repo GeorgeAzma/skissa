@@ -33,10 +33,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     static wchar_t command[32768 + 64];
     if (std::swprintf(command, sizeof(command) / sizeof(command[0]), L"\"%ls\"%ls", program, arguments) < 0) return 1;
 
+    // shown as a window opened from its icon: what started this one may have been hidden (an update's script), and
+    // its way of showing would leave Skissa running unseen
     STARTUPINFOW startup;
     ZeroMemory(&startup, sizeof(startup));
     startup.cb = sizeof(startup);
-    GetStartupInfoW(&startup);
+    startup.dwFlags = STARTF_USESHOWWINDOW;
+    startup.wShowWindow = SW_SHOWNORMAL;
     PROCESS_INFORMATION started;
     if (!CreateProcessW(program, command, nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &started)) return 1;
     // its window comes to the front as this one's would have
