@@ -35,6 +35,12 @@ inline QString tip(const QString &what, const QStringList &gestures)
     return lines.join(QLatin1Char('\n'));
 }
 
+/// A line of \p tooltip shown quieter, under the rest: a fact about the control, not what it does
+inline QString note(const QString &text)
+{
+    return QChar(0x2063) + text;
+}
+
 inline QString dragChange() { return i18nc("@info:tooltip a gesture", "Drag: change"); }
 inline QString doubleClickType() { return i18nc("@info:tooltip a gesture", "Double-click: type"); }
 inline QString rightClickReset() { return i18nc("@info:tooltip a gesture", "Right-click: reset"); }

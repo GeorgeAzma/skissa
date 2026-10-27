@@ -168,7 +168,7 @@ void KisCurvePresetStrip::paintEvent(QPaintEvent *)
         const bool chosen = i < list.size() && !m_current.isEmpty() && KisCubicCurve(list[i].curve) == KisCubicCurve(m_current);
         painter.setPen(QPen(faint(chosen ? 0.0 : 0.14), 1));
         painter.setBrush(chosen ? faint(0.16) : (i == m_hovered ? faint(0.06) : QColor(Qt::transparent)));
-        painter.drawRoundedRect(r, KisModernStyle::cornerRadius, KisModernStyle::cornerRadius);
+        painter.drawPath(KisModernStyle::squircle(r, KisModernStyle::cornerRadius));
 
         if (i == list.size()) {
             // "+" tile: saves the curve being edited

@@ -810,7 +810,7 @@ bool KisDocument::exportDocumentImpl(const KritaUtils::ExportFileJob &job, KisPr
 
         QString backupDir;
 
-        switch(cfg.readEntry<int>("backupfilelocation", 0)) {
+        switch(cfg.readEntry<int>("backupfilelocation", 2)) {
         case 1:
             backupDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
             break;

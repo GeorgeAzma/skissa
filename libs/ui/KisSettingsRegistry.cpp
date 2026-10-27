@@ -297,6 +297,18 @@ QHash<QString, QString> explanations()
         {QStringLiteral("ExrDefaultColorProfile"), i18nc("@info:tooltip", "Used for EXR files that don't name one")},
         {QStringLiteral("kritadisplayrc OpenGLRenderer"), i18nc("@info:tooltip", "If the canvas is slow, flickers or has wrong colors, try another")},
         {QStringLiteral("memoryHardLimitPercent"), i18nc("@info:tooltip", "Past this, Skissa swaps to disk and slows down")},
+        {QStringLiteral("StudioEffectsEditable"), i18nc("@info:tooltip", "An effect you apply stays on the layer as a mask you can change or remove later")},
+        {QStringLiteral("frameRenderingClones"), i18nc("@info:tooltip", "More renders animation faster and takes more memory")},
+        {QStringLiteral("StudioLayersRememberBrushes"), i18nc("@info:tooltip", "Picking a layer picks the brush you last painted on it with")},
+        {QStringLiteral("colorSamplerPreviewCircleExtraCirclesEnabled"), i18nc("@info:tooltip", "The ring shows the color you had beside the one you sample")},
+        {QStringLiteral("autoPinLayers"), i18nc("@info:tooltip", "New layers show in the timeline right away")},
+        {QStringLiteral("adaptivePlaybackRange"), i18nc("@info:tooltip", "The playback range grows to take in new keyframes")},
+        {QStringLiteral("pasteBehaviour"), i18nc("@info:tooltip", "How colors copied from apps that don't say their color profile are read")},
+        {QStringLiteral("saveSessionOnQuit"), i18nc("@info:tooltip", "The next start opens the same images in the same windows")},
+        {QStringLiteral("useDefaultColorSpace"), i18nc("@info:tooltip", "New images start in this color model, not the one used last")},
+        {QStringLiteral("showOnCanvasMessages"), i18nc("@info:tooltip", "Short notes over the image, such as a value you're dragging")},
+        {QStringLiteral("KineticScrollingEnabled"), i18nc("@info:tooltip", "Lists keep gliding after a flick of a finger or pen")},
+        {QStringLiteral("fpsLimit"), i18nc("@info:tooltip", "Higher is smoother and works the computer harder")},
     };
 }
 
@@ -568,7 +580,7 @@ QVector<Setting> describeAll()
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in effects")), QStringLiteral("filterdialog"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in Transform")), QStringLiteral("KisToolTransform"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), false, i18nc("setting", "Instant preview in Move")), QStringLiteral("KritaTransform/KisToolMove"));
-        all << number(QStringLiteral("undoStackLimit"), 200, 0, 1000, i18nc("setting", "Undo steps"));
+        all << number(QStringLiteral("undoStackLimit"), 300, 0, 1000, i18nc("setting", "Undo steps"));
         all << toggle(QStringLiteral("useCumulativeUndoRedo"), false, i18nc("setting", "Merge strokes in undo"));
         all << toggle(QStringLiteral("ConvertToImageColorSpaceOnImport"), false, i18nc("setting", "Imported layers take the image's colors"));
         {
@@ -598,7 +610,7 @@ QVector<Setting> describeAll()
         };
         all << autosave;
         all << toggle(QStringLiteral("CreateBackupFile"), true, i18nc("setting", "Backup when saving"));
-        all << choice(QStringLiteral("backupfilelocation"), 0,
+        all << choice(QStringLiteral("backupfilelocation"), 2,
                       {{0, i18nc("backup location", "Beside the file")}, {1, i18nc("backup location", "Home folder")},
                        {2, i18nc("backup location", "Temporary folder")}},
                       i18nc("setting", "Backups go"));
@@ -810,7 +822,7 @@ QVector<Setting> describeAll()
  */
 void forgetRetired()
 {
-    constexpr int version = 8;
+    constexpr int version = 9;
     KConfigGroup top = KSharedConfig::openConfig()->group(QString());
     if (top.readEntry("StudioRetiredSettings", 0) >= version) return;
     const char *const keys[] = {
@@ -852,6 +864,11 @@ void forgetRetired()
     if (top.readEntry("StudioRetiredSettings", 0) < 5 && !top.readEntry("colorSamplerZoomPreviewEnabled", true)) top.deleteEntry("colorSamplerZoomPreviewEnabled");
     // and the zoom steps, whose old default of 2 went from 100% to 133% to 200%
     if (top.readEntry("StudioRetiredSettings", 0) < 8 && top.readEntry("zoomSteps", 0) == 2) top.deleteEntry("zoomSteps");
+    // and the layer names' old defaults, "Copy of Layer" and "Layer Merged": all three are "Layer (copy)" alike now
+    if (top.readEntry("StudioRetiredSettings", 0) < 9) {
+        if (top.readEntry("layerNameCopyBefore", QString()) == QLatin1String("Copy of")) top.deleteEntry("layerNameCopyBefore");
+        if (top.readEntry("layerNameMergedAfter", QString()) == QLatin1String("Merged")) top.deleteEntry("layerNameMergedAfter");
+    }
     KSharedConfig::openConfig()->group(QStringLiteral("StudioTheme")).deleteEntry("Contrast");
     QSettings display(displayrcPath(), QSettings::IniFormat);
     display.remove(QStringLiteral("EnableHiDPI"));

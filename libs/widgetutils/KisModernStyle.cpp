@@ -414,6 +414,43 @@ QEasingCurve KisModernStyle::motionCurve()
     return curve;
 }
 
+void KisModernStyle::paintSwatch(QPainter &painter, const QRectF &rect, const QColor &color, const QPalette &palette, bool hovered,
+                                 bool pressed, bool focused)
+{
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QRectF box = pressed ? rect.adjusted(1, 1, -1, -1) : rect;
+    const QPainterPath shape = squircle(box, cornerRadius);
+    const QColor ink = palette.color(QPalette::WindowText);
+    if (color.isValid()) {
+        if (color.alpha() < 255) {
+            QPixmap checks(8, 8);
+            checks.fill(QColor(205, 205, 205));
+            QPainter checker(&checks);
+            checker.fillRect(0, 0, 4, 4, QColor(245, 245, 245));
+            checker.fillRect(4, 4, 4, 4, QColor(245, 245, 245));
+            checker.end();
+            painter.fillPath(shape, QBrush(checks));
+        }
+        painter.fillPath(shape, color);
+    } else {
+        QColor empty = ink;
+        empty.setAlphaF(0.06);
+        painter.fillPath(shape, empty);
+    }
+    // an edge of the ink, so the swatch holds its shape on a ground of its own color
+    QColor edge = ink;
+    edge.setAlphaF(hovered ? 0.4 : 0.16);
+    painter.setPen(QPen(edge, 1));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPath(squircle(box.adjusted(0.5, 0.5, -0.5, -0.5), cornerRadius - 0.5));
+    if (focused) {
+        painter.setPen(QPen(palette.color(QPalette::Highlight), 1.5));
+        painter.drawPath(squircle(box.adjusted(-1.5, -1.5, 1.5, 1.5), cornerRadius + 1.5));
+    }
+    painter.restore();
+}
+
 QPainterPath KisModernStyle::squircle(const QRectF &rect, qreal radius)
 {
     QPainterPath path;
@@ -740,6 +777,9 @@ int KisModernStyle::styleHint(StyleHint hint, const QStyleOption *option, const 
     case SH_EtchDisabledText:
     case SH_UnderlineShortcut:
         return 0;
+    case SH_ToolTip_WakeUpDelay:
+        // half of Qt's 700 ms: soon enough to teach, still not under every pass of the pointer
+        return 350;
     default:
         break;
     }

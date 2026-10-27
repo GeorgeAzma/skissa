@@ -176,14 +176,14 @@ void KisCategorizedItemDelegate::paintValue(QPainter *painter, const QStyleOptio
     track.setAlphaF(applies ? 0.05 : 0.025);
     painter->setPen(Qt::NoPen);
     painter->setBrush(track);
-    const qreal radius = KisModernStyle::cornerRadius;
-    painter->drawRoundedRect(QRectF(rect), radius, radius);
+    const QPainterPath shape = KisModernStyle::squircle(QRectF(rect), KisModernStyle::cornerRadius);
+    painter->drawPath(shape);
     if (applies && fraction > 0) {
         QColor fill = ink;
         fill.setAlphaF(0.16);
         painter->setClipRect(QRectF(rect.left(), rect.top(), rect.width() * fraction, rect.height()));
         painter->setBrush(fill);
-        painter->drawRoundedRect(QRectF(rect), radius, radius);
+        painter->drawPath(shape);
     }
     painter->restore();
 }

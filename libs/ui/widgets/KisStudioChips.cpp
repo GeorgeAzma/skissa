@@ -170,7 +170,7 @@ void KisStudioChips::paintEvent(QPaintEvent *)
             fill.setAlphaF(chip.on ? 0.85 : 0.16);
             painter.setPen(Qt::NoPen);
             painter.setBrush(fill);
-            painter.drawRoundedRect(track, 7, 7);
+            painter.drawPath(KisModernStyle::squircle(track, track.height() / 2));
             painter.setBrush(chip.on ? palette().color(QPalette::Window) : ink);
             painter.drawEllipse(QPointF(chip.on ? track.right() - 7 : track.left() + 7, track.center().y()), 5, 5);
             continue;

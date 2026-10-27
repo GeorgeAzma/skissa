@@ -379,7 +379,7 @@ void KisStudioControlsPanel::pickSetting()
         painter.setBrush(Qt::NoBrush);
         const QRectF box = QRectF(rect).adjusted(3, rect.height() / 2.0 - 5, -3, -(rect.height() / 2.0 - 5));
         if (setting->kind == R::Kind::Toggle) {
-            painter.drawRoundedRect(box, 5, 5);
+            painter.drawPath(KisModernStyle::squircle(box, box.height() / 2));
             painter.drawEllipse(QPointF(box.right() - 5, box.center().y()), 3, 3);
         } else if (setting->kind == R::Kind::Number) {
             painter.drawLine(QPointF(box.left(), box.center().y()), QPointF(box.right(), box.center().y()));

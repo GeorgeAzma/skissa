@@ -106,6 +106,11 @@ public:
     /// \p a toward \p b by \p t, alpha too
     static QColor mix(const QColor &a, const QColor &b, qreal t);
 
+    /// A color swatch as a button shows it: a squircle of \p color (over checks where it is see-through) with a thin edge;
+    /// an invalid color draws the empty swatch
+    static void paintSwatch(QPainter &painter, const QRectF &rect, const QColor &color, const QPalette &palette, bool hovered,
+                            bool pressed, bool focused);
+
     /// The action whose shortcut a menu entry shows: the entry or its "kisShortcutTarget". Null for submenus, separators and unnamed actions.
     static QAction *shortcutTarget(QAction *entry);
 

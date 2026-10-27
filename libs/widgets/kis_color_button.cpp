@@ -20,6 +20,7 @@
 #include <QStyleOptionButton>
 
 #include <KoColor.h>
+#include <KisModernStyle.h>
 #include <KisDlgInternalColorSelector.h>
 #include <kconfiggroup.h>
 #include <ksharedconfig.h>
@@ -195,53 +196,11 @@ void KisColorButton::KisColorButtonPrivate::initStyleOption(QStyleOptionButton *
 
 void KisColorButton::paintEvent(QPaintEvent *)
 {
+    // Skissa: the color as a squircle swatch, as the rest of the interface draws them
     QPainter painter(this);
-    QStyle *style = QWidget::style();
-
-    //First, we need to draw the bevel.
-    QStyleOptionButton butOpt;
-    d->initStyleOption(&butOpt);
-    style->drawControl(QStyle::CE_PushButtonBevel, &butOpt, &painter, this);
-
-    //OK, now we can muck around with drawing out pretty little color box
-    //First, sort out where it goes
-    QRect labelRect = style->subElementRect(QStyle::SE_PushButtonContents,
-                                            &butOpt, this);
-    int shift = style->pixelMetric(QStyle::PM_ButtonMargin, &butOpt, this) / 2;
-    labelRect.adjust(shift, shift, -shift, -shift);
-    int x, y, w, h;
-    labelRect.getRect(&x, &y, &w, &h);
-
-    if (isChecked() || isDown()) {
-        x += style->pixelMetric(QStyle::PM_ButtonShiftHorizontal, &butOpt, this);
-        y += style->pixelMetric(QStyle::PM_ButtonShiftVertical, &butOpt, this);
-    }
-
-    QColor fillCol = isEnabled() ? d->col.toQColor() : palette().color(backgroundRole());
-    qDrawShadePanel(&painter, x, y, w, h, palette(), true, 1, NULL);
-    if (fillCol.isValid()) {
-        const QRect rect(x + 1, y + 1, w - 2, h - 2);
-        if (fillCol.alpha() < 255) {
-            QPixmap chessboardPattern(16, 16);
-            QPainter patternPainter(&chessboardPattern);
-            patternPainter.fillRect(0, 0, 8, 8, Qt::black);
-            patternPainter.fillRect(8, 8, 8, 8, Qt::black);
-            patternPainter.fillRect(0, 8, 8, 8, Qt::white);
-            patternPainter.fillRect(8, 0, 8, 8, Qt::white);
-            patternPainter.end();
-            painter.fillRect(rect, QBrush(chessboardPattern));
-        }
-        painter.fillRect(rect, fillCol);
-    }
-
-    if (hasFocus()) {
-        QRect focusRect = style->subElementRect(QStyle::SE_PushButtonFocusRect, &butOpt, this);
-        QStyleOptionFocusRect focusOpt;
-        focusOpt.initFrom(this);
-        focusOpt.rect            = focusRect;
-        focusOpt.backgroundColor = palette().window().color();
-        style->drawPrimitive(QStyle::PE_FrameFocusRect, &focusOpt, &painter, this);
-    }
+    const QColor fill = isEnabled() ? d->col.toQColor() : QColor();
+    KisModernStyle::paintSwatch(painter, QRectF(rect()).adjusted(2, 2, -2, -2), fill, palette(), underMouse(), isDown() || isChecked(),
+                                hasFocus() && focusPolicy() != Qt::NoFocus);
 }
 
 QSize KisColorButton::sizeHint() const

@@ -111,6 +111,8 @@ public:
             return;
         }
         if (updateMode == ValueUpdateMode_UseLastValidValue) {
+            // without keyboard tracking the typed text isn't the value yet; Enter, eaten here, would have made it so
+            m_q->interpretText();
             setValue(m_q->value(), false, false, true);
         } else if (updateMode == ValueUpdateMode_UseValueBeforeEditing) {
             setValue(m_valueBeforeEditing, false, false, true);

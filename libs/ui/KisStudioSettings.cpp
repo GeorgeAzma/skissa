@@ -222,7 +222,7 @@ protected:
         if (!isEnabled()) fill.setAlphaF(fill.alphaF() * 0.4);
         painter.setPen(Qt::NoPen);
         painter.setBrush(fill);
-        painter.drawRoundedRect(track, 10, 10);
+        painter.drawPath(KisModernStyle::squircle(track, track.height() / 2));
         // The knob is light on the faint track and dark on the bright one
         QColor dark = palette().color(QPalette::Window);
         dark.setAlpha(255);
@@ -233,7 +233,7 @@ protected:
         if (hasFocus()) {
             painter.setBrush(Qt::NoBrush);
             painter.setPen(QPen(palette().color(QPalette::Highlight), 1.5));
-            painter.drawRoundedRect(track.adjusted(-2, -2, 2, 2), 12, 12);
+            painter.drawPath(KisModernStyle::squircle(track.adjusted(-2, -2, 2, 2), track.height() / 2 + 2));
         }
     }
 
@@ -302,13 +302,13 @@ protected:
         const QRectF frame = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
         painter.setPen(QPen(ink(this, 0.14), 1));
         painter.setBrush(Qt::NoBrush);
-        painter.drawRoundedRect(frame, frame.height() / 2, frame.height() / 2);
+        painter.drawPath(KisModernStyle::squircle(frame, KisModernStyle::cornerRadius + 2));
         for (int i = 0; i < m_texts.size(); i++) {
             const QRectF r = part(i);
             if (i == m_current || i == m_hovered) {
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(ink(this, i == m_current ? 0.16 : 0.06));
-                painter.drawRoundedRect(r, r.height() / 2, r.height() / 2);
+                painter.drawPath(KisModernStyle::squircle(r, KisModernStyle::cornerRadius));
             }
             painter.setPen(i == m_current ? palette().color(QPalette::WindowText) : KisModernStyle::secondaryInk(palette().color(QPalette::WindowText)));
             painter.drawText(r, Qt::AlignCenter, m_texts[i]);
@@ -317,7 +317,7 @@ protected:
             painter.setBrush(Qt::NoBrush);
             painter.setPen(QPen(palette().color(QPalette::Highlight), 1.5));
             const QRectF r = part(m_current);
-            painter.drawRoundedRect(r, r.height() / 2, r.height() / 2);
+            painter.drawPath(KisModernStyle::squircle(r, KisModernStyle::cornerRadius));
         }
     }
 
@@ -505,6 +505,31 @@ private:
     int m_hovered {-1};
 };
 
+/// A name shown as a chip in the accent, such as the layer in the layer names' example
+class NameChip : public QLabel
+{
+public:
+    NameChip(const QString &text, QWidget *parent)
+        : QLabel(text, parent)
+    {
+        setAlignment(Qt::AlignCenter);
+        setContentsMargins(KisModernStyle::space2, KisModernStyle::hairline, KisModernStyle::space2, KisModernStyle::hairline);
+        QPalette pal = palette();
+        pal.setColor(QPalette::WindowText, pal.color(QPalette::HighlightedText));
+        setPalette(pal);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.fillPath(KisModernStyle::squircle(QRectF(rect()), KisModernStyle::cornerRadius + 1), palette().color(QPalette::Highlight));
+        painter.end();
+        QLabel::paintEvent(event);
+    }
+};
+
 /// A frameless KisSliderSpinBox or KisDoubleSliderSpinBox
 template<class Slider>
 Slider *quietSlider(QWidget *parent)
@@ -571,7 +596,7 @@ struct Builder {
     QWidget *card {nullptr};
     QVBoxLayout *layout {nullptr};
     QLabel *title {nullptr};
-    /// The title's row, ending with the card's ⋯
+    /// The title's row
     QHBoxLayout *header {nullptr};
     KisMainWindow *window {nullptr};
     QVector<std::function<void()>> refresh;
@@ -617,9 +642,9 @@ struct Builder {
         if (const Setting *s = id.isEmpty() ? nullptr : registry()->setting(id)) {
             QStringList notes;
             if (!s->help.isEmpty()) notes << s->help;
-            if (s->flags & R::NewViews) notes << i18nc("@info:tooltip", "For images opened from now on");
-            if (s->flags & R::Machine) notes << i18nc("@info:tooltip", "Not included when you export settings");
-            if (!notes.isEmpty()) row->setToolTip(notes.join(QStringLiteral("\n\n")));
+            if (s->flags & R::NewViews) notes << KisStudioTips::note(i18nc("@info:tooltip", "For images opened from now on"));
+            if (s->flags & R::Machine) notes << KisStudioTips::note(i18nc("@info:tooltip", "Not included when you export settings"));
+            if (!notes.isEmpty()) row->setToolTip(notes.join(QLatin1Char('\n')));
             if (s->flags & R::Restart) line->insertWidget(1, restartMark(id, row));
             if (KisStudioControls::canPinSetting(id) && !controlBelow) line->addWidget(pinButton(id, row));
         }
@@ -1216,14 +1241,14 @@ QVector<CardDef> makeCards()
         QStringLiteral("dark light colors color scheme palette accent tint contrast lightness"), [](Builder &b) {
             auto *picker = new ThemePicker(b.card);
             b.follow([picker]() { picker->refresh(); });
-            // a new theme, beside the card's ⋯, so the themes keep their rows
+            // a new theme, at the end of the title's row, so the themes keep their rows
             auto *add = new QToolButton(b.card);
             add->setAutoRaise(true);
             add->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_add")));
             add->setIconSize(QSize(14, 14));
             add->setToolTip(i18nc("@info:tooltip", "New theme"));
             QObject::connect(add, &QToolButton::clicked, add, []() { KisStudioTheme::add(); });
-            b.header->insertWidget(b.header->count() - 1, add);
+            b.header->addWidget(add);
             b.layout->addWidget(picker);
             // The theme in use, as the parameters it is made of; regenerating it is costly, so sliders apply on release
             Number lightness(i18nc("theme", "Lightness"), 100, 0, QStringLiteral("%"));
@@ -1499,10 +1524,7 @@ QVector<CardDef> makeCards()
                     grid->addWidget(edit, kind, before ? 1 : 3);
                 }
                 // The original name, as a chip
-                auto *name = new QLabel(i18nc("a layer's name, in an example", "Layer"), b.card);
-                name->setAlignment(Qt::AlignCenter);
-                name->setContentsMargins(KisModernStyle::space2, KisModernStyle::hairline, KisModernStyle::space2, KisModernStyle::hairline);
-                name->setStyleSheet(QStringLiteral("QLabel { border-radius: 6px; background: palette(highlight); color: palette(highlighted-text); }"));
+                auto *name = new NameChip(i18nc("a layer's name, in an example", "Layer"), b.card);
                 grid->addWidget(name, kind, 2);
             }
             grid->setColumnStretch(1, 1);
@@ -1730,13 +1752,32 @@ QVector<CardDef> makeCards()
             b.number(QStringLiteral("frameRenderingClones"), threads);
         });
     add(QStringLiteral("speed"), QStringLiteral("framerate"), i18nc("settings card", "Frame rate"),
-        {QStringLiteral("detectFpsLimit"), QStringLiteral("fpsLimit")}, QStringLiteral("fps refresh hz performance"), [](Builder &b) {
-            b.toggle(QStringLiteral("detectFpsLimit"));
-            Number limit(QString(), 1, 0, i18nc("unit", " fps"));
-            limit.low = 30;
-            limit.high = 360;
-            b.showWhen(b.number(QStringLiteral("fpsLimit"), limit),
-                       []() { return !R::instance()->value(QStringLiteral("detectFpsLimit")).toBool(); });
+        {QStringLiteral("detectFpsLimit"), QStringLiteral("fpsLimit")}, QStringLiteral("fps refresh hz performance screen"), [](Builder &b) {
+            // one slider for both: all the way down is the screen's own rate
+            auto *slider = quietSlider<KisSliderSpinBox>(b.card);
+            slider->setRange(0, 360);
+            slider->setSuffix(i18nc("unit", " fps"));
+            slider->setSpecialValueText(i18nc("frame rate: as the screen's", "Screen"));
+            slider->setBlockUpdateSignalOnDrag(true);
+            slider->setKeyboardTracking(false);
+            slider->setProperty("kisDefaultValue", 0);
+            b.follow([slider]() {
+                const int shown = R::instance()->value(QStringLiteral("detectFpsLimit")).toBool() ? 0 : R::instance()->value(QStringLiteral("fpsLimit")).toInt();
+                if (slider->value() == shown) return;
+                const QSignalBlocker blocker(slider);
+                slider->setValue(shown);
+            });
+            QObject::connect(slider, QOverload<int>::of(&KisSliderSpinBox::valueChanged), b.card, [](int fps) {
+                if (fps == 0) {
+                    R::instance()->setValue(QStringLiteral("detectFpsLimit"), true);
+                } else {
+                    R::instance()->setValues({{QStringLiteral("detectFpsLimit"), false}, {QStringLiteral("fpsLimit"), fps}});
+                }
+            });
+            // the card's only row: beside its title, as a single switch is
+            slider->setToolTip(KisStudioTips::tip(R::instance()->setting(QStringLiteral("fpsLimit"))->help,
+                                                  {KisStudioTips::note(i18nc("@info:tooltip", "For images opened from now on"))}));
+            b.header->addWidget(slider);
         });
 
     // Drop settings this build doesn't have (e.g. another platform's)
@@ -1913,15 +1954,8 @@ public:
         header->addStretch(1);
         // A single-switch card shows its switch next to the title
         if (!def.toggleId.isEmpty()) header->addWidget(m_builder.boundSwitch(def.toggleId));
-        m_more = new QToolButton(this);
-        m_more->setAutoRaise(true);
-        m_more->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_more")));
-        m_more->setIconSize(QSize(14, 14));
-        m_more->setToolTip(i18nc("@info:tooltip", "Reset, pin to Quick, add to a section"));
-        connect(m_more, &QToolButton::clicked, this, [this]() {
-            if (menuRequested) menuRequested(m_more->mapToGlobal(QPoint(0, m_more->height())));
-        });
-        header->addWidget(m_more);
+        // its menu (reset, pin to Quick, add to a section) is its right click
+        m_title->setToolTip(i18nc("@info:tooltip a gesture on a settings card's title", "Right-click: reset or pin"));
         m_builder.header = header;
         layout->addLayout(header);
         if (def.build) def.build(m_builder);
@@ -2048,7 +2082,6 @@ private:
     Builder m_builder;
     QLabel *m_title {nullptr};
     QLabel *m_mark {nullptr};
-    QToolButton *m_more {nullptr};
     /// A change came while it was hidden
     bool m_stale {false};
     QPoint m_pressed {-1, -1};
@@ -2202,8 +2235,10 @@ public:
         for (int i = 0; i < m_items.size(); i++) {
             // A gap before the built-in sections
             if (i > 0 && !isOwn(m_items[i].id) && isOwn(m_items[i - 1].id)) y += 12;
-            m_items[i].rect = QRect(6, y, width() - 12, 30);
-            y += 32;
+            // "New section" is a way to add one, not a place: a short, quiet line
+            const int height = m_items[i].id == QLatin1String("add") ? 22 : 30;
+            m_items[i].rect = QRect(6, y, width() - 12, height);
+            y += height + 2;
         }
         setMinimumHeight(y + 4);
         update();
@@ -2250,6 +2285,25 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing, true);
         for (int i = 0; i < m_items.size(); i++) {
             const Item &item = m_items[i];
+            if (item.id == QLatin1String("add")) {
+                const bool hovered = i == m_hovered;
+                QColor quiet = palette().color(QPalette::WindowText);
+                quiet.setAlphaF(hovered ? 0.75 : 0.38);
+                QPen pen(quiet, 1.2);
+                pen.setCapStyle(Qt::RoundCap);
+                painter.setPen(pen);
+                const QPointF plus(item.rect.left() + 16, item.rect.center().y() + 0.5);
+                painter.drawLine(plus - QPointF(4, 0), plus + QPointF(4, 0));
+                painter.drawLine(plus - QPointF(0, 4), plus + QPointF(0, 4));
+                if (m_compact) continue;
+                QFont small = font();
+                small.setPointSizeF(small.pointSizeF() * 0.9);
+                painter.setFont(small);
+                const QRect text = item.rect.adjusted(32, 0, -6, 0);
+                painter.drawText(text, Qt::AlignVCenter | Qt::AlignLeft, QFontMetrics(small).elidedText(item.title, Qt::ElideRight, text.width()));
+                painter.setFont(font());
+                continue;
+            }
             const bool current = item.id == m_current;
             const bool target = i == m_dropTarget;
             if (current || i == m_hovered || target) {
@@ -2499,7 +2553,7 @@ public:
             page->box()->addWidget(card);
         }
         if (sections.quick.isEmpty()) {
-            page->box()->addWidget(dimLabel(i18nc("@info", "Pin settings here from their ⋯ menu in Settings, or drag them onto Quick."), page));
+            page->box()->addWidget(dimLabel(i18nc("@info", "Pin settings here with a right click in Settings, or drag them onto Quick."), page));
         }
         page->box()->addStretch(1);
         m_scroll->setWidget(page);
@@ -2912,8 +2966,8 @@ struct KisStudioSettings::Private
                 if (const CardDef *def = cardDef(id)) fresh->box()->addWidget(makeCard(*def, fresh, shown));
             }
             if (own->isEmpty()) {
-                fresh->box()->addWidget(dimLabel(shown == quickId ? i18nc("@info", "Drag settings here by their titles, or pin them from their ⋯ menu. A right click on the Settings button shows them.")
-                                                                  : i18nc("@info", "Drag settings here by their titles, or add them from their ⋯ menu."),
+                fresh->box()->addWidget(dimLabel(shown == quickId ? i18nc("@info", "Drag settings here by their titles, or pin them with a right click. A right click on the Settings button shows them.")
+                                                                  : i18nc("@info", "Drag settings here by their titles, or add them with a right click."),
                                                  fresh));
             }
             const QString target = shown;

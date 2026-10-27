@@ -729,9 +729,9 @@ QString KisImageConfig::layerNameKey(LayerNaming kind, bool before)
 QString KisImageConfig::defaultLayerNameAffix(LayerNaming kind, bool before)
 {
     switch (kind) {
-    case CopiedLayer: return before ? i18n("Copy of") : QString();
+    case CopiedLayer: return before ? QString() : i18n("(copy)");
     case PastedLayer: return before ? QString() : i18n("(pasted)");
-    case MergedLayer: return before ? QString() : i18n("Merged");
+    case MergedLayer: return before ? QString() : i18n("(merged)");
     }
     return QString();
 }

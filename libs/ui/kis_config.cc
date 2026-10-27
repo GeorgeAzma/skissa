@@ -92,7 +92,7 @@ void KisConfig::logImportantSettings() const
     KisUsageLogger::writeSysInfo(QString("  Backup File Suffix: %1").arg(m_cfg.readEntry("backupfilesuffix", "~")));
 
     QString backupDir;
-    switch(m_cfg.readEntry("backupfilelocation", 0)) {
+    switch(m_cfg.readEntry("backupfilelocation", 2)) {
     case 1:
         backupDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
         break;
@@ -191,7 +191,7 @@ void KisConfig::setUndoEnabled(bool undo) const
 
 int KisConfig::undoStackLimit(bool defaultValue) const
 {
-    return (defaultValue ? 200 : m_cfg.readEntry("undoStackLimit", 200));
+    return (defaultValue ? 300 : m_cfg.readEntry("undoStackLimit", 300));
 }
 
 void KisConfig::setUndoStackLimit(int limit) const

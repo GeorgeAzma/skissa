@@ -299,10 +299,13 @@ QString KisStudioTips::html(const QString &tooltip, const QString &keys)
         return sized(keys.isEmpty() ? tooltip : QStringLiteral("%1&nbsp;&nbsp;&nbsp;%2").arg(tooltip, keys.toHtmlEscaped()));
     }
     QStringList text;
+    QStringList notes;
     QList<Line> gestures;
     Q_FOREACH (const QString &part, tooltip.split(QLatin1Char('\n'))) {
         Line line;
-        if (readLine(part, &line)) {
+        if (part.startsWith(QChar(0x2063))) {
+            notes << part.mid(1);
+        } else if (readLine(part, &line)) {
             gestures << line;
         } else {
             text << part;
@@ -350,6 +353,12 @@ QString KisStudioTips::html(const QString &tooltip, const QString &keys)
         }
     }
     paragraph();
+    if (!notes.isEmpty()) {
+        for (QString &note : notes) note = note.toHtmlEscaped();
+        out += QStringLiteral("<p style=\"margin:%1px 0 0 0; color:%2\">%3</p>")
+                   .arg(text.isEmpty() ? 0 : 3)
+                   .arg(css(quiet), notes.join(QStringLiteral("<br>")));
+    }
     if (gestures.isEmpty()) return sized(out);
 
     // short words go in one row; longer ones a gesture per row, so the tooltip stays narrow

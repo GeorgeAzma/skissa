@@ -422,7 +422,7 @@ public:
             fill.setAlphaF(on.toBool() ? 0.9 : 0.22);
             painter->setPen(Qt::NoPen);
             painter->setBrush(fill);
-            painter->drawRoundedRect(track, 10, 10);
+            painter->drawPath(KisModernStyle::squircle(track, track.height() / 2));
             QColor knob = on.toBool() ? pal.color(QPalette::Window) : text;
             knob.setAlpha(on.toBool() ? 255 : 242);
             painter->setBrush(knob);
