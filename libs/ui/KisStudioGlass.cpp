@@ -66,6 +66,9 @@ const QString settingKey = QStringLiteral("StudioGlass");
 const QString blurKey = QStringLiteral("StudioGlassBlur");
 const QString opacityKey = QStringLiteral("StudioGlassOpacity");
 const QString rimLightKey = QStringLiteral("StudioGlassRimLight");
+const QString vibrancyKey = QStringLiteral("StudioGlassVibrancy");
+const QString grainKey = QStringLiteral("StudioGlassGrain");
+const QString textContrastKey = QStringLiteral("StudioGlassTextContrast");
 
 constexpr qreal blurRadius = 26;    ///< widget pixels
 constexpr qreal sampleScale = 0.25; ///< CPU glass renders at quarter resolution; the blur hides it
@@ -155,6 +158,29 @@ std::array<float, 3> inGamut(const Lab &c)
     return fromOklab({c.l, c.a * lo, c.b * lo});
 }
 
+/// \p lab more vivid by \p v, as the GPU glass' vivid()
+Lab vivid(Lab lab, float v)
+{
+    const float c = std::hypot(lab.a, lab.b);
+    if (v <= 0 || c < 1e-5f) return lab;
+    const float gained = c * (1 + v) / (1 + v * c / 0.32f);
+    auto smooth = [](float e0, float e1, float x) { const float t = qBound(0.0f, (x - e0) / (e1 - e0), 1.0f); return t * t * (3 - 2 * t); };
+    const float w = smooth(0.03f, 0.2f, lab.l) * (1 - smooth(0.86f, 1.0f, lab.l));
+    const float k = 1 + (gained / c - 1) * w;
+    return {lab.l, lab.a * k, lab.b * k};
+}
+
+/// A noise of about a gaussian's shape (-1.5 to 1.5) at \p x, \p y, without a pattern
+float grainAt(int x, int y)
+{
+    auto hash = [](quint32 h) {
+        h ^= h >> 16; h *= 0x7feb352du; h ^= h >> 15; h *= 0x846ca68bu; h ^= h >> 16;
+        return float(h) / 4294967295.0f;
+    };
+    const quint32 seed = quint32(x) * 73856093u ^ quint32(y) * 19349663u;
+    return hash(seed) + hash(seed + 0x9e3779b9u) + hash(seed + 0x3c6ef372u) - 1.5f;
+}
+
 /// \p image (sRGB) seen through glass tinted with \p tint at \p strength, matching the GPU glass.
 QImage tinted(const QImage &image, const QColor &tint, qreal strength)
 {
@@ -162,19 +188,27 @@ QImage tinted(const QImage &image, const QColor &tint, qreal strength)
     const Lab t = toOklab(linear[tint.red()], linear[tint.green()], linear[tint.blue()]);
     const float s = float(strength);
     const float veil = float(KisStudioGlass::veil);
+    const float vibrancy = float(KisStudioGlass::vibrancy());
+    const float evenness = float(KisStudioGlass::textContrast());
+    const float grain = float(KisStudioGlass::grain());
     QImage result(image.size(), QImage::Format_RGB32);
     for (int y = 0; y < image.height(); y++) {
         const QRgb *in = reinterpret_cast<const QRgb *>(image.constScanLine(y));
         QRgb *out = reinterpret_cast<QRgb *>(result.scanLine(y));
         for (int x = 0; x < image.width(); x++) {
-            const Lab b = toOklab(linear[qRed(in[x])], linear[qGreen(in[x])], linear[qBlue(in[x])]);
+            Lab b = vivid(toOklab(linear[qRed(in[x])], linear[qGreen(in[x])], linear[qBlue(in[x])]), vibrancy);
+            b.l += (t.l - b.l) * evenness;
             const float l = qBound(0.0f, b.l + (t.l - b.l) * s, 1.0f);
             // Keep the chroma, veiled by light the glass scatters (fully where the glass lightens).
             const float lighter = qBound(0.0f, (l - b.l + 0.02f) / 0.08f, 1.0f);
             // all of it at full strength, where the glass is solid
             const float m = veil + (1.0f - veil) * lighter * lighter * (3 - 2 * lighter);
             const float scattered = s * m + (1 - m) * s * s * s;
-            const std::array<float, 3> c = inGamut({l, b.a * (1 - scattered) + t.a * scattered, b.b * (1 - scattered) + t.b * scattered});
+            std::array<float, 3> c = inGamut({l, b.a * (1 - scattered) + t.a * scattered, b.b * (1 - scattered) + t.b * scattered});
+            if (grain > 0) {
+                const Lab g = toOklab(c[0], c[1], c[2]);
+                c = inGamut({qBound(0.0f, g.l + grainAt(x, y) * 0.05f * grain, 1.0f), g.a, g.b});
+            }
             out[x] = qRgb(toSrgb(c[0]), toSrgb(c[1]), toSrgb(c[2]));
         }
     }
@@ -1290,6 +1324,36 @@ qreal &rimLightSetting()
     return strength;
 }
 
+qreal &vibrancySetting()
+{
+    static qreal vibrancy = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(vibrancyKey, KisStudioGlass::defaultVibrancy), 2.0);
+    return vibrancy;
+}
+
+qreal &grainSetting()
+{
+    static qreal grain = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(grainKey, KisStudioGlass::defaultGrain), 1.0);
+    return grain;
+}
+
+qreal &textContrastSetting()
+{
+    static qreal contrast = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(textContrastKey, KisStudioGlass::defaultTextContrast), 1.0);
+    return contrast;
+}
+
+/// Sets one of the glass' look settings, kept in \p kept, written under \p key
+void setLook(qreal &kept, const QString &key, qreal value, qreal most)
+{
+    value = qBound<qreal>(0, value, most);
+    if (qFuzzyCompare(value + 1, kept + 1)) return;
+    kept = value;
+    KisSettingsRegistry::writeLater(key, value);
+    // popups' glass is drawn on the CPU and kept a moment
+    Engine::instance().clear();
+    Panels::instance().repaintAll();
+}
+
 qreal &opacitySetting()
 {
     static qreal opacity = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(opacityKey, 0.85), 1.0);
@@ -1710,6 +1774,36 @@ void KisStudioGlass::setRimLight(qreal strength)
     rimLightSetting() = strength;
     KisSettingsRegistry::writeLater(rimLightKey, strength);
     Panels::instance().repaintAll();
+}
+
+qreal KisStudioGlass::vibrancy()
+{
+    return vibrancySetting();
+}
+
+void KisStudioGlass::setVibrancy(qreal vibrancy)
+{
+    setLook(vibrancySetting(), vibrancyKey, vibrancy, 2.0);
+}
+
+qreal KisStudioGlass::grain()
+{
+    return grainSetting();
+}
+
+void KisStudioGlass::setGrain(qreal grain)
+{
+    setLook(grainSetting(), grainKey, grain, 1.0);
+}
+
+qreal KisStudioGlass::textContrast()
+{
+    return textContrastSetting();
+}
+
+void KisStudioGlass::setTextContrast(qreal contrast)
+{
+    setLook(textContrastSetting(), textContrastKey, contrast, 1.0);
 }
 
 qreal KisStudioGlass::opacity()

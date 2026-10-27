@@ -407,6 +407,19 @@ QVector<Setting> describeAll()
         rimLight.read = []() { return KisStudioGlass::rimLight(); };
         rimLight.write = [](const QVariant &value) { KisStudioGlass::setRimLight(value.toReal()); };
         all << rimLight;
+        Setting vibrancy = number(QStringLiteral("StudioGlassVibrancy"), KisStudioGlass::defaultVibrancy, 0, 2.0, i18nc("setting", "Glass vibrancy"), R::Fork);
+        vibrancy.read = []() { return KisStudioGlass::vibrancy(); };
+        vibrancy.write = [](const QVariant &value) { KisStudioGlass::setVibrancy(value.toReal()); };
+        all << vibrancy;
+        Setting grain = number(QStringLiteral("StudioGlassGrain"), KisStudioGlass::defaultGrain, 0, 1.0, i18nc("setting", "Glass grain"), R::Fork);
+        grain.read = []() { return KisStudioGlass::grain(); };
+        grain.write = [](const QVariant &value) { KisStudioGlass::setGrain(value.toReal()); };
+        all << grain;
+        Setting textContrast = number(QStringLiteral("StudioGlassTextContrast"), KisStudioGlass::defaultTextContrast, 0, 1.0,
+                                      i18nc("setting", "Glass text contrast"), R::Fork);
+        textContrast.read = []() { return KisStudioGlass::textContrast(); };
+        textContrast.write = [](const QVariant &value) { KisStudioGlass::setTextContrast(value.toReal()); };
+        all << textContrast;
         Setting opacity = number(QStringLiteral("StudioGlassOpacity"), 0.85, 0, 1, i18nc("setting", "Glass opacity"), R::Fork);
         opacity.read = []() { return KisStudioGlass::opacity(); };
         opacity.write = [](const QVariant &value) { KisStudioGlass::setOpacity(value.toReal()); };

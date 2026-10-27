@@ -250,6 +250,10 @@ uniform vec3 rim;
 uniform vec3 ior;
 uniform vec4 reach;
 // Glass panels below this one (e.g. a panel under a menu): shape, corners, Oklab tint and tint strength.
+// Vibrancy (0 none), grain (0 none) and its cell in pixels, and how far what is behind takes the panel's lightness
+uniform float vibrancy;
+uniform vec2 grain;
+uniform float evenness;
 uniform int lowerCount;
 uniform vec4 lowerShape[4];
 uniform vec2 lowerCorner[4];
@@ -474,6 +478,20 @@ vec3 tintedLab(vec3 b, vec3 tintLab, float s)
 }
 
 /**
+ * More chroma for what is dull, little more for what is vivid already (the gain falls toward sRGB's
+ * most vivid colors' chroma) and none near black and white, where added chroma reads as dirt: what is
+ * behind comes through glowing instead of gray, never neon.
+ */
+vec3 vivid(vec3 lab, float v)
+{
+    float c = length(lab.yz);
+    if (v <= 0.0 || c < 1e-5) return lab;
+    float gained = c * (1.0 + v) / (1.0 + v * c / 0.32);
+    float w = smoothstep(0.03, 0.2, lab.x) * (1.0 - smoothstep(0.86, 1.0, lab.x));
+    return vec3(lab.x, lab.yz * mix(1.0, gained / c, w));
+}
+
+/**
  * Applies the tint of each glass panel below this one (e.g. a panel under a menu) to lab at p, so
  * stacked glass looks like glass over glass. Their edges are softened by this glass' frost.
  */
@@ -524,6 +542,9 @@ void main()
         light.b = mix(light.b, max(fromOklab(throughLower(clearLab(held(p - outward * reached.b)), p)).b, 0.0), sharp);
         seen = toOklab(light);
     }
+    seen = vivid(seen, vibrancy);
+    // the panel's own lightness, so its text reads as on a solid panel, with the colors behind kept
+    seen.x = mix(seen.x, tintLab.x, evenness);
     vec3 color = tintedLab(mix(tintLab, seen, canvas), tintLab, strength);
 
     // At the very edge, where the bend is steepest, light gathers into a hairline: what is seen there,
@@ -538,6 +559,15 @@ void main()
         vec3 gathered = inGamut(2.0 * l / (1.0 + l), lab.yz * 1.5);
         float facing = abs(dot(outward, vec2(-0.70710678, 0.70710678)));
         color = mix(color, gathered, clamp(line * (0.3 + 0.6 * facing) * rim.z, 0.0, 1.0));
+    }
+
+    // Grain in Oklab lightness, so it is as visible on dark glass as on light, fixed to the panel as
+    // frost is to glass; a sum of three hashes is close to a gaussian, without a pattern
+    if (grain.x > 0.0) {
+        uvec2 cell = uvec2(ivec2(floor((p - shape.xy) / grain.y)) + 8192);
+        float n = hash(cell) + hash(cell + uvec2(7919u, 104729u)) + hash(cell + uvec2(104729u, 7919u)) - 1.5;
+        vec3 lab = toOklab(max(color, 0.0));
+        color = inGamut(clamp(lab.x + n * 0.05 * grain.x, 0.0, 1.0), lab.yz);
     }
 
     /**
@@ -781,7 +811,7 @@ struct Programs {
                           {"rect", "blurred", "halfFrost", "quarterFrost", "eighthFrost", "statistics", "shift", "slot", "restore", "power",
                            "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
                            "beyond", "spacing", "dither", "veil", "rim", "ior", "under", "decode", "reach",
-                           "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"}, keptLinear)
+                           "vibrancy", "grain", "evenness", "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"}, keptLinear)
             && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"}, keptLinear)
             && ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "knee", "backlight", "encode", "dither"}, keptLinear);
     }
@@ -1306,6 +1336,9 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1f(d->glass["dither"], dither);
     const KisStudioGlass::Rim rim = KisStudioGlass::rim();
     f->glUniform3f(d->glass["rim"], rim.band * pixelRatio, pixelRatio, float(KisStudioGlass::rimLight()));
+    f->glUniform1f(d->glass["vibrancy"], float(KisStudioGlass::vibrancy()));
+    f->glUniform2f(d->glass["grain"], float(KisStudioGlass::grain()), float(qMax<qreal>(1, pixelRatio)));
+    f->glUniform1f(d->glass["evenness"], float(KisStudioGlass::textContrast()));
     // crown glass's 1.51, 1.52 and 1.53 for red, green and blue, their spread made five times as wide
     f->glUniform3f(d->glass["ior"], 1.47f, 1.52f, 1.57f);
     f->glUniform1f(d->glass["lowerStrength"], float(0.5 * (KisStudioGlass::tintOverDark() + KisStudioGlass::tintOverBright())));

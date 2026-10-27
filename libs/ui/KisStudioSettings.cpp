@@ -1262,13 +1262,18 @@ QVector<CardDef> makeCards()
             b.showWhen(b.color(QStringLiteral("[StudioTheme] Accent"), false, i18nc("theme", "Accent")), b.isOn(QStringLiteral("[StudioTheme] UseAccent")));
         });
     add(QStringLiteral("appearance"), QStringLiteral("glass"), i18nc("settings card", "Glass"),
-        {QStringLiteral("StudioGlass"), QStringLiteral("StudioGlassBlur"), QStringLiteral("StudioGlassOpacity"), QStringLiteral("StudioGlassRimLight")},
-        QStringLiteral("transparency blur frosted opacity tint refraction see-through panels edge bends the canvas"), [](Builder &b) {
+        {QStringLiteral("StudioGlass"), QStringLiteral("StudioGlassBlur"), QStringLiteral("StudioGlassOpacity"), QStringLiteral("StudioGlassRimLight"),
+         QStringLiteral("StudioGlassVibrancy"), QStringLiteral("StudioGlassGrain"), QStringLiteral("StudioGlassTextContrast")},
+        QStringLiteral("transparency blur frosted opacity tint refraction see-through panels edge bends the canvas vibrancy saturation "
+                       "vivid colorful grain noise texture readability legibility text contrast"), [](Builder &b) {
             b.toggle(QStringLiteral("StudioGlass"), i18nc("glass", "Panels of glass"));
             const auto on = b.isOn(QStringLiteral("StudioGlass"));
             b.showWhen(b.number(QStringLiteral("StudioGlassBlur"), {i18nc("glass", "Blur"), 100, 0, QStringLiteral("%")}), on);
             b.showWhen(b.number(QStringLiteral("StudioGlassOpacity"), {i18nc("glass", "Opacity"), 100, 0, QStringLiteral("%")}), on);
             b.showWhen(b.number(QStringLiteral("StudioGlassRimLight"), {i18nc("glass", "Rim light"), 100, 0, QStringLiteral("%")}), on);
+            b.showWhen(b.number(QStringLiteral("StudioGlassVibrancy"), {i18nc("glass: how vivid the colors behind look", "Vibrancy"), 100, 0, QStringLiteral("%")}), on);
+            b.showWhen(b.number(QStringLiteral("StudioGlassGrain"), {i18nc("glass: the frost's grain", "Grain"), 100, 0, QStringLiteral("%")}), on);
+            b.showWhen(b.number(QStringLiteral("StudioGlassTextContrast"), {i18nc("glass: light behind text evened out", "Text contrast"), 100, 0, QStringLiteral("%")}), on);
         });
     add(QStringLiteral("appearance"), QStringLiteral("surround"), i18nc("settings card", "Around the image"), {QStringLiteral("canvasBorderColor")},
         QStringLiteral("canvas border background color ambient glow"), [](Builder &b) {

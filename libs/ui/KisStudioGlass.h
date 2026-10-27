@@ -30,6 +30,9 @@ public:
     static constexpr qreal maxBlurScale = 2.0;
     /// The most Blur (400%)
     static constexpr qreal maxBlur = 4.0;
+    static constexpr qreal defaultVibrancy = 0.5;
+    static constexpr qreal defaultGrain = 0.15;
+    static constexpr qreal defaultTextContrast = 0.0;
     /// Blur multiplier for glass of \p size; grows with the square root of its area.
     static qreal blurScale(const QSizeF &size);
     /// In the Oklab blur, saturated colors weigh up to 1 + salience times as much as gray.
@@ -49,6 +52,15 @@ public:
     /// How bright the line of light along a panel's rim is, from 0 (none) to 2. Defaults to 1.
     static qreal rimLight();
     static void setRimLight(qreal strength);
+    /// How much more vivid what is behind looks, from 0 (as it is) to 2
+    static qreal vibrancy();
+    static void setVibrancy(qreal vibrancy);
+    /// How much grain the frost has, from 0 (none) to 1
+    static qreal grain();
+    static void setGrain(qreal grain);
+    /// How far what is behind takes the panel's lightness, so text reads as on a solid panel, from 0 to 1
+    static qreal textContrast();
+    static void setTextContrast(qreal contrast);
     /**
      * Averaging Oklab a and b lets opposing hues cancel out. This share of the lost chroma is restored,
      * never exceeding the chroma of the colors behind.
