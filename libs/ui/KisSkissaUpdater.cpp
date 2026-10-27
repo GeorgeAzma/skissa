@@ -181,6 +181,12 @@ public:
     QString found; ///< the version being fetched or ready
     bool relaunch {false};
     QVector<QPointer<QAction>> readyActions;
+    QVector<QPointer<QAction>> checkActions;
+    qint64 received {0};
+    qint64 total {0};
+    int shownPercent {-1};
+    /// The user asked for this check, so the download's progress is shown to them
+    bool telling {false};
 
     void start()
     {
@@ -195,7 +201,14 @@ public:
     void look(bool asked)
     {
         if (state == Looking || state == Downloading || state == Unpacking) {
-            if (asked) tell(i18nc("@info, %1 a version", "Downloading Skissa %1…", found));
+            if (asked && state == Downloading) {
+                // from now on the message follows the download
+                telling = true;
+                shownPercent = -1;
+                progress();
+            } else if (asked) {
+                tell(i18nc("@info, %1 a version", "Downloading Skissa %1…", found));
+            }
             return;
         }
         if (!asked && !KisSettingsRegistry::instance()->value(QStringLiteral("StudioUpdates")).toBool()) return;
@@ -285,49 +298,130 @@ private:
     /// Back to how things were: an update ready from before stays ready
     void failed()
     {
+        if (telling) tell(i18nc("@info", "Couldn't download the update"));
+        settled();
         found = versionIn(readyFolder());
         state = found.isEmpty() ? Idle : Ready;
     }
 
+    /// How far the download is, on Check for updates and, once asked for, as the message over the canvas
+    void progress()
+    {
+        const int percent = total > 0 ? int(received * 100 / total) : 0;
+        if (percent == shownPercent) return;
+        shownPercent = percent;
+        const QString text = i18nc("@action, %1 a version, %2 a percentage", "Downloading Skissa %1 · %2%", found, percent);
+        Q_FOREACH (QPointer<QAction> action, checkActions) {
+            if (action) action->setText(text);
+        }
+        if (telling) tell(text);
+    }
+
+    /// Check for updates says so again once the download is over, either way
+    void settled()
+    {
+        telling = false;
+        shownPercent = -1;
+        Q_FOREACH (QPointer<QAction> action, checkActions) {
+            if (action) action->setText(i18nc("@action", "Check for updates"));
+        }
+    }
+
+    /// Downloads \p name, carrying on from what an earlier run fetched of it, and checks it against \p digest once whole
     void fetch(const QString &version, const QString &name, const QUrl &url, qint64 size, const QString &digest, bool asked)
     {
         const QString folder = KisProfile::configFolder() + QStringLiteral("/updates");
         QDir().mkpath(folder);
+        // what earlier runs left of other versions goes
+        Q_FOREACH (const QFileInfo &file, QDir(folder).entryInfoList(QDir::Files)) {
+            if (file.fileName() != name) QFile::remove(file.absoluteFilePath());
+        }
         download.setFileName(folder + QLatin1Char('/') + name);
-        if (!download.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        qint64 have = download.exists() ? download.size() : 0;
+        if (have > size) {
+            QFile::remove(download.fileName());
+            have = 0;
+        }
+        if (!download.open(have > 0 ? (QIODevice::WriteOnly | QIODevice::Append) : (QIODevice::WriteOnly | QIODevice::Truncate))) {
             if (asked) tell(i18nc("@info", "Couldn't download the update"));
             return;
         }
         state = Downloading;
         found = version;
-        if (asked) tell(i18nc("@info, %1 a version", "Downloading Skissa %1…", found));
+        total = size;
+        received = have;
+        telling = asked;
+        shownPercent = -1;
+        progress();
+        if (have == size) {
+            download.close();
+            verify(digest);
+            return;
+        }
 
         QNetworkRequest request(url);
         request.setTransferTimeout(60000);
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
         request.setRawHeader("User-Agent", "Skissa/" + KisSkissaUpdater::version().toUtf8());
+        if (have > 0) request.setRawHeader("Range", "bytes=" + QByteArray::number(have) + '-');
         QNetworkReply *reply = network.get(request);
-        auto hash = QSharedPointer<QCryptographicHash>::create(QCryptographicHash::Sha256);
-        connect(reply, &QNetworkReply::readyRead, this, [this, reply, hash]() {
+        auto started = QSharedPointer<bool>::create(false);
+        auto take = [this, reply, have, started]() {
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (status != 200 && status != 206) {
+                // an error page isn't part of the file
+                reply->readAll();
+                return;
+            }
+            if (!*started) {
+                *started = true;
+                // a server that can't carry on sends all of it again
+                if (have > 0 && status != 206) {
+                    download.resize(0);
+                    received = 0;
+                }
+            }
             const QByteArray data = reply->readAll();
-            hash->addData(data);
             download.write(data);
-        });
-        connect(reply, &QNetworkReply::finished, this, [this, reply, hash, size, digest]() {
+            received += data.size();
+            progress();
+        };
+        connect(reply, &QNetworkReply::readyRead, this, take);
+        connect(reply, &QNetworkReply::finished, this, [this, reply, take, size, digest]() {
             reply->deleteLater();
-            const QByteArray data = reply->readAll();
-            hash->addData(data);
-            download.write(data);
+            take();
             const bool written = download.error() == QFileDevice::NoError && download.size() == size;
             download.close();
-            const bool same = !digest.startsWith(QLatin1String("sha256:")) || digest.mid(7).toLatin1() == hash->result().toHex();
-            if (reply->error() != QNetworkReply::NoError || !written || !same) {
-                QFile::remove(download.fileName());
+            if (reply->error() != QNetworkReply::NoError || !written) {
+                // what came stays, for the next run to carry on from
+                failed();
+                return;
+            }
+            verify(digest);
+        });
+    }
+
+    /// The whole download against GitHub's checksum, off the window's thread, then unpacked
+    void verify(const QString &digest)
+    {
+        state = Unpacking;
+        const QString path = download.fileName();
+        auto *done = new QFutureWatcher<QByteArray>(this);
+        connect(done, &QFutureWatcher<QByteArray>::finished, this, [this, done, digest, path]() {
+            done->deleteLater();
+            if (digest.startsWith(QLatin1String("sha256:")) && digest.mid(7).toLatin1() != done->result()) {
+                QFile::remove(path);
                 failed();
                 return;
             }
             unpack();
         });
+        done->setFuture(QtConcurrent::run([path]() {
+            QFile file(path);
+            QCryptographicHash hash(QCryptographicHash::Sha256);
+            if (file.open(QIODevice::ReadOnly)) hash.addData(&file);
+            return hash.result().toHex();
+        }));
     }
 
     /// Unpacked with Windows' own tar, beside the program's folder, so the swap is only renames
@@ -356,6 +450,8 @@ private:
                     return;
                 }
                 state = Ready;
+                if (telling) tell(readyText());
+                settled();
                 Q_FOREACH (QPointer<QAction> action, readyActions) {
                     if (action) action->setVisible(true);
                 }
@@ -470,9 +566,11 @@ void KisSkissaUpdater::addActions(KisMainWindow *window)
         QObject::connect(action, &QAction::triggered, window, run);
         return action;
     };
-    add(QStringLiteral("skissa_check_updates"), i18nc("@action", "Check for updates"), [updater]() {
+    QAction *check = add(QStringLiteral("skissa_check_updates"), i18nc("@action", "Check for updates"), [updater]() {
         updater->look(true);
-    })->setVisible(canUpdate());
+    });
+    check->setVisible(canUpdate());
+    updater->checkActions << check;
     QAction *ready = add(QStringLiteral("skissa_restart_to_update"), i18nc("@action", "Restart to update"), []() {
         restart();
     });
