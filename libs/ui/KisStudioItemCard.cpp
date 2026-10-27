@@ -73,7 +73,26 @@ public:
         return QSize(qMax(36, fontMetrics().horizontalAdvance(shown) + 22), 30);
     }
 
+    std::function<void()> cleared;
+
 protected:
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::RightButton) {
+            event->accept();
+            if (cleared && !text().isEmpty()) cleared();
+            return;
+        }
+        QAbstractButton::mousePressEvent(event);
+    }
+
+    // a finger held on it
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        event->accept();
+        if (cleared && !text().isEmpty()) cleared();
+    }
+
     void paintEvent(QPaintEvent *) override
     {
         QPainter painter(this);
@@ -399,7 +418,9 @@ void KisStudioShortcuts::enableMenuEditing()
 void KisStudioShortcuts::restore(QAction *action)
 {
     const QString saved = savedShortcuts().readEntry(action->objectName(), QString());
-    if (!saved.isEmpty() && saved != QLatin1String("none")) {
+    if (saved == QLatin1String("none")) {
+        action->setShortcuts(QList<QKeySequence>());
+    } else if (!saved.isEmpty()) {
         action->setShortcuts(QKeySequence::listFromString(saved));
     }
 }
@@ -502,6 +523,7 @@ KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &ico
     iconLabel->setPixmap(icon.pixmap(QSize(28, 28)));
     header->addWidget(iconLabel);
     auto *titleLabel = new QLabel(title, this);
+    titleLabel->setProperty("keepCase", true);
     QFont titleFont = titleLabel->font();
     titleFont.setPointSizeF(titleFont.pointSizeF() * 1.08);
     titleFont.setWeight(QFont::DemiBold);
@@ -510,8 +532,9 @@ KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &ico
 
     d->keyCap = new KeyCap(this);
     d->keyCap->setVisible(shortcutAction);
-    d->keyCap->setToolTip(i18nc("@info:tooltip", "Shortcut\nClick: record a new one"));
+    d->keyCap->setToolTip(i18nc("@info:tooltip", "Shortcut\nClick: record a new one\nRight-click: remove"));
     connect(d->keyCap, &QAbstractButton::clicked, this, &KisStudioItemCard::startRecording);
+    d->keyCap->cleared = [this]() { finishRecording(true); };
     header->addWidget(d->keyCap);
     layout->addLayout(header);
 
@@ -637,6 +660,8 @@ void KisStudioItemCard::popupBeside(QWidget *anchor)
     KisStudioMotion::showFaded(this);
     raise();
     activateWindow();
+    // Backspace and Escape come here, not to the canvas
+    setFocus(Qt::PopupFocusReason);
 }
 
 void KisStudioItemCard::updateKeyCap()
@@ -681,11 +706,29 @@ void KisStudioItemCard::finishRecording(bool assign, const QKeySequence &sequenc
     adjustSize();
 }
 
+bool KisStudioItemCard::event(QEvent *event)
+{
+    // the keys go to the card, not to the window's shortcuts (Backspace fills the layer)
+    if (event->type() == QEvent::ShortcutOverride) {
+        const int key = static_cast<QKeyEvent *>(event)->key();
+        if (d->recording || key == Qt::Key_Backspace || key == Qt::Key_Delete || key == Qt::Key_Escape) {
+            event->accept();
+            return true;
+        }
+    }
+    return QFrame::event(event);
+}
+
 void KisStudioItemCard::keyPressEvent(QKeyEvent *event)
 {
     if (!d->recording) {
         if (event->key() == Qt::Key_Escape) {
             close();
+            return;
+        }
+        QKeySequence none;
+        if (d->action && KisStudioShortcuts::recordKey(event, &none) == KisStudioShortcuts::KeyPress::Clear) {
+            finishRecording(true);
             return;
         }
         QFrame::keyPressEvent(event);

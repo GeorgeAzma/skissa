@@ -50,6 +50,8 @@
 #include <QLinearGradient>
 #include <QHash>
 
+#include "KisStudioItemCard.h"
+
 
 /// The resource item delegate for rendering the resource preview
 class KisPresetDelegate : public QAbstractItemDelegate
@@ -352,6 +354,8 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
     m_chooser->setItemDelegate(m_delegate);
     m_chooser->setSynced(true);
     m_chooser->showImportExportBtns(false);
+    // a brush dragged onto the tools is pinned there
+    m_chooser->itemView()->setDragKey(KisStudioShortcuts::itemMimeType(), QStringLiteral("brush:"));
     layout->addWidget(m_chooser);
 
     connect(m_chooser, SIGNAL(resourceSelected(KoResourceSP )),

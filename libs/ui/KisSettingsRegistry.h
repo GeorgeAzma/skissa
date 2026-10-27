@@ -146,6 +146,9 @@ public:
         instance()->scheduleSync();
     }
 
+    /// Writes a list of arranged items (see itemList in the .cpp) as one step of the undo history
+    static void writeItems(const QString &key, const QStringList &items);
+
     /// The setting's value in another kritarc; invalid if it is unset or not valid there
     QVariant valueIn(const Setting &setting, KConfig &config) const;
     void writeIn(const Setting &setting, KConfig &config, const QVariant &value) const;

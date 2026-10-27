@@ -74,6 +74,10 @@ const QString slotPrefix = QStringLiteral("slot:");
 const QString toolPrefix = QStringLiteral("tool:");
 const QString spacePrefix = QStringLiteral("space:");
 const QString effectsItem = QStringLiteral("action:studio_effects");
+/// A brush pinned to the rail, by Find's key for it
+const QString brushPrefix = QStringLiteral("brush:");
+/// The pinned brushes that take the size and opacity in use instead of keeping their own
+const QString sharedSizeKey = QStringLiteral("StudioRailItemsSharedSize");
 /// Set once the effects button has been added to an existing rail, so removing it sticks
 const QString effectsOfferedKey = QStringLiteral("StudioRailEffectsOffered");
 
@@ -122,9 +126,29 @@ QVector<ToolSlot> toolSlots()
     };
 }
 
+/// A smudging brush, for Blend's first use
+QString blendingBrush()
+{
+    KisPaintOpPresetResourceServer *server = KisResourceServerProvider::instance()->paintOpPresetServer();
+    KisResourceModel *model = server ? server->resourceModel() : nullptr;
+    for (int row = 0; model && row < model->rowCount(); row++) {
+        const QString candidate = model->index(row, 0).data(Qt::UserRole + KisAbstractResourceModel::Name).toString();
+        if (candidate.contains(QStringLiteral("blend"), Qt::CaseInsensitive)
+            || candidate.contains(QStringLiteral("smudge"), Qt::CaseInsensitive)
+            || candidate.contains(QStringLiteral("smear"), Qt::CaseInsensitive)) {
+            return candidate;
+        }
+    }
+    return QString();
+}
+
 QStringList defaultItems()
 {
-    return {slotPrefix + QStringLiteral("paint"), slotPrefix + QStringLiteral("blend"), slotPrefix + QStringLiteral("erase"),
+    // blending is a brush pinned there, the Blend slot only when there is no such brush
+    const QString blender = blendingBrush();
+    return {slotPrefix + QStringLiteral("paint"),
+            blender.isEmpty() ? slotPrefix + QStringLiteral("blend") : brushPrefix + blender,
+            slotPrefix + QStringLiteral("erase"),
             spacePrefix,
             slotPrefix + QStringLiteral("select"), slotPrefix + QStringLiteral("move"), slotPrefix + QStringLiteral("fill"),
             slotPrefix + QStringLiteral("shape"), slotPrefix + QStringLiteral("text"), slotPrefix + QStringLiteral("guides"),
@@ -452,6 +476,21 @@ protected:
     }
 };
 
+/// A brush's picture as a rounded tile
+QIcon pinnedIcon(const QIcon &picture, int side)
+{
+    const qreal ratio = qApp->devicePixelRatio();
+    QPixmap tile(QSize(side, side) * ratio);
+    tile.setDevicePixelRatio(ratio);
+    tile.fill(Qt::transparent);
+    QPainter painter(&tile);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter.setClipPath(KisModernStyle::squircle(QRectF(0, 0, side, side), KisModernStyle::cornerRadius + 1));
+    picture.paint(&painter, QRect(0, 0, side, side));
+    return QIcon(tile);
+}
+
 } // namespace
 
 struct KisStudioToolRail::Private
@@ -469,6 +508,7 @@ struct KisStudioToolRail::Private
     QHash<QString, ToolSlot> slots;        ///< the built-in slots available in this build, by id
     QHash<QString, QString> currentTool;   ///< slot id -> its current variant
     QSet<QString> hidden;                  ///< variants hidden from their slot's card
+    QSet<QString> sharedSize;              ///< pinned brushes that take the size in use
 
     QStringList items;                     ///< the rail's items, in order
     QVector<QWidget *> widgets;            ///< the widgets showing the items
@@ -476,7 +516,7 @@ struct KisStudioToolRail::Private
     QHash<QString, QPointer<QAction>> ownActions; ///< hold the shortcuts of items that have no action
 
     QString activeSlot;
-    QString brushSlot;                     ///< Paint or Blend, whichever the current brush belongs to
+    QString brushSlot;                     ///< Paint, Blend or a pinned brush, whichever the current brush belongs to
     bool loadingPreset {false};
     KisStudioToolRail *q {nullptr};
 
@@ -516,13 +556,16 @@ struct KisStudioToolRail::Private
     }
 
     /// An action that holds an item's shortcut, saved like any other
-    QAction *ownAction(const QString &key, const QString &name, const QString &title, std::function<void()> run)
+    QAction *ownAction(const QString &key, const QString &name, const QString &title, std::function<void()> run,
+                       const QKeySequence &defaultKey = QKeySequence())
     {
         QPointer<QAction> &own = ownActions[key];
         if (!own) {
             own = new QAction(title, mainWindow);
             own->setObjectName(name);
             own->setShortcutContext(Qt::WindowShortcut);
+            own->setShortcut(defaultKey);
+            own->setProperty("defaultShortcuts", QVariant::fromValue(defaultKey.isEmpty() ? QList<QKeySequence>() : QList<QKeySequence>{defaultKey}));
             KisStudioShortcuts::restore(own);
             mainWindow->addAction(own);
             QObject::connect(own, &QAction::triggered, mainWindow, std::move(run));
@@ -531,8 +574,8 @@ struct KisStudioToolRail::Private
     }
 
     /**
-     * The action behind a slot's shortcut: the eraser toggle (E) for Erase, a
-     * dedicated action for Blend, and the current variant's tool for the rest.
+     * The action behind a slot's shortcut: the eraser toggle (E) for Erase, the brush tool (B) for Paint,
+     * and for the rest an action of the slot's own, which goes back to the tool it was left on.
      */
     QAction *slotAction(const QString &slotId)
     {
@@ -540,11 +583,13 @@ struct KisStudioToolRail::Private
         if (mode == BrushMode::Erase) {
             return eraseAction();
         }
-        if (mode != BrushMode::Blend) {
+        if (mode == BrushMode::Paint) {
             return toolAction(currentTool.value(slotId));
         }
+        const QKeySequence key = slotId == QLatin1String("move") ? QKeySequence(Qt::Key_T)
+                               : slotId == QLatin1String("fill") ? QKeySequence(Qt::Key_F) : QKeySequence();
         return ownAction(slotPrefix + slotId, QStringLiteral("studio_slot_") + slotId, slots.value(slotId).title,
-                         [this, slotId]() { q->activateSlot(slotId); });
+                         [this, slotId]() { q->activateSlot(slotId); }, key);
     }
 
     /// The action whose shortcut a button shows and the card edits
@@ -554,6 +599,11 @@ struct KisStudioToolRail::Private
             return slotAction(key.mid(slotPrefix.size()));
         }
         KisStudioFind::Item item;
+        if (key.startsWith(brushPrefix)) {
+            if (mainWindow->studioFind()) mainWindow->studioFind()->item(key, &item);
+            return ownAction(key, QStringLiteral("studio_item_") + key, item.title.isEmpty() ? key : item.title,
+                             [this, key]() { q->activatePin(key); });
+        }
         if (mainWindow->studioFind() && mainWindow->studioFind()->item(key, &item) && item.action) {
             return item.action;
         }
@@ -649,6 +699,8 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
 
     const QStringList hidden = cfg.readEntry<QStringList>(hiddenKey, QStringList());
     d->hidden = QSet<QString>(hidden.begin(), hidden.end());
+    const QStringList shared = cfg.readEntry<QStringList>(sharedSizeKey, QStringList());
+    d->sharedSize = QSet<QString>(shared.begin(), shared.end());
     d->items = cfg.readEntry<QStringList>(itemsKey, defaultItems());
     // add the effects button only once, so removing it sticks
     if (!cfg.readEntry<bool>(effectsOfferedKey, false)) {
@@ -660,6 +712,16 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
         writable.writeEntry(effectsOfferedKey, true);
     }
     d->q = this;
+
+    // an undo or redo of the rail's items
+    connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::valueChanged, this, [this](const QString &id) {
+        if (id != itemsKey) return;
+        const QStringList items = KisConfig(true).readEntry<QStringList>(itemsKey, defaultItems());
+        if (items == d->items) return;
+        d->items = items;
+        rebuild();
+        updateActiveSlot();
+    });
 
     if (KoToolManager *tools = KisStudioTools::manager(d->mainWindow)) {
         connect(tools, &KoToolManager::changedTool, this, [this](KoCanvasController *controller) {
@@ -730,7 +792,7 @@ void KisStudioToolRail::setItems(const QStringList &items)
         if (item.startsWith(spacePrefix) || !unique.contains(item)) unique << item;
     }
     d->items = unique;
-    KisSettingsRegistry::writeLater(itemsKey, d->items);
+    KisSettingsRegistry::writeItems(itemsKey, d->items);
     rebuild();
     updateActiveSlot();
 }
@@ -962,8 +1024,15 @@ void KisStudioToolRail::rebuild()
             icon = item.icon.isNull() ? KisIconUtils::loadIcon(QStringLiteral("studio_more")) : item.icon;
             title = item.title;
         }
+        const bool pinned = key.startsWith(brushPrefix);
+        if (pinned) {
+            icon = pinnedIcon(icon, 28);
+        }
 
         auto *button = new RailButton(this);
+        if (pinned) {
+            button->setIconSize(QSize(28, 28));
+        }
         button->setIcon(icon);
         button->setAccessibleName(title);
         button->hasVariants = variants;
@@ -1006,6 +1075,16 @@ void KisStudioToolRail::runItem(int index)
             updateActiveSlot();
         } else {
             activateSlot(slotId);
+        }
+        return;
+    }
+    if (key.startsWith(brushPrefix)) {
+        if (key == d->activeSlot) {
+            const int widgetIndex = d->widgetItem.indexOf(index);
+            KisStudioBrushEditor::toggle(d->mainWindow, widgetIndex >= 0 ? d->widgets[widgetIndex] : nullptr, Qt::RightEdge);
+            updateActiveSlot();
+        } else {
+            activatePin(key);
         }
         return;
     }
@@ -1073,7 +1152,19 @@ void KisStudioToolRail::showCard(int index, bool touch)
     } else {
         KisStudioFind::Item item;
         if (d->mainWindow->studioFind()) d->mainWindow->studioFind()->item(key, &item);
-        card = new KisStudioItemCard(d->mainWindow, item.icon, item.title, d->shortcutActionFor(key));
+        card = new KisStudioItemCard(d->mainWindow, key.startsWith(brushPrefix) ? pinnedIcon(item.icon, 28) : item.icon, item.title,
+                                     d->shortcutActionFor(key));
+        if (key.startsWith(brushPrefix)) {
+            KisStudioItemCard::Command own;
+            own.toolTip = i18nc("@option:check a brush pinned to the tools keeps its own size and opacity", "Own size");
+            own.checkable = true;
+            own.checked = !d->sharedSize.contains(key);
+            own.run = [this, key]() {
+                if (!d->sharedSize.remove(key)) d->sharedSize.insert(key);
+                KisSettingsRegistry::writeLater(sharedSizeKey, QStringList(d->sharedSize.values()));
+            };
+            card->addCommand(own);
+        }
     }
 
     // same as clicking between two buttons, for touch where the gap is hard to hit
@@ -1219,7 +1310,7 @@ void KisStudioToolRail::activateTool(const QString &slotId, const QString &toolI
     } else if (s.brush == BrushMode::Paint || s.brush == BrushMode::Blend) {
         const bool switchingBrush = d->brushSlot != slotId;
         KisCanvasResourceProvider *resources = d->resources();
-        if (switchingBrush && resources && resources->currentPreset() && !d->brushSlot.isEmpty()) {
+        if (switchingBrush && resources && resources->currentPreset() && d->slots.contains(d->brushSlot)) {
             // the slot being left remembers its brush
             KisSettingsRegistry::writeLater(QStringLiteral("StudioBrushPreset_") + d->brushSlot, resources->currentPreset()->name());
         }
@@ -1243,6 +1334,10 @@ void KisStudioToolRail::updateActiveSlot()
     QAction *erase = d->eraseAction();
     const bool erasing = erase && erase->isChecked();
 
+    // a pinned brush taken off the rail leaves its brush to Paint
+    if (d->brushSlot.startsWith(brushPrefix) && !d->items.contains(d->brushSlot)) {
+        d->brushSlot = d->slotWithMode(BrushMode::Paint);
+    }
     QString active;
     if (isBrushTool(toolId)) {
         active = erasing ? d->slotWithMode(BrushMode::Erase) : d->brushSlot;
@@ -1286,6 +1381,9 @@ void KisStudioToolRail::updateActiveSlot()
                 }
             }
             button->setToolTip(tip);
+        } else if (key.startsWith(brushPrefix)) {
+            button->setChecked(key == active);
+            button->setToolTip(button->accessibleName());
         } else {
             button->setChecked(key == toolPrefix + toolId && !d->items.contains(slotPrefix + active));
             button->setToolTip(button->accessibleName());
@@ -1302,6 +1400,19 @@ void KisStudioToolRail::rememberPreset()
     }
     const QString name = resources->currentPreset()->name();
     KisStudioBrushPicker::recordUse(name);
+
+    // a pinned brush lights its own button, and Paint keeps the brush it had
+    if (d->items.contains(brushPrefix + name)) {
+        if (d->brushSlot != brushPrefix + name) {
+            d->brushSlot = brushPrefix + name;
+            updateActiveSlot();
+        }
+        return;
+    }
+    if (d->brushSlot.startsWith(brushPrefix)) {
+        d->brushSlot = d->slotWithMode(BrushMode::Paint);
+        updateActiveSlot();
+    }
 
     // a brush remembered by a slot selects that slot, so the highlight matches the brush (e.g. after a restart)
     KisConfig cfg(true);
@@ -1324,6 +1435,39 @@ void KisStudioToolRail::rememberPreset()
     KisSettingsRegistry::writeLater(QStringLiteral("StudioBrushPreset_") + d->brushSlot, name);
 }
 
+void KisStudioToolRail::activatePin(const QString &key)
+{
+    KisCanvasResourceProvider *resources = d->resources();
+    KisPaintOpPresetResourceServer *server = KisResourceServerProvider::instance()->paintOpPresetServer();
+    const QString name = key.mid(brushPrefix.size());
+    KisPaintOpPresetSP preset = server ? server->resource(QString(), QString(), name) : KisPaintOpPresetSP();
+    if (!resources || !preset) {
+        return;
+    }
+    d->brushSlot = key;
+    QAction *erase = d->eraseAction();
+    if (erase && erase->isChecked()) {
+        erase->setChecked(false);
+    }
+    KisStudioTools::switchTo(brushToolId);
+    if (!resources->currentPreset() || resources->currentPreset()->name() != name) {
+        const qreal size = resources->size();
+        const qreal opacity = resources->opacity();
+        d->loadingPreset = true;
+        if (KisPaintopBox *box = d->mainWindow->viewManager() ? d->mainWindow->viewManager()->paintOpBox() : nullptr) {
+            box->resourceSelected(preset);
+        } else {
+            resources->setPaintOpPreset(preset);
+        }
+        d->loadingPreset = false;
+        if (d->sharedSize.contains(key)) {
+            resources->setSize(size);
+            resources->setOpacity(opacity);
+        }
+    }
+    updateActiveSlot();
+}
+
 void KisStudioToolRail::loadPresetForSlot(const QString &slotId)
 {
     KisCanvasResourceProvider *resources = d->resources();
@@ -1334,16 +1478,7 @@ void KisStudioToolRail::loadPresetForSlot(const QString &slotId)
 
     QString name = KisConfig(true).readEntry<QString>(QStringLiteral("StudioBrushPreset_") + slotId);
     if (name.isEmpty() && d->slots.value(slotId).brush == BrushMode::Blend) {
-        // Blend's first use: pick a smudging brush
-        KisResourceModel *model = server->resourceModel();
-        for (int row = 0; row < model->rowCount() && name.isEmpty(); row++) {
-            const QString candidate = model->index(row, 0).data(Qt::UserRole + KisAbstractResourceModel::Name).toString();
-            if (candidate.contains(QStringLiteral("blend"), Qt::CaseInsensitive)
-                || candidate.contains(QStringLiteral("smudge"), Qt::CaseInsensitive)
-                || candidate.contains(QStringLiteral("smear"), Qt::CaseInsensitive)) {
-                name = candidate;
-            }
-        }
+        name = blendingBrush();
     }
     if (name.isEmpty() || (resources->currentPreset() && resources->currentPreset()->name() == name)) {
         return;

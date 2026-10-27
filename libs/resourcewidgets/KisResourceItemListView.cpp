@@ -7,13 +7,17 @@
 #include "KisResourceItemListView.h"
 
 #include <QCoreApplication>
+#include <QDrag>
 #include <QEvent>
+#include <QMimeData>
+#include <QMouseEvent>
 #include <QHoverEvent>
 #include <QScroller>
 #include <QScrollBar>
 #include <QHelpEvent>
 
 #include "KisIconToolTip.h"
+#include <KisResourceModel.h>
 
 
 struct  Q_DECL_HIDDEN KisResourceItemListView::Private
@@ -30,6 +34,9 @@ struct  Q_DECL_HIDDEN KisResourceItemListView::Private
     QSize requestedItemSize = QSize(56, 56);
     /// Where the pointer is over the items, while it is
     QPoint hoverPos {-1, -1};
+    QString dragMimeType;
+    QString dragPrefix;
+    QPersistentModelIndex pressed; ///< the item a drag takes out
 };
 
 KisResourceItemListView::KisResourceItemListView(QWidget *parent)
@@ -186,8 +193,37 @@ void KisResourceItemListView::selectionChanged(const QItemSelection &selected, c
     }
 }
 
+void KisResourceItemListView::setDragKey(const QString &mimeType, const QString &prefix)
+{
+    m_d->dragMimeType = mimeType;
+    m_d->dragPrefix = prefix;
+    setMovement(QListView::Static);
+    setDragEnabled(true);
+    setDragDropMode(QAbstractItemView::DragOnly);
+}
+
+void KisResourceItemListView::startDrag(Qt::DropActions)
+{
+    const QModelIndex dragged = m_d->pressed;
+    if (m_d->dragMimeType.isEmpty() || !dragged.isValid()) return;
+    const QString name = dragged.data(Qt::UserRole + KisAbstractResourceModel::Name).toString();
+    // owned by the application: the list may be rebuilt while the drag runs
+    auto *drag = new QDrag(qApp);
+    auto *mime = new QMimeData();
+    mime->setData(m_d->dragMimeType, (m_d->dragPrefix + name).toUtf8());
+    drag->setMimeData(mime);
+    const QImage picture = dragged.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>();
+    if (!picture.isNull()) drag->setPixmap(QPixmap::fromImage(picture.scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+    drag->exec(Qt::CopyAction);
+    drag->deleteLater();
+}
+
 QItemSelectionModel::SelectionFlags KisResourceItemListView::selectionCommand(const QModelIndex &index, const QEvent *event) const
 {
+    // items can be dragged out: picked on release, so taking one out doesn't pick it
+    if (!m_d->dragMimeType.isEmpty() && event && event->type() == QEvent::MouseButtonPress) {
+        return QItemSelectionModel::NoUpdate;
+    }
     QItemSelectionModel::SelectionFlags cmd = QListView::selectionCommand(index, event);
 
     // avoid deselecting the current item by Ctrl-clicking in single selection mode
@@ -210,6 +246,9 @@ bool KisResourceItemListView::viewportEvent(QEvent *event)
 {
     if (!model()) return true;
 
+    if (event->type() == QEvent::MouseButtonPress) {
+        m_d->pressed = indexAt(static_cast<QMouseEvent *>(event)->pos());
+    }
     if (event->type() == QEvent::HoverEnter || event->type() == QEvent::HoverMove) {
         m_d->hoverPos = static_cast<QHoverEvent *>(event)->pos();
     } else if (event->type() == QEvent::HoverLeave) {

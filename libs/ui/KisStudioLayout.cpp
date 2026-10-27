@@ -1494,18 +1494,27 @@ public:
         } else {
             const int y = margin + offsetOf(m_spot.y(), roomY());
             const QPair<int, int> span = spanAt(y);
-            move(span.first + offsetOf(m_spot.x(), span.second - span.first), y);
+            // its width follows the tool: against an edge or in the middle it stays there, elsewhere its grip stays
+            // where it was dropped (a share of the room it had at the width it had then)
+            int x = span.first + offsetOf(m_spot.x(), span.second - span.first);
+            if (m_spot.x() > 0 && m_spot.x() < 1 && m_spot.x() != 0.5 && m_refWidth > 0) {
+                const int refSpan = span.second + openWidth() - m_refWidth;
+                x = qBound(span.first, span.first + offsetOf(m_spot.x(), refSpan - span.first), span.second);
+            }
+            move(x, y);
         }
         KisStudioLayout::keepAbove(this);
     }
 
-    /// Where it was dragged to, as shares of the room it has (see shareOf())
-    void setSpot(const QPointF &spot)
+    /// Where it was dragged to, as shares of the room it has (see shareOf()), and its width then
+    void setSpot(const QPointF &spot, int width)
     {
         m_spot = spot;
+        m_refWidth = width;
         place();
     }
     QPointF spot() const { return m_spot; }
+    int spotWidth() const { return m_refWidth; }
 
     /// Whether it sits along the top of the canvas, or else along the bottom
     bool isAtTop() const { return m_spot.y() < 0.5; }
@@ -1566,10 +1575,11 @@ private:
     {
         const bool topRow = y < margin + height();
         const int from = margin + (topRow ? m_leftInset : 0);
-        // placed as if open, so the grip stays where it was when tucked
-        const int width = m_tucked ? qMax(this->width(), m_openWidth) : this->width();
-        return {from, qMax(from, parentWidget()->width() - margin - (topRow ? m_rightInset : 0) - width)};
+        return {from, qMax(from, parentWidget()->width() - margin - (topRow ? m_rightInset : 0) - openWidth())};
     }
+
+    /// Placed as if open, so the grip stays where it was when tucked
+    int openWidth() const { return m_tucked ? qMax(width(), m_openWidth) : width(); }
 
     /// Follows the grip, caught by the edges and the middle as it goes
     void dragTo(const QPoint &globalPos)
@@ -1578,6 +1588,7 @@ private:
         const qreal down = shareOf(at.y() - margin, roomY());
         const QPair<int, int> span = spanAt(margin + offsetOf(down, roomY()));
         m_spot = QPointF(shareOf(at.x() - span.first, span.second - span.first), down);
+        m_refWidth = openWidth();
         place();
         if (changed) changed();
     }
@@ -1588,6 +1599,7 @@ private:
     bool m_tucked {false};
     int m_openWidth {0};
     QPointF m_spot;
+    int m_refWidth {0};
     QPoint m_grab;
     TopGrip *m_grip {nullptr};
     QWidget *m_contents {nullptr};
@@ -2563,6 +2575,8 @@ struct KisStudioLayout::Private
     bool panelsTucked {false};
     bool toolRailTucked {false};
     bool topBarTucked {false};
+    /// Where the bars were when the groups were last placed: the groups keep off them (see barRects)
+    QVector<QRect> barsPlacedFor;
     QPointer<QWidget> stripGrip;
     /// The pinned panels' lanes in their groups, for those not in the first (see lanesKey)
     QHash<QString, int> lanes;
@@ -4331,7 +4345,9 @@ void KisStudioLayout::updateCanvasInsets(bool views)
     }
     int top = 0;
     int bottom = 0;
+    QVector<QRect> bars;
     for (TopPill *pill : {d->topPill.data(), d->windowPill.data()}) {
+        if (pill && !pill->isHidden()) bars << pill->geometry();
         // a pill only peeking over the canvas doesn't push anything, nor does one dragged away from the edges
         if (!pill || pill->isHidden() || d->peeking.contains(pill)) continue;
         const QRect at = pill->geometry();
@@ -4353,7 +4369,13 @@ void KisStudioLayout::updateCanvasInsets(bool views)
         area->setProperty(rightPillProperty, pillRight);
         QCoreApplication::postEvent(area, new QEvent(QEvent::LayoutRequest));
         if (d->flyout) positionFlyout();
+    } else if (bars != d->barsPlacedFor) {
+        // a bar grew (another tool's options) or moved: the groups beside it make way, and come back once it shrinks
+        Q_FOREACH (KisStudioPanelColumn *column, d->columns()) {
+            column->place();
+        }
     }
+    d->barsPlacedFor = bars;
 
     // each view fits, zooms and rotates around the part the pills leave uncovered
     if (!views) {
@@ -5121,11 +5143,11 @@ void KisStudioLayout::adoptTopBars()
         d->topPill->grip()->tapped = [this]() { setTopBarTucked(!d->topBarTucked); };
         d->topPill->moved = [this](const QPointF &spot) {
             d->topBarSpot = spot;
-            writeSpot(topBarSpotKey, spot);
+            writeSpot(topBarSpotKey, spot, d->topPill->spotWidth());
             updateCanvasInsets();
         };
         d->topPill->setTucked(d->topBarTucked);
-        d->topPill->setSpot(d->topBarSpot);
+        d->topPill->setSpot(d->topBarSpot, readSpotHeight(topBarSpotKey));
     }
     if (!d->windowPill) {
         d->windowPill = new TopPill(area, true);

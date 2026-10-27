@@ -11,6 +11,8 @@
 #include <QColor>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QLocale>
 #include <QGuiApplication>
 #include <QPointer>
@@ -101,6 +103,34 @@ Setting color(const QString &key, const QColor &fallback, const QString &label, 
 Setting text(const QString &key, const QString &fallback, const QString &label, int flags = 0)
 {
     return make(Kind::Text, key, fallback, label, flags);
+}
+
+/**
+ * A list of items the user arranged (the tool rail's), kept as Krita keeps lists and seen here as JSON, so
+ * adding and removing items are steps of the undo history; empty while it is unset (its owner's defaults)
+ */
+Setting itemList(const QString &key, const QString &label)
+{
+    Setting s = make(Kind::Text, key, QString(), label, KisSettingsRegistry::Fork);
+    s.read = [key]() {
+        const KConfigGroup group = KSharedConfig::openConfig()->group(QString());
+        if (!group.hasKey(key)) return QVariant(QString());
+        const QStringList items = group.readEntry(key, QStringList());
+        return QVariant(QString::fromUtf8(QJsonDocument(QJsonArray::fromStringList(items)).toJson(QJsonDocument::Compact)));
+    };
+    s.write = [key](const QVariant &value) {
+        KConfigGroup group = KSharedConfig::openConfig()->group(QString());
+        const QString text = value.toString();
+        if (text.isEmpty()) {
+            group.deleteEntry(key);
+        } else {
+            QStringList items;
+            Q_FOREACH (const QJsonValue &item, QJsonDocument::fromJson(text.toUtf8()).array()) items << item.toString();
+            group.writeEntry(key, items);
+        }
+        KisSettingsRegistry::instance()->scheduleSync();
+    };
+    return s;
 }
 
 /// Moves \p s into its own kritarc group; its id becomes "[group] key"
@@ -349,6 +379,9 @@ QVector<Setting> describeAll()
             all << grouped(text(QStringLiteral("List"), QLatin1String(""), i18nc("setting", "Themes"), R::Fork), QStringLiteral("StudioThemes"));
             all << grouped(text(QStringLiteral("Current"), QLatin1String(""), i18nc("setting", "Theme"), R::Fork), QStringLiteral("StudioThemes"));
         }
+        all << itemList(QStringLiteral("StudioRailItems"), i18nc("setting", "Tools"));
+        all << itemList(QStringLiteral("StudioBarItems"), i18nc("setting", "Top bar buttons"));
+        all << itemList(QStringLiteral("StudioViewPillItems"), i18nc("setting", "Zoom pill buttons"));
 
         Setting glass = toggle(QStringLiteral("StudioGlass"), true, i18nc("setting", "Glass"), R::Fork);
         glass.read = []() { return KisStudioGlass::isEnabled(); };
@@ -1115,6 +1148,11 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
     schedule();
     Q_EMIT valueChanged(id);
     return true;
+}
+
+void KisSettingsRegistry::writeItems(const QString &key, const QStringList &items)
+{
+    instance()->setValue(key, QString::fromUtf8(QJsonDocument(QJsonArray::fromStringList(items)).toJson(QJsonDocument::Compact)));
 }
 
 void KisSettingsRegistry::setValues(const QVector<QPair<QString, QVariant>> &values)

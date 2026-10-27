@@ -262,6 +262,15 @@ KisStudioBarButtons::KisStudioBarButtons(KisMainWindow *mainWindow, QWidget *par
         cfg.writeEntry("StudioBarBrushEditorRetired", true);
         if (d->items.removeAll(brushEditorItem) && cfg.readEntry(itemsKey, QString()).size()) cfg.writeEntry(itemsKey, d->items);
     }
+    // an undo or redo of the buttons
+    connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::valueChanged, this, [this](const QString &id) {
+        if (id != d->key()) return;
+        const QStringList items = KisConfig(true).readEntry<QStringList>(d->key(), d->defaults());
+        if (items == d->items) return;
+        d->items = items;
+        rebuild();
+        Q_EMIT sigItemsChanged();
+    });
     if (KoToolManager *tools = KisStudioTools::manager(mainWindow)) {
         connect(tools, &KoToolManager::changedTool, this, &KisStudioBarButtons::updateForTool);
     }
@@ -292,7 +301,7 @@ void KisStudioBarButtons::setItems(const QStringList &items)
         if (!unique.contains(item)) unique << item;
     }
     d->items = unique;
-    KisSettingsRegistry::writeLater(d->key(), d->items);
+    KisSettingsRegistry::writeItems(d->key(), d->items);
     rebuild();
     Q_EMIT sigItemsChanged();
 }

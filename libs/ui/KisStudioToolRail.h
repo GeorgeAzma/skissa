@@ -83,6 +83,8 @@ private:
     void updateActiveSlot();
     void rememberPreset();
     void loadPresetForSlot(const QString &slotId);
+    /// Paints with the brush pinned as \p key (Find's key for it)
+    void activatePin(const QString &key);
 
     struct Private;
     const std::unique_ptr<Private> d;

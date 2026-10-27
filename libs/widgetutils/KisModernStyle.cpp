@@ -659,7 +659,8 @@ void KisModernStyle::polish(QWidget *widget)
         const QString text = label->text();
         const bool plain = label->textFormat() != Qt::RichText && !(label->textFormat() == Qt::AutoText && Qt::mightBeRichText(text));
         // a short line ending in a colon introduces what follows it: a caption too
-        if (plain && (labelsAField(label) || (text.contains(colon) && text.size() < 48 && !text.contains(QLatin1Char('\n'))))) {
+        // "keepCase": a name the user gave (a brush), shown as written
+        if (plain && !label->property("keepCase").toBool() && (labelsAField(label) || (text.contains(colon) && text.size() < 48 && !text.contains(QLatin1Char('\n'))))) {
             const QString shown = caption(text);
             if (shown != text) label->setText(shown);
         }

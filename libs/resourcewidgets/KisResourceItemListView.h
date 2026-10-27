@@ -47,6 +47,9 @@ public:
     void setStrictSelectionMode(bool enable);
 
     void setFixedToolTipThumbnailSize(const QSize &size);
+
+    /// Items dragged out carry \p prefix and their name as \p mimeType; a press then picks an item on its release
+    void setDragKey(const QString &mimeType, const QString &prefix);
     void setToolTipShouldRenderCheckers(bool value);
 
 public Q_SLOTS:
@@ -68,6 +71,7 @@ protected Q_SLOTS:
 protected:
     QItemSelectionModel::SelectionFlags selectionCommand(const QModelIndex &index, const QEvent *event = nullptr) const override;
     void contextMenuEvent(QContextMenuEvent *event) override;
+    void startDrag(Qt::DropActions supportedActions) override;
 
     bool viewportEvent(QEvent *event) override;
 

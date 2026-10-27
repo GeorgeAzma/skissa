@@ -22,6 +22,7 @@
 #include "kis_icon_utils.h"
 
 #include "kis_action_registry.h"
+#include "KisSkissaShortcuts.h"
 #include "KisSentenceCase.h"
 #include "kshortcutschemeshelper_p.h"
 
@@ -434,6 +435,9 @@ void KisActionRegistry::Private::loadActionFiles()
 #else
                         QString shortcutText = getChildContentForOS(actionXml, "shortcut");
 #endif
+                        if (skissaDefaultShortcuts().contains(name)) {
+                            shortcutText = skissaDefaultShortcuts().value(name);
+                        }
                         if (!shortcutText.isEmpty()) {
                             info.setDefaultShortcuts(QKeySequence::listFromString(shortcutText));
                         }
