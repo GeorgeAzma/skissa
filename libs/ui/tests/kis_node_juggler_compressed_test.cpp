@@ -128,9 +128,9 @@ void KisNodeJugglerCompressedTest::testDuplicateImpl(bool externalParent, bool u
         ref << "paint3";
         ref << "group4";
         ref << "+paint5";
-        ref << "+Copy of paint2";
-        ref << "+Copy of paint3";
-        ref << "+Copy of paint5";
+        ref << "+paint2 (copy)";
+        ref << "+paint3 (copy)";
+        ref << "+paint5 (copy)";
         ref << "paint6";
     } else if (!useMove) {
         ref << "paint1";
@@ -139,9 +139,9 @@ void KisNodeJugglerCompressedTest::testDuplicateImpl(bool externalParent, bool u
         ref << "group4";
         ref << "+paint5";
         ref << "paint6";
-        ref << "Copy of paint2";
-        ref << "Copy of paint3";
-        ref << "Copy of paint5";
+        ref << "paint2 (copy)";
+        ref << "paint3 (copy)";
+        ref << "paint5 (copy)";
     } else {
         ref << "paint1";
         ref << "group4";

@@ -305,7 +305,7 @@ void KisDummiesFacadeBaseTest::testSubstituteRootNode()
     QTest::qWait(50);
 
     actualGraph = collectGraphPatternFull(m_dummiesFacade->rootDummy());
-    expectedGraph = "root root Merged"; // "root Merged" is the name of the layer :)
+    expectedGraph = "root root (merged)"; // "root (merged)" is the name of the layer :)
 
     QCOMPARE(actualGraph, expectedGraph);
     QCOMPARE(m_dummiesFacade->dummiesCount(), 2);
@@ -313,11 +313,11 @@ void KisDummiesFacadeBaseTest::testSubstituteRootNode()
     m_dummiesFacade->setImage(0);
     QTest::qWait(200);
 
-    verifyActivatedNodes("layer1 __null root Merged __null");
+    verifyActivatedNodes("layer1 __null root (merged) __null");
     verifyMovedDummies("A_root A_layer1 A_layer2 A_layer3 A_mask1 A_layer4 "
                        "R_layer4 R_mask1 R_layer3 R_layer2 R_layer1 R_root "
-                       "A_root A_root Merged "
-                       "R_root Merged R_root");
+                       "A_root A_root (merged) "
+                       "R_root (merged) R_root");
 }
 
 void KisDummiesFacadeBaseTest::testAddSelectionMasksNoActivation()
