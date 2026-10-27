@@ -10,6 +10,8 @@
 #include <QCryptographicHash>
 #include <QCursor>
 #include <QDir>
+#include <QDirIterator>
+#include <QSet>
 #include <QFile>
 #include <QFileInfo>
 #include <QFutureWatcher>
@@ -62,6 +64,27 @@ QString readyFolder()
 QString unpackFolder()
 {
     return installFolder() + QStringLiteral(".unpacking");
+}
+
+/**
+ * The install an update replaced, once this version has run a while: a whole release (600 MB) kept for nothing.
+ * Only when every file in it is the release's own; one holding files of the user's waits for the next update,
+ * which keeps those aside.
+ */
+void removeReplacedInstall()
+{
+    const QString old = installFolder() + QStringLiteral(".old");
+    QFile list(old + QStringLiteral("/skissa-files.txt"));
+    if (!list.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+    QSet<QString> listed;
+    while (!list.atEnd()) listed.insert(QString::fromUtf8(list.readLine()).trimmed().toLower());
+    list.close();
+    QDirIterator files(old, QDir::Files | QDir::Hidden | QDir::System, QDirIterator::Subdirectories);
+    while (files.hasNext()) {
+        const QString relative = QDir(old).relativeFilePath(files.next()).toLower();
+        if (relative != QLatin1String("skissa-files.txt") && !listed.contains(relative)) return;
+    }
+    QDir(old).removeRecursively();
 }
 
 /// The version a release's folder holds, empty when it isn't one
@@ -278,6 +301,8 @@ private:
     {
         connect(qApp, &QCoreApplication::aboutToQuit, this, &Updater::quitting);
         if (!KisSkissaUpdater::canUpdate()) return;
+        // having started and run for two minutes, this version stands: the one it replaced goes
+        QTimer::singleShot(120000, this, []() { QtConcurrent::run(removeReplacedInstall); });
         // an update unpacked in an earlier run, unless this version has caught up with it
         const QString ready = versionIn(readyFolder());
         if (!ready.isEmpty() && isNewer(ready, KisSkissaUpdater::version())) {
