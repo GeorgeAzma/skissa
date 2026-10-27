@@ -4007,8 +4007,9 @@ void KisStudioLayout::writeGroupPlace(int group, const QRect &rect, QWidget *are
     const int margin = KisStudioPanelColumn::margin;
     const bool left = rect.center().x() < area->width() / 2;
     const int across = left ? rect.x() - margin : area->width() - margin - rect.right() - 1;
-    const int top = area->property(topInsetProperty).toInt() + margin;
-    const int bottom = area->height() - area->property(bottomInsetProperty).toInt() - margin;
+    // the room a group's place is a share of: the whole height (see KisStudioPanelColumn::spanY)
+    const int top = margin;
+    const int bottom = area->height() - margin;
     const int roomX = area->width() - 2 * margin - rect.width();
     const int roomY = bottom - top - rect.height();
     KisSettingsRegistry::writeLater(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
@@ -4087,8 +4088,9 @@ int KisStudioLayout::newPanelGroup(const QPoint &windowPos)
     const int margin = KisStudioPanelColumn::margin;
     const int x = at.x() - width / 2;
     const int across = left ? x - margin : area->width() - margin - width - x;
-    const int top = area->property(topInsetProperty).toInt() + margin;
-    const int bottom = area->height() - area->property(bottomInsetProperty).toInt() - margin;
+    // the room a group's place is a share of: the whole height (see KisStudioPanelColumn::spanY)
+    const int top = margin;
+    const int bottom = area->height() - margin;
     // its height is not known yet: a guess, so the share puts its top about where it was dropped
     const int guess = qMin(320, bottom - top);
     KisConfig cfg(false);
