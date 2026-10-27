@@ -445,6 +445,12 @@ public:
     }
 
 protected:
+    /// What setLineArt asked for
+    bool lineArt() const { return m_lineArt; }
+    bool underLines() const { return m_underLines; }
+    int speckSize() const { return m_speckSize; }
+    KisPaintDeviceSP lineArtTarget() const { return m_lineArtTarget; }
+
     void setCurrentFillSelection(KisSelectionSP fillSelection)
     {
         m_fillSelection = fillSelection;

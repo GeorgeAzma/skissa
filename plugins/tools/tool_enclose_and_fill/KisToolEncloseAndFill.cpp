@@ -65,6 +65,8 @@
 #include "subtools/KisEllipseEnclosingProducer.h"
 #include "subtools/KisPathEnclosingProducer.h"
 #include "subtools/KisLassoEnclosingProducer.h"
+#include "KisColorDrop.h"
+#include "KisViewManager.h"
 #include "subtools/KisBrushEnclosingProducer.h"
 
 KisToolEncloseAndFill::KisToolEncloseAndFill(KoCanvasBase * canvas)
@@ -271,10 +273,25 @@ void KisToolEncloseAndFill::slot_delegateTool_enclosingMaskProduced(KisPixelSele
 
     m_dirtyRect.reset(new QRect);
 
-    KisResourcesSnapshotSP resources =
-        new KisResourcesSnapshot(image(), currentNode(), this->canvas()->resourceManager());
+    // as every fill chooses: on line art, a Colors layer of its own, the lines staying on top (KisColorDrop)
+    const QPoint middle = enclosingMask->selectedExactRect().center();
+    KisCanvas2 *kisCanvas = dynamic_cast<KisCanvas2 *>(canvas());
+    const KisColorDrop::FillTarget target =
+        KisColorDrop::fillTarget(image(), currentNode(), middle, kisCanvas ? kisCanvas->viewManager()->selection() : nullptr);
+    KisColorDrop::addFillLayer(image(), m_fillStrokeId, target);
+    KisNodeSP fillNode = target.filled() ? target.filled() : currentNode();
+    // Auto: closing gaps as wide as the lines there are
+    const int closeGap = m_closeGap > 0 ? m_closeGap : KisColorDrop::autoGap(currentImage()->projection(), middle, image()->bounds());
 
-    if (m_reference == CurrentLayer) {
+    KisResourcesSnapshotSP resources =
+        new KisResourcesSnapshot(image(), fillNode, this->canvas()->resourceManager());
+    // a new layer is empty: with Preserve Alpha the fill would show nowhere
+    if (fillNode != currentNode()) resources->setGlobalAlphaLock(false);
+
+    if (m_reference == CurrentLayer && KisColorDrop::isColorsLayer(currentNode())) {
+        // a layer of fills is filled from the picture: by itself it holds no lines
+        m_referencePaintDevice = currentImage()->projection();
+    } else if (m_reference == CurrentLayer) {
         m_referencePaintDevice = currentNode()->paintDevice();
     } else if (m_reference == AllLayers) {
         m_referencePaintDevice = currentImage()->projection();
@@ -322,7 +339,7 @@ void KisToolEncloseAndFill::slot_delegateTool_enclosingMaskProduced(KisPixelSele
     transform.scale(normalizedScale, normalizedScale);
     resources->setFillTransform(transform);
 
-    KisProcessingVisitorSP visitor =
+    KisEncloseAndFillProcessingVisitor *visitor =
         new KisEncloseAndFillProcessingVisitor(m_referencePaintDevice,
                                                enclosingMask,
                                                resources->activeSelection(),
@@ -334,7 +351,7 @@ void KisToolEncloseAndFill::slot_delegateTool_enclosingMaskProduced(KisPixelSele
                                                false,
                                                m_fillThreshold,
                                                m_fillOpacitySpread,
-                                               m_closeGap,
+                                               closeGap,
                                                m_antiAlias,
                                                m_expand,
                                                m_stopGrowingAtDarkestPixel,
@@ -347,11 +364,14 @@ void KisToolEncloseAndFill::slot_delegateTool_enclosingMaskProduced(KisPixelSele
                                                m_customOpacity / 100.0,
                                                m_customCompositeOp,
                                                m_dirtyRect);
+    // the Fill tool's: under the lines, and the specks taken in
+    const KConfigGroup fill = KSharedConfig::openConfig()->group("KritaFill/KisToolFill");
+    visitor->setLineArt(fill.readEntry<bool>("fillUnderLines", true), qBound(0, fill.readEntry<int>("speckSize", 4), 32));
 
     image()->addJob(
         m_fillStrokeId,
         new KisStrokeStrategyUndoCommandBased::Data(
-            KUndo2CommandSP(new KisProcessingCommand(visitor, currentNode())),
+            KUndo2CommandSP(new KisProcessingCommand(KisProcessingVisitorSP(visitor), fillNode)),
             false,
             KisStrokeJobData::SEQUENTIAL,
             KisStrokeJobData::EXCLUSIVE
@@ -361,7 +381,7 @@ void KisToolEncloseAndFill::slot_delegateTool_enclosingMaskProduced(KisPixelSele
     image()->addJob(
         m_fillStrokeId,
         new KisStrokeStrategyUndoCommandBased::Data(
-            KUndo2CommandSP(new KisUpdateCommand(currentNode(), m_dirtyRect, image().data())),
+            KUndo2CommandSP(new KisUpdateCommand(fillNode, m_dirtyRect, image().data())),
             false,
             KisStrokeJobData::SEQUENTIAL,
             KisStrokeJobData::EXCLUSIVE
@@ -500,6 +520,8 @@ QWidget* KisToolEncloseAndFill::createOptionWidget()
     m_sliderCloseGap->setPrefix(i18nc("The 'close gap' spinbox prefix in enclose and fill tool options", "Close Gap: "));
     m_sliderCloseGap->setRange(0, 32);
     m_sliderCloseGap->setSuffix(i18n(" px"));
+    // Skissa: none is Auto, gaps as wide as the lines (see KisColorDrop::autoGap)
+    m_sliderCloseGap->setSpecialValueText(i18nc("fill gap closing: sized from the lines", "Close Gap: Auto"));
     m_checkBoxSelectionAsBoundary =
         new QCheckBox(
             i18nc("The 'use selection as boundary' checkbox in enclose and fill tool to use selection borders as boundary when filling",
@@ -563,7 +585,7 @@ QWidget* KisToolEncloseAndFill::createOptionWidget()
 
     m_sliderFillThreshold->setToolTip(i18nc("@info:tooltip", "0% this exact color → 100% every color"));
     m_sliderFillOpacitySpread->setToolTip(i18nc("@info:tooltip", "0% fades with the color difference → 100% solid"));
-    m_sliderCloseGap->setToolTip(i18n("Close gaps in lines up to the set amount"));
+    m_sliderCloseGap->setToolTip(i18nc("@info:tooltip", "Openings in the lines this wide still hold the fill; Auto sizes it from the lines"));
     m_checkBoxSelectionAsBoundary->setToolTip(i18nc("@info:tooltip", "The selection's edge stops the fill too"));
 
     m_checkBoxAntiAlias->setToolTip(i18n("Smooths the edges of the fill"));

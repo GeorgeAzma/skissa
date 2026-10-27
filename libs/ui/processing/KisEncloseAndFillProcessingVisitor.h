@@ -47,6 +47,14 @@ public:
         QSharedPointer<QRect> outDirtyRect
     );
 
+    /// Reaching under the lines, as the Fill tool's fills do (KisFillPainter::setLineArt)
+    void setLineArt(bool underLines, int speckSize)
+    {
+        m_lineArt = true;
+        m_underLines = underLines;
+        m_speckSize = speckSize;
+    }
+
 private:
     void visitNodeWithPaintDevice(KisNode *node, KisUndoAdapter *undoAdapter) override;
     void visitExternalLayer(KisExternalLayer *layer, KisUndoAdapter *undoAdapter) override;
@@ -67,6 +75,9 @@ private:
     int m_fillThreshold {8};
     int m_fillOpacitySpread {100};
     int m_closeGap {0};
+    bool m_lineArt {false};
+    bool m_underLines {false};
+    int m_speckSize {0};
     bool m_useSelectionAsBoundary {true};
     bool m_antiAlias {false};
     int m_expand {0};

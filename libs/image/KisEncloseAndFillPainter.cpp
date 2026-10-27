@@ -15,6 +15,7 @@
 #include <KisImageResolutionProxy.h>
 
 #include "KisEncloseAndFillPainter.h"
+#include "floodfill/KisLineArtFill.h"
 
 namespace KisEncloseAndFillPainterDetail {
 
@@ -403,6 +404,26 @@ KisPixelSelectionSP KisEncloseAndFillPainter::createEncloseAndFillSelection(KisP
     // Intersect the regions mask with the current selection if it should be used as boundary
     if (useSelectionAsBoundary() && existingSelection) {
         newSelection->applySelection(existingSelection, SELECTION_INTERSECT);
+    }
+    // Skissa: under the lines to their middle, as a flood fill reaches (see KisLineArtFill), from the color most of
+    // the enclosed areas have
+    if (lineArt() && (underLines() || closeGap() > 0) && !referenceDevice->defaultBounds()->wrapAroundMode()) {
+        const QRect regions = newSelection->selectedExactRect();
+        QHash<QRgb, int> counts;
+        QRgb most = 0;
+        const int step = qMax(1, qMax(regions.width(), regions.height()) / 64);
+        for (int y = regions.top(); y <= regions.bottom(); y += step) {
+            for (int x = regions.left(); x <= regions.right(); x += step) {
+                if (newSelection->pixel(QPoint(x, y)).opacityU8() < 128) continue;
+                const QRgb rgb = referenceDevice->pixel(QPoint(x, y)).toQColor().rgba();
+                if (++counts[rgb] > counts.value(most)) most = rgb;
+            }
+        }
+        if (!counts.isEmpty()) {
+            KoColor seed(QColor::fromRgba(most), referenceDevice->colorSpace());
+            KisLineArtFill::grow(newSelection, referenceDevice, seed, fillThreshold(), underLines(), speckSize(), closeGap(),
+                                 referenceDevice->defaultBounds()->bounds(), lineArtTarget());
+        }
     }
     // Post-process
     m_d->applyPostProcessing(newSelection, referenceDevice);

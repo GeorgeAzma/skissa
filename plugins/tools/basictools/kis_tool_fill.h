@@ -138,6 +138,9 @@ private:
     KisMergeLabeledLayersCommand::ReferenceNodeInfoListSP m_referenceNodeList;
     int m_previousTime;
     KisResourcesSnapshotSP m_resourcesSnapshot;
+    /// The layer this fill paints (see KisColorDrop::fillTarget), and the gap it closes (Auto sized at its start)
+    KisNodeSP m_fillNode;
+    int m_effectiveCloseGap {0};
     QTransform m_transform;
 
     FillMode m_effectiveFillMode {FillMode_FillSelection};

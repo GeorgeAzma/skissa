@@ -13,6 +13,7 @@
 
 #include <kritaui_export.h>
 #include <kis_types.h>
+#include <kis_node.h>
 
 class KoColor;
 class KisView;
@@ -32,6 +33,30 @@ class KRITAUI_EXPORT KisColorDrop : public QObject
 {
     Q_OBJECT
 public:
+    /// Where a fill goes: an existing layer, or a new "Colors" layer to add first (at \p parent, above \p above)
+    struct FillTarget {
+        KisNodeSP node;
+        KisNodeSP newLayer;
+        KisNodeSP parent;
+        KisNodeSP above;
+
+        KisNodeSP filled() const { return newLayer ? newLayer : node; }
+    };
+
+    /**
+     * The layer a fill from \p point (image coordinates) paints, with \p active the current layer: when it
+     * holds the lines there, a Colors layer of its own (below clear line art, Multiply above opaque), so the
+     * lines stay on top. Inside \p selection, or on a layer holding no lines, the current layer. Every fill
+     * (a drop, the Fill tool, Enclose and Fill) chooses so.
+     */
+    static FillTarget fillTarget(KisImageSP image, KisNodeSP active, const QPoint &point, KisSelectionSP selection = nullptr);
+    /// Adds the new layer \p target asks for, as a job of \p stroke, so the fill and the layer are one step
+    static void addFillLayer(KisImageSP image, KisStrokeId stroke, const FillTarget &target);
+    /// The gap a fill closes when it is set to Auto (0): sized from the width of the lines near \p point
+    static int autoGap(KisPaintDeviceSP reference, const QPoint &point, const QRect &bounds);
+    /// Whether \p node is a layer of colors made by fills, which read the whole picture rather than themselves
+    static bool isColorsLayer(KisNodeSP node);
+
     explicit KisColorDrop(KisView *view);
     ~KisColorDrop() override;
 

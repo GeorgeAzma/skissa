@@ -114,6 +114,8 @@ void KisEncloseAndFillProcessingVisitor::fillPaintDevice(KisPaintDeviceSP device
     }
 
     KisPaintDeviceSP sourceDevice = m_unmerged ? device : m_referencePaintDevice;
+    // only onto another layer than the one read, as a flood fill
+    if (m_lineArt) painter.setLineArt(m_underLines && sourceDevice != device, m_speckSize, device);
 
     if (m_usePattern) {
         painter.encloseAndFillPattern(m_enclosingMask, sourceDevice, m_resources->fillTransform());

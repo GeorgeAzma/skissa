@@ -63,6 +63,8 @@
 #include <KisSpinBoxI18nHelper.h>
 
 #include "kis_icon_utils.h"
+#include "KisColorDrop.h"
+#include "KisViewManager.h"
 
 KisToolFill::KisToolFill(KoCanvasBase * canvas)
     : KisToolPaint(canvas, KisCursor::loadWithSize("tool_fill_cursor.svg", 32, 32, 6, 6))
@@ -254,11 +256,29 @@ void KisToolFill::beginFilling(const QPoint &seedPoint)
     m_fillStrokeId = image()->startStroke(strategy);
     KIS_SAFE_ASSERT_RECOVER_RETURN(m_fillStrokeId);
 
-    m_resourcesSnapshot = new KisResourcesSnapshot(image(), currentNode(), this->canvas()->resourceManager());
+    // as every fill chooses: on line art, a Colors layer of its own, the lines staying on top (KisColorDrop)
+    m_fillNode = currentNode();
+    m_effectiveCloseGap = m_closeGap;
+    if (m_effectiveFillMode == FillMode_FillContiguousRegion) {
+        KisCanvas2 *kisCanvas = dynamic_cast<KisCanvas2 *>(canvas());
+        KisSelectionSP selection = kisCanvas ? kisCanvas->viewManager()->selection() : nullptr;
+        const KisColorDrop::FillTarget target = KisColorDrop::fillTarget(image(), currentNode(), seedPoint, selection);
+        KisColorDrop::addFillLayer(image(), m_fillStrokeId, target);
+        if (target.filled()) m_fillNode = target.filled();
+        // Auto: closing gaps as wide as the lines here are
+        if (m_closeGap == 0) m_effectiveCloseGap = KisColorDrop::autoGap(currentImage()->projection(), seedPoint, image()->bounds());
+    }
+
+    m_resourcesSnapshot = new KisResourcesSnapshot(image(), m_fillNode, this->canvas()->resourceManager());
+    // a new layer is empty: with Preserve Alpha the fill would show nowhere
+    if (m_fillNode != currentNode()) m_resourcesSnapshot->setGlobalAlphaLock(false);
 
     KisPaintDeviceSP referencePaintDevice = nullptr;
     if (m_effectiveFillMode != FillMode_FillSelection) {
-        if (m_reference == Reference_CurrentLayer) {
+        if (m_reference == Reference_CurrentLayer && KisColorDrop::isColorsLayer(currentNode())) {
+            // a layer of fills is filled from the picture: by itself it holds no lines
+            referencePaintDevice = currentImage()->projection();
+        } else if (m_reference == Reference_CurrentLayer) {
             referencePaintDevice = currentNode()->paintDevice();
         } else if (m_reference == Reference_AllLayers) {
             referencePaintDevice = currentImage()->projection();
@@ -368,8 +388,9 @@ void KisToolFill::addFillingOperation(const QVector<QPoint> &seedPoints)
                                  m_opacitySpread == 100 &&
                                  m_useSelectionAsBoundary == false &&
                                  !m_antiAlias && m_sizemod == 0 && m_feather == 0 &&
-                                 m_closeGap == 0 &&
-                                 m_reference == Reference_CurrentLayer;
+                                 m_effectiveCloseGap == 0 &&
+                                 m_reference == Reference_CurrentLayer &&
+                                 m_fillNode == currentNode();
 
         visitor->setSeedPoints(seedPoints);
         visitor->setUseFastMode(useFastMode);
@@ -391,7 +412,7 @@ void KisToolFill::addFillingOperation(const QVector<QPoint> &seedPoints)
         }
         visitor->setFillThreshold(m_threshold);
         visitor->setOpacitySpread(m_opacitySpread);
-        visitor->setCloseGap(m_closeGap);
+        visitor->setCloseGap(m_effectiveCloseGap);
         visitor->setLineArt(m_underLines, m_speckSize);
         visitor->setUseSelectionAsBoundary(m_useSelectionAsBoundary);
         visitor->setAntiAlias(m_antiAlias);
@@ -412,7 +433,7 @@ void KisToolFill::addFillingOperation(const QVector<QPoint> &seedPoints)
         image()->addJob(
             m_fillStrokeId,
             new KisStrokeStrategyUndoCommandBased::Data(
-                KUndo2CommandSP(new KisProcessingCommand(visitor, currentNode())),
+                KUndo2CommandSP(new KisProcessingCommand(visitor, m_fillNode)),
                 false,
                 KisStrokeJobData::SEQUENTIAL,
                 KisStrokeJobData::EXCLUSIVE
@@ -421,7 +442,7 @@ void KisToolFill::addFillingOperation(const QVector<QPoint> &seedPoints)
     } else {
         KisSelectionSP fillMask = m_fillMask;
         QSharedPointer<KisProcessingVisitor::ProgressHelper>
-            progressHelper(new KisProcessingVisitor::ProgressHelper(currentNode()));
+            progressHelper(new KisProcessingVisitor::ProgressHelper(m_fillNode));
 
         {
             KisSelectionSP selection = m_resourcesSnapshot->activeSelection();
@@ -469,7 +490,7 @@ void KisToolFill::addFillingOperation(const QVector<QPoint> &seedPoints)
             image()->addJob(
                 m_fillStrokeId,
                 new KisStrokeStrategyUndoCommandBased::Data(
-                    KUndo2CommandSP(new KisProcessingCommand(visitor, currentNode())),
+                    KUndo2CommandSP(new KisProcessingCommand(visitor, m_fillNode)),
                     false,
                     KisStrokeJobData::SEQUENTIAL,
                     KisStrokeJobData::EXCLUSIVE
@@ -486,7 +507,7 @@ void KisToolFill::addUpdateOperation()
     image()->addJob(
         m_fillStrokeId,
         new KisStrokeStrategyUndoCommandBased::Data(
-            KUndo2CommandSP(new KisUpdateCommand(currentNode(), m_dirtyRect, image().data())),
+            KUndo2CommandSP(new KisUpdateCommand(m_fillNode, m_dirtyRect, image().data())),
             false,
             KisStrokeJobData::SEQUENTIAL,
             KisStrokeJobData::EXCLUSIVE
@@ -504,6 +525,7 @@ void KisToolFill::endFilling()
     m_fillStrokeId = nullptr;
     m_fillMask = nullptr;
     m_dirtyRect = nullptr;
+    m_fillNode = nullptr;
 }
 
 void KisToolFill::slotUpdateFill()
@@ -581,6 +603,8 @@ QWidget* KisToolFill::createOptionWidget()
     m_sliderCloseGap->setPrefix(i18nc("The 'close gap' spinbox prefix in fill tool options", "Close Gap: "));
     m_sliderCloseGap->setRange(0, 32);
     m_sliderCloseGap->setSuffix(i18n(" px"));
+    // Skissa: none is Auto, gaps as wide as the lines (see KisColorDrop::autoGap)
+    m_sliderCloseGap->setSpecialValueText(i18nc("fill gap closing: sized from the lines", "Close Gap: Auto"));
 
     m_checkBoxUnderLines = new QCheckBox(i18nc("The fill tool option that fills under line art to the middle of its lines", "Under lines"));
     m_sliderSpecks = new KisSliderSpinBox;
@@ -662,7 +686,7 @@ QWidget* KisToolFill::createOptionWidget()
     m_buttonContiguousFillBoundaryColor->setToolTip(i18n("Boundary color"));
     m_sliderThreshold->setToolTip(i18nc("@info:tooltip", "0% this exact color → 100% every color"));
     m_sliderSpread->setToolTip(i18nc("@info:tooltip", "0% fades with the color difference → 100% solid"));
-    m_sliderCloseGap->setToolTip(i18n("Close gaps in lines up to the set amount"));
+    m_sliderCloseGap->setToolTip(i18nc("@info:tooltip", "Openings in the lines this wide still hold the fill; Auto sizes it from the lines"));
     m_checkBoxUnderLines->setToolTip(i18nc("@info:tooltip", "Fill under the line art, when it's on another layer"));
     m_sliderSpecks->setToolTip(i18nc("@info:tooltip", "Fill spots up to this size too"));
     m_checkBoxSelectionAsBoundary->setToolTip(i18nc("@info:tooltip", "The selection's edge stops the fill too"));

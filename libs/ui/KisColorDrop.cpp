@@ -304,13 +304,7 @@ protected:
     }
 };
 
-/// Where a drop paints: an existing node, or a new layer to add first.
-struct Target {
-    KisNodeSP node;
-    KisPaintLayerSP newLayer;
-    KisNodeSP parent;
-    KisNodeSP above;
-};
+using Target = KisColorDrop::FillTarget;
 
 bool isColorsLayer(KisNodeSP node, bool multiply)
 {
@@ -352,13 +346,18 @@ Target targetFor(KisImageSP image, KisNodeSP active, const QPoint &point)
     const QRect window = QRect(point - QPoint(768, 768), QSize(1536, 1536)) & image->bounds();
     const QImage picture = image->projection()->convertToQImage(nullptr, window).convertToFormat(QImage::Format_ARGB32);
     const QImage own = active->paintDevice()->convertToQImage(nullptr, window).convertToFormat(QImage::Format_ARGB32);
-    int lines = 0, held = 0;
+    // and is the layer's paper (what isn't ink) clear, or painted? Counted over the window: the point itself may
+    // be on a line
+    int lines = 0, held = 0, clear = 0, opaque = 0;
     for (int y = 0; y < picture.height(); y++) {
         const QRgb *row = reinterpret_cast<const QRgb *>(picture.constScanLine(y));
         const QRgb *ownRow = reinterpret_cast<const QRgb *>(own.constScanLine(y));
         for (int x = 0; x < picture.width(); x++) {
             const QRgb p = row[x];
-            if (qAlpha(p) * (255 - qGray(p)) < 96 * 255) continue;
+            if (qAlpha(p) * (255 - qGray(p)) < 96 * 255) {
+                (qAlpha(ownRow[x]) < 128 ? clear : opaque)++;
+                continue;
+            }
             lines++;
             if (qAlpha(ownRow[x]) >= 128) held++;
         }
@@ -367,7 +366,7 @@ Target targetFor(KisImageSP image, KisNodeSP active, const QPoint &point)
         target.node = active;
         return target;
     }
-    const bool clearPaper = active->paintDevice()->pixel(point).opacityU8() < 128;
+    const bool clearPaper = clear >= opaque;
     KisNodeSP neighbor = clearPaper ? active->prevSibling() : active->nextSibling();
     if (isColorsLayer(neighbor, !clearPaper)) {
         target.node = neighbor;
@@ -616,6 +615,30 @@ KisColorDrop::KisColorDrop(KisView *view)
 
 KisColorDrop::~KisColorDrop() = default;
 
+KisColorDrop::FillTarget KisColorDrop::fillTarget(KisImageSP image, KisNodeSP active, const QPoint &point, KisSelectionSP selection)
+{
+    const bool inSelection = selection && selection->projection()->pixel(point).opacityU8() > 0;
+    if (inSelection && active && qobject_cast<KisPaintLayer *>(active.data())) return Target{active, nullptr, nullptr, nullptr};
+    return targetFor(image, active, point);
+}
+
+void KisColorDrop::addFillLayer(KisImageSP image, KisStrokeId stroke, const FillTarget &target)
+{
+    addLayerJob(image, stroke, target);
+}
+
+int KisColorDrop::autoGap(KisPaintDeviceSP reference, const QPoint &point, const QRect &bounds)
+{
+    Options automatic;
+    automatic.closeGap = 0;
+    return gapFor(automatic, reference, point, bounds);
+}
+
+bool KisColorDrop::isColorsLayer(KisNodeSP node)
+{
+    return ::isColorsLayer(node, false) || ::isColorsLayer(node, true);
+}
+
 bool KisColorDrop::carriesColor(const QMimeData *data)
 {
     return data && (data->hasColor() || data->hasFormat(QStringLiteral("krita/x-colorsetentry")));
@@ -722,10 +745,8 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
 
     KisSelectionSP selection = viewManager->selection();
     const bool inSelection = selection && selection->projection()->pixel(point).opacityU8() > 0;
-    const Target target = inSelection && active && qobject_cast<KisPaintLayer *>(active.data())
-        ? Target{active, nullptr, nullptr, nullptr}
-        : targetFor(image, active, point);
-    KisNodeSP node = target.newLayer ? KisNodeSP(target.newLayer) : target.node;
+    const Target target = fillTarget(image, active, point, selection);
+    KisNodeSP node = target.filled();
 
     d->lastSeed = point;
     d->lastColor = color;

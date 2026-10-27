@@ -822,7 +822,7 @@ QVector<Setting> describeAll()
  */
 void forgetRetired()
 {
-    constexpr int version = 9;
+    constexpr int version = 10;
     KConfigGroup top = KSharedConfig::openConfig()->group(QString());
     if (top.readEntry("StudioRetiredSettings", 0) >= version) return;
     const char *const keys[] = {
@@ -864,6 +864,11 @@ void forgetRetired()
     if (top.readEntry("StudioRetiredSettings", 0) < 5 && !top.readEntry("colorSamplerZoomPreviewEnabled", true)) top.deleteEntry("colorSamplerZoomPreviewEnabled");
     // and the zoom steps, whose old default of 2 went from 100% to 133% to 200%
     if (top.readEntry("StudioRetiredSettings", 0) < 8 && top.readEntry("zoomSteps", 0) == 2) top.deleteEntry("zoomSteps");
+    // and Enclose and Fill's rectangle, which Krita writes as soon as the tool is used: a lasso around the areas is the default now
+    if (top.readEntry("StudioRetiredSettings", 0) < 10) {
+        KConfigGroup enclose = KSharedConfig::openConfig()->group(QStringLiteral("KisToolEncloseAndFill"));
+        if (enclose.readEntry("enclosingMethod", QString()) == QLatin1String("rectangle")) enclose.deleteEntry("enclosingMethod");
+    }
     // and the layer names' old defaults, "Copy of Layer" and "Layer Merged": all three are "Layer (copy)" alike now
     if (top.readEntry("StudioRetiredSettings", 0) < 9) {
         if (top.readEntry("layerNameCopyBefore", QString()) == QLatin1String("Copy of")) top.deleteEntry("layerNameCopyBefore");
