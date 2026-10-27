@@ -195,11 +195,18 @@ void drawButtonPanel(QPainter *painter, const QStyleOption *option, bool flat)
     const QColor fg = pal.color(QPalette::ButtonText);
 
     QColor fill;
-    if (s.pressed || s.checked) {
+    if (flat) {
+        // over whatever is under it (a selected list row): the ink at low alpha, not the button color, which was a
+        // light patch on a light theme's darker row
+        if (s.pressed || s.checked || s.hovered) {
+            fill = fg;
+            fill.setAlphaF(s.pressed || s.checked ? 0.16 : 0.08);
+        }
+    } else if (s.pressed || s.checked) {
         fill = KisModernStyle::mix(bg, fg, 0.16);
     } else if (s.hovered) {
         fill = KisModernStyle::mix(bg, fg, 0.08);
-    } else if (!flat) {
+    } else {
         fill = bg;
     }
 

@@ -425,6 +425,11 @@ void KisStudioShortcuts::restore(QAction *action)
     }
 }
 
+bool KisStudioShortcuts::savedShortcutsHave(const QString &name)
+{
+    return savedShortcuts().hasKey(name);
+}
+
 QStringList KisStudioShortcuts::toolsOf(const QAction *action)
 {
     if (!action) return QStringList();

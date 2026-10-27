@@ -410,16 +410,7 @@ LayerBox::LayerBox()
         QTimer::singleShot(0, this, fit);
         // fingers can't hover: what shows on hover shows always
         connect(KisTouchMode::instance(), &KisTouchMode::changed, this, [this]() { updateRowShown(); });
-        // quieter than the layer's name
-        for (QWidget *quiet : std::initializer_list<QWidget *>{ui->cmbComposite}) {
-            QPalette palette = quiet->palette();
-            for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::Text, QPalette::WindowText}) {
-                QColor ink = palette.color(role);
-                ink.setAlphaF(0.62);
-                palette.setColor(role, ink);
-            }
-            quiet->setPalette(palette);
-        }
+        quietenMode();
         m_rowControls->hide();
         ui->listLayers->viewport()->installEventFilter(this);
         ui->listLayers->installEventFilter(this);
@@ -1119,6 +1110,19 @@ void LayerBox::placeRowControls()
     if (!m_rowControls->isVisible()) m_rowControls->show();
 }
 
+void LayerBox::quietenMode()
+{
+    // quieter than the layer's name, from the list's own colors: set once, the box kept the theme it started with
+    QComboBox *mode = m_wdgLayerBox->cmbComposite;
+    QPalette palette = m_wdgLayerBox->listLayers->viewport()->palette();
+    for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::Text, QPalette::WindowText}) {
+        QColor ink = palette.color(role);
+        ink.setAlphaF(0.62);
+        palette.setColor(role, ink);
+    }
+    mode->setPalette(palette);
+}
+
 void LayerBox::updateRowShown()
 {
     NodeView *view = m_wdgLayerBox->listLayers;
@@ -1135,7 +1139,9 @@ void LayerBox::updateRowShown()
         full = node->opacity() == OPACITY_OPAQUE_U8;
     }
     const bool mode = hovered || !usualMode;
-    const bool opacity = hovered || !full;
+    // a full opacity says nothing, and appearing on hover it pushed the mode aside: shown only when below full
+    // (touch mode keeps it, a finger can't drag a row's opacity as precisely)
+    const bool opacity = !full || KisTouchMode::isActive();
     const int width = (mode ? m_modeWidth : 0) + (opacity && delegate ? delegate->opacityWidth() : 0);
     if (view->property("rowModeShown").toBool() == mode && view->property("rowOpacityShown").toBool() == opacity
         && view->property("rowControlsWidth").toInt() == width && view->property("rowModeWidth").toInt() == m_modeWidth) {
@@ -1206,6 +1212,10 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
     NodeView *view = m_wdgLayerBox->listLayers;
     if (watched == view->viewport()) {
         switch (event->type()) {
+        case QEvent::PaletteChange:
+            // another theme
+            quietenMode();
+            break;
         case QEvent::Paint:
             // the controls follow the row when scrolled, resized or another layer is selected
             placeRowControls();

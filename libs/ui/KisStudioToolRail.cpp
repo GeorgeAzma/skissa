@@ -567,6 +567,16 @@ struct KisStudioToolRail::Private
             own->setShortcut(defaultKey);
             own->setProperty("defaultShortcuts", QVariant::fromValue(defaultKey.isEmpty() ? QList<QKeySequence>() : QList<QKeySequence>{defaultKey}));
             KisStudioShortcuts::restore(own);
+            // a default key someone already gave a command of their own stays theirs: two on one key and neither works
+            if (!defaultKey.isEmpty() && own->shortcut() == defaultKey
+                && !KisStudioShortcuts::savedShortcutsHave(own->objectName())) {
+                Q_FOREACH (QAction *other, KisStudioShortcuts::allActions(mainWindow)) {
+                    if (other != own && other->shortcuts().contains(defaultKey) && KisStudioShortcuts::toolsOf(other).isEmpty()) {
+                        own->setShortcut(QKeySequence());
+                        break;
+                    }
+                }
+            }
             mainWindow->addAction(own);
             QObject::connect(own, &QAction::triggered, mainWindow, std::move(run));
         }

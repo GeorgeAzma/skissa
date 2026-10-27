@@ -153,6 +153,7 @@ private:
     void placeRowControls();
     /// What the current layer's row shows: its blend mode and opacity when unusual, both on hover (see NodeDelegate::opacityRect())
     void updateRowShown();
+    void quietenMode();
     /// The current layer's opacity typed where it is written
     void typeOpacity();
     /// The row just below the line between two rows near \p pos (\p gapY is the line), if any

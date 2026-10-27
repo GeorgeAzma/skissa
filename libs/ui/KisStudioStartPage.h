@@ -38,6 +38,9 @@ protected:
     void dropEvent(QDropEvent *event) override;
 
 private:
+    /// Tiles of the images open in this window, to go back to
+    void showOpenImages();
+
     struct Private;
     Private *const d;
 };

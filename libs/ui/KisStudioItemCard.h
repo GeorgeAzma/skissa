@@ -37,6 +37,8 @@ QString assign(KisMainWindow *mainWindow, QAction *action, const QKeySequence &s
 
 /// Applies the shortcut saved for \p action, if there is one
 void restore(QAction *action);
+/// Whether a shortcut (or none) was chosen for the action named \p name
+bool savedShortcutsHave(const QString &name);
 
 /// Makes shortcuts editable directly in every menu; installed once for the whole application
 KRITAUI_EXPORT void enableMenuEditing();

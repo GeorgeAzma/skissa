@@ -1881,6 +1881,9 @@ struct KisStudioStartPage::Private
     /// The last image, blurred and veiled, as big as the page's view
     QPixmap backdrop;
     QString backdropKey;
+    /// The images open in this window, unsaved ones too, to go back to (shown over the new ones while there are any)
+    QWidget *openPill {nullptr};
+    QHBoxLayout *openTiles {nullptr};
 };
 
 KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
@@ -1895,6 +1898,18 @@ KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
     auto *outer = new QVBoxLayout(this);
     outer->setContentsMargins(KisModernStyle::space4 * 3, KisModernStyle::space4 * 3, KisModernStyle::space4 * 3, KisModernStyle::space4 * 2);
     outer->setSpacing(KisModernStyle::space4 * 2);
+
+    // the images open now, first: an unsaved one is in no list of files
+    d->openPill = new Pill(this);
+    d->openTiles = new QHBoxLayout(d->openPill);
+    d->openTiles->setContentsMargins(KisModernStyle::space3, KisModernStyle::space3, KisModernStyle::space3, KisModernStyle::space3);
+    d->openTiles->setSpacing(KisModernStyle::space3);
+    d->openPill->hide();
+    auto *openRow = new QHBoxLayout();
+    openRow->addStretch(1);
+    openRow->addWidget(d->openPill);
+    openRow->addStretch(1);
+    outer->addLayout(openRow);
 
     // New and Open, centered
     auto *pill = new Pill(this);
@@ -2130,9 +2145,39 @@ void KisStudioStartPage::paintEvent(QPaintEvent *)
     }
 }
 
+void KisStudioStartPage::showOpenImages()
+{
+    while (QLayoutItem *item = d->openTiles->takeAt(0)) {
+        delete item->widget();
+        delete item;
+    }
+    int count = 0;
+    Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
+        if (!view || view->mainWindow() != d->mainWindow || !view->document() || !view->image()) continue;
+        KisDocument *document = view->document();
+        const QString path = document->localFilePath();
+        const QString name = path.isEmpty() ? i18nc("an image open now that was never saved", "Unsaved") : QFileInfo(path).completeBaseName();
+        auto *tile = new NewTile(name, QSize(), d->openPill);
+        tile->setPicture(document->generatePreview(QSize(200, 200)).toImage(), view->image()->bounds().size());
+        tile->setToolTip(i18nc("@info:tooltip a tile of an image open now", "Back to this image"));
+        QPointer<KisView> to = view;
+        connect(tile, &QAbstractButton::clicked, this, [this, to]() {
+            if (!to || !d->mainWindow) return;
+            if (auto *tab = qobject_cast<QMdiSubWindow *>(to->parentWidget())) {
+                if (tab->mdiArea()) tab->mdiArea()->setActiveSubWindow(tab);
+            }
+            d->mainWindow->showWelcomeScreen(false);
+        });
+        d->openTiles->addWidget(tile);
+        count++;
+    }
+    d->openPill->setVisible(count > 0);
+}
+
 void KisStudioStartPage::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
+    showOpenImages();
     // the backdrop stays put as the page scrolls, so it is drawn again on each scroll
     QWidget *viewport = parentWidget();
     auto *scroller = viewport ? qobject_cast<QScrollArea *>(viewport->parentWidget()) : nullptr;

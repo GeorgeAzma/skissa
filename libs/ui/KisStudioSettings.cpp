@@ -1592,8 +1592,8 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("TrimKra"));
         });
     add(QStringLiteral("files"), QStringLiteral("pasting"), i18nc("settings card", "Pasting from other apps"),
-        {QStringLiteral("pasteFormat"), QStringLiteral("pasteBehaviour")}, QStringLiteral("clipboard paste drop browser take"), [](Builder &b) {
-            b.choice(QStringLiteral("pasteFormat"), i18nc("pasting", "Take"));
+        {QStringLiteral("pasteFormat"), QStringLiteral("pasteBehaviour")}, QStringLiteral("clipboard paste drop browser web download"), [](Builder &b) {
+            b.choice(QStringLiteral("pasteFormat"), i18nc("pasting an image copied from a web page", "Images from web pages"));
             b.choice(QStringLiteral("pasteBehaviour"));
         });
     add(QStringLiteral("files"), QStringLiteral("sessions"), i18nc("settings card", "Starting"),

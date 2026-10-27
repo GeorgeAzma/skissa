@@ -277,7 +277,7 @@ QHash<QString, QString> explanations()
         {QStringLiteral("compressLayersInKra"), i18nc("@info:tooltip", "Saving and opening take a little longer")},
         {QStringLiteral("TrimKra"), i18nc("@info:tooltip", "Paint outside the canvas is deleted when you save")},
         {QStringLiteral("pasteFormat"),
-         i18nc("@info:tooltip", "Which version of an image copied from a web page gets pasted")},
+         i18nc("@info:tooltip", "The original is full size; the page may show it smaller")},
         {QStringLiteral("renderIntent"),
          i18nc("@info:tooltip", "Perceptual is the safe choice for paintings and photos")},
         {QStringLiteral("useBlackPointCompensation"), i18nc("@info:tooltip", "Keeps detail in the shadows")},
@@ -623,7 +623,7 @@ QVector<Setting> describeAll()
         all << exportType;
         all << choice(QStringLiteral("pasteFormat"), 0,
                       {{0, i18nc("paste format", "Ask")}, {1, i18nc("paste format", "Download the original")},
-                       {2, i18nc("paste format", "A local copy")}, {3, i18nc("paste format", "The pasted image")}},
+                       {2, i18nc("paste format", "The browser's copy")}, {3, i18nc("paste format", "As shown on the page")}},
                       i18nc("setting", "Pasting from other apps"));
         all << choice(QStringLiteral("pasteBehaviour"), 2,
                       {{0, i18nc("pasted colors", "sRGB")}, {1, i18nc("pasted colors", "The screen's")}, {2, i18nc("pasted colors", "Ask")}},
