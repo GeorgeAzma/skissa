@@ -67,7 +67,7 @@ const QStringList arrangedKeys = {
     QStringLiteral("StudioLayout"), QStringLiteral("StudioBarItems"), QStringLiteral("StudioViewPillItems"), QStringLiteral("StudioControlItems"),
     QStringLiteral("StudioControlsPicked"), QStringLiteral("StudioRailItems"), QStringLiteral("StudioHiddenVariants"), QStringLiteral("StudioBrushes"),
     QStringLiteral("StudioEffects"), QStringLiteral("StudioBlendModeGroups"), QStringLiteral("StudioEffectGroups"), QStringLiteral("StudioBrushGroups"),
-    QStringLiteral("StudioControlsGroups"), QStringLiteral("StudioPinnedBrushTips"), QStringLiteral("StudioRing"), QStringLiteral("StudioColorStyle"),
+    QStringLiteral("StudioControlsGroups"), QStringLiteral("StudioPinnedBrushTips"), QStringLiteral("StudioRing"), QStringLiteral("StudioColorHues"), QStringLiteral("StudioColorShape"), QStringLiteral("StudioColorKeepLightness"),
     QStringLiteral("StudioColorCopyFormat"), QStringLiteral("StudioLastStrokeFollowsBrush"), QStringLiteral("BrushTipSizeLinked"),
     QStringLiteral("recorder/"), QStringLiteral("recorder_export/"),
 };

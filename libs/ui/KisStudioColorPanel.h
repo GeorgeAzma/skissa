@@ -37,7 +37,6 @@ public:
 
 private:
     /// Limits the height to what the sliders need, leaving the rest to the panels below
-    void fitHeight();
 
     struct Private;
     const std::unique_ptr<Private> d;
