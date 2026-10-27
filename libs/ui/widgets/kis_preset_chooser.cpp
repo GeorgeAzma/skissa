@@ -87,8 +87,18 @@ public:
         return m_strokes;
     }
 
+    /// Stroke rows begin with the brush's picture
+    void setStrokePictures(bool pictures) {
+        m_strokePictures = pictures;
+    }
+
+    bool strokePictures() const {
+        return m_strokePictures;
+    }
+
 private:
     bool m_strokes {false};
+    bool m_strokePictures {true};
     bool m_showText;
     bool m_useDirtyPresets;
 };
@@ -253,10 +263,18 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
     painter->setFont(option.font);
 
     if (!stroke.isNull()) {
-        const QRectF art = row.adjusted(4, 3, -4, -3);
+        QRectF art = row.adjusted(4, 3, -4, -3);
+        qreal textLeft = row.left() + 8;
+        if (m_strokePictures) {
+            // the brush's picture first: found at a glance, before its name is read
+            const qreal side = row.height() - 6;
+            const QRectF tile(row.left() + 3, row.center().y() - side / 2, side, side);
+            picture(tile, qMax<qreal>(3.0, side * 0.2));
+            textLeft = tile.right() + 8;
+            art.setLeft(tile.right() + 4);
+        }
         const QFontMetricsF metrics(option.font);
-        const qreal textLeft = row.left() + 8;
-        const QString shown = metrics.elidedText(name, Qt::ElideRight, row.width() * 0.7);
+        const QString shown = metrics.elidedText(name, Qt::ElideRight, (row.right() - textLeft) * 0.8);
         // the stroke whole, as wide as the row lets it be
         const QSizeF fitted = QSizeF(paintedPart(stroke).size()).scaled(art.size(), Qt::KeepAspectRatio);
         const QRectF place(art.right() - fitted.width(), art.center().y() - fitted.height() / 2, fitted.width(), fitted.height());
@@ -396,6 +414,11 @@ void KisPresetChooser::notifyConfigChanged()
 {
     KisConfig cfg(true);
     m_delegate->setUseDirtyPresets(cfg.useDirtyPresets());
+    const bool pictures = cfg.readEntry("PresetStrokePictures", true);
+    if (m_delegate->strokePictures() != pictures) {
+        m_delegate->setStrokePictures(pictures);
+        m_chooser->itemView()->viewport()->update();
+    }
     if (m_delegate->strokes() != KisPresetStrokeThumbnails::isEnabled()) {
         updateViewSettings();
     }

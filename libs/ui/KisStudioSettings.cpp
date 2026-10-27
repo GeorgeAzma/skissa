@@ -1297,8 +1297,12 @@ QVector<CardDef> makeCards()
         });
     addToggle(QStringLiteral("appearance"), QStringLiteral("tooltips"), i18nc("settings card", "Tooltips"), QStringLiteral("StudioTooltips"),
               QStringLiteral("tooltips hints hover help popups bubbles"));
-    addToggle(QStringLiteral("appearance"), QStringLiteral("brushes"), i18nc("settings card", "Brushes as strokes"), QStringLiteral("PresetStrokeThumbnails"),
-              QStringLiteral("brush thumbnails strokes presets show"));
+    add(QStringLiteral("appearance"), QStringLiteral("brushes"), i18nc("settings card", "Brushes as strokes"),
+        {QStringLiteral("PresetStrokeThumbnails"), QStringLiteral("PresetStrokePictures")},
+        QStringLiteral("brush thumbnails strokes presets show pictures icons"), [](Builder &b) {
+            b.toggle(QStringLiteral("PresetStrokeThumbnails"), i18nc("brushes as strokes", "Strokes"));
+            b.showWhen(b.toggle(QStringLiteral("PresetStrokePictures")), b.isOn(QStringLiteral("PresetStrokeThumbnails")));
+        });
     if (R::instance()->setting(QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"))) {
         addToggle(QStringLiteral("appearance"), QStringLiteral("screen"), i18nc("settings card", "Exact screen scale"),
                   QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"),

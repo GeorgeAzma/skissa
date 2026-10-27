@@ -371,6 +371,8 @@ QVector<Setting> describeAll()
         strokes.read = []() { return KisPresetStrokeThumbnails::isEnabled(); };
         strokes.write = [](const QVariant &value) { KisPresetStrokeThumbnails::setEnabled(value.toBool()); };
         all << strokes;
+        // a picture is found faster than a name
+        all << toggle(QStringLiteral("PresetStrokePictures"), true, i18nc("setting", "Pictures beside strokes"), R::Fork);
 
         // Black is the glow; the color last chosen is kept apart, so going back to Color brings it back
         Setting surround = color(QStringLiteral("canvasBorderColor"), QColor(0, 0, 0), i18nc("setting", "Around the image"));
