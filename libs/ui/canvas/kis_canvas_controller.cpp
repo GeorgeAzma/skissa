@@ -61,7 +61,6 @@ struct KisCanvasController::Private {
 
     void emitPointerPositionChangedSignals(QPoint pointerPos);
     void showRotationValueOnCanvas();
-    void showMirrorStateOnCanvas();
 };
 
 void KisCanvasController::Private::emitPointerPositionChangedSignals(QPoint pointerPos)
@@ -216,25 +215,12 @@ void KisCanvasController::ensureVisibleDoc(const QRectF &docRect, bool smooth)
     pan(QPoint(horizontalMove, verticalMove));
 }
 
-void KisCanvasController::Private::showMirrorStateOnCanvas()
-{
-    bool isXMirrored = coordinatesConverter->xAxisMirrored();
-
-    view->viewManager()->
-        showFloatingMessage(
-            i18nc("floating message about mirroring",
-                  "Horizontal mirroring: %1 ", isXMirrored ? i18n("ON") : i18n("OFF")),
-            QIcon(), 500, KisFloatingMessage::Low);
-}
-
 void KisCanvasController::mirrorCanvasImpl(const std::optional<KoViewTransformStillPoint> &stillPoint, bool enable)
 {
     const KisCanvasState oldCanvasState = canvasState();
     m_d->coordinatesConverter->mirror(stillPoint, enable, false);
     const KisCanvasState newCanvasState = canvasState();
     emitSignals(oldCanvasState, newCanvasState);
-
-    m_d->showMirrorStateOnCanvas();
 }
 
 void KisCanvasController::mirrorCanvas(bool enable)
