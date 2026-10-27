@@ -7,7 +7,11 @@
 #include "KisColorDrop.h"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QDrag>
+#include <QGridLayout>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QFutureWatcher>
 #include <QMimeData>
 #include <QMouseEvent>
@@ -31,8 +35,14 @@
 #include <klocalizedstring.h>
 #include <ksharedconfig.h>
 
+#include "KisDocument.h"
+#include "KisModernStyle.h"
+#include "KisSettingsRegistry.h"
+#include "KisStudioGlass.h"
 #include "KisView.h"
 #include "KisViewManager.h"
+#include "kis_slider_spin_box.h"
+#include <kundo2stack.h>
 #include "canvas/kis_canvas2.h"
 #include "canvas/kis_canvas_decoration.h"
 #include "floodfill/KisLineArtFill.h"
@@ -74,6 +84,16 @@ struct Options {
         o.underLines = group.readEntry<bool>("fillUnderLines", true);
         o.speckSize = qBound(0, group.readEntry<int>("speckSize", 4), 32);
         return o;
+    }
+
+    /// Kept for the next drops and the fill tool, which share them
+    void write() const
+    {
+        KConfigGroup group = KSharedConfig::openConfig()->group("KritaFill/KisToolFill");
+        group.writeEntry("thresholdAmount", threshold);
+        group.writeEntry("closeGapAmount", closeGap);
+        group.writeEntry("fillUnderLines", underLines);
+        KisSettingsRegistry::instance()->scheduleSync();
     }
 };
 
@@ -143,34 +163,16 @@ public:
 
     QImage overlay;
     QRect rect;
-    bool tuning {false};
-    qreal spread {0};
-    QPointF pointer;
-    QColor color;
 
 protected:
     void drawDecoration(QPainter &gc, const QRectF &, const KisCoordinatesConverter *converter, KisCanvas2 *) override
     {
-        if (!overlay.isNull()) {
-            gc.save();
-            gc.setTransform(converter->imageToWidgetTransform(), false);
-            gc.setRenderHint(QPainter::SmoothPixmapTransform, true);
-            gc.drawImage(QRectF(rect), overlay);
-            gc.restore();
-        }
-        if (tuning) {
-            // a dial by the pointer: how far the fill spreads into similar colors
-            gc.save();
-            gc.setRenderHint(QPainter::Antialiasing, true);
-            const QRectF dial(pointer + QPointF(14, -34), QSizeF(24, 24));
-            gc.setPen(QPen(QColor(0, 0, 0, 120), 5));
-            gc.drawEllipse(dial);
-            gc.setPen(QPen(QColor(255, 255, 255, 90), 3));
-            gc.drawEllipse(dial);
-            gc.setPen(QPen(color, 3, Qt::SolidLine, Qt::RoundCap));
-            gc.drawArc(dial, 90 * 16, -qRound(360 * 16 * spread));
-            gc.restore();
-        }
+        if (overlay.isNull()) return;
+        gc.save();
+        gc.setTransform(converter->imageToWidgetTransform(), false);
+        gc.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        gc.drawImage(QRectF(rect), overlay);
+        gc.restore();
     }
 };
 
@@ -210,6 +212,95 @@ protected:
         painter.setBrush(color);
         painter.drawEllipse(QRectF(disc.right() - 11, disc.bottom() - 11, 9, 9));
         icon().paint(&painter, QRect(QPoint(8, 7), iconSize()));
+    }
+};
+
+/**
+ * By a drop: how it filled, changed in place (the fill is made again while it is the newest step), and the
+ * bucket that keeps filling with its color. It goes a moment after the pointer leaves it.
+ */
+class DropPanel : public QWidget
+{
+public:
+    explicit DropPanel(QWidget *canvas)
+        : QWidget(canvas)
+    {
+        setAttribute(Qt::WA_Hover);
+        auto *row = new QHBoxLayout(this);
+        row->setContentsMargins(KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space3, KisModernStyle::space2);
+        row->setSpacing(KisModernStyle::space2);
+        bucket = new KeepFillingChip(this);
+        row->addWidget(bucket, 0, Qt::AlignTop);
+        auto *grid = new QGridLayout();
+        grid->setContentsMargins(0, 0, 0, 0);
+        grid->setHorizontalSpacing(KisModernStyle::space2);
+        grid->setVerticalSpacing(0);
+        auto value = [this](int low, int high) {
+            auto *slider = new KisSliderSpinBox(this);
+            slider->setRange(low, high);
+            slider->setFrame(false);
+            slider->setProperty(KisModernStyle::quietFieldProperty, true);
+            slider->setButtonSymbols(QAbstractSpinBox::NoButtons);
+            slider->setFixedWidth(120);
+            slider->setMinimumHeight(26);
+            slider->setBlockUpdateSignalOnDrag(true);
+            slider->setKeyboardTracking(false);
+            return slider;
+        };
+        gap = value(0, 32);
+        gap->setSpecialValueText(i18nc("color drop gap: sized from the lines", "Auto"));
+        gap->setSuffix(i18nc("unit", " px"));
+        gap->setProperty("kisDefaultValue", 0);
+        auto *gapName = new QLabel(i18nc("color drop: openings in the lines it closes", "Gap"), this);
+        gapName->setToolTip(i18nc("@info:tooltip", "Openings in the lines this wide still hold the fill; Auto sizes it from the lines"));
+        gap->setToolTip(gapName->toolTip());
+        spread = value(1, 100);
+        spread->setProperty("kisDefaultValue", 8);
+        auto *spreadName = new QLabel(i18nc("color drop: how far into similar colors it fills", "Spread"), this);
+        spreadName->setToolTip(i18nc("@info:tooltip", "Higher fills on into similar colors"));
+        spread->setToolTip(spreadName->toolTip());
+        underLines = new QCheckBox(i18nc("color drop: the fill reaches under the lines", "Under lines"), this);
+        underLines->setToolTip(i18nc("@info:tooltip", "The fill reaches under the lines' soft edges to their middle, leaving no pale rim"));
+        grid->addWidget(gapName, 0, 0);
+        grid->addWidget(gap, 0, 1);
+        grid->addWidget(spreadName, 1, 0);
+        grid->addWidget(spread, 1, 1);
+        grid->addWidget(underLines, 2, 0, 1, 2);
+        row->addLayout(grid);
+        for (QWidget *widget : std::initializer_list<QWidget *>{gapName, spreadName, gap, spread, underLines}) {
+            KisStudioGlass::setSeeThrough(widget, true);
+        }
+        adjustSize();
+    }
+
+    KeepFillingChip *bucket {nullptr};
+    KisSliderSpinBox *gap {nullptr};
+    KisSliderSpinBox *spread {nullptr};
+    QCheckBox *underLines {nullptr};
+    std::function<void(bool)> hovered;
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QPainterPath shape = KisStudioGlass::paint(painter, this, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), KisModernStyle::panelRadius);
+        QColor border = palette().color(QPalette::WindowText);
+        border.setAlphaF(0.14);
+        KisStudioGlass::paintBorder(painter, this, shape, border);
+    }
+
+    bool event(QEvent *event) override
+    {
+        if (event->type() == QEvent::HoverEnter && hovered) hovered(true);
+        if (event->type() == QEvent::HoverLeave && hovered) hovered(false);
+        // presses on the panel stay on it, not on the canvas under it
+        if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease) {
+            QWidget::event(event);
+            event->accept();
+            return true;
+        }
+        return QWidget::event(event);
     }
 };
 
@@ -256,8 +347,9 @@ Target targetFor(KisImageSP image, KisNodeSP active, const QPoint &point)
         return target;
     }
 
-    // Lines are the dark ink of the picture near the point; does the active layer hold them?
-    const QRect window = QRect(point - QPoint(96, 96), QSize(192, 192)) & image->bounds();
+    // Lines are the dark ink of the picture around the point; does the active layer hold them? Far enough around
+    // that the middle of a large shape still sees its outline
+    const QRect window = QRect(point - QPoint(768, 768), QSize(1536, 1536)) & image->bounds();
     const QImage picture = image->projection()->convertToQImage(nullptr, window).convertToFormat(QImage::Format_ARGB32);
     const QImage own = active->paintDevice()->convertToQImage(nullptr, window).convertToFormat(QImage::Format_ARGB32);
     int lines = 0, held = 0;
@@ -314,17 +406,22 @@ struct KisColorDrop::Private {
     bool computing {false};
     bool pending {false};
 
-    // resting a moment, then moving sideways, tunes the threshold
-    QTimer rest;
-    QPoint restAt;
-    bool tuning {false};
-    int tuneFrom {0};
-    int tuneBase {8};
-
-    QPointer<KeepFillingChip> chip;
-    QTimer chipTimeout;
+    QPointer<DropPanel> panel;
+    QTimer panelTimeout;
     bool keepFilling {false};
     KoColor keepColor;
+
+    // the last drop, made again as its panel changes it while it is still the newest step
+    QPoint lastSeed {-1, -1};
+    KoColor lastColor;
+    QPointer<KUndo2Stack> stack;
+    QMetaObject::Connection stackConnection;
+    const KUndo2Command *step {nullptr};
+    int expectedIndex {-1};
+    QTimer refill;
+    int refillTries {0};
+    /// The layer active when the last fill was made
+    KisNodeWSP lastActive;
     QPoint pressAt;
     bool pressed {false};
     /// Space held on the canvas: its presses pan, as without the chip
@@ -340,26 +437,16 @@ struct KisColorDrop::Private {
 
     void showPreview()
     {
-        if (!canvas()) return;
-        preview->color = color.toQColor();
-        preview->pointer = pointer;
-        preview->tuning = tuning;
-        preview->spread = threshold / 100.0;
-        canvas()->updateCanvasDecorations();
+        if (canvas()) canvas()->updateCanvasDecorations();
     }
 
     void clearPreview()
     {
         generation++;
         pending = false;
-        rest.stop();
-        tuning = false;
         region = nullptr;
         seed = QPoint(-1, -1);
-        if (preview) {
-            preview->overlay = QImage();
-            preview->tuning = false;
-        }
+        if (preview) preview->overlay = QImage();
         if (canvas()) canvas()->updateCanvasDecorations();
     }
 
@@ -415,39 +502,87 @@ struct KisColorDrop::Private {
         }));
     }
 
-    void hideChip()
+    void hidePanel()
     {
         keepFilling = false;
-        chipTimeout.stop();
+        panelTimeout.stop();
+        refill.stop();
         if (QWidget *widget = canvasWidget()) widget->removeEventFilter(q);
-        if (chip) chip->deleteLater();
-        chip = nullptr;
+        if (panel) panel->deleteLater();
+        panel = nullptr;
     }
 
-    void showChip(const QPoint &canvasPos)
+    /// The panel's values changed: kept for the next drops, and the last drop is made again with them
+    void changed()
+    {
+        if (!panel) return;
+        options.closeGap = panel->gap->value();
+        options.threshold = panel->spread->value();
+        options.underLines = panel->underLines->isChecked();
+        options.write();
+        threshold = options.threshold;
+        refillTries = 0;
+        refill.start(0);
+    }
+
+    void showPanel(const QPoint &canvasPos)
     {
         QWidget *widget = canvasWidget();
         if (!widget) return;
-        if (!chip) {
-            chip = new KeepFillingChip(widget);
-            QObject::connect(chip.data(), &QToolButton::toggled, q, [this](bool on) {
+        if (!panel) {
+            panel = new DropPanel(widget);
+            QObject::connect(panel->bucket, &QToolButton::toggled, q, [this](bool on) {
                 keepFilling = on;
                 if (on) {
-                    chipTimeout.stop();
+                    panelTimeout.stop();
                     canvasWidget()->installEventFilter(q);
                 } else {
-                    hideChip();
+                    canvasWidget()->removeEventFilter(q);
+                    panelTimeout.start();
                 }
             });
+            panel->hovered = [this](bool in) {
+                if (in) panelTimeout.stop();
+                else if (!keepFilling) panelTimeout.start();
+            };
+            QObject::connect(panel->gap, QOverload<int>::of(&KisSliderSpinBox::valueChanged), q, [this]() { changed(); });
+            QObject::connect(panel->spread, QOverload<int>::of(&KisSliderSpinBox::valueChanged), q, [this]() { changed(); });
+            QObject::connect(panel->underLines, &QCheckBox::toggled, q, [this]() { changed(); });
+            // beside the drop, clear of the pointer
+            const QPoint at = canvasPos + QPoint(22, 22);
+            panel->move(qBound(0, at.x(), widget->width() - panel->width()), qBound(0, at.y(), widget->height() - panel->height()));
         }
-        chip->color = color.toQColor();
+        {
+            const QSignalBlocker gapBlocker(panel->gap), spreadBlocker(panel->spread), linesBlocker(panel->underLines);
+            panel->gap->setValue(options.closeGap);
+            panel->spread->setValue(threshold);
+            panel->underLines->setChecked(options.underLines);
+        }
+        panel->bucket->color = color.toQColor();
         keepColor = color;
-        const QPoint at = canvasPos + QPoint(18, 18);
-        chip->move(qBound(0, at.x(), widget->width() - chip->width()), qBound(0, at.y(), widget->height() - chip->height()));
-        chip->show();
-        chip->raise();
-        chip->update();
-        if (!keepFilling) chipTimeout.start();
+        panel->show();
+        panel->raise();
+        panel->bucket->update();
+        if (!keepFilling && !panel->underMouse()) panelTimeout.start();
+    }
+
+    /// Notes the history step the next fill makes, to take it back if its panel changes it
+    void expectStep()
+    {
+        KisDocument *document = view ? view->document() : nullptr;
+        KUndo2Stack *undo = document ? document->undoStack() : nullptr;
+        step = nullptr;
+        if (undo != stack) {
+            QObject::disconnect(stackConnection);
+            stack = undo;
+            if (undo) {
+                stackConnection = QObject::connect(undo, &KUndo2Stack::indexChanged, q, [this](int index) {
+                    if (step || !stack || index != expectedIndex || index < 1) return;
+                    step = stack->command(index - 1);
+                });
+            }
+        }
+        expectedIndex = stack ? stack->index() + 1 : -1;
     }
 };
 
@@ -459,22 +594,22 @@ KisColorDrop::KisColorDrop(KisView *view)
     d->view = view;
     d->preview = new Preview(view);
     view->canvasBase()->addDecoration(KisCanvasDecorationSP(d->preview.data()));
-    d->rest.setSingleShot(true);
-    d->rest.setInterval(450);
-    connect(&d->rest, &QTimer::timeout, this, [this]() {
-        if (!d->region) return;
-        d->tuning = true;
-        d->tuneFrom = d->pointer.x();
-        d->tuneBase = d->threshold;
-        d->showPreview();
+    d->panelTimeout.setSingleShot(true);
+    d->panelTimeout.setInterval(6000);
+    connect(&d->panelTimeout, &QTimer::timeout, this, [this]() {
+        // a number being typed into it keeps it
+        if (d->panel && d->panel->isAncestorOf(QApplication::focusWidget())) {
+            d->panelTimeout.start();
+            return;
+        }
+        d->hidePanel();
     });
-    d->chipTimeout.setSingleShot(true);
-    d->chipTimeout.setInterval(3500);
-    connect(&d->chipTimeout, &QTimer::timeout, this, [this]() { d->hideChip(); });
+    d->refill.setSingleShot(true);
+    connect(&d->refill, &QTimer::timeout, this, [this]() { refillLast(); });
     // picking another tool ends keeping on filling
     if (KoToolManager *tools = view && view->viewManager() ? view->viewManager()->toolManager() : nullptr) {
         connect(tools, &KoToolManager::changedTool, this, [this]() {
-            if (d->keepFilling) d->hideChip();
+            if (d->keepFilling) d->hidePanel();
         });
     }
 }
@@ -505,29 +640,12 @@ void KisColorDrop::hover(const KoColor &color, const QPoint &canvasPos)
 {
     KisImageSP image = d->view ? d->view->image() : nullptr;
     if (!image || !d->canvas()) return;
-    const bool newDrag = d->seed == QPoint(-1, -1) && !d->tuning;
-    if (newDrag) {
+    if (d->seed == QPoint(-1, -1)) {
         d->options = Options::read();
         d->threshold = d->options.threshold;
     }
     d->color = color;
     d->pointer = canvasPos;
-
-    if (d->tuning) {
-        // sideways: right spreads into more colors, left into fewer
-        const int threshold = qBound(1, d->tuneBase + (canvasPos.x() - d->tuneFrom) / 3, 100);
-        if (threshold != d->threshold) {
-            d->threshold = threshold;
-            d->compute();
-        }
-        d->showPreview();
-        return;
-    }
-
-    if ((canvasPos - d->restAt).manhattanLength() > 4) {
-        d->restAt = canvasPos;
-        d->rest.start();
-    }
 
     const QPoint point = d->imagePoint(canvasPos);
     if (!image->bounds().contains(point)) {
@@ -550,25 +668,57 @@ void KisColorDrop::leave()
 
 bool KisColorDrop::drop(const KoColor &color, const QPoint &canvasPos)
 {
+    if (!d->canvas()) return false;
+    const QPoint point = d->imagePoint(canvasPos);
+    d->options = Options::read();
+    d->threshold = d->options.threshold;
+    d->clearPreview();
+    if (!fillAt(color, point)) return false;
+    d->color = color;
+    d->showPanel(canvasPos);
+    return true;
+}
+
+void KisColorDrop::refillLast()
+{
+    KisImageSP image = d->view ? d->view->image() : nullptr;
+    if (!image || !d->stack || d->lastSeed == QPoint(-1, -1)) return;
+    if (!d->step) {
+        // the fill's step isn't in the history yet: it is still being made
+        if (d->expectedIndex > 0 && ++d->refillTries < 300) d->refill.start(16);
+        return;
+    }
+    const int index = d->stack->index();
+    // only while the fill is still the newest step, with nothing undone after it
+    if (index < 1 || index != d->stack->count() || d->stack->command(index - 1) != d->step) {
+        d->step = nullptr;
+        return;
+    }
+    if (!image->isIdle()) {
+        if (++d->refillTries < 300) d->refill.start(16);
+        return;
+    }
+    d->step = nullptr;
+    d->stack->setIndex(index - 1);
+    fillAt(d->lastColor, d->lastSeed);
+}
+
+bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
+{
     KisImageSP image = d->view ? d->view->image() : nullptr;
     KisViewManager *viewManager = d->view ? d->view->viewManager() : nullptr;
-    if (!image || !viewManager || !d->canvas()) return false;
-
-    const bool tuned = d->tuning;
-    const QPoint point = tuned ? d->seed : d->imagePoint(canvasPos);
-    if (!tuned) {
-        d->options = Options::read();
-        d->threshold = d->options.threshold;
-    }
+    if (!image || !viewManager) return false;
     const int threshold = d->threshold;
-    d->clearPreview();
     if (!image->bounds().contains(point)) return false;
 
     KisNodeSP active = viewManager->activeNode();
+    // a fill made again: the layer it made was just taken back with it, and may still be the active one
+    if (active && !active->parent()) active = d->lastActive;
     if (active && !active->isEditable()) {
         d->view->showFloatingMessage(i18nc("@info:status", "Locked"), KisIconUtils::loadIcon(QStringLiteral("object-locked")));
         return false;
     }
+    d->lastActive = active;
 
     KisSelectionSP selection = viewManager->selection();
     const bool inSelection = selection && selection->projection()->pixel(point).opacityU8() > 0;
@@ -577,6 +727,9 @@ bool KisColorDrop::drop(const KoColor &color, const QPoint &canvasPos)
         : targetFor(image, active, point);
     KisNodeSP node = target.newLayer ? KisNodeSP(target.newLayer) : target.node;
 
+    d->lastSeed = point;
+    d->lastColor = color;
+    d->expectStep();
     KisStrokeStrategyUndoCommandBased *strategy =
         new KisStrokeStrategyUndoCommandBased(kundo2_i18n("Fill"), false, image.data());
     strategy->setSupportsWrapAroundMode(true);
@@ -611,9 +764,6 @@ bool KisColorDrop::drop(const KoColor &color, const QPoint &canvasPos)
     image->addJob(stroke, new KisStrokeStrategyUndoCommandBased::Data(KUndo2CommandSP(new KisUpdateCommand(node, dirty, image.data())), false,
                                                                      KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::EXCLUSIVE));
     image->endStroke(stroke);
-
-    d->color = color;
-    d->showChip(canvasPos);
     return true;
 }
 
@@ -759,7 +909,7 @@ bool KisColorDrop::eventFilter(QObject *watched, QEvent *event)
             ? static_cast<QMouseEvent *>(event)->button() == Qt::RightButton
             : static_cast<QTabletEvent *>(event)->button() == Qt::RightButton;
         if (right) {
-            d->hideChip();
+            d->hidePanel();
             return true;
         }
         // only a plain tap fills: middle button, modifiers and Space keep panning, zooming and picking
@@ -780,12 +930,15 @@ bool KisColorDrop::eventFilter(QObject *watched, QEvent *event)
         if (!d->pressed) return false;
         d->pressed = false;
         if ((position() - d->pressAt).manhattanLength() <= QApplication::startDragDistance()) {
-            drop(d->keepColor, d->pressAt);
+            // the panel stays where it is: what it changes is this newest fill
+            d->options = Options::read();
+            d->threshold = d->options.threshold;
+            fillAt(d->keepColor, d->imagePoint(d->pressAt));
         }
         return true;
     case QEvent::KeyPress:
         if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
-            d->hideChip();
+            d->hidePanel();
             return true;
         }
         if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Space) d->spaceHeld = true;

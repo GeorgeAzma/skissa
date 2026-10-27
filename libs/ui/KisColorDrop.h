@@ -23,9 +23,10 @@ class QWidget;
 
 /**
  * A color dragged onto the canvas fills the area under it. While the color is over the canvas the area
- * it would fill is shown in that color; resting a moment, then moving sideways, tunes how far it spreads.
- * The fill reaches the middle of the lines (see KisLineArtFill) on a layer of its own when the active
- * layer holds the lines. After a drop, a button by it keeps filling with the same color.
+ * it would fill is shown in that color. The fill reaches the middle of the lines (see KisLineArtFill) on a
+ * layer of its own when the active layer holds the lines. After a drop, a panel by it changes the gap it
+ * closes, how far it spreads and whether it reaches under the lines, making the fill again, and keeps
+ * filling with the same color.
  */
 class KRITAUI_EXPORT KisColorDrop : public QObject
 {
@@ -61,6 +62,11 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    /// Fills from \p point (image coordinates) with the drop's options; the fill is one step
+    bool fillAt(const KoColor &color, const QPoint &point);
+    /// Takes back the last fill and makes it again with the panel's values, while it is the newest step
+    void refillLast();
+
     struct Private;
     QScopedPointer<Private> d;
 };
