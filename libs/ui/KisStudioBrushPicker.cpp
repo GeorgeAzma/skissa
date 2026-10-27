@@ -12,6 +12,7 @@
 #include <QMutexLocker>
 #include <QPainter>
 #include <QRegularExpression>
+#include <QSet>
 #include <QPainterPath>
 #include <QMouseEvent>
 #include <QThread>
@@ -48,6 +49,7 @@
 #include "brushengine/kis_paint_information.h"
 #include "kis_distance_information.h"
 #include "KisRunnableStrokeJobData.h"
+#include "widgets/KisPresetStrokeThumbnails.h"
 #include "brushengine/kis_paintop.h"
 #include <KisModernStyle.h>
 
@@ -109,6 +111,7 @@ struct KisStudioBrushStrokes {
     QHash<QString, QImage> shown;       ///< collected strokes, GUI thread only
     /// Alpha masks of what each stroke changed, used to place brushes on the map
     QHash<QString, QImage> madeMasks;   ///< painted by the worker, guarded by the mutex
+    QSet<QString> madeTintable;         ///< painted by the worker in one color, guarded by the mutex
     QHash<QString, QImage> masks;       ///< collected masks, GUI thread only
 };
 
@@ -301,7 +304,7 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
     if (strokes) {
         source.paintPreview = [catalog, strokes](QPainter &painter, const QRect &rect, const QString &id) {
             painter.fillRect(rect, strokes->paper);
-            const QImage stroke = strokes->shown.value(id);
+            const QImage stroke = KisPresetStrokeThumbnails::isEnabled() ? strokes->shown.value(id) : QImage();
             if (!stroke.isNull()) {
                 painter.drawImage(rect, stroke);
                 return;
@@ -324,8 +327,9 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
     return source;
 }
 
-/// Paints a wave with light pressure at the ends and full in the middle; \p mask receives what the stroke changed
-QImage paintStroke(const Job &job, QImage *mask)
+/// Paints a wave with light pressure at the ends and full in the middle; \p mask receives what the stroke changed,
+/// and \p tintable whether the stroke is the paint color throughout, so the mask in another color is the stroke
+QImage paintStroke(const Job &job, QImage *mask, bool *tintable)
 {
     KisPaintDeviceSP device = job.layer->paintDevice();
     const int w = job.size.width();
@@ -402,20 +406,54 @@ QImage paintStroke(const Job &job, QImage *mask)
                     out[x] = qRgba(0, 0, 0, qMin(255, d * 2));
                 }
             }
-            *mask = changed;
+            *mask = changed.convertToFormat(QImage::Format_Alpha8);
         } else {
-            *mask = after;
+            *mask = after.convertToFormat(QImage::Format_Alpha8);
         }
+    }
+    *tintable = false;
+    if (!overBackground) {
+        const QColor color = job.paint.toQColor();
+        bool one = true;
+        for (int y = 0; y < h && one; y++) {
+            const QRgb *line = reinterpret_cast<const QRgb *>(after.constScanLine(y));
+            for (int x = 0; x < w; x++) {
+                if (qAlpha(line[x]) >= 8
+                    && (qAbs(qRed(line[x]) - color.red()) > 2 || qAbs(qGreen(line[x]) - color.green()) > 2 || qAbs(qBlue(line[x]) - color.blue()) > 2)) {
+                    one = false;
+                    break;
+                }
+            }
+        }
+        *tintable = one;
     }
     return after;
 }
 
-/// Painted strokes, kept for the next time the picker opens
+/// \p mask as a stroke in \p color
+QImage tinted(const QImage &mask, const QColor &color)
+{
+    QImage stroke(mask.size(), QImage::Format_ARGB32);
+    for (int y = 0; y < mask.height(); y++) {
+        const uchar *alpha = mask.constScanLine(y);
+        QRgb *out = reinterpret_cast<QRgb *>(stroke.scanLine(y));
+        for (int x = 0; x < mask.width(); x++) out[x] = qRgba(color.red(), color.green(), color.blue(), alpha[x]);
+    }
+    return stroke;
+}
+
+/// Painted strokes, kept for the next time the picker opens: one a brush. A stroke of one color is recolored
+/// when the color changes; the others show in the old color until painted again.
 struct StrokeCache {
-    QString stamp;                      ///< the color and size they were painted with
-    QHash<QString, QImage> strokes;     ///< by md5 + name
-    QHash<QString, QImage> masks;       ///< by md5 + name
-    QHash<QString, QImage> latest;      ///< by name, in any color; used by the canvas ring
+    struct Entry {
+        QString md5;
+        QImage stroke;
+        QImage mask;                    ///< alpha only
+        QColor color;                   ///< of the stroke
+        bool tintable {false};
+    };
+    int width {0};                      ///< of the strokes, in pixels
+    QHash<QString, Entry> entries;      ///< by name
 };
 
 StrokeCache &strokeCache()
@@ -699,6 +737,9 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
         use(mainWindow->viewManager(), id);
     });
 
+    // brushes as their pictures: nothing to paint, and no map of how strokes look
+    if (!KisPresetStrokeThumbnails::isEnabled()) return;
+
     const Source &source = pickerSource();
     auto *map = new BrushMap(strokes, pinnedIds(source), currentPresetName(mainWindow), this);
     map->picked = [this](const QString &id) { pickId(id); };
@@ -709,23 +750,26 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
     }
 
     StrokeCache &cache = strokeCache();
-    const QString stamp = d->paint.toQColor().name() + QLatin1Char('@') + QString::number(d->size.width());
-    if (cache.stamp != stamp) {
-        cache.strokes.clear();
-        cache.masks.clear();
-        cache.stamp = stamp;
+    if (cache.width != d->size.width()) {
+        cache.entries.clear();
+        cache.width = d->size.width();
     }
 
     // Paint the brushes that are seen first before the rest
+    const QColor color = d->paint.toQColor();
     QStringList order = source.recent() + pinnedIds(source) + d->catalog->ids;
     order.removeDuplicates();
     Q_FOREACH (const QString &id, order) {
         const Brush brush = d->catalog->brushes.value(id);
-        const QImage cached = cache.strokes.value(brush.md5 + id);
-        if (!cached.isNull()) {
-            strokes->shown.insert(id, cached);
-            const QImage cachedMask = cache.masks.value(brush.md5 + id);
-            if (!cachedMask.isNull()) strokes->masks.insert(id, cachedMask);
+        auto cached = cache.entries.find(id);
+        if (cached != cache.entries.end() && cached->md5 == brush.md5) {
+            if (cached->tintable && cached->color != color) {
+                cached->stroke = tinted(cached->mask, color);
+                cached->color = color;
+            }
+            strokes->shown.insert(id, cached->stroke);
+            strokes->masks.insert(id, cached->mask);
+            if (cached->color != color) d->toQueue << id;
         } else if (!brush.name.isEmpty()) {
             d->toQueue << id;
         }
@@ -754,10 +798,12 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
                 continue;
             }
             QImage mask;
-            const QImage stroke = paintStroke(job, &mask);
+            bool tintable = false;
+            const QImage stroke = paintStroke(job, &mask, &tintable);
             QMutexLocker locker(&strokes->mutex);
             if (!stroke.isNull()) strokes->made.insert(job.id, stroke);
             if (!mask.isNull()) strokes->madeMasks.insert(job.id, mask);
+            if (tintable) strokes->madeTintable.insert(job.id);
             strokes->spent << job;
             job = Job();
         }
@@ -787,24 +833,23 @@ bool KisStudioBrushPicker::Private::collectSome()
     const bool done = strokes->finished;
     QHash<QString, QImage> madeStrokes;
     QHash<QString, QImage> madeMasks;
+    QSet<QString> madeTintable;
     QList<Job> spent;
     {
         QMutexLocker locker(&strokes->mutex);
         madeStrokes.swap(strokes->made);
         madeMasks.swap(strokes->madeMasks);
+        madeTintable.swap(strokes->madeTintable);
         spent.swap(strokes->spent);
     }
     // Release the preset copies here, in the GUI thread
     spent.clear();
     StrokeCache &cache = strokeCache();
-    for (auto it = madeMasks.constBegin(); it != madeMasks.constEnd(); ++it) {
-        strokes->masks.insert(it.key(), it.value());
-        cache.masks.insert(catalog->brushes.value(it.key()).md5 + it.key(), it.value());
-    }
     for (auto it = madeStrokes.constBegin(); it != madeStrokes.constEnd(); ++it) {
+        const QImage mask = madeMasks.value(it.key());
         strokes->shown.insert(it.key(), it.value());
-        cache.strokes.insert(catalog->brushes.value(it.key()).md5 + it.key(), it.value());
-        cache.latest.insert(it.key(), it.value());
+        strokes->masks.insert(it.key(), mask);
+        cache.entries.insert(it.key(), {catalog->brushes.value(it.key()).md5, it.value(), mask, paint.toQColor(), madeTintable.contains(it.key())});
     }
     if (done) collect.stop();
     return !madeStrokes.isEmpty();
@@ -914,7 +959,7 @@ void KisStudioBrushPicker::use(KisViewManager *view, const QString &presetName)
 
 QImage KisStudioBrushPicker::strokePicture(const QString &presetName)
 {
-    return strokeCache().latest.value(presetName);
+    return strokeCache().entries.value(presetName).stroke;
 }
 
 QString KisStudioBrushPicker::title(const QString &presetName)

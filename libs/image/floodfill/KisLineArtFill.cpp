@@ -30,8 +30,11 @@ namespace
 
 /// How far a fill may reach under the lines beyond where the flood stopped.
 constexpr int reach = 64;
-/// The most pixels a fill grows over (about 4900 x 4900, some 250 MB of work); larger fills stay as they are.
+/// The most pixels a fill grows over at once (about 4900 x 4900, some 250 MB of work); larger fills grow by tiles.
 constexpr qint64 largestArea = 24'000'000;
+/// A tile of a large fill, and the room around it read too, so what it decides near its edges sees what is beyond
+constexpr int tileSize = 4096;
+constexpr int tileRoom = 2 * reach;
 
 template<typename Policy>
 void measure(const Policy &policy, KisPaintDeviceSP device, const QRect &rect, std::vector<quint8> &out)
@@ -108,14 +111,14 @@ int quantile(std::vector<int> &values, qreal quantile, size_t enough)
 
 } // namespace
 
+/// \p region grown within \p room (of the image's \p bounds), written into \p into where it is inside \p written
 static void growArea(KisPixelSelectionSP region, KisPaintDeviceSP reference, const KoColor &seedColor, int threshold,
-                     bool underLines, int speckSize, int closeGap, const QRect &bounds, KisPaintDeviceSP target)
+                     bool underLines, int speckSize, int closeGap, const QRect &bounds, KisPaintDeviceSP target,
+                     const QRect &room, KisPixelSelectionSP into, const QRect &written)
 {
-    if (!region || !reference || (!underLines && speckSize <= 1 && closeGap <= 0)) return;
-    const QRect filled = region->selectedExactRect() & bounds;
+    const QRect filled = region->selectedExactRect() & room;
     if (filled.isEmpty()) return;
-    const QRect area = filled.adjusted(-reach, -reach, reach, reach) & bounds;
-    if (qint64(area.width()) * area.height() > largestArea) return;
+    const QRect area = filled.adjusted(-reach, -reach, reach, reach) & room;
     const int width = area.width(), height = area.height(), count = width * height;
 
     const std::vector<quint8> level = differences(reference, seedColor, threshold, area);
@@ -223,21 +226,38 @@ static void growArea(KisPixelSelectionSP region, KisPaintDeviceSP reference, con
             for (int x = 0; x < width; x++) targetInk[size_t(y) * width + x] = qAlpha(row[x]) * (255 - qGray(row[x])) / 255 > 64;
         }
     }
-    KisSequentialIterator it(region, area);
-    int i = 0;
+    const QRect out = area & written;
+    if (out.isEmpty()) return;
+    KisSequentialIterator it(into, out);
     while (it.nextPixel()) {
+        const int i = (it.y() - area.y()) * width + it.x() - area.x();
         if (!own[i] && labels[i] == 1 && (open(i) || (underLines && (targetInk.empty() || !targetInk[i])))) *it.rawData() = MAX_SELECTED;
-        i++;
     }
-    region->invalidateOutlineCache();
+    into->invalidateOutlineCache();
 }
 
 void KisLineArtFill::grow(KisPixelSelectionSP region, KisPaintDeviceSP reference, const KoColor &seedColor, int threshold,
                           bool underLines, int speckSize, int closeGap, const QRect &bounds, KisPaintDeviceSP target)
 {
-    // a large area takes about a gigabyte: without it the fill stays as Krita's flood fill made it
+    if (!region || !reference || (!underLines && speckSize <= 1 && closeGap <= 0)) return;
+    const QRect filled = region->selectedExactRect() & bounds;
+    if (filled.isEmpty()) return;
+    const QRect area = filled.adjusted(-reach, -reach, reach, reach) & bounds;
+    // without the memory it needs, the fill stays as Krita's flood fill made it
     try {
-        growArea(region, reference, seedColor, threshold, underLines, speckSize, closeGap, bounds, target);
+        if (qint64(area.width()) * area.height() <= largestArea) {
+            growArea(region, reference, seedColor, threshold, underLines, speckSize, closeGap, bounds, target, bounds, region, bounds);
+            return;
+        }
+        // each tile reads the fill as the flood made it, not as the tiles before grew it
+        KisPixelSelectionSP flooded = new KisPixelSelection(*region);
+        for (int y = area.top(); y <= area.bottom(); y += tileSize) {
+            for (int x = area.left(); x <= area.right(); x += tileSize) {
+                const QRect tile = QRect(x, y, tileSize, tileSize) & area;
+                const QRect room = tile.adjusted(-tileRoom, -tileRoom, tileRoom, tileRoom) & bounds;
+                growArea(flooded, reference, seedColor, threshold, underLines, speckSize, closeGap, bounds, target, room, region, tile);
+            }
+        }
     } catch (const std::bad_alloc &) {
     }
 }

@@ -39,6 +39,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
+#include <QFutureWatcher>
 #include <QHBoxLayout>
 #include <QImageReader>
 #include <QJsonArray>
@@ -56,6 +57,7 @@
 #include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QtConcurrentRun>
 
 #include <algorithm>
 #include <functional>
@@ -562,6 +564,9 @@ public:
     QTimer framesTimer;
     QTimer showTimer;
     int frameCount = 0;
+    /// The frames being listed, and whether to list them again once done
+    QFutureWatcher<QStringList> listing;
+    bool listAgain = false;
 
     QString snapshotDirectory;
     QString prefix;
@@ -665,20 +670,38 @@ public:
                : canvas->imageView()->document()->documentInfo()->aboutInfo("creation-date").remove(QRegularExpression("[^0-9]"));
     }
 
-    /// This image's frames so far, oldest first.
-    QStringList frames() const
+    /// The frames in \p folder of the \p extension, oldest first
+    static QStringList framesIn(const QString &folder, const QString &extension)
     {
-        if (!canvas || outputDirectory.isEmpty()) return QStringList();
-        const QDir dir(outputDirectory, QStringLiteral("*.") + RecorderFormatInfo::fileExtension(format), QDir::Name,
-                       QDir::Files | QDir::NoDotAndDotDot);
+        const QDir dir(folder, QStringLiteral("*.") + extension, QDir::Name, QDir::Files | QDir::NoDotAndDotDot);
         QStringList paths;
         for (const QString &name : dir.entryList()) paths << dir.filePath(name);
         return paths;
     }
 
+    /// This image's frames so far, oldest first.
+    QStringList frames() const
+    {
+        if (!canvas || outputDirectory.isEmpty()) return QStringList();
+        return framesIn(outputDirectory, RecorderFormatInfo::fileExtension(format));
+    }
+
+    /// The frames listed on another thread and shown: after a long session the folder holds thousands
     void refreshFrames()
     {
-        const QStringList all = frames();
+        if (!canvas || outputDirectory.isEmpty()) {
+            showFrames(QStringList());
+            return;
+        }
+        if (listing.isRunning()) {
+            listAgain = true;
+            return;
+        }
+        listing.setFuture(QtConcurrent::run(framesIn, outputDirectory, RecorderFormatInfo::fileExtension(format)));
+    }
+
+    void showFrames(const QStringList &all)
+    {
         frameCount = all.size();
         view->setFrames(all);
         lengthLabel->setText(clock(frameCount / videoFps));
@@ -848,6 +871,13 @@ public:
         buildMenu();
         q->setWidget(page);
 
+        QObject::connect(&listing, &QFutureWatcher<QStringList>::finished, q, [this]() {
+            showFrames(listing.result());
+            if (listAgain) {
+                listAgain = false;
+                refreshFrames();
+            }
+        });
         framesTimer.setInterval(1500);
         // the folder listed only while the panel is seen: it holds thousands of frames after a long session
         QObject::connect(&framesTimer, &QTimer::timeout, q, [this]() {
@@ -986,8 +1016,8 @@ public:
         RecorderExportPreprocessor preprocessor(settings->inputDirectory, settings->format);
         preprocessor.doPreprocessing();
         // it renames the frames: the preview reads them by their new names
-        refreshFrames();
         const QStringList all = frames();
+        showFrames(all);
         settings->framesCount = all.size();
         if (all.isEmpty()) return;
         settings->imageSize = QImageReader(all.last()).size();

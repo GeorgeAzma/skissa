@@ -8,6 +8,8 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QClipboard>
+#include <QCryptographicHash>
+#include <QDir>
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QDragEnterEvent>
@@ -166,6 +168,54 @@ QImage readPicture(const QString &path, int longest)
     return image;
 }
 
+/// The pictures kept on disk: a gallery's worth, the least recently made going first
+constexpr int keptOnDisk = 40;
+
+/**
+ * readPicture() through a small folder of the pictures read before, named by the file, its time and the size, so a
+ * changed file is read again. A large .kra's merged image takes a second and hundreds of MB to decode; the kept
+ * picture a few milliseconds.
+ */
+QImage cachedPicture(const QString &path, int longest)
+{
+    const QString folder = KisProfile::configFolder() + QStringLiteral("/start-pictures");
+    const QFileInfo source(path);
+    const QByteArray id = QCryptographicHash::hash((path + QLatin1Char('|') + QString::number(source.lastModified().toMSecsSinceEpoch())
+                                                    + QLatin1Char('|') + QString::number(longest)).toUtf8(),
+                                                   QCryptographicHash::Sha1).toHex();
+    const QString kept = folder + QLatin1Char('/') + QString::fromLatin1(id);
+    for (const char *suffix : {".jpg", ".png"}) {
+        QFile file(kept + QLatin1String(suffix));
+        QImage image(file.fileName());
+        if (image.isNull()) continue;
+        // used, so it goes last
+        if (file.open(QIODevice::ReadWrite)) file.setFileTime(QDateTime::currentDateTime(), QFileDevice::FileModificationTime);
+        return image;
+    }
+    const QImage image = readPicture(path, longest);
+    if (image.isNull() || !QDir().mkpath(folder)) return image;
+    // opaque pictures as JPEG, a tenth of the PNG
+    bool opaque = !image.hasAlphaChannel();
+    if (!opaque) {
+        const QImage argb = image.convertToFormat(QImage::Format_ARGB32);
+        opaque = true;
+        for (int y = 0; y < argb.height() && opaque; y++) {
+            const QRgb *row = reinterpret_cast<const QRgb *>(argb.constScanLine(y));
+            for (int x = 0; x < argb.width(); x++) {
+                if (qAlpha(row[x]) != 255) {
+                    opaque = false;
+                    break;
+                }
+            }
+        }
+    }
+    if (opaque) image.convertToFormat(QImage::Format_RGB32).save(kept + QStringLiteral(".jpg"), "JPG", 92);
+    else image.save(kept + QStringLiteral(".png"), "PNG");
+    QFileInfoList files = QDir(folder).entryInfoList(QDir::Files, QDir::Time);
+    while (files.size() > keptOnDisk) QFile::remove(files.takeLast().filePath());
+    return image;
+}
+
 /// The recent images' pictures, read on two threads and kept until their files change
 class Pictures : public QObject
 {
@@ -201,7 +251,7 @@ public:
                     else m_viewers.removeAt(i);
                 }
             });
-            watcher->setFuture(QtConcurrent::run(&m_pool, readPicture, path, longest));
+            watcher->setFuture(QtConcurrent::run(&m_pool, cachedPicture, path, longest));
         }
         // a changed file shows its old picture until the new one is read
         if (found == m_pictures.constEnd()) return QImage();

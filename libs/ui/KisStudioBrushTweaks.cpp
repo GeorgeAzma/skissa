@@ -11,7 +11,10 @@
 #include <QJsonObject>
 #include <QPointer>
 #include <QSaveFile>
+#include <QSet>
+#include <QThreadPool>
 #include <QTimer>
+#include <QtConcurrentRun>
 
 #include <KisPaintOpPresetUpdateProxy.h>
 #include <KisProfile.h>
@@ -62,8 +65,13 @@ private:
     {
         m_store.setSingleShot(true);
         m_store.setInterval(500);
+        // one thread, so the writes land in order
+        m_writer.setMaxThreadCount(1);
         connect(&m_store, &QTimer::timeout, this, [this]() { store(); });
-        connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() { store(); });
+        connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() {
+            store();
+            m_writer.waitForDone();
+        });
     }
 
     static QString path() { return KisProfile::configFile(QStringLiteral("brush-tweaks.json")); }
@@ -75,16 +83,32 @@ private:
         return QJsonDocument::fromJson(file.readAll()).object();
     }
 
+    /// \p tweaks on disk, written on the writer's thread
     void write(const QJsonObject &tweaks)
     {
-        if (tweaks.isEmpty()) {
-            QFile::remove(path());
-            return;
+        const QByteArray bytes = tweaks.isEmpty() ? QByteArray() : QJsonDocument(tweaks).toJson(QJsonDocument::Compact);
+        (void)QtConcurrent::run(&m_writer, [bytes]() {
+            if (bytes.isEmpty()) {
+                QFile::remove(path());
+                return;
+            }
+            QSaveFile file(path());
+            if (!file.open(QIODevice::WriteOnly)) return;
+            file.write(bytes);
+            file.commit();
+        });
+    }
+
+    /// Notes \p preset's changes, to be written with the next store
+    void listen(const KisPaintOpPresetSP &preset)
+    {
+        if (QPointer<KisPaintOpPresetUpdateProxy> proxy = preset->updateProxy()) {
+            const KisPaintOpPreset *raw = preset.data();
+            connect(proxy.data(), &KisPaintOpPresetUpdateProxy::sigSettingsChanged, this, [this, raw]() {
+                m_changed.insert(raw);
+                m_store.start();
+            });
         }
-        QSaveFile file(path());
-        if (!file.open(QIODevice::WriteOnly)) return;
-        file.write(QJsonDocument(tweaks).toJson(QJsonDocument::Compact));
-        file.commit();
     }
 
     /// The brush in use: its changes are kept as they happen
@@ -95,32 +119,31 @@ private:
         for (const KisPaintOpPresetSP &seen : qAsConst(m_seen)) known = known || seen == preset;
         if (!known) {
             m_seen << preset;
-            if (QPointer<KisPaintOpPresetUpdateProxy> proxy = preset->updateProxy()) {
-                connect(proxy.data(), &KisPaintOpPresetUpdateProxy::sigSettingsChanged, this, [this]() { m_store.start(); });
-            }
+            listen(preset);
         }
         // a brush picked may have been saved or put back since
         m_store.start();
     }
 
-    /// The tweaked brushes seen in this session written, the others' entries kept, the saved ones' dropped
+    /// The brushes changed since the last store written, the others' entries kept, the saved ones' dropped
     void store()
     {
         m_store.stop();
         if (!KisConfig(true).useDirtyPresets()) return;
-        QJsonObject tweaks = read();
+        QJsonObject tweaks = m_written;
         for (const KisPaintOpPresetSP &preset : qAsConst(m_seen)) {
             if (!preset) continue;
             const QString file = preset->filename();
-            if (preset->isDirty()) {
+            if (!preset->isDirty()) {
+                tweaks.remove(file);
+            } else if (m_changed.contains(preset.data()) || !tweaks.contains(file)) {
                 QJsonObject tweak;
                 tweak.insert(QStringLiteral("md5"), preset->md5Sum(false));
                 tweak.insert(QStringLiteral("settings"), preset->settings()->toXML());
                 tweaks.insert(file, tweak);
-            } else {
-                tweaks.remove(file);
             }
         }
+        m_changed.clear();
         if (tweaks != m_written) {
             write(tweaks);
             m_written = tweaks;
@@ -147,10 +170,8 @@ private:
             if (!preset->settings()->fromXML(tweak.value(QStringLiteral("settings")).toString())) continue;
             preset->setDirty(true);
             m_seen << preset;
-            if (QPointer<KisPaintOpPresetUpdateProxy> proxy = preset->updateProxy()) {
-                connect(proxy.data(), &KisPaintOpPresetUpdateProxy::sigSettingsChanged, this, [this]() { m_store.start(); });
-                proxy->notifySettingsChanged();
-            }
+            listen(preset);
+            if (QPointer<KisPaintOpPresetUpdateProxy> proxy = preset->updateProxy()) proxy->notifySettingsChanged();
         }
         // the entries of brushes deleted or changed in their file don't pile up
         if (!stale.isEmpty()) {
@@ -162,7 +183,10 @@ private:
 
     QTimer m_store;
     QVector<KisPaintOpPresetSP> m_seen;
+    QSet<const KisPaintOpPreset *> m_changed;
+    /// What is on disk, or on its way there
     QJsonObject m_written;
+    QThreadPool m_writer;
     bool m_restored {false};
 };
 

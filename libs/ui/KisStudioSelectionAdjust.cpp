@@ -18,14 +18,16 @@
 #include <kis_selection_filters.h>
 #include <kis_stroke_job_strategy.h>
 #include <kis_transaction.h>
-#include <kis_convolution_kernel.h>
-#include <kis_convolution_painter.h>
 #include <KoColorSpace.h>
 
-#include <Eigen/Core>
+#include <QtConcurrent>
+
 #include <atomic>
 #include <cmath>
+#include <cstring>
 #include <memory>
+#include <numeric>
+#include <vector>
 
 /**
  * One transaction, reverted and made again for each value, so however long the drag, its undo keeps one
@@ -39,8 +41,61 @@ namespace {
 
 using Live = KisStudioSelectionAdjust::Live;
 
-/// A soft edge \p reach px wide each way: a gaussian that has faded out by then (Krita's Feather is cut off at one
-/// sigma, which leaves a faint box around a soft selection)
+/// The radii of \p count box blurs that one after another make a gaussian of \p sigma
+QVector<int> boxRadii(qreal sigma, int count)
+{
+    const qreal ideal = std::sqrt(12 * sigma * sigma / count + 1);
+    int lower = int(std::floor(ideal));
+    if (lower % 2 == 0) lower--;
+    const int upper = lower + 2;
+    const qreal lowerCount = std::round((12 * sigma * sigma - count * lower * lower - 4 * count * lower - 3 * count) / (-4.0 * lower - 4));
+    QVector<int> radii;
+    for (int i = 0; i < count; i++) radii << ((i < lowerCount ? lower : upper) - 1) / 2;
+    // the smallest edge still softens by a pixel
+    radii.last() = qMax(1, radii.last());
+    return radii;
+}
+
+/// A box blur of radius \p r along a row of \p n bytes, by a running sum: the same work at any radius
+void boxRow(quint8 *row, int n, int r)
+{
+    std::vector<quint8> in(row, row + n);
+    const int width = 2 * r + 1;
+    int sum = 0;
+    for (int k = -r; k <= r; k++) sum += in[qBound(0, k, n - 1)];
+    for (int i = 0; i < n; i++) {
+        row[i] = quint8((sum + width / 2) / width);
+        sum += in[qMin(i + r + 1, n - 1)] - in[qMax(i - r, 0)];
+    }
+}
+
+/// The same down \p count columns from \p x0 of an image \p w wide and \p h high, a block at a time so it reads
+/// memory in rows
+void boxColumns(quint8 *data, int w, int h, int x0, int count, int r)
+{
+    const int width = 2 * r + 1;
+    std::vector<quint8> in(size_t(h) * count);
+    for (int y = 0; y < h; y++) memcpy(&in[size_t(y) * count], data + size_t(y) * w + x0, count);
+    std::vector<int> sum(count, 0);
+    for (int k = -r; k <= r; k++) {
+        const quint8 *row = &in[size_t(qBound(0, k, h - 1)) * count];
+        for (int c = 0; c < count; c++) sum[c] += row[c];
+    }
+    for (int y = 0; y < h; y++) {
+        quint8 *out = data + size_t(y) * w + x0;
+        for (int c = 0; c < count; c++) out[c] = quint8((sum[c] + width / 2) / width);
+        const quint8 *add = &in[size_t(qMin(y + r + 1, h - 1)) * count];
+        const quint8 *sub = &in[size_t(qMax(y - r, 0)) * count];
+        for (int c = 0; c < count; c++) sum[c] += add[c] - sub[c];
+    }
+}
+
+/**
+ * A soft edge \p reach px wide each way: a gaussian that has faded out by then (Krita's Feather is cut off at one
+ * sigma, which leaves a faint box around a soft selection). Three box blurs by running sums make the gaussian, on
+ * all threads: the same work for any reach, where a convolution of a kernel this wide went through a whole-area FFT
+ * and took seconds a step on a large canvas.
+ */
 class SoftEdge : public KisSelectionFilter
 {
 public:
@@ -50,25 +105,20 @@ public:
 
     void process(KisPixelSelectionSP pixels, const QRect &rect) override
     {
-        const int size = 2 * m_reach + 1;
-        const qreal sigma = qMax(0.5, m_reach / 3.0);
-        Eigen::Matrix<qreal, Eigen::Dynamic, Eigen::Dynamic> gaussian(1, size);
-        for (int x = 0; x < size; x++) {
-            const qreal d = x - m_reach;
-            gaussian(0, x) = std::exp(-d * d / (2 * sigma * sigma));
+        const int w = rect.width(), h = rect.height();
+        if (w <= 0 || h <= 0) return;
+        std::vector<quint8> mask(size_t(w) * h);
+        pixels->readBytes(mask.data(), rect);
+        quint8 *data = mask.data();
+        QVector<int> rows(h), blocks((w + 63) / 64);
+        std::iota(rows.begin(), rows.end(), 0);
+        std::iota(blocks.begin(), blocks.end(), 0);
+        Q_FOREACH (const int r, boxRadii(qMax(0.5, m_reach / 3.0), 3)) {
+            if (r <= 0) continue;
+            QtConcurrent::blockingMap(rows, [data, w, r](int y) { boxRow(data + size_t(y) * w, w, r); });
+            QtConcurrent::blockingMap(blocks, [data, w, h, r](int b) { boxColumns(data, w, h, b * 64, qMin(64, w - b * 64), r); });
         }
-        KisConvolutionKernelSP across = KisConvolutionKernel::fromMatrix(gaussian, 0, gaussian.sum());
-        KisConvolutionKernelSP down = KisConvolutionKernel::fromMatrix(gaussian.transpose(), 0, gaussian.sum());
-        KisPaintDeviceSP between = new KisPaintDevice(pixels->colorSpace());
-        between->prepareClone(pixels);
-        KisConvolutionPainter first(between);
-        first.setChannelFlags(between->colorSpace()->channelFlags(false, true));
-        first.applyMatrix(across, pixels, rect.topLeft(), rect.topLeft(), rect.size(), BORDER_REPEAT);
-        first.end();
-        KisConvolutionPainter second(pixels);
-        second.setChannelFlags(pixels->colorSpace()->channelFlags(false, true));
-        second.applyMatrix(down, between, rect.topLeft(), rect.topLeft(), rect.size(), BORDER_REPEAT);
-        second.end();
+        pixels->writeBytes(mask.data(), rect);
     }
 
 private:

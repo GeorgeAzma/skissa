@@ -46,6 +46,35 @@ inline void oklabToLinear(const float lab[3], float rgb[3])
     rgb[2] = -0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s;
 }
 
+/// The 8-bit sRGB values in linear light
+inline const float *srgbToLinearTable()
+{
+    static const std::vector<float> table = []() {
+        std::vector<float> values(256);
+        for (int i = 0; i < 256; i++) {
+            const double c = i / 255.0;
+            values[i] = float(c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4));
+        }
+        return values;
+    }();
+    return table.data();
+}
+
+/// Linear light in 65536 steps, as 8-bit sRGB: fine enough that each value lands where the curve puts it
+inline const quint8 *linearToSrgbTable()
+{
+    static const std::vector<quint8> table = []() {
+        std::vector<quint8> values(65536);
+        for (int i = 0; i < 65536; i++) {
+            const double c = i / 65535.0;
+            const double encoded = c <= 0.0031308 ? c * 12.92 : 1.055 * std::pow(c, 1 / 2.4) - 0.055;
+            values[i] = quint8(std::lround(std::min(std::max(encoded, 0.0), 1.0) * 255));
+        }
+        return values;
+    }();
+    return table.data();
+}
+
 /// Linear sRGB with alpha, in floats: where the mixing happens
 inline const KoColorSpace *linearSpace()
 {
@@ -104,21 +133,45 @@ protected:
         changed.resize(cols);
         wasClear.resize(cols);
         // an image already in linear sRGB floats needs no conversion
-        const bool same = !workspace->toLinear;
+        const bool same = !workspace->toLinear && !workspace->srgb8;
+        // nor through LCMS for 8-bit sRGB, the usual image, whose conversions took two thirds of the time
+        const bool srgb8 = workspace->srgb8;
+        const float *decode = KoMixing::srgbToLinearTable();
+        const quint8 *encode = KoMixing::linearToSrgbTable();
         auto toLinear = [&](const quint8 *from, float *to, int count) {
-            if (same) std::memcpy(to, from, size_t(count) * pixelSize);
-            else workspace->toLinear->transform(from, reinterpret_cast<quint8 *>(to), count);
+            if (same) {
+                std::memcpy(to, from, size_t(count) * pixelSize);
+            } else if (srgb8) {
+                // blue, green, red, alpha in, red, green, blue, alpha out
+                for (int x = 0; x < count; x++, from += 4, to += 4) {
+                    to[0] = decode[from[2]];
+                    to[1] = decode[from[1]];
+                    to[2] = decode[from[0]];
+                    to[3] = from[3] * (1.0f / 255);
+                }
+            } else {
+                workspace->toLinear->transform(from, reinterpret_cast<quint8 *>(to), count);
+            }
         };
+        auto encoded = [encode](float c) { return encode[int(std::min(std::max(c, 0.0f), 1.0f) * 65535 + 0.5f)]; };
         if (oneSource) toLinear(params.srcRowStart, source.data(), 1);
 
         for (int row = 0; row < params.rows; row++) {
             quint8 *dst = params.dstRowStart + row * params.dstRowStride;
             const quint8 *src = params.srcRowStart + row * params.srcRowStride;
             const quint8 *mask = params.maskRowStart ? params.maskRowStart + row * params.maskRowStride : nullptr;
-            toLinear(dst, under.data(), cols);
-            if (!oneSource) toLinear(src, source.data(), cols);
+            // only the span the mask covers: a round dab leaves its square's corners out
+            int first = 0, last = cols;
+            if (mask) {
+                while (first < cols && !mask[first]) first++;
+                while (last > first && !mask[last - 1]) last--;
+                if (first == last) continue;
+            }
+            const int span = last - first;
+            toLinear(dst + first * pixelSize, under.data() + 4 * first, span);
+            if (!oneSource) toLinear(src + first * pixelSize, source.data() + 4 * first, span);
             bool any = false;
-            for (int x = 0; x < cols; x++) {
+            for (int x = first; x < last; x++) {
                 const float *s = oneSource ? source.data() : source.data() + 4 * x;
                 float *d = under.data() + 4 * x;
                 wasClear[x] = d[3] <= 0;
@@ -128,9 +181,22 @@ protected:
             }
             if (!any) continue;
             // only the pixels painted on are written back, so the rest keep their exact values
-            if (same) std::memcpy(back.data(), under.data(), size_t(cols) * pixelSize);
-            else workspace->toOwn->transform(reinterpret_cast<const quint8 *>(under.data()), back.data(), cols);
-            for (int x = 0; x < cols; x++) {
+            if (same) {
+                std::memcpy(back.data() + first * pixelSize, under.data() + 4 * first, size_t(span) * pixelSize);
+            } else if (srgb8) {
+                for (int x = first; x < last; x++) {
+                    if (!changed[x]) continue;
+                    const float *from = under.data() + 4 * x;
+                    quint8 *to = back.data() + 4 * x;
+                    to[0] = encoded(from[2]);
+                    to[1] = encoded(from[1]);
+                    to[2] = encoded(from[0]);
+                    to[3] = quint8(std::lround(std::min(std::max(from[3], 0.0f), 1.0f) * 255));
+                }
+            } else {
+                workspace->toOwn->transform(reinterpret_cast<const quint8 *>(under.data() + 4 * first), back.data() + first * pixelSize, span);
+            }
+            for (int x = first; x < last; x++) {
                 if (!changed[x]) continue;
                 const quint8 *blended = back.data() + x * pixelSize;
                 quint8 *out = dst + x * pixelSize;
@@ -158,6 +224,7 @@ private:
      * costly to make (through the color spaces each row looked them up in a cache under a lock), and its rows
      */
     struct Workspace {
+        bool srgb8 {false};
         std::unique_ptr<KoColorConversionTransformation> toLinear;
         std::unique_ptr<KoColorConversionTransformation> toOwn;
         QVector<float> source;
@@ -180,7 +247,9 @@ private:
         }
         auto made = std::make_unique<Workspace>();
         const KoColorSpace *own = colorSpace();
-        if (!(*own == *linear)) {
+        if (*own == *KoColorSpaceRegistry::instance()->rgb8()) {
+            made->srgb8 = true;
+        } else if (!(*own == *linear)) {
             const auto intent = KoColorConversionTransformation::internalRenderingIntent();
             const auto flags = KoColorConversionTransformation::internalConversionFlags();
             made->toLinear.reset(own->createColorConverter(linear, intent, flags));
