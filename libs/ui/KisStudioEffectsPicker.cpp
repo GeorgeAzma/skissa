@@ -59,10 +59,9 @@ const QSize thumbnailSize(112, 64);
 QStringList defaultEffects()
 {
     return {
-        QStringLiteral("gaussian blur"), QStringLiteral("motion blur"), QStringLiteral("unsharp"),
-        QStringLiteral("levels"), QStringLiteral("perchannel"), QStringLiteral("brightnesscontrast"),
-        QStringLiteral("hsvadjustment"), QStringLiteral("colorbalance"), QStringLiteral("desaturate"),
-        QStringLiteral("gradientmap"), QStringLiteral("noise"), QStringLiteral("posterize"),
+        QStringLiteral("motion blur"), QStringLiteral("perchannel"), QStringLiteral("hsvadjustment"),
+        QStringLiteral("desaturate"), QStringLiteral("gradientmap"), QStringLiteral("colortoalpha"),
+        QStringLiteral("gaussianhighpass"), QStringLiteral("gaussian blur"),
     };
 }
 
