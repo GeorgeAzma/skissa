@@ -735,9 +735,17 @@ void KisStudioFind::rebuildIndex()
 
     // each command's menu path, shown as its detail
     QHash<QAction *, QString> menuPaths;
+    QSet<QAction *> hiddenWithMenu;
     std::function<void(QMenu *, const QString &)> walk = [&](QMenu *menu, const QString &path) {
         Q_FOREACH (QAction *action, menu->actions()) {
             if (action->menu()) {
+                // a menu the layout took out takes what is only in it along (the toolbars' list)
+                if (!action->isVisible()) {
+                    Q_FOREACH (QAction *inside, action->menu()->actions()) {
+                        if (!menuPaths.contains(inside)) hiddenWithMenu.insert(inside);
+                    }
+                    continue;
+                }
                 walk(action->menu(), path.isEmpty() ? plainText(action->text()) : path + QStringLiteral(" › ") + plainText(action->text()));
             } else if (!menuPaths.contains(action)) {
                 menuPaths.insert(action, path);
@@ -792,6 +800,7 @@ void KisStudioFind::rebuildIndex()
             auto *widgetAction = qobject_cast<QWidgetAction *>(action);
             // a hidden action is one the layout took out (classic-only toolbars, styles…)
             if (seen.contains(action) || text.isEmpty() || action->isSeparator() || action->menu() || !action->isVisible()
+                || (hiddenWithMenu.contains(action) && !menuPaths.contains(action))
                 || (widgetAction && widgetAction->defaultWidget()) || toolIds.contains(name) || filterActions.contains(name)) {
                 continue;
             }

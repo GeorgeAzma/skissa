@@ -64,6 +64,7 @@
 #include <filter/kis_filter_configuration.h>
 #include <kactioncollection.h>
 #include <klocalizedstring.h>
+#include <kxmlguifactory.h>
 
 #include "KisDocument.h"
 #include "KisMainWindow.h"
@@ -3055,6 +3056,17 @@ void KisStudioLayout::enter()
             d->hiddenToolbarActions << action;
         }
     }
+    // the toolbars' own show and hide commands: the Studio has no toolbars. The window makes them after this
+    QTimer::singleShot(0, this, [this, mainWindow]() {
+        if (!d->active) return;
+        Q_FOREACH (QWidget *toolBar, mainWindow->guiFactory()->containers(QStringLiteral("ToolBar"))) {
+            QAction *action = mainWindow->actionCollection()->action(toolBar->objectName());
+            if (action && action->isVisible()) {
+                action->setVisible(false);
+                d->hiddenToolbarActions << action;
+            }
+        }
+    });
     // one name for one thing: the brush editors call it so
     if (QAction *reload = mainWindow->actionCollection()->action(QStringLiteral("reload_preset_action"))) {
         reload->setText(i18nc("@action drop the brush's unsaved changes", "Back to the saved brush"));
