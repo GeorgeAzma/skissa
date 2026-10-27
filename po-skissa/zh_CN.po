@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "在文件管理器里打开 Skissa 保存笔刷等资源的位置。"
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "显示 Skissa 使用日志"
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "配置 Skissa"
 
@@ -71,6 +67,10 @@ msgstr "用于覆盖已配置的 Skissa 资源位置的位置"
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "颜色"
+
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "扩展"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "没有权限。系统不允许 Skissa 读写该文件。"
@@ -147,6 +147,10 @@ msgstr "色相"
 msgctxt "a group of settings"
 msgid "Settings"
 msgstr "设置"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "重置"
 
 msgctxt "effect group"
 msgid "Other"
@@ -275,6 +279,14 @@ msgstr "撤销"
 msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "吸附到参考线"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "分辨率"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "清除"
 
 msgctxt "@action:button open an image"
 msgid "Open"
@@ -415,6 +427,10 @@ msgstr "编辑"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "新版 AppImage 软件包已下载到 %1 。要完成更新，请关闭 Skissa 并运行该新版 AppImage 软件包。"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "其他"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -618,6 +634,10 @@ msgstr "亮度"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "对比度"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "吸附到参考线"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

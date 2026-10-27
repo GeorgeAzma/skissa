@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Avaa tiedostoselaimen kansioon, jonne Skissa tallentaa resurssinsa kuten siveltimet."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Näytä Skissan loki vikailmoituksia varten."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Skissan asetukset"
 
@@ -51,6 +47,10 @@ msgstr "Käynnistä Skissa koko näytön tilassa"
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Värit"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Automaattinen"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Lupa evätty. Skissalla ei ole lupaa lukea tai kirjoittaa tiedostoa."
@@ -265,6 +265,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Kohdista apuviivoihin"
 
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Tarkkuus"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "a new image's color profile"
+msgid "Profile"
+msgstr "Profiili"
+
 msgctxt "@action:button open an image"
 msgid "Open"
 msgstr "Avaa"
@@ -372,6 +384,10 @@ msgstr "Muokkaa"
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineaarinen"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Muu"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -505,6 +521,10 @@ msgstr "Liukuväri"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Kuviot"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Kohdista apuviivoihin"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

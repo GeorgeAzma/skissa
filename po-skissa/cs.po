@@ -1,10 +1,6 @@
 # Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Zobrazit záznam Skissa pro hlášení chyb."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Nastavit aplikaci Skissa"
 
@@ -36,6 +32,14 @@ msgstr "Název pracovní plochy pro otevření v aplikaci Skissa"
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Barvy"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Automaticky"
+
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "Rozptyl"
 
 msgctxt "canvas renderer"
 msgid "Auto"
@@ -164,6 +168,10 @@ msgstr "Nastavení"
 msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "Náhled"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "Obnovit"
 
 msgctxt "effect group"
 msgid "Color"
@@ -332,6 +340,18 @@ msgstr "Zpět"
 msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Přichytávat k vodítkům"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Rozlišení"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Vymazat"
 
 msgctxt "@action:button open an image"
 msgid "Open"
@@ -667,6 +687,10 @@ msgstr "Jas"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontrast"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Přichytávat k vodítkům"
 
 msgctxt "(qtundo-format)"
 msgid "Fill"

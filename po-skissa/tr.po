@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Skissa’nın kaynakları (örn. fırçalar) kaydettiği dizini bir tarayıcı ile açar."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Hata Raporu için Skissa Günlüğünü Göster"
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Skissa’yı Yapılandır"
 
@@ -75,6 +71,10 @@ msgstr "Skissa’nın özkaynakları için yapılandırılan konumu geçersiz k�
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Renkler"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Kendiliğinden"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "İzin reddedildi. Skissa’nın dosyayı okumasına veya yazmasına izin verilmiyor."
@@ -243,6 +243,10 @@ msgstr "Ayarlar"
 msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "Önizleme"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "Sıfırla"
 
 msgctxt "effect group"
 msgid "Color"
@@ -419,6 +423,18 @@ msgstr "Geri Al"
 msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Kılavuzlara tuttur"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Çözünürlük"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Renk"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Temizle"
 
 msgctxt "@action:button open an image"
 msgid "Open"
@@ -603,6 +619,10 @@ msgstr "Yeni AppImage, %1 konumuna indirildi. Güncellemeyi tamamlamak için Ski
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Doğrusal"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Diğer"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -834,6 +854,10 @@ msgstr "Parlaklık"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Karşıtlık"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Kılavuzlara tuttur"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

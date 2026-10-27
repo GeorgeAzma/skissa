@@ -1,10 +1,6 @@
 # Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Tampilkan catatan log Skissa untuk melaporkan bug."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Konfigurasi Skissa"
 
@@ -19,6 +15,10 @@ msgstr "Lapisan"
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Warna"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Auto"
 
 msgctxt "canvas renderer"
 msgid "Auto"
@@ -111,6 +111,10 @@ msgstr "Pengaturan"
 msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "Pratinjau"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "Atur ulang"
 
 msgctxt "effect group"
 msgid "Color"
@@ -272,6 +276,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Jepret ke  panduan"
 
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Resolusi"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Bersihkan"
+
 msgctxt "@action:button open an image"
 msgid "Open"
 msgstr "Buka"
@@ -417,6 +433,10 @@ msgstr "Halus"
 msgctxt "@action:inmenu"
 msgid "Edit"
 msgstr "Edit"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Lainnya"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -597,6 +617,10 @@ msgstr "Kecerahan"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontras"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Jepret ke  panduan"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

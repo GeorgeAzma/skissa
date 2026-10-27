@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "פתיחת דפדפן קבצים במקום שבו Skissa שומרת משאבים כגון מכחולים."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "הצגת היומן של Skissa לדיווח על תקלות."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "הגדרת Skissa"
 
@@ -69,6 +65,14 @@ msgstr "הפעלת Skissa על כל המסך"
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "צבעים"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "אוטו׳"
+
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "פריסה"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "ההרשאה נדחתה. ל־Skissa אסור לקרוא מהקובץ או לכתוב אליו."
@@ -225,6 +229,10 @@ msgstr "הגדרות"
 msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "תצוגה מקדימה"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "איפוס"
 
 msgctxt "effect group"
 msgid "Color"
@@ -393,6 +401,18 @@ msgstr "הסגה"
 msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "הצמדה לקווים המנחים"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "רזולוציה"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "פינוי"
 
 msgctxt "@action:button open an image"
 msgid "Open"
@@ -564,6 +584,10 @@ msgstr "עריכה"
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "קווי"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "אחר"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -785,6 +809,10 @@ msgstr "בהירות"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "ניגודיות"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "הצמדה לקווים המנחים"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

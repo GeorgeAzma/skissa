@@ -28,6 +28,10 @@ msgctxt "keys group"
 msgid "Other"
 msgstr "Khác"
 
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Khác"
+
 msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Thêm vào bảng màu"

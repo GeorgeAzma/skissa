@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Abre um navegador de ficheiros no local em que o Skissa grava os recursos, como os pincéis."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Mostrar o registo do Skissa para os relatórios de erros."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Configurar o Skissa"
 
@@ -67,6 +63,14 @@ msgstr "Uma localização que substitui a localização configurada para os recu
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Cores"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "Difusão"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Permissão negada. O Skissa não tem permissões para ler ou gravar nesse ficheiro."
@@ -195,6 +199,10 @@ msgstr "Configuração"
 msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "Antevisão"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "Reiniciar"
 
 msgctxt "effect group"
 msgid "Color"
@@ -355,6 +363,18 @@ msgstr "Desfazer"
 msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Ajustar às guias"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Resolução"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Cor"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Limpar"
 
 msgctxt "@action:button open an image"
 msgid "Open"
@@ -532,6 +552,10 @@ msgstr "A nova AppImage foi transferida para %1. Para concluir a actualização,
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Linear"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Outro"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -743,6 +767,10 @@ msgstr "Brilho"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Contraste"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Ajustar às guias"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

@@ -12,6 +12,10 @@ msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Farver"
 
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Auto"
+
 msgctxt "canvas renderer"
 msgid "Auto"
 msgstr "Auto"
@@ -171,6 +175,22 @@ msgstr "Flyt"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Fortryd"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Opløsning"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Ryd"
+
+msgctxt "a new image's color profile"
+msgid "Profile"
+msgstr "Profil"
 
 msgctxt "@info:tooltip tool slot"
 msgid "Transform"

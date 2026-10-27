@@ -1,9 +1,5 @@
 # Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
 
-msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Birta atvikaskrár Skissa fyrir villumeldingar."
-
 msgctxt "cursor"
 msgid "None"
 msgstr "Ekkert"
@@ -107,6 +103,14 @@ msgstr "Ekkert"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Afturkalla"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Litur"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Hreinsa"
 
 msgctxt "perspective guide: a grid on a plane"
 msgid "Grid"

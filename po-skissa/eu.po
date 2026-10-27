@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Fitxategi arakatzaile bat irekitzen du Skissak pintzelen gisako baliabideak gordetzen dituen kokalekuan."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Erakutsi akats-txostenetarako Skissaren egunkaria."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Konfiguratu Skissa"
 
@@ -64,6 +60,14 @@ msgstr "Abiatu Skissa pantaila osoko moduan"
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Koloreak"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Automatikoa"
+
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "Zabaldu"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Baimena ukatu da. Skissak ez du fitxategi hau irakurtzeko edo idazteko baimenik."
@@ -200,6 +204,10 @@ msgstr "Ezarpenak"
 msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "Aurreikusi"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "Berrezarri"
 
 msgctxt "effect group"
 msgid "Color"
@@ -357,6 +365,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Atxiki saretara"
 
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Bereizmena"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Garbitu"
+
 msgctxt "@action:button open an image"
 msgid "Open"
 msgstr "Ireki"
@@ -503,6 +523,10 @@ msgstr "«AppImage» berria zama-jaitsi da %1(e)ra. Eguneratzea osatzeko, itxi S
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineala"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Bestelakoak"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -680,6 +704,10 @@ msgstr "Bat ere ez"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Ereduak"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Atxiki saretara"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

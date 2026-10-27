@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Отваряне на файловия браузър в папката, където Skissa съхранява ресурси като четки."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Данни от дневника на Skissa за изпращане на доклад за грешкa."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Конфигуриране на Skissa"
 
@@ -75,6 +71,10 @@ msgstr "Местоположение, което замества конфигу
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Цветове"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Автоматично"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Отказан достъп. Skissa няма разрешение за четене или запис на файла."
@@ -372,6 +372,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Прилепяне към водачите"
 
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Разделителна способност"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Цвят"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Изчистване"
+
 msgctxt "a new image's size"
 msgid "Square"
 msgstr "Квадрат"
@@ -559,6 +571,10 @@ msgstr "Новият AppImage беше изтеглен в %1. За завърш
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Линейно"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Други"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -782,6 +798,10 @@ msgstr "Яркост"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Контраст"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Прилепяне към водачите"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

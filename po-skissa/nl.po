@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Opent een bestandsbeheerder op de locatie waar Skissa hulpbronnen zoals penselen opslaat."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Skissa-log voor bugrapporten tonen."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Skissa configureren"
 
@@ -75,6 +71,10 @@ msgstr "Een locatie die de geconfigureerde locatie voor hulpbronnen van Skissa o
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Kleuren"
+
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "Spread"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Toegang geweigerd. Skissa mag van het bestand niet lezen of er naar schrijven."
@@ -156,6 +156,10 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "Standaard"
 
+msgctxt "@action"
+msgid "Check for updates"
+msgstr "Op elementen voor bijwerken controleren"
+
 msgctxt "mirror axis"
 msgid "Down"
 msgstr "Omlaag"
@@ -219,6 +223,10 @@ msgstr "Instellingen"
 msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "Voorbeeld"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "Reset"
 
 msgctxt "effect group"
 msgid "Color"
@@ -391,6 +399,18 @@ msgstr "Ongedaan maken"
 msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Vastzetten op hulplijnen"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Resolutie"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Kleur"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Wissen"
 
 msgctxt "@action:button open an image"
 msgid "Open"
@@ -579,6 +599,10 @@ msgstr "Een nieuwe AppImage is gedownload naar %1. Om het bijwerken te voltooien
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineair"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Overige"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -790,6 +814,10 @@ msgstr "Geen"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Patronen"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Vastzetten op hulplijnen"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

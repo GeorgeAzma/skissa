@@ -4,6 +4,10 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Interna greška programa Skissa"
 
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Automatski"
+
 msgctxt "canvas renderer"
 msgid "Auto"
 msgstr "Automatski"
@@ -27,6 +31,10 @@ msgstr "Poništi"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Poništi"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Čisto"
 
 msgctxt "a new image's size"
 msgid "Square"

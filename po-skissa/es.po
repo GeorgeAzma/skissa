@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Abre un explorador de archivos en la ubicación en la que Skissa guarda los recursos (por ejemplo, los pinceles)."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Mostrar el registro de Skissa en los informes de fallos."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Configurar Skissa"
 
@@ -212,6 +208,10 @@ msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "Vista previa"
 
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "Reiniciar"
+
 msgctxt "effect group"
 msgid "Color"
 msgstr "Color"
@@ -375,6 +375,14 @@ msgstr "Deshacer"
 msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Ajustar a las guías"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Resolución"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Color"
 
 msgctxt "@action:button open an image"
 msgid "Open"
@@ -810,6 +818,10 @@ msgstr "Brillo"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Contraste"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Ajustar a las guías"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

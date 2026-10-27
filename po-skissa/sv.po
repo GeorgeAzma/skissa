@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Öppnar en filbläddrare på platsen där Skissa sparar resurser såsom penslar."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Visa Skissa logg för felrapporter."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Anpassa Skissa"
 
@@ -144,6 +140,10 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "Förval"
 
+msgctxt "@action"
+msgid "Check for updates"
+msgstr "Titta efter uppdateringar"
+
 msgctxt "symmetry mode"
 msgid "Mirror"
 msgstr "Spegla"
@@ -203,6 +203,10 @@ msgstr "Inställningar"
 msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "Förhandsgranskning"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "Återställ"
 
 msgctxt "effect group"
 msgid "Color"
@@ -359,6 +363,18 @@ msgstr "Ångra"
 msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Lås till hjälplinjer"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Upplösning"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Rensa"
 
 msgctxt "@action:button open an image"
 msgid "Open"
@@ -706,6 +722,10 @@ msgstr "Mönster"
 msgctxt "texture setting"
 msgid "Scale"
 msgstr "Skala"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Lås till hjälplinjer"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

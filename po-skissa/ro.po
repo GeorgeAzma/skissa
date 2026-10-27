@@ -40,6 +40,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Desfă"
 
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Culoare"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Desfă"

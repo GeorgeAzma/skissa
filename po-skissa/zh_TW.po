@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "在檔案管理器裡開啟 Skissa 儲存筆刷等資源的位置。"
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "顯示要用於錯誤報告的 Skissa 紀錄。"
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "設定 Skissa"
 
@@ -63,6 +59,10 @@ msgstr "以全螢幕模式啟動 Skissa"
 
 msgid "A location that overrides the configured location for Skissa's resources"
 msgstr "指定路徑以覆寫已設定的 Skissa 資源資料夾路徑選項"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "自動"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "沒有權限。該檔案不允許 Skissa 進行讀寫。"
@@ -183,6 +183,10 @@ msgstr "HSV"
 msgctxt "a group of settings"
 msgid "Settings"
 msgstr "設定"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "重設"
 
 msgctxt "effect group"
 msgid "Color"
@@ -339,6 +343,14 @@ msgstr "復原"
 msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "吸附到參考線"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "解析度"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "色彩"
 
 msgctxt "@action:button open an image"
 msgid "Open"
@@ -500,6 +512,10 @@ msgstr "新的 AppImage 已下載至 %1。如要完成更新，請關閉 Skissa 
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "線性"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "其他"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -723,6 +739,10 @@ msgstr "亮度"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "對比度"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "吸附到參考線"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

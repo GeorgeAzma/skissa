@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Megnyit egy fájlkezelőt ott, ahová a Skissa az erőforrásokat (például ecseteket) menti."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Skissa napló megjelenítése a hibajelentésekhez."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Skissa beállítása"
 
@@ -67,6 +63,14 @@ msgstr "Egy hely, amely felülbírálja a Skissa erőforrásainak beállított h
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Színek"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "Kiterjedés"
 
 msgid "Skissa does not support this file format."
 msgstr "A Skissa nem támogatja ezt a fájlformátumot."
@@ -234,6 +238,10 @@ msgstr "Beállítások"
 msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "Előnézet"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "Visszaállítás"
 
 msgctxt "effect group"
 msgid "Color"
@@ -414,6 +422,18 @@ msgstr "Visszavonás"
 msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Illesztés segédvonalakhoz"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Felbontás"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Törlés"
 
 msgctxt "@action:button open an image"
 msgid "Open"
@@ -608,6 +628,10 @@ msgstr "Szerkesztés"
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineáris"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Egyéb"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -863,6 +887,10 @@ msgstr "Fényerő"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontraszt"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Illesztés segédvonalakhoz"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

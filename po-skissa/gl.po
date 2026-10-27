@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Abre un navegador de ficheiros no lugar no que Skissa garda recursos como pinceis."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Amosar o rexistro de Skissa para informes de fallo."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Configurar Skissa"
 
@@ -76,6 +72,10 @@ msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Cores"
 
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "Esparexemento"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Permiso denegado. Skissa non ten permiso para ler ou escribir no ficheiro."
 
@@ -123,6 +123,10 @@ msgstr "Saturación"
 msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
 msgid "Screen %1 (%2)"
 msgstr "Pantalla %1 (%2)"
+
+msgctxt "@action"
+msgid "Check for updates"
+msgstr "Comprobar se hai actualizacións"
 
 msgctxt "symmetry mode"
 msgid "Mirror"
@@ -331,6 +335,10 @@ msgstr "Desfacer"
 msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Axustar ás guías."
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Cor"
 
 msgctxt "@action:button open an image"
 msgid "Open"
@@ -683,6 +691,10 @@ msgstr "Claridade"
 msgctxt "picture brush tip used as"
 msgid "Gradient"
 msgstr "Gradación"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Axustar ás guías."
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

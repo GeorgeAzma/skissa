@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Открыть в диспетчере файлов папку, где Skissa хранит ресурсы, такие как кисти."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Показать журнал Skissa для отчётов об ошибках."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Настройка Skissa"
 
@@ -76,6 +72,10 @@ msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Цвета"
 
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "Размах"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Отказано в доступе. У Skissa нет прав для чтения и записи в файл."
 
@@ -128,6 +128,10 @@ msgctxt "setting"
 msgid "Frame rate limit"
 msgstr "Ограничение частоты кадров"
 
+msgctxt "@action"
+msgid "Check for updates"
+msgstr "Проверять обновления"
+
 msgctxt "mirror axis"
 msgid "Down"
 msgstr "Вниз"
@@ -179,6 +183,10 @@ msgstr "Тон"
 msgctxt "@item:inmenu color picker"
 msgid "HSV"
 msgstr "HSV"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "Сброс"
 
 msgctxt "effect group"
 msgid "Color"
@@ -332,6 +340,14 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Прилипание к направляющим"
 
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Разрешение"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Цвет"
+
 msgctxt "@action:button open an image"
 msgid "Open"
 msgstr "Открыть"
@@ -464,6 +480,10 @@ msgstr "Правка"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "Новый пакет AppImage был загружен в %1. Чтобы завершить обновление, закройте окно Skissa и запустите новый AppImage."
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Другие"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -647,6 +667,10 @@ msgstr "Светлота"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Текстуры"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Прилипание к направляющим"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

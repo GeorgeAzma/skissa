@@ -4,6 +4,10 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: intern feil"
 
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Auto"
+
 msgctxt "canvas renderer"
 msgid "Auto"
 msgstr "Auto"
@@ -71,6 +75,14 @@ msgstr "Flytt"
 msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Angre"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Oppløsning"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Tøm"
 
 msgctxt "perspective guide: a grid on a plane"
 msgid "Grid"

@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Odpre brskalnik datotek na mestu, kjer Skissa hrani vire, kot so čopiči."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Pokaži dnevnik programa Skissa za poročila o napaki."
-
-msgctxt "action"
 msgid "About Skissa"
 msgstr "O programu Skissa"
 
@@ -51,6 +47,14 @@ msgstr "Ime seje, s katero se odpre Skissa"
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Barve"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Samodejno"
+
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "Širjenje"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Dovoljenje zavrnjeno. Skissa ne sme brati ali pisati v datoteko."
@@ -195,6 +199,10 @@ msgstr "Nastavitve"
 msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "Predogled"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "Ponastavi"
 
 msgctxt "effect group"
 msgid "Color"
@@ -368,6 +376,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Pripni na vodila"
 
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Ločljivost"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Počisti"
+
 msgctxt "@action:button open an image"
 msgid "Open"
 msgstr "Odpri"
@@ -526,6 +546,10 @@ msgstr "Uredi"
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Linearno"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Drugo"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -734,6 +758,10 @@ msgstr "Svetlost"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontrast"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Pripni na vodila"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

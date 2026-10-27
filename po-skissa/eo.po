@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Malfermas dosier-retumilon ĉe la loko kie Skissa konservas rimedojn ekz. penikojn."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Montru Skissa protokolon por cimraportoj."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Agordi Skissa"
 
@@ -67,6 +63,14 @@ msgstr "Loko kiu superregas la agorditan lokon por la rimedoj de Skissa"
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Koloroj"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Aŭtomate"
+
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "Disvastigi"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Permeso Rifuzita. Skissa ne rajtas legi aŭ skribi al la dosiero."
@@ -380,6 +384,14 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Alklaki al gvidiloj"
 
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Distingivo"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Koloro"
+
 msgctxt "@action:button open an image"
 msgid "Open"
 msgstr "Malfermi"
@@ -552,6 +564,10 @@ msgstr "Nova AppImage estis elŝutita al %1. Por kompletigi la ĝisdatigon, ferm
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineara"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Alia"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -783,6 +799,10 @@ msgstr "Brilo"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontrasto"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Alklaki al gvidiloj"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

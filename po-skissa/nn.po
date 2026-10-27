@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "Opna filhandsamar i mappa der Skissa lagrar ressursar (for eksempel penslar)"
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Vis Skissa-logg til feilrapportar"
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Set opp Skissa"
 
@@ -61,6 +57,14 @@ msgstr "Adresse som overstyrer oppsett plassering av Skissa-ressursane"
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Fargar"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "Spreiing"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Nekta tilgang. Skissa får ikkje lesa frå eller skriva til fila."
@@ -197,6 +201,10 @@ msgstr "Innstillingar"
 msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "Førehandsvising"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "Tilbakestill"
 
 msgctxt "effect group"
 msgid "Color"
@@ -350,6 +358,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Lås til hjelpelinjer"
 
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "Oppløysing"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "Farge"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "Tøm"
+
 msgctxt "@action:button open an image"
 msgid "Open"
 msgstr "Opna"
@@ -491,6 +511,10 @@ msgstr "Ei ny AppImage-fil er no lasta ned til %1. For å fullføra oppdateringa
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineær"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "Anna"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -699,6 +723,10 @@ msgstr "Lysstyrke"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontrast"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "Lås til hjelpelinjer"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

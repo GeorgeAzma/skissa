@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "გახსნის ფაილის ბრაუზერს მდებარეობაზე, სადაც Skissa ისეთ რესურსებს ინახავს, როგორიცაა, მაგალითად, ფუნჯები."
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "Skissa-ის ჟურნალის ჩვენება შეცდომის ანგარიშებისთვის."
-
-msgctxt "action"
 msgid "Configure Skissa"
 msgstr "Skissa-ის მორგება"
 
@@ -69,6 +65,10 @@ msgstr "მდებარეობა, რომელიც Skissa-ის რ�
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "ფერები"
+
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "გავრცელება"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "წვდომა აკრძალულია. Skissa-ს ფაილში ჩაწერის ან ფაილიდან წაკითხვის უფლება არ გააჩნია."
@@ -378,6 +378,18 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "მიმაგრება მიმმართველებზე"
 
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "გარჩევადობა"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "ფერი"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "გაწმენდა"
+
 msgctxt "@action:button open an image"
 msgid "Open"
 msgstr "გახსნა"
@@ -579,6 +591,10 @@ msgstr "ახალი AppImage გადმოწერილია %1-ში.
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "ხაზოვანი"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "სხვა"
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "არჩეული ფაილის სახელს არ აქვს გაფართოება, რომელიც Skissa-ს ესმის.\nდარწმუნდით, რომ ფაილის სახელი სრულდება, მაგალითად, '.%1'-ით."
@@ -783,6 +799,10 @@ msgstr "სიკაშკაშე"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "კონტრასტი"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "მიმაგრება მიმმართველებზე"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"

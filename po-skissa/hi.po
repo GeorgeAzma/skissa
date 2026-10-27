@@ -8,6 +8,10 @@ msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "रंग"
 
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "फैलाव"
+
 msgctxt "color sampler preview"
 msgid "Right"
 msgstr "दायाँ"
@@ -31,6 +35,10 @@ msgstr "संतृप्ति"
 msgctxt "setting: a screen's color profile, %1 its number, %2 its name"
 msgid "Screen %1 (%2)"
 msgstr "स्क्रीन %1 (%2)"
+
+msgctxt "@action"
+msgid "Check for updates"
+msgstr "अपडेट के लिए चुनें"
 
 msgctxt "mirror axis"
 msgid "Down"
@@ -252,6 +260,14 @@ msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "मार्गदर्शिकाओं से स्नेप करें"
 
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "साफ करें"
+
 msgctxt "a new image: of a size of your own"
 msgid "Custom"
 msgstr "मनपसंद"
@@ -371,6 +387,10 @@ msgstr "चिकना"
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "रेखीय"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "अन्य"
 
 msgctxt "@title:menu"
 msgid "Select"
@@ -495,4 +515,8 @@ msgstr "पैटर्न"
 msgctxt "texture setting"
 msgid "Scale"
 msgstr "आकार बदलें"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "मार्गदर्शिकाओं से स्नेप करें"
 

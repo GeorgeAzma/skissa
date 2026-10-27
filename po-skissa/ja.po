@@ -5,10 +5,6 @@ msgid "Opens a file browser at the location Skissa saves resources such as brush
 msgstr "ファイルブラウザで Skissa がブラシなどのリソースを保存した場所を開きます。"
 
 msgctxt "action"
-msgid "Show Skissa log for bug reports."
-msgstr "バグ報告用の Skissa のログを表示"
-
-msgctxt "action"
 msgid "About Skissa"
 msgstr "Skissa について"
 
@@ -60,6 +56,14 @@ msgstr "Skissa のリソースの場所を指定した場所にオーバーラ�
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "色"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "自動"
+
+msgctxt "color drop: how far into similar colors it fills"
+msgid "Spread"
+msgstr "スプレッド"
 
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "アクセスが拒否されました。Skissa はファイルの読み取りまたは書き込みが許可されていません。"
@@ -172,6 +176,10 @@ msgstr "設定"
 msgctxt "@info:tooltip"
 msgid "Preview"
 msgstr "プレビュー"
+
+msgctxt "@info:tooltip back to the effect's defaults"
+msgid "Reset"
+msgstr "リセット"
 
 msgctxt "effect group"
 msgid "Color"
@@ -324,6 +332,18 @@ msgstr "元に戻す"
 msgctxt "lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "基準線に合わせる"
+
+msgctxt "a new image's resolution"
+msgid "Resolution"
+msgstr "解像度"
+
+msgctxt "a new image's color model and depth"
+msgid "Color"
+msgstr "色"
+
+msgctxt "@info:tooltip a new image's paper"
+msgid "Clear"
+msgstr "クリア"
 
 msgctxt "@action:button open an image"
 msgid "Open"
@@ -489,6 +509,10 @@ msgstr "編集"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "新しい AppImage が %1 にダウンロードされました。更新を完了するには、Skissa を閉じて新しい AppImage を実行してください。"
+
+msgctxt "picker group of what is in no other"
+msgid "Other"
+msgstr "その他"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -704,6 +728,10 @@ msgstr "明度"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "コントラスト"
+
+msgctxt "@option:check snap the stroke to the image's guides (assistants)"
+msgid "Snap to guides"
+msgstr "基準線に合わせる"
 
 msgctxt "@title:window"
 msgid "Skissa - Edit Text"
