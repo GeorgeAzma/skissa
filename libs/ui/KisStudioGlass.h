@@ -28,6 +28,8 @@ public:
     static qreal blurSigma();
     /// Larger glass blurs up to this many times wider, so no shapes show through tall panels.
     static constexpr qreal maxBlurScale = 2.0;
+    /// The most Blur (400%)
+    static constexpr qreal maxBlur = 4.0;
     /// Blur multiplier for glass of \p size; grows with the square root of its area.
     static qreal blurScale(const QSizeF &size);
     /// In the Oklab blur, saturated colors weigh up to 1 + salience times as much as gray.

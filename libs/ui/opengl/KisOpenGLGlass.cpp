@@ -1125,8 +1125,9 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         return;
     }
 
-    // Downsample by a factor that keeps blur widths constant in widget pixels at any screen scale.
-    const int factor = qMax(1, qRound(4 * pixelRatio));
+    // Downsample by a factor that keeps blur widths constant in widget pixels at any screen scale; past a Blur of
+    // 200% further, so the widest kernel stays within its taps (a blur that wide has nothing finer to keep).
+    const int factor = qMax(1, qRound(4 * pixelRatio * qMax<qreal>(1, KisStudioGlass::blur() / 2)));
     // Larger panels blur wider (see KisStudioGlass::blurScale).
     auto scaleOf = [pixelRatio](const Surface &surface) { return KisStudioGlass::blurScale(surface.rect.size() / pixelRatio); };
 

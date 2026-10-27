@@ -1280,7 +1280,7 @@ bool &enabled()
 
 qreal &blurSetting()
 {
-    static qreal blur = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(blurKey, 1.0), 2.0);
+    static qreal blur = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(blurKey, 1.0), KisStudioGlass::maxBlur);
     return blur;
 }
 
@@ -1690,7 +1690,7 @@ qreal KisStudioGlass::blur()
 
 void KisStudioGlass::setBlur(qreal blur)
 {
-    blur = qBound<qreal>(0, blur, 2.0);
+    blur = qBound<qreal>(0, blur, maxBlur);
     if (qFuzzyCompare(blur, blurSetting())) return;
     blurSetting() = blur;
     KisSettingsRegistry::writeLater(blurKey, blur);
