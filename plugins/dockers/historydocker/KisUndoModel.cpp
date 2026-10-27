@@ -45,6 +45,7 @@
 ****************************************************************************/
 #include "KisUndoModel.h"
 #include <klocalizedstring.h>
+#include <KisSentenceCase.h>
 
 KisUndoModel::KisUndoModel(QObject *parent)
     : QAbstractItemModel(parent)
@@ -204,9 +205,11 @@ QVariant KisUndoModel::data(const QModelIndex &index, int role) const
         }
         KUndo2Command* currentCommand = const_cast<KUndo2Command*>(m_stack->command(index.row() - 1));
 
+        // Krita names its steps in Title Case ("Freehand Brush Stroke")
+        const QString text = KisSentenceCase::of(currentCommand->text().toString());
         return currentCommand->isMerged() ?
-            QString("%1 (Merged %2)").arg(currentCommand->text().toString()).arg(calcNumMergedCommands(currentCommand)) :
-            currentCommand->text().toString();
+            QString("%1 (Merged %2)").arg(text).arg(calcNumMergedCommands(currentCommand)) :
+            text;
     }
     else if (role == Qt::DecorationRole) {
         if (index.row() > 0) {

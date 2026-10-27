@@ -3462,6 +3462,15 @@ bool KisStudioLayout::isCanvasOnly() const
     return d->canvasOnlyAction && d->canvasOnlyAction->isChecked();
 }
 
+namespace
+{
+/// Whether \p widget is the canvas an image is painted on
+bool isCanvas(const QWidget *widget)
+{
+    return widget && (widget->inherits("KisOpenGLCanvas2") || widget->inherits("KisQPainterCanvas"));
+}
+} // namespace
+
 void KisStudioLayout::closeFlyout()
 {
     QDockWidget *dock = d->flyout;
@@ -5613,8 +5622,9 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
     switch (event->type()) {
     case QEvent::MouseButtonPress:
     case QEvent::TabletPress:
-        // a press anywhere else in the window closes the flyout; the rail handles its own buttons
-        if (d->flyout && d->flyout->isVisible()) {
+        // a press anywhere else in the interface closes the flyout; the rail handles its own buttons. Painting doesn't:
+        // a panel opened to use while drawing (layers, colors) stays
+        if (d->flyout && d->flyout->isVisible() && !isCanvas(qobject_cast<QWidget *>(watched))) {
             QWidget *widget = qobject_cast<QWidget *>(watched);
             // test by position, since a press the flyout ignores propagates to its parent
             const QPoint at = event->type() == QEvent::MouseButtonPress ? static_cast<QMouseEvent *>(event)->pos()
