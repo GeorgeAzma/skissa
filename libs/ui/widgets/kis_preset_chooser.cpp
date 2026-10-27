@@ -98,9 +98,19 @@ public:
         return m_strokePictures;
     }
 
+    /// Stroke rows show the brush's name on its stroke
+    void setStrokeNames(bool names) {
+        m_strokeNames = names;
+    }
+
+    bool strokeNames() const {
+        return m_strokeNames;
+    }
+
 private:
     bool m_strokes {false};
     bool m_strokePictures {true};
+    bool m_strokeNames {true};
     bool m_showText;
     bool m_useDirtyPresets;
 };
@@ -285,17 +295,27 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
             art.setLeft(tile.right() + 4);
         }
         const QFontMetricsF metrics(option.font);
-        const QString shown = metrics.elidedText(name, Qt::ElideRight, (row.right() - textLeft) * 0.8);
+        const QString shown = m_strokeNames ? metrics.elidedText(name, Qt::ElideRight, (row.right() - textLeft) * 0.8) : QString();
         // the stroke whole, as wide as the row lets it be
         const QSizeF fitted = QSizeF(paintedPart(stroke).size()).scaled(art.size(), Qt::KeepAspectRatio);
-        const QRectF place(art.right() - fitted.width(), art.center().y() - fitted.height() / 2, fitted.width(), fitted.height());
-        const int nameEnd = qRound((textLeft + metrics.horizontalAdvance(shown) + 2 - place.left()) * devicePixelRatioF);
+        // after the name, or in the middle of a row without one
+        const qreal left = shown.isEmpty() ? art.center().x() - fitted.width() / 2 : art.right() - fitted.width();
+        const QRectF place(left, art.center().y() - fitted.height() / 2, fitted.width(), fitted.height());
+        const int nameEnd = shown.isEmpty() ? 0 : qRound((textLeft + metrics.horizontalAdvance(shown) + 2 - place.left()) * devicePixelRatioF);
         painter->drawImage(place, underName(stroke, (place.size() * devicePixelRatioF).toSize(), nameEnd, devicePixelRatioF));
-        painter->setPen(text);
-        painter->drawText(QRectF(textLeft, row.top(), row.right() - textLeft, row.height()), Qt::AlignLeft | Qt::AlignVCenter, shown);
+        if (!shown.isEmpty()) {
+            painter->setPen(text);
+            painter->drawText(QRectF(textLeft, row.top(), row.right() - textLeft, row.height()), Qt::AlignLeft | Qt::AlignVCenter, shown);
+        }
         if (dirty) {
             marks(QRectF(row.right() - 12, row.top(), 12, 12));
         }
+    } else if (m_strokes && !m_strokeNames) {
+        // no stroke yet, and no names: its picture alone
+        const qreal side = row.height() - 6;
+        const QRectF tile(row.center().x() - side / 2, row.center().y() - side / 2, side, side);
+        picture(tile, qMax<qreal>(3.0, side * 0.2));
+        marks(tile);
     } else {
         const QRectF art = row.adjusted(row.width() * 0.42, 2, -4, -2);
         const qreal side = qMin(art.height(), row.height() - 8);
@@ -392,6 +412,8 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
 
     connect(KisConfigNotifier::instance(), SIGNAL(configChanged()),
             SLOT(notifyConfigChanged()));
+    // stroke columns follow the list's width
+    m_chooser->itemView()->installEventFilter(this);
 
     // the size the thumbnails were zoomed to (Ctrl+wheel), kept for the next run
     setIconSize(KisConfig(true).presetIconSize());
@@ -428,8 +450,11 @@ void KisPresetChooser::notifyConfigChanged()
     KisConfig cfg(true);
     m_delegate->setUseDirtyPresets(cfg.useDirtyPresets());
     const bool pictures = cfg.readEntry("PresetStrokePictures", true);
-    if (m_delegate->strokePictures() != pictures) {
+    const bool names = cfg.readEntry("PresetStrokeNames", true);
+    if (m_delegate->strokePictures() != pictures || m_delegate->strokeNames() != names) {
         m_delegate->setStrokePictures(pictures);
+        m_delegate->setStrokeNames(names);
+        if (m_delegate->strokes()) compactStrokeRows();
         m_chooser->itemView()->viewport()->update();
     }
     if (m_delegate->strokes() != KisPresetStrokeThumbnails::isEnabled()) {
@@ -466,12 +491,13 @@ void KisPresetChooser::updateViewSettings()
     const bool strokes = KisPresetStrokeThumbnails::isEnabled();
     m_delegate->setStrokes(strokes);
     if (strokes) {
-        m_chooser->setListViewMode(ListViewMode::Detail);
-        m_delegate->setShowText(true);
+        m_strokeColumns = 0;
         compactStrokeRows();
         return;
     }
-    // back from strokes: cells square at the zoom again
+    // back from strokes: one column as the chooser had it, cells square at the zoom again
+    if (m_strokeColumns > 1) m_chooser->itemView()->setListViewMode(ListViewMode::Detail);
+    m_strokeColumns = 0;
     m_chooser->setRowHeight(iconSize());
     m_chooser->setColumnWidth(iconSize());
     switch (m_mode) {
@@ -521,7 +547,31 @@ void KisPresetChooser::setPresetFilter(const QString& paintOpId)
 void KisPresetChooser::compactStrokeRows()
 {
     // the name lies on the stroke: a row needs only the stroke's height
-    m_chooser->setRowHeight(qMax(28, qRound(iconSize() * 0.6)));
+    const int rowHeight = qMax(28, qRound(iconSize() * 0.6));
+    // as many columns as fit a stroke comfortably (with its name, it needs more room); one column is the list.
+    // Measured without the scroll bar, which comes and goes as the columns change
+    QAbstractItemView *view = m_chooser->itemView();
+    const int width = view->width() - 2 * view->frameWidth() - view->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, view);
+    const int comfortable = (m_delegate->strokeNames() ? 4 * rowHeight + 100 : 4 * rowHeight)
+        + (m_delegate->strokePictures() ? rowHeight : 0);
+    const int columns = qMax(1, width / qMax(1, comfortable));
+    if (columns != m_strokeColumns) {
+        m_strokeColumns = columns;
+        // on the view itself: the chooser keeps its mode while it is laid out side by side
+        m_chooser->itemView()->setListViewMode(columns > 1 ? ListViewMode::IconGrid : ListViewMode::Detail);
+        m_delegate->setShowText(true);
+    }
+    m_chooser->setRowHeight(rowHeight);
+    // a little short of the whole width: a row of cells filling it exactly wraps
+    if (columns > 1) m_chooser->setColumnWidth((width - 2) / columns);
+}
+
+bool KisPresetChooser::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_chooser->itemView() && event->type() == QEvent::Resize && m_delegate->strokes()) {
+        compactStrokeRows();
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void KisPresetChooser::setIconSize(int newSize)
@@ -546,6 +596,11 @@ void KisPresetChooser::saveIconSize()
 
 void KisPresetChooser::showHideBrushNames(ListViewMode newViewMode)
 {
+    // strokes are rows in a grid too
+    if (m_delegate->strokes()) {
+        m_delegate->setShowText(true);
+        return;
+    }
     switch (newViewMode) {
     case ListViewMode::Detail: {
         m_delegate->setShowText(true);

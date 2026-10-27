@@ -399,7 +399,7 @@ QVector<Setting> describeAll()
         glass.read = []() { return KisStudioGlass::isEnabled(); };
         glass.write = [](const QVariant &value) { KisStudioGlass::setEnabled(value.toBool()); };
         all << glass;
-        Setting blur = number(QStringLiteral("StudioGlassBlur"), 1.0, 0, 2.0, i18nc("setting", "Glass blur"), R::Fork);
+        Setting blur = number(QStringLiteral("StudioGlassBlur"), 1.0, 0, KisStudioGlass::maxBlur, i18nc("setting", "Glass blur"), R::Fork);
         blur.read = []() { return KisStudioGlass::blur(); };
         blur.write = [](const QVariant &value) { KisStudioGlass::setBlur(value.toReal()); };
         all << blur;
@@ -418,6 +418,7 @@ QVector<Setting> describeAll()
         all << strokes;
         // a picture is found faster than a name
         all << toggle(QStringLiteral("PresetStrokePictures"), true, i18nc("setting", "Pictures beside strokes"), R::Fork);
+        all << toggle(QStringLiteral("PresetStrokeNames"), true, i18nc("setting", "Names on strokes"), R::Fork);
 
         // Black is the glow; the color last chosen is kept apart, so going back to Color brings it back
         Setting surround = color(QStringLiteral("canvasBorderColor"), QColor(0, 0, 0), i18nc("setting", "Around the image"));

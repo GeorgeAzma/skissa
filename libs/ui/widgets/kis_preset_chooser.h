@@ -82,6 +82,9 @@ public Q_SLOTS:
     /// KisResourceItemChooser is in horizontal layout.
     void showHideBrushNames(ListViewMode newViewMode);
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private Q_SLOTS:
     void notifyConfigChanged();
     void slotResourceWasSelected(KoResourceSP resource);
@@ -91,6 +94,8 @@ private:
     KisResourceItemChooser *m_chooser {0};
     KisPresetDelegate* m_delegate {0};
     ViewMode m_mode;
+    /// The columns of strokes laid out last, 0 before any
+    int m_strokeColumns {0};
 
     class PaintOpFilterModel;
     QPointer<PaintOpFilterModel> m_paintOpFilterModel;
