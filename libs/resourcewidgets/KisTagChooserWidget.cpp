@@ -93,6 +93,8 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
     // in the list, a delete button on the hovered tag; a right click renames
     auto *delegate = new KisTagItemDelegate(d->comboBox->view());
     delegate->deletable = [this](const QModelIndex &index) { return isUserTag(tagAt(index)); };
+    delegate->current = [this](const QModelIndex &index) { return index.row() == d->comboBox->currentIndex(); };
+    delegate->adding = [this](const QModelIndex &index) { return d->rows->isNewTag(index); };
     d->comboBox->view()->setItemDelegate(delegate);
     d->comboBox->view()->setMouseTracking(true);
     d->comboBox->view()->viewport()->installEventFilter(this);
@@ -278,7 +280,7 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
         for (int row = 0; row < d->comboBox->count(); row++) {
             widest = qMax(widest, view->fontMetrics().horizontalAdvance(d->comboBox->itemText(row)));
         }
-        const int wanted = widest + 48 + view->verticalScrollBar()->sizeHint().width();
+        const int wanted = widest + 72 + view->verticalScrollBar()->sizeHint().width();
         if (list->width() < wanted) {
             QRect geometry = list->geometry();
             geometry.setWidth(wanted);
@@ -304,6 +306,10 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
             if (index.isValid()) startRename(index);
             return true;
         }
+        case QEvent::MouseMove:
+            // the delete button lights under the pointer
+            view->viewport()->update();
+            break;
         case QEvent::MouseButtonPress:
         case QEvent::MouseButtonRelease:
         case QEvent::MouseButtonDblClick: {

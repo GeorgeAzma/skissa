@@ -407,7 +407,7 @@ QVector<Setting> describeAll()
         rimLight.read = []() { return KisStudioGlass::rimLight(); };
         rimLight.write = [](const QVariant &value) { KisStudioGlass::setRimLight(value.toReal()); };
         all << rimLight;
-        Setting opacity = number(QStringLiteral("StudioGlassOpacity"), 0.7, 0, 1, i18nc("setting", "Glass opacity"), R::Fork);
+        Setting opacity = number(QStringLiteral("StudioGlassOpacity"), 0.85, 0, 1, i18nc("setting", "Glass opacity"), R::Fork);
         opacity.read = []() { return KisStudioGlass::opacity(); };
         opacity.write = [](const QVariant &value) { KisStudioGlass::setOpacity(value.toReal()); };
         all << opacity;

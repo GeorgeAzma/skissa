@@ -181,7 +181,7 @@ QVector<Shipped> shipped()
         {QStringLiteral("darker"), i18nc("theme preset", "Darker"), params(0.17, Qt::gray, 0, QColor())},
         {QStringLiteral("night"), i18nc("theme preset", "Night"), params(0.22, QColor(60, 90, 200), 0.4, QColor(92, 124, 250))},
         {QStringLiteral("moss"), i18nc("theme preset", "Moss"), params(0.24, QColor(80, 140, 90), 0.33, QColor(104, 170, 116))},
-        {QStringLiteral("light"), i18nc("theme preset", "Light"), params(0.955, Qt::gray, 0, QColor())},
+        {QStringLiteral("light"), i18nc("theme preset", "Light"), params(0.97, Qt::gray, 0, QColor())},
         {QStringLiteral("paper"), i18nc("theme preset", "Paper"), params(0.93, QColor(214, 170, 120), 0.3, QColor(176, 106, 50))},
         {QStringLiteral("sky"), i18nc("theme preset", "Sky"), params(0.94, QColor(110, 150, 220), 0.25, QColor(50, 110, 210))},
         {QStringLiteral("blossom"), i18nc("theme preset", "Blossom"), params(0.94, QColor(240, 120, 175), 0.45, QColor(226, 78, 150))},
@@ -515,6 +515,31 @@ void remake()
     static bool done = false;
     if (done) return;
     done = true;
+    // shipped themes still as they first shipped take the defaults they ship with now: glass at 85%, not 70%,
+    // and Light at 97%, not 95.5%. The values in use follow when the theme is the current one
+    KConfigGroup themes = KSharedConfig::openConfig()->group("StudioThemes");
+    if (themes.readEntry("Defaults", 0) < 1 && themes.hasKey("List")) {
+        QVector<Theme> list = parse(themes.readEntry("List", QString()));
+        const QString current = themes.readEntry("Current", QString());
+        const QString glass = QStringLiteral("StudioGlassOpacity");
+        const QString lightness = QStringLiteral("[StudioTheme] Lightness");
+        KConfigGroup top = KSharedConfig::openConfig()->group(QString());
+        KConfigGroup studioTheme = KSharedConfig::openConfig()->group("StudioTheme");
+        for (Theme &t : list) {
+            if (!shippedOf(t.id)) continue;
+            const bool inUse = t.id == current;
+            if (t.values.contains(glass) && qFuzzyCompare(t.values.value(glass).toDouble(), 0.7)) {
+                t.values.insert(glass, 0.85);
+                if (inUse && qFuzzyCompare(top.readEntry(glass, 0.7), 0.7)) top.writeEntry(glass, 0.85);
+            }
+            if (t.id == QLatin1String("light") && t.values.contains(lightness) && qFuzzyCompare(t.values.value(lightness).toDouble(), 0.955)) {
+                t.values.insert(lightness, 0.97);
+                if (inUse && qFuzzyCompare(studioTheme.readEntry("Lightness", 0.955), 0.955)) studioTheme.writeEntry("Lightness", 0.97);
+            }
+        }
+        themes.writeEntry("List", serialized(list));
+    }
+    themes.writeEntry("Defaults", 1);
     KConfigGroup theme = KSharedConfig::openConfig()->group("theme");
     // themes from builds named Krita Studio
     const QString stored = theme.readEntry("Theme", QString());

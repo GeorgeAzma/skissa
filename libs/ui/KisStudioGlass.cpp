@@ -1292,7 +1292,7 @@ qreal &rimLightSetting()
 
 qreal &opacitySetting()
 {
-    static qreal opacity = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(opacityKey, 0.7), 1.0);
+    static qreal opacity = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(opacityKey, 0.85), 1.0);
     return opacity;
 }
 
