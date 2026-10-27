@@ -52,6 +52,9 @@
 #include <KisFrameRate.h>
 #include <KoConfig.h>
 
+#include <QCursor>
+#include <QScreen>
+
 #ifdef HAVE_X11
 #include <QGuiApplication>
 #include <qpa/qplatformnativeinterface.h>
@@ -888,9 +891,14 @@ public:
         }
 
         for (int i = 0; i < windows.size(); i++) {
-            QRegion above;
-            for (int j = i + 1; j < windows.size(); j++) above |= shapes[j];
             QWidget *window = windows[i];
+            QRegion above;
+            for (int j = i + 1; j < windows.size(); j++) {
+                // glass inside it (a see-through panel in a flyout) is its content, not over it: masked out, the
+                // panel showed only its corners
+                if (window->isAncestorOf(windows[j]) || windows[j]->isAncestorOf(window)) continue;
+                above |= shapes[j];
+            }
             Panel &panel = m_panels[window];
             const QRegion covered = above.translated(-window->mapToGlobal(QPoint())) & window->rect();
             if (panel.covered != covered) {
@@ -1382,7 +1390,7 @@ protected:
         }
         case QEvent::MouseMove:
             if (m_moving) {
-                dialog->move(static_cast<QMouseEvent *>(event)->globalPos() - m_grab);
+                dialog->move(onScreen(dialog, static_cast<QMouseEvent *>(event)->globalPos() - m_grab));
                 return true;
             }
             break;
@@ -1399,6 +1407,22 @@ protected:
     }
 
 private:
+    /// Where \p dialog may go near \p wanted: at least a good part of it on a screen, its top always, so it can be
+    /// dragged back
+    static QPoint onScreen(const QWidget *dialog, const QPoint &wanted)
+    {
+        const QRect frame(wanted, dialog->frameGeometry().size());
+        QScreen *screen = QGuiApplication::screenAt(frame.center());
+        if (!screen) screen = QGuiApplication::screenAt(QCursor::pos());
+        if (!screen) screen = dialog->screen();
+        if (!screen) return wanted;
+        const QRect room = screen->availableGeometry();
+        const int keep = qMin(120, frame.width() / 2);
+        const int x = qBound(room.left() - frame.width() + keep, wanted.x(), room.right() + 1 - keep);
+        const int y = qBound(room.top(), wanted.y(), room.bottom() + 1 - qMin(80, frame.height()));
+        return QPoint(x, y);
+    }
+
     QPoint m_grab;
     bool m_moving {false};
 };

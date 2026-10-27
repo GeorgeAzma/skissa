@@ -1563,7 +1563,9 @@ void KisConfig::setUseWin8PointerInput(bool value)
 
 bool KisConfig::useWin8PointerInputNoApp(QSettings *settings, bool defaultValue)
 {
-    return defaultValue ? false : settings->value("useWin8PointerInput", false).toBool();
+    // Windows Ink by default: drivers let one program at a time hold the pen through WinTab, so with another painting
+    // program open (Krita, a second Skissa) one of them lost pressure
+    return defaultValue ? true : settings->value("useWin8PointerInput", true).toBool();
 }
 
 void KisConfig::setUseWin8PointerInputNoApp(QSettings *settings, bool value)

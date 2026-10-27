@@ -491,7 +491,7 @@ QVector<Setting> describeAll()
         };
         all << curve;
 #ifdef Q_OS_WIN
-        all << inDisplayrc(toggle(QStringLiteral("useWin8PointerInput"), false, i18nc("setting", "Windows Ink"), R::Machine | R::Restart));
+        all << inDisplayrc(toggle(QStringLiteral("useWin8PointerInput"), true, i18nc("setting", "Windows Ink"), R::Machine | R::Restart));
 #endif
         all << number(QStringLiteral("tiltDirectionOffset"), 0, -180, 180, i18nc("setting", "Tilt direction offset"));
         all << toggle(QStringLiteral("useRightMiddleTabletButtonWorkaround"), false, i18nc("setting", "Pen buttons as mouse clicks"), R::Restart);

@@ -2255,7 +2255,10 @@ private:
     /// Its size now: as tall as its tallest lane wants within the room, or just the strip without them
     QSize sizeNow()
     {
-        const QPair<int, int> span = spanY();
+        // no taller than the room between the bars along the top and bottom, so that it fits beside or under them
+        const QWidget *area = parentWidget();
+        const QPair<int, int> span(area->property(topInsetProperty).toInt() + margin,
+                                   area->height() - area->property(bottomInsetProperty).toInt() - margin);
         const QMargins margins = m_layout->contentsMargins();
         // a grip of fixed height has no size hint
         const int strip = m_strip && !m_strip->isHidden() ? qMax(m_strip->sizeHint().height(), m_strip->minimumHeight()) : 0;
@@ -2270,11 +2273,26 @@ private:
 
     QSize placedSize(const QSize &size) const { return panelsShown() || m_openSize.isEmpty() ? size : m_openSize; }
 
-    /// The top and bottom it can reach, clear of the bars along the canvas's top and bottom
+    /// The top and bottom it can reach: the whole height, the bars along the edges kept off as obstacles (clearOfOthers),
+    /// so a group can sit beside the top bar
     QPair<int, int> spanY() const
     {
-        const QWidget *area = parentWidget();
-        return {area->property(topInsetProperty).toInt() + margin, area->height() - area->property(bottomInsetProperty).toInt() - margin};
+        return {margin, parentWidget()->height() - margin};
+    }
+
+    /// The pills along the canvas's edges and the window's handle, which the groups keep off
+    QVector<QRect> barRects() const
+    {
+        QVector<QRect> bars;
+        for (QObject *child : parentWidget()->children()) {
+            auto *widget = qobject_cast<QWidget *>(child);
+            if (!widget || widget->isHidden()) continue;
+            const QString name = widget->objectName();
+            if (name == QLatin1String("studioTopPill") || name == QLatin1String("studioWindowPill") || name == QLatin1String("studioWindowHandle")) {
+                bars << widget->geometry();
+            }
+        }
+        return bars;
     }
 
     /// The place of a box at \p box, from its side, as shares of the room it has; \p snap: caught by the edges and the middle
@@ -2321,6 +2339,10 @@ private:
         QVector<QRect> obstacles;
         const QRect rail = parentWidget()->property(railRectProperty).toRect();
         if (!rail.isEmpty()) obstacles << rail;
+        const QVector<QRect> bars = barRects();
+        // the bars never move for a group, so they count first, with the rail
+        const int fixed = obstacles.size() + bars.size();
+        obstacles << bars;
         for (KisStudioPanelColumn *other : columnsBeside()) {
             if (other == this || other->isHidden() || other->m_settled > settled) continue;
             obstacles << other->targetGeometry();
@@ -2342,8 +2364,8 @@ private:
         }
         const int minX = margin;
         const int maxX = parentWidget()->width() - margin - wanted.width();
-        // the rail first: when nothing is clear of all, at least off it
-        for (int count : {int(obstacles.size()), rail.isEmpty() ? 0 : 1}) {
+        // the rail and the bars first: when nothing is clear of all, at least off them
+        for (int count : {int(obstacles.size()), fixed}) {
             QRect best;
             for (int x : qAsConst(xs)) {
                 for (int y : qAsConst(ys)) {
@@ -2430,6 +2452,8 @@ public:
     {
         m_panel = dock;
         KisStudioGlass::setSeeThrough(dock, true);
+        // a list stays a list here as in a column: shown while still small it turned into an empty strip
+        keepUpright(dock, true);
         layout()->addWidget(dock);
         dock->show();
     }
@@ -2851,6 +2875,10 @@ void KisStudioLayout::enter()
         return QSet<QString>(list.begin(), list.end());
     };
     d->pinned = readSet(pinnedKey);
+    // a first start shows the panels painting needs together, not one at a time
+    if (cfg.readEntry<QString>(pinnedKey, QStringLiteral("\x1f")) == QLatin1String("\x1f")) {
+        d->pinned = {QStringLiteral("StudioColor"), QStringLiteral("PresetDocker"), QStringLiteral("KisLayerBox")};
+    }
     d->groups.clear();
     Q_FOREACH (const QString &id, readSet(farKey)) {
         d->groups.insert(id, 1);
