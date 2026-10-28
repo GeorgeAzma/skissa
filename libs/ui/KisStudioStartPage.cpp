@@ -465,36 +465,46 @@ struct NewImage {
     struct Step {
         QString name;
         int longSide;
+        /// 0: by the kept ratio
+        int shortSide {0};
     };
     /// How big it can be, by its long side: a screen's sizes, or A paper's at the resolution
     QVector<Step> steps() const
     {
         if (paperShaped()) {
-            // the ones that fit
+            // the ones that fit, each from its own millimeters: A paper is only roughly as long as the square
+            // root of two times its width (A4 at 300 dpi is 2480 x 3508, not 2481)
             QVector<Step> papers;
-            const std::pair<const char *, qreal> sizes[] = {{"A5", 210}, {"A4", 297}, {"A3", 420}, {"A2", 594}};
-            for (const auto &paper : sizes) {
-                const int longSide = int(std::round(paper.second / 25.4 * dpi));
-                if (longSide <= maxSide) papers.append({QString::fromLatin1(paper.first), longSide});
+            struct Paper {
+                const char *name;
+                qreal shortSide;
+                qreal longSide;
+            };
+            const Paper sizes[] = {{"A5", 148, 210}, {"A4", 210, 297}, {"A3", 297, 420}, {"A2", 420, 594}};
+            for (const Paper &paper : sizes) {
+                const int longSide = int(std::round(paper.longSide / 25.4 * dpi));
+                const int shortSide = int(std::round(paper.shortSide / 25.4 * dpi));
+                if (longSide <= maxSide) papers.append({QString::fromLatin1(paper.name), longSide, shortSide});
             }
             return papers;
         }
         return {{QStringLiteral("HD"), 1920}, {QStringLiteral("2K"), 2560}, {QStringLiteral("4K"), 3840}, {QStringLiteral("8K"), 7680}};
     }
-    /// \p longSide on the longer side, the shorter one by the kept ratio (or as the shape is), turned as it is
-    QSize sized(int longSide) const
+    /// \p step's long side on the longer side, the shorter one its own or by the kept ratio (or as the shape is),
+    /// turned as it is
+    QSize sized(const Step &step) const
     {
         const bool wide = size.width() >= size.height();
         const qreal r = ratio > 0 ? ratio : qreal(qMax(size.width(), size.height())) / qMax(1, qMin(size.width(), size.height()));
-        const int shortSide = qBound(1, int(std::round(longSide / r)), maxSide);
-        return wide ? QSize(longSide, shortSide) : QSize(shortSide, longSide);
+        const int shortSide = qBound(1, step.shortSide > 0 ? step.shortSide : int(std::round(step.longSide / r)), maxSide);
+        return wide ? QSize(step.longSide, shortSide) : QSize(shortSide, step.longSide);
     }
     /// The step it is at, -1: none
     int step() const
     {
         const QVector<Step> all = steps();
         for (int i = 0; i < all.size(); i++) {
-            if (size == sized(all[i].longSide)) return i;
+            if (size == sized(all[i])) return i;
         }
         return -1;
     }
@@ -1022,7 +1032,7 @@ public:
         column->addWidget(m_steps);
         connect(m_steps, &KisStudioChips::clicked, this, [this](int index) {
             const QVector<NewImage::Step> steps = m_image.steps();
-            if (index < steps.size()) m_image.size = m_image.sized(steps[index].longSide);
+            if (index < steps.size()) m_image.size = m_image.sized(steps[index]);
             refresh();
         });
 
@@ -1041,7 +1051,7 @@ public:
             // a paper size stays that paper
             const int step = m_image.paperShaped() ? m_image.step() : -1;
             m_image.dpi = roundDpi(dpi);
-            if (step >= 0) m_image.size = m_image.sized(m_image.steps()[step].longSide);
+            if (step >= 0) m_image.size = m_image.sized(m_image.steps()[step]);
             refresh();
         });
 
@@ -1128,7 +1138,7 @@ private:
             KisStudioChips::Chip chip;
             chip.text = steps[i].name;
             chip.on = i == at;
-            const QSize pixels = m_image.sized(steps[i].longSide);
+            const QSize pixels = m_image.sized(steps[i]);
             chip.toolTip = i18nc("an image's size in pixels: width × height", "%1 × %2", QLocale().toString(pixels.width()), QLocale().toString(pixels.height()));
             sizes << chip;
             outlines.append({steps[i].name, pixels});
