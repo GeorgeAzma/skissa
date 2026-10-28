@@ -893,12 +893,13 @@ public:
         if (canvasWidgetOf(canvas) != canvas) {
             return;
         }
-        // Glass above the overlays, lowest first, and their shapes on screen.
+        // Glass above the overlays, lowest first, and their shapes on screen. A hidden canvas (behind the start
+        // page) draws no glass, and what is stacked over it stays whole.
         QList<QWidget *> windows;
         for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
             QWidget *panel = it.key();
             const bool over = panel->window() != canvas->window() || panel->property(overOverlaysProperty).toBool();
-            if (over && panel->isVisible() && canvasWidgetOf(panel) == canvas) {
+            if (over && panel->isVisible() && canvasWidgetOf(panel) == canvas && canvas->isVisible()) {
                 windows << panel;
             }
         }
@@ -963,11 +964,15 @@ public:
                 // Leave widgets with their own mask alone.
                 continue;
             }
+            // Qt repaints what a mask newly hides, not what it shows again: that is painted here, or it keeps what
+            // was under the glass window (a tooltip's shape left on the page)
+            const QRegion wasHidden = masked ? QRegion(w->rect()) - w->mask() : QRegion();
             const QRegion hidden = region.translated(-w->mapToGlobal(QPoint())) & w->rect();
             if (hidden.isEmpty() || !w->isVisible()) {
                 if (masked) {
                     w->clearMask();
                     w->setProperty(maskedProperty, false);
+                    w->update(wasHidden);
                 }
                 continue;
             }
@@ -979,6 +984,7 @@ public:
             if (!masked || w->mask() != shown) {
                 w->setMask(shown);
                 w->setProperty(maskedProperty, true);
+                w->update(wasHidden - hidden);
             }
         }
     }

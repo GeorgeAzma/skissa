@@ -12,10 +12,12 @@
 #include <functional>
 
 #include <QtGui/private/qhighdpiscaling_p.h>
+#include <QtGui/qpa/qplatformbackingstore.h>
 #include <QtGui/qpa/qwindowsysteminterface.h>
 #include <QAbstractButton>
 #include <QAbstractNativeEventFilter>
 #include <QApplication>
+#include <QBackingStore>
 #include <QDir>
 #include <QDockWidget>
 #include <QFile>
@@ -76,7 +78,7 @@ public:
             return true;
         }
         if (msg->message == captureMessage) {
-            capture();
+            capture(msg->wParam == 1);
             return true;
         }
         if (msg->message == mouseMessage) {
@@ -264,8 +266,11 @@ private:
         }
     }
 
-    /// Renders the visible windows, popups included, into one PNG at %KRITA_DEV_CAPTURE% (or krita-dev-capture.png)
-    static void capture()
+    /**
+     * Renders the visible windows, popups included, into one PNG at %KRITA_DEV_CAPTURE% (or krita-dev-capture.png);
+     * \p stored: what each window's backing store holds now, painted over by nothing (stale pixels show)
+     */
+    static void capture(bool stored = false)
     {
         QRect bounds;
         const QList<QWidget *> windows = visibleWindows(bounds);
@@ -279,7 +284,13 @@ private:
         image.fill(Qt::transparent);
         QPainter painter(&image);
         Q_FOREACH (QWidget *window, windows) {
-            painter.drawPixmap(window->geometry().topLeft() - bounds.topLeft(), window->grab());
+            const QPoint at = window->geometry().topLeft() - bounds.topLeft();
+            QBackingStore *store = stored ? window->backingStore() : nullptr;
+            if (store && store->handle()) {
+                painter.drawImage(QRect(at, window->size()), store->handle()->toImage());
+            } else {
+                painter.drawPixmap(at, window->grab());
+            }
         }
         painter.end();
 
