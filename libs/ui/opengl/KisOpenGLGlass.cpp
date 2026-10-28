@@ -684,9 +684,13 @@ void main()
     light = max(fromOklab(vec3(lab.x, lab.yz * 1.25)), 0.0);
     light /= 1.0 + dot(light, vec3(0.2126, 0.7152, 0.0722)) / knee;
     vec3 color = base + light * strength * m.a;
-    // a dark image lights nothing: a dim neutral light near it keeps its edge in sight, and goes where its
-    // own glow is brighter
-    color += max(backlight * m.a - dot(color, vec3(0.2126, 0.7152, 0.0722)), 0.0);
+    // a dark image lights little: near it, its light is raised to a dim least lightness that keeps its edge in
+    // sight, keeping its hue and how colorful it is for its lightness (raised as gray, a dark blue glowed gray)
+    float least = pow(backlight * m.a, 1.0 / 3.0);
+    vec3 lit = toOklab(max(color, 0.0));
+    if (lit.x < least) {
+        color = max(fromOklab(vec3(least, lit.yz * min(least / max(lit.x, 1e-3), 4.0))), 0.0);
+    }
     uvec2 u = uvec2(p);
     float steps = hash(u) + hash(u + uvec2(7919u, 104729u)) - 1.0;
     fragColor = vec4((encode ? toSrgb(color) : color) + steps * dither, 1.0);
@@ -864,6 +868,7 @@ struct KisOpenGLGlass::Private : Programs
     /// What the glow was last made for; it is in the canvas until the canvas is drawn again without it.
     QTransform ambientSurfaceToImage;
     QColor ambientBase;
+    qreal ambientGlow {0};
     QSize ambientViewport;
     qreal ambientRatio {0};
     int ambientFactor {0}; ///< the downsampling factor, 0 when there is no glow
@@ -1040,6 +1045,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     d->ambientFactor = factor;
     d->ambientSurfaceToImage = surfaceToImage;
     d->ambientBase = base;
+    d->ambientGlow = KisStudioGlass::glow();
     d->ambientViewport = viewport;
     d->ambientRatio = pixelRatio;
     // The glow is drawn all around the image, not over it: panels over the image keep their blur.
@@ -1095,9 +1101,10 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
     f->glUniform1f(d->ambient["factor"], factor);
     setMatrix(f, d->ambient["toImage"], surfaceToImage);
     f->glUniform3f(d->ambient["base"], float(toLinear(base.redF())), float(toLinear(base.greenF())), float(toLinear(base.blueF())));
-    f->glUniform1f(d->ambient["strength"], float(KisStudioGlass::ambientStrength));
+    f->glUniform1f(d->ambient["strength"], float(KisStudioGlass::ambientStrength * d->ambientGlow));
     f->glUniform1f(d->ambient["knee"], float(KisStudioGlass::ambientKnee));
-    f->glUniform1f(d->ambient["backlight"], float(KisStudioGlass::ambientBacklight));
+    // a stronger glow needs no more light to show the edge, a weaker one gives way
+    f->glUniform1f(d->ambient["backlight"], float(KisStudioGlass::ambientBacklight * qMin<qreal>(1, d->ambientGlow)));
     f->glUniform1i(d->ambient["encode"], !linearCanvas);
     f->glUniform1f(d->ambient["dither"], linearCanvas ? 0.0f : canvasFormat == GL_RGB10_A2 ? 1.0f / 1023 : 1.0f / 255);
     f->glBindTexture(GL_TEXTURE_2D, d->ambientBlurred->texture());
@@ -1112,7 +1119,7 @@ void KisOpenGLGlass::renderAmbient(QOpenGLFramebufferObject *canvas, uint canvas
 bool KisOpenGLGlass::hasAmbient(const QSize &viewport, qreal pixelRatio, const QTransform &surfaceToImage, const QColor &base) const
 {
     return d->ambientFactor > 0 && d->ambientViewport == viewport && d->ambientRatio == pixelRatio
-        && d->ambientSurfaceToImage == surfaceToImage && d->ambientBase == base;
+        && d->ambientSurfaceToImage == surfaceToImage && d->ambientBase == base && d->ambientGlow == KisStudioGlass::glow();
 }
 
 void KisOpenGLGlass::dropAmbient()

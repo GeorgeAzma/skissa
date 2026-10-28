@@ -76,7 +76,11 @@ public:
     /// Whether the image casts an ambient glow on the canvas around it (only with a black border color).
     static bool ambientSurround();
     static constexpr qreal ambientSigma = 110; ///< widget pixels
+    /// At a Glow of 1
     static constexpr qreal ambientStrength = 0.4;
+    /// How strongly the image lights what is around it, from 0 (not at all) to 2. Defaults to 1.
+    static qreal glow();
+    static void setGlow(qreal glow);
     /// The image's luminance where its glow is compressed to half (linear)
     static constexpr qreal ambientKnee = 0.15;
     /// The least light around the image (linear, where all of it is near): a dark image's edge still shows

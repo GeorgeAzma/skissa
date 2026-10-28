@@ -438,6 +438,10 @@ QVector<Setting> describeAll()
         };
         all << surround;
         all << color(QStringLiteral("StudioSurroundColor"), QColor(24, 24, 24), i18nc("setting", "Color around the image"), R::Fork);
+        Setting glow = number(QStringLiteral("StudioSurroundGlow"), 1.0, 0, 2.0, i18nc("setting", "Glow around the image"), R::Fork);
+        glow.read = []() { return KisStudioGlass::glow(); };
+        glow.write = [](const QVariant &value) { KisStudioGlass::setGlow(value.toReal()); };
+        all << glow;
         Setting ownFont = toggle(QStringLiteral("use_custom_system_font"), false, i18nc("setting", "Own interface font"));
         // Turning it on starts from the current font; turning it off clears both and uses the system font
         ownFont.written = [](const QVariant &value) {

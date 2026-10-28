@@ -1274,8 +1274,9 @@ QVector<CardDef> makeCards()
             b.showWhen(b.number(QStringLiteral("StudioGlassVibrancy"), {i18nc("glass: how vivid the colors behind look", "Vibrancy"), 100, 0, QStringLiteral("%")}), on);
             b.showWhen(b.number(QStringLiteral("StudioGlassGrain"), {i18nc("glass: the frost's grain", "Grain"), 100, 0, QStringLiteral("%")}), on);
         });
-    add(QStringLiteral("appearance"), QStringLiteral("surround"), i18nc("settings card", "Around the image"), {QStringLiteral("canvasBorderColor")},
-        QStringLiteral("canvas border background color ambient glow"), [](Builder &b) {
+    add(QStringLiteral("appearance"), QStringLiteral("surround"), i18nc("settings card", "Around the image"),
+        {QStringLiteral("canvasBorderColor"), QStringLiteral("StudioSurroundGlow")},
+        QStringLiteral("canvas border background color ambient glow strength light"), [](Builder &b) {
             auto *picker = new Tiles({{i18nc("around the image", "Glow"), [](QPainter &p, const QRectF &r) { paintSurround(p, r, Qt::black, true); }},
                                       {i18nc("around the image", "Color"), [](QPainter &p, const QRectF &r) {
                                            paintSurround(p, r, R::instance()->value(QStringLiteral("StudioSurroundColor")).value<QColor>(), false);
@@ -1297,6 +1298,8 @@ QVector<CardDef> makeCards()
                 picker->update();
             });
             b.layout->addWidget(picker);
+            b.showWhen(b.number(QStringLiteral("StudioSurroundGlow"), {i18nc("around the image: how strongly the image lights it", "Strength"), 100, 0, QStringLiteral("%")}),
+                       [current]() { return current() == 0; });
             b.showWhen(b.color(QStringLiteral("canvasBorderColor"), false, i18nc("around the image", "Color")), [current]() { return current() == 1; });
         });
     add(QStringLiteral("appearance"), QStringLiteral("font"), i18nc("settings card", "Interface font"),

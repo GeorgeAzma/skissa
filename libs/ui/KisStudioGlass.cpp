@@ -68,6 +68,7 @@ const QString opacityKey = QStringLiteral("StudioGlassOpacity");
 const QString rimLightKey = QStringLiteral("StudioGlassRimLight");
 const QString vibrancyKey = QStringLiteral("StudioGlassVibrancy");
 const QString grainKey = QStringLiteral("StudioGlassGrain");
+const QString glowKey = QStringLiteral("StudioSurroundGlow");
 
 constexpr qreal blurRadius = 26;    ///< widget pixels
 constexpr qreal sampleScale = 0.25; ///< CPU glass renders at quarter resolution; the blur hides it
@@ -1357,6 +1358,12 @@ qreal &opacitySetting()
     return opacity;
 }
 
+qreal &glowSetting()
+{
+    static qreal glow = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(glowKey, 1.0), 2.0);
+    return glow;
+}
+
 bool &ambientSetting()
 {
     static bool ambient = []() {
@@ -1811,6 +1818,16 @@ void KisStudioGlass::setOpacity(qreal opacity)
 bool KisStudioGlass::ambientSurround()
 {
     return ambientSetting();
+}
+
+qreal KisStudioGlass::glow()
+{
+    return glowSetting();
+}
+
+void KisStudioGlass::setGlow(qreal glow)
+{
+    setLook(glowSetting(), glowKey, glow, 2.0);
 }
 
 void KisStudioGlass::setOverOverlays(QWidget *panel)
