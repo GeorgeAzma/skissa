@@ -32,7 +32,6 @@ public:
     static constexpr qreal maxBlur = 4.0;
     static constexpr qreal defaultVibrancy = 0.5;
     static constexpr qreal defaultGrain = 0.15;
-    static constexpr qreal defaultTextContrast = 0.0;
     /// Blur multiplier for glass of \p size; grows with the square root of its area.
     static qreal blurScale(const QSizeF &size);
     /// In the Oklab blur, saturated colors weigh up to 1 + salience times as much as gray.
@@ -62,25 +61,6 @@ public:
     static constexpr int grainTileSize = 128;
     /// The grain's tile, grainTileSize across and down, row by row: noise of mean 0 and spread 1 (within -3 and 3)
     static const QVector<float> &grainTile();
-    /// The side of the bumps' tile, which repeats seamlessly
-    static constexpr int bumpTileSize = 256;
-    /// How the glass' bumps tilt it, the bumps as large as distortionSize(): two values a pixel (across, down), -1 to 1
-    static const QVector<float> &bumpTile();
-    /// How strongly the glass is bumpy, from 0 (smooth) to 1: what is behind is seen shifted by their tilt
-    static qreal distortion();
-    static void setDistortion(qreal distortion);
-    /// How large the bumps are, in widget pixels: from 1 (ground glass scattering) to 32 (ripples). Defaults to 2.
-    static qreal distortionSize();
-    static void setDistortionSize(qreal size);
-    /// How far a bump at full tilt shifts what is seen through it, at full distortion, in widget pixels: more for
-    /// larger bumps, as a thicker pane bends further
-    static qreal bumpShift();
-    /// How much light a bump facing the light (from the top left, as the rim's) catches, at full distortion, in Oklab
-    /// lightness
-    static constexpr float bumpLight = 0.035f;
-    /// How far what is behind takes the panel's lightness, so text reads as on a solid panel, from 0 to 1
-    static qreal textContrast();
-    static void setTextContrast(qreal contrast);
     /**
      * Averaging Oklab a and b lets opposing hues cancel out. This share of the lost chroma is restored,
      * never exceeding the chroma of the colors behind.

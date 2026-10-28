@@ -312,8 +312,7 @@ QStringList held()
     return {QStringLiteral("[StudioTheme] Lightness"), QStringLiteral("[StudioTheme] Tint"), QStringLiteral("[StudioTheme] TintAmount"),
             QStringLiteral("[StudioTheme] UseAccent"), QStringLiteral("[StudioTheme] Accent"), QStringLiteral("StudioGlass"),
             QStringLiteral("StudioGlassBlur"), QStringLiteral("StudioGlassOpacity"), QStringLiteral("StudioGlassRimLight"),
-            QStringLiteral("StudioGlassVibrancy"), QStringLiteral("StudioGlassGrain"), QStringLiteral("StudioGlassDistortion"),
-            QStringLiteral("StudioGlassDistortionSize"), QStringLiteral("StudioGlassTextContrast"),
+            QStringLiteral("StudioGlassVibrancy"), QStringLiteral("StudioGlassGrain"),
             QStringLiteral("canvasBorderColor"), QStringLiteral("use_custom_system_font"), QStringLiteral("custom_system_font"),
             QStringLiteral("custom_font_size")};
 }

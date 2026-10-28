@@ -9,7 +9,6 @@
 #include <array>
 #include <cmath>
 #include <complex>
-#include <functional>
 #include <random>
 #include <vector>
 
@@ -71,9 +70,6 @@ const QString opacityKey = QStringLiteral("StudioGlassOpacity");
 const QString rimLightKey = QStringLiteral("StudioGlassRimLight");
 const QString vibrancyKey = QStringLiteral("StudioGlassVibrancy");
 const QString grainKey = QStringLiteral("StudioGlassGrain");
-const QString distortionKey = QStringLiteral("StudioGlassDistortion");
-const QString distortionSizeKey = QStringLiteral("StudioGlassDistortionSize");
-const QString textContrastKey = QStringLiteral("StudioGlassTextContrast");
 
 constexpr qreal blurRadius = 26;    ///< widget pixels
 constexpr qreal sampleScale = 0.25; ///< CPU glass renders at quarter resolution; the blur hides it
@@ -182,12 +178,6 @@ float grainAt(int x, int y)
     return KisStudioGlass::grainTile()[(y & (size - 1)) * size + (x & (size - 1))];
 }
 
-double smoothstep(double from, double to, double x)
-{
-    const double t = qBound(0.0, (x - from) / (to - from), 1.0);
-    return t * t * (3 - 2 * t);
-}
-
 /// An FFT of \p data in place, its size a power of two; the inverse with \p inverse (not scaled)
 void fft(std::vector<std::complex<double>> &data, bool inverse)
 {
@@ -212,50 +202,6 @@ void fft(std::vector<std::complex<double>> &data, bool inverse)
     }
 }
 
-/**
- * Noise with its spectrum chosen, \p n across and down: white noise through the FFT, each frequency given the
- * strength \p strength has for it (in cycles a pixel, round about), and back; mean 0, spread 1. Made through the FFT,
- * it repeats seamlessly. The same for one \p seed every time, so the glass doesn't change from start to start.
- */
-std::vector<double> shapedNoise(int n, unsigned seed, const std::function<double(double)> &strength)
-{
-    std::mt19937 random(seed);
-    std::normal_distribution<double> white;
-    std::vector<std::complex<double>> grid(size_t(n) * n);
-    for (auto &value : grid) value = white(random);
-    std::vector<std::complex<double>> line(n);
-    auto transform = [&](bool inverse) {
-        for (int y = 0; y < n; y++) {
-            std::copy_n(grid.begin() + y * n, n, line.begin());
-            fft(line, inverse);
-            std::copy(line.begin(), line.end(), grid.begin() + y * n);
-        }
-        for (int x = 0; x < n; x++) {
-            for (int y = 0; y < n; y++) line[y] = grid[size_t(y) * n + x];
-            fft(line, inverse);
-            for (int y = 0; y < n; y++) grid[size_t(y) * n + x] = line[y];
-        }
-    };
-    transform(false);
-    for (int y = 0; y < n; y++) {
-        for (int x = 0; x < n; x++) {
-            const double fx = (x <= n / 2 ? x : x - n) / double(n), fy = (y <= n / 2 ? y : y - n) / double(n);
-            grid[size_t(y) * n + x] *= strength(std::hypot(fx, fy));
-        }
-    }
-    transform(true);
-    double sum = 0, squares = 0;
-    for (const auto &value : grid) {
-        sum += value.real();
-        squares += value.real() * value.real();
-    }
-    const double mean = sum / grid.size();
-    const double spread = std::sqrt(qMax(1e-12, squares / grid.size() - mean * mean));
-    std::vector<double> values(grid.size());
-    for (size_t i = 0; i < grid.size(); i++) values[i] = (grid[i].real() - mean) / spread;
-    return values;
-}
-
 /// \p image (sRGB) seen through glass tinted with \p tint at \p strength, matching the GPU glass.
 QImage tinted(const QImage &image, const QColor &tint, qreal strength)
 {
@@ -264,30 +210,13 @@ QImage tinted(const QImage &image, const QColor &tint, qreal strength)
     const float s = float(strength);
     const float veil = float(KisStudioGlass::veil);
     const float vibrancy = float(KisStudioGlass::vibrancy());
-    const float evenness = float(KisStudioGlass::textContrast());
     const float grain = float(KisStudioGlass::grain());
-    const float distortion = float(KisStudioGlass::distortion());
-    const QVector<float> &bumps = KisStudioGlass::bumpTile();
-    const int tileMask = KisStudioGlass::bumpTileSize - 1;
-    const float shift = distortion * float(KisStudioGlass::bumpShift());
-    const float bumpLight = KisStudioGlass::bumpLight * distortion;
     QImage result(image.size(), QImage::Format_RGB32);
     for (int y = 0; y < image.height(); y++) {
         const QRgb *in = reinterpret_cast<const QRgb *>(image.constScanLine(y));
         QRgb *out = reinterpret_cast<QRgb *>(result.scanLine(y));
         for (int x = 0; x < image.width(); x++) {
-            // the bumps of textured glass: each tilts it, so what is behind is seen a little to one side
-            const float *tilt = bumps.constData() + ((y & tileMask) * KisStudioGlass::bumpTileSize + (x & tileMask)) * 2;
-            QRgb seen = in[x];
-            if (distortion > 0) {
-                const int sx = qBound(0, x + qRound(tilt[0] * shift), image.width() - 1);
-                const int sy = qBound(0, y + qRound(tilt[1] * shift), image.height() - 1);
-                seen = reinterpret_cast<const QRgb *>(image.constScanLine(sy))[sx];
-            }
-            Lab b = vivid(toOklab(linear[qRed(seen)], linear[qGreen(seen)], linear[qBlue(seen)]), vibrancy);
-            // and catch the room's light from the top left on their sides facing it
-            if (distortion > 0) b.l = qBound(0.0f, b.l + (tilt[0] + tilt[1]) * 0.70710678f * bumpLight, 1.0f);
-            b.l += (t.l - b.l) * evenness;
+            Lab b = vivid(toOklab(linear[qRed(in[x])], linear[qGreen(in[x])], linear[qBlue(in[x])]), vibrancy);
             const float l = qBound(0.0f, b.l + (t.l - b.l) * s, 1.0f);
             // Keep the chroma, veiled by light the glass scatters (fully where the glass lightens).
             const float lighter = qBound(0.0f, (l - b.l + 0.02f) / 0.08f, 1.0f);
@@ -1428,24 +1357,6 @@ qreal &grainSetting()
     return grain;
 }
 
-qreal &distortionSetting()
-{
-    static qreal distortion = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(distortionKey, 0.0), 1.0);
-    return distortion;
-}
-
-qreal &distortionSizeSetting()
-{
-    static qreal size = qBound<qreal>(1, KisConfig(true).readEntry<qreal>(distortionSizeKey, 2.0), 32);
-    return size;
-}
-
-qreal &textContrastSetting()
-{
-    static qreal contrast = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(textContrastKey, KisStudioGlass::defaultTextContrast), 1.0);
-    return contrast;
-}
-
 /// Sets one of the glass' look settings, kept in \p kept, written under \p key
 void setLook(qreal &kept, const QString &key, qreal value, qreal most)
 {
@@ -1900,97 +1811,60 @@ void KisStudioGlass::setGrain(qreal grain)
     setLook(grainSetting(), grainKey, grain, 1.0);
 }
 
+/**
+ * Noise with its spectrum chosen: white noise through the FFT, each frequency given its strength, and back. Most of
+ * it is fine, with next to nothing at large sizes, so it has no clumps or gaps (as blue noise); a little is at about
+ * nine pixels across, the soft clumps of ground glass. Made through the FFT, it repeats seamlessly. The same tile
+ * every time, so the glass doesn't change from start to start.
+ */
 const QVector<float> &KisStudioGlass::grainTile()
 {
     static const QVector<float> tile = []() {
-        // mostly fine, with next to nothing at large sizes (as blue noise has), and a little at about nine pixels
-        // across, the soft clumps of ground glass
-        const std::vector<double> noise = shapedNoise(grainTileSize, 1729, [](double f) {
-            const double clumps = (f - 0.11) / 0.04;
-            return smoothstep(0.15, 0.4, f) + 0.45 * std::exp(-clumps * clumps);
-        });
-        QVector<float> values(int(noise.size()));
-        for (size_t i = 0; i < noise.size(); i++) values[int(i)] = float(qBound(-3.0, noise[i], 3.0));
-        return values;
-    }();
-    return tile;
-}
-
-const QVector<float> &KisStudioGlass::bumpTile()
-{
-    // made again only when the size changes
-    static qreal madeFor = -1;
-    static QVector<float> tile;
-    const qreal size = distortionSize();
-    if (madeFor == size) return tile;
-    madeFor = size;
-    tile = [size]() {
-        const int n = bumpTileSize;
-        // bumps of the size, with detail down to half of it: the finest of them, near a pixel, are what scatter light
-        // as ground glass does
-        const std::vector<double> height = shapedNoise(n, 4099, [size](double f) {
-            if (f <= 0) return 0.0;
-            const double octaves = std::log2(f * size) / 0.7;
-            return std::exp(-octaves * octaves);
-        });
-        auto at = [&](int x, int y) { return height[size_t((y + n) % n) * n + (x + n) % n]; };
-        std::vector<double> slopes(size_t(n) * n * 2);
-        double squares = 0;
+        const int n = grainTileSize;
+        std::mt19937 random(1729);
+        std::normal_distribution<double> white;
+        std::vector<std::complex<double>> grid(size_t(n) * n);
+        for (auto &value : grid) value = white(random);
+        std::vector<std::complex<double>> line(n);
+        auto transform = [&](bool inverse) {
+            for (int y = 0; y < n; y++) {
+                std::copy_n(grid.begin() + y * n, n, line.begin());
+                fft(line, inverse);
+                std::copy(line.begin(), line.end(), grid.begin() + y * n);
+            }
+            for (int x = 0; x < n; x++) {
+                for (int y = 0; y < n; y++) line[y] = grid[size_t(y) * n + x];
+                fft(line, inverse);
+                for (int y = 0; y < n; y++) grid[size_t(y) * n + x] = line[y];
+            }
+        };
+        transform(false);
+        auto smoothstep = [](double from, double to, double x) {
+            const double t = qBound(0.0, (x - from) / (to - from), 1.0);
+            return t * t * (3 - 2 * t);
+        };
         for (int y = 0; y < n; y++) {
             for (int x = 0; x < n; x++) {
-                const double across = (at(x + 1, y) - at(x - 1, y)) / 2, down = (at(x, y + 1) - at(x, y - 1)) / 2;
-                slopes[(size_t(y) * n + x) * 2] = across;
-                slopes[(size_t(y) * n + x) * 2 + 1] = down;
-                squares += across * across + down * down;
+                // cycles per pixel, round about
+                const double fx = (x <= n / 2 ? x : x - n) / double(n), fy = (y <= n / 2 ? y : y - n) / double(n);
+                const double f = std::hypot(fx, fy);
+                const double clumps = (f - 0.11) / 0.04;
+                grid[size_t(y) * n + x] *= smoothstep(0.15, 0.4, f) + 0.45 * std::exp(-clumps * clumps);
             }
         }
-        // the steepest few at full tilt
-        const double spread = std::sqrt(qMax(1e-12, squares / slopes.size()));
-        QVector<float> values(int(slopes.size()));
-        for (size_t i = 0; i < slopes.size(); i++) values[int(i)] = float(qBound(-1.0, slopes[i] / (2.5 * spread), 1.0));
+        transform(true);
+        double sum = 0, squares = 0;
+        for (const auto &value : grid) {
+            sum += value.real();
+            squares += value.real() * value.real();
+        }
+        const double mean = sum / grid.size();
+        const double spread = std::sqrt(qMax(1e-12, squares / grid.size() - mean * mean));
+        QVector<float> values(int(grid.size()));
+        for (size_t i = 0; i < grid.size(); i++) values[int(i)] = float(qBound(-3.0, (grid[i].real() - mean) / spread, 3.0));
         return values;
     }();
     return tile;
-}
-
-qreal KisStudioGlass::distortionSize()
-{
-    return distortionSizeSetting();
-}
-
-void KisStudioGlass::setDistortionSize(qreal size)
-{
-    size = qBound<qreal>(1, size, 32);
-    if (qFuzzyCompare(size, distortionSizeSetting())) return;
-    distortionSizeSetting() = size;
-    KisSettingsRegistry::writeLater(distortionSizeKey, size);
-    Engine::instance().clear();
-    Panels::instance().repaintAll();
-}
-
-qreal KisStudioGlass::bumpShift()
-{
-    return qBound<qreal>(1.0, 0.45 * distortionSize(), 10.0);
-}
-
-qreal KisStudioGlass::distortion()
-{
-    return distortionSetting();
-}
-
-void KisStudioGlass::setDistortion(qreal distortion)
-{
-    setLook(distortionSetting(), distortionKey, distortion, 1.0);
-}
-
-qreal KisStudioGlass::textContrast()
-{
-    return textContrastSetting();
-}
-
-void KisStudioGlass::setTextContrast(qreal contrast)
-{
-    setLook(textContrastSetting(), textContrastKey, contrast, 1.0);
 }
 
 qreal KisStudioGlass::opacity()

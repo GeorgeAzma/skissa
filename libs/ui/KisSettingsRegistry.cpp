@@ -415,19 +415,6 @@ QVector<Setting> describeAll()
         grain.read = []() { return KisStudioGlass::grain(); };
         grain.write = [](const QVariant &value) { KisStudioGlass::setGrain(value.toReal()); };
         all << grain;
-        Setting distortion = number(QStringLiteral("StudioGlassDistortion"), 0.0, 0, 1.0, i18nc("setting", "Glass distortion"), R::Fork);
-        distortion.read = []() { return KisStudioGlass::distortion(); };
-        distortion.write = [](const QVariant &value) { KisStudioGlass::setDistortion(value.toReal()); };
-        all << distortion;
-        Setting distortionSize = number(QStringLiteral("StudioGlassDistortionSize"), 2.0, 1.0, 32.0, i18nc("setting", "Glass distortion size"), R::Fork);
-        distortionSize.read = []() { return KisStudioGlass::distortionSize(); };
-        distortionSize.write = [](const QVariant &value) { KisStudioGlass::setDistortionSize(value.toReal()); };
-        all << distortionSize;
-        Setting textContrast = number(QStringLiteral("StudioGlassTextContrast"), KisStudioGlass::defaultTextContrast, 0, 1.0,
-                                      i18nc("setting", "Glass text contrast"), R::Fork);
-        textContrast.read = []() { return KisStudioGlass::textContrast(); };
-        textContrast.write = [](const QVariant &value) { KisStudioGlass::setTextContrast(value.toReal()); };
-        all << textContrast;
         Setting opacity = number(QStringLiteral("StudioGlassOpacity"), 0.85, 0, 1, i18nc("setting", "Glass opacity"), R::Fork);
         opacity.read = []() { return KisStudioGlass::opacity(); };
         opacity.write = [](const QVariant &value) { KisStudioGlass::setOpacity(value.toReal()); };
@@ -844,7 +831,7 @@ QVector<Setting> describeAll()
  */
 void forgetRetired()
 {
-    constexpr int version = 10;
+    constexpr int version = 11;
     KConfigGroup top = KSharedConfig::openConfig()->group(QString());
     if (top.readEntry("StudioRetiredSettings", 0) >= version) return;
     const char *const keys[] = {
@@ -865,6 +852,8 @@ void forgetRetired()
         "StudioLayoutPanelHeights",
         // the glass's refraction is its shape now, with no strength of its own
         "StudioGlassRefraction", "StudioGlassEdge", "StudioGlassClarity",
+        // the glass's bumps and its text contrast, tried and left out
+        "StudioGlassDistortion", "StudioGlassDistortionSize", "StudioGlassTextContrast",
     };
     // Krita's "don't rename copied/pasted/merged layers" options become empty name affixes
     const struct { const char *old; KisImageConfig::LayerNaming kind; } renames[] = {
