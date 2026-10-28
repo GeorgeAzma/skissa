@@ -10,7 +10,6 @@
 #include <QHash>
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
-#include <QOpenGLTexture>
 #include <QOpenGLFunctions>
 #include <QOpenGLVertexArrayObject>
 #include <QPolygonF>
@@ -254,7 +253,6 @@ uniform vec4 reach;
 // Vibrancy (0 none), and grain (0 none) and its cell in pixels
 uniform float vibrancy;
 uniform vec2 grain;
-uniform sampler2D grainTile;
 uniform int lowerCount;
 uniform vec4 lowerShape[4];
 uniform vec2 lowerCorner[4];
@@ -560,14 +558,13 @@ void main()
         color = mix(color, gathered, clamp(line * (0.3 + 0.6 * facing) * rim.z, 0.0, 1.0));
     }
 
-    // Grain in Oklab lightness, fixed to the panel as frost is to glass, from a tile of noise whose spectrum was
-    // chosen (see KisStudioGlass::grainTile()); strongest in the midtones, as film grain: none on black and white,
-    // where it reads as dirt
+    // Grain in Oklab lightness, so it is as visible on dark glass as on light, fixed to the panel as
+    // frost is to glass; a sum of three hashes is close to a gaussian, without a pattern
     if (grain.x > 0.0) {
-        float n = (texelFetch(grainTile, ivec2(floor((p - shape.xy) / grain.y)) & 127, 0).r - 0.5) * 6.0;
+        uvec2 cell = uvec2(ivec2(floor((p - shape.xy) / grain.y)) + 8192);
+        float n = hash(cell) + hash(cell + uvec2(7919u, 104729u)) + hash(cell + uvec2(104729u, 7919u)) - 1.5;
         vec3 lab = toOklab(max(color, 0.0));
-        float midtones = 4.0 * lab.x * (1.0 - lab.x);
-        color = inGamut(clamp(lab.x + n * 0.05 * grain.x * midtones, 0.0, 1.0), lab.yz);
+        color = inGamut(clamp(lab.x + n * 0.05 * grain.x, 0.0, 1.0), lab.yz);
     }
 
     /**
@@ -811,7 +808,7 @@ struct Programs {
                           {"rect", "blurred", "halfFrost", "quarterFrost", "eighthFrost", "statistics", "shift", "slot", "restore", "power",
                            "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
                            "beyond", "spacing", "dither", "veil", "rim", "ior", "under", "decode", "reach",
-                           "vibrancy", "grain", "grainTile", "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"}, keptLinear)
+                           "vibrancy", "grain", "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"}, keptLinear)
             && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"}, keptLinear)
             && ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "knee", "backlight", "encode", "dither"}, keptLinear);
     }
@@ -867,8 +864,6 @@ struct KisOpenGLGlass::Private : Programs
     QScopedPointer<QOpenGLFramebufferObject> smallStatistics;
     QScopedPointer<QOpenGLFramebufferObject> acrossStatistics;
     QScopedPointer<QOpenGLFramebufferObject> statistics;
-    /// The grain's tile, eight bits: -3 to 3 as 0 to 1
-    QScopedPointer<QOpenGLTexture> grainTile;
     /// Intermediate texture format: half floats where renderable, eight bits otherwise.
     GLenum keptFormat {GL_RGBA};
     /// A slot as last blurred: its content depends only on these and on the canvas it reads.
@@ -1328,7 +1323,6 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1i(d->glass["halfFrost"], 4);
     f->glUniform1i(d->glass["quarterFrost"], 5);
     f->glUniform1i(d->glass["eighthFrost"], 6);
-    f->glUniform1i(d->glass["grainTile"], 7);
     f->glUniform1i(d->glass["decode"], !linearCanvas);
     f->glUniform1f(d->glass["restore"], KisStudioGlass::restore);
     f->glUniform1f(d->glass["power"], KisStudioGlass::lightnessPower);
@@ -1348,24 +1342,6 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glActiveTexture(GL_TEXTURE4 + k);
         f->glBindTexture(GL_TEXTURE_2D, d->finer[k]->texture());
     }
-    f->glActiveTexture(GL_TEXTURE7);
-    if (!d->grainTile) {
-        const int size = KisStudioGlass::grainTileSize;
-        QImage tile(size, size, QImage::Format_RGBA8888);
-        const QVector<float> &grain = KisStudioGlass::grainTile();
-        for (int y = 0; y < size; y++) {
-            uchar *line = tile.scanLine(y);
-            for (int x = 0; x < size; x++) {
-                const uchar value = uchar(qRound(qBound(0.0f, 0.5f + grain[y * size + x] / 6.0f, 1.0f) * 255));
-                line[4 * x] = line[4 * x + 1] = line[4 * x + 2] = value;
-                line[4 * x + 3] = 255;
-            }
-        }
-        d->grainTile.reset(new QOpenGLTexture(tile, QOpenGLTexture::DontGenerateMipMaps));
-        d->grainTile->setMinMagFilters(QOpenGLTexture::Nearest, QOpenGLTexture::Nearest);
-        d->grainTile->setWrapMode(QOpenGLTexture::Repeat);
-    }
-    f->glBindTexture(GL_TEXTURE_2D, d->grainTile->textureId());
     f->glActiveTexture(GL_TEXTURE2);
     f->glBindTexture(GL_TEXTURE_2D, canvas);
     f->glActiveTexture(GL_TEXTURE1);
@@ -1430,8 +1406,6 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
         f->glActiveTexture(GL_TEXTURE4 + k);
         f->glBindTexture(GL_TEXTURE_2D, 0);
     }
-    f->glActiveTexture(GL_TEXTURE7);
-    f->glBindTexture(GL_TEXTURE_2D, 0);
     f->glActiveTexture(GL_TEXTURE3);
     f->glBindTexture(GL_TEXTURE_2D, 0);
     f->glActiveTexture(GL_TEXTURE2);

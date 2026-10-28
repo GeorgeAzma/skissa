@@ -8,8 +8,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <complex>
-#include <random>
 #include <vector>
 
 #include <QAbstractItemView>
@@ -171,35 +169,15 @@ Lab vivid(Lab lab, float v)
     return {lab.l, lab.a * k, lab.b * k};
 }
 
-/// The grain at pixel \p x, \p y (see KisStudioGlass::grainTile())
+/// A noise of about a gaussian's shape (-1.5 to 1.5) at \p x, \p y, without a pattern
 float grainAt(int x, int y)
 {
-    const int size = KisStudioGlass::grainTileSize;
-    return KisStudioGlass::grainTile()[(y & (size - 1)) * size + (x & (size - 1))];
-}
-
-/// An FFT of \p data in place, its size a power of two; the inverse with \p inverse (not scaled)
-void fft(std::vector<std::complex<double>> &data, bool inverse)
-{
-    const size_t n = data.size();
-    for (size_t i = 1, j = 0; i < n; i++) {
-        size_t bit = n >> 1;
-        for (; j & bit; bit >>= 1) j ^= bit;
-        j ^= bit;
-        if (i < j) std::swap(data[i], data[j]);
-    }
-    for (size_t length = 2; length <= n; length <<= 1) {
-        const double angle = 2 * M_PI / double(length) * (inverse ? 1 : -1);
-        const std::complex<double> step(std::cos(angle), std::sin(angle));
-        for (size_t i = 0; i < n; i += length) {
-            std::complex<double> w(1);
-            for (size_t k = 0; k < length / 2; k++, w *= step) {
-                const std::complex<double> u = data[i + k], v = data[i + k + length / 2] * w;
-                data[i + k] = u + v;
-                data[i + k + length / 2] = u - v;
-            }
-        }
-    }
+    auto hash = [](quint32 h) {
+        h ^= h >> 16; h *= 0x7feb352du; h ^= h >> 15; h *= 0x846ca68bu; h ^= h >> 16;
+        return float(h) / 4294967295.0f;
+    };
+    const quint32 seed = quint32(x) * 73856093u ^ quint32(y) * 19349663u;
+    return hash(seed) + hash(seed + 0x9e3779b9u) + hash(seed + 0x3c6ef372u) - 1.5f;
 }
 
 /// \p image (sRGB) seen through glass tinted with \p tint at \p strength, matching the GPU glass.
@@ -225,10 +203,8 @@ QImage tinted(const QImage &image, const QColor &tint, qreal strength)
             const float scattered = s * m + (1 - m) * s * s * s;
             std::array<float, 3> c = inGamut({l, b.a * (1 - scattered) + t.a * scattered, b.b * (1 - scattered) + t.b * scattered});
             if (grain > 0) {
-                // strongest in the midtones, as film grain: none on black and white, where it reads as dirt
                 const Lab g = toOklab(c[0], c[1], c[2]);
-                const float midtones = 4 * g.l * (1 - g.l);
-                c = inGamut({qBound(0.0f, g.l + grainAt(x, y) * 0.05f * grain * midtones, 1.0f), g.a, g.b});
+                c = inGamut({qBound(0.0f, g.l + grainAt(x, y) * 0.05f * grain, 1.0f), g.a, g.b});
             }
             out[x] = qRgb(toSrgb(c[0]), toSrgb(c[1]), toSrgb(c[2]));
         }
@@ -1809,62 +1785,6 @@ qreal KisStudioGlass::grain()
 void KisStudioGlass::setGrain(qreal grain)
 {
     setLook(grainSetting(), grainKey, grain, 1.0);
-}
-
-/**
- * Noise with its spectrum chosen: white noise through the FFT, each frequency given its strength, and back. Most of
- * it is fine, with next to nothing at large sizes, so it has no clumps or gaps (as blue noise); a little is at about
- * nine pixels across, the soft clumps of ground glass. Made through the FFT, it repeats seamlessly. The same tile
- * every time, so the glass doesn't change from start to start.
- */
-const QVector<float> &KisStudioGlass::grainTile()
-{
-    static const QVector<float> tile = []() {
-        const int n = grainTileSize;
-        std::mt19937 random(1729);
-        std::normal_distribution<double> white;
-        std::vector<std::complex<double>> grid(size_t(n) * n);
-        for (auto &value : grid) value = white(random);
-        std::vector<std::complex<double>> line(n);
-        auto transform = [&](bool inverse) {
-            for (int y = 0; y < n; y++) {
-                std::copy_n(grid.begin() + y * n, n, line.begin());
-                fft(line, inverse);
-                std::copy(line.begin(), line.end(), grid.begin() + y * n);
-            }
-            for (int x = 0; x < n; x++) {
-                for (int y = 0; y < n; y++) line[y] = grid[size_t(y) * n + x];
-                fft(line, inverse);
-                for (int y = 0; y < n; y++) grid[size_t(y) * n + x] = line[y];
-            }
-        };
-        transform(false);
-        auto smoothstep = [](double from, double to, double x) {
-            const double t = qBound(0.0, (x - from) / (to - from), 1.0);
-            return t * t * (3 - 2 * t);
-        };
-        for (int y = 0; y < n; y++) {
-            for (int x = 0; x < n; x++) {
-                // cycles per pixel, round about
-                const double fx = (x <= n / 2 ? x : x - n) / double(n), fy = (y <= n / 2 ? y : y - n) / double(n);
-                const double f = std::hypot(fx, fy);
-                const double clumps = (f - 0.11) / 0.04;
-                grid[size_t(y) * n + x] *= smoothstep(0.15, 0.4, f) + 0.45 * std::exp(-clumps * clumps);
-            }
-        }
-        transform(true);
-        double sum = 0, squares = 0;
-        for (const auto &value : grid) {
-            sum += value.real();
-            squares += value.real() * value.real();
-        }
-        const double mean = sum / grid.size();
-        const double spread = std::sqrt(qMax(1e-12, squares / grid.size() - mean * mean));
-        QVector<float> values(int(grid.size()));
-        for (size_t i = 0; i < grid.size(); i++) values[int(i)] = float(qBound(-3.0, (grid[i].real() - mean) / spread, 3.0));
-        return values;
-    }();
-    return tile;
 }
 
 qreal KisStudioGlass::opacity()
