@@ -63,6 +63,7 @@
 #include "KisDocument.h"
 #include "KisMainWindow.h"
 #include "KisPart.h"
+#include "KisStudioGlass.h"
 #include "KisView.h"
 #include <KisProfile.h>
 #include "kis_clipboard.h"
@@ -1966,13 +1967,15 @@ KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
     auto *pillLayout = new QHBoxLayout(pill);
     pillLayout->setContentsMargins(KisModernStyle::space3, KisModernStyle::space3, KisModernStyle::space3, KisModernStyle::space3);
     pillLayout->setSpacing(KisModernStyle::space3);
-    pillLayout->addWidget(createNewTiles(mainWindow, pill));
     auto *open = new NewTile(i18nc("@action:button open an image", "Open"), QSize(), pill);
     open->setGlyph(KisIconUtils::loadIcon(QStringLiteral("document-open")));
     connect(open, &QAbstractButton::clicked, this, [this]() {
         if (d->mainWindow) d->mainWindow->slotFileOpen();
     });
-    pillLayout->addWidget(open);
+    QWidget *newTiles = createNewTiles(mainWindow, pill, {}, open);
+    // the pill is glass to what is in it, so Custom's sheet looks as it does in the New popup
+    if (QWidget *custom = newTiles->findChild<QWidget *>(QStringLiteral("studioCustomImage"))) KisStudioGlass::setSeeThrough(custom, true);
+    pillLayout->addWidget(newTiles);
     auto *pillRow = new QHBoxLayout();
     pillRow->addStretch(1);
     pillRow->addWidget(pill);
@@ -2029,7 +2032,7 @@ KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
     setFocusProxy(d->gallery);
 }
 
-QWidget *KisStudioStartPage::createNewTiles(KisMainWindow *mainWindow, QWidget *parent, std::function<void()> picked)
+QWidget *KisStudioStartPage::createNewTiles(KisMainWindow *mainWindow, QWidget *parent, std::function<void()> picked, QWidget *after)
 {
     auto *row = new QWidget(parent);
     auto *column = new QVBoxLayout(row);
@@ -2115,6 +2118,7 @@ QWidget *KisStudioStartPage::createNewTiles(KisMainWindow *mainWindow, QWidget *
     auto *custom = new NewTile(i18nc("a new image: of a size of your own", "Custom"), QSize(), row);
     custom->setCheckable(true);
     tiles->addWidget(custom);
+    if (after) tiles->addWidget(after);
     QList<SizeStage::Outline> outlines;
     for (const Preset &preset : presets) outlines.append({preset.name, preset.pixels});
     auto *panel = new CustomImage(last.isValid() ? last : QSize(2000, 1400), outlines, screenPixels, row);

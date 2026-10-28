@@ -27,8 +27,9 @@ public:
     explicit KisStudioStartPage(KisMainWindow *mainWindow);
     ~KisStudioStartPage() override;
 
-    /// The new image tiles: a size makes the image at once, Custom opens the full dialog; \p picked runs first
-    static QWidget *createNewTiles(KisMainWindow *mainWindow, QWidget *parent, std::function<void()> picked = {});
+    /// The new image tiles: a size makes the image at once, Custom opens its sheet under them; \p picked runs
+    /// first. \p after is a tile of the caller's, placed after Custom.
+    static QWidget *createNewTiles(KisMainWindow *mainWindow, QWidget *parent, std::function<void()> picked = {}, QWidget *after = nullptr);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
