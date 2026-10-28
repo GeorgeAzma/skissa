@@ -62,14 +62,21 @@ public:
     static constexpr int grainTileSize = 128;
     /// The grain's tile, grainTileSize across and down, row by row: noise of mean 0 and spread 1 (within -3 and 3)
     static const QVector<float> &grainTile();
-    /// How the glass' bumps tilt it over the same tile, read twice as large: two values a texel (across, down), -1 to 1
+    /// The side of the bumps' tile, which repeats seamlessly
+    static constexpr int bumpTileSize = 256;
+    /// How the glass' bumps tilt it, the bumps as large as distortionSize(): two values a pixel (across, down), -1 to 1
     static const QVector<float> &bumpTile();
     /// How strongly the glass is bumpy, from 0 (smooth) to 1: what is behind is seen shifted by their tilt
     static qreal distortion();
     static void setDistortion(qreal distortion);
-    /// How far a bump at full tilt shifts what is seen through it, at full distortion, in widget pixels
-    static constexpr qreal bumpShift = 8.0;
-    /// How much light a bump facing the light catches, at full distortion, in Oklab lightness
+    /// How large the bumps are, in widget pixels: from 1 (ground glass scattering) to 32 (ripples). Defaults to 2.
+    static qreal distortionSize();
+    static void setDistortionSize(qreal size);
+    /// How far a bump at full tilt shifts what is seen through it, at full distortion, in widget pixels: more for
+    /// larger bumps, as a thicker pane bends further
+    static qreal bumpShift();
+    /// How much light a bump facing the light (from the top left, as the rim's) catches, at full distortion, in Oklab
+    /// lightness
     static constexpr float bumpLight = 0.035f;
     /// How far what is behind takes the panel's lightness, so text reads as on a solid panel, from 0 to 1
     static qreal textContrast();

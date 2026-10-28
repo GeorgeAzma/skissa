@@ -1264,7 +1264,7 @@ QVector<CardDef> makeCards()
     add(QStringLiteral("appearance"), QStringLiteral("glass"), i18nc("settings card", "Glass"),
         {QStringLiteral("StudioGlass"), QStringLiteral("StudioGlassBlur"), QStringLiteral("StudioGlassOpacity"), QStringLiteral("StudioGlassRimLight"),
          QStringLiteral("StudioGlassVibrancy"), QStringLiteral("StudioGlassGrain"), QStringLiteral("StudioGlassDistortion"),
-         QStringLiteral("StudioGlassTextContrast")},
+         QStringLiteral("StudioGlassDistortionSize"), QStringLiteral("StudioGlassTextContrast")},
         QStringLiteral("transparency blur frosted opacity tint refraction see-through panels edge bends the canvas vibrancy saturation "
                        "vivid colorful grain noise texture readability legibility text contrast distortion bumpy textured hammered ripples"), [](Builder &b) {
             b.toggle(QStringLiteral("StudioGlass"), i18nc("glass", "Panels of glass"));
@@ -1275,6 +1275,10 @@ QVector<CardDef> makeCards()
             b.showWhen(b.number(QStringLiteral("StudioGlassVibrancy"), {i18nc("glass: how vivid the colors behind look", "Vibrancy"), 100, 0, QStringLiteral("%")}), on);
             b.showWhen(b.number(QStringLiteral("StudioGlassGrain"), {i18nc("glass: the frost's grain", "Grain"), 100, 0, QStringLiteral("%")}), on);
             b.showWhen(b.number(QStringLiteral("StudioGlassDistortion"), {i18nc("glass: bumpy, textured glass", "Distortion"), 100, 0, QStringLiteral("%")}), on);
+            // most of the slider for the small sizes, by ratios
+            Number bumpSize(i18nc("glass: how large its bumps are", "Distortion size"), 1, 0, QStringLiteral(" px"));
+            bumpSize.exponent = 2;
+            b.showWhen(b.number(QStringLiteral("StudioGlassDistortionSize"), bumpSize), on);
             b.showWhen(b.number(QStringLiteral("StudioGlassTextContrast"), {i18nc("glass: light behind text evened out", "Text contrast"), 100, 0, QStringLiteral("%")}), on);
         });
     add(QStringLiteral("appearance"), QStringLiteral("surround"), i18nc("settings card", "Around the image"), {QStringLiteral("canvasBorderColor")},

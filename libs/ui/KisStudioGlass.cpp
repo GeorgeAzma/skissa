@@ -72,6 +72,7 @@ const QString rimLightKey = QStringLiteral("StudioGlassRimLight");
 const QString vibrancyKey = QStringLiteral("StudioGlassVibrancy");
 const QString grainKey = QStringLiteral("StudioGlassGrain");
 const QString distortionKey = QStringLiteral("StudioGlassDistortion");
+const QString distortionSizeKey = QStringLiteral("StudioGlassDistortionSize");
 const QString textContrastKey = QStringLiteral("StudioGlassTextContrast");
 
 constexpr qreal blurRadius = 26;    ///< widget pixels
@@ -267,37 +268,25 @@ QImage tinted(const QImage &image, const QColor &tint, qreal strength)
     const float grain = float(KisStudioGlass::grain());
     const float distortion = float(KisStudioGlass::distortion());
     const QVector<float> &bumps = KisStudioGlass::bumpTile();
-    const int tileMask = KisStudioGlass::grainTileSize - 1;
+    const int tileMask = KisStudioGlass::bumpTileSize - 1;
+    const float shift = distortion * float(KisStudioGlass::bumpShift());
+    const float bumpLight = KisStudioGlass::bumpLight * distortion;
     QImage result(image.size(), QImage::Format_RGB32);
     for (int y = 0; y < image.height(); y++) {
         const QRgb *in = reinterpret_cast<const QRgb *>(image.constScanLine(y));
         QRgb *out = reinterpret_cast<QRgb *>(result.scanLine(y));
         for (int x = 0; x < image.width(); x++) {
             // the bumps of textured glass: each tilts it, so what is behind is seen a little to one side
-            // read twice as large and between texels, as the GPU glass reads it
-            float tilt[2] = {0, 0};
-            if (distortion > 0) {
-                const float tx = x / 2.0f - 0.5f, ty = y / 2.0f - 0.5f;
-                const int ix = int(std::floor(tx)), iy = int(std::floor(ty));
-                const float fx = tx - ix, fy = ty - iy;
-                auto texel = [&](int dx, int dy, int k) {
-                    return bumps[(((iy + dy) & tileMask) * KisStudioGlass::grainTileSize + ((ix + dx) & tileMask)) * 2 + k];
-                };
-                for (int k = 0; k < 2; k++) {
-                    const float top = texel(0, 0, k) + (texel(1, 0, k) - texel(0, 0, k)) * fx;
-                    const float bottom = texel(0, 1, k) + (texel(1, 1, k) - texel(0, 1, k)) * fx;
-                    tilt[k] = top + (bottom - top) * fy;
-                }
-            }
+            const float *tilt = bumps.constData() + ((y & tileMask) * KisStudioGlass::bumpTileSize + (x & tileMask)) * 2;
             QRgb seen = in[x];
             if (distortion > 0) {
-                const int sx = qBound(0, x + qRound(tilt[0] * distortion * KisStudioGlass::bumpShift), image.width() - 1);
-                const int sy = qBound(0, y + qRound(tilt[1] * distortion * KisStudioGlass::bumpShift), image.height() - 1);
+                const int sx = qBound(0, x + qRound(tilt[0] * shift), image.width() - 1);
+                const int sy = qBound(0, y + qRound(tilt[1] * shift), image.height() - 1);
                 seen = reinterpret_cast<const QRgb *>(image.constScanLine(sy))[sx];
             }
             Lab b = vivid(toOklab(linear[qRed(seen)], linear[qGreen(seen)], linear[qBlue(seen)]), vibrancy);
             // and catch the room's light from the top left on their sides facing it
-            b.l = qBound(0.0f, b.l + (tilt[0] + tilt[1]) * 0.70710678f * KisStudioGlass::bumpLight * distortion, 1.0f);
+            if (distortion > 0) b.l = qBound(0.0f, b.l + (tilt[0] + tilt[1]) * 0.70710678f * bumpLight, 1.0f);
             b.l += (t.l - b.l) * evenness;
             const float l = qBound(0.0f, b.l + (t.l - b.l) * s, 1.0f);
             // Keep the chroma, veiled by light the glass scatters (fully where the glass lightens).
@@ -1445,6 +1434,12 @@ qreal &distortionSetting()
     return distortion;
 }
 
+qreal &distortionSizeSetting()
+{
+    static qreal size = qBound<qreal>(1, KisConfig(true).readEntry<qreal>(distortionSizeKey, 2.0), 32);
+    return size;
+}
+
 qreal &textContrastSetting()
 {
     static qreal contrast = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(textContrastKey, KisStudioGlass::defaultTextContrast), 1.0);
@@ -1923,12 +1918,19 @@ const QVector<float> &KisStudioGlass::grainTile()
 
 const QVector<float> &KisStudioGlass::bumpTile()
 {
-    static const QVector<float> tile = []() {
-        const int n = grainTileSize;
-        // bumps about 12 texels across (24 widget pixels, read twice as large), half an octave either way
-        const std::vector<double> height = shapedNoise(n, 4099, [](double f) {
+    // made again only when the size changes
+    static qreal madeFor = -1;
+    static QVector<float> tile;
+    const qreal size = distortionSize();
+    if (madeFor == size) return tile;
+    madeFor = size;
+    tile = [size]() {
+        const int n = bumpTileSize;
+        // bumps of the size, with detail down to half of it: the finest of them, near a pixel, are what scatter light
+        // as ground glass does
+        const std::vector<double> height = shapedNoise(n, 4099, [size](double f) {
             if (f <= 0) return 0.0;
-            const double octaves = std::log2(f * 12.0) / 0.5;
+            const double octaves = std::log2(f * size) / 0.7;
             return std::exp(-octaves * octaves);
         });
         auto at = [&](int x, int y) { return height[size_t((y + n) % n) * n + (x + n) % n]; };
@@ -1949,6 +1951,26 @@ const QVector<float> &KisStudioGlass::bumpTile()
         return values;
     }();
     return tile;
+}
+
+qreal KisStudioGlass::distortionSize()
+{
+    return distortionSizeSetting();
+}
+
+void KisStudioGlass::setDistortionSize(qreal size)
+{
+    size = qBound<qreal>(1, size, 32);
+    if (qFuzzyCompare(size, distortionSizeSetting())) return;
+    distortionSizeSetting() = size;
+    KisSettingsRegistry::writeLater(distortionSizeKey, size);
+    Engine::instance().clear();
+    Panels::instance().repaintAll();
+}
+
+qreal KisStudioGlass::bumpShift()
+{
+    return qBound<qreal>(1.0, 0.45 * distortionSize(), 10.0);
 }
 
 qreal KisStudioGlass::distortion()

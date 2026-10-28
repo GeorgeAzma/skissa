@@ -419,6 +419,10 @@ QVector<Setting> describeAll()
         distortion.read = []() { return KisStudioGlass::distortion(); };
         distortion.write = [](const QVariant &value) { KisStudioGlass::setDistortion(value.toReal()); };
         all << distortion;
+        Setting distortionSize = number(QStringLiteral("StudioGlassDistortionSize"), 2.0, 1.0, 32.0, i18nc("setting", "Glass distortion size"), R::Fork);
+        distortionSize.read = []() { return KisStudioGlass::distortionSize(); };
+        distortionSize.write = [](const QVariant &value) { KisStudioGlass::setDistortionSize(value.toReal()); };
+        all << distortionSize;
         Setting textContrast = number(QStringLiteral("StudioGlassTextContrast"), KisStudioGlass::defaultTextContrast, 0, 1.0,
                                       i18nc("setting", "Glass text contrast"), R::Fork);
         textContrast.read = []() { return KisStudioGlass::textContrast(); };
