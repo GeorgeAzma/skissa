@@ -58,6 +58,10 @@ public:
     /// How much grain the frost has, from 0 (none) to 1
     static qreal grain();
     static void setGrain(qreal grain);
+    /// The side of the grain's tile, which repeats seamlessly
+    static constexpr int grainTileSize = 128;
+    /// The grain's tile, grainTileSize across and down, row by row: noise of mean 0 and spread 1 (within -3 and 3)
+    static const QVector<float> &grainTile();
     /// How far what is behind takes the panel's lightness, so text reads as on a solid panel, from 0 to 1
     static qreal textContrast();
     static void setTextContrast(qreal contrast);
