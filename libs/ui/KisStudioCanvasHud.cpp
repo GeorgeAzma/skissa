@@ -507,7 +507,9 @@ void KisStudioCanvasHud::reposition()
     // anywhere that is free: off the bars, the tool rail and the panels, the least it takes (while dragged too,
     // so it shows where it will stay)
     const QRect room = d->room(this);
-    const QPoint wanted(room.left() + KisStudioLayout::spotOffset(d->spot.x(), room.width()), room.top() + KisStudioLayout::spotOffset(d->spot.y(), room.height()));
+    const QSize grown = KisStudioLayout::spotGrowth(this);
+    const QPoint wanted(room.left() + KisStudioLayout::spotOffset(d->spot.x(), room.width(), grown.width()),
+                        room.top() + KisStudioLayout::spotOffset(d->spot.y(), room.height(), grown.height()));
     const QRect at = Private::clearOf(QRect(wanted, size()), d->taken(this), room);
     if (at.topLeft() != pos()) move(at.topLeft());
     KisStudioLayout::keepAbove(this);
@@ -537,7 +539,9 @@ bool KisStudioCanvasHud::drag(QMouseEvent *event, QWidget *from)
         // caught by the edges, the corners and the middle as it goes, so it shows where it will stay
         const QRect room = d->room(this);
         const QPoint at = parentWidget()->mapFromGlobal(global) - d->grab;
-        d->spot = QPointF(KisStudioLayout::spotShare(at.x() - room.left(), room.width()), KisStudioLayout::spotShare(at.y() - room.top(), room.height()));
+        const QSize grown = KisStudioLayout::spotGrowth(this);
+        d->spot = QPointF(KisStudioLayout::spotShare(at.x() - room.left(), room.width(), grown.width()),
+                          KisStudioLayout::spotShare(at.y() - room.top(), room.height(), grown.height()));
         reposition();
         return true;
     }

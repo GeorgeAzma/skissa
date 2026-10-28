@@ -1755,6 +1755,11 @@ void KisMainWindow::dragLeaveEvent(QDragLeaveEvent *event)
     event->accept();
 }
 
+bool KisMainWindow::coverScreen(bool on)
+{
+    return d->studioLayout && d->studioLayout->coverScreen(on);
+}
+
 bool KisMainWindow::windowsLayoutSavingAllowed() const
 {
     QAction *action= d->viewManager->actionCollection()->action("view_show_canvas_only");

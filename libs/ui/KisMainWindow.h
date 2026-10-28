@@ -165,6 +165,8 @@ public:
      */
     QWidget *canvasWindow() const;
     bool canvasDetached() const;
+    /// Makes the maximized window cover its screen, or back; false when it is left to Qt's full screen
+    bool coverScreen(bool on);
 
     /**
      * Shows if the main window is saving anything right now. If the

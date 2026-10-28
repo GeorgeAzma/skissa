@@ -35,9 +35,12 @@ public:
     /// Whether the Studio layout is enabled in kritarc (on by default)
     static bool isEnabledInConfig();
 
-    /// Where a pill dragged anywhere sits along one axis, as a share of the room it moves in: the edges and the middle catch it
-    static qreal spotShare(int offset, int room);
-    static int spotOffset(qreal share, int room);
+    /// Where a pill dragged anywhere sits along one axis, as a share of the room it moves in: the edges and the middle catch it.
+    /// \p grown: how much larger that room is with the window filling its screen (spotGrowth())
+    static qreal spotShare(int offset, int room, int grown = 0);
+    static int spotOffset(qreal share, int room, int grown = 0);
+    /// How much larger the canvas area around \p widget is with the window filling its screen
+    static QSize spotGrowth(const QWidget *widget);
     /**
      * Raises \p overlay over what isn't an overlay (the canvas, the start page), leaving the overlays' order
      * alone: two raising themselves on the same layout change would swap places and repaint each time
@@ -66,6 +69,8 @@ public:
 
     /// Handles the window's native events for the custom title bar
     bool handleNativeEvent(void *message, void *result);
+    /// Makes the maximized window cover its screen, or back; false when Qt's full screen should do it
+    bool coverScreen(bool on);
 
 private:
     void enter();

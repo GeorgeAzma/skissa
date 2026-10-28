@@ -208,12 +208,44 @@ void KisStudioWindowFrame::setTransitionsEnabled(bool enabled)
 #endif
 }
 
+bool KisStudioWindowFrame::coverScreen(bool on)
+{
+#ifdef Q_OS_WIN
+    HWND hwnd = reinterpret_cast<HWND>(m_window->internalWinId());
+    if (!m_enabled || !hwnd || on == m_covering) return false;
+    if (on && !IsZoomed(hwnd)) return false;
+    m_covering = on;
+    // restored meanwhile (Win+Down): nothing to undo
+    if (!IsZoomed(hwnd)) return true;
+    RECT rect;
+    if (on) {
+        GetWindowRect(hwnd, &rect);
+        m_uncovered = QRect(QPoint(rect.left, rect.top), QPoint(rect.right - 1, rect.bottom - 1));
+        // the monitor and the frame a maximized window overhangs it by, which WM_NCCALCSIZE trims
+        MONITORINFO monitor {};
+        monitor.cbSize = sizeof(monitor);
+        if (!GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor)) return true;
+        rect = monitor.rcMonitor;
+        InflateRect(&rect, frameThickness(hwnd, false), frameThickness(hwnd, true));
+    } else {
+        rect = {m_uncovered.left(), m_uncovered.top(), m_uncovered.right() + 1, m_uncovered.bottom() + 1};
+    }
+    SetWindowPos(hwnd, nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
+                 SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE);
+    return true;
+#else
+    Q_UNUSED(on);
+    return false;
+#endif
+}
+
 void KisStudioWindowFrame::setEnabled(bool enabled)
 {
 #ifdef Q_OS_WIN
     if (m_enabled == enabled) {
         return;
     }
+    if (!enabled) coverScreen(false);
     m_enabled = enabled;
     applyFrame(reinterpret_cast<HWND>(m_window->winId()), enabled);
 #else
@@ -240,7 +272,7 @@ bool KisStudioWindowFrame::handleNativeEvent(void *message, void *resultPointer)
         *static_cast<long *>(resultPointer) = long(value);
 #endif
     };
-    const bool fullScreen = m_window->isFullScreen();
+    const bool fullScreen = m_window->isFullScreen() || (m_covering && IsZoomed(hwnd));
 
     switch (msg->message) {
     case WM_NCCALCSIZE: {
@@ -251,16 +283,17 @@ bool KisStudioWindowFrame::handleNativeEvent(void *message, void *resultPointer)
         // Asks Windows, not Qt: leaving full screen, Qt still reports it while the window is maximized again
         if (IsZoomed(hwnd)) {
             RECT &rect = reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam)->rgrc[0];
-            // the screen's work area, however far the window's styles make it overhang
+            // the screen's work area (all of the screen while covering it), however far the window's styles make it overhang
             MONITORINFO monitor {};
             monitor.cbSize = sizeof(monitor);
             if (GetMonitorInfoW(MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST), &monitor)) {
-                rect.left = qMax(rect.left, monitor.rcWork.left);
-                rect.top = qMax(rect.top, monitor.rcWork.top);
-                rect.right = qMin(rect.right, monitor.rcWork.right);
-                rect.bottom = qMin(rect.bottom, monitor.rcWork.bottom);
+                const RECT &room = m_covering ? monitor.rcMonitor : monitor.rcWork;
+                rect.left = qMax(rect.left, room.left);
+                rect.top = qMax(rect.top, room.top);
+                rect.right = qMin(rect.right, room.right);
+                rect.bottom = qMin(rect.bottom, room.bottom);
             }
-            leaveRoomForTaskbar(rect);
+            if (!m_covering) leaveRoomForTaskbar(rect);
         }
         setResult(0);
         return true;

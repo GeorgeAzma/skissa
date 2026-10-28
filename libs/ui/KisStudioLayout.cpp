@@ -50,6 +50,7 @@
 #include <QVariantAnimation>
 #include <QWheelEvent>
 #include <QWidgetAction>
+#include <QScreen>
 #include <QWindow>
 
 #include <cmath>
@@ -587,22 +588,50 @@ QMargins canvasInsets(const QWidget *canvasArea)
 }
 
 /**
+ * How much more room the canvas area would have with the window filling its screen. Places are shares of
+ * that room, so a smaller window keeps each pill as far from its nearer edge as it is there (see offsetOf()).
+ */
+QSize roomGrowth(const QWidget *widget)
+{
+    // not by the window's state: a resize arrives before its new state
+    const QWidget *window = widget ? widget->window() : nullptr;
+    if (!window || !window->screen()) return QSize();
+    return window->screen()->availableGeometry().size() - window->size();
+}
+
+/// The share of the room at \p offset, measured from the nearer edge in a room \p grown larger (see roomGrowth())
+qreal shareAt(int offset, int room, int grown = 0)
+{
+    if (room <= 0) return 0;
+    const int whole = room + grown;
+    if (grown == 0 || whole <= 0) return qBound(0.0, qreal(offset) / room, 1.0);
+    if (2 * offset < room) return qBound(0.0, qreal(offset) / whole, 0.499);
+    return qBound(0.501, 1 - qreal(room - offset) / whole, 1.0);
+}
+
+/**
  * Where a pill that can be dragged anywhere sits along one axis: the share of the room it can move in,
  * 0 against the near edge and 1 against the far one. Dropped near an edge or the middle, it is caught
- * there (so corners are easy to hit), and it stays there as the window changes size.
+ * there (so corners are easy to hit), and it stays there as the window changes size; elsewhere it keeps
+ * its distance from the nearer edge.
  */
-qreal shareOf(int offset, int room)
+qreal shareOf(int offset, int room, int grown = 0)
 {
     const int snap = 20;
     if (room <= 0 || offset < snap) return 0;
     if (offset > room - snap) return 1;
     if (qAbs(offset - room / 2) < snap / 2) return 0.5;
-    return qreal(offset) / room;
+    return shareAt(offset, room, grown);
 }
 
-int offsetOf(qreal share, int room)
+int offsetOf(qreal share, int room, int grown = 0)
 {
-    return qRound(qBound(0.0, share, 1.0) * qMax(0, room));
+    share = qBound(0.0, share, 1.0);
+    room = qMax(0, room);
+    if (grown == 0 || share <= 0 || share >= 1 || share == 0.5) return qRound(share * room);
+    const int whole = qMax(0, room + grown);
+    const int offset = share < 0.5 ? qRound(share * whole) : room - qRound((1 - share) * whole);
+    return qBound(0, offset, room);
 }
 
 /// A pill's place as "across,down" shares (see shareOf())
@@ -1284,8 +1313,9 @@ public:
     void place()
     {
         const QRect room = this->room();
-        const int across = offsetOf(m_spot.x(), room.width());
-        move(m_left ? room.left() + across : room.left() + room.width() - across, room.top() + offsetOf(m_spot.y(), room.height()));
+        const QSize grown = roomGrowth(this);
+        const int across = offsetOf(m_spot.x(), room.width(), grown.width());
+        move(m_left ? room.left() + across : room.left() + room.width() - across, room.top() + offsetOf(m_spot.y(), room.height(), grown.height()));
         KisStudioLayout::keepAbove(this);
         updateReach();
     }
@@ -1343,7 +1373,8 @@ protected:
         const QRect room = this->room();
         m_left = at.x() + width() / 2 < area->width() / 2;
         const int across = m_left ? at.x() - room.left() : room.left() + room.width() - at.x();
-        m_spot = QPointF(shareOf(across, room.width()), shareOf(at.y() - room.top(), room.height()));
+        const QSize grown = roomGrowth(this);
+        m_spot = QPointF(shareOf(across, room.width(), grown.width()), shareOf(at.y() - room.top(), room.height(), grown.height()));
         place();
     }
 
@@ -1493,14 +1524,15 @@ public:
         if (m_right) {
             move(area->width() - margin - width(), margin);
         } else {
-            const int y = margin + offsetOf(m_spot.y(), roomY());
+            const QSize grown = roomGrowth(this);
+            const int y = margin + offsetOf(m_spot.y(), roomY(), grown.height());
             const QPair<int, int> span = spanAt(y);
             // its width follows the tool: against an edge or in the middle it stays there, elsewhere its grip stays
             // where it was dropped (a share of the room it had at the width it had then)
-            int x = span.first + offsetOf(m_spot.x(), span.second - span.first);
+            int x = span.first + offsetOf(m_spot.x(), span.second - span.first, grown.width());
             if (m_spot.x() > 0 && m_spot.x() < 1 && m_spot.x() != 0.5 && m_refWidth > 0) {
                 const int refSpan = span.second + openWidth() - m_refWidth;
-                x = qBound(span.first, span.first + offsetOf(m_spot.x(), refSpan - span.first), span.second);
+                x = qBound(span.first, span.first + offsetOf(m_spot.x(), refSpan - span.first, grown.width()), span.second);
             }
             move(x, y);
         }
@@ -1586,9 +1618,10 @@ private:
     void dragTo(const QPoint &globalPos)
     {
         const QPoint at = parentWidget()->mapFromGlobal(globalPos) - m_grab;
-        const qreal down = shareOf(at.y() - margin, roomY());
-        const QPair<int, int> span = spanAt(margin + offsetOf(down, roomY()));
-        m_spot = QPointF(shareOf(at.x() - span.first, span.second - span.first), down);
+        const QSize grown = roomGrowth(this);
+        const qreal down = shareOf(at.y() - margin, roomY(), grown.height());
+        const QPair<int, int> span = spanAt(margin + offsetOf(down, roomY(), grown.height()));
+        m_spot = QPointF(shareOf(at.x() - span.first, span.second - span.first, grown.width()), down);
         m_refWidth = openWidth();
         place();
         if (changed) changed();
@@ -1981,13 +2014,14 @@ public:
         if (!m_moving || m_movingSize.isEmpty()) m_movingSize = sizeNow();
         const QSize size = m_movingSize;
         const QSize placed = placedSize(size);
-        const int across = offsetOf(m_spot.x(), area->width() - 2 * margin - placed.width());
+        const QSize grown = roomGrowth(area);
+        const int across = offsetOf(m_spot.x(), area->width() - 2 * margin - placed.width(), grown.width());
         // the height its place was taken at: as it grows or folds it keeps its top, or against the bottom its bottom
         // a place saved without it gets the height it settled at, kept with it from then on
         const bool learnt = m_refHeight <= 0 && isVisible() && m_shown.isValid() && m_shown.elapsed() >= 500;
         if (learnt) m_refHeight = placed.height();
         const int refHeight = m_refHeight > 0 ? m_refHeight : placed.height();
-        int y = span.first + offsetOf(m_spot.y(), span.second - span.first - refHeight);
+        int y = span.first + offsetOf(m_spot.y(), span.second - span.first - refHeight, grown.height());
         if (m_spot.y() >= 1) y = span.second - placed.height();
         y = qMax(span.first, qMin(y, span.second - placed.height()));
         const QRect wanted(QPoint(m_left ? margin + across : area->width() - margin - placed.width() - across, y), placed);
@@ -2040,7 +2074,7 @@ protected:
                     m_widths[lane] = qBound(minimumColumnWidth, (m_left ? x - m_outer : m_outer - x) - others, qMax(minimumColumnWidth, area->width() / 2));
                     if (!isDocked()) {
                         const int from = m_left ? m_outer - margin : area->width() - margin - m_outer;
-                        m_spot.setX(qBound(0.0, qreal(from) / qMax(1, area->width() - 2 * margin - totalWidth()), 1.0));
+                        m_spot.setX(shareAt(from, area->width() - 2 * margin - totalWidth(), roomGrowth(area).width()));
                     }
                     place();
                     return true;
@@ -2317,8 +2351,9 @@ private:
         const int down = box.y() - span.first;
         const int roomX = area->width() - 2 * margin - box.width();
         const int roomY = span.second - span.first - box.height();
-        if (snap) return QPointF(shareOf(across, roomX), shareOf(down, roomY));
-        return QPointF(roomX > 0 ? qBound(0.0, qreal(across) / roomX, 1.0) : 0.0, roomY > 0 ? qBound(0.0, qreal(down) / roomY, 1.0) : 0.0);
+        const QSize grown = roomGrowth(area);
+        if (snap) return QPointF(shareOf(across, roomX, grown.width()), shareOf(down, roomY, grown.height()));
+        return QPointF(shareAt(across, roomX, grown.width()), shareAt(down, roomY, grown.height()));
     }
 
     void setSide(bool left)
@@ -2839,14 +2874,19 @@ void KisStudioLayout::keepAbove(QWidget *overlay)
     }
 }
 
-qreal KisStudioLayout::spotShare(int offset, int room)
+qreal KisStudioLayout::spotShare(int offset, int room, int grown)
 {
-    return shareOf(offset, room);
+    return shareOf(offset, room, grown);
 }
 
-int KisStudioLayout::spotOffset(qreal share, int room)
+int KisStudioLayout::spotOffset(qreal share, int room, int grown)
 {
-    return offsetOf(share, room);
+    return offsetOf(share, room, grown);
+}
+
+QSize KisStudioLayout::spotGrowth(const QWidget *widget)
+{
+    return roomGrowth(widget);
 }
 
 bool KisStudioLayout::isEnabledInConfig()
@@ -3140,6 +3180,11 @@ void KisStudioLayout::enter()
 bool KisStudioLayout::handleNativeEvent(void *message, void *result)
 {
     return d->active && d->frame && d->frame->handleNativeEvent(message, result);
+}
+
+bool KisStudioLayout::coverScreen(bool on)
+{
+    return d->active && d->frame && d->frame->coverScreen(on);
 }
 
 bool KisStudioLayout::isCaptionAt(const QPoint &pos) const
@@ -4039,8 +4084,8 @@ void KisStudioLayout::writeGroupPlace(int group, const QRect &rect, QWidget *are
     const int roomX = area->width() - 2 * margin - rect.width();
     const int roomY = bottom - top - rect.height();
     KisSettingsRegistry::writeLater(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
-    writeSpot(groupKey(group, "Spot"), QPointF(roomX > 0 ? qBound(0.0, qreal(across) / roomX, 1.0) : 0.0,
-                                               roomY > 0 ? qBound(0.0, qreal(rect.y() - top) / roomY, 1.0) : 0.0), rect.height());
+    const QSize grown = roomGrowth(area);
+    writeSpot(groupKey(group, "Spot"), QPointF(shareAt(across, roomX, grown.width()), shareAt(rect.y() - top, roomY, grown.height())), rect.height());
 }
 
 int KisStudioLayout::freeGroup() const
@@ -4123,7 +4168,9 @@ int KisStudioLayout::newPanelGroup(const QPoint &windowPos)
     cfg.writeEntry(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
     d->laneWidths.insert(group, {width});
     saveWidths(group);
-    writeSpot(groupKey(group, "Spot"), QPointF(shareOf(across, area->width() - 2 * margin - width), shareOf(at.y() - 12 - top, bottom - top - guess)), guess);
+    const QSize grown = roomGrowth(area);
+    writeSpot(groupKey(group, "Spot"), QPointF(shareOf(across, area->width() - 2 * margin - width, grown.width()),
+                                               shareOf(at.y() - 12 - top, bottom - top - guess, grown.height())), guess);
     return group;
 }
 

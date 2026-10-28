@@ -8,6 +8,7 @@
 
 #include <QObject>
 #include <QPoint>
+#include <QRect>
 
 #include <functional>
 
@@ -28,6 +29,12 @@ public:
     void setEnabled(bool enabled);
     /// Windows' animations between window states (maximize, restore…)
     void setTransitionsEnabled(bool enabled);
+    /**
+     * Makes a maximized window cover its whole screen, taskbar too, or back. Qt's full screen leaves the
+     * maximized state through the restored size, which shows for a moment and lays everything out there.
+     * Returns false when it doesn't apply (not maximized, or not covering), for Qt's full screen to do it.
+     */
+    bool coverScreen(bool on);
     bool isEnabled() const { return m_enabled; }
 
     /// Call from the window's nativeEvent(); \p result is a long* in Qt 5 and a qintptr* in Qt 6.
@@ -43,6 +50,9 @@ private:
     QMainWindow *m_window {nullptr};
     std::function<bool(const QPoint &)> m_isCaption;
     bool m_enabled {false};
+    bool m_covering {false};
+    /// The maximized window's place before it covered the screen
+    QRect m_uncovered;
 };
 
 #endif // KISSTUDIOWINDOWFRAME_H
