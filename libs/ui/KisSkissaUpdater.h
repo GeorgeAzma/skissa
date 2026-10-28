@@ -24,6 +24,8 @@ namespace KisSkissaUpdater
 KRITAUI_EXPORT QString version();
 /// Whether this copy can update itself: a release unpacked from its zip, never a dev build (Windows)
 KRITAUI_EXPORT bool canUpdate();
+/// When a downloaded update waits, hands it to the swap, which then starts the new version; this start ends at once
+KRITAUI_EXPORT bool startWaitingUpdate();
 /// Adds Check for updates and Restart to update to \p window, and starts looking (once)
 KRITAUI_EXPORT void addActions(KisMainWindow *window);
 /// Closes the windows (asking about unsaved images) and starts again, updated when an update is ready

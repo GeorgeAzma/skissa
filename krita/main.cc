@@ -17,6 +17,7 @@
 
 #include <KLocalizedTranslator>
 #include <KisProfile.h>
+#include <KisSkissaUpdater.h>
 #include <KConfig>
 #include <QByteArray>
 #include <QDate>
@@ -813,6 +814,12 @@ if (!qEnvironmentVariableIsEmpty("KRITA_OPENGL_DEBUG")) {
     qputenv("MLT_PLUGIN_FILTER_STRING", "lib_mltplugin_");
 #endif
     KisApplicationArguments args(app);
+
+    // an update downloaded and not yet in place goes in first, unless Skissa is open or files are to be opened
+    if (!app.isRunning() && args.filenames().isEmpty() && !args.exportAs() && !args.exportSequence()
+        && KisSkissaUpdater::startWaitingUpdate()) {
+        return 0;
+    }
 
     if (app.isRunning()) {
         // only pass arguments to main instance if they are not for batch processing

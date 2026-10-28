@@ -151,15 +151,29 @@ function Strays($folder) {
     }
 }
 
+# the program, if asked; after a swap that failed, as it is, without trying the swap again as it starts
+function Start-Skissa([switch]$AsItIs) {
+    if (-not $Relaunch) { return }
+    if ($AsItIs) { $env:SKISSA_NO_SWAP = '1' }
+    # a release from before the program was renamed has only krita.exe
+    $program = Join-Path $Install 'bin\skissa.exe'
+    if (-not (Test-Path -LiteralPath $program)) { $program = Join-Path $Install 'bin\krita.exe' }
+    Start-Process -FilePath $program -WorkingDirectory $PSScriptRoot -WindowStyle Normal
+}
+
+# one swap at a time: one started while another runs waits for it, then finds only the program to start
+$lock = New-Object Threading.Mutex($false, 'Local\SkissaUpdate')
+try { [void]$lock.WaitOne(180000) } catch [Threading.AbandonedMutexException] { }
 Wait-Process -Id $Id -Timeout 60 -ErrorAction SilentlyContinue
-if (-not (Test-Path -LiteralPath (Join-Path $update 'skissa-files.txt'))) { exit }
+if (-not (Test-Path -LiteralPath (Join-Path $update 'skissa-files.txt'))) { Start-Skissa; exit }
 
 # the version before last goes, unless something of the user's is in it
 if (Test-Path -LiteralPath $old) {
     $list = Join-Path $old 'skissa-files.txt'
     if (-not (Test-Path -LiteralPath $list)) {
-        # not a release: kept whole, aside
-        Move-Folder $old ($old + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss')) | Out-Null
+        # not a release: kept whole, aside, unless nothing is left in it
+        if (Get-ChildItem -LiteralPath $old -Force) { Move-Folder $old ($old + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss')) | Out-Null }
+        else { Remove-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue }
     } elseif (-not [bool](Strays $old)) {
         Remove-Item -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue
     } else {
@@ -175,11 +189,12 @@ if (Test-Path -LiteralPath $old) {
 }
 # the folder itself, or what is in it while something holds the folder open (a window or a service working there)
 $whole = Move-Folder $Install $old 20
-if (-not $whole -and -not (Move-Contents $Install $old)) { Note "$Install is in use"; exit }
+if (-not $whole -and -not (Move-Contents $Install $old)) { Note "$Install is in use"; Start-Skissa -AsItIs; exit }
 $placed = if ($whole) { Move-Folder $update $Install } else { Move-Contents $update $Install }
 if (-not $placed) {
     if ($whole) { Move-Folder $old $Install | Out-Null } else { Move-Contents $old $Install | Out-Null }
     Note "$update couldn't take its place"
+    Start-Skissa -AsItIs
     exit
 }
 if (-not $whole) { Remove-Item -LiteralPath $update -Force -ErrorAction SilentlyContinue }
@@ -194,13 +209,40 @@ if (Test-Path -LiteralPath (Join-Path $old 'skissa-files.txt')) {
     }
 }
 Note "$Install updated"
-if ($Relaunch) {
-    # a release from before the program was renamed has only krita.exe
-    $program = Join-Path $Install 'bin\skissa.exe'
-    if (-not (Test-Path -LiteralPath $program)) { $program = Join-Path $Install 'bin\krita.exe' }
-    Start-Process -FilePath $program -WorkingDirectory $PSScriptRoot -WindowStyle Normal
-}
+Start-Skissa
 )ps";
+
+/// Runs PowerShell with \p arguments, hidden and on its own after this process ends
+bool powerShell(const QStringList &arguments)
+{
+    QProcess process;
+    process.setProgram(qEnvironmentVariable("SystemRoot", QStringLiteral("C:\\Windows"))
+                       + QStringLiteral("\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"));
+    process.setArguments(arguments);
+    // not in the program's folder, which the update renames: Skissa started from a shortcut works in its bin folder
+    process.setWorkingDirectory(KisProfile::configFolder());
+#ifdef Q_OS_WIN
+    process.setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments *args) {
+        args->flags |= CREATE_NO_WINDOW;
+    });
+#endif
+    return process.startDetached();
+}
+
+/// Hands the swap to a script that waits for this process to end, and starts the new version after if \p relaunch
+bool applyUpdate(bool relaunch)
+{
+    const QString script = KisProfile::configFolder() + QStringLiteral("/update.ps1");
+    QFile file(script);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate) || file.write(applyScript) < 0) return false;
+    file.close();
+    QStringList arguments {QStringLiteral("-NoProfile"), QStringLiteral("-NonInteractive"), QStringLiteral("-ExecutionPolicy"), QStringLiteral("Bypass"),
+                           QStringLiteral("-WindowStyle"), QStringLiteral("Hidden"), QStringLiteral("-File"), QDir::toNativeSeparators(script),
+                           QStringLiteral("-Id"), QString::number(QCoreApplication::applicationPid()),
+                           QStringLiteral("-Install"), QDir::toNativeSeparators(installFolder())};
+    if (relaunch) arguments << QStringLiteral("-Relaunch");
+    return powerShell(arguments);
+}
 
 class Updater : public QObject
 {
@@ -513,37 +555,7 @@ private:
         tar->start(program, {QStringLiteral("-xf"), download.fileName(), QStringLiteral("-C"), unpackFolder()});
     }
 
-    /// Hands the swap to a script that waits for this process to end
-    bool apply()
-    {
-        const QString script = KisProfile::configFolder() + QStringLiteral("/update.ps1");
-        QFile file(script);
-        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate) || file.write(applyScript) < 0) return false;
-        file.close();
-        QStringList arguments {QStringLiteral("-NoProfile"), QStringLiteral("-NonInteractive"), QStringLiteral("-ExecutionPolicy"), QStringLiteral("Bypass"),
-                               QStringLiteral("-WindowStyle"), QStringLiteral("Hidden"), QStringLiteral("-File"), QDir::toNativeSeparators(script),
-                               QStringLiteral("-Id"), QString::number(QCoreApplication::applicationPid()),
-                               QStringLiteral("-Install"), QDir::toNativeSeparators(installFolder())};
-        if (relaunch) arguments << QStringLiteral("-Relaunch");
-        return powerShell(arguments);
-    }
-
-    /// Runs PowerShell with \p arguments, hidden and on its own after this process ends
-    static bool powerShell(const QStringList &arguments)
-    {
-        QProcess process;
-        process.setProgram(qEnvironmentVariable("SystemRoot", QStringLiteral("C:\\Windows"))
-                           + QStringLiteral("\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"));
-        process.setArguments(arguments);
-        // not in the program's folder, which the update renames: Skissa started from a shortcut works in its bin folder
-        process.setWorkingDirectory(KisProfile::configFolder());
-#ifdef Q_OS_WIN
-        process.setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments *args) {
-            args->flags |= CREATE_NO_WINDOW;
-        });
-#endif
-        return process.startDetached();
-    }
+    bool apply() { return applyUpdate(relaunch); }
 
     void quitting()
     {
@@ -568,6 +580,15 @@ private:
 };
 
 } // namespace
+
+bool KisSkissaUpdater::startWaitingUpdate()
+{
+    // a start in the moments between quitting and the swap (or after a swap the folder held up) would run the old
+    // version and hold its folder: the swap goes first, then the new version starts
+    if (!canUpdate() || qEnvironmentVariableIsSet("SKISSA_NO_SWAP")) return false;
+    const QString waiting = versionIn(readyFolder());
+    return !waiting.isEmpty() && isNewer(waiting, version()) && applyUpdate(true);
+}
 
 QString KisSkissaUpdater::version()
 {
