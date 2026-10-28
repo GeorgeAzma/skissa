@@ -579,6 +579,7 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("StudioViewPill"), true, i18nc("setting", "Zoom pill"), R::Fork);
         all << toggle(QStringLiteral("StudioColorIntensity"), true, i18nc("setting", "Brighter than white"), R::Fork);
         all << toggle(QStringLiteral("StudioTooltips"), true, i18nc("setting", "Tooltips"), R::Fork);
+        all << number(QStringLiteral("StudioTooltipDelay"), 350, 0, 3000, i18nc("setting", "Tooltip delay"), R::Fork);
         {
             // the blend modes listed first (Your modes); Krita's own key, so taking Krita's settings brings them
             Setting favorites = text(QStringLiteral("favoriteCompositeOps"), QString(), i18nc("setting", "Favorite blend modes"));

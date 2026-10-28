@@ -1327,8 +1327,14 @@ QVector<CardDef> makeCards()
             b.showWhen(familyRow, b.isOn(QStringLiteral("use_custom_system_font")));
             b.showWhen(size, b.isOn(QStringLiteral("use_custom_system_font")));
         });
-    addToggle(QStringLiteral("appearance"), QStringLiteral("tooltips"), i18nc("settings card", "Tooltips"), QStringLiteral("StudioTooltips"),
-              QStringLiteral("tooltips hints hover help popups bubbles"));
+    cards << CardDef{QStringLiteral("appearance.tooltips"), QStringLiteral("appearance"), i18nc("settings card", "Tooltips"),
+                     {QStringLiteral("StudioTooltips"), QStringLiteral("StudioTooltipDelay")},
+                     QStringLiteral("tooltips hints hover help popups bubbles delay wait slow fast"),
+                     [](Builder &b) {
+                         Number delay(i18nc("tooltips: how long the pointer rests before one shows", "Delay"), 1, 0, i18nc("milliseconds", " ms"), 50);
+                         b.showWhen(b.number(QStringLiteral("StudioTooltipDelay"), delay), b.isOn(QStringLiteral("StudioTooltips")));
+                     },
+                     QStringLiteral("StudioTooltips")};
     add(QStringLiteral("appearance"), QStringLiteral("brushes"), i18nc("settings card", "Brushes as strokes"),
         {QStringLiteral("PresetStrokeThumbnails"), QStringLiteral("PresetStrokePictures"), QStringLiteral("PresetStrokeNames")},
         QStringLiteral("brush thumbnails strokes presets show pictures icons names labels minimal"), [](Builder &b) {
@@ -3180,18 +3186,25 @@ struct KisStudioSettings::Private
                  [this](const QVector<KisSettingsTransfer::Change> &chosen, bool, bool) { applyHere(chosen, QByteArray()); });
     }
 
-    /// Krita's own brushes, patterns, palettes and bundles, copied here; they are read at the next start
+    /// Krita's own brushes, patterns, palettes and bundles, copied here with their tags; they are read at the next start
     void brushesFromKrita()
     {
         QString error;
         const int copied = KisSettingsTransfer::takeKritaResources(&error);
         if (copied < 0) {
             q->say(error);
-        } else if (copied == 0) {
+            return;
+        }
+        const int tagged = KisSettingsTransfer::takeKritaTags();
+        if (copied == 0 && tagged == 0) {
             q->say(i18nc("@info", "Krita's brushes are all here already."));
+        } else if (copied == 0) {
+            q->say(i18nc("@info", "Took Krita's tags."));
         } else {
-            q->say(i18ncp("@info", "Took %1 file of Krita's brushes, patterns and palettes.",
-                          "Took %1 files of Krita's brushes, patterns and palettes.", copied));
+            q->say(tagged > 0 ? i18ncp("@info", "Took %1 file of Krita's brushes, patterns and palettes, and their tags.",
+                                       "Took %1 files of Krita's brushes, patterns and palettes, and their tags.", copied)
+                              : i18ncp("@info", "Took %1 file of Krita's brushes, patterns and palettes.",
+                                       "Took %1 files of Krita's brushes, patterns and palettes.", copied));
             resourcesTaken = true;
             updateFooter();
         }

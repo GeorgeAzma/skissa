@@ -75,6 +75,7 @@
 #include "KisSkissaUpdater.h"
 #include "KisStudioBarButtons.h"
 #include "KisStudioBrushTweaks.h"
+#include "KisSettingsTransfer.h"
 #include "KisStudioBrushEditor.h"
 #include "KisStudioMakeBrush.h"
 #include "KisStudioBrushMemory.h"
@@ -2820,6 +2821,8 @@ KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
     d->mainWindow = mainWindow;
     // snapshot the settings at startup, so later changes that need a restart show as pending
     KisSettingsRegistry::instance();
+    // Krita's tags for the resources taken from it, now that they are read
+    KisSettingsTransfer::takePendingKritaTags();
 
     // save the heights once a resize has settled
 

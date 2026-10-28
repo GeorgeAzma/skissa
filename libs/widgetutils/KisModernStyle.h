@@ -125,6 +125,9 @@ public:
     /// Whether the system reports the left button (or pen) down, even if Qt missed the release in a drag loop.
     static bool pointerHeld();
 
+    /// How long the pointer rests on a control before its tooltip shows, in ms
+    static void setToolTipDelay(int ms);
+
     using QProxyStyle::polish;
     void polish(QWidget *widget) override;
 

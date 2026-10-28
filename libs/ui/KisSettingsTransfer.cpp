@@ -12,10 +12,15 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
+#include <QSet>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 #include <QStandardPaths>
+#include <QTemporaryDir>
 
 #include <KConfig>
 #include <KConfigGroup>
@@ -26,7 +31,12 @@
 
 #include "KisSettingsRegistry.h"
 #include <KisResourceLocator.h>
+#include <KisResourceModel.h>
 #include <KisResourceTypes.h>
+#include <KisStorageModel.h>
+#include <KisTag.h>
+#include <KisTagModel.h>
+#include <KisTagResourceModel.h>
 #include <KisProfile.h>
 
 namespace KisSettingsTransfer
@@ -363,6 +373,218 @@ int takeKritaResources(QString *error)
         }
     }
     return copied;
+}
+
+namespace {
+
+/// The kinds of resource whose tags are taken: those takeKritaResources() copies
+const QStringList taggedTypes = {ResourceType::PaintOpPresets, ResourceType::Brushes,     ResourceType::Gradients,   ResourceType::Palettes,
+                                 ResourceType::Patterns,       ResourceType::Workspaces,  ResourceType::Symbols,     ResourceType::GamutMasks,
+                                 ResourceType::SeExprScripts,  ResourceType::LayerStyles};
+
+/// Tags waiting for resources copied from Krita, which are read at the next start
+QString pendingTagsPath()
+{
+    return KisProfile::configFile(QStringLiteral("krita-tags.json"));
+}
+
+/// A resource as Krita's database names it: found here by its md5, or else by its file in the same storage
+QJsonObject resourceOf(const QSqlQuery &q)
+{
+    return {{QStringLiteral("type"), q.value(QStringLiteral("type")).toString()},
+            {QStringLiteral("md5"), q.value(QStringLiteral("md5sum")).toString()},
+            {QStringLiteral("file"), q.value(QStringLiteral("filename")).toString()},
+            {QStringLiteral("storage"), q.value(QStringLiteral("location")).toString()}};
+}
+
+/**
+ * What Krita's database holds beyond the files: its tags and what they tag, the resources it hides and whether
+ * each bundle is on. Read from a copy, so Krita's own is never opened.
+ */
+QJsonObject readKritaTags(const QString &database)
+{
+    QTemporaryDir folder;
+    const QString copy = folder.filePath(QStringLiteral("krita.sqlite"));
+    if (!folder.isValid() || !QFile::copy(database, copy)) return {};
+    QJsonObject result;
+    const QString connection = QStringLiteral("skissa-krita-tags");
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        db.setDatabaseName(copy);
+        db.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY"));
+        if (db.open()) {
+            const QString types = QStringLiteral("('") + taggedTypes.join(QStringLiteral("','")) + QStringLiteral("')");
+            QSqlQuery q(db);
+            QJsonArray tags;
+            QMap<int, int> tagRows;
+            q.exec(QStringLiteral("SELECT tags.id, tags.url, tags.name, resource_types.name AS type FROM tags "
+                                  "JOIN resource_types ON resource_types.id = tags.resource_type_id "
+                                  "WHERE tags.active = 1 AND resource_types.name IN ") + types);
+            while (q.next()) {
+                tagRows.insert(q.value(0).toInt(), tags.size());
+                tags.append(QJsonObject{{QStringLiteral("type"), q.value(QStringLiteral("type")).toString()},
+                                        {QStringLiteral("url"), q.value(QStringLiteral("url")).toString()},
+                                        {QStringLiteral("name"), q.value(QStringLiteral("name")).toString()},
+                                        {QStringLiteral("resources"), QJsonArray()}});
+            }
+            const QString resource = QStringLiteral("SELECT resource_types.name AS type, resources.md5sum, resources.filename, storages.location FROM resources "
+                                                    "JOIN resource_types ON resource_types.id = resources.resource_type_id "
+                                                    "JOIN storages ON storages.id = resources.storage_id ");
+            q.exec(QStringLiteral("SELECT resource_tags.tag_id, resource_types.name AS type, resources.md5sum, resources.filename, storages.location "
+                                  "FROM resource_tags JOIN resources ON resources.id = resource_tags.resource_id "
+                                  "JOIN resource_types ON resource_types.id = resources.resource_type_id "
+                                  "JOIN storages ON storages.id = resources.storage_id WHERE resource_tags.active = 1"));
+            while (q.next()) {
+                if (!tagRows.contains(q.value(0).toInt())) continue;
+                QJsonObject tag = tags[tagRows.value(q.value(0).toInt())].toObject();
+                QJsonArray tagged = tag.value(QStringLiteral("resources")).toArray();
+                tagged.append(resourceOf(q));
+                tag.insert(QStringLiteral("resources"), tagged);
+                tags[tagRows.value(q.value(0).toInt())] = tag;
+            }
+            result.insert(QStringLiteral("tags"), tags);
+            QJsonArray hidden;
+            q.exec(resource + QStringLiteral("WHERE resources.status = 0 AND resources.temporary = 0 AND resource_types.name IN ") + types);
+            while (q.next()) hidden.append(resourceOf(q));
+            result.insert(QStringLiteral("hidden"), hidden);
+            QJsonObject bundles;
+            q.exec(QStringLiteral("SELECT location, active FROM storages JOIN storage_types ON storage_types.id = storages.storage_type_id "
+                                  "WHERE storage_types.name = 'Bundle'"));
+            while (q.next()) bundles.insert(q.value(0).toString(), q.value(1).toInt() != 0);
+            result.insert(QStringLiteral("bundles"), bundles);
+            db.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(connection);
+    return result;
+}
+
+/// The id here of a resource from Krita's database, or -1 if it isn't here (yet)
+int resourceIdHere(const QJsonObject &resource)
+{
+    QSqlQuery q;
+    q.prepare(QStringLiteral("SELECT resources.id FROM resources "
+                             "JOIN resource_types ON resource_types.id = resources.resource_type_id "
+                             "JOIN storages ON storages.id = resources.storage_id "
+                             "WHERE resource_types.name = :type "
+                             "AND (resources.md5sum = :md5 OR (resources.filename = :file AND storages.location = :storage)) "
+                             "ORDER BY storages.active DESC, resources.md5sum = :md5 DESC LIMIT 1"));
+    q.bindValue(QStringLiteral(":type"), resource.value(QStringLiteral("type")).toString());
+    q.bindValue(QStringLiteral(":md5"), resource.value(QStringLiteral("md5")).toString());
+    q.bindValue(QStringLiteral(":file"), resource.value(QStringLiteral("file")).toString());
+    q.bindValue(QStringLiteral(":storage"), resource.value(QStringLiteral("storage")).toString());
+    return q.exec() && q.next() ? q.value(0).toInt() : -1;
+}
+
+/**
+ * Tags, hides and turns bundles on or off here as \p krita (from readKritaTags()) has them. Returns what isn't here yet
+ * and how many changes were made; tags and bundles are only added or matched, never deleted.
+ */
+QJsonObject applyKritaTags(const QJsonObject &krita, int *changes)
+{
+    QJsonArray tagsLeft;
+    for (const QJsonValue &value : krita.value(QStringLiteral("tags")).toArray()) {
+        const QJsonObject tagged = value.toObject();
+        const QString type = tagged.value(QStringLiteral("type")).toString();
+        KisTagModel tags(type);
+        KisTagSP tag = tags.tagForUrl(tagged.value(QStringLiteral("url")).toString());
+        if (!tag) {
+            // made by its url, which is its name unless a bundle named it
+            const QString url = tagged.value(QStringLiteral("url")).toString();
+            const QString name = tagged.value(QStringLiteral("name")).toString();
+            if (!tags.addTag(url, false, {})) continue;
+            tag = tags.tagForUrl(url);
+            if (!tag) continue;
+            if (!name.isEmpty() && name != url) tags.renameTag(tag, name, false);
+            (*changes)++;
+        } else if (!tag->active()) {
+            tags.setTagActive(tag);
+            (*changes)++;
+        }
+        QSet<int> already;
+        QSqlQuery q;
+        q.prepare(QStringLiteral("SELECT resource_id FROM resource_tags WHERE tag_id = :tag AND active = 1"));
+        q.bindValue(QStringLiteral(":tag"), tag->id());
+        if (q.exec()) {
+            while (q.next()) already.insert(q.value(0).toInt());
+        }
+        KisTagResourceModel tagResources(type);
+        QVector<int> ids;
+        QJsonArray left;
+        for (const QJsonValue &resource : tagged.value(QStringLiteral("resources")).toArray()) {
+            const int id = resourceIdHere(resource.toObject());
+            if (id < 0) left.append(resource);
+            else if (!already.contains(id) && !ids.contains(id)) ids << id;
+        }
+        if (!ids.isEmpty() && tagResources.tagResources(tag, ids)) *changes += ids.size();
+        if (!left.isEmpty()) {
+            QJsonObject rest = tagged;
+            rest.insert(QStringLiteral("resources"), left);
+            tagsLeft.append(rest);
+        }
+    }
+    QJsonArray hiddenLeft;
+    for (const QJsonValue &value : krita.value(QStringLiteral("hidden")).toArray()) {
+        const QJsonObject resource = value.toObject();
+        const int id = resourceIdHere(resource);
+        if (id < 0) {
+            hiddenLeft.append(resource);
+            continue;
+        }
+        KisResourceModel resources(resource.value(QStringLiteral("type")).toString());
+        const QModelIndex index = resources.indexForResourceId(id);
+        if (index.isValid() && resources.setResourceInactive(index)) (*changes)++;
+    }
+    QJsonObject bundlesLeft = krita.value(QStringLiteral("bundles")).toObject();
+    KisStorageModel *storages = KisStorageModel::instance();
+    for (int row = 0; row < storages->rowCount(); row++) {
+        const QModelIndex index = storages->index(row, 0);
+        const QString location = index.data(Qt::UserRole + KisStorageModel::Location).toString();
+        if (!bundlesLeft.contains(location)) continue;
+        const bool on = bundlesLeft.take(location).toBool();
+        if (index.data(Qt::UserRole + KisStorageModel::Active).toBool() != on && storages->setData(index, on, Qt::CheckStateRole)) (*changes)++;
+    }
+    return {{QStringLiteral("tags"), tagsLeft}, {QStringLiteral("hidden"), hiddenLeft}, {QStringLiteral("bundles"), bundlesLeft}};
+}
+
+/// Whether \p left (from applyKritaTags()) still waits for anything
+bool waits(const QJsonObject &left)
+{
+    return !left.value(QStringLiteral("tags")).toArray().isEmpty() || !left.value(QStringLiteral("hidden")).toArray().isEmpty()
+        || !left.value(QStringLiteral("bundles")).toObject().isEmpty();
+}
+
+} // namespace
+
+int takeKritaTags()
+{
+    const QString from = kritaResourcesPath();
+    const QString database = QDir(from).filePath(QStringLiteral("resourcecache.sqlite"));
+    if (from.isEmpty() || !QFileInfo::exists(database)) return 0;
+    int changes = 0;
+    const QJsonObject left = applyKritaTags(readKritaTags(database), &changes);
+    if (waits(left)) {
+        // the resources just copied are read at the next start
+        QString error;
+        writeFile(pendingTagsPath(), QJsonDocument(left).toJson(QJsonDocument::Compact), &error);
+        changes += left.value(QStringLiteral("tags")).toArray().size() + left.value(QStringLiteral("hidden")).toArray().size()
+            + left.value(QStringLiteral("bundles")).toObject().size();
+    } else {
+        QFile::remove(pendingTagsPath());
+    }
+    return changes;
+}
+
+void takePendingKritaTags()
+{
+    QFile file(pendingTagsPath());
+    if (!file.open(QIODevice::ReadOnly)) return;
+    const QJsonObject pending = QJsonDocument::fromJson(file.readAll()).object();
+    file.close();
+    // what still isn't here was left out of Krita's files (caches, scripts) or failed to load: not waited for again
+    file.remove();
+    int changes = 0;
+    applyKritaTags(pending, &changes);
 }
 
 } // namespace KisSettingsTransfer

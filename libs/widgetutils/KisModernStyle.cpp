@@ -669,6 +669,16 @@ int KisModernStyle::wheelSteps(const QWheelEvent *event, QObject *receiver)
     return steps;
 }
 
+namespace {
+// half of Qt's 700 ms: soon enough to teach, still not under every pass of the pointer
+int toolTipDelay = 350;
+}
+
+void KisModernStyle::setToolTipDelay(int ms)
+{
+    toolTipDelay = qMax(0, ms);
+}
+
 bool KisModernStyle::pointerHeld()
 {
 #ifdef Q_OS_WIN
@@ -809,8 +819,7 @@ int KisModernStyle::styleHint(StyleHint hint, const QStyleOption *option, const 
     case SH_UnderlineShortcut:
         return 0;
     case SH_ToolTip_WakeUpDelay:
-        // half of Qt's 700 ms: soon enough to teach, still not under every pass of the pointer
-        return 350;
+        return toolTipDelay;
     default:
         break;
     }

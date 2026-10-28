@@ -62,6 +62,11 @@ KRITAUI_EXPORT QString kritaResourcesPath();
 /// Copies the resources Krita has that aren't here yet into this one's resource folder: brushes, presets,
 /// patterns, gradients, palettes, bundles and the like; Krita's are only read. How many files, or -1 on failure
 KRITAUI_EXPORT int takeKritaResources(QString *error);
+/// Tags resources here as Krita has tagged them, hides what Krita hides and turns bundles on or off as there; what
+/// waits for resources just copied is done at the next start. How many changes
+KRITAUI_EXPORT int takeKritaTags();
+/// Does what takeKritaTags() left for the next start, once the resources are read
+KRITAUI_EXPORT void takePendingKritaTags();
 
 } // namespace KisSettingsTransfer
 

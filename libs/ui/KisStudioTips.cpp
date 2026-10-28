@@ -399,4 +399,9 @@ void KisStudioTips::install(std::function<QKeySequence(QAbstractButton *)> short
     // dark mode, and the reverse
     QToolTip::setPalette(QApplication::palette());
     QObject::connect(qApp, &QGuiApplication::paletteChanged, filter, [](const QPalette &palette) { QToolTip::setPalette(palette); });
+    auto delay = []() { KisModernStyle::setToolTipDelay(KisSettingsRegistry::instance()->value(QStringLiteral("StudioTooltipDelay")).toInt()); };
+    delay();
+    QObject::connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::valueChanged, filter, [delay](const QString &id) {
+        if (id == QLatin1String("StudioTooltipDelay")) delay();
+    });
 }
