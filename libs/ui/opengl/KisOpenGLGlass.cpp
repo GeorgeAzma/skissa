@@ -111,8 +111,8 @@ vec3 fromOklab(vec3 c)
 /**
  * Downsamples the canvas: each pixel is the mean of a factor x factor block, with saturated colors
  * weighted more (Oklab chroma is at most about 0.32 in sRGB). It stores Oklab lightness raised to
- * KisStudioGlass::lightnessPower and a, b offset by 0.5; or, for statistics, the chroma, which
- * later shows how much the hues agree.
+ * KisStudioGlass::lightnessPower and a, b offset by 0.5. The weight, 1 + salience times the chroma,
+ * keeps the mean chroma too, which later shows how much the hues agree.
  */
 const char *const shrinkSource = R"(
 uniform sampler2D source;
@@ -121,7 +121,6 @@ uniform int factor;
 uniform bool decode;
 uniform float salience;
 uniform float power;
-uniform bool statistics;
 
 void main()
 {
@@ -133,10 +132,8 @@ void main()
             vec3 c = texelFetch(source, clamp(base + ivec2(x, y), ivec2(0), last), 0).rgb;
             c = clamp(decode ? fromSrgb(c) : c, 0.0, 1.0);
             vec3 lab = toOklab(c);
-            float chroma = length(lab.yz);
-            float weight = 1.0 + salience * chroma;
-            vec3 kept = statistics ? vec3(chroma, 0.0, 0.0) : vec3(pow(max(lab.x, 0.0), power), lab.yz + 0.5);
-            sum += vec4(kept * weight, weight);
+            float weight = 1.0 + salience * length(lab.yz);
+            sum += vec4(vec3(pow(max(lab.x, 0.0), power), lab.yz + 0.5) * weight, weight);
         }
     }
     fragColor = keep(sum / (float(factor * factor) * (1.0 + salience * 0.33)));
@@ -185,21 +182,33 @@ uniform float spacing;
 uniform float power;
 flat out float strength;
 
+// Oklab lightness of the blur at cell (x, y) of a grid of count cells over the panel; 0 past the grid.
+float lightnessAt(int x, int y, ivec2 count)
+{
+    vec2 p = shape.xy + shape.zw * (2.0 * (vec2(x, y) + 0.5) / vec2(count) - 1.0);
+    vec4 mean = weighted(texelFetch(blurred, clamp(ivec2(p / factor + shift), slot.xy, slot.zw), 0));
+    return x < count.x && y < count.y ? pow(max(mean.x / max(mean.a, 1e-5), 0.0), 1.0 / power) : 0.0;
+}
+
+float rowAt(int y, ivec2 count)
+{
+    return lightnessAt(0, y, count) + lightnessAt(1, y, count) + lightnessAt(2, y, count) + lightnessAt(3, y, count)
+        + lightnessAt(4, y, count) + lightnessAt(5, y, count) + lightnessAt(6, y, count) + lightnessAt(7, y, count)
+        + lightnessAt(8, y, count) + lightnessAt(9, y, count) + lightnessAt(10, y, count) + lightnessAt(11, y, count);
+}
+
 void main()
 {
     vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));
     gl_Position = vec4(mix(rect.xy, rect.zw, corner), 0.0, 1.0);
 
     // Average Oklab lightness behind the panel, sampled on a grid as fine as the blur is wide
-    // (12 x 12 at most) so the tint doesn't flicker as the canvas scrolls underneath.
+    // (12 x 12 at most) so the tint doesn't flicker as the canvas scrolls underneath. Four rows at a
+    // time, written out so that their reads wait together rather than one after another.
     ivec2 count = clamp(ivec2(ceil(2.0 * shape.zw / spacing)), ivec2(1), ivec2(12));
     float sum = 0.0;
-    for (int y = 0; y < count.y; y++) {
-        for (int x = 0; x < count.x; x++) {
-            vec2 p = shape.xy + shape.zw * (2.0 * (vec2(x, y) + 0.5) / vec2(count) - 1.0);
-            vec4 mean = weighted(texelFetch(blurred, clamp(ivec2(p / factor + shift), slot.xy, slot.zw), 0));
-            sum += pow(max(mean.x / max(mean.a, 1e-5), 0.0), 1.0 / power);
-        }
+    for (int y = 0; y < count.y; y += 4) {
+        sum += rowAt(y, count) + rowAt(y + 1, count) + rowAt(y + 2, count) + rowAt(y + 3, count);
     }
     strength = mix(tintStrength.x, tintStrength.y, clamp(abs(sum / float(count.x * count.y) - tintLightness), 0.0, 1.0));
 }
@@ -227,7 +236,7 @@ uniform sampler2D blurred;
 uniform sampler2D halfFrost;
 uniform sampler2D quarterFrost;
 uniform sampler2D eighthFrost;
-uniform sampler2D statistics;
+uniform float salience;
 uniform vec2 shift;
 uniform ivec4 slot;
 uniform sampler2D under;
@@ -237,10 +246,13 @@ uniform float power;
 uniform float factor;
 uniform vec4 shape;
 uniform vec2 corner;
+// in Oklab
 uniform vec3 tint;
 uniform float opacity;
 uniform vec2 viewport;
 uniform float sigma;
+// How wide each level of the frost blurs (see frostAt), as log2 of surface pixels.
+uniform float levels[6];
 uniform vec4 beyond;
 uniform float dither;
 uniform float veil;
@@ -285,7 +297,7 @@ float erf(float x)
 // it fades to none at the edge so the glass meets the plain part without a seam.
 float within(float d, float crossing)
 {
-    return mix(1.0, max(erf(d / (sigma * 1.41421356)), 0.0), crossing);
+    return crossing > 0.0 ? max(erf(d / (sigma * 1.41421356)), 0.0) : 1.0;
 }
 
 // Signed distance in pixels from p to a squircle shape (center and half size; corner reach and
@@ -323,10 +335,11 @@ vec4 bspline(float t)
     return vec4(1.0 - 3.0 * t + 3.0 * t2 - t3, 4.0 - 6.0 * t2 + 3.0 * t3, 1.0 + 3.0 * t + 3.0 * t2 - 3.0 * t3, t3) / 6.0;
 }
 
-// Smooth sample of a weighted downsampled texture (the blur or its statistics) at p (surface pixels),
-// within this surface's slot: a cubic B-spline over 4 x 4 texels, since stretching a small texture
-// bilinearly leaves creases along its grid. The weights are interpolated too.
-vec3 softAt(sampler2D source, vec2 p)
+// Smooth sample of a weighted downsampled texture (a blur) at p (surface pixels), within this surface's
+// slot: a cubic B-spline over 4 x 4 texels, since stretching a small texture bilinearly leaves creases
+// along its grid. The weights are interpolated too: the mean, and in alpha the mean weight. Read without
+// derivatives, so that a branch not taken costs nothing.
+vec4 softAt(sampler2D source, vec2 p)
 {
     vec2 t = p / factor - 0.5 + shift;
     vec2 i = floor(t);
@@ -342,8 +355,8 @@ vec3 softAt(sampler2D source, vec2 p)
     vec2 size = vec2(textureSize(source, 0));
     vec2 lo = vec2(slot.xy);
     vec2 hi = vec2(slot.zw);
-    vec4 m = g0.y * (g0.x * texture(source, (clamp(h0, lo, hi) + 0.5) / size) + g1.x * texture(source, (clamp(vec2(h1.x, h0.y), lo, hi) + 0.5) / size))
-        + g1.y * (g0.x * texture(source, (clamp(vec2(h0.x, h1.y), lo, hi) + 0.5) / size) + g1.x * texture(source, (clamp(h1, lo, hi) + 0.5) / size));
+    vec4 m = g0.y * (g0.x * textureLod(source, (clamp(h0, lo, hi) + 0.5) / size, 0.0) + g1.x * textureLod(source, (clamp(vec2(h1.x, h0.y), lo, hi) + 0.5) / size, 0.0))
+        + g1.y * (g0.x * textureLod(source, (clamp(vec2(h0.x, h1.y), lo, hi) + 0.5) / size, 0.0) + g1.x * textureLod(source, (clamp(h1, lo, hi) + 0.5) / size, 0.0));
 #else
     vec4 m = vec4(0.0);
     for (int y = 0; y < 4; y++) {
@@ -354,14 +367,18 @@ vec3 softAt(sampler2D source, vec2 p)
         m += wy[y] * row;
     }
 #endif
-    return m.rgb / max(m.a, 1e-5);
+    return vec4(m.rgb / max(m.a, 1e-5), m.a);
 }
 
-// The Oklab mean stored in source at p, decoding the lightness power and the a, b offset.
+// The Oklab mean stored as m, decoding the lightness power and the a, b offset.
+vec3 meanOf(vec4 m)
+{
+    return vec3(pow(max(m.x, 0.0), 1.0 / power), m.yz - 0.5);
+}
+
 vec3 meanAt(sampler2D source, vec2 p)
 {
-    vec3 m = softAt(source, p);
-    return vec3(pow(max(m.x, 0.0), 1.0 / power), m.yz - 0.5);
+    return meanOf(softAt(source, p));
 }
 
 /**
@@ -372,8 +389,10 @@ vec3 meanAt(sampler2D source, vec2 p)
  */
 vec3 frostedLab(vec2 p)
 {
-    vec3 wide = meanAt(blurred, p);
-    float chroma = softAt(statistics, p).x;
+    vec4 m = softAt(blurred, p);
+    vec3 wide = meanOf(m);
+    // the mean weight, normalized as the downsampling does, is 1 + salience times the mean chroma
+    float chroma = (m.a * (1.0 + salience * 0.33) - 1.0) / salience;
     float agree = clamp(length(wide.yz) / max(chroma, 1e-4), 0.0, 1.0);
     return vec3(wide.x, wide.yz * (1.0 + restore * (1.0 - agree)));
 }
@@ -381,7 +400,7 @@ vec3 frostedLab(vec2 p)
 // The canvas at q in Oklab, as clear glass shows it.
 vec3 clearLab(vec2 q)
 {
-    vec3 c = texture(under, q / viewport).rgb;
+    vec3 c = textureLod(under, q / viewport, 0.0).rgb;
     return toOklab(clamp(decode ? fromSrgb(c) : c, 0.0, 1.0));
 }
 
@@ -393,48 +412,44 @@ vec3 softClearLab(vec2 q)
     return sum / 6.0;
 }
 
-// Level k of the frost at q: 0 the full frost, 1 to 3 a half, a quarter and an eighth of it, 4 the canvas
-// slightly softened, 5 the canvas itself.
-vec3 levelLab(int k, vec2 q)
+// The quadratic B-spline centered at 0.
+float bspline2(float x)
 {
-    if (k <= 0) return frostedLab(q);
-    if (k == 1) return meanAt(halfFrost, q);
-    if (k == 2) return meanAt(quarterFrost, q);
-    if (k == 3) return meanAt(eighthFrost, q);
-    if (k == 4) return softClearLab(q);
-    return clearLab(q);
-}
-
-// How wide level k blurs, in surface pixels: the blur at its width, with what the downsampling adds.
-float levelSigma(int k)
-{
-    if (k >= 5) return 0.5;
-    if (k == 4) return 1.5;
-    float s = sigma / exp2(float(k));
-    return sqrt(s * s + 0.25 * factor * factor);
+    x = abs(x);
+    return x < 0.5 ? 0.75 - x * x : x < 1.5 ? 0.5 * (1.5 - x) * (1.5 - x) : 0.0;
 }
 
 /**
- * The frost at q blurred by `blur` pixels, from the full frost down to the canvas itself. Where it lies
- * among the levels is measured in octaves between their widths, and the three levels around it are mixed
- * with quadratic B-spline weights, which change smoothly with it: mixing only two would crease where one
- * hands over to the next.
+ * The frost at q blurred by 2^`blur` pixels, from the full frost down to the canvas itself, through its
+ * levels: the full frost, a half, a quarter and an eighth of it, the canvas slightly softened, the canvas
+ * itself. Where it lies among them is measured in octaves between their widths, and the three levels
+ * around it are mixed with quadratic B-spline weights, which change smoothly with it: mixing only two
+ * would crease where one hands over to the next. Each level is read in one place, only where it is
+ * mixed in: through a level chosen per pixel, the compiler computes every level for every pixel.
  */
 vec3 frostAt(vec2 q, float blur)
 {
     float t = 5.0;
     for (int k = 4; k >= 0; k--) {
-        float wide = levelSigma(k);
-        float narrow = levelSigma(k + 1);
-        if (blur >= narrow && narrow < wide) t = float(k) + clamp(log2(wide / blur) / log2(wide / narrow), 0.0, 1.0);
+        float wide = levels[k];
+        float narrow = levels[k + 1];
+        if (blur >= narrow && narrow < wide) t = float(k) + clamp((wide - blur) / (wide - narrow), 0.0, 1.0);
     }
-    if (blur >= levelSigma(0)) t = 0.0;
-    if (t <= 0.0) return frostedLab(q);
-    int k = int(floor(t + 0.5));
-    float f = t - float(k);
-    vec3 lab = (0.75 - f * f) * levelLab(k, q);
-    lab += 0.5 * (0.5 - f) * (0.5 - f) * levelLab(max(k - 1, 0), q);
-    lab += 0.5 * (0.5 + f) * (0.5 + f) * levelLab(min(k + 1, 5), q);
+    if (blur >= levels[0]) t = 0.0;
+    // the weights beyond the first and last level count for them
+    vec3 lab = vec3(0.0);
+    float w = bspline2(t) + bspline2(t + 1.0);
+    if (w > 0.0) lab += w * frostedLab(q);
+    w = bspline2(t - 1.0);
+    if (w > 0.0) lab += w * meanAt(halfFrost, q);
+    w = bspline2(t - 2.0);
+    if (w > 0.0) lab += w * meanAt(quarterFrost, q);
+    w = bspline2(t - 3.0);
+    if (w > 0.0) lab += w * meanAt(eighthFrost, q);
+    w = bspline2(t - 4.0);
+    if (w > 0.0) lab += w * softClearLab(q);
+    w = bspline2(t - 5.0) + bspline2(t - 6.0);
+    if (w > 0.0) lab += w * clearLab(q);
     return lab;
 }
 
@@ -466,10 +481,10 @@ vec3 inGamut(float l, vec2 ab)
 }
 
 // What is behind (Oklab) seen through glass with tint strength s, in linear light: lightness moves
-// toward the tint, chroma is kept but slightly veiled (see KisStudioGlass::veil), then gamut mapped.
-vec3 tintedLab(vec3 b, vec3 tintLab, float s)
+// toward the tint (and by lift), chroma is kept but slightly veiled (see KisStudioGlass::veil), then gamut mapped.
+vec3 tintedLab(vec3 b, vec3 tintLab, float s, float lift)
 {
-    float l = clamp(mix(b.x, tintLab.x, s), 0.0, 1.0);
+    float l = clamp(mix(b.x, tintLab.x, s) + lift, 0.0, 1.0);
     // a share of the chroma veiled, all of it at full strength, where the glass is solid
     float m = mix(veil, 1.0, smoothstep(-0.02, 0.06, l - b.x));
     float scattered = s * m + (1.0 - m) * s * s * s;
@@ -501,7 +516,7 @@ vec3 throughLower(vec3 lab, vec2 p)
         vec2 n;
         float d = outsideOf(p, lowerShape[i], lowerCorner[i], n);
         float cover = clamp(0.5 - d / max(2.0 * sigma, 1.0), 0.0, 1.0);
-        if (cover > 0.0) lab = mix(lab, toOklab(tintedLab(lab, lowerTint[i], lowerStrength)), cover);
+        if (cover > 0.0) lab = mix(lab, toOklab(tintedLab(lab, lowerTint[i], lowerStrength, 0.0)), cover);
     }
     return lab;
 }
@@ -517,14 +532,13 @@ void main()
     }
     // How much comes from the canvas rather than the plain panel beyond its edges.
     float canvas = within(p.x, beyond.x) * within(viewport.x - p.x, beyond.y) * within(p.y, beyond.z) * within(viewport.y - p.y, beyond.w);
-    vec3 tintLab = toOklab(fromSrgb(tint));
     const float quarterTurn = 1.5707963;
 
     // How thick the glass is: the frost is clear at the edges and the most in the middle.
     vec2 uv = clamp((p - shape.xy) / shape.zw, -1.0, 1.0);
     vec2 uv2 = uv * uv;
     float thickness = (1.0 - uv2.x * uv2.x) * (1.0 - uv2.y * uv2.y);
-    float blur = levelSigma(0) * thickness;
+    float blur = levels[0] + log2(max(thickness, 1e-6));
     // The band along the rim bends what is behind toward the edge. It stays within the corners' curve,
     // where the distance to the rim has no crease and its direction turns smoothly.
     float band = min(rim.x, min(0.9 * corner.x, min(shape.z, shape.w)));
@@ -545,7 +559,14 @@ void main()
         seen = toOklab(light);
     }
     seen = vivid(seen, vibrancy);
-    vec3 color = tintedLab(mix(tintLab, seen, canvas), tintLab, strength);
+    // Grain in Oklab lightness, so it is as visible on dark glass as on light, fixed to the panel as
+    // frost is to glass; a sum of three hashes is close to a gaussian, without a pattern
+    float lift = 0.0;
+    if (grain.x > 0.0) {
+        uvec2 cell = uvec2(ivec2(floor((p - shape.xy) / grain.y)) + 8192);
+        lift = (hash(cell) + hash(cell + uvec2(7919u, 104729u)) + hash(cell + uvec2(104729u, 7919u)) - 1.5) * 0.05 * grain.x;
+    }
+    vec3 color = tintedLab(mix(tint, seen, canvas), tint, strength, lift);
 
     // At the very edge, where the bend is steepest, light gathers into a hairline: what is seen there,
     // brighter and more vivid, brightest on the sides facing the room's light (top left and bottom right).
@@ -561,15 +582,6 @@ void main()
         color = mix(color, gathered, clamp(line * (0.3 + 0.6 * facing) * rim.z, 0.0, 1.0));
     }
 
-    // Grain in Oklab lightness, so it is as visible on dark glass as on light, fixed to the panel as
-    // frost is to glass; a sum of three hashes is close to a gaussian, without a pattern
-    if (grain.x > 0.0) {
-        uvec2 cell = uvec2(ivec2(floor((p - shape.xy) / grain.y)) + 8192);
-        float n = hash(cell) + hash(cell + uvec2(7919u, 104729u)) + hash(cell + uvec2(104729u, 7919u)) - 1.5;
-        vec3 lab = toOklab(max(color, 0.0));
-        color = inGamut(clamp(lab.x + n * 0.05 * grain.x, 0.0, 1.0), lab.yz);
-    }
-
     /**
      * Triangular dither of one target step either way (the sum of two uniform noises) turns banding
      * in smooth gradients into invisible noise without any pattern. No grain is added otherwise.
@@ -582,7 +594,7 @@ void main()
          * linear light. Blending would mix encoded values, making edges too dark over a light canvas
          * and too light over a dark one.
          */
-        vec3 behind = texture(under, p / viewport).rgb;
+        vec3 behind = textureLod(under, p / viewport, 0.0).rgb;
         color = mix(decode ? fromSrgb(behind) : behind, color, coverage);
     }
     fragColor = vec4((decode ? toSrgb(color) : color) + steps * dither, 1.0);
@@ -805,11 +817,11 @@ struct Programs {
                 maxThreads(0xFFFFFFFF);
             }
         }
-        valid = shrink.make(quadSource, shrinkSource, {"rect", "source", "shift", "factor", "decode", "salience", "power", "statistics"}, keptLinear)
+        valid = shrink.make(quadSource, shrinkSource, {"rect", "source", "shift", "factor", "decode", "salience", "power"}, keptLinear)
             && blur.make(quadSource, blurSource, {"rect", "source", "slot", "direction", "taps", "weights"}, keptLinear)
             && glass.make(glassVertexSource, glassSource,
-                          {"rect", "blurred", "halfFrost", "quarterFrost", "eighthFrost", "statistics", "shift", "slot", "restore", "power",
-                           "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
+                          {"rect", "blurred", "halfFrost", "quarterFrost", "eighthFrost", "salience", "shift", "slot", "restore", "power",
+                           "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma", "levels",
                            "beyond", "spacing", "dither", "veil", "rim", "ior", "under", "decode", "reach",
                            "vibrancy", "grain", "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"}, keptLinear)
             && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"}, keptLinear)
@@ -857,16 +869,13 @@ struct KisOpenGLGlass::Private : Programs
     int ambientFactor {0}; ///< the downsampling factor, 0 when there is no glow
 
     QOpenGLVertexArrayObject vao;
-    /// Downsampled canvas, blurred across, then down; and the same for its Oklab statistics.
+    /// Downsampled canvas, blurred across, then down.
     QScopedPointer<QOpenGLFramebufferObject> small;
     QScopedPointer<QOpenGLFramebufferObject> across;
     QScopedPointer<QOpenGLFramebufferObject> blurred;
     /// The frost at a half, a quarter and an eighth of its width (across, then down), for the rim.
     QScopedPointer<QOpenGLFramebufferObject> finerAcross[3];
     QScopedPointer<QOpenGLFramebufferObject> finer[3];
-    QScopedPointer<QOpenGLFramebufferObject> smallStatistics;
-    QScopedPointer<QOpenGLFramebufferObject> acrossStatistics;
-    QScopedPointer<QOpenGLFramebufferObject> statistics;
     /// Intermediate texture format: half floats where renderable, eight bits otherwise.
     GLenum keptFormat {GL_RGBA};
     /// A slot as last blurred: its content depends only on these and on the canvas it reads.
@@ -925,7 +934,7 @@ struct KisOpenGLGlass::Private : Programs
             return false;
         }
         const QSize grown = small ? size.expandedTo(small->size()) : size;
-        for (QScopedPointer<QOpenGLFramebufferObject> *fbo : {&small, &across, &blurred, &smallStatistics, &acrossStatistics, &statistics}) {
+        for (QScopedPointer<QOpenGLFramebufferObject> *fbo : {&small, &across, &blurred}) {
             fbo->reset(texture(grown));
         }
         for (int i = 0; i < 3; i++) {
@@ -1260,17 +1269,14 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     d->blurredFactor = factor;
     d->blurredCanvas = canvas;
     d->blurredFormat = canvasFormat;
-    // Downsample the canvas, as colors and as statistics.
+    // Downsample the canvas.
     d->shrink.bind();
     f->glBindTexture(GL_TEXTURE_2D, canvas);
-    for (int statistics = 0; statistics < 2; statistics++) {
-        (statistics ? d->smallStatistics : d->small)->bind();
-        f->glUniform1i(d->shrink["statistics"], statistics);
-        for (const Region &region : qAsConst(blurring)) {
-            f->glUniform2i(d->shrink["shift"], region.shift.x(), region.shift.y());
-            scissor(region.around.translated(region.shift));
-            f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-        }
+    d->small->bind();
+    for (const Region &region : qAsConst(blurring)) {
+        f->glUniform2i(d->shrink["shift"], region.shift.x(), region.shift.y());
+        scissor(region.around.translated(region.shift));
+        f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
     d->timing.mark();
     // Run each pass for all panels at once, so the render target (which stalls the GPU) switches once a
@@ -1285,12 +1291,10 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     };
     const Pass passes[] = {
         {d->small.data(), d->across.data(), true, -1},
-        {d->smallStatistics.data(), d->acrossStatistics.data(), true, -1},
         {d->small.data(), d->finerAcross[0].data(), true, 0},
         {d->small.data(), d->finerAcross[1].data(), true, 1},
         {d->small.data(), d->finerAcross[2].data(), true, 2},
         {d->across.data(), d->blurred.data(), false, -1},
-        {d->acrossStatistics.data(), d->statistics.data(), false, -1},
         {d->finerAcross[0].data(), d->finer[0].data(), false, 0},
         {d->finerAcross[1].data(), d->finer[1].data(), false, 1},
         {d->finerAcross[2].data(), d->finer[2].data(), false, 2},
@@ -1321,7 +1325,7 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
     d->glass.bind();
     f->glUniform1i(d->glass["blurred"], 0);
-    f->glUniform1i(d->glass["statistics"], 1);
+    f->glUniform1f(d->glass["salience"], KisStudioGlass::salience);
     f->glUniform1i(d->glass["under"], 2);
     f->glUniform1i(d->glass["halfFrost"], 4);
     f->glUniform1i(d->glass["quarterFrost"], 5);
@@ -1347,8 +1351,6 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     }
     f->glActiveTexture(GL_TEXTURE2);
     f->glBindTexture(GL_TEXTURE_2D, canvas);
-    f->glActiveTexture(GL_TEXTURE1);
-    f->glBindTexture(GL_TEXTURE_2D, d->statistics->texture());
     f->glActiveTexture(GL_TEXTURE0);
     f->glBindTexture(GL_TEXTURE_2D, d->blurred->texture());
     for (int i = 0; i < surfaces.size(); i++) {
@@ -1363,14 +1365,26 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
                        quad.right() / viewport.width() * 2 - 1, quad.bottom() / viewport.height() * 2 - 1);
         f->glUniform4f(d->glass["shape"], r.center().x(), r.center().y(), r.width() / 2, r.height() / 2);
         f->glUniform2f(d->glass["corner"], surface.reach, surface.exponent);
-        f->glUniform3f(d->glass["tint"], surface.tint.redF(), surface.tint.greenF(), surface.tint.blueF());
+        const QVector3D tint = oklabOf(surface.tint);
+        f->glUniform3f(d->glass["tint"], tint.x(), tint.y(), tint.z());
         // Perceived lightness (about the cube root of luminance), measured like the background.
         const qreal luminance = 0.2126 * toLinear(surface.tint.redF()) + 0.7152 * toLinear(surface.tint.greenF())
             + 0.0722 * toLinear(surface.tint.blueF());
         f->glUniform1f(d->glass["tintLightness"], float(std::cbrt(luminance)));
         f->glUniform1f(d->glass["opacity"], surface.opacity);
         const qreal scale = scaleOf(surface);
-        f->glUniform1f(d->glass["sigma"], KisStudioGlass::blurSigma() * scale * pixelRatio);
+        const qreal sigma = KisStudioGlass::blurSigma() * scale * pixelRatio;
+        f->glUniform1f(d->glass["sigma"], sigma);
+        // The frost and its finer levels at their widths, with what the downsampling adds; then the canvas
+        // slightly softened, and the canvas itself.
+        GLfloat levels[6];
+        for (int k = 0; k < 4; k++) {
+            const qreal s = sigma / (1 << k);
+            levels[k] = GLfloat(std::log2(std::sqrt(s * s + 0.25 * factor * factor)));
+        }
+        levels[4] = GLfloat(std::log2(1.5));
+        levels[5] = -1;
+        f->glUniform1fv(d->glass["levels"], 6, levels);
         f->glUniform1f(d->glass["spacing"], qMax<qreal>(8 * pixelRatio, 2 * KisStudioGlass::blurSigma() * scale * pixelRatio));
         // Which sides extend beyond the canvas: left, right, bottom, top.
         f->glUniform4f(d->glass["beyond"], r.left() < 0, r.right() > viewport.width(), r.top() < 0, r.bottom() > viewport.height());
