@@ -28,6 +28,8 @@
 #include <QVersionNumber>
 #include <QtConcurrent>
 
+#include <atomic>
+
 #include <kactioncollection.h>
 #include <klocalizedstring.h>
 
@@ -85,6 +87,27 @@ void removeReplacedInstall()
         if (relative != QLatin1String("skissa-files.txt") && !listed.contains(relative)) return;
     }
     QDir(old).removeRecursively();
+}
+
+/// Set as the app quits, which waits for readProgramFiles()
+std::atomic<bool> stopReading {false};
+
+/**
+ * Reads every program file in \p folder once. Windows' virus scan checks a program file the first time it is
+ * opened, which held the update's first start up for 10–40 s; read now, the scans are over by the restart.
+ * Renaming the folder in the swap keeps them done.
+ */
+void readProgramFiles(const QString &folder)
+{
+    QDirIterator files(folder, {QStringLiteral("*.dll"), QStringLiteral("*.exe"), QStringLiteral("*.pyd")}, QDir::Files,
+                       QDirIterator::Subdirectories);
+    QByteArray buffer(1 << 20, Qt::Uninitialized);
+    while (files.hasNext() && !stopReading) {
+        QFile file(files.next());
+        if (!file.open(QIODevice::ReadOnly)) continue;
+        while (!stopReading && file.read(buffer.data(), buffer.size()) > 0) {
+        }
+    }
 }
 
 /// The version a release's folder holds, empty when it isn't one
@@ -530,6 +553,7 @@ private:
                     return;
                 }
                 state = Ready;
+                QtConcurrent::run([]() { readProgramFiles(readyFolder()); });
                 if (telling) tell(readyText());
                 settled();
                 Q_FOREACH (QPointer<QAction> action, readyActions) {
@@ -559,6 +583,7 @@ private:
 
     void quitting()
     {
+        stopReading = true;
         // the settings on disk before anything starts that reads them
         KisSettingsRegistry::instance()->flush();
         if (state == Ready && apply()) return;

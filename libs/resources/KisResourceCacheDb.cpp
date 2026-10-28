@@ -42,6 +42,8 @@
 const QString dbDriver = "QSQLITE";
 const QString METADATA_RESOURCES = "resources";
 const QString METADATA_STORAGES = "storages";
+/// Thumbnails go in as PNG with zlib's fastest level (Qt maps quality 80 to 1): the first start stores thousands
+const int thumbnailQuality = 80;
 
 const QString KisResourceCacheDb::resourceCacheDbFilename { "resourcecache.sqlite" };
 const QString KisResourceCacheDb::databaseVersion { "0.0.18" };
@@ -898,7 +900,7 @@ bool KisResourceCacheDb::makeResourceTheCurrentVersion(int resourceId, KoResourc
 
     QBuffer buf;
     buf.open(QBuffer::WriteOnly);
-    resource->thumbnail().save(&buf, "PNG");
+    resource->thumbnail().save(&buf, "PNG", thumbnailQuality);
     buf.close();
     q.bindValue(":thumbnail", buf.data());
     q.bindValue(":id", resourceId);
@@ -1177,7 +1179,7 @@ bool KisResourceCacheDb::addResource(KisResourceStorageSP storage, QDateTime tim
 
     QBuffer buf;
     buf.open(QBuffer::WriteOnly);
-    resource->image().save(&buf, "PNG");
+    resource->image().save(&buf, "PNG", thumbnailQuality);
     buf.close();
     q.bindValue(":thumbnail", buf.data());
 
@@ -1668,7 +1670,7 @@ bool KisResourceCacheDb::addStorage(KisResourceStorageSP storage, bool preinstal
 
         QBuffer buf;
         buf.open(QBuffer::WriteOnly);
-        storage->thumbnail().save(&buf, "PNG");
+        storage->thumbnail().save(&buf, "PNG", thumbnailQuality);
         buf.close();
         q.bindValue(":thumbnail", buf.data());
 
@@ -2455,14 +2457,16 @@ QMap<QString, QVariant> KisResourceCacheDb::metaDataForId(int id, const QString 
 
 bool KisResourceCacheDb::updateMetaDataForId(const QMap<QString, QVariant> map, int id, const QString &tableName)
 {
-    QSqlDatabase::database().transaction();
+    // inside a caller's transaction (adding a storage's resources), ending it here would commit every later
+    // statement on its own, each synced to disk
+    const bool ownTransaction = QSqlDatabase::database().transaction();
 
     {
         QSqlQuery q;
         if (!q.prepare("DELETE FROM metadata\n"
                        "WHERE  foreign_id = :id\n"
                        "AND    table_name = :table\n")) {
-            QSqlDatabase::database().rollback();
+            if (ownTransaction) QSqlDatabase::database().rollback();
             qWarning() << "Could not prepare delete metadata query" << q.lastError();
             return false;
         }
@@ -2471,7 +2475,7 @@ bool KisResourceCacheDb::updateMetaDataForId(const QMap<QString, QVariant> map, 
         q.bindValue(":table", tableName);
 
         if (!q.exec()) {
-            QSqlDatabase::database().rollback();
+            if (ownTransaction) QSqlDatabase::database().rollback();
             qWarning() << "Could not execute delete metadata query" << q.lastError();
             return false;
 
@@ -2479,10 +2483,10 @@ bool KisResourceCacheDb::updateMetaDataForId(const QMap<QString, QVariant> map, 
     }
 
     if (addMetaDataForId(map, id, tableName)) {
-        QSqlDatabase::database().commit();
+        if (ownTransaction) QSqlDatabase::database().commit();
     }
     else {
-        QSqlDatabase::database().rollback();
+        if (ownTransaction) QSqlDatabase::database().rollback();
     }
     return true;
 }

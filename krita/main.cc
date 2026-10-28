@@ -269,6 +269,8 @@ extern "C" MAIN_EXPORT int MAIN_FN(int argc, char **argv)
     // never handing files to a running regular Krita
     if (useDevProfile) {
         key += "_dev";
+        // a release folder tried on a profile of its own (KRITA_DEV_APART) runs beside the dev build
+        if (KisProfile::isApart()) key += "_apart";
     } else {
         key += QLatin1Char('_') + KisProfile::name().remove(QLatin1Char(' '));
     }
