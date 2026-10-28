@@ -255,6 +255,10 @@ uniform vec4 reach;
 uniform float vibrancy;
 uniform vec2 grain;
 uniform sampler2D grainTile;
+// How far a bump at full tilt shifts what is seen through it, in pixels, and how much light it catches
+uniform vec2 distortion;
+// The bumps' tile is read this much larger than the grain's, so the shift changes gently from pixel to pixel
+const float bumpStretch = 2.0;
 uniform float evenness;
 uniform int lowerCount;
 uniform vec4 lowerShape[4];
@@ -479,6 +483,20 @@ vec3 tintedLab(vec3 b, vec3 tintLab, float s)
     return inGamut(l, mix(b.yz, tintLab.yz, scattered));
 }
 
+// The bumps' tilt at \p at (in texels of the tile), between texels: stepping from one to the next, the shift tore
+// the edges seen through the glass
+vec2 tiltAt(vec2 at)
+{
+    vec2 base = floor(at - 0.5);
+    vec2 f = at - 0.5 - base;
+    ivec2 i = ivec2(base);
+    vec2 a = texelFetch(grainTile, i & 127, 0).gb;
+    vec2 b = texelFetch(grainTile, (i + ivec2(1, 0)) & 127, 0).gb;
+    vec2 c = texelFetch(grainTile, (i + ivec2(0, 1)) & 127, 0).gb;
+    vec2 d = texelFetch(grainTile, (i + ivec2(1, 1)) & 127, 0).gb;
+    return (mix(mix(a, b, f.x), mix(c, d, f.x), f.y) - 0.5) * 2.0;
+}
+
 /**
  * More chroma for what is dull, little more for what is vivid already (the gain falls toward sRGB's
  * most vivid colors' chroma) and none near black and white, where added chroma reads as dirt: what is
@@ -535,16 +553,21 @@ void main()
     // The frost is read once, where green is bent to (the shader stays small enough to link quickly); the
     // colors part only where the glass is clear, so red and blue come from the canvas itself, a little apart.
     vec3 reached = pow(vec3(bent), ior) * 2.0 * band;
-    vec2 q = bent > 0.0 ? held(p - outward * reached.g) : p;
+    // the bumps of textured glass: each tilts it, so what is behind is seen a little to one side
+    vec2 tilt = distortion.x > 0.0 ? tiltAt((p - shape.xy) / (grain.y * bumpStretch)) : vec2(0.0);
+    vec2 bump = tilt * distortion.x;
+    vec2 q = bent > 0.0 ? held(p - outward * reached.g + bump) : held(p + bump);
     vec3 seen = throughLower(frostAt(q, blur), p);
     float sharp = bent > 0.0 ? (1.0 - thickness) * (1.0 - thickness) : 0.0;
     if (sharp > 0.01) {
         vec3 light = max(fromOklab(seen), 0.0);
-        light.r = mix(light.r, max(fromOklab(throughLower(clearLab(held(p - outward * reached.r)), p)).r, 0.0), sharp);
-        light.b = mix(light.b, max(fromOklab(throughLower(clearLab(held(p - outward * reached.b)), p)).b, 0.0), sharp);
+        light.r = mix(light.r, max(fromOklab(throughLower(clearLab(held(p - outward * reached.r + bump)), p)).r, 0.0), sharp);
+        light.b = mix(light.b, max(fromOklab(throughLower(clearLab(held(p - outward * reached.b + bump)), p)).b, 0.0), sharp);
         seen = toOklab(light);
     }
     seen = vivid(seen, vibrancy);
+    // and catch the room's light from the top left on their sides facing it
+    seen.x = clamp(seen.x + (tilt.x + tilt.y) * 0.70710678 * distortion.y, 0.0, 1.0);
     // the panel's own lightness, so its text reads as on a solid panel, with the colors behind kept
     seen.x = mix(seen.x, tintLab.x, evenness);
     vec3 color = tintedLab(mix(tintLab, seen, canvas), tintLab, strength);
@@ -814,7 +837,7 @@ struct Programs {
                           {"rect", "blurred", "halfFrost", "quarterFrost", "eighthFrost", "statistics", "shift", "slot", "restore", "power",
                            "factor", "shape", "corner", "tint", "tintLightness", "tintStrength", "opacity", "viewport", "sigma",
                            "beyond", "spacing", "dither", "veil", "rim", "ior", "under", "decode", "reach",
-                           "vibrancy", "grain", "grainTile", "evenness", "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"}, keptLinear)
+                           "vibrancy", "grain", "grainTile", "distortion", "evenness", "lowerCount", "lowerShape", "lowerCorner", "lowerTint", "lowerStrength"}, keptLinear)
             && ambientShrink.make(quadSource, ambientShrinkSource, {"rect", "source", "factor", "decode", "toImage"}, keptLinear)
             && ambient.make(quadSource, ambientSource, {"rect", "ambient", "factor", "toImage", "base", "strength", "knee", "backlight", "encode", "dither"}, keptLinear);
     }
@@ -1345,6 +1368,8 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1f(d->glass["vibrancy"], float(KisStudioGlass::vibrancy()));
     f->glUniform2f(d->glass["grain"], float(KisStudioGlass::grain()), float(qMax<qreal>(1, pixelRatio)));
     f->glUniform1f(d->glass["evenness"], float(KisStudioGlass::textContrast()));
+    f->glUniform2f(d->glass["distortion"], float(KisStudioGlass::distortion() * KisStudioGlass::bumpShift * pixelRatio),
+                   float(KisStudioGlass::distortion() * KisStudioGlass::bumpLight));
     // crown glass's 1.51, 1.52 and 1.53 for red, green and blue, their spread made five times as wide
     f->glUniform3f(d->glass["ior"], 1.47f, 1.52f, 1.57f);
     f->glUniform1f(d->glass["lowerStrength"], float(0.5 * (KisStudioGlass::tintOverDark() + KisStudioGlass::tintOverBright())));
@@ -1356,12 +1381,17 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     if (!d->grainTile) {
         const int size = KisStudioGlass::grainTileSize;
         QImage tile(size, size, QImage::Format_RGBA8888);
+        // the grain in red, the bumps' tilt across and down in green and blue
         const QVector<float> &grain = KisStudioGlass::grainTile();
+        const QVector<float> &bumps = KisStudioGlass::bumpTile();
+        auto byte = [](float value) { return uchar(qRound(qBound(0.0f, value, 1.0f) * 255)); };
         for (int y = 0; y < size; y++) {
             uchar *line = tile.scanLine(y);
             for (int x = 0; x < size; x++) {
-                const uchar value = uchar(qRound(qBound(0.0f, 0.5f + grain[y * size + x] / 6.0f, 1.0f) * 255));
-                line[4 * x] = line[4 * x + 1] = line[4 * x + 2] = value;
+                const int at = y * size + x;
+                line[4 * x] = byte(0.5f + grain[at] / 6.0f);
+                line[4 * x + 1] = byte(0.5f + bumps[2 * at] / 2);
+                line[4 * x + 2] = byte(0.5f + bumps[2 * at + 1] / 2);
                 line[4 * x + 3] = 255;
             }
         }
