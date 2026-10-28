@@ -534,8 +534,10 @@ void main()
     vec3 reached = pow(vec3(bent), ior) * 2.0 * band;
     vec2 q = bent > 0.0 ? held(p - outward * reached.g) : p;
     vec3 seen = throughLower(frostAt(q, blur), p);
-    // fading in with the bend: taken whole up to the band's inner side, they ended there in a seam
-    float sharp = (1.0 - thickness) * (1.0 - thickness) * bent;
+    // only near the rim, where the frost is close to clear itself, and fading in with the bend: taken whole up to
+    // the band's inner side, they ended there in a seam, and over thicker frost they parted from green in a fringe
+    float thin = (1.0 - thickness) * (1.0 - thickness);
+    float sharp = thin * thin * bent;
     if (sharp > 0.01) {
         vec3 light = max(fromOklab(seen), 0.0);
         light.r = mix(light.r, max(fromOklab(throughLower(clearLab(held(p - outward * reached.r)), p)).r, 0.0), sharp);
