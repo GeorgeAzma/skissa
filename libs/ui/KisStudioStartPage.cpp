@@ -2216,10 +2216,13 @@ void KisStudioStartPage::showOpenImages()
         delete item;
     }
     int count = 0;
+    // the one shown large below goes back to it already
+    const QString latest = d->gallery ? d->gallery->latest() : QString();
     Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
         if (!view || view->mainWindow() != d->mainWindow || !view->document() || !view->image()) continue;
         KisDocument *document = view->document();
         const QString path = document->localFilePath();
+        if (!path.isEmpty() && !latest.isEmpty() && QFileInfo(path) == QFileInfo(latest)) continue;
         const QString name = path.isEmpty() ? i18nc("an image open now that was never saved", "Unsaved") : QFileInfo(path).completeBaseName();
         auto *tile = new NewTile(name, QSize(), d->openPill);
         tile->setPicture(document->generatePreview(QSize(200, 200)).toImage(), view->image()->bounds().size());
