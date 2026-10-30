@@ -47,9 +47,9 @@ The code was written by an LLM, on top of Krita's code. All the UI designs were 
 
 [Support Krita](https://krita.org/support-us/donations)
 
-### [Install](../../releases)
+### [Install](https://github.com/GeorgeAzma/skissa/releases)
 - unzip (somewhere you can write, not Program Files)
-- launch `bin\krita.exe`
+- launch `bin\skissa.exe`
 - updates itself
 
 > [!NOTE]
