@@ -71,6 +71,16 @@ public:
     QVector<QPointF>& transformedPoints();
 
     void run(KisPaintDeviceSP srcDevice, KisPaintDeviceSP dstDevice);
+
+    /**
+     * Brings \p dstDevice, which holds what run() made for \p previous, to
+     * what run() makes now, redrawing only where the grid changed (\p changed).
+     * False when the grids differ, and run() is needed.
+     */
+    bool runChanges(const KisLiquifyTransformWorker &previous,
+                    KisPaintDeviceSP srcDevice, KisPaintDeviceSP dstDevice,
+                    QRect *changed) const;
+
     QImage runOnQImage(const QImage &srcImage,
                        const QPointF &srcImageOffset,
                        const QTransform &imageToThumbTransform,

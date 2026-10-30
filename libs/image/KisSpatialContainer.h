@@ -47,6 +47,9 @@ public:
     void addPoint(int index, QPointF position);
     void removePoint(int index, QPointF position);
     void movePoint(int index, QPointF positionBefore, QPointF positionAfter);
+    /// Scales every point and the tree with it, in one pass. Exact only for scales by
+    /// positive powers of two, which keep every point on its side of each partition.
+    void scale(qreal sx, qreal sy);
     QVector<QPointF> toVector();
 
     void findAllInRange(QVector<int> &indexes, QPointF center, qreal range);
@@ -88,6 +91,7 @@ private:
     void clearRec(SpatialNode* node);
 
     void deepCopyData(SpatialNode* node, const SpatialNode* from);
+    void scaleRec(SpatialNode* node, qreal sx, qreal sy);
 
 
 

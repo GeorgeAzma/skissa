@@ -59,6 +59,7 @@
 #include "KisAnimAutoKey.h"
 #include "krita_utils.h"
 #include <KisFrameRate.h>
+#include "KisLiquifyInPlace.h"
 
 
 struct InplaceTransformStrokeStrategy::Private
@@ -138,6 +139,8 @@ struct InplaceTransformStrokeStrategy::Private
     KisBatchNodeUpdate initialUpdatesBeforeClear;
 
     bool convexHullHasBeenCalculated = false;
+
+    KisLiquifyInPlace liquifyInPlace;
 };
 
 
@@ -713,6 +716,8 @@ void InplaceTransformStrokeStrategy::notifyAllCommandsDone()
 
 void InplaceTransformStrokeStrategy::undoAllCommands()
 {
+    m_d->liquifyInPlace.undoneAll();
+
     for (auto it = std::make_reverse_iterator(m_d->commands.end());
          it != std::make_reverse_iterator(m_d->commands.begin());
          ++it) {
@@ -725,6 +730,8 @@ void InplaceTransformStrokeStrategy::undoAllCommands()
 
 void InplaceTransformStrokeStrategy::undoTransformCommands(int levelOfDetail)
 {
+    m_d->liquifyInPlace.undone(levelOfDetail);
+
     for (auto it = std::make_reverse_iterator(m_d->commands.end());
          it != std::make_reverse_iterator(m_d->commands.begin());) {
 
@@ -762,7 +769,7 @@ void InplaceTransformStrokeStrategy::fetchAllUpdateRequests(int levelOfDetail, K
     dirtyRects.swap(prevDirtyRects);
 }
 
-void InplaceTransformStrokeStrategy::transformNode(KisNodeSP node, const ToolTransformArgs &config, int levelOfDetail)
+void InplaceTransformStrokeStrategy::transformNode(KisNodeSP node, const ToolTransformArgs &config, int levelOfDetail, bool inPlace)
 {
     KisPaintDeviceSP device = node->paintDevice();
 
@@ -828,11 +835,20 @@ void InplaceTransformStrokeStrategy::transformNode(KisNodeSP node, const ToolTra
         KisTransaction transaction(device);
 
         KisProcessingVisitor::ProgressHelper helper(node);
-        KisTransformUtils::transformAndMergeDevice(config, cachedPortion,
-                                                   device, &helper);
+        QRect changed;
+        if (config.mode() == ToolTransformArgs::LIQUIFY && config.liquifyWorker()) {
+            changed = m_d->liquifyInPlace.transform(config, cachedPortion, device, levelOfDetail, inPlace);
+        } else {
+            KisTransformUtils::transformAndMergeDevice(config, cachedPortion,
+                                                       device, &helper);
+        }
 
         executeAndAddCommand(transaction.endAndTake(), commandGroup, KisStrokeJobData::CONCURRENT);
-        addDirtyRect(node, cachedPortion->extent() | node->projectionPlane()->tightUserVisibleBounds(), levelOfDetail);
+        if (!inPlace) {
+            addDirtyRect(node, cachedPortion->extent() | node->projectionPlane()->tightUserVisibleBounds(), levelOfDetail);
+        } else if (!changed.isEmpty()) {
+            addDirtyRect(node, changed, levelOfDetail);
+        }
 
     } else if (KisTransformMask *transformMask =
                dynamic_cast<KisTransformMask*>(node.data())) {
@@ -960,11 +976,18 @@ void InplaceTransformStrokeStrategy::reapplyTransform(ToolTransformArgs args,
     CommandGroup commandGroup =
         levelOfDetail > 0 ? TransformLod : Transform;
 
+    // liquify changes the last update where it can, instead of undoing it
+    QSharedPointer<bool> inPlace(new bool(false));
+    // one copy for all the jobs: a liquify grid is costly to copy
+    QSharedPointer<const ToolTransformArgs> sharedArgs(new ToolTransformArgs(args));
+
     KritaUtils::addJobBarrier(mutatedJobs, levelOfDetail,
-                              [this, args, levelOfDetail, updateData, useHoldUI, commandGroup]() {
+                              [this, sharedArgs, levelOfDetail, updateData, useHoldUI, commandGroup, inPlace]() {
+
+        *inPlace = !useHoldUI && m_d->liquifyInPlace.canUpdate(m_d->processedNodes, *sharedArgs, levelOfDetail);
 
         // it has its own dirty requests blocking inside
-        undoTransformCommands(levelOfDetail);
+        if (!*inPlace) undoTransformCommands(levelOfDetail);
 
         if (useHoldUI) {
             executeAndAddCommand(new KisHoldUIUpdatesCommand(m_d->updatesFacade, KisCommandUtils::FlipFlopCommand::INITIALIZING), commandGroup, KisStrokeJobData::BARRIER);
@@ -975,8 +998,8 @@ void InplaceTransformStrokeStrategy::reapplyTransform(ToolTransformArgs args,
 
     Q_FOREACH (KisNodeSP node, m_d->processedNodes) {
         KritaUtils::addJobConcurrent(mutatedJobs, levelOfDetail,
-                                     [this, node, args, levelOfDetail]() {
-            transformNode(node, args, levelOfDetail);
+                                     [this, node, sharedArgs, levelOfDetail, inPlace]() {
+            transformNode(node, *sharedArgs, levelOfDetail, *inPlace);
         });
     }
 

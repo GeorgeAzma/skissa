@@ -301,6 +301,7 @@ set(kritaimage_LIB_SRCS
    kis_warptransform_worker.cc
    kis_cage_transform_worker.cpp
    kis_liquify_transform_worker.cpp
+   KisLiquifyRenderer.cpp
    kis_green_coordinates_math.cpp
    kis_transparency_mask.cc
    kis_undo_adapter.cpp

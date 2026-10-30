@@ -164,7 +164,7 @@ private:
 
     void fetchAllUpdateRequests(int levelOfDetail, KisBatchNodeUpdateSP updateData);
 
-    void transformNode(KisNodeSP node, const ToolTransformArgs &config, int levelOfDetail);
+    void transformNode(KisNodeSP node, const ToolTransformArgs &config, int levelOfDetail, bool inPlace = false);
     void createCacheAndClearNode(KisNodeSP node);
     void reapplyTransform(ToolTransformArgs args, QVector<KisStrokeJobData *> &mutatedJobs, int levelOfDetail, bool useHoldUI);
     void finalizeStrokeImpl(QVector<KisStrokeJobData *> &mutatedJobs, bool saveCommands);

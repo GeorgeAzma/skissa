@@ -710,6 +710,27 @@ void KisSpatialContainer::deepCopyData(SpatialNode *node, const SpatialNode *fro
     }
 }
 
+void KisSpatialContainer::scale(qreal sx, qreal sy)
+{
+    scaleRec(m_root, sx, sy);
+}
+
+void KisSpatialContainer::scaleRec(SpatialNode *node, qreal sx, qreal sy)
+{
+    if (!node) return;
+
+    node->xPartition *= sx;
+    node->yPartition *= sy;
+    const QRectF area = node->maximumArea;
+    node->maximumArea = QRectF(area.x() * sx, area.y() * sy, area.width() * sx, area.height() * sy);
+    for (SpatialNodeData &data : node->pointsData) {
+        data.position = QPointF(data.position.x() * sx, data.position.y() * sy);
+    }
+    for (SpatialNode *child : node->children) {
+        scaleRec(child, sx, sy);
+    }
+}
+
 int KisSpatialContainer::SpatialNode::childIndexForPoint(QPointF position)
 {
     if (position.x() > xPartition) {
