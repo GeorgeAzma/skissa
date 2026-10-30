@@ -114,7 +114,7 @@ private:
         if (!m_action) return;
         // use the key events' own times so a slow action doesn't turn a tap into a hold
         const qint64 down = timestamp && m_pressedAt ? qint64(timestamp - m_pressedAt) : m_since.elapsed();
-        if (!m_used && down < KisStudioHoldKeys::holdTime) return;
+        if (!m_used && (down < KisStudioHoldKeys::holdTime || paintsOnly(m_action))) return;
         // a missed release (drag and drop can swallow it) is not a stroke in progress
         m_pointerDown = m_pointerDown && KisModernStyle::pointerHeld();
         if (m_pointerDown) {
@@ -122,6 +122,15 @@ private:
             return;
         }
         revert();
+    }
+
+    /// A switch that shows nothing until a stroke uses it (the eraser): held without painting, a slow press (a tablet
+    /// pad's button) would otherwise be taken back as it is let go
+    static bool paintsOnly(const QAction *action)
+    {
+        static const QStringList names = {QStringLiteral("erase_action"), QStringLiteral("preserve_alpha"),
+                                          QStringLiteral("hmirror_action"), QStringLiteral("vmirror_action")};
+        return names.contains(action->objectName());
     }
 
     void revert()

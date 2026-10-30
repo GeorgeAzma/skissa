@@ -52,9 +52,14 @@ void KisStudioBrushMemory::layerChosen(KisNodeSP node)
     if (resources->currentPreset()->name() == stroke.brush) {
         return;
     }
+    // the eraser stays as it was: Krita keeps it in the brush, so the layer's brush would switch it unasked and the
+    // next press of the eraser key would seem to do nothing
+    const bool erasing = resources->eraserMode();
     KisStudioBrushPicker::use(view, stroke.brush);
+    if (resources->eraserMode() != erasing) resources->setEraserMode(erasing);
     if (resources->currentPreset() && resources->currentPreset()->name() == stroke.brush) {
-        resources->setSize(stroke.brushSize);
+        // the size it painted with; erasing keeps the eraser's own
+        if (!erasing) resources->setSize(stroke.brushSize);
         view->showFloatingMessage(i18nc("@info a brush taken from the layer just chosen, %1 its name", "%1 · this layer's brush",
                                         KisStudioBrushPicker::title(stroke.brush)),
                                   KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), 1600, KisFloatingMessage::Low);
