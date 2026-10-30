@@ -305,9 +305,10 @@ public:
     KoDocumentInfo *documentInfo() const;
 
     /**
-     * Performs a cleanup of unneeded backup files
+     * Performs a cleanup of unneeded backup files; \p toTrash moves them to the Recycle Bin instead (the user
+     * chose not to save: a slip can be taken back)
      */
-    void removeAutoSaveFiles(const QString &autosaveBaseName, bool wasRecovered);
+    void removeAutoSaveFiles(const QString &autosaveBaseName, bool wasRecovered, bool toTrash = false);
 
     /**
      * Returns true if this document or any of its internal child documents are modified.

@@ -49,8 +49,10 @@ QString configFile(const QString &fileName)
 
 QString tempFolder()
 {
+    // the dev build and its apart twin run side by side: each offers and removes only its own autosaves
+    const bool dev = qEnvironmentVariableIsSet("KRITA_DEV_PROFILE");
     const QString folder = QDir::tempPath() + QLatin1Char('/') + name()
-        + (qEnvironmentVariableIsSet("KRITA_DEV_PROFILE") ? QStringLiteral(" dev") : QString());
+        + (dev ? (qEnvironmentVariableIsSet("KRITA_DEV_APART") ? QStringLiteral(" dev apart") : QStringLiteral(" dev")) : QString());
     QDir().mkpath(folder);
     return folder;
 }

@@ -583,6 +583,8 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
 
 KisStudioEffectOverlay::~KisStudioEffectOverlay()
 {
+    // gone while shown, no hide event comes: autosave would stay held
+    if (d->held) d->held->setProperty("autosaveHeld", false);
     d->setCursor(false);
 }
 

@@ -2073,6 +2073,7 @@ bool KisDocument::openPath(const QString &_path, OpenFlags flags)
     QString path = _path;
     QString original  = "";
     bool autosaveOpened = false;
+    QString declinedAutosave;
     if (!fileBatchMode()) {
         QString file = path;
         QString asf = generateAutoSaveFileName(file);
@@ -2106,10 +2107,7 @@ bool KisDocument::openPath(const QString &_path, OpenFlags flags)
                 autosaveOpened = true;
                 break;
             case KisRecoverNamedAutosaveDialog::OpenMainFile :
-                if (!foreign) {
-                    KisUsageLogger::log(QString("Removing autosave file: %1").arg(asf));
-                    QFile::remove(asf);
-                }
+                if (!foreign) declinedAutosave = asf;
                 break;
             default: // Cancel
                 return false;
@@ -2118,6 +2116,13 @@ bool KisDocument::openPath(const QString &_path, OpenFlags flags)
     }
 
     bool ret = openPathInternal(path);
+
+    // the autosave goes only once the file it was declined for has opened, and to the Recycle Bin: a click on the
+    // wrong picture can be taken back
+    if (ret && !declinedAutosave.isEmpty()) {
+        KisUsageLogger::log(QString("Removing autosave file: %1").arg(declinedAutosave));
+        if (!QFile::moveToTrash(declinedAutosave)) QFile::remove(declinedAutosave);
+    }
 
     if (autosaveOpened || flags & RecoveryFile) {
         setReadWrite(true); // enable save button
@@ -2406,19 +2411,23 @@ QString KisDocument::warningMessage() const
 }
 
 
-void KisDocument::removeAutoSaveFiles(const QString &autosaveBaseName, bool wasRecovered)
+void KisDocument::removeAutoSaveFiles(const QString &autosaveBaseName, bool wasRecovered, bool toTrash)
 {
+    auto remove = [toTrash](const QString &path) {
+        if (!toTrash || !QFile::moveToTrash(path)) QFile::remove(path);
+    };
+
     // Eliminate any auto-save file
     QString asf = generateAutoSaveFileName(autosaveBaseName);   // the one in the current dir
     if (QFile::exists(asf)) {
         KisUsageLogger::log(QString("Removing autosave file: %1").arg(asf));
-        QFile::remove(asf);
+        remove(asf);
     }
     asf = generateAutoSaveFileName(QString());   // and the one in $HOME
 
     if (QFile::exists(asf)) {
         KisUsageLogger::log(QString("Removing autosave file: %1").arg(asf));
-        QFile::remove(asf);
+        remove(asf);
     }
 
     QList<QRegularExpression> expressions;
@@ -2433,7 +2442,7 @@ void KisDocument::removeAutoSaveFiles(const QString &autosaveBaseName, bool wasR
                 QFile::exists(autosaveBaseName)) {
 
             KisUsageLogger::log(QString("Removing autosave file: %1").arg(autosaveBaseName));
-            QFile::remove(autosaveBaseName);
+            remove(autosaveBaseName);
         }
     }
 }

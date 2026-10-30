@@ -28,6 +28,8 @@ QVector<Source> &undone()
     return list;
 }
 
+int documentOnly = 0;
+
 /// Milliseconds since \p stack's latest command ended, or -1 if there is none.
 /// Commands only record the time of day, so a negative difference wraps past midnight.
 qint64 documentAge(KUndo2Stack *stack)
@@ -57,8 +59,19 @@ bool redoSettings(KisSettingsRegistry *settings)
 
 } // namespace
 
+KisSettingsUndo::DocumentOnly::DocumentOnly()
+{
+    documentOnly++;
+}
+
+KisSettingsUndo::DocumentOnly::~DocumentOnly()
+{
+    documentOnly--;
+}
+
 bool KisSettingsUndo::undoInstead(KUndo2Stack *stack)
 {
+    if (documentOnly > 0) return false;
     KisSettingsRegistry *settings = KisSettingsRegistry::instance();
     const qint64 settingsAge = settings->undoAge();
     const qint64 docAge = documentAge(stack);
@@ -77,6 +90,7 @@ bool KisSettingsUndo::undoInstead(KUndo2Stack *stack)
 
 bool KisSettingsUndo::redoInstead(KUndo2Stack *stack)
 {
+    if (documentOnly > 0) return false;
     KisSettingsRegistry *settings = KisSettingsRegistry::instance();
     // Redo the most recently undone source that can still be redone; a new change
     // in either history clears that history's redo steps.

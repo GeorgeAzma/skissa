@@ -866,6 +866,11 @@ void KisToolFreehandHelper::repaintAs(const QVector<KisPaintInformation> &points
     Q_EMIT sigStrokeEnded();
 }
 
+QString KisToolFreehandHelper::transactionText() const
+{
+    return m_d->transactionText.toString();
+}
+
 bool KisToolFreehandHelper::hasLastStroke() const
 {
     KisImageSP image = m_d->piecesImage;

@@ -75,6 +75,8 @@ public:
     bool hasLastStroke() const;
     /// The image the last stroke was painted on
     KisImageWSP lastStrokeImage() const;
+    /// The name of the step a stroke leaves in the history
+    QString transactionText() const;
     /**
      * Paints the last stroke again, as it was drawn, with the brush as it is now (in the color it had).
      * With the smoothing changed since, the pen's own path is smoothed again as it is now set.

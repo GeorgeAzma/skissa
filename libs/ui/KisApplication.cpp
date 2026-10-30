@@ -1257,8 +1257,10 @@ void KisApplication::checkAutosaveFiles()
             QStringList filesToRecover = d->autosaveDialog->recoverableFiles();
             Q_FOREACH (const QString &autosaveFile, autosaveFiles) {
                 if (!filesToRecover.contains(autosaveFile)) {
-                    KisUsageLogger::log(QString("Removing autosave file %1").arg(dir.absolutePath() + "/" + autosaveFile));
-                    QFile::remove(dir.absolutePath() + "/" + autosaveFile);
+                    const QString declined = dir.absolutePath() + "/" + autosaveFile;
+                    KisUsageLogger::log(QString("Removing autosave file %1").arg(declined));
+                    // to the Recycle Bin: a recovery declined by mistake can be taken back
+                    if (!QFile::moveToTrash(declined)) QFile::remove(declined);
                 }
             }
             autosaveFiles = filesToRecover;

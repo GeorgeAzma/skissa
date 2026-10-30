@@ -52,12 +52,14 @@ struct KisLastStrokeReplay::Private
     QString settings;
     /// The stroke's step in the history, once it is there
     const KUndo2Command *step {nullptr};
+    /// The name the stroke's step has: another action's step is never taken for it
+    QString stepText;
+    /// The newest step while the stroke's is awaited: the stroke's is the next one pushed after it
+    const KUndo2Command *before {nullptr};
     /// Where the stack's index will be once the stroke's step is pushed
     int expectedIndex {-1};
     /// A repaint was started and its step hasn't arrived yet
     bool painting {false};
-    /// It was asked to stop, the brush having changed again
-    bool cancelling {false};
     /// The image was seen idle once since: a step being pushed has had its turn by the next look
     bool idleSeen {false};
     /// The brush changed since the stroke was last painted
@@ -101,23 +103,44 @@ void KisLastStrokeReplay::strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack
     d->mode = paintMode();
     // the smoothing too: a change of it paints the stroke again as well
     d->settings = settings + (helper ? helper->smoothingKey() : QString());
+    d->stepText = helper ? helper->transactionText() : QString();
     d->step = nullptr;
     d->painting = false;
-    d->cancelling = false;
     d->dirty = false;
     if (stack != d->stack) {
         disconnect(d->stackConnection);
         d->stack = stack;
         d->stackConnection = connect(stack, &KUndo2Stack::indexChanged, this, [this](int index) {
-            if (d->step || !d->stack || index != d->expectedIndex || index < 1) return;
-            d->step = d->stack->command(index - 1);
+            if (!d->stack) return;
+            const KUndo2Command *top = index > 0 ? d->stack->command(index - 1) : nullptr;
+            if (d->step) {
+                // taken back or built on: the step may be deleted, and another could take its address
+                if (top != d->step) {
+                    d->step = nullptr;
+                    d->expectedIndex = -1;
+                }
+                return;
+            }
+            // only a step just pushed: nothing to redo after it, and not the one that was newest
+            if (d->expectedIndex < 0 || !top || index != d->stack->count() || top == d->before) return;
+            if (top->text().toString() != d->stepText) {
+                // another action came first: the stroke was taken back before its step arrived
+                d->expectedIndex = -1;
+                return;
+            }
+            d->step = top;
+            // a full history drops its oldest step instead of growing
+            d->expectedIndex = index;
             d->painting = false;
-            d->cancelling = false;
-            // changed again meanwhile: on to the newest look
-            if (d->dirty) replay();
+            // changed again meanwhile: on to the newest look, once out of the history's own call
+            if (d->dirty) {
+                d->retries = 0;
+                d->retry.start(0);
+            }
         });
     }
     // the stroke's step arrives once the image has painted it
+    d->before = stack && stack->index() > 0 ? stack->command(stack->index() - 1) : nullptr;
     d->expectedIndex = stack ? stack->index() + 1 : -1;
 }
 
@@ -153,29 +176,17 @@ void KisLastStrokeReplay::replay()
     const int index = d->stack->index();
 
     if (d->painting) {
-        // a repaint of an older look is still painting: stop it, it is already out of date
-        if (!d->cancelling) {
-            d->cancelling = true;
-            d->idleSeen = false;
-            // only while something paints: with nothing to cancel, the image asks everyone else to stop instead
-            if (!image->isIdle()) image->requestStrokeCancellation();
-        }
-        // idle twice in a row: a stroke that finished instead has pushed its step by then
+        // a repaint of an older look is still painting: it finishes, and the newest look is painted from its step.
+        // Stopped halfway, the stroke would be in no look at all: the step it replaces is gone once it starts.
         if (!image->isIdle() || !d->idleSeen) {
             d->idleSeen = image->isIdle();
             if (++d->retries < 600) d->retry.start(16);
             return;
         }
-        // finished after all: its step arrived, and painting goes on from there
-        if (index != d->expectedIndex - 1) return;
-        // stopped before its step was pushed: the stroke stays taken back, ready to be painted again
-        d->cancelling = false;
+        // idle twice in a row and its step never arrived: it was taken back (an undo), and stays so
+        d->painting = false;
         d->dirty = false;
-        if (!d->helper->replayLastStroke()) {
-            // it can't be: the stroke comes back as it was
-            d->stack->setIndex(d->expectedIndex);
-            d->expectedIndex = -1;
-        }
+        d->expectedIndex = -1;
         return;
     }
 
@@ -196,13 +207,22 @@ void KisLastStrokeReplay::replay()
     }
     d->step = nullptr;
     d->dirty = false;
+    d->before = index > 1 ? d->stack->command(index - 2) : nullptr;
     d->expectedIndex = index;
     d->stack->setIndex(index - 1);
+    if (d->stack->index() != index - 1) {
+        // the image refused the undo (busy): the stroke stays as it is until the next look
+        d->step = d->stack->command(index - 1);
+        d->dirty = true;
+        if (++d->retries < 600) d->retry.start(16);
+        return;
+    }
     if (!d->helper->replayLastStroke()) {
         // couldn't paint it again: it stays as it was
-        d->stack->setIndex(index);
         d->expectedIndex = -1;
+        d->stack->setIndex(index);
         return;
     }
     d->painting = true;
+    d->idleSeen = false;
 }

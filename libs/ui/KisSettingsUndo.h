@@ -22,6 +22,15 @@ namespace KisSettingsUndo
 KRITAUI_EXPORT bool undoInstead(KUndo2Stack *stack);
 /// Called before \p stack redoes; returns true if a settings change was redone instead.
 KRITAUI_EXPORT bool redoInstead(KUndo2Stack *stack);
+
+/// While one exists, undo and redo take back the document's own steps only: a dialog's Cancel taking back the
+/// layer it made must not take back a setting instead
+class KRITAUI_EXPORT DocumentOnly
+{
+public:
+    DocumentOnly();
+    ~DocumentOnly();
+};
 }
 
 #endif // KISSETTINGSUNDO_H

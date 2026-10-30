@@ -7,6 +7,7 @@
 #include "kis_document_undo_store.h"
 
 #include "KisDocument.h"
+#include "KisSettingsUndo.h"
 #include <kundo2stack.h>
 
 
@@ -45,6 +46,7 @@ void KisDocumentUndoStore::undoLastCommand()
      * command->undo() and remove the cache without committing it
      * to the undoStack
      */
+    KisSettingsUndo::DocumentOnly documentOnly;
     m_doc->undoStack()->undo();
 }
 
