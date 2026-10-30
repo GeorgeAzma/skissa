@@ -139,9 +139,19 @@ void KisLastStrokeReplay::strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack
             }
         });
     }
-    // the stroke's step arrives once the image has painted it
-    d->before = stack && stack->index() > 0 ? stack->command(stack->index() - 1) : nullptr;
-    d->expectedIndex = stack ? stack->index() + 1 : -1;
+    // the stroke's step arrives once the image has painted it; the image's own thread may have pushed it already, a
+    // step of this name begun no earlier than the stroke
+    const int index = stack ? stack->index() : -1;
+    const KUndo2Command *top = index > 0 ? stack->command(index - 1) : nullptr;
+    if (top && index == stack->count() && helper && top->text().toString() == d->stepText
+        && helper->strokeStartedAt().isValid() && top->time() >= helper->strokeStartedAt()) {
+        d->step = top;
+        d->before = index > 1 ? stack->command(index - 2) : nullptr;
+        d->expectedIndex = index;
+    } else {
+        d->before = top;
+        d->expectedIndex = stack ? index + 1 : -1;
+    }
 }
 
 bool KisLastStrokeReplay::follows(const QString &preset) const

@@ -129,6 +129,8 @@ struct KisToolFreehandHelper::Private
     bool hasPaintAtLeastOnce;
 
     QElapsedTimer strokeTime;
+    /// When the stroke began, as its step in the history records it
+    QTime startedAt;
     QTimer strokeTimeoutTimer;
 
     QVector<KisFreehandStrokeInfo*> strokeInfos;
@@ -337,6 +339,7 @@ void KisToolFreehandHelper::initPaint(KoPointerEvent *event,
 
     QPointF prevPoint = m_d->lastCursorPos.pushThroughHistory(pixelCoords, currentZoom());
     m_d->strokeTime.start();
+    m_d->startedAt = QTime::currentTime();
     KisPaintInformation pi =
         m_d->infoBuilder->startStroke(event, elapsedStrokeTime(), m_d->resourceManager);
     qreal startAngle = KisAlgebra2D::directionBetweenPoints(prevPoint, pixelCoords, 0.0);
@@ -869,6 +872,11 @@ void KisToolFreehandHelper::repaintAs(const QVector<KisPaintInformation> &points
 QString KisToolFreehandHelper::transactionText() const
 {
     return m_d->transactionText.toString();
+}
+
+QTime KisToolFreehandHelper::strokeStartedAt() const
+{
+    return m_d->startedAt;
 }
 
 bool KisToolFreehandHelper::hasLastStroke() const
