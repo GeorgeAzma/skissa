@@ -33,16 +33,30 @@ public:
         if (m_container.use_count() > 1) {
             m_container = std::make_shared<KisSpatialContainer>(*m_container);
         }
+        applyScale();
         return m_container.get();
     }
 
     /// for queries that change nothing
-    KisSpatialContainer &read() const {
+    KisSpatialContainer &read() {
+        if (m_scale != QPointF(1, 1)) return *operator->();
         return *m_container;
     }
 
+    /// scaled when next used: drawing never asks a scaled copy (a level of detail) for its points
+    void scale(qreal sx, qreal sy) {
+        m_scale = QPointF(m_scale.x() * sx, m_scale.y() * sy);
+    }
+
 private:
+    void applyScale() {
+        if (m_scale == QPointF(1, 1)) return;
+        m_container->scale(m_scale.x(), m_scale.y());
+        m_scale = QPointF(1, 1);
+    }
+
     std::shared_ptr<KisSpatialContainer> m_container;
+    QPointF m_scale {1, 1};
 };
 
 }
@@ -735,8 +749,8 @@ void KisLiquifyTransformWorker::transformSrcAndDst(const QTransform &t)
             m_d->originalPoints[i] = t.map(m_d->originalPoints[i]);
             m_d->transformedPoints[i] = t.map(m_d->transformedPoints[i]);
         }
-        m_d->originalPointsContainer->scale(t.m11(), t.m22());
-        m_d->transformedPointsContainer->scale(t.m11(), t.m22());
+        m_d->originalPointsContainer.scale(t.m11(), t.m22());
+        m_d->transformedPointsContainer.scale(t.m11(), t.m22());
     } else {
         for (int i = 0; i < m_d->transformedPoints.count(); i++) {
             m_d->originalPointsContainer->movePoint(i, m_d->originalPoints[i], t.map(m_d->originalPoints[i]));
