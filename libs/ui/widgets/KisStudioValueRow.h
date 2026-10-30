@@ -13,8 +13,8 @@
 
 
 /**
- * A setting as one row: its name, its value as a bar and a number. Dragging the row changes it
- * (Shift: finer), a double click types it, a right click resets it, a click without a drag says so.
+ * A setting as one row: its name, its value as a bar and a number. Dragging the row or turning the wheel
+ * over it changes it (Shift: finer), a double click types it, a right click resets it, a click without a drag says so.
  * A small curve after the value shows that the pen drives it.
  */
 class KRITAUI_EXPORT KisStudioValueRow : public QWidget
@@ -85,6 +85,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
     bool event(QEvent *event) override;
 
 private:

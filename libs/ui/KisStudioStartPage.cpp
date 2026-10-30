@@ -39,6 +39,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QVariantAnimation>
+#include <QWheelEvent>
 #include <QtConcurrentRun>
 
 #include <algorithm>
@@ -837,6 +838,7 @@ public:
         , m_initial(initial)
     {
         setMouseTracking(true);
+        KisModernStyle::setWheelValue(this);
         setFixedHeight(QFontMetrics(numberFont()).height() + fontMetrics().height() + KisModernStyle::space1);
     }
 
@@ -901,6 +903,29 @@ protected:
     void mouseReleaseEvent(QMouseEvent *) override
     {
         m_dragging = None;
+    }
+
+    void wheelEvent(QWheelEvent *event) override
+    {
+        const QPoint at = event->position().toPoint();
+        const bool width = widthRect().contains(at);
+        if (m_dragging != None || (!width && !heightRect().contains(at))) {
+            QWidget::wheelEvent(event);
+            return;
+        }
+        event->accept();
+        const int steps = KisModernStyle::wheelSteps(event, this);
+        if (!steps) return;
+        // by ratios, as dragged; a notch always moves it
+        const int side = width ? m_image->size.width() : m_image->size.height();
+        const qreal factor = std::pow(event->modifiers() & Qt::ShiftModifier ? 1.01 : 1.1, steps);
+        int next = int(std::round(side * factor));
+        if (next == side) next += steps > 0 ? 1 : -1;
+        next = qBound(1, next, maxSide);
+        if (width) m_image->setWidth(next);
+        else m_image->setHeight(next);
+        update();
+        if (changed) changed();
     }
 
     void mouseDoubleClickEvent(QMouseEvent *event) override

@@ -10,6 +10,10 @@
 
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
+#include <QAbstractSlider>
+#include <QElapsedTimer>
+#include <QPointer>
+#include <QScrollBar>
 #include <QAction>
 #include <QCheckBox>
 #include <QGroupBox>
@@ -670,6 +674,53 @@ int KisModernStyle::wheelSteps(const QWheelEvent *event, QObject *receiver)
 }
 
 namespace {
+const char *const wheelValueProperty = "studioWheelValue";
+
+/**
+ * A turn of the wheel belongs to the widget it started over, while it keeps turning: values under the pointer
+ * (sliders, spin boxes, combo boxes) take it only if it started over them, so a page scrolling past them doesn't
+ * change them on its way, and a value being turned doesn't start the page scrolling when the pointer slips off it.
+ */
+class WheelLatch : public QObject
+{
+public:
+    static WheelLatch *instance()
+    {
+        static WheelLatch *latch = nullptr;
+        if (!latch) {
+            latch = new WheelLatch();
+            latch->setParent(qApp);
+            qApp->installEventFilter(latch);
+        }
+        return latch;
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() != QEvent::Wheel || !watched->isWidgetType()) return false;
+        // a pause ends the turn; the next one belongs to the deepest widget it reaches first
+        if (!m_last.isValid() || m_last.elapsed() > 400 || !m_owner) m_owner = static_cast<QWidget *>(watched);
+        m_last.restart();
+        QWidget *widget = static_cast<QWidget *>(watched);
+        if (!isValue(widget) || widget == m_owner || widget->isAncestorOf(m_owner)) return false;
+        // passed on to what is under it (the page)
+        event->ignore();
+        return true;
+    }
+
+private:
+    static bool isValue(QWidget *widget)
+    {
+        if (qobject_cast<QAbstractSpinBox *>(widget) || qobject_cast<QComboBox *>(widget)) return true;
+        if (qobject_cast<QAbstractSlider *>(widget)) return !qobject_cast<QScrollBar *>(widget);
+        return widget->property(wheelValueProperty).toBool();
+    }
+
+    QPointer<QWidget> m_owner;
+    QElapsedTimer m_last;
+};
+
 // half of Qt's 700 ms: soon enough to teach, still not under every pass of the pointer
 int toolTipDelay = 350;
 }
@@ -711,9 +762,15 @@ bool KisModernStyle::systemRoundsWindows()
 #endif
 }
 
+void KisModernStyle::setWheelValue(QWidget *widget)
+{
+    widget->setProperty(wheelValueProperty, true);
+}
+
 void KisModernStyle::polish(QWidget *widget)
 {
     QProxyStyle::polish(widget);
+    WheelLatch::instance();
 
     if (systemRoundsWindows()) {
         const Qt::WindowType type = widget->windowType();

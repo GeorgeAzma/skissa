@@ -121,6 +121,9 @@ public:
 
     /// Whole wheel notches in \p event. Smaller deltas (touchpads, fine wheels) accumulate on \p receiver.
     static int wheelSteps(const QWheelEvent *event, QObject *receiver);
+    /// Marks \p widget as a value the wheel changes. Like spin boxes, sliders and combo boxes, it takes the wheel only
+    /// when a turn of it starts over it: a page scrolled past it keeps scrolling.
+    static void setWheelValue(QWidget *widget);
 
     /// Whether the system reports the left button (or pen) down, even if Qt missed the release in a drag loop.
     static bool pointerHeld();

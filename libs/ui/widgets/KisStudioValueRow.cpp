@@ -16,6 +16,7 @@
 #include <QHelpEvent>
 #include <QPainter>
 #include <QToolTip>
+#include <QWheelEvent>
 
 #include <klocalizedstring.h>
 #include <QPainterPath>
@@ -60,6 +61,7 @@ KisStudioValueRow::KisStudioValueRow(const QString &name, QWidget *parent)
     setAttribute(Qt::WA_Hover);
     setFocusPolicy(Qt::NoFocus);
     setCursor(Qt::SizeHorCursor);
+    KisModernStyle::setWheelValue(this);
     setAccessibleName(name);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 }
@@ -382,6 +384,29 @@ void KisStudioValueRow::mouseMoveEvent(QMouseEvent *event)
     }
     change(next);
     event->accept();
+}
+
+void KisStudioValueRow::wheelEvent(QWheelEvent *event)
+{
+    if (!m_draggable || m_editing || m_dragging) {
+        QWidget::wheelEvent(event);
+        return;
+    }
+    event->accept();
+    const int steps = KisModernStyle::wheelSteps(event, this);
+    if (!steps) return;
+    const bool fine = event->modifiers() & Qt::ShiftModifier;
+    qreal next;
+    if (m_range.size && m_range.minimum > 0) {
+        // sizes by ratios, as dragged
+        next = qMax(m_value, m_range.minimum) * std::pow(fine ? 1.03 : 1.15, steps);
+    } else {
+        next = m_value + steps * (m_range.maximum - m_range.minimum) / (fine ? 100.0 : 20.0);
+    }
+    // a notch always moves it, however small the step is against the number's precision
+    const qreal unit = std::pow(10.0, -m_range.decimals);
+    if (qAbs(next - m_value) < unit) next = m_value + (steps > 0 ? unit : -unit);
+    change(next);
 }
 
 void KisStudioValueRow::mouseReleaseEvent(QMouseEvent *event)
