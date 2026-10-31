@@ -7,18 +7,25 @@
 #include "KisSettingsRegistry.h"
 
 #include <QAbstractButton>
+#include <QAbstractItemView>
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QHash>
 #include <QHelpEvent>
 #include <QImage>
+#include <QKeyEvent>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPointer>
 #include <QRegularExpression>
 #include <QScreen>
+#include <QTabletEvent>
 #include <QTextDocument>
+#include <QTimer>
 #include <QToolTip>
 #include <QUrl>
 #include <QtMath>
@@ -27,6 +34,9 @@
 #include <KisProfile.h>
 #include <KisSentenceCase.h>
 #include <KStandardGuiItem>
+
+#include "KisStudioMotion.h"
+#include <KSharedConfig>
 
 namespace
 {
@@ -214,37 +224,139 @@ QString sized(const QString &html)
     return QStringLiteral("<table cellspacing=\"0\" cellpadding=\"0\" width=\"%1\"><tr><td>%2</td></tr></table>").arg(width).arg(html);
 }
 
-/**
- * Moves the tip just shown for \p widget, a button or a row, beside it, level with it: under the pointer it covers
- * the next button of a rail or the next row of a panel. Large widgets (lists, the canvas) keep it at the pointer.
- */
-void placeBeside(QWidget *widget)
+/// The tooltip label Qt is showing, if any
+QWidget *shownTip()
 {
-    if (widget->height() > 48 || widget->width() > 600) return;
-    QWidget *tip = nullptr;
     Q_FOREACH (QWidget *top, QApplication::topLevelWidgets()) {
-        if (top->isVisible() && top->inherits("QTipLabel")) tip = top;
+        if (top->isVisible() && top->inherits("QTipLabel")) return top;
     }
-    if (!tip) return;
-    tip->adjustSize();
-    const QRect around(widget->mapToGlobal(QPoint(0, 0)), widget->size());
-    QScreen *screen = widget->screen();
-    if (!screen) return;
-    const QRect available = screen->availableGeometry();
-    constexpr int gap = 8;
-    QPoint at(around.right() + 1 + gap, around.top() + (around.height() - tip->height()) / 2);
-    if (at.x() + tip->width() > available.right()) at.setX(around.left() - gap - tip->width());
-    if (at.x() < available.left()) return;
-    at.setY(qBound(available.top(), at.y(), available.bottom() - tip->height()));
-    tip->move(at);
+    return nullptr;
 }
 
-/// Shows tooltips with their gestures drawn and their shortcut, for every widget
+/// \p widget as an item view's viewport, the view; else null
+QAbstractItemView *viewOf(QWidget *widget)
+{
+    auto *view = qobject_cast<QAbstractItemView *>(widget->parentWidget());
+    return view && view->viewport() == widget ? view : nullptr;
+}
+
+/**
+ * What a tip at \p pos in \p widget is about, on screen: a button, or a list's row across its width. Empty for the
+ * rest (the canvas, a large list's background), whose tip stays at the pointer.
+ */
+QRect subjectOf(QWidget *widget, const QPoint &pos)
+{
+    if (QAbstractItemView *view = viewOf(widget)) {
+        const QModelIndex index = view->indexAt(pos);
+        if (!index.isValid()) return QRect();
+        const QRect row = view->visualRect(index);
+        return QRect(widget->mapToGlobal(QPoint(0, row.top())), QSize(widget->width(), row.height()));
+    }
+    if (widget->height() > 48 || widget->width() > 600) return QRect();
+    return QRect(widget->mapToGlobal(QPoint(0, 0)), widget->size());
+}
+
+/**
+ * Moves \p tip beside \p subject, level with it, toward the middle of the window (the free side of a rail or a
+ * panel, under a bar along the top): under the pointer it covered the next button or row. A side over \p work, the
+ * canvas around the last stroke, is left for the other.
+ */
+void placeBeside(QWidget *tip, QWidget *widget, const QRect &subject, const QRect &work)
+{
+    QScreen *screen = widget->screen();
+    if (!screen || subject.isEmpty()) return;
+    tip->adjustSize();
+    const QRect available = screen->availableGeometry();
+    const QRect window = widget->window()->geometry();
+    // laid along a bar (wider than tall) the tip goes above or below, along a rail or a panel to a side; a list's
+    // rows are stacked, whatever the list's shape
+    bool across = false;
+    for (QWidget *strip = viewOf(widget) ? nullptr : widget->parentWidget(); strip && !strip->isWindow(); strip = strip->parentWidget()) {
+        if (strip->width() > 2 * subject.width() || strip->height() > 2 * subject.height()) {
+            across = strip->width() > 2 * strip->height();
+            break;
+        }
+    }
+    constexpr int gap = KisModernStyle::space2;
+    QList<QRect> sides;
+    if (across) {
+        const QRect below(QPoint(subject.center().x() - tip->width() / 2, subject.bottom() + 1 + gap), tip->size());
+        const QRect above(QPoint(below.left(), subject.top() - gap - tip->height()), tip->size());
+        sides = subject.center().y() < window.center().y() ? QList<QRect>{below, above} : QList<QRect>{above, below};
+    } else {
+        const QRect right(QPoint(subject.right() + 1 + gap, subject.center().y() - tip->height() / 2), tip->size());
+        const QRect left(QPoint(subject.left() - gap - tip->width(), right.top()), tip->size());
+        sides = subject.center().x() < window.center().x() ? QList<QRect>{right, left} : QList<QRect>{left, right};
+    }
+    QRect chosen;
+    for (QRect side : sides) {
+        // kept on screen along the subject, never pushed back over it
+        if (across) side.moveLeft(qBound(available.left(), side.left(), available.right() - side.width()));
+        else side.moveTop(qBound(available.top(), side.top(), available.bottom() - side.height()));
+        if (!available.contains(side)) continue;
+        if (chosen.isEmpty()) chosen = side;
+        if (!side.intersects(work)) {
+            chosen = side;
+            break;
+        }
+    }
+    if (!chosen.isEmpty()) tip->move(chosen.topLeft());
+}
+
+/**
+ * Shows tooltips with their gestures drawn and their shortcut, for every widget, and keeps them out of the way:
+ * none just after a click, a stroke or a key; a tip seen a few times waits longer before it shows; it shows beside
+ * its control, off the canvas being painted, and fades as the pointer moves on.
+ */
 class TipFilter : public QObject
 {
+public:
+    TipFilter()
+    {
+        m_clock.start();
+        m_pending.setSingleShot(true);
+        connect(&m_pending, &QTimer::timeout, this, [this]() { showPending(); });
+        m_saveLater.setSingleShot(true);
+        m_saveLater.setInterval(3000);
+        connect(&m_saveLater, &QTimer::timeout, this, [this]() { saveSeen(); });
+        Q_FOREACH (const QString &entry, KSharedConfig::openConfig()->group(QString()).readEntry(seenKey, QStringList())) {
+            const int colon = entry.indexOf(QLatin1Char(':'));
+            if (colon > 0) m_seen.insert(entry.left(colon), entry.mid(colon + 1).toInt());
+        }
+    }
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
+        switch (event->type()) {
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonDblClick:
+        case QEvent::MouseButtonRelease: {
+            auto *mouse = static_cast<QMouseEvent *>(event);
+            worked(watched, mouse->globalPos(), event->type() != QEvent::MouseButtonRelease, mouse->timestamp());
+            break;
+        }
+        case QEvent::TabletPress:
+        case QEvent::TabletRelease: {
+            auto *tablet = static_cast<QTabletEvent *>(event);
+            worked(watched, tablet->globalPos(), event->type() == QEvent::TabletPress, tablet->timestamp());
+            break;
+        }
+        case QEvent::Wheel:
+            worked(nullptr, QPoint(), false, 0);
+            break;
+        case QEvent::KeyPress: {
+            const int key = static_cast<QKeyEvent *>(event)->key();
+            const bool modifier = key == Qt::Key_Shift || key == Qt::Key_Control || key == Qt::Key_Alt || key == Qt::Key_Meta;
+            if (!modifier) worked(nullptr, QPoint(), false, 0);
+            break;
+        }
+        case QEvent::MouseMove:
+            moved(static_cast<QMouseEvent *>(event)->globalPos());
+            break;
+        default:
+            break;
+        }
         if (event->type() != QEvent::ToolTip) return false;
         // all of them off in Settings, the lists' and the brushes' cards too
         if (!KisSettingsRegistry::instance()->value(QStringLiteral("StudioTooltips")).toBool()) {
@@ -253,6 +365,110 @@ protected:
         }
         auto *widget = qobject_cast<QWidget *>(watched);
         if (!widget) return false;
+        auto *help = static_cast<QHelpEvent *>(event);
+        if (m_inner) return showOwn(widget, help);
+
+        const QString key = keyOf(widget, help->pos());
+        const qint64 now = m_clock.elapsed();
+        int wait = 0;
+        if (now - m_workedAt < quietAfterWork) {
+            // the control just used says nothing; another one waits for the pointer to rest after the work
+            if (m_usedOn && (m_usedOn == widget || m_usedOn->isAncestorOf(widget) || widget->isAncestorOf(m_usedOn))) return true;
+            wait = int(quietAfterWork - (now - m_workedAt));
+        }
+        if (m_seen.value(key) >= familiar) wait = qMax(wait, familiarWait);
+        if (wait > 0) {
+            m_pendingWidget = widget;
+            m_pendingPos = help->pos();
+            m_pendingGlobal = help->globalPos();
+            m_pending.start(wait);
+            return true;
+        }
+        show(widget, help->pos(), help->globalPos(), key);
+        return true;
+    }
+
+private:
+    static constexpr int quietAfterWork = 1000;
+    static constexpr int familiar = 3;
+    static constexpr int familiarWait = 1100;
+    static constexpr int seenKept = 400;
+    static constexpr int workReach = 160;
+    static const QString seenKey;
+
+    /// A tip's control, by what its tip says, else by where it sits (and in a list, the column)
+    static QString keyOf(QWidget *widget, const QPoint &pos)
+    {
+        QString key = widget->toolTip();
+        if (key.isEmpty()) {
+            QStringList path;
+            for (QWidget *at = widget; at && path.size() < 4; at = at->parentWidget()) {
+                path << (at->objectName().isEmpty() ? QString::fromLatin1(at->metaObject()->className()) : at->objectName());
+            }
+            if (QAbstractItemView *view = viewOf(widget)) path << QString::number(view->indexAt(pos).column());
+            key = path.join(QLatin1Char('/'));
+        }
+        return QString::number(qHash(key), 36);
+    }
+
+    /// A click, a stroke, a turn of the wheel or a key: no tips for a moment, and none waiting
+    void worked(QObject *on, const QPoint &globalPos, bool pressed, ulong timestamp)
+    {
+        m_workedAt = m_clock.elapsed();
+        m_pending.stop();
+        // a tip shown during the work (a value while dragged) is the work's own
+        m_shownAt = QPoint();
+        auto *widget = qobject_cast<QWidget *>(on);
+        if (!widget) return;
+        if (widget->inherits("KisOpenGLCanvas2") || widget->inherits("KisQPainterCanvas")) {
+            m_workAt = globalPos;
+            m_workTime = m_workedAt;
+        }
+        if (!pressed) return;
+        // a press reaches the widget, then each parent that ignores it: counted once
+        if (timestamp && timestamp == m_pressStamp) return;
+        m_pressStamp = timestamp;
+        m_usedOn = widget;
+        // using a control is knowing it too
+        if (!widget->toolTip().isEmpty() || viewOf(widget)) see(keyOf(widget, widget->mapFromGlobal(globalPos)));
+    }
+
+    void moved(const QPoint &globalPos)
+    {
+        if (m_pending.isActive() && (globalPos - m_pendingGlobal).manhattanLength() > 4) m_pending.stop();
+        // the tip goes as the pointer moves on
+        if (!m_shownAt.isNull() && (globalPos - m_shownAt).manhattanLength() > 8) {
+            m_shownAt = QPoint();
+            if (QWidget *tip = shownTip()) KisStudioMotion::hideFaded(tip);
+        }
+    }
+
+    void showPending()
+    {
+        if (!m_pendingWidget || !m_pendingWidget->isVisible()) return;
+        show(m_pendingWidget, m_pendingPos, m_pendingGlobal, keyOf(m_pendingWidget, m_pendingPos));
+    }
+
+    /// Shows the tip at \p pos as \p widget or its parents make it, beside its subject
+    void show(QWidget *widget, const QPoint &pos, const QPoint &globalPos, const QString &key)
+    {
+        if (QWidget *tip = shownTip()) KisStudioMotion::stopFade(tip);
+        QHelpEvent help(QEvent::ToolTip, pos, globalPos);
+        m_inner = true;
+        QApplication::sendEvent(widget, &help);
+        m_inner = false;
+        QWidget *tip = shownTip();
+        if (!tip) return;
+        const bool recent = !m_workAt.isNull() && m_clock.elapsed() - m_workTime < 60000;
+        const QRect work = recent ? QRect(m_workAt - QPoint(workReach, workReach), QSize(2 * workReach, 2 * workReach)) : QRect();
+        placeBeside(tip, widget, subjectOf(widget, pos), work);
+        m_shownAt = globalPos;
+        see(key);
+    }
+
+    /// The tip of \p widget as its own tooltip says, drawn: false leaves it to the widget (lists, cards)
+    bool showOwn(QWidget *widget, QHelpEvent *event)
+    {
         QString plain = widget->toolTip();
         auto *button = qobject_cast<QAbstractButton *>(widget);
         const bool keyOnly = plain.isEmpty() && button && button->property("keyOnlyTip").toBool();
@@ -265,7 +481,7 @@ protected:
             if (plain.endsWith(named)) plain.chop(named.size());
             else if (plain.contains(keyText)) keyText.clear();
         }
-        const QPoint at = static_cast<QHelpEvent *>(event)->globalPos();
+        const QPoint at = event->globalPos();
         // a tip that says what the button says ("Reset" on Reset, Close's stock "Close the current window or document")
         // is no tip
         auto bare = [](QString text) { return text.remove(QLatin1Char('&')).remove(QChar(0x2026)).remove(QStringLiteral("...")).trimmed().toLower(); };
@@ -280,16 +496,54 @@ protected:
         if (keyOnly) {
             if (keyText.isEmpty()) return false;
             QToolTip::showText(at, keyText, widget, widget->rect());
-            placeBeside(widget);
             return true;
         }
         // Krita writes much of its own in Title Case ("Add Reference Image From File")
         if (!Qt::mightBeRichText(plain)) plain = KisSentenceCase::of(plain);
         QToolTip::showText(at, KisStudioTips::html(plain, keyText), widget, widget->rect());
-        placeBeside(widget);
         return true;
     }
+
+    /// Counts a tip shown or its control used, up to knowing it
+    void see(const QString &key)
+    {
+        int &count = m_seen[key];
+        if (count >= familiar) return;
+        count++;
+        if (m_seen.size() > seenKept) {
+            // the ones seen once make room
+            for (auto it = m_seen.begin(); it != m_seen.end();) {
+                if (it.value() <= 1 && it.key() != key) it = m_seen.erase(it);
+                else ++it;
+            }
+        }
+        m_saveLater.start();
+    }
+
+    void saveSeen()
+    {
+        QStringList entries;
+        for (auto it = m_seen.constBegin(); it != m_seen.constEnd(); ++it) entries << it.key() + QLatin1Char(':') + QString::number(it.value());
+        KisSettingsRegistry::writeLater(seenKey, entries);
+    }
+
+    QElapsedTimer m_clock;
+    qint64 m_workedAt {-quietAfterWork};
+    QPointer<QWidget> m_usedOn;
+    ulong m_pressStamp {0};
+    QPoint m_workAt;
+    qint64 m_workTime {0};
+    bool m_inner {false};
+    QTimer m_pending;
+    QPointer<QWidget> m_pendingWidget;
+    QPoint m_pendingPos;
+    QPoint m_pendingGlobal;
+    QPoint m_shownAt;
+    QHash<QString, int> m_seen;
+    QTimer m_saveLater;
 };
+
+const QString TipFilter::seenKey = QStringLiteral("StudioTooltipsSeen");
 
 } // namespace
 
