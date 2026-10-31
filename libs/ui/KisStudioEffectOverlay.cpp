@@ -24,6 +24,8 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSlider>
+
+#include <KisValueSteps.h>
 #include <QSpinBox>
 #include <QTabletEvent>
 #include <QTextEdit>
@@ -136,7 +138,7 @@ struct Knob {
     QString text() const
     {
         if (auto *box = qobject_cast<QDoubleSpinBox *>(widget)) {
-            return QString::number(box->value(), 'f', qMin(box->decimals(), 2)) + box->suffix();
+            return KisValueSteps::withoutTrailingZeros(QString::number(box->value(), 'f', qMin(box->decimals(), 2))) + box->suffix();
         }
         if (auto *box = qobject_cast<QSpinBox *>(widget)) return QString::number(box->value()) + box->suffix();
         return QString::number(qRound(value()));
@@ -922,7 +924,7 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
         QStringList shown;
         const Knob &first = d->knobs[0];
         if (first.widget) {
-            first.setValue(first.start + delta.x() * first.span / dragForWholeRange);
+            first.setValue(KisValueSteps::dragged(first.start + delta.x() * first.span / dragForWholeRange, first.span));
             shown << QStringLiteral("%1 %2").arg(first.label, first.text());
         }
         if (d->knobs.size() > 1 && d->knobs[1].widget) {
@@ -932,7 +934,7 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
                 d->secondLinked = true;
             }
             if (!d->secondLinked && qAbs(moved.y()) > 6) {
-                second.setValue(second.start - delta.y() * second.span / dragForWholeRange);
+                second.setValue(KisValueSteps::dragged(second.start - delta.y() * second.span / dragForWholeRange, second.span));
                 shown << QStringLiteral("%1 %2").arg(second.label, second.text());
             }
         }

@@ -41,6 +41,7 @@
 #include <kis_algebra_2d.h>
 #include <kis_signal_compressor_with_param.h>
 #include "KisModernStyle.h"
+#include "KisValueSteps.h"
 
 template <typename SpinBoxTypeTP, typename BaseSpinBoxTypeTP>
 class Q_DECL_HIDDEN KisSliderSpinBoxPrivate : public QObject
@@ -187,6 +188,8 @@ public:
         // If key CTRL is pressed, round to the closest step.
         if (modifiers & Qt::ControlModifier) {
             value = std::round(value / m_fastSliderStep) * m_fastSliderStep;
+        } else if (!(modifiers & Qt::ShiftModifier)) {
+            value = qBound(minimum, KisValueSteps::dragged(value, rangeSize), maximum);
         }
         //Return the value
         if (std::is_same<ValueType, double>::value) {

@@ -31,6 +31,7 @@
 #include <kis_num_parser.h>
 #include <kis_algebra_2d.h>
 #include "KisModernStyle.h"
+#include "KisValueSteps.h"
 
 template <typename SpinBoxTypeTP, typename BaseSpinBoxTypeTP>
 class Q_DECL_HIDDEN KisParseSpinBoxPrivate : public QObject
@@ -172,9 +173,13 @@ public:
         if (!m_lastExpressionParsed.isNull()) {
             return m_lastExpressionParsed;
         }
-        // Otherwise we transform the passed value to a string using the 
+        // Otherwise we transform the passed value to a string using the
         // method from the base class and return that
-        return m_q->BaseSpinBoxType::textFromValue(value);
+        QString text = m_q->BaseSpinBoxType::textFromValue(value);
+        if constexpr (std::is_floating_point<ValueType>::value) {
+            text = KisValueSteps::withoutTrailingZeros(text, m_q->locale().decimalPoint());
+        }
+        return text;
     }
 
     // Fix the selection so that the start and the end are in the value text
