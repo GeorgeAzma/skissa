@@ -22,6 +22,7 @@
 #include "kis_transform_utils.h"
 #include "kis_free_transform_strategy_gsl_helpers.h"
 #include "kis_algebra_2d.h"
+#include "KisTransformPerspective.h"
 
 
 namespace {
@@ -43,18 +44,30 @@ enum StrokeFunction {
     MOVECENTER,
     PERSPECTIVE,
     CAMERAHEIGHT,
-    ROTATEBOUNDS
+    ROTATEBOUNDS,
+    PERSPECTIVECORNER,
+    PERSPECTIVEEDGE,
+    VANISHINGPOINT,
+    FLATTENCORNER
 };
+
+bool isPerspective(StrokeFunction function)
+{
+    return function == PERSPECTIVE || function == CAMERAHEIGHT || function == PERSPECTIVECORNER
+        || function == PERSPECTIVEEDGE || function == VANISHINGPOINT || function == FLATTENCORNER;
+}
 }
 
 struct KisFreeTransformStrategy::Private
 {
     Private(KisFreeTransformStrategy *_q,
             const KisCoordinatesConverter *_converter,
+            KoSnapGuide *_snapGuide,
             ToolTransformArgs &_currentArgs,
             TransformTransactionProperties &_transaction)
         : q(_q),
           converter(_converter),
+          snapGuide(_snapGuide),
           currentArgs(_currentArgs),
           transaction(_transaction),
           imageTooBig(false),
@@ -78,6 +91,7 @@ struct KisFreeTransformStrategy::Private
     /// standard members ///
 
     const KisCoordinatesConverter *converter;
+    KoSnapGuide *snapGuide;
 
     //////
     ToolTransformArgs &currentArgs;
@@ -92,6 +106,7 @@ struct KisFreeTransformStrategy::Private
     QPointF paintingOffset;
 
     QTransform handlesTransform;
+    QTransform imageToFlake;
 
     /// custom members ///
 
@@ -129,6 +144,29 @@ struct KisFreeTransformStrategy::Private
 
     bool isTransforming {false};
 
+    // perspective: the corner, edge (top, right, bottom, left) or vanishing point (across, down) dragged
+    int handle {0};
+    QPolygonF clickQuad;
+    QPolygonF clickSource;
+    KisTransformPerspective::Catcher catcher;
+    bool showVanishing {false};
+
+    // corners being placed on something seen at an angle, over the image as it was
+    struct Flatten {
+        bool active {false};
+        ToolTransformArgs base;
+        QPolygonF box;
+        QPolygonF source;
+        QPolygonF quad;
+        QVector<bool> placed;
+    } flatten;
+
+    QPolygonF boxQuad() const;
+    QPolygonF sourceQuad() const;
+    bool flattenIsCurrent();
+    bool applyFlatten();
+    void setShowVanishing(bool value);
+
     QCursor getScaleCursor(const QPointF &handlePt);
     QCursor getShearCursor(const QPointF &start, const QPointF &end);
     void recalculateTransformations();
@@ -141,7 +179,7 @@ KisFreeTransformStrategy::KisFreeTransformStrategy(const KisCoordinatesConverter
                                                    ToolTransformArgs &currentArgs,
                                                    TransformTransactionProperties &transaction)
     : KisSimplifiedActionPolicyStrategy(converter, snapGuide),
-      m_d(new Private(this, converter, currentArgs, transaction))
+      m_d(new Private(this, converter, snapGuide, currentArgs, transaction))
 {
 }
 
@@ -196,18 +234,111 @@ void KisFreeTransformStrategy::Private::recalculateTransformedHandles()
     transformedHandles.rotationCenter = transform.map(currentArgs.originalCenter() + currentArgs.rotationCenterOffset());
 }
 
+QPolygonF KisFreeTransformStrategy::Private::boxQuad() const
+{
+    return QPolygonF({transformedHandles.topLeft, transformedHandles.topRight,
+                      transformedHandles.bottomRight, transformedHandles.bottomLeft});
+}
+
+QPolygonF KisFreeTransformStrategy::Private::sourceQuad() const
+{
+    return boundsTransform.map(QPolygonF({bounds.topLeft(), bounds.topRight(), bounds.bottomRight(), bounds.bottomLeft()}));
+}
+
+bool KisFreeTransformStrategy::Private::flattenIsCurrent()
+{
+    // anything else changing the transform (undo, reset, another layer) ends it
+    if (flatten.active && !(currentArgs == flatten.base)) {
+        flatten.active = false;
+    }
+    return flatten.active;
+}
+
+bool KisFreeTransformStrategy::Private::applyFlatten()
+{
+    QTransform straight;
+    if (!KisTransformPerspective::flattening(flatten.quad, flatten.box.boundingRect().center(),
+                                             QLineF(flatten.box[0], flatten.box[2]).length(), &straight)) {
+        return false;
+    }
+
+    // the whole box must stay on the quad's side of the horizon
+    auto w = [&straight](const QPointF &p) { return p.x() * straight.m13() + p.y() * straight.m23() + straight.m33(); };
+    const qreal side = w(flatten.quad.boundingRect().center());
+    for (const QPointF &p : flatten.box) {
+        if (w(p) * side <= 0) return false;
+    }
+
+    ToolTransformArgs args = flatten.base;
+    if (!KisTransformPerspective::fit(args, flatten.source, straight.map(flatten.box))) return false;
+    currentArgs = args;
+    flatten.active = false;
+    return true;
+}
+
+void KisFreeTransformStrategy::Private::setShowVanishing(bool value)
+{
+    if (showVanishing == value) return;
+    showVanishing = value;
+    Q_EMIT q->requestCanvasUpdate();
+}
+
 void KisFreeTransformStrategy::setTransformFunction(const QPointF &mousePos, bool perspectiveModifierActive, bool shiftModifierActive, bool altModifierActive)
 {
     Q_UNUSED(shiftModifierActive);
 
-    if (perspectiveModifierActive && !m_d->transaction.shouldAvoidPerspectiveTransform()) {
-        m_d->function = PERSPECTIVE;
+    qreal handleRadius = KisTransformUtils::effectiveHandleGrabRadius(m_d->converter);
+    const bool perspectiveAllowed = !m_d->transaction.shouldAvoidPerspectiveTransform();
+    const QPolygonF box = m_d->boxQuad();
+
+    // corners being placed for a flattening are dragged without keys
+    if (m_d->flattenIsCurrent()) {
+        for (int i = 0; i < 4; i++) {
+            if (kisDistance(mousePos, m_d->flatten.quad[i]) < handleRadius) {
+                m_d->function = FLATTENCORNER;
+                m_d->handle = i;
+                m_d->setShowVanishing(false);
+                return;
+            }
+        }
+    }
+
+    // Ctrl+Alt on a corner places it on something seen at an angle
+    if (altModifierActive && perspectiveAllowed) {
+        for (int i = 0; i < 4; i++) {
+            if (kisDistance(mousePos, box[i]) < handleRadius) {
+                m_d->function = FLATTENCORNER;
+                m_d->handle = i;
+                m_d->setShowVanishing(false);
+                return;
+            }
+        }
+    }
+
+    if (perspectiveModifierActive && perspectiveAllowed) {
+        KisTransformUtils::HandleChooser<StrokeFunction> chooser(mousePos, PERSPECTIVE);
+        int handle = 0;
+        for (int i = 0; i < 2; i++) {
+            QPointF vp;
+            if (KisTransformPerspective::vanishingPoint(box, i == 0, &vp) && chooser.addFunction(vp, handleRadius, VANISHINGPOINT)) {
+                handle = i;
+            }
+        }
+        for (int i = 0; i < 4; i++) {
+            if (chooser.addFunction(0.5 * (box[i] + box[(i + 1) % 4]), handleRadius, PERSPECTIVEEDGE)) handle = i;
+        }
+        for (int i = 0; i < 4; i++) {
+            if (chooser.addFunction(box[i], handleRadius, PERSPECTIVECORNER)) handle = i;
+        }
+        m_d->function = chooser.function();
+        m_d->handle = handle;
+        m_d->setShowVanishing(true);
         return;
     }
+    m_d->setShowVanishing(false);
 
     QTransform boundsFullTransform = m_d->boundsTransform * m_d->transform;
     QPolygonF transformedPolygon = boundsFullTransform.map(QPolygonF(m_d->bounds));
-    qreal handleRadius = KisTransformUtils::effectiveHandleGrabRadius(m_d->converter);
     qreal rotationHandleRadius = KisTransformUtils::effectiveHandleGrabRadius(m_d->converter);
 
 
@@ -311,6 +442,14 @@ QCursor KisFreeTransformStrategy::getCurrentCursor() const
     case CAMERAHEIGHT:
         cursor = KisCursor::sizeVerCursor();
         break;
+    case PERSPECTIVECORNER:
+    case PERSPECTIVEEDGE:
+    case VANISHINGPOINT:
+        cursor = KisCursor::pointingHandCursor();
+        break;
+    case FLATTENCORNER:
+        cursor = KisCursor::crossCursor();
+        break;
     case RIGHTSCALE:
         cursor = m_d->getScaleCursor(m_d->transformedHandles.middleRight);
         break;
@@ -365,6 +504,66 @@ void KisFreeTransformStrategy::paint(QPainter &gc, const KoColorDisplayRendererI
 
     gc.restore();
 
+    QPen pen[2];
+    pen[0].setWidth(decorationThickness());
+    pen[0].setCosmetic(true);
+    pen[1].setWidth(decorationThickness() * 2);
+    pen[1].setCosmetic(true);
+    pen[1].setColor(displayRendererInterface->convertColorToDisplayColorSpace(KoColor(Qt::lightGray, KoColorSpaceRegistry::instance()->rgb8())));
+
+    auto paintVanishingLines = [&](const QPolygonF &quad) {
+        gc.save();
+        gc.setOpacity(0.45);
+        for (int i = 1; i >= 0; --i) {
+            KisTransformPerspective::paintVanishingLines(gc, quad, m_d->imageToFlake, pen[i]);
+        }
+        gc.restore();
+    };
+
+    if (m_d->flattenIsCurrent()) {
+        const QPolygonF &quad = m_d->flatten.quad;
+        QPainterPath path;
+        path.addPolygon(m_d->imageToFlake.map(quad));
+        path.closeSubpath();
+
+        // a few lines across, as the flat thing's own grid
+        QTransform grid;
+        if (QTransform::squareToQuad(quad, grid)) {
+            for (int i = 1; i < 4; i++) {
+                path.moveTo(m_d->imageToFlake.map(grid.map(QPointF(i / 4.0, 0))));
+                path.lineTo(m_d->imageToFlake.map(grid.map(QPointF(i / 4.0, 1))));
+                path.moveTo(m_d->imageToFlake.map(grid.map(QPointF(0, i / 4.0))));
+                path.lineTo(m_d->imageToFlake.map(grid.map(QPointF(1, i / 4.0))));
+            }
+        }
+
+        const qreal r = KisTransformUtils::handleVisualRadius / 2.0;
+        QPainterPath placed;
+        for (int i = 0; i < 4; i++) {
+            const QPointF at = m_d->imageToFlake.map(quad[i]);
+            path.addRect(QRectF(at - QPointF(r, r), at + QPointF(r, r)));
+            if (m_d->flatten.placed[i]) {
+                placed.addRect(QRectF(at - QPointF(r - 2, r - 2), at + QPointF(r - 2, r - 2)));
+            }
+        }
+
+        paintVanishingLines(quad);
+        gc.save();
+        for (int i = 1; i >= 0; --i) {
+            gc.setPen(pen[i]);
+            gc.drawPath(path);
+        }
+        gc.setPen(Qt::NoPen);
+        gc.setBrush(pen[0].color());
+        gc.drawPath(placed);
+        gc.restore();
+        return;
+    }
+
+    if ((m_d->isTransforming && isPerspective(m_d->function)) || m_d->showVanishing) {
+        paintVanishingLines(m_d->boxQuad());
+    }
+
     // Draw Handles
 
     QRectF handleRect =
@@ -416,13 +615,6 @@ void KisFreeTransformStrategy::paint(QPainter &gc, const KoColorDisplayRendererI
     //gc.setTransform(m_d->handlesTransform, true); <-- don't do like this!
     QPainterPath mappedHandles = m_d->handlesTransform.map(handles);
 
-    QPen pen[2];
-    pen[0].setWidth(decorationThickness());
-    pen[0].setCosmetic(true);
-    pen[1].setWidth(decorationThickness() * 2);
-    pen[1].setCosmetic(true);
-    pen[1].setColor(displayRendererInterface->convertColorToDisplayColorSpace(KoColor(Qt::lightGray, KoColorSpaceRegistry::instance()->rgb8())));
-
     for (int i = 1; i >= 0; --i) {
         gc.setPen(pen[i]);
         gc.drawPath(mappedHandles);
@@ -438,6 +630,11 @@ void KisFreeTransformStrategy::externalConfigChanged()
 
 bool KisFreeTransformStrategy::beginPrimaryAction(const QPointF &pt)
 {
+    if (m_d->flattenIsCurrent() && m_d->function != FLATTENCORNER) {
+        m_d->flatten.active = false;
+        Q_EMIT requestCanvasUpdate();
+    }
+
     m_d->clickArgs = m_d->currentArgs;
     m_d->clickPos = pt;
 
@@ -446,6 +643,34 @@ bool KisFreeTransformStrategy::beginPrimaryAction(const QPointF &pt)
 
     if (m_d->function == ROTATEBOUNDS) {
         Q_EMIT requestConvexHullCalculation();
+    }
+
+    m_d->clickQuad = m_d->boxQuad();
+    m_d->clickSource = m_d->sourceQuad();
+
+    switch (m_d->function) {
+    case PERSPECTIVECORNER:
+    case TOPLEFTSCALE:
+    case TOPRIGHTSCALE:
+    case BOTTOMLEFTSCALE:
+    case BOTTOMRIGHTSCALE:
+        m_d->catcher.collect(m_d->snapGuide, m_d->transaction, m_d->converter);
+        break;
+    case FLATTENCORNER:
+        if (!m_d->flatten.active) {
+            m_d->flatten.active = true;
+            m_d->flatten.base = m_d->currentArgs;
+            m_d->flatten.box = m_d->clickQuad;
+            m_d->flatten.source = m_d->clickSource;
+            m_d->flatten.quad = m_d->clickQuad;
+            m_d->flatten.placed = QVector<bool>(4, false);
+        }
+        m_d->flatten.placed[m_d->handle] = true;
+        Q_EMIT requestCanvasUpdate();
+        break;
+    default:
+        m_d->catcher.clear();
+        break;
     }
 
     return true;
@@ -469,7 +694,36 @@ void KisFreeTransformStrategy::continuePrimaryAction(const QPointF &mousePos,
     m_d->isTransforming = true;
     const QPointF anchorPoint = m_d->clickArgs.originalCenter() + m_d->clickArgs.rotationCenterOffset();
 
+    // the image stays as it was while a flattening's corners are placed
+    if (m_d->function == FLATTENCORNER) {
+        m_d->flatten.quad[m_d->handle] = mousePos;
+        Q_EMIT requestCanvasUpdate();
+        return;
+    }
+
     switch (m_d->function) {
+    case PERSPECTIVECORNER:
+    case PERSPECTIVEEDGE:
+    case VANISHINGPOINT: {
+        QPolygonF quad = m_d->clickQuad;
+        const int i = m_d->handle;
+        if (m_d->function == PERSPECTIVECORNER) {
+            const qreal radius = 1.5 * KisTransformUtils::effectiveHandleGrabRadius(m_d->converter);
+            quad[i] = m_d->catcher.corner(mousePos, radius, {quad[(i + 3) % 4], quad[(i + 1) % 4]});
+        } else if (m_d->function == PERSPECTIVEEDGE) {
+            quad[i] += mousePos - m_d->clickPos;
+            quad[(i + 1) % 4] += mousePos - m_d->clickPos;
+        } else {
+            quad = KisTransformPerspective::withVanishingPoint(quad, i == 0, mousePos);
+        }
+        ToolTransformArgs args = m_d->clickArgs;
+        if (KisTransformPerspective::fit(args, m_d->clickSource, quad)) {
+            m_d->currentArgs = args;
+        }
+        break;
+    }
+    case FLATTENCORNER:
+        break;
     case MOVE: {
         QPointF diff = mousePos - m_d->clickPos;
 
@@ -762,12 +1016,13 @@ void KisFreeTransformStrategy::continuePrimaryAction(const QPointF &mousePos,
             staticPoint = anchorPoint;
         }
 
+        const QPointF caughtPos = m_d->catcher.corner(mousePos, 1.5 * KisTransformUtils::effectiveHandleGrabRadius(m_d->converter), {});
         QPointF staticPointInView = m_d->clickTransform.map(staticPoint);
-        QPointF movingPointInView = mousePos;
+        QPointF movingPointInView = caughtPos;
 
         if (shiftModifierActive  ||  m_d->currentArgs.keepAspectRatio()) {
             QPointF refDiff = m_d->clickTransform.map(movingPoint) - staticPointInView;
-            QPointF realDiff = mousePos - staticPointInView;
+            QPointF realDiff = caughtPos - staticPointInView;
             realDiff = kisProjectOnVector(refDiff, realDiff);
 
             movingPointInView = staticPointInView + realDiff;
@@ -879,6 +1134,19 @@ void KisFreeTransformStrategy::continuePrimaryAction(const QPointF &mousePos,
 
 bool KisFreeTransformStrategy::endPrimaryAction()
 {
+    m_d->catcher.clear();
+
+    // once all four corners are placed, the image is shown straight on
+    if (m_d->function == FLATTENCORNER && m_d->flattenIsCurrent()) {
+        m_d->isTransforming = false;
+        if (!m_d->flatten.placed.contains(false) && m_d->applyFlatten()) {
+            m_d->recalculateTransformations();
+            return !m_d->imageTooBig;
+        }
+        Q_EMIT requestCanvasUpdate();
+        return false;
+    }
+
     bool shouldSave = !m_d->imageTooBig;
     m_d->isTransforming = false;
 
@@ -906,6 +1174,7 @@ void KisFreeTransformStrategy::Private::recalculateTransformations()
     recalculateBounds();
 
     QTransform viewScaleTransform = converter->imageToDocumentTransform() * converter->documentToFlakeTransform();
+    imageToFlake = viewScaleTransform;
     handlesTransform = boundsTransform * transform * viewScaleTransform;
 
     QTransform tl = QTransform::fromTranslate(transaction.originalTopLeft().x(), transaction.originalTopLeft().y());

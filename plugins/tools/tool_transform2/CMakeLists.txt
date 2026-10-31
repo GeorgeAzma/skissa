@@ -17,6 +17,7 @@ set(kritatooltransform_static_SRCS
     kis_mesh_transform_strategy.cpp
     kis_free_transform_strategy.cpp
     kis_free_transform_strategy_gsl_helpers.cpp
+    KisTransformPerspective.cpp
     kis_perspective_transform_strategy.cpp
     kis_transform_utils.cpp
     strokes/transform_stroke_strategy.cpp
