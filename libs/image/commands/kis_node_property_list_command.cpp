@@ -54,6 +54,18 @@ QSet<QString> changedProperties(const KisBaseNode::PropertyList &before,
     return changedIds;
 }
 
+/// Whether a property went into or out of stasis (soloing), which can happen with its state unchanged
+bool stasisChanged(const KisBaseNode::PropertyList &before, const KisBaseNode::PropertyList &after)
+{
+    Q_FOREACH (const KisBaseNode::Property &prop, after) {
+        if (!prop.canHaveStasis) continue;
+        Q_FOREACH (const KisBaseNode::Property &old, before) {
+            if (old.id == prop.id && (old.isInStasis != prop.isInStasis || old.stateInStasis != prop.stateInStasis)) return true;
+        }
+    }
+    return false;
+}
+
 }
 
 
@@ -73,7 +85,7 @@ void KisNodePropertyListCommand::redo()
 {
     const KisBaseNode::PropertyList propsBefore = m_node->sectionModelProperties();
     const QSet<QString> changed = changedProperties(propsBefore, m_newPropertyList);
-    if (changed.isEmpty()) return;
+    if (changed.isEmpty() && !stasisChanged(propsBefore, m_newPropertyList)) return;
 
     const QRect oldExtent = m_node->projectionPlane()->tightUserVisibleBounds();
     m_node->setSectionModelProperties(m_newPropertyList);
@@ -87,7 +99,7 @@ void KisNodePropertyListCommand::undo()
 {
     const KisBaseNode::PropertyList propsBefore = m_node->sectionModelProperties();
     const QSet<QString> changed = changedProperties(propsBefore, m_oldPropertyList);
-    if (changed.isEmpty()) return;
+    if (changed.isEmpty() && !stasisChanged(propsBefore, m_oldPropertyList)) return;
 
     const QRect oldExtent = m_node->projectionPlane()->tightUserVisibleBounds();
     m_node->setSectionModelProperties(m_oldPropertyList);

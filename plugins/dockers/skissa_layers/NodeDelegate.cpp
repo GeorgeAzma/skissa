@@ -674,9 +674,11 @@ OptionalProperty NodeDelegate::Private::findVisibilityProperty(KisBaseNode::Prop
     return 0;
 }
 
-void NodeDelegate::Private::toggleProperty(KisBaseNode::PropertyList &props, const OptionalProperty clickedProperty, const Qt::KeyboardModifiers modifier, const QModelIndex &index)
+void NodeDelegate::Private::toggleProperty(KisBaseNode::PropertyList &props, const OptionalProperty clickedProperty, const Qt::KeyboardModifiers modifier, const QModelIndex &clicked)
 {
     QModelIndex root(view->rootIndex());
+    // rows are told apart by their first column; the eye has a column of its own
+    const QModelIndex index = clicked.sibling(clicked.row(), 0);
 
     if (clickedProperty->id == KisLayerPropertiesIcons::colorOverlay.id()) {
         // Open the properties dialog for the layer's fast color overlay mask.
