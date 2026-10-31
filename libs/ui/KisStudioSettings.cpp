@@ -1013,8 +1013,10 @@ public:
 protected:
     static constexpr int columns = 4;
     static constexpr int gap = 8;
-    static constexpr int label = 26;
     static constexpr QSize natural {96, 56};
+
+    /// Room for a name under its tile, in the interface font
+    int label() const { return qMax(26, fontMetrics().height() + 6); }
 
     QSize tileSize(int width) const
     {
@@ -1025,7 +1027,7 @@ protected:
     int heightFor(int width) const
     {
         const int rows = m_places.isEmpty() ? 1 : m_places.last().at / columns + 1;
-        return rows * (tileSize(width).height() + label) + (rows - 1) * 6;
+        return rows * (tileSize(width).height() + label()) + (rows - 1) * 6;
     }
 
     void resizeEvent(QResizeEvent *) override { setFixedHeight(heightFor(width())); }
@@ -1033,8 +1035,8 @@ protected:
     QRect cell(const Place &place) const
     {
         const QSize tile = tileSize(width());
-        return QRect((place.at % columns) * (tile.width() + gap), (place.at / columns) * (tile.height() + label + 6), tile.width(),
-                     tile.height() + label);
+        return QRect((place.at % columns) * (tile.width() + gap), (place.at / columns) * (tile.height() + label() + 6), tile.width(),
+                     tile.height() + label());
     }
 
     QRectF pictureOf(const Place &place) const
@@ -1047,7 +1049,7 @@ protected:
     QRect labelOf(const Place &place) const
     {
         const QRect c = cell(place);
-        return QRect(c.left(), c.top() + tileSize(width()).height() + 2, c.width(), label - 4);
+        return QRect(c.left(), c.top() + tileSize(width()).height() + 2, c.width(), label() - 4);
     }
 
     /// The place under \p pos; -1 for none
@@ -2245,12 +2247,13 @@ public:
     void setItems(const QVector<Item> &items)
     {
         m_items = items;
+        setFixedWidth(m_compact ? compactWidth : fullWidth());
         int y = 4;
         for (int i = 0; i < m_items.size(); i++) {
             // A gap before the built-in sections
             if (i > 0 && !isOwn(m_items[i].id) && isOwn(m_items[i - 1].id)) y += 12;
             // "New section" is a way to add one, not a place: a short, quiet line
-            const int height = m_items[i].id == QLatin1String("add") ? 22 : 30;
+            const int height = m_items[i].id == QLatin1String("add") ? qMax(22, fontMetrics().height() + 4) : qMax(30, fontMetrics().height() + 10);
             m_items[i].rect = QRect(6, y, width() - 12, height);
             y += height + 2;
         }
@@ -2269,10 +2272,17 @@ public:
     {
         if (compact == m_compact) return;
         m_compact = compact;
-        setFixedWidth(compact ? compactWidth : railWidth);
         setItems(m_items);
     }
     static constexpr int compactWidth = 44;
+
+    /// Wide enough for every section's name, as with a large font
+    int fullWidth() const
+    {
+        int widest = 0;
+        Q_FOREACH (const Item &item, m_items) widest = qMax(widest, fontMetrics().horizontalAdvance(item.title));
+        return qMax(railWidth, 12 + 32 + widest + 6);
+    }
 
     QRect rectOf(const QString &id) const
     {
@@ -3389,7 +3399,7 @@ void KisStudioSettings::reposition()
     const QRect inArea = d->placement ? d->placement(wanted) : QRect(area->width() - wanted.width() - 6, 6, wanted.width(), area->height() - 12);
     const QRect place(area->mapTo(parentWidget(), inArea.topLeft()), inArea.size());
     // Without room for the section names, show only their icons
-    const bool compact = place.width() < railWidth + bodyWidth + 20;
+    const bool compact = place.width() < d->rail->fullWidth() + bodyWidth + 20;
     d->rail->setCompact(compact);
     d->railScroll->setFixedWidth(d->rail->width());
     if (geometry() != place) setGeometry(place);

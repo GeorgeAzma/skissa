@@ -336,6 +336,10 @@ void KisStudioShortcuts::paintBadge(QPainter &painter, const QRect &rect, const 
     QFont font = painter.font();
     font.setPointSizeF(qMax(6.0, font.pointSizeF() * 0.62));
     font.setBold(true);
+    // a corner of the button whatever the interface font: buttons keep their size
+    const qreal most = rect.height() * 0.4;
+    const qreal natural = QFontMetricsF(font).height() + 2.5;
+    if (natural > most) font.setPointSizeF(qMax(4.0, font.pointSizeF() * (most - 2.5) / (natural - 2.5)));
     const QFontMetricsF metrics(font);
     const qreal height = metrics.height() + 2.5;
     const qreal width = qMax(height, metrics.horizontalAdvance(text) + 6);

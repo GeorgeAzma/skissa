@@ -662,6 +662,13 @@ void NodeView::slotScrollerStateChanged(QScroller::State state){
     KisKineticScroller::updateCursor(this, state);
 }
 
+void NodeView::changeEvent(QEvent *event)
+{
+    QTreeView::changeEvent(event);
+    // rows are sized by the font
+    if (event->type() == QEvent::FontChange) d->delegate.slotConfigChanged();
+}
+
 void NodeView::slotConfigurationChanged()
 {
     setIndentation(KisNodeViewColorScheme::instance()->indentation());

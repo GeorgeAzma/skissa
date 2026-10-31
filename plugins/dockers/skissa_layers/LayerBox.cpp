@@ -180,25 +180,28 @@ protected:
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
+        // the row's own shape, in the text's ink: readable on any theme, with or without an accent
         const QRectF r = QRectF(rect()).adjusted(1, 1, -1, -1);
-        QColor ink = palette().color(QPalette::Highlight);
+        const QColor ink = palette().color(QPalette::Text);
+        QColor back = palette().color(QPalette::Window);
+        back.setAlphaF(0.9);
         QColor wash = ink;
-        wash.setAlphaF(0.28);
+        wash.setAlphaF(0.22);
         QPainterPath clip;
         clip.addPath(KisModernStyle::squircle(r, 6));
         painter.setClipPath(clip);
-        painter.fillRect(r, QColor(0, 0, 0, 60));
+        painter.fillRect(r, back);
         const qreal edge = r.left() + r.width() * m_percent / 100.0;
         painter.fillRect(QRectF(r.left(), r.top(), edge - r.left(), r.height()), wash);
         painter.fillRect(QRectF(edge - 1, r.top(), 2, r.height()), ink);
         QFont font = this->font();
         font.setBold(true);
         painter.setFont(font);
-        painter.setPen(Qt::white);
+        painter.setPen(ink);
         // let go at nothing, the layer is hidden instead
         const QString text = qRound(m_percent) == 0 ? i18nc("a layer's opacity dragged to nothing: it will be hidden, its opacity kept", "Hidden")
                                                     : QStringLiteral("%1%").arg(qRound(m_percent));
-        painter.drawText(r.adjusted(0, 0, -10, 0), Qt::AlignRight | Qt::AlignVCenter, text);
+        painter.drawText(r.adjusted(0, 0, -KisModernStyle::space3, 0), Qt::AlignRight | Qt::AlignVCenter, text);
     }
 
 private:
@@ -1396,7 +1399,7 @@ bool LayerBox::handleOpacityDrag(const QPoint &pos, bool fine)
         QSignalBlocker blocker(m_wdgLayerBox->doubleOpacity);
         m_wdgLayerBox->doubleOpacity->setValue(percent);
     }
-    m_opacityScrub->setGeometry(row.left(), row.top(), view->viewport()->width() - row.left(), qMin(row.height(), 30));
+    m_opacityScrub->setGeometry(row.left(), row.top(), view->viewport()->width() - row.left(), row.height());
     m_opacityScrub->setValue(percent);
     m_opacityScrub->show();
     m_opacityScrub->raise();

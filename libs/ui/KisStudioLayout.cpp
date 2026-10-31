@@ -1501,6 +1501,9 @@ public:
     QWidget *contents() const { return m_contents; }
     TopGrip *grip() const { return m_grip; }
 
+    /// What gives up width when the pill doesn't fit its row (the tool chip, whose name is shortened)
+    void setSqueezable(QWidget *widget) { m_squeezable = widget; }
+
     /// Keeps the grip as tall as the open bar, so tucking it doesn't move the window handle or what is below
     void keepHeight()
     {
@@ -1526,8 +1529,18 @@ public:
             move(area->width() - margin - width(), margin);
         } else {
             const QSize grown = roomGrowth(this);
-            const int y = margin + offsetOf(m_spot.y(), roomY(), grown.height());
-            const QPair<int, int> span = spanAt(y);
+            int y = margin + offsetOf(m_spot.y(), roomY(), grown.height());
+            const bool topRow = y < margin + height();
+            QPair<int, int> span = spanAt(y);
+            // in the top row while it fits there, its name shortened if need be; else in a row of its own under the
+            // window's buttons, still clear of the window handle (a large font in a narrow window)
+            int squeezed = squeezedTo(area->width() - 2 * margin - (topRow ? m_leftInset + m_rightInset : 0));
+            if (topRow && squeezed < 0) {
+                squeezed = squeezedTo(area->width() - 2 * margin - m_leftInset);
+                y = margin + height() + KisModernStyle::space1;
+                span.second = qMax(span.first, area->width() - margin - openWidth());
+            }
+            if (m_squeezable && !m_tucked && qAbs(squeezed) != m_squeezable->maximumWidth()) m_squeezable->setMaximumWidth(qAbs(squeezed));
             // its width follows the tool: against an edge or in the middle it stays there, elsewhere its grip stays
             // where it was dropped (a share of the room it had at the width it had then)
             int x = span.first + offsetOf(m_spot.x(), span.second - span.first, grown.width());
@@ -1604,6 +1617,20 @@ protected:
 private:
     int roomY() const { return parentWidget()->height() - 2 * margin - height(); }
 
+    /// The squeezable widget's widest for the open pill to fit \p room (QWIDGETSIZE_MAX: it fits whole); negated
+    /// when even its narrowest doesn't fit
+    int squeezedTo(int room) const
+    {
+        if (!m_squeezable || m_tucked) return QWIDGETSIZE_MAX;
+        const int natural = m_squeezable->sizeHint().width();
+        const int whole = layout()->sizeHint().width() - qMin(natural, m_squeezable->maximumWidth()) + natural;
+        if (whole <= room) return QWIDGETSIZE_MAX;
+        // its icon and a few letters stay
+        const int least = qMin(natural, m_squeezable->height() + 6 * m_squeezable->fontMetrics().averageCharWidth());
+        const int most = natural - (whole - room);
+        return most >= least ? most : -least;
+    }
+
     /// The span its left edge can take at height \p y; in the top row, between the window handle and the window's buttons
     QPair<int, int> spanAt(int y) const
     {
@@ -1638,6 +1665,7 @@ private:
     QPoint m_grab;
     TopGrip *m_grip {nullptr};
     QWidget *m_contents {nullptr};
+    QPointer<QWidget> m_squeezable;
 };
 
 /// The application icon in the top-left corner, capping the tool rail: a click goes home, a drag moves the window
@@ -5241,6 +5269,7 @@ void KisStudioLayout::adoptTopBars()
     // show them after inserting: removeToolBar() hides them, as does restoring a window state with no place for them
     if (d->topBar) d->topBar->setVisible(tools);
     if (d->buttonsBar) d->buttonsBar->setVisible(tools);
+    d->topPill->setSqueezable(d->toolChip);
     if (brushBar) brushBar->show();
     if (d->windowBar) d->windowBar->show();
 

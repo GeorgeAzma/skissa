@@ -108,6 +108,7 @@ protected:
     QItemSelectionModel::SelectionFlags selectionCommand(const QModelIndex &index, const QEvent *event) const override;
     QModelIndex indexAt(const QPoint &point) const override;
     bool viewportEvent(QEvent *event) override;
+    void changeEvent(QEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
     virtual void showContextMenu(const QPoint &globalPos, const QModelIndex &index);
     void startDrag (Qt::DropActions supportedActions) override;

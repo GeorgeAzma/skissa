@@ -961,6 +961,7 @@ public:
     explicit HexField(QWidget *parent) : QLineEdit(parent)
     {
         fade();
+        fit();
     }
 
 protected:
@@ -1026,9 +1027,16 @@ protected:
     {
         QLineEdit::changeEvent(event);
         if (event->type() == QEvent::PaletteChange && !m_fading) fade();
+        if (event->type() == QEvent::FontChange) fit();
     }
 
 private:
+    /// As wide as a hex code in its font
+    void fit()
+    {
+        setFixedWidth(qMax(64, fontMetrics().horizontalAdvance(QStringLiteral("DDDDDD")) + 2 * KisModernStyle::space2));
+    }
+
     void fade()
     {
         m_fading = true;
@@ -1588,7 +1596,6 @@ KisStudioColorPanel::KisStudioColorPanel()
     });
     d->hex = new HexField(contents);
     d->hex->setFrame(false);
-    d->hex->setFixedWidth(64);
     d->hex->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     d->hex->setToolTip(i18nc("@info:tooltip", "Type a hex code, or rgb(…), oklch(…), hsv(…)"));
     d->hex->written = [this]() { return d->written(); };

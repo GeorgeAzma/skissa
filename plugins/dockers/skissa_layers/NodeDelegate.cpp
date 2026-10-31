@@ -358,8 +358,8 @@ QRect NodeDelegate::thumbnailClickRect(const QStyleOptionViewItem &option, const
 
     QRect rc = d->thumbnailGeometry;
 
-    // Move to current index
-    rc.moveTop(option.rect.topLeft().y());
+    // Move to current index, centered in a row grown for its text
+    rc.moveTop(option.rect.top() + (d->rowHeight - rc.height()) / 2);
     // Move to correct location.
     if (option.direction == Qt::RightToLeft) {
         rc.moveRight(option.rect.right());
@@ -562,13 +562,16 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
     } else {
         // the name, and by the icons what is unusual about the layer's blend (unless its controls are there)
         const QString info = controls ? QString() : index.data(KisNodeModel::InfoTextRole).toString();
-        const int infoWidth = info.isEmpty() ? 0 : p->fontMetrics().horizontalAdvance(info) + scm.textMargin() * 2;
+        // when both don't fit, the name keeps at least half the room
+        const int nameWidth = p->fontMetrics().horizontalAdvance(text);
+        const int fullInfo = info.isEmpty() ? 0 : p->fontMetrics().horizontalAdvance(info) + scm.textMargin() * 2;
+        const int infoWidth = qMax(0, qMin(fullInfo, qMax(rc.width() - nameWidth, rc.width() / 2)));
         const QString name = p->fontMetrics().elidedText(text, Qt::ElideRight, qMax(0, rc.width() - infoWidth));
         const Qt::Alignment end = option.direction == Qt::RightToLeft ? Qt::AlignLeft : Qt::AlignRight;
         p->drawText(rc, start | Qt::AlignVCenter, name);
         if (!info.isEmpty()) {
             p->setOpacity(p->opacity() * 0.55);
-            p->drawText(rc, end | Qt::AlignVCenter, p->fontMetrics().elidedText(info, Qt::ElideLeft, infoWidth));
+            p->drawText(rc, end | Qt::AlignVCenter, p->fontMetrics().elidedText(info, Qt::ElideRight, infoWidth - scm.textMargin()));
         }
         // the current layer's opacity beside its mode, when below full or hovered
         const QRect opacityAt = opacityRect(index, option.rect, option.direction);
@@ -1623,7 +1626,8 @@ void NodeDelegate::slotConfigChanged()
     // cache values that require a config lookup and get used frequently
     d->thumbnailSize = KisNodeViewColorScheme::instance()->thumbnailSize();
     d->thumbnailGeometry = KisNodeViewColorScheme::instance()->relThumbnailRect();
-    d->rowHeight = KisNodeViewColorScheme::instance()->rowHeight();
+    // never shorter than its text and icons, whatever the interface font
+    d->rowHeight = qMax(KisNodeViewColorScheme::instance()->rowHeight(), lineHeight(d->view));
 
     const QColor newCheckersColor1 = cfg.checkersColor1();
     const QColor newCheckersColor2 = cfg.checkersColor2();
