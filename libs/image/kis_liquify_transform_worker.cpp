@@ -11,7 +11,7 @@
 #include <cmath>
 #include <memory>
 #include "kis_grid_interpolation_tools.h"
-#include "KisLiquifyRenderer.h"
+#include "KisGridRenderer.h"
 #include "kis_dom_utils.h"
 #include "krita_utils.h"
 #include "KisSpatialContainer.h"
@@ -653,7 +653,7 @@ void KisLiquifyTransformWorker::run(KisPaintDeviceSP srcDevice, KisPaintDeviceSP
     using namespace GridIterationTools;
     QRect correctSubGrid = calculateCorrectSubGrid(m_d->srcBounds, m_d->pixelPrecision, m_d->accumulatedBrushStrokes, m_d->gridSize);
 
-    KisLiquifyRenderer(m_d->gridSize, m_d->originalPoints, m_d->transformedPoints, correctSubGrid).render(srcDevice, dstDevice);
+    KisGridRenderer(m_d->gridSize, m_d->originalPoints, m_d->transformedPoints, correctSubGrid).render(srcDevice, dstDevice);
 
     QList<QRectF> areasToCopy = cutOutSubgridFromBounds(correctSubGrid, m_d->srcBounds, m_d->gridSize, m_d->originalPoints);
     for (int i = 0; i < areasToCopy.length(); i++) {
@@ -703,9 +703,9 @@ bool KisLiquifyTransformWorker::runChanges(const KisLiquifyTransformWorker &prev
     *changed = QRect();
     if (moved.isEmpty()) return true;
 
-    const KisLiquifyRenderer renderer(m_d->gridSize, m_d->originalPoints, m_d->transformedPoints, subGrid);
+    const KisGridRenderer renderer(m_d->gridSize, m_d->originalPoints, m_d->transformedPoints, subGrid);
     const QRect area = renderer.cellsBounds(moved) |
-        KisLiquifyRenderer(was.gridSize, was.originalPoints, was.transformedPoints, previousSubGrid).cellsBounds(moved);
+        KisGridRenderer(was.gridSize, was.originalPoints, was.transformedPoints, previousSubGrid).cellsBounds(moved);
     renderer.render(srcDevice, dstDevice, {area});
 
     const QList<QRectF> areasToCopy = cutOutSubgridFromBounds(subGrid, m_d->srcBounds, m_d->gridSize, m_d->originalPoints);

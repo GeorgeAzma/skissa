@@ -21,6 +21,7 @@
 #include <math.h>
 
 #include "kis_grid_interpolation_tools.h"
+#include "KisGridRenderer.h"
 
 QPointF KisWarpTransformWorker::affineTransformMath(QPointF v, QVector<QPointF> p, QVector<QPointF> q, qreal alpha)
 {
@@ -219,6 +220,20 @@ struct KisWarpTransformWorker::FunctionTransformOp
     qreal m_alpha;
 };
 
+namespace {
+
+struct GridPointsOp
+{
+    inline void processPoint(int col, int row, int, int, int, int) {
+        points << QPointF(col, row);
+    }
+    inline void nextLine() {}
+
+    QVector<QPointF> points;
+};
+
+}
+
 void KisWarpTransformWorker::run(KisPaintDeviceSP srcDev, KisPaintDeviceSP dstDev)
 {
     KIS_SAFE_ASSERT_RECOVER_RETURN(*srcDev->colorSpace() == *dstDev->colorSpace());
@@ -243,19 +258,24 @@ void KisWarpTransformWorker::run(KisPaintDeviceSP srcDev, KisPaintDeviceSP dstDe
 
     const int pixelPrecision = 8;
 
+    // each point sums over every handle: the points are found on all threads, then drawn as processGrid would
+    GridPointsOp pointsOp;
+    GridIterationTools::processGrid(pointsOp, srcBounds, pixelPrecision);
+    const QSize gridSize = GridIterationTools::calcGridSize(srcBounds, pixelPrecision);
+    KIS_SAFE_ASSERT_RECOVER_RETURN(pointsOp.points.size() == gridSize.width() * gridSize.height());
+
     FunctionTransformOp functionOp(m_warpMathFunction, m_origPoint, m_transfPoint, m_alpha);
-    GridIterationTools::PaintDevicePolygonOp polygonOp(srcDev, dstDev);
-    /**
-     * The lazy rects copying is currently explicitly  disabled for Warp transform.
-     * To activate it we need:
-     *
-     * 1) A proper detection with GridIterationTools::canProcessRectsInRandomOrder()
-     * 2) A unittest to test this mode
-     */
-    polygonOp.setCanMergeRects(false);
-    GridIterationTools::processGrid(polygonOp, functionOp,
-                                    srcBounds, pixelPrecision);
-    polygonOp.finalize();
+    QVector<QPointF> warped(pointsOp.points.size());
+    const QPointF *from = pointsOp.points.constData();
+    QPointF *to = warped.data();
+    const int width = gridSize.width();
+    KisGridRenderer::forEachOnAllThreads(gridSize.height(), [&](int row) {
+        for (int i = row * width; i < (row + 1) * width; i++) {
+            to[i] = functionOp(from[i]);
+        }
+    });
+
+    KisGridRenderer(gridSize, pointsOp.points, warped, QRect(QPoint(), gridSize), KisGridRenderer::Exact).render(srcDev, dstDev);
 }
 
 #include "krita_utils.h"

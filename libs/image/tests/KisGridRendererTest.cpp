@@ -4,7 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "KisLiquifyRendererTest.h"
+#include "KisGridRendererTest.h"
 
 #include <simpletest.h>
 
@@ -19,8 +19,9 @@
 #include <testutil.h>
 #include <kis_grid_interpolation_tools.h>
 #include <kis_liquify_transform_worker.h>
+#include <kis_warptransform_worker.h>
 #include <kis_paint_device.h>
-#include <KisLiquifyRenderer.h>
+#include <KisGridRenderer.h>
 
 namespace {
 
@@ -64,7 +65,7 @@ void compare(KisLiquifyTransformWorker &worker, KisPaintDeviceSP src, const QStr
 
     KisPaintDeviceSP result = new KisPaintDevice(src->colorSpace());
     timer.restart();
-    KisLiquifyRenderer(worker.gridSize(), worker.originalPoints(), worker.transformedPoints(), subGrid).render(src, result);
+    KisGridRenderer(worker.gridSize(), worker.originalPoints(), worker.transformedPoints(), subGrid).render(src, result);
     const qint64 rendererMs = timer.elapsed();
 
     qDebug().noquote() << name << "Krita" << kritaMs << "ms, renderer" << rendererMs << "ms";
@@ -83,7 +84,7 @@ void compare(KisLiquifyTransformWorker &worker, KisPaintDeviceSP src, const QStr
         areas << QRect(bounds.left() + random.bounded(qMax(1, bounds.width() - w)),
                        bounds.top() + random.bounded(qMax(1, bounds.height() - h)), w, h);
     }
-    KisLiquifyRenderer(worker.gridSize(), worker.originalPoints(), worker.transformedPoints(), subGrid).render(src, partial, areas);
+    KisGridRenderer(worker.gridSize(), worker.originalPoints(), worker.transformedPoints(), subGrid).render(src, partial, areas);
     for (const QRect &area : areas) {
         QVERIFY2(bytesOf(partial, area) == bytesOf(expected, area), qPrintable(name + " areas"));
     }
@@ -125,7 +126,7 @@ KisLiquifyTransformWorker *fromZip(const QString &filename)
 
 }
 
-void KisLiquifyRendererTest::testSameAsKrita_data()
+void KisGridRendererTest::testSameAsKrita_data()
 {
     QTest::addColumn<bool>("deep");
     QTest::addColumn<bool>("wash");
@@ -137,7 +138,7 @@ void KisLiquifyRendererTest::testSameAsKrita_data()
     QTest::addRow("16 bit wash") << true << true << 4u;
 }
 
-void KisLiquifyRendererTest::testSameAsKrita()
+void KisGridRendererTest::testSameAsKrita()
 {
     QFETCH(bool, deep);
     QFETCH(bool, wash);
@@ -152,7 +153,7 @@ void KisLiquifyRendererTest::testSameAsKrita()
     compare(worker, src, QTest::currentDataTag());
 }
 
-void KisLiquifyRendererTest::testChanges_data()
+void KisGridRendererTest::testChanges_data()
 {
     QTest::addColumn<bool>("wash");
     QTest::addColumn<quint32>("seed");
@@ -161,7 +162,7 @@ void KisLiquifyRendererTest::testChanges_data()
     QTest::addRow("wash") << true << 22u;
 }
 
-void KisLiquifyRendererTest::testChanges()
+void KisGridRendererTest::testChanges()
 {
     QFETCH(bool, wash);
     QFETCH(quint32, seed);
@@ -201,7 +202,69 @@ void KisLiquifyRendererTest::testChanges()
     }
 }
 
-void KisLiquifyRendererTest::testSavedConfigs_data()
+void KisGridRendererTest::testWarpSameAsKrita_data()
+{
+    QTest::addColumn<int>("type");
+    QTest::addColumn<bool>("deep");
+
+    QTest::addRow("affine") << int(KisWarpTransformWorker::AFFINE_TRANSFORM) << false;
+    QTest::addRow("similitude") << int(KisWarpTransformWorker::SIMILITUDE_TRANSFORM) << false;
+    QTest::addRow("rigid") << int(KisWarpTransformWorker::RIGID_TRANSFORM) << false;
+    QTest::addRow("rigid 16 bit") << int(KisWarpTransformWorker::RIGID_TRANSFORM) << true;
+}
+
+void KisGridRendererTest::testWarpSameAsKrita()
+{
+    QFETCH(int, type);
+    QFETCH(bool, deep);
+
+    const KoColorSpace *cs = deep ? KoColorSpaceRegistry::instance()->rgb16() : KoColorSpaceRegistry::instance()->rgb8();
+    const QRect bounds(0, 0, 1600, 1200);
+    KisPaintDeviceSP src = noise(cs, bounds, 31 + type);
+
+    // a 4 by 4 grid of handles, pulled around hard enough to fold
+    QRandomGenerator random(41 + type);
+    QVector<QPointF> from;
+    QVector<QPointF> to;
+    for (int y = 0; y < 4; y++) {
+        for (int x = 0; x < 4; x++) {
+            const QPointF point(bounds.width() * (x + 0.5) / 4, bounds.height() * (y + 0.5) / 4);
+            from << point;
+            to << point + QPointF(random.bounded(500.0) - 250, random.bounded(500.0) - 250);
+        }
+    }
+
+    const KisWarpTransformWorker::WarpType warpType = KisWarpTransformWorker::WarpType(type);
+    QPointF (*function)(QPointF, QVector<QPointF>, QVector<QPointF>, qreal) =
+        warpType == KisWarpTransformWorker::AFFINE_TRANSFORM ? &KisWarpTransformWorker::affineTransformMath :
+        warpType == KisWarpTransformWorker::SIMILITUDE_TRANSFORM ? &KisWarpTransformWorker::similitudeTransformMath :
+        &KisWarpTransformWorker::rigidTransformMath;
+
+    // Krita's own warp
+    KisPaintDeviceSP expected = new KisPaintDevice(cs);
+    QElapsedTimer timer;
+    timer.start();
+    {
+        auto functionOp = [&](const QPointF &point) { return function(point, from, to, 1.0); };
+        GridIterationTools::PaintDevicePolygonOp polygonOp(src, expected);
+        polygonOp.setCanMergeRects(false);
+        GridIterationTools::processGrid(polygonOp, functionOp, src->region().boundingRect(), 8);
+        polygonOp.finalize();
+    }
+    const qint64 kritaMs = timer.elapsed();
+
+    KisPaintDeviceSP result = new KisPaintDevice(cs);
+    timer.restart();
+    KisWarpTransformWorker(warpType, from, to, 1.0, nullptr).run(src, result);
+    const qint64 workerMs = timer.elapsed();
+    qDebug().noquote() << QTest::currentDataTag() << "Krita" << kritaMs << "ms, now" << workerMs << "ms";
+
+    QCOMPARE(result->exactBounds(), expected->exactBounds());
+    const QRect all = expected->exactBounds();
+    QVERIFY(bytesOf(result, all) == bytesOf(expected, all));
+}
+
+void KisGridRendererTest::testSavedConfigs_data()
 {
     QTest::addColumn<QString>("config");
 
@@ -210,7 +273,7 @@ void KisLiquifyRendererTest::testSavedConfigs_data()
     QTest::addRow("16 bit mask") << "liquify_mask_rendering/liquify_mask_rendering_16bit_mask_config.zip";
 }
 
-void KisLiquifyRendererTest::testSavedConfigs()
+void KisGridRendererTest::testSavedConfigs()
 {
     QFETCH(QString, config);
 
@@ -223,4 +286,4 @@ void KisLiquifyRendererTest::testSavedConfigs()
     compare(*worker, src, config);
 }
 
-SIMPLE_TEST_MAIN(KisLiquifyRendererTest)
+SIMPLE_TEST_MAIN(KisGridRendererTest)

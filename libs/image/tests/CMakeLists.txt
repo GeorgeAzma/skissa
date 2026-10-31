@@ -152,7 +152,7 @@ kis_add_test(
     )
 
 kis_add_test(
-    KisLiquifyRendererTest.cpp
+    KisGridRendererTest.cpp
     LINK_LIBRARIES kritaimage kritatestsdk ${QUAZIP_LIBRARIES}
     )
 

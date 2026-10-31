@@ -4,12 +4,12 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#ifndef KISLIQUIFYRENDERERTEST_H
-#define KISLIQUIFYRENDERERTEST_H
+#ifndef KISGRIDRENDERERTEST_H
+#define KISGRIDRENDERERTEST_H
 
 #include <QtTest>
 
-class KisLiquifyRendererTest : public QObject
+class KisGridRendererTest : public QObject
 {
     Q_OBJECT
 private Q_SLOTS:
@@ -17,6 +17,8 @@ private Q_SLOTS:
     void testSameAsKrita();
     void testChanges_data();
     void testChanges();
+    void testWarpSameAsKrita_data();
+    void testWarpSameAsKrita();
     void testSavedConfigs_data();
     void testSavedConfigs();
 };

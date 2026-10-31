@@ -4,7 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "KisLiquifyRenderer.h"
+#include "KisGridRenderer.h"
 
 #include <algorithm>
 #include <functional>
@@ -29,8 +29,10 @@ namespace {
 
 const int tileSize = 128;
 
-// runs work(0..count-1) on the calling thread and the global pool; a helper the pool starts late finds nothing to do
-void forEachOnAllThreads(int count, const std::function<void(int)> &work)
+}
+
+// a helper the pool starts late finds nothing to do
+void KisGridRenderer::forEachOnAllThreads(int count, const std::function<void(int)> &work)
 {
     if (count <= 0) return;
 
@@ -68,6 +70,8 @@ void forEachOnAllThreads(int count, const std::function<void(int)> &work)
         shared->finished.wait(&shared->mutex);
     }
 }
+
+namespace {
 
 // where the row y crosses the polygon's edges, as QPolygonF::containsPoint finds them: a pixel x is
 // inside when an odd number of the crossings are at or before it
@@ -139,6 +143,7 @@ struct Job {
     bool sameColorSpace;
     const KoMixColorsOp *mixOp;
     int pixelSize;
+    bool nudged;
     QRect clip;
     bool clear;
     std::vector<const Cell *> cells;
@@ -146,14 +151,16 @@ struct Job {
 
 }
 
-KisLiquifyRenderer::KisLiquifyRenderer(const QSize &gridSize,
+KisGridRenderer::KisGridRenderer(const QSize &gridSize,
                                        const QVector<QPointF> &originalPoints,
                                        const QVector<QPointF> &transformedPoints,
-                                       const QRect &subGrid)
+                                       const QRect &subGrid,
+                                       Cells cells)
     : m_gridSize(gridSize)
     , m_originalPoints(originalPoints)
     , m_transformedPoints(transformedPoints)
     , m_subGrid(subGrid)
+    , m_cells(cells)
 {
 }
 
@@ -162,15 +169,17 @@ namespace {
 inline void cellPolygons(int tl, int gridWidth,
                          const QVector<QPointF> &originalPoints,
                          const QVector<QPointF> &transformedPoints,
-                         QPolygonF &src, QPolygonF &dst)
+                         bool nudged, QPolygonF &src, QPolygonF &dst)
 {
     const int indexes[4] = {tl, tl + 1, tl + gridWidth + 1, tl + gridWidth};
     for (int i = 0; i < 4; i++) {
         src[i] = originalPoints[indexes[i]];
         dst[i] = transformedPoints[indexes[i]];
     }
-    GridIterationTools::adjustAlignedPolygon(src);
-    GridIterationTools::adjustAlignedPolygon(dst);
+    if (nudged) {
+        GridIterationTools::adjustAlignedPolygon(src);
+        GridIterationTools::adjustAlignedPolygon(dst);
+    }
 }
 
 void drawJob(const Job &job,
@@ -180,18 +189,18 @@ void drawJob(const Job &job,
 
 }
 
-void KisLiquifyRenderer::render(KisPaintDeviceSP src, KisPaintDeviceSP dst) const
+void KisGridRenderer::render(KisPaintDeviceSP src, KisPaintDeviceSP dst) const
 {
     draw(src, dst, QVector<QRect>(), false);
 }
 
-void KisLiquifyRenderer::render(KisPaintDeviceSP src, KisPaintDeviceSP dst, const QVector<QRect> &areas) const
+void KisGridRenderer::render(KisPaintDeviceSP src, KisPaintDeviceSP dst, const QVector<QRect> &areas) const
 {
     if (areas.isEmpty()) return;
     draw(src, dst, areas, true);
 }
 
-QRect KisLiquifyRenderer::cellsBounds(const QVector<int> &indexes) const
+QRect KisGridRenderer::cellsBounds(const QVector<int> &indexes) const
 {
     const int w = m_gridSize.width();
     const int h = m_gridSize.height();
@@ -212,7 +221,7 @@ QRect KisLiquifyRenderer::cellsBounds(const QVector<int> &indexes) const
     return bounds.toAlignedRect().adjusted(-1, -1, 1, 1);
 }
 
-void KisLiquifyRenderer::draw(KisPaintDeviceSP src, KisPaintDeviceSP dst, const QVector<QRect> &areas, bool clear) const
+void KisGridRenderer::draw(KisPaintDeviceSP src, KisPaintDeviceSP dst, const QVector<QRect> &areas, bool clear) const
 {
     const QPoint start = m_subGrid.topLeft();
     const QPoint end = m_subGrid.bottomRight();
@@ -238,7 +247,7 @@ void KisLiquifyRenderer::draw(KisPaintDeviceSP src, KisPaintDeviceSP dst, const 
         cells.reserve(cols);
         for (int col = start.x(); col < end.x(); col++) {
             const int tl = col + row * m_gridSize.width();
-            cellPolygons(tl, m_gridSize.width(), m_originalPoints, m_transformedPoints, srcPolygon, dstPolygon);
+            cellPolygons(tl, m_gridSize.width(), m_originalPoints, m_transformedPoints, m_cells == Nudged, srcPolygon, dstPolygon);
             const QRect bounds = dstPolygon.boundingRect().toAlignedRect();
             if (bounds.isEmpty()) continue;
             if (clear && !bounds.intersects(areasBounds)) continue;
@@ -300,6 +309,7 @@ void KisLiquifyRenderer::draw(KisPaintDeviceSP src, KisPaintDeviceSP dst, const 
                          src->colorSpace() == dst->colorSpace(),
                          src->colorSpace()->mixColorsOp(),
                          int(dst->pixelSize()),
+                         m_cells == Nudged,
                          tile & clip, clear, {}};
                 for (const Cell *cell : cells) {
                     if (cell->bounds.intersects(job.clip)) job.cells.push_back(cell);
@@ -346,7 +356,7 @@ void drawJob(const Job &job,
     window.pixelSize = pixelSize;
     QRect sources;
     for (const Cell *cell : job.cells) {
-        cellPolygons(cell->index, gridSize.width(), originalPoints, transformedPoints, srcPolygon, dstPolygon);
+        cellPolygons(cell->index, gridSize.width(), originalPoints, transformedPoints, job.nudged, srcPolygon, dstPolygon);
         sources |= srcPolygon.boundingRect().toAlignedRect().adjusted(-1, -1, 2, 2);
     }
     const qint64 near = 4 * qint64(tileSize + 16) * (tileSize + 16);
@@ -395,7 +405,7 @@ void drawJob(const Job &job,
     };
 
     for (const Cell *cell : job.cells) {
-        cellPolygons(cell->index, gridSize.width(), originalPoints, transformedPoints, srcPolygon, dstPolygon);
+        cellPolygons(cell->index, gridSize.width(), originalPoints, transformedPoints, job.nudged, srcPolygon, dstPolygon);
         const QRect area = cell->bounds & clip;
         if (area.isEmpty()) continue;
         written |= area;
