@@ -66,6 +66,9 @@ public:
     // returns false if interrupted
     bool run();
     bool runPartial(const QRect &processRect);
+private:
+    bool runPartialImpl(const QRect &processRect);
+public:
 
     /**
      * Returns a matrix of the transformation executed by the worker.

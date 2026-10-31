@@ -9,6 +9,7 @@
  */
 
 #include "kis_transform_worker.h"
+#include "KisResampling.h"
 
 #include <qmath.h>
 #include <klocalizedstring.h>
@@ -203,6 +204,7 @@ void KisTransformWorker::transformPass(KisPaintDevice *src, KisPaintDevice *dst,
     KisProgressUpdateHelper progressHelper(m_progressUpdater, portion, numLines);
     KisFilterWeightsBuffer buf(filterStrategy, qAbs(floatscale));
     KisFilterWeightsApplicator applicator(src, dst, floatscale, shear, dx, clampToEdge);
+    applicator.setClampToNeighbours(filterStrategy->clampsToNeighbours());
 
     KisFilterWeightsApplicator::LinePos dstBounds;
 
@@ -232,6 +234,20 @@ bool KisTransformWorker::run()
 }
 
 bool KisTransformWorker::runPartial(const QRect &processRect)
+{
+    // shrinking in linear light, for filters that want it: thin bright lines keep their brightness
+    if (KisPaintDeviceSP linear = KisResampling::linearCopy(m_dev, m_filter, m_xscale, m_yscale)) {
+        KisPaintDeviceSP device = m_dev;
+        m_dev = linear;
+        const bool result = runPartialImpl(processRect);
+        m_dev = device;
+        KisResampling::writeBack(linear, device, processRect, m_boundRect);
+        return result;
+    }
+    return runPartialImpl(processRect);
+}
+
+bool KisTransformWorker::runPartialImpl(const QRect &processRect)
 {
     /* Check for nonsense and let the user know, this helps debugging.
     Otherwise the program will crash at a later point, in a very obscure way, probably by division by zero */

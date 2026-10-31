@@ -65,6 +65,7 @@ void ImageSize::slotImageSize()
     DlgImageSize * dlgImageSize = new DlgImageSize(viewManager()->mainWindowAsQWidget(), image->width(), image->height(), image->yRes());
     Q_CHECK_PTR(dlgImageSize);
     dlgImageSize->setObjectName("ImageSize");
+    dlgImageSize->setContent(image->projection());
 
     if (dlgImageSize->exec() == QDialog::Accepted) {
         const QSize desiredSize(dlgImageSize->desiredWidth(), dlgImageSize->desiredHeight());

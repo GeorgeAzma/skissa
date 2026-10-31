@@ -9,6 +9,7 @@
 
 #include "kis_fixed_point_maths.h"
 #include "kis_filter_weights_buffer.h"
+#include "KisResampling.h"
 #include "kis_iterator_ng.h"
 
 
@@ -183,6 +184,11 @@ public:
         int m_size;
     };
 
+    /// Keeps each new pixel within the two source pixels nearest it
+    void setClampToNeighbours(bool value) {
+        m_clampToNeighbours = value;
+    }
+
     template <class T>
     LinePos processLine(LinePos srcLine, int line, KisFilterWeightsBuffer *buffer, qreal filterSupport) {
         int dstStart;
@@ -279,6 +285,22 @@ public:
             }
 
             mixOp->mixColors(colors, span.weights->weight, span.weights->span, dstIt->rawData());
+            if (m_clampToNeighbours && span.weights->span > 1) {
+                // the two strongest taps are the source pixels nearest the new one
+                int first = 0;
+                int second = 1;
+                const qint16 *weight = span.weights->weight;
+                if (weight[second] > weight[first]) std::swap(first, second);
+                for (int j = 2; j < span.weights->span; j++) {
+                    if (weight[j] > weight[first]) {
+                        second = first;
+                        first = j;
+                    } else if (weight[j] > weight[second]) {
+                        second = j;
+                    }
+                }
+                KisResampling::clampBetween(m_src->colorSpace(), dstIt->rawData(), colors[first], colors[second]);
+            }
             dstIt->nextPixel();
         }
 
@@ -334,6 +356,7 @@ private:
     qreal m_shear;
     qreal m_dx;
     bool m_clampToEdge;
+    bool m_clampToNeighbours {false};
 };
 
 #endif /* __KIS_FILTER_WEIGHTS_APPLICATOR_H */

@@ -60,6 +60,7 @@ set(skissa_ui_SRCS
     tool/strokes/KisCoarseFilterPreview.cpp
     widgets/KisBlendModePicker.cpp
     widgets/KisCurvePresetStrip.cpp
+    widgets/KisScaleFilterPreview.cpp
     widgets/KisPopupCloser.cpp
     widgets/KisPresetStrokeThumbnails.cpp
     widgets/KisStudioChips.cpp

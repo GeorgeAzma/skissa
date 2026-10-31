@@ -154,6 +154,9 @@ public:
         KisFixedPoint supportSrc;
         KisFixedPoint supportDst;
 
+        // what valueAt() is told of the scale: some filters shape themselves by it when enlarging too
+        const qreal kernelScale = realScale >= 1.0 && filterStrategy->knowsEnlargement() ? realScale : -1.0;
+
         if (realScale < 1.0 && realScale > (1.0 / (1 << 8))) {
             m_weightsPositionScale = KisFixedPoint(realScale);
             supportSrc.from256Frac(filterStrategy->intSupport(m_weightsPositionScale.toFloat()) / realScale);
@@ -192,7 +195,7 @@ public:
 
             int sum = 0;
             for (int j = 0; j < span; j++) {
-                int t = filterStrategy->intValueAt(scaledIter.to256Frac(), m_weightsPositionScale.toFloat());
+                int t = filterStrategy->intValueAt(scaledIter.to256Frac(), kernelScale > 0 ? kernelScale : m_weightsPositionScale.toFloat());
                 m_filterWeights[i].weight[j] = t;
                 sum += t;
 

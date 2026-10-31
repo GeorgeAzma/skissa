@@ -258,6 +258,8 @@ public:
     }
 
     void setFilterId(const QString &id);
+    /// For this transform only, not kept as the tool's filter
+    void useFilterForNow(const QString &id);
 
     inline KisFilterStrategy* filter() const {
         return m_filter;

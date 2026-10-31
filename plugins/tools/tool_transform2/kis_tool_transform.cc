@@ -68,6 +68,7 @@
 #include "kis_cage_transform_strategy.h"
 #include "kis_liquify_transform_strategy.h"
 #include "KisBendTransformStrategy.h"
+#include <KisResampling.h>
 #include "kis_free_transform_strategy.h"
 #include "kis_perspective_transform_strategy.h"
 #include "kis_mesh_transform_strategy.h"
@@ -427,6 +428,13 @@ void KisToolTransform::endActionImpl(KoPointerEvent *event, bool usePrimaryActio
 void KisToolTransform::slotBendSourceReady(KisPaintDeviceSP source)
 {
     m_bendStrategy->setSource(source);
+
+    // pixel art keeps its pixels when scaled, unless another filter than the default was chosen
+    if (source && m_currentArgs.filterId() == QLatin1String("Smooth") &&
+        KisResampling::looksLikePixelArt(source, m_transaction.originalRect().toAlignedRect())) {
+        m_currentArgs.useFilterForNow(QStringLiteral("Pixel"));
+        updateOptionWidget();
+    }
 }
 
 QMenu* KisToolTransform::popupActionsMenu()

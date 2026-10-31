@@ -836,7 +836,7 @@ QVector<Setting> describeAll()
  */
 void forgetRetired()
 {
-    constexpr int version = 11;
+    constexpr int version = 12;
     KConfigGroup top = KSharedConfig::openConfig()->group(QString());
     if (top.readEntry("StudioRetiredSettings", 0) >= version) return;
     const char *const keys[] = {
@@ -889,6 +889,11 @@ void forgetRetired()
     if (top.readEntry("StudioRetiredSettings", 0) < 9) {
         if (top.readEntry("layerNameCopyBefore", QString()) == QLatin1String("Copy of")) top.deleteEntry("layerNameCopyBefore");
         if (top.readEntry("layerNameMergedAfter", QString()) == QLatin1String("Merged")) top.deleteEntry("layerNameMergedAfter");
+    }
+    // and the transform tool's filter, which Krita writes as soon as the tool is used: Smooth is the default now
+    if (top.readEntry("StudioRetiredSettings", 0) < 12) {
+        KConfigGroup transform = KSharedConfig::openConfig()->group(QStringLiteral("KisToolTransform"));
+        if (transform.readEntry("filterId", QString()) == QLatin1String("Bicubic")) transform.deleteEntry("filterId");
     }
     KSharedConfig::openConfig()->group(QStringLiteral("StudioTheme")).deleteEntry("Contrast");
     QSettings display(displayrcPath(), QSettings::IniFormat);

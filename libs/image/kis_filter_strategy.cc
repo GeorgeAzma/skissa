@@ -6,6 +6,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 
+#include "KisResampling.h"
+#include "kis_paint_device.h"
 #include "kis_filter_strategy.h"
 
 #include <math.h>
@@ -213,6 +215,8 @@ KisFilterStrategyRegistry* KisFilterStrategyRegistry::instance()
         s_instance->add(new KisBSplineFilterStrategy);
         s_instance->add(new KisLanczos3FilterStrategy);
         s_instance->add(new KisMitchellFilterStrategy);
+        s_instance->add(new KisSmoothFilterStrategy);
+        s_instance->add(new KisPixelFilterStrategy);
     }
     return s_instance;
 }
@@ -250,21 +254,17 @@ QString KisFilterStrategyRegistry::formattedDescriptions() const
 
 KisFilterStrategy *KisFilterStrategyRegistry::autoFilterStrategy(QSize originalSize, QSize desiredSize) const
 {
-    // Default to nearest neighbor scaling for tiny source images. (i.e: icons or small sprite sheets.)
+    Q_UNUSED(desiredSize);
+    // without the picture to look at, tiny images are taken for icons and sprites
     const int pixelArtThreshold = 256;
     if (originalSize.width() <= pixelArtThreshold ||
         originalSize.height() <= pixelArtThreshold) {
-        return KisFilterStrategyRegistry::instance()->value("NearestNeighbor");
+        return KisFilterStrategyRegistry::instance()->value("Pixel");
     }
+    return KisFilterStrategyRegistry::instance()->value("Smooth");
+}
 
-    const float xScaleFactor = (float)desiredSize.width() / originalSize.width();
-    const float yScaleFactor = (float)desiredSize.height() / originalSize.height();
-
-    if (xScaleFactor > 1.f || yScaleFactor > 1.f) { // Enlargement.
-        return KisFilterStrategyRegistry::instance()->value("Bicubic");
-    } else if (xScaleFactor < 1.f || yScaleFactor < 1.f) { // Reduction.
-        return KisFilterStrategyRegistry::instance()->value("Bicubic");
-    }
-
-    return KisFilterStrategyRegistry::instance()->value("NearestNeighbor");
+KisFilterStrategy *KisFilterStrategyRegistry::autoFilterStrategy(KisPaintDeviceSP content, const QRect &rect) const
+{
+    return KisFilterStrategyRegistry::instance()->value(KisResampling::looksLikePixelArt(content, rect) ? "Pixel" : "Smooth");
 }

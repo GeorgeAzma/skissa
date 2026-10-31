@@ -15,6 +15,7 @@
 #include <kconfiggroup.h>
 
 #include "kis_liquify_transform_worker.h"
+#include "KisResampling.h"
 #include "kis_dom_utils.h"
 #include <QMatrix4x4>
 
@@ -23,7 +24,7 @@ ToolTransformArgs::ToolTransformArgs()
     : m_liquifyProperties(new KisLiquifyProperties())
 {
     KConfigGroup configGroup =  KSharedConfig::openConfig()->group("KisToolTransform");
-    QString savedFilterId = configGroup.readEntry("filterId", "Bicubic");
+    QString savedFilterId = configGroup.readEntry("filterId", "Smooth");
     setFilterId(savedFilterId);
     m_transformAroundRotationCenter = configGroup.readEntry("transformAroundRotationCenter", "0").toInt();
     m_meshShowHandles = configGroup.readEntry("meshShowHandles", true);
@@ -38,6 +39,11 @@ void ToolTransformArgs::setFilterId(const QString &id) {
         KConfigGroup configGroup =  KSharedConfig::openConfig()->group("KisToolTransform");
         configGroup.writeEntry("filterId", id);
     }
+}
+
+void ToolTransformArgs::useFilterForNow(const QString &id)
+{
+    if (KisFilterStrategy *filter = KisFilterStrategyRegistry::instance()->value(id)) m_filter = filter;
 }
 
 void ToolTransformArgs::setTransformAroundRotationCenter(bool value)
@@ -404,7 +410,11 @@ void ToolTransformArgs::toXML(QDomElement *e) const
         KisDomUtils::saveValue(&freeEl, "keepAspectRatio", m_keepAspectRatio);
         KisDomUtils::saveValue(&freeEl, "flattenedPerspectiveTransform", m_flattenedPerspectiveTransform);
 
-        KisDomUtils::saveValue(&freeEl, "filterId", m_filter->id());
+        // a filter Krita doesn't have is saved as its nearest, Skissa's own beside it
+        KisDomUtils::saveValue(&freeEl, "filterId", KisResampling::kritaFilterId(m_filter->id()));
+        if (KisResampling::kritaFilterId(m_filter->id()) != m_filter->id()) {
+            KisDomUtils::saveValue(&freeEl, "skissaFilterId", m_filter->id());
+        }
 
     } else if (m_mode == WARP || m_mode == CAGE) {
         QDomElement warpEl = doc.createElement("warp_transform");
@@ -492,6 +502,13 @@ ToolTransformArgs ToolTransformArgs::fromXML(const QDomElement &e)
         // bounds rotation is currently not supported by transform masks, so it should be null for them
         if (!KisDomUtils::loadValue(freeEl, "boundsRotation", &args.m_boundsRotation)) {
             args.m_boundsRotation = 0.0;
+        }
+
+        QString skissaFilterId;
+        if (!freeEl.firstChildElement("skissaFilterId").isNull() &&
+            KisDomUtils::loadValue(freeEl, "skissaFilterId", &skissaFilterId) &&
+            KisFilterStrategyRegistry::instance()->value(skissaFilterId)) {
+            filterId = skissaFilterId;
         }
 
         if (result) {

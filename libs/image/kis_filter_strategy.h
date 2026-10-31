@@ -15,6 +15,7 @@
 #include "KoID.h"
 #include "kritaimage_export.h"
 #include <QSize>
+#include "kis_types.h"
 
 class KRITAIMAGE_EXPORT KisFilterStrategy
 {
@@ -47,6 +48,13 @@ public:
     virtual QString description() {
         return QString();
     }
+
+    /// Whether each new pixel is kept within the two source pixels nearest it (no halos)
+    virtual bool clampsToNeighbours() const { return false; }
+    /// Whether valueAt() is given the scale when enlarging too, instead of 1
+    virtual bool knowsEnlargement() const { return false; }
+    /// Whether shrinking is done in linear light
+    virtual bool shrinksInLinearLight() const { return false; }
 
 protected:
     qreal supportVal {0.0};
@@ -193,6 +201,9 @@ public:
      * Try to select an appropriate image filtering strategy based on original and desired parameters.
      */
     KisFilterStrategy* autoFilterStrategy(QSize originalSize, QSize desiredSize) const;
+
+    /// The filter for \p content: Pixel for pixel art, Smooth for the rest
+    KisFilterStrategy* autoFilterStrategy(KisPaintDeviceSP content, const QRect &rect) const;
 
 private:
 

@@ -9,6 +9,7 @@
 #ifndef WDG_IMAGESIZE
 #define WDG_IMAGESIZE
 
+#include <kis_types.h>
 #include <QWidget>
 
 class KisFilterStrategy;
@@ -16,6 +17,8 @@ class PageImageSize;
 class KisDocumentAwareSpinBoxUnitManager;
 class KisSpinBoxUnitManager;
 class KisAspectRatioLocker;
+
+class KisScaleFilterPreview;
 
 class WdgImageSize : public QWidget
 {
@@ -39,6 +42,9 @@ public:
 
     KisFilterStrategy *filterType();
 
+    /// The picture being scaled: Auto looks at it, and tiles show it scaled each way
+    void setContent(KisPaintDeviceSP content);
+
 Q_SIGNALS:
     void sigDesiredSizeChanged(qint32 width, qint32 height, double resolution);
 
@@ -60,6 +66,11 @@ private:
     void updatePrintSizeMaximum();
 
     PageImageSize *m_page;
+    KisPaintDeviceSP m_content;
+    KisScaleFilterPreview *m_preview {nullptr};
+
+    KisFilterStrategy *autoFilter(const QSize &desired) const;
+    void showChoice();
 
     QSize m_originalSize;
 

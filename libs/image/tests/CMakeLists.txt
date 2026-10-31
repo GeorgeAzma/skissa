@@ -161,6 +161,11 @@ kis_add_test(
     LINK_LIBRARIES kritaimage kritatestsdk
     )
 
+kis_add_test(
+    KisResamplingTest.cpp
+    LINK_LIBRARIES kritaimage kritatestsdk
+    )
+
 krita_add_broken_unit_tests(
     kis_perspective_transform_worker_test.cpp
     LINK_LIBRARIES kritaimage kritatestsdk

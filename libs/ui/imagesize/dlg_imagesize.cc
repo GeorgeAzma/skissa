@@ -9,6 +9,7 @@
  */
 
 #include "dlg_imagesize.h"
+#include <kis_paint_device.h>
 
 #include "wdg_imagesize.h"
 #include <klocalizedstring.h>
@@ -48,4 +49,9 @@ double DlgImageSize::desiredResolution()
 KisFilterStrategy *DlgImageSize::filterType()
 {
     return m_page->filterType();
+}
+
+void DlgImageSize::setContent(KisPaintDeviceSP content)
+{
+    m_page->setContent(content);
 }

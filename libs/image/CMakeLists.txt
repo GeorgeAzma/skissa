@@ -303,6 +303,7 @@ set(kritaimage_LIB_SRCS
    kis_liquify_transform_worker.cpp
    KisGridRenderer.cpp
    KisPuppet.cpp
+   KisResampling.cpp
    kis_green_coordinates_math.cpp
    kis_transparency_mask.cc
    kis_undo_adapter.cpp

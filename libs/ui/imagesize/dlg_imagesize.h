@@ -11,6 +11,8 @@
 
 #include <KoDialog.h>
 
+#include <kis_types.h>
+
 class KisFilterStrategy;
 class WdgImageSize;
 
@@ -29,6 +31,7 @@ public:
     double desiredResolution();
 
     KisFilterStrategy *filterType();
+    void setContent(KisPaintDeviceSP content);
 
 private:
     QScopedPointer<WdgImageSize> m_page;

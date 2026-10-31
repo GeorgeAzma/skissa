@@ -9,6 +9,8 @@
  */
 
 #include "wdg_imagesize.h"
+#include <kis_paint_device.h>
+#include "widgets/KisScaleFilterPreview.h"
 
 #include <QLocale>
 #include <kis_config.h>
@@ -85,8 +87,12 @@ WdgImageSize::WdgImageSize(QWidget *parent, int width, int height, double resolu
     }
 
     connect(this, &WdgImageSize::sigDesiredSizeChanged, [this](qint32 width, qint32 height, double){
-        KisFilterStrategy *filterStrategy = KisFilterStrategyRegistry::instance()->autoFilterStrategy(m_originalSize, QSize(width, height));
+        KisFilterStrategy *filterStrategy = autoFilter(QSize(width, height));
         m_page->pixelFilterCmb->setAutoHint(filterStrategy->name());
+        if (m_preview) {
+            m_preview->setTargetSize(QSize(width, height));
+            showChoice();
+        }
     });
 
     /**
@@ -321,13 +327,43 @@ double WdgImageSize::desiredResolution()
     return currentResolutionPPI();
 }
 
+KisFilterStrategy *WdgImageSize::autoFilter(const QSize &desired) const
+{
+    if (m_content) return KisFilterStrategyRegistry::instance()->autoFilterStrategy(m_content, QRect(QPoint(), m_originalSize));
+    return KisFilterStrategyRegistry::instance()->autoFilterStrategy(m_originalSize, desired);
+}
+
+void WdgImageSize::setContent(KisPaintDeviceSP content)
+{
+    m_content = content;
+    if (!m_preview) {
+        m_preview = new KisScaleFilterPreview(this);
+        if (QBoxLayout *column = qobject_cast<QBoxLayout *>(m_page->layout())) column->insertWidget(1, m_preview);
+        connect(m_preview, &KisScaleFilterPreview::picked, this, [this](const QString &id) {
+            m_page->pixelFilterCmb->setCurrent(id);
+            showChoice();
+        });
+        connect(m_page->pixelFilterCmb, &KisCmbIDList::activated, this, [this]() { showChoice(); });
+    }
+    m_preview->setContent(content, QRect(QPoint(), m_originalSize));
+    m_preview->setTargetSize(QSize(desiredWidth(), desiredHeight()));
+    m_page->pixelFilterCmb->setAutoHint(autoFilter(QSize(desiredWidth(), desiredHeight()))->name());
+    showChoice();
+}
+
+void WdgImageSize::showChoice()
+{
+    if (!m_preview) return;
+    m_preview->setCurrent(filterType()->id());
+}
+
 KisFilterStrategy *WdgImageSize::filterType()
 {
     KoID filterID = m_page->pixelFilterCmb->currentItem();
 
     KisFilterStrategy *filter;
     if (filterID == KisCmbIDList::AutoOptionID) {
-        filter = KisFilterStrategyRegistry::instance()->autoFilterStrategy(m_originalSize, QSize(desiredWidth(), desiredHeight()));
+        filter = autoFilter(QSize(desiredWidth(), desiredHeight()));
     } else {
         filter = KisFilterStrategyRegistry::instance()->value(filterID.id());
         lastUsedFilter = filter;  // Save for next time!
