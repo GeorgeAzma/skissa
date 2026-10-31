@@ -11,6 +11,9 @@
 #include "NodeToolTip.h"
 #include "NodeView.h"
 #include "KisPart.h"
+#include "KisMainWindow.h"
+#include <kactioncollection.h>
+#include <QAction>
 #include "input/kis_input_manager.h"
 
 #include <QtDebug>
@@ -1385,10 +1388,14 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
             return property.state.toBool() ? property.name : i18nc("a layer's switch that is off, %1 its name", "%1 off", property.name);
         };
         QString text;
+        QString keys;
         KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
         if (index.column() == NodeView::VISIBILITY_COL) {
-            // the eye teaches its gestures
+            // the eye teaches its gestures, and the current layer's its key, as the user has it
             if (OptionalProperty visibility = d->findVisibilityProperty(props)) {
+                KisMainWindow *window = KisPart::instance()->currentMainwindow();
+                QAction *showOrHide = window ? window->actionCollection()->action(QStringLiteral("toggle_layer_visibility")) : nullptr;
+                if (showOrHide && holdsControls(d->view, index)) keys = showOrHide->shortcut().toString(QKeySequence::NativeText);
                 text = said(*visibility) + QLatin1Char('\n')
                     + i18nc("@info:tooltip a layer's eye: its gestures", "Drag down: the layers passed too\nAlt+click: only this layer");
             }
@@ -1405,7 +1412,7 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
                                                   i18nc("@info:tooltip a gesture on a layer's row", "Double-click: rename")});
         }
         if (text.isEmpty()) QToolTip::hideText();
-        else QToolTip::showText(helpEvent->globalPos(), KisStudioTips::html(text), d->view);
+        else QToolTip::showText(helpEvent->globalPos(), KisStudioTips::html(text, keys), d->view);
         return true;
     }
 
