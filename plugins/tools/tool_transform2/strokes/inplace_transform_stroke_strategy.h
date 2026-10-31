@@ -140,6 +140,8 @@ public:
 
 Q_SIGNALS:
     void sigTransactionGenerated(TransformTransactionProperties transaction, ToolTransformArgs args, void *cookie);
+    /// The pixels about to be transformed, as they are: Bend's puppet is shaped by them
+    void sigSourceReady(KisPaintDeviceSP source);
     void sigConvexHullCalculated(QPolygon convexHull, void *cookie);
 
 protected:
@@ -165,6 +167,7 @@ private:
     void fetchAllUpdateRequests(int levelOfDetail, KisBatchNodeUpdateSP updateData);
 
     void transformNode(KisNodeSP node, const ToolTransformArgs &config, int levelOfDetail, bool inPlace = false);
+    KisPaintDeviceSP transformedPixels(const QRect &rect) const;
     void createCacheAndClearNode(KisNodeSP node);
     void reapplyTransform(ToolTransformArgs args, QVector<KisStrokeJobData *> &mutatedJobs, int levelOfDetail, bool useHoldUI);
     void finalizeStrokeImpl(QVector<KisStrokeJobData *> &mutatedJobs, bool saveCommands);

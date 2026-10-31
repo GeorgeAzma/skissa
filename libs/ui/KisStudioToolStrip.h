@@ -39,7 +39,8 @@ private:
     void addGap();
     QToolButton *addButton(const QIcon &icon, const QString &toolTip);
     /// Adds a button that clicks \p source and follows its checked state
-    void mirror(QAbstractButton *source, const QIcon &icon = QIcon());
+    QToolButton *mirror(QAbstractButton *source, const QIcon &icon = QIcon());
+    void addTransformModes(QWidget *options);
     void mirrorCombo(QComboBox *combo, const QVector<int> &indexes, const QVector<QIcon> &icons);
 
     /// Grow and Soft, on the selection there is (selection tools)

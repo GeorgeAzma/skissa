@@ -511,10 +511,10 @@ QToolButton *KisStudioToolStrip::addButton(const QIcon &icon, const QString &too
     return button;
 }
 
-void KisStudioToolStrip::mirror(QAbstractButton *source, const QIcon &icon)
+QToolButton *KisStudioToolStrip::mirror(QAbstractButton *source, const QIcon &icon)
 {
     if (!source) {
-        return;
+        return nullptr;
     }
     QToolButton *button = addButton(icon.isNull() ? source->icon() : icon, source->toolTip());
     button->setChecked(source->isChecked());
@@ -526,6 +526,59 @@ void KisStudioToolStrip::mirror(QAbstractButton *source, const QIcon &icon)
         }
     });
     connect(source, &QAbstractButton::toggled, button, &QToolButton::setChecked);
+    return button;
+}
+
+void KisStudioToolStrip::addTransformModes(QWidget *options)
+{
+    // named by what they do: move, bend, push; Krita's other modes behind ⋯
+    addGap();
+    const QList<QPair<const char *, QString>> shown = {
+        {"freeTransformButton", i18nc("@info:tooltip transform mode", "Move")},
+        {"bendButton", i18nc("@info:tooltip transform mode: pins bend the picture", "Bend")},
+        {"liquifyButton", i18nc("@info:tooltip transform mode: a brush pushes the picture", "Push")},
+    };
+    for (const auto &mode : shown) {
+        if (QToolButton *button = mirror(options->findChild<QAbstractButton *>(QLatin1String(mode.first)))) {
+            button->setToolTip(mode.second);
+        }
+    }
+
+    QList<QPointer<QAbstractButton>> others;
+    for (const char *name : {"perspectiveTransformButton", "warpButton", "cageButton", "meshButton"}) {
+        if (QAbstractButton *source = options->findChild<QAbstractButton *>(QLatin1String(name))) others << source;
+    }
+    if (others.isEmpty()) return;
+
+    const QIcon moreIcon = KisIconUtils::loadIcon(QStringLiteral("studio_more"));
+    QToolButton *more = addButton(moreIcon, i18nc("@info:tooltip more transform modes", "More"));
+    more->setPopupMode(QToolButton::InstantPopup);
+    auto *menu = new QMenu(more);
+    for (const QPointer<QAbstractButton> &source : others) {
+        QAction *action = menu->addAction(source->icon(), source->toolTip());
+        QPointer<QAbstractButton> target = source;
+        connect(action, &QAction::triggered, source, [target]() {
+            if (target) target->click();
+        });
+    }
+    more->setMenu(menu);
+
+    // while one of them is the mode, ⋯ shows it, lit
+    auto showMode = [more, moreIcon, others]() {
+        for (const QPointer<QAbstractButton> &source : others) {
+            if (source && source->isChecked()) {
+                more->setIcon(source->icon());
+                more->setChecked(true);
+                return;
+            }
+        }
+        more->setIcon(moreIcon);
+        more->setChecked(false);
+    };
+    for (const QPointer<QAbstractButton> &source : others) {
+        connect(source, &QAbstractButton::toggled, more, showMode);
+    }
+    showMode();
 }
 
 void KisStudioToolStrip::mirrorCombo(QComboBox *combo, const QVector<int> &indexes, const QVector<QIcon> &icons)
@@ -829,13 +882,9 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             continue;
         }
 
-        // transform modes, including warp and liquify
+        // transform modes
         if (widget->findChild<QAbstractButton *>(QStringLiteral("freeTransformButton"))) {
-            addGap();
-            for (const char *name : {"freeTransformButton", "perspectiveTransformButton", "warpButton",
-                                     "cageButton", "liquifyButton", "meshButton"}) {
-                mirror(widget->findChild<QAbstractButton *>(QLatin1String(name)));
-            }
+            addTransformModes(widget);
         }
 
         // selection modes: replace, add, subtract, intersect (Shift and Alt do the same while dragging)

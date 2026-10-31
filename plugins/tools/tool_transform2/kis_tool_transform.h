@@ -48,6 +48,7 @@ class KisTransformStrategyBase;
 class KisWarpTransformStrategy;
 class KisCageTransformStrategy;
 class KisLiquifyTransformStrategy;
+class KisBendTransformStrategy;
 class KisFreeTransformStrategy;
 class KisPerspectiveTransformStrategy;
 class KisMeshTransformStrategy;
@@ -108,7 +109,8 @@ public:
         CageTransformMode,
         LiquifyTransformMode,
         PerspectiveTransformMode,
-        MeshTransformMode
+        MeshTransformMode,
+        BendTransformMode
     };
     Q_ENUMS(TransformToolMode)
 
@@ -317,6 +319,7 @@ private:
     QScopedPointer<KisMeshTransformStrategy> m_meshStrategy;
     QScopedPointer<KisFreeTransformStrategy> m_freeStrategy;
     QScopedPointer<KisPerspectiveTransformStrategy> m_perspectiveStrategy;
+    QScopedPointer<KisBendTransformStrategy> m_bendStrategy;
     KisTransformStrategyBase* currentStrategy() const;
 
     QPainterPath m_cursorOutline;
@@ -346,6 +349,7 @@ private Q_SLOTS:
     void slotDecreaseBrushSize();
 
     void slotTransactionGenerated(TransformTransactionProperties transaction, ToolTransformArgs args, void *strokeStrategyCookie);
+    void slotBendSourceReady(KisPaintDeviceSP source);
     void slotPreviewDeviceGenerated(KisPaintDeviceSP device);
 
     // context menu options for updating the transform type

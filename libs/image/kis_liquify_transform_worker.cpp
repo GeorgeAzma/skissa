@@ -30,7 +30,11 @@ public:
     }
 
     KisSpatialContainer *operator->() {
-        if (m_container.use_count() > 1) {
+        if (!m_container) {
+            m_container = std::make_shared<KisSpatialContainer>(m_pendingBounds);
+            m_container->initializeWith(m_pending);
+            m_pending.clear();
+        } else if (m_container.use_count() > 1) {
             m_container = std::make_shared<KisSpatialContainer>(*m_container);
         }
         applyScale();
@@ -39,8 +43,16 @@ public:
 
     /// for queries that change nothing
     KisSpatialContainer &read() {
-        if (m_scale != QPointF(1, 1)) return *operator->();
+        if (!m_container || m_scale != QPointF(1, 1)) return *operator->();
         return *m_container;
+    }
+
+    /// made again from \p points when next used: Bend places all the points at once, every move
+    void rebuildFrom(const QVector<QPointF> &points, const QRect &bounds) {
+        m_container.reset();
+        m_pending = points;
+        m_pendingBounds = bounds;
+        m_scale = QPointF(1, 1);
     }
 
     /// scaled when next used: drawing never asks a scaled copy (a level of detail) for its points
@@ -57,6 +69,8 @@ private:
 
     std::shared_ptr<KisSpatialContainer> m_container;
     QPointF m_scale {1, 1};
+    QVector<QPointF> m_pending;
+    QRect m_pendingBounds;
 };
 
 }
@@ -83,6 +97,10 @@ struct Q_DECL_HIDDEN KisLiquifyTransformWorker::Private
     SharedContainer transformedPointsContainer;
 
     QRectF accumulatedBrushStrokes;
+
+    // Bend's pins, where on the unbent picture and where now
+    QVector<QPointF> pinsRest;
+    QVector<QPointF> pinsAt;
 
     KoUpdater *progress;
     int pixelPrecision;
@@ -662,6 +680,31 @@ void KisLiquifyTransformWorker::run(KisPaintDeviceSP srcDevice, KisPaintDeviceSP
     }
 }
 
+void KisLiquifyTransformWorker::setTransformedPoints(const QVector<QPointF> &points)
+{
+    KIS_SAFE_ASSERT_RECOVER_RETURN(points.size() == m_d->transformedPoints.size());
+    m_d->transformedPoints = points;
+    m_d->transformedPointsContainer.rebuildFrom(points, m_d->srcBounds);
+    m_d->accumulatedBrushStrokes = m_d->srcBounds;
+}
+
+void KisLiquifyTransformWorker::setPins(const QVector<QPointF> &rest, const QVector<QPointF> &at)
+{
+    KIS_SAFE_ASSERT_RECOVER_RETURN(rest.size() == at.size());
+    m_d->pinsRest = rest;
+    m_d->pinsAt = at;
+}
+
+const QVector<QPointF> &KisLiquifyTransformWorker::pinsRest() const
+{
+    return m_d->pinsRest;
+}
+
+const QVector<QPointF> &KisLiquifyTransformWorker::pinsAt() const
+{
+    return m_d->pinsAt;
+}
+
 bool KisLiquifyTransformWorker::runChanges(const KisLiquifyTransformWorker &previous,
                                            KisPaintDeviceSP srcDevice, KisPaintDeviceSP dstDevice,
                                            QRect *changed) const
@@ -741,6 +784,10 @@ void KisLiquifyTransformWorker::transformSrcAndDst(const QTransform &t)
     KIS_SAFE_ASSERT_RECOVER_RETURN(t.type() <= QTransform::TxScale);
 
     m_d->srcBounds = t.mapRect(m_d->srcBounds);
+    for (int i = 0; i < m_d->pinsRest.size(); i++) {
+        m_d->pinsRest[i] = t.map(m_d->pinsRest[i]);
+        m_d->pinsAt[i] = t.map(m_d->pinsAt[i]);
+    }
 
     // a scale by powers of two (levels of detail) moves the containers' trees whole, exactly
     auto powerOfTwo = [](qreal v) { int e; return v > 0 && std::frexp(v, &e) == 0.5; };
@@ -868,6 +915,14 @@ void KisLiquifyTransformWorker::toXML(QDomElement *e) const
     KisDomUtils::saveValue(&liqEl, "transformedPoints", m_d->transformedPoints);
     KisDomUtils::saveValue(&liqEl, "pixelPrecision", m_d->pixelPrecision);
     KisDomUtils::saveValue(&liqEl, "gridSize", m_d->gridSize);
+
+    // beside Krita's own element, which is all Krita reads
+    if (!m_d->pinsRest.isEmpty()) {
+        QDomElement pinsEl = doc.createElement("skissa_pins");
+        e->appendChild(pinsEl);
+        KisDomUtils::saveValue(&pinsEl, "rest", m_d->pinsRest);
+        KisDomUtils::saveValue(&pinsEl, "at", m_d->pinsAt);
+    }
 }
 
 KisLiquifyTransformWorker* KisLiquifyTransformWorker::fromXML(const QDomElement &e)
@@ -932,6 +987,17 @@ KisLiquifyTransformWorker* KisLiquifyTransformWorker::fromXML(const QDomElement 
     worker->m_d->originalPointsContainer->initializeWith(worker->m_d->originalPoints);
 
     worker->m_d->accumulatedBrushStrokes = changedRect;
+
+    const QDomElement pinsEl = e.firstChildElement("skissa_pins");
+    QVector<QPointF> pinsRest;
+    QVector<QPointF> pinsAt;
+    if (!pinsEl.isNull() &&
+        KisDomUtils::loadValue(pinsEl, "rest", &pinsRest) &&
+        KisDomUtils::loadValue(pinsEl, "at", &pinsAt) &&
+        pinsRest.size() == pinsAt.size()) {
+
+        worker->setPins(pinsRest, pinsAt);
+    }
 
 
     return worker;

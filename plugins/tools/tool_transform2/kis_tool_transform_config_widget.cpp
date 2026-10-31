@@ -381,6 +381,19 @@ KisToolTransformConfigWidget::KisToolTransformConfigWidget(TransformTransactionP
     connect(cageButton, SIGNAL(clicked(bool)), this, SLOT(slotSetCageModeButtonClicked(bool)));
     connect(perspectiveTransformButton, SIGNAL(clicked(bool)), this, SLOT(slotSetPerspectiveModeButtonClicked(bool)));
     connect(liquifyButton, SIGNAL(clicked(bool)), this, SLOT(slotSetLiquifyModeButtonClicked(bool)));
+
+    // Bend: pins posing liquify's grid
+    m_bendButton = new QToolButton(liquifyButton->parentWidget());
+    m_bendButton->setObjectName(QStringLiteral("bendButton"));
+    m_bendButton->setCheckable(true);
+    m_bendButton->setAutoExclusive(true);
+    m_bendButton->setAutoRaise(liquifyButton->autoRaise());
+    m_bendButton->setIconSize(liquifyButton->iconSize());
+    m_bendButton->setToolTip(i18nc("transform mode: pins bend the picture as rigidly as can be", "Bend"));
+    if (QBoxLayout *modes = qobject_cast<QBoxLayout *>(liquifyButton->parentWidget()->layout())) {
+        modes->insertWidget(modes->indexOf(liquifyButton), m_bendButton);
+    }
+    connect(m_bendButton, SIGNAL(clicked(bool)), this, SLOT(slotSetBendModeButtonClicked(bool)));
     connect(meshButton, SIGNAL(clicked(bool)), this, SLOT(slotSetMeshModeButtonClicked(bool)));
 
 
@@ -400,6 +413,7 @@ void KisToolTransformConfigWidget::slotUpdateIcons()
     cageButton->setIcon(KisIconUtils::loadIcon("transform_icons_cage"));
     perspectiveTransformButton->setIcon(KisIconUtils::loadIcon("transform_icons_perspective"));
     liquifyButton->setIcon(KisIconUtils::loadIcon("transform_icons_liquify_main"));
+    m_bendButton->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_bend")));
     meshButton->setIcon(KisIconUtils::loadIcon("transform_icons_mesh"));
 
     liquifyMove->setIcon(KisIconUtils::loadIcon("transform_icons_liquify_move"));
@@ -744,7 +758,11 @@ void KisToolTransformConfigWidget::updateConfig(const ToolTransformArgs &config)
     } else if (config.mode() == ToolTransformArgs::LIQUIFY) {
 
         stackedWidget->setCurrentIndex(3);
-        liquifyButton->setChecked(true);
+        if (m_bending) {
+            m_bendButton->setChecked(true);
+        } else {
+            liquifyButton->setChecked(true);
+        }
 
         const KisLiquifyProperties *props =
             config.liquifyProperties();
@@ -935,9 +953,26 @@ void KisToolTransformConfigWidget::slotSetLiquifyModeButtonClicked(bool value)
 {
     if (!value) return;
 
+    m_bending = false;
     lblTransformType->setText(liquifyButton->toolTip());
 
     Q_EMIT sigResetTransform(ToolTransformArgs::LIQUIFY);
+}
+
+void KisToolTransformConfigWidget::slotSetBendModeButtonClicked(bool value)
+{
+    if (!value) return;
+
+    m_bending = true;
+    m_bendButton->setChecked(true);
+    lblTransformType->setText(m_bendButton->toolTip());
+
+    Q_EMIT sigResetTransform(ToolTransformArgs::LIQUIFY);
+}
+
+bool KisToolTransformConfigWidget::isBending() const
+{
+    return m_bending;
 }
 
 void KisToolTransformConfigWidget::slotSetPerspectiveModeButtonClicked(bool value)

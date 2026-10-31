@@ -81,6 +81,15 @@ public:
                     KisPaintDeviceSP srcDevice, KisPaintDeviceSP dstDevice,
                     QRect *changed) const;
 
+    /// Places every grid point at once (Bend), the whole grid counting as changed
+    void setTransformedPoints(const QVector<QPointF> &points);
+
+    /// Bend's pins, where on the unbent picture and where now: they travel with the
+    /// points through undo, and Krita, which doesn't read them, sees only the points
+    void setPins(const QVector<QPointF> &rest, const QVector<QPointF> &at);
+    const QVector<QPointF> &pinsRest() const;
+    const QVector<QPointF> &pinsAt() const;
+
     QImage runOnQImage(const QImage &srcImage,
                        const QPointF &srcImageOffset,
                        const QTransform &imageToThumbTransform,

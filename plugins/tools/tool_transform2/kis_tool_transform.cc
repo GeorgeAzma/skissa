@@ -67,6 +67,7 @@
 #include "kis_warp_transform_strategy.h"
 #include "kis_cage_transform_strategy.h"
 #include "kis_liquify_transform_strategy.h"
+#include "KisBendTransformStrategy.h"
 #include "kis_free_transform_strategy.h"
 #include "kis_perspective_transform_strategy.h"
 #include "kis_mesh_transform_strategy.h"
@@ -150,6 +151,9 @@ KisToolTransform::KisToolTransform(KoCanvasBase * canvas)
     connect(m_liquifyStrategy.data(), SIGNAL(requestCursorOutlineUpdate(QPointF)), SLOT(cursorOutlineUpdateRequested(QPointF)));
     connect(m_liquifyStrategy.data(), SIGNAL(requestUpdateOptionWidget()), SLOT(updateOptionWidget()));
     connect(m_liquifyStrategy.data(), SIGNAL(requestImageRecalculation()), SLOT(requestImageRecalculation()));
+    m_bendStrategy.reset(new KisBendTransformStrategy(m_canvas->coordinatesConverter(), m_currentArgs, m_transaction));
+    connect(m_bendStrategy.data(), SIGNAL(requestCanvasUpdate()), SLOT(canvasUpdateRequested()));
+    connect(m_bendStrategy.data(), SIGNAL(requestImageRecalculation()), SLOT(requestImageRecalculation()));
     connect(m_freeStrategy.data(), SIGNAL(requestCanvasUpdate()), SLOT(canvasUpdateRequested()));
     connect(m_freeStrategy.data(), SIGNAL(requestResetRotationCenterButtons()), SLOT(resetRotationCenterButtonsRequested()));
     connect(m_freeStrategy.data(), SIGNAL(requestShowImageTooBig(bool)), SLOT(imageTooBigRequested(bool)));
@@ -273,6 +277,7 @@ KisTransformStrategyBase* KisToolTransform::currentStrategy() const
     } else if (m_currentArgs.mode() == ToolTransformArgs::CAGE) {
         return m_cageStrategy.data();
     } else if (m_currentArgs.mode() == ToolTransformArgs::LIQUIFY) {
+        if (m_optionsWidget && m_optionsWidget->isBending()) return m_bendStrategy.data();
         return m_liquifyStrategy.data();
     } else if (m_currentArgs.mode() == ToolTransformArgs::MESH) {
         return m_meshStrategy.data();
@@ -419,8 +424,19 @@ void KisToolTransform::endActionImpl(KoPointerEvent *event, bool usePrimaryActio
     updateApplyResetAvailability();
 }
 
+void KisToolTransform::slotBendSourceReady(KisPaintDeviceSP source)
+{
+    m_bendStrategy->setSource(source);
+}
+
 QMenu* KisToolTransform::popupActionsMenu()
 {
+    // in Bend a right click on a pin takes it out
+    if (currentStrategy() == m_bendStrategy.data() && m_bendStrategy->removeHoveredPin()) {
+        commitChanges();
+        return nullptr;
+    }
+
     if (m_contextMenu) {
         m_contextMenu->clear();
 
@@ -564,7 +580,7 @@ KisToolTransform::TransformToolMode KisToolTransform::transformMode() const
         mode = CageTransformMode;
         break;
     case ToolTransformArgs::LIQUIFY:
-        mode = LiquifyTransformMode;
+        mode = m_optionsWidget && m_optionsWidget->isBending() ? BendTransformMode : LiquifyTransformMode;
         break;
     case ToolTransformArgs::PERSPECTIVE_4POINT:
         mode = PerspectiveTransformMode;
@@ -663,6 +679,7 @@ ToolTransformArgs::TransformMode KisToolTransform::toArgsMode(KisToolTransform::
         mode = ToolTransformArgs::CAGE;
         break;
     case LiquifyTransformMode:
+    case BendTransformMode:
         mode = ToolTransformArgs::LIQUIFY;
         break;
     case PerspectiveTransformMode:
@@ -680,9 +697,7 @@ ToolTransformArgs::TransformMode KisToolTransform::toArgsMode(KisToolTransform::
 
 void KisToolTransform::setTransformMode(KisToolTransform::TransformToolMode newMode)
 {
-    ToolTransformArgs::TransformMode mode = toArgsMode(newMode);
-
-    if( mode != m_currentArgs.mode() ) {
+    if (newMode != transformMode()) {
         if( newMode == FreeTransformMode ) {
             m_optionsWidget->slotSetFreeTransformModeButtonClicked( true );
         } else if( newMode == WarpTransformMode ) {
@@ -695,6 +710,8 @@ void KisToolTransform::setTransformMode(KisToolTransform::TransformToolMode newM
             m_optionsWidget->slotSetPerspectiveModeButtonClicked( true );
         } else if( newMode == MeshTransformMode ) {
             m_optionsWidget->slotSetMeshModeButtonClicked( true );
+        } else if (newMode == BendTransformMode) {
+            m_optionsWidget->slotSetBendModeButtonClicked(true);
         }
 
         Q_EMIT transformModeChanged();
@@ -1030,6 +1047,7 @@ void KisToolTransform::startStroke(ToolTransformArgs::TransformMode mode, bool f
         InplaceTransformStrokeStrategy *transformStrategy = new InplaceTransformStrokeStrategy(mode, m_currentArgs.filterId(), forceReset, rootNodes, selection, externalSource, image().data(), image().data(), image()->root(), m_forceLodMode);
         connect(transformStrategy, SIGNAL(sigTransactionGenerated(TransformTransactionProperties, ToolTransformArgs, void*)), SLOT(slotTransactionGenerated(TransformTransactionProperties, ToolTransformArgs, void*)));
         connect(transformStrategy, SIGNAL(sigConvexHullCalculated(QPolygon, void*)), SLOT(slotConvexHullCalculated(QPolygon, void*)));
+        connect(transformStrategy, SIGNAL(sigSourceReady(KisPaintDeviceSP)), SLOT(slotBendSourceReady(KisPaintDeviceSP)));
         strategy = transformStrategy;
 
         // save unique identifier of the stroke so we could

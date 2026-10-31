@@ -598,6 +598,7 @@ void InplaceTransformStrokeStrategy::initStrokeCallback()
         }
 
         Q_EMIT sigTransactionGenerated(transaction, m_d->initialTransformArgs, this);
+        Q_EMIT sigSourceReady(transformedPixels(srcRect));
     });
 
     /// recover back visibility of decorated nodes
@@ -767,6 +768,25 @@ void InplaceTransformStrokeStrategy::fetchAllUpdateRequests(int levelOfDetail, K
     *m_d->updateDataForUndo = (m_d->initialUpdatesBeforeClear | savedUndoRects).compressed();
     prevDirtyRects.clear();
     dirtyRects.swap(prevDirtyRects);
+}
+
+KisPaintDeviceSP InplaceTransformStrokeStrategy::transformedPixels(const QRect &rect) const
+{
+    // one layer and no selection: a copy sharing its tiles, which costs nothing
+    KisPaintDeviceSP pixels;
+    Q_FOREACH (KisNodeSP node, m_d->processedNodes) {
+        KisPaintDeviceSP device = node->paintDevice();
+        if (!device || dynamic_cast<KisTransformMask *>(node.data())) continue;
+        if (!pixels && !m_d->selection) {
+            pixels = new KisPaintDevice(*device);
+            continue;
+        }
+        if (!pixels) pixels = new KisPaintDevice(device->colorSpace());
+        KisPainter painter(pixels);
+        painter.setSelection(m_d->selection);
+        painter.bitBlt(rect.topLeft(), device, rect);
+    }
+    return pixels;
 }
 
 void InplaceTransformStrokeStrategy::transformNode(KisNodeSP node, const ToolTransformArgs &config, int levelOfDetail, bool inPlace)

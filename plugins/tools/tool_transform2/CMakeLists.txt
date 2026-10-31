@@ -22,6 +22,7 @@ set(kritatooltransform_static_SRCS
     strokes/transform_stroke_strategy.cpp
     strokes/inplace_transform_stroke_strategy.cpp
     strokes/KisLiquifyInPlace.cpp
+    KisBendTransformStrategy.cpp
     )
 
 ki18n_wrap_ui(kritatooltransform_static_SRCS wdg_tool_transform.ui)

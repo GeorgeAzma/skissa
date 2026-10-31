@@ -26,6 +26,9 @@ public:
     void setDefaultWarpPoints(int pointsPerLine = -1);
     void setTooBigLabelVisible(bool value);
 
+    /// Whether liquify's grid is posed by Bend's pins rather than painted
+    bool isBending() const;
+
 public Q_SLOTS:
     void updateConfig(const ToolTransformArgs &config);
     void slotUpdateIcons();
@@ -85,6 +88,7 @@ public Q_SLOTS:
 
     void slotSetPerspectiveModeButtonClicked(bool);
     void slotSetLiquifyModeButtonClicked(bool);
+    void slotSetBendModeButtonClicked(bool);
     void slotButtonBoxClicked(QAbstractButton *button);
 
     void slotSetMeshModeButtonClicked(bool);
@@ -149,6 +153,8 @@ private:
     int m_uiSlotsBlocked;
     double m_scaleRatio;
     bool m_configChanged;
+    QToolButton *m_bendButton {nullptr};
+    bool m_bending {false};
 };
 
 #endif /* __KIS_TOOL_TRANSFORM_CONFIG_WIDGET_H */
