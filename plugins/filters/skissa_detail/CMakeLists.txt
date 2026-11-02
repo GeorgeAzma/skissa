@@ -1,0 +1,8 @@
+set(kritaskissadetail_SOURCES
+    SkissaDetail.cpp
+    SkissaDetailFilter.cpp
+    SkissaDetailWidget.cpp
+    )
+kis_add_library(kritaskissadetail MODULE ${kritaskissadetail_SOURCES})
+target_link_libraries(kritaskissadetail kritaui)
+install(TARGETS kritaskissadetail DESTINATION ${KRITA_PLUGIN_INSTALL_DIR})

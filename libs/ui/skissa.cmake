@@ -64,6 +64,7 @@ set(skissa_ui_SRCS
     widgets/KisPopupCloser.cpp
     widgets/KisPresetStrokeThumbnails.cpp
     widgets/KisStudioChips.cpp
+    widgets/KisStudioCurve.cpp
     widgets/KisStudioDabPictures.cpp
     widgets/KisStudioInlineEdit.cpp
     widgets/KisStudioPicker.cpp

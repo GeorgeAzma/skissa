@@ -62,8 +62,8 @@ const QSize thumbnailSize(112, 64);
 QStringList defaultEffects()
 {
     return {
-        QStringLiteral("skissa_color"), QStringLiteral("motion blur"), QStringLiteral("gradientmap"), QStringLiteral("colortoalpha"),
-        QStringLiteral("gaussianhighpass"), QStringLiteral("gaussian blur"),
+        QStringLiteral("skissa_color"), QStringLiteral("skissa_blur"), QStringLiteral("skissa_sharpen"), QStringLiteral("skissa_detail"),
+        QStringLiteral("motion blur"), QStringLiteral("skissa_high_pass"), QStringLiteral("gradientmap"), QStringLiteral("colortoalpha"),
     };
 }
 
@@ -87,6 +87,11 @@ QVector<QPair<QString, QString>> groupTitles()
 QString groupOf(const QString &id)
 {
     static const QHash<QString, QString> byId = {
+        {QStringLiteral("skissa_blur"), QStringLiteral("soften")},
+        {QStringLiteral("skissa_smooth"), QStringLiteral("sharpen")},
+        {QStringLiteral("skissa_sharpen"), QStringLiteral("sharpen")},
+        {QStringLiteral("skissa_high_pass"), QStringLiteral("sharpen")},
+        {QStringLiteral("skissa_detail"), QStringLiteral("sharpen")},
         {QStringLiteral("blur"), QStringLiteral("soften")},
         {QStringLiteral("gaussian blur"), QStringLiteral("soften")},
         {QStringLiteral("lens blur"), QStringLiteral("soften")},
@@ -207,7 +212,7 @@ void replaceRetiredFavorites(const QString &key)
     const QStringList pinned = KisConfig(true).readEntry<QStringList>(key, QStringList());
     QStringList kept;
     Q_FOREACH (const QString &id, pinned) {
-        kept << (KisRetiredEffects::isRetired(id) ? QStringLiteral("skissa_color") : id);
+        kept << (KisRetiredEffects::isRetired(id) ? KisRetiredEffects::coveredBy(id) : id);
     }
     kept.removeDuplicates();
     if (kept != pinned) KisConfig(false).writeEntry(key, kept);

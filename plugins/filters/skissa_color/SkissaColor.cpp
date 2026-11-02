@@ -6,7 +6,6 @@
 #include "SkissaColor.h"
 
 #include <QColor>
-#include <QStringList>
 
 #include <algorithm>
 #include <cmath>
@@ -90,39 +89,6 @@ inline float decoded(float c)
 
 } // namespace
 
-QString Curve::toString() const
-{
-    QString text;
-    Q_FOREACH (const QPointF &point, points) {
-        text += QString::number(point.x(), 'g', 5) + QLatin1Char(',') + QString::number(point.y(), 'g', 5) + QLatin1Char(';');
-    }
-    return text;
-}
-
-Curve Curve::fromString(const QString &text, const Curve &fallback)
-{
-    Curve curve;
-    Q_FOREACH (const QString &pair, text.split(QLatin1Char(';'), Qt::SkipEmptyParts)) {
-        const QStringList xy = pair.split(QLatin1Char(','));
-        bool okX = false, okY = false;
-        const qreal x = xy.value(0).toDouble(&okX);
-        const qreal y = xy.value(1).toDouble(&okY);
-        if (xy.size() == 2 && okX && okY) curve.points << QPointF(qBound(0.0, x, 1.0), qBound(0.0, y, 1.0));
-    }
-    if (curve.points.size() < 2) return fallback;
-    std::stable_sort(curve.points.begin(), curve.points.end(), [](const QPointF &a, const QPointF &b) { return a.x() < b.x(); });
-    return curve;
-}
-
-bool Curve::operator==(const Curve &other) const
-{
-    if (points.size() != other.points.size()) return false;
-    for (int i = 0; i < points.size(); i++) {
-        if (std::abs(points[i].x() - other.points[i].x()) > 1e-4 || std::abs(points[i].y() - other.points[i].y()) > 1e-4) return false;
-    }
-    return true;
-}
-
 Curve defaultCurve(int by, int change)
 {
     return isMapping(by, change) ? defaultRgbCurve() : Curve{{QPointF(0, 0.5), QPointF(1, 0.5)}};
@@ -135,66 +101,8 @@ Curve defaultRgbCurve()
 
 QVector<float> sampled(const Curve &curve, bool wraps, bool mapping, int count)
 {
-    QVector<QPointF> points = curve.points;
-    if (points.isEmpty()) points = mapping ? defaultRgbCurve().points : Curve{{QPointF(0, 0.5), QPointF(1, 0.5)}}.points;
-    if (wraps) {
-        // a turn before and after, so that the curve meets itself at the ends
-        QVector<QPointF> around;
-        for (int turn = -1; turn <= 1; turn++) {
-            Q_FOREACH (const QPointF &point, points) around << QPointF(point.x() + turn, point.y() + (mapping ? turn : 0));
-        }
-        points = around;
-    }
-    const int n = points.size();
-    QVector<float> values(count);
-    if (n == 1) {
-        std::fill(values.begin(), values.end(), float(points.first().y()));
-        return values;
-    }
-    // a monotone cubic (Fritsch and Carlson): through every point without overshooting between them
-    QVector<double> slope(n - 1), tangent(n);
-    for (int i = 0; i < n - 1; i++) {
-        const double dx = std::max(points[i + 1].x() - points[i].x(), 1e-6);
-        slope[i] = (points[i + 1].y() - points[i].y()) / dx;
-    }
-    tangent[0] = slope[0];
-    tangent[n - 1] = slope[n - 2];
-    for (int i = 1; i < n - 1; i++) tangent[i] = slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2;
-    for (int i = 0; i < n - 1; i++) {
-        if (slope[i] == 0) {
-            tangent[i] = tangent[i + 1] = 0;
-            continue;
-        }
-        const double a = tangent[i] / slope[i];
-        const double b = tangent[i + 1] / slope[i];
-        const double s = a * a + b * b;
-        if (s > 9) {
-            const double t = 3 / std::sqrt(s);
-            tangent[i] = t * a * slope[i];
-            tangent[i + 1] = t * b * slope[i];
-        }
-    }
-    int segment = 0;
-    for (int k = 0; k < count; k++) {
-        const double x = double(k) / (count - 1);
-        double y;
-        if (x <= points.first().x()) {
-            y = points.first().y();
-        } else if (x >= points.last().x()) {
-            y = points.last().y();
-        } else {
-            while (segment < n - 2 && x > points[segment + 1].x()) segment++;
-            const QPointF &p0 = points[segment];
-            const QPointF &p1 = points[segment + 1];
-            const double h = std::max(p1.x() - p0.x(), 1e-6);
-            const double t = (x - p0.x()) / h;
-            const double t2 = t * t, t3 = t2 * t;
-            y = (2 * t3 - 3 * t2 + 1) * p0.y() + (t3 - 2 * t2 + t) * h * tangent[segment] + (-2 * t3 + 3 * t2) * p1.y()
-                + (t3 - t2) * h * tangent[segment + 1];
-        }
-        values[k] = float(wraps && mapping ? y : std::clamp(y, 0.0, 1.0));
-    }
-    return values;
+    if (curve.points.isEmpty()) return sampled(mapping ? defaultRgbCurve() : Curve{{QPointF(0, 0.5), QPointF(1, 0.5)}}, wraps, mapping, count);
+    return curve.sampled(count, wraps, wraps && mapping);
 }
 
 float axisOfHue(float hue)

@@ -12,6 +12,8 @@
 
 #include <array>
 
+#include <widgets/KisStudioCurve.h>
+
 class KisPropertiesConfiguration;
 
 /**
@@ -30,16 +32,7 @@ constexpr float chromaRange = 0.32f;
 constexpr float lightnessShift = 0.3f;
 constexpr float hueShift = 60.0f;
 
-/// Points from left to right, both coordinates 0 to 1
-struct Curve {
-    QVector<QPointF> points;
-
-    /// Krita's curve text, "x,y;x,y;"
-    QString toString() const;
-    static Curve fromString(const QString &text, const Curve &fallback);
-    bool operator==(const Curve &other) const;
-    bool operator!=(const Curve &other) const { return !(*this == other); }
-};
+using Curve = KisStudioCurve;
 
 /// Whether the curve of \p change by \p by gives the new value (its default the diagonal) or a change (flat)
 inline bool isMapping(int by, int change) { return by == change; }

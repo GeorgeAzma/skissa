@@ -28,6 +28,7 @@
 #include <kis_paint_device.h>
 #include <klocalizedstring.h>
 #include <widgets/KisStudioChips.h>
+#include <widgets/KisStudioCurve.h>
 
 #include "KoCompositeOpOklch.h"
 #include "SkissaColor.h"
@@ -127,358 +128,6 @@ QImage applied(const QImage &image, const Settings &settings)
  * One curve, drawn over how much of the image is at each place along it. A press on the line adds a point and
  * drags it; a point pulled far off the box, double-clicked or right-clicked goes; a right click elsewhere resets.
  */
-class CurveView : public QWidget
-{
-    Q_OBJECT
-public:
-    std::function<void(const Curve &)> changed;
-    /// The values at a place, as shown while a point is dragged
-    std::function<QString(qreal x, qreal y)> describe;
-    std::function<QColor(qreal)> xColor;
-    std::function<QColor(qreal)> yColor;
-
-    explicit CurveView(QWidget *parent)
-        : QWidget(parent)
-    {
-        setMouseTracking(true);
-        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    }
-
-    void setCurve(const Curve &curve, const Curve &fallback, bool wraps, bool mapping)
-    {
-        m_curve = curve;
-        m_fallback = fallback;
-        m_wraps = wraps;
-        m_mapping = mapping;
-        m_values = sampled(curve, wraps, mapping, 256);
-        update();
-    }
-
-    void setHistogram(const QVector<float> &histogram)
-    {
-        m_histogram = histogram;
-        update();
-    }
-
-    /// Marks the place of the pixel under the pointer; negative: none
-    void setMarker(qreal x)
-    {
-        if (x == m_marker) return;
-        m_marker = x;
-        update();
-    }
-
-    qreal valueAt(qreal x) const
-    {
-        return m_values.isEmpty() ? x : m_values[qBound(0, qRound(x * (m_values.size() - 1)), m_values.size() - 1)];
-    }
-
-    /// Gives the point nearest \p x (within a little), or a new one on the curve there; its index
-    int pointAt(qreal x)
-    {
-        int nearest = -1;
-        for (int i = 0; i < m_curve.points.size(); i++) {
-            const qreal distance = std::abs(m_curve.points[i].x() - x);
-            if (distance < 0.025 && (nearest < 0 || distance < std::abs(m_curve.points[nearest].x() - x))) nearest = i;
-        }
-        if (nearest >= 0) return nearest;
-        if (m_wraps) {
-            // a hue changed alone: the curve held where it is a little either way, unless a point is near already
-            const qreal reach = 1.0 / 12;
-            for (qreal side : {-reach, reach}) {
-                const qreal at = x + side;
-                bool held = false;
-                Q_FOREACH (const QPointF &point, m_curve.points) {
-                    if (std::abs(point.x() - at) < reach * 0.8 || (side < 0 ? point.x() > at && point.x() < x : point.x() < at && point.x() > x)) {
-                        held = true;
-                    }
-                }
-                if (!held && at > 0.01 && at < 0.99) insert(QPointF(at, qBound(0.0, valueAt(at), 1.0)));
-            }
-        }
-        return insert(QPointF(x, qBound(0.0, valueAt(x), 1.0)));
-    }
-
-    /// Moves point \p index to height \p y and reports the change
-    void setPointY(int index, qreal y)
-    {
-        if (index < 0 || index >= m_curve.points.size()) return;
-        m_curve.points[index].setY(qBound(0.0, y, 1.0));
-        tieEnds(index);
-        commit();
-    }
-
-    const Curve &curve() const { return m_curve; }
-    void setShownPoint(int index) { m_shown = index; update(); }
-
-    QSize sizeHint() const override { return QSize(360, 170); }
-    bool hasHeightForWidth() const override { return true; }
-    int heightForWidth(int width) const override { return qBound(130, int(width * 0.4), 170); }
-
-protected:
-    void paintEvent(QPaintEvent *) override
-    {
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        const QColor ink = palette().color(QPalette::WindowText);
-        auto inked = [&ink](qreal alpha) {
-            QColor color = ink;
-            color.setAlphaF(alpha);
-            return color;
-        };
-        const QRectF box = boxRect();
-
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(inked(0.05));
-        painter.drawPath(KisModernStyle::squircle(box, KisModernStyle::cornerRadius));
-
-        painter.save();
-        painter.setClipPath(KisModernStyle::squircle(box, KisModernStyle::cornerRadius));
-        if (!m_histogram.isEmpty()) {
-            QPainterPath shape;
-            shape.moveTo(box.bottomLeft());
-            for (int i = 0; i < m_histogram.size(); i++) {
-                const qreal x = box.left() + box.width() * (i + 0.5) / m_histogram.size();
-                shape.lineTo(x, box.bottom() - m_histogram[i] * box.height() * 0.85);
-            }
-            shape.lineTo(box.bottomRight());
-            shape.closeSubpath();
-            painter.setBrush(inked(0.09));
-            painter.drawPath(shape);
-        }
-        painter.setPen(QPen(inked(0.07), 1));
-        for (int i = 1; i < 4; i++) {
-            const qreal x = box.left() + box.width() * i / 4;
-            const qreal y = box.top() + box.height() * i / 4;
-            painter.drawLine(QPointF(x, box.top()), QPointF(x, box.bottom()));
-            painter.drawLine(QPointF(box.left(), y), QPointF(box.right(), y));
-        }
-        const QVector<float> fallback = sampled(m_fallback, m_wraps, m_mapping, 2);
-        painter.setPen(QPen(inked(0.2), 1));
-        painter.drawLine(toScreen(QPointF(0, fallback.first())), toScreen(QPointF(1, fallback.last())));
-
-        QPainterPath line;
-        for (int i = 0; i < m_values.size(); i++) {
-            const QPointF at = toScreen(QPointF(qreal(i) / (m_values.size() - 1), m_values[i]));
-            if (i == 0) line.moveTo(at);
-            else line.lineTo(at);
-        }
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(inked(0.9), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawPath(line);
-
-        if (m_marker >= 0) {
-            const QPointF on = toScreen(QPointF(m_marker, valueAt(m_marker)));
-            painter.setPen(QPen(inked(0.4), 1));
-            painter.drawLine(QPointF(on.x(), box.top()), QPointF(on.x(), box.bottom()));
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(inked(0.9));
-            painter.drawEllipse(on, 3, 3);
-        }
-        painter.restore();
-
-        const int active = m_dragged >= 0 ? m_dragged : m_shown;
-        for (int i = 0; i < m_curve.points.size(); i++) {
-            const QPointF at = toScreen(m_curve.points[i]);
-            const qreal radius = i == active || i == m_hovered ? 5.5 : 4.5;
-            painter.setOpacity(i == m_dragged && m_leaving ? 0.35 : 1.0);
-            // white with a dark ring, seen on any background
-            painter.setPen(QPen(QColor(0, 0, 0, 170), 1.5));
-            painter.setBrush(Qt::white);
-            painter.drawEllipse(at, radius, radius);
-        }
-        painter.setOpacity(1);
-
-        if (active >= 0 && active < m_curve.points.size() && describe) {
-            const QPointF point = m_curve.points[active];
-            painter.setPen(KisModernStyle::secondaryInk(ink));
-            painter.drawText(box.adjusted(KisModernStyle::space2, KisModernStyle::space1, -KisModernStyle::space2, 0),
-                             Qt::AlignLeft | Qt::AlignTop, describe(point.x(), point.y()));
-        }
-
-        // what each axis is, as a strip of its colors
-        auto strip = [&painter](const QRectF &rect, bool across, const std::function<QColor(qreal)> &color) {
-            if (!color) return;
-            QLinearGradient gradient(rect.topLeft(), across ? rect.topRight() : rect.bottomLeft());
-            for (int i = 0; i <= 24; i++) {
-                const qreal t = i / 24.0;
-                gradient.setColorAt(t, color(across ? t : 1 - t));
-            }
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(gradient);
-            painter.drawPath(KisModernStyle::squircle(rect, rect.height() < rect.width() ? rect.height() / 2 : rect.width() / 2));
-        };
-        strip(QRectF(box.left(), box.bottom() + KisModernStyle::space1, box.width(), stripSize), true, xColor);
-        strip(QRectF(0, box.top(), stripSize, box.height()), false, yColor);
-    }
-
-    void mousePressEvent(QMouseEvent *event) override
-    {
-        const int near = pointNear(event->pos());
-        if (event->button() == Qt::RightButton) {
-            // a point goes; elsewhere, the curve resets
-            if (near >= 0 && removable(near)) {
-                m_curve.points.removeAt(near);
-            } else {
-                m_curve = m_fallback;
-            }
-            m_hovered = -1;
-            commit();
-            return;
-        }
-        if (event->button() != Qt::LeftButton) return;
-        m_dragged = near >= 0 ? near : insert(QPointF(qBound(0.0, fromScreen(event->pos()).x(), 1.0),
-                                                       qBound(0.0, valueAt(fromScreen(event->pos()).x()), 1.0)));
-        m_grab = event->pos();
-        m_start = m_curve.points[m_dragged];
-        m_fine = event->modifiers() & Qt::ShiftModifier;
-        m_leaving = false;
-        commit();
-    }
-
-    void mouseMoveEvent(QMouseEvent *event) override
-    {
-        if (m_dragged < 0 || !(event->buttons() & Qt::LeftButton)) {
-            if (m_dragged >= 0) finishDrag();
-            const int near = pointNear(event->pos());
-            if (near != m_hovered) {
-                m_hovered = near;
-                update();
-            }
-            return;
-        }
-        const bool fine = event->modifiers() & Qt::ShiftModifier;
-        if (fine != m_fine) {
-            // on from here at the new speed
-            m_fine = fine;
-            m_grab = event->pos();
-            m_start = m_curve.points[m_dragged];
-        }
-        const QRectF box = boxRect();
-        const QPointF moved = QPointF(event->pos() - m_grab) * (fine ? 0.25 : 1.0);
-        QPointF point(m_start.x() + moved.x() / box.width(), m_start.y() - moved.y() / box.height());
-        const int last = m_curve.points.size() - 1;
-        const bool end = m_dragged == 0 || m_dragged == last;
-        if (m_wraps && end) {
-            point.setX(m_dragged == 0 ? 0.0 : 1.0);
-        } else {
-            const qreal low = m_dragged > 0 ? m_curve.points[m_dragged - 1].x() + 0.01 : 0.0;
-            const qreal high = m_dragged < last ? m_curve.points[m_dragged + 1].x() - 0.01 : 1.0;
-            point.setX(qBound(low, point.x(), qMax(low, high)));
-        }
-        point.setY(qBound(0.0, point.y(), 1.0));
-        m_curve.points[m_dragged] = point;
-        tieEnds(m_dragged);
-        // pulled far off the box, the point will go
-        const qreal off = qMax(box.top() - event->pos().y(), event->pos().y() - box.bottom());
-        m_leaving = removable(m_dragged) && off > 32;
-        commit();
-    }
-
-    void mouseReleaseEvent(QMouseEvent *event) override
-    {
-        if (event->button() == Qt::LeftButton && m_dragged >= 0) finishDrag();
-    }
-
-    void mouseDoubleClickEvent(QMouseEvent *event) override
-    {
-        const int near = pointNear(event->pos());
-        if (event->button() == Qt::LeftButton && near >= 0 && removable(near)) {
-            m_curve.points.removeAt(near);
-            m_dragged = -1;
-            m_hovered = -1;
-            commit();
-        }
-    }
-
-    void leaveEvent(QEvent *) override
-    {
-        m_hovered = -1;
-        update();
-    }
-
-private:
-    static constexpr int stripSize = 6;
-
-    QRectF boxRect() const
-    {
-        const qreal left = stripSize + KisModernStyle::space1;
-        return QRectF(left, 0, width() - left, height() - stripSize - KisModernStyle::space1);
-    }
-    QPointF toScreen(const QPointF &value) const
-    {
-        const QRectF box = boxRect();
-        return QPointF(box.left() + value.x() * box.width(), box.bottom() - value.y() * box.height());
-    }
-    QPointF fromScreen(const QPointF &pos) const
-    {
-        const QRectF box = boxRect();
-        return QPointF((pos.x() - box.left()) / box.width(), (box.bottom() - pos.y()) / box.height());
-    }
-    int pointNear(const QPoint &pos) const
-    {
-        int best = -1;
-        qreal bestDistance = 10;
-        for (int i = 0; i < m_curve.points.size(); i++) {
-            const qreal distance = QLineF(toScreen(m_curve.points[i]), pos).length();
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                best = i;
-            }
-        }
-        return best;
-    }
-    bool removable(int index) const
-    {
-        // a curve keeps two points; a curve by hue keeps its ends, which are one point
-        if (m_curve.points.size() <= 2) return false;
-        return !(m_wraps && (index == 0 || index == m_curve.points.size() - 1));
-    }
-    int insert(const QPointF &point)
-    {
-        int at = 0;
-        while (at < m_curve.points.size() && m_curve.points[at].x() < point.x()) at++;
-        m_curve.points.insert(at, point);
-        return at;
-    }
-    /// The two ends of a curve by hue are the same place
-    void tieEnds(int index)
-    {
-        if (!m_wraps || m_curve.points.size() < 2) return;
-        const int last = m_curve.points.size() - 1;
-        if (index == 0 && m_curve.points[last].x() >= 0.999) m_curve.points[last].setY(m_curve.points[0].y());
-        if (index == last && m_curve.points[0].x() <= 0.001) m_curve.points[0].setY(m_curve.points[last].y());
-    }
-    void finishDrag()
-    {
-        if (m_leaving && m_dragged >= 0) m_curve.points.removeAt(m_dragged);
-        m_dragged = -1;
-        m_leaving = false;
-        commit();
-    }
-    void commit()
-    {
-        m_values = sampled(m_curve, m_wraps, m_mapping, 256);
-        update();
-        if (changed) changed(m_curve);
-    }
-
-    Curve m_curve;
-    Curve m_fallback;
-    bool m_wraps {false};
-    bool m_mapping {true};
-    QVector<float> m_values;
-    QVector<float> m_histogram;
-    qreal m_marker {-1};
-    int m_hovered {-1};
-    int m_dragged {-1};
-    int m_shown {-1};
-    bool m_leaving {false};
-    bool m_fine {false};
-    QPoint m_grab;
-    QPointF m_start;
-};
-
 /**
  * A color shift as a point on a disc of OKLab's colors: dragged toward orange, the image (or its shadows or
  * highlights) warms. A click puts it there, right click takes it back to the middle.
@@ -656,7 +305,7 @@ struct SkissaColorWidget::Private {
     KisStudioChips *presetChips {nullptr};
     KisStudioChips *changeTabs {nullptr};
     KisStudioChips *byChips {nullptr};
-    CurveView *curve {nullptr};
+    KisStudioCurveView *curve {nullptr};
     BalanceDisc *shadows {nullptr};
     BalanceDisc *balance {nullptr};
     BalanceDisc *highlights {nullptr};
@@ -818,7 +467,7 @@ SkissaColorWidget::SkissaColorWidget(QWidget *parent, KisPaintDeviceSP dev)
     layout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
 
     d->presetChips = new KisStudioChips(this);
-    d->presetChips->setTileColumns(6, qMax(48, fontMetrics().height() + 30));
+    d->presetChips->setTileColumns(6, qMax(64, 2 * fontMetrics().height() + 34));
     connect(d->presetChips, &KisStudioChips::clicked, this, [this](int index) {
         if (index < 0 || index >= d->presets.size()) return;
         d->settings = d->presets[index].settings;
@@ -835,7 +484,7 @@ SkissaColorWidget::SkissaColorWidget(QWidget *parent, KisPaintDeviceSP dev)
     });
     layout->addWidget(d->changeTabs);
 
-    d->curve = new CurveView(this);
+    d->curve = new KisStudioCurveView(this);
     d->curve->changed = [this](const Curve &curve) {
         d->current() = curve;
         refreshChips();
@@ -922,7 +571,7 @@ QSize SkissaColorWidget::sizeHint() const
 
 void SkissaColorWidget::refresh()
 {
-    d->curve->setCurve(d->current(), d->fallback(), d->wraps(), d->mapping());
+    d->curve->setCurve(d->current(), d->fallback(), d->wraps(), d->wraps() && d->mapping());
     d->curve->setHistogram(d->isRgb() ? d->rgbHistograms[d->currentBy()] : d->histograms[d->currentBy()]);
 
     // each axis as a strip of what it is
