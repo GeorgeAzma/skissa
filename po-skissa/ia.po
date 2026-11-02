@@ -638,6 +638,42 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Pallidi"
 
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Face plus acute"
+
+msgctxt "effect"
+msgid "Smooth"
+msgstr "Lisie"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "Lisie"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Brillantia"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Dimension"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Color"
+
 msgctxt "@info:tooltip brush tip"
 msgid "Size"
 msgstr "Dimension"

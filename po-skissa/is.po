@@ -188,6 +188,30 @@ msgctxt "color effect preset"
 msgid "Original"
 msgstr "Upprunalegt"
 
+msgctxt "effect"
+msgid "Smooth"
+msgstr "Mýking"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Upprunalegt"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "Mýking"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Litur"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Litur"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Litur"
+
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Skráin er of ný fyrir þessa útgáfu Skissa (%1)."
 

@@ -821,6 +821,46 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Soldur"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Bulanıklaştır…"
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Bulanıklaştır"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Keskinleştir"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Özgün"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Açıklık"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Renk"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Renk"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Orta Tonlar"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Boyut"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Renk"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "Görselde sıfır alfa kanalı ve sıfır olmayan renk kanalları var. Skissa az da olsa alfaya sahip olacak şekilde bu pikselleri değiştirdi. İlk değerler görsel geri kaydedilirken geri <i>alınamayacak</i>.<br/><br/>Bunun görsel bir fark yaratması pek olanaklı değil, yalnızca aklınızda bulunsun."

@@ -511,6 +511,38 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "سۇسلاشتۇر"
 
+msgctxt "effect"
+msgid "Smooth"
+msgstr "سىلىق"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "ئەسلى"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "سىلىق"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "يورۇقلۇق دەرىجىسى"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "رەڭ"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "رەڭ"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "چوڭلۇقى"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "رەڭ"
+
 msgctxt "@info:tooltip brush tip"
 msgid "Size"
 msgstr "چوڭلۇقى"

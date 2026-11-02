@@ -593,6 +593,42 @@ msgctxt "color effect axis"
 msgid "Hue"
 msgstr "Odcień"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Rozmycie..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Rozmycie"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Wyostrzanie"
+
+msgctxt "effect"
+msgid "Smooth"
+msgstr "Wygładź"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "Wygładź"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Rozmiar"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Barwa"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "Obraz zawiera piksele z zerowym kanałem alfa i niezerowymi kanałami barw. Skissa będzie musiała zmienić te piksele, aby uzyskać przynajmniej jakąś alfę. Początkowe wartości <i>nie</i> zostaną przywrócone przy zapisywaniu obrazu.<br/><br/>Raczej nie spowoduje to różnicy w wyświetlaniu, ale powinieneś mieć to na uwadze."

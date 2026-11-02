@@ -702,6 +702,46 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "淡化"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "模糊(&B)…"
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "模糊"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "銳化"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "原始"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "亮度"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "中間色"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "色彩"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "此影像包含 Alpha (透明度) 通道數值為零而色彩通道不為零的像素。Skissa 已經將那些像素調整為含有 Alpha。原始數值在儲存影像時將<b>不會</b>被還原。<br/><br/>這並不會構成視覺上的明顯區別，只是提醒一下。"

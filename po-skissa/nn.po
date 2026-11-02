@@ -697,6 +697,46 @@ msgctxt "color effect preset"
 msgid "Auto"
 msgstr "Auto"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Sløring …"
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Sløring"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Skarp opp"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Opphavleg"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Lysstyrke"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Farge"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Farge"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Midttonar"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Storleik"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Farge"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "Biletet inneheld pikslar med tom alfakanal og ikkjetomme fargekanalar. Skissa har endra pikslane til å ha minst noko alfa. Startverdiane vert <i>ikkje</i> tilbakestilte ved lagring av biletet.<br/><br/>Dette vil knapt ha nokon visuell verknad, men du bør likevel vera klar over det."

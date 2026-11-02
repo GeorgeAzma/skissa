@@ -660,6 +660,46 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Blednutí"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "Rozostře&ní..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Rozostření"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Zaostřit"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Originál"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Jas"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Střední tóny"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Barva"
+
 msgctxt "@info:tooltip brush tip"
 msgid "Size"
 msgstr "Velikost"

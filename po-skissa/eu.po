@@ -678,6 +678,42 @@ msgctxt "color effect preset"
 msgid "Auto"
 msgstr "Automatikoa"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Lausotu..."
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Araztu"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Jatorrizkoa"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Argitasuna"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Tonu ertainak"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Tamaina"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Kolorea"
+
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Fitxategia berriegia da Skissa-ren bertsio honetarako (%1)."
 

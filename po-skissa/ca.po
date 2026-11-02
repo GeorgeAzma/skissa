@@ -741,6 +741,42 @@ msgctxt "color effect preset"
 msgid "Original"
 msgstr "Original"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Difumina..."
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Aguditza"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Claredat"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Tons mitjans"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Mida"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Color"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "La imatge conté píxels amb el canal alfa a zero i els canals de color no zero. El Skissa ha modificat aquests píxels per a assignar quelcom a l'alfa. Els valors inicials <i>no</i> es revertiran en desar la imatge anterior.<br/><br/>Cal tenir en compte que això difícilment provocarà diferències visuals."

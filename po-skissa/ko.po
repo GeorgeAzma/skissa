@@ -726,6 +726,46 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "페이드"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "흐림(&B)..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "흐림"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "선명하게"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "원본"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "광도"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "색상"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "색상"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "미드톤"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "크기"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "색상"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "이 이미지에 알파 채널이 0이고 색상 채널이 0이 아닌 픽셀이 들어 있습니다. Skissa는 이러한 픽셀을 최소한 약간의 알파를 갖도록 수정했습니다. 이미지를 다시 저장하면 초기 값이 되돌아오지 <i>않습니다</i>.<br/><br/>그래도 시각적 차이는 거의 발생하지 않습니다."

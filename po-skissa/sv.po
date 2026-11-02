@@ -693,6 +693,34 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Tona"
 
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Ljushet"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Mellantoner"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Storlek"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Färg"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "Bilden innehåller bildpunkter med alfakanal noll och färgkanaler som skiljer sig från noll. Skissa har ändrat dessa bildpunkter för att åtminstone ha något alfa. De ursprungliga värdena kommer <i>inte</i> att återställas när bilden sparas.<br/><br/>Det leder knappt till någon synlig skillnad, men var ändå medveten om det."

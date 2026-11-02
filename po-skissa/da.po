@@ -328,6 +328,34 @@ msgctxt "color effect preset"
 msgid "Auto"
 msgstr "Auto"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "S&lør..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Slør"
+
+msgctxt "effect"
+msgid "Smooth"
+msgstr "Glat"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "Glat"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Farve"
+
 msgctxt "picture brush tip used as"
 msgid "Gradient"
 msgstr "Overgang"

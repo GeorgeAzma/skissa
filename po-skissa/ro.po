@@ -60,3 +60,15 @@ msgctxt "color effect axis"
 msgid "Hue"
 msgstr "Nuanță"
 
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Culoare"
+

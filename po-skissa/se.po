@@ -32,6 +32,14 @@ msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Lasit palehttii"
 
+msgctxt "effect"
+msgid "Smooth"
+msgstr "Čábbát"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "Čábbát"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Boksa"

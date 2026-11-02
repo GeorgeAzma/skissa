@@ -602,6 +602,46 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Lesap"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Buram..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Buram"
+
+msgctxt "effect"
+msgid "Smooth"
+msgstr "Halus"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Asli"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "Halus"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Kecahayaan"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Ukuran"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Warna"
+
 msgctxt "@info:tooltip brush tip"
 msgid "Size"
 msgstr "Ukuran"

@@ -515,6 +515,26 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Hajumine"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Hägustamine..."
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Teravdus"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Värv"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Värv"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Värv"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "Pilt sisaldab null alfakanali ja nullist erineva värvikanalite arvuga piksleid. Skissa muutis neid piksleid, et neil oleks vähemal natukegi alfat. Algväärtusi <emphasis>ei</emphasis> taastata pildi salvestamisel.<br/><br/>Pane tähele, et visuaalselt ei avalda see peaaegu mingit mõju."

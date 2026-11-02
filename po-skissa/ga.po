@@ -789,6 +789,38 @@ msgctxt "color effect preset"
 msgid "Original"
 msgstr "Bunaidh"
 
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Géaraigh"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Bunaidh"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Éadromacht"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Meántoin"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Méid"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Dath"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "Tá picteilíní san íomhá le cainéal alfa nialasach agus bealaí datha neamh-nialasacha. Tá na picteilíní sin modhnaithe ag Skissa chun roinnt alfa a bheith acu ar a laghad. <i>Ní</i> aisiompófar na luachanna tosaigh nuair a shábhálfar an íomhá ar ais.<br/><br/>Is ar éigean a dhéanfaidh sé seo aon difríocht amhairc ach coinnigh i gcuimhne é."

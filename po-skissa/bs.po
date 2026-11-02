@@ -108,6 +108,14 @@ msgctxt "color effect preset"
 msgid "Auto"
 msgstr "Automatski"
 
+msgctxt "effect"
+msgid "Smooth"
+msgstr "Glatko"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "Glatko"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Kvadratni"

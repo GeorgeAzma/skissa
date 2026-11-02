@@ -793,6 +793,42 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Vervagen"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Vervagen..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Vervagen"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Verscherpen"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Origineel"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Kleur"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Kleur"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Middentonen"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Grootte"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Kleur"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "De afbeelding bevat pixels met alfawaarde nul en kleurwaarde niet-nul. Skissa heeft deze pixels gewijzigd zodat ze minstens enige alfawaarde bezitten. De initiële waarden zullen <i>niet</i> teruggezet worden bij terug opslaan.<br/><br/>Dit zal nauwelijks een zichtbaar verschil maken, maar hou het in gedachte."

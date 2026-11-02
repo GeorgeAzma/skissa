@@ -736,6 +736,42 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Pojemanje"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "Zabri&ši ..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Zabriši"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Izostri"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Izvirnik"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Srednji toni"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Barva"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "Slika vsebuje slikovne točke z ničelnim kanalom alfa in neničelnimi barvnimi kanali. Skissa je spremenila te slikovne točke, da imajo vsaj nekaj alfe. Začetne vrednosti se <i>ne</i> bodo povrnile pri shranjevanju slike.<br/><br/>To ne bo vplivalo na izgled, samo zavedajte se tega."

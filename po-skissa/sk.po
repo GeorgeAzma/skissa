@@ -722,6 +722,42 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Blednutie"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "Rozmazať..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Rozmazať"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Zaostrenie"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Svetlosť"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Farba"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Farba"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Stredné tóny"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Veľkosť"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Farba"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "Obrázok obsahuje pixely s nulovým alfa kanálom a nenulovými farebnými kanálmi. Skissa zmenila tieto pixely, aby mali aspoň nejakú alfu. Počiatočné hodnoty <i>nebudú</i> vrátené pri spätnom uložení obrázka. <br/><br/> Toto nespôsobí takmer žiadnu viditeľný rozdiel, nezabudnite na to."

@@ -699,6 +699,34 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "減衰"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "ぼかし(&B)..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "ぼかし"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "オリジナル"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "色"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "色"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "サイズ"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "色"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "画像には、0 のアルファチャンネルと 0 以外のカラーチャンネルを持つピクセルが含まれています。Skissa は、これらのピクセルが少なくともある程度のアルファを持つように変更しました。初期値では画像を保存したときに元に<i>戻されません</i>。<br/><br/>このことによる視覚的な違いはほとんどないですが、心に留めておいてください。"

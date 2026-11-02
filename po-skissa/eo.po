@@ -762,6 +762,30 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Dissolvi"
 
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Heleco"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Meztonoj"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Grandeco"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Koloro"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "La bildo enhavas rastrumerojn kun nula alfa-kanalo kaj ne-nulaj kolorkanaloj. Skissa modifis tiujn rastrumerojn por havi almenaŭ iom da alfao. La komencaj valoroj <i>ne</i> estos revertitaj post konservado de la bildo reen.<br/><br/>Tio apenaŭ faros ajnan vidan diferencon, nur memoru ĝin."

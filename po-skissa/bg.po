@@ -781,6 +781,46 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Избледняване"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Замъгляване..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Замъгляване"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Изостряне"
+
+msgctxt "effect"
+msgid "Smooth"
+msgstr "Изглаждане"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Оригинал"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "Изглаждане"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Цвят"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Цвят"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Цвят"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "Изображението съдържа пиксели с нулев алфа канал и ненулеви цветни канали. Skissa модифицира тези пиксели, така че да имат поне малка стойност на алфа канала. Първоначалните стойности <i>няма</i> да бъдат възстановявани при запазване на изображението.<br/><br/>Това едва ли ще направи визуална разлика, но имайте го предвид."

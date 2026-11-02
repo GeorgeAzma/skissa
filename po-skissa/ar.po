@@ -508,6 +508,50 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "التّلاشي"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&غشاوة..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "غشاوة"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "اشحذ"
+
+msgctxt "effect"
+msgid "Smooth"
+msgstr "سَلِس"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "الأصلي"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "سَلِس"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "اللون"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "اللون"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "متوسط"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "المقاس"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "اللون"
+
 msgctxt "@info:tooltip brush tip"
 msgid "Size"
 msgstr "المقاس"

@@ -787,6 +787,50 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "עמעום"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&טשטוש…"
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "טשטוש"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "חידוד"
+
+msgctxt "effect"
+msgid "Smooth"
+msgstr "חלק"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "מקור"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "חלק"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "בהירות"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "צבע"
+
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "הקובץ הזה חדש מדי לגרסה הזאת של Skissa ‏(%1)."
 

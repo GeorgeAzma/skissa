@@ -785,6 +785,50 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "მინავლება"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&ბუნდოვნება..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "ბუნდოვნება"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "გამკვეთრება"
+
+msgctxt "effect"
+msgid "Smooth"
+msgstr "რბილი"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "ორიგინალი"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "რბილი"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "ფერი"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "ფერი"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "შუატონები"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "ზომა"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "ფერი"
+
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "ეს ფაილი მეტისმეტად ახალია Skissa-ის ამ ვერსიისთვის (%1)."
 

@@ -550,6 +550,42 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Überblenden"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Weichzeichnen ..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Weichzeichnen"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Scharfzeichnen"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Helligkeit"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Farbe"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Farbe"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Größe"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Farbe"
+
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Die Datei ist neuer als diese Version von Skissa (%1)."
 

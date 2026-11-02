@@ -508,6 +508,50 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "फीका"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "धुंधला करें... (&B)"
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "धुंधला करें"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "सुस्पष्ट"
+
+msgctxt "effect"
+msgid "Smooth"
+msgstr "चिकना"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "चिकना"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "उजालापन"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "मध्य रंगत"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "रंग"
+
 msgctxt "@info:tooltip brush tip"
 msgid "Size"
 msgstr "आकार"

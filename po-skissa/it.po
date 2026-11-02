@@ -749,6 +749,50 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Dissolvi"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Sfoca..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Sfoca"
+
+msgctxt "effect"
+msgid "Smooth"
+msgstr "Smussa"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Originale"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "Smussa"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Chiarezza"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Colore"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Colore"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Mezzitoni"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Dimensione"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Colore"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "L'immagine contiene pixel con canale alfa zero e canali di colori non zero. Per avere almeno qualche alfa, Skissa ha modificato tali pixel. I valori iniziali <i>non</i> saranno ripristinati al salvataggio dell'immagine.<br/><br/>Ciò non comporterà alcuna differenza visiva, sarà bene tenerlo a mente."

@@ -638,6 +638,42 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Угасание"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Размывание..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Размывание"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Увеличение резкости"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Светлота"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Цвет"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Цвет"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Полутона"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Цвет"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "Изображение содержит точки с нулевым каналом прозрачности, но ненулевым каналом цвета. Skissa изменила эти точки, чтобы они имели хотя бы минимальное значение прозрачности. Начальные значения <i>не</i> будут возвращены при сохранении изображения.<br/><br/>Визуальные отличия будет очень трудно обнаружить, имейте это в виду."

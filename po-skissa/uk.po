@@ -657,6 +657,42 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Згасання"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Розмивання…"
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Розмивання"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Збільшити різкість"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Освітленість"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Пів тони"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Колір"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "На зображенні є пікселі з нульовим значенням непрозорості і ненульовими значеннями кольорів. Skissa змінено пікселі так, щоб значення прозорості було ненульовим. Початкові значення <i>не</i> буде повернено під час збереження зображення.<br/><br/>Ця зміна навряд чи призведе до зміни вигляду зображення. Втім, це слід враховувати."

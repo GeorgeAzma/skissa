@@ -516,6 +516,42 @@ msgctxt "color effect preset"
 msgid "Auto"
 msgstr "Automaattinen"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "S&umennus…"
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Sumennus"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Terävöitä"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Alkuperäinen"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Keskisävyt"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Koko"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Väri"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "Kuva sisältää kuvapisteitä, joiden alfakanava on nolla ja värikanavat ei-nollia. Skissa antaa näille kuvapisteille hieman alfaa. Alkuarvoja <i>ei palauteta</i> tallennettaessa kuva takaisin.<br/><br/>Tällä ei ole juurikaan näkyvää vaikutusta, mutta asia kannattaa pitää mielessä."

@@ -854,6 +854,54 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Elhalványítás"
 
+msgctxt "@action effect"
+msgid "&Blur..."
+msgstr "&Elmosás..."
+
+msgctxt "effect"
+msgid "Blur"
+msgstr "Elmosás"
+
+msgctxt "effect"
+msgid "Sharpen"
+msgstr "Élesítés"
+
+msgctxt "effect"
+msgid "Smooth"
+msgstr "Simítás"
+
+msgctxt "detail effect preset"
+msgid "Original"
+msgstr "Eredeti"
+
+msgctxt "detail effect preset"
+msgid "Smooth"
+msgstr "Simítás"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Lightness"
+msgstr "Világosság"
+
+msgctxt "noise effect: what the noise changes"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "noise effect setting"
+msgid "Midtones"
+msgstr "Középtónusok"
+
+msgctxt "effect setting"
+msgid "Size"
+msgstr "Méret"
+
+msgctxt "noise effect setting"
+msgid "Color"
+msgstr "Szín"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "A kép nulla alfa-csatornával, de nem nulla színcsatornával rendelkező pixeleket tartalmaz. A Skissa módosította ezeket a pixeleket, hogy legyen egy minimális átlátszóságuk. Az eredeti értékek a kép mentésekor <i>nem</i> állíthatók vissza.<br/><br/>Ez alig okoz vizuális különbséget, de vegye figyelembe."
