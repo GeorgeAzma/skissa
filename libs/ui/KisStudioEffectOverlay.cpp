@@ -33,10 +33,13 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <climits>
+#include <cmath>
 #include <functional>
 
 #include <filter/kis_filter.h>
 #include <filter/kis_filter_configuration.h>
+#include <filter/kis_filter_registry.h>
 #include <klocalizedstring.h>
 #include <kis_filter_mask.h>
 #include <kis_layer.h>
@@ -47,12 +50,15 @@
 #include <kis_config_widget.h>
 
 #include "KisDocument.h"
+#include "KisEffectCanvasEditor.h"
+#include "KisRetiredEffects.h"
 #include "KisMainWindow.h"
 #include "KisStudioGlass.h"
 #include "KisStudioMotion.h"
 #include "KisStudioEffectsPicker.h"
 #include "KisViewManager.h"
 #include "canvas/kis_canvas2.h"
+#include "canvas/kis_coordinates_converter.h"
 #include "input/KisInputActionGroup.h"
 #include "kis_config.h"
 #include "kis_filter_manager.h"
@@ -449,6 +455,12 @@ struct KisStudioEffectOverlay::Private
     QScopedPointer<KisInputActionGroupsMaskGuard> guard;
 
     QVector<Knob> knobs;
+    /// The effect's settings, when they are edited on the image themselves
+    QPointer<QWidget> editorWidget;
+    KisEffectCanvasEditor *editor {nullptr};
+    /// The editor's drag so far, slowed while Shift was held, and where the pointer was last
+    QPointF editMoved;
+    QPointF editLast;
     bool simple {false};
     QPointer<QWidget> canvasWidget;
     QPointer<ValuePill> pill;
@@ -480,7 +492,7 @@ struct KisStudioEffectOverlay::Private
     {
         if (on == cursorSet) return;
         cursorSet = on;
-        if (on) QApplication::setOverrideCursor(knobs.size() > 1 ? Qt::SizeAllCursor : Qt::SizeHorCursor);
+        if (on) QApplication::setOverrideCursor(editor ? Qt::SizeVerCursor : knobs.size() > 1 ? Qt::SizeAllCursor : Qt::SizeHorCursor);
         else QApplication::restoreOverrideCursor();
     }
 };
@@ -609,6 +621,12 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
         reject();
     }
 
+    const QString instead = KisRetiredEffects::replacement(filter->id());
+    if (KisFilterSP replacement = instead.isEmpty() ? KisFilterSP() : KisFilterRegistry::instance()->value(instead)) {
+        filter = replacement;
+        overrideDefaultConfig = KisFilterManager::lastUsedConfiguration(filter, viewManager->activeNode()->paintDevice());
+    }
+
     d->filter = filter;
     d->node = viewManager->activeNode();
 
@@ -650,6 +668,9 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
     }
 
     d->knobs = findKnobs(selector, &d->simple);
+    KisConfigWidget *settings = selector->findChild<KisConfigWidget *>();
+    d->editor = qobject_cast<KisEffectCanvasEditor *>(settings);
+    d->editorWidget = d->editor ? settings : nullptr;
     styleSettings(selector, d->simple);
     selector->adjustSize();
     // a scroll area absorbs its contents' size changes, so watch the contents too
@@ -659,7 +680,7 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
     }
     reposition();
 
-    if (!d->knobs.isEmpty()) {
+    if (!d->knobs.isEmpty() || d->editor) {
         d->canvasWidget = viewManager->canvasBase()->canvasWidget();
         if (d->canvasWidget) {
             d->canvasWidget->installEventFilter(this);
@@ -790,6 +811,8 @@ void KisStudioEffectOverlay::finishEditing()
     delete d->pill;
     d->canvasWidget = nullptr;
     d->knobs.clear();
+    d->editor = nullptr;
+    d->editorWidget = nullptr;
     hide();
     if (d->selector) {
         d->scroll->takeWidget();
@@ -887,6 +910,10 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
     const Qt::KeyboardModifiers modifiers = static_cast<QInputEvent *>(event)->modifiers();
     const bool fine = modifiers & Qt::ShiftModifier;
 
+    if (d->editor && d->editorWidget) {
+        return handleEditorEvent(event, pos, button);
+    }
+
     if (press) {
         const bool plain = modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier;
         if (button != Qt::LeftButton || !plain || d->spaceHeld || d->knobs.isEmpty()) return false;
@@ -944,6 +971,52 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
     return true;
 }
 
+bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos, Qt::MouseButton button)
+{
+    const QEvent::Type type = event->type();
+    const bool press = type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick || type == QEvent::TabletPress;
+    const bool release = type == QEvent::MouseButtonRelease || type == QEvent::TabletRelease;
+    const Qt::KeyboardModifiers modifiers = static_cast<QInputEvent *>(event)->modifiers();
+    KisCanvas2 *canvas = d->viewManager() ? d->viewManager()->canvasBase() : nullptr;
+    if (!canvas) return false;
+    const KisCoordinatesConverter *converter = canvas->coordinatesConverter();
+    const QPointF at = converter->viewportToImage(converter->widgetToViewport(pos));
+    const QPoint pixel(int(std::floor(at.x())), int(std::floor(at.y())));
+
+    if (press) {
+        const bool plain = modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier;
+        if (button != Qt::LeftButton || !plain || d->spaceHeld) return false;
+        if (d->editor->canvasPressed(pixel)) {
+            d->dragging = true;
+            d->editMoved = QPointF();
+            d->editLast = pos;
+        }
+        event->accept();
+        return true;
+    }
+    if (!d->dragging) {
+        if (type == QEvent::MouseMove || type == QEvent::TabletMove) d->editor->canvasHovered(pixel);
+        return false;
+    }
+    if (release && button != Qt::LeftButton) return false;
+    const bool held = type == QEvent::MouseMove ? bool(static_cast<QMouseEvent *>(event)->buttons() & Qt::LeftButton)
+        : type == QEvent::TabletMove           ? bool(static_cast<QTabletEvent *>(event)->buttons() & Qt::LeftButton)
+                                               : true;
+    if (release || !held) {
+        d->dragging = false;
+        d->editor->canvasReleased();
+        if (d->pill) d->pill->hide();
+    } else {
+        // Shift slows the drag from where it is, without a jump
+        d->editMoved += (pos - d->editLast) * (modifiers & Qt::ShiftModifier ? 0.25 : 1.0);
+        d->editLast = pos;
+        const QString text = d->editor->canvasDragged(d->editMoved, false);
+        if (d->pill && !text.isEmpty()) d->pill->showAt(pos.toPoint(), text);
+    }
+    event->accept();
+    return true;
+}
+
 bool KisStudioEffectOverlay::eventFilter(QObject *watched, QEvent *event)
 {
     // the settings changed size (a row shown or hidden): resize the panel to fit
@@ -960,7 +1033,10 @@ bool KisStudioEffectOverlay::eventFilter(QObject *watched, QEvent *event)
     }
     if (d->canvasWidget && watched == d->canvasWidget && isVisible()) {
         if (event->type() == QEvent::Enter) d->setCursor(true);
-        if (event->type() == QEvent::Leave && !d->dragging) d->setCursor(false);
+        if (event->type() == QEvent::Leave && !d->dragging) {
+            d->setCursor(false);
+            if (d->editor && d->editorWidget) d->editor->canvasHovered(QPoint(INT_MIN, INT_MIN));
+        }
         if (handleCanvasDrag(event)) return true;
     }
     // Enter applies and Esc cancels wherever the focus is, except in the panel itself or in a text field

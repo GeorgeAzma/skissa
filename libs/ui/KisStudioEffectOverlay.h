@@ -51,6 +51,8 @@ private:
     void reposition();
     /// Returns true if a press, move or release on the canvas was consumed as a drag
     bool handleCanvasDrag(QEvent *event);
+    /// The canvas event for an effect whose settings are edited on the image (KisEffectCanvasEditor)
+    bool handleEditorEvent(QEvent *event, const QPointF &pos, Qt::MouseButton button);
 
     struct Private;
     const std::unique_ptr<Private> d;

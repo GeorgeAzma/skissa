@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioFind.h"
+#include "KisRetiredEffects.h"
 #include "KisStudioTools.h"
 #include "KisStudioTips.h"
 #include "KisStudioPanelPicker.h"
@@ -310,13 +311,8 @@ QHash<QString, QStringList> aliasTable()
         {"tool:SvgTextTool", i18nc("@info find aliases, comma separated", "type")},
         {"tool:ToolReferenceImages", i18nc("@info find aliases, comma separated", "references")},
         {"tool:KisAssistantTool", i18nc("@info find aliases, comma separated", "perspective grid, vanishing point, ruler")},
-        {"effect:hsvadjustment", i18nc("@info find aliases, comma separated", "hue saturation, hue/saturation, saturation")},
-        {"effect:perchannel", i18nc("@info find aliases, comma separated", "curves")},
-        {"effect:brightnesscontrast", i18nc("@info find aliases, comma separated", "brightness contrast, contrast")},
-        {"effect:desaturate", i18nc("@info find aliases, comma separated", "black and white, grayscale, greyscale")},
-        {"effect:invert", i18nc("@info find aliases, comma separated", "negative")},
+        {"effect:skissa_color", i18nc("@info find aliases, comma separated", "curves, levels, hue saturation, hue/saturation, saturation, vibrance, brightness, contrast, exposure, color balance, white balance, temperature, tint, split toning, color grading, black and white, grayscale, greyscale, desaturate, invert, negative")},
         {"effect:unsharp", i18nc("@info find aliases, comma separated", "sharpen")},
-        {"effect:colorbalance", i18nc("@info find aliases, comma separated", "color grading, tint")},
         {"effect:gradientmap", i18nc("@info find aliases, comma separated", "gradient map, colorize")},
         {"effect:pixelize", i18nc("@info find aliases, comma separated", "mosaic, pixelate")},
         {"action:invert_selection", i18nc("@info find aliases, comma separated", "inverse selection")},
@@ -775,6 +771,7 @@ void KisStudioFind::rebuildIndex()
             continue;
         }
         filterActions.insert(actionName);
+        if (KisRetiredEffects::isRetired(filterId)) continue;
         QPointer<QAction> target = action;
         // "Burn..." is Burn: an effect opens on the canvas, there is no dialog to announce
         QString effectName = KisSentenceCase::of(plainText(filter->name())).trimmed();

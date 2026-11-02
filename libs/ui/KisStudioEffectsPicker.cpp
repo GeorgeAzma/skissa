@@ -19,9 +19,12 @@
 
 #include <KisGlobalResourcesInterface.h>
 #include <KoColorSpaceRegistry.h>
+#include <KConfigGroup>
+#include <KSharedConfig>
 #include <klocalizedstring.h>
 
 #include "KisMainWindow.h"
+#include "KisRetiredEffects.h"
 #include "KisStudioFind.h"
 #include "KisViewManager.h"
 #include "filter/kis_filter.h"
@@ -59,8 +62,7 @@ const QSize thumbnailSize(112, 64);
 QStringList defaultEffects()
 {
     return {
-        QStringLiteral("motion blur"), QStringLiteral("perchannel"), QStringLiteral("hsvadjustment"),
-        QStringLiteral("desaturate"), QStringLiteral("gradientmap"), QStringLiteral("colortoalpha"),
+        QStringLiteral("skissa_color"), QStringLiteral("motion blur"), QStringLiteral("gradientmap"), QStringLiteral("colortoalpha"),
         QStringLiteral("gaussianhighpass"), QStringLiteral("gaussian blur"),
     };
 }
@@ -103,6 +105,7 @@ QString groupOf(const QString &id)
         {QStringLiteral("dodge"), QStringLiteral("tone")},
         {QStringLiteral("burn"), QStringLiteral("tone")},
         {QStringLiteral("threshold"), QStringLiteral("tone")},
+        {QStringLiteral("skissa_color"), QStringLiteral("color")},
         {QStringLiteral("hsvadjustment"), QStringLiteral("color")},
         {QStringLiteral("colorbalance"), QStringLiteral("color")},
         {QStringLiteral("crosschannel"), QStringLiteral("color")},
@@ -197,6 +200,19 @@ QImage basePicture(KisViewManager *view, const QSize &size, int *levelOfDetail)
     return picture.convertToFormat(QImage::Format_ARGB32);
 }
 
+/// Favorites that were Krita's effects which Skissa's do now become those
+void replaceRetiredFavorites(const QString &key)
+{
+    if (!KSharedConfig::openConfig()->group(QString()).hasKey(key)) return;
+    const QStringList pinned = KisConfig(true).readEntry<QStringList>(key, QStringList());
+    QStringList kept;
+    Q_FOREACH (const QString &id, pinned) {
+        kept << (KisRetiredEffects::isRetired(id) ? QStringLiteral("skissa_color") : id);
+    }
+    kept.removeDuplicates();
+    if (kept != pinned) KisConfig(false).writeEntry(key, kept);
+}
+
 KisStudioPicker::Source effectsSource(KisMainWindow *mainWindow, std::shared_ptr<KisStudioEffectThumbnails> thumbnails)
 {
     // the effects Find can run, with their titles and aliases
@@ -220,6 +236,7 @@ KisStudioPicker::Source effectsSource(KisMainWindow *mainWindow, std::shared_ptr
 
     KisStudioPicker::Source source;
     source.pinnedKey = QStringLiteral("StudioEffects");
+    replaceRetiredFavorites(source.pinnedKey);
     source.initialPinned = defaultEffects;
     source.groupsKey = QStringLiteral("StudioEffectGroups");
     source.allIds = [ids]() { return ids; };

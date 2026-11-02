@@ -1,0 +1,9 @@
+{
+    "Id": "Skissa Color Filter",
+    "Type": "Service",
+    "X-KDE-Library": "kritaskissacolor",
+    "X-KDE-ServiceTypes": [
+        "Krita/Filter"
+    ],
+    "X-Krita-Version": "28"
+}
