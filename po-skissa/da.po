@@ -8,6 +8,14 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: Intern fejl"
 
+msgctxt "resampling filter: sharp, without halos"
+msgid "Smooth"
+msgstr "Glat"
+
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
+
 msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Farver"
@@ -192,6 +200,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Transform"
 msgstr "Transformér"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Flyt"
+
 msgctxt "a guide"
 msgid "Perspective"
 msgstr "Perspektiv"
@@ -243,6 +255,14 @@ msgstr "Glat"
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineær"
+
+msgctxt "resampling choice: sharp, without halos"
+msgid "Smooth"
+msgstr "Glat"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -299,6 +319,14 @@ msgstr "Tilføj til palet"
 msgctxt "Save the time-lapse video"
 msgid "Save"
 msgstr "Gem"
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Auto"
 
 msgctxt "picture brush tip used as"
 msgid "Gradient"

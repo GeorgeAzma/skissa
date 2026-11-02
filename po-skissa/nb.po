@@ -4,6 +4,10 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: intern feil"
 
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Piksel"
+
 msgctxt "color drop gap: sized from the lines"
 msgid "Auto"
 msgstr "Auto"
@@ -84,6 +88,10 @@ msgctxt "@info:tooltip a new image's paper"
 msgid "Clear"
 msgstr "Tøm"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Flytt"
+
 msgctxt "perspective guide: a grid on a plane"
 msgid "Grid"
 msgstr "Rutenett"
@@ -104,6 +112,10 @@ msgctxt "default name of a filter layer, followed by a number"
 msgid "Filter"
 msgstr "Filter"
 
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Piksel"
+
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
 msgstr "Auto"
@@ -115,6 +127,10 @@ msgstr "Angre"
 msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Legg til palett"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Auto"
 
 msgctxt "picture brush tip adjustment"
 msgid "Brightness"

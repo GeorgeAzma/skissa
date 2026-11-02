@@ -404,6 +404,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Vodiace čiary"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Presunúť"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Voľné"
@@ -701,6 +705,22 @@ msgstr "Systémové informácie Skissa: prosím, vložte tieto informácie do sp
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa nemôže spustiť zásuvný modul gmic-qt. Nenašla sa žiadna pribalená knižnica."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Farba"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Svetlosť"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Odtieň"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Blednutie"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

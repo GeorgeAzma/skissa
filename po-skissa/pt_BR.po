@@ -24,6 +24,14 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: Erro interno"
 
+msgctxt "resampling filter: sharp, without halos"
+msgid "Smooth"
+msgstr "Suave"
+
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "Camada"
@@ -428,6 +436,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guias"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Mover"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Livre"
@@ -579,6 +591,18 @@ msgstr "Nova AppImage foi baixada para %1. Para completar a atualização, feche
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Linear"
+
+msgctxt "resampling choice: sharp, without halos"
+msgid "Smooth"
+msgstr "Suave"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "Suave"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -756,6 +780,26 @@ msgstr "Informações do sistema do Skissa: cole essas informações no relatór
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "O Skissa não pode iniciar o plugin gmic-qt. Nenhuma biblioteca agrupada encontrada."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Cor"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Luminosidade"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Matiz"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Esmaecer"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

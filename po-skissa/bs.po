@@ -4,6 +4,10 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Interna greška programa Skissa"
 
+msgctxt "resampling filter: sharp, without halos"
+msgid "Smooth"
+msgstr "Glatko"
+
 msgctxt "color drop gap: sized from the lines"
 msgid "Auto"
 msgstr "Automatski"
@@ -68,6 +72,10 @@ msgctxt "@action:inmenu"
 msgid "Smooth"
 msgstr "Glatko"
 
+msgctxt "resampling choice: sharp, without halos"
+msgid "Smooth"
+msgstr "Glatko"
+
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
 msgstr "Automatski"
@@ -95,6 +103,10 @@ msgstr "Ponovi"
 msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Dodaj u paletu"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Automatski"
 
 msgctxt "brush tip shape"
 msgid "Square"

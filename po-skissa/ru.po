@@ -469,6 +469,10 @@ msgstr "Правка"
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "Новый пакет AppImage был загружен в %1. Чтобы завершить обновление, закройте окно Skissa и запустите новый AppImage."
 
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "Мягкий"
+
 msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "Другие"
@@ -617,6 +621,22 @@ msgstr "Системная информация Skissa: вставьте эту 
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa не удаётся найти дополнение gmic-qt. Привязанная библиотека не найдена."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Цвет"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Светлота"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Тон"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Угасание"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

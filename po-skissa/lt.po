@@ -20,6 +20,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Atšaukti"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Perkelti"
+
 msgctxt "@info:tooltip"
 msgid "Undo"
 msgstr "Atšaukti"

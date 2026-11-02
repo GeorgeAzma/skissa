@@ -52,3 +52,11 @@ msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Adaugă la paletă"
 
+msgctxt "effect"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Nuanță"
+

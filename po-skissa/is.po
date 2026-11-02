@@ -1,5 +1,13 @@
 # Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
 
+msgctxt "resampling filter: sharp, without halos"
+msgid "Smooth"
+msgstr "Mýking"
+
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Mynddíll"
+
 msgctxt "cursor"
 msgid "None"
 msgstr "Ekkert"
@@ -144,6 +152,14 @@ msgctxt "@action:inmenu"
 msgid "Edit"
 msgstr "Breyta"
 
+msgctxt "resampling choice: sharp, without halos"
+msgid "Smooth"
+msgstr "Mýking"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Mynddíll"
+
 msgctxt "@action:inmenu select layers"
 msgid "All"
 msgstr "Allt"
@@ -163,6 +179,14 @@ msgstr "Breyta"
 msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Bæta á litaspjald"
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Litur"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Upprunalegt"
 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Skráin er of ný fyrir þessa útgáfu Skissa (%1)."

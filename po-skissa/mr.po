@@ -32,6 +32,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "पूर्ववत करा"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "हलवा"
+
 msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "काही नाही"

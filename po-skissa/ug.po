@@ -8,6 +8,14 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: ئىچكى خاتالىق"
 
+msgctxt "resampling filter: sharp, without halos"
+msgid "Smooth"
+msgstr "سىلىق"
+
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "پىكسېل"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "قەۋەت"
@@ -287,6 +295,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Text"
 msgstr "تېكىست"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "يۆتكە"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "بوش"
@@ -375,6 +387,18 @@ msgctxt "@action:inmenu"
 msgid "Edit"
 msgstr "تەھرىر"
 
+msgctxt "resampling choice: sharp, without halos"
+msgid "Smooth"
+msgstr "سىلىق"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "پىكسېل"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "يۇمشاق"
+
 msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "باشقا"
@@ -462,6 +486,30 @@ msgstr "ساقلا"
 msgctxt "frames at half the image's size"
 msgid "Half"
 msgstr "يېرىم"
+
+msgctxt "effect"
+msgid "Color"
+msgstr "رەڭ"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "يورۇقلۇق دەرىجىسى"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "رەڭگى"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "ئەسلى"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "ئاپتوماتىك"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "سۇسلاشتۇر"
 
 msgctxt "@info:tooltip brush tip"
 msgid "Size"

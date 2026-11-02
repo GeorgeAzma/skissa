@@ -312,6 +312,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "参考线"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "移动"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "自由变形"
@@ -423,6 +427,10 @@ msgstr "编辑"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "新版 AppImage 软件包已下载到 %1 。要完成更新，请关闭 Skissa 并运行该新版 AppImage 软件包。"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "柔和"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -580,6 +588,14 @@ msgstr "Skissa 系统信息：请将此信息粘贴到程序缺陷报告中"
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa 无法启动 gmic-qt 插件，找不到自带程序库。"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "色相"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "原始"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

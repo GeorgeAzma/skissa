@@ -396,6 +396,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Hjälplinjer"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Flytta"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Fri"
@@ -519,6 +523,10 @@ msgstr "En ny AppImage har laddats ner till %1. Stäng Skissa och kör ny AppIma
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Linjär"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "Mjuk"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -664,6 +672,26 @@ msgstr "Skissa systeminformation: klistra in den här informationen i felrapport
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa kan inte starta insticksprogrammet gmic-qt. Inget paketerat bibliotek hittades."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Ljushet"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Färgton"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Tona"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

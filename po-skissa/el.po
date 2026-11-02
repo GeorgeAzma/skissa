@@ -32,6 +32,10 @@ msgctxt "@action:button undo the changes made since Settings opened"
 msgid "Undo"
 msgstr "Αναίρεση"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Μετακίνηση"
+
 msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "Κανένα"

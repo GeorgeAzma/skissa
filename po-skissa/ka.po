@@ -24,6 +24,14 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: შიდა შეცდომა"
 
+msgctxt "resampling filter: sharp, without halos"
+msgid "Smooth"
+msgstr "რბილი"
+
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "პიქსელი"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "ფენა"
@@ -430,6 +438,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "მიმმართველები"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "გადატანა"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "თავისუფალი"
@@ -588,6 +600,18 @@ msgctxt "curve preset"
 msgid "Linear"
 msgstr "ხაზოვანი"
 
+msgctxt "resampling choice: sharp, without halos"
+msgid "Smooth"
+msgstr "რბილი"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "პიქსელი"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "რბილი"
+
 msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "სხვა"
@@ -744,6 +768,22 @@ msgstr "Skissa-ის ინფორმაცია სისტემაზე
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa-ს არ შეუძლია, დამატება gmic-qt plugin გაუშვას. პაკეტში არსებული ბიბლიოთეკა აღმოჩენილი არაა."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "ფერი"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "ტონი"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "ორიგინალი"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "მინავლება"
 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "ეს ფაილი მეტისმეტად ახალია Skissa-ის ამ ვერსიისთვის (%1)."

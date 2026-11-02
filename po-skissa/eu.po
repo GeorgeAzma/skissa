@@ -401,6 +401,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Gidak"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Lekuz aldatu"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Askea"
@@ -653,6 +657,26 @@ msgstr "Skissa-ren sistemako informazioa: mesedez, itsatsi informazio hori akats
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissak ezin du gmic-qt plugina abiarazi. Ez da liburutegi-fardelik aurkitu."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Argitasuna"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Tonua"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Jatorrizkoa"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Automatikoa"
 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Fitxategia berriegia da Skissa-ren bertsio honetarako (%1)."

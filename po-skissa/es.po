@@ -24,6 +24,10 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: Error interno"
 
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Píxel"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "Capa"
@@ -424,6 +428,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guías"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Mover"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Libre"
@@ -579,6 +587,14 @@ msgstr "La nueva AppImage se ha descargado en %1. Para completar la actualizaci�
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineal"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Píxel"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "Suave"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -756,6 +772,22 @@ msgstr "Información del sistema de Skissa: Pegue esta información en el inform
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa no puede lanzar el complemento gmic-qt. No se ha encontrado ninguna biblioteca empaquetada."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Tono"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Desvanecer"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

@@ -20,6 +20,10 @@ msgctxt "@tooltip"
 msgid "Indicates how much the font is suitable for its current size. Does nothing in Skissa."
 msgstr "Léiríonn sé cé chomh hoiriúnach is atá an cló dá mhéid reatha. Ní dhéanann sé tada i Skissa."
 
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Picteilín"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "Sraith"
@@ -428,6 +432,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Treoraithe"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Bog"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Saor in aisce"
@@ -579,6 +587,14 @@ msgstr "Íoslódáladh AppImage nua chuig %1. Chun an nuashonrú a chríochnú, 
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Líneach"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Picteilín"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "Bog"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -756,6 +772,22 @@ msgstr "Faisnéis Chórais Skissa: greamaigh an fhaisnéis seo isteach sa tuairi
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Ní féidir le Skissa an breiseán gmic-qt a sheoladh. Níor aimsíodh aon leabharlann phacáilte."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Éadromacht"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Lí"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Bunaidh"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

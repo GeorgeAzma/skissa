@@ -16,6 +16,10 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: Interner Fehler"
 
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "Ebene"
@@ -325,6 +329,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Hilfslinien"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Verschieben"
+
 msgctxt "@info:tooltip a crop's shape"
 msgid "Square"
 msgstr "Quadrat"
@@ -413,6 +421,10 @@ msgstr "Transformieren"
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Linear"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -517,6 +529,26 @@ msgstr "Wide-Gamut-Auswähler"
 msgctxt "Caption of the dialog with system information for bug reports"
 msgid "Skissa System Information: please paste this information to the bug report"
 msgstr "Skissa-Systeminformation: Bitte fügen Sie diese Informationen in Ihren Fehlerbericht ein"
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Farbe"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Helligkeit"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Farbton"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Überblenden"
 
 msgid "The file is too new for this version of Skissa (%1)."
 msgstr "Die Datei ist neuer als diese Version von Skissa (%1)."

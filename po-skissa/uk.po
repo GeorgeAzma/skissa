@@ -637,6 +637,26 @@ msgstr "Дані щодо системи Skissa: будь ласка, додай
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa не вдалося запустити додаток gmic-qt. Не знайдено пов'язаної бібліотеки."
 
+msgctxt "effect"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Освітленість"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Відтінок"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Авто"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Згасання"
+
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."
 msgstr "На зображенні є пікселі з нульовим значенням непрозорості і ненульовими значеннями кольорів. Skissa змінено пікселі так, щоб значення прозорості було ненульовим. Початкові значення <i>не</i> буде повернено під час збереження зображення.<br/><br/>Ця зміна навряд чи призведе до зміни вигляду зображення. Втім, це слід враховувати."

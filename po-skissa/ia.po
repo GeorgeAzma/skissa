@@ -12,6 +12,14 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: Error Interne"
 
+msgctxt "resampling filter: sharp, without halos"
+msgid "Smooth"
+msgstr "Lisie"
+
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "Layer"
@@ -370,6 +378,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guidas"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Move"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Libere"
@@ -486,6 +498,18 @@ msgctxt "curve preset"
 msgid "Linear"
 msgstr "Linear "
 
+msgctxt "resampling choice: sharp, without halos"
+msgid "Smooth"
+msgstr "Lisie"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "Leve"
+
 msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "Altere"
@@ -589,6 +613,30 @@ msgstr "Salveguarda"
 msgctxt "frames at half the image's size"
 msgid "Half"
 msgstr "Medietate"
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Brillantia"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Tinta"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Pallidi"
 
 msgctxt "@info:tooltip brush tip"
 msgid "Size"

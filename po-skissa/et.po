@@ -16,6 +16,10 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: sisemine tõrge"
 
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Piksel"
+
 msgid "Skissa is running for the first time. Initialization will take some time."
 msgstr "Skissa pandi esimest korda tööle. Initsialiseerimine võtab pisut aega."
 
@@ -399,6 +403,10 @@ msgstr "Teisendamine"
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "Uus AppImage laaditi alla asukohta %1. Uuendamise lõpetamiseks sulge Skissa ja käivita uus AppImage."
 
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Piksel"
+
 msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "Muu"
@@ -494,6 +502,18 @@ msgstr "Skissa kasutuslogi: palun aseta see teave oma veateatesse"
 msgctxt "Caption of the dialog with system information for bug reports"
 msgid "Skissa System Information: please paste this information to the bug report"
 msgstr "Skissa süsteemi teave: palun aseta see teave oma veateatesse"
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Värv"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Automaatne"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Hajumine"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

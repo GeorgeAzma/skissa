@@ -16,6 +16,14 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: Belső hiba"
 
+msgctxt "resampling filter: sharp, without halos"
+msgid "Smooth"
+msgstr "Simítás"
+
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "Réteg"
@@ -463,6 +471,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Segédvonalak"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Mozgatás"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Szabad"
@@ -620,6 +632,18 @@ msgstr "Szerkesztés"
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineáris"
+
+msgctxt "resampling choice: sharp, without halos"
+msgid "Smooth"
+msgstr "Simítás"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "Lágy"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -805,6 +829,30 @@ msgstr "Skissa rendszerinformációk: kérjük, illessze be ezeket az informáci
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "A Skissa nem tudja elindítani a gmic-qt bővítményt. Nem található csomagolt könyvtár."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Világosság"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Árnyalat"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Eredeti"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Elhalványítás"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

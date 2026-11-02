@@ -24,6 +24,10 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: İç Hata"
 
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Piksel"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "Katman"
@@ -460,6 +464,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Kılavuzlar"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Taşı"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Serbest"
@@ -611,6 +619,14 @@ msgstr "Yeni AppImage, %1 konumuna indirildi. Güncellemeyi tamamlamak için Ski
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Doğrusal"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Piksel"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "Yumuşak"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -780,6 +796,30 @@ msgstr "Skissa sistem bilgisi: Lütfen bu bilgiyi hata raporuna yapıştırın"
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa, gmic-qt eklentisini başlatamıyor. Birlikte gelen bir kitaplık bulunamadı."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Renk"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Açıklık"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Ton"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Özgün"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Kendiliğinden"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Soldur"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

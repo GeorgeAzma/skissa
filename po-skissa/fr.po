@@ -24,6 +24,14 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa : erreur interne"
 
+msgctxt "resampling filter: sharp, without halos"
+msgid "Smooth"
+msgstr "Lissage"
+
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "Calque"
@@ -429,6 +437,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Guides"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Déplacer"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Libre"
@@ -572,6 +584,18 @@ msgstr "Un nouveau fichier « AppImage » a été téléchargé vers %1. Pour 
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Linéaire"
+
+msgctxt "resampling choice: sharp, without halos"
+msgid "Smooth"
+msgstr "Lissage"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "Doux"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -741,6 +765,30 @@ msgstr "Informations système pour Skissa : veuillez copier ces informations da
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa ne peut lancer le module externe « gmic-qt ». Impossible de trouver de bibliothèque dans les paquets."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Couleur"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Luminosité"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Teinte"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Fondu"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

@@ -20,6 +20,10 @@ msgctxt "a new image's size"
 msgid "Square"
 msgstr "Шаршы"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Жылжыту"
+
 msgctxt "@info:tooltip a crop's shape"
 msgid "Square"
 msgstr "Шаршы"

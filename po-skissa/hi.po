@@ -1,5 +1,13 @@
 # Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
 
+msgctxt "resampling filter: sharp, without halos"
+msgid "Smooth"
+msgstr "चिकना"
+
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "पिक्सेल"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "परत"
@@ -376,6 +384,14 @@ msgctxt "curve preset"
 msgid "Linear"
 msgstr "रेखीय"
 
+msgctxt "resampling choice: sharp, without halos"
+msgid "Smooth"
+msgstr "चिकना"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "पिक्सेल"
+
 msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "अन्य"
@@ -475,6 +491,22 @@ msgstr "आधा"
 msgctxt "settings page"
 msgid "Wide Gamut Selector"
 msgstr "विस्तृत वर्ण विस्तार चयनक"
+
+msgctxt "effect"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "उजालापन"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "वर्ण"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "फीका"
 
 msgctxt "@info:tooltip brush tip"
 msgid "Size"

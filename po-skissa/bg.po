@@ -24,6 +24,14 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: Вътрешна грешка"
 
+msgctxt "resampling filter: sharp, without halos"
+msgid "Smooth"
+msgstr "Изглаждане"
+
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Пиксел"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "Слой"
@@ -416,6 +424,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Водачи"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Преместване"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Свободен"
@@ -571,6 +583,18 @@ msgstr "Новият AppImage беше изтеглен в %1. За завърш
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Линейно"
+
+msgctxt "resampling choice: sharp, without halos"
+msgid "Smooth"
+msgstr "Изглаждане"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Пиксел"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "Меко"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -740,6 +764,22 @@ msgstr "Системна информация на Skissa: моля, поста�
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa не може да стартира плъгин gmic-qt. Не са намерени ресурсни библиотеки."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Цвят"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Оригинал"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Автоматично"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Избледняване"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

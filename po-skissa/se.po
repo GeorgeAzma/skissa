@@ -1,5 +1,9 @@
 # Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
 
+msgctxt "resampling filter: sharp, without halos"
+msgid "Smooth"
+msgstr "Čábbát"
+
 msgctxt "@item:inmenu color picker: HSV square"
 msgid "Square"
 msgstr "Boksa"
@@ -17,6 +21,10 @@ msgid "Square"
 msgstr "Boksa"
 
 msgctxt "@action:inmenu"
+msgid "Smooth"
+msgstr "Čábbát"
+
+msgctxt "resampling choice: sharp, without halos"
 msgid "Smooth"
 msgstr "Čábbát"
 

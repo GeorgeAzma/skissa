@@ -12,6 +12,10 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: 内部エラー"
 
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "ピクセル"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "レイヤー"
@@ -506,6 +510,14 @@ msgstr "編集"
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "新しい AppImage が %1 にダウンロードされました。更新を完了するには、Skissa を閉じて新しい AppImage を実行してください。"
 
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "ピクセル"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "ソフト"
+
 msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "その他"
@@ -666,6 +678,26 @@ msgstr "Skissa システム情報: この情報をバグ報告欄に貼り付け
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa は gmic-qt プラグインを起動できませんでした。バンドルされているライブラリが見つかりません。"
+
+msgctxt "effect"
+msgid "Color"
+msgstr "色"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "色相"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "オリジナル"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "自動"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "減衰"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

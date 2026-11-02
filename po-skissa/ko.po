@@ -16,6 +16,10 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: 내부 오류"
 
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "픽셀"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "레이어"
@@ -414,6 +418,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "안내선"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "이동"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "자유"
@@ -543,6 +551,14 @@ msgstr "새 AppImage를 %1에 다운로드했습니다. 업데이트를 완료�
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "선형"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "픽셀"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "부드러움"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -685,6 +701,30 @@ msgstr "Skissa 시스템 정보: 이 정보를 버그 보고서에 붙여 넣으
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa에서 gmic-qt 플러그인을 실행할 수 없습니다. 번들된 라이브러리를 찾을 수 없습니다."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "색상"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "광도"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "색조"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "원본"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "자동"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "페이드"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

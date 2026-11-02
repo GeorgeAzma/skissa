@@ -16,6 +16,10 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: intern feil"
 
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Piksel"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "Lag"
@@ -382,6 +386,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Hjelpelinjer"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Flytt"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Fri"
@@ -499,6 +507,14 @@ msgstr "Ei ny AppImage-fil er no lasta ned til %1. For å fullføra oppdateringa
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineær"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Piksel"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "Mjuk"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -660,6 +676,26 @@ msgstr "Systeminformasjon for Skissa. Legg ved denne informasjonen når du melde
 
 msgid "Skissa cannot launch the gmic-qt plugin. No bundled library found."
 msgstr "Skissa kan ikkje køyra gmic-qt-tillegget. Fann ikkje noko medfølgjande bibliotek."
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Farge"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Lysstyrke"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Kulør"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Opphavleg"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Auto"
 
 msgctxt "@info"
 msgid "The image contains pixels with zero alpha channel and non-zero color channels. Skissa has modified those pixels to have at least some alpha. The initial values will <i>not</i> be reverted on saving the image back.<br/><br/>This will hardly make any visual difference just keep it in mind."

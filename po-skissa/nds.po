@@ -40,6 +40,10 @@ msgctxt "a new image's size"
 msgid "Square"
 msgstr "Quadraat"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Verschuven"
+
 msgctxt "@info:tooltip a crop's shape"
 msgid "Square"
 msgstr "Quadraat"

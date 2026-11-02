@@ -12,6 +12,10 @@ msgctxt "@title:window"
 msgid "Skissa: Internal Error"
 msgstr "Skissa: Vnitřní chyba"
 
+msgctxt "resampling filter for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
+
 msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "Vrstva"
@@ -377,6 +381,10 @@ msgctxt "@info:tooltip tool slot"
 msgid "Guides"
 msgstr "Vodítka"
 
+msgctxt "@info:tooltip transform mode"
+msgid "Move"
+msgstr "Přesunout"
+
 msgctxt "@info:tooltip a crop of any shape"
 msgid "Free"
 msgstr "Volné"
@@ -487,6 +495,14 @@ msgstr "Upravit"
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineární"
+
+msgctxt "resampling choice for pixel art"
+msgid "Pixel"
+msgstr "Pixel"
+
+msgctxt "resampling choice: Krita's bicubic"
+msgid "Soft"
+msgstr "Jemně"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -619,6 +635,30 @@ msgstr "Uložit"
 msgctxt "frames at half the image's size"
 msgid "Half"
 msgstr "Poloviční"
+
+msgctxt "effect"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "color effect axis"
+msgid "Lightness"
+msgstr "Jas"
+
+msgctxt "color effect axis"
+msgid "Hue"
+msgstr "Tón"
+
+msgctxt "color effect preset"
+msgid "Original"
+msgstr "Originál"
+
+msgctxt "color effect preset"
+msgid "Auto"
+msgstr "Automaticky"
+
+msgctxt "color effect preset"
+msgid "Fade"
+msgstr "Blednutí"
 
 msgctxt "@info:tooltip brush tip"
 msgid "Size"
