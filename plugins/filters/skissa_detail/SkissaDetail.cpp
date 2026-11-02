@@ -37,11 +37,17 @@ Box boxFor(double variance)
     return box;
 }
 
+} // namespace
+
 int reachOf(qreal sigma)
 {
+    if (sigma <= 0) return 0;
     if (sigma <= boxFrom) return 3 * int(std::ceil(sigma));
     return 3 * (boxFor(sigma * sigma / 3).r + 1);
 }
+
+namespace
+{
 
 /// Krita's Gaussian kernel: 6 ceil(sigma) + 1 taps
 std::vector<float> kernelOf(qreal sigma)
@@ -97,7 +103,8 @@ void boxColumns(const float *in, float *out, int w, int h, const Box &box)
     }
 }
 
-/// Blurs \p data, \p w by \p h, in place; \p scratch is as large
+} // namespace
+
 void gaussian(float *data, float *scratch, int w, int h, qreal sigma)
 {
     if (w <= 0 || h <= 0 || sigma <= 0) return;
@@ -133,6 +140,29 @@ void gaussian(float *data, float *scratch, int w, int h, qreal sigma)
     boxColumns(data, scratch, w, h, box);
     std::memcpy(data, scratch, sizeof(float) * size_t(w) * h);
 }
+
+std::vector<float> kernel1D(qreal sigma)
+{
+    if (sigma <= 0) return {1.0f};
+    if (sigma <= boxFrom) return kernelOf(sigma);
+    const Box box = boxFor(sigma * sigma / 3);
+    std::vector<float> one(2 * box.r + 3, 1.0f);
+    one.front() = one.back() = float(box.alpha);
+    const float sum = float(2 * box.r + 1 + 2 * box.alpha);
+    for (float &value : one) value /= sum;
+    std::vector<float> kernel = {1.0f};
+    for (int pass = 0; pass < 3; pass++) {
+        std::vector<float> wider(kernel.size() + one.size() - 1, 0.0f);
+        for (size_t i = 0; i < kernel.size(); i++) {
+            for (size_t j = 0; j < one.size(); j++) wider[i + j] += kernel[i] * one[j];
+        }
+        kernel.swap(wider);
+    }
+    return kernel;
+}
+
+namespace
+{
 
 /// The lightness the edge-aware blurs follow, its local mean and variance at one size
 struct Guide {

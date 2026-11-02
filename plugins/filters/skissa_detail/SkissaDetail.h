@@ -81,6 +81,14 @@ struct Planes {
  */
 void apply(const Plan &plan, const Planes &source, const QRect &sourceRect, const QRect &resultRect, Planes &result);
 
+/// Blurs \p data, \p w by \p h, in place by a Gaussian of \p sigma (Krita's kernel, wide ones as box blurs);
+/// \p scratch is as large. Beyond the edges the edge pixels repeat.
+void gaussian(float *data, float *scratch, int w, int h, qreal sigma);
+/// How far the blur of \p sigma reads around a pixel
+int reachOf(qreal sigma);
+/// The blur of \p sigma along one axis, as weights centered in the middle
+std::vector<float> kernel1D(qreal sigma);
+
 /// \p image (8-bit sRGB) with \p plan applied
 QImage applied(const QImage &image, const Plan &plan);
 

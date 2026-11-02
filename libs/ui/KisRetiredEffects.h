@@ -33,6 +33,8 @@ inline QString coveredBy(const QString &filterId)
         {QStringLiteral("gaussianhighpass"), QStringLiteral("skissa_high_pass")},
         {QStringLiteral("gaussiannoisereducer"), QStringLiteral("skissa_smooth")},
         {QStringLiteral("waveletnoisereducer"), QStringLiteral("skissa_smooth")},
+        // Noise
+        {QStringLiteral("noise"), QStringLiteral("skissa_grain")}, {QStringLiteral("randompick"), QStringLiteral("skissa_noise")},
     };
     return by.value(filterId);
 }

@@ -2,6 +2,8 @@ set(kritaskissadetail_SOURCES
     SkissaDetail.cpp
     SkissaDetailFilter.cpp
     SkissaDetailWidget.cpp
+    SkissaNoise.cpp
+    SkissaNoiseFilter.cpp
     )
 kis_add_library(kritaskissadetail MODULE ${kritaskissadetail_SOURCES})
 target_link_libraries(kritaskissadetail kritaui)

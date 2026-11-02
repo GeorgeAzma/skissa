@@ -248,9 +248,11 @@ void KisStudioCurveView::paintEvent(QPaintEvent *)
         painter.drawLine(QPointF(x, box.top()), QPointF(x, box.bottom()));
         painter.drawLine(QPointF(box.left(), y), QPointF(box.right(), y));
     }
-    const QVector<float> fallback = m_fallback.sampled(2, m_wraps, m_rises);
+    const QVector<float> fallback = m_fallback.sampled(64, m_wraps, m_rises);
+    QPolygonF resting;
+    for (int i = 0; i < fallback.size(); i++) resting << toScreen(QPointF(qreal(i) / (fallback.size() - 1), fallback[i]));
     painter.setPen(QPen(inked(0.2), 1));
-    painter.drawLine(toScreen(QPointF(0, fallback.first())), toScreen(QPointF(1, fallback.last())));
+    painter.drawPolyline(resting);
 
     QPainterPath line;
     for (int i = 0; i < m_values.size(); i++) {

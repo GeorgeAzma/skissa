@@ -6,9 +6,12 @@
 #include "SkissaDetailWidget.h"
 
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
+#include <QRandomGenerator>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <climits>
@@ -20,6 +23,7 @@
 #include <filter/kis_filter.h>
 #include <filter/kis_filter_configuration.h>
 #include <filter/kis_filter_registry.h>
+#include <kis_icon_utils.h>
 #include <kis_paint_device.h>
 #include <kis_slider_spin_box.h>
 #include <klocalizedstring.h>
@@ -27,6 +31,7 @@
 #include <widgets/KisStudioCurve.h>
 
 #include "SkissaDetailFilter.h"
+#include "SkissaNoise.h"
 
 using namespace SkissaDetail;
 
@@ -38,7 +43,7 @@ constexpr qreal dragForWholeCurve = 300;
 /// A point taken on the image holds the curve this far either side: one size changes alone
 constexpr qreal holdAround = 0.15;
 /// The part of the image the tiles show, at its own size so that fine detail shows, and the room read around it
-const QSize tileSize(128, 80);
+const QSize tileSize(96, 60);
 constexpr int tileMargin = 48;
 
 QString number(qreal value, int decimals)
@@ -111,6 +116,19 @@ QPoint mostDetailed(KisPaintDeviceSP device, const QRect &bounds)
     return best;
 }
 
+/// Dots from the finest features to the largest along the bottom of a curve over sizes
+void paintSizes(QPainter &painter, const QRectF &box, QColor ink)
+{
+    ink.setAlphaF(0.22);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(ink);
+    for (int octave = 0; octave <= int(octaves); octave++) {
+        const qreal x = box.left() + box.width() * octave / octaves;
+        const qreal size = 2 + 1.4 * octave;
+        painter.drawEllipse(QPointF(qBound(box.left() + size, x, box.right() - size), box.bottom() - KisModernStyle::space2 - size / 2), size / 2, size / 2);
+    }
+}
+
 /// Rings of every size from coarse to fine, for a layer with nothing on it
 QImage zonePlate(const QSize &size)
 {
@@ -128,45 +146,40 @@ QImage zonePlate(const QSize &size)
 
 } // namespace
 
-SkissaDetailSliders::SkissaDetailSliders(QWidget *parent, Kind kind)
+SkissaSliders::SkissaSliders(QWidget *parent, const QString &filterId, const QVector<SkissaSlider> &sliders)
     : KisConfigWidget(parent)
-    , m_kind(kind)
+    , m_filterId(filterId)
 {
     auto *layout = new QFormLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    auto add = [&](const char *key, const QString &name, KisDoubleSliderSpinBox *box, qreal shownPerValue, const QString &tip = QString()) {
-        box->setToolTip(tip);
-        layout->addRow(name, box);
-        m_sliders << Slider{key, box, shownPerValue};
+    Q_FOREACH (const SkissaSlider &spec, sliders) {
+        KisDoubleSliderSpinBox *box = slider(this, spec.maximum, spec.softMaximum, spec.decimals, spec.suffix);
+        box->setRange(spec.minimum, spec.maximum, spec.decimals);
+        box->setSoftRange(spec.minimum, spec.softMaximum);
+        box->setToolTip(spec.tip);
+        layout->addRow(spec.name, box);
+        m_sliders << qMakePair(spec, box);
         connect(box, qOverload<double>(&KisDoubleSliderSpinBox::valueChanged), this, &KisConfigWidget::sigConfigurationItemChanged);
-    };
-    const QString px = i18nc("pixels, after a number", " px");
-    if (kind == Kind::Sharpen) {
-        add("amount", i18nc("effect setting", "Amount"), slider(this, 1000, 300, 0, QStringLiteral("%")), 100);
-    }
-    add("radius", i18nc("effect setting", "Radius"), slider(this, 500, kind == Kind::Sharpen ? 10 : 100, 1, px), 1);
-    if (kind == Kind::Smooth) {
-        add("edges", i18nc("effect setting", "Edges"), slider(this, 100, 100, 0, QStringLiteral("%")), 100,
-            i18nc("@info:tooltip", "Keeps edges sharp"));
     }
 }
 
-void SkissaDetailSliders::setConfiguration(const KisPropertiesConfigurationSP config)
+void SkissaSliders::setConfiguration(const KisPropertiesConfigurationSP config)
 {
-    KisFilterSP filter = KisFilterRegistry::instance()->value(SkissaDetailFilter::idOf(m_kind).id());
+    KisFilterSP filter = KisFilterRegistry::instance()->value(m_filterId);
     KisFilterConfigurationSP defaults = filter->defaultConfiguration(KisGlobalResourcesInterface::instance());
-    Q_FOREACH (const Slider &slider, m_sliders) {
-        QSignalBlocker blocker(slider.box);
-        const qreal value = config && config->hasProperty(slider.key) ? config->getDouble(slider.key) : defaults->getDouble(slider.key);
-        slider.box->setValue(value * slider.shownPerValue);
+    for (const auto &slider : m_sliders) {
+        QSignalBlocker blocker(slider.second);
+        const char *key = slider.first.key;
+        const qreal value = config && config->hasProperty(key) ? config->getDouble(key) : defaults->getDouble(key);
+        slider.second->setValue(value * slider.first.shownPerValue);
     }
 }
 
-KisPropertiesConfigurationSP SkissaDetailSliders::configuration() const
+KisPropertiesConfigurationSP SkissaSliders::configuration() const
 {
-    KisFilterSP filter = KisFilterRegistry::instance()->value(SkissaDetailFilter::idOf(m_kind).id());
+    KisFilterSP filter = KisFilterRegistry::instance()->value(m_filterId);
     KisFilterConfigurationSP config = filter->factoryConfiguration(KisGlobalResourcesInterface::instance());
-    Q_FOREACH (const Slider &slider, m_sliders) config->setProperty(slider.key, slider.box->value() / slider.shownPerValue);
+    for (const auto &slider : m_sliders) config->setProperty(slider.first.key, slider.second->value() / slider.first.shownPerValue);
     return config;
 }
 
@@ -254,18 +267,7 @@ SkissaDetailWidget::SkissaDetailWidget(QWidget *parent, KisPaintDeviceSP dev)
         Q_EMIT sigConfigurationItemChanged();
     };
     d->view->describe = [](qreal x, qreal y) { return radiusText(radiusAt(x)) + QStringLiteral("  ") + gainText(gainOf(y)); };
-    d->view->backdrop = [this](QPainter &painter, const QRectF &box) {
-        // dots from the finest features to the largest along the bottom
-        QColor ink = palette().color(QPalette::WindowText);
-        ink.setAlphaF(0.22);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(ink);
-        for (int octave = 0; octave <= int(octaves); octave++) {
-            const qreal x = box.left() + box.width() * octave / octaves;
-            const qreal size = 2 + 1.4 * octave;
-            painter.drawEllipse(QPointF(qBound(box.left() + size, x, box.right() - size), box.bottom() - KisModernStyle::space2 - size / 2), size / 2, size / 2);
-        }
-    };
+    d->view->backdrop = [this](QPainter &painter, const QRectF &box) { paintSizes(painter, box, palette().color(QPalette::WindowText)); };
     layout->addWidget(d->view);
 
     auto *edgesRow = new QHBoxLayout();
@@ -373,6 +375,290 @@ void SkissaDetailWidget::canvasReleased()
 {
     d->dragPoint = -1;
     d->view->setShownPoint(-1);
+}
+
+namespace
+{
+
+/// The drag on the image across which the noise grows or shrinks by a factor of e
+constexpr qreal dragForFactor = 150;
+/// Room around the tiles' part of the image, for the pixels a wobble takes from beside it
+constexpr int noiseTileMargin = 32;
+
+struct NoisePreset {
+    QString name;
+    SkissaNoise::Settings settings;
+};
+
+/// A curve of strengths at radii
+KisStudioCurve sizesOf(std::initializer_list<std::pair<qreal, qreal>> points)
+{
+    KisStudioCurve curve;
+    for (const auto &point : points) curve.points << QPointF(point.first < 1 ? 0.0 : xOfRadius(point.first), point.second);
+    return curve;
+}
+
+SkissaNoise::Settings noiseOf(const KisStudioCurve &sizes, std::initializer_list<std::pair<SkissaNoise::Target, float>> amounts, float mids = 0)
+{
+    SkissaNoise::Settings settings;
+    settings.sizes = sizes;
+    std::fill(std::begin(settings.amount), std::end(settings.amount), 0.0f);
+    for (const auto &amount : amounts) settings.amount[amount.first] = amount.second;
+    settings.mids = mids;
+    return settings;
+}
+
+QString targetName(int target)
+{
+    switch (target) {
+    case SkissaNoise::Lightness: return i18nc("noise effect: what the noise changes", "Lightness");
+    case SkissaNoise::Color: return i18nc("noise effect: what the noise changes", "Color");
+    case SkissaNoise::Transparency: return i18nc("noise effect: what the noise changes", "Transparency");
+    default: return i18nc("noise effect: what the noise changes", "Displace");
+    }
+}
+
+} // namespace
+
+struct SkissaNoiseWidget::Private {
+    KisPaintDeviceSP original;
+    SkissaNoise::Settings settings;
+    QVector<NoisePreset> presets;
+    QVector<QImage> pictures;
+
+    KisStudioChips *tiles {nullptr};
+    KisStudioCurveView *view {nullptr};
+    KisDoubleSliderSpinBox *amounts[SkissaNoise::Targets] {};
+    KisDoubleSliderSpinBox *mids {nullptr};
+
+    /// The amounts when the drag on the image began
+    float dragStart[SkissaNoise::Targets] {};
+    bool dragging {false};
+
+    static qreal shownPer(int target) { return target == SkissaNoise::Displace ? 1 : 100; }
+
+    void makePresets()
+    {
+        using namespace SkissaNoise;
+        const KisStudioCurve fine = sizesOf({{0, 1}, {1, 1}, {2, 0}, {1024, 0}});
+        presets = {
+            {i18nc("noise effect preset", "Grain"), noiseOf(fineSizes(), {{Lightness, 0.3f}}, 0.6f)},
+            {i18nc("noise effect preset", "Color"), noiseOf(fine, {{Lightness, 0.2f}, {Color, 0.6f}})},
+            {i18nc("noise effect preset", "Paper"), noiseOf(sizesOf({{0, 0.6}, {2, 1}, {8, 1}, {32, 0.5}, {128, 0}, {1024, 0}}), {{Lightness, 0.12f}})},
+            {i18nc("noise effect preset", "Clouds"), noiseOf(sizesOf({{0, 0}, {16, 0}, {64, 1}, {256, 1}, {1024, 0.6}}), {{Lightness, 0.5f}})},
+            {i18nc("noise effect preset", "Scatter"), noiseOf(fine, {{Displace, 2.0f}})},
+            {i18nc("noise effect preset", "Wobble"), noiseOf(sizesOf({{0, 0}, {8, 0}, {16, 1}, {32, 1}, {128, 0}, {1024, 0}}), {{Displace, 4.0f}})},
+        };
+    }
+
+    void makePictures()
+    {
+        // the middle of the layer at its own size, where grain shows as it will
+        QImage base;
+        QPoint corner;
+        if (original) {
+            const QRect bounds = original->exactBounds();
+            if (!bounds.isEmpty()) {
+                QRect crop(bounds.center() - QPoint(tileSize.width() / 2, tileSize.height() / 2), tileSize);
+                crop = crop.adjusted(-noiseTileMargin, -noiseTileMargin, noiseTileMargin, noiseTileMargin);
+                base = original->convertToQImage(nullptr, crop);
+                corner = crop.topLeft();
+            }
+        }
+        if (base.isNull()) {
+            base = QImage(tileSize + QSize(2 * noiseTileMargin, 2 * noiseTileMargin), QImage::Format_ARGB32);
+            base.fill(QColor(128, 128, 128));
+        }
+        pictures.clear();
+        Q_FOREACH (const NoisePreset &preset, presets) {
+            pictures << SkissaNoise::applied(base, corner, preset.settings).copy(QRect(QPoint(noiseTileMargin, noiseTileMargin), tileSize));
+        }
+    }
+};
+
+SkissaNoiseWidget::SkissaNoiseWidget(QWidget *parent, KisPaintDeviceSP dev)
+    : KisConfigWidget(parent)
+    , d(new Private)
+{
+    // the pixels as they were before the preview changes them; their tiles are shared until then
+    if (dev) d->original = new KisPaintDevice(*dev);
+    d->makePresets();
+    d->makePictures();
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
+
+    d->tiles = new KisStudioChips(this);
+    d->tiles->setTileColumns(6, qMax(64, 2 * fontMetrics().height() + 34));
+    connect(d->tiles, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= d->presets.size()) return;
+        const quint32 seed = d->settings.seed;
+        d->settings = d->presets[index].settings;
+        d->settings.seed = seed;
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    layout->addWidget(d->tiles);
+
+    auto *curveRow = new QHBoxLayout();
+    curveRow->setSpacing(KisModernStyle::space1);
+    d->view = new KisStudioCurveView(this);
+    d->view->changed = [this](const KisStudioCurve &curve) {
+        d->settings.sizes = curve;
+        refreshTiles();
+        Q_EMIT sigConfigurationItemChanged();
+    };
+    d->view->describe = [](qreal x, qreal y) { return radiusText(radiusAt(x)) + QStringLiteral("  ") + QString::number(qRound(y * 100)) + QStringLiteral("%"); };
+    d->view->backdrop = [this](QPainter &painter, const QRectF &box) { paintSizes(painter, box, palette().color(QPalette::WindowText)); };
+    curveRow->addWidget(d->view, 1);
+    auto *shuffle = new QToolButton(this);
+    shuffle->setAutoRaise(true);
+    shuffle->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_dice")));
+    shuffle->setToolTip(i18nc("@info:tooltip", "Other noise like it"));
+    connect(shuffle, &QToolButton::clicked, this, [this]() {
+        d->settings.seed = QRandomGenerator::global()->bounded(1, 0x7fffffff);
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    curveRow->addWidget(shuffle, 0, Qt::AlignTop);
+    layout->addLayout(curveRow);
+
+    // two settings a row, so the panel stays short
+    auto *rows = new QGridLayout();
+    rows->setContentsMargins(0, 0, 0, 0);
+    rows->setHorizontalSpacing(KisModernStyle::space2);
+    rows->setVerticalSpacing(KisModernStyle::space1);
+    rows->setColumnStretch(1, 1);
+    rows->setColumnStretch(3, 1);
+    auto addRow = [this, rows](int index, const QString &name, QWidget *box) {
+        rows->addWidget(new QLabel(name, this), index / 2, (index % 2) * 2);
+        rows->addWidget(box, index / 2, (index % 2) * 2 + 1);
+    };
+    for (int target = 0; target < SkissaNoise::Targets; target++) {
+        const bool displace = target == SkissaNoise::Displace;
+        KisDoubleSliderSpinBox *box = displace ? slider(this, 200, 20, 1, i18nc("pixels, after a number", " px"))
+                                               : slider(this, 400, 100, 0, QStringLiteral("%"));
+        connect(box, qOverload<double>(&KisDoubleSliderSpinBox::valueChanged), this, [this, target](double value) {
+            d->settings.amount[target] = float(value / Private::shownPer(target));
+            refreshTiles();
+            Q_EMIT sigConfigurationItemChanged();
+        });
+        addRow(target, targetName(target), box);
+        d->amounts[target] = box;
+    }
+    d->mids = slider(this, 100, 100, 0, QStringLiteral("%"));
+    d->mids->setToolTip(i18nc("@info:tooltip", "Grain shows most in the middle tones, as on film"));
+    connect(d->mids, qOverload<double>(&KisDoubleSliderSpinBox::valueChanged), this, [this](double value) {
+        d->settings.mids = float(value / 100);
+        refreshTiles();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    addRow(SkissaNoise::Targets, i18nc("noise effect setting", "Midtones"), d->mids);
+    layout->addLayout(rows);
+
+    refresh();
+}
+
+SkissaNoiseWidget::~SkissaNoiseWidget()
+{
+}
+
+void SkissaNoiseWidget::setConfiguration(const KisPropertiesConfigurationSP config)
+{
+    d->settings = config ? SkissaNoise::Settings::from(SkissaNoise::Kind::Noise, *config) : SkissaNoise::Settings();
+    refresh();
+}
+
+KisPropertiesConfigurationSP SkissaNoiseWidget::configuration() const
+{
+    KisFilterSP filter = KisFilterRegistry::instance()->value(QStringLiteral("skissa_noise"));
+    KisFilterConfigurationSP config = filter->factoryConfiguration(KisGlobalResourcesInterface::instance());
+    d->settings.writeTo(*config);
+    return config;
+}
+
+QSize SkissaNoiseWidget::sizeHint() const
+{
+    const int width = 500;
+    return QSize(width, layout()->heightForWidth(width));
+}
+
+void SkissaNoiseWidget::refresh()
+{
+    d->view->setCurve(d->settings.sizes, SkissaNoise::fineSizes());
+    for (int target = 0; target < SkissaNoise::Targets; target++) {
+        QSignalBlocker blocker(d->amounts[target]);
+        d->amounts[target]->setValue(d->settings.amount[target] * Private::shownPer(target));
+    }
+    {
+        QSignalBlocker blocker(d->mids);
+        d->mids->setValue(d->settings.mids * 100);
+    }
+    refreshTiles();
+}
+
+void SkissaNoiseWidget::refreshTiles()
+{
+    QVector<KisStudioChips::Chip> chips;
+    for (int i = 0; i < d->presets.size(); i++) {
+        KisStudioChips::Chip chip;
+        chip.text = d->presets[i].name;
+        // another throw of the same noise is still the same choice
+        SkissaNoise::Settings preset = d->presets[i].settings;
+        preset.seed = d->settings.seed;
+        chip.on = d->settings == preset;
+        const QImage picture = d->pictures.value(i);
+        chip.picture = [picture](QPainter &painter, const QRectF &rect) {
+            painter.save();
+            painter.setClipPath(KisModernStyle::squircle(rect, KisModernStyle::cornerRadius));
+            const QSizeF size = QSizeF(picture.size()).scaled(rect.size(), Qt::KeepAspectRatioByExpanding);
+            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            painter.drawImage(QRectF(rect.center() - QPointF(size.width(), size.height()) / 2, size), picture);
+            painter.restore();
+        };
+        chips << chip;
+    }
+    d->tiles->setChips(chips);
+}
+
+void SkissaNoiseWidget::canvasHovered(const QPoint &)
+{
+}
+
+bool SkissaNoiseWidget::canvasPressed(const QPoint &)
+{
+    std::copy(std::begin(d->settings.amount), std::end(d->settings.amount), std::begin(d->dragStart));
+    d->dragging = true;
+    return true;
+}
+
+QString SkissaNoiseWidget::canvasDragged(const QPointF &moved, bool fine)
+{
+    if (!d->dragging) return QString();
+    // up makes all of it stronger, by ratios, so a faint grain and a strong wobble grow alike
+    const float factor = float(std::exp(-moved.y() * (fine ? 0.25 : 1.0) / dragForFactor));
+    QStringList shown;
+    bool any = false;
+    for (int target = 0; target < SkissaNoise::Targets; target++) {
+        if (d->dragStart[target] <= 0) continue;
+        any = true;
+        const qreal shown100 = Private::shownPer(target);
+        const qreal value = qMin(d->amounts[target]->maximum(), d->dragStart[target] * factor * shown100);
+        d->amounts[target]->setValue(value);
+        shown << targetName(target) + QStringLiteral(" ") + d->amounts[target]->text();
+    }
+    if (!any) {
+        // nothing on yet: up brings the lightness in
+        const qreal value = qBound(0.0, -moved.y() * (fine ? 0.25 : 1.0) / 3, d->amounts[SkissaNoise::Lightness]->maximum());
+        d->amounts[SkissaNoise::Lightness]->setValue(value);
+        shown << targetName(SkissaNoise::Lightness) + QStringLiteral(" ") + d->amounts[SkissaNoise::Lightness]->text();
+    }
+    return shown.join(QStringLiteral("   "));
+}
+
+void SkissaNoiseWidget::canvasReleased()
+{
+    d->dragging = false;
 }
 
 #include "SkissaDetailWidget.moc"

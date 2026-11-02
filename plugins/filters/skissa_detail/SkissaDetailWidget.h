@@ -16,25 +16,32 @@
 
 class KisDoubleSliderSpinBox;
 
-/// The slider or two of an effect made of Detail: a radius, an amount, edges
-class SkissaDetailSliders : public KisConfigWidget
+/// One setting of an effect with a few sliders
+struct SkissaSlider {
+    const char *key;
+    QString name;
+    qreal maximum;
+    qreal softMaximum;
+    int decimals;
+    QString suffix;
+    qreal shownPerValue {1}; ///< percent shows a fraction a hundred times larger
+    QString tip;
+    qreal minimum {0};
+};
+
+/// The slider or two of an effect made of a larger one (Blur of Detail, Grain of Noise)
+class SkissaSliders : public KisConfigWidget
 {
     Q_OBJECT
 public:
-    SkissaDetailSliders(QWidget *parent, SkissaDetail::Kind kind);
+    SkissaSliders(QWidget *parent, const QString &filterId, const QVector<SkissaSlider> &sliders);
 
     void setConfiguration(const KisPropertiesConfigurationSP config) override;
     KisPropertiesConfigurationSP configuration() const override;
 
 private:
-    struct Slider {
-        const char *key;
-        KisDoubleSliderSpinBox *box;
-        qreal shownPerValue; ///< percent shows a fraction a hundred times larger
-    };
-
-    SkissaDetail::Kind m_kind;
-    QVector<Slider> m_sliders;
+    QString m_filterId;
+    QVector<QPair<SkissaSlider, KisDoubleSliderSpinBox *>> m_sliders;
 };
 
 /**
@@ -49,6 +56,37 @@ class SkissaDetailWidget : public KisConfigWidget, public KisEffectCanvasEditor
 public:
     SkissaDetailWidget(QWidget *parent, KisPaintDeviceSP dev);
     ~SkissaDetailWidget() override;
+
+    void setConfiguration(const KisPropertiesConfigurationSP config) override;
+    KisPropertiesConfigurationSP configuration() const override;
+
+    void canvasHovered(const QPoint &pixel) override;
+    bool canvasPressed(const QPoint &pixel) override;
+    QString canvasDragged(const QPointF &moved, bool fine) override;
+    void canvasReleased() override;
+
+    QSize sizeHint() const override;
+
+private:
+    void refresh();
+    void refreshTiles();
+
+    struct Private;
+    QScopedPointer<Private> d;
+};
+
+/**
+ * Noise's panel: pictures of the image under a few kinds of noise, the curve of how strong each size of it is, and
+ * how much it changes lightness, color, transparency and the pixels' places. A drag up or down on the image makes
+ * all of it stronger or weaker.
+ */
+class SkissaNoiseWidget : public KisConfigWidget, public KisEffectCanvasEditor
+{
+    Q_OBJECT
+    Q_INTERFACES(KisEffectCanvasEditor)
+public:
+    SkissaNoiseWidget(QWidget *parent, KisPaintDeviceSP dev);
+    ~SkissaNoiseWidget() override;
 
     void setConfiguration(const KisPropertiesConfigurationSP config) override;
     KisPropertiesConfigurationSP configuration() const override;
