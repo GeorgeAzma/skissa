@@ -12,6 +12,7 @@
  */
 
 #include "kis_paintop_box.h"
+#include "KisStudioFlash.h"
 #include "KisBlendModePicker.h"
 
 #include <QStyleOption>
@@ -1432,7 +1433,8 @@ void KisPaintopBox::slotPreviousFavoritePreset()
             //floating message should have least 2 lines, otherwise
             //preset thumbnail will be too small to distinguish
             //(because size of image on floating message depends on amount of lines in msg)
-            m_viewManager->showFloatingMessage(
+            if (!KisStudioFlash::flash(m_viewManager->mainWindow(), "studioToolChip"))
+                m_viewManager->showFloatingMessage(
                         i18n("%1\nselected",
                              m_resourceProvider->currentPreset()->name()),
                         QIcon(QPixmap::fromImage(m_resourceProvider->currentPreset()->image())));
@@ -1454,7 +1456,8 @@ void KisPaintopBox::slotNextFavoritePreset()
             } else {
                 m_favoriteResourceManager->slotChangeActivePaintop(0);
             }
-            m_viewManager->showFloatingMessage(
+            if (!KisStudioFlash::flash(m_viewManager->mainWindow(), "studioToolChip"))
+                m_viewManager->showFloatingMessage(
                         i18n("%1\nselected",
                              m_resourceProvider->currentPreset()->name()),
                         QIcon(QPixmap::fromImage(m_resourceProvider->currentPreset()->image())));
@@ -1468,7 +1471,8 @@ void KisPaintopBox::slotSwitchToPreviousPreset()
 {
     if (m_resourceProvider->previousPreset()) {
         setCurrentPaintop(m_resourceProvider->previousPreset());
-        m_viewManager->showFloatingMessage(
+        if (!KisStudioFlash::flash(m_viewManager->mainWindow(), "studioToolChip"))
+            m_viewManager->showFloatingMessage(
                     i18n("%1\nselected",
                          m_resourceProvider->currentPreset()->name()),
                     QIcon(QPixmap::fromImage(m_resourceProvider->currentPreset()->image())));

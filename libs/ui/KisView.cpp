@@ -1153,6 +1153,9 @@ void KisView::slotSavingStatusMessage(const QString &text, int timeout, bool isA
 
     KisConfig cfg(true);
 
+    // the Studio shows a save by the document's own mark; only failures (shown longer) are said over the picture
+    if (viewManager() && viewManager()->mainWindow() && viewManager()->mainWindow()->property("studioLayoutActive").toBool() && timeout <= 1000) return;
+
     if (!sb || sb->isHidden() ||
         (!isAutoSaving && cfg.forceShowSaveMessages()) ||
         (cfg.forceShowAutosaveMessages() && isAutoSaving)) {
@@ -1394,12 +1397,6 @@ void KisView::slotSoftProofing(bool softProofing)
         viewManager()->showFloatingMessage(message,QIcon());
         return;
     }
-    if (softProofing){
-        message = i18n("Soft Proofing turned on.");
-    } else {
-        message = i18n("Soft Proofing turned off.");
-    }
-    viewManager()->showFloatingMessage(message,QIcon());
     canvasBase()->slotSoftProofing();
 }
 
@@ -1414,15 +1411,9 @@ void KisView::slotGamutCheck(bool gamutCheck)
         return;
     }
 
-    if (gamutCheck){
-        message = i18n("Gamut Warnings turned on.");
-        if (!d->softProofing){
-            message += "\n "+i18n("But Soft Proofing is still off.");
-        }
-    } else {
-        message = i18n("Gamut Warnings turned off.");
+    if (gamutCheck && !d->softProofing) {
+        viewManager()->showFloatingMessage(i18n("But Soft Proofing is still off."), QIcon());
     }
-    viewManager()->showFloatingMessage(message,QIcon());
     canvasBase()->slotGamutCheck();
 }
 

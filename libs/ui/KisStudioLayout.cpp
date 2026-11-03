@@ -5135,6 +5135,7 @@ void KisStudioLayout::createTopBar()
                                                        ? i18nc("@info:tooltip", "Brush size")
                                                        : i18nc("@info:tooltip", "Opacity"),
                                                    values);
+            scrubber->setObjectName(entry.second == KisStudioScrubber::Kind::Size ? QStringLiteral("studioSize") : QStringLiteral("studioOpacity"));
             scrubber->setRange(entry.second == KisStudioScrubber::Kind::Size ? qMax(source->minimum(), 1.0) : source->minimum(),
                                source->maximum());
             scrubber->setValue(source->value());

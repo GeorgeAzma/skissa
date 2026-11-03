@@ -6,6 +6,8 @@
  */
 
 #include "kis_canvas_controls_manager.h"
+#include "KisMainWindow.h"
+#include "KisStudioFlash.h"
 
 #include <kactioncollection.h>
 #include <QAction>
@@ -296,6 +298,8 @@ void KisCanvasControlsManager::stepAlpha(float step)
     alpha = qBound<qreal>(0.0, alpha, 1.0);
     m_view->canvasBase()->resourceManager ()->setResource(KoCanvasResource::Opacity, alpha);
 
+    // the opacity on the top bar lights instead, when it is there
+    if (KisStudioFlash::flash(m_view->mainWindow(), "studioOpacity")) return;
     m_view->showFloatingMessage(i18n("Brush Opacity: %1%", alpha * 100), QIcon(), 1000, KisFloatingMessage::High,
                                 Qt::AlignLeft | Qt::TextWordWrap | Qt::AlignVCenter);
 

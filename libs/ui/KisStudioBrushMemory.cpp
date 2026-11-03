@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioBrushMemory.h"
+#include "KisStudioFlash.h"
 
 #include <klocalizedstring.h>
 
@@ -60,8 +61,11 @@ void KisStudioBrushMemory::layerChosen(KisNodeSP node)
     if (resources->currentPreset() && resources->currentPreset()->name() == stroke.brush) {
         // the size it painted with; erasing keeps the eraser's own
         if (!erasing) resources->setSize(stroke.brushSize);
-        view->showFloatingMessage(i18nc("@info a brush taken from the layer just chosen, %1 its name", "%1 · this layer's brush",
-                                        KisStudioBrushPicker::title(stroke.brush)),
-                                  KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), 1600, KisFloatingMessage::Low);
+        // the brush chip lights; with the bars away, a message says it
+        if (!KisStudioFlash::flash(view->mainWindow(), "studioToolChip")) {
+            view->showFloatingMessage(i18nc("@info a brush taken from the layer just chosen, %1 its name", "%1 · this layer's brush",
+                                            KisStudioBrushPicker::title(stroke.brush)),
+                                      KisIconUtils::loadIcon(QStringLiteral("paintop_settings_01")), 1600, KisFloatingMessage::Low);
+        }
     }
 }

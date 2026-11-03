@@ -6,6 +6,8 @@
  */
 
 #include <kis_tool_utils.h>
+#include "KisMainWindow.h"
+#include "KisStudioFlash.h"
 
 #include <KoMixColorsOp.h>
 #include <kis_group_layer.h>
@@ -320,6 +322,8 @@ namespace KisToolUtils {
     {
         KisCanvas2 *kisCanvas = dynamic_cast<KisCanvas2 *>(canvas);
         KIS_SAFE_ASSERT_RECOVER_RETURN(kisCanvas);
+        // the size on the top bar lights instead, when it is there
+        if (KisStudioFlash::flash(kisCanvas->viewManager()->mainWindow(), "studioSize")) return;
         kisCanvas->viewManager()->showFloatingMessage(i18n("Brush Size: %1 px", size),
                                                       QIcon(),
                                                       1000,

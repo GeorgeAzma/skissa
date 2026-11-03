@@ -1483,11 +1483,6 @@ void KisStudioFind::runRow(int row)
     hide();
     // run once the popup is gone, so that dialogs get the focus
     QTimer::singleShot(0, this, [run = entry.run]() { if (run) run(); });
-    // teach the shortcut during the first few uses
-    if (!entry.shortcut.isEmpty() && d->usage.value(entry.key).count <= 3 && d->mainWindow->viewManager()) {
-        d->mainWindow->viewManager()->showFloatingMessage(i18nc("@info a shortcut Find teaches; %1 the command, %2 its keys", "%1  ·  %2", entry.title, entry.shortcut),
-                                                          entry.shownIcon(), 2600, KisFloatingMessage::Low);
-    }
 }
 
 void KisStudioFind::adjustGeometry()

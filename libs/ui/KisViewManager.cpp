@@ -15,6 +15,7 @@
 
 
 #include "KisViewManager.h"
+#include "KisStudioFlash.h"
 #include "KisSettingsRegistry.h"
 #include <QPrinter>
 
@@ -1601,6 +1602,8 @@ void KisViewManager::showFloatingRotationMessage(const QString &message)
 
 void KisViewManager::handleFloatingZoomRotationMessage(QString &messageToClear)
 {
+    // the zoom pill shows both, when it is there
+    if (KisStudioFlash::shown(mainWindow(), "studioCanvasHud")) return;
     int timeoutMsec = 500;
 
     if (d->zoomRotationMessageTimer.hasExpired()) {

@@ -880,13 +880,8 @@ void PaletteDockerDock::slotExportPalette(KoColorSetSP palette)
         warnKrita << "Could not open the file for writing:" << newPath;
         return;
     }
-    if (palette->saveToDevice(&file)) {
-        if (m_view) {
-            m_view->showFloatingMessage(
-                i18nc("Floating message about exporting successful", "Palette exported successfully"), QIcon(),
-                500, KisFloatingMessage::Low);
-        }
-    } else {
+    // the file is the sign it worked
+    if (!palette->saveToDevice(&file)) {
         warnKrita << "Could export to the file:" << newPath;
     }
 }
