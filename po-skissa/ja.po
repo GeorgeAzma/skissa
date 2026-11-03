@@ -719,6 +719,10 @@ msgctxt "noise effect preset"
 msgid "Color"
 msgstr "色"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "オリジナル"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "サイズ"

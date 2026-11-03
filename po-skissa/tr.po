@@ -853,6 +853,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Orta Tonlar"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "Özgün"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Boyut"

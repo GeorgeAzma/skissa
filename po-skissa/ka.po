@@ -821,6 +821,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "შუატონები"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "ორიგინალი"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "ზომა"

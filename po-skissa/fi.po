@@ -544,6 +544,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Keskisävyt"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "Alkuperäinen"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Koko"

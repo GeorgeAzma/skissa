@@ -813,6 +813,10 @@ msgctxt "noise effect preset"
 msgid "Color"
 msgstr "Цвят"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "Оригинал"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Размер"

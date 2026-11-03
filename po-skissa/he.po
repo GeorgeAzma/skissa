@@ -823,6 +823,10 @@ msgctxt "noise effect preset"
 msgid "Color"
 msgstr "צבע"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "מקור"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "גודל"

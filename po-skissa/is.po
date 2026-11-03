@@ -208,6 +208,10 @@ msgctxt "noise effect preset"
 msgid "Color"
 msgstr "Litur"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "Upprunalegt"
+
 msgctxt "noise effect setting"
 msgid "Color"
 msgstr "Litur"

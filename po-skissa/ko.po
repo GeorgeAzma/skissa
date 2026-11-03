@@ -758,6 +758,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "미드톤"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "원본"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "크기"

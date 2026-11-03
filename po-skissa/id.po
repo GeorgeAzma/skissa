@@ -634,6 +634,10 @@ msgctxt "noise effect preset"
 msgid "Color"
 msgstr "Warna"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "Asli"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Ukuran"

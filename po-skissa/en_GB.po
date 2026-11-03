@@ -890,6 +890,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Midtones"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "Original"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Size"

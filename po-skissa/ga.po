@@ -813,6 +813,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Meántoin"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "Bunaidh"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Méid"

@@ -544,6 +544,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "متوسط"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "الأصلي"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "المقاس"

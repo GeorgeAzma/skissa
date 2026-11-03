@@ -894,6 +894,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Középtónusok"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "Eredeti"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Méret"

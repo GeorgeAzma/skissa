@@ -535,6 +535,10 @@ msgctxt "noise effect preset"
 msgid "Color"
 msgstr "رەڭ"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "ئەسلى"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "چوڭلۇقى"

@@ -706,6 +706,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Tonu ertainak"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "Jatorrizkoa"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Tamaina"

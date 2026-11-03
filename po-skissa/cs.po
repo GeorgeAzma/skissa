@@ -692,6 +692,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Střední tóny"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "Originál"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Velikost"

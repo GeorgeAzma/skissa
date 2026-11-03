@@ -764,6 +764,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Srednji toni"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "Izvirnik"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Velikost"

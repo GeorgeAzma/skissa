@@ -734,6 +734,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "中間色"
 
+msgctxt "lens effect preset"
+msgid "Original"
+msgstr "原始"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "大小"
