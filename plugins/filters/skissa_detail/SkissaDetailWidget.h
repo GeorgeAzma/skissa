@@ -13,6 +13,7 @@
 #include <kis_types.h>
 
 #include "SkissaDetail.h"
+#include "SkissaLens.h"
 
 class KisDoubleSliderSpinBox;
 
@@ -62,7 +63,7 @@ public:
 
     void canvasHovered(const QPoint &pixel) override;
     bool canvasPressed(const QPoint &pixel) override;
-    QString canvasDragged(const QPointF &moved, bool fine) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
     void canvasReleased() override;
 
     QSize sizeHint() const override;
@@ -93,7 +94,7 @@ public:
 
     void canvasHovered(const QPoint &pixel) override;
     bool canvasPressed(const QPoint &pixel) override;
-    QString canvasDragged(const QPointF &moved, bool fine) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
     void canvasReleased() override;
 
     QSize sizeHint() const override;
@@ -101,6 +102,37 @@ public:
 private:
     void refresh();
     void refreshTiles();
+
+    struct Private;
+    QScopedPointer<Private> d;
+};
+
+/**
+ * Lens's panel: pictures of the whole image through a few lenses, then how much of each thing a lens does. A press
+ * on the image puts the lens's middle there; a drag moves it.
+ */
+class SkissaLensWidget : public KisConfigWidget, public KisEffectCanvasEditor
+{
+    Q_OBJECT
+    Q_INTERFACES(KisEffectCanvasEditor)
+public:
+    SkissaLensWidget(QWidget *parent, KisPaintDeviceSP dev);
+    ~SkissaLensWidget() override;
+
+    void setConfiguration(const KisPropertiesConfigurationSP config) override;
+    KisPropertiesConfigurationSP configuration() const override;
+
+    void canvasHovered(const QPoint &pixel) override;
+    bool canvasPressed(const QPoint &pixel) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
+    void canvasReleased() override;
+
+    QSize sizeHint() const override;
+
+private:
+    void refresh();
+    void refreshTiles();
+    void placeCenter(const QPointF &at);
 
     struct Private;
     QScopedPointer<Private> d;

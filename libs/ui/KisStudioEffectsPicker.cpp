@@ -131,6 +131,7 @@ QString groupOf(const QString &id)
         {QStringLiteral("smalltiles"), QStringLiteral("stylize")},
         {QStringLiteral("skissa_grain"), QStringLiteral("stylize")},
         {QStringLiteral("skissa_noise"), QStringLiteral("stylize")},
+        {QStringLiteral("skissa_lens"), QStringLiteral("stylize")},
         {QStringLiteral("randompick"), QStringLiteral("stylize")},
         {QStringLiteral("noise"), QStringLiteral("stylize")},
         {QStringLiteral("roundcorners"), QStringLiteral("stylize")},

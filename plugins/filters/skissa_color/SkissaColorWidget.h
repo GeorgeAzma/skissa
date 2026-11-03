@@ -30,7 +30,7 @@ public:
 
     void canvasHovered(const QPoint &pixel) override;
     bool canvasPressed(const QPoint &pixel) override;
-    QString canvasDragged(const QPointF &moved, bool fine) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
     void canvasReleased() override;
 
     /// As tall as the rows are at the panel's usual width: the panel sizes itself by this

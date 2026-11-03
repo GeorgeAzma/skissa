@@ -5,13 +5,8 @@
  */
 #include "SkissaNoiseFilter.h"
 
-#include <algorithm>
 #include <vector>
 
-#include <KoChannelInfo.h>
-#include <KoColorConversionTransformation.h>
-#include <KoColorSpace.h>
-#include <KoColorSpaceRegistry.h>
 #include <filter/kis_filter_category_ids.h>
 #include <filter/kis_filter_configuration.h>
 #include <kis_default_bounds_base.h>
@@ -19,8 +14,8 @@
 #include <kis_paint_device.h>
 #include <klocalizedstring.h>
 
-#include "KoCompositeOpInLinear.h"
 #include "SkissaDetailWidget.h"
+#include "SkissaPixels.h"
 
 using namespace SkissaNoise;
 
@@ -67,59 +62,11 @@ void SkissaNoiseFilter::processImpl(KisPaintDeviceSP device, const QRect &applyR
     QRect source = applyRect.adjusted(-reach, -reach, reach, reach);
     if (!device->defaultBounds()->wrapAroundMode()) source &= applyRect | device->defaultBounds()->bounds();
 
-    const KoColorSpace *cs = device->colorSpace();
-    const KoColorSpace *linear = KoMixing::linearSpace();
-    const bool srgb8 = *cs == *KoColorSpaceRegistry::instance()->rgb8();
-    const bool isLinear = *cs == *linear;
-    const KoChannelInfo::enumChannelValueType type = cs->channels().first()->channelValueType();
+    const std::vector<float> in = SkissaPixels::readLinear(device, source);
+    std::vector<float> out(size_t(applyRect.width()) * applyRect.height() * 4);
     // floats hold colors past sRGB, which are kept
-    const bool fit = type != KoChannelInfo::FLOAT16 && type != KoChannelInfo::FLOAT32 && type != KoChannelInfo::FLOAT64;
-
-    const size_t count = size_t(source.width()) * source.height();
-    std::vector<quint8> raw(count * cs->pixelSize());
-    device->readBytes(raw.data(), source);
-    std::vector<float> in(count * 4);
-    if (srgb8) {
-        // blue, green, red, alpha, as Krita keeps 8-bit RGB
-        const float *decode = KoMixing::srgbToLinearTable();
-        for (size_t i = 0; i < count; i++) {
-            const quint8 *pixel = raw.data() + i * 4;
-            float *to = in.data() + i * 4;
-            to[0] = decode[pixel[2]];
-            to[1] = decode[pixel[1]];
-            to[2] = decode[pixel[0]];
-            to[3] = pixel[3] / 255.0f;
-        }
-    } else if (isLinear) {
-        std::copy(raw.begin(), raw.end(), reinterpret_cast<quint8 *>(in.data()));
-    } else {
-        cs->convertPixelsTo(raw.data(), reinterpret_cast<quint8 *>(in.data()), linear, int(count),
-                            KoColorConversionTransformation::internalRenderingIntent(), KoColorConversionTransformation::internalConversionFlags());
-    }
-
-    const size_t written = size_t(applyRect.width()) * applyRect.height();
-    std::vector<float> out(written * 4);
-    apply(settings, scale, in.data(), source, applyRect, out.data(), fit);
-
-    raw.resize(written * cs->pixelSize());
-    if (srgb8) {
-        const quint8 *encode = KoMixing::linearToSrgbTable();
-        auto encoded = [encode](float c) { return encode[int(std::clamp(c, 0.0f, 1.0f) * 65535 + 0.5f)]; };
-        for (size_t i = 0; i < written; i++) {
-            const float *from = out.data() + i * 4;
-            quint8 *pixel = raw.data() + i * 4;
-            pixel[2] = encoded(from[0]);
-            pixel[1] = encoded(from[1]);
-            pixel[0] = encoded(from[2]);
-            pixel[3] = quint8(std::clamp(from[3], 0.0f, 1.0f) * 255 + 0.5f);
-        }
-    } else if (isLinear) {
-        std::copy_n(reinterpret_cast<const quint8 *>(out.data()), raw.size(), raw.data());
-    } else {
-        linear->convertPixelsTo(reinterpret_cast<const quint8 *>(out.data()), raw.data(), cs, int(written),
-                                KoColorConversionTransformation::internalRenderingIntent(), KoColorConversionTransformation::internalConversionFlags());
-    }
-    device->writeBytes(raw.data(), applyRect);
+    apply(settings, scale, in.data(), source, applyRect, out.data(), !SkissaPixels::holdsPastWhite(device->colorSpace()));
+    SkissaPixels::writeLinear(device, applyRect, out.data());
 }
 
 KisConfigWidget *SkissaNoiseFilter::createConfigurationWidget(QWidget *parent, const KisPaintDeviceSP dev, bool) const

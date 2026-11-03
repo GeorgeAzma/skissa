@@ -23,6 +23,8 @@
 #include <kpluginfactory.h>
 
 #include "SkissaDetailWidget.h"
+#include "SkissaPixels.h"
+#include "SkissaLensFilter.h"
 #include "SkissaNoiseFilter.h"
 
 K_PLUGIN_FACTORY_WITH_JSON(SkissaDetailFactory, "kritaskissadetail.json", registerPlugin<SkissaDetailPlugin>();)
@@ -67,6 +69,7 @@ SkissaDetailPlugin::SkissaDetailPlugin(QObject *parent, const QVariantList &)
     for (SkissaNoise::Kind kind : {SkissaNoise::Kind::Grain, SkissaNoise::Kind::Noise}) {
         KisFilterRegistry::instance()->add(KisFilterSP(new SkissaNoiseFilter(kind)));
     }
+    KisFilterRegistry::instance()->add(KisFilterSP(new SkissaLensFilter()));
 }
 
 SkissaDetailFilter::SkissaDetailFilter(Kind kind)
@@ -138,7 +141,7 @@ void SkissaDetailFilter::processImpl(KisPaintDeviceSP device, const QRect &apply
 
     const int pixelSize = cs->pixelSize();
     std::vector<quint8> raw(size_t(source.width()) * source.height() * pixelSize);
-    device->readBytes(raw.data(), source);
+    SkissaPixels::readOriginal(device, source, raw.data());
     std::vector<float> converted;
     if (layout == Layout::Converted) {
         converted.resize(size_t(source.width()) * source.height() * 4);

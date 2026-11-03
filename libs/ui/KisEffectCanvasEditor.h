@@ -25,8 +25,9 @@ public:
     virtual void canvasHovered(const QPoint &pixel) = 0;
     /// A press on \p pixel: whether a drag follows
     virtual bool canvasPressed(const QPoint &pixel) = 0;
-    /// The drag moved \p moved screen pixels from where it started, slower with \p fine; returns the value to show
-    virtual QString canvasDragged(const QPointF &moved, bool fine) = 0;
+    /// The drag moved \p moved screen pixels from where it started and is over \p at on the image (both slower with
+    /// Shift); returns the value to show
+    virtual QString canvasDragged(const QPointF &moved, const QPointF &at) = 0;
     virtual void canvasReleased() = 0;
 };
 

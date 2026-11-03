@@ -461,6 +461,7 @@ struct KisStudioEffectOverlay::Private
     /// The editor's drag so far, slowed while Shift was held, and where the pointer was last
     QPointF editMoved;
     QPointF editLast;
+    QPointF editStart;
     bool simple {false};
     QPointer<QWidget> canvasWidget;
     QPointer<ValuePill> pill;
@@ -990,6 +991,7 @@ bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos
             d->dragging = true;
             d->editMoved = QPointF();
             d->editLast = pos;
+            d->editStart = pos;
         }
         event->accept();
         return true;
@@ -1010,7 +1012,8 @@ bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos
         // Shift slows the drag from where it is, without a jump
         d->editMoved += (pos - d->editLast) * (modifiers & Qt::ShiftModifier ? 0.25 : 1.0);
         d->editLast = pos;
-        const QString text = d->editor->canvasDragged(d->editMoved, false);
+        const QPointF over = converter->viewportToImage(converter->widgetToViewport(d->editStart + d->editMoved));
+        const QString text = d->editor->canvasDragged(d->editMoved, over);
         if (d->pill && !text.isEmpty()) d->pill->showAt(pos.toPoint(), text);
     }
     event->accept();

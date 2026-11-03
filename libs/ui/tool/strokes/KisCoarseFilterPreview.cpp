@@ -99,7 +99,10 @@ int KisCoarseFilterPreview::level(KisFilterSP filter, const KisFilterConfigurati
     if (needed.width() <= rect.width() + 4 && needed.height() <= rect.height() + 4) return 0;
     const int margin = qMax(needed.width() - rect.width(), needed.height() - rect.height()) / 2;
     int lod = qBound(1, qCeil(std::log(pixels / 0.5e6) / std::log(4.0)), 6);
-    while (lod < 6 && (margin >> lod) > 24) lod++;
+    // reading from anywhere in the image (a lens), less room around is no faster
+    if (margin < qMax(rect.width(), rect.height())) {
+        while (lod < 6 && (margin >> lod) > 24) lod++;
+    }
     while (lod > 0 && !filter->supportsLevelOfDetail(config, lod)) lod--;
     return lod;
 }

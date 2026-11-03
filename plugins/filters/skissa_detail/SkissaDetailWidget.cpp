@@ -10,6 +10,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
+#include <QtMath>
 #include <QRandomGenerator>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -24,6 +25,7 @@
 #include <filter/kis_filter_configuration.h>
 #include <filter/kis_filter_registry.h>
 #include <kis_icon_utils.h>
+#include <kis_default_bounds_base.h>
 #include <kis_paint_device.h>
 #include <kis_slider_spin_box.h>
 #include <klocalizedstring.h>
@@ -114,6 +116,19 @@ QPoint mostDetailed(KisPaintDeviceSP device, const QRect &bounds)
         }
     }
     return best;
+}
+
+/// A tile's picture: \p picture filling it, its middle shown, or all of it with \p whole
+std::function<void(QPainter &, const QRectF &)> tilePicture(const QImage &picture, bool whole = false)
+{
+    return [picture, whole](QPainter &painter, const QRectF &rect) {
+        painter.save();
+        painter.setClipPath(KisModernStyle::squircle(rect, KisModernStyle::cornerRadius));
+        const QSizeF size = QSizeF(picture.size()).scaled(rect.size(), whole ? Qt::KeepAspectRatio : Qt::KeepAspectRatioByExpanding);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        painter.drawImage(QRectF(rect.center() - QPointF(size.width(), size.height()) / 2, size), picture);
+        painter.restore();
+    };
 }
 
 /// Dots from the finest features to the largest along the bottom of a curve over sizes
@@ -329,15 +344,7 @@ void SkissaDetailWidget::refreshTiles()
         KisStudioChips::Chip chip;
         chip.text = d->presets[i].name;
         chip.on = d->curve == d->presets[i].curve && std::abs(d->edges - d->presets[i].edges) < 0.005;
-        const QImage picture = d->pictures.value(i);
-        chip.picture = [picture](QPainter &painter, const QRectF &rect) {
-            painter.save();
-            painter.setClipPath(KisModernStyle::squircle(rect, KisModernStyle::cornerRadius));
-            const QSizeF size = QSizeF(picture.size()).scaled(rect.size(), Qt::KeepAspectRatioByExpanding);
-            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-            painter.drawImage(QRectF(rect.center() - QPointF(size.width(), size.height()) / 2, size), picture);
-            painter.restore();
-        };
+        chip.picture = tilePicture(d->pictures.value(i));
         chips << chip;
     }
     d->tiles->setChips(chips);
@@ -363,10 +370,10 @@ bool SkissaDetailWidget::canvasPressed(const QPoint &pixel)
     return true;
 }
 
-QString SkissaDetailWidget::canvasDragged(const QPointF &moved, bool fine)
+QString SkissaDetailWidget::canvasDragged(const QPointF &moved, const QPointF &)
 {
     if (d->dragPoint < 0) return QString();
-    d->view->setPointY(d->dragPoint, d->dragStart - moved.y() * (fine ? 0.25 : 1.0) / dragForWholeCurve);
+    d->view->setPointY(d->dragPoint, d->dragStart - moved.y() / dragForWholeCurve);
     const QPointF point = d->view->curve().points.value(d->dragPoint);
     return radiusText(radiusAt(point.x())) + QStringLiteral("  ") + gainText(gainOf(point.y()));
 }
@@ -607,15 +614,7 @@ void SkissaNoiseWidget::refreshTiles()
         SkissaNoise::Settings preset = d->presets[i].settings;
         preset.seed = d->settings.seed;
         chip.on = d->settings == preset;
-        const QImage picture = d->pictures.value(i);
-        chip.picture = [picture](QPainter &painter, const QRectF &rect) {
-            painter.save();
-            painter.setClipPath(KisModernStyle::squircle(rect, KisModernStyle::cornerRadius));
-            const QSizeF size = QSizeF(picture.size()).scaled(rect.size(), Qt::KeepAspectRatioByExpanding);
-            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-            painter.drawImage(QRectF(rect.center() - QPointF(size.width(), size.height()) / 2, size), picture);
-            painter.restore();
-        };
+        chip.picture = tilePicture(d->pictures.value(i));
         chips << chip;
     }
     d->tiles->setChips(chips);
@@ -632,11 +631,11 @@ bool SkissaNoiseWidget::canvasPressed(const QPoint &)
     return true;
 }
 
-QString SkissaNoiseWidget::canvasDragged(const QPointF &moved, bool fine)
+QString SkissaNoiseWidget::canvasDragged(const QPointF &moved, const QPointF &)
 {
     if (!d->dragging) return QString();
     // up makes all of it stronger, by ratios, so a faint grain and a strong wobble grow alike
-    const float factor = float(std::exp(-moved.y() * (fine ? 0.25 : 1.0) / dragForFactor));
+    const float factor = float(std::exp(-moved.y() / dragForFactor));
     QStringList shown;
     bool any = false;
     for (int target = 0; target < SkissaNoise::Targets; target++) {
@@ -649,7 +648,7 @@ QString SkissaNoiseWidget::canvasDragged(const QPointF &moved, bool fine)
     }
     if (!any) {
         // nothing on yet: up brings the lightness in
-        const qreal value = qBound(0.0, -moved.y() * (fine ? 0.25 : 1.0) / 3, d->amounts[SkissaNoise::Lightness]->maximum());
+        const qreal value = qBound(0.0, -moved.y() / 3, d->amounts[SkissaNoise::Lightness]->maximum());
         d->amounts[SkissaNoise::Lightness]->setValue(value);
         shown << targetName(SkissaNoise::Lightness) + QStringLiteral(" ") + d->amounts[SkissaNoise::Lightness]->text();
     }
@@ -659,6 +658,249 @@ QString SkissaNoiseWidget::canvasDragged(const QPointF &moved, bool fine)
 void SkissaNoiseWidget::canvasReleased()
 {
     d->dragging = false;
+}
+
+namespace
+{
+
+/// The tiles' picture of the whole image, large enough for a tile on a sharp screen
+const QSize lensPictureSize(2 * tileSize.width(), 2 * tileSize.height());
+
+/// Lines a lens visibly bends and colors, for a layer with nothing on it
+QImage linesPicture(const QSize &size)
+{
+    QImage image(size, QImage::Format_ARGB32);
+    image.fill(QColor(235, 235, 235));
+    QPainter painter(&image);
+    painter.setPen(QPen(QColor(20, 20, 20), 1.5));
+    for (int x = 8; x < size.width(); x += 16) painter.drawLine(QPointF(x, 0), QPointF(x, size.height()));
+    for (int y = 8; y < size.height(); y += 16) painter.drawLine(QPointF(0, y), QPointF(size.width(), y));
+    return image;
+}
+
+SkissaLens::Settings lensOf(std::initializer_list<std::pair<float SkissaLens::Settings::*, float>> values)
+{
+    SkissaLens::Settings settings;
+    for (const auto &value : values) settings.*value.first = value.second;
+    return settings;
+}
+
+} // namespace
+
+struct SkissaLensWidget::Private {
+    KisPaintDeviceSP original;
+    QRect bounds;
+    /// The half diagonal, in pixels: sizes are shares of it
+    qreal unit {1};
+    SkissaLens::Settings settings {SkissaLens::vintage()};
+    QVector<QPair<QString, SkissaLens::Settings>> presets;
+    QImage frame;
+    qreal frameScale {1};
+    QVector<QImage> pictures;
+    QPointF picturesCenter {-1, -1};
+
+    KisStudioChips *tiles {nullptr};
+    KisDoubleSliderSpinBox *bulge {nullptr};
+    KisDoubleSliderSpinBox *fringes {nullptr};
+    KisDoubleSliderSpinBox *halo {nullptr};
+    KisDoubleSliderSpinBox *vignette {nullptr};
+    KisDoubleSliderSpinBox *glow {nullptr};
+    KisDoubleSliderSpinBox *glowSize {nullptr};
+
+    void makePresets()
+    {
+        using S = SkissaLens::Settings;
+        presets = {
+            {i18nc("lens effect preset", "Original"), S()},
+            {i18nc("lens effect preset", "Vintage"), SkissaLens::vintage()},
+            {i18nc("lens effect preset", "Vignette"), lensOf({{&S::vignette, 0.45f}})},
+            {i18nc("lens effect preset", "Wide"), lensOf({{&S::bulge, 0.35f}, {&S::fringes, 0.002f}, {&S::vignette, 0.3f}})},
+            {i18nc("lens effect preset", "Fisheye"), lensOf({{&S::bulge, 1.0f}, {&S::fringes, 0.003f}, {&S::vignette, 0.35f}})},
+            {i18nc("lens effect preset", "Glow"), lensOf({{&S::halo, 0.001f}, {&S::glow, 0.35f}, {&S::glowSize, 0.08f}})},
+        };
+    }
+
+    void makeFrame()
+    {
+        if (original && original->exactBounds().intersects(bounds)) {
+            const qreal scale = qMin(qreal(lensPictureSize.width()) / bounds.width(), qreal(lensPictureSize.height()) / bounds.height());
+            const QImage picture = original->createThumbnailUncached(qCeil(bounds.width() * scale), qCeil(bounds.height() * scale), bounds);
+            if (!picture.isNull()) {
+                frame = picture;
+                frameScale = qreal(picture.width()) / bounds.width();
+                return;
+            }
+        }
+        frame = linesPicture(lensPictureSize);
+        frameScale = qreal(frame.width()) / bounds.width();
+    }
+
+    /// The tiles show each lens with its middle where it is now
+    void makePictures()
+    {
+        if (picturesCenter == settings.center && pictures.size() == presets.size()) return;
+        picturesCenter = settings.center;
+        pictures.clear();
+        for (const auto &preset : presets) {
+            SkissaLens::Settings lens = preset.second;
+            lens.center = settings.center;
+            pictures << SkissaLens::applied(frame, lens, frameScale);
+        }
+    }
+};
+
+SkissaLensWidget::SkissaLensWidget(QWidget *parent, KisPaintDeviceSP dev)
+    : KisConfigWidget(parent)
+    , d(new Private)
+{
+    if (dev) {
+        // the pixels as they were before the preview changes them; their tiles are shared until then
+        d->original = new KisPaintDevice(*dev);
+        d->bounds = dev->defaultBounds()->bounds();
+    }
+    if (d->bounds.isEmpty()) d->bounds = QRect(0, 0, 1600, 1000);
+    d->unit = std::hypot(d->bounds.width(), d->bounds.height()) / 2;
+    d->makePresets();
+    d->makeFrame();
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
+
+    d->tiles = new KisStudioChips(this);
+    d->tiles->setTileColumns(6, qMax(64, 2 * fontMetrics().height() + 34));
+    connect(d->tiles, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= d->presets.size()) return;
+        const QPointF center = d->settings.center;
+        d->settings = d->presets[index].second;
+        d->settings.center = center;
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    layout->addWidget(d->tiles);
+
+    // two settings a row, so the panel stays short
+    auto *rows = new QGridLayout();
+    rows->setContentsMargins(0, 0, 0, 0);
+    rows->setHorizontalSpacing(KisModernStyle::space2);
+    rows->setVerticalSpacing(KisModernStyle::space1);
+    rows->setColumnStretch(1, 1);
+    rows->setColumnStretch(3, 1);
+    int index = 0;
+    const QString px = i18nc("pixels, after a number", " px");
+    const QString percent = QStringLiteral("%");
+    // sizes are kept as shares of the half diagonal and shown in this image's pixels
+    auto add = [&](const QString &name, float SkissaLens::Settings::*value, qreal low, qreal high, qreal soft, int decimals, const QString &suffix,
+                   qreal shownPer, const QString &tip = QString()) {
+        auto *box = new KisDoubleSliderSpinBox(this);
+        box->setRange(low * shownPer, high * shownPer, decimals);
+        box->setSoftRange(low < 0 ? -soft * shownPer : low * shownPer, soft * shownPer);
+        box->setSuffix(suffix);
+        box->setToolTip(tip);
+        connect(box, qOverload<double>(&KisDoubleSliderSpinBox::valueChanged), this, [this, value, shownPer](double shown) {
+            d->settings.*value = float(shown / shownPer);
+            refreshTiles();
+            Q_EMIT sigConfigurationItemChanged();
+        });
+        rows->addWidget(new QLabel(name, this), index / 2, (index % 2) * 2);
+        rows->addWidget(box, index / 2, (index % 2) * 2 + 1);
+        index++;
+        return box;
+    };
+    using S = SkissaLens::Settings;
+    const int sizeDecimals = d->unit < 500 ? 1 : 0;
+    d->bulge = add(i18nc("lens effect setting", "Bulge"), &S::bulge, -1, 1, 1, 0, percent, 100);
+    d->vignette = add(i18nc("lens effect setting", "Vignette"), &S::vignette, 0, 0.95, 0.95, 0, percent, 100);
+    d->fringes = add(i18nc("lens effect setting", "Fringes"), &S::fringes, -0.02, 0.02, 0.006, 1, px, d->unit);
+    d->halo = add(i18nc("lens effect setting", "Halo"), &S::halo, -0.01, 0.01, 0.003, 1, px, d->unit,
+                  i18nc("@info:tooltip", "Purple halos, green below zero"));
+    d->glow = add(i18nc("lens effect setting", "Glow"), &S::glow, 0, 1, 1, 0, percent, 100);
+    d->glowSize = add(i18nc("lens effect setting", "Glow size"), &S::glowSize, 0.001, 1, 0.2, sizeDecimals, px, d->unit);
+    layout->addLayout(rows);
+
+    refresh();
+}
+
+SkissaLensWidget::~SkissaLensWidget()
+{
+}
+
+void SkissaLensWidget::setConfiguration(const KisPropertiesConfigurationSP config)
+{
+    d->settings = config ? SkissaLens::Settings::from(*config) : SkissaLens::vintage();
+    refresh();
+}
+
+KisPropertiesConfigurationSP SkissaLensWidget::configuration() const
+{
+    KisFilterSP filter = KisFilterRegistry::instance()->value(QStringLiteral("skissa_lens"));
+    KisFilterConfigurationSP config = filter->factoryConfiguration(KisGlobalResourcesInterface::instance());
+    d->settings.writeTo(*config);
+    return config;
+}
+
+QSize SkissaLensWidget::sizeHint() const
+{
+    const int width = 500;
+    return QSize(width, layout()->heightForWidth(width));
+}
+
+void SkissaLensWidget::refresh()
+{
+    const std::pair<KisDoubleSliderSpinBox *, qreal> shown[] = {
+        {d->bulge, d->settings.bulge * 100.0},  {d->vignette, d->settings.vignette * 100.0}, {d->fringes, d->settings.fringes * d->unit},
+        {d->halo, d->settings.halo * d->unit},  {d->glow, d->settings.glow * 100.0},         {d->glowSize, d->settings.glowSize * d->unit},
+    };
+    for (const auto &box : shown) {
+        QSignalBlocker blocker(box.first);
+        box.first->setValue(box.second);
+    }
+    refreshTiles();
+}
+
+void SkissaLensWidget::refreshTiles()
+{
+    d->makePictures();
+    QVector<KisStudioChips::Chip> chips;
+    for (int i = 0; i < d->presets.size(); i++) {
+        KisStudioChips::Chip chip;
+        chip.text = d->presets[i].first;
+        chip.on = d->settings.sameLens(d->presets[i].second);
+        // a lens shows most at the corners
+        chip.picture = tilePicture(d->pictures.value(i), true);
+        chips << chip;
+    }
+    d->tiles->setChips(chips);
+}
+
+void SkissaLensWidget::placeCenter(const QPointF &at)
+{
+    const QPointF center(qBound(0.0, (at.x() - d->bounds.left()) / d->bounds.width(), 1.0),
+                         qBound(0.0, (at.y() - d->bounds.top()) / d->bounds.height(), 1.0));
+    if (center == d->settings.center) return;
+    d->settings.center = center;
+    Q_EMIT sigConfigurationItemChanged();
+}
+
+void SkissaLensWidget::canvasHovered(const QPoint &)
+{
+}
+
+bool SkissaLensWidget::canvasPressed(const QPoint &pixel)
+{
+    placeCenter(QPointF(pixel) + QPointF(0.5, 0.5));
+    return true;
+}
+
+QString SkissaLensWidget::canvasDragged(const QPointF &, const QPointF &at)
+{
+    placeCenter(at);
+    return QString();
+}
+
+void SkissaLensWidget::canvasReleased()
+{
+    refreshTiles();
 }
 
 #include "SkissaDetailWidget.moc"

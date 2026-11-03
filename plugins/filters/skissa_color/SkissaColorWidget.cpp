@@ -716,10 +716,10 @@ bool SkissaColorWidget::canvasPressed(const QPoint &pixel)
     return true;
 }
 
-QString SkissaColorWidget::canvasDragged(const QPointF &moved, bool fine)
+QString SkissaColorWidget::canvasDragged(const QPointF &moved, const QPointF &)
 {
     if (d->dragPoint < 0) return QString();
-    const qreal y = d->dragStart - moved.y() * (fine ? 0.25 : 1.0) / dragForWholeCurve;
+    const qreal y = d->dragStart - moved.y() / dragForWholeCurve;
     d->curve->setPointY(d->dragPoint, y);
     const QString name = d->isRgb() ? channelName(d->currentBy()) : axisName(d->change);
     return name + QStringLiteral("  ") + d->valueText(d->curve->curve().points.value(d->dragPoint).y(), false);

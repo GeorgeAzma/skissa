@@ -318,6 +318,7 @@ QHash<QString, QStringList> aliasTable()
         {"effect:skissa_smooth", i18nc("@info find aliases, comma separated", "denoise, noise reduction, reduce noise, surface blur, smart blur, bilateral")},
         {"effect:skissa_grain", i18nc("@info find aliases, comma separated", "random noise, add noise, film grain, dither, speckle")},
         {"effect:skissa_noise", i18nc("@info find aliases, comma separated", "random pick, scatter, displace, turbulence, clouds, paper texture, perlin, fractal noise, wobble")},
+        {"effect:skissa_lens", i18nc("@info find aliases, comma separated", "vignette, chromatic aberration, color fringe, lens distortion, barrel, pincushion, fisheye, bloom, halation, glare, purple fringing, camera")},
         {"effect:skissa_detail", i18nc("@info find aliases, comma separated", "clarity, local contrast, structure, texture, frequency, equalizer")},
         {"effect:gradientmap", i18nc("@info find aliases, comma separated", "gradient map, colorize")},
         {"effect:pixelize", i18nc("@info find aliases, comma separated", "mosaic, pixelate")},
