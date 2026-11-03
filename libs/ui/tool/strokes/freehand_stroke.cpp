@@ -6,6 +6,8 @@
 
 #include "freehand_stroke.h"
 
+#include "KisPenLatency.h"
+
 #include <QElapsedTimer>
 #include <QThread>
 #include <QApplication>
@@ -212,6 +214,8 @@ void FreehandStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
             maskedPainter->drawAndFillPainterPath(d->path, d->pen, d->customColor);
             break;
         };
+        if (d->type == Data::POINT) KisPenLatency::painted(d->pi1.currentTime());
+        else if (d->type == Data::LINE || d->type == Data::CURVE) KisPenLatency::painted(d->pi2.currentTime());
 
         tryDoUpdate();
     } else {

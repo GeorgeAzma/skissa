@@ -5,6 +5,8 @@
  */
 
 #include "kis_tool_freehand_helper.h"
+
+#include "KisPenLatency.h"
 #include "kis_image_animation_interface.h"
 
 #include "KisLastStrokeReplay.h"
@@ -342,6 +344,8 @@ void KisToolFreehandHelper::initPaint(KoPointerEvent *event,
     m_d->startedAt = QTime::currentTime();
     KisPaintInformation pi =
         m_d->infoBuilder->startStroke(event, elapsedStrokeTime(), m_d->resourceManager);
+    KisPenLatency::strokeStarted();
+    KisPenLatency::arrived(pi.currentTime(), pi.pos(), event->time());
     qreal startAngle = KisAlgebra2D::directionBetweenPoints(prevPoint, pixelCoords, 0.0);
 
     initPaintImpl(startAngle,
@@ -577,6 +581,7 @@ void KisToolFreehandHelper::paintEvent(KoPointerEvent *event)
             m_d->infoBuilder->continueStroke(event,
                                              elapsedStrokeTime());
     KisUpdateTimeMonitor::instance()->reportMouseMove(info.pos());
+    KisPenLatency::arrived(info.currentTime(), info.pos(), event->time());
     if (m_d->recording) m_d->recordInput(info);
 
     paint(info);
@@ -803,6 +808,8 @@ void KisToolFreehandHelper::endPaint()
         finishStroke();
     }
     m_d->strokeTimeoutTimer.stop();
+    // the last events reach the screen a moment later
+    if (KisPenLatency::enabled()) QTimer::singleShot(300, []() { KisPenLatency::strokeEnded(); });
 
     if(m_d->airbrushingTimer.isActive()) {
         m_d->airbrushingTimer.stop();

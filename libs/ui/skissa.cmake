@@ -51,6 +51,7 @@ set(skissa_ui_SRCS
     KisStudioToolRail.cpp
     KisStudioToolStrip.cpp
     KisStudioWindowFrame.cpp
+    KisPenLatency.cpp
     KisUpdatePacer.cpp
     dialogs/KisKeysPage.cpp
     input/KisDragValueAction.cpp

@@ -13,6 +13,7 @@
 #include "opengl/kis_opengl_canvas2.h"
 #include "opengl/KisOpenGLCanvasRenderer.h"
 #include "opengl/KisOpenGLSync.h"
+#include "KisPenLatency.h"
 #include "opengl/KisOpenGLGlass.h"
 #include "opengl/KisOpenGLGpuTiming.h"
 #include "KisUpdatePacer.h"
@@ -317,6 +318,8 @@ void KisOpenGLCanvas2::paintGL()
     // outside of KisOpenGLRenderer allows the canvas widget to do extra
     // rendering, which a QtQuick2-based canvas will need.
     d->glSyncObject.reset(new KisOpenGLSync());
+    // after this paint the window composes and swaps the frame, then the event loop comes back
+    if (KisPenLatency::enabled()) QTimer::singleShot(0, this, []() { KisPenLatency::presented(); });
 
     if (!OPENGL_SUCCESS) {
         KisConfig cfg(false);

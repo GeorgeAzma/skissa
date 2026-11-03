@@ -9,6 +9,8 @@
 
 #include "kis_canvas2.h"
 
+#include "KisPenLatency.h"
+
 #include <functional>
 #include <numeric>
 
@@ -1083,6 +1085,9 @@ void KisCanvas2::updateCanvasProjection()
 
     auto uploadData = [this, tryIssueCanvasUpdates](const QVector<KisUpdateInfoSP> &infoObjects) {
         QVector<QRect> viewportRects = m_d->canvasWidget->updateCanvasProjection(infoObjects);
+        if (KisPenLatency::enabled()) {
+            Q_FOREACH (const KisUpdateInfoSP &info, infoObjects) KisPenLatency::uploaded(KisLodTransform::upscaledRect(info->dirtyImageRect(), info->levelOfDetail()));
+        }
         const QRect vRect = std::accumulate(viewportRects.constBegin(), viewportRects.constEnd(),
                                             QRect(), std::bit_or<QRect>());
 

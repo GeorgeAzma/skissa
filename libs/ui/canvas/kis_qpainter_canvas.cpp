@@ -7,6 +7,9 @@
 
 #include "kis_qpainter_canvas.h"
 
+#include <QTimer>
+#include "KisPenLatency.h"
+
 
 #include <QPaintEvent>
 #include <QPoint>
@@ -123,6 +126,8 @@ void KisQPainterCanvas::paintEvent(QPaintEvent * ev)
 
     gc.end();
     m_d->repaintDbg.paint(this, ev);
+    // after this paint the window flushes the frame, then the event loop comes back
+    if (KisPenLatency::enabled()) QTimer::singleShot(0, this, []() { KisPenLatency::presented(); });
 }
 
 void KisQPainterCanvas::drawImage(QPainter & gc, const QRect &updateWidgetRect) const
