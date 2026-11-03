@@ -31,7 +31,7 @@ public:
     /// The most Blur (400%)
     static constexpr qreal maxBlur = 4.0;
     static constexpr qreal defaultVibrancy = 0.5;
-    static constexpr qreal defaultGrain = 0.15;
+    static constexpr qreal defaultGrain = 0.3;
     /// Blur multiplier for glass of \p size; grows with the square root of its area.
     static qreal blurScale(const QSizeF &size);
     /// In the Oklab blur, saturated colors weigh up to 1 + salience times as much as gray.
