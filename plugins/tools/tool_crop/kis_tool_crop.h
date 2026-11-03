@@ -140,11 +140,17 @@ public Q_SLOTS:
     void slotRectChanged();
     void updateDecorationColors();
 
+    /// Canvas size on the image: the canvas's own edges to pull, the room it gains shown, Enter keeps it; then back to
+    /// the tool \p returnTo
+    void beginCanvasResize(const QString &returnTo);
+
 private:
     void doCanvasUpdate(const QRect &updateRect);
 
 private:
     void cancelStroke();
+    /// Back to the crop it was, and to the tool before with \p switchBack
+    void endCanvasResize(bool switchBack);
     QRectF boundingRect();
     QRectF borderLineRect();
     QPainterPath handlesPath();
@@ -176,6 +182,17 @@ private:
     int m_decoration {1};
     bool m_resettingStroke {false};
     QRect m_lastCanvasUpdateRect;
+
+    /// Resizing the canvas: the tool to go back to, the crop and its rect's options it had, the canvas it had
+    bool m_resizingCanvas {false};
+    QString m_returnTo;
+    CropToolType m_typeBefore {ImageCropType};
+    bool m_grewBefore {true};
+    bool m_centeredBefore {false};
+    bool m_ratioLockedBefore {false};
+    QRect m_canvasBefore;
+    /// A press off the canvas's edges while resizing it, which does nothing
+    bool m_ignoringPress {false};
 
     KConfigGroup configGroup;
     KisToolCropConfigWidget* optionsWidget {nullptr};

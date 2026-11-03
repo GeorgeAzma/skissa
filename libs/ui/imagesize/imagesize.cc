@@ -8,6 +8,9 @@
 
 #include "imagesize.h"
 
+#include "KisMainWindow.h"
+#include "KisStudioCanvasSize.h"
+
 #include <klocalizedstring.h>
 #include <kis_debug.h>
 #include <kpluginfactory.h>
@@ -78,6 +81,11 @@ void ImageSize::slotImageSize()
 
 void ImageSize::slotCanvasSize()
 {
+    // the Studio sizes the canvas on the image, by its edges
+    if (viewManager()->mainWindow() && viewManager()->mainWindow()->property("studioLayoutActive").toBool()) {
+        KisStudioCanvasSize::start(viewManager());
+        return;
+    }
     KisImageWSP image = viewManager()->image();
     if (!image) return;
 

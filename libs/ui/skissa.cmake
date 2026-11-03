@@ -51,7 +51,9 @@ set(skissa_ui_SRCS
     KisStudioToolRail.cpp
     KisStudioToolStrip.cpp
     KisStudioWindowFrame.cpp
+    KisCanvasSizeCatch.cpp
     KisPenLatency.cpp
+    KisStudioCanvasSize.cpp
     KisStudioFlash.cpp
     KisUpdatePacer.cpp
     dialogs/KisKeysPage.cpp

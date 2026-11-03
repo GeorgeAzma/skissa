@@ -41,6 +41,12 @@
 #include <kundo2command.h>
 #include <kis_crop_saved_extra_data.h>
 #include <kis_display_color_converter.h>
+#include <KoToolManager.h>
+#include <QPointer>
+#include "KisStudioTools.h"
+#include <QTimer>
+#include <QLineF>
+#include "KisCanvasSizeCatch.h"
 
 
 struct DecorationLine
@@ -190,11 +196,48 @@ void KisToolCrop::cancelStroke()
 {
     m_haveCropSelection = false;
     useCursor(cursor());
-    doCanvasUpdate(image()->bounds());
+    doCanvasUpdate(image()->bounds() | m_finalRect.rect());
+    endCanvasResize(true);
+}
+
+void KisToolCrop::beginCanvasResize(const QString &returnTo)
+{
+    if (!image()) return;
+    m_returnTo = returnTo;
+    m_typeBefore = m_cropType;
+    m_grewBefore = m_finalRect.canGrow();
+    m_centeredBefore = m_finalRect.centered();
+    m_ratioLockedBefore = m_finalRect.ratioLocked();
+    m_resizingCanvas = true;
+    setCropType(CanvasCropType);
+    m_finalRect.setCanGrow(true);
+    m_finalRect.setCentered(false);
+    m_finalRect.setRatioLocked(false);
+    m_canvasBefore = image()->bounds();
+    m_finalRect.setRectInitial(m_canvasBefore);
+    m_haveCropSelection = true;
+    doCanvasUpdate(m_canvasBefore);
+}
+
+void KisToolCrop::endCanvasResize(bool switchBack)
+{
+    if (!m_resizingCanvas) return;
+    m_resizingCanvas = false;
+    setCropType(m_typeBefore);
+    m_finalRect.setCanGrow(m_grewBefore);
+    m_finalRect.setCentered(m_centeredBefore);
+    m_finalRect.setRatioLocked(m_ratioLockedBefore);
+    if (switchBack && !m_returnTo.isEmpty() && m_returnTo != toolId()) {
+        KisCanvas2 *kisCanvas = dynamic_cast<KisCanvas2 *>(canvas());
+        QPointer<KoToolManager> tools = kisCanvas && kisCanvas->viewManager() ? KisStudioTools::manager(kisCanvas->viewManager()->mainWindow()) : nullptr;
+        const QString tool = m_returnTo;
+        if (tools) QTimer::singleShot(0, tools, [tools, tool]() { if (tools) tools->switchToolRequested(tool); });
+    }
 }
 
 void KisToolCrop::deactivate()
 {
+    endCanvasResize(false);
     cancelStroke();
     KisTool::deactivate();
 }
@@ -282,6 +325,9 @@ void KisToolCrop::beginPrimaryAction(KoPointerEvent *event)
 
     const QPointF imagePoint = convertToPixelCoord(event);
     m_mouseOnHandleType = mouseOnHandle(pixelToView(imagePoint));
+    // resizing the canvas, a press off its edges and its inside does nothing: a new rectangle would only lose it
+    m_ignoringPress = m_resizingCanvas && m_mouseOnHandleType == KisConstrainedRect::None;
+    if (m_ignoringPress) return;
 
     if (m_mouseOnHandleType != KisConstrainedRect::None) {
         QPointF snapPoint = m_finalRect.handleSnapPoint(KisConstrainedRect::HandleType(m_mouseOnHandleType), imagePoint);
@@ -314,10 +360,43 @@ void KisToolCrop::continuePrimaryAction(KoPointerEvent *event)
 {
     CHECK_MODE_SANITY_OR_RETURN(KisTool::PAINT_MODE);
 
+    if (m_ignoringPress) return;
     const QPointF pos = convertToPixelCoordAndSnap(event, m_dragOffsetDoc);
     const QPoint drag = pos.toPoint() - m_dragStart;
 
+    // held keys: Shift keeps the shape it had, Alt pulls the opposite side too
+    const bool keepShape = (event->modifiers() & Qt::ShiftModifier) && !m_finalRect.ratioLocked() && !m_initialDragRect.isEmpty();
+    const bool bothSides = (event->modifiers() & Qt::AltModifier) && !m_finalRect.centered();
+    if (keepShape) {
+        m_finalRect.setRatioLocked(true);
+        m_finalRect.setRatio(qreal(m_initialDragRect.width()) / m_initialDragRect.height());
+    }
+    if (bothSides) m_finalRect.setCentered(true);
     m_finalRect.moveHandle(KisConstrainedRect::HandleType(m_mouseOnHandleType), drag, m_initialDragRect);
+    if (keepShape) m_finalRect.setRatioLocked(false);
+    if (bothSides) m_finalRect.setCentered(false);
+
+    // resizing the canvas, its edges catch lightly on the size it had and on usual sizes and ratios
+    if (m_resizingCanvas && !keepShape && !bothSides && m_finalRect.rect().width() > 0 && m_finalRect.rect().height() > 0) {
+        Qt::Edges moving;
+        switch (m_mouseOnHandleType) {
+        case KisConstrainedRect::UpperLeft: moving = Qt::TopEdge | Qt::LeftEdge; break;
+        case KisConstrainedRect::UpperRight: moving = Qt::TopEdge | Qt::RightEdge; break;
+        case KisConstrainedRect::LowerLeft: moving = Qt::BottomEdge | Qt::LeftEdge; break;
+        case KisConstrainedRect::LowerRight: moving = Qt::BottomEdge | Qt::RightEdge; break;
+        case KisConstrainedRect::Upper: moving = Qt::TopEdge; break;
+        case KisConstrainedRect::Lower: moving = Qt::BottomEdge; break;
+        case KisConstrainedRect::Left: moving = Qt::LeftEdge; break;
+        case KisConstrainedRect::Right: moving = Qt::RightEdge; break;
+        default: break;
+        }
+        if (moving) {
+            // six screen pixels
+            const qreal screenPerPixel = QLineF(pixelToView(QPointF(0, 0)), pixelToView(QPointF(1, 0))).length();
+            const QRect caught = KisCanvasSizeCatch::caught(m_finalRect.rect(), m_canvasBefore, moving, 6 / std::max(screenPerPixel, 1e-6));
+            if (caught != m_finalRect.rect()) m_finalRect.setRectInitial(caught);
+        }
+    }
 }
 
 bool KisToolCrop::tryContinueLastCropAction()
@@ -359,6 +438,10 @@ void KisToolCrop::endPrimaryAction(KoPointerEvent *event)
 {
     CHECK_MODE_SANITY_OR_RETURN(KisTool::PAINT_MODE);
     setMode(KisTool::HOVER_MODE);
+    if (m_ignoringPress) {
+        m_ignoringPress = false;
+        return;
+    }
 
     QRectF viewCropRect = pixelToView(m_finalRect.rect());
     const bool haveValidRect =
@@ -434,13 +517,31 @@ void KisToolCrop::paintOutlineWithHandles(QPainter& gc)
         QRectF wholeImageRect = pixelToView(image()->bounds());
         QRectF borderRect = borderLineRect();
 
-        QPainterPath path;
-
-        path.addRect(wholeImageRect);
-        path.addRect(borderRect);
         gc.setPen(Qt::NoPen);
-        gc.setBrush(m_transparentBlack);
-        gc.drawPath(path);
+        if (m_cropType == CanvasCropType) {
+            // the room the canvas gains as the transparency it will be; what it gives up, darkened
+            static const QBrush checkers = []() {
+                QPixmap tile(16, 16);
+                tile.fill(QColor(255, 255, 255));
+                QPainter painter(&tile);
+                painter.fillRect(0, 0, 8, 8, QColor(204, 204, 204));
+                painter.fillRect(8, 8, 8, 8, QColor(204, 204, 204));
+                return QBrush(tile);
+            }();
+            QPainterPath image;
+            image.addRect(wholeImageRect);
+            QPainterPath border;
+            border.addRect(borderRect);
+            gc.fillPath(border.subtracted(image), checkers);
+            gc.fillPath(image.subtracted(border), m_transparentBlack);
+        } else {
+            QPainterPath path;
+
+            path.addRect(wholeImageRect);
+            path.addRect(borderRect);
+            gc.setBrush(m_transparentBlack);
+            gc.drawPath(path);
+        }
 
         // Handles
         QPen pen(Qt::SolidLine);
@@ -453,7 +554,7 @@ void KisToolCrop::paintOutlineWithHandles(QPainter& gc)
 
         gc.setClipRect(borderRect, Qt::IntersectClip);
 
-        if (m_decoration > 0) {
+        if (m_decoration > 0 && !m_resizingCanvas) {
             for (int i = decorsIndex[m_decoration-1]; i<decorsIndex[m_decoration]; i++) {
                 drawDecorationLine(&gc, &(decors[i]), borderRect);
             }
@@ -491,6 +592,7 @@ void KisToolCrop::crop()
     } else {
         currentImage()->cropNode(currentNode(), cropRect, m_cropType == FrameCropType);
     }
+    endCanvasResize(true);
 }
 
 void KisToolCrop::setCropTypeLegacy(int cropType)
