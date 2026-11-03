@@ -27,11 +27,11 @@ inline QString coveredBy(const QString &filterId)
         {QStringLiteral("colorbalance"), color}, {QStringLiteral("desaturate"), color}, {QStringLiteral("invert"), color},
         {QStringLiteral("levels"), color}, {QStringLiteral("asc-cdl"), color}, {QStringLiteral("autocontrast"), color},
         {QStringLiteral("normalize"), color}, {QStringLiteral("maximize"), color}, {QStringLiteral("minimize"), color},
-        // Detail and the effects made of it
-        {QStringLiteral("gaussian blur"), QStringLiteral("skissa_blur")}, {QStringLiteral("blur"), QStringLiteral("skissa_blur")},
-        {QStringLiteral("unsharp"), QStringLiteral("skissa_sharpen")}, {QStringLiteral("sharpen"), QStringLiteral("skissa_sharpen")},
-        {QStringLiteral("mean removal"), QStringLiteral("skissa_sharpen")},
-        {QStringLiteral("gaussianhighpass"), QStringLiteral("skissa_high_pass")},
+        // Detail and the effects made of it; Blur, Sharpen and High pass have Krita's ids, and their own from before
+        {QStringLiteral("blur"), QStringLiteral("gaussian blur")}, {QStringLiteral("skissa_blur"), QStringLiteral("gaussian blur")},
+        {QStringLiteral("sharpen"), QStringLiteral("unsharp")}, {QStringLiteral("mean removal"), QStringLiteral("unsharp")},
+        {QStringLiteral("skissa_sharpen"), QStringLiteral("unsharp")},
+        {QStringLiteral("skissa_high_pass"), QStringLiteral("gaussianhighpass")},
         {QStringLiteral("gaussiannoisereducer"), QStringLiteral("skissa_smooth")},
         {QStringLiteral("waveletnoisereducer"), QStringLiteral("skissa_smooth")},
         // Noise

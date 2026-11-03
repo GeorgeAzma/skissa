@@ -176,6 +176,7 @@ SkissaSliders::SkissaSliders(QWidget *parent, const QString &filterId, const QVe
     : KisConfigWidget(parent)
     , m_filterId(filterId)
 {
+    if (KisFilterSP filter = KisFilterRegistry::instance()->value(filterId)) m_loaded = filter->defaultConfiguration(KisGlobalResourcesInterface::instance());
     auto *layout = new QFormLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     Q_FOREACH (const SkissaSlider &spec, sliders) {
@@ -191,6 +192,7 @@ void SkissaSliders::setConfiguration(const KisPropertiesConfigurationSP config)
 {
     KisFilterSP filter = KisFilterRegistry::instance()->value(m_filterId);
     KisFilterConfigurationSP defaults = filter->defaultConfiguration(KisGlobalResourcesInterface::instance());
+    m_loaded = config ? config : KisPropertiesConfigurationSP(defaults);
     for (const auto &slider : m_sliders) {
         QSignalBlocker blocker(slider.second);
         const char *key = slider.first.key;
@@ -203,7 +205,16 @@ KisPropertiesConfigurationSP SkissaSliders::configuration() const
 {
     KisFilterSP filter = KisFilterRegistry::instance()->value(m_filterId);
     KisFilterConfigurationSP config = filter->factoryConfiguration(KisGlobalResourcesInterface::instance());
-    for (const auto &slider : m_sliders) config->setProperty(slider.first.key, slider.second->value() / slider.first.shownPerValue);
+    const QMap<QString, QVariant> kept = m_loaded->getProperties();
+    for (auto it = kept.constBegin(); it != kept.constEnd(); ++it) config->setProperty(it.key(), it.value());
+    for (const auto &slider : m_sliders) {
+        const qreal value = slider.second->value() / slider.first.shownPerValue;
+        config->setProperty(slider.first.key, value);
+        if (!slider.first.follower) continue;
+        const qreal was = m_loaded->getDouble(slider.first.key, value);
+        const qreal followed = m_loaded->getDouble(slider.first.follower, was);
+        config->setProperty(slider.first.follower, was > 0 ? value * followed / was : value);
+    }
     return config;
 }
 
@@ -217,6 +228,8 @@ struct SkissaDetailWidget::Private {
     KisStudioChips *tiles {nullptr};
     KisStudioCurveView *view {nullptr};
     KisDoubleSliderSpinBox *edgesBox {nullptr};
+    /// The busiest part of the layer, each column blurred to the size at its place on the curve's axis
+    QImage sizeStrip;
 
     /// The drag on the image in progress: the point it moves and where that started
     int dragPoint {-1};
@@ -232,6 +245,49 @@ struct SkissaDetailWidget::Private {
             {i18nc("detail effect preset", "Clarity"), curveOf({{0, 1}, {4, 1}, {16, 1.6f}, {64, 1.6f}, {300, 1}, {1024, 1}}), 0.4},
             {i18nc("detail effect preset", "Even"), curveOf({{0, 1}, {32, 1}, {256, 0.5f}, {1024, 0.5f}}), 0},
         };
+    }
+
+    /// The strip under the curve, \p size device pixels: at the left the layer as it is, toward the right blurred
+    /// ever more, until only its largest shapes are left
+    void makeSizeStrip(const QSize &size)
+    {
+        constexpr int margin = 64;
+        QImage base;
+        if (original) {
+            const QRect bounds = original->exactBounds();
+            if (!bounds.isEmpty()) {
+                const QPoint detailed = mostDetailed(original, bounds);
+                const QRect crop(detailed - QPoint(size.width() / 2, size.height() / 2), size);
+                base = original->convertToQImage(nullptr, crop.adjusted(-margin, -margin, margin, margin));
+            }
+        }
+        if (base.isNull()) base = zonePlate(size + QSize(2 * margin, 2 * margin));
+        // a blur every half octave, each column between the two nearest
+        constexpr int levels = int(octaves) * 2 + 1;
+        QVector<QImage> blurred;
+        for (int i = 0; i < levels; i++) {
+            const qreal radius = radiusAt(qreal(i) / (levels - 1)) - 1;
+            if (radius <= 0) {
+                blurred << base;
+                continue;
+            }
+            Plan plan;
+            plan.fine = 0;
+            plan.steps << Step{radius, 1};
+            blurred << applied(base, plan).convertToFormat(QImage::Format_ARGB32);
+        }
+        sizeStrip = QImage(size, QImage::Format_ARGB32);
+        for (int x = 0; x < size.width(); x++) {
+            const qreal at = qreal(x) / std::max(1, size.width() - 1) * (levels - 1);
+            const int low = std::min(int(at), levels - 2);
+            const qreal t = at - low;
+            for (int y = 0; y < size.height(); y++) {
+                const QRgb a = blurred[low].pixel(x + margin, y + margin);
+                const QRgb b = blurred[low + 1].pixel(x + margin, y + margin);
+                auto mixed = [t](int u, int v) { return qRound(u + (v - u) * t); };
+                sizeStrip.setPixel(x, y, qRgba(mixed(qRed(a), qRed(b)), mixed(qGreen(a), qGreen(b)), mixed(qBlue(a), qBlue(b)), mixed(qAlpha(a), qAlpha(b))));
+            }
+        }
     }
 
     void makePictures()
@@ -279,6 +335,7 @@ SkissaDetailWidget::SkissaDetailWidget(QWidget *parent, KisPaintDeviceSP dev)
         if (index < 0 || index >= d->presets.size()) return;
         d->curve = d->presets[index].curve;
         d->edges = d->presets[index].edges;
+        d->view->glideNextChange();
         refresh();
         Q_EMIT sigConfigurationItemChanged();
     });
@@ -291,7 +348,13 @@ SkissaDetailWidget::SkissaDetailWidget(QWidget *parent, KisPaintDeviceSP dev)
         Q_EMIT sigConfigurationItemChanged();
     };
     d->view->describe = [](qreal x, qreal y) { return radiusText(radiusAt(x)) + QStringLiteral("  ") + gainText(gainOf(y)); };
-    d->view->backdrop = [this](QPainter &painter, const QRectF &box) { paintSizes(painter, box, palette().color(QPalette::WindowText)); };
+    d->view->xPicture = [this](QPainter &painter, const QRectF &rect) {
+        // made at the screen's own pixels, which are the image's at 100%
+        const qreal ratio = devicePixelRatioF();
+        const QSize size = (rect.size() * ratio).toSize();
+        if (d->sizeStrip.size() != size && !size.isEmpty()) d->makeSizeStrip(size);
+        painter.drawImage(rect, d->sizeStrip);
+    };
     layout->addWidget(d->view);
 
     auto *edgesRow = new QHBoxLayout();
@@ -512,6 +575,7 @@ SkissaNoiseWidget::SkissaNoiseWidget(QWidget *parent, KisPaintDeviceSP dev)
         const quint32 seed = d->settings.seed;
         d->settings = d->presets[index].settings;
         d->settings.seed = seed;
+        d->view->glideNextChange();
         refresh();
         Q_EMIT sigConfigurationItemChanged();
     });

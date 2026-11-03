@@ -28,6 +28,8 @@ struct SkissaSlider {
     qreal shownPerValue {1}; ///< percent shows a fraction a hundred times larger
     QString tip;
     qreal minimum {0};
+    /// Another setting kept in proportion to this one (Krita's blur up and down, to across)
+    const char *follower {nullptr};
 };
 
 /// The slider or two of an effect made of a larger one (Blur of Detail, Grain of Noise)
@@ -43,6 +45,8 @@ public:
 private:
     QString m_filterId;
     QVector<QPair<SkissaSlider, KisDoubleSliderSpinBox *>> m_sliders;
+    /// The settings as they came, so that those not shown go back as they were
+    KisPropertiesConfigurationSP m_loaded;
 };
 
 /**

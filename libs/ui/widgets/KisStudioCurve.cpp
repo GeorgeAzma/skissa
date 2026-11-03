@@ -10,6 +10,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QStringList>
+#include <QVariantAnimation>
 
 #include <algorithm>
 #include <cmath>
@@ -19,6 +20,7 @@
 namespace
 {
 constexpr int stripSize = 6;
+constexpr int pictureStripSize = 18;
 }
 
 QString KisStudioCurve::toString() const
@@ -130,12 +132,56 @@ KisStudioCurveView::KisStudioCurveView(QWidget *parent)
 
 void KisStudioCurveView::setCurve(const KisStudioCurve &curve, const KisStudioCurve &fallback, bool wraps, bool rises)
 {
+    const bool same = !m_values.isEmpty() && wraps == m_wraps && rises == m_rises;
+    if (same && curve == m_curve && fallback == m_fallback) return;
+    const bool glide = m_glideNext && same && curve != m_curve;
+    m_glideNext = false;
+    QVector<float> from;
+    if (glide) {
+        for (int i = 0; i < m_values.size(); i++) from << shownValue(i);
+    }
     m_curve = curve;
     m_fallback = fallback;
     m_wraps = wraps;
     m_rises = rises;
     m_values = m_curve.sampled(256, wraps, rises);
-    update();
+    if (!glide) {
+        stopGlide();
+        update();
+        return;
+    }
+    m_fromValues = from;
+    if (!m_glider) {
+        m_glider = new QVariantAnimation(this);
+        m_glider->setStartValue(0.0);
+        m_glider->setEndValue(1.0);
+        m_glider->setDuration(KisModernStyle::changeDuration);
+        m_glider->setEasingCurve(KisModernStyle::motionCurve());
+        connect(m_glider, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
+            m_glide = value.toReal();
+            update();
+        });
+    }
+    m_glider->stop();
+    m_glide = 0;
+    m_glider->start();
+}
+
+void KisStudioCurveView::glideNextChange()
+{
+    m_glideNext = true;
+}
+
+float KisStudioCurveView::shownValue(int i) const
+{
+    if (m_glide >= 1 || m_fromValues.size() != m_values.size()) return m_values[i];
+    return float(m_fromValues[i] + (m_values[i] - m_fromValues[i]) * m_glide);
+}
+
+void KisStudioCurveView::stopGlide()
+{
+    if (m_glider) m_glider->stop();
+    m_glide = 1;
 }
 
 void KisStudioCurveView::setHistogram(const QVector<float> &histogram)
@@ -203,7 +249,7 @@ QSize KisStudioCurveView::sizeHint() const
 
 int KisStudioCurveView::heightForWidth(int width) const
 {
-    return qBound(130, int(width * 0.4), 170);
+    return qBound(130, int(width * 0.4), 170) + (xPicture ? pictureStripSize + KisModernStyle::space1 : 0);
 }
 
 void KisStudioCurveView::paintEvent(QPaintEvent *)
@@ -256,7 +302,7 @@ void KisStudioCurveView::paintEvent(QPaintEvent *)
 
     QPainterPath line;
     for (int i = 0; i < m_values.size(); i++) {
-        const QPointF at = toScreen(QPointF(qreal(i) / (m_values.size() - 1), m_values[i]));
+        const QPointF at = toScreen(QPointF(qreal(i) / (m_values.size() - 1), shownValue(i)));
         if (i == 0) line.moveTo(at);
         else line.lineTo(at);
     }
@@ -276,7 +322,13 @@ void KisStudioCurveView::paintEvent(QPaintEvent *)
 
     const int active = m_dragged >= 0 ? m_dragged : m_shown;
     for (int i = 0; i < m_curve.points.size(); i++) {
-        const QPointF at = toScreen(m_curve.points[i]);
+        QPointF point = m_curve.points[i];
+        if (m_glide < 1 && m_fromValues.size() == m_values.size()) {
+            // from where the curve it comes from was at its place
+            const qreal from = m_fromValues[qBound(0, qRound(point.x() * (m_fromValues.size() - 1)), m_fromValues.size() - 1)];
+            point.setY(from + (point.y() - from) * m_glide);
+        }
+        const QPointF at = toScreen(point);
         const qreal radius = i == active || i == m_hovered ? 5.5 : 4.5;
         painter.setOpacity(i == m_dragged && m_leaving ? 0.35 : 1.0);
         // white with a dark ring, seen on any background
@@ -306,11 +358,19 @@ void KisStudioCurveView::paintEvent(QPaintEvent *)
         painter.drawPath(KisModernStyle::squircle(rect, rect.height() < rect.width() ? rect.height() / 2 : rect.width() / 2));
     };
     strip(QRectF(box.left(), box.bottom() + KisModernStyle::space1, box.width(), stripSize), true, xColor);
+    if (xPicture) {
+        const QRectF under(box.left(), box.bottom() + KisModernStyle::space1, box.width(), pictureStripSize);
+        painter.save();
+        painter.setClipPath(KisModernStyle::squircle(under, KisModernStyle::cornerRadius));
+        xPicture(painter, under);
+        painter.restore();
+    }
     strip(QRectF(0, box.top(), stripSize, box.height()), false, yColor);
 }
 
 void KisStudioCurveView::mousePressEvent(QMouseEvent *event)
 {
+    stopGlide();
     const int near = pointNear(event->pos());
     if (event->button() == Qt::RightButton) {
         // a point goes; elsewhere, the curve resets
@@ -397,7 +457,7 @@ void KisStudioCurveView::leaveEvent(QEvent *)
 QRectF KisStudioCurveView::boxRect() const
 {
     const qreal left = yColor ? stripSize + KisModernStyle::space1 : 0;
-    const qreal under = xColor ? stripSize + KisModernStyle::space1 : 0;
+    const qreal under = xPicture ? pictureStripSize + KisModernStyle::space1 : xColor ? stripSize + KisModernStyle::space1 : 0;
     return QRectF(left, 0, width() - left, height() - under);
 }
 

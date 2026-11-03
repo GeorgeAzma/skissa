@@ -107,50 +107,80 @@ void boxColumns(const float *in, float *out, int w, int h, const Box &box)
 
 } // namespace
 
-void gaussian(float *data, float *scratch, int w, int h, qreal sigma)
+namespace
 {
-    if (w <= 0 || h <= 0 || sigma <= 0) return;
-    if (sigma <= boxFrom) {
-        // whole rows at a time, which vectorize, with the taps either side of the middle taken together
-        const std::vector<float> kernel = kernelOf(sigma);
-        const int half = int(kernel.size()) / 2;
-        std::vector<float> line(size_t(w) + 2 * half);
-        for (int y = 0; y < h; y++) {
-            const float *row = data + size_t(y) * w;
-            std::fill(line.begin(), line.begin() + half, row[0]);
-            std::copy_n(row, w, line.begin() + half);
-            std::fill(line.begin() + half + w, line.end(), row[w - 1]);
-            float *target = scratch + size_t(y) * w;
-            const float *middle = line.data() + half;
-            const float centre = kernel[half];
-            for (int x = 0; x < w; x++) target[x] = centre * middle[x];
-            for (int k = 1; k <= half; k++) {
-                const float weight = kernel[half + k];
-                const float *before = middle - k;
-                const float *after = middle + k;
-                for (int x = 0; x < w; x++) target[x] += weight * (before[x] + after[x]);
-            }
-        }
-        for (int y = 0; y < h; y++) {
-            float *target = data + size_t(y) * w;
-            const float *centre = scratch + size_t(y) * w;
-            const float middle = kernel[half];
-            for (int x = 0; x < w; x++) target[x] = middle * centre[x];
-            for (int k = 1; k <= half; k++) {
-                const float *above = scratch + size_t(std::clamp(y - k, 0, h - 1)) * w;
-                const float *below = scratch + size_t(std::clamp(y + k, 0, h - 1)) * w;
-                const float weight = kernel[half + k];
-                for (int x = 0; x < w; x++) target[x] += weight * (above[x] + below[x]);
-            }
-        }
+
+/// Each row blurred by \p sigma, back into \p data
+void blurAcross(float *data, int w, int h, qreal sigma)
+{
+    if (sigma <= 0) return;
+    if (sigma > boxFrom) {
+        const Box box = boxFor(sigma * sigma / 3);
+        for (int pass = 0; pass < 3; pass++) boxRows(data, w, h, box);
         return;
     }
-    const Box box = boxFor(sigma * sigma / 3);
-    for (int pass = 0; pass < 3; pass++) boxRows(data, w, h, box);
-    boxColumns(data, scratch, w, h, box);
-    boxColumns(scratch, data, w, h, box);
-    boxColumns(data, scratch, w, h, box);
-    std::memcpy(data, scratch, sizeof(float) * size_t(w) * h);
+    // whole rows at a time, which vectorize, with the taps either side of the middle taken together
+    const std::vector<float> kernel = kernelOf(sigma);
+    const int half = int(kernel.size()) / 2;
+    std::vector<float> line(size_t(w) + 2 * half);
+    for (int y = 0; y < h; y++) {
+        float *row = data + size_t(y) * w;
+        std::fill(line.begin(), line.begin() + half, row[0]);
+        std::copy_n(row, w, line.begin() + half);
+        std::fill(line.begin() + half + w, line.end(), row[w - 1]);
+        const float *middle = line.data() + half;
+        const float centre = kernel[half];
+        for (int x = 0; x < w; x++) row[x] = centre * middle[x];
+        for (int k = 1; k <= half; k++) {
+            const float weight = kernel[half + k];
+            const float *before = middle - k;
+            const float *after = middle + k;
+            for (int x = 0; x < w; x++) row[x] += weight * (before[x] + after[x]);
+        }
+    }
+}
+
+/// Each column blurred by \p sigma, back into \p data
+void blurDown(float *data, float *scratch, int w, int h, qreal sigma)
+{
+    if (sigma <= 0) return;
+    if (sigma > boxFrom) {
+        const Box box = boxFor(sigma * sigma / 3);
+        boxColumns(data, scratch, w, h, box);
+        boxColumns(scratch, data, w, h, box);
+        boxColumns(data, scratch, w, h, box);
+        std::memcpy(data, scratch, sizeof(float) * size_t(w) * h);
+        return;
+    }
+    std::memcpy(scratch, data, sizeof(float) * size_t(w) * h);
+    const std::vector<float> kernel = kernelOf(sigma);
+    const int half = int(kernel.size()) / 2;
+    for (int y = 0; y < h; y++) {
+        float *target = data + size_t(y) * w;
+        const float *centre = scratch + size_t(y) * w;
+        const float middle = kernel[half];
+        for (int x = 0; x < w; x++) target[x] = middle * centre[x];
+        for (int k = 1; k <= half; k++) {
+            const float *above = scratch + size_t(std::clamp(y - k, 0, h - 1)) * w;
+            const float *below = scratch + size_t(std::clamp(y + k, 0, h - 1)) * w;
+            const float weight = kernel[half + k];
+            for (int x = 0; x < w; x++) target[x] += weight * (above[x] + below[x]);
+        }
+    }
+}
+
+} // namespace
+
+void gaussian(float *data, float *scratch, int w, int h, qreal sigmaAcross, qreal sigmaDown)
+{
+    if (w <= 0 || h <= 0) return;
+    blurAcross(data, w, h, sigmaAcross);
+    blurDown(data, scratch, w, h, sigmaDown);
+}
+
+void gaussian(float *data, float *scratch, int w, int h, qreal sigma)
+{
+    gaussian(data, scratch, w, h, sigma, sigma);
 }
 
 std::vector<float> kernel1D(qreal sigma)
@@ -376,6 +406,11 @@ int Plan::reach() const
 {
     int reach = 0;
     Q_FOREACH (const Step &step, steps) {
+        if (step.radiusDown >= 0) {
+            // two ways apart: at full size
+            reach = std::max({reach, reachOf(sigmaOf(step.radius)), reachOf(sigmaOf(step.radiusDown))});
+            continue;
+        }
         const qreal sigma = sigmaOf(step.radius);
         const int level = levelFor(sigma);
         // at full size Krita's kernel; on a level the Gaussian's three sigmas, and a few of the level's cells for
@@ -425,7 +460,10 @@ bool Plan::changesNothing() const
 Plan Plan::scaled(qreal factor) const
 {
     Plan plan = *this;
-    for (Step &step : plan.steps) step.radius *= factor;
+    for (Step &step : plan.steps) {
+        step.radius *= factor;
+        if (step.radiusDown >= 0) step.radiusDown *= factor;
+    }
     return plan;
 }
 
@@ -452,23 +490,33 @@ Plan planOf(Kind kind, const KisPropertiesConfiguration &config)
 {
     Plan plan;
     switch (kind) {
-    case Kind::Blur:
+    case Kind::Blur: {
+        // Krita's Gaussian blur's settings; "radius" in Skissa's own from before
+        const qreal across = config.getDouble("horizRadius", config.getDouble("radius", 5));
+        const qreal down = config.getDouble("vertRadius", across);
+        if (across <= 0 && down <= 0) break;
+        plan.fine = 0;
+        plan.steps << Step{across, 1, std::abs(down - across) > 1e-6 ? down : -1.0};
+        break;
+    }
     case Kind::Smooth: {
-        const qreal radius = config.getDouble("radius", kind == Kind::Blur ? 5 : 4);
+        const qreal radius = config.getDouble("radius", 4);
         if (radius <= 0) break;
         plan.fine = 0;
         plan.steps << Step{radius, 1};
-        if (kind == Kind::Smooth) plan.edges = std::clamp(config.getDouble("edges", 0.4), 0.0, 1.0);
+        plan.edges = std::clamp(config.getDouble("edges", 0.4), 0.0, 1.0);
         break;
     }
     case Kind::Sharpen: {
+        // Krita's unsharp mask's
         const float amount = float(config.getDouble("amount", 1));
         plan.fine = 1 + amount;
-        plan.steps << Step{config.getDouble("radius", 2), -amount};
+        plan.steps << Step{config.getDouble("halfSize", config.getDouble("radius", 2)), -amount};
         break;
     }
     case Kind::HighPass:
-        plan.steps << Step{config.getDouble("radius", 4), -1};
+        // Krita's Gaussian high pass's
+        plan.steps << Step{config.getDouble("blurAmount", config.getDouble("radius", 4)), -1};
         break;
     case Kind::Detail:
         plan = planOfCurve(KisStudioCurve::fromString(config.getString("curve"), flatCurve()), std::clamp(config.getDouble("edges", 0), 0.0, 1.0));
@@ -539,6 +587,22 @@ void apply(const Plan &plan, const Planes &source, const QRect &sourceRect, cons
         const float alphaGain = alphaLevels[s + 1] - alphaLevels[s];
         if (std::abs(step.gain) < 1e-6f && std::abs(alphaGain) < 1e-6f) continue;
         const qreal sigma = sigmaOf(step.radius);
+        if (step.radiusDown >= 0) {
+            // across and down apart, at full size
+            const qreal down = sigmaOf(step.radiusDown);
+            const int reachHere = std::max(reachOf(sigma), reachOf(down));
+            const QRect room = resultRect.adjusted(-reachHere, -reachHere, reachHere, reachHere);
+            for (int c = 0; c < planeCount; c++) {
+                const float gain = c < 3 ? step.gain : alphaGain;
+                if (std::abs(gain) < 1e-6f) continue;
+                std::vector<float> work = cropped(source.plane[c], sourceRect, room), scratch(work.size());
+                gaussian(work.data(), scratch.data(), room.width(), room.height(), step.radius > 0 ? sigma : 0, step.radiusDown > 0 ? down : 0);
+                const std::vector<float> blurred = cropped(work, room, resultRect);
+                float *out = result.plane[c].data();
+                for (size_t i = 0; i < count; i++) out[i] += gain * blurred[i];
+            }
+            continue;
+        }
         const int at = levelFor(sigma);
         if (!edges) {
             const QRect cells = cellsOf(resultRect, at, at > 0 ? 2 : 0);

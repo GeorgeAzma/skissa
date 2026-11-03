@@ -46,6 +46,8 @@ KisStudioCurve flatCurve();
 struct Step {
     qreal radius;
     float gain; ///< added to the gain of every feature larger than the radius
+    /// Up and down, when it differs from across (Krita's Gaussian blur can blur the two ways apart); negative: the same
+    qreal radiusDown {-1};
 };
 
 struct Plan {
@@ -84,6 +86,8 @@ void apply(const Plan &plan, const Planes &source, const QRect &sourceRect, cons
 /// Blurs \p data, \p w by \p h, in place by a Gaussian of \p sigma (Krita's kernel, wide ones as box blurs);
 /// \p scratch is as large. Beyond the edges the edge pixels repeat.
 void gaussian(float *data, float *scratch, int w, int h, qreal sigma);
+/// The same, by \p sigmaAcross along rows and \p sigmaDown along columns
+void gaussian(float *data, float *scratch, int w, int h, qreal sigmaAcross, qreal sigmaDown);
 /// How far the blur of \p sigma reads around a pixel
 int reachOf(qreal sigma);
 /// The blur of \p sigma along one axis, as weights centered in the middle

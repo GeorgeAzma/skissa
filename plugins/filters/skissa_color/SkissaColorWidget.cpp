@@ -471,6 +471,7 @@ SkissaColorWidget::SkissaColorWidget(QWidget *parent, KisPaintDeviceSP dev)
     connect(d->presetChips, &KisStudioChips::clicked, this, [this](int index) {
         if (index < 0 || index >= d->presets.size()) return;
         d->settings = d->presets[index].settings;
+        d->curve->glideNextChange();
         refresh();
         Q_EMIT sigConfigurationItemChanged();
     });

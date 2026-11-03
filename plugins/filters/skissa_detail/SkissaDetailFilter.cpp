@@ -13,6 +13,9 @@
 #include <KoColorModelStandardIds.h>
 #include <KoColorSpace.h>
 #include <KoColorSpaceRegistry.h>
+#include <KoCompositeOpRegistry.h>
+#include <KoConvolutionOp.h>
+#include <cstring>
 #include <filter/kis_filter_category_ids.h>
 #include <filter/kis_filter_configuration.h>
 #include <filter/kis_filter_registry.h>
@@ -67,6 +70,9 @@ SkissaDetailPlugin::SkissaDetailPlugin(QObject *parent, const QVariantList &)
     for (Kind kind : {Kind::Blur, Kind::Sharpen, Kind::HighPass, Kind::Smooth, Kind::Detail}) {
         KisFilterRegistry::instance()->add(KisFilterSP(new SkissaDetailFilter(kind)));
     }
+    for (Kind kind : {Kind::Blur, Kind::Sharpen, Kind::HighPass}) {
+        KisFilterRegistry::instance()->add(KisFilterSP(new SkissaDetailFilter(kind, true)));
+    }
     for (SkissaNoise::Kind kind : {SkissaNoise::Kind::Grain, SkissaNoise::Kind::Noise}) {
         KisFilterRegistry::instance()->add(KisFilterSP(new SkissaNoiseFilter(kind)));
     }
@@ -74,9 +80,10 @@ SkissaDetailPlugin::SkissaDetailPlugin(QObject *parent, const QVariantList &)
     KisFilterRegistry::instance()->add(KisFilterSP(new SkissaFewerFilter()));
 }
 
-SkissaDetailFilter::SkissaDetailFilter(Kind kind)
-    : KisFilter(idOf(kind), categoryOf(kind), menuText(kind))
+SkissaDetailFilter::SkissaDetailFilter(Kind kind, bool earlier)
+    : KisFilter(idOf(kind, earlier), categoryOf(kind), menuText(kind))
     , m_kind(kind)
+    , m_earlier(earlier)
 {
     setSupportsPainting(true);
     setSupportsAdjustmentLayers(true);
@@ -85,12 +92,12 @@ SkissaDetailFilter::SkissaDetailFilter(Kind kind)
     setColorSpaceIndependence(FULLY_INDEPENDENT);
 }
 
-KoID SkissaDetailFilter::idOf(Kind kind)
+KoID SkissaDetailFilter::idOf(Kind kind, bool earlier)
 {
     switch (kind) {
-    case Kind::Blur: return KoID(QStringLiteral("skissa_blur"), i18nc("effect", "Blur"));
-    case Kind::Sharpen: return KoID(QStringLiteral("skissa_sharpen"), i18nc("effect", "Sharpen"));
-    case Kind::HighPass: return KoID(QStringLiteral("skissa_high_pass"), i18nc("effect", "High pass"));
+    case Kind::Blur: return KoID(earlier ? QStringLiteral("skissa_blur") : QStringLiteral("gaussian blur"), i18nc("effect", "Blur"));
+    case Kind::Sharpen: return KoID(earlier ? QStringLiteral("skissa_sharpen") : QStringLiteral("unsharp"), i18nc("effect", "Sharpen"));
+    case Kind::HighPass: return KoID(earlier ? QStringLiteral("skissa_high_pass") : QStringLiteral("gaussianhighpass"), i18nc("effect", "High pass"));
     case Kind::Smooth: return KoID(QStringLiteral("skissa_smooth"), i18nc("effect", "Smooth"));
     default: return KoID(QStringLiteral("skissa_detail"), i18nc("effect", "Detail"));
     }
@@ -119,6 +126,89 @@ void SkissaDetailFilter::processImpl(KisPaintDeviceSP device, const QRect &apply
     KIS_SAFE_ASSERT_RECOVER_RETURN(config);
     const Plan plan = planAt(config, device->defaultBounds()->currentLevelOfDetail());
     if (plan.changesNothing() || applyRect.isEmpty()) return;
+    if (m_earlier || (m_kind != Kind::Sharpen && m_kind != Kind::HighPass)) {
+        const std::vector<quint8> bytes = rendered(plan, device, applyRect);
+        if (!bytes.empty()) device->writeBytes(bytes.data(), applyRect);
+        return;
+    }
+
+    // Krita's unsharp mask and high pass, made with this blur: the blur first, then put with the pixels as Krita does
+    Plan blur;
+    blur.fine = 0;
+    blur.steps << Step{plan.steps.first().radius, 1};
+    const std::vector<quint8> blurred = rendered(blur, device, applyRect);
+    if (blurred.empty()) return;
+    const KoColorSpace *cs = device->colorSpace();
+    const int pixelSize = cs->pixelSize();
+    const int count = applyRect.width() * applyRect.height();
+    std::vector<quint8> pixels(size_t(count) * pixelSize);
+    SkissaPixels::readOriginal(device, applyRect, pixels.data());
+    if (m_kind == Kind::HighPass) {
+        // the blur taken away by Grain extract, so a flat area is middle gray
+        const KoCompositeOp *op = cs->compositeOp(COMPOSITE_GRAIN_EXTRACT);
+        KoCompositeOp::ParameterInfo params;
+        params.dstRowStart = pixels.data();
+        params.dstRowStride = applyRect.width() * pixelSize;
+        params.srcRowStart = blurred.data();
+        params.srcRowStride = applyRect.width() * pixelSize;
+        params.rows = applyRect.height();
+        params.cols = applyRect.width();
+        params.opacity = 1.0f;
+        params.flow = 1.0f;
+        params.channelFlags = config->channelFlags();
+        op->composite(params);
+        device->writeBytes(pixels.data(), applyRect);
+        return;
+    }
+    const qreal amount = config->getDouble("amount", 1);
+    const quint8 threshold = quint8(std::clamp(config->getInt("threshold", 0), 0, 255));
+    const bool lightnessOnly = config->getBool("lightnessOnly", true);
+    // as Krita weighs them: the pixel by 1 + amount, its blur by -amount, in 128ths
+    const qreal factor = 128;
+    qreal weights[2] = {factor * (1 + amount), -factor * amount};
+    std::vector<quint8> out(pixels.size());
+    if (lightnessOnly) {
+        std::vector<quint16> lab(size_t(count) * 4), labBlurred(size_t(count) * 4);
+        cs->toLabA16(pixels.data(), reinterpret_cast<quint8 *>(lab.data()), quint32(count));
+        cs->toLabA16(blurred.data(), reinterpret_cast<quint8 *>(labBlurred.data()), quint32(count));
+        for (int i = 0; i < count; i++) {
+            const quint8 *pixel = pixels.data() + size_t(i) * pixelSize;
+            if (cs->differenceA(pixel, blurred.data() + size_t(i) * pixelSize) < threshold) continue;
+            // lightness and alpha sharpened, the color kept
+            for (int channel : {0, 3}) {
+                quint16 &value = lab[size_t(i) * 4 + channel];
+                value = quint16(std::clamp((value * weights[0] + labBlurred[size_t(i) * 4 + channel] * weights[1]) / factor, 0.0, 65535.0));
+            }
+        }
+        cs->fromLabA16(reinterpret_cast<const quint8 *>(lab.data()), out.data(), quint32(count));
+        for (int i = 0; i < count; i++) {
+            const quint8 *pixel = pixels.data() + size_t(i) * pixelSize;
+            if (cs->differenceA(pixel, blurred.data() + size_t(i) * pixelSize) < threshold) std::memcpy(out.data() + size_t(i) * pixelSize, pixel, pixelSize);
+        }
+    } else {
+        KoConvolutionOp *convolution = cs->convolutionOp();
+        const QBitArray channelFlags = config->channelFlags();
+        std::vector<quint8> pair(size_t(pixelSize) * 2);
+        quint8 *colors[2] = {pair.data(), pair.data() + pixelSize};
+        for (int i = 0; i < count; i++) {
+            const quint8 *pixel = pixels.data() + size_t(i) * pixelSize;
+            const quint8 *soft = blurred.data() + size_t(i) * pixelSize;
+            quint8 *target = out.data() + size_t(i) * pixelSize;
+            const quint8 diff = threshold == 1 ? quint8(std::memcmp(pixel, soft, pixelSize) == 0) : cs->difference(pixel, soft);
+            if (diff < threshold) {
+                std::memcpy(target, pixel, pixelSize);
+                continue;
+            }
+            std::memcpy(colors[0], pixel, pixelSize);
+            std::memcpy(colors[1], soft, pixelSize);
+            convolution->convolveColors(colors, weights, target, factor, 0, 2, channelFlags);
+        }
+    }
+    device->writeBytes(out.data(), applyRect);
+}
+
+std::vector<quint8> SkissaDetailFilter::rendered(const Plan &plan, KisPaintDeviceSP device, const QRect &applyRect) const
+{
 
     // beyond the image its edge repeats, as Krita's blurs do; a wrapping image wraps by itself
     const int reach = plan.reach();
@@ -136,7 +226,7 @@ void SkissaDetailFilter::processImpl(KisPaintDeviceSP device, const QRect &apply
     const KoColorSpace *work = layout != Layout::Converted ? nullptr
         : KoColorSpaceRegistry::instance()->colorSpace(RGBAColorModelID.id(), Float32BitsColorDepthID.id(),
                                                        rgb ? cs->profile() : KoColorSpaceRegistry::instance()->rgb8()->profile());
-    if (layout == Layout::Converted && !work) return;
+    if (layout == Layout::Converted && !work) return {};
     const KoChannelInfo::enumChannelValueType type = cs->channels().first()->channelValueType();
     // integers hold 0 to 1; floats keep what goes past
     const bool fit = type != KoChannelInfo::FLOAT16 && type != KoChannelInfo::FLOAT32 && type != KoChannelInfo::FLOAT64;
@@ -220,7 +310,7 @@ void SkissaDetailFilter::processImpl(KisPaintDeviceSP device, const QRect &apply
         work->convertPixelsTo(reinterpret_cast<const quint8 *>(converted.data()), raw.data(), cs, int(written),
                               KoColorConversionTransformation::internalRenderingIntent(), KoColorConversionTransformation::internalConversionFlags());
     }
-    device->writeBytes(raw.data(), applyRect);
+    return raw;
 }
 
 KisConfigWidget *SkissaDetailFilter::createConfigurationWidget(QWidget *parent, const KisPaintDeviceSP dev, bool) const
@@ -228,9 +318,14 @@ KisConfigWidget *SkissaDetailFilter::createConfigurationWidget(QWidget *parent, 
     if (m_kind == Kind::Detail) return new SkissaDetailWidget(parent, dev);
     const QString px = i18nc("pixels, after a number", " px");
     const QString percent = QStringLiteral("%");
+    const bool krita = !m_earlier && m_kind != Kind::Smooth;
     QVector<SkissaSlider> sliders;
     if (m_kind == Kind::Sharpen) sliders << SkissaSlider{"amount", i18nc("effect setting", "Amount"), 1000, 300, 0, percent, 100};
-    sliders << SkissaSlider{"radius", i18nc("effect setting", "Radius"), 500, m_kind == Kind::Sharpen ? 10.0 : 100.0, 1, px};
+    const char *radius = !krita ? "radius" : m_kind == Kind::Blur ? "horizRadius" : m_kind == Kind::Sharpen ? "halfSize" : "blurAmount";
+    SkissaSlider size{radius, i18nc("effect setting", "Radius"), 500, m_kind == Kind::Sharpen ? 10.0 : 100.0, 1, px};
+    // a blur stretched one way in Krita keeps its shape
+    if (krita && m_kind == Kind::Blur) size.follower = "vertRadius";
+    sliders << size;
     if (m_kind == Kind::Smooth) {
         sliders << SkissaSlider{"edges", i18nc("effect setting", "Edges"), 100, 100, 0, percent, 100, i18nc("@info:tooltip", "Keeps edges sharp")};
     }
@@ -241,12 +336,26 @@ KisFilterConfigurationSP SkissaDetailFilter::defaultConfiguration(KisResourcesIn
 {
     KisFilterConfigurationSP config = factoryConfiguration(resourcesInterface);
     switch (m_kind) {
-    case Kind::Blur: config->setProperty("radius", 5.0); break;
+    case Kind::Blur:
+        if (m_earlier) {
+            config->setProperty("radius", 5.0);
+            break;
+        }
+        config->setProperty("horizRadius", 5.0);
+        config->setProperty("vertRadius", 5.0);
+        config->setProperty("lockAspect", true);
+        break;
     case Kind::Sharpen:
         config->setProperty("amount", 1.0);
-        config->setProperty("radius", 2.0);
+        if (m_earlier) {
+            config->setProperty("radius", 2.0);
+            break;
+        }
+        config->setProperty("halfSize", 2.0);
+        config->setProperty("threshold", 0);
+        config->setProperty("lightnessOnly", true);
         break;
-    case Kind::HighPass: config->setProperty("radius", 4.0); break;
+    case Kind::HighPass: config->setProperty(m_earlier ? "radius" : "blurAmount", 4.0); break;
     case Kind::Smooth:
         config->setProperty("radius", 4.0);
         config->setProperty("edges", 0.4);

@@ -21,7 +21,7 @@ BlurFilterPlugin::BlurFilterPlugin(QObject *parent, const QVariantList &)
         : QObject(parent)
 {
     KisFilterRegistry::instance()->add(new KisBlurFilter());
-    KisFilterRegistry::instance()->add(new KisGaussianBlurFilter());
+    // Skissa's Blur takes the Gaussian blur's id (skissa_detail)
     KisFilterRegistry::instance()->add(new KisMotionBlurFilter());
     KisFilterRegistry::instance()->add(new KisLensBlurFilter());
 

@@ -13,6 +13,8 @@
 
 #include <functional>
 
+class QVariantAnimation;
+
 #include "kritaui_export.h"
 
 class QPainter;
@@ -50,10 +52,14 @@ public:
     std::function<QColor(qreal)> yColor;
     /// Drawn behind the curve, within its box: what the x axis is, as a picture
     std::function<void(QPainter &, const QRectF &)> backdrop;
+    /// Drawn in a strip under the box: what the x axis is, as a picture (the image at each size)
+    std::function<void(QPainter &, const QRectF &)> xPicture;
 
     explicit KisStudioCurveView(QWidget *parent);
 
     void setCurve(const KisStudioCurve &curve, const KisStudioCurve &fallback, bool wraps = false, bool rises = false);
+    /// The next setCurve that changes the curve moves it there over a moment instead of at once (a starting point)
+    void glideNextChange();
     const KisStudioCurve &curve() const { return m_curve; }
 
     void setHistogram(const QVector<float> &histogram);
@@ -82,6 +88,9 @@ protected:
 private:
     QRectF boxRect() const;
     QPointF toScreen(const QPointF &value) const;
+    /// What the line shows at sample \p i, between the curve it comes from and the curve while gliding
+    float shownValue(int i) const;
+    void stopGlide();
     QPointF fromScreen(const QPointF &pos) const;
     int pointNear(const QPoint &pos) const;
     bool removable(int index) const;
@@ -95,6 +104,11 @@ private:
     bool m_wraps {false};
     bool m_rises {false};
     QVector<float> m_values;
+    /// While gliding: the curve it comes from, and how far it is (eased, 0 to 1)
+    QVector<float> m_fromValues;
+    qreal m_glide {1};
+    bool m_glideNext {false};
+    QVariantAnimation *m_glider {nullptr};
     QVector<float> m_histogram;
     qreal m_marker {-1};
     int m_hovered {-1};
