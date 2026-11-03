@@ -11,8 +11,9 @@
 #include <QString>
 
 /**
- * Krita's effects that one of Skissa's does all of: they aren't offered (Find, the effects picker, their
- * shortcuts), but stay registered, so that files and filter masks using them still open and render.
+ * Krita's effects that one of Skissa's does all of, and those left out as clutter (dated, or for a use too
+ * narrow): they aren't offered (Find, the effects picker; the shortcuts of the covered ones open what covers them),
+ * but stay registered, so that files and filter masks using them still open and render.
  */
 namespace KisRetiredEffects
 {
@@ -42,9 +43,22 @@ inline QString coveredBy(const QString &filterId)
     return by.value(filterId);
 }
 
+/// Left out with nothing in their place
+inline bool isLeftOut(const QString &filterId)
+{
+    static const QSet<QString> leftOut = {
+        QStringLiteral("wave"), QStringLiteral("raindrops"), QStringLiteral("smalltiles"), QStringLiteral("roundcorners"),
+        QStringLiteral("oilpaint"), QStringLiteral("emboss"), QStringLiteral("emboss laplascian"), QStringLiteral("emboss all directions"),
+        QStringLiteral("emboss horizontal and vertical"), QStringLiteral("emboss vertical only"), QStringLiteral("emboss horizontal only"),
+        QStringLiteral("emboss diagonal"), QStringLiteral("edge detection"), QStringLiteral("phongbumpmap"), QStringLiteral("dodge"),
+        QStringLiteral("burn"), QStringLiteral("tone_gamut_map"),
+    };
+    return leftOut.contains(filterId);
+}
+
 inline bool isRetired(const QString &filterId)
 {
-    return !coveredBy(filterId).isEmpty();
+    return !coveredBy(filterId).isEmpty() || isLeftOut(filterId);
 }
 
 /// The effect opened in place of a retired one, as its keys (Ctrl+M, Ctrl+U, Ctrl+L, Ctrl+B) ask; empty: it runs itself

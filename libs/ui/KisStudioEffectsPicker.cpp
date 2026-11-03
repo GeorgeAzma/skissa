@@ -209,13 +209,14 @@ QImage basePicture(KisViewManager *view, const QSize &size, int *levelOfDetail)
     return picture.convertToFormat(QImage::Format_ARGB32);
 }
 
-/// Favorites that were Krita's effects which Skissa's do now become those
+/// Favorites that were Krita's effects which Skissa's do now become those; those left out go
 void replaceRetiredFavorites(const QString &key)
 {
     if (!KSharedConfig::openConfig()->group(QString()).hasKey(key)) return;
     const QStringList pinned = KisConfig(true).readEntry<QStringList>(key, QStringList());
     QStringList kept;
     Q_FOREACH (const QString &id, pinned) {
+        if (KisRetiredEffects::isLeftOut(id)) continue;
         kept << (KisRetiredEffects::isRetired(id) ? KisRetiredEffects::coveredBy(id) : id);
     }
     kept.removeDuplicates();
