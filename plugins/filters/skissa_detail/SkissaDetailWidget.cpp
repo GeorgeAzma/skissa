@@ -63,11 +63,17 @@ QString gainText(float gain)
     return QStringLiteral("×") + number(gain, 2);
 }
 
-KisDoubleSliderSpinBox *slider(QWidget *parent, qreal maximum, qreal softMaximum, int decimals, const QString &suffix)
+/// The usual part of a slider's range; Krita adds a switch to the whole range, so only one shorter than it is set
+void setUsualRange(KisDoubleSliderSpinBox *box, qreal low, qreal high)
+{
+    if (low > box->minimum() || high < box->maximum()) box->setSoftRange(low, high);
+}
+
+KisDoubleSliderSpinBox *slider(QWidget *parent, qreal maximum, qreal softMaximum, int decimals, const QString &suffix, qreal minimum = 0)
 {
     auto *box = new KisDoubleSliderSpinBox(parent);
-    box->setRange(0, maximum, decimals);
-    box->setSoftRange(0, softMaximum);
+    box->setRange(minimum, maximum, decimals);
+    setUsualRange(box, minimum, softMaximum);
     box->setSuffix(suffix);
     return box;
 }
@@ -168,9 +174,7 @@ SkissaSliders::SkissaSliders(QWidget *parent, const QString &filterId, const QVe
     auto *layout = new QFormLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     Q_FOREACH (const SkissaSlider &spec, sliders) {
-        KisDoubleSliderSpinBox *box = slider(this, spec.maximum, spec.softMaximum, spec.decimals, spec.suffix);
-        box->setRange(spec.minimum, spec.maximum, spec.decimals);
-        box->setSoftRange(spec.minimum, spec.softMaximum);
+        KisDoubleSliderSpinBox *box = slider(this, spec.maximum, spec.softMaximum, spec.decimals, spec.suffix, spec.minimum);
         box->setToolTip(spec.tip);
         layout->addRow(spec.name, box);
         m_sliders << qMakePair(spec, box);
@@ -794,7 +798,7 @@ SkissaLensWidget::SkissaLensWidget(QWidget *parent, KisPaintDeviceSP dev)
                    qreal shownPer, const QString &tip = QString()) {
         auto *box = new KisDoubleSliderSpinBox(this);
         box->setRange(low * shownPer, high * shownPer, decimals);
-        box->setSoftRange(low < 0 ? -soft * shownPer : low * shownPer, soft * shownPer);
+        setUsualRange(box, low < 0 ? -soft * shownPer : low * shownPer, soft * shownPer);
         box->setSuffix(suffix);
         box->setToolTip(tip);
         connect(box, qOverload<double>(&KisDoubleSliderSpinBox::valueChanged), this, [this, value, shownPer](double shown) {
