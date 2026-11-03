@@ -34,6 +34,7 @@
 #include "kis_bookmarked_filter_configurations_model.h"
 #include "kis_filters_model.h"
 #include "kis_config.h"
+#include "KisEffectPanels.h"
 
 #include <kstandardguiitem.h>
 
@@ -200,8 +201,10 @@ void KisFilterSelectorWidget::setFilter(KisFilterSP f, KisFilterConfigurationSP 
         d->uiFilterSelector.filtersSelector->blockSignals(v);
     }
 
-    KisConfigWidget* widget =
-            d->currentFilter->createConfigurationWidget(d->uiFilterSelector.centralWidgetHolder, d->paintDevice, d->usedForMask);
+    KisConfigWidget* widget = KisEffectPanels::create(f->id(), d->uiFilterSelector.centralWidgetHolder, d->paintDevice);
+    if (!widget) {
+        widget = d->currentFilter->createConfigurationWidget(d->uiFilterSelector.centralWidgetHolder, d->paintDevice, d->usedForMask);
+    }
 
     if (!widget) { // No widget, so display a label instead
         d->uiFilterSelector.comboBoxPresets->setEnabled(false);

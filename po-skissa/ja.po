@@ -723,33 +723,25 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "オリジナル"
 
-msgctxt "fewer colors effect preset"
-msgid "Posterize"
-msgstr "ポスタリゼーション"
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "色"
 
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "点線"
+msgctxt "fewer colors effect setting"
+msgid "Brightness"
+msgstr "明度"
 
 msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "パターン"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "画像"
-
-msgctxt "colors taken from: steps of each channel"
-msgid "Levels"
-msgstr "レベル補正"
-
 msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "レベル補正"
 
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "色"
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "レベル補正"
 
 msgctxt "effect setting"
 msgid "Size"

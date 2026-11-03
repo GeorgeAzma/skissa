@@ -696,12 +696,12 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Originál"
 
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "Tečky"
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Barvy"
 
 msgctxt "fewer colors effect setting"
-msgid "Lightness"
+msgid "Brightness"
 msgstr "Jas"
 
 msgctxt "no dithering"
@@ -712,21 +712,13 @@ msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "Vzorek"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "Obrázek"
-
-msgctxt "colors taken from: steps of each channel"
-msgid "Levels"
-msgstr "Úrovně"
-
 msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "Úrovně"
 
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "Barvy"
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Úrovně"
 
 msgctxt "effect setting"
 msgid "Size"

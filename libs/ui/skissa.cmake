@@ -53,6 +53,7 @@ set(skissa_ui_SRCS
     KisStudioWindowFrame.cpp
     KisCanvasSizeCatch.cpp
     KisPenLatency.cpp
+    KisEffectPanels.cpp
     KisStudioCanvasSize.cpp
     KisStudioFlash.cpp
     KisUpdatePacer.cpp

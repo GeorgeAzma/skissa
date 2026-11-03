@@ -539,27 +539,15 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "ئەسلى"
 
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "چېكىت"
-
-msgctxt "fewer colors effect setting"
-msgid "Lightness"
-msgstr "يورۇقلۇق دەرىجىسى"
-
 msgctxt "no dithering"
 msgid "None"
 msgstr "يوق"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "سۈرەت"
-
-msgctxt "colors taken from: steps of each channel"
+msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "رەڭ دەرىجىسى"
 
-msgctxt "fewer colors effect setting: steps of each channel"
+msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "رەڭ دەرىجىسى"
 

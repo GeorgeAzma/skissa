@@ -639,8 +639,12 @@ msgid "Original"
 msgstr "Asli"
 
 msgctxt "fewer colors effect setting"
-msgid "Lightness"
-msgstr "Kecahayaan"
+msgid "Colors"
+msgstr "Warna"
+
+msgctxt "fewer colors effect setting"
+msgid "Brightness"
+msgstr "Kecerahan"
 
 msgctxt "no dithering"
 msgid "None"
@@ -650,21 +654,13 @@ msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "Pola"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "Gambar"
-
-msgctxt "colors taken from: steps of each channel"
-msgid "Levels"
-msgstr "Level"
-
 msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "Level"
 
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "Warna"
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Level"
 
 msgctxt "effect setting"
 msgid "Size"

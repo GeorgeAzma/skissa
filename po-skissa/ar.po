@@ -548,19 +548,15 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "الأصلي"
 
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "نقاط"
+msgctxt "fewer colors effect setting"
+msgid "Brightness"
+msgstr "السّطوع"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "الصورة"
-
-msgctxt "colors taken from: steps of each channel"
+msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "المستويات"
 
-msgctxt "fewer colors effect setting: steps of each channel"
+msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "المستويات"
 

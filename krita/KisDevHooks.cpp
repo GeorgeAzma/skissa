@@ -45,6 +45,8 @@
 #include <KisStudioFind.h>
 #include <KisView.h>
 #include <KisViewManager.h>
+#include <kis_action.h>
+#include <kis_action_manager.h>
 #include <canvas/kis_canvas2.h>
 
 namespace
@@ -66,11 +68,24 @@ public:
         static const UINT treeMessage = RegisterWindowMessageW(L"KritaDevTree");
         static const UINT shortcutsMessage = RegisterWindowMessageW(L"KritaDevShortcuts");
         static const UINT colorDropMessage = RegisterWindowMessageW(L"KritaDevColorDrop");
+        static const UINT actionMessage = RegisterWindowMessageW(L"KritaDevAction");
         const MSG *msg = static_cast<MSG *>(message);
         if (msg->message == colorDropMessage) {
             // the low byte: 0 over the canvas, 1 dropped, 2 left, 3 auto flats, 4 recolor the active layer; the rest is the color as 0xRRGGBB
             colorDrop(int(msg->wParam & 0xff), QColor::fromRgb(QRgb(quint64(msg->wParam) >> 8)),
                       QPoint(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam)));
+            return true;
+        }
+        if (msg->message == actionMessage) {
+            // the action named by the global atom in lParam ("krita_filter_halftone" opens Halftone), triggered
+            wchar_t name[256];
+            const UINT length = GlobalGetAtomNameW(ATOM(msg->lParam), name, 256);
+            KisMainWindow *window = KisPart::instance()->currentMainwindow();
+            if (length && window && window->viewManager()) {
+                if (KisAction *action = window->viewManager()->actionManager()->actionByName(QString::fromWCharArray(name, int(length)))) {
+                    action->trigger();
+                }
+            }
             return true;
         }
         if (msg->message == shortcutsMessage) {

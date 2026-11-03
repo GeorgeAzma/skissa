@@ -132,6 +132,10 @@ msgctxt "color effect preset"
 msgid "Auto"
 msgstr "Auto"
 
+msgctxt "fewer colors effect setting"
+msgid "Brightness"
+msgstr "Lysstyrke"
+
 msgctxt "no dithering"
 msgid "None"
 msgstr "Ingen"

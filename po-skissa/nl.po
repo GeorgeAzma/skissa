@@ -825,9 +825,9 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Origineel"
 
-msgctxt "fewer colors effect preset"
-msgid "Posterize"
-msgstr "Poster maken"
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Kleuren"
 
 msgctxt "no dithering"
 msgid "None"
@@ -837,21 +837,13 @@ msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "Patroon"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "Afbeelding"
-
-msgctxt "colors taken from: steps of each channel"
-msgid "Levels"
-msgstr "Niveaus"
-
 msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "Niveaus"
 
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "Kleuren"
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Niveaus"
 
 msgctxt "effect setting"
 msgid "Size"

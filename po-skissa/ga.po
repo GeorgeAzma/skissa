@@ -817,37 +817,21 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Bunaidh"
 
-msgctxt "fewer colors effect preset"
-msgid "Posterize"
-msgstr "Póstaeraigh"
-
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "Poncanna"
-
 msgctxt "fewer colors effect setting"
-msgid "Lightness"
-msgstr "Éadromacht"
+msgid "Colors"
+msgstr "Dathanna"
 
 msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "Patrún"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "Íomhá"
-
-msgctxt "colors taken from: steps of each channel"
-msgid "Levels"
-msgstr "Leibhéil"
-
 msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "Leibhéil"
 
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "Dathanna"
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Leibhéil"
 
 msgctxt "effect setting"
 msgid "Size"

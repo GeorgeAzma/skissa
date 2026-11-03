@@ -352,13 +352,9 @@ msgctxt "noise effect preset"
 msgid "Color"
 msgstr "Farve"
 
-msgctxt "fewer colors effect preset"
-msgid "Posterize"
-msgstr "Posterisering"
-
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "Prikker"
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Farver"
 
 msgctxt "no dithering"
 msgid "None"
@@ -367,10 +363,6 @@ msgstr "Ingen"
 msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "Mønster"
-
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "Farver"
 
 msgctxt "noise effect setting"
 msgid "Color"

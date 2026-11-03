@@ -827,12 +827,12 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "מקור"
 
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "נקודות"
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "צבעים"
 
 msgctxt "fewer colors effect setting"
-msgid "Lightness"
+msgid "Brightness"
 msgstr "בהירות"
 
 msgctxt "no dithering"
@@ -843,21 +843,13 @@ msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "תבנית"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "תמונה"
-
-msgctxt "colors taken from: steps of each channel"
-msgid "Levels"
-msgstr "רמות"
-
 msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "רמות"
 
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "צבעים"
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "רמות"
 
 msgctxt "effect setting"
 msgid "Size"

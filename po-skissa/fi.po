@@ -548,29 +548,21 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Alkuperäinen"
 
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "Pisteet"
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Värit"
 
 msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "Kuvio"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "Kuva"
-
-msgctxt "colors taken from: steps of each channel"
-msgid "Levels"
-msgstr "Tasot"
-
 msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "Tasot"
 
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "Värit"
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Tasot"
 
 msgctxt "effect setting"
 msgid "Size"

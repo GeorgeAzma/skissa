@@ -685,37 +685,25 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Пів тони"
 
-msgctxt "fewer colors effect preset"
-msgid "Posterize"
-msgstr "Постеризація"
-
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "Крапки"
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Кольори"
 
 msgctxt "fewer colors effect setting"
-msgid "Lightness"
-msgstr "Освітленість"
+msgid "Brightness"
+msgstr "Яскравість"
 
 msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "Візерунок"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "Зображення"
-
-msgctxt "colors taken from: steps of each channel"
-msgid "Levels"
-msgstr "Рівні"
-
 msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "Рівні"
 
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "Кольори"
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Рівні"
 
 msgctxt "effect setting"
 msgid "Size"

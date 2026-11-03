@@ -1,0 +1,1238 @@
+/*
+ *  SPDX-FileCopyrightText: 2026 GeorgeAzma <lumi.main.mail@gmail.com>
+ *
+ *  SPDX-License-Identifier: GPL-2.0-or-later
+ */
+#include "KisEffectPanels.h"
+
+#include <QGuiApplication>
+#include <QDomDocument>
+#include <QHBoxLayout>
+#include <QLinearGradient>
+#include <QMouseEvent>
+#include <QLabel>
+#include <QPainter>
+#include <QPolygonF>
+#include <QTimer>
+#include <QTransform>
+#include <QVBoxLayout>
+#include <QtMath>
+
+#include <cmath>
+
+#include <KisEffectCanvasEditor.h>
+#include <KisGlobalResourcesInterface.h>
+#include <KisModernStyle.h>
+#include <KoColor.h>
+#include <KoColorModelStandardIds.h>
+#include <KoColorSpace.h>
+#include <KoColorSpaceRegistry.h>
+#include <KoSegmentGradient.h>
+#include <KoStopGradient.h>
+#include <KisGradientConversion.h>
+#include <filter/kis_filter.h>
+#include <filter/kis_filter_configuration.h>
+#include <filter/kis_filter_registry.h>
+#include <kis_color_button.h>
+#include <kis_config_widget.h>
+#include <kis_default_bounds.h>
+#include <kis_paint_device.h>
+#include <kis_painter.h>
+#include <klocalizedstring.h>
+#include <widgets/KisStudioChips.h>
+#include <widgets/KisStudioValueRow.h>
+
+namespace KisEffectPanels
+{
+
+namespace
+{
+
+/// The part of the layer the pictures show, at its own size so that fine detail shows
+const QSize tileSize(96, 60);
+/// The drag on the image across which a value goes its usual way, or a size grows by a factor of e
+constexpr qreal dragForRange = 300;
+constexpr qreal dragForSize = 150;
+
+using Config = KisFilterConfiguration;
+using Edit = std::function<void(Config &)>;
+using Test = std::function<bool(const Config &)>;
+
+using Drawing = std::function<void(QPainter &, const QRectF &)>;
+
+/// A choice among a few, each tile a picture of the layer with it, or a drawing of its own
+struct Tile {
+    QString name;
+    Edit edit;
+    Test on;
+    Drawing drawing {};
+};
+
+/// A value of the settings, shown as a row
+struct Value {
+    QString name;
+    KisStudioValueRow::Range range;
+    std::function<qreal(const Config &)> read;
+    std::function<void(Config &, qreal)> write;
+    Test shown;
+    /// The range a drag on the image covers, when narrower than the row's
+    qreal usualMaximum {0};
+};
+
+/// A color of the settings
+struct Color {
+    QString name;
+    std::function<KoColor(const Config &)> read;
+    std::function<void(Config &, const KoColor &)> write;
+    Test shown;
+};
+
+/// Bounds of a picture of its own, for effects that read past the edge (Krita's blurs repeat the image's edge)
+class PictureBounds : public KisDefaultBounds
+{
+public:
+    explicit PictureBounds(const QRect &rect)
+        : m_rect(rect)
+    {
+    }
+    QRect bounds() const override
+    {
+        return m_rect;
+    }
+
+private:
+    QRect m_rect;
+};
+
+/// Rings of every size from coarse to fine with every hue, for a layer with nothing on it
+QImage fallbackPicture(const QSize &size)
+{
+    QImage image(size, QImage::Format_ARGB32);
+    const qreal k = M_PI / (2.0 * size.width());
+    for (int y = 0; y < size.height(); y++) {
+        for (int x = 0; x < size.width(); x++) {
+            const qreal dx = x - size.width() / 2.0, dy = y - size.height() / 2.0;
+            const qreal value = 0.5 + 0.5 * std::cos(k * (dx * dx + dy * dy));
+            image.setPixelColor(x, y, QColor::fromHsvF(qreal(x) / size.width(), 0.6, value));
+        }
+    }
+    return image;
+}
+
+class Panel : public KisConfigWidget, public KisEffectCanvasEditor
+{
+    Q_OBJECT
+    Q_INTERFACES(KisEffectCanvasEditor)
+public:
+    Panel(QWidget *parent, const QString &filterId, KisPaintDeviceSP device)
+        : KisConfigWidget(parent)
+        , m_filter(KisFilterRegistry::instance()->value(filterId))
+    {
+        auto *layout = new QVBoxLayout(this);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
+
+        // the pixels as they were before the preview changes them; their tiles are shared until then
+        if (device) {
+            m_original = new KisPaintDevice(*device);
+            const QRect bounds = m_original->exactBounds();
+            if (!bounds.isEmpty()) m_crop = QRect(busiestPoint(m_original, bounds) - QPoint(tileSize.width() / 2, tileSize.height() / 2), tileSize);
+        }
+        if (m_crop.isEmpty()) {
+            m_original = new KisPaintDevice(device ? device->colorSpace() : KoColorSpaceRegistry::instance()->rgb8());
+            m_original->convertFromQImage(fallbackPicture(tileSize), nullptr);
+            m_crop = QRect(QPoint(), tileSize);
+            m_original->setDefaultBounds(new PictureBounds(m_crop));
+        }
+        m_config = defaults();
+
+        m_pictureTimer.setSingleShot(true);
+        m_pictureTimer.setInterval(60);
+        connect(&m_pictureTimer, &QTimer::timeout, this, &Panel::refreshPictures);
+    }
+
+    KisPaintDeviceSP original() const { return m_original; }
+
+    enum class Pictures {
+        /// A part of the layer at its own size: patterns and detail show as they will
+        Detail,
+        /// All of the layer, small: a look shows
+        Whole,
+        /// Words, where a picture of the layer wouldn't tell the choices apart
+        None,
+    };
+
+    void addTiles(const QVector<Tile> &tiles, Test shown = {}, Pictures pictures = Pictures::Detail)
+    {
+        auto *chips = new KisStudioChips(this);
+        if (pictures != Pictures::None) chips->setTileColumns(tiles.size(), qMax(56, 2 * fontMetrics().height() + 26));
+        else chips->setTabs(true);
+        layout()->addWidget(chips);
+        const int index = m_tiles.size();
+        m_tiles << TileRow{chips, tiles, shown, {}, pictures};
+        connect(chips, &KisStudioChips::clicked, this, [this, index](int tile) {
+            const TileRow &row = m_tiles[index];
+            if (tile < 0 || tile >= row.tiles.size()) return;
+            row.tiles[tile].edit(*m_config);
+            changed(true);
+        });
+    }
+
+    /// A setting that is on or off, as a switch
+    void addSwitch(const QString &name, Test on, Edit toggle)
+    {
+        auto *chips = new KisStudioChips(this);
+        chips->setSwitches(true);
+        layout()->addWidget(chips);
+        m_switches << SwitchRow{chips, name, on};
+        connect(chips, &KisStudioChips::clicked, this, [this, toggle](int) {
+            toggle(*m_config);
+            changed(true);
+        });
+    }
+
+    KisStudioValueRow *addValue(const Value &value)
+    {
+        auto *row = new KisStudioValueRow(value.name, this);
+        row->setRange(value.range);
+        row->setDefaultValue(value.read(*defaults()));
+        layout()->addWidget(row);
+        const int index = m_values.size();
+        m_values << qMakePair(value, row);
+        connect(row, &KisStudioValueRow::valueChanged, this, [this, index](qreal v) {
+            m_values[index].first.write(*m_config, v);
+            changed(true);
+        });
+        return row;
+    }
+
+    void addColor(const Color &color)
+    {
+        auto *row = new QWidget(this);
+        auto *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        rowLayout->addWidget(new QLabel(color.name, row), 1);
+        auto *button = new KisColorButton(row);
+        rowLayout->addWidget(button);
+        layout()->addWidget(row);
+        const int index = m_colors.size();
+        m_colors << ColorRow{color, row, button};
+        connect(button, &KisColorButton::changed, this, [this, index](const KoColor &c) {
+            m_colors[index].color.write(*m_config, c);
+            changed(true);
+        });
+    }
+
+    /// A row of the panel's own, refreshed by \p refresh whenever the settings change
+    void addRow(QWidget *row, std::function<void()> refresh)
+    {
+        layout()->addWidget(row);
+        m_ownRows << refresh;
+    }
+
+    /// The settings as they are, for rows of the panel's own; edited() after changing them
+    Config &config()
+    {
+        return *m_config;
+    }
+
+    void edited()
+    {
+        changed(true);
+    }
+
+    /// A drag on the image up or down changes value \p vertical, sideways value \p horizontal (-1: none)
+    void dragValues(int vertical, int horizontal)
+    {
+        m_vertical = vertical;
+        m_horizontal = horizontal;
+    }
+
+    /// A drag on the image draws a line whose length is value \p length and whose direction is value \p angle
+    void dragLine(int length, int angle)
+    {
+        m_lineLength = length;
+        m_lineAngle = angle;
+    }
+
+    /// A press on the image without a drag hands over its pixel's color
+    void pickColor(std::function<void(Config &, const KoColor &)> pick)
+    {
+        m_pick = pick;
+    }
+
+    /// Settings that follow from the others, made before every change goes out
+    void settle(Edit settle)
+    {
+        m_settle = settle;
+    }
+
+    /// Settings a panel needs made right from the layer (its color model)
+    void prepare(Edit prepare)
+    {
+        m_prepare = prepare;
+        m_prepare(*m_config);
+    }
+
+    void finish()
+    {
+        static_cast<QVBoxLayout *>(layout())->addStretch();
+        refresh();
+    }
+
+    void setConfiguration(const KisPropertiesConfigurationSP config) override
+    {
+        m_config = defaults();
+        if (config) {
+            const QMap<QString, QVariant> properties = config->getProperties();
+            for (auto it = properties.constBegin(); it != properties.constEnd(); ++it) m_config->setProperty(it.key(), it.value());
+        }
+        if (m_prepare) m_prepare(*m_config);
+        refresh();
+    }
+
+    KisPropertiesConfigurationSP configuration() const override
+    {
+        KisFilterConfigurationSP config = m_config->clone();
+        if (m_settle) m_settle(*config);
+        return config;
+    }
+
+    QSize sizeHint() const override
+    {
+        const int width = 380;
+        return QSize(width, qMax(layout()->heightForWidth(width), layout()->sizeHint().height()));
+    }
+
+    void canvasHovered(const QPoint &) override
+    {
+    }
+
+    bool canvasPressed(const QPoint &pixel) override
+    {
+        m_dragging = true;
+        m_moved = false;
+        m_pressedAt = pixel;
+        m_startValues.clear();
+        for (const auto &value : m_values) m_startValues << value.second->value();
+        return true;
+    }
+
+    QString canvasDragged(const QPointF &moved, const QPointF &) override
+    {
+        if (!m_dragging) return QString();
+        if (!m_moved && std::hypot(moved.x(), moved.y()) < 3) return QString();
+        m_moved = true;
+        if (m_lineLength >= 0 && m_lineAngle >= 0) {
+            setValue(m_lineLength, std::hypot(moved.x(), moved.y()));
+            // clockwise from the right, as the image's y grows down
+            qreal angle = qRadiansToDegrees(std::atan2(moved.y(), moved.x()));
+            if (angle < 0) angle += 360;
+            setValue(m_lineAngle, angle);
+            return shown(m_lineLength) + QStringLiteral("  ") + shown(m_lineAngle);
+        }
+        QString text;
+        auto drag = [&](int index, qreal by, bool up) {
+            if (index < 0) return;
+            const Value &value = m_values[index].first;
+            const qreal start = m_startValues.value(index);
+            if (value.range.size) {
+                setValue(index, std::max(value.range.minimum, start) * std::exp((up ? -by : by) / dragForSize));
+            } else {
+                const qreal span = (value.usualMaximum > value.range.minimum ? value.usualMaximum : value.range.maximum) - value.range.minimum;
+                setValue(index, start + (up ? -by : by) / dragForRange * span);
+            }
+        };
+        drag(m_vertical, moved.y(), true);
+        drag(m_horizontal, moved.x(), false);
+        const bool across = m_horizontal >= 0 && (m_vertical < 0 || std::abs(moved.x()) > std::abs(moved.y()));
+        const int named = across ? m_horizontal : m_vertical;
+        if (named >= 0) text = shown(named);
+        return text;
+    }
+
+    void canvasReleased() override
+    {
+        if (m_dragging && !m_moved && m_pick) {
+            KoColor color;
+            if (m_original->pixel(m_pressedAt.x(), m_pressedAt.y(), &color)) {
+                m_pick(*m_config, color);
+                changed(true);
+            }
+        }
+        m_dragging = false;
+    }
+
+private:
+    struct TileRow {
+        KisStudioChips *chips;
+        QVector<Tile> tiles;
+        Test shown;
+        QVector<QImage> pictures;
+        Pictures kind;
+    };
+    struct SwitchRow {
+        KisStudioChips *chips;
+        QString name;
+        Test on;
+    };
+    struct ColorRow {
+        Color color;
+        QWidget *row;
+        KisColorButton *button;
+    };
+
+    KisFilterConfigurationSP defaults() const
+    {
+        KisFilterConfigurationSP config = m_filter->defaultConfiguration(KisGlobalResourcesInterface::instance());
+        if (m_prepare) m_prepare(*config);
+        return config;
+    }
+
+    QString shown(int index) const
+    {
+        const KisStudioValueRow *row = m_values[index].second;
+        const KisStudioValueRow::Range &range = m_values[index].first.range;
+        return row->name() + QStringLiteral(" ") + QString::number(row->value(), 'f', range.decimals) + range.suffix;
+    }
+
+    void setValue(int index, qreal value)
+    {
+        const Value &spec = m_values[index].first;
+        value = qBound(spec.range.minimum, value, spec.range.maximum);
+        spec.write(*m_config, value);
+        m_values[index].second->setValue(value);
+        changed(false);
+    }
+
+    void changed(bool refreshRows)
+    {
+        if (refreshRows) refresh();
+        else refreshTiles();
+        m_pictureTimer.start();
+        Q_EMIT sigConfigurationItemChanged();
+    }
+
+    void refresh()
+    {
+        for (const auto &value : m_values) {
+            value.second->setVisible(!value.first.shown || value.first.shown(*m_config));
+            value.second->setValue(value.first.read(*m_config));
+        }
+        for (const ColorRow &color : m_colors) {
+            color.row->setVisible(!color.color.shown || color.color.shown(*m_config));
+            QSignalBlocker blocker(color.button);
+            color.button->setColor(color.color.read(*m_config));
+        }
+        for (const SwitchRow &row : m_switches) {
+            KisStudioChips::Chip chip;
+            chip.text = row.name;
+            chip.on = row.on(*m_config);
+            row.chips->setChips({chip});
+        }
+        Q_FOREACH (const std::function<void()> &refreshRow, m_ownRows) {
+            if (refreshRow) refreshRow();
+        }
+        refreshTiles();
+        if (!m_pictured) refreshPictures();
+    }
+
+    void refreshTiles()
+    {
+        for (TileRow &row : m_tiles) {
+            row.chips->setVisible(!row.shown || row.shown(*m_config));
+            QVector<KisStudioChips::Chip> chips;
+            for (int i = 0; i < row.tiles.size(); i++) {
+                KisStudioChips::Chip chip;
+                chip.text = row.tiles[i].name;
+                chip.on = row.tiles[i].on(*m_config);
+                if (row.tiles[i].drawing) chip.picture = row.tiles[i].drawing;
+                // patterns at their own size, not smoothed
+                else if (i < row.pictures.size()) chip.picture = tilePicture(row.pictures[i], false, row.kind == Pictures::Detail);
+                chips << chip;
+            }
+            row.chips->setChips(chips);
+        }
+    }
+
+    /// Each tile as the layer would look with it
+    void refreshPictures()
+    {
+        m_pictured = true;
+        for (TileRow &row : m_tiles) {
+            row.pictures.clear();
+            if (row.chips->isHidden() || row.kind == Pictures::None) continue;
+            for (const Tile &tile : row.tiles) {
+                if (tile.drawing) {
+                    row.pictures << QImage();
+                    continue;
+                }
+                KisFilterConfigurationSP config = m_config->clone();
+                tile.edit(*config);
+                if (m_settle) m_settle(*config);
+                row.pictures << applied(config, row.kind == Pictures::Whole);
+            }
+        }
+        refreshTiles();
+    }
+
+    QImage applied(KisFilterConfigurationSP config, bool whole) const
+    {
+        config = config->cloneWithResourcesSnapshot(KisGlobalResourcesInterface::instance());
+        if (whole) {
+            if (!m_whole) {
+                const QRect bounds = m_original->exactBounds().isEmpty() ? m_crop : m_original->exactBounds();
+                const QSize size = bounds.size().scaled(192, 192, Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
+                m_whole = m_original->createThumbnailDevice(size.width(), size.height(), bounds);
+                m_whole->setDefaultBounds(new PictureBounds(QRect(QPoint(), size)));
+            }
+            KisPaintDeviceSP work = new KisPaintDevice(*m_whole);
+            const QRect rect = work->defaultBounds()->bounds();
+            m_filter->process(work, rect, config);
+            return work->convertToQImage(nullptr, rect);
+        }
+        const QRect needed = m_filter->neededRect(m_crop, config, 0) | m_crop;
+        KisPaintDeviceSP work = new KisPaintDevice(m_original->colorSpace());
+        work->setDefaultBounds(m_original->defaultBounds());
+        KisPainter::copyAreaOptimized(needed.topLeft(), m_original, work, needed);
+        m_filter->process(work, m_crop, config);
+        return work->convertToQImage(nullptr, m_crop);
+    }
+
+    KisFilterSP m_filter;
+    KisPaintDeviceSP m_original;
+    QRect m_crop;
+    KisFilterConfigurationSP m_config;
+    QVector<TileRow> m_tiles;
+    QVector<QPair<Value, KisStudioValueRow *>> m_values;
+    QVector<ColorRow> m_colors;
+    QVector<SwitchRow> m_switches;
+    QVector<std::function<void()>> m_ownRows;
+    /// All of the layer, small, made when a row first needs it
+    mutable KisPaintDeviceSP m_whole;
+    Edit m_settle;
+    Edit m_prepare;
+    std::function<void(Config &, const KoColor &)> m_pick;
+    QTimer m_pictureTimer;
+    bool m_pictured {false};
+
+    int m_vertical {-1};
+    int m_horizontal {-1};
+    int m_lineLength {-1};
+    int m_lineAngle {-1};
+    bool m_dragging {false};
+    bool m_moved {false};
+    QPoint m_pressedAt;
+    QVector<qreal> m_startValues;
+};
+
+KisStudioValueRow::Range range(qreal minimum, qreal maximum, int decimals, const QString &suffix, bool size = false)
+{
+    KisStudioValueRow::Range r;
+    r.minimum = minimum;
+    r.maximum = maximum;
+    r.decimals = decimals;
+    r.suffix = suffix;
+    r.size = size;
+    return r;
+}
+
+std::function<qreal(const Config &)> reads(const QString &key, qreal fallback)
+{
+    return [key, fallback](const Config &c) { return c.getDouble(key, fallback); };
+}
+
+std::function<void(Config &, qreal)> writes(const QString &key, bool whole = false)
+{
+    return [key, whole](Config &c, qreal v) { c.setProperty(key, whole ? QVariant(qRound(v)) : QVariant(v)); };
+}
+
+const QString px = QStringLiteral(" px");
+const QString degrees = QStringLiteral("°");
+const QString percent = QStringLiteral("%");
+
+// Halftone
+
+/// The screens of the settings: one for the lightness or transparency, or one a color channel
+QStringList screensOf(const Config &c)
+{
+    const QString mode = c.getString("mode", QStringLiteral("intensity"));
+    if (mode != QLatin1String("independent_channels")) return {mode + QStringLiteral("_")};
+    const QString model = c.getString("color_model_id");
+    const int channels = model == CMYKAColorModelID.id() ? 4 : 3;
+    QStringList screens;
+    for (int i = 0; i < channels; i++) screens << model + QStringLiteral("_channel") + QString::number(i) + QStringLiteral("_");
+    return screens;
+}
+
+QString screenKey(const QString &screen, const char *key)
+{
+    return screen + QStringLiteral("generator_screentone_") + QLatin1String(key);
+}
+
+/// Each color channel's screen turned from the others, as print screens are, around the angle chosen
+qreal channelTurn(const QString &screen)
+{
+    static const QHash<QString, qreal> turns = {
+        {QStringLiteral("RGBA_channel0_"), -30}, {QStringLiteral("RGBA_channel1_"), 0}, {QStringLiteral("RGBA_channel2_"), 30},
+        {QStringLiteral("CMYKA_channel0_"), -30}, {QStringLiteral("CMYKA_channel1_"), 30}, {QStringLiteral("CMYKA_channel2_"), -45},
+        {QStringLiteral("CMYKA_channel3_"), 0},
+    };
+    return turns.value(screen);
+}
+
+qreal screenSize(const Config &c)
+{
+    const QString screen = screensOf(c).first();
+    if (c.getInt(screenKey(screen, "size_mode"), 0) == 1) return c.getDouble(screenKey(screen, "size_x"), 10);
+    return c.getDouble(screenKey(screen, "resolution"), 300) / std::max(0.01, c.getDouble(screenKey(screen, "frequency_x"), 30));
+}
+
+void setOnScreens(Config &c, const char *key, const QVariant &value)
+{
+    Q_FOREACH (const QString &screen, screensOf(c)) {
+        c.setProperty(screen + QStringLiteral("generator"), QStringLiteral("screentone"));
+        c.setProperty(screenKey(screen, key), value);
+    }
+}
+
+void setScreenSize(Config &c, qreal size)
+{
+    setOnScreens(c, "size_mode", 1);
+    setOnScreens(c, "keep_size_square", true);
+    setOnScreens(c, "size_x", size);
+    setOnScreens(c, "size_y", size);
+}
+
+qreal screenAngle(const Config &c)
+{
+    const QString screen = screensOf(c).first();
+    return c.getDouble(screenKey(screen, "rotation"), 45) - channelTurn(screen);
+}
+
+void setScreenAngle(Config &c, qreal angle)
+{
+    Q_FOREACH (const QString &screen, screensOf(c)) {
+        c.setProperty(screen + QStringLiteral("generator"), QStringLiteral("screentone"));
+        c.setProperty(screenKey(screen, "rotation"), angle + channelTurn(screen));
+    }
+}
+
+void setHardness(Config &c, qreal hardness)
+{
+    Q_FOREACH (const QString &screen, screensOf(c)) c.setProperty(screen + QStringLiteral("hardness"), hardness);
+}
+
+/// Switches to \p mode, carrying the shape, size, angle and hardness over to its screens
+void setHalftoneMode(Config &c, const QString &mode)
+{
+    if (c.getString("mode") == mode) return;
+    const QString from = screensOf(c).first();
+    const int pattern = c.getInt(screenKey(from, "pattern"), 0);
+    const int shape = c.getInt(screenKey(from, "shape"), 0);
+    const qreal size = screenSize(c);
+    const qreal angle = screenAngle(c);
+    const qreal hardness = c.getDouble(from + QStringLiteral("hardness"), 80);
+    c.setProperty("mode", mode);
+    setOnScreens(c, "pattern", pattern);
+    setOnScreens(c, "shape", shape);
+    setScreenSize(c, size);
+    setScreenAngle(c, angle);
+    setHardness(c, hardness);
+}
+
+KisConfigWidget *halftone(QWidget *parent, KisPaintDeviceSP device)
+{
+    auto *panel = new Panel(parent, QStringLiteral("halftone"), device);
+    const QString model = panel->original()->colorSpace()->colorModelId().id();
+    panel->prepare([model](Config &c) { c.setProperty("color_model_id", model); });
+
+    auto shapeTile = [](const QString &name, int pattern, int shape) {
+        return Tile{name,
+                    [pattern, shape](Config &c) {
+                        setOnScreens(c, "pattern", pattern);
+                        setOnScreens(c, "shape", shape);
+                    },
+                    [pattern, shape](const Config &c) {
+                        const QString screen = screensOf(c).first();
+                        return c.getInt(screenKey(screen, "pattern"), 0) == pattern && c.getInt(screenKey(screen, "shape"), 0) == shape;
+                    }};
+    };
+    panel->addTiles({shapeTile(i18nc("halftone shape", "Dots"), 0, 0), shapeTile(i18nc("halftone shape", "Diamonds"), 0, 2),
+                     shapeTile(i18nc("halftone shape", "Squares"), 0, 3), shapeTile(i18nc("halftone shape", "Lines"), 1, 0),
+                     shapeTile(i18nc("halftone shape", "Waves"), 1, 1)});
+
+    // what the screens make: ink on paper, ink alone, or each color channel screened
+    const bool colors = model == RGBAColorModelID.id() || model == CMYKAColorModelID.id();
+    auto inkTile = [](const QString &name, int paper) {
+        return Tile{name,
+                    [paper](Config &c) {
+                        setHalftoneMode(c, QStringLiteral("intensity"));
+                        c.setProperty("intensity_background_opacity", paper);
+                    },
+                    [paper](const Config &c) {
+                        return c.getString("mode") == QLatin1String("intensity") && (c.getInt("intensity_background_opacity", 100) > 0) == (paper > 0);
+                    }};
+    };
+    QVector<Tile> inks = {inkTile(i18nc("halftone: ink on paper", "Paper"), 100), inkTile(i18nc("halftone: ink alone, see-through between", "Clear"), 0)};
+    if (colors) {
+        inks << Tile{i18nc("halftone: each color channel screened", "Color"),
+                     [](Config &c) { setHalftoneMode(c, QStringLiteral("independent_channels")); },
+                     [](const Config &c) { return c.getString("mode") == QLatin1String("independent_channels"); }};
+    }
+    panel->addTiles(inks);
+
+    const int size = 0;
+    panel->addValue({i18nc("halftone setting", "Size"), range(2, 400, 1, px, true), screenSize, setScreenSize, {}, 60});
+    const int angle = 1;
+    panel->addValue({i18nc("halftone setting", "Angle"), range(-90, 90, 0, degrees), screenAngle, setScreenAngle, {}, 90});
+    panel->addValue({i18nc("halftone setting", "Softness"), range(0, 100, 0, percent),
+                     [](const Config &c) { return 100 - c.getDouble(screensOf(c).first() + QStringLiteral("hardness"), 80); },
+                     [](Config &c, qreal v) { setHardness(c, 100 - v); }, {}, 100});
+
+    auto intensity = [](const Config &c) { return c.getString("mode", QStringLiteral("intensity")) == QLatin1String("intensity"); };
+    panel->addColor({i18nc("halftone: the color of the dots", "Ink"),
+                     [](const Config &c) { return c.getColor("intensity_foreground_color", KoColor(Qt::black, KoColorSpaceRegistry::instance()->rgb8())); },
+                     [](Config &c, const KoColor &color) {
+                         QVariant v;
+                         v.setValue(color);
+                         c.setProperty("intensity_foreground_color", v);
+                     },
+                     intensity});
+    panel->addColor({i18nc("halftone: the color between the dots", "Paper"),
+                     [](const Config &c) { return c.getColor("intensity_background_color", KoColor(Qt::white, KoColorSpaceRegistry::instance()->rgb8())); },
+                     [](Config &c, const KoColor &color) {
+                         QVariant v;
+                         v.setValue(color);
+                         c.setProperty("intensity_background_color", v);
+                     },
+                     [intensity](const Config &c) { return intensity(c) && c.getInt("intensity_background_opacity", 100) > 0; }});
+    panel->dragValues(size, angle);
+    panel->finish();
+    return panel;
+}
+
+// Blurs
+
+KisConfigWidget *motionBlur(QWidget *parent, KisPaintDeviceSP device)
+{
+    auto *panel = new Panel(parent, QStringLiteral("motion blur"), device);
+    panel->addValue({i18nc("motion blur setting", "Length"), range(0, 256, 0, px, true), reads("blurLength", 5), writes("blurLength", true), {}, 64});
+    panel->addValue({i18nc("motion blur setting", "Angle"), range(0, 360, 0, degrees), reads("blurAngle", 0), writes("blurAngle", true), {}, 360});
+    panel->dragLine(0, 1);
+    panel->finish();
+    return panel;
+}
+
+KisConfigWidget *lensBlur(QWidget *parent, KisPaintDeviceSP device)
+{
+    auto *panel = new Panel(parent, QStringLiteral("lens blur"), device);
+    auto shape = [](const QString &name, const char *key, int sides) {
+        const QString id = QLatin1String(key);
+        // the iris, as the blur spreads a bright point
+        Drawing drawing = [sides](QPainter &painter, const QRectF &rect) {
+            QPolygonF iris;
+            const qreal radius = 0.36 * std::min(rect.width(), rect.height());
+            for (int i = 0; i < sides; i++) {
+                const qreal angle = 2 * M_PI * i / sides - M_PI / 2;
+                iris << rect.center() + radius * QPointF(std::cos(angle), std::sin(angle));
+            }
+            QColor ink = QGuiApplication::palette().color(QPalette::WindowText);
+            painter.save();
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setPen(Qt::NoPen);
+            ink.setAlphaF(0.85);
+            painter.setBrush(ink);
+            painter.drawPolygon(iris);
+            painter.restore();
+        };
+        return Tile{name, [id](Config &c) { c.setProperty("irisShape", id); }, [id](const Config &c) { return c.getString("irisShape") == id; }, drawing};
+    };
+    panel->addTiles({shape(QString(), "Triangle", 3), shape(QString(), "Quadrilateral (4)", 4), shape(QString(), "Pentagon (5)", 5),
+                     shape(QString(), "Hexagon (6)", 6), shape(QString(), "Octagon (8)", 8)});
+    panel->addValue({i18nc("lens blur setting", "Size"), range(1, 256, 0, px, true), reads("irisRadius", 5), writes("irisRadius", true), {}, 64});
+    panel->addValue({i18nc("lens blur setting", "Angle"), range(0, 360, 0, degrees), reads("irisRotation", 0), writes("irisRotation", true), {}, 360});
+    // the kernel's half size, as Krita's panel writes it: half the iris polygon's bounds
+    panel->settle([](Config &c) {
+        const QString shape = c.getString("irisShape");
+        const int sides = shape == QLatin1String("Triangle") ? 3 : shape.mid(shape.indexOf(QLatin1Char('(')) + 1, 1).toInt();
+        if (sides < 3) return;
+        QPolygonF iris;
+        qreal angle = 0;
+        for (int i = 0; i < sides; i++) {
+            iris << QPointF(0.5 * std::cos(angle), 0.5 * std::sin(angle));
+            angle += 2 * M_PI / sides;
+        }
+        QTransform transform;
+        transform.rotate(c.getInt("irisRotation", 0));
+        const int radius = c.getInt("irisRadius", 5);
+        transform.scale(radius * 2, radius * 2);
+        const QRect rect = transform.map(iris).boundingRect().toAlignedRect();
+        c.setProperty("halfWidth", int(std::ceil(rect.width() / 2.0)));
+        c.setProperty("halfHeight", int(std::ceil(rect.height() / 2.0)));
+    });
+    panel->dragValues(0, 1);
+    panel->finish();
+    return panel;
+}
+
+KisConfigWidget *pixelize(QWidget *parent, KisPaintDeviceSP device)
+{
+    auto *panel = new Panel(parent, QStringLiteral("pixelize"), device);
+    panel->addValue({i18nc("pixelize setting", "Size"), range(1, 512, 0, px, true), reads("pixelWidth", 10),
+                     [](Config &c, qreal v) {
+                         c.setProperty("pixelWidth", qRound(v));
+                         c.setProperty("pixelHeight", qRound(v));
+                         c.setProperty("keepAspect", true);
+                     },
+                     {}, 64});
+    panel->dragValues(0, -1);
+    panel->finish();
+    return panel;
+}
+
+// Colors
+
+KisConfigWidget *colorToAlpha(QWidget *parent, KisPaintDeviceSP device)
+{
+    auto *panel = new Panel(parent, QStringLiteral("colortoalpha"), device);
+    panel->addColor({i18nc("color to alpha: the color made see-through", "Color"),
+                     [](const Config &c) {
+                         const QColor color = c.getProperty("targetcolor").value<QColor>();
+                         return KoColor(color.isValid() ? color : QColor(Qt::white), KoColorSpaceRegistry::instance()->rgb8());
+                     },
+                     [](Config &c, const KoColor &color) { c.setProperty("targetcolor", color.toQColor()); },
+                     {}});
+    panel->addValue({i18nc("color to alpha: how far a color may be from it", "Range"), range(0, 255, 0, QString()), reads("threshold", 100),
+                     writes("threshold", true), {}, 255});
+    panel->pickColor([](Config &c, const KoColor &color) { c.setProperty("targetcolor", color.toQColor()); });
+    panel->dragValues(0, -1);
+    panel->finish();
+    return panel;
+}
+
+KisConfigWidget *propagateColors(QWidget *parent, KisPaintDeviceSP device)
+{
+    auto *panel = new Panel(parent, QStringLiteral("propagatecolors"), device);
+    auto bounded = [](const Config &c) { return c.getString("expansionMode", QStringLiteral("unbounded")) == QLatin1String("bounded"); };
+    panel->addTiles({Tile{i18nc("propagate colors: fill all the way", "Everywhere"), [](Config &c) { c.setProperty("expansionMode", "unbounded"); },
+                          [bounded](const Config &c) { return !bounded(c); }},
+                     Tile{i18nc("propagate colors: fill a distance", "A distance"), [](Config &c) { c.setProperty("expansionMode", "bounded"); }, bounded}},
+                    {}, Panel::Pictures::None);
+    panel->addValue({i18nc("propagate colors setting", "Distance"), range(1, 1000, 0, px, true), reads("expansionAmount", 10),
+                     writes("expansionAmount"), bounded, 200});
+    panel->addSwitch(i18nc("propagate colors: keep what is see-through as it is", "Keep transparency"),
+                     [](const Config &c) { return c.getString("alphaChannelMode", QStringLiteral("expand")) == QLatin1String("preserve"); },
+                     [](Config &c) {
+                         const bool preserve = c.getString("alphaChannelMode", QStringLiteral("expand")) == QLatin1String("preserve");
+                         c.setProperty("alphaChannelMode", preserve ? "expand" : "preserve");
+                     });
+    panel->dragValues(0, -1);
+    panel->finish();
+    return panel;
+}
+
+KisConfigWidget *heightToNormal(QWidget *parent, KisPaintDeviceSP device)
+{
+    auto *panel = new Panel(parent, QStringLiteral("height to normal"), device);
+    // green up (OpenGL, Blender) or down (DirectX, Unreal)
+    const int yPlus = 2, yMinus = 3;
+    panel->addTiles({Tile{i18nc("normal map convention", "OpenGL"), [yPlus](Config &c) { c.setProperty("greenSwizzle", yPlus); },
+                          [yPlus](const Config &c) { return c.getInt("greenSwizzle", yPlus) == yPlus; }},
+                     Tile{i18nc("normal map convention", "DirectX"), [yMinus](Config &c) { c.setProperty("greenSwizzle", yMinus); },
+                          [yMinus](const Config &c) { return c.getInt("greenSwizzle", yPlus) == yMinus; }}},
+                    {}, Panel::Pictures::None);
+    panel->addValue({i18nc("height to normal map setting", "Size"), range(1, 100, 0, px, true), reads("horizRadius", 1),
+                     [](Config &c, qreal v) {
+                         c.setProperty("horizRadius", qRound(v));
+                         c.setProperty("vertRadius", qRound(v));
+                         c.setProperty("lockAspect", true);
+                     },
+                     {}, 20});
+    panel->dragValues(0, -1);
+    panel->finish();
+    return panel;
+}
+
+// Gradient map
+
+using Stops = QVector<QPair<qreal, QColor>>;
+
+/// The stops of the settings' gradient; black to white when it has none
+Stops stopsOf(const Config &c)
+{
+    Stops stops;
+    QDomDocument document;
+    if (document.setContent(c.getString("gradientXML"))) {
+        const QDomElement element = document.firstChildElement();
+        QGradientStops colors;
+        if (element.attribute("type") == QLatin1String("stop")) {
+            Q_FOREACH (const KoGradientStop &stop, KoStopGradient::fromXML(element).stops()) stops << qMakePair(stop.position, stop.color.toQColor());
+        } else if (element.attribute("type") == QLatin1String("segment")) {
+            KoSegmentGradientSP segments(new KoSegmentGradient(KoSegmentGradient::fromXML(element)));
+            Q_FOREACH (const QGradientStop &stop, KisGradientConversion::toQGradientStops(segments)) stops << qMakePair(stop.first, stop.second);
+        }
+    }
+    if (stops.size() < 2) stops = {qMakePair(0.0, QColor(Qt::black)), qMakePair(1.0, QColor(Qt::white))};
+    std::sort(stops.begin(), stops.end(), [](const QPair<qreal, QColor> &a, const QPair<qreal, QColor> &b) { return a.first < b.first; });
+    return stops;
+}
+
+/// Writes \p stops as the settings' gradient, as Krita's panel does
+void setStops(Config &c, const Stops &stops)
+{
+    KoStopGradientSP gradient(new KoStopGradient());
+    QList<KoGradientStop> list;
+    for (const auto &stop : stops) list << KoGradientStop(stop.first, KoColor(stop.second, KoColorSpaceRegistry::instance()->rgb8()), COLORSTOP);
+    gradient->setStops(list);
+    gradient->setName(i18nc("the gradient of a gradient map effect", "Gradient map"));
+    gradient->updatePreview();
+    QDomDocument document;
+    QDomElement element = document.createElement("gradient");
+    element.setAttribute("name", gradient->name());
+    element.setAttribute("md5sum", gradient->md5Sum());
+    gradient->toXML(document, element);
+    document.appendChild(element);
+    c.setProperty("gradientXML", document.toString());
+}
+
+/// The color of \p stops at \p at
+QColor colorAt(const Stops &stops, qreal at)
+{
+    if (at <= stops.first().first) return stops.first().second;
+    for (int i = 1; i < stops.size(); i++) {
+        if (at <= stops[i].first) {
+            const qreal t = (at - stops[i - 1].first) / std::max(1e-6, stops[i].first - stops[i - 1].first);
+            return KisModernStyle::mix(stops[i - 1].second, stops[i].second, t);
+        }
+    }
+    return stops.last().second;
+}
+
+/**
+ * A gradient as a bar with its stops under it: a stop is dragged along it, a click on the bar adds one with the
+ * color there, a right click takes one away. The stop pressed last is the one whose color the panel shows.
+ */
+class GradientBar : public QWidget
+{
+    Q_OBJECT
+public:
+    explicit GradientBar(QWidget *parent)
+        : QWidget(parent)
+    {
+        setMinimumHeight(barHeight + handle + KisModernStyle::space1);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        setMouseTracking(true);
+    }
+
+    void setStops(const Stops &stops)
+    {
+        m_stops = stops;
+        m_selected = qBound(0, m_selected, int(m_stops.size()) - 1);
+        update();
+    }
+    Stops stops() const { return m_stops; }
+    int selected() const { return m_selected; }
+
+    QSize sizeHint() const override
+    {
+        return QSize(200, minimumHeight());
+    }
+
+Q_SIGNALS:
+    void stopsChanged();
+    void selectedChanged();
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QRectF bar = barRect();
+        QLinearGradient gradient(bar.topLeft(), bar.topRight());
+        for (const auto &stop : m_stops) gradient.setColorAt(stop.first, stop.second);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(gradient);
+        painter.drawPath(KisModernStyle::squircle(bar, KisModernStyle::cornerRadius));
+        for (int i = 0; i < m_stops.size(); i++) {
+            const QPointF at = handleAt(i);
+            const qreal radius = handle / 2.0;
+            // white with a dark ring, so a stop shows on any color
+            painter.setPen(QPen(QColor(0, 0, 0, 160), 1.5));
+            painter.setBrush(Qt::white);
+            painter.drawEllipse(at, radius, radius);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(m_stops[i].second);
+            painter.drawEllipse(at, radius - 3, radius - 3);
+            if (i == m_selected) {
+                painter.setPen(QPen(palette().color(QPalette::WindowText), 1.5));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawEllipse(at, radius + 2.5, radius + 2.5);
+            }
+        }
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        const int index = stopAt(event->pos());
+        if (event->button() == Qt::RightButton) {
+            if (index >= 0 && m_stops.size() > 2) {
+                m_stops.removeAt(index);
+                m_selected = qBound(0, m_selected - (index <= m_selected ? 1 : 0), int(m_stops.size()) - 1);
+                update();
+                Q_EMIT stopsChanged();
+                Q_EMIT selectedChanged();
+            }
+            return;
+        }
+        if (event->button() != Qt::LeftButton) return;
+        if (index >= 0) {
+            m_selected = index;
+        } else {
+            const qreal at = positionOf(event->pos().x());
+            m_stops << qMakePair(at, colorAt(m_stops, at));
+            sortKeeping(m_stops.size() - 1);
+            Q_EMIT stopsChanged();
+        }
+        m_dragging = true;
+        update();
+        Q_EMIT selectedChanged();
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (!m_dragging || !(event->buttons() & Qt::LeftButton)) {
+            m_dragging = false;
+            setCursor(stopAt(event->pos()) >= 0 ? Qt::SizeHorCursor : Qt::ArrowCursor);
+            return;
+        }
+        m_stops[m_selected].first = positionOf(event->pos().x());
+        sortKeeping(m_selected);
+        update();
+        Q_EMIT stopsChanged();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *) override
+    {
+        m_dragging = false;
+    }
+
+private:
+    static constexpr int barHeight = 22;
+    static constexpr int handle = 16;
+
+    QRectF barRect() const
+    {
+        return QRectF(handle / 2.0, 0, width() - handle, barHeight);
+    }
+
+    QPointF handleAt(int index) const
+    {
+        const QRectF bar = barRect();
+        return QPointF(bar.left() + m_stops[index].first * bar.width(), bar.bottom() + handle / 2.0 + KisModernStyle::hairline);
+    }
+
+    qreal positionOf(int x) const
+    {
+        const QRectF bar = barRect();
+        return qBound(0.0, (x - bar.left()) / bar.width(), 1.0);
+    }
+
+    /// The stop under \p pos, the nearest when they overlap; -1: none
+    int stopAt(const QPoint &pos) const
+    {
+        int found = -1;
+        qreal nearest = handle;
+        for (int i = 0; i < m_stops.size(); i++) {
+            const QPointF at = handleAt(i);
+            const qreal distance = std::abs(pos.x() - at.x());
+            if (distance < nearest && pos.y() >= barRect().bottom() - KisModernStyle::space1) {
+                nearest = distance;
+                found = i;
+            }
+        }
+        return found;
+    }
+
+    /// Keeps the stops in order, following stop \p index as the selected one
+    void sortKeeping(int index)
+    {
+        const QPair<qreal, QColor> moved = m_stops[index];
+        std::stable_sort(m_stops.begin(), m_stops.end(), [](const QPair<qreal, QColor> &a, const QPair<qreal, QColor> &b) { return a.first < b.first; });
+        for (int i = 0; i < m_stops.size(); i++) {
+            if (m_stops[i] == moved) m_selected = i;
+        }
+    }
+
+    Stops m_stops;
+    int m_selected {0};
+    bool m_dragging {false};
+};
+
+KisConfigWidget *gradientMap(QWidget *parent, KisPaintDeviceSP device)
+{
+    auto *panel = new Panel(parent, QStringLiteral("gradientmap"), device);
+    // without a gradient of its own Krita maps through one made from the canvas colors: start from black to white
+    panel->prepare([](Config &c) {
+        if (c.getString("gradientXML").isEmpty()) setStops(c, stopsOf(c));
+    });
+    auto look = [](const QString &name, const Stops &stops) {
+        return Tile{name, [stops](Config &c) { setStops(c, stops); },
+                    [stops](const Config &c) {
+                        const Stops current = stopsOf(c);
+                        if (current.size() != stops.size()) return false;
+                        for (int i = 0; i < stops.size(); i++) {
+                            if (std::abs(current[i].first - stops[i].first) > 1e-3 || current[i].second.rgb() != stops[i].second.rgb()) return false;
+                        }
+                        return true;
+                    }};
+    };
+    auto rgb = [](const char *hex) { return QColor(QLatin1String(hex)); };
+    panel->addTiles({look(i18nc("gradient map look", "Noir"), {{0, rgb("#000000")}, {1, rgb("#ffffff")}}),
+                     look(i18nc("gradient map look", "Sepia"), {{0, rgb("#1e130b")}, {0.55, rgb("#9c7a52")}, {1, rgb("#f6ead2")}}),
+                     look(i18nc("gradient map look", "Duotone"), {{0, rgb("#1b1f4b")}, {1, rgb("#f9c784")}}),
+                     look(i18nc("gradient map look", "Sunset"), {{0, rgb("#1a0b2e")}, {0.4, rgb("#9b2d5e")}, {0.75, rgb("#f08a4b")}, {1, rgb("#fde9a9")}}),
+                     look(i18nc("gradient map look", "Night"), {{0, rgb("#05070d")}, {0.5, rgb("#1f4e6b")}, {1, rgb("#c9f2ff")}}),
+                     look(i18nc("gradient map look", "Thermal"), {{0, rgb("#000000")}, {0.3, rgb("#4b0f8a")}, {0.6, rgb("#e5432d")}, {0.85, rgb("#ffc93c")}, {1, rgb("#ffffff")}})},
+                    {}, Panel::Pictures::Whole);
+
+    auto *bar = new GradientBar(panel);
+    auto *colorRow = new QWidget(panel);
+    auto *colorLayout = new QHBoxLayout(colorRow);
+    colorLayout->setContentsMargins(0, 0, 0, 0);
+    colorLayout->addWidget(new QLabel(i18nc("gradient map: the color of the chosen stop", "Color"), colorRow), 1);
+    auto *button = new KisColorButton(colorRow);
+    colorLayout->addWidget(button);
+    auto showColor = [bar, button]() {
+        QSignalBlocker blocker(button);
+        button->setColor(KoColor(bar->stops().value(bar->selected()).second, KoColorSpaceRegistry::instance()->rgb8()));
+    };
+    panel->addRow(bar, [panel, bar, showColor]() {
+        bar->setStops(stopsOf(panel->config()));
+        showColor();
+    });
+    panel->addRow(colorRow, {});
+    QObject::connect(bar, &GradientBar::stopsChanged, panel, [panel, bar]() {
+        setStops(panel->config(), bar->stops());
+        panel->edited();
+    });
+    QObject::connect(bar, &GradientBar::selectedChanged, panel, showColor);
+    QObject::connect(button, &KisColorButton::changed, panel, [panel, bar](const KoColor &color) {
+        Stops stops = bar->stops();
+        if (bar->selected() < 0 || bar->selected() >= stops.size()) return;
+        stops[bar->selected()].second = color.toQColor();
+        setStops(panel->config(), stops);
+        panel->edited();
+    });
+
+    // how the colors meet: blended, in steps, or dithered between steps
+    auto mode = [](const QString &name, int value) {
+        return Tile{name, [value](Config &c) { c.setProperty("colorMode", value); }, [value](const Config &c) { return c.getInt("colorMode", 0) == value; }};
+    };
+    panel->addTiles({mode(i18nc("gradient map: colors blended", "Smooth"), 0), mode(i18nc("gradient map: the nearest stop's color", "Steps"), 1),
+                     mode(i18nc("gradient map: dithered between stops", "Dither"), 2)},
+                    {}, Panel::Pictures::None);
+    panel->finish();
+    return panel;
+}
+
+} // namespace
+
+KisConfigWidget *create(const QString &filterId, QWidget *parent, KisPaintDeviceSP device)
+{
+    if (!KisFilterRegistry::instance()->value(filterId)) return nullptr;
+    if (filterId == QLatin1String("halftone")) return halftone(parent, device);
+    if (filterId == QLatin1String("motion blur")) return motionBlur(parent, device);
+    if (filterId == QLatin1String("lens blur")) return lensBlur(parent, device);
+    if (filterId == QLatin1String("pixelize")) return pixelize(parent, device);
+    if (filterId == QLatin1String("colortoalpha")) return colorToAlpha(parent, device);
+    if (filterId == QLatin1String("propagatecolors")) return propagateColors(parent, device);
+    if (filterId == QLatin1String("height to normal")) return heightToNormal(parent, device);
+    if (filterId == QLatin1String("gradientmap")) return gradientMap(parent, device);
+    return nullptr;
+}
+
+QPoint busiestPoint(KisPaintDeviceSP device, const QRect &bounds)
+{
+    const QImage thumb = device->createThumbnailUncached(384, 384, bounds).convertToFormat(QImage::Format_ARGB32);
+    if (thumb.width() < 3 || thumb.height() < 3) return bounds.center();
+    auto light = [&thumb](int x, int y) {
+        const QRgb pixel = thumb.pixel(x, y);
+        return qGray(pixel) * qAlpha(pixel) / 255.0;
+    };
+    const int blocks = 12;
+    const int bw = qMax(3, thumb.width() / blocks), bh = qMax(3, thumb.height() / blocks);
+    QPoint best = bounds.center();
+    QRect bestBlock;
+    qreal most = -1;
+    for (int by = 1; by + bh < thumb.height(); by += bh) {
+        for (int bx = 1; bx + bw < thumb.width(); bx += bw) {
+            qreal sum = 0;
+            for (int y = by; y < by + bh; y++) {
+                for (int x = bx; x < bx + bw; x++) {
+                    sum += std::abs(4 * light(x, y) - light(x - 1, y) - light(x + 1, y) - light(x, y - 1) - light(x, y + 1));
+                }
+            }
+            if (sum > most) {
+                most = sum;
+                best = bounds.topLeft() + QPoint(qRound((bx + bw / 2.0) * bounds.width() / thumb.width()),
+                                                 qRound((by + bh / 2.0) * bounds.height() / thumb.height()));
+                bestBlock = QRect(bounds.topLeft() + QPoint(bx * bounds.width() / thumb.width(), by * bounds.height() / thumb.height()),
+                                  QSize(bw * bounds.width() / thumb.width() + 1, bh * bounds.height() / thumb.height() + 1));
+            }
+        }
+    }
+    // a large layer's block is many times a tile: the busiest tile-sized window in it, at its own size
+    const QSize window(96, 60);
+    if (bestBlock.width() <= 2 * window.width() && bestBlock.height() <= 2 * window.height()) return best;
+    const QRect area = QRect(best - QPoint(512, 512), QSize(1024, 1024)) & bestBlock.adjusted(-window.width() / 2, -window.height() / 2,
+                                                                                              window.width() / 2, window.height() / 2);
+    const QImage pixels = device->convertToQImage(nullptr, area).convertToFormat(QImage::Format_ARGB32);
+    // each pixel's difference from its neighbours, summed over windows with a table of running sums
+    const int w = pixels.width(), h = pixels.height();
+    if (w < window.width() || h < window.height()) return best;
+    QVector<double> table((w + 1) * (h + 1), 0.0);
+    auto at = [&pixels](int x, int y) {
+        const QRgb pixel = pixels.pixel(x, y);
+        return qGray(pixel) * qAlpha(pixel) / 255.0;
+    };
+    for (int y = 0; y < h; y++) {
+        double row = 0;
+        for (int x = 0; x < w; x++) {
+            if (x > 0 && y > 0 && x + 1 < w && y + 1 < h) {
+                row += std::abs(4 * at(x, y) - at(x - 1, y) - at(x + 1, y) - at(x, y - 1) - at(x, y + 1));
+            }
+            table[(y + 1) * (w + 1) + x + 1] = table[y * (w + 1) + x + 1] + row;
+        }
+    }
+    double bestSum = -1;
+    QPoint corner;
+    for (int y = 0; y + window.height() <= h; y += 4) {
+        for (int x = 0; x + window.width() <= w; x += 4) {
+            const int x2 = x + window.width(), y2 = y + window.height();
+            const double sum = table[y2 * (w + 1) + x2] - table[y * (w + 1) + x2] - table[y2 * (w + 1) + x] + table[y * (w + 1) + x];
+            if (sum > bestSum) {
+                bestSum = sum;
+                corner = QPoint(x, y);
+            }
+        }
+    }
+    return area.topLeft() + corner + QPoint(window.width() / 2, window.height() / 2);
+}
+
+std::function<void(QPainter &, const QRectF &)> tilePicture(const QImage &picture, bool whole, bool crisp)
+{
+    return [picture, whole, crisp](QPainter &painter, const QRectF &rect) {
+        if (picture.isNull()) return;
+        painter.save();
+        painter.setClipPath(KisModernStyle::squircle(rect, KisModernStyle::cornerRadius));
+        const QSizeF size = QSizeF(picture.size()).scaled(rect.size(), whole ? Qt::KeepAspectRatio : Qt::KeepAspectRatioByExpanding);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, !crisp);
+        painter.drawImage(QRectF(rect.center() - QPointF(size.width(), size.height()) / 2, size), picture);
+        painter.restore();
+    };
+}
+
+} // namespace KisEffectPanels
+
+#include "KisEffectPanels.moc"

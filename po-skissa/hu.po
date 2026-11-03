@@ -898,17 +898,13 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Eredeti"
 
-msgctxt "fewer colors effect preset"
-msgid "Posterize"
-msgstr "Poszterizálás"
-
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "Pontok"
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Színek"
 
 msgctxt "fewer colors effect setting"
-msgid "Lightness"
-msgstr "Világosság"
+msgid "Brightness"
+msgstr "Fényerő"
 
 msgctxt "no dithering"
 msgid "None"
@@ -918,21 +914,13 @@ msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "Minta"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "Kép"
-
-msgctxt "colors taken from: steps of each channel"
-msgid "Levels"
-msgstr "Szintek"
-
 msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "Szintek"
 
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "Színek"
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Szintek"
 
 msgctxt "effect setting"
 msgid "Size"

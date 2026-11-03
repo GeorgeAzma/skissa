@@ -320,14 +320,14 @@ KisConfigWidget *SkissaDetailFilter::createConfigurationWidget(QWidget *parent, 
     const QString percent = QStringLiteral("%");
     const bool krita = !m_earlier && m_kind != Kind::Smooth;
     QVector<SkissaSlider> sliders;
-    if (m_kind == Kind::Sharpen) sliders << SkissaSlider{"amount", i18nc("effect setting", "Amount"), 1000, 300, 0, percent, 100};
+    if (m_kind == Kind::Sharpen) sliders << SkissaSlider{"amount", i18nc("effect setting", "Amount"), 1000, 0, percent, 100};
     const char *radius = !krita ? "radius" : m_kind == Kind::Blur ? "horizRadius" : m_kind == Kind::Sharpen ? "halfSize" : "blurAmount";
-    SkissaSlider size{radius, i18nc("effect setting", "Radius"), 500, m_kind == Kind::Sharpen ? 10.0 : 100.0, 1, px};
+    SkissaSlider size{radius, i18nc("effect setting", "Radius"), 500, 1, px, 1, QString(), 0.1};
     // a blur stretched one way in Krita keeps its shape
     if (krita && m_kind == Kind::Blur) size.follower = "vertRadius";
     sliders << size;
     if (m_kind == Kind::Smooth) {
-        sliders << SkissaSlider{"edges", i18nc("effect setting", "Edges"), 100, 100, 0, percent, 100, i18nc("@info:tooltip", "Keeps edges sharp")};
+        sliders << SkissaSlider{"edges", i18nc("effect setting", "Edges"), 100, 0, percent, 100, i18nc("@info:tooltip", "Keeps edges sharp")};
     }
     return new SkissaSliders(parent, id(), sliders);
 }

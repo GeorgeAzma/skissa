@@ -15,14 +15,13 @@
 #include "SkissaDetail.h"
 #include "SkissaLens.h"
 
-class KisDoubleSliderSpinBox;
+class KisStudioValueRow;
 
 /// One setting of an effect with a few sliders
 struct SkissaSlider {
     const char *key;
     QString name;
     qreal maximum;
-    qreal softMaximum;
     int decimals;
     QString suffix;
     qreal shownPerValue {1}; ///< percent shows a fraction a hundred times larger
@@ -44,7 +43,7 @@ public:
 
 private:
     QString m_filterId;
-    QVector<QPair<SkissaSlider, KisDoubleSliderSpinBox *>> m_sliders;
+    QVector<QPair<SkissaSlider, KisStudioValueRow *>> m_sliders;
     /// The settings as they came, so that those not shown go back as they were
     KisPropertiesConfigurationSP m_loaded;
 };
@@ -143,9 +142,9 @@ private:
 };
 
 /**
- * Fewer colors' panel: pictures of the busiest part of the layer at its own size under a few starting points, where the
- * colors come from and how many, and the dithering, each way of it as a ramp. A drag up or down on the image gives
- * more or fewer colors (with a palette, lighter or darker).
+ * Fewer colors' panel: where the colors come from, each a picture of the whole layer reduced that way, how many and
+ * how bright, and the dithering, each way of it as a ramp. A drag up or down on the
+ * image gives more or fewer colors, sideways lighter or darker.
  */
 class SkissaFewerWidget : public KisConfigWidget, public KisEffectCanvasEditor
 {

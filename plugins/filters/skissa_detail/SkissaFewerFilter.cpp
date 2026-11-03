@@ -142,6 +142,10 @@ KisConfigWidget *SkissaFewerFilter::createConfigurationWidget(QWidget *parent, c
 KisFilterConfigurationSP SkissaFewerFilter::defaultConfiguration(KisResourcesInterfaceSP resourcesInterface) const
 {
     KisFilterConfigurationSP config = factoryConfiguration(resourcesInterface);
-    Settings().writeTo(*config);
+    // the picture's own colors; settings without a source read as levels, as they were saved
+    Settings settings;
+    settings.source = Source::Image;
+    settings.count = 8;
+    settings.writeTo(*config);
     return config;
 }

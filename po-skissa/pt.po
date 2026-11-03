@@ -782,37 +782,25 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Original"
 
-msgctxt "fewer colors effect preset"
-msgid "Posterize"
-msgstr "'Poster'"
-
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "Pontos"
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Cores"
 
 msgctxt "fewer colors effect setting"
-msgid "Lightness"
-msgstr "Iluminação"
+msgid "Brightness"
+msgstr "Brilho"
 
 msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "Padrão"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "Imagem"
-
-msgctxt "colors taken from: steps of each channel"
-msgid "Levels"
-msgstr "Níveis"
-
 msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "Níveis"
 
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "Cores"
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Níveis"
 
 msgctxt "effect setting"
 msgid "Size"

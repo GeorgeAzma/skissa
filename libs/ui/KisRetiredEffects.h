@@ -52,6 +52,8 @@ inline bool isLeftOut(const QString &filterId)
         QStringLiteral("emboss horizontal and vertical"), QStringLiteral("emboss vertical only"), QStringLiteral("emboss horizontal only"),
         QStringLiteral("emboss diagonal"), QStringLiteral("edge detection"), QStringLiteral("phongbumpmap"), QStringLiteral("dodge"),
         QStringLiteral("burn"), QStringLiteral("tone_gamut_map"),
+        // a color over the layer in a blend mode (a fill layer does it); the colors of an image file
+        QStringLiteral("fastcoloroverlay"), QStringLiteral("colortransfer"),
     };
     return leftOut.contains(filterId);
 }

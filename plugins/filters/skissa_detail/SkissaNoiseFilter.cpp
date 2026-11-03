@@ -74,9 +74,9 @@ KisConfigWidget *SkissaNoiseFilter::createConfigurationWidget(QWidget *parent, c
     if (m_kind == Kind::Noise) return new SkissaNoiseWidget(parent, dev);
     const QString percent = QStringLiteral("%");
     return new SkissaSliders(parent, id(),
-                             {SkissaSlider{"amount", i18nc("effect setting", "Amount"), 400, 100, 0, percent, 100},
-                              SkissaSlider{"size", i18nc("effect setting", "Size"), 64, 8, 1, i18nc("pixels, after a number", " px"), 1, QString(), 0.5},
-                              SkissaSlider{"color", i18nc("noise effect setting", "Color"), 100, 100, 0, percent, 100}});
+                             {SkissaSlider{"amount", i18nc("effect setting", "Amount"), 400, 0, percent, 100},
+                              SkissaSlider{"size", i18nc("effect setting", "Size"), 64, 1, i18nc("pixels, after a number", " px"), 1, QString(), 0.5},
+                              SkissaSlider{"color", i18nc("noise effect setting", "Color"), 100, 0, percent, 100}});
 }
 
 KisFilterConfigurationSP SkissaNoiseFilter::defaultConfiguration(KisResourcesInterfaceSP resourcesInterface) const

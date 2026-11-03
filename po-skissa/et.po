@@ -531,6 +531,10 @@ msgctxt "noise effect preset"
 msgid "Color"
 msgstr "Värv"
 
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Värvid"
+
 msgctxt "no dithering"
 msgid "None"
 msgstr "Puudub"
@@ -539,21 +543,13 @@ msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "Muster"
 
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "Pilt"
-
-msgctxt "colors taken from: steps of each channel"
-msgid "Levels"
-msgstr "Tasemed"
-
 msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "Tasemed"
 
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "Värvid"
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Tasemed"
 
 msgctxt "noise effect setting"
 msgid "Color"

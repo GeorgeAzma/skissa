@@ -279,15 +279,16 @@ QVector<Knob> findKnobs(QWidget *root, bool *simple)
     return knobs;
 }
 
-/// Makes scroll areas as tall as their contents, up to 400 px, instead of the size they ask for themselves
+/// Makes scroll areas as tall as their contents, up to 560 px, instead of the size they ask for themselves
 void fitScrolls(QWidget *root)
 {
+    constexpr int tallest = 560;
     Q_FOREACH (QScrollArea *scroll, root->findChildren<QScrollArea *>()) {
         if (!scroll->widget()) continue;
         const int held = scroll->widget()->sizeHint().height();
-        const int height = qMin(400, held);
+        const int height = qMin(tallest, held);
         if (scroll->minimumHeight() != height) scroll->setMinimumHeight(height);
-        const int most = held > 400 ? QWIDGETSIZE_MAX : height;
+        const int most = held > tallest ? QWIDGETSIZE_MAX : height;
         if (scroll->maximumHeight() != most) scroll->setMaximumHeight(most);
     }
 }

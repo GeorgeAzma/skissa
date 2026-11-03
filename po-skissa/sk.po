@@ -750,33 +750,17 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Stredné tóny"
 
-msgctxt "fewer colors effect preset"
-msgid "Posterize"
-msgstr "Posterizovať"
-
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "Bodky"
-
 msgctxt "fewer colors effect setting"
-msgid "Lightness"
-msgstr "Svetlosť"
-
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "Obrázok"
-
-msgctxt "colors taken from: steps of each channel"
-msgid "Levels"
-msgstr "Úrovne"
+msgid "Colors"
+msgstr "Farby"
 
 msgctxt "fewer colors effect setting: steps of each channel"
 msgid "Levels"
 msgstr "Úrovne"
 
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "Farby"
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Úrovne"
 
 msgctxt "effect setting"
 msgid "Size"

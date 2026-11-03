@@ -544,29 +544,13 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "मध्य रंगत"
 
-msgctxt "fewer colors effect preset"
-msgid "Posterize"
-msgstr "पोस्टराइज़"
-
-msgctxt "fewer colors effect preset"
-msgid "Dots"
-msgstr "बिन्दुएँ"
-
 msgctxt "fewer colors effect setting"
-msgid "Lightness"
-msgstr "उजालापन"
+msgid "Colors"
+msgstr "रंग"
 
 msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "पैटर्न"
-
-msgctxt "colors taken from"
-msgid "Image"
-msgstr "चित्र"
-
-msgctxt "fewer colors effect setting"
-msgid "Colors"
-msgstr "रंग"
 
 msgctxt "effect setting"
 msgid "Size"
