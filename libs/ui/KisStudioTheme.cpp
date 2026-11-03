@@ -264,9 +264,8 @@ int indexOf(const QVector<Theme> &list, const QString &id)
 QVector<QPair<QString, QVariant>> choosing(const Theme &theme, QVector<QPair<QString, QVariant>> first)
 {
     first << qMakePair(currentId, QVariant(theme.id));
-    Q_FOREACH (const QString &id, held()) {
-        if (theme.values.contains(id)) first << qMakePair(id, theme.values.value(id));
-    }
+    // a setting the theme was kept without (it came later) is the default, not what the last theme had
+    Q_FOREACH (const QString &id, held()) first << qMakePair(id, theme.values.value(id, R::instance()->defaultValue(id)));
     return first;
 }
 
