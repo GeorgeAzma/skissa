@@ -710,6 +710,42 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Jatorrizkoa"
 
+msgctxt "fewer colors effect preset"
+msgid "Posterize"
+msgstr "Posterizatu"
+
+msgctxt "fewer colors effect preset"
+msgid "Dots"
+msgstr "Puntuak"
+
+msgctxt "fewer colors effect setting"
+msgid "Lightness"
+msgstr "Argitasuna"
+
+msgctxt "no dithering"
+msgid "None"
+msgstr "Bat ere ez"
+
+msgctxt "dithering by a pattern"
+msgid "Pattern"
+msgstr "Eredua"
+
+msgctxt "colors taken from"
+msgid "Image"
+msgstr "Irudia"
+
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Mailak"
+
+msgctxt "fewer colors effect setting: steps of each channel"
+msgid "Levels"
+msgstr "Mailak"
+
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Koloreak"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Tamaina"

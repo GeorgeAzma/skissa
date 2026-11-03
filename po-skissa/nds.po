@@ -64,6 +64,10 @@ msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Na Klörensett tofögen"
 
+msgctxt "no dithering"
+msgid "None"
+msgstr "Keen"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Quadraat"

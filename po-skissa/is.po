@@ -212,6 +212,14 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Upprunalegt"
 
+msgctxt "no dithering"
+msgid "None"
+msgstr "Ekkert"
+
+msgctxt "colors taken from"
+msgid "Image"
+msgstr "Mynd"
+
 msgctxt "noise effect setting"
 msgid "Color"
 msgstr "Litur"

@@ -733,6 +733,38 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Opphavleg"
 
+msgctxt "fewer colors effect preset"
+msgid "Posterize"
+msgstr "Reduser tonar"
+
+msgctxt "fewer colors effect preset"
+msgid "Dots"
+msgstr "Prikkar"
+
+msgctxt "fewer colors effect setting"
+msgid "Lightness"
+msgstr "Lysstyrke"
+
+msgctxt "dithering by a pattern"
+msgid "Pattern"
+msgstr "Mønster"
+
+msgctxt "colors taken from"
+msgid "Image"
+msgstr "Bilete"
+
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Nivå"
+
+msgctxt "fewer colors effect setting: steps of each channel"
+msgid "Levels"
+msgstr "Nivå"
+
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Fargar"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Storleik"

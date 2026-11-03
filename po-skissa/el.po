@@ -52,6 +52,10 @@ msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Προσθήκη στην παλέτα"
 
+msgctxt "no dithering"
+msgid "None"
+msgstr "Κανένα"
+
 msgctxt "no mask on the brush"
 msgid "None"
 msgstr "Κανένα"

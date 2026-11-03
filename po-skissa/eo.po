@@ -778,6 +778,42 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Meztonoj"
 
+msgctxt "fewer colors effect preset"
+msgid "Posterize"
+msgstr "Posterigi"
+
+msgctxt "fewer colors effect preset"
+msgid "Dots"
+msgstr "Punktoj"
+
+msgctxt "fewer colors effect setting"
+msgid "Lightness"
+msgstr "Heleco"
+
+msgctxt "no dithering"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "dithering by a pattern"
+msgid "Pattern"
+msgstr "Ŝablono"
+
+msgctxt "colors taken from"
+msgid "Image"
+msgstr "Bildo"
+
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Niveloj"
+
+msgctxt "fewer colors effect setting: steps of each channel"
+msgid "Levels"
+msgstr "Niveloj"
+
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Koloroj"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Grandeco"

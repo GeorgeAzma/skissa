@@ -666,6 +666,26 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Полутона"
 
+msgctxt "fewer colors effect preset"
+msgid "Posterize"
+msgstr "Постеризация"
+
+msgctxt "fewer colors effect setting"
+msgid "Lightness"
+msgstr "Светлота"
+
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Уровни"
+
+msgctxt "fewer colors effect setting: steps of each channel"
+msgid "Levels"
+msgstr "Уровни"
+
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Цвета"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Размер"

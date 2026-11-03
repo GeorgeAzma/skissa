@@ -40,6 +40,10 @@ msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "रंगदानी मं जोड़व"
 
+msgctxt "no dithering"
+msgid "None"
+msgstr "कुछ नइ"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "वर्ग"

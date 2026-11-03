@@ -857,6 +857,42 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Özgün"
 
+msgctxt "fewer colors effect preset"
+msgid "Posterize"
+msgstr "Posterleştir"
+
+msgctxt "fewer colors effect preset"
+msgid "Dots"
+msgstr "Noktalar"
+
+msgctxt "fewer colors effect setting"
+msgid "Lightness"
+msgstr "Açıklık"
+
+msgctxt "no dithering"
+msgid "None"
+msgstr "Yok"
+
+msgctxt "dithering by a pattern"
+msgid "Pattern"
+msgstr "Desen"
+
+msgctxt "colors taken from"
+msgid "Image"
+msgstr "Görsel"
+
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Düzeyler"
+
+msgctxt "fewer colors effect setting: steps of each channel"
+msgid "Levels"
+msgstr "Düzeyler"
+
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Renkler"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Boyut"

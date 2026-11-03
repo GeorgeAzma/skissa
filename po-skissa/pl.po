@@ -621,6 +621,34 @@ msgctxt "noise effect preset"
 msgid "Color"
 msgstr "Barwa"
 
+msgctxt "fewer colors effect preset"
+msgid "Posterize"
+msgstr "Posteryzacja"
+
+msgctxt "fewer colors effect preset"
+msgid "Dots"
+msgstr "Kropki"
+
+msgctxt "dithering by a pattern"
+msgid "Pattern"
+msgstr "Wzorzec"
+
+msgctxt "colors taken from"
+msgid "Image"
+msgstr "Obraz"
+
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Poziomy"
+
+msgctxt "fewer colors effect setting: steps of each channel"
+msgid "Levels"
+msgstr "Poziomy"
+
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Barwy"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Rozmiar"

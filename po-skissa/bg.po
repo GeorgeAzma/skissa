@@ -817,6 +817,34 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Оригинал"
 
+msgctxt "fewer colors effect preset"
+msgid "Posterize"
+msgstr "Плакат"
+
+msgctxt "fewer colors effect preset"
+msgid "Dots"
+msgstr "Точка"
+
+msgctxt "dithering by a pattern"
+msgid "Pattern"
+msgstr "Шаблон"
+
+msgctxt "colors taken from"
+msgid "Image"
+msgstr "Изображение"
+
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Нива"
+
+msgctxt "fewer colors effect setting: steps of each channel"
+msgid "Levels"
+msgstr "Нива"
+
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Цветове"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Размер"

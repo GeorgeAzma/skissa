@@ -825,6 +825,34 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "ორიგინალი"
 
+msgctxt "fewer colors effect preset"
+msgid "Posterize"
+msgstr "პოსტერიზაცია"
+
+msgctxt "fewer colors effect preset"
+msgid "Dots"
+msgstr "წერტილები"
+
+msgctxt "dithering by a pattern"
+msgid "Pattern"
+msgstr "შაბლონი"
+
+msgctxt "colors taken from"
+msgid "Image"
+msgstr "გამოსახულება"
+
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "დონეები"
+
+msgctxt "fewer colors effect setting: steps of each channel"
+msgid "Levels"
+msgstr "დონეები"
+
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "ფერები"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "ზომა"

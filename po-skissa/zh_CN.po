@@ -621,6 +621,26 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "原始"
 
+msgctxt "fewer colors effect preset"
+msgid "Posterize"
+msgstr "色调分离"
+
+msgctxt "colors taken from"
+msgid "Image"
+msgstr "图像"
+
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "色阶"
+
+msgctxt "fewer colors effect setting: steps of each channel"
+msgid "Levels"
+msgstr "色阶"
+
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "颜色"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "大小"

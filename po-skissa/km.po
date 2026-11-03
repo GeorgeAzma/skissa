@@ -36,6 +36,10 @@ msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "គ្មាន"
 
+msgctxt "no dithering"
+msgid "None"
+msgstr "គ្មាន"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "ការេ"

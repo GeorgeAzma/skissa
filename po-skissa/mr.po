@@ -52,6 +52,10 @@ msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "पटलमध्ये भरा"
 
+msgctxt "no dithering"
+msgid "None"
+msgstr "काही नाही"
+
 msgctxt "no mask on the brush"
 msgid "None"
 msgstr "काही नाही"

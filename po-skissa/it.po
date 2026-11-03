@@ -789,6 +789,34 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Originale"
 
+msgctxt "fewer colors effect preset"
+msgid "Posterize"
+msgstr "Posterizza"
+
+msgctxt "fewer colors effect setting"
+msgid "Lightness"
+msgstr "Chiarezza"
+
+msgctxt "dithering by a pattern"
+msgid "Pattern"
+msgstr "Motivo"
+
+msgctxt "colors taken from"
+msgid "Image"
+msgstr "Immagine"
+
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Livelli"
+
+msgctxt "fewer colors effect setting: steps of each channel"
+msgid "Levels"
+msgstr "Livelli"
+
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Colori"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Dimensione"

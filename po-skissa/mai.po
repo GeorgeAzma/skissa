@@ -36,6 +36,10 @@ msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "किछु नहि"
 
+msgctxt "no dithering"
+msgid "None"
+msgstr "किछु नहि"
+
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "वर्ग"

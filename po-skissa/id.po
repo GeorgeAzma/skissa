@@ -638,6 +638,34 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Asli"
 
+msgctxt "fewer colors effect setting"
+msgid "Lightness"
+msgstr "Kecahayaan"
+
+msgctxt "no dithering"
+msgid "None"
+msgstr "Tidak ada"
+
+msgctxt "dithering by a pattern"
+msgid "Pattern"
+msgstr "Pola"
+
+msgctxt "colors taken from"
+msgid "Image"
+msgstr "Gambar"
+
+msgctxt "colors taken from: steps of each channel"
+msgid "Levels"
+msgstr "Level"
+
+msgctxt "fewer colors effect setting: steps of each channel"
+msgid "Levels"
+msgstr "Level"
+
+msgctxt "fewer colors effect setting"
+msgid "Colors"
+msgstr "Warna"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Ukuran"
