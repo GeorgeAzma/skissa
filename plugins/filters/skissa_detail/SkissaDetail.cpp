@@ -6,7 +6,9 @@
 #include "SkissaDetail.h"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
+#include <memory>
 
 #include <kis_properties_configuration.h>
 
@@ -109,26 +111,36 @@ void gaussian(float *data, float *scratch, int w, int h, qreal sigma)
 {
     if (w <= 0 || h <= 0 || sigma <= 0) return;
     if (sigma <= boxFrom) {
+        // whole rows at a time, which vectorize, with the taps either side of the middle taken together
         const std::vector<float> kernel = kernelOf(sigma);
         const int half = int(kernel.size()) / 2;
         std::vector<float> line(size_t(w) + 2 * half);
         for (int y = 0; y < h; y++) {
             const float *row = data + size_t(y) * w;
-            for (int i = 0; i < w + 2 * half; i++) line[i] = row[std::clamp(i - half, 0, w - 1)];
+            std::fill(line.begin(), line.begin() + half, row[0]);
+            std::copy_n(row, w, line.begin() + half);
+            std::fill(line.begin() + half + w, line.end(), row[w - 1]);
             float *target = scratch + size_t(y) * w;
-            for (int x = 0; x < w; x++) {
-                float sum = 0;
-                for (int k = 0; k <= 2 * half; k++) sum += kernel[k] * line[x + k];
-                target[x] = sum;
+            const float *middle = line.data() + half;
+            const float centre = kernel[half];
+            for (int x = 0; x < w; x++) target[x] = centre * middle[x];
+            for (int k = 1; k <= half; k++) {
+                const float weight = kernel[half + k];
+                const float *before = middle - k;
+                const float *after = middle + k;
+                for (int x = 0; x < w; x++) target[x] += weight * (before[x] + after[x]);
             }
         }
         for (int y = 0; y < h; y++) {
             float *target = data + size_t(y) * w;
-            std::fill(target, target + w, 0.0f);
-            for (int k = 0; k <= 2 * half; k++) {
-                const float *row = scratch + size_t(std::clamp(y + k - half, 0, h - 1)) * w;
-                const float weight = kernel[k];
-                for (int x = 0; x < w; x++) target[x] += weight * row[x];
+            const float *centre = scratch + size_t(y) * w;
+            const float middle = kernel[half];
+            for (int x = 0; x < w; x++) target[x] = middle * centre[x];
+            for (int k = 1; k <= half; k++) {
+                const float *above = scratch + size_t(std::clamp(y - k, 0, h - 1)) * w;
+                const float *below = scratch + size_t(std::clamp(y + k, 0, h - 1)) * w;
+                const float weight = kernel[half + k];
+                for (int x = 0; x < w; x++) target[x] += weight * (above[x] + below[x]);
             }
         }
         return;
@@ -164,37 +176,215 @@ std::vector<float> kernel1D(qreal sigma)
 namespace
 {
 
-/// The lightness the edge-aware blurs follow, its local mean and variance at one size
-struct Guide {
-    std::vector<float> light;
-    std::vector<float> mean;
-    std::vector<float> variance;
+/**
+ * Wide blurs are made on smaller copies of the image: a pyramid of levels, each half the size of the one before,
+ * made by a binomial filter of six taps (1 5 10 10 5 1), which softens it enough that next to nothing finer than a
+ * cell folds into the next. A blur is made on the coarsest level where it still spans two cells, exactly, and
+ * enlarged by a cubic B-spline, whose own small blur is taken off what is left to make. Any size of blur then
+ * costs what a few pixels' does, within a 40th of a level of 8 bits of an exact Gaussian on the sharpest edge.
+ */
+constexpr qreal fewestCells = 2.0;
+
+/// The variance a level's grid has been blurred by on its way down, in pixels: each halving's filter adds 1.25 of
+/// the cells it halves
+double varianceAt(int level)
+{
+    return 1.25 * (std::ldexp(1.0, 2 * level) - 1) / 3;
+}
+
+/// What enlarging a level's grid by a cubic B-spline blurs, in pixels
+double splineVarianceAt(int level)
+{
+    return level > 0 ? std::ldexp(1.0, 2 * level) / 3 : 0;
+}
+
+int levelFor(qreal sigma)
+{
+    int level = 0;
+    while (level < 12) {
+        const double cell = std::ldexp(1.0, level + 1);
+        if (sigma * sigma - varianceAt(level + 1) - splineVarianceAt(level + 1) < fewestCells * fewestCells * cell * cell) break;
+        level++;
+    }
+    return level;
+}
+
+inline int floorDiv(int a, int b)
+{
+    return a >= 0 ? a / b : -((-a + b - 1) / b);
+}
+
+/// The cells of \p level that hold \p rect, and \p margin more around them
+QRect cellsOf(const QRect &rect, int level, int margin)
+{
+    const int cell = 1 << level;
+    return QRect(QPoint(floorDiv(rect.left(), cell) - margin, floorDiv(rect.top(), cell) - margin),
+                 QPoint(floorDiv(rect.right(), cell) + margin, floorDiv(rect.bottom(), cell) + margin));
+}
+
+/// \p data over \p from, read for \p to with its edge repeating beyond it
+std::vector<float> cropped(const std::vector<float> &data, const QRect &from, const QRect &to)
+{
+    std::vector<float> out(size_t(to.width()) * to.height());
+    // the part of each row inside, copied whole; the edge repeated either side of it
+    const int left = std::clamp(from.left() - to.left(), 0, to.width());
+    const int right = std::clamp(from.right() + 1 - to.left(), left, to.width());
+    for (int y = 0; y < to.height(); y++) {
+        const float *row = data.data() + size_t(std::clamp(to.top() + y, from.top(), from.bottom()) - from.top()) * from.width();
+        float *target = out.data() + size_t(y) * to.width();
+        std::fill(target, target + left, row[0]);
+        if (right > left) std::copy_n(row + (to.left() + left - from.left()), right - left, target + left);
+        std::fill(target + right, target + to.width(), row[from.width() - 1]);
+    }
+    return out;
+}
+
+/// \p data over \p cells blurred by \p sigma cells, kept over \p wanted (inside \p cells' reach)
+std::vector<float> blurredOver(const std::vector<float> &data, const QRect &cells, qreal sigma, const QRect &wanted)
+{
+    if (sigma <= 0) return cropped(data, cells, wanted);
+    const int reach = reachOf(sigma);
+    const QRect room = wanted.adjusted(-reach, -reach, reach, reach);
+    std::vector<float> work = cropped(data, cells, room), scratch(work.size());
+    gaussian(work.data(), scratch.data(), room.width(), room.height(), sigma);
+    return cropped(work, room, wanted);
+}
+
+/// One plane of an image at successively halved sizes, each made when first asked for
+class Pyramid
+{
+public:
+    Pyramid(std::vector<float> plane, const QRect &rect)
+    {
+        m_levels.push_back({rect, std::move(plane)});
+    }
+
+    /// The grid of \p level blurred by a further \p sigma of its cells, over \p wanted of its cells
+    std::vector<float> blurred(int level, qreal sigma, const QRect &wanted)
+    {
+        while (int(m_levels.size()) <= level) {
+            Level coarse = halved(m_levels.back().data, m_levels.back().cells);
+            m_levels.push_back(std::move(coarse));
+        }
+        const Level &grid = m_levels[size_t(level)];
+        return blurredOver(grid.data, grid.cells, sigma, wanted);
+    }
+
+private:
+    struct Level {
+        QRect cells;
+        std::vector<float> data;
+    };
+
+    /// Half the size: coarse cell i made of fine cells 2i - 2 to 2i + 3, on cells lined up with the image's, so
+    /// neighbouring patches agree; beyond the fine grid its edge repeats
+    static Level halved(const std::vector<float> &fine, const QRect &cells)
+    {
+        static const float taps[6] = {1 / 32.0f, 5 / 32.0f, 10 / 32.0f, 10 / 32.0f, 5 / 32.0f, 1 / 32.0f};
+        Level coarse;
+        coarse.cells = QRect(QPoint(floorDiv(cells.left(), 2), floorDiv(cells.top(), 2)), QPoint(floorDiv(cells.right(), 2), floorDiv(cells.bottom(), 2)));
+        const int w = coarse.cells.width(), h = coarse.cells.height();
+        // across: every fine row at the coarse columns
+        const QRect wideRect(QPoint(2 * coarse.cells.left() - 2, cells.top()), QPoint(2 * coarse.cells.right() + 3, cells.bottom()));
+        const std::vector<float> wide = cropped(fine, cells, wideRect);
+        std::vector<float> across(size_t(w) * cells.height());
+        for (int y = 0; y < cells.height(); y++) {
+            const float *row = wide.data() + size_t(y) * wideRect.width();
+            float *out = across.data() + size_t(y) * w;
+            for (int i = 0; i < w; i++) {
+                const float *at = row + 2 * i;
+                out[i] = taps[0] * (at[0] + at[5]) + taps[1] * (at[1] + at[4]) + taps[2] * (at[2] + at[3]);
+            }
+        }
+        // down: each coarse row from six of those, the edge rows repeating
+        coarse.data.assign(size_t(w) * h, 0.0f);
+        for (int j = 0; j < h; j++) {
+            float *out = coarse.data.data() + size_t(j) * w;
+            for (int t = 0; t < 6; t++) {
+                const int y = std::clamp(2 * (coarse.cells.top() + j) - 2 + t, cells.top(), cells.bottom()) - cells.top();
+                const float *row = across.data() + size_t(y) * w;
+                for (int i = 0; i < w; i++) out[i] += taps[t] * row[i];
+            }
+        }
+        return coarse;
+    }
+
+    std::vector<Level> m_levels;
 };
 
-/**
- * \p data blurred keeping edges (He, Sun and Tang's guided filter, with Gaussian windows): in each window the plane
- * is fitted as a line of the guide's lightness, so where the lightness has a strong edge the plane keeps it, and
- * where it varies less than \p epsilon's square root it is evened out
- */
-void guided(float *data, float *scratch, int w, int h, qreal sigma, const Guide &guide, double epsilon)
+/// The cubic B-spline's weights for the four cells around a point \p t of the way past the second
+inline void splineWeights(float t, float w[4])
 {
-    const size_t n = size_t(w) * h;
-    std::vector<float> mean(data, data + n);
-    gaussian(mean.data(), scratch, w, h, sigma);
-    std::vector<float> slope(n);
-    for (size_t i = 0; i < n; i++) slope[i] = guide.light[i] * data[i];
-    gaussian(slope.data(), scratch, w, h, sigma);
-    for (size_t i = 0; i < n; i++) {
-        const float a = float((slope[i] - guide.mean[i] * mean[i]) / (guide.variance[i] + epsilon));
-        slope[i] = a;
-        mean[i] -= a * guide.mean[i];
+    const float t2 = t * t, t3 = t2 * t;
+    w[0] = (1 - t) * (1 - t) * (1 - t) / 6;
+    w[1] = (3 * t3 - 6 * t2 + 4) / 6;
+    w[2] = (-3 * t3 + 3 * t2 + 3 * t + 1) / 6;
+    w[3] = t3 / 6;
+}
+
+/// \p grid (\p level's \p cells) enlarged to the pixels of \p target by a cubic B-spline; the pixels themselves at level 0
+std::vector<float> enlarged(const std::vector<float> &grid, const QRect &cells, int level, const QRect &target)
+{
+    if (level == 0) return cropped(grid, cells, target);
+    const int cell = 1 << level;
+    const int w = target.width(), h = target.height(), cw = cells.width();
+    // across first, for every row of cells the target reaches
+    const QRect rows = cellsOf(target, level, 2) & cells;
+    std::vector<float> across(size_t(w) * rows.height());
+    std::vector<int> first(w);
+    std::vector<std::array<float, 4>> weights(w);
+    for (int x = 0; x < w; x++) {
+        const float u = (target.left() + x + 0.5f) / cell - 0.5f;
+        const int j = int(std::floor(u));
+        first[x] = j - 1;
+        splineWeights(u - j, weights[x].data());
     }
-    gaussian(slope.data(), scratch, w, h, sigma);
-    gaussian(mean.data(), scratch, w, h, sigma);
-    for (size_t i = 0; i < n; i++) data[i] = slope[i] * guide.light[i] + mean[i];
+    for (int r = 0; r < rows.height(); r++) {
+        const float *row = grid.data() + size_t(rows.top() + r - cells.top()) * cw;
+        float *out = across.data() + size_t(r) * w;
+        for (int x = 0; x < w; x++) {
+            float sum = 0;
+            for (int k = 0; k < 4; k++) sum += weights[x][k] * row[std::clamp(first[x] + k, cells.left(), cells.right()) - cells.left()];
+            out[x] = sum;
+        }
+    }
+    std::vector<float> out(size_t(w) * h, 0.0f);
+    for (int y = 0; y < h; y++) {
+        const float v = (target.top() + y + 0.5f) / cell - 0.5f;
+        const int j = int(std::floor(v));
+        float wy[4];
+        splineWeights(v - j, wy);
+        float *target_row = out.data() + size_t(y) * w;
+        for (int k = 0; k < 4; k++) {
+            const float *row = across.data() + size_t(std::clamp(j - 1 + k, rows.top(), rows.bottom()) - rows.top()) * w;
+            for (int x = 0; x < w; x++) target_row[x] += wy[k] * row[x];
+        }
+    }
+    return out;
+}
+
+/// The blur that is left to make on \p level's cells for one of \p sigma, before or after enlarging
+qreal blurOnLevel(qreal sigma, int level, bool enlarging)
+{
+    const double rest = sigma * sigma - varianceAt(level) - (enlarging ? splineVarianceAt(level) : 0);
+    return std::sqrt(std::max(0.0, rest)) / std::ldexp(1.0, level);
 }
 
 } // namespace
+
+int Plan::reach() const
+{
+    int reach = 0;
+    Q_FOREACH (const Step &step, steps) {
+        const qreal sigma = sigmaOf(step.radius);
+        const int level = levelFor(sigma);
+        // at full size Krita's kernel; on a level the Gaussian's three sigmas, and a few of the level's cells for
+        // the halving filters and the spline
+        reach = std::max(reach, level == 0 ? reachOf(sigma) : int(std::ceil(3 * sigma)) + (3 << level));
+    }
+    // the edge-aware blur blurs what it blurred once more
+    return edges > 0 ? 2 * reach : reach;
+}
 
 qreal xOfRadius(qreal radius)
 {
@@ -230,14 +420,6 @@ bool Plan::changesNothing() const
         if (std::abs(step.gain) > 1e-4f) return false;
     }
     return true;
-}
-
-int Plan::reach() const
-{
-    int reach = 0;
-    Q_FOREACH (const Step &step, steps) reach = std::max(reach, reachOf(sigmaOf(step.radius)));
-    // the edge-aware blur blurs what it blurred once more
-    return edges > 0 ? 2 * reach : reach;
 }
 
 Plan Plan::scaled(qreal factor) const
@@ -304,16 +486,10 @@ void Planes::resize(int w, int h)
 
 void apply(const Plan &plan, const Planes &source, const QRect &sourceRect, const QRect &resultRect, Planes &result)
 {
-    const int w = source.width, h = source.height;
+    const int w = source.width;
     result.resize(resultRect.width(), resultRect.height());
     const QPoint offset = resultRect.topLeft() - sourceRect.topLeft();
-    auto forEach = [&](auto &&f) {
-        for (int y = 0; y < resultRect.height(); y++) {
-            const size_t from = size_t(y + offset.y()) * w + offset.x();
-            const size_t to = size_t(y) * resultRect.width();
-            for (int x = 0; x < resultRect.width(); x++) f(from + x, to + x);
-        }
-    };
+    const size_t count = size_t(resultRect.width()) * resultRect.height();
 
     // transparency only ever blurs: its gains go no further than 0 to 1, and its largest shapes stay
     QVector<float> alphaLevels;
@@ -321,52 +497,101 @@ void apply(const Plan &plan, const Planes &source, const QRect &sourceRect, cons
     alphaLevels << std::clamp(level, 0.0f, 1.0f);
     Q_FOREACH (const Step &step, plan.steps) alphaLevels << std::clamp(level += step.gain, 0.0f, 1.0f);
     alphaLevels.last() = 1;
+    // a layer without transparency keeps none, whatever its alpha's gains: it isn't blurred at all
+    const bool opaque = std::all_of(source.plane[3].begin(), source.plane[3].end(), [](float alpha) { return alpha >= 1; });
+    const int planeCount = opaque ? 3 : 4;
+    if (opaque) std::fill(result.plane[3].begin(), result.plane[3].end(), 1.0f);
 
-    for (int c = 0; c < 4; c++) {
+    for (int c = 0; c < planeCount; c++) {
         const float gain = c < 3 ? plan.fine : alphaLevels.first();
-        const std::vector<float> &in = source.plane[c];
-        std::vector<float> &out = result.plane[c];
-        if (gain != 0) forEach([&](size_t from, size_t to) { out[to] = gain * in[from]; });
-    }
-
-    const size_t n = size_t(w) * h;
-    std::vector<float> blurred(n), scratch(n);
-    Guide guide;
-    const double epsilon = plan.edges > 0 ? std::pow(0.02 / plan.edges, 2) : 0;
-    if (plan.edges > 0) {
-        guide.light.resize(n);
-        for (size_t i = 0; i < n; i++) {
-            guide.light[i] = 0.2126f * source.plane[0][i] + 0.7152f * source.plane[1][i] + 0.0722f * source.plane[2][i];
+        if (gain == 0) continue;
+        for (int y = 0; y < resultRect.height(); y++) {
+            const float *from = source.plane[c].data() + size_t(y + offset.y()) * w + offset.x();
+            float *to = result.plane[c].data() + size_t(y) * resultRect.width();
+            for (int x = 0; x < resultRect.width(); x++) to[x] = gain * from[x];
         }
     }
+
+    // each plane's pyramid, and for the edge-aware blur the lightness it follows and its products with each plane;
+    // past what was read (the image's edge) its edge repeats, as Krita's blurs do
+    const int reach = plan.reach();
+    const QRect padded = resultRect.adjusted(-reach, -reach, reach, reach) | sourceRect;
+    const bool edges = plan.edges > 0;
+    const double epsilon = edges ? std::pow(0.02 / plan.edges, 2) : 0;
+    std::unique_ptr<Pyramid> planes[4];
+    std::unique_ptr<Pyramid> light, lightSquared, lightTimes[4];
+    std::vector<float> lightAll, lightHere;
+    auto pyramidOf = [&](std::unique_ptr<Pyramid> &pyramid, auto &&make) -> Pyramid & {
+        if (!pyramid) pyramid.reset(new Pyramid(cropped(make(), sourceRect, padded), padded));
+        return *pyramid;
+    };
+    auto lightOf = [&]() { return lightAll; };
+    if (edges) {
+        lightAll.resize(source.plane[0].size());
+        for (size_t i = 0; i < lightAll.size(); i++) {
+            lightAll[i] = 0.2126f * source.plane[0][i] + 0.7152f * source.plane[1][i] + 0.0722f * source.plane[2][i];
+        }
+        lightHere = cropped(lightAll, sourceRect, resultRect);
+    }
+
     for (int s = 0; s < plan.steps.size(); s++) {
         const Step &step = plan.steps[s];
         const float alphaGain = alphaLevels[s + 1] - alphaLevels[s];
         if (std::abs(step.gain) < 1e-6f && std::abs(alphaGain) < 1e-6f) continue;
         const qreal sigma = sigmaOf(step.radius);
-        if (plan.edges > 0) {
-            guide.mean = guide.light;
-            gaussian(guide.mean.data(), scratch.data(), w, h, sigma);
-            guide.variance.resize(n);
-            for (size_t i = 0; i < n; i++) guide.variance[i] = guide.light[i] * guide.light[i];
-            gaussian(guide.variance.data(), scratch.data(), w, h, sigma);
-            for (size_t i = 0; i < n; i++) guide.variance[i] = std::max(0.0f, guide.variance[i] - guide.mean[i] * guide.mean[i]);
+        const int at = levelFor(sigma);
+        if (!edges) {
+            const QRect cells = cellsOf(resultRect, at, at > 0 ? 2 : 0);
+            for (int c = 0; c < planeCount; c++) {
+                const float gain = c < 3 ? step.gain : alphaGain;
+                if (std::abs(gain) < 1e-6f) continue;
+                Pyramid &pyramid = pyramidOf(planes[c], [&]() { return source.plane[c]; });
+                const std::vector<float> blurred = enlarged(pyramid.blurred(at, blurOnLevel(sigma, at, true), cells), cells, at, resultRect);
+                float *out = result.plane[c].data();
+                for (size_t i = 0; i < count; i++) out[i] += gain * blurred[i];
+            }
+            continue;
         }
-        for (int c = 0; c < 4; c++) {
+        // He, Sun and Tang's guided filter, with Gaussian windows: in each window a plane is fitted as a line of the
+        // lightness, so where the lightness has a strong edge the plane keeps it, and where it varies less than
+        // epsilon's square root it is evened out. The line's two numbers are smooth, so they are found on the
+        // level's cells and enlarged; the lightness they multiply is the image's own.
+        const qreal second = blurOnLevel(sigma, 0, false) / std::ldexp(1.0, at);
+        const qreal secondCells = std::sqrt(std::max(0.0, second * second - splineVarianceAt(at) / std::ldexp(1.0, 2 * at)));
+        const QRect cells = cellsOf(resultRect, at, at > 0 ? 2 : 0);
+        const QRect around = cells.adjusted(-reachOf(secondCells), -reachOf(secondCells), reachOf(secondCells), reachOf(secondCells));
+        const qreal first = blurOnLevel(sigma, at, false);
+        const std::vector<float> meanLight = pyramidOf(light, lightOf).blurred(at, first, around);
+        const std::vector<float> meanSquared = pyramidOf(lightSquared, [&]() {
+            std::vector<float> values = lightOf();
+            for (float &v : values) v *= v;
+            return values;
+        }).blurred(at, first, around);
+        for (int c = 0; c < planeCount; c++) {
             const float gain = c < 3 ? step.gain : alphaGain;
             if (std::abs(gain) < 1e-6f) continue;
-            std::copy(source.plane[c].begin(), source.plane[c].end(), blurred.begin());
-            if (plan.edges > 0) guided(blurred.data(), scratch.data(), w, h, sigma, guide, epsilon);
-            else gaussian(blurred.data(), scratch.data(), w, h, sigma);
-            std::vector<float> &out = result.plane[c];
-            forEach([&](size_t from, size_t to) { out[to] += gain * blurred[from]; });
+            const std::vector<float> mean = pyramidOf(planes[c], [&]() { return source.plane[c]; }).blurred(at, first, around);
+            const std::vector<float> meanProduct = pyramidOf(lightTimes[c], [&]() {
+                std::vector<float> values = lightOf();
+                for (size_t i = 0; i < values.size(); i++) values[i] *= source.plane[c][i];
+                return values;
+            }).blurred(at, first, around);
+            std::vector<float> a(mean.size()), b(mean.size());
+            for (size_t i = 0; i < mean.size(); i++) {
+                const float variance = std::max(0.0f, meanSquared[i] - meanLight[i] * meanLight[i]);
+                a[i] = float((meanProduct[i] - meanLight[i] * mean[i]) / (variance + epsilon));
+                b[i] = mean[i] - a[i] * meanLight[i];
+            }
+            const std::vector<float> slope = enlarged(blurredOver(a, around, secondCells, cells), cells, at, resultRect);
+            const std::vector<float> base = enlarged(blurredOver(b, around, secondCells, cells), cells, at, resultRect);
+            float *out = result.plane[c].data();
+            for (size_t i = 0; i < count; i++) out[i] += gain * (slope[i] * lightHere[i] + base[i]);
         }
     }
 
     // what was taken of the largest shapes leaves middle gray, as a high pass does
     const float gray = 0.5f * (1 - plan.coarse());
     if (std::abs(gray) > 1e-6f) {
-        const size_t count = size_t(result.width) * result.height;
         for (int c = 0; c < 3; c++) {
             for (size_t i = 0; i < count; i++) result.plane[c][i] += gray * result.plane[3][i];
         }
