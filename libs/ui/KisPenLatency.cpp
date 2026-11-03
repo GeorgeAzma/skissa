@@ -30,6 +30,7 @@ struct Event {
     qreal queued;
     qint64 arrived;
     qint64 painted {-1};
+    qint64 merged {-1};
     qint64 uploaded {-1};
 };
 
@@ -37,6 +38,7 @@ struct Event {
 struct Sample {
     double queued;
     double toPaint;
+    double toMerge;
     double toUpload;
     double toScreen;
     double total;
@@ -49,6 +51,9 @@ struct State {
     QMutex lock;
     std::deque<Event> waiting;
     QVector<Sample> samples;
+    /// When the last event arrived, and the spacing of those of this stroke
+    qint64 lastArrival {-1};
+    QVector<double> spacing;
     int strokes {0};
 };
 
@@ -94,6 +99,8 @@ void strokeStarted()
     QMutexLocker locker(&s.lock);
     s.waiting.clear();
     s.samples.clear();
+    s.spacing.clear();
+    s.lastArrival = -1;
 }
 
 void arrived(qreal strokeTime, const QPointF &at, ulong eventTime)
@@ -109,7 +116,10 @@ void arrived(qreal strokeTime, const QPointF &at, ulong eventTime)
     Q_UNUSED(eventTime);
 #endif
     QMutexLocker locker(&s.lock);
-    s.waiting.push_back({strokeTime, at, queued, s.clock.nsecsElapsed()});
+    const qint64 now = s.clock.nsecsElapsed();
+    if (s.lastArrival >= 0) s.spacing << ms(s.lastArrival, now);
+    s.lastArrival = now;
+    s.waiting.push_back({strokeTime, at, queued, now});
 }
 
 void painted(qreal strokeTime)
@@ -124,6 +134,19 @@ void painted(qreal strokeTime)
     }
 }
 
+void merged(const QRect &imageRect)
+{
+    State &s = state();
+    if (!s.enabled) return;
+    QMutexLocker locker(&s.lock);
+    const qint64 now = s.clock.nsecsElapsed();
+    const QRectF around = QRectF(imageRect).adjusted(-2, -2, 2, 2);
+    for (Event &event : s.waiting) {
+        if (event.painted < 0) break;
+        if (event.merged < 0 && around.contains(event.at)) event.merged = now;
+    }
+}
+
 void uploaded(const QRect &imageRect)
 {
     State &s = state();
@@ -133,7 +156,7 @@ void uploaded(const QRect &imageRect)
     const QRectF around = QRectF(imageRect).adjusted(-2, -2, 2, 2);
     for (Event &event : s.waiting) {
         if (event.painted < 0) break;
-        if (event.uploaded < 0 && around.contains(event.at)) event.uploaded = now;
+        if (event.merged >= 0 && event.uploaded < 0 && around.contains(event.at)) event.uploaded = now;
     }
 }
 
@@ -145,7 +168,7 @@ void presented()
     const qint64 now = s.clock.nsecsElapsed();
     while (!s.waiting.empty() && s.waiting.front().uploaded >= 0) {
         const Event &event = s.waiting.front();
-        s.samples << Sample{event.queued, ms(event.arrived, event.painted), ms(event.painted, event.uploaded), ms(event.uploaded, now),
+        s.samples << Sample{event.queued, ms(event.arrived, event.painted), ms(event.painted, event.merged), ms(event.merged, event.uploaded), ms(event.uploaded, now),
                             event.queued + ms(event.arrived, now)};
         s.waiting.pop_front();
     }
@@ -164,19 +187,20 @@ void strokeEnded()
         else unshown++;
     }
     if (s.samples.isEmpty() && s.waiting.empty()) return;
-    QVector<double> queued, toPaint, toUpload, toScreen, total;
+    QVector<double> queued, toPaint, toMerge, toUpload, toScreen, total;
     Q_FOREACH (const Sample &sample, s.samples) {
         queued << sample.queued;
         toPaint << sample.toPaint;
+        toMerge << sample.toMerge;
         toUpload << sample.toUpload;
         toScreen << sample.toScreen;
         total << sample.total;
     }
     // median/95th/worst of each stage, then of the whole way
-    QString line = QStringLiteral("stroke %1 events %2 queued %3 paint %4 upload %5 screen %6 total %7")
+    QString line = QStringLiteral("stroke %1 events %2 spacing %3 queued %4 paint %5 merge %6 upload %7 screen %8 total %9")
                        .arg(++s.strokes)
                        .arg(s.samples.size())
-                       .arg(figures(queued), figures(toPaint), figures(toUpload), figures(toScreen), figures(total));
+                       .arg(figures(s.spacing), figures(queued), figures(toPaint), figures(toMerge), figures(toUpload), figures(toScreen), figures(total));
     if (unpainted + unuploaded + unshown) {
         line += QStringLiteral(" (not shown: %1 unpainted, %2 not uploaded, %3 no frame)").arg(unpainted).arg(unuploaded).arg(unshown);
     }
@@ -185,6 +209,8 @@ void strokeEnded()
     if (file.open(QIODevice::Append | QIODevice::Text)) file.write(line.toUtf8());
     s.samples.clear();
     s.waiting.clear();
+    s.spacing.clear();
+    s.lastArrival = -1;
 }
 
 } // namespace KisPenLatency

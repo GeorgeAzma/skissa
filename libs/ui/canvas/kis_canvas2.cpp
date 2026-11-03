@@ -1059,6 +1059,7 @@ void KisCanvas2::finishResizingImage(qint32 w, qint32 h)
 void KisCanvas2::startUpdateCanvasProjection(const QRect & rc)
 {
     KisUpdateInfoSP info = m_d->canvasWidget->startUpdateCanvasProjection(rc);
+    if (KisPenLatency::enabled() && info) KisPenLatency::merged(KisLodTransform::upscaledRect(info->dirtyImageRect(), info->levelOfDetail()));
     if (m_d->projectionUpdatesCompressor.putUpdateInfo(info)) {
         Q_EMIT sigCanvasCacheUpdated();
     }
