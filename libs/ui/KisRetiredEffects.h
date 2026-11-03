@@ -35,6 +35,9 @@ inline QString coveredBy(const QString &filterId)
         {QStringLiteral("waveletnoisereducer"), QStringLiteral("skissa_smooth")},
         // Noise
         {QStringLiteral("noise"), QStringLiteral("skissa_grain")}, {QStringLiteral("randompick"), QStringLiteral("skissa_noise")},
+        // Fewer colors
+        {QStringLiteral("posterize"), QStringLiteral("skissa_fewer_colors")}, {QStringLiteral("threshold"), QStringLiteral("skissa_fewer_colors")},
+        {QStringLiteral("palettize"), QStringLiteral("skissa_fewer_colors")}, {QStringLiteral("indexcolors"), QStringLiteral("skissa_fewer_colors")},
     };
     return by.value(filterId);
 }

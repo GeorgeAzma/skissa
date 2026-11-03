@@ -37,6 +37,37 @@ void readOriginal(KisPaintDeviceSP device, const QRect &rect, quint8 *out)
     }
 }
 
+quint64 originalKey(KisPaintDeviceSP device, const QRect &rect)
+{
+    const int pixelSize = device->pixelSize();
+    quint64 key = 0xcbf29ce484222325ull;
+    auto add = [&key](quint64 word) {
+        key = (key ^ word) * 0x100000001b3ull;
+        key ^= key >> 29;
+    };
+    add(quint64(rect.x()) << 32 | quint32(rect.y()));
+    add(quint64(rect.width()) << 32 | quint32(rect.height()));
+    KisHLineConstIteratorSP it = device->createHLineConstIteratorNG(rect.x(), rect.y(), rect.width());
+    for (int y = 0; y < rect.height(); y++) {
+        for (int x = 0; x < rect.width();) {
+            const int run = std::min(it->nConseqPixels(), rect.width() - x);
+            const quint8 *data = it->oldRawData();
+            const size_t bytes = size_t(run) * pixelSize;
+            size_t i = 0;
+            for (; i + 8 <= bytes; i += 8) {
+                quint64 word;
+                std::memcpy(&word, data + i, 8);
+                add(word);
+            }
+            for (; i < bytes; i++) add(data[i]);
+            x += run;
+            if (!it->nextPixels(run)) break;
+        }
+        it->nextRow();
+    }
+    return key;
+}
+
 std::vector<float> readLinear(KisPaintDeviceSP device, const QRect &rect)
 {
     const KoColorSpace *cs = device->colorSpace();

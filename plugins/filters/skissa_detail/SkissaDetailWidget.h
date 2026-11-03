@@ -138,4 +138,35 @@ private:
     QScopedPointer<Private> d;
 };
 
+/**
+ * Fewer colors' panel: pictures of the busiest part of the layer at its own size under a few starting points, where the
+ * colors come from and how many, and the dithering, each way of it as a ramp. A drag up or down on the image gives
+ * more or fewer colors (with a palette, lighter or darker).
+ */
+class SkissaFewerWidget : public KisConfigWidget, public KisEffectCanvasEditor
+{
+    Q_OBJECT
+    Q_INTERFACES(KisEffectCanvasEditor)
+public:
+    SkissaFewerWidget(QWidget *parent, KisPaintDeviceSP dev);
+    ~SkissaFewerWidget() override;
+
+    void setConfiguration(const KisPropertiesConfigurationSP config) override;
+    KisPropertiesConfigurationSP configuration() const override;
+
+    void canvasHovered(const QPoint &pixel) override;
+    bool canvasPressed(const QPoint &pixel) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
+    void canvasReleased() override;
+
+    QSize sizeHint() const override;
+
+private:
+    void refresh();
+    void refreshTiles();
+
+    struct Private;
+    QScopedPointer<Private> d;
+};
+
 #endif

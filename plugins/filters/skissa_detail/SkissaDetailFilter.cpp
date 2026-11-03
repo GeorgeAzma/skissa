@@ -24,6 +24,7 @@
 
 #include "SkissaDetailWidget.h"
 #include "SkissaPixels.h"
+#include "SkissaFewerFilter.h"
 #include "SkissaLensFilter.h"
 #include "SkissaNoiseFilter.h"
 
@@ -70,6 +71,7 @@ SkissaDetailPlugin::SkissaDetailPlugin(QObject *parent, const QVariantList &)
         KisFilterRegistry::instance()->add(KisFilterSP(new SkissaNoiseFilter(kind)));
     }
     KisFilterRegistry::instance()->add(KisFilterSP(new SkissaLensFilter()));
+    KisFilterRegistry::instance()->add(KisFilterSP(new SkissaFewerFilter()));
 }
 
 SkissaDetailFilter::SkissaDetailFilter(Kind kind)

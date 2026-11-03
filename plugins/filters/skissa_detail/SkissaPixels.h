@@ -24,6 +24,9 @@ namespace SkissaPixels
  */
 void readOriginal(KisPaintDeviceSP device, const QRect &rect, quint8 *out);
 
+/// A number that changes with any byte of \p rect as it was when the effect began
+quint64 originalKey(KisPaintDeviceSP device, const QRect &rect);
+
 /// \p rect as it was when the effect began, as linear sRGB red, green, blue and alpha
 std::vector<float> readLinear(KisPaintDeviceSP device, const QRect &rect);
 

@@ -9,16 +9,20 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QComboBox>
 #include <QPainter>
-#include <QtMath>
 #include <QRandomGenerator>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QtMath>
 
 #include <climits>
 #include <cmath>
 
 #include <KisGlobalResourcesInterface.h>
+#include <KisResourceModel.h>
+#include <KisResourceTypes.h>
+#include <KoColorSet.h>
 #include <KisModernStyle.h>
 #include <KisValueSteps.h>
 #include <filter/kis_filter.h>
@@ -33,6 +37,7 @@
 #include <widgets/KisStudioCurve.h>
 
 #include "SkissaDetailFilter.h"
+#include "SkissaFewer.h"
 #include "SkissaNoise.h"
 
 using namespace SkissaDetail;
@@ -124,14 +129,14 @@ QPoint mostDetailed(KisPaintDeviceSP device, const QRect &bounds)
     return best;
 }
 
-/// A tile's picture: \p picture filling it, its middle shown, or all of it with \p whole
-std::function<void(QPainter &, const QRectF &)> tilePicture(const QImage &picture, bool whole = false)
+/// A tile's picture: \p picture filling it, its middle shown, or all of it with \p whole; \p crisp keeps its pixels
+std::function<void(QPainter &, const QRectF &)> tilePicture(const QImage &picture, bool whole = false, bool crisp = false)
 {
-    return [picture, whole](QPainter &painter, const QRectF &rect) {
+    return [picture, whole, crisp](QPainter &painter, const QRectF &rect) {
         painter.save();
         painter.setClipPath(KisModernStyle::squircle(rect, KisModernStyle::cornerRadius));
         const QSizeF size = QSizeF(picture.size()).scaled(rect.size(), whole ? Qt::KeepAspectRatio : Qt::KeepAspectRatioByExpanding);
-        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, !crisp);
         painter.drawImage(QRectF(rect.center() - QPointF(size.width(), size.height()) / 2, size), picture);
         painter.restore();
     };
@@ -905,6 +910,402 @@ QString SkissaLensWidget::canvasDragged(const QPointF &, const QPointF &at)
 void SkissaLensWidget::canvasReleased()
 {
     refreshTiles();
+}
+
+namespace
+{
+
+/// The drag on the image across which the number of colors grows or shrinks by a factor of e
+constexpr qreal dragForCount = 150;
+/// The drag on the image across which a palette's lightness moves its whole way
+constexpr qreal dragForLightness = 600;
+
+/// The most steps of each channel, and the most colors taken from the image or of gray
+constexpr int mostLevels = 32;
+constexpr int mostColors = 256;
+
+SkissaFewer::Settings fewerOf(SkissaFewer::Source source, int count, SkissaFewer::Dither dither = SkissaFewer::Dither::None)
+{
+    SkissaFewer::Settings settings;
+    settings.source = source;
+    settings.count = count;
+    settings.dither = dither;
+    return settings;
+}
+
+QString countText(SkissaFewer::Source source, int count)
+{
+    return source == SkissaFewer::Source::Levels ? i18ncp("posterize steps of each channel", "%1 level", "%1 levels", count)
+                                                 : i18ncp("number of colors", "%1 color", "%1 colors", count);
+}
+
+/// A palette's colors, as a strip
+QIcon stripOf(const QVector<QColor> &colors)
+{
+    QPixmap pixmap(64, 16);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    const int shown = std::min(int(colors.size()), 16);
+    for (int i = 0; i < shown; i++) {
+        const int index = int(qint64(i) * colors.size() / shown);
+        painter.fillRect(QRectF(64.0 * i / shown, 0, 64.0 / shown + 0.5, 16), colors[index]);
+    }
+    return QIcon(pixmap);
+}
+
+} // namespace
+
+struct SkissaFewerWidget::Private {
+    KisPaintDeviceSP original;
+    SkissaFewer::Settings settings;
+    QVector<QPair<QString, SkissaFewer::Settings>> presets;
+    QVector<QImage> pictures;
+    /// The busiest part of the layer at its own size, where dithering shows as it will, and all of it small, for its colors
+    QImage crop;
+    QPoint cropCorner;
+    QImage whole;
+    QHash<int, QVector<QColor>> imageColors;
+    QVector<QPair<QString, QVector<QColor>>> palettes;
+
+    KisStudioChips *tiles {nullptr};
+    KisStudioChips *sources {nullptr};
+    QLabel *countLabel {nullptr};
+    KisSliderSpinBox *count {nullptr};
+    QComboBox *palette {nullptr};
+    KisDoubleSliderSpinBox *lightness {nullptr};
+    KisStudioChips *dithers {nullptr};
+    QVector<KisStudioChips::Chip> ditherChips;
+    QLabel *amountLabel {nullptr};
+    KisDoubleSliderSpinBox *amount {nullptr};
+
+    /// The drag on the image: what it started from
+    int dragCount {0};
+    float dragLightness {0};
+    bool dragging {false};
+
+    QVector<QColor> colorsOfImage(int count)
+    {
+        auto it = imageColors.constFind(count);
+        if (it != imageColors.constEnd()) return *it;
+        const QVector<QColor> colors = SkissaFewer::colorsOf(whole, count);
+        imageColors.insert(count, colors);
+        return colors;
+    }
+
+    /// The colors the settings choose from, found again where they aren't kept
+    void fillColors(SkissaFewer::Settings &s)
+    {
+        if (s.source == SkissaFewer::Source::Image && s.colors.isEmpty()) s.colors = colorsOfImage(s.count);
+        if (s.source == SkissaFewer::Source::Palette && s.colors.isEmpty() && !palettes.isEmpty()) {
+            int index = 0;
+            for (int i = 0; i < palettes.size(); i++) {
+                if (palettes[i].first == s.palette) index = i;
+            }
+            s.palette = palettes[index].first;
+            s.colors = palettes[index].second;
+        }
+    }
+
+    void loadPalettes()
+    {
+        KisResourceModel model(ResourceType::Palettes);
+        for (int row = 0; row < model.rowCount(); row++) {
+            KoColorSetSP set = model.resourceForIndex(model.index(row, 0)).dynamicCast<KoColorSet>();
+            if (!set) continue;
+            QVector<QColor> colors;
+            for (int y = 0; y < set->rowCount(); y++) {
+                for (int x = 0; x < set->columnCount(); x++) {
+                    const KisSwatch swatch = set->getColorGlobal(x, y);
+                    if (swatch.isValid() && colors.size() < 0xfffe) colors << swatch.color().toQColor();
+                }
+            }
+            if (!colors.isEmpty()) palettes << qMakePair(set->name(), colors);
+        }
+    }
+
+    void makePresets()
+    {
+        using namespace SkissaFewer;
+        presets = {
+            {i18nc("fewer colors effect preset", "Posterize"), fewerOf(Source::Levels, 4)},
+            {i18nc("fewer colors effect preset", "Threshold"), fewerOf(Source::Gray, 2)},
+            {i18nc("fewer colors effect preset", "Dots"), fewerOf(Source::Gray, 2, Dither::Noise)},
+            {i18nc("fewer colors effect preset", "Tones"), fewerOf(Source::Gray, 4, Dither::Pattern)},
+            {i18nc("fewer colors effect preset", "16 colors"), fewerOf(Source::Image, 16)},
+            {i18nc("fewer colors effect preset", "Dithered"), fewerOf(Source::Image, 8, Dither::Diffuse)},
+        };
+        for (auto &preset : presets) fillColors(preset.second);
+    }
+
+    void makeImages()
+    {
+        if (original) {
+            const QRect bounds = original->exactBounds();
+            if (!bounds.isEmpty()) {
+                const QRect rect(mostDetailed(original, bounds) - QPoint(tileSize.width() / 2, tileSize.height() / 2), tileSize);
+                crop = original->convertToQImage(nullptr, rect);
+                cropCorner = rect.topLeft();
+                whole = original->createThumbnailUncached(256, 256, bounds);
+            }
+        }
+        if (crop.isNull()) {
+            // a ramp of every hue and lightness, for a layer with nothing on it
+            crop = QImage(tileSize, QImage::Format_ARGB32);
+            for (int y = 0; y < crop.height(); y++) {
+                for (int x = 0; x < crop.width(); x++) {
+                    crop.setPixelColor(x, y, QColor::fromHsvF(qreal(x) / crop.width(), 0.7, 1.0 - qreal(y) / crop.height()));
+                }
+            }
+            whole = crop;
+        }
+    }
+
+    void makePictures()
+    {
+        pictures.clear();
+        Q_FOREACH (const auto &preset, presets) pictures << SkissaFewer::applied(crop, cropCorner, preset.second);
+    }
+};
+
+SkissaFewerWidget::SkissaFewerWidget(QWidget *parent, KisPaintDeviceSP dev)
+    : KisConfigWidget(parent)
+    , d(new Private)
+{
+    using namespace SkissaFewer;
+    // the pixels as they were before the preview changes them; their tiles are shared until then
+    if (dev) d->original = new KisPaintDevice(*dev);
+    d->makeImages();
+    d->loadPalettes();
+    d->makePresets();
+    d->makePictures();
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
+
+    d->tiles = new KisStudioChips(this);
+    d->tiles->setTileColumns(6, qMax(64, 2 * fontMetrics().height() + 34));
+    connect(d->tiles, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= d->presets.size()) return;
+        d->settings = d->presets[index].second;
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    layout->addWidget(d->tiles);
+
+    d->sources = new KisStudioChips(this);
+    connect(d->sources, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index > 3 || Source(index) == d->settings.source) return;
+        d->settings.source = Source(index);
+        d->settings.count = std::clamp(d->settings.count, 2, d->settings.source == Source::Levels ? mostLevels : mostColors);
+        d->settings.colors.clear();
+        d->fillColors(d->settings);
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    layout->addWidget(d->sources);
+
+    // two settings a row, so the panel stays short
+    auto *rows = new QGridLayout();
+    rows->setContentsMargins(0, 0, 0, 0);
+    rows->setHorizontalSpacing(KisModernStyle::space2);
+    rows->setVerticalSpacing(KisModernStyle::space1);
+    rows->setColumnStretch(1, 1);
+    rows->setColumnStretch(3, 1);
+
+    d->countLabel = new QLabel(this);
+    rows->addWidget(d->countLabel, 0, 0);
+    d->count = new KisSliderSpinBox(this);
+    connect(d->count, qOverload<int>(&KisSliderSpinBox::valueChanged), this, [this](int value) {
+        d->settings.count = value;
+        if (d->settings.source == Source::Image) d->settings.colors = d->colorsOfImage(value);
+        refreshTiles();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    rows->addWidget(d->count, 0, 1);
+    d->palette = new QComboBox(this);
+    d->palette->setIconSize(QSize(32, 8));
+    for (const auto &palette : d->palettes) d->palette->addItem(stripOf(palette.second), palette.first);
+    connect(d->palette, qOverload<int>(&QComboBox::activated), this, [this](int index) {
+        if (index < 0 || index >= d->palettes.size()) return;
+        d->settings.palette = d->palettes[index].first;
+        d->settings.colors = d->palettes[index].second;
+        refreshTiles();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    rows->addWidget(d->palette, 0, 1);
+
+    rows->addWidget(new QLabel(i18nc("fewer colors effect setting", "Lightness"), this), 0, 2);
+    d->lightness = new KisDoubleSliderSpinBox(this);
+    d->lightness->setRange(-100, 100, 0);
+    d->lightness->setSuffix(QStringLiteral("%"));
+    d->lightness->setToolTip(i18nc("@info:tooltip", "Where the steps fall"));
+    connect(d->lightness, qOverload<double>(&KisDoubleSliderSpinBox::valueChanged), this, [this](double value) {
+        d->settings.lightness = float(value / 200);
+        refreshTiles();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    rows->addWidget(d->lightness, 0, 3);
+
+    d->dithers = new KisStudioChips(this);
+    d->dithers->setTileColumns(4, qMax(40, fontMetrics().height() + 26));
+    connect(d->dithers, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index > 3) return;
+        d->settings.dither = Dither(index);
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    rows->addWidget(d->dithers, 1, 0, 1, 2);
+    d->amountLabel = new QLabel(i18nc("dithering strength", "Amount"), this);
+    rows->addWidget(d->amountLabel, 1, 2);
+    d->amount = new KisDoubleSliderSpinBox(this);
+    d->amount->setRange(0, 100, 0);
+    d->amount->setSuffix(QStringLiteral("%"));
+    connect(d->amount, qOverload<double>(&KisDoubleSliderSpinBox::valueChanged), this, [this](double value) {
+        d->settings.amount = float(value / 100);
+        refreshTiles();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    rows->addWidget(d->amount, 1, 3);
+    layout->addLayout(rows);
+
+    // each way of dithering on a ramp from black to white in two colors
+    QImage ramp(64, 16, QImage::Format_ARGB32);
+    for (int y = 0; y < ramp.height(); y++) {
+        for (int x = 0; x < ramp.width(); x++) {
+            const int v = qRound(255.0 * x / (ramp.width() - 1));
+            ramp.setPixel(x, y, qRgb(v, v, v));
+        }
+    }
+    const QString names[] = {i18nc("no dithering", "None"), i18nc("dithering by a pattern", "Pattern"), i18nc("dithering by noise", "Noise"),
+                             i18nc("error diffusion dithering", "Diffuse")};
+    for (int i = 0; i < 4; i++) {
+        KisStudioChips::Chip chip;
+        chip.text = names[i];
+        chip.picture = tilePicture(SkissaFewer::applied(ramp, QPoint(), fewerOf(Source::Gray, 2, Dither(i))), true, true);
+        d->ditherChips << chip;
+    }
+
+    refresh();
+}
+
+SkissaFewerWidget::~SkissaFewerWidget()
+{
+}
+
+void SkissaFewerWidget::setConfiguration(const KisPropertiesConfigurationSP config)
+{
+    d->settings = config ? SkissaFewer::Settings::from(*config) : SkissaFewer::Settings();
+    d->fillColors(d->settings);
+    refresh();
+}
+
+KisPropertiesConfigurationSP SkissaFewerWidget::configuration() const
+{
+    KisFilterSP filter = KisFilterRegistry::instance()->value(QStringLiteral("skissa_fewer_colors"));
+    KisFilterConfigurationSP config = filter->factoryConfiguration(KisGlobalResourcesInterface::instance());
+    d->settings.writeTo(*config);
+    return config;
+}
+
+QSize SkissaFewerWidget::sizeHint() const
+{
+    const int width = 500;
+    return QSize(width, layout()->heightForWidth(width));
+}
+
+void SkissaFewerWidget::refresh()
+{
+    using namespace SkissaFewer;
+    const Settings &s = d->settings;
+    {
+        const QString names[] = {i18nc("colors taken from", "Image"), i18nc("colors taken from: steps of each channel", "Levels"),
+                                 i18nc("colors taken from", "Gray"), i18nc("colors taken from", "Palette")};
+        QVector<KisStudioChips::Chip> chips;
+        for (int i = 0; i < 4; i++) {
+            KisStudioChips::Chip chip;
+            chip.text = names[i];
+            chip.on = int(s.source) == i;
+            chips << chip;
+        }
+        d->sources->setChips(chips);
+    }
+    const bool palette = s.source == Source::Palette;
+    d->countLabel->setText(palette ? i18nc("fewer colors effect setting", "Palette")
+                                   : s.source == Source::Levels ? i18nc("fewer colors effect setting: steps of each channel", "Levels")
+                                                                : i18nc("fewer colors effect setting", "Colors"));
+    d->count->setVisible(!palette);
+    d->palette->setVisible(palette);
+    {
+        QSignalBlocker blocker(d->count);
+        const int most = s.source == Source::Levels ? mostLevels : mostColors;
+        d->count->setRange(2, most);
+        d->count->setSoftRange(2, s.source == Source::Levels ? 8 : 32);
+        d->count->setValue(s.count);
+    }
+    {
+        QSignalBlocker blocker(d->palette);
+        const int index = d->palette->findText(s.palette);
+        if (index >= 0) d->palette->setCurrentIndex(index);
+    }
+    {
+        QSignalBlocker blocker(d->lightness);
+        d->lightness->setValue(s.lightness * 200);
+    }
+    {
+        QSignalBlocker blocker(d->amount);
+        d->amount->setValue(s.amount * 100);
+    }
+    const bool dithered = s.dither != Dither::None;
+    d->amountLabel->setVisible(dithered);
+    d->amount->setVisible(dithered);
+    for (int i = 0; i < d->ditherChips.size(); i++) d->ditherChips[i].on = int(s.dither) == i;
+    d->dithers->setChips(d->ditherChips);
+    refreshTiles();
+}
+
+void SkissaFewerWidget::refreshTiles()
+{
+    QVector<KisStudioChips::Chip> chips;
+    for (int i = 0; i < d->presets.size(); i++) {
+        KisStudioChips::Chip chip;
+        chip.text = d->presets[i].first;
+        chip.on = d->settings == d->presets[i].second;
+        // dots at their own size, not smoothed
+        chip.picture = tilePicture(d->pictures.value(i), false, true);
+        chips << chip;
+    }
+    d->tiles->setChips(chips);
+}
+
+void SkissaFewerWidget::canvasHovered(const QPoint &)
+{
+}
+
+bool SkissaFewerWidget::canvasPressed(const QPoint &)
+{
+    d->dragCount = d->settings.count;
+    d->dragLightness = d->settings.lightness;
+    d->dragging = true;
+    return true;
+}
+
+QString SkissaFewerWidget::canvasDragged(const QPointF &moved, const QPointF &)
+{
+    if (!d->dragging) return QString();
+    if (d->settings.source == SkissaFewer::Source::Palette) {
+        // up lighter
+        d->lightness->setValue(qBound(-100.0, (d->dragLightness - moved.y() / dragForLightness) * 200, 100.0));
+        return i18nc("fewer colors effect setting", "Lightness") + QStringLiteral(" ") + d->lightness->text();
+    }
+    // up more colors, by ratios, so few change slowly and many quickly
+    d->count->setValue(qRound(d->dragCount * std::exp(-moved.y() / dragForCount)));
+    return countText(d->settings.source, d->settings.count);
+}
+
+void SkissaFewerWidget::canvasReleased()
+{
+    d->dragging = false;
 }
 
 #include "SkissaDetailWidget.moc"
