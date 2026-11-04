@@ -212,6 +212,16 @@ qreal KisStudioValueRow::fraction() const
     return qBound(0.0, (m_value - low) / (high - low), 1.0);
 }
 
+qreal KisStudioValueRow::valueAt(qreal x) const
+{
+    const QRectF box = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+    const qreal at = qBound(0.0, (x - box.left()) / box.width(), 1.0);
+    const qreal low = m_range.minimum;
+    const qreal high = m_range.maximum;
+    if (m_range.size && low > 0) return low * std::pow(high / low, at);
+    return low + at * (high - low);
+}
+
 QString KisStudioValueRow::text() const
 {
     if (!m_valueText.isEmpty()) return m_valueText;
@@ -419,7 +429,12 @@ void KisStudioValueRow::mouseReleaseEvent(QMouseEvent *event)
     const bool dragged = m_dragging;
     m_dragging = false;
     update();
-    if (!dragged && rect().contains(event->pos())) Q_EMIT clicked();
+    if (!dragged && rect().contains(event->pos())) {
+        const QRectF content = textArea();
+        const qreal number = fontMetrics().horizontalAdvance(text()) + KisModernStyle::space2;
+        if (m_clickSets && m_draggable && !m_editing && event->pos().x() < content.right() - number) change(valueAt(event->pos().x()));
+        Q_EMIT clicked();
+    }
     event->accept();
 }
 

@@ -52,6 +52,8 @@ public:
     void setInactive(bool inactive);
     /// Without a value bar: a row that is clicked, not dragged
     void setDraggable(bool draggable);
+    /// A click on the bar puts the value where it is pressed, as on a slider (not on the number, which is typed)
+    void setClickSetsValue(bool on) { m_clickSets = on; }
     /// Shows a pin under the pointer (filled while \p pinned), and lets the row be pulled out upwards or downwards
     void setPinnable(bool pinnable, bool pinned);
     /// A cross under the pointer that takes the row away (removeClicked())
@@ -90,6 +92,8 @@ protected:
 
 private:
     qreal fraction() const;
+    /// The value at \p x across the row, as the bar shows it
+    qreal valueAt(qreal x) const;
     QString text() const;
     void change(qreal value);
 
@@ -103,6 +107,7 @@ private:
     bool m_compact {false};
     bool m_inactive {false};
     bool m_draggable {true};
+    bool m_clickSets {false};
     bool m_pinnable {false};
     bool m_pinned {false};
     bool m_pinOnHoverOnly {false};

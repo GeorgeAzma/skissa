@@ -51,6 +51,7 @@
 
 #include "KisDocument.h"
 #include "KisEffectCanvasEditor.h"
+#include "KisEffectPanels.h"
 #include "KisRetiredEffects.h"
 #include "KisMainWindow.h"
 #include "KisStudioGlass.h"
@@ -58,6 +59,9 @@
 #include "KisStudioEffectsPicker.h"
 #include "KisViewManager.h"
 #include "canvas/kis_canvas2.h"
+#include "opengl/kis_opengl_canvas2.h"
+#include "opengl/kis_opengl_image_textures.h"
+#include <kis_paint_device.h>
 #include "canvas/kis_coordinates_converter.h"
 #include "input/KisInputActionGroup.h"
 #include "kis_config.h"
@@ -479,6 +483,9 @@ struct KisStudioEffectOverlay::Private
     int headerBottom {0};
     /// Space is held: the canvas pans, so drags don't change the effect
     bool spaceHeld {false};
+    /// The image as it was when the effect opened, shown while the preview is switched off, and the canvas showing it
+    KisPaintDeviceSP before;
+    QPointer<KisCanvas2> showingBefore;
 
     KisViewManager *viewManager() const { return mainWindow->viewManager(); }
     KisFilterManager *filterManager() const { return viewManager() ? viewManager()->filterManager() : nullptr; }
@@ -488,6 +495,33 @@ struct KisStudioEffectOverlay::Private
     {
         KisViewManager *view = viewManager();
         return node && view && view->image() && node->image().data() == view->image().data();
+    }
+
+    /// The whole canvas fetched again; refetchDataFromImage() would wait for the effect, holding the image's lock
+    static void redraw(KisCanvas2 *canvas)
+    {
+        QMetaObject::invokeMethod(canvas, "startUpdateCanvasProjection", Qt::DirectConnection, Q_ARG(QRect, canvas->image()->bounds()));
+    }
+
+    /// Shows the image as it was, or the preview again, without changing either: switching is instant both ways.
+    /// False where the canvas can't (a canvas without OpenGL)
+    bool showBefore(bool show)
+    {
+        if (!show) {
+            if (showingBefore) {
+                if (auto *gl = dynamic_cast<KisOpenGLCanvas2 *>(showingBefore->canvasWidget())) gl->openGLImageTextures()->setShownInstead(nullptr);
+                redraw(showingBefore);
+            }
+            showingBefore = nullptr;
+            return true;
+        }
+        KisCanvas2 *canvas = viewManager() ? viewManager()->canvasBase() : nullptr;
+        auto *gl = canvas ? dynamic_cast<KisOpenGLCanvas2 *>(canvas->canvasWidget()) : nullptr;
+        if (!gl || !before || !current()) return false;
+        gl->openGLImageTextures()->setShownInstead(before);
+        redraw(canvas);
+        showingBefore = canvas;
+        return true;
     }
 
     void setCursor(bool on)
@@ -533,6 +567,12 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
         d->preview->setIcon(KisIconUtils::loadIcon(on ? QStringLiteral("visible") : QStringLiteral("novisible")));
         KisFilterManager *filterManager = d->filterManager();
         if (!filterManager) return;
+        // the preview stays and goes on following changes: only what the canvas shows switches
+        if (!on && d->showBefore(true)) return;
+        if (on && d->showingBefore) {
+            d->showBefore(false);
+            return;
+        }
         if (on) {
             startApplying();
         } else if (filterManager->isStrokeRunning()) {
@@ -700,6 +740,8 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
     KisStudioMotion::showFaded(this);
     reposition();
     setFocus();
+    // its tiles are shared with the image's until the preview changes them
+    d->before = KisEffectPanels::fullSizeCopy(viewManager->image()->projection());
     startApplying();
     return true;
 }
@@ -707,7 +749,7 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
 void KisStudioEffectOverlay::startApplying()
 {
     KisFilterManager *filterManager = d->filterManager();
-    if (!d->selector || !filterManager || !d->preview->isChecked() || !d->current()) {
+    if (!d->selector || !filterManager || (!d->preview->isChecked() && !d->showingBefore) || !d->current()) {
         return;
     }
     KisFilterConfigurationSP config = d->selector->configuration();
@@ -801,6 +843,8 @@ void KisStudioEffectOverlay::createMask(KisFilterConfigurationSP config)
 
 void KisStudioEffectOverlay::finishEditing()
 {
+    d->showBefore(false);
+    d->before = nullptr;
     d->guard.reset();
     d->setCursor(false);
     d->dragging = false;

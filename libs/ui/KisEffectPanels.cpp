@@ -134,7 +134,7 @@ public:
 
         // the pixels as they were before the preview changes them; their tiles are shared until then
         if (device) {
-            m_original = new KisPaintDevice(*device);
+            m_original = fullSizeCopy(device);
             const QRect bounds = m_original->exactBounds();
             if (!bounds.isEmpty()) m_crop = QRect(busiestPoint(m_original, bounds) - QPoint(tileSize.width() / 2, tileSize.height() / 2), tileSize);
         }
@@ -194,6 +194,7 @@ public:
     KisStudioValueRow *addValue(const Value &value)
     {
         auto *row = new KisStudioValueRow(value.name, this);
+        row->setClickSetsValue(true);
         row->setRange(value.range);
         row->setDefaultValue(value.read(*defaults()));
         layout()->addWidget(row);
@@ -1150,6 +1151,13 @@ KisConfigWidget *create(const QString &filterId, QWidget *parent, KisPaintDevice
     if (filterId == QLatin1String("height to normal")) return heightToNormal(parent, device);
     if (filterId == QLatin1String("gradientmap")) return gradientMap(parent, device);
     return nullptr;
+}
+
+KisPaintDeviceSP fullSizeCopy(KisPaintDeviceSP device)
+{
+    KisPaintDeviceSP copy = new KisPaintDevice(*device);
+    copy->setDefaultBounds(new PictureBounds(device->defaultBounds()->bounds()));
+    return copy;
 }
 
 QPoint busiestPoint(KisPaintDeviceSP device, const QRect &bounds)

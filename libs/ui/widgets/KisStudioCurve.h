@@ -52,8 +52,6 @@ public:
     std::function<QColor(qreal)> yColor;
     /// Drawn behind the curve, within its box: what the x axis is, as a picture
     std::function<void(QPainter &, const QRectF &)> backdrop;
-    /// Drawn in a strip under the box: what the x axis is, as a picture (the image at each size)
-    std::function<void(QPainter &, const QRectF &)> xPicture;
 
     explicit KisStudioCurveView(QWidget *parent);
 

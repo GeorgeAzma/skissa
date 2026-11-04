@@ -31,6 +31,10 @@ namespace KisEffectPanels
 /// The panel for \p filterId, or null where Krita's own is shown
 KRITAUI_EXPORT KisConfigWidget *create(const QString &filterId, QWidget *parent, KisPaintDeviceSP device);
 
+/// A copy of \p device that keeps reading its full-size pixels while the image shows a coarse preview (whose
+/// level of detail a plain copy would follow, reading pixels it doesn't have); its tiles are shared until either changes
+KRITAUI_EXPORT KisPaintDeviceSP fullSizeCopy(KisPaintDeviceSP device);
+
 /// The middle of the most textured part of \p bounds, where changes to fine detail show
 KRITAUI_EXPORT QPoint busiestPoint(KisPaintDeviceSP device, const QRect &bounds);
 

@@ -18,6 +18,7 @@
 #include <cmath>
 #include <functional>
 
+#include <KisEffectPanels.h>
 #include <KisGlobalResourcesInterface.h>
 #include <KisModernStyle.h>
 #include <KoColor.h>
@@ -441,7 +442,7 @@ SkissaColorWidget::SkissaColorWidget(QWidget *parent, KisPaintDeviceSP dev)
 {
     // the pixels as they were before the preview changes them; their tiles are shared until then
     if (dev) {
-        d->original = new KisPaintDevice(*dev);
+        d->original = KisEffectPanels::fullSizeCopy(dev);
         d->sample = d->original->createThumbnail(200, 200, Qt::KeepAspectRatio);
         const QSize tile(160, 96);
         const QImage whole = d->original->createThumbnail(tile.width() * 2, tile.height() * 2, Qt::KeepAspectRatio);

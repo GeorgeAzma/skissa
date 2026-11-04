@@ -20,7 +20,6 @@
 namespace
 {
 constexpr int stripSize = 6;
-constexpr int pictureStripSize = 18;
 }
 
 QString KisStudioCurve::toString() const
@@ -249,7 +248,7 @@ QSize KisStudioCurveView::sizeHint() const
 
 int KisStudioCurveView::heightForWidth(int width) const
 {
-    return qBound(130, int(width * 0.4), 170) + (xPicture ? pictureStripSize + KisModernStyle::space1 : 0);
+    return qBound(130, int(width * 0.4), 170);
 }
 
 void KisStudioCurveView::paintEvent(QPaintEvent *)
@@ -358,13 +357,6 @@ void KisStudioCurveView::paintEvent(QPaintEvent *)
         painter.drawPath(KisModernStyle::squircle(rect, rect.height() < rect.width() ? rect.height() / 2 : rect.width() / 2));
     };
     strip(QRectF(box.left(), box.bottom() + KisModernStyle::space1, box.width(), stripSize), true, xColor);
-    if (xPicture) {
-        const QRectF under(box.left(), box.bottom() + KisModernStyle::space1, box.width(), pictureStripSize);
-        painter.save();
-        painter.setClipPath(KisModernStyle::squircle(under, KisModernStyle::cornerRadius));
-        xPicture(painter, under);
-        painter.restore();
-    }
     strip(QRectF(0, box.top(), stripSize, box.height()), false, yColor);
 }
 
@@ -457,7 +449,7 @@ void KisStudioCurveView::leaveEvent(QEvent *)
 QRectF KisStudioCurveView::boxRect() const
 {
     const qreal left = yColor ? stripSize + KisModernStyle::space1 : 0;
-    const qreal under = xPicture ? pictureStripSize + KisModernStyle::space1 : xColor ? stripSize + KisModernStyle::space1 : 0;
+    const qreal under = xColor ? stripSize + KisModernStyle::space1 : 0;
     return QRectF(left, 0, width() - left, height() - under);
 }
 

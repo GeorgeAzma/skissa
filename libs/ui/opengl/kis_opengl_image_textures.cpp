@@ -285,7 +285,21 @@ KisOpenGLUpdateInfoSP KisOpenGLImageTextures::updateCacheNoConversion(const QRec
 KisOpenGLUpdateInfoSP KisOpenGLImageTextures::updateCacheImpl(const QRect& rect, KisImageSP srcImage, bool convertColorSpace)
 {
     if (!m_initialized) return new KisOpenGLUpdateInfo();
+    KisPaintDeviceSP shownInstead;
+    {
+        QMutexLocker locker(&m_shownInsteadLock);
+        shownInstead = m_shownInstead;
+    }
+    if (shownInstead && srcImage->currentLevelOfDetail() == 0) {
+        return m_updateInfoBuilder.buildUpdateInfo(rect, shownInstead, srcImage->bounds(), 0, convertColorSpace);
+    }
     return m_updateInfoBuilder.buildUpdateInfo(rect, srcImage, convertColorSpace);
+}
+
+void KisOpenGLImageTextures::setShownInstead(KisPaintDeviceSP device)
+{
+    QMutexLocker locker(&m_shownInsteadLock);
+    m_shownInstead = device;
 }
 
 void KisOpenGLImageTextures::recalculateCache(KisUpdateInfoSP info, bool blockMipmapRegeneration)

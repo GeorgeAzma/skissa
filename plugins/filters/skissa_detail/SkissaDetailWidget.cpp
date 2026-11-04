@@ -71,6 +71,7 @@ QString gainText(float gain)
 KisStudioValueRow *valueRow(QWidget *parent, const QString &name, qreal minimum, qreal maximum, int decimals, const QString &suffix, qreal reset)
 {
     auto *row = new KisStudioValueRow(name, parent);
+    row->setClickSetsValue(true);
     KisStudioValueRow::Range range;
     range.minimum = minimum;
     range.maximum = maximum;
@@ -192,8 +193,6 @@ struct SkissaDetailWidget::Private {
     KisStudioChips *tiles {nullptr};
     KisStudioCurveView *view {nullptr};
     KisStudioValueRow *edgesBox {nullptr};
-    /// The busiest part of the layer, each column blurred to the size at its place on the curve's axis
-    QImage sizeStrip;
 
     /// The drag on the image in progress: the point it moves and where that started
     int dragPoint {-1};
@@ -209,49 +208,6 @@ struct SkissaDetailWidget::Private {
             {i18nc("detail effect preset", "Clarity"), curveOf({{0, 1}, {4, 1}, {16, 1.6f}, {64, 1.6f}, {300, 1}, {1024, 1}}), 0.4},
             {i18nc("detail effect preset", "Even"), curveOf({{0, 1}, {32, 1}, {256, 0.5f}, {1024, 0.5f}}), 0},
         };
-    }
-
-    /// The strip under the curve, \p size device pixels: at the left the layer as it is, toward the right blurred
-    /// ever more, until only its largest shapes are left
-    void makeSizeStrip(const QSize &size)
-    {
-        constexpr int margin = 64;
-        QImage base;
-        if (original) {
-            const QRect bounds = original->exactBounds();
-            if (!bounds.isEmpty()) {
-                const QPoint detailed = KisEffectPanels::busiestPoint(original, bounds);
-                const QRect crop(detailed - QPoint(size.width() / 2, size.height() / 2), size);
-                base = original->convertToQImage(nullptr, crop.adjusted(-margin, -margin, margin, margin));
-            }
-        }
-        if (base.isNull()) base = zonePlate(size + QSize(2 * margin, 2 * margin));
-        // a blur every half octave, each column between the two nearest
-        constexpr int levels = int(octaves) * 2 + 1;
-        QVector<QImage> blurred;
-        for (int i = 0; i < levels; i++) {
-            const qreal radius = radiusAt(qreal(i) / (levels - 1)) - 1;
-            if (radius <= 0) {
-                blurred << base;
-                continue;
-            }
-            Plan plan;
-            plan.fine = 0;
-            plan.steps << Step{radius, 1};
-            blurred << applied(base, plan).convertToFormat(QImage::Format_ARGB32);
-        }
-        sizeStrip = QImage(size, QImage::Format_ARGB32);
-        for (int x = 0; x < size.width(); x++) {
-            const qreal at = qreal(x) / std::max(1, size.width() - 1) * (levels - 1);
-            const int low = std::min(int(at), levels - 2);
-            const qreal t = at - low;
-            for (int y = 0; y < size.height(); y++) {
-                const QRgb a = blurred[low].pixel(x + margin, y + margin);
-                const QRgb b = blurred[low + 1].pixel(x + margin, y + margin);
-                auto mixed = [t](int u, int v) { return qRound(u + (v - u) * t); };
-                sizeStrip.setPixel(x, y, qRgba(mixed(qRed(a), qRed(b)), mixed(qGreen(a), qGreen(b)), mixed(qBlue(a), qBlue(b)), mixed(qAlpha(a), qAlpha(b))));
-            }
-        }
     }
 
     void makePictures()
@@ -285,7 +241,7 @@ SkissaDetailWidget::SkissaDetailWidget(QWidget *parent, KisPaintDeviceSP dev)
     , d(new Private)
 {
     // the pixels as they were before the preview changes them; their tiles are shared until then
-    if (dev) d->original = new KisPaintDevice(*dev);
+    if (dev) d->original = KisEffectPanels::fullSizeCopy(dev);
     d->makePresets();
     d->makePictures();
 
@@ -312,13 +268,7 @@ SkissaDetailWidget::SkissaDetailWidget(QWidget *parent, KisPaintDeviceSP dev)
         Q_EMIT sigConfigurationItemChanged();
     };
     d->view->describe = [](qreal x, qreal y) { return radiusText(radiusAt(x)) + QStringLiteral("  ") + gainText(gainOf(y)); };
-    d->view->xPicture = [this](QPainter &painter, const QRectF &rect) {
-        // made at the screen's own pixels, which are the image's at 100%
-        const qreal ratio = devicePixelRatioF();
-        const QSize size = (rect.size() * ratio).toSize();
-        if (d->sizeStrip.size() != size && !size.isEmpty()) d->makeSizeStrip(size);
-        painter.drawImage(rect, d->sizeStrip);
-    };
+    d->view->backdrop = [this](QPainter &painter, const QRectF &box) { paintSizes(painter, box, palette().color(QPalette::WindowText)); };
     layout->addWidget(d->view);
 
     d->edgesBox = valueRow(this, i18nc("effect setting", "Edges"), 0, 100, 0, QStringLiteral("%"), 0);
@@ -517,7 +467,7 @@ SkissaNoiseWidget::SkissaNoiseWidget(QWidget *parent, KisPaintDeviceSP dev)
     , d(new Private)
 {
     // the pixels as they were before the preview changes them; their tiles are shared until then
-    if (dev) d->original = new KisPaintDevice(*dev);
+    if (dev) d->original = KisEffectPanels::fullSizeCopy(dev);
     d->makePresets();
     d->makePictures();
 
@@ -769,7 +719,7 @@ SkissaLensWidget::SkissaLensWidget(QWidget *parent, KisPaintDeviceSP dev)
 {
     if (dev) {
         // the pixels as they were before the preview changes them; their tiles are shared until then
-        d->original = new KisPaintDevice(*dev);
+        d->original = KisEffectPanels::fullSizeCopy(dev);
         d->bounds = dev->defaultBounds()->bounds();
     }
     if (d->bounds.isEmpty()) d->bounds = QRect(0, 0, 1600, 1000);
@@ -1042,7 +992,7 @@ SkissaFewerWidget::SkissaFewerWidget(QWidget *parent, KisPaintDeviceSP dev)
 {
     using namespace SkissaFewer;
     // the pixels as they were before the preview changes them; their tiles are shared until then
-    if (dev) d->original = new KisPaintDevice(*dev);
+    if (dev) d->original = KisEffectPanels::fullSizeCopy(dev);
     d->makeImages();
     d->loadPalettes();
 
@@ -1061,6 +1011,7 @@ SkissaFewerWidget::SkissaFewerWidget(QWidget *parent, KisPaintDeviceSP dev)
     layout->addWidget(d->sources);
 
     d->count = new KisStudioValueRow(i18nc("fewer colors effect setting", "Colors"), this);
+    d->count->setClickSetsValue(true);
     connect(d->count, &KisStudioValueRow::valueChanged, this, [this](qreal value) {
         d->settings.count = qRound(value);
         if (d->settings.source == Source::Image) d->settings.colors = d->colorsOfImage(d->settings.count);
@@ -1087,6 +1038,7 @@ SkissaFewerWidget::SkissaFewerWidget(QWidget *parent, KisPaintDeviceSP dev)
     layout->addWidget(d->paletteRow);
 
     d->brightness = new KisStudioValueRow(i18nc("fewer colors effect setting", "Brightness"), this);
+    d->brightness->setClickSetsValue(true);
     {
         KisStudioValueRow::Range range;
         range.minimum = -100;
@@ -1113,6 +1065,7 @@ SkissaFewerWidget::SkissaFewerWidget(QWidget *parent, KisPaintDeviceSP dev)
     layout->addWidget(d->dithers);
 
     d->amount = new KisStudioValueRow(i18nc("dithering strength", "Amount"), this);
+    d->amount->setClickSetsValue(true);
     {
         KisStudioValueRow::Range range;
         range.maximum = 100;

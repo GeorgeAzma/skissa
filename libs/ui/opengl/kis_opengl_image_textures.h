@@ -6,6 +6,7 @@
 #ifndef KIS_OPENGL_IMAGE_TEXTURES_H_
 #define KIS_OPENGL_IMAGE_TEXTURES_H_
 
+#include <QMutex>
 #include <QVector>
 #include <QMap>
 #include <QOpenGLFunctions>
@@ -155,6 +156,9 @@ public:
     KisOpenGLUpdateInfoSP updateCache(const QRect& rect, KisImageSP srcImage);
     KisOpenGLUpdateInfoSP updateCacheNoConversion(const QRect& rect);
 
+    /// Shows \p device in place of the image while it is set (an effect's preview switched off); null: the image
+    void setShownInstead(KisPaintDeviceSP device);
+
     void recalculateCache(KisUpdateInfoSP info, bool blockMipmapRegeneration);
 
     void slotImageSizeChanged(qint32 w, qint32 h);
@@ -187,6 +191,9 @@ private:
 private:
     KisImageWSP m_image;
     QRect m_storedImageBounds;
+    /// Read by the image's threads as they update the textures
+    KisPaintDeviceSP m_shownInstead;
+    QMutex m_shownInsteadLock;
     const KoColorProfile *m_monitorProfile {nullptr};
     KoColorConversionTransformation::Intent m_renderingIntent;
     KoColorConversionTransformation::ConversionFlags m_conversionFlags;
