@@ -5,6 +5,8 @@
  */
 #include "KisStudioFlash.h"
 
+#include <QElapsedTimer>
+#include <QHash>
 #include <QPainter>
 #include <QPointer>
 #include <QVariantAnimation>
@@ -71,8 +73,21 @@ QWidget *shown(QWidget *from, const char *name)
     if (!from) return nullptr;
     QWidget *window = from->window();
     if (!window || !window->isVisible() || window->isMinimized()) return nullptr;
-    Q_FOREACH (QWidget *candidate, window->findChildren<QWidget *>(QLatin1String(name))) {
-        if (candidate->isVisible() && !candidate->rect().isEmpty()) return candidate;
+    // asked at every step of a rotation and every repeat of a key: the window's widgets of that name are searched
+    // again only now and then
+    struct Found {
+        QVector<QPointer<QWidget>> widgets;
+        QElapsedTimer age;
+    };
+    static QHash<QPair<QWidget *, QByteArray>, Found> found;
+    Found &entry = found[qMakePair(window, QByteArray(name))];
+    if (!entry.age.isValid() || entry.age.elapsed() > 1000) {
+        entry.widgets.clear();
+        Q_FOREACH (QWidget *candidate, window->findChildren<QWidget *>(QLatin1String(name))) entry.widgets << candidate;
+        entry.age.start();
+    }
+    for (const QPointer<QWidget> &candidate : entry.widgets) {
+        if (candidate && candidate->isVisible() && !candidate->rect().isEmpty()) return candidate;
     }
     return nullptr;
 }

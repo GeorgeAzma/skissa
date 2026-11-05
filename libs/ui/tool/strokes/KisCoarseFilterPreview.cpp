@@ -161,5 +161,4 @@ void KisCoarseFilterPreview::upscale(KisPaintDeviceSP small, KisPaintDeviceSP ta
         }
     }
     target->writeBytes(out.constData(), patch);
-    target->writeBytes(out.constData(), patch);
 }

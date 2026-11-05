@@ -522,7 +522,7 @@ void NodeView::resizeEvent(QResizeEvent * event)
     int otherColumnsWidth = scm.visibilityColumnWidth();
 
     // if layer box is enabled subtract its width from the "Default col".
-    if (KisConfig(false).useLayerSelectionCheckbox()) {
+    if (KisConfig(true).useLayerSelectionCheckbox()) {
         otherColumnsWidth += scm.selectedButtonColumnWidth();
     }
     header()->resizeSection(DEFAULT_COL, event->size().width() - otherColumnsWidth);
@@ -678,7 +678,7 @@ void NodeView::slotConfigurationChanged()
 
 void NodeView::updateSelectedCheckboxColumn()
 {
-    KisConfig cfg(false);
+    KisConfig cfg(true);
     if (cfg.useLayerSelectionCheckbox() == !header()->isSectionHidden(SELECTED_COL)) {
         return;
     }

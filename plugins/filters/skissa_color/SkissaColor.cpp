@@ -12,6 +12,7 @@
 
 #include <kis_properties_configuration.h>
 
+#include "KoCompositeOpMix.h"
 #include "KoCompositeOpOklch.h"
 
 namespace SkissaColor
@@ -77,13 +78,16 @@ inline float read(const QVector<float> &table, float x)
     return table[i] + (table[i + 1] - table[i]) * (at - i);
 }
 
-inline float encoded(float c)
+/// The sRGB curve; \p quick reads it from tables between 0 and 1 (off it by at most 1e-5)
+inline float encoded(float c, bool quick)
 {
+    if (quick && c >= 0 && c <= 1) return KoMixing::readTable<KoMixing::Curves::toSrgbSteps>(KoMixing::curves().toSrgb, c);
     return c <= 0.0031308f ? c * 12.92f : 1.055f * std::pow(c, 1 / 2.4f) - 0.055f;
 }
 
-inline float decoded(float c)
+inline float decoded(float c, bool quick)
 {
+    if (quick && c >= 0 && c <= 1) return KoMixing::readTable<KoMixing::Curves::toLinearSteps>(KoMixing::curves().toLinear, c);
     return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
 }
 
@@ -290,11 +294,12 @@ void Recipe::apply(float rgb[3], bool fit) const
         }
     }
     if (m_anyRgb) {
+        // integer images can't show the tables' error; floats keep the exact curve
         for (int i = 0; i < 3; i++) {
             if (m_rgb[i].isEmpty()) continue;
-            const float e = encoded(std::max(0.0f, rgb[i]));
+            const float e = encoded(std::max(0.0f, rgb[i]), fit);
             const float changed = e <= 1 ? read(m_rgb[i], e) : read(m_rgb[i], 1) + e - 1;
-            rgb[i] = decoded(changed);
+            rgb[i] = decoded(changed, fit);
         }
     }
 }

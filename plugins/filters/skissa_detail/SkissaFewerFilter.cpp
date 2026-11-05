@@ -13,6 +13,7 @@
 #include <KoColorSpace.h>
 #include <filter/kis_filter_category_ids.h>
 #include <filter/kis_filter_configuration.h>
+#include <kis_datamanager.h>
 #include <kis_default_bounds_base.h>
 #include <kis_paint_device.h>
 #include <klocalizedstring.h>
@@ -38,13 +39,44 @@ struct Diffused {
 };
 
 /**
+ * The key of \p rect of \p device's pixels as they were, hashed once for all patches of a run: while a transaction
+ * holds the device, its old pixels can't change. A mask's patches each have a copy of their own, and are hashed.
+ */
+quint64 originalKeyOf(KisPaintDeviceSP device, const QRect &rect)
+{
+    struct Seen {
+        KisPaintDeviceWSP device;
+        int sequence {0};
+        QRect rect;
+        quint64 key {0};
+    };
+    static QMutex lock;
+    static Seen seen;
+    const bool held = device->dataManager()->hasCurrentMemento();
+    const int sequence = device->sequenceNumber();
+    if (held) {
+        QMutexLocker locker(&lock);
+        if (seen.device.isValid() && seen.device == device.data() && seen.sequence == sequence && seen.rect == rect) return seen.key;
+    }
+    const quint64 key = SkissaPixels::originalKey(device, rect);
+    if (held) {
+        QMutexLocker locker(&lock);
+        seen.device = device.data();
+        seen.sequence = sequence;
+        seen.rect = rect;
+        seen.key = key;
+    }
+    return key;
+}
+
+/**
  * The diffusion of \p rect of \p device's pixels as they were when the effect began. Patches run side by side, and
  * a filter mask's each on a copy of their own, so it is found again by what it was made of: the pixels and the
  * settings. The last one is kept.
  */
 std::shared_ptr<Diffused> diffusedFor(KisPaintDeviceSP device, const QRect &rect, const Settings &settings, const Quantizer &quantizer, const QString &config)
 {
-    const quint64 key = SkissaPixels::originalKey(device, rect) ^ (quint64(qHash(config)) << 32 | qHash(device->colorSpace()->id()));
+    const quint64 key = originalKeyOf(device, rect) ^ (quint64(qHash(config)) << 32 | qHash(device->colorSpace()->id()));
     static QMutex kept;
     static quint64 keptKey = 0;
     static std::shared_ptr<Diffused> last;

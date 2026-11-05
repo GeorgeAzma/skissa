@@ -267,6 +267,12 @@ struct KeyUse {
     bool elsewhere {false};
 };
 
+/// What a chord does, and how many of those are commands (more than one is a conflict)
+struct KeyUses {
+    QVector<KeyUse> uses;
+    int commandCount {0};
+};
+
 /**
  * A drawn keyboard whose keys show the icon (or name) of what they do in the current modifier layer,
  * with a count badge when a key does several things (red on conflict) and a bar for keys held on the canvas.
@@ -276,6 +282,8 @@ class KeyboardMap : public QWidget
 public:
     /// What a chord does, and how many of those are commands (more than one is a conflict)
     std::function<QVector<KeyUse>(int chord, int *commandCount)> usesOn;
+    /// The same for every chord at once, for a whole paint
+    std::function<QHash<int, KeyUses>()> allUses;
     std::function<void(int chord)> clicked;
     std::function<void(const QMimeData *mime, int chord)> dropped;
     /// Chords of the item selected in the list, drawn highlighted
@@ -347,13 +355,15 @@ protected:
         QFont badgeFont = legendFont;
         badgeFont.setPixelSize(qMax(8, int(u * 0.18)));
         badgeFont.setBold(true);
+        const QHash<int, KeyUses> table = allUses ? allUses() : QHash<int, KeyUses>();
 
         for (int i = 0; i < m_cells.size(); i++) {
             const KeyCell &cell = m_cells[i];
             const QRectF r = cellRect(cell);
             const int chord = chordAt(i);
-            int commandCount = 0;
-            const QVector<KeyUse> uses = usesOn ? usesOn(chord, &commandCount) : QVector<KeyUse>();
+            const KeyUses found = table.value(chord);
+            const int commandCount = found.commandCount;
+            const QVector<KeyUse> &uses = found.uses;
             const bool modifierOn = isModifierKey(cell.key) && (layer & modifierOf(cell.key));
             const bool isLit = lit.contains(chord);
             const bool used = !uses.isEmpty();
@@ -1074,20 +1084,62 @@ struct KisKeysPage::Private
      */
     QVector<KeyUse> usesOn(int chord, int *commandCount) const
     {
-        QVector<KeyUse> uses;
         *commandCount = 0;
-        if (!chord) return uses;
+        if (!chord) return QVector<KeyUse>();
+        OnChord on;
+        for (const Command &command : commands) {
+            bool has = false;
+            Q_FOREACH (const QKeySequence &sequence, command.current) has = has || (sequence.count() == 1 && chordOf(sequence) == chord);
+            if (has) on.add(command, context);
+        }
+        return usesOf(on, chord, commandCount);
+    }
+
+    /// usesOn() for every chord something is on, reading the commands once
+    QHash<int, KeyUses> allUses() const
+    {
+        QHash<int, OnChord> found;
+        for (const Command &command : commands) {
+            QSet<int> chords;
+            Q_FOREACH (const QKeySequence &sequence, command.current) {
+                if (sequence.count() == 1) chords.insert(chordOf(sequence));
+            }
+            for (const int chord : qAsConst(chords)) {
+                if (chord) found[chord].add(command, context);
+            }
+        }
+        for (const Hold &hold : holds) {
+            const int chord = chordOf(hold.staged.keys());
+            if (!hold.removed && chord && !found.contains(chord)) found.insert(chord, OnChord());
+        }
+        QHash<int, KeyUses> table;
+        for (auto it = found.constBegin(); it != found.constEnd(); ++it) {
+            KeyUses &uses = table[it.key()];
+            uses.uses = usesOf(it.value(), it.key(), &uses.commandCount);
+        }
+        return table;
+    }
+
+    /// The commands on one chord, by where they work
+    struct OnChord {
         QVector<const Command *> mine;
         QVector<const Command *> everywhere;
         QVector<const Command *> tools;
-        for (const Command &command : commands) {
-            bool on = false;
-            Q_FOREACH (const QKeySequence &sequence, command.current) on = on || (sequence.count() == 1 && chordOf(sequence) == chord);
-            if (!on) continue;
+
+        void add(const Command &command, const QString &context)
+        {
             if (command.tools.isEmpty()) everywhere << &command;
             else if (context.isEmpty()) tools << &command;
             else if (command.tools.contains(context)) mine << &command;
         }
+    };
+
+    QVector<KeyUse> usesOf(const OnChord &on, int chord, int *commandCount) const
+    {
+        QVector<KeyUse> uses;
+        const QVector<const Command *> &mine = on.mine;
+        const QVector<const Command *> &everywhere = on.everywhere;
+        const QVector<const Command *> &tools = on.tools;
         auto use = [](const Command *command, bool elsewhere) {
             return KeyUse{command->title, command->action ? command->action->icon() : QIcon(), false, elsewhere};
         };
@@ -1467,6 +1519,7 @@ KisKeysPage::KisKeysPage(QWidget *parent)
 
     d->map = new KeyboardMap(this);
     d->map->usesOn = [this](int chord, int *commandCount) { return d->usesOn(chord, commandCount); };
+    d->map->allUses = [this]() { return d->allUses(); };
     layout->addWidget(d->map);
 
     d->tree = new KeysTree(this);

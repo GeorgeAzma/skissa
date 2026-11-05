@@ -10,6 +10,7 @@
 
 #include <kundo2stack.h>
 #include <kis_image.h>
+#include <brushengine/kis_paintop_settings.h>
 
 #include "KisMainWindow.h"
 #include "KisPart.h"
@@ -50,6 +51,12 @@ struct KisLastStrokeReplay::Private
     QString mode;
     /// The brush's settings the stroke was last painted with (or will be)
     QString settings;
+    /// The brush's settings while no editor is there to change them: written out once one is
+    KisPaintOpSettingsSP unwritten;
+    /// The smoothing the stroke was painted with, while its settings are unwritten
+    QString smoothing;
+    /// The editors that report brush changes
+    QList<QPointer<QObject>> editors;
     /// The stroke's step in the history, once it is there
     const KUndo2Command *step {nullptr};
     /// The name the stroke's step has: another action's step is never taken for it
@@ -96,13 +103,23 @@ void KisLastStrokeReplay::setEnabled(bool on)
     KisConfig(false).writeEntry(enabledKey, on);
 }
 
-void KisLastStrokeReplay::strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack *stack, const QString &preset, const QString &settings)
+void KisLastStrokeReplay::strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack *stack, const QString &preset, KisPaintOpSettingsSP settings)
 {
     d->helper = helper;
     d->preset = preset;
     d->mode = paintMode();
     // the smoothing too: a change of it paints the stroke again as well
-    d->settings = settings + (helper ? helper->smoothingKey() : QString());
+    const QString smoothing = helper ? helper->smoothingKey() : QString();
+    d->editors.removeAll(QPointer<QObject>());
+    if (d->editors.isEmpty()) {
+        // no editor can change the brush yet: its settings are written out once one opens, which most strokes never see
+        d->settings.clear();
+        d->unwritten = settings;
+        d->smoothing = smoothing;
+    } else {
+        d->settings = (settings ? settings->toXML() : QString()) + smoothing;
+        d->unwritten = nullptr;
+    }
     d->stepText = helper ? helper->transactionText() : QString();
     d->step = nullptr;
     d->painting = false;
@@ -154,6 +171,16 @@ void KisLastStrokeReplay::strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack
     }
 }
 
+void KisLastStrokeReplay::watch(QObject *editor)
+{
+    d->editors.removeAll(QPointer<QObject>());
+    d->editors.append(editor);
+    if (d->unwritten) {
+        d->settings = d->unwritten->toXML() + d->smoothing;
+        d->unwritten = nullptr;
+    }
+}
+
 bool KisLastStrokeReplay::follows(const QString &preset) const
 {
     // painted again with the eraser switched on since, a stroke would erase what is under it
@@ -164,6 +191,7 @@ void KisLastStrokeReplay::brushChanged(const QString &preset, const QString &set
 {
     // the brush read back as it was (the editor following the preset) changes nothing
     if (!follows(preset)) return;
+    d->unwritten = nullptr;
     const QString look = settings + d->helper->smoothingKey();
     if (look == d->settings) return;
     // only the smoothing changed: it is dragged, and a stabilized stroke is slow to paint again, so once the drag pauses

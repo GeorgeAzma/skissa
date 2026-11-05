@@ -37,12 +37,11 @@ enum Mode { Normal = 0, Even = 1, Pigment = 2 };
 /// The brush setting holding the mode (kept by Krita when it writes a brush's settings again)
 inline QString settingName() { return QStringLiteral("SkissaMixing"); }
 
-/// \p t of \p b (in OKLab) into \p a (linear sRGB)
-inline void mixEven(const float a[3], const float bLab[3], float t, float out[3])
+/// \p t of \p b into \p a, both in OKLab, as linear sRGB
+inline void mixEven(const float aLab[3], const float bLab[3], float t, float out[3])
 {
     float lab[3];
-    linearToOklab(a, lab);
-    for (int c = 0; c < 3; c++) lab[c] += (bLab[c] - lab[c]) * t;
+    for (int c = 0; c < 3; c++) lab[c] = aLab[c] + (bLab[c] - aLab[c]) * t;
     oklabToLinear(lab, out);
 }
 
@@ -289,9 +288,10 @@ inline void mixPaint(const Paint &a, const Paint &b, float t, float out[3])
 inline void mix(int mode, const float a[3], const float b[3], float t, float out[3])
 {
     if (mode == Even) {
-        float lb[3];
+        float la[3], lb[3];
+        linearToOklab(a, la);
         linearToOklab(b, lb);
-        mixEven(a, lb, t, out);
+        mixEven(la, lb, t, out);
     } else if (mode == Pigment) {
         Paint pa, pb;
         paintOf(a, pa);
@@ -371,8 +371,15 @@ public:
                 std::copy(color, color + 3, seen);
             }
         };
-        float sourceLab[3];
+        float sourceLab[3], underLab[3];
         float sourceLabSeen[3] = {-1, -1, -1};
+        float underLabSeen[3] = {-1, -1, -1};
+        auto labFor = [](const float *color, float seen[3], float lab[3]) {
+            if (seen[0] != color[0] || seen[1] != color[1] || seen[2] != color[2]) {
+                KoMixing::linearToOklab(color, lab);
+                std::copy(color, color + 3, seen);
+            }
+        };
 
         auto pixel = [&](const float *s, float *d, float amount, bool alphaLocked) {
             // how much of each there is in the result: Normal is paint over paint, Copy replaces by the amount
@@ -391,11 +398,9 @@ public:
                 paintFor(d, underSeen, underPaint);
                 KoMixing::mixPaint(underPaint, sourcePaint, t, mixed);
             } else {
-                if (sourceLabSeen[0] != s[0] || sourceLabSeen[1] != s[1] || sourceLabSeen[2] != s[2]) {
-                    KoMixing::linearToOklab(s, sourceLab);
-                    std::copy(s, s + 3, sourceLabSeen);
-                }
-                KoMixing::mixEven(d, sourceLab, t, mixed);
+                labFor(s, sourceLabSeen, sourceLab);
+                labFor(d, underLabSeen, underLab);
+                KoMixing::mixEven(underLab, sourceLab, t, mixed);
             }
             std::copy(mixed, mixed + 3, d);
             if (!alphaLocked) d[3] = std::clamp(total, 0.0f, 1.0f);

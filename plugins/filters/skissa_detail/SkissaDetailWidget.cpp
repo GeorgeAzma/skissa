@@ -864,6 +864,8 @@ constexpr qreal dragForLightness = 600;
 /// The most steps of each channel, and the most colors taken from the image or of gray
 constexpr int mostLevels = 32;
 constexpr int mostColors = 256;
+/// The panel's width, unless it is shown wider
+constexpr int fewerWidth = 420;
 
 SkissaFewer::Settings fewerOf(SkissaFewer::Source source, int count, SkissaFewer::Dither dither = SkissaFewer::Dither::None)
 {
@@ -901,6 +903,10 @@ struct SkissaFewerWidget::Private {
     SkissaFewer::Settings settings;
     /// All of the layer, small: its colors, and the pictures of where they come from
     QImage whole;
+    /// The layer at the size the source tiles show it, for their pictures: tiles of that size covered by it
+    QImage tileWhole;
+    QSize tileCover;
+    int tileHeight {64};
     QHash<int, QVector<QColor>> imageColors;
     QVector<QPair<QString, QVector<QColor>>> palettes;
 
@@ -1130,7 +1136,7 @@ KisPropertiesConfigurationSP SkissaFewerWidget::configuration() const
 
 QSize SkissaFewerWidget::sizeHint() const
 {
-    const int width = 420;
+    const int width = fewerWidth;
     return QSize(width, qMax(layout()->heightForWidth(width), layout()->sizeHint().height()));
 }
 
@@ -1141,7 +1147,8 @@ void SkissaFewerWidget::refresh()
     d->shownSources = {Source::Image, Source::Gray};
     if (!d->palettes.isEmpty()) d->shownSources << Source::Palette;
     if (s.source == Source::Levels) d->shownSources << Source::Levels;
-    d->sources->setTileColumns(d->shownSources.size(), qMax(64, 2 * fontMetrics().height() + 34));
+    d->tileHeight = qMax(64, 2 * fontMetrics().height() + 34);
+    d->sources->setTileColumns(d->shownSources.size(), d->tileHeight);
 
     const bool palette = s.source == Source::Palette;
     d->count->setName(s.source == Source::Levels ? i18nc("fewer colors effect setting: steps of each channel", "Levels")
@@ -1173,6 +1180,14 @@ void SkissaFewerWidget::refresh()
 void SkissaFewerWidget::refreshTiles()
 {
     using namespace SkissaFewer;
+    // the pictures made at the size they are shown: a larger one is only scaled down
+    const qreal across = qreal(qMax(d->sources->width(), fewerWidth)) / qMax(1, d->shownSources.size());
+    const QSize cover = QSizeF(across, d->tileHeight).toSize() * devicePixelRatioF();
+    if (d->tileWhole.isNull() || d->tileCover != cover) {
+        d->tileCover = cover;
+        const QSize size = d->whole.size().scaled(cover, Qt::KeepAspectRatioByExpanding);
+        d->tileWhole = size.width() < d->whole.width() ? d->whole.scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation) : d->whole;
+    }
     QVector<KisStudioChips::Chip> chips;
     Q_FOREACH (Source source, d->shownSources) {
         KisStudioChips::Chip chip;
@@ -1184,7 +1199,7 @@ void SkissaFewerWidget::refreshTiles()
         }
         chip.on = source == d->settings.source;
         // the whole layer, small: where the colors come from shows in all of it
-        chip.picture = tilePicture(SkissaFewer::applied(d->whole, QPoint(), d->withSource(source)));
+        chip.picture = tilePicture(SkissaFewer::applied(d->tileWhole, QPoint(), d->withSource(source)));
         chips << chip;
     }
     d->sources->setChips(chips);

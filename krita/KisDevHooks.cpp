@@ -83,9 +83,12 @@ public:
             const UINT length = GlobalGetAtomNameW(ATOM(msg->lParam), name, 256);
             KisMainWindow *window = KisPart::instance()->currentMainwindow();
             if (length && window && window->viewManager()) {
-                if (KisAction *action = window->viewManager()->actionManager()->actionByName(QString::fromWCharArray(name, int(length)))) {
-                    action->trigger();
-                }
+                const QString id = QString::fromWCharArray(name, int(length));
+                QAction *action = window->viewManager()->actionManager()->actionByName(id);
+                // the Studio's own pickers and the brush editor are plain actions of the window
+                if (!action) action = window->actionCollection()->action(id);
+                if (!action) action = window->viewManager()->actionCollection()->action(id);
+                if (action) action->trigger();
             }
             return true;
         }

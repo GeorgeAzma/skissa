@@ -44,6 +44,8 @@ public:
         Machine = 1 << 1,   ///< specific to this computer (paths, hardware, screens); never transferred
         Fork = 1 << 2,      ///< exists only in this fork; upstream Krita doesn't read it
         NewViews = 1 << 3,  ///< applies only to images opened afterwards
+        /// Applied by its own code (a setter, a listener of valueChanged): Krita's whole config notice isn't sent for it
+        OwnNotice = 1 << 4,
     };
 
     struct Choice {
@@ -89,6 +91,8 @@ public:
     const Setting *setting(const QString &id) const;
     /// Drops the cached run-time choices, e.g. after a color profile or theme was added
     void refreshChoices();
+    /// Drops the cached run-time choices of setting \p id only
+    void refreshChoices(const QString &id);
 
     QVariant value(const QString &id) const;
     QVariant defaultValue(const QString &id) const;
@@ -159,7 +163,8 @@ Q_SIGNALS:
 
 private:
     KisSettingsRegistry();
-    void schedule();
+    /// Krita is told shortly, unless every setting written since is one with OwnNotice
+    void schedule(const Setting &written);
     /// Notifies Krita of written settings, as the Preferences dialog does on OK
     void notifyNow();
 

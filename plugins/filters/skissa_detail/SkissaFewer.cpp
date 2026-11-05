@@ -10,6 +10,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
+#include <numeric>
 
 #include <kis_properties_configuration.h>
 
@@ -321,36 +323,54 @@ void shift(float rgb[3], float lightness)
 void apply(const Settings &settings, const Quantizer &quantizer, float *pixels, const QRect &rect)
 {
     const bool dithered = settings.dither != Dither::None && settings.dither != Dither::Diffuse && settings.amount > 0;
+    // a pixel's mix depends on its color alone, and pictures repeat colors: the mixes of the colors met last are kept
+    struct Mix {
+        bool made {false};
+        float rgb[3];
+        quint16 colors[candidates];
+    };
+    constexpr int kept = 1024;
+    std::vector<Mix> mixes(dithered ? kept : 0);
     for (int y = 0; y < rect.height(); y++) {
         for (int x = 0; x < rect.width(); x++) {
             float *pixel = pixels + (size_t(y) * rect.width() + x) * 4;
             if (pixel[3] <= 0) continue;
             float goal[3] = {pixel[0], pixel[1], pixel[2]};
-            shift(goal, settings.lightness);
-            for (float &c : goal) c = std::clamp(c, 0.0f, 1.0f);
             int chosen;
             if (!dithered) {
+                shift(goal, settings.lightness);
+                for (float &c : goal) c = std::clamp(c, 0.0f, 1.0f);
                 chosen = quantizer.nearest(goal);
             } else {
-                // Knoll's pattern dithering: colors chosen one after another, each making up for what those before
-                // missed, so together they average to the pixel; the threshold picks one of them, from dark to light
-                int mix[candidates];
-                float error[3] = {0, 0, 0};
-                for (int i = 0; i < candidates; i++) {
-                    float attempt[3];
-                    for (int c = 0; c < 3; c++) attempt[c] = std::clamp(goal[c] + error[c] * settings.amount, 0.0f, 1.0f);
-                    const int candidate = quantizer.nearest(attempt);
-                    const float *color = quantizer.colorOf(candidate);
-                    for (int c = 0; c < 3; c++) error[c] += goal[c] - color[c];
-                    int at = i;
-                    while (at > 0 && quantizer.lightnessOf(mix[at - 1]) > quantizer.lightnessOf(candidate)) {
-                        mix[at] = mix[at - 1];
-                        at--;
+                quint32 bits[3];
+                std::memcpy(bits, pixel, sizeof(bits));
+                const quint32 hash = (bits[0] * 0x9e3779b1u) ^ (bits[1] * 0x85ebca77u) ^ (bits[2] * 0xc2b2ae3du);
+                Mix &mix = mixes[(hash ^ hash >> 15) % kept];
+                if (!mix.made || std::memcmp(mix.rgb, pixel, sizeof(mix.rgb)) != 0) {
+                    mix.made = true;
+                    std::copy_n(pixel, 3, mix.rgb);
+                    shift(goal, settings.lightness);
+                    for (float &c : goal) c = std::clamp(c, 0.0f, 1.0f);
+                    // Knoll's pattern dithering: colors chosen one after another, each making up for what those
+                    // before missed, so together they average to the pixel; the threshold picks one of them, from
+                    // dark to light
+                    float error[3] = {0, 0, 0};
+                    for (int i = 0; i < candidates; i++) {
+                        float attempt[3];
+                        for (int c = 0; c < 3; c++) attempt[c] = std::clamp(goal[c] + error[c] * settings.amount, 0.0f, 1.0f);
+                        const int candidate = quantizer.nearest(attempt);
+                        const float *color = quantizer.colorOf(candidate);
+                        for (int c = 0; c < 3; c++) error[c] += goal[c] - color[c];
+                        int at = i;
+                        while (at > 0 && quantizer.lightnessOf(mix.colors[at - 1]) > quantizer.lightnessOf(candidate)) {
+                            mix.colors[at] = mix.colors[at - 1];
+                            at--;
+                        }
+                        mix.colors[at] = quint16(candidate);
                     }
-                    mix[at] = candidate;
                 }
                 const float t = thresholdAt(settings.dither, rect.left() + x, rect.top() + y);
-                chosen = mix[std::min(candidates - 1, int(t * candidates))];
+                chosen = mix.colors[std::min(candidates - 1, int(t * candidates))];
             }
             std::copy_n(quantizer.colorOf(chosen), 3, pixel);
         }
@@ -453,16 +473,31 @@ QVector<QColor> colorsOf(const QImage &image, int count)
         centers.push_back({samples[chosen].lab[0], samples[chosen].lab[1], samples[chosen].lab[2]});
     }
     std::vector<int> owner(samples.size(), 0);
+    // the centers by lightness: a sample looks outward from its own, until lightness alone is farther than the
+    // nearest found; of centers as near, the first one is its owner
+    const int k = int(centers.size());
+    std::vector<int> byLightness(size_t(k), 0);
+    std::vector<float> lightness(size_t(k), 0.0f);
     for (int round = 0; round < 12; round++) {
         bool moved = false;
+        std::iota(byLightness.begin(), byLightness.end(), 0);
+        std::stable_sort(byLightness.begin(), byLightness.end(), [&centers](int a, int b) { return centers[a][0] < centers[b][0]; });
+        for (int j = 0; j < k; j++) lightness[size_t(j)] = centers[size_t(byLightness[size_t(j)])][0];
         for (size_t i = 0; i < samples.size(); i++) {
+            const float l = samples[i].lab[0];
+            int up = int(std::lower_bound(lightness.begin(), lightness.end(), l) - lightness.begin()), down = up - 1;
             int best = 0;
             float bestDistance = HUGE_VALF;
-            for (size_t c = 0; c < centers.size(); c++) {
-                const float d = distance(samples[i].lab, centers[c].data());
-                if (d < bestDistance) {
+            while (up < k || down >= 0) {
+                const float upGap = up < k ? lightness[size_t(up)] - l : HUGE_VALF;
+                const float downGap = down >= 0 ? l - lightness[size_t(down)] : HUGE_VALF;
+                const float gap = std::min(upGap, downGap);
+                if (gap * gap > bestDistance) break;
+                const int c = upGap <= downGap ? byLightness[size_t(up++)] : byLightness[size_t(down--)];
+                const float d = distance(samples[i].lab, centers[size_t(c)].data());
+                if (d < bestDistance || (d == bestDistance && c < best)) {
                     bestDistance = d;
-                    best = int(c);
+                    best = c;
                 }
             }
             moved |= owner[i] != best;

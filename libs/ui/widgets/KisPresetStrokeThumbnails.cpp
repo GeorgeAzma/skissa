@@ -11,6 +11,8 @@
 #include <QSet>
 #include <QTimer>
 
+#include <memory>
+
 #include <KoColor.h>
 #include <KoColorSpaceRegistry.h>
 #include <KisResourceModel.h>
@@ -113,6 +115,8 @@ struct KisPresetStrokeThumbnails::Private {
     QTimer watchdog;
     /// Images given up on by the watchdog, by request serial, until their strokes end
     QHash<quint64, KisImageSP> retired;
+    /// Kept: a new one filters every brush again for each stroke asked for
+    std::unique_ptr<KisResourceModel> presets;
 };
 
 KisPresetStrokeThumbnails *KisPresetStrokeThumbnails::instance()
@@ -192,8 +196,8 @@ void KisPresetStrokeThumbnails::next()
         d->queued.remove(request.key);
         if (d->made.contains(request.key) || d->nothing.contains(request.key)) continue;
 
-        KisResourceModel model(ResourceType::PaintOpPresets);
-        KisPaintOpPresetSP preset = model.resourceForId(request.id).dynamicCast<KisPaintOpPreset>();
+        if (!d->presets) d->presets.reset(new KisResourceModel(ResourceType::PaintOpPresets));
+        KisPaintOpPresetSP preset = d->presets->resourceForId(request.id).dynamicCast<KisPaintOpPreset>();
         KisMainWindow *window = KisPart::instance()->currentMainwindow();
         KoCanvasResourceProvider *resources = window && window->viewManager() && window->viewManager()->canvasResourceProvider()
                                                   ? window->viewManager()->canvasResourceProvider()->resourceManager()

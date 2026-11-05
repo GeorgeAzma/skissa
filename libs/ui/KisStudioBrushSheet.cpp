@@ -813,6 +813,7 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
     if (d->box) {
         connect(d->box, &KisPaintopBox::sigOptionWidgetChanged, this, &KisStudioBrushSheet::rebuild);
     }
+    KisLastStrokeReplay::instance()->watch(this);
     rebuild();
 }
 

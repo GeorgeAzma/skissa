@@ -1970,6 +1970,15 @@ struct KisStudioStartPage::Private
     /// The images open in this window, unsaved ones too, to go back to (shown over the new ones while there are any)
     QWidget *openPill {nullptr};
     QHBoxLayout *openTiles {nullptr};
+    /// An open image's picture, kept until the image changes: made again at every show, it read each image whole
+    struct OpenPicture {
+        QPointer<KisDocument> document;
+        KisImageWSP image;
+        QImage picture;
+        bool stale {true};
+        QMetaObject::Connection updates;
+    };
+    QHash<KisDocument *, OpenPicture> openPictures;
 };
 
 KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
@@ -2236,6 +2245,36 @@ void KisStudioStartPage::paintEvent(QPaintEvent *)
 
 void KisStudioStartPage::showOpenImages()
 {
+    for (auto it = d->openPictures.begin(); it != d->openPictures.end();) {
+        if (!it->document) {
+            disconnect(it->updates);
+            it = d->openPictures.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    auto openPicture = [this](KisDocument *document) {
+        Private::OpenPicture &kept = d->openPictures[document];
+        KisImageSP image = document->image();
+        if (kept.document != document || !kept.image.isValid() || kept.image != image.data()) {
+            disconnect(kept.updates);
+            kept.document = document;
+            kept.image = image.data();
+            kept.stale = true;
+            if (image) {
+                kept.updates = connect(image.data(), &KisImage::sigImageUpdated, this, [this, document]() {
+                    auto it = d->openPictures.find(document);
+                    if (it != d->openPictures.end()) it->stale = true;
+                });
+            }
+        }
+        if (kept.stale) {
+            kept.picture = document->generatePreview(QSize(200, 200)).toImage();
+            kept.stale = false;
+        }
+        return kept.picture;
+    };
+
     while (QLayoutItem *item = d->openTiles->takeAt(0)) {
         delete item->widget();
         delete item;
@@ -2250,7 +2289,7 @@ void KisStudioStartPage::showOpenImages()
         if (!path.isEmpty() && !latest.isEmpty() && QFileInfo(path) == QFileInfo(latest)) continue;
         const QString name = path.isEmpty() ? i18nc("an image open now that was never saved", "Unsaved") : QFileInfo(path).completeBaseName();
         auto *tile = new NewTile(name, QSize(), d->openPill);
-        tile->setPicture(document->generatePreview(QSize(200, 200)).toImage(), view->image()->bounds().size());
+        tile->setPicture(openPicture(document), view->image()->bounds().size());
         tile->setToolTip(i18nc("@info:tooltip a tile of an image open now", "Back to this image"));
         QPointer<KisView> to = view;
         connect(tile, &QAbstractButton::clicked, this, [this, to]() {

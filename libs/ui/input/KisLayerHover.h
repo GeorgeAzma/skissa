@@ -45,6 +45,15 @@ private:
     QRect m_bounds;
     QImage m_tint;
     QPointF m_cursor;
+
+    /// A layer's tint as last made, for the pointer going back and forth between a few layers
+    struct Tint {
+        KisPaintDeviceSP device;
+        int sequence {0};
+        QRect bounds;
+        QImage image;
+    };
+    QList<Tint> m_tints;
 };
 
 #endif // KISLAYERHOVER_H

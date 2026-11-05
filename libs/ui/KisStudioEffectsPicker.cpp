@@ -9,9 +9,12 @@
 
 #include <kis_default_bounds.h>
 
+#include <QCache>
+#include <QCryptographicHash>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QPainter>
+#include <QThread>
 #include <QTimer>
 #include <QtConcurrent>
 
@@ -38,13 +41,13 @@
 #include "kis_paint_device.h"
 #include <kis_selection.h>
 
-/// Tile thumbnails, rendered in a worker thread from a small copy of the image
+/// Tile thumbnails, rendered in worker threads from a small copy of the image
 struct KisStudioEffectThumbnails {
-    QImage base;                        ///< the image without effect, set before the worker starts
+    QImage base;                        ///< the image without effect, set before the workers start
     /// How much smaller than the image the base is, as a level of detail: effects scale their sizes by it
     int levelOfDetail {0};
     QMutex mutex;
-    QHash<QString, QImage> made;        ///< written by the worker, guarded by the mutex
+    QHash<QString, QImage> made;        ///< written by the workers, guarded by the mutex
     std::atomic<bool> cancelled {false};
     std::atomic<bool> finished {false};
     QHash<QString, QImage> shown;       ///< collected from \c made, GUI thread only
@@ -284,7 +287,30 @@ struct Job {
     QString id;
     KisFilterSP filter;
     KisFilterConfigurationSP config;
+    /// The picture and the settings, which make the same tile every time
+    QByteArray key;
 };
+
+/// Tiles made before, kept across openings while they fit (cost in KiB)
+struct MadeBefore {
+    QMutex lock;
+    QCache<QByteArray, QImage> pictures {32 * 1024};
+};
+
+MadeBefore &madeBefore()
+{
+    static MadeBefore made;
+    return made;
+}
+
+/// What a tile's picture is made from: \p base's pixels at \p levelOfDetail
+QByteArray keyOf(const QImage &base, int levelOfDetail)
+{
+    QCryptographicHash hash(QCryptographicHash::Md5);
+    hash.addData(reinterpret_cast<const char *>(base.constBits()), int(base.sizeInBytes()));
+    return hash.result() + QByteArray::number(base.width()) + 'x' + QByteArray::number(base.height()) + '@'
+        + QByteArray::number(levelOfDetail);
+}
 
 } // namespace
 
@@ -319,33 +345,52 @@ KisStudioEffectsPicker::KisStudioEffectsPicker(KisMainWindow *mainWindow, std::s
     QVector<Job> jobs;
     KisViewManager *view = mainWindow->viewManager();
     const KisPaintDeviceSP layer = view && view->activeNode() ? view->activeNode()->paintDevice() : KisPaintDeviceSP();
+    const QByteArray baseKey = keyOf(thumbnails->base, thumbnails->levelOfDetail);
     Q_FOREACH (const QString &id, order) {
         KisFilterSP filter = KisFilterRegistry::instance()->value(id);
         // as the effect would open on this layer: with the settings it was last applied with
         KisFilterConfigurationSP config = filter ? KisFilterManager::lastUsedConfiguration(filter, layer) : nullptr;
-        if (config) {
-            // snapshot the resources: the worker thread must not access them itself
-            jobs << Job{id, filter, config->cloneWithResourcesSnapshot()};
+        if (!config) continue;
+        const QByteArray key = baseKey + '\n' + id.toUtf8() + '\n' + config->toXML().toUtf8();
+        {
+            QMutexLocker locker(&madeBefore().lock);
+            if (const QImage *picture = madeBefore().pictures.object(key)) {
+                thumbnails->shown.insert(id, *picture);
+                continue;
+            }
         }
+        // snapshot the resources: the worker threads must not access them themselves
+        jobs << Job{id, filter, config->cloneWithResourcesSnapshot(), key};
     }
-    (void)QtConcurrent::run([thumbnails, jobs]() {
-        const QImage base = thumbnails->base;
-        const QRect rect(QPoint(0, 0), base.size());
-        Q_FOREACH (const Job &job, jobs) {
-            if (thumbnails->cancelled) break;
-            KisPaintDeviceSP device = new KisPaintDevice(KoColorSpaceRegistry::instance()->rgb8());
-            device->setDefaultBounds(new ThumbnailBounds(rect, thumbnails->levelOfDetail));
-            device->convertFromQImage(base, nullptr);
-            // into a device of its own, as Krita's effects run: in place, a convolution (Emboss) reads pixels it has
-            // already changed and draws stripes
-            KisPaintDeviceSP result = new KisPaintDevice(*device);
-            job.filter->process(device, result, KisSelectionSP(), rect, job.config);
-            const QImage picture = result->convertToQImage(nullptr, rect.x(), rect.y(), rect.width(), rect.height());
-            QMutexLocker locker(&thumbnails->mutex);
-            thumbnails->made.insert(job.id, picture);
-        }
-        thumbnails->finished = true;
-    });
+    // several at once, each taking the next tile in order
+    const int workers = qMin(qMax(1, QThread::idealThreadCount() - 1), jobs.size());
+    auto next = std::make_shared<std::atomic<int>>(0);
+    auto running = std::make_shared<std::atomic<int>>(workers);
+    if (!workers) thumbnails->finished = true;
+    for (int worker = 0; worker < workers; worker++) {
+        (void)QtConcurrent::run([thumbnails, jobs, next, running]() {
+            const QImage base = thumbnails->base;
+            const QRect rect(QPoint(0, 0), base.size());
+            for (int i = (*next)++; i < jobs.size() && !thumbnails->cancelled; i = (*next)++) {
+                const Job &job = jobs[i];
+                KisPaintDeviceSP device = new KisPaintDevice(KoColorSpaceRegistry::instance()->rgb8());
+                device->setDefaultBounds(new ThumbnailBounds(rect, thumbnails->levelOfDetail));
+                device->convertFromQImage(base, nullptr);
+                // into a device of its own, as Krita's effects run: in place, a convolution (Emboss) reads pixels it
+                // has already changed and draws stripes
+                KisPaintDeviceSP result = new KisPaintDevice(*device);
+                job.filter->process(device, result, KisSelectionSP(), rect, job.config);
+                const QImage picture = result->convertToQImage(nullptr, rect.x(), rect.y(), rect.width(), rect.height());
+                {
+                    QMutexLocker locker(&madeBefore().lock);
+                    madeBefore().pictures.insert(job.key, new QImage(picture), qMax(1, int(picture.sizeInBytes() / 1024)));
+                }
+                QMutexLocker locker(&thumbnails->mutex);
+                thumbnails->made.insert(job.id, picture);
+            }
+            if (--*running == 0) thumbnails->finished = true;
+        });
+    }
 
     d->collect.setInterval(80);
     connect(&d->collect, &QTimer::timeout, this, [this]() {
@@ -376,7 +421,7 @@ KisStudioEffectsPicker::KisStudioEffectsPicker(KisMainWindow *mainWindow, std::s
 
 KisStudioEffectsPicker::~KisStudioEffectsPicker()
 {
-    // not waited for: the worker stops after the thumbnail in progress
+    // not waited for: the workers stop after the thumbnails in progress
     d->thumbnails->cancelled = true;
 }
 

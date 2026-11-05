@@ -121,6 +121,19 @@ public:
             }
             update();
         });
+        QObject::connect(&m_decoding, &QFutureWatcher<Decoded>::finished, this, [this]() {
+            const Decoded decoded = m_decoding.result();
+            // unreadable (still being written): not tried again until a newer frame comes
+            if (decoded.full.isEmpty()) return;
+            const QString path = m_decodingPath;
+            m_decodingPath.clear();
+            const int index = m_frames.size() - 1;
+            // kept only while it is still the latest, read at the size shown now: otherwise read again at the next paint
+            if (index >= 0 && m_frames[index] == path && m_decodingSize == (QSizeF(size()) * devicePixelRatioF()).toSize()) {
+                keep(index, decoded);
+            }
+            update();
+        });
     }
 
     void setFrames(const QStringList &frames)
@@ -277,25 +290,56 @@ private:
         update();
     }
 
+    struct Decoded {
+        QImage image;
+        QSize full;
+    };
+
+    /// \p path read at \p shown device pixels at most
+    static Decoded decode(const QString &path, const QSize &shown, qreal ratio)
+    {
+        Decoded decoded;
+        QImageReader reader(path);
+        decoded.full = reader.size();
+        if (decoded.full.isEmpty()) return decoded;
+        reader.setScaledSize(decoded.full.scaled(shown, Qt::KeepAspectRatio).boundedTo(decoded.full));
+        decoded.image = reader.read();
+        decoded.image.setDevicePixelRatio(ratio);
+        return decoded;
+    }
+
+    void keep(int index, const Decoded &decoded)
+    {
+        if (m_aspect != decoded.full) {
+            m_aspect = decoded.full;
+            updateGeometry();
+        }
+        if (m_cache.size() > 6) m_cache.clear();
+        m_cache.insert(index, decoded.image);
+        m_last = decoded.image;
+    }
+
     /// The frame, decoded at the size it is shown (the last few kept).
     QImage frameAt(int index)
     {
         auto it = m_cache.constFind(index);
         if (it != m_cache.constEnd()) return *it;
-        QImageReader reader(m_frames[index]);
-        const QSize full = reader.size();
-        if (full.isEmpty()) return QImage();
-        if (m_aspect != full) {
-            m_aspect = full;
-            updateGeometry();
-        }
         const qreal ratio = devicePixelRatioF();
-        reader.setScaledSize(full.scaled((QSizeF(size()) * ratio).toSize(), Qt::KeepAspectRatio).boundedTo(full));
-        QImage image = reader.read();
-        image.setDevicePixelRatio(ratio);
-        if (m_cache.size() > 6) m_cache.clear();
-        m_cache.insert(index, image);
-        return image;
+        const QSize shown = (QSizeF(size()) * ratio).toSize();
+        if (m_index < 0 && !m_last.isNull()) {
+            // a newer frame while recording: read off the window's thread, the one before shown meanwhile
+            const QString path = m_frames[index];
+            if (path != m_decodingPath) {
+                m_decodingPath = path;
+                m_decodingSize = shown;
+                m_decoding.setFuture(QtConcurrent::run(&TimelapseView::decode, path, shown, ratio));
+            }
+            return m_last;
+        }
+        const Decoded decoded = decode(m_frames[index], shown, ratio);
+        if (decoded.full.isEmpty()) return QImage();
+        keep(index, decoded);
+        return decoded.image;
     }
 
     QStringList m_frames;
@@ -305,6 +349,11 @@ private:
     QTimer m_play;
     QHash<int, QImage> m_cache;
     QSize m_aspect;
+    /// The frame last decoded, shown while a newer one is read
+    QImage m_last;
+    QFutureWatcher<Decoded> m_decoding;
+    QString m_decodingPath;
+    QSize m_decodingSize;
 };
 
 /// The round record button: a red dot to record, a red square to stop; while frames are taken, it glows.

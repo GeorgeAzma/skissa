@@ -3221,6 +3221,21 @@ bool KisStudioLayout::coverScreen(bool on)
 bool KisStudioLayout::isCaptionAt(const QPoint &pos) const
 {
     KisMainWindow *mainWindow = d->mainWindow;
+    // Windows asks at every pointer move, mostly over the canvas: away from the pills and the top toolbars nothing
+    // is caption, known without searching the widget tree
+    bool inPill = false;
+    for (TopPill *pill : {d->topPill.data(), d->windowPill.data()}) {
+        if (pill && pill->isVisible() && QRect(pill->mapTo(mainWindow, QPoint()), pill->size()).contains(pos)) inPill = true;
+    }
+    if (!inPill) {
+        int bottom = -1;
+        Q_FOREACH (QToolBar *toolBar, mainWindow->findChildren<QToolBar *>(QString(), Qt::FindDirectChildrenOnly)) {
+            if (toolBar->isVisible() && mainWindow->toolBarArea(toolBar) == Qt::TopToolBarArea) {
+                bottom = qMax(bottom, toolBar->geometry().bottom());
+            }
+        }
+        if (pos.y() > bottom) return false;
+    }
     QWidget *widget = mainWindow->childAt(pos);
     // in a pill, empty space and drag grips act as caption; controls don't, nor does TopGrip, which moves the bar
     for (QWidget *w = widget; w; w = w->parentWidget()) {

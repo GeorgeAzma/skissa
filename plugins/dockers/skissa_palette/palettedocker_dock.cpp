@@ -34,6 +34,7 @@
 #include <kis_floating_message.h>
 #include <kis_icon.h>
 #include <kis_config.h>
+#include <KisSettingsRegistry.h>
 #include <kis_canvas_resource_provider.h>
 #include <kis_node_manager.h>
 #include <KisMainWindow.h>
@@ -1179,7 +1180,7 @@ void PaletteDockerDock::saveRecent()
     m_recentSave.stop();
     QStringList names;
     Q_FOREACH (const KoColor &recent, m_recent) names << recent.toQColor().name(QColor::HexArgb);
-    KisConfig(false).writeEntry(recentKey, names);
+    KisSettingsRegistry::writeLater(recentKey, names);
 }
 
 void PaletteDockerDock::updateRecentStrip()

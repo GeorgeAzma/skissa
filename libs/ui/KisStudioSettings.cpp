@@ -1978,7 +1978,12 @@ public:
         if (const Setting *s = def.toggleId.isEmpty() ? nullptr : R::instance()->setting(def.toggleId)) m_builder.explain(s->help);
 
         // while hidden (the Settings panel closed) only noted, and shown right when seen: every card follows
-        // every change, a dragged setting makes many
+        // every change, a dragged setting makes many, so once for all the changes of one pass of the event loop
+        m_soon.setSingleShot(true);
+        m_soon.setInterval(0);
+        connect(&m_soon, &QTimer::timeout, this, [this]() {
+            if (m_stale && isVisible()) refresh();
+        });
         connect(R::instance(), &R::valueChanged, this, [this]() { refreshWhenSeen(); });
         connect(KisConfigNotifier::instance(), &KisConfigNotifier::configChanged, this, [this]() { refreshWhenSeen(); });
         refresh();
@@ -1996,8 +2001,8 @@ public:
 
     void refreshWhenSeen()
     {
-        if (isVisible()) refresh();
-        else m_stale = true;
+        m_stale = true;
+        if (isVisible() && !m_soon.isActive()) m_soon.start();
     }
 
     void refresh()
@@ -2098,8 +2103,9 @@ private:
     Builder m_builder;
     QLabel *m_title {nullptr};
     QLabel *m_mark {nullptr};
-    /// A change came while it was hidden
+    /// A change came that it doesn't show yet
     bool m_stale {false};
+    QTimer m_soon;
     QPoint m_pressed {-1, -1};
     qreal m_flash {0};
 };

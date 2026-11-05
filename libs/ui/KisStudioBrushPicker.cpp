@@ -35,6 +35,7 @@
 #include <klocalizedstring.h>
 
 #include "KisMainWindow.h"
+#include "KisSettingsRegistry.h"
 #include "KisResourceServerProvider.h"
 #include "KisViewManager.h"
 #include "kis_paintop_box.h"
@@ -211,6 +212,22 @@ std::shared_ptr<Catalog> loadCatalog()
     return catalog;
 }
 
+/// Whether the presets from \p top to \p bottom (in all the presets) are in \p catalog as they are now
+bool unchangedIn(const Catalog &catalog, const QModelIndex &top, const QModelIndex &bottom)
+{
+    for (int row = top.row(); row <= bottom.row(); row++) {
+        const QModelIndex index = top.sibling(row, 0);
+        auto it = catalog.brushes.constFind(index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString());
+        if (it == catalog.brushes.constEnd() || !catalog.model || it->index != catalog.model->mapFromSource(index)
+            || it->md5 != index.data(Qt::UserRole + KisAbstractResourceModel::MD5).toString()
+            || it->tags != index.data(Qt::UserRole + KisAbstractResourceModel::Tags).toStringList()
+            || it->engine != index.data(Qt::UserRole + KisAbstractResourceModel::MetaData).toMap().value(QStringLiteral("paintopid")).toString()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /// Cached until the presets or their tags change, since the canvas ring and the brush wheel need it instantly
 std::shared_ptr<Catalog> catalog()
 {
@@ -219,15 +236,23 @@ std::shared_ptr<Catalog> catalog()
     if (!watching) {
         watching = true;
         const auto drop = []() { cached.reset(); };
-        const QList<QAbstractItemModel *> models{KisResourceModelProvider::resourceModel(ResourceType::PaintOpPresets),
-                                                 KisResourceModelProvider::tagResourceModel(ResourceType::PaintOpPresets)};
+        QAbstractItemModel *presets = KisResourceModelProvider::resourceModel(ResourceType::PaintOpPresets);
+        const QList<QAbstractItemModel *> models{presets, KisResourceModelProvider::tagResourceModel(ResourceType::PaintOpPresets)};
         Q_FOREACH (QAbstractItemModel *model, models) {
             if (!model) continue;
             QObject::connect(model, &QAbstractItemModel::modelReset, qApp, drop);
             QObject::connect(model, &QAbstractItemModel::layoutChanged, qApp, drop);
             QObject::connect(model, &QAbstractItemModel::rowsInserted, qApp, drop);
             QObject::connect(model, &QAbstractItemModel::rowsRemoved, qApp, drop);
-            QObject::connect(model, &QAbstractItemModel::dataChanged, qApp, drop);
+            if (model != presets) QObject::connect(model, &QAbstractItemModel::dataChanged, qApp, drop);
+        }
+        if (presets) {
+            // a brush read again from its file (switching brushes, Reload) leaves it as the catalog has it
+            QObject::connect(presets, &QAbstractItemModel::dataChanged, qApp,
+                             [](const QModelIndex &top, const QModelIndex &bottom, const QVector<int> &roles) {
+                                 if (cached && roles.isEmpty() && top.isValid() && bottom.isValid() && unchangedIn(*cached, top, bottom)) return;
+                                 cached.reset();
+                             });
         }
     }
     if (!cached) cached = loadCatalog();
@@ -922,7 +947,8 @@ void KisStudioBrushPicker::recordUse(const QString &presetName)
     }
     recent.removeAll(presetName);
     recent.prepend(presetName);
-    KisConfig(false).writeEntry(recentKey, recent.mid(0, recentKept));
+    // saved with the next sync: every brush switch comes here, often many in a row
+    KisSettingsRegistry::writeLater(recentKey, recent.mid(0, recentKept));
 }
 
 QString KisStudioBrushPicker::neighbour(KisMainWindow *, const QString &current, int step)

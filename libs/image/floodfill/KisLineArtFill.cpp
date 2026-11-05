@@ -20,6 +20,7 @@
 #include <KoColorSpace.h>
 
 #include "KisColorSelectionPolicies.h"
+#include "KisGridRenderer.h"
 #include "kis_global.h"
 #include "kis_paint_device.h"
 #include "kis_pixel_selection.h"
@@ -147,10 +148,17 @@ static void growArea(KisPixelSelectionSP region, KisPaintDeviceSP reference, con
     // of pixels, it would convert both every time
     std::vector<quint16> lab(size_t(count) * 4);
     {
+        const KoColorSpace *cs = reference->colorSpace();
         const int pixelSize = reference->pixelSize();
         std::vector<quint8> pixels(size_t(count) * pixelSize);
         reference->readBytes(pixels.data(), area);
-        reference->colorSpace()->toLabA16(pixels.data(), reinterpret_cast<quint8 *>(lab.data()), count);
+        // in parts on all threads: through LCMS, on one, it was much of a large fill's time
+        const int part = 1 << 16;
+        KisGridRenderer::forEachOnAllThreads((count + part - 1) / part, [&](int n) {
+            const int first = n * part;
+            cs->toLabA16(pixels.data() + size_t(first) * pixelSize, reinterpret_cast<quint8 *>(lab.data() + size_t(first) * 4),
+                         quint32(qMin(part, count - first)));
+        });
     }
     auto difference = [&](int i, int j) {
         const quint16 *a = lab.data() + size_t(i) * 4, *b = lab.data() + size_t(j) * 4;
@@ -161,6 +169,23 @@ static void growArea(KisPixelSelectionSP region, KisPaintDeviceSP reference, con
         const qreal db = (int(a[2]) - int(b[2])) / 257.0;
         const qreal dAlpha = (int(a[3]) - int(b[3])) * 100.0 / 65535.0;
         return int(qMin<qreal>(255.0, std::sqrt(dL * dL + da * da + db * db + dAlpha * dAlpha)));
+    };
+    // difference() <= threshold for every neighbour tested, in integers: the squared distance in 65535ths
+    // against the square of the threshold's next step. The two sides decide alike except where they are
+    // too close for doubles to tell apart, which goes to difference() itself.
+    const qint64 limit = threshold >= 0 && threshold < 255 ? qint64(threshold + 1) * (threshold + 1) * 65535 * 65535 : 0;
+    const qint64 margin = limit >> 40;
+    auto similar = [&](int i, int j) {
+        const quint16 *a = lab.data() + size_t(i) * 4, *b = lab.data() + size_t(j) * 4;
+        // qRound(alpha / 257.0), exactly
+        if ((a[3] + 128) / 257 == 0 || (b[3] + 128) / 257 == 0) return difference(i, j) <= threshold;
+        if (threshold < 0) return false;
+        if (threshold >= 255) return true;
+        const qint64 dL = int(a[0]) - int(b[0]), da = int(a[1]) - int(b[1]), db = int(a[2]) - int(b[2]);
+        const qint64 dAlpha = int(a[3]) - int(b[3]);
+        const qint64 distance = 10000 * (dL * dL + dAlpha * dAlpha) + 65025 * (da * da + db * db);
+        if (qAbs(distance - limit) > margin) return distance < limit;
+        return difference(i, j) <= threshold;
     };
     const int speckArea = qMax(speckSize * speckSize, 4);
     const int cornerArea = closeGap > 0 ? 9 * closeGap * closeGap : 0;
@@ -181,7 +206,7 @@ static void growArea(KisPixelSelectionSP region, KisPaintDeviceSP reference, con
             forNeighbors(i, width, height, [&](int j) {
                 if (own[j]) {
                     touchesRegion = true;
-                } else if (!labels[j] && difference(start, j) <= threshold) {
+                } else if (!labels[j] && similar(start, j)) {
                     labels[j] = tag;
                     stack.push_back(j);
                 }

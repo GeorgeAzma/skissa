@@ -21,6 +21,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <new>
+#include <vector>
 
 #include <QtConcurrent>
 
@@ -346,25 +347,39 @@ Target targetFor(KisImageSP image, KisNodeSP active, const QPoint &point)
     // Lines are the dark ink of the picture around the point; does the active layer hold them? Far enough around
     // that the middle of a large shape still sees its outline
     const QRect window = QRect(point - QPoint(768, 768), QSize(1536, 1536)) & image->bounds();
-    const QImage picture = image->projection()->convertToQImage(nullptr, window).convertToFormat(QImage::Format_ARGB32);
-    const QImage own = active->paintDevice()->convertToQImage(nullptr, window).convertToFormat(QImage::Format_ARGB32);
     // and is the layer's paper (what isn't ink) clear, or painted? Counted over the window: the point itself may
-    // be on a line
+    // be on a line. Every other row is enough, as the counts are compared as shares and lines cross rows; of the
+    // layer only its opacity is read, and the picture is converted only if it isn't 8-bit sRGB already.
+    KisPaintDeviceSP picture = image->projection();
+    KisPaintDeviceSP own = active->paintDevice();
+    const KoColorSpace *srgb = KoColorSpaceRegistry::instance()->rgb8();
+    const bool pictureIsSrgb = *picture->colorSpace() == *srgb;
+    const int width = window.width();
+    std::vector<quint8> pictureRow(size_t(width) * picture->pixelSize()), colors(size_t(width) * 4);
+    std::vector<quint8> ownRow(size_t(width) * own->pixelSize()), ownAlpha(static_cast<size_t>(width));
     int lines = 0, held = 0, clear = 0, opaque = 0;
-    for (int y = 0; y < picture.height(); y++) {
-        const QRgb *row = reinterpret_cast<const QRgb *>(picture.constScanLine(y));
-        const QRgb *ownRow = reinterpret_cast<const QRgb *>(own.constScanLine(y));
-        for (int x = 0; x < picture.width(); x++) {
-            const QRgb p = row[x];
-            if (qAlpha(p) * (255 - qGray(p)) < 96 * 255) {
-                (qAlpha(ownRow[x]) < 128 ? clear : opaque)++;
+    for (int y = window.top(); !window.isEmpty() && y <= window.bottom(); y += 2) {
+        picture->readBytes(pictureRow.data(), window.left(), y, width, 1);
+        if (!pictureIsSrgb) {
+            picture->colorSpace()->convertPixelsTo(pictureRow.data(), colors.data(), srgb, width,
+                                                   KoColorConversionTransformation::internalRenderingIntent(),
+                                                   KoColorConversionTransformation::internalConversionFlags());
+        }
+        own->readBytes(ownRow.data(), window.left(), y, width, 1);
+        own->colorSpace()->copyOpacityU8(ownRow.data(), ownAlpha.data(), width);
+        // blue, green, red, alpha
+        const quint8 *p = pictureIsSrgb ? pictureRow.data() : colors.data();
+        for (int x = 0; x < width; x++, p += 4) {
+            if (p[3] * (255 - qGray(p[2], p[1], p[0])) < 96 * 255) {
+                (ownAlpha[x] < 128 ? clear : opaque)++;
                 continue;
             }
             lines++;
-            if (qAlpha(ownRow[x]) >= 128) held++;
+            if (ownAlpha[x] >= 128) held++;
         }
     }
-    if (lines < 24 || held * 5 < lines * 3) {
+    // half the rows were counted
+    if (lines * 2 < 24 || held * 5 < lines * 3) {
         target.node = active;
         return target;
     }

@@ -1154,6 +1154,8 @@ void KisStudioFind::registerButtons()
         if (it->button) keyOf.insert(it->button, it.key());
     }
     static const QRegularExpression tags(QStringLiteral("<[^>]*>"));
+    static const QRegularExpression cut(QStringLiteral("[:,.]"));
+    static const QRegularExpression notInName(QStringLiteral("[^A-Za-z0-9_]"));
 
     Q_FOREACH (QAbstractButton *button, mainWindow->findChildren<QAbstractButton *>()) {
         auto *tool = qobject_cast<QToolButton *>(button);
@@ -1187,7 +1189,7 @@ void KisStudioFind::registerButtons()
             QString tip = button->toolTip();
             tip.remove(tags);
             tip = tip.section(QLatin1Char('\n'), 0, 0).trimmed();
-            if (tip.size() > 48) tip = tip.section(QRegularExpression(QStringLiteral("[:,.]")), 0, 0);
+            if (tip.size() > 48) tip = tip.section(cut, 0, 0);
             title = plainText(tip);
         }
         if (title.isEmpty()) title = plainText(button->accessibleName());
@@ -1211,7 +1213,7 @@ void KisStudioFind::registerButtons()
         entry.where = dock ? dock->windowTitle() : i18nc("find result detail: a button of the window, outside the panels", "Window");
         if (!entry.action) {
             QString name = key;
-            name.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_]")), QStringLiteral("_"));
+            name.replace(notInName, QStringLiteral("_"));
             auto *action = new QAction(title, mainWindow);
             action->setObjectName(QStringLiteral("studio_button_") + name);
             KisStudioShortcuts::restore(action);

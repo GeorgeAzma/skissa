@@ -55,6 +55,7 @@
 #include "config-high-dpi-scale-factor-rounding-policy.h"
 #include <config-hdr.h>
 
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -111,7 +112,7 @@ Setting text(const QString &key, const QString &fallback, const QString &label, 
  */
 Setting itemList(const QString &key, const QString &label)
 {
-    Setting s = make(Kind::Text, key, QString(), label, KisSettingsRegistry::Fork);
+    Setting s = make(Kind::Text, key, QString(), label, KisSettingsRegistry::Fork | KisSettingsRegistry::OwnNotice);
     s.read = [key]() {
         const KConfigGroup group = KSharedConfig::openConfig()->group(QString());
         if (!group.hasKey(key)) return QVariant(QString());
@@ -378,7 +379,9 @@ QVector<Setting> describeAll()
         {
             // Theme parameters (KisStudioTheme): changing any of them regenerates and applies the theme
             const QString themeGroup = QStringLiteral("StudioTheme");
+            // apply() tells the window itself
             auto made = [](Setting s) {
+                s.flags |= R::OwnNotice;
                 s.written = [](const QVariant &) { KisStudioTheme::apply(KisStudioTheme::current()); };
                 return s;
             };
@@ -388,8 +391,8 @@ QVector<Setting> describeAll()
             all << made(grouped(toggle(QStringLiteral("UseAccent"), false, i18nc("setting", "Theme accent"), R::Fork), themeGroup));
             all << made(grouped(color(QStringLiteral("Accent"), QColor(92, 124, 250), i18nc("setting", "Theme accent color"), R::Fork), themeGroup));
             // The picker's themes and the one in use (KisStudioTheme::themes)
-            all << grouped(text(QStringLiteral("List"), QLatin1String(""), i18nc("setting", "Themes"), R::Fork), QStringLiteral("StudioThemes"));
-            all << grouped(text(QStringLiteral("Current"), QLatin1String(""), i18nc("setting", "Theme"), R::Fork), QStringLiteral("StudioThemes"));
+            all << grouped(text(QStringLiteral("List"), QLatin1String(""), i18nc("setting", "Themes"), R::Fork | R::OwnNotice), QStringLiteral("StudioThemes"));
+            all << grouped(text(QStringLiteral("Current"), QLatin1String(""), i18nc("setting", "Theme"), R::Fork | R::OwnNotice), QStringLiteral("StudioThemes"));
         }
         all << itemList(QStringLiteral("StudioRailItems"), i18nc("setting", "Tools"));
         all << itemList(QStringLiteral("StudioBarItems"), i18nc("setting", "Top bar buttons"));
@@ -399,23 +402,23 @@ QVector<Setting> describeAll()
         glass.read = []() { return KisStudioGlass::isEnabled(); };
         glass.write = [](const QVariant &value) { KisStudioGlass::setEnabled(value.toBool()); };
         all << glass;
-        Setting blur = number(QStringLiteral("StudioGlassBlur"), 1.0, 0, KisStudioGlass::maxBlur, i18nc("setting", "Glass blur"), R::Fork);
+        Setting blur = number(QStringLiteral("StudioGlassBlur"), 1.0, 0, KisStudioGlass::maxBlur, i18nc("setting", "Glass blur"), R::Fork | R::OwnNotice);
         blur.read = []() { return KisStudioGlass::blur(); };
         blur.write = [](const QVariant &value) { KisStudioGlass::setBlur(value.toReal()); };
         all << blur;
-        Setting rimLight = number(QStringLiteral("StudioGlassRimLight"), 1.0, 0, 2.0, i18nc("setting", "Glass rim light"), R::Fork);
+        Setting rimLight = number(QStringLiteral("StudioGlassRimLight"), 1.0, 0, 2.0, i18nc("setting", "Glass rim light"), R::Fork | R::OwnNotice);
         rimLight.read = []() { return KisStudioGlass::rimLight(); };
         rimLight.write = [](const QVariant &value) { KisStudioGlass::setRimLight(value.toReal()); };
         all << rimLight;
-        Setting vibrancy = number(QStringLiteral("StudioGlassVibrancy"), KisStudioGlass::defaultVibrancy, 0, 2.0, i18nc("setting", "Glass vibrancy"), R::Fork);
+        Setting vibrancy = number(QStringLiteral("StudioGlassVibrancy"), KisStudioGlass::defaultVibrancy, 0, 2.0, i18nc("setting", "Glass vibrancy"), R::Fork | R::OwnNotice);
         vibrancy.read = []() { return KisStudioGlass::vibrancy(); };
         vibrancy.write = [](const QVariant &value) { KisStudioGlass::setVibrancy(value.toReal()); };
         all << vibrancy;
-        Setting grain = number(QStringLiteral("StudioGlassGrain"), KisStudioGlass::defaultGrain, 0, 1.0, i18nc("setting", "Glass grain"), R::Fork);
+        Setting grain = number(QStringLiteral("StudioGlassGrain"), KisStudioGlass::defaultGrain, 0, 1.0, i18nc("setting", "Glass grain"), R::Fork | R::OwnNotice);
         grain.read = []() { return KisStudioGlass::grain(); };
         grain.write = [](const QVariant &value) { KisStudioGlass::setGrain(value.toReal()); };
         all << grain;
-        Setting opacity = number(QStringLiteral("StudioGlassOpacity"), 0.85, 0, 1, i18nc("setting", "Glass opacity"), R::Fork);
+        Setting opacity = number(QStringLiteral("StudioGlassOpacity"), 0.85, 0, 1, i18nc("setting", "Glass opacity"), R::Fork | R::OwnNotice);
         opacity.read = []() { return KisStudioGlass::opacity(); };
         opacity.write = [](const QVariant &value) { KisStudioGlass::setOpacity(value.toReal()); };
         all << opacity;
@@ -917,6 +920,8 @@ struct KisSettingsRegistry::Private
     /// Cached run-time choices (themes, file types, profiles), cleared by refreshChoices()
     QHash<QString, QVector<Choice>> foundChoices;
     QTimer notify;
+    /// Whether a setting written since the last notice needs Krita's (see OwnNotice)
+    bool tellKrita {false};
     QTimer sync;
 
     /// A setting another one's change wrote (a font with its switch): part of that change's step
@@ -991,6 +996,11 @@ const Setting *KisSettingsRegistry::setting(const QString &id) const
 void KisSettingsRegistry::refreshChoices()
 {
     d->foundChoices.clear();
+}
+
+void KisSettingsRegistry::refreshChoices(const QString &id)
+{
+    d->foundChoices.remove(id);
 }
 
 QVector<Choice> KisSettingsRegistry::choices(const Setting &setting) const
@@ -1159,7 +1169,11 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
     const QVariant before = value(id);
     if (sameValue(*s, v, before)) return true;
     if (!d->replaying && (d->writing > 0 || (d->batch && d->batchStarted)) && !d->undo.isEmpty()) {
-        d->undo.last().followers << Private::Follower{id, before, v};
+        // written again within the step (a theme's list at every move of a drag): only where it ends changes
+        QVector<Private::Follower> &followers = d->undo.last().followers;
+        auto known = std::find_if(followers.begin(), followers.end(), [&id](const Private::Follower &f) { return f.id == id; });
+        if (known != followers.end()) known->after = v;
+        else followers << Private::Follower{id, before, v};
     } else if (!d->replaying) {
         if (d->batch) d->batchStarted = true;
         // Merge quick successive changes of one setting (a slider drag, typing) into one step
@@ -1188,7 +1202,7 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
     }
     if (s->written) s->written(v);
     d->writing--;
-    schedule();
+    schedule(*s);
     Q_EMIT valueChanged(id);
     return true;
 }
@@ -1297,20 +1311,21 @@ QStringList KisSettingsRegistry::waitingForRestart() const
 
 void KisSettingsRegistry::notifyNow()
 {
+    // each notice resets every canvas, takes the image's lock and reloads the window: only for what Krita reads
+    if (!d->tellKrita) return;
+    d->tellKrita = false;
     KisConfigNotifier::instance()->notifyConfigChanged();
     KisConfigNotifier::instance()->notifyPixelGridModeChanged();
     KisImageConfigNotifier::instance()->notifyConfigChanged();
-    // Layers cache some settings for compositing and don't listen for changes
-    Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
-        if (view && view->image()) view->image()->rootLayer()->updateSettings();
-    }
     Q_FOREACH (QPointer<KisMainWindow> window, KisPart::instance()->mainWindows()) {
         if (window && window->viewManager()) window->viewManager()->showHideScrollbars();
     }
 }
 
-void KisSettingsRegistry::schedule()
+void KisSettingsRegistry::schedule(const Setting &written)
 {
+    if (written.flags & OwnNotice) return;
+    d->tellKrita = true;
     if (!d->notify.isActive()) d->notify.start();
 }
 

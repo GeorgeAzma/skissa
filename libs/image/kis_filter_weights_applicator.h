@@ -187,6 +187,7 @@ public:
     /// Keeps each new pixel within the two source pixels nearest it
     void setClampToNeighbours(bool value) {
         m_clampToNeighbours = value;
+        if (value) m_clamp = KisResampling::ClampBetween(m_src->colorSpace());
     }
 
     template <class T>
@@ -299,7 +300,7 @@ public:
                         second = j;
                     }
                 }
-                KisResampling::clampBetween(m_src->colorSpace(), dstIt->rawData(), colors[first], colors[second]);
+                m_clamp(dstIt->rawData(), colors[first], colors[second]);
             }
             dstIt->nextPixel();
         }
@@ -357,6 +358,7 @@ private:
     qreal m_dx;
     bool m_clampToEdge;
     bool m_clampToNeighbours {false};
+    KisResampling::ClampBetween m_clamp;
 };
 
 #endif /* __KIS_FILTER_WEIGHTS_APPLICATOR_H */

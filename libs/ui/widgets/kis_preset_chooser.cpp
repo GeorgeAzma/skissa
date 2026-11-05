@@ -51,6 +51,7 @@
 #include <QHash>
 
 #include "KisStudioItemCard.h"
+#include "KisSettingsRegistry.h"
 
 
 /// The resource item delegate for rendering the resource preview
@@ -170,6 +171,33 @@ QImage underName(const QImage &stroke, const QSize &size, int nameEnd, qreal rat
     used.append(key);
     return faded;
 }
+
+/// Whether the brush at \p index misses a tip it needs, kept per brush: the model asks the database for every tip each time
+bool isBroken(const QModelIndex &index)
+{
+    static QHash<int, QPair<QString, bool>> known;
+    static bool watching = false;
+    if (!watching) {
+        watching = true;
+        // any change to the brushes or their tips may break or mend one
+        Q_FOREACH (const QString &type, QStringList({ResourceType::PaintOpPresets, ResourceType::Brushes})) {
+            QAbstractItemModel *model = KisResourceModelProvider::resourceModel(type);
+            auto forget = []() { known.clear(); };
+            QObject::connect(model, &QAbstractItemModel::modelReset, qApp, forget);
+            QObject::connect(model, &QAbstractItemModel::layoutChanged, qApp, forget);
+            QObject::connect(model, &QAbstractItemModel::rowsInserted, qApp, forget);
+            QObject::connect(model, &QAbstractItemModel::rowsRemoved, qApp, forget);
+            QObject::connect(model, &QAbstractItemModel::dataChanged, qApp, forget);
+        }
+    }
+    const int id = index.data(Qt::UserRole + KisAbstractResourceModel::Id).toInt();
+    const QString md5 = index.data(Qt::UserRole + KisAbstractResourceModel::MD5).toString();
+    auto it = known.constFind(id);
+    if (it != known.constEnd() && it->first == md5) return it->second;
+    const bool broken = index.data(Qt::UserRole + KisAbstractResourceModel::BrokenStatus).toBool();
+    known.insert(id, qMakePair(md5, broken));
+    return broken;
+}
 } // namespace
 
 void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index) const
@@ -235,7 +263,7 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
             painter->setBrush(accent);
             painter->drawEllipse(dot, 3.5, 3.5);
         }
-        if (index.data(Qt::UserRole + KisAbstractResourceModel::BrokenStatus).toBool()) {
+        if (isBroken(index)) {
             const QIcon icon = KisIconUtils::loadIcon("broken-preset");
             const int size = qMin(20, int(tile.height() / 2));
             icon.paint(painter, QRect(int(tile.right()) - size - 2, int(tile.bottom()) - size - 2, size, size));
@@ -588,9 +616,9 @@ int KisPresetChooser::iconSize()
 
 void KisPresetChooser::saveIconSize()
 {
-    // save icon size
+    // save icon size, once for a run of wheel steps
     if (KisConfig(true).presetIconSize() != iconSize()) {
-        KisConfig(false).setPresetIconSize(iconSize());
+        KisSettingsRegistry::writeLater(QStringLiteral("presetIconSize"), iconSize());
     }
 }
 

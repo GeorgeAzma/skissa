@@ -2935,7 +2935,10 @@ void KisMainWindow::updateWindowMenu()
             const QString text = path.isEmpty() ? i18nc("an image open now that was never saved", "Unsaved")
                                                 : fontMetrics.elidedText(QFileInfo(path).fileName(), Qt::ElideMiddle, fileStringWidth);
             QAction *action  = menu->addAction(text);
-            action->setIcon(QIcon(child->document()->generatePreview(QSize(32, 32))));
+            // the picture when the menu shows: rendering the image is slow, and this runs at every focus change
+            connect(menu, &QMenu::aboutToShow, action, [action, document = QPointer<KisDocument>(child->document())]() {
+                if (document && action->icon().isNull()) action->setIcon(QIcon(document->generatePreview(QSize(32, 32))));
+            });
             if (child == activeKisView()) {
                 QFont bold = action->font();
                 bold.setWeight(QFont::DemiBold);
@@ -3048,10 +3051,9 @@ void KisMainWindow::configChanged()
     // a theme made of choices (KisStudioTheme) keeps its name when changed: its revision tells
     const QString applied = theme + QLatin1Char('#') + QString::number(group.readEntry("Revision", 0));
     if (applied != d->appliedTheme) {
-        const bool rewritten = !d->appliedTheme.isEmpty() && d->appliedTheme.section(QLatin1Char('#'), 0, 0) == theme;
         d->appliedTheme = applied;
-        if (rewritten) d->themeManager->reload();
-        else d->themeManager->setCurrentTheme(theme);
+        // reads the scheme file again; the list of schemes only when the name is new to it
+        d->themeManager->setCurrentTheme(theme);
     }
 #endif
     d->actionManager()->updateGUI();

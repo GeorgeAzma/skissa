@@ -9,6 +9,9 @@
 
 #include <QRect>
 #include <QString>
+#include <QtGlobal>
+
+#include <vector>
 
 #include "kis_filter_strategy.h"
 #include "kis_types.h"
@@ -47,8 +50,42 @@ public:
 
 namespace KisResampling
 {
-/// Keeps \p pixel's channels within those of \p a and \p b
-KRITAIMAGE_EXPORT void clampBetween(const KoColorSpace *cs, quint8 *pixel, const quint8 *a, const quint8 *b);
+/// Keeps a pixel's channels within those of two others, for one color space: its channels are
+/// looked at once, not for every pixel
+class KRITAIMAGE_EXPORT ClampBetween
+{
+public:
+    ClampBetween() = default;
+    explicit ClampBetween(const KoColorSpace *cs);
+
+    /// Keeps \p pixel's channels within those of \p a and \p b
+    inline void operator()(quint8 *pixel, const quint8 *a, const quint8 *b) const
+    {
+        if (m_bytes == 4) {
+            clampBytes<4>(pixel, a, b);
+        } else if (m_bytes) {
+            for (int i = 0; i < m_bytes; i++) pixel[i] = qBound(qMin(a[i], b[i]), pixel[i], qMax(a[i], b[i]));
+        } else if (!m_channels.empty()) {
+            clampChannels(pixel, a, b);
+        }
+    }
+
+private:
+    template<int bytes>
+    static inline void clampBytes(quint8 *pixel, const quint8 *a, const quint8 *b)
+    {
+        for (int i = 0; i < bytes; i++) pixel[i] = qBound(qMin(a[i], b[i]), pixel[i], qMax(a[i], b[i]));
+    }
+    void clampChannels(quint8 *pixel, const quint8 *a, const quint8 *b) const;
+
+    struct Channel {
+        int offset;
+        int type;
+    };
+    /// how many bytes to clamp one by one when every channel is one byte, else 0
+    int m_bytes {0};
+    std::vector<Channel> m_channels;
+};
 
 /// Whether \p device looks like pixel art within \p rect: few colors and hard edges
 KRITAIMAGE_EXPORT bool looksLikePixelArt(KisPaintDeviceSP device, const QRect &rect);

@@ -329,13 +329,13 @@ double WdgImageSize::desiredResolution()
 
 KisFilterStrategy *WdgImageSize::autoFilter(const QSize &desired) const
 {
-    if (m_content) return KisFilterStrategyRegistry::instance()->autoFilterStrategy(m_content, QRect(QPoint(), m_originalSize));
+    if (m_contentFilter) return m_contentFilter;
     return KisFilterStrategyRegistry::instance()->autoFilterStrategy(m_originalSize, desired);
 }
 
 void WdgImageSize::setContent(KisPaintDeviceSP content)
 {
-    m_content = content;
+    m_contentFilter = content ? KisFilterStrategyRegistry::instance()->autoFilterStrategy(content, QRect(QPoint(), m_originalSize)) : nullptr;
     if (!m_preview) {
         m_preview = new KisScaleFilterPreview(this);
         if (QBoxLayout *column = qobject_cast<QBoxLayout *>(m_page->layout())) column->insertWidget(1, m_preview);

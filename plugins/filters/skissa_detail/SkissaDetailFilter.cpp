@@ -167,13 +167,21 @@ void SkissaDetailFilter::processImpl(KisPaintDeviceSP device, const QRect &apply
     const qreal factor = 128;
     qreal weights[2] = {factor * (1 + amount), -factor * amount};
     std::vector<quint8> out(pixels.size());
+    // pixels too close to their blur stay as they were; with no threshold none do (each comparison converts both)
+    std::vector<bool> kept(threshold ? size_t(count) : 0);
+    for (int i = 0; threshold && i < count; i++) {
+        const quint8 *pixel = pixels.data() + size_t(i) * pixelSize;
+        const quint8 *soft = blurred.data() + size_t(i) * pixelSize;
+        const quint8 diff = threshold == 1 ? quint8(std::memcmp(pixel, soft, pixelSize) != 0)
+            : lightnessOnly ? cs->differenceA(pixel, soft) : cs->difference(pixel, soft);
+        kept[size_t(i)] = diff < threshold;
+    }
     if (lightnessOnly) {
         std::vector<quint16> lab(size_t(count) * 4), labBlurred(size_t(count) * 4);
         cs->toLabA16(pixels.data(), reinterpret_cast<quint8 *>(lab.data()), quint32(count));
         cs->toLabA16(blurred.data(), reinterpret_cast<quint8 *>(labBlurred.data()), quint32(count));
         for (int i = 0; i < count; i++) {
-            const quint8 *pixel = pixels.data() + size_t(i) * pixelSize;
-            if (cs->differenceA(pixel, blurred.data() + size_t(i) * pixelSize) < threshold) continue;
+            if (threshold && kept[size_t(i)]) continue;
             // lightness and alpha sharpened, the color kept
             for (int channel : {0, 3}) {
                 quint16 &value = lab[size_t(i) * 4 + channel];
@@ -181,9 +189,8 @@ void SkissaDetailFilter::processImpl(KisPaintDeviceSP device, const QRect &apply
             }
         }
         cs->fromLabA16(reinterpret_cast<const quint8 *>(lab.data()), out.data(), quint32(count));
-        for (int i = 0; i < count; i++) {
-            const quint8 *pixel = pixels.data() + size_t(i) * pixelSize;
-            if (cs->differenceA(pixel, blurred.data() + size_t(i) * pixelSize) < threshold) std::memcpy(out.data() + size_t(i) * pixelSize, pixel, pixelSize);
+        for (int i = 0; threshold && i < count; i++) {
+            if (kept[size_t(i)]) std::memcpy(out.data() + size_t(i) * pixelSize, pixels.data() + size_t(i) * pixelSize, pixelSize);
         }
     } else {
         KoConvolutionOp *convolution = cs->convolutionOp();
@@ -194,8 +201,7 @@ void SkissaDetailFilter::processImpl(KisPaintDeviceSP device, const QRect &apply
             const quint8 *pixel = pixels.data() + size_t(i) * pixelSize;
             const quint8 *soft = blurred.data() + size_t(i) * pixelSize;
             quint8 *target = out.data() + size_t(i) * pixelSize;
-            const quint8 diff = threshold == 1 ? quint8(std::memcmp(pixel, soft, pixelSize) == 0) : cs->difference(pixel, soft);
-            if (diff < threshold) {
+            if (threshold && kept[size_t(i)]) {
                 std::memcpy(target, pixel, pixelSize);
                 continue;
             }

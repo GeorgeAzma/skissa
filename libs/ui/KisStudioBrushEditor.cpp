@@ -409,6 +409,7 @@ KisStudioBrushEditor::KisStudioBrushEditor(KisMainWindow *mainWindow)
     if (d->box) {
         connect(d->box, &KisPaintopBox::sigOptionWidgetChanged, this, &KisStudioBrushEditor::rebuild);
     }
+    KisLastStrokeReplay::instance()->watch(this);
     // the last stroke follows the smoothing (the Stroke tab, the chip) as it does the brush
     connect(KisStudioSmoothing::instance(), &KisStudioSmoothing::sigChanged, this, &KisStudioBrushEditor::followLastStroke);
     // the Stroke tab is there for the tools that paint freehand

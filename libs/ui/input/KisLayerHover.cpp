@@ -62,12 +62,25 @@ void KisLayerHover::pointAt(const QPointF &widgetPos)
     m_node = node;
     m_tint = QImage();
     m_bounds = QRect();
-    if (node && node->projection()) {
+    KisPaintDeviceSP device;
+    if (node) device = node->projection();
+    if (device) {
+        // kept while the layer's pixels are the same: they are read whole for it
+        const int sequence = device->sequenceNumber();
+        for (int i = 0; i < m_tints.size(); i++) {
+            if (m_tints[i].device == device && m_tints[i].sequence == sequence) {
+                m_tints.move(i, m_tints.size() - 1);
+                m_bounds = m_tints.last().bounds;
+                m_tint = m_tints.last().image;
+                update();
+                return;
+            }
+        }
         m_bounds = node->exactBounds();
         if (!m_bounds.isEmpty()) {
             // in the selection color, at a size good enough over the canvas
             const QSize size = m_bounds.size().scaled(QSize(480, 480), Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
-            QImage alpha = node->projection()->createThumbnailUncached(size.width(), size.height(), m_bounds)
+            QImage alpha = device->createThumbnailUncached(size.width(), size.height(), m_bounds)
                                .convertToFormat(QImage::Format_ARGB32);
             const QColor ink = palette().color(QPalette::Highlight);
             for (int y = 0; y < alpha.height(); y++) {
@@ -78,6 +91,8 @@ void KisLayerHover::pointAt(const QPointF &widgetPos)
             }
             m_tint = alpha;
         }
+        if (m_tints.size() >= 4) m_tints.removeFirst();
+        m_tints.append({device, sequence, m_bounds, m_tint});
     }
     update();
 }

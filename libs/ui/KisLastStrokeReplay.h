@@ -10,6 +10,8 @@
 
 #include <memory>
 
+#include <kis_types.h>
+
 #include "kritaui_export.h"
 
 class KisToolFreehandHelper;
@@ -32,7 +34,9 @@ public:
     static void setEnabled(bool on);
 
     /// \p helper painted a stroke with brush \p preset, set as \p settings; its step goes onto \p stack
-    void strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack *stack, const QString &preset, const QString &settings);
+    void strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack *stack, const QString &preset, KisPaintOpSettingsSP settings);
+    /// \p editor reports brush changes for as long as it lives: until one does, a stroke's settings aren't written out
+    void watch(QObject *editor);
     /// The brush \p preset changed to \p settings (its XML): its last stroke is painted again with it
     void brushChanged(const QString &preset, const QString &settings);
     /// Whether a change of \p preset would paint a stroke again, before its settings are written out for brushChanged()

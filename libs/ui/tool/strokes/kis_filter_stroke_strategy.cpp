@@ -26,6 +26,34 @@
 #include "kis_painter.h"
 #include "KisAnimAutoKey.h"
 #include <commands_new/KisDisableDirtyRequestsCommand.h>
+#include <QThread>
+#include <cmath>
+
+namespace {
+/**
+ * Patches for a filter that reads \p margin pixels around what it writes: each patch reads its own area and the
+ * margin all around, so wide filters (a large blur, a lens glow) take patches about twice their reach across
+ * instead of rereading many times their area, while there are still enough patches for every thread.
+ */
+QSize patchSizeFor(int margin, const QRect &rect, QSize base)
+{
+    const int threads = qMax(1, QThread::idealThreadCount());
+    const int enough = int(std::sqrt(qreal(rect.width()) * rect.height() / threads));
+    const int side = qMin(2 * margin, enough);
+    if (side <= base.width() && side <= base.height()) return base;
+    const int rounded = (side + 63) / 64 * 64;
+    return QSize(qMax(base.width(), rounded), qMax(base.height(), rounded));
+}
+
+/// How far \p filter reads around what it writes, at full size
+int marginOf(const KisFilter *filter, const KisFilterConfigurationSP config)
+{
+    const QRect probe(0, 0, 64, 64);
+    const QRect needed = filter->neededRect(probe, config, 0);
+    return qMax(qMax(probe.left() - needed.left(), needed.right() - probe.right()),
+                qMax(probe.top() - needed.top(), needed.bottom() - probe.bottom()));
+}
+} // namespace
 
 
 struct KisFilterStrokeStrategy::Private {
@@ -288,7 +316,8 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
 
                 if (shared->filter()->supportsThreading()) {
                     // Split stroke into patches...
-                    QSize size = KritaUtils::optimalPatchSize();
+                    const QSize size = patchSizeFor(marginOf(shared->filter().data(), shared->filterConfig()),
+                                                    shared->processRect, KritaUtils::optimalPatchSize());
                     QVector<QRect> patches = KritaUtils::splitRectIntoPatches(shared->processRect, size);
 
                     Q_FOREACH (const QRect &patch, patches) {
@@ -372,7 +401,8 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                 });
             }
             const QSize patchSize = KritaUtils::optimalPatchSize();
-            const QSize smallPatch(qMax(64, patchSize.width() >> lod), qMax(64, patchSize.height() >> lod));
+            const QSize smallPatch = patchSizeFor(marginOf(shared->filter().data(), shared->filterConfig()) >> lod, smallRect,
+                                                  QSize(qMax(64, patchSize.width() >> lod), qMax(64, patchSize.height() >> lod)));
             if (shared->filter()->supportsThreading()) {
                 Q_FOREACH (const QRect &patch, KritaUtils::splitRectIntoPatches(smallRect, smallPatch)) {
                     if (patch.isEmpty()) continue;

@@ -319,7 +319,17 @@ QStringList held()
 QVector<Theme> themes()
 {
     settle();
-    return parse(R::instance()->value(listId).toString());
+    // parsed again only when the list changed: the picker and each move of a theme's setting ask for it
+    static QString parsedText;
+    static QVector<Theme> parsed;
+    static bool any = false;
+    const QString text = R::instance()->value(listId).toString();
+    if (!any || text != parsedText) {
+        parsed = parse(text);
+        parsedText = text;
+        any = true;
+    }
+    return parsed;
 }
 
 QString nameOf(const Theme &theme)
@@ -482,24 +492,32 @@ void apply(const Params &params)
     g.writeEntry("TintAmount", params.tintAmount);
     g.writeEntry("UseAccent", params.accent.isValid());
     if (params.accent.isValid()) g.writeEntry("Accent", params.accent);
-    writeScheme(params);
-    // The scheme file may be new, so the list of themes has to be scanned again
-    KisSettingsRegistry::instance()->refreshChoices();
+    // A scheme not in use yet is written now, as switching to it reads it; one in use waits for the tick below
+    const QString themeId = QStringLiteral("[theme] Theme");
+    const bool fresh = !QFile::exists(schemePath());
+    if (fresh || KSharedConfig::openConfig()->group("theme").readEntry("Theme", QString()) != schemeName()) {
+        writeScheme(params);
+        // a new scheme file is a new theme to choose
+        if (fresh) KisSettingsRegistry::instance()->refreshChoices(themeId);
+    }
     // through the registry, so the switch to the generated theme is undone with the change that made it;
     // an undo puts back the theme it recorded
     if (!KisSettingsRegistry::instance()->replaying()) {
-        KisSettingsRegistry::instance()->setValue(QStringLiteral("[theme] Theme"), schemeName());
+        KisSettingsRegistry::instance()->setValue(themeId, schemeName());
     }
-    // Bumping the revision makes the window reload the scheme even when its name is unchanged
-    KConfigGroup theme = KSharedConfig::openConfig()->group("theme");
-    theme.writeEntry("Revision", theme.readEntry("Revision", 0) + 1);
     // once for all the values a preset changes at a time, and at most every few frames while a lightness or
     // tint is dragged: each notice reloads the theme into every widget
     static QTimer *notify = []() {
         auto *timer = new QTimer(qApp);
         timer->setSingleShot(true);
         timer->setInterval(40);
-        QObject::connect(timer, &QTimer::timeout, []() { KisConfigNotifier::instance()->notifyConfigChanged(); });
+        QObject::connect(timer, &QTimer::timeout, []() {
+            writeScheme(current());
+            // Bumping the revision makes the window reload the scheme even when its name is unchanged
+            KConfigGroup theme = KSharedConfig::openConfig()->group("theme");
+            theme.writeEntry("Revision", theme.readEntry("Revision", 0) + 1);
+            KisConfigNotifier::instance()->notifyConfigChanged();
+        });
         return timer;
     }();
     if (!notify->isActive()) notify->start();

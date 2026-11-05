@@ -252,25 +252,33 @@ QRect cellsOf(const QRect &rect, int level, int margin)
                  QPoint(floorDiv(rect.right(), cell) + margin, floorDiv(rect.bottom(), cell) + margin));
 }
 
+/// Row \p y of \p data over \p from, \p width values from column \p left, with its edge repeating beyond it
+void rowOf(const float *data, const QRect &from, int y, int left, int width, float *target)
+{
+    // the part inside, copied whole; the edge repeated either side of it
+    const float *row = data + size_t(std::clamp(y, from.top(), from.bottom()) - from.top()) * from.width();
+    const int inside = std::clamp(from.left() - left, 0, width);
+    const int end = std::clamp(from.right() + 1 - left, inside, width);
+    std::fill(target, target + inside, row[0]);
+    if (end > inside) std::copy_n(row + (left + inside - from.left()), end - inside, target + inside);
+    std::fill(target + end, target + width, row[from.width() - 1]);
+}
+
 /// \p data over \p from, read for \p to with its edge repeating beyond it
-std::vector<float> cropped(const std::vector<float> &data, const QRect &from, const QRect &to)
+std::vector<float> cropped(const float *data, const QRect &from, const QRect &to)
 {
     std::vector<float> out(size_t(to.width()) * to.height());
-    // the part of each row inside, copied whole; the edge repeated either side of it
-    const int left = std::clamp(from.left() - to.left(), 0, to.width());
-    const int right = std::clamp(from.right() + 1 - to.left(), left, to.width());
-    for (int y = 0; y < to.height(); y++) {
-        const float *row = data.data() + size_t(std::clamp(to.top() + y, from.top(), from.bottom()) - from.top()) * from.width();
-        float *target = out.data() + size_t(y) * to.width();
-        std::fill(target, target + left, row[0]);
-        if (right > left) std::copy_n(row + (to.left() + left - from.left()), right - left, target + left);
-        std::fill(target + right, target + to.width(), row[from.width() - 1]);
-    }
+    for (int y = 0; y < to.height(); y++) rowOf(data, from, to.top() + y, to.left(), to.width(), out.data() + size_t(y) * to.width());
     return out;
 }
 
+std::vector<float> cropped(const std::vector<float> &data, const QRect &from, const QRect &to)
+{
+    return cropped(data.data(), from, to);
+}
+
 /// \p data over \p cells blurred by \p sigma cells, kept over \p wanted (inside \p cells' reach)
-std::vector<float> blurredOver(const std::vector<float> &data, const QRect &cells, qreal sigma, const QRect &wanted)
+std::vector<float> blurredOver(const float *data, const QRect &cells, qreal sigma, const QRect &wanted)
 {
     if (sigma <= 0) return cropped(data, cells, wanted);
     const int reach = reachOf(sigma);
@@ -280,23 +288,45 @@ std::vector<float> blurredOver(const std::vector<float> &data, const QRect &cell
     return cropped(work, room, wanted);
 }
 
+std::vector<float> blurredOver(const std::vector<float> &data, const QRect &cells, qreal sigma, const QRect &wanted)
+{
+    return blurredOver(data.data(), cells, sigma, wanted);
+}
+
 /// One plane of an image at successively halved sizes, each made when first asked for
 class Pyramid
 {
 public:
-    Pyramid(std::vector<float> plane, const QRect &rect)
+    /// \p plane holds \p rect of the image (kept while the pyramid is), read over the full-size grid's \p cells
+    /// with its edge repeating
+    Pyramid(const float *plane, const QRect &rect, const QRect &cells)
+        : m_base(plane)
+        , m_baseRect(rect)
+        , m_baseCells(cells)
     {
-        m_levels.push_back({rect, std::move(plane)});
     }
+
+    Pyramid(std::vector<float> plane, const QRect &rect, const QRect &cells)
+        : m_own(std::move(plane))
+        , m_base(m_own.data())
+        , m_baseRect(rect)
+        , m_baseCells(cells)
+    {
+    }
+
+    Pyramid(const Pyramid &) = delete;
+    Pyramid &operator=(const Pyramid &) = delete;
 
     /// The grid of \p level blurred by a further \p sigma of its cells, over \p wanted of its cells
     std::vector<float> blurred(int level, qreal sigma, const QRect &wanted)
     {
-        while (int(m_levels.size()) <= level) {
-            Level coarse = halved(m_levels.back().data, m_levels.back().cells);
+        if (level == 0) return blurredOver(m_base, m_baseRect, sigma, wanted);
+        while (int(m_levels.size()) < level) {
+            Level coarse = m_levels.empty() ? halved(m_base, m_baseRect, m_baseCells)
+                                            : halved(m_levels.back().data.data(), m_levels.back().cells, m_levels.back().cells);
             m_levels.push_back(std::move(coarse));
         }
-        const Level &grid = m_levels[size_t(level)];
+        const Level &grid = m_levels[size_t(level - 1)];
         return blurredOver(grid.data, grid.cells, sigma, wanted);
     }
 
@@ -306,20 +336,23 @@ private:
         std::vector<float> data;
     };
 
-    /// Half the size: coarse cell i made of fine cells 2i - 2 to 2i + 3, on cells lined up with the image's, so
-    /// neighbouring patches agree; beyond the fine grid its edge repeats
-    static Level halved(const std::vector<float> &fine, const QRect &cells)
+    /// Half the size of \p cells, whose values \p fine holds over \p rect: coarse cell i made of fine cells 2i - 2
+    /// to 2i + 3, on cells lined up with the image's, so neighbouring patches agree; beyond the fine grid its edge
+    /// repeats
+    static Level halved(const float *fine, const QRect &rect, const QRect &cells)
     {
         static const float taps[6] = {1 / 32.0f, 5 / 32.0f, 10 / 32.0f, 10 / 32.0f, 5 / 32.0f, 1 / 32.0f};
         Level coarse;
         coarse.cells = QRect(QPoint(floorDiv(cells.left(), 2), floorDiv(cells.top(), 2)), QPoint(floorDiv(cells.right(), 2), floorDiv(cells.bottom(), 2)));
         const int w = coarse.cells.width(), h = coarse.cells.height();
-        // across: every fine row at the coarse columns
-        const QRect wideRect(QPoint(2 * coarse.cells.left() - 2, cells.top()), QPoint(2 * coarse.cells.right() + 3, cells.bottom()));
-        const std::vector<float> wide = cropped(fine, cells, wideRect);
+        // across: every fine row at the coarse columns, a row at a time
+        const int wideLeft = 2 * coarse.cells.left() - 2;
+        const int wideWidth = 2 * coarse.cells.right() + 3 - wideLeft + 1;
+        std::vector<float> wide(static_cast<size_t>(wideWidth));
         std::vector<float> across(size_t(w) * cells.height());
         for (int y = 0; y < cells.height(); y++) {
-            const float *row = wide.data() + size_t(y) * wideRect.width();
+            rowOf(fine, rect, cells.top() + y, wideLeft, wideWidth, wide.data());
+            const float *row = wide.data();
             float *out = across.data() + size_t(y) * w;
             for (int i = 0; i < w; i++) {
                 const float *at = row + 2 * i;
@@ -339,6 +372,11 @@ private:
         return coarse;
     }
 
+    std::vector<float> m_own;
+    const float *m_base;
+    QRect m_baseRect;
+    QRect m_baseCells;
+    /// From the first halving on
     std::vector<Level> m_levels;
 };
 
@@ -570,7 +608,7 @@ void apply(const Plan &plan, const Planes &source, const QRect &sourceRect, cons
     std::unique_ptr<Pyramid> light, lightSquared, lightTimes[4];
     std::vector<float> lightAll, lightHere;
     auto pyramidOf = [&](std::unique_ptr<Pyramid> &pyramid, auto &&make) -> Pyramid & {
-        if (!pyramid) pyramid.reset(new Pyramid(cropped(make(), sourceRect, padded), padded));
+        if (!pyramid) pyramid.reset(new Pyramid(make(), sourceRect, padded));
         return *pyramid;
     };
     auto lightOf = [&]() { return lightAll; };
@@ -609,7 +647,7 @@ void apply(const Plan &plan, const Planes &source, const QRect &sourceRect, cons
             for (int c = 0; c < planeCount; c++) {
                 const float gain = c < 3 ? step.gain : alphaGain;
                 if (std::abs(gain) < 1e-6f) continue;
-                Pyramid &pyramid = pyramidOf(planes[c], [&]() { return source.plane[c]; });
+                Pyramid &pyramid = pyramidOf(planes[c], [&]() { return source.plane[c].data(); });
                 const std::vector<float> blurred = enlarged(pyramid.blurred(at, blurOnLevel(sigma, at, true), cells), cells, at, resultRect);
                 float *out = result.plane[c].data();
                 for (size_t i = 0; i < count; i++) out[i] += gain * blurred[i];
@@ -625,7 +663,7 @@ void apply(const Plan &plan, const Planes &source, const QRect &sourceRect, cons
         const QRect cells = cellsOf(resultRect, at, at > 0 ? 2 : 0);
         const QRect around = cells.adjusted(-reachOf(secondCells), -reachOf(secondCells), reachOf(secondCells), reachOf(secondCells));
         const qreal first = blurOnLevel(sigma, at, false);
-        const std::vector<float> meanLight = pyramidOf(light, lightOf).blurred(at, first, around);
+        const std::vector<float> meanLight = pyramidOf(light, [&]() { return static_cast<const float *>(lightAll.data()); }).blurred(at, first, around);
         const std::vector<float> meanSquared = pyramidOf(lightSquared, [&]() {
             std::vector<float> values = lightOf();
             for (float &v : values) v *= v;
@@ -634,7 +672,7 @@ void apply(const Plan &plan, const Planes &source, const QRect &sourceRect, cons
         for (int c = 0; c < planeCount; c++) {
             const float gain = c < 3 ? step.gain : alphaGain;
             if (std::abs(gain) < 1e-6f) continue;
-            const std::vector<float> mean = pyramidOf(planes[c], [&]() { return source.plane[c]; }).blurred(at, first, around);
+            const std::vector<float> mean = pyramidOf(planes[c], [&]() { return source.plane[c].data(); }).blurred(at, first, around);
             const std::vector<float> meanProduct = pyramidOf(lightTimes[c], [&]() {
                 std::vector<float> values = lightOf();
                 for (size_t i = 0; i < values.size(); i++) values[i] *= source.plane[c][i];
@@ -700,30 +738,53 @@ qreal busiestRadius(const QImage &image, const QPoint &at)
     const int w = source.width(), h = source.height();
     if (w <= 0 || h <= 0) return 4;
     const size_t n = size_t(w) * h;
-    std::vector<float> light(n), scratch(n);
+    std::vector<float> light(n);
     for (int y = 0; y < h; y++) {
         const QRgb *line = reinterpret_cast<const QRgb *>(source.constScanLine(y));
         for (int x = 0; x < w; x++) light[size_t(y) * w + x] = qGray(line[x]) / 255.0f * qAlpha(line[x]) / 255.0f;
     }
     const QPoint center(qBound(0, at.x(), w - 1), qBound(0, at.y(), h - 1));
+    const QRect bounds(0, 0, w, h);
+    constexpr int bands = 15;
+    auto radiusAt = [](int i) { return std::pow(2.0, i / 2.0); };
+    // a band's strength is measured over a window as wide as its features
+    auto windowAt = [&](int i) { return std::max(2.0, 2 * sigmaOf(radiusAt(i))); };
+    auto windowRect = [&](int i) {
+        const int reach = int(std::ceil(2 * windowAt(i)));
+        return QRect(center - QPoint(reach, reach), center + QPoint(reach, reach)) & bounds;
+    };
+    // the image blurred to band i's radius where its window and the next one (holding it) read it: only the
+    // blur's reach around that is read, so it comes out as a blur of the whole image would
+    auto blurredAt = [&](int i, QRect &kept) {
+        const qreal sigma = sigmaOf(radiusAt(i));
+        kept = windowRect(std::min(i + 1, bands - 1));
+        const int margin = reachOf(sigma);
+        const QRect room = kept.adjusted(-margin, -margin, margin, margin) & bounds;
+        std::vector<float> work = cropped(light, bounds, room), scratch(work.size());
+        gaussian(work.data(), scratch.data(), room.width(), room.height(), sigma);
+        return cropped(work, room, kept);
+    };
     // each half octave's band, between the image blurred to its radius and to the one before
     std::vector<float> finer = light;
+    QRect finerRect = bounds;
     qreal best = 4;
     double bestEnergy = -1;
-    for (int i = 0; i <= 14; i++) {
-        const qreal radius = std::pow(2.0, i / 2.0);
-        std::vector<float> coarser = light;
-        gaussian(coarser.data(), scratch.data(), w, h, sigmaOf(radius));
-        // its strength around the point, over a window as wide as the features
-        const qreal window = std::max(2.0, 2 * sigmaOf(radius));
+    for (int i = 0; i < bands; i++) {
+        QRect coarserRect;
+        std::vector<float> coarser = blurredAt(i, coarserRect);
+        const qreal window = windowAt(i);
+        const QRect area = windowRect(i);
         const int reach = int(std::ceil(2 * window));
+        std::vector<double> falloff(size_t(2 * reach + 1));
+        for (int d = -reach; d <= reach; d++) falloff[size_t(d + reach)] = std::exp(-double(d) * d / (2 * window * window));
         double energy = 0, weights = 0;
-        for (int y = std::max(0, center.y() - reach); y <= std::min(h - 1, center.y() + reach); y++) {
-            for (int x = std::max(0, center.x() - reach); x <= std::min(w - 1, center.x() + reach); x++) {
-                const double d2 = double(x - center.x()) * (x - center.x()) + double(y - center.y()) * (y - center.y());
-                const double weight = std::exp(-d2 / (2 * window * window));
-                const size_t i2 = size_t(y) * w + x;
-                const double band = finer[i2] - coarser[i2];
+        for (int y = area.top(); y <= area.bottom(); y++) {
+            const double down = falloff[size_t(y - center.y() + reach)];
+            const float *fine = finer.data() + size_t(y - finerRect.top()) * finerRect.width();
+            const float *coarse = coarser.data() + size_t(y - coarserRect.top()) * coarserRect.width();
+            for (int x = area.left(); x <= area.right(); x++) {
+                const double weight = down * falloff[size_t(x - center.x() + reach)];
+                const double band = fine[x - finerRect.left()] - coarse[x - coarserRect.left()];
                 energy += weight * band * band;
                 weights += weight;
             }
@@ -731,9 +792,10 @@ qreal busiestRadius(const QImage &image, const QPoint &at)
         energy /= std::max(weights, 1e-9);
         if (energy > bestEnergy) {
             bestEnergy = energy;
-            best = radius;
+            best = radiusAt(i);
         }
         finer.swap(coarser);
+        finerRect = coarserRect;
     }
     return best;
 }

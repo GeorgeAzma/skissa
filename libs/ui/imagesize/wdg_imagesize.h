@@ -66,7 +66,8 @@ private:
     void updatePrintSizeMaximum();
 
     PageImageSize *m_page;
-    KisPaintDeviceSP m_content;
+    /// Auto's choice for the picture being scaled, which no size changes
+    KisFilterStrategy *m_contentFilter {nullptr};
     KisScaleFilterPreview *m_preview {nullptr};
 
     KisFilterStrategy *autoFilter(const QSize &desired) const;
