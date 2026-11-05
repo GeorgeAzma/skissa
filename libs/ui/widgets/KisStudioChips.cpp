@@ -6,6 +6,7 @@
 #include "KisStudioChips.h"
 
 #include <QHelpEvent>
+#include <algorithm>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -34,7 +35,12 @@ KisStudioChips::KisStudioChips(QWidget *parent)
 
 void KisStudioChips::setChips(const QVector<Chip> &chips)
 {
+    const bool same = chips.size() == m_chips.size() && std::equal(chips.begin(), chips.end(), m_chips.begin(), [](const Chip &a, const Chip &b) {
+        return a.text == b.text && a.toolTip == b.toolTip && a.on == b.on && a.dot == b.dot && a.pictureKey == b.pictureKey
+            && (a.pictureKey || (!a.picture && !b.picture));
+    });
     m_chips = chips;
+    if (same) return;
     m_hovered = -1;
     updateGeometry();
     update();

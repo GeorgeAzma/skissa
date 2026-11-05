@@ -107,6 +107,9 @@ protected: // KisCanvasWidgetBase
     bool callFocusNextPrevChild(bool next) override;
 
 private:
+    void updateCanvasArea(const QRect &rect);
+
+private:
     struct Private;
     Private * const d;
 

@@ -202,7 +202,7 @@ public:
         m_values << qMakePair(value, row);
         connect(row, &KisStudioValueRow::valueChanged, this, [this, index](qreal v) {
             m_values[index].first.write(*m_config, v);
-            changed(true);
+            changed(false);
         });
         return row;
     }
@@ -371,6 +371,9 @@ private:
         Test shown;
         QVector<QImage> pictures;
         Pictures kind;
+        /// Which tiles were lit when the tiles were last set, and whether their pictures changed since
+        QVector<bool> lit;
+        bool newPictures {true};
     };
     struct SwitchRow {
         KisStudioChips *chips;
@@ -409,9 +412,19 @@ private:
     void changed(bool refreshRows)
     {
         if (refreshRows) refresh();
-        else refreshTiles();
+        else {
+            refreshShown();
+            refreshTiles();
+        }
         m_pictureTimer.start();
         Q_EMIT sigConfigurationItemChanged();
+    }
+
+    /// Which rows show, as the settings decide
+    void refreshShown()
+    {
+        for (const auto &value : m_values) value.second->setVisible(!value.first.shown || value.first.shown(*m_config));
+        for (const ColorRow &color : m_colors) color.row->setVisible(!color.color.shown || color.color.shown(*m_config));
     }
 
     void refresh()
@@ -442,11 +455,16 @@ private:
     {
         for (TileRow &row : m_tiles) {
             row.chips->setVisible(!row.shown || row.shown(*m_config));
+            QVector<bool> lit;
+            for (const Tile &tile : row.tiles) lit << tile.on(*m_config);
+            if (lit == row.lit && !row.newPictures) continue;
+            row.lit = lit;
+            row.newPictures = false;
             QVector<KisStudioChips::Chip> chips;
             for (int i = 0; i < row.tiles.size(); i++) {
                 KisStudioChips::Chip chip;
                 chip.text = row.tiles[i].name;
-                chip.on = row.tiles[i].on(*m_config);
+                chip.on = lit[i];
                 if (row.tiles[i].drawing) chip.picture = row.tiles[i].drawing;
                 // patterns at their own size, not smoothed
                 else if (i < row.pictures.size()) chip.picture = tilePicture(row.pictures[i], false, row.kind == Pictures::Detail);
@@ -462,6 +480,7 @@ private:
         m_pictured = true;
         for (TileRow &row : m_tiles) {
             row.pictures.clear();
+            row.newPictures = true;
             if (row.chips->isHidden() || row.kind == Pictures::None) continue;
             for (const Tile &tile : row.tiles) {
                 if (tile.drawing) {

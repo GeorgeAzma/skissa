@@ -219,6 +219,13 @@ public:
         m_clock.start();
     }
 
+    /// \p canvas changed: shown at the next frame, after the window's other changes
+    void canvasChanged(QWidget *canvas)
+    {
+        m_canvases.insert(canvas, canvas);
+        wake();
+    }
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
@@ -323,9 +330,11 @@ private:
     }
 
     /**
-     * Adapts the rate to frame times without oscillating, which would flicker. Slows down when four of the
-     * last sixteen frames were late; speeds up once frames have fit the faster rate for a while (0.5 s,
-     * doubling up to 8 s after each failed attempt, reset after 10 s without slowing down).
+     * Adapts the rate to frame times without oscillating, which would flicker. Slows down when half of the
+     * last sixteen frames were late: a few slow ones (an effect's preview arriving while a slider is dragged)
+     * are only late themselves, rather than holding everything else to a slower rate. Speeds up once frames have
+     * fit the faster rate for a while (0.25 s, doubling up to 8 s after each failed attempt, reset after 10 s
+     * without slowing down).
      */
     void measured(qint64 took)
     {
@@ -337,17 +346,17 @@ private:
         if (late) {
             int count = 0;
             for (quint16 bits = m_late; bits; bits &= quint16(bits - 1)) count++;
-            if (count >= 4 && m_refreshes < 4) {
+            if (count >= 8 && m_refreshes < 4) {
                 m_refreshes++;
                 m_late = 0;
                 // If it had only just sped up, wait twice as long before trying again.
-                m_upWait = now - m_wentFaster < 2 * m_upWait ? qMin<qint64>(m_upWait * 2, 8'000'000'000) : 500'000'000;
+                m_upWait = now - m_wentFaster < 2 * m_upWait ? qMin<qint64>(m_upWait * 2, 8'000'000'000) : 250'000'000;
                 m_fastEnoughSince = now;
                 m_wentSlower = now;
             }
             return;
         }
-        if (now - m_wentSlower > 10'000'000'000) m_upWait = 500'000'000;
+        if (now - m_wentSlower > 10'000'000'000) m_upWait = 250'000'000;
         if (m_refreshes > 1 && took > r * (m_refreshes - 1) * 0.7) {
             m_fastEnoughSince = now;
         } else if (m_refreshes > 1 && now - m_fastEnoughSince > m_upWait) {
@@ -384,9 +393,9 @@ private:
             for (auto it = m_beats.constBegin(); it != m_beats.constEnd(); ++it) {
                 if (it.value() && it.key()->isVisible() && !m_waiting.contains(it.key())) show(it.key(), it.value());
             }
-        } else if (m_waiting.isEmpty()) {
+        } else if (m_waiting.isEmpty() && m_canvases.isEmpty()) {
             // Idle: stop until the next repaint.
-            m_upWait = 500'000'000;
+            m_upWait = 250'000'000;
             return;
         }
         deliver();
@@ -397,9 +406,24 @@ private:
     {
         const QHash<QWidget *, QPointer<QWidget>> waiting = m_waiting;
         m_waiting.clear();
+        const QHash<QWidget *, QPointer<QWidget>> canvases = m_canvases;
+        m_canvases.clear();
         for (const QPointer<QWidget> &window : waiting) {
             // Hidden windows too: Qt waits for this repaint before requesting another.
             if (window) show(window, nullptr);
+        }
+        // then each changed canvas alone, which Qt draws without the widgets over it
+        for (const QPointer<QWidget> &canvas : canvases) {
+            if (!canvas) continue;
+            QElapsedTimer took;
+            took.start();
+            m_delivering = true;
+            canvas->update();
+            QEvent request(QEvent::UpdateRequest);
+            QCoreApplication::sendEvent(canvas->window(), &request);
+            m_delivering = false;
+            measured(took.nsecsElapsed());
+            if (frameLog) frameLog->write(QStringLiteral("%1 canvas shown %2 us\n").arg(m_clock.nsecsElapsed() / 1000).arg(took.nsecsElapsed() / 1000).toUtf8());
         }
     }
 
@@ -447,13 +471,14 @@ private:
     quint16 m_late {0};
     qint64 m_fastEnoughSince {0};
     /// How long frames must fit before speeding up, and when the rate last changed.
-    qint64 m_upWait {500'000'000};
+    qint64 m_upWait {250'000'000};
     qint64 m_wentFaster {-100'000'000'000};
     qint64 m_wentSlower {-100'000'000'000};
     QHash<QWidget *, QPointer<Heartbeat>> m_beats;
     QHash<QWidget *, QPointer<Composed>> m_composed;
     QHash<QWindow *, QPointer<QWidget>> m_tops;
     QHash<QWidget *, QPointer<QWidget>> m_waiting;
+    QHash<QWidget *, QPointer<QWidget>> m_canvases;
     bool m_delivering {false};
 };
 
@@ -512,7 +537,21 @@ private:
     QTimer m_flush;
 };
 #endif
+/// The pacer, once installed
+Pacer *thePacer = nullptr;
 } // namespace
+
+bool KisUpdatePacer::presentCanvas(QWidget *canvas)
+{
+#ifdef Q_OS_WIN
+    if (!thePacer || !canvas->isVisible()) return false;
+    thePacer->canvasChanged(canvas);
+    return true;
+#else
+    Q_UNUSED(canvas);
+    return false;
+#endif
+}
 
 bool KisUpdatePacer::logging()
 {
@@ -537,12 +576,11 @@ void KisUpdatePacer::log(const QString &what)
 void KisUpdatePacer::install()
 {
 #ifdef Q_OS_WIN
-    static Pacer *pacer = nullptr;
     // KRITA_DEV_NOPACER disables pacing for comparison during development.
-    if (pacer || (qEnvironmentVariableIsSet("KRITA_DEV_PROFILE") && qEnvironmentVariableIsSet("KRITA_DEV_NOPACER"))) return;
-    pacer = new Pacer(qApp);
+    if (thePacer || (qEnvironmentVariableIsSet("KRITA_DEV_PROFILE") && qEnvironmentVariableIsSet("KRITA_DEV_NOPACER"))) return;
+    thePacer = new Pacer(qApp);
     // Installed after the pacer so the frame log sees repaints before the pacer holds them.
-    qApp->installEventFilter(pacer);
+    qApp->installEventFilter(thePacer);
     if (qEnvironmentVariableIsSet("KRITA_DEV_PROFILE") && qEnvironmentVariableIsSet("KRITA_DEV_FRAMELOG")) {
         qApp->installEventFilter(new FrameLog(qEnvironmentVariable("KRITA_DEV_FRAMELOG"), qApp));
     }

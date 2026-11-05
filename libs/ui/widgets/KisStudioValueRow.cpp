@@ -204,12 +204,17 @@ QSize KisStudioValueRow::minimumSizeHint() const
 
 qreal KisStudioValueRow::fraction() const
 {
+    return fractionOf(m_dragging && !qIsNaN(m_dragged) ? m_dragged : m_value);
+}
+
+qreal KisStudioValueRow::fractionOf(qreal value) const
+{
     const qreal low = m_range.minimum;
     const qreal high = m_range.maximum;
     if (m_range.size && low > 0) {
-        return qBound(0.0, std::log(qMax(m_value, low) / low) / std::log(high / low), 1.0);
+        return qBound(0.0, std::log(qMax(value, low) / low) / std::log(high / low), 1.0);
     }
-    return qBound(0.0, (m_value - low) / (high - low), 1.0);
+    return qBound(0.0, (value - low) / (high - low), 1.0);
 }
 
 qreal KisStudioValueRow::valueAt(qreal x) const
@@ -383,7 +388,7 @@ void KisStudioValueRow::mouseMoveEvent(QMouseEvent *event)
         // on from where it is, at the other speed
         m_fine = fine;
         m_pressX = x;
-        m_pressValue = m_value;
+        m_pressValue = qIsNaN(m_dragged) ? m_value : m_dragged;
     }
     const qreal moved = (x - m_pressX) / qMax<qreal>(40, width()) * (fine ? 0.25 : 1.0);
     qreal next;
@@ -391,6 +396,12 @@ void KisStudioValueRow::mouseMoveEvent(QMouseEvent *event)
         next = qMax(m_pressValue, m_range.minimum) * std::exp(moved * std::log(m_range.maximum / m_range.minimum));
     } else {
         next = m_pressValue + moved * (m_range.maximum - m_range.minimum);
+    }
+    // the bar follows the pointer at every move, though the value only changes at its steps
+    const qreal shown = qBound(m_range.minimum, next, m_range.maximum);
+    if (shown != m_dragged) {
+        m_dragged = shown;
+        update();
     }
     change(next);
     event->accept();
@@ -428,6 +439,7 @@ void KisStudioValueRow::mouseReleaseEvent(QMouseEvent *event)
     m_pressed = false;
     const bool dragged = m_dragging;
     m_dragging = false;
+    m_dragged = qQNaN();
     update();
     if (!dragged && rect().contains(event->pos())) {
         const QRectF content = textArea();

@@ -483,6 +483,12 @@ struct KisStudioEffectOverlay::Private
     int headerBottom {0};
     /// Space is held: the canvas pans, so drags don't change the effect
     bool spaceHeld {false};
+    /// A fit waiting for the event loop
+    bool fitPending {false};
+    /// What lies over the canvas that the panel keeps clear of, found as it opens: looking through the whole window
+    /// at every change of a value took most of a drag's time
+    QVector<QPointer<QWidget>> over;
+    bool overFound {false};
     /// The image as it was when the effect opened, shown while the preview is switched off, and the canvas showing it
     KisPaintDeviceSP before;
     QPointer<KisCanvas2> showingBefore;
@@ -845,6 +851,8 @@ void KisStudioEffectOverlay::finishEditing()
 {
     d->showBefore(false);
     d->before = nullptr;
+    d->over.clear();
+    d->overFound = false;
     d->guard.reset();
     d->setCursor(false);
     d->dragging = false;
@@ -889,11 +897,17 @@ void KisStudioEffectOverlay::reposition()
     int from = left + 10;
     int to = area.width() - right - 10;
     QVector<QPair<int, int>> free{{from, to}};
-    static const QStringList over = {QStringLiteral("studioToolRail"), QStringLiteral("studioPanels"), QStringLiteral("studioFarPanels"),
-                                     QStringLiteral("studioSettings")};
-    Q_FOREACH (QWidget *other, window()->findChildren<QWidget *>()) {
-        const QString name = other->objectName();
-        if (other == this || !other->isVisible() || (!over.contains(name) && !name.startsWith(QLatin1String("studioPanelGroup")))) continue;
+    if (!d->overFound) {
+        d->overFound = true;
+        static const QStringList names = {QStringLiteral("studioToolRail"), QStringLiteral("studioPanels"), QStringLiteral("studioFarPanels"),
+                                          QStringLiteral("studioSettings")};
+        Q_FOREACH (QWidget *other, window()->findChildren<QWidget *>()) {
+            const QString name = other->objectName();
+            if (other != this && (names.contains(name) || name.startsWith(QLatin1String("studioPanelGroup")))) d->over << other;
+        }
+    }
+    Q_FOREACH (const QPointer<QWidget> &other, d->over) {
+        if (!other || !other->isVisible()) continue;
         // not all inside this panel's parent: through the screen
         const QRect them(parentWidget()->mapFromGlobal(other->mapToGlobal(QPoint(0, 0))), other->size());
         if (them.bottom() < top || them.top() > top + height) continue;
@@ -925,7 +939,8 @@ void KisStudioEffectOverlay::reposition()
     place.moveTop(qBound(0, place.top(), area.height() - 40));
     setGeometry(place);
     d->headerBottom = d->scroll ? d->scroll->geometry().top() : 40;
-    raise();
+    // raising repaints the whole panel, even when it is on top already
+    if (parentWidget()->children().constLast() != this) raise();
 }
 
 bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
@@ -1068,9 +1083,11 @@ bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos
 bool KisStudioEffectOverlay::eventFilter(QObject *watched, QEvent *event)
 {
     // the settings changed size (a row shown or hidden): resize the panel to fit
-    if (event->type() == QEvent::LayoutRequest && d->selector && isVisible()
+    if (event->type() == QEvent::LayoutRequest && d->selector && isVisible() && !d->fitPending
         && (watched == d->selector || d->selector->isAncestorOf(qobject_cast<QWidget *>(watched)))) {
+        d->fitPending = true;
         QTimer::singleShot(0, this, [this]() {
+            d->fitPending = false;
             if (!d->selector) return;
             fitScrolls(d->selector);
             reposition();

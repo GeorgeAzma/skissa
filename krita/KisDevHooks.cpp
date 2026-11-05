@@ -32,6 +32,7 @@
 #include <QToolButton>
 #include <QTouchDevice>
 #include <QWidgetAction>
+#include <QWindow>
 
 #include <kactioncollection.h>
 #include <kxmlguiclient.h>
@@ -148,8 +149,11 @@ private:
     static QList<QWidget *> visibleWindows(QRect &bounds)
     {
         QList<QWidget *> windows;
-        Q_FOREACH (QWidget *window, QApplication::topLevelWidgets()) {
-            if (window->isVisible()) {
+        // from the native windows: QApplication::topLevelWidgets() goes through every widget, which slowed each
+        // injected event enough to pace drags by it
+        Q_FOREACH (QWindow *native, QGuiApplication::topLevelWindows()) {
+            QWidget *window = native->isVisible() ? QWidget::find(native->winId()) : nullptr;
+            if (window && window->isWindow() && window->isVisible()) {
                 windows << window;
                 bounds |= window->geometry();
             }
@@ -403,7 +407,10 @@ private:
         }
         default: break;
         }
-        QWindowSystemInterface::handleMouseEvent(window, local, nativeGlobal, buttons, button, type, QGuiApplication::keyboardModifiers());
+        // at once: a stream of these posted messages, never merged as Windows merges real mouse moves, would keep the event
+        // loop from reaching the queued delivery and pace the test by the loop instead of the app
+        QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(window, local, nativeGlobal, buttons, button, type,
+                                                                                            QGuiApplication::keyboardModifiers());
     }
 
     /// A key press and/or release (wParam: Qt::Key, lParam: modifiers | phase) for the focused or topmost window

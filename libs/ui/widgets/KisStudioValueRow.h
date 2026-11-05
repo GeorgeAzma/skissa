@@ -92,6 +92,7 @@ protected:
 
 private:
     qreal fraction() const;
+    qreal fractionOf(qreal value) const;
     /// The value at \p x across the row, as the bar shows it
     qreal valueAt(qreal x) const;
     QString text() const;
@@ -133,6 +134,8 @@ private:
     int m_pressX {0};
     int m_pressY {0};
     qreal m_pressValue {0.0};
+    /// While dragged, the value the pointer is at before rounding: the bar follows it, not the value's steps
+    qreal m_dragged {qQNaN()};
 };
 
 #endif // KISSTUDIOVALUEROW_H

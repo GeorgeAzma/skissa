@@ -10,6 +10,7 @@
 #include <QComboBox>
 #include <QPainter>
 #include <QRandomGenerator>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QtMath>
@@ -324,6 +325,7 @@ void SkissaDetailWidget::refreshTiles()
         chip.text = d->presets[i].name;
         chip.on = d->curve == d->presets[i].curve && std::abs(d->edges - d->presets[i].edges) < 0.005;
         chip.picture = tilePicture(d->pictures.value(i));
+        chip.pictureKey = d->pictures.value(i).cacheKey();
         chips << chip;
     }
     d->tiles->setChips(chips);
@@ -577,6 +579,7 @@ void SkissaNoiseWidget::refreshTiles()
         preset.seed = d->settings.seed;
         chip.on = d->settings == preset;
         chip.picture = tilePicture(d->pictures.value(i));
+        chip.pictureKey = d->pictures.value(i).cacheKey();
         chips << chip;
     }
     d->tiles->setChips(chips);
@@ -814,6 +817,7 @@ void SkissaLensWidget::refreshTiles()
         chip.on = d->settings.sameLens(d->presets[i].second);
         // a lens shows most at the corners
         chip.picture = tilePicture(d->pictures.value(i), true);
+        chip.pictureKey = d->pictures.value(i).cacheKey();
         chips << chip;
     }
     d->tiles->setChips(chips);
@@ -901,6 +905,8 @@ struct SkissaFewerWidget::Private {
     QVector<QPair<QString, QVector<QColor>>> palettes;
 
     KisStudioChips *sources {nullptr};
+    /// The source pictures made again once a drag pauses: three reductions of the layer at every step held it back
+    QTimer tilesLater;
     /// The source each tile stands for: Levels only while the settings use it
     QVector<SkissaFewer::Source> shownSources;
     KisStudioValueRow *count {nullptr};
@@ -995,6 +1001,9 @@ SkissaFewerWidget::SkissaFewerWidget(QWidget *parent, KisPaintDeviceSP dev)
     if (dev) d->original = KisEffectPanels::fullSizeCopy(dev);
     d->makeImages();
     d->loadPalettes();
+    d->tilesLater.setSingleShot(true);
+    d->tilesLater.setInterval(60);
+    connect(&d->tilesLater, &QTimer::timeout, this, &SkissaFewerWidget::refreshTiles);
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -1015,7 +1024,7 @@ SkissaFewerWidget::SkissaFewerWidget(QWidget *parent, KisPaintDeviceSP dev)
     connect(d->count, &KisStudioValueRow::valueChanged, this, [this](qreal value) {
         d->settings.count = qRound(value);
         if (d->settings.source == Source::Image) d->settings.colors = d->colorsOfImage(d->settings.count);
-        refreshTiles();
+        d->tilesLater.start();
         Q_EMIT sigConfigurationItemChanged();
     });
     layout->addWidget(d->count);
@@ -1031,7 +1040,7 @@ SkissaFewerWidget::SkissaFewerWidget(QWidget *parent, KisPaintDeviceSP dev)
         if (index < 0 || index >= d->palettes.size()) return;
         d->settings.palette = d->palettes[index].first;
         d->settings.colors = d->palettes[index].second;
-        refreshTiles();
+        d->tilesLater.start();
         Q_EMIT sigConfigurationItemChanged();
     });
     paletteLayout->addWidget(d->palette, 1);
@@ -1049,7 +1058,7 @@ SkissaFewerWidget::SkissaFewerWidget(QWidget *parent, KisPaintDeviceSP dev)
     }
     connect(d->brightness, &KisStudioValueRow::valueChanged, this, [this](qreal value) {
         d->settings.lightness = float(value / 200);
-        refreshTiles();
+        d->tilesLater.start();
         Q_EMIT sigConfigurationItemChanged();
     });
     layout->addWidget(d->brightness);
@@ -1075,7 +1084,7 @@ SkissaFewerWidget::SkissaFewerWidget(QWidget *parent, KisPaintDeviceSP dev)
     }
     connect(d->amount, &KisStudioValueRow::valueChanged, this, [this](qreal value) {
         d->settings.amount = float(value / 100);
-        refreshTiles();
+        d->tilesLater.start();
         Q_EMIT sigConfigurationItemChanged();
     });
     layout->addWidget(d->amount);
@@ -1207,7 +1216,7 @@ QString SkissaFewerWidget::canvasDragged(const QPointF &moved, const QPointF &)
         if (d->settings.source == SkissaFewer::Source::Image) d->settings.colors = d->colorsOfImage(d->settings.count);
         d->count->setValue(d->settings.count);
     }
-    refreshTiles();
+    d->tilesLater.start();
     Q_EMIT sigConfigurationItemChanged();
     if (d->settings.source == SkissaFewer::Source::Palette || std::abs(moved.x()) > std::abs(moved.y())) return brightness;
     return countText(d->settings.source, d->settings.count);

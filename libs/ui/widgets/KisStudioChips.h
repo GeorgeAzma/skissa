@@ -32,6 +32,9 @@ public:
         bool on {false};
         /// A dot before the text: in use
         bool dot {false};
+        /// Names the picture (its image's QImage::cacheKey()): chips set again unchanged, these keys too, aren't
+        /// repainted, as a drag sets them at every step; 0: unknown, always repainted
+        qint64 pictureKey {0};
     };
 
     explicit KisStudioChips(QWidget *parent = nullptr);

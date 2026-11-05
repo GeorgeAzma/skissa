@@ -8,6 +8,7 @@
 #include "kritaui_export.h"
 
 class QOpenGLContext;
+class QWidget;
 class QString;
 
 /**
@@ -18,6 +19,14 @@ class QString;
 namespace KisUpdatePacer
 {
 KRITAUI_EXPORT void install();
+
+/**
+ * Shows \p canvas, a widget drawn with OpenGL that changed, in a frame of its own: Qt repaints every widget over
+ * it when it is dirty in the same frame as any other, though they hold none of its pixels, so a frame where a
+ * slider or a panel changed while the image did cost all the panels' painting. False where there is no pacer: the
+ * canvas updates itself.
+ */
+KRITAUI_EXPORT bool presentCanvas(QWidget *canvas);
 
 /// Lets Qt compose \p context's widget without waiting for the GPU, where the driver keeps shared contexts in order.
 /// Call it with \p context current.

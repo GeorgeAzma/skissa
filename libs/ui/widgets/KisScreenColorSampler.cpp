@@ -25,6 +25,7 @@
 #include "KisPart.h"
 #include "KisReferenceImagesLayer.h"
 #include "KisScreenColorSampler.h"
+#include "KisFrameRate.h"
 #include "KisDlgInternalColorSelector.h"
 #include <KisStaticInitializer.h>
 #include <KisPortingUtils.h>
@@ -132,7 +133,7 @@ void KisScreenColorSampler::sampleScreenColor()
 
 #ifdef Q_OS_WIN32 // excludes WinCE and WinRT
     // On Windows mouse tracking doesn't work over other processes's windows
-    m_d->updateTimer->start(30);
+    m_d->updateTimer->start(KisFrameRate::frameMs());
 
     // HACK: Because mouse grabbing doesn't work across processes, we have to have a dummy,
     // invisible window to catch the mouse click, otherwise we will click whatever we clicked

@@ -516,12 +516,19 @@ QVector<QRect> KisOpenGLCanvas2::updateCanvasProjection(const QVector<KisUpdateI
 void KisOpenGLCanvas2::updateCanvasImage(const QRect &imageUpdateRect)
 {
     d->canvasImageDirtyRect |= imageUpdateRect;
-    update(imageUpdateRect);
+    updateCanvasArea(imageUpdateRect);
 }
 
 void KisOpenGLCanvas2::updateCanvasDecorations(const QRect &decoUpdateRect)
 {
-    update(decoUpdateRect);
+    updateCanvasArea(decoUpdateRect);
+}
+
+void KisOpenGLCanvas2::updateCanvasArea(const QRect &rect)
+{
+    // Qt repaints every widget over the canvas when it changes in the same frame as any of them; the pacer shows
+    // the canvas in a frame of its own (see KisUpdatePacer::presentCanvas()). Qt repaints a GL widget whole anyway.
+    if (!KisUpdatePacer::presentCanvas(this)) update(rect);
 }
 bool KisOpenGLCanvas2::callFocusNextPrevChild(bool next)
 {
