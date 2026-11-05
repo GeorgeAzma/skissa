@@ -418,7 +418,9 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                     shared->filter()->processImpl(coarse->small, smallRect, shared->filterConfig().data(), updater.updater());
                 });
             }
-            addJobSequential(coarseJobs, [this, shared, coarse]() {
+            // the target is written from here on: the image's updates still queued run first (run during, they would
+            // show it with some patches written)
+            addJobBarrier(coarseJobs, [this, shared, coarse]() {
                 coarse->filterTime = coarse->time.elapsed() - coarse->filterStart;
                 delete coarse->smallTransaction->endAndTake();
                 coarse->smallTransaction.reset();
@@ -477,15 +479,19 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
             const bool changed = shared->filterDeviceBounds.intersects(
                 shared->filter()->neededRect(shared->processRect, shared->filterConfig().data(), shared->levelOfDetail()));
 
-            // the coarse pass taken back first, so that undoing this restores the source, not it
-            if (m_d->coarse) {
+            // the coarse pass taken back first, so that undoing this restores the source, not it; without an update of
+            // its own, which could run before the full pass is written and show the image without the effect
+            const bool tookBack = m_d->coarse;
+            if (tookBack) {
+                m_d->updatesFacade->disableDirtyRequests();
                 m_d->coarse->undo();
                 m_d->coarse.clear();
-                if (!changed && shared->shouldRedraw()) {
-                    shared->node()->setDirty(shared->processRect);
-                }
             }
             if (!changed) {
+                if (tookBack) {
+                    m_d->updatesFacade->enableDirtyRequests();
+                    if (shared->shouldRedraw()) shared->node()->setDirty(shared->processRect);
+                }
                 return;
             }
             KisUpdatePacer::log(QStringLiteral("filter full pass written"));
@@ -495,6 +501,7 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
             QScopedPointer<KisTransaction> workingTransaction( new KisTransaction(shared->targetDevice()) );
             KisPainter::copyAreaOptimized(shared->processRect.topLeft(), shared->filterDevice, shared->targetDevice(), shared->processRect, shared->selection());
             runAndSaveCommand( toQShared(workingTransaction->endAndTake()), KisStrokeJobData::BARRIER, KisStrokeJobData::EXCLUSIVE );
+            if (tookBack) m_d->updatesFacade->enableDirtyRequests();
 
             if (shared->shouldRedraw()) {
                 QRect extraUpdateRect;
@@ -539,8 +546,10 @@ void KisFilterStrokeStrategy::cancelStrokeCallback()
     QVector<KisStrokeJobData *> jobs;
 
     jobs << new Data(toQShared(new KisDisableDirtyRequestsCommand(m_d->updatesFacade, KisDisableDirtyRequestsCommand::INITIALIZING)));
-    // a coarse pass shown but its full pass not written yet is taken back too
-    addJobSequential(jobs, [this] () {
+    // a coarse pass shown but its full pass not written yet is taken back too, once the image's updates still queued
+    // have run: run after, they would read the layer taken back and show it without the effect for a moment (a
+    // flicker at every step of a dragged slider)
+    addJobBarrier(jobs, [this] () {
         if (m_d->coarseWriting) {
             m_d->coarseWriting->revert();
             m_d->coarseWriting.reset();
