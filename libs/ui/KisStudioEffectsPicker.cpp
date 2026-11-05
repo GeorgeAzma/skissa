@@ -10,11 +10,13 @@
 #include <kis_default_bounds.h>
 
 #include <QCache>
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QPainter>
 #include <QThread>
+#include <QThreadPool>
 #include <QTimer>
 #include <QtConcurrent>
 
@@ -362,13 +364,19 @@ KisStudioEffectsPicker::KisStudioEffectsPicker(KisMainWindow *mainWindow, std::s
         // snapshot the resources: the worker threads must not access them themselves
         jobs << Job{id, filter, config->cloneWithResourcesSnapshot(), key};
     }
-    // several at once, each taking the next tile in order
-    const int workers = qMin(qMax(1, QThread::idealThreadCount() - 1), jobs.size());
+    // several at once, each taking the next tile in order, in threads of their own: in Qt's shared pool they would hold up
+    // everything else run there (the time-lapse's frames, the start page's pictures) until the last tile
+    static QThreadPool *pool = []() {
+        auto *threads = new QThreadPool(qApp);
+        threads->setMaxThreadCount(qMax(1, QThread::idealThreadCount() - 1));
+        return threads;
+    }();
+    const int workers = qMin(pool->maxThreadCount(), jobs.size());
     auto next = std::make_shared<std::atomic<int>>(0);
     auto running = std::make_shared<std::atomic<int>>(workers);
     if (!workers) thumbnails->finished = true;
     for (int worker = 0; worker < workers; worker++) {
-        (void)QtConcurrent::run([thumbnails, jobs, next, running]() {
+        (void)QtConcurrent::run(pool, [thumbnails, jobs, next, running]() {
             const QImage base = thumbnails->base;
             const QRect rect(QPoint(0, 0), base.size());
             for (int i = (*next)++; i < jobs.size() && !thumbnails->cancelled; i = (*next)++) {

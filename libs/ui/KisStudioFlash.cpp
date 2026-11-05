@@ -5,6 +5,8 @@
  */
 #include "KisStudioFlash.h"
 
+#include <algorithm>
+
 #include <QElapsedTimer>
 #include <QHash>
 #include <QPainter>
@@ -74,14 +76,15 @@ QWidget *shown(QWidget *from, const char *name)
     QWidget *window = from->window();
     if (!window || !window->isVisible() || window->isMinimized()) return nullptr;
     // asked at every step of a rotation and every repeat of a key: the window's widgets of that name are searched
-    // again only now and then
+    // again only now and then, or when one found went (the top bar is made again for each tool) or none was there
     struct Found {
         QVector<QPointer<QWidget>> widgets;
         QElapsedTimer age;
     };
     static QHash<QPair<QWidget *, QByteArray>, Found> found;
     Found &entry = found[qMakePair(window, QByteArray(name))];
-    if (!entry.age.isValid() || entry.age.elapsed() > 1000) {
+    const bool gone = entry.widgets.isEmpty() || std::any_of(entry.widgets.cbegin(), entry.widgets.cend(), [](const QPointer<QWidget> &w) { return w.isNull(); });
+    if (gone || !entry.age.isValid() || entry.age.elapsed() > 1000) {
         entry.widgets.clear();
         Q_FOREACH (QWidget *candidate, window->findChildren<QWidget *>(QLatin1String(name))) entry.widgets << candidate;
         entry.age.start();

@@ -68,7 +68,7 @@ void KisLayerHover::pointAt(const QPointF &widgetPos)
         // kept while the layer's pixels are the same: they are read whole for it
         const int sequence = device->sequenceNumber();
         for (int i = 0; i < m_tints.size(); i++) {
-            if (m_tints[i].device == device && m_tints[i].sequence == sequence) {
+            if (m_tints[i].device.isValid() && m_tints[i].device == device.data() && m_tints[i].sequence == sequence) {
                 m_tints.move(i, m_tints.size() - 1);
                 m_bounds = m_tints.last().bounds;
                 m_tint = m_tints.last().image;
@@ -92,7 +92,7 @@ void KisLayerHover::pointAt(const QPointF &widgetPos)
             m_tint = alpha;
         }
         if (m_tints.size() >= 4) m_tints.removeFirst();
-        m_tints.append({device, sequence, m_bounds, m_tint});
+        m_tints.append({device.data(), sequence, m_bounds, m_tint});
     }
     update();
 }

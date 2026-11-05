@@ -174,6 +174,9 @@ public:
         }
         recalculateExtent();
     }
+    KisMementoSP currentMemento() const {
+        return m_mementoManager->currentMemento();
+    }
     bool hasCurrentMemento() const {
         return m_mementoManager->hasCurrentMemento();
         //return true;

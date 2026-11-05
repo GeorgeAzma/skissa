@@ -8,6 +8,7 @@
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QComboBox>
+#include <QElapsedTimer>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QGridLayout>
@@ -485,10 +486,11 @@ struct KisStudioEffectOverlay::Private
     bool spaceHeld {false};
     /// A fit waiting for the event loop
     bool fitPending {false};
-    /// What lies over the canvas that the panel keeps clear of, found as it opens: looking through the whole window
-    /// at every change of a value took most of a drag's time
+    /// What lies over the canvas that the panel keeps clear of, found every half second: looking through the whole
+    /// window at every change of a value would take most of a drag's time
     QVector<QPointer<QWidget>> over;
-    bool overFound {false};
+    /// When the list was made: panels and groups made later are found at the next look
+    QElapsedTimer overAge;
     /// The image as it was when the effect opened, shown while the preview is switched off, and the canvas showing it
     KisPaintDeviceSP before;
     QPointer<KisCanvas2> showingBefore;
@@ -852,7 +854,7 @@ void KisStudioEffectOverlay::finishEditing()
     d->showBefore(false);
     d->before = nullptr;
     d->over.clear();
-    d->overFound = false;
+    d->overAge.invalidate();
     d->guard.reset();
     d->setCursor(false);
     d->dragging = false;
@@ -897,8 +899,9 @@ void KisStudioEffectOverlay::reposition()
     int from = left + 10;
     int to = area.width() - right - 10;
     QVector<QPair<int, int>> free{{from, to}};
-    if (!d->overFound) {
-        d->overFound = true;
+    if (!d->overAge.isValid() || d->overAge.elapsed() > 500) {
+        d->overAge.start();
+        d->over.clear();
         static const QStringList names = {QStringLiteral("studioToolRail"), QStringLiteral("studioPanels"), QStringLiteral("studioFarPanels"),
                                           QStringLiteral("studioSettings")};
         Q_FOREACH (QWidget *other, window()->findChildren<QWidget *>()) {

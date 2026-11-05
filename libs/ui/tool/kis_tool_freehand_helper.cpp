@@ -134,7 +134,8 @@ struct KisToolFreehandHelper::Private
     /// When the stroke began, as its step in the history records it
     QTime startedAt;
     QTimer strokeTimeoutTimer;
-    /// The time between the pen's reports, ms, averaged over the last few
+    /// The longest recent time between the pen's reports, ms, fading slowly: a device that pauses between bursts of
+    /// reports (a mouse, a busy driver) keeps a longer wait than its usual spacing
     qreal reportSpacing {-1};
 
     QVector<KisFreehandStrokeInfo*> strokeInfos;
@@ -594,7 +595,7 @@ void KisToolFreehandHelper::paintEvent(KoPointerEvent *event)
 void KisToolFreehandHelper::paint(KisPaintInformation &info)
 {
     const qreal spacing = qMin(qreal(100), info.currentTime() - m_d->previousPaintInformation.currentTime());
-    m_d->reportSpacing = m_d->reportSpacing < 0 ? spacing : 0.8 * m_d->reportSpacing + 0.2 * spacing;
+    m_d->reportSpacing = qMax(spacing, 0.9 * m_d->reportSpacing);
 
     /**
      * Smooth the coordinates out using the history and the
@@ -737,7 +738,7 @@ void KisToolFreehandHelper::paint(KisPaintInformation &info)
             m_d->olderPaintInformation = m_d->previousPaintInformation;
 
             // Enable stroke timeout only when not airbrushing.
-            // The last piece waits for the next report; a pen quiet for three of its reports has stopped.
+            // The last piece waits for the next report; a pen quiet for three of its longest recent gaps has stopped.
             if (!m_d->airbrushingTimer.isActive()) {
                 m_d->strokeTimeoutTimer.start(qBound(20, qRound(3 * m_d->reportSpacing), 100));
             }

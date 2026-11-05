@@ -48,7 +48,8 @@ private:
 
     /// A layer's tint as last made, for the pointer going back and forth between a few layers
     struct Tint {
-        KisPaintDeviceSP device;
+        /// Held weakly: a deleted layer's pixels aren't kept for it
+        KisPaintDeviceWSP device;
         int sequence {0};
         QRect bounds;
         QImage image;

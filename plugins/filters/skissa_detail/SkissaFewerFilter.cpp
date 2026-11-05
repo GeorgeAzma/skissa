@@ -39,30 +39,32 @@ struct Diffused {
 };
 
 /**
- * The key of \p rect of \p device's pixels as they were, hashed once for all patches of a run: while a transaction
+ * The key of \p rect of \p device's pixels as they were, hashed once for all patches of a run: while one transaction
  * holds the device, its old pixels can't change. A mask's patches each have a copy of their own, and are hashed.
  */
 quint64 originalKeyOf(KisPaintDeviceSP device, const QRect &rect)
 {
     struct Seen {
         KisPaintDeviceWSP device;
-        int sequence {0};
+        KisWeakSharedPtr<KisMemento> transaction;
         QRect rect;
         quint64 key {0};
     };
     static QMutex lock;
     static Seen seen;
-    const bool held = device->dataManager()->hasCurrentMemento();
-    const int sequence = device->sequenceNumber();
-    if (held) {
+    const KisMementoSP transaction = device->dataManager()->currentMemento();
+    if (transaction) {
         QMutexLocker locker(&lock);
-        if (seen.device.isValid() && seen.device == device.data() && seen.sequence == sequence && seen.rect == rect) return seen.key;
+        if (seen.device.isValid() && seen.device == device.data() && seen.transaction.isValid() && seen.transaction == transaction.data()
+            && seen.rect == rect) {
+            return seen.key;
+        }
     }
     const quint64 key = SkissaPixels::originalKey(device, rect);
-    if (held) {
+    if (transaction) {
         QMutexLocker locker(&lock);
         seen.device = device.data();
-        seen.sequence = sequence;
+        seen.transaction = transaction;
         seen.rect = rect;
         seen.key = key;
     }

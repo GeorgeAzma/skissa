@@ -152,7 +152,7 @@ static void growArea(KisPixelSelectionSP region, KisPaintDeviceSP reference, con
         const int pixelSize = reference->pixelSize();
         std::vector<quint8> pixels(size_t(count) * pixelSize);
         reference->readBytes(pixels.data(), area);
-        // in parts on all threads: through LCMS, on one, it was much of a large fill's time
+        // in parts on all threads: through LCMS, a large fill's conversion is slow on one
         const int part = 1 << 16;
         KisGridRenderer::forEachOnAllThreads((count + part - 1) / part, [&](int n) {
             const int first = n * part;
