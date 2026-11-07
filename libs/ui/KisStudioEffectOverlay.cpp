@@ -99,16 +99,6 @@ QToolButton *headerButton(QWidget *parent, const QString &toolTip)
     return button;
 }
 
-QToolButton *glyphButton(const QString &glyph, const QString &toolTip, QWidget *parent)
-{
-    QToolButton *button = headerButton(parent, toolTip);
-    button->setText(glyph);
-    QFont font = button->font();
-    font.setPointSizeF(font.pointSizeF() * 1.2);
-    button->setFont(font);
-    return button;
-}
-
 QToolButton *iconButton(const QString &icon, const QString &toolTip, QWidget *parent)
 {
     QToolButton *button = headerButton(parent, toolTip);
@@ -608,10 +598,10 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     header->addWidget(d->editable);
 
     header->addSpacing(6);
-    QToolButton *cancel = glyphButton(QStringLiteral("✕"), i18nc("@info:tooltip", "Cancel (Esc)"), this);
+    QToolButton *cancel = iconButton(QStringLiteral("studio_cancel"), i18nc("@info:tooltip", "Cancel (Esc)"), this);
     connect(cancel, &QToolButton::clicked, this, &KisStudioEffectOverlay::reject);
     header->addWidget(cancel);
-    QToolButton *apply = glyphButton(QStringLiteral("✓"), i18nc("@info:tooltip", "Apply (Enter)"), this);
+    QToolButton *apply = iconButton(QStringLiteral("studio_done"), i18nc("@info:tooltip", "Apply (Enter)"), this);
     connect(apply, &QToolButton::clicked, this, &KisStudioEffectOverlay::accept);
     header->addWidget(apply);
     layout->addLayout(header);

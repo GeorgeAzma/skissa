@@ -510,6 +510,10 @@
         <file>light_hamburger_menu_dots.svg</file>
         <file>dark_hamburger_menu.svg</file>
         <file>light_hamburger_menu.svg</file>
+        <file>dark_studio_done.svg</file>
+        <file>light_studio_done.svg</file>
+        <file>dark_studio_cancel.svg</file>
+        <file>light_studio_cancel.svg</file>
         <file>dark_studio_dice.svg</file>
         <file>light_studio_dice.svg</file>
         <file>dark_studio_bend.svg</file>

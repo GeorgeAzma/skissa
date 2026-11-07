@@ -274,6 +274,9 @@ ICONS = {
     'pin_on': solid('M9 3.5h6l-.9 5.6 3.4 3.9h-11l3.4-3.9Z') + p('M12 13v7.5'),
     # two links of a chain: kept together, and apart
     'link': p('M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1') + p('M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1'),
+    # keeping and dropping what is being decided (an effect, a fill)
+    'done': p('M4.5 12.5 9.5 17.5 19.5 6.5'),
+    'cancel': p('M6 6 18 18M18 6 6 18'),
     'unlink': p('M9 15l-1.5 1.5a3.5 3.5 0 0 1-5-5L4 10M15 9l1.5-1.5a3.5 3.5 0 0 1 5 5L20 14') + p('M8.5 3.5v2.5M3.5 8.5H6M15.5 20.5V18M20.5 15.5H18'),
 }
 

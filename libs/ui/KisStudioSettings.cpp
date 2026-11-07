@@ -3303,7 +3303,7 @@ KisStudioSettings::KisStudioSettings(KisMainWindow *mainWindow, QWidget *canvasA
     header->addWidget(more);
     auto *close = new QToolButton(this);
     close->setAutoRaise(true);
-    close->setText(QStringLiteral("✕"));
+    close->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_cancel")));
     close->setToolTip(i18nc("@info:tooltip", "Close (Esc)"));
     header->addWidget(close);
     body->addLayout(header);

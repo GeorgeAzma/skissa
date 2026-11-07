@@ -277,20 +277,17 @@ public:
         auto *ends = new QVBoxLayout();
         ends->setContentsMargins(0, 0, 0, 0);
         ends->setSpacing(KisModernStyle::hairline);
-        auto glyph = [this](const QString &text, const QString &toolTip) {
+        auto end = [this](const QString &icon, const QString &toolTip) {
             auto *button = new QToolButton(this);
-            button->setText(text);
+            button->setIcon(KisIconUtils::loadIcon(icon));
             button->setToolTip(toolTip);
             button->setAutoRaise(true);
             button->setFocusPolicy(Qt::NoFocus);
             button->setFixedSize(28, 26);
-            QFont font = button->font();
-            font.setPointSizeF(font.pointSizeF() * 1.2);
-            button->setFont(font);
             return button;
         };
-        done = glyph(QStringLiteral("\u2713"), i18nc("@info:tooltip", "Done (Enter)"));
-        cancel = glyph(QStringLiteral("\u2715"), i18nc("@info:tooltip", "Take back the fill (Esc)"));
+        done = end(QStringLiteral("studio_done"), i18nc("@info:tooltip", "Done (Enter)"));
+        cancel = end(QStringLiteral("studio_cancel"), i18nc("@info:tooltip", "Take back the fill (Esc)"));
         ends->addWidget(done);
         ends->addWidget(cancel);
         ends->addStretch(1);
