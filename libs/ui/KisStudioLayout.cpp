@@ -3629,6 +3629,8 @@ void KisStudioLayout::closeFlyout()
 
 void KisStudioLayout::releaseFlyout()
 {
+    // the keys go back to the canvas, not to whatever widget Qt would pick when the flyout holding them hides
+    if (d->flyout && d->flyout->isAncestorOf(QApplication::focusWidget())) KisStudioTools::focusCanvas(d->mainWindow);
     d->flyout = nullptr;
     d->flyoutAnchor = nullptr;
     if (d->flyoutWindow) {
@@ -5802,10 +5804,15 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
         break;
 
     case QEvent::KeyPress:
-        if (d->flyout && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape
-            && d->flyout->isAncestorOf(QApplication::focusWidget())) {
-            closeFlyout();
-            return true;
+        // Esc closes a flyout, whether the keys are in it or still on the canvas (its button takes no focus)
+        if (d->flyout && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+            QWidget *focus = QApplication::focusWidget();
+            const bool canvasKeys = !focus || (d->mainWindow->activeView() && d->mainWindow->activeView()->canvasBase()
+                                               && focus == d->mainWindow->activeView()->canvasBase()->canvasWidget());
+            if ((d->flyout->isAncestorOf(focus) || canvasKeys) && watched == (focus ? static_cast<QObject *>(focus) : d->mainWindow)) {
+                closeFlyout();
+                return true;
+            }
         }
         break;
 

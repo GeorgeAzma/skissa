@@ -266,6 +266,7 @@ public:
         spreadName->setToolTip(i18nc("@info:tooltip", "Higher takes in nearby shades"));
         spread->setToolTip(spreadName->toolTip());
         underLines = new QCheckBox(i18nc("color drop: the fill reaches under the lines", "Under lines"), this);
+        underLines->setFocusPolicy(Qt::NoFocus);
         underLines->setToolTip(i18nc("@info:tooltip", "Fills to the middle of the lines"));
         grid->addWidget(gapName, 0, 0);
         grid->addWidget(gap, 0, 1);
@@ -980,7 +981,9 @@ bool KisColorDrop::eventFilter(QObject *watched, QEvent *event)
     if (event->type() == QEvent::KeyPress && !d->keepFilling) {
         QWidget *focus = QApplication::focusWidget();
         const bool first = focus ? watched == focus : watched == canvas->window();
-        const bool typing = qobject_cast<QAbstractSpinBox *>(focus) || qobject_cast<QLineEdit *>(focus);
+        // a slider box dragged holds the focus without being typed in: its text is read only until a double click
+        const QLineEdit *edit = qobject_cast<QAbstractSpinBox *>(focus) ? focus->findChild<QLineEdit *>() : qobject_cast<QLineEdit *>(focus);
+        const bool typing = edit && !edit->isReadOnly();
         if (first && !typing && (!focus || focus->window() == canvas->window())) {
             const int key = static_cast<QKeyEvent *>(event)->key();
             if (key == Qt::Key_Return || key == Qt::Key_Enter) {

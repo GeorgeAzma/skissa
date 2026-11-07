@@ -11,6 +11,7 @@
  */
 
 #include "LayerBox.h"
+#include <KisStudioTools.h>
 #include <KisSentenceCase.h>
 #include <KisFrameRate.h>
 
@@ -1350,6 +1351,12 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
             startFiltering(QString());
             return true;
         }
+    } else if (event->type() == QEvent::KeyPress
+               && (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Return || static_cast<QKeyEvent *>(event)->key() == Qt::Key_Enter)
+               && layerFilterWidget->isAncestorOf(qobject_cast<QWidget *>(watched))) {
+        // the filter stays as typed; the keys go back to the canvas
+        KisStudioTools::focusCanvas(this);
+        return true;
     } else if (event->type() == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape
                && layerFilterWidget->isAncestorOf(qobject_cast<QWidget *>(watched))) {
         layerFilterWidget->reset();

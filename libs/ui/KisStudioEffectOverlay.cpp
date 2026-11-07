@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioEffectOverlay.h"
+#include "KisStudioTools.h"
 
 #include <QAbstractSpinBox>
 #include <QApplication>
@@ -109,8 +110,12 @@ QToolButton *iconButton(const QString &icon, const QString &toolTip, QWidget *pa
 bool isTextInput(QWidget *widget)
 {
     if (auto *combo = qobject_cast<QComboBox *>(widget)) return combo->isEditable();
-    return qobject_cast<QLineEdit *>(widget) || qobject_cast<QAbstractSpinBox *>(widget)
-        || qobject_cast<QTextEdit *>(widget) || qobject_cast<QPlainTextEdit *>(widget);
+    // a slider box is typed in only while its text is edited (read only until a double click)
+    if (qobject_cast<QAbstractSpinBox *>(widget)) {
+        const QLineEdit *edit = widget->findChild<QLineEdit *>();
+        return edit && !edit->isReadOnly();
+    }
+    return qobject_cast<QLineEdit *>(widget) || qobject_cast<QTextEdit *>(widget) || qobject_cast<QPlainTextEdit *>(widget);
 }
 
 /// A numeric setting of the effect, controlled by dragging on the canvas
@@ -855,6 +860,8 @@ void KisStudioEffectOverlay::finishEditing()
     }
     qApp->removeEventFilter(this);
     delete d->pill;
+    // the keys go back to the canvas, not to whatever widget Qt would pick when the panel holding them hides
+    if (hasFocus() || isAncestorOf(QApplication::focusWidget())) KisStudioTools::focusCanvas(this);
     d->canvasWidget = nullptr;
     d->knobs.clear();
     d->editor = nullptr;
@@ -1104,6 +1111,18 @@ bool KisStudioEffectOverlay::eventFilter(QObject *watched, QEvent *event)
         const bool inPanel = focus && (focus == this || isAncestorOf(focus));
         // ignore keys meant for dialogs and other windows
         const bool here = focus ? focus->window() == window() : watched == window();
+        // a slider of the effect's settings, dragged, holds the keys: Enter and Esc are still the effect's, not the
+        // slider's (which would start typing)
+        if (inPanel && here && watched == focus && qobject_cast<QAbstractSpinBox *>(focus) && !isTextInput(focus)) {
+            if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
+                accept();
+                return true;
+            }
+            if (key->key() == Qt::Key_Escape) {
+                reject();
+                return true;
+            }
+        }
         if (!inPanel && here && (watched == focus || !focus) && !(focus && isTextInput(focus))) {
             if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
                 accept();

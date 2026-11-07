@@ -12,6 +12,7 @@
 
 class KisMainWindow;
 class KoToolManager;
+class QWidget;
 
 /// The tools of a window: Krita keeps a tool manager per window (its view manager's)
 namespace KisStudioTools
@@ -22,6 +23,11 @@ KRITAUI_EXPORT KoToolManager *manager(KisMainWindow *window = nullptr);
 KRITAUI_EXPORT QString activeToolId(KisMainWindow *window = nullptr);
 /// Switches that window to the tool \p id
 KRITAUI_EXPORT void switchTo(const QString &id, KisMainWindow *window = nullptr);
+/**
+ * Gives the keys back to the canvas of the window \p from is in (or of the window in use): after a field is done
+ * with, or a panel holding the focus goes, so that the painter's keys (B, E, Space, Tab) reach the canvas again
+ */
+KRITAUI_EXPORT void focusCanvas(QWidget *from = nullptr);
 }
 
 #endif // KISSTUDIOTOOLS_H

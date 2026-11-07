@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioInlineEdit.h"
+#include "KisStudioTools.h"
 
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -48,6 +49,8 @@ private:
         const QString typed = text();
         // what is typed may rebuild the owner
         const QPointer<QWidget> owner = parentWidget();
+        // the keys go back to the canvas, not to whatever widget Qt would pick when the field holding them hides
+        if (hasFocus()) KisStudioTools::focusCanvas(this);
         hide();
         deleteLater();
         if (keep && m_done) m_done(typed);

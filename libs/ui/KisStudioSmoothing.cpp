@@ -690,6 +690,7 @@ void KisStudioStrokePage::rebuild()
     };
     auto addSwitch = [this](const QString &name, const QString &tip, bool on, std::function<void(bool)> apply) {
         auto *box = new QCheckBox(name, this);
+        box->setFocusPolicy(Qt::NoFocus);
         box->setChecked(on);
         box->setToolTip(tip);
         connect(box, &QCheckBox::toggled, this, apply);

@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioColorPanel.h"
+#include "KisStudioTools.h"
 #include "KisColorDrop.h"
 #include "KisColorMath.h"
 
@@ -1008,11 +1009,21 @@ protected:
             event->accept();
             return;
         }
+        // Esc puts back what was there; either way the keys go back to the canvas, or B and E would be typed here
+        if (event->key() == Qt::Key_Escape) {
+            setText(m_before);
+            setModified(false);
+            KisStudioTools::focusCanvas(this);
+            event->accept();
+            return;
+        }
         QLineEdit::keyPressEvent(event);
+        if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) KisStudioTools::focusCanvas(this);
     }
 
     void focusInEvent(QFocusEvent *event) override
     {
+        m_before = text();
         QLineEdit::focusInEvent(event);
         fade();
     }
@@ -1054,6 +1065,9 @@ private:
     }
 
     bool m_fading {false};
+private:
+    /// The text when the field took the keys, put back by Esc
+    QString m_before;
 };
 
 /**

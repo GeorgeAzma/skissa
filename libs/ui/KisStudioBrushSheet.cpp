@@ -739,12 +739,15 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
         }
     });
     header->addWidget(d->reload);
+    // the buttons take no keys: focused, Space would save the brush again
     auto *saveNew = new QPushButton(i18nc("@action:button", "Save as new"), this);
+    saveNew->setFocusPolicy(Qt::NoFocus);
     connect(saveNew, &QPushButton::clicked, this, [this]() {
         if (d->box) d->box->savePreset(true);
     });
     header->addWidget(saveNew);
     auto *save = new QPushButton(i18nc("@action:button save the brush over itself", "Save"), this);
+    save->setFocusPolicy(Qt::NoFocus);
     save->setDefault(true);
     connect(save, &QPushButton::clicked, this, [this]() {
         if (d->box) d->box->savePreset(false);

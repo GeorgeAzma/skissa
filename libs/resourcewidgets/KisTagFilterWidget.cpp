@@ -98,6 +98,12 @@ bool KisTagFilterWidget::eventFilter(QObject *watched, QEvent *event)
             setOpen(false);
             return true;
         }
+        // Enter keeps what was typed and lets the keys go (the canvas takes them back as the pointer comes to it)
+        if (event->type() == QEvent::KeyPress && (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Return
+                                                  || static_cast<QKeyEvent *>(event)->key() == Qt::Key_Enter)) {
+            d->tagSearchLineEdit->clearFocus();
+            return true;
+        }
         // left with nothing typed: back to the magnifier (not while picking from its completions)
         if (event->type() == QEvent::FocusOut && d->tagSearchLineEdit->text().isEmpty()
             && !(d->completer->popup() && d->completer->popup()->isVisible())) {

@@ -135,6 +135,7 @@ KisStudioPenPopup::KisStudioPenPopup(KisPaintOpOption *option, QWidget *parent, 
     if (option->isCheckable() && value && !value->appliesUnchecked) {
         // an effect the brush can go without (Rotation, Scatter): its own switch
         d->on = new QCheckBox(this);
+        d->on->setFocusPolicy(Qt::NoFocus);
         header->addWidget(d->on);
         connect(d->on, &QCheckBox::toggled, this, [this](bool checked) {
             if (d->option) d->option->setChecked(checked);

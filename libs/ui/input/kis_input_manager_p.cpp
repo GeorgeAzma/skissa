@@ -9,6 +9,7 @@
 #include <QMap>
 #include <QApplication>
 #include <QComboBox>
+#include <QLineEdit>
 #include <QScopedPointer>
 #include <QTimer>
 #include <QtGlobal>
@@ -180,8 +181,12 @@ bool isInputWidget(QWidget *w)
 bool isTextInput(QWidget *w)
 {
     if (!w) return false;
-    if (w->inherits("QLineEdit") || w->inherits("QAbstractSpinBox") || w->inherits("QTextEdit") || w->inherits("QPlainTextEdit")
-        || w->inherits("QKeySequenceEdit")) {
+    // a slider box (a spin box whose text is read only until it is double-clicked) is only typed in while editing
+    if (w->inherits("QAbstractSpinBox")) {
+        const QLineEdit *edit = w->findChild<QLineEdit *>();
+        return edit && !edit->isReadOnly();
+    }
+    if (w->inherits("QLineEdit") || w->inherits("QTextEdit") || w->inherits("QPlainTextEdit") || w->inherits("QKeySequenceEdit")) {
         return true;
     }
     auto *combo = qobject_cast<QComboBox *>(w);
