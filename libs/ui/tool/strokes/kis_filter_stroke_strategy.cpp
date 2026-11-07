@@ -94,17 +94,21 @@ struct KisFilterStrokeStrategy::Private {
     /// Set for a progressive preview (see setProgressivePreview)
     KisFilterStrokeStrategy::PreviewHandleSP preview;
     int coarsestLevel {6};
+    int displayLevel {0};
     QMutex progressMutex;
     QWeakPointer<KisProcessingVisitor::ProgressHelper> progress;
     /// The coarse pass while it is being written to the target
     QScopedPointer<KisTransaction> coarseWriting;
     /// The coarse pass written to the target, not in the history: undone before the full pass is written or on cancel
     QSharedPointer<KUndo2Command> coarse;
+    /// Makes a coarse pass at a level of detail, kept for the stroke (its passes ask for the next one through it)
+    QSharedPointer<std::function<void(int)>> coarsePass;
 };
 
-KisFilterStrokeStrategy::PreviewHandleSP KisFilterStrokeStrategy::setProgressivePreview(bool progressive, int coarsestLevel)
+KisFilterStrokeStrategy::PreviewHandleSP KisFilterStrokeStrategy::setProgressivePreview(bool progressive, int coarsestLevel, int displayLevel)
 {
     m_d->coarsestLevel = coarsestLevel;
+    m_d->displayLevel = displayLevel;
     m_d->preview = progressive ? PreviewHandleSP(new PreviewHandle) : PreviewHandleSP();
     return m_d->preview;
 }
@@ -353,121 +357,145 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                 return;
             }
 
-            struct Coarse {
-                KisPaintDeviceSP small;
-                KisPaintDeviceSP up;
-                QScopedPointer<KisTransaction> smallTransaction;
-                QElapsedTimer time;
-                qint64 filterStart = 0;
-                qint64 filterTime = 0;
+            // waits while the settings may still change, \p ms at most; false: they did, nothing more is to be made
+            auto settled = [this](qint64 ms) {
+                if (!m_d->preview) return true;
+                QMutexLocker l(&m_d->preview->mutex);
+                QElapsedTimer waited;
+                waited.start();
+                while (!m_d->preview->released && !m_d->preview->cancelled) {
+                    // once: read twice, it could come out negative, which waits forever
+                    const qint64 remaining = ms - waited.elapsed();
+                    if (remaining <= 0) break;
+                    m_d->preview->wake.wait(&m_d->preview->mutex, static_cast<unsigned long>(remaining));
+                }
+                return !m_d->preview->cancelled;
             };
-            QSharedPointer<Coarse> coarse(new Coarse);
-            coarse->time.start();
-            const KoColorSpace *space = shared->filterDevice->colorSpace();
-            coarse->small = new KisPaintDevice(space);
-            coarse->small->setDefaultBounds(KisCoarseFilterPreview::lodBounds(shared->filterDevice->defaultBounds(), lod));
-            coarse->small->setDefaultPixel(shared->filterDevice->defaultPixel());
-            const QRect aligned = KisLodTransformBase::alignedRect(shared->processRect, lod);
-            const QRect needed = KisLodTransformBase::alignedRect(shared->filter()->neededRect(aligned, shared->filterConfig().data(), 0), lod);
-            const QRect smallRect = KisLodTransformBase::scaledRect(aligned, lod);
-            // upscaled into the target itself, or through a device of its own with a selection or another color space
-            if (shared->selection() || *space != *shared->targetDevice()->colorSpace()) {
+
+            // A pass at a level of detail: the filter on a downscaled copy, upscaled and written into the target in place of
+            // the pass before. Zoomed out, the first is followed by one at the canvas's own resolution, on screen as
+            // sharp as the result in a fraction of its time; then the full pass, once the settings settle.
+            const int display = qMin(m_d->displayLevel, lod);
+            auto coarsePass = QSharedPointer<std::function<void(int)>>::create();
+            QWeakPointer<std::function<void(int)>> again = coarsePass;
+            *coarsePass = [this, shared, startFull, display, settled, again](int lod) {
+                struct Coarse {
+                    KisPaintDeviceSP small;
+                    KisPaintDeviceSP up;
+                    QScopedPointer<KisTransaction> smallTransaction;
+                    QElapsedTimer time;
+                    qint64 filterStart = 0;
+                    qint64 filterTime = 0;
+                };
+                QSharedPointer<Coarse> coarse(new Coarse);
+                coarse->time.start();
+                const KoColorSpace *space = shared->filterDevice->colorSpace();
+                coarse->small = new KisPaintDevice(space);
+                coarse->small->setDefaultBounds(KisCoarseFilterPreview::lodBounds(shared->filterDevice->defaultBounds(), lod));
+                coarse->small->setDefaultPixel(shared->filterDevice->defaultPixel());
+                const QRect aligned = KisLodTransformBase::alignedRect(shared->processRect, lod);
+                const QRect needed = KisLodTransformBase::alignedRect(shared->filter()->neededRect(aligned, shared->filterConfig().data(), 0), lod);
+                const QRect smallRect = KisLodTransformBase::scaledRect(aligned, lod);
+                // upscaled into a device of its own, written into the target in one go
                 coarse->up = new KisPaintDevice(space);
                 coarse->up->setDefaultPixel(shared->filterDevice->defaultPixel());
-            }
 
-            QVector<KisRunnableStrokeJobData*> coarseJobs;
-            // downscaled in strips of whole tile rows, in parallel; below a quarter, from a quarter-size copy
-            {
-                const int first = qMin(lod, 2);
-                KisPaintDeviceSP quarter = lod > first ? new KisPaintDevice(space) : coarse->small;
-                const int strip = 64 << first;
-                const QRect source = needed & KisLodTransformBase::alignedRect(shared->filterDevice->extent(), lod);
-                for (int y = source.top() - (source.top() % strip + strip) % strip; y <= source.bottom(); y += strip) {
-                    const QRect part = QRect(source.left(), y, source.width(), strip) & source;
-                    addJobConcurrent(coarseJobs, [shared, quarter, part, first]() {
-                        shared->filterDevice->generateLodCloneDevice(quarter, part, first);
+                QVector<KisRunnableStrokeJobData*> coarseJobs;
+                // downscaled in strips of whole tile rows, in parallel; below a quarter, from a quarter-size copy
+                {
+                    const int first = qMin(lod, 2);
+                    KisPaintDeviceSP quarter = lod > first ? new KisPaintDevice(space) : coarse->small;
+                    const int strip = 64 << first;
+                    const QRect source = needed & KisLodTransformBase::alignedRect(shared->filterDevice->extent(), lod);
+                    for (int y = source.top() - (source.top() % strip + strip) % strip; y <= source.bottom(); y += strip) {
+                        const QRect part = QRect(source.left(), y, source.width(), strip) & source;
+                        addJobConcurrent(coarseJobs, [shared, quarter, part, first]() {
+                            shared->filterDevice->generateLodCloneDevice(quarter, part, first);
+                        });
+                    }
+                    if (quarter != coarse->small) {
+                        addJobSequential(coarseJobs, [coarse, quarter, source, first, lod]() mutable {
+                            quarter->generateLodCloneDevice(coarse->small, KisLodTransformBase::scaledRect(source, first), lod - first);
+                        });
+                    }
+                    addJobSequential(coarseJobs, [coarse]() {
+                        coarse->filterStart = coarse->time.elapsed();
+                        // patches read the unfiltered pixels, not what a neighbor already wrote
+                        coarse->smallTransaction.reset(new KisTransaction(coarse->small));
                     });
                 }
-                if (quarter != coarse->small) {
-                    addJobSequential(coarseJobs, [coarse, quarter, source, first, lod]() mutable {
-                        quarter->generateLodCloneDevice(coarse->small, KisLodTransformBase::scaledRect(source, first), lod - first);
+                const QSize patchSize = KritaUtils::optimalPatchSize();
+                const QSize smallPatch = patchSizeFor(marginOf(shared->filter().data(), shared->filterConfig()) >> lod, smallRect,
+                                                      QSize(qMax(64, patchSize.width() >> lod), qMax(64, patchSize.height() >> lod)));
+                if (shared->filter()->supportsThreading()) {
+                    Q_FOREACH (const QRect &patch, KritaUtils::splitRectIntoPatches(smallRect, smallPatch)) {
+                        if (patch.isEmpty()) continue;
+                        addJobConcurrent(coarseJobs, [shared, coarse, patch]() {
+                            // filters expect an updater; the coarse pass reports no progress
+                            KoDummyUpdaterHolder updater;
+                            shared->filter()->processImpl(coarse->small, patch, shared->filterConfig().data(), updater.updater());
+                        });
+                    }
+                } else {
+                    addJobSequential(coarseJobs, [shared, coarse, smallRect]() {
+                        KoDummyUpdaterHolder updater;
+                        shared->filter()->processImpl(coarse->small, smallRect, shared->filterConfig().data(), updater.updater());
                     });
                 }
                 addJobSequential(coarseJobs, [coarse]() {
-                    coarse->filterStart = coarse->time.elapsed();
-                    // patches read the unfiltered pixels, not what a neighbor already wrote
-                    coarse->smallTransaction.reset(new KisTransaction(coarse->small));
+                    coarse->filterTime = coarse->time.elapsed() - coarse->filterStart;
+                    delete coarse->smallTransaction->endAndTake();
+                    coarse->smallTransaction.reset();
                 });
-            }
-            const QSize patchSize = KritaUtils::optimalPatchSize();
-            const QSize smallPatch = patchSizeFor(marginOf(shared->filter().data(), shared->filterConfig()) >> lod, smallRect,
-                                                  QSize(qMax(64, patchSize.width() >> lod), qMax(64, patchSize.height() >> lod)));
-            if (shared->filter()->supportsThreading()) {
-                Q_FOREACH (const QRect &patch, KritaUtils::splitRectIntoPatches(smallRect, smallPatch)) {
+                Q_FOREACH (const QRect &patch, KritaUtils::splitRectIntoPatches(shared->processRect, patchSize)) {
                     if (patch.isEmpty()) continue;
-                    addJobConcurrent(coarseJobs, [shared, coarse, patch]() {
-                        // filters expect an updater; the coarse pass reports no progress
-                        KoDummyUpdaterHolder updater;
-                        shared->filter()->processImpl(coarse->small, patch, shared->filterConfig().data(), updater.updater());
+                    addJobConcurrent(coarseJobs, [coarse, patch, lod]() {
+                        KisCoarseFilterPreview::upscale(coarse->small, coarse->up, patch, lod);
                     });
                 }
-            } else {
-                addJobSequential(coarseJobs, [shared, coarse, smallRect]() {
-                    KoDummyUpdaterHolder updater;
-                    shared->filter()->processImpl(coarse->small, smallRect, shared->filterConfig().data(), updater.updater());
-                });
-            }
-            // the target is written from here on: the image's updates still queued run first (run during, they would
-            // show it with some patches written)
-            addJobBarrier(coarseJobs, [this, shared, coarse]() {
-                coarse->filterTime = coarse->time.elapsed() - coarse->filterStart;
-                delete coarse->smallTransaction->endAndTake();
-                coarse->smallTransaction.reset();
-                m_d->coarseWriting.reset(new KisTransaction(shared->targetDevice()));
-            });
-            Q_FOREACH (const QRect &patch, KritaUtils::splitRectIntoPatches(shared->processRect, patchSize)) {
-                if (patch.isEmpty()) continue;
-                addJobConcurrent(coarseJobs, [shared, coarse, patch, lod]() {
-                    KisCoarseFilterPreview::upscale(coarse->small, coarse->up ? coarse->up : shared->targetDevice(), patch, lod);
-                });
-            }
-            addJobSequential(coarseJobs, [this, shared, coarse, lod, startFull]() {
-                if (coarse->up) {
-                    KisPainter::copyAreaOptimized(shared->processRect.topLeft(), coarse->up, shared->targetDevice(), shared->processRect, shared->selection());
-                }
-                m_d->coarse = toQShared(m_d->coarseWriting->endAndTake());
-                m_d->coarseWriting.reset();
-                KisUpdatePacer::log(QStringLiteral("filter coarse pass (lod %1) shown %2 ms").arg(lod).arg(coarse->time.elapsed()));
-                if (shared->shouldRedraw()) {
-                    shared->node()->setDirty(shared->processRect);
-                    m_d->nextExternalUpdateRect |= shared->processRect;
-                }
-                if (m_d->preview) m_d->preview->coarseShown.storeRelease(1);
-
-                // the full pass once the settings settle (or on release), waiting longer the slower it
-                // will be: once started, a long full pass is slow to stop for the next settings
-                const qint64 estimate = coarse->filterTime << (2 * lod);
-                const qint64 settleTime = qBound<qint64>(150, estimate / 4, 1000);
-                QVector<KisRunnableStrokeJobData*> settle;
-                addJobSequential(settle, [this, startFull, settleTime]() {
-                    if (m_d->preview) {
-                        QMutexLocker l(&m_d->preview->mutex);
-                        QElapsedTimer waited;
-                        waited.start();
-                        while (!m_d->preview->released && !m_d->preview->cancelled) {
-                            // once: read twice, it could come out negative, which waits forever
-                            const qint64 remaining = settleTime - waited.elapsed();
-                            if (remaining <= 0) break;
-                            m_d->preview->wake.wait(&m_d->preview->mutex, static_cast<unsigned long>(remaining));
-                        }
-                        if (m_d->preview->cancelled) return;
+                // the target written in one step, the pass before taken back in it, after the image's updates still
+                // queued: an update between would show the target half written or without the effect (a flicker)
+                addJobBarrier(coarseJobs, [this, shared, coarse, lod, startFull, display, settled, again]() {
+                    const bool replacing = m_d->coarse;
+                    if (replacing) {
+                        m_d->updatesFacade->disableDirtyRequests();
+                        m_d->coarse->undo();
+                        m_d->coarse.clear();
                     }
-                    startFull();
+                    m_d->coarseWriting.reset(new KisTransaction(shared->targetDevice()));
+                    KisPainter::copyAreaOptimized(shared->processRect.topLeft(), coarse->up, shared->targetDevice(), shared->processRect, shared->selection());
+                    m_d->coarse = toQShared(m_d->coarseWriting->endAndTake());
+                    m_d->coarseWriting.reset();
+                    if (replacing) m_d->updatesFacade->enableDirtyRequests();
+                    KisUpdatePacer::log(QStringLiteral("filter coarse pass (lod %1) shown %2 ms").arg(lod).arg(coarse->time.elapsed()));
+                    if (shared->shouldRedraw()) {
+                        shared->node()->setDirty(shared->processRect);
+                        m_d->nextExternalUpdateRect |= shared->processRect;
+                    }
+                    if (m_d->preview) m_d->preview->coarseShown.storeRelease(1);
+
+                    QVector<KisRunnableStrokeJobData*> next;
+                    const QSharedPointer<std::function<void(int)>> pass = again.toStrongRef();
+                    if (lod > display && display > 0 && pass) {
+                        // the canvas's own resolution next, unless the settings change at once (a drag goes on)
+                        addJobSequential(next, [settled, pass, display]() {
+                            if (settled(30)) (*pass)(display);
+                        });
+                    } else {
+                        // the full pass, waiting a little longer the slower it will be: one started while the settings
+                        // still change finishes its patches in progress before the next settings show
+                        const qint64 estimate = coarse->filterTime << (2 * lod);
+                        const qint64 settleTime = qBound<qint64>(40, estimate / 8, 400);
+                        addJobSequential(next, [settled, startFull, settleTime]() {
+                            if (settled(settleTime)) startFull();
+                        });
+                    }
+                    runnableJobsInterface()->addRunnableJobs(next);
                 });
-                runnableJobsInterface()->addRunnableJobs(settle);
-            });
-            runnableJobsInterface()->addRunnableJobs(coarseJobs);
+                runnableJobsInterface()->addRunnableJobs(coarseJobs);
+            };
+            m_d->coarsePass = coarsePass;
+            (*coarsePass)(lod);
 
         });
 

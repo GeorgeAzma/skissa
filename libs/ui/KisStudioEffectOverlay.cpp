@@ -1156,6 +1156,12 @@ void KisStudioEffectOverlay::keyPressEvent(QKeyEvent *event)
         return;
     }
     if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+        // a number typed in the panel passes its Enter on: it ends the typing, it doesn't apply the effect
+        QWidget *focus = QApplication::focusWidget();
+        if (focus && focus != this && isAncestorOf(focus) && isTextInput(focus)) {
+            event->accept();
+            return;
+        }
         accept();
         return;
     }

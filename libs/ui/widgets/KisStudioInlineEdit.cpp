@@ -30,6 +30,12 @@ protected:
             event->accept();
             return;
         }
+        // Enter ends the typing and nothing else: passed on, as QLineEdit does, it would apply the effect the value is in
+        if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+            finish(true);
+            event->accept();
+            return;
+        }
         QLineEdit::keyPressEvent(event);
     }
 

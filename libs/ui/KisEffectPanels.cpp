@@ -36,6 +36,7 @@
 #include <kis_color_button.h>
 #include <kis_config_widget.h>
 #include <kis_default_bounds.h>
+#include "widgets/KisStudioPicker.h"
 #include <kis_paint_device.h>
 #include <kis_painter.h>
 #include <klocalizedstring.h>
@@ -107,16 +108,7 @@ private:
 /// Rings of every size from coarse to fine with every hue, for a layer with nothing on it
 QImage fallbackPicture(const QSize &size)
 {
-    QImage image(size, QImage::Format_ARGB32);
-    const qreal k = M_PI / (2.0 * size.width());
-    for (int y = 0; y < size.height(); y++) {
-        for (int x = 0; x < size.width(); x++) {
-            const qreal dx = x - size.width() / 2.0, dy = y - size.height() / 2.0;
-            const qreal value = 0.5 + 0.5 * std::cos(k * (dx * dx + dy * dy));
-            image.setPixelColor(x, y, QColor::fromHsvF(qreal(x) / size.width(), 0.6, value));
-        }
-    }
-    return image;
+    return KisStudioPicker::samplePicture(size).convertToFormat(QImage::Format_ARGB32);
 }
 
 class Panel : public KisConfigWidget, public KisEffectCanvasEditor
@@ -137,6 +129,8 @@ public:
             m_original = fullSizeCopy(device);
             const QRect bounds = m_original->exactBounds();
             if (!bounds.isEmpty()) m_crop = QRect(busiestPoint(m_original, bounds) - QPoint(tileSize.width() / 2, tileSize.height() / 2), tileSize);
+            // line art and the like: their effect hardly shows on so little, a painting shows it
+            if (!m_crop.isEmpty() && showsLittle(m_original->convertToQImage(nullptr, m_crop))) m_crop = QRect();
         }
         if (m_crop.isEmpty()) {
             m_original = new KisPaintDevice(device ? device->colorSpace() : KoColorSpaceRegistry::instance()->rgb8());
@@ -1177,6 +1171,49 @@ KisPaintDeviceSP fullSizeCopy(KisPaintDeviceSP device)
     KisPaintDeviceSP copy = new KisPaintDevice(*device);
     copy->setDefaultBounds(new PictureBounds(device->defaultBounds()->bounds()));
     return copy;
+}
+
+bool showsLittle(const QImage &picture)
+{
+    if (picture.isNull()) return true;
+    const QImage image = picture.width() * picture.height() > 128 * 128
+        ? picture.scaled(128, 128, Qt::KeepAspectRatio, Qt::FastTransformation).convertToFormat(QImage::Format_ARGB32)
+        : picture.convertToFormat(QImage::Format_ARGB32);
+    const int w = image.width(), h = image.height();
+    if (w < 8 || h < 8) return true;
+    // colors in coarse bins, all clear pixels in one: what isn't in the commonest bin is what there is to see
+    QVector<int> binOf(w * h);
+    QHash<int, int> bins;
+    int common = 0, most = 0;
+    for (int y = 0; y < h; y++) {
+        const QRgb *row = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        for (int x = 0; x < w; x++) {
+            const QRgb pixel = row[x];
+            const int bin = qAlpha(pixel) < 64 ? -1 : (qRed(pixel) >> 5) << 6 | (qGreen(pixel) >> 5) << 3 | (qBlue(pixel) >> 5);
+            binOf[y * w + x] = bin;
+            const int n = ++bins[bin];
+            if (n > most) {
+                most = n;
+                common = bin;
+            }
+        }
+    }
+    // what is there, thinned by two pixels from every side: lines vanish, painted areas stay
+    QVector<quint8> there(w * h);
+    for (int i = 0; i < w * h; i++) there[i] = binOf[i] != common;
+    for (int pass = 0; pass < 2; pass++) {
+        QVector<quint8> thinned(w * h, 0);
+        for (int y = 1; y < h - 1; y++) {
+            for (int x = 1; x < w - 1; x++) {
+                const int i = y * w + x;
+                thinned[i] = there[i] && there[i - 1] && there[i + 1] && there[i - w] && there[i + w];
+            }
+        }
+        there = thinned;
+    }
+    int left = 0;
+    for (quint8 v : there) left += v;
+    return left < w * h / 12;
 }
 
 QPoint busiestPoint(KisPaintDeviceSP device, const QRect &bounds)

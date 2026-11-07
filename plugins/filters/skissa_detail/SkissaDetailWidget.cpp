@@ -226,7 +226,8 @@ struct SkissaDetailWidget::Private {
                 corner = QPoint(tileMargin, tileMargin);
             }
         }
-        if (base.isNull()) {
+        // line art and the like show a blur or a sharpening on too little
+        if (base.isNull() || KisEffectPanels::showsLittle(base.copy(QRect(corner, tileSize)))) {
             base = zonePlate(tileSize + QSize(2 * tileMargin, 2 * tileMargin));
             corner = QPoint(tileMargin, tileMargin);
         }
@@ -453,7 +454,7 @@ struct SkissaNoiseWidget::Private {
                 corner = crop.topLeft();
             }
         }
-        if (base.isNull()) {
+        if (base.isNull() || KisEffectPanels::showsLittle(base)) {
             base = QImage(tileSize + QSize(2 * noiseTileMargin, 2 * noiseTileMargin), QImage::Format_ARGB32);
             base.fill(QColor(128, 128, 128));
         }
@@ -692,7 +693,7 @@ struct SkissaLensWidget::Private {
         if (original && original->exactBounds().intersects(bounds)) {
             const qreal scale = qMin(qreal(lensPictureSize.width()) / bounds.width(), qreal(lensPictureSize.height()) / bounds.height());
             const QImage picture = original->createThumbnailUncached(qCeil(bounds.width() * scale), qCeil(bounds.height() * scale), bounds);
-            if (!picture.isNull()) {
+            if (!picture.isNull() && !KisEffectPanels::showsLittle(picture)) {
                 frame = picture;
                 frameScale = qreal(picture.width()) / bounds.width();
                 return;

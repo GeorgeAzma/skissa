@@ -5,6 +5,8 @@
  */
 #include "KisStudioEffectsPicker.h"
 
+#include "KisEffectPanels.h"
+
 #include <cmath>
 
 #include <kis_default_bounds.h>
@@ -204,7 +206,7 @@ QImage basePicture(KisViewManager *view, const QSize &size, int *levelOfDetail)
                                     size.width(), size.height());
         }
     }
-    if (picture.isNull() || KisStudioPicker::isFlat(picture)) {
+    if (picture.isNull() || KisStudioPicker::isFlat(picture) || KisEffectPanels::showsLittle(picture)) {
         picture = KisStudioPicker::samplePicture(size);
         *levelOfDetail = 0;
     }

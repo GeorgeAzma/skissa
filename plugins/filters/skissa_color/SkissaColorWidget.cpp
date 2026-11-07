@@ -451,7 +451,7 @@ SkissaColorWidget::SkissaColorWidget(QWidget *parent, KisPaintDeviceSP dev)
             d->tileBase = covering.copy((covering.width() - tile.width()) / 2, (covering.height() - tile.height()) / 2, tile.width(), tile.height());
         }
     }
-    if (d->tileBase.isNull()) {
+    if (d->tileBase.isNull() || KisEffectPanels::showsLittle(d->tileBase)) {
         // a blank layer: a ramp of colors and grays shows what each starting point does
         d->tileBase = QImage(160, 96, QImage::Format_ARGB32);
         for (int y = 0; y < 96; y++) {

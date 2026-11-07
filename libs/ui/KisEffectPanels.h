@@ -35,6 +35,12 @@ KRITAUI_EXPORT KisConfigWidget *create(const QString &filterId, QWidget *parent,
 /// level of detail a plain copy would follow, reading pixels it doesn't have); its tiles are shared until either changes
 KRITAUI_EXPORT KisPaintDeviceSP fullSizeCopy(KisPaintDeviceSP device);
 
+/**
+ * Whether \p picture shows too little to see an effect on: nearly all of it clear or one color, as thin line art on
+ * a clear layer or on paper. Effects' pictures then show another picture instead.
+ */
+KRITAUI_EXPORT bool showsLittle(const QImage &picture);
+
 /// The middle of the most textured part of \p bounds, where changes to fine detail show
 KRITAUI_EXPORT QPoint busiestPoint(KisPaintDeviceSP device, const QRect &bounds);
 
