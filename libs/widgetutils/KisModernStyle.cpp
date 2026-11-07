@@ -256,14 +256,17 @@ void drawField(QPainter *painter, const QStyleOption *option, bool fill)
     const QColor bg = pal.color(QPalette::Button);
     const QColor fg = pal.color(QPalette::Text);
 
+    // focus is a field a little lighter with a soft edge: the caret says where typing goes
+    QColor surface = bg;
     QColor border;
     if (s.enabled && option->state.testFlag(QStyle::State_HasFocus)) {
-        border = focusColor(pal);
+        surface = KisModernStyle::mix(bg, fg, 0.06);
+        border = KisModernStyle::mix(bg, fg, 0.26);
     } else if (s.hovered) {
         border = KisModernStyle::mix(bg, fg, 0.18);
     }
 
-    drawRounded(painter, strokeRect(option->rect), radius, fill ? bg : QColor(), border);
+    drawRounded(painter, strokeRect(option->rect), radius, fill ? surface : QColor(), border);
 }
 
 /// A 2px line in the middle of splitter and dock separator handles, shown only while hovered.

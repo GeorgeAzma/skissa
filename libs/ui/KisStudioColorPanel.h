@@ -50,4 +50,27 @@ public:
     QDockWidget *createDockWidget() override;
 };
 
+/**
+ * The color panel's picker on its own, with the hues and the shape chosen there, to pick a color in place (an
+ * effect's color) rather than the paint color
+ */
+class KRITAUI_EXPORT KisStudioColorWheel : public QWidget
+{
+    Q_OBJECT
+public:
+    explicit KisStudioColorWheel(QWidget *parent = nullptr);
+    ~KisStudioColorWheel() override;
+
+    void setColor(const QColor &color);
+    QColor color() const;
+
+Q_SIGNALS:
+    /// A color picked on it (not one set)
+    void colorPicked(const QColor &color);
+
+private:
+    struct Private;
+    std::unique_ptr<Private> d;
+};
+
 #endif // KISSTUDIOCOLORPANEL_H

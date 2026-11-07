@@ -12,6 +12,7 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QFutureWatcher>
 #include <QMimeData>
 #include <QMouseEvent>
@@ -190,7 +191,7 @@ public:
         setFocusPolicy(Qt::NoFocus);
         setIcon(KisIconUtils::loadIcon(QStringLiteral("krita_tool_color_fill")));
         setIconSize(QSize(18, 18));
-        setToolTip(i18nc("@info:tooltip", "Keep filling with this color"));
+        setToolTip(i18nc("@info:tooltip", "Keep filling"));
     }
 
     QColor color;
@@ -229,6 +230,8 @@ public:
         setAttribute(Qt::WA_Hover);
         // a pen's taps stay on the panel (its sliders get them as mouse presses), not on the canvas under it
         setAttribute(Qt::WA_NoMousePropagation);
+        // the canvas under it hides the pointer (it draws the brush's outline instead), which the panel would take on
+        setCursor(Qt::ArrowCursor);
         auto *row = new QHBoxLayout(this);
         row->setContentsMargins(KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space3, KisModernStyle::space2);
         row->setSpacing(KisModernStyle::space2);
@@ -255,21 +258,43 @@ public:
         gap->setSuffix(i18nc("unit", " px"));
         gap->setProperty("kisDefaultValue", 0);
         auto *gapName = new QLabel(i18nc("color drop: openings in the lines it closes", "Gap"), this);
-        gapName->setToolTip(i18nc("@info:tooltip", "Openings in the lines this wide still hold the fill; Auto sizes it from the lines"));
+        gapName->setToolTip(i18nc("@info:tooltip", "Seals breaks in the lines"));
         gap->setToolTip(gapName->toolTip());
         spread = value(1, 100);
         spread->setProperty("kisDefaultValue", 8);
         auto *spreadName = new QLabel(i18nc("color drop: how far into similar colors it fills", "Spread"), this);
-        spreadName->setToolTip(i18nc("@info:tooltip", "Higher fills on into similar colors"));
+        spreadName->setToolTip(i18nc("@info:tooltip", "Higher takes in nearby shades"));
         spread->setToolTip(spreadName->toolTip());
         underLines = new QCheckBox(i18nc("color drop: the fill reaches under the lines", "Under lines"), this);
-        underLines->setToolTip(i18nc("@info:tooltip", "The fill reaches under the lines' soft edges to their middle, leaving no pale rim"));
+        underLines->setToolTip(i18nc("@info:tooltip", "Fills to the middle of the lines"));
         grid->addWidget(gapName, 0, 0);
         grid->addWidget(gap, 0, 1);
         grid->addWidget(spreadName, 1, 0);
         grid->addWidget(spread, 1, 1);
         grid->addWidget(underLines, 2, 0, 1, 2);
         row->addLayout(grid);
+        // the fill is made as it drops: done keeps it as it is, cancel takes it back
+        auto *ends = new QVBoxLayout();
+        ends->setContentsMargins(0, 0, 0, 0);
+        ends->setSpacing(KisModernStyle::hairline);
+        auto glyph = [this](const QString &text, const QString &toolTip) {
+            auto *button = new QToolButton(this);
+            button->setText(text);
+            button->setToolTip(toolTip);
+            button->setAutoRaise(true);
+            button->setFocusPolicy(Qt::NoFocus);
+            button->setFixedSize(28, 26);
+            QFont font = button->font();
+            font.setPointSizeF(font.pointSizeF() * 1.2);
+            button->setFont(font);
+            return button;
+        };
+        done = glyph(QStringLiteral("\u2713"), i18nc("@info:tooltip", "Done (Enter)"));
+        cancel = glyph(QStringLiteral("\u2715"), i18nc("@info:tooltip", "Take back the fill (Esc)"));
+        ends->addWidget(done);
+        ends->addWidget(cancel);
+        ends->addStretch(1);
+        row->addLayout(ends);
         for (QWidget *widget : std::initializer_list<QWidget *>{gapName, spreadName, gap, spread, underLines}) {
             KisStudioGlass::setSeeThrough(widget, true);
         }
@@ -280,7 +305,8 @@ public:
     KisSliderSpinBox *gap {nullptr};
     KisSliderSpinBox *spread {nullptr};
     QCheckBox *underLines {nullptr};
-    std::function<void(bool)> hovered;
+    QToolButton *done {nullptr};
+    QToolButton *cancel {nullptr};
 
 protected:
     void paintEvent(QPaintEvent *) override
@@ -295,8 +321,6 @@ protected:
 
     bool event(QEvent *event) override
     {
-        if (event->type() == QEvent::HoverEnter && hovered) hovered(true);
-        if (event->type() == QEvent::HoverLeave && hovered) hovered(false);
         // presses on the panel stay on it, not on the canvas under it
         if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease) {
             QWidget::event(event);
@@ -423,7 +447,8 @@ struct KisColorDrop::Private {
     bool pending {false};
 
     QPointer<DropPanel> panel;
-    QTimer panelTimeout;
+    /// The gap Auto chose for the last fill, shown on the panel; 0 before one
+    int autoChosen {0};
     bool keepFilling {false};
     KoColor keepColor;
 
@@ -521,12 +546,31 @@ struct KisColorDrop::Private {
         }));
     }
 
+    /// Auto shows the size it chose for the last fill
+    void showAutoGap()
+    {
+        if (!panel) return;
+        panel->gap->setSpecialValueText(autoChosen > 0 ? i18nc("color drop gap sized from the lines, and the size", "Auto %1 px", autoChosen)
+                                                       : i18nc("color drop gap: sized from the lines", "Auto"));
+    }
+
+    /// The last fill taken back, while it is still the newest step
+    void takeBack()
+    {
+        refill.stop();
+        if (!stack || !step) return;
+        const int index = stack->index();
+        if (index >= 1 && index == stack->count() && stack->command(index - 1) == step) {
+            step = nullptr;
+            stack->setIndex(index - 1);
+        }
+    }
+
     void hidePanel()
     {
         keepFilling = false;
-        panelTimeout.stop();
         refill.stop();
-        if (QWidget *widget = canvasWidget()) widget->removeEventFilter(q);
+        qApp->removeEventFilter(q);
         if (panel) panel->deleteLater();
         panel = nullptr;
     }
@@ -550,20 +594,14 @@ struct KisColorDrop::Private {
         if (!widget) return;
         if (!panel) {
             panel = new DropPanel(widget);
-            QObject::connect(panel->bucket, &QToolButton::toggled, q, [this](bool on) {
-                keepFilling = on;
-                if (on) {
-                    panelTimeout.stop();
-                    canvasWidget()->installEventFilter(q);
-                } else {
-                    canvasWidget()->removeEventFilter(q);
-                    panelTimeout.start();
-                }
+            QObject::connect(panel->bucket, &QToolButton::toggled, q, [this](bool on) { keepFilling = on; });
+            QObject::connect(panel->done, &QToolButton::clicked, q, [this]() { hidePanel(); });
+            QObject::connect(panel->cancel, &QToolButton::clicked, q, [this]() {
+                takeBack();
+                hidePanel();
             });
-            panel->hovered = [this](bool in) {
-                if (in) panelTimeout.stop();
-                else if (!keepFilling) panelTimeout.start();
-            };
+            // Enter and Esc in the window while it shows, a press on the canvas, and keeping on filling
+            qApp->installEventFilter(q);
             QObject::connect(panel->gap, QOverload<int>::of(&KisSliderSpinBox::valueChanged), q, [this]() { changed(); });
             QObject::connect(panel->spread, QOverload<int>::of(&KisSliderSpinBox::valueChanged), q, [this]() { changed(); });
             QObject::connect(panel->underLines, &QCheckBox::toggled, q, [this]() { changed(); });
@@ -577,12 +615,12 @@ struct KisColorDrop::Private {
             panel->spread->setValue(threshold);
             panel->underLines->setChecked(options.underLines);
         }
+        showAutoGap();
         panel->bucket->color = color.toQColor();
         keepColor = color;
         panel->show();
         panel->raise();
         panel->bucket->update();
-        if (!keepFilling && !panel->underMouse()) panelTimeout.start();
     }
 
     /// Notes the history step the next fill makes, to take it back if its panel changes it
@@ -620,16 +658,6 @@ KisColorDrop::KisColorDrop(KisView *view)
     d->view = view;
     d->preview = new Preview(view);
     view->canvasBase()->addDecoration(KisCanvasDecorationSP(d->preview.data()));
-    d->panelTimeout.setSingleShot(true);
-    d->panelTimeout.setInterval(6000);
-    connect(&d->panelTimeout, &QTimer::timeout, this, [this]() {
-        // a number being typed into it keeps it
-        if (d->panel && d->panel->isAncestorOf(QApplication::focusWidget())) {
-            d->panelTimeout.start();
-            return;
-        }
-        d->hidePanel();
-    });
     d->refill.setSingleShot(true);
     connect(&d->refill, &QTimer::timeout, this, [this]() { refillLast(); });
     // picking another tool ends keeping on filling
@@ -805,7 +833,10 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
     visitor->setRegionFillingMode(KisFillPainter::RegionFillingMode_FloodFill);
     visitor->setFillThreshold(threshold);
     visitor->setOpacitySpread(100);
-    visitor->setCloseGap(gapFor(d->options, image->projection(), point, image->bounds()));
+    const int gap = gapFor(d->options, image->projection(), point, image->bounds());
+    if (d->options.closeGap <= 0) d->autoChosen = gap;
+    d->showAutoGap();
+    visitor->setCloseGap(gap);
     visitor->setUseSelectionAsBoundary(true);
     visitor->setAntiAlias(true);
     visitor->setLineArt(d->options.underLines, d->options.speckSize);
@@ -945,8 +976,35 @@ void KisColorDrop::autoFlats(KisViewManager *viewManager)
 
 bool KisColorDrop::eventFilter(QObject *watched, QEvent *event)
 {
+    QWidget *canvas = d->canvasWidget();
+    if (!d->panel || !canvas) return false;
+    // While the panel shows, the fill is still being decided: Enter keeps it as it is and Esc takes it back (keeping
+    // on filling, Esc only stops), unless a number is being typed; carrying on painting keeps it too.
+    if (event->type() == QEvent::KeyPress && !d->keepFilling) {
+        QWidget *focus = QApplication::focusWidget();
+        const bool first = focus ? watched == focus : watched == canvas->window();
+        const bool typing = qobject_cast<QAbstractSpinBox *>(focus) || qobject_cast<QLineEdit *>(focus);
+        if (first && !typing && (!focus || focus->window() == canvas->window())) {
+            const int key = static_cast<QKeyEvent *>(event)->key();
+            if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+                d->hidePanel();
+                return true;
+            }
+            if (key == Qt::Key_Escape) {
+                d->takeBack();
+                d->hidePanel();
+                return true;
+            }
+        }
+        return false;
+    }
+    if (watched != canvas) return false;
+    if (!d->keepFilling) {
+        if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TabletPress) d->hidePanel();
+        return false;
+    }
     // Keeping on filling: a tap on the canvas fills, a drag does nothing, Esc or a right click stops.
-    if (!d->keepFilling || watched != d->canvasWidget()) return false;
+    if (!d->keepFilling) return false;
     // a pen's tap arrives as a tablet event and then again as a mouse event made from it: one fill
     if (auto *mouse = dynamic_cast<QMouseEvent *>(event); mouse && mouse->source() != Qt::MouseEventNotSynthesized) return true;
     if (dynamic_cast<QTabletEvent *>(event)) event->accept();

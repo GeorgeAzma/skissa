@@ -14,6 +14,7 @@
 #include <QPainter>
 #include <QPolygonF>
 #include <QTimer>
+#include <QToolButton>
 #include <QTransform>
 #include <QVBoxLayout>
 #include <QtMath>
@@ -37,6 +38,8 @@
 #include <kis_config_widget.h>
 #include <kis_default_bounds.h>
 #include "widgets/KisStudioPicker.h"
+#include "KisStudioColorPanel.h"
+#include <kis_icon_utils.h>
 #include <kis_paint_device.h>
 #include <kis_painter.h>
 #include <klocalizedstring.h>
@@ -86,6 +89,40 @@ struct Color {
     std::function<KoColor(const Config &)> read;
     std::function<void(Config &, const KoColor &)> write;
     Test shown;
+};
+
+/// A color shown as a small rounded swatch
+class Swatch : public QWidget
+{
+public:
+    explicit Swatch(QWidget *parent)
+        : QWidget(parent)
+    {
+        setFixedSize(34, 22);
+    }
+
+    void setColor(const QColor &color)
+    {
+        if (color == m_color) return;
+        m_color = color;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QPainterPath shape = KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), KisModernStyle::cornerRadius);
+        painter.fillPath(shape, m_color);
+        QColor edge = palette().color(QPalette::WindowText);
+        edge.setAlphaF(0.25);
+        painter.setPen(QPen(edge, 1));
+        painter.drawPath(shape);
+    }
+
+private:
+    QColor m_color {Qt::white};
 };
 
 /// Bounds of a picture of its own, for effects that read past the edge (Krita's blurs repeat the image's edge)
@@ -218,6 +255,44 @@ public:
         });
     }
 
+    /**
+     * A color picked in place: the color panel's wheel under its name, and an eyedropper that takes it from the
+     * image (the color under the pointer shows on the swatch until a click takes it)
+     */
+    void addColorWheel(const Color &color)
+    {
+        auto *row = new QWidget(this);
+        auto *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        rowLayout->setSpacing(KisModernStyle::space1);
+        rowLayout->addWidget(new QLabel(color.name, row), 1);
+        auto *dropper = new QToolButton(row);
+        dropper->setCheckable(true);
+        dropper->setAutoRaise(true);
+        dropper->setFocusPolicy(Qt::NoFocus);
+        dropper->setFixedSize(28, 26);
+        dropper->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_sampler")));
+        dropper->setToolTip(i18nc("@info:tooltip", "Pick from the image"));
+        rowLayout->addWidget(dropper);
+        auto *swatch = new Swatch(row);
+        rowLayout->addWidget(swatch);
+        layout()->addWidget(row);
+        auto *wheel = new KisStudioColorWheel(this);
+        wheel->setFixedHeight(176);
+        layout()->addWidget(wheel);
+        const int index = m_wheels.size();
+        m_wheels << WheelRow{color, row, wheel, swatch, dropper};
+        connect(wheel, &KisStudioColorWheel::colorPicked, this, [this, index](const QColor &c) {
+            m_wheels[index].color.write(*m_config, KoColor(c, KoColorSpaceRegistry::instance()->rgb8()));
+            m_wheels[index].swatch->setColor(c);
+            changed(false);
+        });
+        connect(dropper, &QToolButton::toggled, this, [this, index](bool on) {
+            m_dropping = on ? index : -1;
+            if (!on) m_wheels[index].swatch->setColor(m_wheels[index].color.read(*m_config).toQColor());
+        });
+    }
+
     /// A row of the panel's own, refreshed by \p refresh whenever the settings change
     void addRow(QWidget *row, std::function<void()> refresh)
     {
@@ -299,12 +374,26 @@ public:
         return QSize(width, qMax(layout()->heightForWidth(width), layout()->sizeHint().height()));
     }
 
-    void canvasHovered(const QPoint &) override
+    void canvasHovered(const QPoint &pixel) override
     {
+        // the eyedropper shows what a click would take
+        if (m_dropping < 0) return;
+        KoColor color;
+        if (m_original->pixel(pixel.x(), pixel.y(), &color)) m_wheels[m_dropping].swatch->setColor(color.toQColor());
     }
 
     bool canvasPressed(const QPoint &pixel) override
     {
+        if (m_dropping >= 0) {
+            const WheelRow &wheel = m_wheels[m_dropping];
+            KoColor color;
+            if (m_original->pixel(pixel.x(), pixel.y(), &color)) {
+                wheel.color.write(*m_config, color);
+                changed(true);
+            }
+            wheel.dropper->setChecked(false);
+            return true;
+        }
         m_dragging = true;
         m_moved = false;
         m_pressedAt = pixel;
@@ -379,6 +468,13 @@ private:
         QWidget *row;
         KisColorButton *button;
     };
+    struct WheelRow {
+        Color color;
+        QWidget *row;
+        KisStudioColorWheel *wheel;
+        Swatch *swatch;
+        QToolButton *dropper;
+    };
 
     KisFilterConfigurationSP defaults() const
     {
@@ -419,6 +515,11 @@ private:
     {
         for (const auto &value : m_values) value.second->setVisible(!value.first.shown || value.first.shown(*m_config));
         for (const ColorRow &color : m_colors) color.row->setVisible(!color.color.shown || color.color.shown(*m_config));
+        for (const WheelRow &wheel : m_wheels) {
+            const bool shown = !wheel.color.shown || wheel.color.shown(*m_config);
+            wheel.row->setVisible(shown);
+            wheel.wheel->setVisible(shown);
+        }
     }
 
     void refresh()
@@ -431,6 +532,14 @@ private:
             color.row->setVisible(!color.color.shown || color.color.shown(*m_config));
             QSignalBlocker blocker(color.button);
             color.button->setColor(color.color.read(*m_config));
+        }
+        for (const WheelRow &wheel : m_wheels) {
+            const bool shown = !wheel.color.shown || wheel.color.shown(*m_config);
+            wheel.row->setVisible(shown);
+            wheel.wheel->setVisible(shown);
+            const QColor color = wheel.color.read(*m_config).toQColor();
+            wheel.wheel->setColor(color);
+            if (!wheel.dropper->isChecked()) wheel.swatch->setColor(color);
         }
         for (const SwitchRow &row : m_switches) {
             KisStudioChips::Chip chip;
@@ -520,6 +629,9 @@ private:
     QVector<TileRow> m_tiles;
     QVector<QPair<Value, KisStudioValueRow *>> m_values;
     QVector<ColorRow> m_colors;
+    QVector<WheelRow> m_wheels;
+    /// The wheel whose eyedropper is on, -1: none
+    int m_dropping {-1};
     QVector<SwitchRow> m_switches;
     QVector<std::function<void()>> m_ownRows;
     /// All of the layer, small, made when a row first needs it
@@ -810,7 +922,7 @@ KisConfigWidget *pixelize(QWidget *parent, KisPaintDeviceSP device)
 KisConfigWidget *colorToAlpha(QWidget *parent, KisPaintDeviceSP device)
 {
     auto *panel = new Panel(parent, QStringLiteral("colortoalpha"), device);
-    panel->addColor({i18nc("color to alpha: the color made see-through", "Color"),
+    panel->addColorWheel({i18nc("color to alpha: the color made see-through", "Color"),
                      [](const Config &c) {
                          const QColor color = c.getProperty("targetcolor").value<QColor>();
                          return KoColor(color.isValid() ? color : QColor(Qt::white), KoColorSpaceRegistry::instance()->rgb8());

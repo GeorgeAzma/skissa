@@ -824,8 +824,7 @@ public:
     {
         const QRect area(menu->mapToGlobal(QPoint()), menu->size());
         QList<QWidget *> under;
-        for (auto it = m_panels.constBegin(); it != m_panels.constEnd(); ++it) {
-            QWidget *widget = it.key();
+        Q_FOREACH (QWidget *widget, QApplication::topLevelWidgets()) {
             if (widget != menu && widget->isVisible() && isTooltip(widget) && area.intersects(QRect(widget->mapToGlobal(QPoint()), widget->size()))) {
                 under << widget;
             }
@@ -1385,6 +1384,23 @@ void paintMenuGlass(QWidget *widget, qreal radius)
     KisStudioGlass::paintBorder(painter, widget, shape, border);
 }
 
+/**
+ * A tooltip as a solid rounded panel of its own, not glass the canvas draws: it lives a moment, and as canvas glass
+ * it would cut a hard-edged hole into the panel it is over (jagged light corners over Settings' cards) and leave its
+ * glass and lit rim on the canvas for a frame after it goes (a white flash).
+ */
+void paintTooltip(QWidget *widget)
+{
+    QPainter painter(widget);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QPainterPath shape = KisModernStyle::squircle(QRectF(widget->rect()).adjusted(0.5, 0.5, -0.5, -0.5), KisModernStyle::cornerRadius + 2);
+    painter.fillPath(shape, widget->palette().color(QPalette::Window));
+    QColor border = widget->palette().color(QPalette::WindowText);
+    border.setAlphaF(0.16);
+    painter.setPen(QPen(border, 1));
+    painter.drawPath(shape);
+}
+
 /// Must be called before the native window exists. Frameless, since Windows only makes those see-through.
 void makeSeeThroughWindow(QWidget *widget)
 {
@@ -1603,7 +1619,9 @@ protected:
             }
         } else if (widget->property(glassDialogProperty).toBool()) {
             paintMenuGlass(widget, KisModernStyle::panelRadius);
-        } else if (qobject_cast<QMenu *>(widget) || isTooltip(widget) || widget->property(glassDropdownProperty).toBool()) {
+        } else if (isTooltip(widget)) {
+            paintTooltip(widget);
+        } else if (qobject_cast<QMenu *>(widget) || widget->property(glassDropdownProperty).toBool()) {
             paintMenuGlass(widget, KisModernStyle::cornerRadius + 2);
         }
         return false;

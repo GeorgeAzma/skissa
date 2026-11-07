@@ -1674,6 +1674,92 @@ KisStudioColorPanel::KisStudioColorPanel()
 
 KisStudioColorPanel::~KisStudioColorPanel() = default;
 
+struct KisStudioColorWheel::Private {
+    ColorPicker *picker {nullptr};
+    PickerShape shape {PickerShape::Oklch};
+    QColor rgb {Qt::white};
+    Oklch color;
+    qreal hsvHue {0};
+    qreal hsvS {0};
+    qreal hsvV {1};
+    /// A picked chroma is held while the hue changes, as on the color panel
+    qreal heldChroma {0};
+
+    void show()
+    {
+        if (shape == PickerShape::Oklch) picker->setOklch(color, rgb);
+        else picker->setHsv(hsvHue, hsvS, hsvV, rgb);
+    }
+};
+
+KisStudioColorWheel::KisStudioColorWheel(QWidget *parent)
+    : QWidget(parent)
+    , d(new Private)
+{
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    d->picker = new ColorPicker(this);
+    layout->addWidget(d->picker);
+    // as the color panel shows it
+    KisConfig config(true);
+    const int savedLayout = layoutNames.indexOf(config.readEntry<QString>("StudioColorHues", QString()));
+    const int savedShape = shapeNames.indexOf(config.readEntry<QString>("StudioColorShape", QString()));
+    d->shape = savedShape >= 0 ? PickerShape(savedShape) : PickerShape::Oklch;
+    d->picker->setStyle(savedLayout >= 0 ? HueLayout(savedLayout) : HueLayout::Ring, d->shape);
+    auto pick = [this](const QColor &rgb) {
+        d->rgb = QColor::fromRgb(rgb.rgb());
+        d->show();
+        Q_EMIT colorPicked(d->rgb);
+    };
+    d->picker->huePicked = [this, pick](qreal hue) {
+        if (d->shape == PickerShape::Oklch) {
+            d->color.h = oklchHueOfHsv(360.0 * hue);
+            d->color.c = qMin(d->heldChroma, maxChroma(d->color.l, d->color.h));
+            pick(rgbFromOklch(d->color));
+            return;
+        }
+        d->hsvHue = hue;
+        pick(QColor::fromHsvF(d->hsvHue, d->hsvS, d->hsvV));
+    };
+    d->picker->planePicked = [this, pick](qreal x, qreal y) {
+        d->color.l = 1.0 - y;
+        d->color.c = qMin(maxPlaneChroma * x, maxChroma(d->color.l, d->color.h));
+        d->heldChroma = d->color.c;
+        pick(rgbFromOklch(d->color));
+    };
+    d->picker->svPicked = [this, pick](qreal s, qreal v) {
+        d->hsvS = s;
+        d->hsvV = v;
+        pick(QColor::fromHsvF(d->hsvHue, d->hsvS, d->hsvV));
+    };
+    setColor(Qt::white);
+}
+
+KisStudioColorWheel::~KisStudioColorWheel() = default;
+
+void KisStudioColorWheel::setColor(const QColor &color)
+{
+    if (!color.isValid()) return;
+    d->rgb = QColor::fromRgb(color.rgb());
+    qreal hue = -1, s = 0, v = 0;
+    d->rgb.getHsvF(&hue, &s, &v);
+    // a gray has no hue of its own: the one shown stays
+    if (hue >= 0) d->hsvHue = hue;
+    d->hsvS = s;
+    d->hsvV = v;
+    const Oklch oklch = oklchFromRgb(d->rgb);
+    d->color.l = oklch.l;
+    d->color.c = oklch.c;
+    if (oklch.c > 0.012) d->color.h = oklch.h;
+    d->heldChroma = d->color.c;
+    d->show();
+}
+
+QColor KisStudioColorWheel::color() const
+{
+    return d->rgb;
+}
+
 QString KisStudioColorPanel::id()
 {
     return QStringLiteral("StudioColor");

@@ -43,7 +43,8 @@ struct Settings {
     QPointF center {0.5, 0.5};
     /// Toward 1 straight lines bow outward (barrel), toward -1 inward (pincushion)
     float bulge {0};
-    /// How much larger blue's picture is than red's (the F and C lines) at the half diagonal; negative, smaller
+    /// How much smaller blue's picture is than red's (the F and C lines) at the half diagonal: each wavelength reads
+    /// from that much further out; negative, larger
     float fringes {0};
     /// How blurred the colors out of focus are: positive, red and blue (purple halos); negative, green
     float halo {0};
@@ -82,7 +83,8 @@ public:
     void apply(const float *source, const QRect &sourceRect, const QRect &rect, float *out) const;
 
 private:
-    /// Where the pixel at \p x, \p y takes the wavelength magnified by \p magnification from
+    /// Where the pixel at \p x, \p y reads the wavelength with \p magnification from (above 1, further out: that
+    /// wavelength's picture comes out smaller)
     QPointF from(qreal x, qreal y, float magnification) const;
     /// The pixels the lens's geometry reads for \p rect, before the blurs
     QRect bentSourceOf(const QRect &rect) const;
