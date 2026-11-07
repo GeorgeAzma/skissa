@@ -37,6 +37,11 @@
 #include <QScroller>
 
 #include "kis_node_view_color_scheme.h"
+#include <KisMainWindow.h>
+#include <KisPart.h>
+#include <KisViewManager.h>
+#include <kis_action.h>
+#include <kis_action_manager.h>
 
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 #define QT6_SHIFT_SELECTION_WORKAROUND
@@ -84,6 +89,28 @@ public:
     /// While a press on an eye drags on: what it made that layer, and the last row it set
     std::optional<bool> eyeDrag;
     QPersistentModelIndex eyeDragLast;
+    /// A thumbnail held still shows its layer alone until let go
+    QTimer soloTimer;
+    bool thumbnailHeld {false};
+    bool soloing {false};
+
+    static KisAction *isolateAction()
+    {
+        KisMainWindow *window = KisPart::instance()->currentMainwindow();
+        KisViewManager *view = window ? window->viewManager() : nullptr;
+        return view && view->actionManager() ? view->actionManager()->actionByName(QStringLiteral("isolate_active_layer")) : nullptr;
+    }
+
+    void endSolo()
+    {
+        soloTimer.stop();
+        thumbnailHeld = false;
+        if (!soloing) return;
+        soloing = false;
+        if (KisAction *isolate = isolateAction()) {
+            if (isolate->isChecked()) isolate->trigger();
+        }
+    }
 };
 
 
@@ -93,6 +120,17 @@ NodeView::NodeView(QWidget *parent)
     , d(new Private(this))
 {
     setItemDelegate(&d->delegate);
+
+    d->soloTimer.setSingleShot(true);
+    d->soloTimer.setInterval(300);
+    connect(&d->soloTimer, &QTimer::timeout, this, [this]() {
+        if (!d->thumbnailHeld) return;
+        // the press made the layer the active one; a layer already shown alone stays as the painter set it
+        KisAction *isolate = Private::isolateAction();
+        if (!isolate || isolate->isChecked()) return;
+        isolate->trigger();
+        d->soloing = isolate->isChecked();
+    });
 
     setMouseTracking(true);
     setSelectionBehavior(SelectRows);
@@ -118,6 +156,7 @@ NodeView::NodeView(QWidget *parent)
 
 NodeView::~NodeView()
 {
+    d->endSolo();
     delete d;
 }
 
@@ -223,6 +262,7 @@ bool NodeView::viewportEvent(QEvent *e)
         case QEvent::MouseButtonPress: {
             DRAG_WHILE_DRAG_WORKAROUND_STOP();
             d->eyeDrag.reset();
+            d->endSolo();
 
             const QPoint pos = static_cast<QMouseEvent*>(e)->pos();
             d->lastPos = pos;
@@ -231,12 +271,21 @@ bool NodeView::viewportEvent(QEvent *e)
                 return QTreeView::viewportEvent(e);
             }
             QModelIndex index = model()->buddy(indexAt(pos));
+            {
+                auto *mouse = static_cast<QMouseEvent *>(e);
+                if (mouse->button() == Qt::LeftButton && mouse->modifiers() == Qt::NoModifier
+                    && d->delegate.thumbnailClickRect(optionForIndex(index), index).contains(pos)) {
+                    d->thumbnailHeld = true;
+                    d->soloTimer.start();
+                }
+            }
             if (d->delegate.editorEvent(e, model(), optionForIndex(index), index)) {
                 return true;
             }
         } break;
         case QEvent::MouseButtonRelease: {
             d->eyeDrag.reset();
+            d->endSolo();
             const QPoint pos = static_cast<QMouseEvent*>(e)->pos();
             QModelIndex index = model()->buddy(indexAt(pos));
             if (!indexAt(pos).isValid()) {
@@ -265,6 +314,12 @@ bool NodeView::viewportEvent(QEvent *e)
 #endif
 
             const QPoint pos = static_cast<QMouseEvent*>(e)->pos();
+            // a held thumbnail moved is a drag, not a look; a release that went elsewhere ends the look too
+            if ((d->thumbnailHeld || d->soloing)
+                && (!(static_cast<QMouseEvent *>(e)->buttons() & Qt::LeftButton)
+                    || (!d->soloing && (pos - d->lastPos).manhattanLength() > qApp->startDragDistance()))) {
+                d->endSolo();
+            }
             if (d->eyeDrag && !(static_cast<QMouseEvent*>(e)->buttons() & Qt::LeftButton)) {
                 // its release never came (a menu took it)
                 d->eyeDrag.reset();
@@ -338,6 +393,7 @@ void NodeView::contextMenuEvent(QContextMenuEvent *e)
 {
     // a finger held on an eye opens the menu, which takes the release
     d->eyeDrag.reset();
+    d->endSolo();
     QTreeView::contextMenuEvent(e);
     QModelIndex i = indexAt(e->pos());
     if (model())
@@ -413,6 +469,7 @@ QStyleOptionViewItem NodeView::optionForIndex(const QModelIndex &index) const
 
 void NodeView::startDrag(Qt::DropActions supportedActions)
 {
+    d->endSolo();
     // as QAbstractItemView does it, but knowing how it ends
     QModelIndexList indexes;
     Q_FOREACH (const QModelIndex &index, selectionModel()->selectedIndexes()) {

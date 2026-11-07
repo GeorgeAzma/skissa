@@ -51,6 +51,9 @@ public:
     /// Which of the row's icon places \p pos (in the viewport) is over, as painting lights it; -1 for none
     int iconSlotAt(const QStyleOptionViewItem &option, const QModelIndex &index, const QPoint &pos) const;
 
+    /// Where the layer's thumbnail is: a press held on it shows the layer alone
+    QRect thumbnailClickRect(const QStyleOptionViewItem &option, const QModelIndex &index) const;
+
     void slotUpdateIcon();
 
 Q_SIGNALS:
@@ -70,7 +73,6 @@ private:
 
     void drawColorLabel(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
 
-    QRect thumbnailClickRect(const QStyleOptionViewItem &option, const QModelIndex &index) const;
     void drawThumbnail(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
 
     QRect iconsRect(const QStyleOptionViewItem &option, const QModelIndex &index) const;

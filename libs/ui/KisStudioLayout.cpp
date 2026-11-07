@@ -2964,7 +2964,8 @@ void KisStudioLayout::enter()
     };
     d->pinned = readSet(pinnedKey);
     // a first start shows the panels painting needs together, not one at a time
-    if (cfg.readEntry<QString>(pinnedKey, QStringLiteral("\x1f")) == QLatin1String("\x1f")) {
+    const bool firstStart = cfg.readEntry<QString>(pinnedKey, QStringLiteral("\x1f")) == QLatin1String("\x1f");
+    if (firstStart) {
         d->pinned = {QStringLiteral("StudioColor"), QStringLiteral("PresetDocker"), QStringLiteral("KisLayerBox")};
     }
     d->groups.clear();
@@ -2975,6 +2976,15 @@ void KisStudioLayout::enter()
         const int separator = entry.lastIndexOf(QLatin1Char('='));
         const int group = separator > 0 ? entry.mid(separator + 1).toInt() : 0;
         if (group >= 2) d->groups.insert(entry.left(separator), group);
+    }
+    if (firstStart && cfg.readEntry<QStringList>(groupsKey).isEmpty()) {
+        // color and brushes together at the bottom by the tools, away from the hand that paints; the layers with the
+        // panel buttons
+        d->groups.insert(QStringLiteral("StudioColor"), 2);
+        d->groups.insert(QStringLiteral("PresetDocker"), 2);
+        KisConfig out(false);
+        out.writeEntry(groupKey(2, "Side"), QStringLiteral("left"));
+        out.writeEntry(groupKey(2, "Spot"), QStringLiteral("0,1"));
     }
     d->lanes.clear();
     Q_FOREACH (const QString &entry, cfg.readEntry<QStringList>(lanesKey)) {

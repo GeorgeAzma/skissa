@@ -220,8 +220,8 @@ void main()
  *
  *  - Along the rim, a band where the glass shows what is behind from further in, as if bent toward the
  *    edge: how far grows slowly from deep in the band and steeply at the edge (1 - cos), to twice the
- *    band's width, and a little more for blue than for red, so the colors part at the edge. Inside the
- *    band nothing is moved.
+ *    band's width. Blue bends further than red, as glass disperses light, so the colors part most at
+ *    the edge. Inside the band nothing is moved.
  *  - The frost follows how thick the glass is, (1 - u^4)(1 - v^4) with u and v from -1 to 1 across the
  *    panel: clear at the edges, the most in the middle, changing evenly as the blur narrows by octaves
  *    toward the canvas itself.
@@ -258,7 +258,7 @@ uniform float dither;
 uniform float veil;
 // The refracting band's width, the size of a widget pixel in surface pixels, and how bright the rim's light is.
 uniform vec3 rim;
-// The power each color's bend grows by toward the edge: a little more for blue than for red.
+// How far each color is bent, for green 1: blue further than red, as glass disperses light.
 uniform vec3 ior;
 uniform vec4 reach;
 // Glass panels below this one (e.g. a panel under a menu): shape, corners, Oklab tint and tint strength.
@@ -545,7 +545,7 @@ void main()
     float bent = band > 0.5 ? 1.0 - cos(clamp(1.0 - d / band, 0.0, 1.0) * quarterTurn) : 0.0;
     // The frost is read once, where green is bent to (the shader stays small enough to link quickly); the
     // colors part only where the glass is clear, so red and blue come from the canvas itself, a little apart.
-    vec3 reached = pow(vec3(bent), ior) * 2.0 * band;
+    vec3 reached = pow(bent, 1.52) * 2.0 * band * ior;
     vec2 q = bent > 0.0 ? held(p - outward * reached.g) : p;
     vec3 seen = throughLower(frostAt(q, blur), p);
     // only near the rim, where the frost is close to clear itself, and fading in with the bend: taken whole up to
@@ -1350,7 +1350,10 @@ void KisOpenGLGlass::render(uint canvas, uint canvasFormat, const QSize &viewpor
     f->glUniform1f(d->glass["vibrancy"], float(KisStudioGlass::vibrancy()));
     f->glUniform2f(d->glass["grain"], float(KisStudioGlass::grain()), float(qMax<qreal>(1, pixelRatio)));
     // crown glass's 1.51, 1.52 and 1.53 for red, green and blue, their spread made five times as wide
-    f->glUniform3f(d->glass["ior"], 1.47f, 1.52f, 1.57f);
+    // a bend scales with n - 1, and (n_F - n_C) / (n_d - 1) is one over the Abbe number: 20, a dense flint glass
+    // (window glass is about 55, too little to see)
+    const float abbe = 20.0f;
+    f->glUniform3f(d->glass["ior"], 1.0f - 0.5f / abbe, 1.0f, 1.0f + 0.5f / abbe);
     f->glUniform1f(d->glass["lowerStrength"], float(0.5 * (KisStudioGlass::tintOverDark() + KisStudioGlass::tintOverBright())));
     for (int k = 0; k < 3; k++) {
         f->glActiveTexture(GL_TEXTURE4 + k);

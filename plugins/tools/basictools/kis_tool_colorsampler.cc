@@ -24,6 +24,9 @@
 #include <kis_config.h>
 #include <kis_config_notifier.h>
 #include <QSignalBlocker>
+#include <QPainterPath>
+#include <KisOptimizedBrushOutline.h>
+#include <kis_image.h>
 
 namespace
 {
@@ -118,6 +121,13 @@ void KisToolColorSampler::slotSetPreviewStyleConfigFromComboBox()
 void KisToolColorSampler::paint(QPainter &gc, const KoViewConverter &converter)
 {
     m_helper.paint(gc, converter);
+    // the patch that is averaged, while it is more than a pixel
+    if (m_config->radius > 1 && m_isActivated) {
+        const QPointF center = convertToPixelCoord(m_outlineDocPoint);
+        QPainterPath ring;
+        ring.addEllipse(center, m_config->radius, m_config->radius);
+        paintToolOutline(&gc, KisOptimizedBrushOutline(pixelToView(ring)));
+    }
 }
 
 void KisToolColorSampler::activate(const QSet<KoShape*> &shapes)
@@ -209,6 +219,11 @@ void KisToolColorSampler::requestUpdateOutline(const QPointF &outlineDocPoint, c
     m_outlineDocPoint = outlineDocPoint;
 
     colorPreviewDocUpdateRect = m_helper.colorPreviewDocRect(m_outlineDocPoint);
+    if (m_config->radius > 1 && image()) {
+        const QPointF center = convertToPixelCoord(m_outlineDocPoint);
+        const qreal r = m_config->radius + 2;
+        colorPreviewDocUpdateRect |= image()->pixelToDocument(QRectF(center - QPointF(r, r), QSizeF(2 * r, 2 * r)));
+    }
 
     if (!colorPreviewDocUpdateRect.isEmpty()) {
         colorPreviewDocUpdateRect = colorPreviewDocUpdateRect.adjusted(-xoffset,-yoffset,xoffset,yoffset);
