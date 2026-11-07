@@ -331,6 +331,12 @@ public:
         m_pick = pick;
     }
 
+    /// What the tiles' pictures change from the settings in use, so each shows its kind on so small a picture
+    void forPictures(Edit edit)
+    {
+        m_forPictures = edit;
+    }
+
     /// Settings that follow from the others, made before every change goes out
     void settle(Edit settle)
     {
@@ -592,6 +598,7 @@ private:
                 }
                 KisFilterConfigurationSP config = m_config->clone();
                 tile.edit(*config);
+                if (m_forPictures) m_forPictures(*config);
                 if (m_settle) m_settle(*config);
                 row.pictures << applied(config, row.kind == Pictures::Whole);
             }
@@ -637,6 +644,7 @@ private:
     /// All of the layer, small, made when a row first needs it
     mutable KisPaintDeviceSP m_whole;
     Edit m_settle;
+    Edit m_forPictures;
     Edit m_prepare;
     std::function<void(Config &, const KoColor &)> m_pick;
     QTimer m_pictureTimer;
@@ -807,6 +815,8 @@ KisConfigWidget *halftone(QWidget *parent, KisPaintDeviceSP device)
                      [](const Config &c) { return c.getString("mode") == QLatin1String("independent_channels"); }};
     }
     panel->addTiles(inks);
+    // a screen larger than a third of a tile shows one blot, not dots or lines
+    panel->forPictures([](Config &c) { setScreenSize(c, qMin(screenSize(c), tileSize.height() / 3.0)); });
 
     const int size = 0;
     panel->addValue({i18nc("halftone setting", "Size"), range(2, 400, 1, px, true), screenSize, setScreenSize, {}, 60});
@@ -933,6 +943,24 @@ KisConfigWidget *colorToAlpha(QWidget *parent, KisPaintDeviceSP device)
                      writes("threshold", true), {}, 255});
     panel->pickColor([](Config &c, const KoColor &color) { c.setProperty("targetcolor", color.toQColor()); });
     panel->dragValues(0, -1);
+    panel->finish();
+    return panel;
+}
+
+KisConfigWidget *desaturate(QWidget *parent, KisPaintDeviceSP device)
+{
+    auto *panel = new Panel(parent, QStringLiteral("desaturate"), device);
+    // Krita's types: lightness, luminance (Rec. 709), luma (Rec. 601, left out: it looks the same as 709), average, darkest
+    // channel, brightest channel
+    auto way = [](const QString &name, int type) {
+        return Tile{name, [type](Config &c) { c.setProperty("type", type); }, [type](const Config &c) { return c.getInt("type", 0) == type; }};
+    };
+    panel->addTiles({way(i18nc("desaturate: gray as bright as the color looks", "Lightness"), 0),
+                     way(i18nc("desaturate: gray by the light given off (Rec. 709)", "Luminance"), 1),
+                     way(i18nc("desaturate: gray from the channels' average", "Average"), 3),
+                     way(i18nc("desaturate: gray from the darkest channel", "Darkest"), 4),
+                     way(i18nc("desaturate: gray from the brightest channel", "Brightest"), 5)},
+                    {}, Panel::Pictures::Whole);
     panel->finish();
     return panel;
 }
@@ -1273,6 +1301,7 @@ KisConfigWidget *create(const QString &filterId, QWidget *parent, KisPaintDevice
     if (filterId == QLatin1String("pixelize")) return pixelize(parent, device);
     if (filterId == QLatin1String("colortoalpha")) return colorToAlpha(parent, device);
     if (filterId == QLatin1String("propagatecolors")) return propagateColors(parent, device);
+    if (filterId == QLatin1String("desaturate")) return desaturate(parent, device);
     if (filterId == QLatin1String("height to normal")) return heightToNormal(parent, device);
     if (filterId == QLatin1String("gradientmap")) return gradientMap(parent, device);
     return nullptr;

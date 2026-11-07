@@ -83,7 +83,8 @@ QString KisStudioScrubber::text() const
             + QString::number(qAbs(amount));
     }
     if (m_kind == Kind::Threshold) return QString::number(qRound(m_value));
-    return QString::number(m_value, 'f', m_value < 10.0 ? 1 : 0);
+    // tenths below 10, and no trailing zeros (2, not 2.0)
+    return QString::number(m_value < 10.0 ? qRound(m_value * 10) / 10.0 : qRound(m_value));
 }
 
 QSize KisStudioScrubber::sizeHint() const

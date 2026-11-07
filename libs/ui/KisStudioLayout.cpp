@@ -2659,6 +2659,8 @@ struct KisStudioLayout::Private
     QPointer<KisStudioToolStrip> toolStrip;
     QPointer<QAction> toolStripAction;
     QPointer<QAction> brushValuesAction;
+    /// The opacity among them, left out for tools that only use the brush's size
+    QPointer<QWidget> opacityValue;
     /// The brush bar's preset button: a click opens the brush picker, the wheel steps through your brushes
     QPointer<QWidget> presetChip;
     QString presetChipToolTip;
@@ -5157,6 +5159,7 @@ void KisStudioLayout::createTopBar()
                                source->maximum());
             scrubber->setValue(source->value());
             valuesLayout->addWidget(scrubber);
+            if (entry.second == KisStudioScrubber::Kind::Opacity) d->opacityValue = scrubber;
             connect(scrubber, &KisStudioScrubber::valueCommitted, source, [source](qreal value) {
                 source->setValue(value);
             });
@@ -5509,6 +5512,8 @@ void KisStudioLayout::updateContextBar()
     // tools that put down paint with the current brush preset
     const bool paints = shapeTool || any({"KritaShape/KisToolBrush", "KritaShape/KisToolDyna",
                                           "KritaShape/KisToolMultiBrush", "KritaShape/KisToolLine"});
+    // the smart patch marks what to patch with the brush's outline: only its size counts
+    const bool sizeOnly = any({"KritaShape/KisToolSmartPatch"});
     const bool fills = any({"KritaFill/KisToolFill", "KisToolEncloseAndFill", "KritaShape/KisToolLazyBrush"});
     const bool gradient = any({"KritaFill/KisToolGradient"});
 
@@ -5528,7 +5533,8 @@ void KisStudioLayout::updateContextBar()
     };
 
     if (d->brushValuesAction) {
-        d->brushValuesAction->setVisible(paints && (!isRailHidden() || d->peeking.contains(QPointer<QWidget>(d->topPill.data()))));
+        d->brushValuesAction->setVisible((paints || sizeOnly) && (!isRailHidden() || d->peeking.contains(QPointer<QWidget>(d->topPill.data()))));
+        if (d->opacityValue) d->opacityValue->setVisible(!sizeOnly);
     }
     updateToolChip();
     if (d->flyout && d->flyoutAnchor) {

@@ -900,6 +900,30 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
                 }
             }
             addSelectionAdjust();
+            // selecting by color: how alike counts as one, changed all the time
+            if (QSpinBox *threshold = withId<QSpinBox>(widget, QStringLiteral("sliderThreshold"))) {
+                addGap();
+                const bool contiguous = withId<QSpinBox>(widget, QStringLiteral("sliderCloseGap"));
+                mirrorSpin(threshold, int(KisStudioScrubber::Kind::Threshold),
+                           i18nc("@info:tooltip how alike colors are selected as one", "Threshold"), contiguous ? 8 : 20);
+            }
+        }
+
+        // the color sampler: from the whole image or the layer, and how wide a patch it averages
+        if (QComboBox *sources = widget->findChild<QComboBox *>(QStringLiteral("cmbSources"))) {
+            addGap();
+            mirrorCombo(sources, {0, 1}, {imageIcon(ink), layersIcon(ink, false)});
+            const QStringList names = {i18nc("@info:tooltip the color sampler takes the color as seen", "Image"),
+                                       i18nc("@info:tooltip the color sampler takes the current layer's color", "Layer")};
+            for (int i = 0; i < 2; i++) {
+                if (QLayoutItem *item = m_layout->itemAt(m_layout->count() - 2 + i)) {
+                    if (item->widget()) item->widget()->setToolTip(names[i]);
+                }
+            }
+            if (QSpinBox *radius = widget->findChild<QSpinBox *>(QStringLiteral("radius"))) {
+                addGap();
+                mirrorSpin(radius, int(KisStudioScrubber::Kind::Size), i18nc("@info:tooltip the color sampler averages a patch this wide", "Sample size"), 1);
+            }
         }
 
         // what Move moves: the layer under the pointer, or the current one

@@ -322,7 +322,13 @@ KisFilterConfigurationSP KisFilterManager::lastUsedConfiguration(KisFilterSP fil
         const bool perChannel = config && (config->hasProperty(QStringLiteral("nTransfers")) || config->hasProperty(QStringLiteral("number_of_channels")));
         const bool fits = !perChannel
             || (device && KisConfig(true).readEntry(lastUsedColorModelKey(filter->id()), QString()) == device->colorSpace()->id());
-        if (config && config->name() == filter->id() && fits) return config;
+        if (config && config->name() == filter->id() && fits) {
+            // colors found in a layer belong to it: the next layer's are found again
+            if (config->getString(QStringLiteral("source")) == QLatin1String("image") && config->hasProperty(QStringLiteral("colors"))) {
+                config->setProperty(QStringLiteral("colors"), QString());
+            }
+            return config;
+        }
     }
     return filter->defaultConfiguration(KisGlobalResourcesInterface::instance());
 }

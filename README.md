@@ -41,6 +41,14 @@ Fork of Krita, with a redesigned UI targeting intuition.
 <td><img width="420" src="docs/readme/guides.jpg" alt="The guides tool: line, perspective, ellipse and curve on the top bar"><br><b>Guides</b></td>
 <td><img width="420" src="docs/readme/make-brush.jpg" alt="A brush made from a selection of the picture"><br><b>A brush from any selection</b></td>
 </tr>
+<tr>
+<td><img width="420" src="docs/readme/lens.jpg" alt="The lens effect as a fisheye, its looks as pictures of the image"><br><b>A lens</b></td>
+<td><img width="420" src="docs/readme/color-effect.jpg" alt="The color effect: looks as pictures, curves over the image's histogram, tints as wheels"><br><b>Color grading</b></td>
+</tr>
+<tr>
+<td><img width="420" src="docs/readme/gradient-map.jpg" alt="A gradient map, its looks as pictures and its stops on a bar"><br><b>Gradient maps</b></td>
+<td><img width="420" src="docs/readme/fewer-colors.jpg" alt="The picture in eight of its own colors"><br><b>Fewer colors</b></td>
+</tr>
 </table>
 
 The code was written by an LLM, on top of Krita's code. All the UI designs were done manually.
