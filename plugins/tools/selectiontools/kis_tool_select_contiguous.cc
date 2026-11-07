@@ -77,6 +77,7 @@ void KisToolSelectContiguous::activate(const QSet<KoShape*> &shapes)
 
 void KisToolSelectContiguous::deactivate()
 {
+    m_reselect.forget();
     m_referencePaintDevice = nullptr;
     m_referenceNodeList = nullptr;
     KisToolSelect::deactivate();
@@ -100,6 +101,20 @@ void KisToolSelectContiguous::beginPrimaryAction(KoPointerEvent *event)
 
     beginSelectInteraction();
 
+    const QPoint pos = convertToImagePixelCoordFloored(event);
+    const SelectionAction action = selectionAction();
+    selectAt(pos, action);
+    // a threshold changed next makes this selection again, at the same place
+    m_reselect.made(dynamic_cast<KisCanvas2 *>(canvas()), kundo2_i18n("Select Contiguous Area"), [this, pos, action]() {
+        selectAt(pos, action);
+    });
+}
+
+void KisToolSelectContiguous::selectAt(const QPoint &pos, SelectionAction action)
+{
+    KisPaintDeviceSP dev = currentNode() ? currentNode()->projection() : KisPaintDeviceSP();
+    if (!dev || !selectionEditable()) return;
+
     KisCursorOverrideLock cursorLock(KisCursor::waitCursor());
 
     // -------------------------------
@@ -109,7 +124,6 @@ void KisToolSelectContiguous::beginPrimaryAction(KoPointerEvent *event)
                                        KisImageSignalVector(),
                                        kundo2_i18n("Select Contiguous Area"));
 
-    QPoint pos = convertToImagePixelCoordFloored(event);
     QRect rc = currentImage()->bounds();
 
     KisPaintDeviceSP sourceDevice;
@@ -234,7 +248,7 @@ void KisToolSelectContiguous::beginPrimaryAction(KoPointerEvent *event)
 
     KisSelectionToolHelper helper(kisCanvas, kundo2_i18n("Select Contiguous Area"));
 
-    helper.selectPixelSelection(applicator, selection, selectionAction());
+    helper.selectPixelSelection(applicator, selection, action);
 
     applicator.end();
 
@@ -285,6 +299,7 @@ void KisToolSelectContiguous::slotSetThreshold(int threshold)
 {
     m_threshold = threshold;
     m_configGroup.writeEntry("threshold", threshold);
+    m_reselect.settingChanged();
 }
 
 void KisToolSelectContiguous::slotSetOpacitySpread(int opacitySpread)

@@ -624,6 +624,14 @@ bool KisImportExportManager::askUserAboutExportConfiguration(
         return false;
     }
 
+    // settings already chosen in the Studio's export sheet: nothing more to ask
+    if (exportConfiguration && exportConfiguration->getBool(QStringLiteral("skissaChosen"), false)) {
+        exportConfiguration->removeProperty(QStringLiteral("skissaChosen"));
+        delete wdg;
+        *alsoAsKra = false;
+        return true;
+    }
+
     if (!batchMode && (wdg || !warnings.isEmpty() || isAdvancedExporting)) {
         QWidget *page = new QWidget();
         QVBoxLayout *layout = new QVBoxLayout(page);

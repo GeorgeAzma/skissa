@@ -41,6 +41,9 @@ set(skissa_ui_SRCS
     KisStudioRings.cpp
     KisStudioScrubber.cpp
     KisStudioSelectionAdjust.cpp
+    KisReselect.cpp
+    KisStudioExport.cpp
+    KisStudioFontPicker.cpp
     KisStudioSettings.cpp
     KisStudioSmoothing.cpp
     KisStudioStartPage.cpp

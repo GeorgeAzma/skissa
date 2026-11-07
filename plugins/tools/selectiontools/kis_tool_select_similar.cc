@@ -54,6 +54,7 @@ void KisToolSelectSimilar::activate(const QSet<KoShape*> &shapes)
 
 void KisToolSelectSimilar::deactivate()
 {
+    m_reselect.forget();
     m_referencePaintDevice = nullptr;
     m_referenceNodeList = nullptr;
     KisToolSelect::deactivate();
@@ -80,6 +81,18 @@ void KisToolSelectSimilar::beginPrimaryAction(KoPointerEvent *event)
     KIS_SAFE_ASSERT_RECOVER_RETURN(kisCanvas);
 
     beginSelectInteraction();
+
+    const QPoint pos = convertToImagePixelCoordFloored(event);
+    const SelectionAction action = selectionAction();
+    selectAt(pos, action);
+    // a threshold changed next makes this selection again, at the same place
+    m_reselect.made(kisCanvas, kundo2_i18n("Select Similar Color"), [this, pos, action]() { selectAt(pos, action); });
+}
+
+void KisToolSelectSimilar::selectAt(const QPoint &pos, SelectionAction action)
+{
+    KisCanvas2 *kisCanvas = dynamic_cast<KisCanvas2 *>(canvas());
+    if (!kisCanvas || !currentNode() || !currentNode()->projection() || !selectionEditable()) return;
 
     KisCursorOverrideLock cursorLock(KisCursor::waitCursor());
 
@@ -129,7 +142,6 @@ void KisToolSelectSimilar::beginPrimaryAction(KoPointerEvent *event)
 
     // Get the color of the pixel where the user clicked
     KisPaintDeviceSP sourceDevice = m_referencePaintDevice;
-    const QPoint pos = convertToImagePixelCoordFloored(event);
     QSharedPointer<KoColor> referenceColor = QSharedPointer<KoColor>(new KoColor(sourceDevice->colorSpace()));
     // We need to obtain the reference color from the reference paint
     // device, but it is produced in a stroke, so we must get the color
@@ -194,7 +206,7 @@ void KisToolSelectSimilar::beginPrimaryAction(KoPointerEvent *event)
 
     // Apply selection
     KisSelectionToolHelper helper(kisCanvas, kundo2_i18n("Select Similar Color"));
-    helper.selectPixelSelection(tmpSel, selectionAction());
+    helper.selectPixelSelection(tmpSel, action);
 }
 
 void KisToolSelectSimilar::endPrimaryAction(KoPointerEvent *event)
@@ -211,6 +223,7 @@ void KisToolSelectSimilar::slotSetThreshold(int threshold)
 {
     m_threshold = threshold;
     m_configGroup.writeEntry("threshold", threshold);
+    m_reselect.settingChanged();
 }
 
 void KisToolSelectSimilar::slotSetOpacitySpread(int opacitySpread)

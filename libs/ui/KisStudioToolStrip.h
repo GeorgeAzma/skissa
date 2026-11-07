@@ -45,6 +45,8 @@ private:
 
     /// Grow and Soft, on the selection there is (selection tools)
     void addSelectionAdjust();
+    /// The text's font, written in itself, opening the fonts
+    void addFontChip();
     /// One button showing \p combo's choice as its picture, the others in its menu
     void mirrorComboAsMenu(QComboBox *combo, const QVector<QIcon> &icons, const QString &toolTip);
     /// A scrubber for \p spin, both following each other

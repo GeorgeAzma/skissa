@@ -42,6 +42,14 @@
 
 #include <functional>
 
+#include <KoCanvasResourceProvider.h>
+#include <KoSvgTextProperties.h>
+#include <KoSvgTextPropertyData.h>
+#include <kis_canvas_resource_provider.h>
+
+#include "KisStudioFontPicker.h"
+#include "KisStudioTools.h"
+
 namespace {
 
 /// A picture drawn on a 20 px grid, \p draw given the painter and the scale
@@ -645,6 +653,10 @@ void KisStudioToolStrip::mirrorSpin(QSpinBox *spin, int kind, const QString &too
         if (target) target->setValue(qRound(value));
     });
     connect(spin, QOverload<int>::of(&QSpinBox::valueChanged), scrubber, [scrubber](int value) { scrubber->setValue(value); });
+    // followed while dragged: a magic wand's selection is made again as it goes
+    connect(scrubber, &KisStudioScrubber::valueChanging, this, [target](qreal value) {
+        if (target) target->setValue(qRound(value));
+    });
     m_layout->addWidget(scrubber);
 }
 
@@ -1010,6 +1022,54 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
         }
     }
 
+    // the text tool's options are Krita's own panel: its font, the setting changed most, written in itself
+    if (KisStudioTools::activeToolId() == QLatin1String("SvgTextTool")) addFontChip();
+
     m_hasOptions = m_layout->count() > 0;
     updateGeometry();
+}
+
+void KisStudioToolStrip::addFontChip()
+{
+    KisMainWindow *window = KisPart::instance()->currentMainwindow();
+    KisViewManager *view = window ? window->viewManager() : nullptr;
+    KisCanvasResourceProvider *provider = view ? view->canvasResourceProvider() : nullptr;
+    if (!provider || !provider->resourceManager()) return;
+    QPointer<KisCanvasResourceProvider> source = provider;
+    auto family = [source]() -> QString {
+        if (!source) return QString();
+        const KoSvgTextPropertyData data = source->textPropertyData();
+        const QVariant own = data.commonProperties.property(KoSvgTextProperties::FontFamiliesId);
+        const QVariant names = own.isValid() ? own : data.inheritedProperties.propertyOrDefault(KoSvgTextProperties::FontFamiliesId);
+        return names.toStringList().value(0);
+    };
+
+    addGap();
+    auto *chip = new QToolButton(this);
+    chip->setAutoRaise(true);
+    chip->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    chip->setFocusPolicy(Qt::NoFocus);
+    chip->setToolTip(i18nc("@info:tooltip the text's font", "Font"));
+    auto show = [this, chip, family]() {
+        const QString name = family();
+        QFont face = font();
+        if (!name.isEmpty()) face.setFamily(name);
+        chip->setFont(face);
+        const QString text = name.isEmpty() ? i18nc("the text's font, when none is set", "Font") : name;
+        chip->setText(QFontMetrics(face).elidedText(text, Qt::ElideRight, 14 * fontMetrics().averageCharWidth()));
+    };
+    show();
+    connect(provider->resourceManager(), &KoCanvasResourceProvider::canvasResourceChanged, chip, [show](int key, const QVariant &) {
+        if (key == KoCanvasResource::SvgTextPropertyData) show();
+    });
+    connect(chip, &QToolButton::clicked, this, [chip, source, family]() {
+        auto *picker = new KisStudioFontPicker(KisStudioFontPicker::textFamilies(), family(), [source](const QString &picked) {
+            if (!source) return;
+            KoSvgTextPropertyData data = source->textPropertyData();
+            data.commonProperties.setProperty(KoSvgTextProperties::FontFamiliesId, QStringList {picked});
+            source->setTextPropertyData(data);
+        }, chip->window());
+        picker->popupBeside(chip, Qt::BottomEdge);
+    });
+    m_layout->addWidget(chip);
 }

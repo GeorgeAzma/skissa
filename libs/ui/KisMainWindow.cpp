@@ -164,6 +164,7 @@
 #include "utils/KisRecentFileIconCache.h"
 #include "KisStudioColorPanel.h"
 #include "KisStudioControls.h"
+#include "KisStudioExport.h"
 #include "KisStudioLayout.h"
 #include "KisStudioItemCard.h"
 #include "KisUpdatePacer.h"
@@ -2011,6 +2012,7 @@ void KisMainWindow::slotFileSaveAs()
 
 void KisMainWindow::slotExportFile()
 {
+    if (KisStudioExport::open(this)) return;
     if (saveDocument(d->activeView->document(), true, true,false)) {
         Q_EMIT documentSaved();
     }

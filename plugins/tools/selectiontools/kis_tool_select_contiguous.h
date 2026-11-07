@@ -17,6 +17,7 @@
 #include <kconfig.h>
 #include <kconfiggroup.h>
 #include <commands_new/KisMergeLabeledLayersCommand.h>
+#include <KisReselect.h>
 
 class KoGroupButton;
 
@@ -81,6 +82,9 @@ private:
     int m_previousTime;
 
     KoColor loadContiguousSelectionBoundaryColorFromConfig();
+    /// The click's selection at \p pos, with the settings there are
+    void selectAt(const QPoint &pos, SelectionAction action);
+    KisReselect m_reselect;
 
 private Q_SLOTS:
     void slot_optionButtonStripContiguousSelectionMode_buttonToggled(

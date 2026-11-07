@@ -13,6 +13,7 @@
 #include "kis_tool_select_base.h"
 #include <kconfiggroup.h>
 #include <commands_new/KisMergeLabeledLayersCommand.h>
+#include <KisReselect.h>
 
 /*
  * Tool to select colors by pointing at a color on the image.
@@ -47,6 +48,9 @@ private:
     KisPaintDeviceSP m_referencePaintDevice;
     KisMergeLabeledLayersCommand::ReferenceNodeInfoListSP m_referenceNodeList;
     int m_previousTime;
+    /// The click's selection at \p pos, with the settings there are
+    void selectAt(const QPoint &pos, SelectionAction action);
+    KisReselect m_reselect;
 };
 
 
