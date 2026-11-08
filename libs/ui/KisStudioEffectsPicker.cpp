@@ -100,6 +100,7 @@ QString groupOf(const QString &id)
         {QStringLiteral("gaussian blur"), QStringLiteral("soften")},
         {QStringLiteral("lens blur"), QStringLiteral("soften")},
         {QStringLiteral("motion blur"), QStringLiteral("soften")},
+        {QStringLiteral("skissa_radial"), QStringLiteral("soften")},
         {QStringLiteral("unsharp"), QStringLiteral("sharpen")},
         {QStringLiteral("sharpen"), QStringLiteral("sharpen")},
         {QStringLiteral("gaussianhighpass"), QStringLiteral("sharpen")},

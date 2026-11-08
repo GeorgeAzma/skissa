@@ -34,11 +34,13 @@
 #include <klocalizedstring.h>
 #include <widgets/KisStudioChips.h>
 #include <widgets/KisStudioCurve.h>
+#include <widgets/KisStudioPicker.h>
 #include <widgets/KisStudioValueRow.h>
 
 #include "SkissaDetailFilter.h"
 #include "SkissaFewer.h"
 #include "SkissaNoise.h"
+#include "SkissaRadial.h"
 
 using namespace SkissaDetail;
 
@@ -851,6 +853,258 @@ QString SkissaLensWidget::canvasDragged(const QPointF &, const QPointF &at)
 
 void SkissaLensWidget::canvasReleased()
 {
+    refreshTiles();
+}
+
+namespace
+{
+
+SkissaRadial::Settings radialOf(float zoom, float spin, float blur = 1, float light = 0, float threshold = 0.6f)
+{
+    SkissaRadial::Settings settings;
+    settings.zoom = zoom;
+    settings.spin = spin;
+    settings.blur = blur;
+    settings.light = light;
+    settings.threshold = threshold;
+    return settings;
+}
+
+/// A press this close to the middle (a share of the half diagonal) moves it
+constexpr qreal middleGrip = 0.04;
+/// Screen pixels a press moves before it is a drag rather than a click
+constexpr qreal clickSlop = 4;
+
+} // namespace
+
+struct SkissaRadialWidget::Private {
+    KisPaintDeviceSP original;
+    QRect bounds;
+    qreal unit {1};
+    SkissaRadial::Settings settings {SkissaRadial::zoomed()};
+    QVector<QPair<QString, SkissaRadial::Settings>> presets;
+    QImage frame;
+    QVector<QImage> pictures;
+    QPointF picturesCenter {-1, -1};
+
+    /// A press on the image: where, whether it holds the middle, whether it became a drag, the values it started from
+    QPointF pressed;
+    bool movingMiddle {false};
+    bool pulled {false};
+    float startZoom {0};
+    float startSpin {0};
+
+    KisStudioChips *tiles {nullptr};
+    KisStudioValueRow *zoom {nullptr};
+    KisStudioValueRow *spin {nullptr};
+    KisStudioValueRow *blur {nullptr};
+    KisStudioValueRow *light {nullptr};
+    KisStudioValueRow *threshold {nullptr};
+
+    void makePresets()
+    {
+        presets = {
+            {i18nc("radial blur preset", "Original"), radialOf(0, 0)},
+            {i18nc("radial blur preset", "Zoom"), SkissaRadial::zoomed()},
+            {i18nc("radial blur preset", "Spin"), radialOf(0, 16)},
+            {i18nc("radial blur preset", "Twist"), radialOf(0.2f, 24)},
+            {i18nc("radial blur preset", "Light rays"), radialOf(0.9f, 0, 0, 1.0f, 0.6f)},
+            {i18nc("radial blur preset", "Burst"), radialOf(0.5f, 0, 1, 1, 0.5f)},
+        };
+    }
+
+    void makeFrame()
+    {
+        if (original && original->exactBounds().intersects(bounds)) {
+            const qreal scale = qMin(qreal(lensPictureSize.width()) / bounds.width(), qreal(lensPictureSize.height()) / bounds.height());
+            const QImage picture = original->createThumbnailUncached(qCeil(bounds.width() * scale), qCeil(bounds.height() * scale), bounds);
+            if (!picture.isNull() && !KisEffectPanels::showsLittle(picture)) {
+                frame = picture;
+                return;
+            }
+        }
+        frame = KisStudioPicker::samplePicture(lensPictureSize).convertToFormat(QImage::Format_ARGB32);
+    }
+
+    /// The tiles show each look about the middle where it is now
+    void makePictures()
+    {
+        if (picturesCenter == settings.center && pictures.size() == presets.size()) return;
+        picturesCenter = settings.center;
+        pictures.clear();
+        for (const auto &preset : presets) {
+            SkissaRadial::Settings look = preset.second;
+            look.center = settings.center;
+            pictures << SkissaRadial::applied(frame, look);
+        }
+    }
+
+    QPointF middleInImage() const
+    {
+        return QPointF(bounds.left() + settings.center.x() * bounds.width(), bounds.top() + settings.center.y() * bounds.height());
+    }
+};
+
+SkissaRadialWidget::SkissaRadialWidget(QWidget *parent, KisPaintDeviceSP dev)
+    : KisConfigWidget(parent)
+    , d(new Private)
+{
+    if (dev) {
+        d->original = KisEffectPanels::fullSizeCopy(dev);
+        d->bounds = dev->defaultBounds()->bounds();
+    }
+    if (d->bounds.isEmpty()) d->bounds = QRect(0, 0, 1600, 1000);
+    d->unit = std::hypot(d->bounds.width(), d->bounds.height()) / 2;
+    d->makePresets();
+    d->makeFrame();
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
+
+    d->tiles = new KisStudioChips(this);
+    d->tiles->setTileColumns(6, qMax(64, 2 * fontMetrics().height() + 34));
+    connect(d->tiles, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= d->presets.size()) return;
+        const QPointF center = d->settings.center;
+        d->settings = d->presets[index].second;
+        d->settings.center = center;
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    layout->addWidget(d->tiles);
+
+    const QString percent = QStringLiteral("%");
+    const QString degrees = QStringLiteral("°");
+    auto add = [&](const QString &name, float SkissaRadial::Settings::*value, qreal low, qreal high, const QString &suffix, qreal shownPer,
+                   qreal reset, const QString &tip = QString()) {
+        KisStudioValueRow *row = valueRow(this, name, low * shownPer, high * shownPer, 0, suffix, reset * shownPer);
+        row->setToolTip(tip);
+        connect(row, &KisStudioValueRow::valueChanged, this, [this, value, shownPer](qreal shown) {
+            d->settings.*value = float(shown / shownPer);
+            d->threshold->setVisible(d->settings.light > 0);
+            refreshTiles();
+            Q_EMIT sigConfigurationItemChanged();
+        });
+        layout->addWidget(row);
+        return row;
+    };
+    using S = SkissaRadial::Settings;
+    d->zoom = add(i18nc("radial blur setting", "Zoom"), &S::zoom, 0, 0.98, percent, 100, 0);
+    d->spin = add(i18nc("radial blur setting", "Spin"), &S::spin, -180, 180, degrees, 1, 0);
+    d->blur = add(i18nc("radial blur setting", "Blur"), &S::blur, 0, 1, percent, 100, 1, i18nc("@info:tooltip", "How much the picture streaks"));
+    d->light = add(i18nc("radial blur setting", "Light"), &S::light, 0, 4, percent, 100, 0, i18nc("@info:tooltip", "Rays from the bright parts"));
+    d->threshold = add(i18nc("radial blur setting", "Threshold"), &S::threshold, 0, 0.99, percent, 100, 0.6,
+                       i18nc("@info:tooltip", "Only what is brighter shines"));
+
+    refresh();
+}
+
+SkissaRadialWidget::~SkissaRadialWidget()
+{
+}
+
+void SkissaRadialWidget::setConfiguration(const KisPropertiesConfigurationSP config)
+{
+    d->settings = config ? SkissaRadial::Settings::from(*config) : SkissaRadial::zoomed();
+    refresh();
+}
+
+KisPropertiesConfigurationSP SkissaRadialWidget::configuration() const
+{
+    KisFilterSP filter = KisFilterRegistry::instance()->value(QStringLiteral("skissa_radial"));
+    KisFilterConfigurationSP config = filter->factoryConfiguration(KisGlobalResourcesInterface::instance());
+    d->settings.writeTo(*config);
+    return config;
+}
+
+QSize SkissaRadialWidget::sizeHint() const
+{
+    const int width = 500;
+    return QSize(width, qMax(layout()->heightForWidth(width), layout()->sizeHint().height()));
+}
+
+void SkissaRadialWidget::refresh()
+{
+    d->zoom->setValue(d->settings.zoom * 100.0);
+    d->spin->setValue(d->settings.spin);
+    d->blur->setValue(d->settings.blur * 100.0);
+    d->light->setValue(d->settings.light * 100.0);
+    d->threshold->setValue(d->settings.threshold * 100.0);
+    d->threshold->setVisible(d->settings.light > 0);
+    refreshTiles();
+}
+
+void SkissaRadialWidget::refreshTiles()
+{
+    d->makePictures();
+    QVector<KisStudioChips::Chip> chips;
+    for (int i = 0; i < d->presets.size(); i++) {
+        KisStudioChips::Chip chip;
+        chip.text = d->presets[i].first;
+        chip.on = d->settings.sameLook(d->presets[i].second) || (i == 0 && d->settings.changesNothing());
+        chip.picture = tilePicture(d->pictures.value(i), true);
+        chip.pictureKey = d->pictures.value(i).cacheKey();
+        chips << chip;
+    }
+    d->tiles->setChips(chips);
+}
+
+void SkissaRadialWidget::placeCenter(const QPointF &at)
+{
+    // a little past the edges too: a light just out of view still shines in
+    const QPointF center(qBound(-1.0, (at.x() - d->bounds.left()) / d->bounds.width(), 2.0),
+                         qBound(-1.0, (at.y() - d->bounds.top()) / d->bounds.height(), 2.0));
+    if (center == d->settings.center) return;
+    d->settings.center = center;
+    Q_EMIT sigConfigurationItemChanged();
+}
+
+void SkissaRadialWidget::canvasHovered(const QPoint &)
+{
+}
+
+bool SkissaRadialWidget::canvasPressed(const QPoint &pixel)
+{
+    d->pressed = QPointF(pixel) + QPointF(0.5, 0.5);
+    const QPointF fromMiddle = d->pressed - d->middleInImage();
+    d->movingMiddle = std::hypot(fromMiddle.x(), fromMiddle.y()) < qMax(12.0, middleGrip * d->unit);
+    d->pulled = false;
+    d->startZoom = d->settings.zoom;
+    d->startSpin = d->settings.spin;
+    return true;
+}
+
+QString SkissaRadialWidget::canvasDragged(const QPointF &moved, const QPointF &at)
+{
+    if (!d->pulled && std::hypot(moved.x(), moved.y()) < clickSlop) return QString();
+    d->pulled = true;
+    if (d->movingMiddle) {
+        placeCenter(at);
+        return QString();
+    }
+    // the streak under the pointer reaches to it: pulled toward the middle it zooms, around it it spins (both ways)
+    const QPointF fromMiddle = d->pressed - d->middleInImage();
+    const qreal distance = std::hypot(fromMiddle.x(), fromMiddle.y());
+    if (distance < 1) return QString();
+    const QPointF outward = fromMiddle / distance;
+    const QPointF pull = at - d->pressed;
+    const qreal inward = -(pull.x() * outward.x() + pull.y() * outward.y());
+    const qreal around = pull.y() * outward.x() - pull.x() * outward.y();
+    d->settings.zoom = float(qBound(0.0, d->startZoom + inward / distance, 0.98));
+    d->settings.spin = float(qBound(-180.0, d->startSpin + 2 * qRadiansToDegrees(around / distance), 180.0));
+    if (d->settings.blur == 0 && d->settings.light == 0) d->settings.blur = 1;
+    d->zoom->setValue(d->settings.zoom * 100.0);
+    d->spin->setValue(d->settings.spin);
+    d->blur->setValue(d->settings.blur * 100.0);
+    Q_EMIT sigConfigurationItemChanged();
+    return QStringLiteral("%1   %2").arg(rowText(d->zoom, 0, QStringLiteral("%")), rowText(d->spin, 0, QStringLiteral("°")));
+}
+
+void SkissaRadialWidget::canvasReleased()
+{
+    if (!d->pulled) placeCenter(d->pressed);
+    d->pulled = false;
     refreshTiles();
 }
 

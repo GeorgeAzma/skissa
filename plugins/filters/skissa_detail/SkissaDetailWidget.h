@@ -142,6 +142,38 @@ private:
 };
 
 /**
+ * Radial blur's panel: pictures of the whole image streaked a few ways, then the zoom, the spin, and how much of the
+ * picture and of its light streaks. A click on the image puts the middle there (a drag from the middle moves it); a
+ * drag elsewhere pulls the streak under the pointer: toward the middle zooms, around it spins.
+ */
+class SkissaRadialWidget : public KisConfigWidget, public KisEffectCanvasEditor
+{
+    Q_OBJECT
+    Q_INTERFACES(KisEffectCanvasEditor)
+public:
+    SkissaRadialWidget(QWidget *parent, KisPaintDeviceSP dev);
+    ~SkissaRadialWidget() override;
+
+    void setConfiguration(const KisPropertiesConfigurationSP config) override;
+    KisPropertiesConfigurationSP configuration() const override;
+
+    void canvasHovered(const QPoint &pixel) override;
+    bool canvasPressed(const QPoint &pixel) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
+    void canvasReleased() override;
+
+    QSize sizeHint() const override;
+
+private:
+    void refresh();
+    void refreshTiles();
+    void placeCenter(const QPointF &at);
+
+    struct Private;
+    QScopedPointer<Private> d;
+};
+
+/**
  * Fewer colors' panel: where the colors come from, each a picture of the whole layer reduced that way, how many and
  * how bright, and the dithering, each way of it as a ramp. A drag up or down on the
  * image gives more or fewer colors, sideways lighter or darker.
