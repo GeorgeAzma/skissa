@@ -62,13 +62,46 @@ inline void readAt(const float *source, int w, int h, double x, double y, float 
     }
 }
 
-/// The light of a premultiplied color: what of it is brighter than \p threshold
-inline void lightOf(const float *premultiplied, float threshold, float *to)
+/// The light of a premultiplied color: what of it is brighter, to the eye, than \p cutoff, all of it at \p top
+inline void lightOf(const float *premultiplied, float cutoff, float top, float *to)
 {
     const float alpha = premultiplied[3];
-    const float brightness = alpha > 1e-6f ? luminance(premultiplied) / alpha : 0.0f;
-    const float share = std::max(0.0f, brightness - threshold) / (1 - threshold);
+    const float brightness = alpha > 1e-6f ? std::cbrt(std::max(0.0f, luminance(premultiplied) / alpha)) : 0.0f;
+    const float share = std::max(0.0f, brightness - cutoff) / std::max(1e-3f, top - cutoff);
     for (int c = 0; c < 3; c++) to[c] = std::max(0.0f, premultiplied[c]) * share;
+}
+
+/// Beams by angle: light let through around a turn, a few octaves of smooth noise made distinct, \p amount of the
+/// way from all of it
+std::vector<float> shaftsOf(float amount, quint32 seed)
+{
+    constexpr int steps = 4096;
+    auto hash = [seed](quint32 octave, quint32 i) {
+        quint32 h = seed * 0x9E3779B9u ^ (octave + 1) * 0x85EBCA6Bu ^ i * 0xC2B2AE35u;
+        h ^= h >> 16;
+        h *= 0x7FEB352Du;
+        h ^= h >> 15;
+        h *= 0x846CA68Bu;
+        h ^= h >> 16;
+        return float(h & 0xFFFFFF) / float(0xFFFFFF);
+    };
+    // beams of a few widths, so they read as light broken by clouds and leaves rather than as spokes
+    const int cycles[3] = {23, 47, 97};
+    const float weights[3] = {0.5f, 0.3f, 0.2f};
+    std::vector<float> table(steps);
+    for (int i = 0; i < steps; i++) {
+        float noise = 0;
+        for (int k = 0; k < 3; k++) {
+            const float at = float(i) / steps * cycles[k];
+            const int low = int(at);
+            const float t = at - low, smooth = t * t * (3 - 2 * t);
+            const float a = hash(k, quint32(low % cycles[k])), b = hash(k, quint32((low + 1) % cycles[k]));
+            noise += weights[k] * (a + (b - a) * smooth);
+        }
+        const float t = std::clamp((noise - 0.35f) / 0.3f, 0.0f, 1.0f);
+        table[i] = 1 - amount * (1 - t * t * (3 - 2 * t));
+    }
+    return table;
 }
 
 } // namespace
@@ -81,7 +114,10 @@ Settings Settings::from(const KisPropertiesConfiguration &config)
     settings.spin = float(std::clamp(config.getDouble("spin", 0), -180.0, 180.0));
     settings.blur = float(std::clamp(config.getDouble("blur", 1), 0.0, 1.0));
     settings.light = float(std::clamp(config.getDouble("light", 0), 0.0, 4.0));
-    settings.threshold = float(std::clamp(config.getDouble("threshold", 0.6), 0.0, 0.99));
+    settings.threshold = float(std::clamp(config.getDouble("threshold", 0.8), 0.0, 0.99));
+    settings.top = float(std::clamp(config.getDouble("top", 1), 0.05, 4.0));
+    settings.shafts = float(std::clamp(config.getDouble("shafts", 0), 0.0, 1.0));
+    settings.seed = quint32(config.getInt("seed", 1));
     return settings;
 }
 
@@ -94,17 +130,21 @@ void Settings::writeTo(KisPropertiesConfiguration &config) const
     config.setProperty("blur", double(blur));
     config.setProperty("light", double(light));
     config.setProperty("threshold", double(threshold));
+    config.setProperty("top", double(top));
+    config.setProperty("shafts", double(shafts));
+    config.setProperty("seed", int(seed));
 }
 
 bool Settings::sameLook(const Settings &other) const
 {
     return zoom == other.zoom && spin == other.spin && blur == other.blur && light == other.light
-        && (light == 0 || threshold == other.threshold);
+        && (light == 0 || (threshold == other.threshold && shafts == other.shafts));
 }
 
 bool Settings::operator==(const Settings &other) const
 {
-    return center == other.center && sameLook(other) && threshold == other.threshold;
+    return center == other.center && sameLook(other) && threshold == other.threshold && shafts == other.shafts && seed == other.seed
+        && top == other.top;
 }
 
 bool Settings::changesNothing() const
@@ -173,7 +213,13 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
     const int sw = sourceRect.width(), sh = sourceRect.height();
     const float blur = m_settings.blur;
     const float light = m_settings.light * lightGain;
-    const float threshold = std::min(m_settings.threshold, 0.99f);
+    // what shines is relative to the layer's own brightest parts, so a dim lamp in a night scene still does
+    const float top = m_settings.top, cutoff = std::min(m_settings.threshold, 0.99f) * top;
+    const std::vector<float> beams = m_settings.light > 0 && m_settings.shafts > 0 ? shaftsOf(m_settings.shafts, m_settings.seed) : std::vector<float>();
+    auto beamAt = [&beams](double x, double y) {
+        const double turn = std::atan2(y, x) / tau + 1;
+        return beams[size_t((turn - std::floor(turn)) * beams.size()) % beams.size()];
+    };
 
     auto original = [&](int x, int y) {
         return source + (size_t(rect.top() + y - sourceRect.top()) * sw + (rect.left() + x - sourceRect.left())) * 4;
@@ -199,7 +245,11 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
         const float *pixel = original(x, y);
         const float alpha = std::clamp(pixel[3], 0.0f, 1.0f);
         float streak[7] = {pixel[0] * alpha, pixel[1] * alpha, pixel[2] * alpha, alpha};
-        lightOf(streak, threshold, streak + 4);
+        lightOf(streak, cutoff, top, streak + 4);
+        if (!beams.empty()) {
+            const float through = beamAt(rect.left() + x + 0.5 - m_center.x(), rect.top() + y + 0.5 - m_center.y());
+            for (int c = 4; c < 7; c++) streak[c] *= through;
+        }
         finish(x, y, streak);
     };
 
@@ -334,14 +384,25 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
         return std::clamp(position, 0.0, double(line.count - 1));
     };
     const bool shines = light > 0;
+    // only what this look uses is summed: the picture, its light, and always the weight, last
+    int used[sums];
+    int n = 0;
+    if (blur > 0) {
+        for (int c = 0; c < 4; c++) used[n++] = c;
+    }
+    if (shines) {
+        for (int c = 4; c < 7; c++) used[n++] = c;
+    }
+    used[n++] = 7;
+    const int width = powers * n;
     auto make = [&](Line &line, long index, double from, double to) {
         const double lambda = index * step;
         const double u0 = -A * lambda / D2, angle0 = L * lambda / D2;
         const double radius = std::exp(u0);
         line.ref = from;
+        line.count = 0;
         line.counts.clear();
         line.bases.clear();
-        line.sums.clear();
         double before[stored] = {};
         double running[stored] = {};
         double lastS = 0;
@@ -356,7 +417,12 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
                 float sample[sums];
                 readAt(source, sw, sh, m_center.x() + zx - sourceRect.left(), m_center.y() + zy - sourceRect.top(), sample);
                 if (shines) {
-                    lightOf(sample, threshold, sample + 4);
+                    lightOf(sample, cutoff, top, sample + 4);
+                    // the light broken into beams where it starts, so things in front still cast their shadows
+                    if (!beams.empty()) {
+                        const float through = beamAt(zx, zy);
+                        for (int c = 4; c < 7; c++) sample[c] *= through;
+                    }
                 } else {
                     sample[4] = sample[5] = sample[6] = 0;
                 }
@@ -365,17 +431,18 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
                 const double weight = std::hypot(zx, zy);
                 double here[stored];
                 const double relative = s - line.ref;
-                for (int c = 0; c < sums; c++) {
-                    here[c] = sample[c] * weight;
-                    here[sums + c] = here[c] * relative;
-                    here[2 * sums + c] = here[sums + c] * relative;
+                for (int k = 0; k < n; k++) {
+                    here[k] = sample[used[k]] * weight;
+                    here[n + k] = here[k] * relative;
+                    here[2 * n + k] = here[n + k] * relative;
                 }
                 if (written > 0) {
                     const double span = 0.5 * (s - lastS);
-                    for (int c = 0; c < stored; c++) running[c] += span * (before[c] + here[c]);
+                    for (int c = 0; c < width; c++) running[c] += span * (before[c] + here[c]);
                 }
-                for (int c = 0; c < stored; c++) {
-                    line.sums.push_back(running[c]);
+                double *into = line.sums.data() + size_t(written) * width;
+                for (int c = 0; c < width; c++) {
+                    into[c] = running[c];
                     before[c] = here[c];
                 }
                 lastS = s;
@@ -385,34 +452,45 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
                 zx = nx;
             }
         };
+        // the runs of samples first, so the sums are made in place
+        struct Run {
+            double s;
+            int steps;
+            double ds;
+        };
+        QVector<Run> runs;
         if (zooms) {
             line.first = long(std::floor(from / octave));
             const long last = long(std::floor(to / octave));
             for (long k = line.first; k <= last; k++) {
                 // an octave's length: from its start's radius to half that, |L| of s per unit of ln r
                 const double arc = radius * std::exp(L * k * octave) * D / (2 * std::abs(L));
-                const int n = std::clamp(int(std::ceil(arc / sampleStep)), 4, 1 << 16);
-                const int startAt = k == line.first ? int(std::floor((from / octave - k) * n)) : 0;
-                const int endAt = k == last ? int(std::ceil((to / octave - k) * n)) : n - 1;
-                line.counts.push_back(n);
-                line.bases.push_back(written - startAt);
-                run((k + double(startAt) / n) * octave, endAt - startAt + 1, octave / n);
+                const int samples = std::clamp(int(std::ceil(arc / sampleStep)), 4, 1 << 16);
+                const int startAt = k == line.first ? int(std::floor((from / octave - k) * samples)) : 0;
+                const int endAt = k == last ? int(std::ceil((to / octave - k) * samples)) : samples - 1;
+                line.counts.push_back(samples);
+                line.bases.push_back(line.count - startAt);
+                runs << Run{(k + double(startAt) / samples) * octave, endAt - startAt + 1, octave / samples};
+                line.count += endAt - startAt + 1;
             }
         } else {
             line.step = (tau / std::abs(A)) / std::max(1.0, std::ceil(tau * radius / sampleStep));
             line.first = long(std::floor(from / line.step));
             const long last = std::max(line.first + 1, long(std::ceil(to / line.step)));
-            run(line.first * line.step, int(std::min<long>(last - line.first + 1, 1 << 20)), line.step);
+            const int samples = int(std::min<long>(last - line.first + 1, 1 << 20));
+            runs << Run{line.first * line.step, samples, line.step};
+            line.count = samples;
         }
-        line.count = written;
+        line.sums.resize(size_t(line.count) * width);
+        for (const Run &each : runs) run(each.s, each.steps, each.ds);
     };
     // the running sums at s, between samples
     auto sumsAt = [&](const Line &line, double s, double *into) {
         const double position = positionOf(line, s);
         const int i = std::min(int(position), line.count - 2);
         const double t = position - i;
-        const double *a = line.sums.data() + size_t(i) * stored, *b = a + stored;
-        for (int c = 0; c < stored; c++) into[c] = a[c] + t * (b[c] - a[c]);
+        const double *a = line.sums.data() + size_t(i) * width, *b = a + width;
+        for (int c = 0; c < width; c++) into[c] = a[c] + t * (b[c] - a[c]);
     };
     // the streak of a pixel at s on a line: fading from the pixel toward the middle, and to it from beyond; a weight
     // (p + q s')² over a stretch is p² ΣS0 + 2pq ΣS1 + q² ΣS2
@@ -422,10 +500,9 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
         sumsAt(line, s + 1 - back, end);
         const double relative = s - line.ref;
         auto add = [&](const double *from, const double *to, double p, double q, bool first) {
-            for (int c = 0; c < sums; c++) {
-                const double value = p * p * (to[c] - from[c]) + 2 * p * q * (to[sums + c] - from[sums + c])
-                    + q * q * (to[2 * sums + c] - from[2 * sums + c]);
-                result[c] = first ? value : result[c] + value;
+            for (int k = 0; k < n; k++) {
+                const double value = p * p * (to[k] - from[k]) + 2 * p * q * (to[n + k] - from[n + k]) + q * q * (to[2 * n + k] - from[2 * n + k]);
+                result[k] = first ? value : result[k] + value;
             }
         };
         const double fall = 1 / (1 - back);
@@ -459,10 +536,10 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
             streak(high, along[i], b);
             const double t = between[i];
             double total[sums];
-            for (int c = 0; c < sums; c++) total[c] = a[c] + t * (b[c] - a[c]);
-            float average[7];
-            const double weight = total[7];
-            for (int c = 0; c < 7; c++) average[c] = weight > 1e-12 ? float(total[c] / weight) : 0.0f;
+            for (int k = 0; k < n; k++) total[k] = a[k] + t * (b[k] - a[k]);
+            float average[7] = {};
+            const double weight = total[n - 1];
+            for (int k = 0; k + 1 < n; k++) average[used[k]] = weight > 1e-12 ? float(total[k] / weight) : 0.0f;
             finish(i % w, i / w, average);
         }
     }

@@ -144,7 +144,8 @@ private:
 
 /**
  * Radial blur's panel: pictures of the whole image streaked a few ways, then the zoom, the spin, and how much of the
- * picture and of its light streaks. A press on the image puts the middle there; a drag moves it.
+ * picture and of its light streaks. A press on the image puts the middle there; a drag moves it. A sample streak
+ * drawn beside the middle has a knob at its end: drawn in, it zooms; around, it spins.
  */
 class SkissaRadialWidget : public KisConfigWidget, public KisEffectCanvasEditor
 {
@@ -162,12 +163,15 @@ public:
     QString canvasDragged(const QPointF &moved, const QPointF &at) override;
     void canvasReleased() override;
     bool canvasMiddle(QPointF *at) const override;
+    bool canvasStreak(qreal pixelsPerScreen, QPolygonF *path) const override;
+    QString canvasStreakDragged(const QPointF &end) override;
 
     QSize sizeHint() const override;
 
 private:
     void refresh();
     void refreshTiles();
+    void showLightRows();
     void placeCenter(const QPointF &at);
 
     struct Private;
@@ -200,6 +204,41 @@ public:
 private:
     void refresh();
     void refreshTiles();
+
+    struct Private;
+    QScopedPointer<Private> d;
+};
+
+/**
+ * Ink's panel: looks as pictures of a busy part of the layer at its own size, the rows that make them, then where the
+ * ink goes (on paper, alone, over the picture, in its colors) as pictures too, and the ink's and paper's colors. A
+ * drag on the image: up for more ink, sideways for bolder lines.
+ */
+class SkissaInkWidget : public KisConfigWidget, public KisEffectCanvasEditor
+{
+    Q_OBJECT
+    Q_INTERFACES(KisEffectCanvasEditor)
+public:
+    SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev);
+    ~SkissaInkWidget() override;
+
+    void setConfiguration(const KisPropertiesConfigurationSP config) override;
+    KisPropertiesConfigurationSP configuration() const override;
+
+    void canvasHovered(const QPoint &pixel) override;
+    bool canvasPressed(const QPoint &pixel) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
+    void canvasReleased() override;
+
+    QSize sizeHint() const override;
+
+private:
+    void refresh();
+    void showRows();
+    /// The tiles as they are, and their pictures made again after a pause
+    void refreshTiles();
+    void showTiles();
+    void makePictures();
 
     struct Private;
     QScopedPointer<Private> d;

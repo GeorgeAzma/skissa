@@ -9,6 +9,7 @@
 #include <QObject>
 #include <QPoint>
 #include <QPointF>
+#include <QPolygonF>
 #include <QString>
 
 /**
@@ -36,6 +37,24 @@ public:
     {
         Q_UNUSED(at);
         return false;
+    }
+
+    /**
+     * A sample of what the effect does, drawn by its middle: a path on the image (in its pixels) ending in a knob
+     * that drags; \p pixelsPerScreen of the image's pixels make a screen pixel, so the sample keeps its size on
+     * screen. False if it has none.
+     */
+    virtual bool canvasStreak(qreal pixelsPerScreen, QPolygonF *path) const
+    {
+        Q_UNUSED(pixelsPerScreen);
+        Q_UNUSED(path);
+        return false;
+    }
+    /// The sample's knob was dragged to \p end (in the image's pixels); returns the value to show
+    virtual QString canvasStreakDragged(const QPointF &end)
+    {
+        Q_UNUSED(end);
+        return QString();
     }
 };
 

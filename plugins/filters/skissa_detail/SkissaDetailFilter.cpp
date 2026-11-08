@@ -29,6 +29,7 @@
 #include "SkissaPixels.h"
 #include "SkissaFewerFilter.h"
 #include "SkissaLensFilter.h"
+#include "SkissaInkFilter.h"
 #include "SkissaRadialFilter.h"
 #include "SkissaNoiseFilter.h"
 
@@ -79,6 +80,7 @@ SkissaDetailPlugin::SkissaDetailPlugin(QObject *parent, const QVariantList &)
     }
     KisFilterRegistry::instance()->add(KisFilterSP(new SkissaLensFilter()));
     KisFilterRegistry::instance()->add(KisFilterSP(new SkissaRadialFilter()));
+    KisFilterRegistry::instance()->add(KisFilterSP(new SkissaInkFilter()));
     KisFilterRegistry::instance()->add(KisFilterSP(new SkissaFewerFilter()));
 }
 

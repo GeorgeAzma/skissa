@@ -38,8 +38,15 @@ struct Settings {
     float blur {1};
     /// How strongly the bright parts shine along the streaks
     float light {0};
-    /// The brightness light shines from
-    float threshold {0.6f};
+    /// The brightness light shines from, as a share of the brightest parts' (to the eye)
+    float threshold {0.8f};
+    /// How bright the layer's brightest parts look (cube root of luminance), found by the panel so that every patch
+    /// and preview agrees
+    float top {1};
+    /// How much the light is broken into beams by angle, as by clouds or leaves in front of it
+    float shafts {0};
+    /// Which beams
+    quint32 seed {1};
 
     static Settings from(const KisPropertiesConfiguration &config);
     void writeTo(KisPropertiesConfiguration &config) const;

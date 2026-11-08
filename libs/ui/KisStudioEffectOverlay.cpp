@@ -422,22 +422,43 @@ private:
     QString m_text;
 };
 
-/// An effect's middle on the image: a ring with ticks, white edged dark, so it shows on any picture
+/// An effect's middle on the image, a ring with ticks, and the sample of what it does with its knob: white edged
+/// dark, so they show on any picture
 class MiddleMark : public QWidget
 {
 public:
     explicit MiddleMark(QWidget *parent) : QWidget(parent)
     {
         setAttribute(Qt::WA_TransparentForMouseEvents);
-        resize(side, side);
         hide();
     }
 
-    /// Centred on \p at (in its parent), hidden while that is off it
-    void placeAt(const QPointF &at)
+    /// The middle and the sample at \p middle and \p path (in its parent); only as large as they need
+    void place(const QPointF &middle, const QPolygonF &path)
     {
-        move(QPoint(qRound(at.x()) - side / 2, qRound(at.y()) - side / 2));
-        setVisible(QRectF(parentWidget()->rect()).contains(at));
+        qreal left = middle.x(), right = middle.x(), top = middle.y(), bottom = middle.y();
+        for (const QPointF &point : path) {
+            left = std::min(left, point.x());
+            right = std::max(right, point.x());
+            top = std::min(top, point.y());
+            bottom = std::max(bottom, point.y());
+        }
+        const QRect area = QRectF(QPointF(left - margin, top - margin), QPointF(right + margin, bottom + margin)).toAlignedRect();
+        m_middle = middle - area.topLeft();
+        m_path = path.translated(-area.topLeft());
+        setGeometry(area);
+        setVisible(area.intersects(parentWidget()->rect()));
+        update();
+    }
+
+    /// Whether \p at (in its parent) is on the knob, and how far from its centre
+    bool onKnob(const QPointF &at, QPointF *offset) const
+    {
+        if (m_path.isEmpty() || !isVisible()) return false;
+        const QPointF knob = m_path.last() + pos();
+        if (QLineF(at, knob).length() > grip) return false;
+        *offset = knob - at;
+        return true;
     }
 
 protected:
@@ -445,23 +466,34 @@ protected:
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        const QPointF middle(side / 2.0, side / 2.0);
         auto stroke = [&](qreal width, const QColor &color) {
-            painter.setPen(QPen(color, width, Qt::SolidLine, Qt::RoundCap));
+            painter.setPen(QPen(color, width, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             painter.setBrush(Qt::NoBrush);
-            painter.drawEllipse(middle, ring, ring);
+            painter.drawEllipse(m_middle, ring, ring);
             for (const QPointF &way : {QPointF(1, 0), QPointF(-1, 0), QPointF(0, 1), QPointF(0, -1)}) {
-                painter.drawLine(middle + way * (ring + 3), middle + way * (ring + 7));
+                painter.drawLine(m_middle + way * (ring + 3), m_middle + way * (ring + 7));
             }
-            painter.drawPoint(middle);
+            painter.drawPoint(m_middle);
+            if (m_path.size() > 1) painter.drawPolyline(m_path);
         };
-        stroke(4.5, QColor(0, 0, 0, 140));
+        const QColor edge(0, 0, 0, 140);
+        stroke(4.5, edge);
         stroke(2, Qt::white);
+        if (!m_path.isEmpty()) {
+            painter.setPen(QPen(edge, 2.5));
+            painter.setBrush(Qt::white);
+            painter.drawEllipse(m_path.last(), knob, knob);
+        }
     }
 
 private:
-    static constexpr int side = 40;
     static constexpr qreal ring = 7;
+    static constexpr qreal knob = 6;
+    static constexpr qreal margin = 16;
+    /// How near the knob a press takes it
+    static constexpr qreal grip = 14;
+    QPointF m_middle;
+    QPolygonF m_path;
 };
 
 } // namespace
@@ -509,6 +541,9 @@ struct KisStudioEffectOverlay::Private
     QPointer<QWidget> canvasWidget;
     QPointer<ValuePill> pill;
     QPointer<MiddleMark> mark;
+    /// Dragging the sample's knob, held this far from where the pointer took it
+    bool knobDragging {false};
+    QPointF knobOffset;
     QMetaObject::Connection viewChanged;
     bool dragging {false};
     QPointF dragStart;
@@ -596,7 +631,13 @@ struct KisStudioEffectOverlay::Private
             mark->hide();
             return;
         }
-        mark->placeAt(canvas->coordinatesConverter()->imageToWidget(at));
+        const KisCoordinatesConverter *converter = canvas->coordinatesConverter();
+        const qreal perScreen = QLineF(converter->widgetToImage(QPointF(0, 0)), converter->widgetToImage(QPointF(1, 0))).length();
+        QPolygonF path;
+        if (editor->canvasStreak(perScreen, &path)) {
+            for (QPointF &point : path) point = converter->imageToWidget(point);
+        }
+        mark->place(converter->imageToWidget(at), path);
     }
 };
 
@@ -924,6 +965,7 @@ void KisStudioEffectOverlay::finishEditing()
     d->guard.reset();
     d->setCursor(false);
     d->dragging = false;
+    d->knobDragging = false;
     // its release may not have been seen
     d->spaceHeld = false;
     if (d->canvasWidget) {
@@ -1120,6 +1162,12 @@ bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos
     if (press) {
         const bool plain = modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier;
         if (button != Qt::LeftButton || !plain || d->spaceHeld) return false;
+        if (d->mark && d->mark->onKnob(pos, &d->knobOffset)) {
+            d->knobDragging = true;
+            d->dragging = true;
+            event->accept();
+            return true;
+        }
         const bool drags = d->editor->canvasPressed(pixel);
         d->showMiddle();
         if (drags) {
@@ -1141,9 +1189,14 @@ bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos
                                                : true;
     if (release || !held) {
         d->dragging = false;
+        d->knobDragging = false;
         d->editor->canvasReleased();
         d->showMiddle();
         if (d->pill) d->pill->hide();
+    } else if (d->knobDragging) {
+        const QString text = d->editor->canvasStreakDragged(converter->widgetToImage(pos + d->knobOffset));
+        d->showMiddle();
+        if (d->pill && !text.isEmpty()) d->pill->showAt(pos.toPoint(), text);
     } else {
         // Shift slows the drag from where it is, without a jump
         d->editMoved += (pos - d->editLast) * (modifiers & Qt::ShiftModifier ? 0.25 : 1.0);

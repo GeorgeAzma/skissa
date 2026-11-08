@@ -4,6 +4,8 @@ set(kritaskissadetail_SOURCES
     SkissaDetailWidget.cpp
     SkissaFewer.cpp
     SkissaFewerFilter.cpp
+    SkissaInk.cpp
+    SkissaInkFilter.cpp
     SkissaLens.cpp
     SkissaLensFilter.cpp
     SkissaNoise.cpp

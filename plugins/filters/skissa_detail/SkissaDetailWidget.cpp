@@ -8,26 +8,34 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QPainter>
+#include <QPointer>
+#include <QThreadPool>
 #include <QRandomGenerator>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QtMath>
 
+#include <algorithm>
 #include <climits>
 #include <cmath>
 
+#include <KisColorMath.h>
 #include <KisEffectPanels.h>
 #include <KisGlobalResourcesInterface.h>
 #include <KisResourceModel.h>
 #include <KisResourceTypes.h>
+#include <KoColor.h>
 #include <KoColorSet.h>
+#include <KoColorSpaceRegistry.h>
 #include <KisModernStyle.h>
 #include <KisValueSteps.h>
 #include <filter/kis_filter.h>
 #include <filter/kis_filter_configuration.h>
 #include <filter/kis_filter_registry.h>
+#include <kis_color_button.h>
 #include <kis_icon_utils.h>
 #include <kis_default_bounds_base.h>
 #include <kis_paint_device.h>
@@ -37,8 +45,10 @@
 #include <widgets/KisStudioPicker.h>
 #include <widgets/KisStudioValueRow.h>
 
+#include "KoCompositeOpInLinear.h"
 #include "SkissaDetailFilter.h"
 #include "SkissaFewer.h"
+#include "SkissaInk.h"
 #include "SkissaNoise.h"
 #include "SkissaRadial.h"
 
@@ -865,7 +875,7 @@ bool SkissaLensWidget::canvasMiddle(QPointF *at) const
 namespace
 {
 
-SkissaRadial::Settings radialOf(float zoom, float spin, float blur = 1, float light = 0, float threshold = 0.6f)
+SkissaRadial::Settings radialOf(float zoom, float spin, float blur = 1, float light = 0, float threshold = 0.8f, float shafts = 0)
 {
     SkissaRadial::Settings settings;
     settings.zoom = zoom;
@@ -873,8 +883,32 @@ SkissaRadial::Settings radialOf(float zoom, float spin, float blur = 1, float li
     settings.blur = blur;
     settings.light = light;
     settings.threshold = threshold;
+    settings.shafts = shafts;
     return settings;
 }
+
+/// How bright \p picture's brightest parts look: the cube root of luminance that a two-hundredth of it reaches
+float brightestOf(const QImage &picture)
+{
+    const QImage image = picture.convertToFormat(QImage::Format_ARGB32);
+    const float *decode = KoMixing::srgbToLinearTable();
+    std::vector<float> seen;
+    seen.reserve(size_t(image.width()) * image.height());
+    for (int y = 0; y < image.height(); y++) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        for (int x = 0; x < image.width(); x++) {
+            if (qAlpha(line[x]) < 128) continue;
+            seen.push_back(std::cbrt(0.2126f * decode[qRed(line[x])] + 0.7152f * decode[qGreen(line[x])] + 0.0722f * decode[qBlue(line[x])]));
+        }
+    }
+    if (seen.empty()) return 1;
+    auto at = seen.begin() + std::ptrdiff_t(seen.size() * 0.995);
+    std::nth_element(seen.begin(), at, seen.end());
+    return std::max(0.05f, *at);
+}
+
+/// The length of the sample streak drawn from the middle's side, in screen pixels
+constexpr qreal sampleReach = 110;
 
 } // namespace
 
@@ -883,17 +917,24 @@ struct SkissaRadialWidget::Private {
     QRect bounds;
     qreal unit {1};
     SkissaRadial::Settings settings {SkissaRadial::zoomed()};
+    /// How bright the layer's brightest parts look, and the tiles' picture's
+    float layerTop {1};
+    float frameTop {1};
     QVector<QPair<QString, SkissaRadial::Settings>> presets;
     QImage frame;
     QVector<QImage> pictures;
-    QPointF picturesCenter {-1, -1};
+    SkissaRadial::Settings picturesFor;
+    /// Where the sample streak drawn on the image starts
+    QPointF sampleStart;
 
     KisStudioChips *tiles {nullptr};
     KisStudioValueRow *zoom {nullptr};
     KisStudioValueRow *spin {nullptr};
-    KisStudioValueRow *blur {nullptr};
+    KisStudioValueRow *picture {nullptr};
     KisStudioValueRow *light {nullptr};
     KisStudioValueRow *threshold {nullptr};
+    QWidget *shaftsRow {nullptr};
+    KisStudioValueRow *shafts {nullptr};
 
     void makePresets()
     {
@@ -902,8 +943,8 @@ struct SkissaRadialWidget::Private {
             {i18nc("radial blur preset", "Zoom"), SkissaRadial::zoomed()},
             {i18nc("radial blur preset", "Spin"), radialOf(0, 16)},
             {i18nc("radial blur preset", "Twist"), radialOf(0.2f, 24)},
-            {i18nc("radial blur preset", "Light rays"), radialOf(0.9f, 0, 0, 1.0f, 0.6f)},
-            {i18nc("radial blur preset", "Burst"), radialOf(0.5f, 0, 1, 1, 0.5f)},
+            {i18nc("radial blur preset", "Light rays"), radialOf(0.9f, 0, 0, 1, 0.8f, 0.5f)},
+            {i18nc("radial blur preset", "Burst"), radialOf(0.5f, 0, 1, 1, 0.7f)},
         };
     }
 
@@ -912,23 +953,33 @@ struct SkissaRadialWidget::Private {
         if (original && original->exactBounds().intersects(bounds)) {
             const qreal scale = qMin(qreal(lensPictureSize.width()) / bounds.width(), qreal(lensPictureSize.height()) / bounds.height());
             const QImage picture = original->createThumbnailUncached(qCeil(bounds.width() * scale), qCeil(bounds.height() * scale), bounds);
+            if (!picture.isNull()) layerTop = brightestOf(picture);
             if (!picture.isNull() && !KisEffectPanels::showsLittle(picture)) {
                 frame = picture;
+                frameTop = layerTop;
                 return;
             }
         }
         frame = KisStudioPicker::samplePicture(lensPictureSize).convertToFormat(QImage::Format_ARGB32);
+        frameTop = brightestOf(frame);
     }
 
-    /// The tiles show each look about the middle where it is now
+    /// The tiles show each look about the middle where it is now, with the beams chosen
     void makePictures()
     {
-        if (picturesCenter == settings.center && pictures.size() == presets.size()) return;
-        picturesCenter = settings.center;
+        SkissaRadial::Settings key;
+        key.center = settings.center;
+        key.seed = settings.seed;
+        key.shafts = settings.light > 0 ? settings.shafts : 0;
+        if (pictures.size() == presets.size() && picturesFor == key) return;
+        picturesFor = key;
         pictures.clear();
         for (const auto &preset : presets) {
             SkissaRadial::Settings look = preset.second;
             look.center = settings.center;
+            look.top = frameTop;
+            look.seed = settings.seed;
+            if (look.light > 0 && settings.light > 0) look.shafts = settings.shafts;
             pictures << SkissaRadial::applied(frame, look);
         }
     }
@@ -936,6 +987,14 @@ struct SkissaRadialWidget::Private {
     QPointF middleInImage() const
     {
         return QPointF(bounds.left() + settings.center.x() * bounds.width(), bounds.top() + settings.center.y() * bounds.height());
+    }
+
+    /// The streak's log of scale and turn, and how much of it lies beyond the pixel, as the effect makes them
+    void streakShape(double &logScale, double &turn, double &back) const
+    {
+        logScale = std::log(1.0 - qBound(0.0, double(settings.zoom), 0.98));
+        turn = qDegreesToRadians(double(settings.spin));
+        back = std::abs(turn) + std::abs(logScale) > 0 ? 0.5 * std::abs(turn) / (std::abs(turn) + std::abs(logScale)) : 0;
     }
 };
 
@@ -951,6 +1010,7 @@ SkissaRadialWidget::SkissaRadialWidget(QWidget *parent, KisPaintDeviceSP dev)
     d->unit = std::hypot(d->bounds.width(), d->bounds.height()) / 2;
     d->makePresets();
     d->makeFrame();
+    d->settings.top = d->layerTop;
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -960,9 +1020,11 @@ SkissaRadialWidget::SkissaRadialWidget(QWidget *parent, KisPaintDeviceSP dev)
     d->tiles->setTileColumns(6, qMax(64, 2 * fontMetrics().height() + 34));
     connect(d->tiles, &KisStudioChips::clicked, this, [this](int index) {
         if (index < 0 || index >= d->presets.size()) return;
-        const QPointF center = d->settings.center;
+        const SkissaRadial::Settings before = d->settings;
         d->settings = d->presets[index].second;
-        d->settings.center = center;
+        d->settings.center = before.center;
+        d->settings.top = before.top;
+        d->settings.seed = before.seed;
         refresh();
         Q_EMIT sigConfigurationItemChanged();
     });
@@ -970,26 +1032,53 @@ SkissaRadialWidget::SkissaRadialWidget(QWidget *parent, KisPaintDeviceSP dev)
 
     const QString percent = QStringLiteral("%");
     const QString degrees = QStringLiteral("°");
-    auto add = [&](const QString &name, float SkissaRadial::Settings::*value, qreal low, qreal high, const QString &suffix, qreal shownPer,
-                   qreal reset, const QString &tip = QString()) {
+    auto make = [&](const QString &name, float SkissaRadial::Settings::*value, qreal low, qreal high, const QString &suffix, qreal shownPer,
+                    qreal reset, const QString &tip) {
         KisStudioValueRow *row = valueRow(this, name, low * shownPer, high * shownPer, 0, suffix, reset * shownPer);
         row->setToolTip(tip);
         connect(row, &KisStudioValueRow::valueChanged, this, [this, value, shownPer](qreal shown) {
             d->settings.*value = float(shown / shownPer);
-            d->threshold->setVisible(d->settings.light > 0);
+            showLightRows();
             refreshTiles();
             Q_EMIT sigConfigurationItemChanged();
         });
+        return row;
+    };
+    auto add = [&](const QString &name, float SkissaRadial::Settings::*value, qreal low, qreal high, const QString &suffix, qreal shownPer,
+                   qreal reset, const QString &tip = QString()) {
+        KisStudioValueRow *row = make(name, value, low, high, suffix, shownPer, reset, tip);
         layout->addWidget(row);
         return row;
     };
     using S = SkissaRadial::Settings;
     d->zoom = add(i18nc("radial blur setting", "Zoom"), &S::zoom, 0, 0.98, percent, 100, 0);
     d->spin = add(i18nc("radial blur setting", "Spin"), &S::spin, -180, 180, degrees, 1, 0);
-    d->blur = add(i18nc("radial blur setting", "Blur"), &S::blur, 0, 1, percent, 100, 1, i18nc("@info:tooltip", "How much the picture streaks"));
+    d->picture = add(i18nc("radial blur setting: how much the picture itself streaks", "Picture"), &S::blur, 0, 1, percent, 100, 1,
+                     i18nc("@info:tooltip", "How much the picture itself streaks"));
     d->light = add(i18nc("radial blur setting", "Light"), &S::light, 0, 4, percent, 100, 0, i18nc("@info:tooltip", "Rays from the bright parts"));
-    d->threshold = add(i18nc("radial blur setting", "Threshold"), &S::threshold, 0, 0.99, percent, 100, 0.6,
-                       i18nc("@info:tooltip", "Only what is brighter shines"));
+    d->threshold = add(i18nc("radial blur setting", "Threshold"), &S::threshold, 0, 0.99, percent, 100, 0.8,
+                       i18nc("@info:tooltip", "Only the brightest parts shine"));
+
+    // beams, with the dice for others
+    d->shaftsRow = new QWidget(this);
+    auto *shaftsLayout = new QHBoxLayout(d->shaftsRow);
+    shaftsLayout->setContentsMargins(0, 0, 0, 0);
+    shaftsLayout->setSpacing(KisModernStyle::space1);
+    d->shafts = make(i18nc("radial blur setting: light broken into beams", "Shafts"), &S::shafts, 0, 1, percent, 100, 0,
+                     i18nc("@info:tooltip", "Light broken into beams"));
+    d->shafts->setParent(d->shaftsRow);
+    shaftsLayout->addWidget(d->shafts, 1);
+    auto *shuffle = new QToolButton(d->shaftsRow);
+    shuffle->setAutoRaise(true);
+    shuffle->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_dice")));
+    shuffle->setToolTip(i18nc("@info:tooltip", "Other beams"));
+    connect(shuffle, &QToolButton::clicked, this, [this]() {
+        d->settings.seed = QRandomGenerator::global()->bounded(1, 0x7fffffff);
+        refreshTiles();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    shaftsLayout->addWidget(shuffle);
+    layout->addWidget(d->shaftsRow);
 
     refresh();
 }
@@ -1001,6 +1090,8 @@ SkissaRadialWidget::~SkissaRadialWidget()
 void SkissaRadialWidget::setConfiguration(const KisPropertiesConfigurationSP config)
 {
     d->settings = config ? SkissaRadial::Settings::from(*config) : SkissaRadial::zoomed();
+    // the brightest parts are this layer's, not those of the layer the settings were last used on
+    d->settings.top = d->layerTop;
     refresh();
 }
 
@@ -1022,11 +1113,18 @@ void SkissaRadialWidget::refresh()
 {
     d->zoom->setValue(d->settings.zoom * 100.0);
     d->spin->setValue(d->settings.spin);
-    d->blur->setValue(d->settings.blur * 100.0);
+    d->picture->setValue(d->settings.blur * 100.0);
     d->light->setValue(d->settings.light * 100.0);
     d->threshold->setValue(d->settings.threshold * 100.0);
-    d->threshold->setVisible(d->settings.light > 0);
+    d->shafts->setValue(d->settings.shafts * 100.0);
+    showLightRows();
     refreshTiles();
+}
+
+void SkissaRadialWidget::showLightRows()
+{
+    d->threshold->setVisible(d->settings.light > 0);
+    d->shaftsRow->setVisible(d->settings.light > 0);
 }
 
 void SkissaRadialWidget::refreshTiles()
@@ -1079,6 +1177,51 @@ bool SkissaRadialWidget::canvasMiddle(QPointF *at) const
 {
     *at = d->middleInImage();
     return true;
+}
+
+bool SkissaRadialWidget::canvasStreak(qreal pixelsPerScreen, QPolygonF *path) const
+{
+    // the sample starts up and to the right of the middle, turning toward the image's middle when it is far off it
+    const QPointF middle = d->middleInImage();
+    const qreal reach = sampleReach * pixelsPerScreen;
+    QPointF toward = QRectF(d->bounds).center() - middle + QPointF(0.7, -0.7) * reach;
+    const qreal length = std::hypot(toward.x(), toward.y());
+    toward = length > 0 ? toward / length : QPointF(0.7071, -0.7071);
+    d->sampleStart = middle + toward * reach;
+
+    double logScale, turn, back;
+    d->streakShape(logScale, turn, back);
+    const QPointF from = d->sampleStart - middle;
+    path->clear();
+    constexpr int steps = 48;
+    for (int i = 0; i <= steps; i++) {
+        const double along = -back + double(i) / steps;
+        const double scale = std::exp(along * logScale), angle = along * turn;
+        const double c = scale * std::cos(angle), s = scale * std::sin(angle);
+        *path << middle + QPointF(c * from.x() - s * from.y(), s * from.x() + c * from.y());
+    }
+    return true;
+}
+
+QString SkissaRadialWidget::canvasStreakDragged(const QPointF &end)
+{
+    // the streak's end follows the pointer: how far in is the zoom, how far around the spin, shared between the two
+    // sides of a pixel as the effect shares them
+    const QPointF middle = d->middleInImage();
+    const QPointF from = d->sampleStart - middle, to = end - middle;
+    const qreal fromLength = std::hypot(from.x(), from.y()), toLength = std::hypot(to.x(), to.y());
+    if (fromLength < 1e-6 || toLength < 1e-6) return QString();
+    const double inward = std::min(0.0, std::log(toLength / fromLength));
+    const double around = std::remainder(std::atan2(to.y(), to.x()) - std::atan2(from.y(), from.x()), 2 * M_PI);
+    const double back = std::abs(around) + std::abs(inward) > 0 ? 0.5 * std::abs(around) / (std::abs(around) + std::abs(inward)) : 0;
+    d->settings.zoom = float(qBound(0.0, 1 - std::exp(inward / (1 - back)), 0.98));
+    d->settings.spin = float(qBound(-180.0, qRadiansToDegrees(around / (1 - back)), 180.0));
+    if (d->settings.blur == 0 && d->settings.light == 0) d->settings.blur = 1;
+    d->zoom->setValue(d->settings.zoom * 100.0);
+    d->spin->setValue(d->settings.spin);
+    d->picture->setValue(d->settings.blur * 100.0);
+    Q_EMIT sigConfigurationItemChanged();
+    return QStringLiteral("%1   %2").arg(rowText(d->zoom, 0, QStringLiteral("%")), rowText(d->spin, 0, QStringLiteral("°")));
 }
 
 namespace
@@ -1468,4 +1611,419 @@ QString SkissaFewerWidget::canvasDragged(const QPointF &moved, const QPointF &)
 void SkissaFewerWidget::canvasReleased()
 {
     d->dragging = false;
+}
+
+namespace
+{
+
+SkissaInk::Settings inkOf(float size, float lines, float ink, float softness, float flow, SkissaInk::Colors colors = SkissaInk::Colors::Paper,
+                          int tones = 1, float hatching = 0)
+{
+    SkissaInk::Settings settings;
+    settings.size = size;
+    settings.lines = lines;
+    settings.ink = ink;
+    settings.softness = softness;
+    settings.flow = flow;
+    settings.colors = colors;
+    settings.tones = tones;
+    settings.hatching = hatching;
+    return settings;
+}
+
+/// Each pixel's Oklab lightness as on white paper, sorted: how much of \p picture is darker than a lightness
+std::vector<float> lightnessOf(const QImage &picture)
+{
+    const QImage image = picture.convertToFormat(QImage::Format_ARGB32);
+    const float *decode = KoMixing::srgbToLinearTable();
+    std::vector<float> seen;
+    seen.reserve(size_t(image.width()) * image.height());
+    for (int y = 0; y < image.height(); y++) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        for (int x = 0; x < image.width(); x++) {
+            const float alpha = qAlpha(line[x]) / 255.0f;
+            const float r = decode[qRed(line[x])] * alpha + 1 - alpha;
+            const float g = decode[qGreen(line[x])] * alpha + 1 - alpha;
+            const float b = decode[qBlue(line[x])] * alpha + 1 - alpha;
+            seen.push_back(float(KisColorMath::oklabFromLinear(r, g, b).l));
+        }
+    }
+    std::sort(seen.begin(), seen.end());
+    return seen;
+}
+
+/// The lightness below which \p share of a picture lies (its sorted lightness \p sorted); none for no ink
+float levelOf(const std::vector<float> &sorted, float share)
+{
+    if (share <= 0) return 0;
+    if (sorted.empty()) return -1;
+    if (share >= 1) return sorted.back() + 0.01f;
+    return sorted[size_t(share * (sorted.size() - 1))];
+}
+
+/// A tile's picture, and the scale it shows the layer at: large enough that lines show as they will, small enough
+/// that a tile holds more than one thing
+const QSize inkTileSize(120, 75);
+constexpr qreal inkTileScale = 0.5;
+
+} // namespace
+
+struct SkissaInkWidget::Private {
+    KisPaintDeviceSP original;
+    SkissaInk::Settings settings {SkissaInk::inked()};
+    /// The layer's lightness, sorted, and the tiles' picture's
+    std::vector<float> layerLightness;
+    std::vector<float> baseLightness;
+    QVector<QPair<QString, SkissaInk::Settings>> looks;
+    QVector<QPair<QString, SkissaInk::Colors>> colorings;
+    /// The tiles' part of the layer, with room around it for what the looks read
+    QImage base;
+    QPoint corner;
+    QVector<QImage> lookPictures;
+    QVector<QImage> colorPictures;
+    /// Pictures are made on another thread after a pause; only the latest asked for are shown (a widget gone by then
+    /// drops them)
+    QTimer *later {nullptr};
+    int generation {0};
+
+    KisStudioChips *lookTiles {nullptr};
+    KisStudioChips *colorTiles {nullptr};
+    KisStudioValueRow *size {nullptr};
+    KisStudioValueRow *lines {nullptr};
+    KisStudioValueRow *ink {nullptr};
+    KisStudioValueRow *softness {nullptr};
+    KisStudioValueRow *flow {nullptr};
+    KisStudioValueRow *tones {nullptr};
+    KisStudioValueRow *hatching {nullptr};
+    KisStudioValueRow *spacing {nullptr};
+    KisStudioValueRow *angle {nullptr};
+    QWidget *inkColorRow {nullptr};
+    QWidget *paperColorRow {nullptr};
+    KisColorButton *inkColor {nullptr};
+    KisColorButton *paperColor {nullptr};
+
+    float startInk {0};
+    float startSize {1};
+
+    void makeLooks()
+    {
+        using C = SkissaInk::Colors;
+        looks = {
+            {i18nc("ink effect look", "Original"), inkOf(1.5f, 0, 0, 0.05f, 0, C::Over)},
+            {i18nc("ink effect look", "Lines"), inkOf(1.0f, 0.7f, 0, 0.08f, 0.5f)},
+            {i18nc("ink effect look", "Ink"), SkissaInk::inked()},
+            {i18nc("ink effect look", "Pencil"), inkOf(0.8f, 0.4f, 0.7f, 0.5f, 0.3f)},
+            {i18nc("ink effect look", "Charcoal"), inkOf(2.5f, 0.3f, 0.6f, 0.45f, 0.8f)},
+            {i18nc("ink effect look", "Hatching"), inkOf(1.2f, 0.5f, 0.6f, 0.15f, 0.4f, C::Paper, 3, 1)},
+            {i18nc("ink effect look", "Woodcut"), inkOf(2.0f, 0.8f, 0.45f, 0, 1)},
+            {i18nc("ink effect look", "Comic"), inkOf(1.2f, 0.6f, 0.15f, 0.03f, 0.5f, C::Over)},
+            {i18nc("ink effect look: colored pencils", "Crayon"), inkOf(0.8f, 0.4f, 0.7f, 0.45f, 0.3f, C::Colored, 2, 0.6f)},
+            {i18nc("ink effect look", "Wash"), inkOf(2.0f, 0.3f, 0.08f, 0.4f, 1, C::Over)},
+        };
+        colorings = {
+            {i18nc("ink effect: ink on paper", "Paper"), C::Paper},
+            {i18nc("ink effect: ink alone, see-through between", "Clear"), C::Clear},
+            {i18nc("ink effect: ink over the picture", "Picture"), C::Over},
+            {i18nc("ink effect: the picture's own colors as ink", "Colors"), C::Colored},
+        };
+    }
+
+    void makeBase()
+    {
+        int margin = 0;
+        for (const auto &look : looks) margin = std::max(margin, SkissaInk::Ink(look.second, inkTileScale).reach());
+        margin = std::min(margin + 4, 64);
+        const QSize whole = inkTileSize + QSize(2 * margin, 2 * margin);
+        if (original) {
+            const QRect bounds = original->exactBounds();
+            if (!bounds.isEmpty()) {
+                const qreal scale = qMin(1.0, 256.0 / qMax(bounds.width(), bounds.height()));
+                layerLightness = lightnessOf(original->createThumbnailUncached(qCeil(bounds.width() * scale), qCeil(bounds.height() * scale), bounds));
+                const QPoint busiest = KisEffectPanels::busiestPoint(original, bounds);
+                const QSize read = whole / inkTileScale;
+                const QRect crop(busiest - QPoint(read.width() / 2, read.height() / 2), read);
+                base = original->convertToQImage(nullptr, crop).scaled(whole, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                corner = QPoint(margin, margin);
+                baseLightness = layerLightness;
+            }
+        }
+        if (base.isNull() || KisEffectPanels::showsLittle(base.copy(QRect(corner, inkTileSize)))) {
+            base = KisStudioPicker::samplePicture(whole * 3).convertToFormat(QImage::Format_ARGB32).copy(QRect(QPoint(whole.width(), whole.height()), whole));
+            corner = QPoint(margin, margin);
+            baseLightness = lightnessOf(base);
+        }
+    }
+
+    /// \p look as the layer has it: its share of ink at the layer's own lightness
+    SkissaInk::Settings onLayer(SkissaInk::Settings look) const
+    {
+        look.level = levelOf(layerLightness, look.ink);
+        return look;
+    }
+};
+
+SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
+    : KisConfigWidget(parent)
+    , d(new Private)
+{
+    if (dev) d->original = KisEffectPanels::fullSizeCopy(dev);
+    d->makeLooks();
+    d->makeBase();
+    d->settings = d->onLayer(d->settings);
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
+
+    const int tileHeight = qMax(64, 2 * fontMetrics().height() + 34);
+    d->lookTiles = new KisStudioChips(this);
+    d->lookTiles->setTileColumns(5, tileHeight);
+    connect(d->lookTiles, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= d->looks.size()) return;
+        const SkissaInk::Settings before = d->settings;
+        d->settings = d->onLayer(d->looks[index].second);
+        d->settings.inkColor = before.inkColor;
+        d->settings.paperColor = before.paperColor;
+        d->settings.spacing = before.spacing;
+        d->settings.angle = before.angle;
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    layout->addWidget(d->lookTiles);
+
+    const QString percent = QStringLiteral("%");
+    const QString px = i18nc("pixels, after a number", " px");
+    auto add = [&](const QString &name, qreal low, qreal high, int decimals, const QString &suffix, qreal reset, std::function<void(qreal)> write,
+                   const QString &tip = QString()) {
+        KisStudioValueRow *row = valueRow(this, name, low, high, decimals, suffix, reset);
+        row->setToolTip(tip);
+        connect(row, &KisStudioValueRow::valueChanged, this, [this, write](qreal value) {
+            write(value);
+            showRows();
+            refreshTiles();
+            Q_EMIT sigConfigurationItemChanged();
+        });
+        layout->addWidget(row);
+        return row;
+    };
+    const SkissaInk::Settings defaults = SkissaInk::inked();
+    d->size = add(i18nc("ink effect setting", "Size"), 0.3, 40, 1, px, defaults.size, [this](qreal v) { d->settings.size = float(v); },
+                  i18nc("@info:tooltip", "How fine or bold the lines are"));
+    d->lines = add(i18nc("ink effect setting", "Lines"), 0, 100, 0, percent, defaults.lines * 100, [this](qreal v) { d->settings.lines = float(v / 100); },
+                   i18nc("@info:tooltip", "From the picture's own tones to outlines only"));
+    d->ink = add(i18nc("ink effect setting", "Ink"), 0, 100, 0, percent, defaults.ink * 100,
+                 [this](qreal v) {
+                     d->settings.ink = float(v / 100);
+                     d->settings.level = levelOf(d->layerLightness, d->settings.ink);
+                 },
+                 i18nc("@info:tooltip", "How much of the picture goes dark"));
+    d->softness = add(i18nc("ink effect setting", "Softness"), 0, 100, 0, percent, defaults.softness * 100,
+                      [this](qreal v) { d->settings.softness = float(v / 100); });
+    d->flow = add(i18nc("ink effect setting", "Flow"), 0, 100, 0, percent, defaults.flow * 100, [this](qreal v) { d->settings.flow = float(v / 100); },
+                  i18nc("@info:tooltip", "How much lines and colors follow the shapes"));
+    d->tones = add(i18nc("ink effect setting", "Tones"), 1, 8, 0, QString(), defaults.tones, [this](qreal v) { d->settings.tones = qRound(v); });
+    d->hatching = add(i18nc("ink effect setting", "Hatching"), 0, 100, 0, percent, 0, [this](qreal v) { d->settings.hatching = float(v / 100); },
+                      i18nc("@info:tooltip", "Tones drawn as lines, crossing for darker ones"));
+    d->spacing = add(i18nc("ink effect setting: between hatch lines", "Spacing"), 2, 60, 1, px, defaults.spacing,
+                     [this](qreal v) { d->settings.spacing = float(v); });
+    d->angle = add(i18nc("ink effect setting: of the hatch lines", "Angle"), -90, 90, 0, QStringLiteral("°"), defaults.angle,
+                   [this](qreal v) { d->settings.angle = float(v); });
+
+    d->colorTiles = new KisStudioChips(this);
+    d->colorTiles->setTileColumns(4, tileHeight);
+    connect(d->colorTiles, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= d->colorings.size()) return;
+        d->settings.colors = d->colorings[index].second;
+        showRows();
+        refreshTiles();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    layout->addWidget(d->colorTiles);
+
+    // the ink's and the paper's colors side by side, each shown while it is used
+    const KoColorSpace *rgb = KoColorSpaceRegistry::instance()->rgb8();
+    auto *colors = new QWidget(this);
+    auto *colorsLayout = new QHBoxLayout(colors);
+    colorsLayout->setContentsMargins(0, 0, 0, 0);
+    colorsLayout->setSpacing(KisModernStyle::space4);
+    auto colorPart = [&](const QString &name, const QColor &color, KisColorButton **button, std::function<void(const QColor &)> write) {
+        auto *part = new QWidget(colors);
+        auto *partLayout = new QHBoxLayout(part);
+        partLayout->setContentsMargins(0, 0, 0, 0);
+        partLayout->addWidget(new QLabel(name, part), 1);
+        *button = new KisColorButton(KoColor(color, rgb), part);
+        (*button)->setAlphaChannelEnabled(true);
+        partLayout->addWidget(*button);
+        connect(*button, &KisColorButton::changed, this, [this, write](const KoColor &c) {
+            QColor picked;
+            c.toQColor(&picked);
+            write(picked);
+            refreshTiles();
+            Q_EMIT sigConfigurationItemChanged();
+        });
+        colorsLayout->addWidget(part, 1);
+        return part;
+    };
+    d->inkColorRow = colorPart(i18nc("ink effect: the color of the ink", "Ink"), d->settings.inkColor, &d->inkColor,
+                               [this](const QColor &c) { d->settings.inkColor = c; });
+    d->paperColorRow = colorPart(i18nc("ink effect: the color of the paper", "Paper"), d->settings.paperColor, &d->paperColor,
+                                 [this](const QColor &c) { d->settings.paperColor = c; });
+    layout->addWidget(colors);
+
+    d->later = new QTimer(this);
+    d->later->setSingleShot(true);
+    d->later->setInterval(120);
+    connect(d->later, &QTimer::timeout, this, &SkissaInkWidget::makePictures);
+
+    refresh();
+    makePictures();
+}
+
+SkissaInkWidget::~SkissaInkWidget()
+{
+}
+
+void SkissaInkWidget::setConfiguration(const KisPropertiesConfigurationSP config)
+{
+    // the share of ink is read on this layer, not the one the settings were last used on
+    d->settings = d->onLayer(config ? SkissaInk::Settings::from(*config) : SkissaInk::inked());
+    refresh();
+}
+
+KisPropertiesConfigurationSP SkissaInkWidget::configuration() const
+{
+    KisFilterSP filter = KisFilterRegistry::instance()->value(QStringLiteral("skissa_ink"));
+    KisFilterConfigurationSP config = filter->factoryConfiguration(KisGlobalResourcesInterface::instance());
+    d->settings.writeTo(*config);
+    return config;
+}
+
+QSize SkissaInkWidget::sizeHint() const
+{
+    const int width = 500;
+    return QSize(width, qMax(layout()->heightForWidth(width), layout()->sizeHint().height()));
+}
+
+void SkissaInkWidget::refresh()
+{
+    const SkissaInk::Settings &s = d->settings;
+    d->size->setValue(s.size);
+    d->lines->setValue(s.lines * 100.0);
+    d->ink->setValue(s.ink * 100.0);
+    d->softness->setValue(s.softness * 100.0);
+    d->flow->setValue(s.flow * 100.0);
+    d->tones->setValue(s.tones);
+    d->hatching->setValue(s.hatching * 100.0);
+    d->spacing->setValue(s.spacing);
+    d->angle->setValue(s.angle);
+    const KoColorSpace *rgb = KoColorSpaceRegistry::instance()->rgb8();
+    {
+        QSignalBlocker inkBlocker(d->inkColor), paperBlocker(d->paperColor);
+        d->inkColor->setColor(KoColor(s.inkColor, rgb));
+        d->paperColor->setColor(KoColor(s.paperColor, rgb));
+    }
+    showRows();
+    refreshTiles();
+}
+
+void SkissaInkWidget::showRows()
+{
+    const SkissaInk::Settings &s = d->settings;
+    d->spacing->setVisible(s.hatching > 0);
+    d->angle->setVisible(s.hatching > 0);
+    d->inkColorRow->setVisible(s.colors != SkissaInk::Colors::Colored);
+    d->paperColorRow->setVisible(s.colors == SkissaInk::Colors::Paper || s.colors == SkissaInk::Colors::Colored);
+}
+
+void SkissaInkWidget::refreshTiles()
+{
+    showTiles();
+    d->later->start();
+}
+
+void SkissaInkWidget::showTiles()
+{
+    QVector<KisStudioChips::Chip> looks;
+    for (int i = 0; i < d->looks.size(); i++) {
+        KisStudioChips::Chip chip;
+        chip.text = d->looks[i].first;
+        chip.on = d->settings.sameLook(d->looks[i].second) || (i == 0 && d->settings.changesNothing());
+        chip.picture = tilePicture(d->lookPictures.value(i));
+        chip.pictureKey = d->lookPictures.value(i).cacheKey();
+        looks << chip;
+    }
+    d->lookTiles->setChips(looks);
+    QVector<KisStudioChips::Chip> colorings;
+    for (int i = 0; i < d->colorings.size(); i++) {
+        KisStudioChips::Chip chip;
+        chip.text = d->colorings[i].first;
+        chip.on = d->settings.colors == d->colorings[i].second;
+        chip.picture = tilePicture(d->colorPictures.value(i));
+        chip.pictureKey = d->colorPictures.value(i).cacheKey();
+        colorings << chip;
+    }
+    d->colorTiles->setChips(colorings);
+}
+
+void SkissaInkWidget::makePictures()
+{
+    // the looks with the colors chosen, and the look chosen in each coloring, made away from the window's thread
+    QVector<SkissaInk::Settings> asked;
+    for (const auto &look : d->looks) {
+        SkissaInk::Settings s = look.second;
+        s.inkColor = d->settings.inkColor;
+        s.paperColor = d->settings.paperColor;
+        s.spacing = d->settings.spacing;
+        s.angle = d->settings.angle;
+        asked << s;
+    }
+    for (const auto &coloring : d->colorings) {
+        SkissaInk::Settings s = d->settings;
+        s.colors = coloring.second;
+        asked << s;
+    }
+    for (SkissaInk::Settings &s : asked) s.level = levelOf(d->baseLightness, s.ink);
+    const int generation = ++d->generation;
+    const QImage base = d->base;
+    const QRect shown(d->corner, inkTileSize);
+    const int looks = d->looks.size();
+    QPointer<SkissaInkWidget> self(this);
+    QThreadPool::globalInstance()->start([self, generation, base, shown, asked, looks]() {
+        QVector<QImage> pictures;
+        for (const SkissaInk::Settings &s : asked) pictures << SkissaInk::applied(base, s, inkTileScale).copy(shown);
+        QMetaObject::invokeMethod(qApp, [self, generation, pictures, looks]() {
+            if (!self || self->d->generation != generation) return;
+            self->d->lookPictures = pictures.mid(0, looks);
+            self->d->colorPictures = pictures.mid(looks);
+            self->showTiles();
+        }, Qt::QueuedConnection);
+    });
+}
+
+void SkissaInkWidget::canvasHovered(const QPoint &)
+{
+}
+
+bool SkissaInkWidget::canvasPressed(const QPoint &)
+{
+    d->startInk = d->settings.ink;
+    d->startSize = d->settings.size;
+    return true;
+}
+
+QString SkissaInkWidget::canvasDragged(const QPointF &moved, const QPointF &)
+{
+    // up for more ink, sideways for bolder or finer lines, by ratios as brush sizes go
+    d->settings.ink = float(qBound(0.0, d->startInk - moved.y() / 300.0, 1.0));
+    d->settings.level = levelOf(d->layerLightness, d->settings.ink);
+    d->settings.size = float(qBound(0.3, d->startSize * std::exp(moved.x() / 250.0), 40.0));
+    d->ink->setValue(d->settings.ink * 100.0);
+    d->size->setValue(d->settings.size);
+    Q_EMIT sigConfigurationItemChanged();
+    return QStringLiteral("%1   %2").arg(rowText(d->ink, 0, QStringLiteral("%")), rowText(d->size, 1, i18nc("pixels, after a number", " px")));
+}
+
+void SkissaInkWidget::canvasReleased()
+{
+    refreshTiles();
 }
