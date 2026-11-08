@@ -29,6 +29,14 @@ public:
     /// Shift); returns the value to show
     virtual QString canvasDragged(const QPointF &moved, const QPointF &at) = 0;
     virtual void canvasReleased() = 0;
+
+    /// The point on the image the effect is about (a lens's or a radial blur's middle), drawn as a handle there;
+    /// false if it has none. Its presses place that point and its drags move it, under a crosshair.
+    virtual bool canvasMiddle(QPointF *at) const
+    {
+        Q_UNUSED(at);
+        return false;
+    }
 };
 
 #define KisEffectCanvasEditor_iid "org.skissa.KisEffectCanvasEditor"

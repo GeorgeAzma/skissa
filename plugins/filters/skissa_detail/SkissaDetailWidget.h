@@ -129,6 +129,7 @@ public:
     bool canvasPressed(const QPoint &pixel) override;
     QString canvasDragged(const QPointF &moved, const QPointF &at) override;
     void canvasReleased() override;
+    bool canvasMiddle(QPointF *at) const override;
 
     QSize sizeHint() const override;
 
@@ -143,8 +144,7 @@ private:
 
 /**
  * Radial blur's panel: pictures of the whole image streaked a few ways, then the zoom, the spin, and how much of the
- * picture and of its light streaks. A click on the image puts the middle there (a drag from the middle moves it); a
- * drag elsewhere pulls the streak under the pointer: toward the middle zooms, around it spins.
+ * picture and of its light streaks. A press on the image puts the middle there; a drag moves it.
  */
 class SkissaRadialWidget : public KisConfigWidget, public KisEffectCanvasEditor
 {
@@ -161,6 +161,7 @@ public:
     bool canvasPressed(const QPoint &pixel) override;
     QString canvasDragged(const QPointF &moved, const QPointF &at) override;
     void canvasReleased() override;
+    bool canvasMiddle(QPointF *at) const override;
 
     QSize sizeHint() const override;
 

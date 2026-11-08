@@ -422,6 +422,48 @@ private:
     QString m_text;
 };
 
+/// An effect's middle on the image: a ring with ticks, white edged dark, so it shows on any picture
+class MiddleMark : public QWidget
+{
+public:
+    explicit MiddleMark(QWidget *parent) : QWidget(parent)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        resize(side, side);
+        hide();
+    }
+
+    /// Centred on \p at (in its parent), hidden while that is off it
+    void placeAt(const QPointF &at)
+    {
+        move(QPoint(qRound(at.x()) - side / 2, qRound(at.y()) - side / 2));
+        setVisible(QRectF(parentWidget()->rect()).contains(at));
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QPointF middle(side / 2.0, side / 2.0);
+        auto stroke = [&](qreal width, const QColor &color) {
+            painter.setPen(QPen(color, width, Qt::SolidLine, Qt::RoundCap));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawEllipse(middle, ring, ring);
+            for (const QPointF &way : {QPointF(1, 0), QPointF(-1, 0), QPointF(0, 1), QPointF(0, -1)}) {
+                painter.drawLine(middle + way * (ring + 3), middle + way * (ring + 7));
+            }
+            painter.drawPoint(middle);
+        };
+        stroke(4.5, QColor(0, 0, 0, 140));
+        stroke(2, Qt::white);
+    }
+
+private:
+    static constexpr int side = 40;
+    static constexpr qreal ring = 7;
+};
+
 } // namespace
 
 struct KisStudioEffectOverlay::Private
@@ -466,6 +508,8 @@ struct KisStudioEffectOverlay::Private
     bool simple {false};
     QPointer<QWidget> canvasWidget;
     QPointer<ValuePill> pill;
+    QPointer<MiddleMark> mark;
+    QMetaObject::Connection viewChanged;
     bool dragging {false};
     QPointF dragStart;
     bool fine {false};
@@ -531,8 +575,28 @@ struct KisStudioEffectOverlay::Private
     {
         if (on == cursorSet) return;
         cursorSet = on;
-        if (on) QApplication::setOverrideCursor(editor ? Qt::SizeVerCursor : knobs.size() > 1 ? Qt::SizeAllCursor : Qt::SizeHorCursor);
-        else QApplication::restoreOverrideCursor();
+        QPointF middle;
+        if (on) {
+            QApplication::setOverrideCursor(editor && editor->canvasMiddle(&middle) ? Qt::CrossCursor
+                                                : editor                             ? Qt::SizeVerCursor
+                                                : knobs.size() > 1                   ? Qt::SizeAllCursor
+                                                                                     : Qt::SizeHorCursor);
+        } else {
+            QApplication::restoreOverrideCursor();
+        }
+    }
+
+    /// The effect's middle drawn where it is on the image now
+    void showMiddle()
+    {
+        if (!mark) return;
+        QPointF at;
+        KisCanvas2 *canvas = viewManager() ? viewManager()->canvasBase() : nullptr;
+        if (!editor || !canvas || !editor->canvasMiddle(&at)) {
+            mark->hide();
+            return;
+        }
+        mark->placeAt(canvas->coordinatesConverter()->imageToWidget(at));
     }
 };
 
@@ -688,6 +752,7 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
     }
     connect(selector, &KisFilterSelectorWidget::configurationChanged, &d->compressor, &KisSignalCompressor::start);
     connect(selector, &KisFilterSelectorWidget::configurationChanged, this, &KisStudioEffectOverlay::showReset);
+    connect(selector, &KisFilterSelectorWidget::configurationChanged, this, [this]() { d->showMiddle(); });
     connect(selector, &KisFilterSelectorWidget::sigSizeChanged, this, &KisStudioEffectOverlay::reposition);
     d->scroll->setWidget(selector);
     d->selector = selector;
@@ -729,6 +794,12 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
         d->canvasWidget = viewManager->canvasBase()->canvasWidget();
         if (d->canvasWidget) {
             d->canvasWidget->installEventFilter(this);
+            QPointF middle;
+            if (d->editor && d->editor->canvasMiddle(&middle)) {
+                d->mark = new MiddleMark(d->canvasWidget);
+                d->viewChanged = connect(viewManager->canvasBase(), &KisCanvas2::sigCanvasStateChanged, this, [this]() { d->showMiddle(); });
+                d->showMiddle();
+            }
             d->pill = new ValuePill(d->canvasWidget);
             if (d->canvasWidget->rect().contains(d->canvasWidget->mapFromGlobal(QCursor::pos()))) {
                 d->setCursor(true);
@@ -860,6 +931,8 @@ void KisStudioEffectOverlay::finishEditing()
     }
     qApp->removeEventFilter(this);
     delete d->pill;
+    delete d->mark;
+    disconnect(d->viewChanged);
     // the keys go back to the canvas, not to whatever widget Qt would pick when the panel holding them hides
     if (hasFocus() || isAncestorOf(QApplication::focusWidget())) KisStudioTools::focusCanvas(this);
     d->canvasWidget = nullptr;
@@ -1047,7 +1120,9 @@ bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos
     if (press) {
         const bool plain = modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier;
         if (button != Qt::LeftButton || !plain || d->spaceHeld) return false;
-        if (d->editor->canvasPressed(pixel)) {
+        const bool drags = d->editor->canvasPressed(pixel);
+        d->showMiddle();
+        if (drags) {
             d->dragging = true;
             d->editMoved = QPointF();
             d->editLast = pos;
@@ -1067,6 +1142,7 @@ bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos
     if (release || !held) {
         d->dragging = false;
         d->editor->canvasReleased();
+        d->showMiddle();
         if (d->pill) d->pill->hide();
     } else {
         // Shift slows the drag from where it is, without a jump
@@ -1074,6 +1150,7 @@ bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos
         d->editLast = pos;
         const QPointF over = converter->viewportToImage(converter->widgetToViewport(d->editStart + d->editMoved));
         const QString text = d->editor->canvasDragged(d->editMoved, over);
+        d->showMiddle();
         if (d->pill && !text.isEmpty()) d->pill->showAt(pos.toPoint(), text);
     }
     event->accept();

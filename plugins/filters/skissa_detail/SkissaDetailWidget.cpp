@@ -856,6 +856,12 @@ void SkissaLensWidget::canvasReleased()
     refreshTiles();
 }
 
+bool SkissaLensWidget::canvasMiddle(QPointF *at) const
+{
+    *at = QPointF(d->bounds.left() + d->settings.center.x() * d->bounds.width(), d->bounds.top() + d->settings.center.y() * d->bounds.height());
+    return true;
+}
+
 namespace
 {
 
@@ -870,11 +876,6 @@ SkissaRadial::Settings radialOf(float zoom, float spin, float blur = 1, float li
     return settings;
 }
 
-/// A press this close to the middle (a share of the half diagonal) moves it
-constexpr qreal middleGrip = 0.04;
-/// Screen pixels a press moves before it is a drag rather than a click
-constexpr qreal clickSlop = 4;
-
 } // namespace
 
 struct SkissaRadialWidget::Private {
@@ -886,13 +887,6 @@ struct SkissaRadialWidget::Private {
     QImage frame;
     QVector<QImage> pictures;
     QPointF picturesCenter {-1, -1};
-
-    /// A press on the image: where, whether it holds the middle, whether it became a drag, the values it started from
-    QPointF pressed;
-    bool movingMiddle {false};
-    bool pulled {false};
-    float startZoom {0};
-    float startSpin {0};
 
     KisStudioChips *tiles {nullptr};
     KisStudioValueRow *zoom {nullptr};
@@ -1066,46 +1060,25 @@ void SkissaRadialWidget::canvasHovered(const QPoint &)
 
 bool SkissaRadialWidget::canvasPressed(const QPoint &pixel)
 {
-    d->pressed = QPointF(pixel) + QPointF(0.5, 0.5);
-    const QPointF fromMiddle = d->pressed - d->middleInImage();
-    d->movingMiddle = std::hypot(fromMiddle.x(), fromMiddle.y()) < qMax(12.0, middleGrip * d->unit);
-    d->pulled = false;
-    d->startZoom = d->settings.zoom;
-    d->startSpin = d->settings.spin;
+    placeCenter(QPointF(pixel) + QPointF(0.5, 0.5));
     return true;
 }
 
-QString SkissaRadialWidget::canvasDragged(const QPointF &moved, const QPointF &at)
+QString SkissaRadialWidget::canvasDragged(const QPointF &, const QPointF &at)
 {
-    if (!d->pulled && std::hypot(moved.x(), moved.y()) < clickSlop) return QString();
-    d->pulled = true;
-    if (d->movingMiddle) {
-        placeCenter(at);
-        return QString();
-    }
-    // the streak under the pointer reaches to it: pulled toward the middle it zooms, around it it spins (both ways)
-    const QPointF fromMiddle = d->pressed - d->middleInImage();
-    const qreal distance = std::hypot(fromMiddle.x(), fromMiddle.y());
-    if (distance < 1) return QString();
-    const QPointF outward = fromMiddle / distance;
-    const QPointF pull = at - d->pressed;
-    const qreal inward = -(pull.x() * outward.x() + pull.y() * outward.y());
-    const qreal around = pull.y() * outward.x() - pull.x() * outward.y();
-    d->settings.zoom = float(qBound(0.0, d->startZoom + inward / distance, 0.98));
-    d->settings.spin = float(qBound(-180.0, d->startSpin + 2 * qRadiansToDegrees(around / distance), 180.0));
-    if (d->settings.blur == 0 && d->settings.light == 0) d->settings.blur = 1;
-    d->zoom->setValue(d->settings.zoom * 100.0);
-    d->spin->setValue(d->settings.spin);
-    d->blur->setValue(d->settings.blur * 100.0);
-    Q_EMIT sigConfigurationItemChanged();
-    return QStringLiteral("%1   %2").arg(rowText(d->zoom, 0, QStringLiteral("%")), rowText(d->spin, 0, QStringLiteral("°")));
+    placeCenter(at);
+    return QString();
 }
 
 void SkissaRadialWidget::canvasReleased()
 {
-    if (!d->pulled) placeCenter(d->pressed);
-    d->pulled = false;
     refreshTiles();
+}
+
+bool SkissaRadialWidget::canvasMiddle(QPointF *at) const
+{
+    *at = d->middleInImage();
+    return true;
 }
 
 namespace
