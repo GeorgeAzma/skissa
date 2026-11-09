@@ -56,6 +56,10 @@
 #include "KisStudioPenPopup.h"
 #include "KisStudioTips.h"
 #include "KisViewManager.h"
+#include "KisStudioSmoothing.h"
+#include "KisStudioTools.h"
+#include <KoCanvasController.h>
+#include <KoToolManager.h>
 #include "kis_canvas_resource_provider.h"
 #include "kis_node.h"
 #include "kis_paintop_box.h"
@@ -561,6 +565,8 @@ struct KisStudioBrushSheet::Private
 
     QPointer<KisStudioPenPopup> pen;
     QPointer<KisStudioPopup> details;
+    /// Whether the Stroke column is shown: it is for the tools that paint freehand
+    bool strokeShown {false};
     QTimer refreshGrid;
     KisSignalAutoConnectionsStore presetConnections;
 
@@ -573,71 +579,6 @@ struct KisStudioBrushSheet::Private
     QList<KisPaintOpOption *> options() const
     {
         return settings ? settings->options() : QList<KisPaintOpOption *>();
-    }
-
-    /// The brush's blend mode, as the top bar has it, and its eraser mode
-    QWidget *blendRow(QWidget *parent)
-    {
-        KisViewManager *view = mainWindow ? mainWindow->viewManager() : nullptr;
-        KisCanvasResourceProvider *resources = view ? view->canvasResourceProvider() : nullptr;
-        if (!resources) return nullptr;
-        auto *row = new QWidget(parent);
-        auto *layout = new QHBoxLayout(row);
-        layout->setContentsMargins(KisModernStyle::space2, 0, 0, 0);
-        layout->setSpacing(KisModernStyle::hairline);
-        row->setToolTip(i18nc("brush setting", "Blend mode"));
-        // the mode at a glance: a stroke of the color in it, over the image
-        auto *glance = new QLabel(row);
-        const qreal ratio = row->devicePixelRatioF();
-        const QSize glanceSize(36, 22);
-        glance->setFixedSize(glanceSize);
-        const KisBlendModePicker::Pictures pictures =
-            KisBlendModePicker::brushPictures(view->image(), glanceSize * ratio, resources->fgColor().toQColor());
-        auto showGlance = [glance, pictures, ratio, glanceSize](const QString &id) {
-            QImage picture = KisBlendModePicker::modePicture(pictures, id);
-            if (picture.isNull()) return glance->clear();
-            QPixmap rounded(glanceSize * ratio);
-            rounded.fill(Qt::transparent);
-            QPainter painter(&rounded);
-            painter.setRenderHint(QPainter::Antialiasing, true);
-            painter.setClipPath(KisModernStyle::squircle(QRectF(QPointF(0, 0), QSizeF(glanceSize) * ratio), KisModernStyle::cornerRadius * ratio));
-            painter.drawImage(0, 0, picture);
-            painter.end();
-            rounded.setDevicePixelRatio(ratio);
-            glance->setPixmap(rounded);
-        };
-        showGlance(resources->currentCompositeOp());
-        layout->addWidget(glance);
-        auto *mode = new KisCompositeOpComboBox(row);
-        mode->setForBrush(true);
-        mode->setFrame(false);
-        mode->setMaximumWidth(150);
-        if (KisNodeSP node = view->activeNode()) mode->validate(node->colorSpace());
-        mode->selectCompositeOp(KoID(resources->currentCompositeOp()));
-        QPointer<KisViewManager> owner(view);
-        mode->setPreviewPictures([owner, mode, resources]() {
-            if (!owner) return KisBlendModePicker::Pictures();
-            return KisBlendModePicker::brushPictures(owner->image(), KisBlendModePicker::pictureSize(mode), resources->fgColor().toQColor());
-        });
-        QObject::connect(mode, QOverload<int>::of(&QComboBox::currentIndexChanged), mode, [mode, resources]() {
-            resources->setCurrentCompositeOp(mode->selectedCompositeOp().id());
-        });
-        QObject::connect(resources->resourceManager(), &KoCanvasResourceProvider::canvasResourceChanged, mode, [mode, showGlance](int key, const QVariant &value) {
-            if (key != KoCanvasResource::CurrentCompositeOp) return;
-            QSignalBlocker blocker(mode);
-            mode->selectCompositeOp(KoID(value.toString()));
-            showGlance(value.toString());
-        });
-        layout->addWidget(mode);
-        layout->addStretch(1);
-        if (QAction *eraser = mainWindow->actionCollection()->action(QStringLiteral("erase_action"))) {
-            auto *button = new QToolButton(row);
-            button->setAutoRaise(true);
-            button->setDefaultAction(eraser);
-            button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-            layout->addWidget(button);
-        }
-        return row;
     }
 };
 
@@ -817,6 +758,12 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
         connect(d->box, &KisPaintopBox::sigOptionWidgetChanged, this, &KisStudioBrushSheet::rebuild);
     }
     KisLastStrokeReplay::instance()->watch(this);
+    // the Stroke column is there for the tools that paint freehand
+    if (KoToolManager *tools = KisStudioTools::manager(mainWindow)) {
+        connect(tools, &KoToolManager::changedTool, this, [this]() {
+            if (d->strokeShown != KisStudioStrokePage::applies(d->mainWindow)) rebuild();
+        });
+    }
     rebuild();
 }
 
@@ -893,6 +840,7 @@ void KisStudioBrushSheet::rebuild()
     }
 
     const QList<KisPaintOpOption *> options = d->options();
+    const bool blends = KisStudioBrushEditor::blends(options);
     for (int part : {KisPaintOpOption::GENERAL, KisPaintOpOption::MASKING_BRUSH, KisPaintOpOption::TEXTURE,
                      KisPaintOpOption::COLOR, KisPaintOpOption::FILTER}) {
         const auto category = KisPaintOpOption::PaintopCategory(part);
@@ -900,6 +848,8 @@ void KisStudioBrushSheet::rebuild()
         Q_FOREACH (KisPaintOpOption *option, options) {
             if (option->category() == part || option->hasQuickPage(category)) has = true;
         }
+        // the blend mode and the mixing are the Color part's, with or without other color settings
+        if (part == KisPaintOpOption::COLOR && blends) has = true;
         if (!has) continue;
 
         auto *column = new Column(d->columns);
@@ -910,6 +860,13 @@ void KisStudioBrushSheet::rebuild()
         auto *title = new QLabel(KisStudioBrushEditor::partName(part), column);
         title->setFont(KisModernStyle::textFont(font(), 1.0, QFont::DemiBold));
         columnLayout->addWidget(title);
+
+        // how its paint goes onto the layer and mixes with paint: the blend mode, then the mixing
+        if (part == KisPaintOpOption::COLOR) {
+            if (QWidget *blend = blends ? KisStudioBrushEditor::blendRow(d->mainWindow, column) : nullptr) columnLayout->addWidget(blend);
+            if (QWidget *mixing = KisStudioMixing::chooser(d->mainWindow, column)) columnLayout->addWidget(mixing);
+            columnLayout->addSpacing(KisModernStyle::space1);
+        }
 
         for (bool own : {true, false}) {
             Q_FOREACH (KisPaintOpOption *option, options) {
@@ -949,45 +906,13 @@ void KisStudioBrushSheet::rebuild()
                 details << option;
                 continue;
             }
-            auto *row = new KisStudioValueRow(option->label(), column);
+            // every setting shows here, those turned off too: none comes off
+            auto *row = KisStudioBrushEditor::optionRow(d->mainWindow, option, d->settings, this, d->pen,
+                                                        [](KisStudioPenPopup *pen, KisStudioValueRow *row) { pen->popupBeside(row, Qt::RightEdge); },
+                                                        false, column);
             row->setCompact(true);
-            KisStudioBrushEditor::bindRow(row, option, d->settings);
-            const QPointer<KisPaintOpOption> target(option);
-            const QString key = KisStudioBrushEditor::pinKey(option);
-            row->setPinnable(true, KisStudioBarButtons::has(d->mainWindow, key));
-            connect(row, &KisStudioValueRow::pinClicked, this, [this, row, key]() {
-                KisStudioBarButtons::toggle(d->mainWindow, key);
-                row->setPinnable(true, KisStudioBarButtons::has(d->mainWindow, key));
-            });
-            connect(row, &KisStudioValueRow::pulledOut, this, [row, key]() { KisStudioBarButtons::dragItem(key, row); });
-            connect(row, &KisStudioValueRow::typingStarted, this, [this, target]() {
-                if (d->pen && d->pen->option() == target) d->pen->close();
-            });
-            connect(row, &KisStudioValueRow::clicked, this, [this, row, target]() {
-                if (!target || target->penInputs().isEmpty()) return;
-                const bool same = d->pen && d->pen->option() == target;
-                if (d->pen) d->pen->close();
-                if (same) return;
-                auto *pen = new KisStudioPenPopup(target, this);
-                d->pen = pen;
-                row->setSelected(true);
-                connect(pen, &QObject::destroyed, row, [row]() { row->setSelected(false); });
-                pen->popupBeside(row, Qt::RightEdge);
-            });
             columnLayout->addWidget(row);
             partSettings << row;
-        }
-
-        if (part == KisPaintOpOption::GENERAL) {
-            bool blends = false;
-            Q_FOREACH (KisPaintOpOption *option, inPart) {
-                if (option->objectName() == QLatin1String("KisCompositeOpOption")) blends = true;
-            }
-            if (QWidget *blend = blends ? d->blendRow(column) : nullptr) {
-                columnLayout->addSpacing(KisModernStyle::space1);
-                columnLayout->addWidget(blend);
-                if (QWidget *mixing = KisStudioMixing::chooser(d->mainWindow, column)) columnLayout->addWidget(mixing);
-            }
         }
 
         // the rest of a part, as Krita shows it
@@ -1028,6 +953,28 @@ void KisStudioBrushSheet::rebuild()
             show();
             connect(lead, &KisPaintOpOption::sigCheckedChanged, column, show);
         }
+        columnLayout->addStretch(1);
+        d->columnsLayout->addWidget(column, 0, Qt::AlignTop);
+    }
+    // how the line is laid down, for the tools that paint freehand
+    d->strokeShown = KisStudioStrokePage::applies(d->mainWindow);
+    if (d->strokeShown) {
+        auto *column = new Column(d->columns);
+        column->setFixedWidth(columnWidth);
+        auto *columnLayout = new QVBoxLayout(column);
+        columnLayout->setContentsMargins(0, 0, 0, 0);
+        columnLayout->setSpacing(KisModernStyle::space1);
+        auto *title = new QLabel(KisStudioBrushEditor::partName(KisStudioBrushEditor::strokePart), column);
+        title->setFont(KisModernStyle::textFont(font(), 1.0, QFont::DemiBold));
+        columnLayout->addWidget(title);
+        auto *stroke = new KisStudioStrokePage(d->mainWindow, column);
+        connect(stroke, &KisStudioStrokePage::sigResized, this, [this]() {
+            QTimer::singleShot(0, this, [this]() {
+                adjustSize();
+                if (isVisible()) keepOnScreen();
+            });
+        });
+        columnLayout->addWidget(stroke);
         columnLayout->addStretch(1);
         d->columnsLayout->addWidget(column, 0, Qt::AlignTop);
     }

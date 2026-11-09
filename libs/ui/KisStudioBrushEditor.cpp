@@ -47,6 +47,12 @@
 #include "KisStudioSmoothing.h"
 #include "KisViewManager.h"
 #include "kis_canvas_resource_provider.h"
+#include <QPainterPath>
+#include "widgets/KisBlendModePicker.h"
+#include "widgets/kis_cmb_composite.h"
+#include "kis_node.h"
+#include <KoID.h>
+#include <KoCanvasResourcesIds.h>
 #include "kis_config.h"
 #include "kis_paintop_box.h"
 #include "kis_paintop_option.h"
@@ -60,7 +66,7 @@ namespace {
 
 constexpr int contentWidth = 368;
 /// The tab of how the tool lays the stroke down (smoothing, shapes, snapping): not one of the brush's option categories
-constexpr int strokePart = 1000;
+constexpr int strokePart = KisStudioBrushEditor::strokePart;
 const QString partKey = QStringLiteral("StudioBrushEditorPart");
 
 QHash<KisMainWindow *, QPointer<KisStudioBrushEditor>> &editors()
@@ -279,6 +285,127 @@ void KisStudioBrushEditor::bindRow(KisStudioValueRow *row, KisPaintOpOption *opt
     QObject::connect(option, &KisPaintOpOption::sigSettingChanged, row, apply);
 }
 
+KisStudioValueRow *KisStudioBrushEditor::optionRow(KisMainWindow *mainWindow, KisPaintOpOption *option, KisPaintOpSettingsWidget *settings,
+                                                   QWidget *host, QPointer<KisStudioPenPopup> &pen,
+                                                   const std::function<void(KisStudioPenPopup *, KisStudioValueRow *)> &place, bool removable,
+                                                   QWidget *parent)
+{
+    auto *row = new KisStudioValueRow(option->label(), parent);
+    bindRow(row, option, settings);
+    const QPointer<KisPaintOpOption> target(option);
+    const QPointer<KisMainWindow> window(mainWindow);
+    // pinned to the top bar by its pin, or pulled up onto it
+    const QString key = pinKey(option);
+    auto showPinned = [row, window, key]() {
+        row->setPinnable(true, window && KisStudioBarButtons::has(window, key));
+    };
+    showPinned();
+    if (KisStudioBarButtons *bar = KisStudioBarButtons::of(mainWindow)) {
+        QObject::connect(bar, &KisStudioBarButtons::sigItemsChanged, row, showPinned);
+    }
+    QObject::connect(row, &KisStudioValueRow::pinClicked, row, [window, key]() {
+        if (window) KisStudioBarButtons::toggle(window, key);
+    });
+    row->setRemovable(removable);
+    QObject::connect(row, &KisStudioValueRow::removeClicked, row, [target]() {
+        if (target) target->setChecked(false);
+    });
+    QObject::connect(row, &KisStudioValueRow::pulledOut, row, [host, row, key, target, removable]() {
+        const Qt::DropAction done = KisStudioBarButtons::dragItem(key, row);
+        // dropped on the bar: pinned; let go over the editor, or the drag cancelled: nothing
+        if (done != Qt::IgnoreAction || !removable || !target || KisModernStyle::pointerHeld()) return;
+        if (host->frameGeometry().contains(QCursor::pos())) return;
+        target->setChecked(false);
+    });
+    QObject::connect(row, &KisStudioValueRow::typingStarted, row, [&pen, target]() {
+        if (pen && pen->option() == target) pen->close();
+    });
+    QObject::connect(row, &KisStudioValueRow::clicked, row, [host, &pen, place, row, target]() {
+        if (!target || target->penInputs().isEmpty()) return;
+        const bool same = pen && pen->option() == target;
+        if (pen) pen->close();
+        if (same) return;
+        auto *popup = new KisStudioPenPopup(target, host);
+        pen = popup;
+        row->setSelected(true);
+        QObject::connect(popup, &QObject::destroyed, row, [row]() { row->setSelected(false); });
+        place(popup, row);
+    });
+    return row;
+}
+
+bool KisStudioBrushEditor::blends(const QList<KisPaintOpOption *> &options)
+{
+    Q_FOREACH (KisPaintOpOption *option, options) {
+        if (option->objectName() == QLatin1String("KisCompositeOpOption")) return true;
+    }
+    return false;
+}
+
+QWidget *KisStudioBrushEditor::blendRow(KisMainWindow *mainWindow, QWidget *parent)
+{
+    KisViewManager *view = mainWindow ? mainWindow->viewManager() : nullptr;
+    KisCanvasResourceProvider *resources = view ? view->canvasResourceProvider() : nullptr;
+    if (!resources) return nullptr;
+    auto *row = new QWidget(parent);
+    auto *layout = new QHBoxLayout(row);
+    layout->setContentsMargins(KisModernStyle::space2, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::hairline);
+    row->setToolTip(i18nc("brush setting", "Blend mode"));
+    // the mode at a glance: a stroke of the color in it, over the image
+    auto *glance = new QLabel(row);
+    const qreal ratio = row->devicePixelRatioF();
+    const QSize glanceSize(36, 22);
+    glance->setFixedSize(glanceSize);
+    const KisBlendModePicker::Pictures pictures =
+        KisBlendModePicker::brushPictures(view->image(), glanceSize * ratio, resources->fgColor().toQColor());
+    auto showGlance = [glance, pictures, ratio, glanceSize](const QString &id) {
+        QImage picture = KisBlendModePicker::modePicture(pictures, id);
+        if (picture.isNull()) return glance->clear();
+        QPixmap rounded(glanceSize * ratio);
+        rounded.fill(Qt::transparent);
+        QPainter painter(&rounded);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setClipPath(KisModernStyle::squircle(QRectF(QPointF(0, 0), QSizeF(glanceSize) * ratio), KisModernStyle::cornerRadius * ratio));
+        painter.drawImage(0, 0, picture);
+        painter.end();
+        rounded.setDevicePixelRatio(ratio);
+        glance->setPixmap(rounded);
+    };
+    showGlance(resources->currentCompositeOp());
+    layout->addWidget(glance);
+    auto *mode = new KisCompositeOpComboBox(row);
+    mode->setForBrush(true);
+    mode->setFrame(false);
+    mode->setMaximumWidth(150);
+    if (KisNodeSP node = view->activeNode()) mode->validate(node->colorSpace());
+    mode->selectCompositeOp(KoID(resources->currentCompositeOp()));
+    QPointer<KisViewManager> owner(view);
+    mode->setPreviewPictures([owner, mode, resources]() {
+        if (!owner) return KisBlendModePicker::Pictures();
+        return KisBlendModePicker::brushPictures(owner->image(), KisBlendModePicker::pictureSize(mode), resources->fgColor().toQColor());
+    });
+    QObject::connect(mode, QOverload<int>::of(&QComboBox::currentIndexChanged), mode, [mode, resources]() {
+        resources->setCurrentCompositeOp(mode->selectedCompositeOp().id());
+    });
+    QObject::connect(resources->resourceManager(), &KoCanvasResourceProvider::canvasResourceChanged, mode, [mode, showGlance](int key, const QVariant &value) {
+        if (key != KoCanvasResource::CurrentCompositeOp) return;
+        QSignalBlocker blocker(mode);
+        mode->selectCompositeOp(KoID(value.toString()));
+        showGlance(value.toString());
+    });
+    layout->addWidget(mode);
+    layout->addStretch(1);
+    if (QAction *eraser = mainWindow->actionCollection()->action(QStringLiteral("erase_action"))) {
+        auto *button = new QToolButton(row);
+        button->setAutoRaise(true);
+        button->setDefaultAction(eraser);
+        button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        layout->addWidget(button);
+    }
+    return row;
+}
+
 void KisStudioBrushEditor::toggle(KisMainWindow *mainWindow, QWidget *anchor, Qt::Edge edge)
 {
     QPointer<KisStudioBrushEditor> &editor = editors()[mainWindow];
@@ -476,6 +603,8 @@ void KisStudioBrushEditor::rebuild()
                 break;
             }
         }
+        // the blend mode and the mixing are the Color part's, with or without other color settings
+        if (part == KisPaintOpOption::COLOR && blends(options)) has = true;
         if (has) d->parts << part;
     }
     if (KisStudioStrokePage::applies(d->mainWindow)) d->parts << strokePart;
@@ -535,8 +664,9 @@ void KisStudioBrushEditor::showPart(int part)
     const QList<KisPaintOpOption *> options = d->options();
     const auto category = KisPaintOpOption::PaintopCategory(part);
 
-    // how its paint mixes with paint, for every brush that has colors
+    // how its paint goes onto the layer and mixes with paint: the blend mode, then the mixing
     if (category == KisPaintOpOption::COLOR) {
+        if (QWidget *blend = blends(options) ? blendRow(d->mainWindow, d->page) : nullptr) d->pageLayout->addWidget(blend);
         if (QWidget *mixing = KisStudioMixing::chooser(d->mainWindow, d->page)) d->pageLayout->addWidget(mixing);
     }
 
@@ -564,50 +694,15 @@ void KisStudioBrushEditor::showPart(int part)
     }
 
     Q_FOREACH (KisPaintOpOption *option, rows) {
-        auto *row = new KisStudioValueRow(option->label(), d->page);
-        bindRow(row, option, d->settings);
-        const QPointer<KisPaintOpOption> target(option);
-        // pinned to the top bar by its pin, or pulled up onto it
-        const QString key = pinKey(option);
-        auto showPinned = [this, row, key]() {
-            row->setPinnable(true, KisStudioBarButtons::has(d->mainWindow, key));
-        };
-        showPinned();
-        if (KisStudioBarButtons *bar = KisStudioBarButtons::of(d->mainWindow)) {
-            connect(bar, &KisStudioBarButtons::sigItemsChanged, row, showPinned);
-        }
-        connect(row, &KisStudioValueRow::pinClicked, this, [this, key]() { KisStudioBarButtons::toggle(d->mainWindow, key); });
         // an effect the brush can go without (Rotation, Scatter) comes off by its cross, or pulled off the editor
         const std::optional<KisPaintOpOption::RowValue> rowValue = option->rowValue();
         const bool removable = option->isCheckable() && rowValue && !rowValue->appliesUnchecked;
-        row->setRemovable(removable);
-        connect(row, &KisStudioValueRow::removeClicked, this, [target]() {
-            if (target) target->setChecked(false);
-        });
-        connect(row, &KisStudioValueRow::pulledOut, this, [this, row, key, target, removable]() {
-            const Qt::DropAction done = KisStudioBarButtons::dragItem(key, row);
-            // dropped on the bar: pinned; let go over the editor, or the drag cancelled: nothing
-            if (done != Qt::IgnoreAction || !removable || !target || KisModernStyle::pointerHeld()) return;
-            if (frameGeometry().contains(QCursor::pos())) return;
-            target->setChecked(false);
-        });
-        connect(row, &KisStudioValueRow::typingStarted, this, [this, target]() {
-            if (d->pen && d->pen->option() == target) d->pen->close();
-        });
-        connect(row, &KisStudioValueRow::clicked, this, [this, row, target]() {
-            if (!target || target->penInputs().isEmpty()) return;
-            const bool same = d->pen && d->pen->option() == target;
-            if (d->pen) d->pen->close();
-            if (same) return;
-            auto *pen = new KisStudioPenPopup(target, this);
-            d->pen = pen;
-            row->setSelected(true);
-            connect(pen, &QObject::destroyed, row, [row]() { row->setSelected(false); });
+        auto *row = optionRow(d->mainWindow, option, d->settings, this, d->pen, [this](KisStudioPenPopup *pen, KisStudioValueRow *row) {
             // beside the editor, level with the row
             const QPoint at(mapToGlobal(QPoint(width() - shadowMargin(), 0)).x() + KisModernStyle::space2,
                             row->mapToGlobal(QPoint(0, 0)).y() - 2 * KisModernStyle::space4);
             pen->popupAt(at, row);
-        });
+        }, removable, d->page);
         d->pageLayout->addWidget(row);
     }
 
