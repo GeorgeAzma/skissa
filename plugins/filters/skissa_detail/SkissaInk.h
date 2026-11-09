@@ -22,8 +22,9 @@ class KisPropertiesConfiguration;
  * along its edges at every pixel, and the result is smoothed along it (a line integral), so lines come out long and
  * even, as drawn, and again after the threshold, so their edges are smooth.
  *
- * From there: several thresholds give tones, each tone can be hatched (lines whose width follows how dark it is, a
- * direction for each tone), and the ink lands on paper, alone, over the picture, or in the picture's own colors.
+ * From there: several thresholds give tones, each tone can be hatched (strokes as drawn by hand, a direction for each
+ * tone, or with flow strokes that follow the shapes), and the ink lands on paper, alone, over the picture, or in the
+ * picture's own colors.
  */
 namespace SkissaInk
 {
@@ -100,6 +101,8 @@ private:
     qreal m_tensorSigma {1};
     qreal m_flowSigma {0};
     qreal m_smoothSigma {0};
+    /// Hatching along the flow: how long its strokes are
+    qreal m_strokeSigma {0};
 };
 
 /// \p image (8-bit sRGB) inked at \p scale

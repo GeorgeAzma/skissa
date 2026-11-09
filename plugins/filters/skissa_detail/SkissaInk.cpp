@@ -141,11 +141,12 @@ Flow flowOf(const std::vector<float> lab[3], int w, int h, qreal sigma)
  * \p planes smoothed along the flow over \p area (in the planes' pixels): each pixel the Gaussian-weighted average along
  * the line through it that follows the flow both ways, a pixel a step (a line integral convolution)
  */
-std::vector<std::vector<float>> alongFlow(const std::vector<const float *> &planes, const Flow &flow, qreal sigma, const QRect &area)
+std::vector<std::vector<float>> alongFlow(const std::vector<const float *> &planes, const Flow &flow, qreal sigma, const QRect &area,
+                                          qreal longestStep = 1e9)
 {
     const int w = flow.w, h = flow.h;
-    // a pixel a step, longer ones for long flows: a smooth flow loses nothing to them
-    const float stride = float(std::max(1.0, sigma / 3));
+    // a pixel a step, longer ones for long flows: a smooth flow loses nothing to them (noise would: \p longestStep)
+    const float stride = float(std::min(longestStep, std::max(1.0, sigma / 3)));
     const int steps = std::max(1, int(std::ceil(2 * sigma / stride)));
     std::vector<float> weights(steps + 1);
     for (int d = 0; d <= steps; d++) weights[d] = float(std::exp(-(d * stride) * (d * stride) / (2 * sigma * sigma)));
@@ -324,6 +325,8 @@ Ink::Ink(const Settings &settings, qreal scale)
     // after the threshold, the lines' edges smoothed along them; fading in with the flow
     m_smoothSigma = std::min(1.0, 4.0 * settings.flow) * scale;
     if (m_flowSigma < 0.3) m_flowSigma = 0;
+    // hatching with flow is strokes along the shapes, about four spacings long
+    if (m_flowSigma > 0 && settings.hatching > 0 && settings.ink > 0) m_strokeSigma = 2 * std::max(2.0f, settings.spacing) * scale;
     if (m_smoothSigma < 0.3) m_smoothSigma = 0;
 }
 
@@ -331,7 +334,7 @@ int Ink::reach() const
 {
     if (m_settings.changesNothing()) return 0;
     const int blurs = std::max(SkissaDetail::reachOf(wider * m_sigma), m_flowSigma > 0 ? SkissaDetail::reachOf(m_tensorSigma) + 1 : 0);
-    return int(std::ceil(2 * m_flowSigma + 2 * m_smoothSigma)) + blurs + 2;
+    return int(std::ceil(2 * m_flowSigma + 2 * m_smoothSigma + 2 * m_strokeSigma)) + blurs + 2;
 }
 
 void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect, float *out) const
@@ -432,6 +435,33 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
         const float down = 0.5f * (plane[size_t(std::min(y + 1, wh - 1)) * ww + x] - plane[size_t(std::max(y - 1, 0)) * ww + x]);
         return std::sqrt(across * across + down * down);
     };
+    /*
+     * With flow, hatching is strokes along the shapes, as pencil drawings are made from a picture: dots scattered
+     * where it is dark, each drawn out along the flow into a thin line fading toward its ends (a line integral of the
+     * dots), as many as make its darkness once they cover it. Dots are fixed to the image's own pixels.
+     */
+    std::vector<float> strokes;
+    if (hatches && m_strokeSigma > 0) {
+        // a dot draws out to about three sigmas of ink, a pixel and a bit across
+        const double reach = 3 * m_strokeSigma * 1.3;
+        std::vector<float> dots(count);
+        for (int y = 0; y < h; y++) {
+            const quint32 imageY = quint32(qint32(std::floor((sourceRect.top() + y + 0.5f) * pixel)));
+            for (int x = 0; x < w; x++) {
+                const size_t i = size_t(y) * w + x;
+                const float dark = std::clamp((top - smooth[i]) / std::max(top, 0.05f), 0.0f, 0.98f);
+                if (dark <= 0) continue;
+                const double chance = -std::log(1.0 - dark) / reach;
+                const quint32 imageX = quint32(qint32(std::floor((sourceRect.left() + x + 0.5f) * pixel)));
+                dots[i] = hashed(imageX, imageY, 91) < chance ? 1.0f : 0.0f;
+            }
+        }
+        strokes = std::move(alongFlow({dots.data()}, flow, m_strokeSigma, work, 1.0)[0]);
+        // the average along a line, back to what one dot on it inks: whole near it, less toward the stroke's ends
+        const double weights = std::sqrt(2 * M_PI) * m_strokeSigma;
+        for (float &value : strokes) value = float(std::min(1.0, value * weights * 2.5));
+    }
+
     std::vector<float> coverage(drawn.size());
     for (int y = 0; y < wh; y++) {
         // hatches are fixed to the image's own pixels, whatever the level of detail
@@ -449,8 +479,13 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
             // the lines, whole: what the edges add to the lightest tone
             const float tone = toned[i], toneSlope = slopeAt(toned, x, y);
             const float lines = std::max(0.0f, inkOver(d, slope, top, width) - inkOver(tone, toneSlope, top, width));
-            const float imageX = (sourceRect.left() + work.left() + x + 0.5f) * pixel;
             float paper = 1 - lines;
+            if (!strokes.empty()) {
+                paper *= 1 - strokes[i];
+                coverage[i] = flat + s.hatching * (1 - paper - flat);
+                continue;
+            }
+            const float imageX = (sourceRect.left() + work.left() + x + 0.5f) * pixel;
             for (int t = 0; t < tones; t++) {
                 // the lightest tone first
                 const float cover = inkOver(tone, toneSlope, top * float(tones - t) / tones, width);

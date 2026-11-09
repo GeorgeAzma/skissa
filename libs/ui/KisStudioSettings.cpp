@@ -5,6 +5,8 @@
  */
 #include "KisStudioSettings.h"
 
+#include "widgets/KisStudioColorField.h"
+
 #include <KisTouchMode.h>
 
 #include "KisStudioBarButtons.h"
@@ -77,7 +79,6 @@
 #include "kis_canvas2.h"
 #include "dialogs/KisKeysPage.h"
 #include "KisPlatformPluginInterfaceFactory.h"
-#include "kis_color_button.h"
 #include "kis_config.h"
 #include "kis_config_notifier.h"
 #include "kis_cubic_curve.h"
@@ -791,16 +792,11 @@ struct Builder {
 
     QWidget *color(const QString &id, bool alpha = false, const QString &label = QString())
     {
-        auto *button = new KisColorButton(card);
-        button->setAlphaChannelEnabled(alpha);
-        button->setFixedSize(46, 24);
-        follow([button, id]() {
-            const QColor value = R::instance()->value(id).value<QColor>();
-            if (button->color().toQColor().rgba() == value.rgba()) return;
-            const QSignalBlocker blocker(button);
-            button->setColor(KoColor(value, KoColorSpaceRegistry::instance()->rgb8()));
-        });
-        QObject::connect(button, &KisColorButton::changed, card, [id](const KoColor &c) { R::instance()->setValue(id, c.toQColor()); });
+        auto *button = new KisStudioColorField(card);
+        button->setAlphaEnabled(alpha);
+        button->setDefaultColor(R::instance()->defaultValue(id).value<QColor>());
+        follow([button, id]() { button->setColor(R::instance()->value(id).value<QColor>()); });
+        QObject::connect(button, &KisStudioColorField::colorChanged, card, [id](const QColor &c) { R::instance()->setValue(id, c); });
         return row(label.isEmpty() ? labelOf(id) : label, button, id);
     }
 

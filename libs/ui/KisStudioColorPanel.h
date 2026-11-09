@@ -64,6 +64,10 @@ public:
     void setColor(const QColor &color);
     QColor color() const;
 
+    /// A color as it is typed in the color panel's field, in any format it reads (00F2FC, rgb(…), oklch(…),
+    /// hsv(…), hsl(…)); invalid if it reads none
+    static QColor colorOfText(const QString &text);
+
 Q_SIGNALS:
     /// A color picked on it (not one set)
     void colorPicked(const QColor &color);

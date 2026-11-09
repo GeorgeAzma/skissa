@@ -76,6 +76,7 @@ set(skissa_ui_SRCS
     widgets/KisStudioDabPictures.cpp
     widgets/KisStudioInlineEdit.cpp
     widgets/KisStudioPicker.cpp
+    widgets/KisStudioColorField.cpp
     widgets/KisStudioPopup.cpp
     widgets/KisStudioValueRow.cpp
 )

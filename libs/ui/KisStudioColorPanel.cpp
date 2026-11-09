@@ -1774,6 +1774,26 @@ QColor KisStudioColorWheel::color() const
     return d->rgb;
 }
 
+QColor KisStudioColorWheel::colorOfText(const QString &text)
+{
+    const std::optional<TypedColor> typed = readColor(text);
+    if (!typed) return QColor();
+    const QVector<qreal> &parts = typed->parts;
+    switch (typed->format) {
+    case ColorFormat::Hex: return typed->code;
+    case ColorFormat::Rgb: return QColor(qRound(parts[0]), qRound(parts[1]), qRound(parts[2]));
+    case ColorFormat::RgbFloat: return QColor::fromRgbF(parts[0], parts[1], parts[2]);
+    case ColorFormat::Oklch: {
+        Oklch lch {parts[0], parts[1], std::fmod(std::fmod(parts[2], 360.0) + 360.0, 360.0)};
+        // past what the screen shows: as vivid as it goes at this lightness and hue
+        lch.c = qMin(lch.c, maxChroma(lch.l, lch.h));
+        return rgbFromOklch(lch);
+    }
+    case ColorFormat::Hsv: return QColor::fromHsvF(parts[0] / 360.0, parts[1] / 100.0, parts[2] / 100.0);
+    }
+    return QColor();
+}
+
 QString KisStudioColorPanel::id()
 {
     return QStringLiteral("StudioColor");

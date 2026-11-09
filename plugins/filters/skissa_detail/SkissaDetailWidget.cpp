@@ -35,12 +35,12 @@
 #include <filter/kis_filter.h>
 #include <filter/kis_filter_configuration.h>
 #include <filter/kis_filter_registry.h>
-#include <kis_color_button.h>
 #include <kis_icon_utils.h>
 #include <kis_default_bounds_base.h>
 #include <kis_paint_device.h>
 #include <klocalizedstring.h>
 #include <widgets/KisStudioChips.h>
+#include <widgets/KisStudioColorField.h>
 #include <widgets/KisStudioCurve.h>
 #include <widgets/KisStudioPicker.h>
 #include <widgets/KisStudioValueRow.h>
@@ -1701,8 +1701,8 @@ struct SkissaInkWidget::Private {
     KisStudioValueRow *angle {nullptr};
     QWidget *inkColorRow {nullptr};
     QWidget *paperColorRow {nullptr};
-    KisColorButton *inkColor {nullptr};
-    KisColorButton *paperColor {nullptr};
+    KisStudioColorField *inkColor {nullptr};
+    KisStudioColorField *paperColor {nullptr};
 
     float startInk {0};
     float startSize {1};
@@ -1716,7 +1716,8 @@ struct SkissaInkWidget::Private {
             {i18nc("ink effect look", "Ink"), SkissaInk::inked()},
             {i18nc("ink effect look", "Pencil"), inkOf(0.8f, 0.4f, 0.7f, 0.5f, 0.3f)},
             {i18nc("ink effect look", "Charcoal"), inkOf(2.5f, 0.3f, 0.6f, 0.45f, 0.8f)},
-            {i18nc("ink effect look", "Hatching"), inkOf(1.2f, 0.5f, 0.7f, 0.15f, 0.4f, C::Paper, 3, 1)},
+            {i18nc("ink effect look", "Hatching"), inkOf(1.2f, 0.5f, 0.7f, 0.15f, 0, C::Paper, 3, 1)},
+            {i18nc("ink effect look: fine strokes following the shapes", "Etching"), inkOf(1.0f, 0.4f, 1.0f, 0.3f, 0.8f, C::Paper, 1, 1)},
             {i18nc("ink effect look", "Woodcut"), inkOf(2.0f, 0.8f, 0.45f, 0, 1)},
             {i18nc("ink effect look", "Comic"), inkOf(1.2f, 0.6f, 0.15f, 0.03f, 0.5f, C::Over)},
             {i18nc("ink effect look: colored pencils", "Crayon"), inkOf(1.0f, 0.4f, 0.95f, 0.5f, 0.3f, C::Colored, 4, 0.6f, 5, 60)},
@@ -1779,7 +1780,7 @@ SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
 
     const int tileHeight = qMax(64, 2 * fontMetrics().height() + 34);
     d->lookTiles = new KisStudioChips(this);
-    d->lookTiles->setTileColumns(5, tileHeight);
+    d->lookTiles->setTileColumns(6, tileHeight);
     connect(d->lookTiles, &KisStudioChips::clicked, this, [this](int index) {
         if (index < 0 || index >= d->looks.size()) return;
         const SkissaInk::Settings before = d->settings;
@@ -1823,7 +1824,7 @@ SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
                   i18nc("@info:tooltip", "How much lines and colors follow the shapes"));
     d->tones = add(i18nc("ink effect setting", "Tones"), 1, 8, 0, QString(), defaults.tones, [this](qreal v) { d->settings.tones = qRound(v); });
     d->hatching = add(i18nc("ink effect setting", "Hatching"), 0, 100, 0, percent, 0, [this](qreal v) { d->settings.hatching = float(v / 100); },
-                      i18nc("@info:tooltip", "Tones drawn as lines, crossing for darker ones"));
+                      i18nc("@info:tooltip", "Tones drawn as strokes, along the shapes with Flow"));
     d->spacing = add(i18nc("ink effect setting: between hatch lines", "Spacing"), 2, 60, 1, px, defaults.spacing,
                      [this](qreal v) { d->settings.spacing = float(v); });
     d->angle = add(i18nc("ink effect setting: of the hatch lines", "Angle"), -90, 90, 0, QStringLiteral("°"), defaults.angle,
@@ -1841,22 +1842,30 @@ SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
     layout->addWidget(d->colorTiles);
 
     // the ink's and the paper's colors side by side, each shown while it is used
-    const KoColorSpace *rgb = KoColorSpaceRegistry::instance()->rgb8();
     auto *colors = new QWidget(this);
     auto *colorsLayout = new QHBoxLayout(colors);
     colorsLayout->setContentsMargins(0, 0, 0, 0);
     colorsLayout->setSpacing(KisModernStyle::space4);
-    auto colorPart = [&](const QString &name, const QColor &color, KisColorButton **button, std::function<void(const QColor &)> write) {
+    auto colorPart = [&](const QString &name, const QColor &color, const QColor &reset, KisStudioColorField **field,
+                         std::function<void(const QColor &)> write) {
         auto *part = new QWidget(colors);
         auto *partLayout = new QHBoxLayout(part);
         partLayout->setContentsMargins(0, 0, 0, 0);
         partLayout->addWidget(new QLabel(name, part), 1);
-        *button = new KisColorButton(KoColor(color, rgb), part);
-        (*button)->setAlphaChannelEnabled(true);
-        partLayout->addWidget(*button);
-        connect(*button, &KisColorButton::changed, this, [this, write](const KoColor &c) {
-            QColor picked;
-            c.toQColor(&picked);
+        *field = new KisStudioColorField(part);
+        (*field)->setColor(color);
+        (*field)->setDefaultColor(reset);
+        (*field)->setAlphaEnabled(true);
+        // the eyedropper takes the layer's own colors, as they were before the effect
+        (*field)->setSampler([this](const QPoint &pixel, QColor *taken) {
+            if (!d->original || !d->original->defaultBounds()->bounds().contains(pixel)) return false;
+            KoColor color;
+            d->original->pixel(pixel.x(), pixel.y(), &color);
+            *taken = color.toQColor();
+            return true;
+        });
+        partLayout->addWidget(*field);
+        connect(*field, &KisStudioColorField::colorChanged, this, [this, write](const QColor &picked) {
             write(picked);
             refreshTiles();
             Q_EMIT sigConfigurationItemChanged();
@@ -1864,9 +1873,9 @@ SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
         colorsLayout->addWidget(part, 1);
         return part;
     };
-    d->inkColorRow = colorPart(i18nc("ink effect: the color of the ink", "Ink"), d->settings.inkColor, &d->inkColor,
+    d->inkColorRow = colorPart(i18nc("ink effect: the color of the ink", "Ink"), d->settings.inkColor, defaults.inkColor, &d->inkColor,
                                [this](const QColor &c) { d->settings.inkColor = c; });
-    d->paperColorRow = colorPart(i18nc("ink effect: the color of the paper", "Paper"), d->settings.paperColor, &d->paperColor,
+    d->paperColorRow = colorPart(i18nc("ink effect: the color of the paper", "Paper"), d->settings.paperColor, defaults.paperColor, &d->paperColor,
                                  [this](const QColor &c) { d->settings.paperColor = c; });
     layout->addWidget(colors);
 
@@ -1916,12 +1925,8 @@ void SkissaInkWidget::refresh()
     d->hatching->setValue(s.hatching * 100.0);
     d->spacing->setValue(s.spacing);
     d->angle->setValue(s.angle);
-    const KoColorSpace *rgb = KoColorSpaceRegistry::instance()->rgb8();
-    {
-        QSignalBlocker inkBlocker(d->inkColor), paperBlocker(d->paperColor);
-        d->inkColor->setColor(KoColor(s.inkColor, rgb));
-        d->paperColor->setColor(KoColor(s.paperColor, rgb));
-    }
+    d->inkColor->setColor(s.inkColor);
+    d->paperColor->setColor(s.paperColor);
     showRows();
     refreshTiles();
 }
@@ -1935,10 +1940,15 @@ void SkissaInkWidget::showRows()
     const bool fills = s.ink > 0;
     d->size->setVisible(draws || s.flow > 0);
     d->softness->setVisible(draws);
-    d->tones->setVisible(fills);
+    // with flow, hatching follows the shapes: no angle, and its strokes have a length rather than rows a spacing;
+    // drawn wholly in such strokes, its darkness is the picture's own, in no steps
+    const bool flowing = s.flow > 0;
+    d->tones->setVisible(fills && !(flowing && s.hatching >= 1));
     d->hatching->setVisible(fills);
     d->spacing->setVisible(fills && s.hatching > 0);
-    d->angle->setVisible(fills && s.hatching > 0);
+    d->spacing->setName(flowing ? i18nc("ink effect setting: of strokes following the shapes", "Length")
+                                : i18nc("ink effect setting: between hatch lines", "Spacing"));
+    d->angle->setVisible(fills && s.hatching > 0 && !flowing);
     d->colorTiles->setVisible(draws);
     d->inkColorRow->setVisible(draws && s.colors != SkissaInk::Colors::Colored);
     d->paperColorRow->setVisible(draws && (s.colors == SkissaInk::Colors::Paper || s.colors == SkissaInk::Colors::Colored));
