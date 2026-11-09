@@ -15,6 +15,7 @@
 
 #include <KoColor.h>
 #include <KoColorSpaceRegistry.h>
+#include <KoCompositeOpRegistry.h>
 #include <KisResourceModel.h>
 #include <KisResourceTypes.h>
 
@@ -189,6 +190,28 @@ QImage KisPresetStrokeThumbnails::stroke(int id, const QString &md5, const QColo
     return QImage();
 }
 
+QRect KisPresetStrokeThumbnails::paintedPart(const QImage &stroke)
+{
+    static QHash<qint64, QRect> found;
+    auto it = found.constFind(stroke.cacheKey());
+    if (it != found.constEnd()) return *it;
+    int left = stroke.width(), right = -1, top = stroke.height(), bottom = -1;
+    for (int y = 0; y < stroke.height(); y++) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(stroke.constScanLine(y));
+        for (int x = 0; x < stroke.width(); x++) {
+            if (qAlpha(line[x]) < 16) continue;
+            left = qMin(left, x);
+            right = qMax(right, x);
+            top = qMin(top, y);
+            bottom = qMax(bottom, y);
+        }
+    }
+    const QRect part = right < 0 ? stroke.rect() : QRect(QPoint(left, top), QPoint(right, bottom)).adjusted(-2, -2, 2, 2).intersected(stroke.rect());
+    if (found.size() > 400) found.clear();
+    found.insert(stroke.cacheKey(), part);
+    return part;
+}
+
 void KisPresetStrokeThumbnails::next()
 {
     while (!d->busy && !d->queue.isEmpty()) {
@@ -236,6 +259,9 @@ void KisPresetStrokeThumbnails::next()
         snapshot->setOpacity(settings->paintOpOpacity());
         snapshot->setMirroring(false, false);
         snapshot->setFGColorOverride(KoColor(request.ink, d->image->colorSpace()));
+        // laid down as paint: a brush in use that erases or keeps alpha would leave every stroke empty
+        snapshot->setCompositeOpId(COMPOSITE_OVER);
+        snapshot->setGlobalAlphaLock(false);
 
         KisStrokeId strokeId = d->image->startStroke(
             new FreehandStrokeStrategy(snapshot, new KisFreehandStrokeInfo(), kundo2_noi18n("brush stroke thumbnail")));
@@ -290,7 +316,8 @@ void KisPresetStrokeThumbnails::finished()
         while (d->made.size() >= 400 && !d->used.isEmpty()) d->made.remove(d->used.takeFirst());
         d->made.insert(d->current.key, d->current.asPaint ? fadedOut(painted) : painted);
         d->used.removeOne(d->current.key);
-        d->used.append(d->current.key);    } else if (!d->current.asPaint) {
+        d->used.append(d->current.key);
+    } else if (!d->current.asPaint) {
         // a blender: its stroke as if it carried paint
         Private::Request again = d->current;
         again.asPaint = true;

@@ -5,6 +5,8 @@
  */
 #include "KisStudioStartPage.h"
 
+#include <KisValueSteps.h>
+
 #include <QAbstractButton>
 #include <QApplication>
 #include <QClipboard>
@@ -891,9 +893,9 @@ protected:
             setCursor(widthRect().contains(event->pos()) || heightRect().contains(event->pos()) ? Qt::SizeHorCursor : Qt::ArrowCursor);
             return;
         }
-        // by ratios, a tenth as fast with Shift
+        // by ratios, as sizes are dragged
         const bool fine = event->modifiers() & Qt::ShiftModifier;
-        const qreal factor = std::exp((event->pos().x() - m_from.x()) / (fine ? 1200.0 : 120.0));
+        const qreal factor = KisValueSteps::draggedBy(1, (event->pos().x() - m_from.x()) * (fine ? KisValueSteps::fine : 1.0), 0, true);
         m_image->size = m_fromSize;
         if (m_dragging == Width) m_image->setWidth(qBound(1, int(std::round(m_fromSize.width() * factor)), maxSide));
         else m_image->setHeight(qBound(1, int(std::round(m_fromSize.height() * factor)), maxSide));
@@ -918,7 +920,7 @@ protected:
         if (!steps) return;
         // by ratios, as dragged; a notch always moves it
         const int side = width ? m_image->size.width() : m_image->size.height();
-        const qreal factor = std::pow(event->modifiers() & Qt::ShiftModifier ? 1.01 : 1.1, steps);
+        const qreal factor = KisValueSteps::turnedBy(1, steps * (event->modifiers() & Qt::ShiftModifier ? KisValueSteps::fine : 1.0), 0, true);
         int next = int(std::round(side * factor));
         if (next == side) next += steps > 0 ? 1 : -1;
         next = qBound(1, next, maxSide);

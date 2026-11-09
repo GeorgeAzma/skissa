@@ -125,10 +125,8 @@ public:
     /// How far a press may move and still be a click: the system's drag distance, twice that when \p event came
     /// from a pen or a finger, which wobble as they land
     static int dragDistance(const QInputEvent *event = nullptr);
-    /// How long a key, a press or a finger is held to be held rather than tapped (Windows' key repeat delay), and how
-    /// soon a second click makes a double click: the system's
+    /// How long a key, a press or a finger is held to be held rather than tapped: Windows' key repeat delay
     static int holdInterval();
-    static int doubleClickInterval();
 
     /// Whole wheel notches in \p event. Smaller deltas (touchpads, fine wheels) accumulate on \p receiver.
     static int wheelSteps(const QWheelEvent *event, QObject *receiver);

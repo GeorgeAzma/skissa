@@ -49,7 +49,6 @@ constexpr qreal slotDistance = 96;
 constexpr qreal slotRadius = 28;
 constexpr qreal middleRadius = 36;
 /// Distance a pressed slot must move to start dragging it
-constexpr qreal dragStart = 6;
 
 /// A ring open around the pointer; like the canvas brush ring, each slot is hit anywhere in its sector
 class CommandRing : public QWidget
@@ -255,7 +254,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if (m_pressed >= 0) {
-            if (!m_dragging && QLineF(event->localPos(), m_pressedAt).length() > dragStart) m_dragging = true;
+            if (!m_dragging && QLineF(event->localPos(), m_pressedAt).length() > KisModernStyle::dragDistance(event)) m_dragging = true;
             m_dragAt = event->localPos();
         }
         const int hover = targetAt(event->localPos());

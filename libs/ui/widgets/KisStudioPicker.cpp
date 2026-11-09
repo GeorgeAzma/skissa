@@ -67,7 +67,17 @@ struct Metrics {
     int columns;
     int cellWidth;
     int cellHeight;
+    /// The room under a tile's picture for its name
+    int label {26};
 };
+
+/// The room under a tile for its name: two lines of the smaller font a long name takes
+int tileLabelHeight(const QFont &font)
+{
+    QFont small = font;
+    small.setPointSizeF(small.pointSizeF() * 0.8);
+    return qMax(26, 2 * QFontMetrics(small).lineSpacing() + 4);
+}
 
 Metrics metricsFor(bool tiles, const QSize &tileSize = QSize())
 {
@@ -108,10 +118,10 @@ QRect titleRect(const QRect &header)
     return header.adjusted(8, 0, 0, -2);
 }
 
-QRect previewRect(const QRect &cell, bool tiles, bool numbered)
+QRect previewRect(const QRect &cell, bool tiles, bool numbered, int label = 26)
 {
     if (tiles) {
-        return QRect(cell.left() + 6, cell.top() + 6, cell.width() - 12, cell.height() - 32);
+        return QRect(cell.left() + 6, cell.top() + 6, cell.width() - 12, cell.height() - 6 - label);
     }
     return QRect(cell.left() + (numbered ? 22 : 8), cell.center().y() - 10, 30, 20);
 }
@@ -432,7 +442,7 @@ protected:
                 painter.drawPath(KisModernStyle::squircle(QRectF(item.rect).adjusted(2, 1, -2, -1), tiles ? 8 : 6));
             }
 
-            const QRect preview = previewRect(item.rect, tiles, item.list == 0);
+            const QRect preview = previewRect(item.rect, tiles, item.list == 0, m_d->m.label);
             QPainterPath clip;
             clip.addPath(KisModernStyle::squircle(QRectF(preview), tiles ? 6 : 4));
             painter.save();
@@ -540,7 +550,7 @@ protected:
             painter.setPen(QPen(pal.color(QPalette::Highlight), 1));
             painter.setBrush(pal.color(QPalette::Window).lighter(125));
             painter.drawPath(KisModernStyle::squircle(QRectF(ghost), 6));
-            const QRect preview = previewRect(ghost, tiles, false);
+            const QRect preview = previewRect(ghost, tiles, false, m_d->m.label);
             painter.save();
             QPainterPath clip;
             clip.addPath(KisModernStyle::squircle(QRectF(preview), 4));
@@ -623,7 +633,7 @@ protected:
         if (m_pressHeader >= 0 && (event->buttons() & Qt::LeftButton)) {
             // a group's title dragged moves the group; the user's own list stays first
             if (!m_movingGroup && m_d->headers[m_pressHeader].list >= 1
-                && (event->pos() - m_pressPos).manhattanLength() >= QApplication::startDragDistance()) {
+                && (event->pos() - m_pressPos).manhattanLength() >= KisModernStyle::dragDistance(event)) {
                 m_movingGroup = true;
                 setCursor(Qt::ClosedHandCursor);
             }
@@ -635,7 +645,7 @@ protected:
             return;
         }
         if (m_press >= 0 && (event->buttons() & Qt::LeftButton)) {
-            if (m_dragging < 0 && (event->pos() - m_pressPos).manhattanLength() >= QApplication::startDragDistance()
+            if (m_dragging < 0 && (event->pos() - m_pressPos).manhattanLength() >= KisModernStyle::dragDistance(event)
                 && !m_d->searching()) {
                 m_dragging = m_press;
                 m_d->point(-1);
@@ -1181,6 +1191,11 @@ KisStudioPicker::KisStudioPicker(const Source &source, const QString &current, c
     d->q = this;
     d->source = source;
     d->m = metricsFor(source.tiles, source.tileSize);
+    if (source.tiles) {
+        // a long name's two lines fit under the picture at any font size
+        d->m.label = tileLabelHeight(font());
+        d->m.cellHeight += d->m.label - 26;
+    }
     d->original = current;
     d->available = available;
     d->pinned = pinnedIds(source);

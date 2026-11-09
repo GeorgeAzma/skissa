@@ -6,6 +6,8 @@
  */
 
 #include "kis_paintop_settings_widget.h"
+
+#include <KisModernStyle.h>
 #include "kis_paintop_option.h"
 #include "kis_paintop_options_model.h"
 
@@ -448,7 +450,7 @@ bool KisPaintOpSettingsWidget::eventFilter(QObject *obj, QEvent *event)
             break;
         case QEvent::MouseMove:
             if (m_d->scrubIndex.isValid() && (mouse->buttons() & Qt::LeftButton)) {
-                if (!m_d->scrubbing && qAbs(mouse->pos().x() - m_d->scrubX) > 3) {
+                if (!m_d->scrubbing && qAbs(mouse->pos().x() - m_d->scrubX) > KisModernStyle::dragDistance(mouse)) {
                     m_d->scrubbing = true;
                     m_d->scrubX = mouse->pos().x();
                 }

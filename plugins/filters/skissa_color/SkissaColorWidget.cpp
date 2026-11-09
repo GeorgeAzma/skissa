@@ -217,7 +217,7 @@ protected:
             m_start = m_value;
         }
         // the disc is small: a drag across the whole range is longer than it
-        const QPointF moved = QPointF(event->pos() - m_grab) * (fine ? 0.25 : 1.0) / dragForWholeRange * m_range;
+        const QPointF moved = QPointF(event->pos() - m_grab) * (fine ? KisValueSteps::fine : 1.0) / KisValueSteps::pixelsPerRange * m_range;
         set(m_start + QPointF(moved.x(), -moved.y()));
     }
 
@@ -228,7 +228,6 @@ protected:
     }
 
 private:
-    static constexpr qreal dragForWholeRange = 150;
 
     int side() const { return qMax(40, int(fontMetrics().height() * 2.2)); }
     QRectF discRect() const { return QRectF(0, (height() - side()) / 2.0, side(), side()); }

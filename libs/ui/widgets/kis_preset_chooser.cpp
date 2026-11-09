@@ -117,29 +117,6 @@ private:
 };
 
 namespace {
-/// What of \p stroke is painted, without the empty room around it
-QRect paintedPart(const QImage &stroke)
-{
-    static QHash<qint64, QRect> found;
-    auto it = found.constFind(stroke.cacheKey());
-    if (it != found.constEnd()) return *it;
-    int left = stroke.width(), right = -1, top = stroke.height(), bottom = -1;
-    for (int y = 0; y < stroke.height(); y++) {
-        const QRgb *line = reinterpret_cast<const QRgb *>(stroke.constScanLine(y));
-        for (int x = 0; x < stroke.width(); x++) {
-            if (qAlpha(line[x]) < 16) continue;
-            left = qMin(left, x);
-            right = qMax(right, x);
-            top = qMin(top, y);
-            bottom = qMax(bottom, y);
-        }
-    }
-    const QRect part = right < 0 ? stroke.rect() : QRect(QPoint(left, top), QPoint(right, bottom)).adjusted(-2, -2, 2, 2).intersected(stroke.rect());
-    if (found.size() > 400) found.clear();
-    found.insert(stroke.cacheKey(), part);
-    return part;
-}
-
 /// \p stroke's painted part at \p size, faint under the name (up to \p nameEnd) so the name reads on it; kept for the rows on screen
 QImage underName(const QImage &stroke, const QSize &size, int nameEnd, qreal ratio)
 {
@@ -155,7 +132,7 @@ QImage underName(const QImage &stroke, const QSize &size, int nameEnd, qreal rat
         }
         return *it;
     }
-    QImage faded = stroke.copy(paintedPart(stroke)).scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QImage faded = stroke.copy(KisPresetStrokeThumbnails::paintedPart(stroke)).scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_ARGB32_Premultiplied);
     if (nameEnd > 0) {
         QPainter painter(&faded);
         painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
@@ -325,7 +302,7 @@ void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & o
         const QFontMetricsF metrics(option.font);
         const QString shown = m_strokeNames ? metrics.elidedText(name, Qt::ElideRight, (row.right() - textLeft) * 0.8) : QString();
         // the stroke whole, as wide as the row lets it be
-        const QSizeF fitted = QSizeF(paintedPart(stroke).size()).scaled(art.size(), Qt::KeepAspectRatio);
+        const QSizeF fitted = QSizeF(KisPresetStrokeThumbnails::paintedPart(stroke).size()).scaled(art.size(), Qt::KeepAspectRatio);
         // after the name, or in the middle of a row without one
         const qreal left = shown.isEmpty() ? art.center().x() - fitted.width() / 2 : art.right() - fitted.width();
         const QRectF place(left, art.center().y() - fitted.height() / 2, fitted.width(), fitted.height());

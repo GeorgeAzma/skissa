@@ -91,6 +91,8 @@ public:
     void setFGColorOverride(const KoColor &color);
     /// Whether the window's Preserve Alpha applies (the layer's own lock always does)
     void setGlobalAlphaLock(bool on);
+    /// Paints with \p id instead of the blend mode of the brush in use
+    void setCompositeOpId(const QString &id);
     void setBGColorOverride(const KoColor &color);
     void setSelectionOverride(KisSelectionSP selection);
     void setBrush(const KisPaintOpPresetSP &brush);

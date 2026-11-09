@@ -4,6 +4,8 @@
   SPDX-License-Identifier: LGPL-2.0-or-later
 */
 #include "NodeView.h"
+
+#include <KisModernStyle.h>
 #include "NodePropertyAction_p.h"
 #include "NodeDelegate.h"
 #include "NodeViewVisibilityDelegate.h"
@@ -122,7 +124,7 @@ NodeView::NodeView(QWidget *parent)
     setItemDelegate(&d->delegate);
 
     d->soloTimer.setSingleShot(true);
-    d->soloTimer.setInterval(300);
+    d->soloTimer.setInterval(KisModernStyle::holdInterval());
     connect(&d->soloTimer, &QTimer::timeout, this, [this]() {
         if (!d->thumbnailHeld) return;
         // the press made the layer the active one; a layer already shown alone stays as the painter set it
@@ -317,7 +319,7 @@ bool NodeView::viewportEvent(QEvent *e)
             // a held thumbnail moved is a drag, not a look; a release that went elsewhere ends the look too
             if ((d->thumbnailHeld || d->soloing)
                 && (!(static_cast<QMouseEvent *>(e)->buttons() & Qt::LeftButton)
-                    || (!d->soloing && (pos - d->lastPos).manhattanLength() > qApp->startDragDistance()))) {
+                    || (!d->soloing && (pos - d->lastPos).manhattanLength() > KisModernStyle::dragDistance(static_cast<QMouseEvent *>(e))))) {
                 d->endSolo();
             }
             if (d->eyeDrag && !(static_cast<QMouseEvent*>(e)->buttons() & Qt::LeftButton)) {

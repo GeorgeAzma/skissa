@@ -350,7 +350,7 @@ protected:
             setScroll(m_pressScroll - (event->pos().y() - m_pressPos.y()));
             return;
         }
-        if ((event->pos() - m_pressPos).manhattanLength() < QApplication::startDragDistance()) {
+        if ((event->pos() - m_pressPos).manhattanLength() < KisModernStyle::dragDistance(event)) {
             return;
         }
         if (isOccupied(m_press) && editable && editable()) {
@@ -634,7 +634,7 @@ protected:
             }
             return;
         }
-        if (m_press < 0 || (event->pos() - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
+        if (m_press < 0 || (event->pos() - m_pressPos).manhattanLength() < KisModernStyle::dragDistance(event)) return;
         // into the palette
         const int index = m_press;
         m_press = -1;

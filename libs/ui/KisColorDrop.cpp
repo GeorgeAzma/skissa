@@ -5,6 +5,8 @@
  */
 
 #include "KisColorDrop.h"
+
+#include <KisModernStyle.h>
 #include "KisRedoLast.h"
 
 #include <QApplication>
@@ -996,7 +998,7 @@ bool KisColorDrop::eventFilter(QObject *watched, QEvent *event)
     case QEvent::TabletRelease:
         if (!d->pressed) return false;
         d->pressed = false;
-        if ((position() - d->pressAt).manhattanLength() <= QApplication::startDragDistance()) {
+        if ((position() - d->pressAt).manhattanLength() <= KisModernStyle::dragDistance(static_cast<QInputEvent *>(event))) {
             // the panel stays where it is: what it changes is this newest fill
             d->options = Options::read();
             d->threshold = d->options.threshold;

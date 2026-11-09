@@ -1151,11 +1151,17 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
         const QPointF delta = moved * (fine ? KisValueSteps::fine : 1.0);
         const int slop = KisModernStyle::dragDistance(static_cast<QInputEvent *>(event));
         // a press with a little jitter isn't a drag
-        if (!d->knobsPassed && QLineF(QPointF(), moved).length() <= slop) {
+        if (!d->knobsPassed) {
+            if (QLineF(QPointF(), moved).length() <= slop) {
+                event->accept();
+                return true;
+            }
+            // from here, without a jump by the distance it took to start
+            d->knobsPassed = true;
+            d->dragStart = pos;
             event->accept();
             return true;
         }
-        d->knobsPassed = true;
         QStringList shown;
         const Knob &first = d->knobs[0];
         if (first.widget) {
@@ -1240,11 +1246,15 @@ bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos
         if (d->pill && !text.isEmpty()) d->pill->showAt(pos.toPoint(), text);
     } else {
         // a press with a little jitter isn't a drag
-        if (!d->editPassed && QLineF(pos, d->editStart).length() <= d->editSlop) {
-            event->accept();
-            return true;
+        if (!d->editPassed) {
+            if (QLineF(pos, d->editStart).length() <= d->editSlop) {
+                event->accept();
+                return true;
+            }
+            // from here, without a jump by the distance it took to start
+            d->editPassed = true;
+            d->editLast = pos;
         }
-        d->editPassed = true;
         // Shift slows the drag from where it is, without a jump
         d->editMoved += (pos - d->editLast) * (modifiers & Qt::ShiftModifier ? KisValueSteps::fine : 1.0);
         d->editLast = pos;

@@ -37,6 +37,9 @@ public:
      */
     QImage stroke(int id, const QString &md5, const QColor &ink);
 
+    /// What of \p stroke is painted, without the empty room around it
+    static QRect paintedPart(const QImage &stroke);
+
 Q_SIGNALS:
     void changed();
 

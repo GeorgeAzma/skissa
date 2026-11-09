@@ -206,7 +206,11 @@ void KisStudioScrubber::mouseMoveEvent(QMouseEvent *event)
     if (!m_moved && qAbs(eventX(event) - m_pressX) <= KisModernStyle::dragDistance(event)) {
         return;
     }
-    if (!m_moved) Q_EMIT dragStarted();
+    if (!m_moved) {
+        // from here, without a jump by the distance it took to start
+        m_pressX = eventX(event);
+        Q_EMIT dragStarted();
+    }
     m_moved = true;
     const qreal dx = (eventX(event) - m_pressX) * (fine ? KisValueSteps::fine : 1.0);
     const qreal before = m_value;

@@ -690,11 +690,6 @@ int KisModernStyle::holdInterval()
     return QGuiApplication::styleHints()->mousePressAndHoldInterval();
 }
 
-int KisModernStyle::doubleClickInterval()
-{
-    return QGuiApplication::styleHints()->mouseDoubleClickInterval();
-}
-
 int KisModernStyle::wheelSteps(const QWheelEvent *event, QObject *receiver)
 {
     const char *const restProperty = "studioWheelRest";

@@ -7,6 +7,8 @@
  */
 
 #include "recorderdocker_dock.h"
+
+#include <KisValueSteps.h>
 #include "recorder_config.h"
 #include "recorder_writer.h"
 #include "recorder_const.h"
@@ -470,9 +472,9 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if (!m_pressed) return;
-        // a second for every few pixels; Shift is finer
-        const int step = event->modifiers() & Qt::ShiftModifier ? 12 : 4;
-        set(m_pressSeconds + (event->pos().x() - m_pressX) / step);
+        // a length by ratios, as sizes are dragged; Shift is finer
+        const qreal fine = event->modifiers() & Qt::ShiftModifier ? KisValueSteps::fine : 1.0;
+        set(qRound(KisValueSteps::draggedBy(m_pressSeconds, (event->pos().x() - m_pressX) * fine, 0, true, 1)));
     }
 
     void mouseReleaseEvent(QMouseEvent *) override
@@ -483,7 +485,12 @@ protected:
 
     void wheelEvent(QWheelEvent *event) override
     {
-        set(m_seconds + KisModernStyle::wheelSteps(event, this));
+        // by ratios too; a notch always moves it
+        const int steps = KisModernStyle::wheelSteps(event, this);
+        if (steps) {
+            const int next = qRound(KisValueSteps::turnedBy(m_seconds, steps, 0, true, 1));
+            set(next != m_seconds ? next : m_seconds + (steps > 0 ? 1 : -1));
+        }
         event->accept();
     }
 

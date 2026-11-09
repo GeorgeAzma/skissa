@@ -4,6 +4,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioColorPanel.h"
+
+#include <KisValueSteps.h>
 #include "KisStudioTools.h"
 #include "KisColorDrop.h"
 #include "KisColorMath.h"
@@ -1138,13 +1140,16 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if (!m_pressed) return;
-        const int moved = event->pos().x() - m_pressX;
-        if (!m_moved && qAbs(moved) <= 3) return;
-        if (!m_moved && started) started();
+        if (!m_moved && qAbs(event->pos().x() - m_pressX) <= KisModernStyle::dragDistance(event)) return;
+        if (!m_moved) {
+            // from here, without a jump by the distance it took to start
+            m_pressX = event->pos().x();
+            if (started) started();
+        }
         m_moved = true;
-        // a stop for each 40 px; Shift: finer
-        const qreal fine = event->modifiers() & Qt::ShiftModifier ? 0.25 : 1.0;
-        set(m_pressStops + moved / 40.0 * fine);
+        // a stop doubles the light: one for each doubling's drag; Shift: finer
+        const qreal fine = event->modifiers() & Qt::ShiftModifier ? KisValueSteps::fine : 1.0;
+        set(m_pressStops + (event->pos().x() - m_pressX) * fine / KisValueSteps::pixelsPerDoubling);
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override
@@ -1182,8 +1187,8 @@ protected:
     void wheelEvent(QWheelEvent *event) override
     {
         event->accept();
-        const int steps = event->angleDelta().y() / 120;
-        if (steps) set(m_stops + 0.5 * steps);
+        const int steps = KisModernStyle::wheelSteps(event, this);
+        if (steps) set(m_stops + steps / KisValueSteps::notchesPerDoubling);
     }
 
     bool event(QEvent *event) override

@@ -47,7 +47,6 @@ constexpr qreal middleRadius = 26;
 /// Distance from the opening point beyond which a movement counts as a flick rather than a click
 constexpr qreal flick = 24;
 /// Distance a pressed brush must move to start dragging it to another slot
-constexpr qreal dragStart = 6;
 
 /// Paints a brush's stroke picture centered in a circle
 void paintBrush(QPainter &painter, const QPointF &center, qreal radius, const QImage &picture, qreal opacity)
@@ -407,7 +406,7 @@ bool KisStudioCanvasRing::eventFilter(QObject *watched, QEvent *event)
     const QPointF local = mapFromGlobal(global.toPoint());
     if (m_pressed >= 0 && (move || release)) {
         if (move) {
-            if (!m_dragging && QLineF(local, m_pressedAt).length() > dragStart) m_dragging = true;
+            if (!m_dragging && QLineF(local, m_pressedAt).length() > KisModernStyle::dragDistance(static_cast<QInputEvent *>(event))) m_dragging = true;
             m_dragAt = local;
             m_hover = targetAt(local);
             update();

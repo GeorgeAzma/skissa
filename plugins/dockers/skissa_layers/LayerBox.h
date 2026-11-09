@@ -225,6 +225,8 @@ private:
     QAbstractButton *m_addStrip {nullptr};
     QPersistentModelIndex m_opacityPress;
     QPoint m_opacityPressPos;
+    /// How far the press moves before it is a drag (further for a pen or a finger)
+    int m_opacitySlop {4};
     bool m_opacityScrubbing {false};
     KisNodeSP m_opacityNode;
     qreal m_opacityStart {100};

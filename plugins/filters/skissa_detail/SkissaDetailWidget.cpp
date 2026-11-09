@@ -682,7 +682,7 @@ QString SkissaNoiseWidget::canvasDragged(const QPointF &moved, const QPointF &)
         set(target, d->dragStart[target] * factor * Private::shownPer(target));
     }
     // nothing on yet: up brings the lightness in
-    if (!any) set(SkissaNoise::Lightness, qMax(0.0, -moved.y() / 3));
+    if (!any) set(SkissaNoise::Lightness, qMax(0.0, KisValueSteps::draggedBy(0, -moved.y(), 100, false)));
     refreshTiles();
     Q_EMIT sigConfigurationItemChanged();
     return shown.join(QStringLiteral("   "));
@@ -2584,7 +2584,8 @@ QString SkissaShapeWidget::canvasDragged(const QPointF &moved, const QPointF &at
         s.glowStrength = float(qBound(0.0, KisValueSteps::draggedBy(d->start.glowStrength, -moved.y(), 1, false), 1.0));
         break;
     default:
-        s.grow = float(qBound(-50.0, d->start.grow + moved.x() / 20.0, 50.0));
+        // pixels, evenly: across the drag's range as far as the usual grow goes
+        s.grow = float(qBound(-50.0, KisValueSteps::draggedBy(d->start.grow, moved.x(), 64, false), 50.0));
         break;
     }
     refresh();

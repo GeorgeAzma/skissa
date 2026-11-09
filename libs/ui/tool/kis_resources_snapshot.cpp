@@ -484,6 +484,11 @@ void KisResourcesSnapshot::setGlobalAlphaLock(bool on)
     m_d->globalAlphaLock = on;
 }
 
+void KisResourcesSnapshot::setCompositeOpId(const QString &id)
+{
+    m_d->compositeOpId = id;
+}
+
 void KisResourcesSnapshot::setBGColorOverride(const KoColor &color)
 {
     m_d->currentBgColor = color;
