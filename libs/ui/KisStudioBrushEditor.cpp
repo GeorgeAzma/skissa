@@ -334,8 +334,12 @@ KisStudioValueRow *KisStudioBrushEditor::optionRow(KisMainWindow *mainWindow, Ki
     return row;
 }
 
-bool KisStudioBrushEditor::blends(const QList<KisPaintOpOption *> &options)
+bool KisStudioBrushEditor::blends(KisMainWindow *mainWindow, const QList<KisPaintOpOption *> &options)
 {
+    // MyPaint brushes always paint as Normal (or erase): the brush box turns their blend mode off
+    KisViewManager *view = mainWindow ? mainWindow->viewManager() : nullptr;
+    const KisPaintOpPresetSP preset = view && view->canvasResourceProvider() ? view->canvasResourceProvider()->currentPreset() : KisPaintOpPresetSP();
+    if (preset && preset->paintOp().id() == QLatin1String("mypaintbrush")) return false;
     Q_FOREACH (KisPaintOpOption *option, options) {
         if (option->objectName() == QLatin1String("KisCompositeOpOption")) return true;
     }
@@ -604,7 +608,7 @@ void KisStudioBrushEditor::rebuild()
             }
         }
         // the blend mode and the mixing are the Color part's, with or without other color settings
-        if (part == KisPaintOpOption::COLOR && blends(options)) has = true;
+        if (part == KisPaintOpOption::COLOR && blends(d->mainWindow, options)) has = true;
         if (has) d->parts << part;
     }
     if (KisStudioStrokePage::applies(d->mainWindow)) d->parts << strokePart;
@@ -666,7 +670,7 @@ void KisStudioBrushEditor::showPart(int part)
 
     // how its paint goes onto the layer and mixes with paint: the blend mode, then the mixing
     if (category == KisPaintOpOption::COLOR) {
-        if (QWidget *blend = blends(options) ? blendRow(d->mainWindow, d->page) : nullptr) d->pageLayout->addWidget(blend);
+        if (QWidget *blend = blends(d->mainWindow, options) ? blendRow(d->mainWindow, d->page) : nullptr) d->pageLayout->addWidget(blend);
         if (QWidget *mixing = KisStudioMixing::chooser(d->mainWindow, d->page)) d->pageLayout->addWidget(mixing);
     }
 

@@ -758,6 +758,13 @@ KisStudioBrushSheet::KisStudioBrushSheet(KisMainWindow *mainWindow)
         connect(d->box, &KisPaintopBox::sigOptionWidgetChanged, this, &KisStudioBrushSheet::rebuild);
     }
     KisLastStrokeReplay::instance()->watch(this);
+    // the last stroke follows the smoothing (the Stroke column, the chip) as it does the brush
+    connect(KisStudioSmoothing::instance(), &KisStudioSmoothing::sigChanged, this, [this]() {
+        KisPaintOpPresetSP current = d->preset();
+        if (current && d->follow->isChecked() && KisLastStrokeReplay::instance()->follows(current->name())) {
+            KisLastStrokeReplay::instance()->brushChanged(current->name(), current->settings()->toXML());
+        }
+    });
     // the Stroke column is there for the tools that paint freehand
     if (KoToolManager *tools = KisStudioTools::manager(mainWindow)) {
         connect(tools, &KoToolManager::changedTool, this, [this]() {
@@ -840,7 +847,7 @@ void KisStudioBrushSheet::rebuild()
     }
 
     const QList<KisPaintOpOption *> options = d->options();
-    const bool blends = KisStudioBrushEditor::blends(options);
+    const bool blends = KisStudioBrushEditor::blends(d->mainWindow, options);
     for (int part : {KisPaintOpOption::GENERAL, KisPaintOpOption::MASKING_BRUSH, KisPaintOpOption::TEXTURE,
                      KisPaintOpOption::COLOR, KisPaintOpOption::FILTER}) {
         const auto category = KisPaintOpOption::PaintopCategory(part);

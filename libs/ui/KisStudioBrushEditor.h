@@ -45,8 +45,8 @@ public:
     static QString partName(int part);
     /// The part that is how the line is laid down (smoothing, shapes): not one of the brush's own categories
     static constexpr int strokePart = 1000;
-    /// Whether the brush has a blend mode, which the Color part shows with its mixing
-    static bool blends(const QList<KisPaintOpOption *> &options);
+    /// Whether the brush in use, with \p options, has a blend mode, which the Color part shows with its mixing
+    static bool blends(KisMainWindow *mainWindow, const QList<KisPaintOpOption *> &options);
     /// What a brush setting does, as a short tooltip; empty when its name says it
     static QString optionTip(KisPaintOpOption *option);
     /// Keeps \p row showing \p option's value and changing it
