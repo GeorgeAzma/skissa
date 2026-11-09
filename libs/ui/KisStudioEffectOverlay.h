@@ -46,6 +46,8 @@ private:
     void startApplying();
     /// The reset to defaults shows while the settings differ from them
     void showReset();
+    /// The effect painted where it shows (KisStudioEffectBrush)
+    void paintIn();
     void createMask(KisFilterConfigurationSP config);
     void finishEditing();
     void reposition();

@@ -36,6 +36,8 @@ public:
     void setAlphaEnabled(bool enabled);
     /// The pixels the eyedropper takes (by default the image as it shows)
     void setSampler(Sampler sampler);
+    /// Opens the picker beside it, as a click does
+    void openPicker();
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;

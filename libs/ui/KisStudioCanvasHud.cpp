@@ -325,7 +325,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     auto *valueView = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_value")), i18nc("@action", "Value view"), mainWindow);
     valueView->setObjectName(QStringLiteral("studio_value_view"));
     valueView->setCheckable(true);
-    valueView->setToolTip(i18nc("@info:tooltip", "Grayscale: check your values"));
+    valueView->setToolTip(i18nc("@info:tooltip the value view button", "Grayscale"));
     valueView->setShortcutContext(Qt::WindowShortcut);
     KisStudioShortcuts::restore(valueView);
     mainWindow->actionCollection()->addAction(valueView->objectName(), valueView);
@@ -344,11 +344,8 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     // a press shows it at once: let go quickly it stays, held it was only a look (eventFilter)
     d->valueView = valueView;
     d->value = hudButton(this);
-    d->value->setIcon(valueView->icon());
-    d->value->setCheckable(true);
+    d->value->setDefaultAction(valueView);
     d->value->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    d->value->setToolTip(i18nc("@info:tooltip the value view button", "Grayscale\nClick: on or off\nHold: while held"));
-    connect(valueView, &QAction::toggled, d->value, &QToolButton::setChecked);
     layout->addWidget(d->value);
 
     // shown only while the canvas is rotated; a click resets the rotation

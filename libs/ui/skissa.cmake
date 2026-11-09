@@ -27,6 +27,7 @@ set(skissa_ui_SRCS
     KisStudioColorPanel.cpp
     KisStudioControls.cpp
     KisStudioEffectOverlay.cpp
+    KisStudioEffectBrush.cpp
     KisStudioEffectsPicker.cpp
     KisStudioEmptyStates.cpp
     KisStudioFind.cpp

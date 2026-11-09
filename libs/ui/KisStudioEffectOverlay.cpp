@@ -44,6 +44,7 @@
 #include <filter/kis_filter_registry.h>
 #include <klocalizedstring.h>
 #include <kis_filter_mask.h>
+#include "KisStudioEffectBrush.h"
 #include <kis_layer.h>
 #include <kis_paint_layer.h>
 #include <kis_slider_spin_box.h>
@@ -527,6 +528,7 @@ struct KisStudioEffectOverlay::Private
     QLabel *icon {nullptr};
     QLabel *title {nullptr};
     QToolButton *preview {nullptr};
+    QToolButton *paint {nullptr};
     QToolButton *editable {nullptr};
     QToolButton *reset {nullptr};
     /// The settings at their defaults, as the panel writes them (it may add to them: curves per channel, a version);
@@ -721,6 +723,11 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     });
     header->addWidget(d->reset);
 
+    // painted where it goes, with the brush
+    d->paint = iconButton(QStringLiteral("studio_paint"), i18nc("@info:tooltip paint the effect where it shows", "Paint it"), this);
+    connect(d->paint, &QToolButton::clicked, this, &KisStudioEffectOverlay::paintIn);
+    header->addWidget(d->paint);
+
     d->editable = iconButton(QStringLiteral("filterMask"), i18nc("@info:tooltip", "Keep the effect editable on its own layer"), this);
     d->editable->setCheckable(true);
     connect(d->editable, &QToolButton::toggled, this, [](bool on) { KisConfig(false).writeEntry(editableKey, on); });
@@ -741,7 +748,7 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     d->scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     d->scroll->viewport()->setAutoFillBackground(false);
     layout->addWidget(d->scroll, 1);
-    for (QWidget *widget : std::initializer_list<QWidget *>{d->preview, d->reset, d->editable, cancel, apply, d->scroll}) {
+    for (QWidget *widget : std::initializer_list<QWidget *>{d->preview, d->reset, d->paint, d->editable, cancel, apply, d->scroll}) {
         KisStudioGlass::setSeeThrough(widget, true);
     }
 
@@ -832,6 +839,7 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
         d->editable->setChecked(KisConfig(true).readEntry<bool>(editableKey, true));
     }
     d->editable->setVisible(d->maskPossible());
+    d->paint->setVisible(d->maskPossible());
     // opened at its defaults: what the panel makes of them is what the reset compares with
     KisFilterConfigurationSP defaults = filter->defaultConfiguration(KisGlobalResourcesInterface::instance());
     const bool atDefaults = !overrideDefaultConfig || overrideDefaultConfig->toXML() == defaults->toXML();
@@ -950,6 +958,26 @@ void KisStudioEffectOverlay::reject()
         filterManager->cancelRunningStroke();
     }
     finishEditing();
+}
+
+void KisStudioEffectOverlay::paintIn()
+{
+    KisViewManager *viewManager = d->viewManager();
+    KisFilterManager *filterManager = d->filterManager();
+    KisLayerSP layer = qobject_cast<KisLayer *>(d->node.data());
+    KisFilterConfigurationSP config = d->selector ? d->selector->configuration() : nullptr;
+    if (!viewManager || !filterManager || !layer || !config || !d->maskPossible() || !d->filter->configurationAllowedForMask(config)) return;
+    // the preview goes: from now on the effect shows only where it is painted
+    d->compressor.stop();
+    if (filterManager->isStrokeRunning()) {
+        filterManager->cancelRunningStroke();
+        if (!viewManager->blockUntilOperationsFinished(viewManager->image())) return;
+    }
+    KisFilterManager::rememberLastUsed(config, d->node->paintDevice());
+    KisStudioEffectsPicker::recordUse(d->filter->id());
+    const QString name = effectName(d->filter.data());
+    finishEditing();
+    KisStudioEffectBrush::start(d->mainWindow, layer, config, name);
 }
 
 void KisStudioEffectOverlay::createMask(KisFilterConfigurationSP config)

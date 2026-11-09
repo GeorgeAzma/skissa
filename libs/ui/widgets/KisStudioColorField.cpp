@@ -426,6 +426,11 @@ void KisStudioColorField::mousePressEvent(QMouseEvent *event)
         QWidget::mousePressEvent(event);
         return;
     }
+    openPicker();
+}
+
+void KisStudioColorField::openPicker()
+{
     if (d->popup) return;
     auto *popup = new KisStudioColorFieldPopup(this);
     d->popup = popup;

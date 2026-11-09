@@ -55,6 +55,9 @@
 #include "kis_paintop_box.h"
 #include "canvas/kis_canvas_controller.h"
 #include "kis_canvas_resource_provider.h"
+#include "KisColorDrop.h"
+#include "widgets/KisStudioColorField.h"
+#include <KoColorSpaceRegistry.h>
 #include "KisSettingsRegistry.h"
 #include "kis_config.h"
 #include "kis_icon_utils.h"
@@ -76,6 +79,32 @@ const QString hiddenKey = QStringLiteral("StudioHiddenVariants");
 const QString slotPrefix = QStringLiteral("slot:");
 const QString toolPrefix = QStringLiteral("tool:");
 const QString spacePrefix = QStringLiteral("space:");
+/// A paint color pinned, as its sRGB hex ("color:#d9377b")
+const QString colorPrefix = QStringLiteral("color:");
+
+QColor pinnedColor(const QString &key)
+{
+    return QColor(key.mid(colorPrefix.size()));
+}
+
+/// A pinned color's button: a round swatch with a faint ring, so white and black both show
+QIcon swatchIcon(const QColor &color)
+{
+    QIcon icon;
+    for (qreal ratio : {1.0, 1.5, 2.0}) {
+        QPixmap pixmap(QSize(24, 24) * ratio);
+        pixmap.setDevicePixelRatio(ratio);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setPen(QPen(QColor(128, 128, 128, 120), 1));
+        painter.setBrush(color);
+        painter.drawEllipse(QRectF(4.5, 4.5, 15, 15));
+        painter.end();
+        icon.addPixmap(pixmap);
+    }
+    return icon;
+}
 const QString effectsItem = QStringLiteral("action:studio_effects");
 /// A brush pinned to the rail, by Find's key for it
 const QString brushPrefix = QStringLiteral("brush:");
@@ -156,8 +185,8 @@ QStringList defaultItems()
     return {slotPrefix + QStringLiteral("paint"),
             blender.isEmpty() ? slotPrefix + QStringLiteral("blend") : brushPrefix + blender,
             slotPrefix + QStringLiteral("erase"),
-            spacePrefix,
-            slotPrefix + QStringLiteral("select"), slotPrefix + QStringLiteral("move"), pushItem, slotPrefix + QStringLiteral("fill"),
+            spacePrefix, pushItem,
+            slotPrefix + QStringLiteral("select"), slotPrefix + QStringLiteral("move"), slotPrefix + QStringLiteral("fill"),
             slotPrefix + QStringLiteral("shape"), slotPrefix + QStringLiteral("text"), slotPrefix + QStringLiteral("guides"),
             effectsItem};
 }
@@ -739,12 +768,13 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
         }
         writable.writeEntry(effectsOfferedKey, true);
     }
-    // and Push beside Transform, once
+    // and Push first among the tools, once
     if (!cfg.readEntry<bool>(pushOfferedKey, false)) {
         KisConfig writable(false);
         if (!d->items.contains(pushItem)) {
-            const int move = d->items.indexOf(slotPrefix + QStringLiteral("move"));
-            d->items.insert(move >= 0 ? move + 1 : d->items.size(), pushItem);
+            int at = 0;
+            while (at < d->items.size() && !d->items[at].startsWith(spacePrefix)) at++;
+            d->items.insert(at < d->items.size() ? at + 1 : 0, pushItem);
             writable.writeEntry(itemsKey, d->items);
         }
         writable.writeEntry(pushOfferedKey, true);
@@ -1058,6 +1088,14 @@ void KisStudioToolRail::rebuild()
             icon = KisIconUtils::loadIcon(d->slots[slotId].icon);
             title = d->slots[slotId].title;
             variants = d->visibleVariants(slotId).size() > 1;
+        } else if (key.startsWith(colorPrefix)) {
+            const QColor color = pinnedColor(key);
+            if (!color.isValid()) {
+                d->missing = true;
+                continue;
+            }
+            icon = swatchIcon(color);
+            title = color.name().toUpper();
         } else {
             KisStudioFind::Item item;
             if (!find || !find->item(key, &item)) {
@@ -1131,6 +1169,11 @@ void KisStudioToolRail::runItem(int index)
         }
         return;
     }
+    if (key.startsWith(colorPrefix)) {
+        KisCanvasResourceProvider *resources = d->resources();
+        if (resources) resources->setFGColor(KoColor(pinnedColor(key), KoColorSpaceRegistry::instance()->rgb8()));
+        return;
+    }
     if (key.startsWith(toolPrefix)) {
         KisStudioTools::switchTo(key.mid(toolPrefix.size()));
     } else if (KisStudioFind *find = d->mainWindow->studioFind()) {
@@ -1148,6 +1191,22 @@ void KisStudioToolRail::showCard(int index, bool touch)
     QWidget *anchor = d->widgets[widgetIndex];
     const QString key = d->items.value(index);
     KisStudioItemCard *card = nullptr;
+
+    // a pinned color: its picker, the pin taking the color chosen (dragged off the rail, it goes)
+    if (key.startsWith(colorPrefix)) {
+        auto *field = new KisStudioColorField(anchor);
+        field->setGeometry(anchor->rect());
+        field->hide();
+        field->setColor(pinnedColor(key));
+        connect(field, &KisStudioColorField::colorChanged, this, [this, index, key](const QColor &color) {
+            QStringList items = d->items;
+            if (items.value(index) != key) return;
+            items[index] = colorPrefix + color.name();
+            QTimer::singleShot(0, this, [this, items]() { setItems(items); });
+        });
+        field->openPicker();
+        return;
+    }
 
     if (key.startsWith(slotPrefix)) {
         const QString slotId = key.mid(slotPrefix.size());
@@ -1282,14 +1341,15 @@ int KisStudioToolRail::dropIndex(int y) const
 
 void KisStudioToolRail::dragEnterEvent(QDragEnterEvent *event)
 {
-    if (event->mimeData()->hasFormat(KisStudioShortcuts::itemMimeType())) {
+    // an item, or a color (a swatch, the color chip) pinned as one
+    if (event->mimeData()->hasFormat(KisStudioShortcuts::itemMimeType()) || KisColorDrop::carriesColor(event->mimeData())) {
         event->acceptProposedAction();
     }
 }
 
 void KisStudioToolRail::dragMoveEvent(QDragMoveEvent *event)
 {
-    if (!event->mimeData()->hasFormat(KisStudioShortcuts::itemMimeType())) {
+    if (!event->mimeData()->hasFormat(KisStudioShortcuts::itemMimeType()) && !KisColorDrop::carriesColor(event->mimeData())) {
         return;
     }
     event->acceptProposedAction();
@@ -1304,7 +1364,11 @@ void KisStudioToolRail::dragLeaveEvent(QDragLeaveEvent *)
 void KisStudioToolRail::dropEvent(QDropEvent *event)
 {
     d->indicator->hide();
-    const QString key = QString::fromUtf8(event->mimeData()->data(KisStudioShortcuts::itemMimeType()));
+    QString key = QString::fromUtf8(event->mimeData()->data(KisStudioShortcuts::itemMimeType()));
+    KoColor dropped;
+    if (key.isEmpty() && KisColorDrop::colorOf(event->mimeData(), &dropped)) {
+        key = colorPrefix + dropped.toQColor().name();
+    }
     if (key.isEmpty()) {
         return;
     }

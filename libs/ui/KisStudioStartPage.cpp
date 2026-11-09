@@ -2359,8 +2359,8 @@ void KisStudioStartPage::showEvent(QShowEvent *event)
 
 void KisStudioStartPage::dragEnterEvent(QDragEnterEvent *event)
 {
-    // only files it can open: not links from a browser
-    bool files = false;
+    // files it can open, or a picture (from a browser) with no file of its own
+    bool files = event->mimeData()->hasImage();
     Q_FOREACH (const QUrl &url, event->mimeData()->urls()) files = files || url.isLocalFile();
     if (!files) {
         event->ignore();
@@ -2382,13 +2382,24 @@ void KisStudioStartPage::dropEvent(QDropEvent *event)
     d->dropping = false;
     update();
     if (!d->mainWindow) return;
+    bool opened = false;
     Q_FOREACH (const QUrl &url, event->mimeData()->urls()) {
         if (!url.isLocalFile()) continue;
+        opened = true;
         const QString path = url.toLocalFile();
         if (path.endsWith(QLatin1String(".bundle"), Qt::CaseInsensitive)) {
             d->mainWindow->installBundle(path);
         } else {
             d->mainWindow->openDocument(path, KisMainWindow::None);
+        }
+    }
+    // a picture without a file: a new image of it, not saved anywhere yet
+    if (!opened) {
+        const QImage picture = KisClipboard::instance()->getImageWithFallback(event->mimeData(), false);
+        const QString file = KisProfile::tempFolder() + QStringLiteral("/dropped.png");
+        if (!picture.isNull() && QDir().mkpath(KisProfile::tempFolder()) && picture.save(file)) {
+            d->mainWindow->openDocument(file, KisMainWindow::Import);
+            QFile::remove(file);
         }
     }
     event->acceptProposedAction();
