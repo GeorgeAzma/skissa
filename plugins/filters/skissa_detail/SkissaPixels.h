@@ -10,6 +10,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <memory>
 #include <vector>
 
 #include <kis_types.h>
@@ -28,6 +30,24 @@ void readOriginal(KisPaintDeviceSP device, const QRect &rect, quint8 *out);
 
 /// A number that changes with any byte of \p rect as it was when the effect began
 quint64 originalKey(KisPaintDeviceSP device, const QRect &rect);
+
+/**
+ * originalKey(), hashed once for all patches of a run: while one transaction holds the device, its old pixels can't
+ * change. A filter mask's patches each have a copy of their own, and are hashed.
+ */
+quint64 originalKeyOf(KisPaintDeviceSP device, const QRect &rect);
+
+/// \p rect's pixels out of \p pixels, which hold all of \p whole
+std::vector<float> partOf(const std::vector<float> &pixels, const QRect &whole, const QRect &rect);
+
+/**
+ * The result over all of \p whole of an effect that reads anywhere in the frame (a lens, a zoom), made once for the
+ * patches of one run, or of copies of the same pixels (a filter mask's patches each read the whole image), and kept
+ * for the next run of the same: \p make writes the result for a part of \p whole from all of it as read, and runs on
+ * every core, a band each. Empty when the image is too large to hold twice; the patch then makes its own part.
+ */
+std::shared_ptr<const std::vector<float>> wholeResult(KisPaintDeviceSP device, const QRect &whole, quint64 settingsKey,
+                                                      const std::function<void(const float *in, const QRect &part, float *out)> &make);
 
 /// \p rect as it was when the effect began, as linear sRGB red, green, blue and alpha
 std::vector<float> readLinear(KisPaintDeviceSP device, const QRect &rect);

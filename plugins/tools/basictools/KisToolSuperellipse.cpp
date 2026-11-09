@@ -33,6 +33,7 @@
 #include <kis_figure_painting_tool_helper.h>
 #include <kis_resources_snapshot.h>
 #include <klocalizedstring.h>
+#include <widgets/KisStudioChips.h>
 #include <widgets/KisStudioValueRow.h>
 
 namespace
@@ -195,7 +196,7 @@ QList<QPointer<QWidget>> KisToolSuperellipse::createOptionWidgets()
     share.suffix = QStringLiteral("%");
     m_roundness = add(i18nc("shape tool: how far the corners reach", "Roundness"), share, 0,
                       [](KisSuperellipse::Look &look, qreal v) { look.roundness = v / 100; });
-    m_roundness->setToolTip(i18nc("@info:tooltip", "All the way: no straight side left"));
+    m_roundness->setToolTip(i18nc("@info:tooltip", "All the way: a pill"));
     KisStudioValueRow::Range exponent;
     exponent.minimum = KisSuperellipse::leastCurve;
     exponent.maximum = KisSuperellipse::mostCurve;
@@ -206,6 +207,15 @@ QList<QPointer<QWidget>> KisToolSuperellipse::createOptionWidgets()
     exponent.snapped = [](qreal v) { return v < 1 ? std::round(v * 10) / 10 : v < 6 ? std::round(v * 2) / 2 : std::round(v); };
     m_curve = add(i18nc("shape tool: the corners' curve", "Curve"), exponent, 2, [](KisSuperellipse::Look &look, qreal v) { look.curve = v; });
     m_curve->setToolTip(i18nc("@info:tooltip the shape tool's corner exponent", "2 is round"));
+
+    // corners as round on a long box as on a square, or the whole shape stretched with its box (an ellipse)
+    m_stretch = new KisStudioChips(panel);
+    connect(m_stretch, &KisStudioChips::clicked, this, [this](int index) {
+        KisSuperellipse::Look look = m_look;
+        look.stretched = index == 1;
+        setLook(look);
+    });
+    rows->addWidget(m_stretch);
 
     showLook();
     // in the Studio, Krita's fill and outline are the top bar's: kept, out of sight, for it to mirror
@@ -243,6 +253,14 @@ void KisToolSuperellipse::showLook()
     if (m_sides) m_sides->setValue(m_look.sides);
     if (m_roundness) m_roundness->setValue(m_look.roundness * 100);
     if (m_curve) m_curve->setValue(m_look.curve);
+    if (m_stretch) {
+        KisStudioChips::Chip round, stretch;
+        round.text = i18nc("shape tool: corners stay round however long the box", "Round corners");
+        round.on = !m_look.stretched;
+        stretch.text = i18nc("shape tool: the whole shape stretches with its box", "Stretch");
+        stretch.on = m_look.stretched;
+        m_stretch->setChips({round, stretch});
+    }
     if (m_preview) m_preview->setIcon(KisSuperellipse::iconOf(m_look, m_preview->palette().color(QPalette::ButtonText), m_preview->iconSize().width()));
     const QVector<KisSuperellipse::Preset> presets = KisSuperellipse::presets();
     for (int i = 0; i < m_presetButtons.size() && i < presets.size(); i++) {

@@ -13,7 +13,6 @@
 #include <KoColorSpace.h>
 #include <filter/kis_filter_category_ids.h>
 #include <filter/kis_filter_configuration.h>
-#include <kis_datamanager.h>
 #include <kis_default_bounds_base.h>
 #include <kis_paint_device.h>
 #include <klocalizedstring.h>
@@ -39,35 +38,6 @@ struct Diffused {
 };
 
 /**
- * The key of \p rect of \p device's pixels as they were, hashed once for all patches of a run: while one transaction
- * holds the device, its old pixels can't change. A mask's patches each have a copy of their own, and are hashed.
- */
-quint64 originalKeyOf(KisPaintDeviceSP device, const QRect &rect)
-{
-    struct Seen {
-        KisPaintDeviceWSP device;
-        KisWeakSharedPtr<KisMemento> transaction;
-        QRect rect;
-        quint64 key {0};
-    };
-    static QMutex lock;
-    static Seen seen;
-    const KisMementoSP transaction = device->dataManager()->currentMemento();
-    if (!transaction) return SkissaPixels::originalKey(device, rect);
-    // hashed while the run's other patches wait for it: each would hash the whole image itself
-    QMutexLocker locker(&lock);
-    if (seen.device.isValid() && seen.device == device.data() && seen.transaction.isValid() && seen.transaction == transaction.data()
-        && seen.rect == rect) {
-        return seen.key;
-    }
-    seen.device = device.data();
-    seen.transaction = transaction;
-    seen.rect = rect;
-    seen.key = SkissaPixels::originalKey(device, rect);
-    return seen.key;
-}
-
-/**
  * The diffusion of \p rect of \p device's pixels as they were when the effect began, or of the cells \p cell wide
  * over it (then its rect is in cells). Patches run side by side, and a filter mask's each on a copy of their own, so
  * it is found again by what it was made of: the pixels and the settings. The last one is kept.
@@ -75,7 +45,7 @@ quint64 originalKeyOf(KisPaintDeviceSP device, const QRect &rect)
 std::shared_ptr<Diffused> diffusedFor(KisPaintDeviceSP device, const QRect &rect, const Settings &settings, const Quantizer &quantizer, const QString &config,
                                       int cell)
 {
-    const quint64 key = originalKeyOf(device, rect) ^ (quint64(qHash(config)) << 32 | qHash(device->colorSpace()->id()));
+    const quint64 key = SkissaPixels::originalKeyOf(device, rect) ^ (quint64(qHash(config)) << 32 | qHash(device->colorSpace()->id()));
     static QMutex kept;
     static quint64 keptKey = 0;
     static std::shared_ptr<Diffused> last;

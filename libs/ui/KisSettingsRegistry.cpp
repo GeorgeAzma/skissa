@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisSettingsRegistry.h"
+#include "KisSuperellipse.h"
 #include "widgets/KisBlendModePicker.h"
 #include <KisProfile.h>
 
@@ -394,6 +395,20 @@ QVector<Setting> describeAll()
             // The picker's themes and the one in use (KisStudioTheme::themes)
             all << grouped(text(QStringLiteral("List"), QLatin1String(""), i18nc("setting", "Themes"), R::Fork | R::OwnNotice), QStringLiteral("StudioThemes"));
             all << grouped(text(QStringLiteral("Current"), QLatin1String(""), i18nc("setting", "Theme"), R::Fork | R::OwnNotice), QStringLiteral("StudioThemes"));
+        }
+        {
+            // The shape tool's look (KisSuperellipse): those showing it follow its writes, an undo's too
+            const QString shapeGroup = QStringLiteral("KritaShape/KisToolSuperellipse");
+            auto made = [](Setting s) {
+                s.flags |= R::OwnNotice;
+                s.written = [](const QVariant &) { KisSuperellipse::written(); };
+                return s;
+            };
+            all << made(grouped(number(QStringLiteral("skissaSides"), 4, KisSuperellipse::leastSides, KisSuperellipse::mostSides, i18nc("setting", "Shape sides"), R::Fork), shapeGroup));
+            all << made(grouped(number(QStringLiteral("skissaRoundness"), 0.5, 0, 1, i18nc("setting", "Shape roundness"), R::Fork), shapeGroup));
+            all << made(grouped(number(QStringLiteral("skissaCurve"), 2.0, KisSuperellipse::leastCurve, KisSuperellipse::mostCurve, i18nc("setting", "Shape curve"), R::Fork), shapeGroup));
+            all << made(grouped(number(QStringLiteral("skissaAngle"), 0.0, -360, 360, i18nc("setting", "Shape angle"), R::Fork), shapeGroup));
+            all << made(grouped(toggle(QStringLiteral("skissaStretched"), false, i18nc("setting", "Shape stretched"), R::Fork), shapeGroup));
         }
         all << itemList(QStringLiteral("StudioRailItems"), i18nc("setting", "Tools"));
         all << itemList(QStringLiteral("StudioBarItems"), i18nc("setting", "Top bar buttons"));

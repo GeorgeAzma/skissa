@@ -14,6 +14,7 @@
 #include <KoIcon.h>
 #include <kis_tool_rectangle_base.h>
 
+class KisStudioChips;
 class KisStudioValueRow;
 class QAbstractButton;
 class QToolButton;
@@ -55,6 +56,7 @@ private:
     QPointer<KisStudioValueRow> m_sides;
     QPointer<KisStudioValueRow> m_roundness;
     QPointer<KisStudioValueRow> m_curve;
+    QPointer<KisStudioChips> m_stretch;
     QPointer<QToolButton> m_preview;
     QVector<QPointer<QAbstractButton>> m_presetButtons;
 };

@@ -68,6 +68,18 @@ void SkissaLensFilter::processImpl(KisPaintDeviceSP device, const QRect &applyRe
     const QRect bounds = device->defaultBounds()->bounds();
     const Lens lens(settings, bounds, t.scale(1.0), !SkissaPixels::holdsPastWhite(device->colorSpace()));
 
+    // made once over the whole image for all patches (each would read and make most of it again); not for a preview
+    // at a level of detail, whose device holds a smaller picture
+    if (bounds.contains(applyRect) && device->defaultBounds()->currentLevelOfDetail() == 0) {
+        const quint64 settingsKey = qHash(config->toXML()) ^ (quint64(bounds.width()) << 32 | quint32(bounds.height()));
+        const auto whole = SkissaPixels::wholeResult(device, bounds, settingsKey, [&lens, &bounds](const float *in, const QRect &part, float *out) {
+            lens.apply(in, bounds, part, out);
+        });
+        if (whole) {
+            SkissaPixels::writeLinear(device, applyRect, SkissaPixels::partOf(*whole, bounds, applyRect).data());
+            return;
+        }
+    }
     // beyond the image its edge repeats
     const QRect source = lens.sourceOf(applyRect) & (bounds | applyRect);
     const std::vector<float> in = SkissaPixels::readLinear(device, source);

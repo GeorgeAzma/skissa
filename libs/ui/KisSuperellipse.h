@@ -13,6 +13,7 @@
 #include <QPainterPath>
 #include <QRectF>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 #include <QtGlobal>
 
@@ -22,11 +23,13 @@
  * One shape for every box: a regular polygon of a few sides, turned, stretched to the box, its corners Lamé curves
  * (superellipses) between the two sides that meet there. Four sides at no turn is the box itself.
  *
- * Roundness is how far each corner reaches along its two sides, as a share of the longest half side, each kept
- * within its own half side: none is the polygon, a little rounds its corners, all of it leaves no straight side (an
- * ellipse from a box). Curve is the corners' exponent in the frame of their two sides: 2 round, more flatter and
- * squarer (4 to 5 a squircle), 1 a straight cut (a box becomes a diamond), under 1 pinched inward, a star whose
- * points are the sides' middles.
+ * Roundness is how far each corner reaches along its two sides, as a share of the shortest half side, so corners are
+ * as round on a long box as on a square one: none is the polygon, all of it a pill (a circle from a square). Curve is
+ * the corners' exponent in the frame of their two sides: 2 round, more flatter and squarer (4 to 5 a squircle's), 1
+ * a straight cut, under 1 pinched inward, a star whose points are the sides' middles.
+ *
+ * Stretched, the shape is made in a square and stretched to its box, corners and all, Roundness then a share of the
+ * longest half side: an ellipse, a diamond, a star fill any box.
  */
 namespace KisSuperellipse
 {
@@ -42,10 +45,12 @@ struct Look {
     qreal curve {2};
     /// Degrees, clockwise on screen, before the shape is stretched to its box
     qreal angle {0};
+    /// Made in a square and stretched to the box, corners too
+    bool stretched {false};
     bool operator==(const Look &other) const
     {
         return sides == other.sides && qAbs(roundness - other.roundness) < 1e-3 && qAbs(curve - other.curve) < 1e-3
-            && qAbs(angle - other.angle) < 1e-3;
+            && qAbs(angle - other.angle) < 1e-3 && stretched == other.stretched;
     }
     bool operator!=(const Look &other) const { return !(*this == other); }
 };
@@ -72,10 +77,15 @@ KRITAUI_EXPORT QString nameOf(const Look &look);
 /// The look drawn in \p ink, \p size px square, its line as thick at any size
 KRITAUI_EXPORT QIcon iconOf(const Look &look, const QColor &ink, int size = 24);
 
+/// The settings registry's ids of the look's parts, in the order of Look's members
+KRITAUI_EXPORT QStringList settingIds();
+
 /// The look the shape tool draws with
 KRITAUI_EXPORT Look current();
 /// The shape tool draws with \p look from now on (Watch::changed())
 KRITAUI_EXPORT void use(const Look &look);
+/// A part of the look was written (or taken back): Watch::changed() once, after the step's other parts
+KRITAUI_EXPORT void written();
 /// \p look as the shape tool's, with the tool picked
 KRITAUI_EXPORT void draw(const Look &look);
 

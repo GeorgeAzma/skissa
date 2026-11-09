@@ -254,21 +254,19 @@ void drawPrimaryButtonPanel(QPainter *painter, const QStyleOption *option)
 void drawField(QPainter *painter, const QStyleOption *option, bool fill)
 {
     const Interaction s(option);
-    const QPalette &pal = option->palette;
-    const QColor bg = pal.color(QPalette::Button);
-    const QColor fg = pal.color(QPalette::Text);
+    const QColor fg = option->palette.color(QPalette::Text);
 
-    // focus is a field a little lighter with a soft edge: the caret says where typing goes
-    QColor surface = bg;
+    // a soft fill of the text's color, as value rows and tracks are, so it sits on glass and any theme alike; focus
+    // is a little more of it with a soft edge: the caret says where typing goes
+    QColor surface = fg;
     QColor border;
+    surface.setAlphaF(!s.enabled ? 0.03 : option->state.testFlag(QStyle::State_HasFocus) ? 0.1 : s.hovered ? 0.085 : 0.06);
     if (s.enabled && option->state.testFlag(QStyle::State_HasFocus)) {
-        surface = KisModernStyle::mix(bg, fg, 0.06);
-        border = KisModernStyle::mix(bg, fg, 0.26);
-    } else if (s.hovered) {
-        border = KisModernStyle::mix(bg, fg, 0.18);
+        border = fg;
+        border.setAlphaF(0.16);
     }
 
-    drawRounded(painter, strokeRect(option->rect), radius, fill ? surface : QColor(), border);
+    drawRounded(painter, strokeRect(option->rect), KisModernStyle::tileRadius, fill ? surface : QColor(), border);
 }
 
 /// A 2px line in the middle of splitter and dock separator handles, shown only while hovered.

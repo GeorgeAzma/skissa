@@ -505,7 +505,6 @@ KisStudioBrushEditor::KisStudioBrushEditor(KisMainWindow *mainWindow)
     layout->addWidget(d->tabs);
 
     d->page = new QWidget(this);
-    d->page->setAutoFillBackground(false);
     d->pageLayout = new QVBoxLayout(d->page);
     d->pageLayout->setContentsMargins(0, 0, 0, 0);
     d->pageLayout->setSpacing(KisModernStyle::space1);
@@ -515,6 +514,8 @@ KisStudioBrushEditor::KisStudioBrushEditor(KisMainWindow *mainWindow)
     d->pageScroll->setWidgetResizable(true);
     d->pageScroll->viewport()->setAutoFillBackground(false);
     d->pageScroll->setWidget(d->page);
+    // after setWidget, which fills it: the page is glass like the rest
+    d->page->setAutoFillBackground(false);
     layout->addWidget(d->pageScroll);
 
     auto *everything = new KisStudioValueRow(i18nc("the whole brush editor", "Everything"), this);

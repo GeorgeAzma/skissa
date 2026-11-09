@@ -109,6 +109,7 @@
 #include "kis_node_manager.h"
 #include <kis_image.h>
 #include <kis_layer.h>
+#include <kis_paint_layer.h>
 #include <QSharedPointer>
 #include "KisWelcomePageWidget.h"
 #include "KisStudioStartPage.h"
@@ -5910,7 +5911,42 @@ void KisStudioLayout::tidyCommand(QAction *action)
     // a name of their own (recent files, workspaces) are the user's and keep theirs
     QString text = KisSentenceCase::of(action->text());
     // the transform tool's liquify mode, as its own command, is called what the bar calls it
-    if (action->objectName() == QLatin1String("KisToolTransformLiquify")) text = i18nc("@action the transform tool's liquify mode", "Push");
+    if (action->objectName() == QLatin1String("KisToolTransformLiquify")) {
+        text = i18nc("@action the transform tool's liquify mode", "Push");
+        // on a layer with nothing on it, Push takes the topmost one that has paint
+        if (!action->property("skissaPushFindsPaint").toBool()) {
+            action->setProperty("skissaPushFindsPaint", true);
+            connect(action, &QAction::triggered, this, [this, action]() {
+                KisViewManager *view = d->mainWindow ? d->mainWindow->viewManager() : nullptr;
+                KisImageSP image = view ? view->image() : nullptr;
+                if (!image) return;
+                auto painted = [](KisNodeSP node) {
+                    return node && node->paintDevice() && qobject_cast<KisLayer *>(node.data()) && !node->paintDevice()->exactBounds().isEmpty();
+                };
+                if (painted(view->activeNode())) return;
+                std::function<KisNodeSP(KisNodeSP)> topmost = [&](KisNodeSP parent) -> KisNodeSP {
+                    for (KisNodeSP child = parent->lastChild(); child; child = child->prevSibling()) {
+                        if (!child->visible() || !qobject_cast<KisLayer *>(child.data())) continue;
+                        if (child->childCount() && !qobject_cast<KisPaintLayer *>(child.data())) {
+                            if (KisNodeSP inside = topmost(child)) return inside;
+                        } else if (painted(child)) {
+                            return child;
+                        }
+                    }
+                    return nullptr;
+                };
+                if (KisNodeSP found = topmost(image->root())) {
+                    // the transform tool started on the empty layer: put away, the layer picked, and Push again, so it
+                    // starts afresh on it in Push (a layer picked under it would restart it in its first mode)
+                    KisStudioTools::switchTo(QStringLiteral("KritaShape/KisToolBrush"));
+                    view->nodeManager()->slotNonUiActivatedNode(found);
+                    QTimer::singleShot(0, action, [action]() { action->trigger(); });
+                } else {
+                    view->showFloatingMessage(i18nc("@info:status", "Nothing to push"), KisIconUtils::loadIcon(QStringLiteral("studio_push")), 2000);
+                }
+            });
+        }
+    }
     if (text != action->text()) action->setText(text);
 }
 
