@@ -14,12 +14,11 @@ class KisPropertiesConfiguration;
 
 /**
  * Lens blur: the picture out of focus, as a lens shows what isn't at the distance it is focused on. Every point of it
- * spreads into the shape of the aperture (a disc, or a polygon of its blades), so a defocused light is a bright disc
- * or polygon of its own (bokeh): the blur is that shape's average of the picture, in linear light, with the picture's
- * whitest parts first standing for the brighter light they were clipped from (SkissaPixels::unclipOf) and the light
- * shown again as a picture that stops at white shows it (reclipOf). Out of focus
- * evenly, or growing away from a band in focus across the picture, as a tilted lens (tilt-shift) or a sloping ground
- * makes it.
+ * spreads its light into the shape of the aperture (a disc, or a polygon of its blades) at its own size, so a
+ * defocused light is a bright disc or polygon of its own (bokeh), in linear light, with the picture's whitest parts
+ * first standing for the brighter light they were clipped from (SkissaPixels::unclipOf) and the light shown again as
+ * a picture that stops at white shows it (reclipOf). Out of focus evenly, or growing away from a band in focus across
+ * the picture, as a tilted lens (tilt-shift) or a sloping ground makes it.
  */
 namespace SkissaFocus
 {
@@ -70,6 +69,8 @@ private:
     Settings m_settings;
     qreal m_scale {1};
     bool m_clipped {true};
+    /// The image: nothing past it spreads
+    QRect m_bounds;
     /// The band: its line through the middle (a point and the direction across it), its half width and how far the
     /// farthest corner is past it, in pixels at this scale
     QPointF m_middle;

@@ -22,45 +22,10 @@ namespace SkissaFocus
 namespace
 {
 
-/// A blur is made on the coarsest copy of the picture where the aperture is still at least this many cells across
+/// A point spreads on the coarsest grid where its aperture is still this many cells across
 constexpr float finestAperture = 16;
-/// A band's blur is a mix of this many blurs of even steps of size, each pixel between the two beside its own
-constexpr int bandSteps = 6;
-
-/// Four planes of premultiplied red, green, blue and alpha, \p w by \p h, the first at \p origin in cells of
-/// 2^level pixels from the image's corner
-struct Grid {
-    int level {0};
-    QPoint origin;
-    int w {0}, h {0};
-    std::vector<float> plane[4];
-};
-
-/// \p fine halved: each cell the average of the cells of it, fixed to the image's corner so patches agree
-Grid halved(const Grid &fine)
-{
-    auto down = [](int v) { return v >= 0 ? v / 2 : -((-v + 1) / 2); };
-    Grid grid;
-    grid.level = fine.level + 1;
-    grid.origin = QPoint(down(fine.origin.x()), down(fine.origin.y()));
-    grid.w = down(fine.origin.x() + fine.w - 1) - grid.origin.x() + 1;
-    grid.h = down(fine.origin.y() + fine.h - 1) - grid.origin.y() + 1;
-    std::vector<float> counts(size_t(grid.w) * grid.h, 0.0f);
-    for (auto &plane : grid.plane) plane.assign(counts.size(), 0.0f);
-    for (int y = 0; y < fine.h; y++) {
-        const int gy = down(fine.origin.y() + y) - grid.origin.y();
-        for (int x = 0; x < fine.w; x++) {
-            const size_t to = size_t(gy) * grid.w + (down(fine.origin.x() + x) - grid.origin.x());
-            const size_t from = size_t(y) * fine.w + x;
-            for (int c = 0; c < 4; c++) grid.plane[c][to] += fine.plane[c][from];
-            counts[to] += 1;
-        }
-    }
-    for (size_t i = 0; i < counts.size(); i++) {
-        for (auto &plane : grid.plane) plane[i] /= std::max(1.0f, counts[i]);
-    }
-    return grid;
-}
+/// Apertures are made at sizes this many steps a cell apart, and each point spreads by the nearest
+constexpr int sizeSteps = 8;
 
 /**
  * The aperture at \p radius cells, as the cells it covers along each row from -reach to reach: a whole run of them
@@ -140,90 +105,6 @@ Spans spansOf(float radius, int blades, float degrees)
     return spans;
 }
 
-/**
- * \p grid blurred by \p spans over \p area (in the grid's cells), each row read from running sums of it, so a cell
- * costs a few reads a row of the aperture however wide it is; past the grid its edge repeats
- */
-void blurOf(const Grid &grid, const Spans &spans, const QRect &area, std::vector<float> out[4])
-{
-    const int pad = spans.reach + 2;
-    const int width = grid.w + 2 * pad;
-    const int top = std::max(0, area.top() - spans.reach), bottom = std::min(grid.h - 1, area.bottom() + spans.reach);
-    // running sums of each row, its edge repeated past it; doubles, or the darks drown in a bright row's sum
-    std::vector<double> sums(size_t(bottom - top + 1) * (width + 1));
-    for (int c = 0; c < 4; c++) {
-        out[c].assign(size_t(area.width()) * area.height(), 0.0f);
-        const std::vector<float> &plane = grid.plane[c];
-        for (int y = top; y <= bottom; y++) {
-            double *sum = sums.data() + size_t(y - top) * (width + 1);
-            const float *row = plane.data() + size_t(y) * grid.w;
-            sum[0] = 0;
-            for (int i = 0; i < width; i++) sum[i + 1] = sum[i] + row[std::clamp(i - pad, 0, grid.w - 1)];
-        }
-        auto valueAt = [&](const double *sum, int i) { return float(sum[i + 1] - sum[i]); };
-        for (int y = 0; y < area.height(); y++) {
-            const int gy = area.top() + y;
-            float *to = out[c].data() + size_t(y) * area.width();
-            for (int x = 0; x < area.width(); x++) {
-                const int at = area.left() + x + pad;
-                double total = 0;
-                for (int r = 0; r <= 2 * spans.reach; r++) {
-                    const int row = std::clamp(gy + r - spans.reach, top, bottom);
-                    const double *sum = sums.data() + size_t(row - top) * (width + 1);
-                    if (spans.first[r] <= spans.last[r]) total += sum[at + spans.last[r] + 1] - sum[at + spans.first[r]];
-                    if (spans.leftShare[r] > 0) total += spans.leftShare[r] * valueAt(sum, at + spans.left[r]);
-                    if (spans.rightShare[r] > 0) total += spans.rightShare[r] * valueAt(sum, at + spans.right[r]);
-                }
-                to[x] = float(total / spans.total);
-            }
-        }
-    }
-}
-
-/**
- * \p levels' picture blurred by the aperture at \p radius pixels over \p rect (in pixels at this scale): on the
- * coarsest copy where the aperture is still finestAperture cells across, then enlarged between the cells' middles
- */
-void blurredAt(std::vector<Grid> &levels, float radius, int blades, float degrees, const QRect &rect, std::vector<float> out[4])
-{
-    int level = 0;
-    while (radius / std::ldexp(1.0f, level + 1) >= finestAperture / 2 && levels[level].w > 4 && levels[level].h > 4) {
-        level++;
-        if (level >= int(levels.size())) levels.push_back(halved(levels.back()));
-    }
-    const Grid &grid = levels[level];
-    const float cell = std::ldexp(1.0f, level);
-    const Spans spans = spansOf(radius / cell, blades, degrees);
-    if (!level) {
-        blurOf(grid, spans, rect.translated(-grid.origin), out);
-        return;
-    }
-    // the cells around the rect, one more each way for reading between them
-    auto down = [level](int v) { return v >= 0 ? v >> level : -((-v + (1 << level) - 1) >> level); };
-    const QRect cells = QRect(QPoint(down(rect.left()) - 1, down(rect.top()) - 1), QPoint(down(rect.right()) + 1, down(rect.bottom()) + 1))
-                            .translated(-grid.origin)
-        & QRect(0, 0, grid.w, grid.h);
-    std::vector<float> coarse[4];
-    blurOf(grid, spans, cells, coarse);
-    for (int c = 0; c < 4; c++) {
-        out[c].resize(size_t(rect.width()) * rect.height());
-        for (int y = 0; y < rect.height(); y++) {
-            const float gy = std::clamp((rect.top() + y + 0.5f) / cell - 0.5f - grid.origin.y() - cells.top(), 0.0f, float(cells.height() - 1));
-            const int y0 = std::min(int(gy), cells.height() - 1), y1 = std::min(y0 + 1, cells.height() - 1);
-            const float ty = gy - y0;
-            for (int x = 0; x < rect.width(); x++) {
-                const float gx = std::clamp((rect.left() + x + 0.5f) / cell - 0.5f - grid.origin.x() - cells.left(), 0.0f, float(cells.width() - 1));
-                const int x0 = std::min(int(gx), cells.width() - 1), x1 = std::min(x0 + 1, cells.width() - 1);
-                const float tx = gx - x0;
-                const float *p = coarse[c].data();
-                const float a = p[size_t(y0) * cells.width() + x0] + (p[size_t(y0) * cells.width() + x1] - p[size_t(y0) * cells.width() + x0]) * tx;
-                const float b = p[size_t(y1) * cells.width() + x0] + (p[size_t(y1) * cells.width() + x1] - p[size_t(y1) * cells.width() + x0]) * tx;
-                out[c][size_t(y) * rect.width() + x] = a + (b - a) * ty;
-            }
-        }
-    }
-}
-
 } // namespace
 
 Settings Settings::from(const KisPropertiesConfiguration &config)
@@ -272,6 +153,7 @@ Focus::Focus(const Settings &settings, const QRect &bounds, qreal scale, bool cl
     : m_settings(settings)
     , m_scale(scale)
     , m_clipped(clipped)
+    , m_bounds(bounds)
 {
     const QRectF frame = bounds.isEmpty() ? QRectF(0, 0, 1, 1) : QRectF(bounds);
     m_middle = frame.topLeft() + QPointF(settings.center.x() * frame.width(), settings.center.y() * frame.height());
@@ -317,67 +199,163 @@ void Focus::apply(const float *source, const QRect &sourceRect, const QRect &rec
         copy();
         return;
     }
-    // how far each pixel spreads, and so which blurs it needs
-    std::vector<float> spread(size_t(rect.width()) * rect.height());
-    float least = 1e9f, most = 0;
-    for (int y = 0; y < rect.height(); y++) {
-        for (int x = 0; x < rect.width(); x++) {
-            const float r = spreadAt(rect.left() + x + 0.5f, rect.top() + y + 0.5f);
-            spread[size_t(y) * rect.width() + x] = r;
-            least = std::min(least, r);
-            most = std::max(most, r);
-        }
+    // how far the points that may reach rect spread at most (the spread is least along a line, so most at a corner)
+    float most = 0;
+    for (const QPoint &corner : {sourceRect.topLeft(), sourceRect.topRight(), sourceRect.bottomLeft(), sourceRect.bottomRight()}) {
+        most = std::max(most, spreadAt(corner.x() + 0.5f, corner.y() + 0.5f));
     }
     if (most < 0.5f) {
         copy();
         return;
     }
 
-    // the picture as light, premultiplied: its whites as the brighter light they stand for
-    // room for every coarser copy, so the full one stays where it is
-    std::vector<Grid> levels(1);
-    levels.reserve(32);
-    Grid &full = levels[0];
-    full.origin = sourceRect.topLeft();
-    full.w = w;
-    full.h = h;
-    for (auto &plane : full.plane) plane.resize(size_t(w) * h);
-    for (size_t i = 0; i < size_t(w) * h; i++) {
-        const float *pixel = source + i * 4;
-        const float alpha = std::clamp(pixel[3], 0.0f, 1.0f);
-        const float brighter = m_clipped ? SkissaPixels::unclipOf(0.2126f * pixel[0] + 0.7152f * pixel[1] + 0.0722f * pixel[2]) : 1.0f;
-        for (int c = 0; c < 3; c++) full.plane[c][i] = std::max(0.0f, pixel[c]) * alpha * brighter;
-        full.plane[3][i] = alpha;
+    /*
+     * Each point spreads its light into the aperture at its own size, as light out of focus does; a pixel shows the
+     * light that reaches it over how much light of any color could (the weights reaching it), so the picture stays as
+     * bright as it was however the sizes change, and its edges, where nothing past the image spreads, stay whole.
+     * Points spread on grids fixed to the image's corner, each on the coarsest one where its aperture is still
+     * finestAperture cells across, a few writes a row of it (where its spans start and end, run through each row).
+     */
+    struct Level {
+        QRect cells; // the cells that hold what reaches rect, one more each way for reading between them
+        std::vector<double> sums[5]; // premultiplied light, alpha, weight
+        bool used {false};
+    };
+    auto levelOf = [](float r) { return r < finestAperture ? 0 : int(std::floor(std::log2(r / (finestAperture / 2)))); };
+    auto down = [](int v, int level) { return v >= 0 ? v >> level : -((-v + (1 << level) - 1) >> level); };
+    const int levels = levelOf(most) + 1;
+    std::vector<Level> grids(levels);
+    for (int level = 0; level < levels; level++) {
+        Level &grid = grids[level];
+        grid.cells = QRect(QPoint(down(rect.left(), level) - 1, down(rect.top(), level) - 1), QPoint(down(rect.right(), level) + 1, down(rect.bottom(), level) + 1));
+        for (auto &plane : grid.sums) plane.assign(size_t(grid.cells.height()) * (grid.cells.width() + 1), 0.0);
     }
 
-    // the blurs of even steps of size that the rect's spreads fall between (only the full one when even)
-    const float radius = float(s.size * m_scale);
-    const int steps = s.band ? bandSteps : 1;
-    const int lowest = s.band ? std::max(0, int(std::floor(least / radius * steps))) : 1;
-    const int highest = s.band ? std::min(steps, int(std::floor(most / radius * steps)) + 1) : 1;
-    std::vector<std::vector<float>> blurs[bandSteps + 1];
-    for (int k = std::max(1, lowest); k <= highest; k++) {
-        blurs[k].resize(4);
-        std::vector<float> made[4];
-        blurredAt(levels, radius * k / steps, s.blades, s.angle, rect, made);
-        for (int c = 0; c < 4; c++) blurs[k][c] = std::move(made[c]);
+    // the points, summed into the cells of their own grid: light, alpha, how many, their sizes
+    struct Cell {
+        float value[5] {0, 0, 0, 0, 0};
+        float size {0};
+    };
+    std::vector<std::vector<Cell>> cells(levels);
+    std::vector<QRect> cellRects(levels);
+    for (int level = 0; level < levels; level++) {
+        cellRects[level] = QRect(QPoint(down(sourceRect.left(), level), down(sourceRect.top(), level)),
+                                 QPoint(down(sourceRect.right(), level), down(sourceRect.bottom(), level)));
+        cells[level].resize(size_t(cellRects[level].width()) * cellRects[level].height());
+    }
+    const QRect frame = m_bounds.isEmpty() ? sourceRect : m_bounds;
+    for (int y = 0; y < h; y++) {
+        const int py = sourceRect.top() + y;
+        if (py < frame.top() || py > frame.bottom()) continue;
+        for (int x = 0; x < w; x++) {
+            const int px = sourceRect.left() + x;
+            if (px < frame.left() || px > frame.right()) continue;
+            const float *pixel = source + (size_t(y) * w + x) * 4;
+            const float r = std::max(0.5f, spreadAt(px + 0.5f, py + 0.5f));
+            const int level = std::min(levels - 1, levelOf(r));
+            const QRect &from = cellRects[level];
+            Cell &cell = cells[level][size_t(down(py, level) - from.top()) * from.width() + down(px, level) - from.left()];
+            // the picture as light: its whites as the brighter light they stand for
+            const float alpha = std::clamp(pixel[3], 0.0f, 1.0f);
+            const float brighter = m_clipped ? SkissaPixels::unclipOf(0.2126f * pixel[0] + 0.7152f * pixel[1] + 0.0722f * pixel[2]) : 1.0f;
+            for (int c = 0; c < 3; c++) cell.value[c] += std::max(0.0f, pixel[c]) * alpha * brighter;
+            cell.value[3] += alpha;
+            cell.value[4] += 1;
+            cell.size += r;
+        }
+    }
+
+    std::vector<Spans> apertures;
+    std::vector<char> made;
+    for (int level = 0; level < levels; level++) {
+        Level &grid = grids[level];
+        const QRect &from = cellRects[level];
+        const float cellSize = std::ldexp(1.0f, level);
+        const int width = grid.cells.width();
+        for (int cy = 0; cy < from.height(); cy++) {
+            for (int cx = 0; cx < from.width(); cx++) {
+                const Cell &cell = cells[level][size_t(cy) * from.width() + cx];
+                if (cell.value[4] <= 0) continue;
+                const float cellRadius = cell.size / cell.value[4] / cellSize;
+                const int step = std::max(sizeSteps / 2, int(std::lround(cellRadius * sizeSteps)));
+                const int x = from.left() + cx - grid.cells.left(), y = from.top() + cy - grid.cells.top();
+                const int reach = int(std::ceil(float(step) / sizeSteps)) + 1;
+                if (y + reach < 0 || y - reach >= grid.cells.height() || x + reach < 0 || x - reach >= width) continue;
+                if (step >= int(apertures.size())) {
+                    apertures.resize(step + 1);
+                    made.resize(step + 1, 0);
+                }
+                if (!made[step]) {
+                    apertures[step] = spansOf(float(step) / sizeSteps, s.blades, s.angle);
+                    made[step] = 1;
+                }
+                const Spans &spans = apertures[step];
+                grid.used = true;
+                const double share = 1 / spans.total;
+                for (int r = 0; r <= 2 * spans.reach; r++) {
+                    const int row = y + r - spans.reach;
+                    if (row < 0 || row >= grid.cells.height()) continue;
+                    // a run of cells from first to last, each getting part of the point
+                    auto add = [&](int first, int last, double part) {
+                        first = std::max(first + x, 0);
+                        last = std::min(last + x, width - 1);
+                        if (first > last) return;
+                        for (int c = 0; c < 5; c++) {
+                            double *line = grid.sums[c].data() + size_t(row) * (width + 1);
+                            const double v = cell.value[c] * part;
+                            line[first] += v;
+                            line[last + 1] -= v;
+                        }
+                    };
+                    if (spans.first[r] <= spans.last[r]) add(spans.first[r], spans.last[r], share);
+                    if (spans.leftShare[r] > 0) add(spans.left[r], spans.left[r], share * spans.leftShare[r]);
+                    if (spans.rightShare[r] > 0) add(spans.right[r], spans.right[r], share * spans.rightShare[r]);
+                }
+            }
+        }
+        // the starts and ends run through each row
+        if (grid.used) {
+            for (auto &plane : grid.sums) {
+                for (int row = 0; row < grid.cells.height(); row++) {
+                    double *line = plane.data() + size_t(row) * (width + 1);
+                    for (int i = 1; i < width; i++) line[i] += line[i - 1];
+                }
+            }
+        }
     }
 
     for (int y = 0; y < rect.height(); y++) {
         for (int x = 0; x < rect.width(); x++) {
-            const size_t i = size_t(y) * rect.width() + x;
-            const float at = std::clamp(spread[i] / radius * steps, 0.0f, float(steps));
-            const int k = std::min(int(at), steps - 1);
-            const float t = s.band ? at - k : 1.0f;
-            float mixed[4];
-            for (int c = 0; c < 4; c++) {
-                const float sharp = k == 0 ? full.plane[c][size_t(inside.top() + y) * w + inside.left() + x] : blurs[k][c][i];
-                const float blurred = blurs[k + 1][c][i];
-                mixed[c] = sharp + (blurred - sharp) * t;
+            const int px = rect.left() + x, py = rect.top() + y;
+            double total[5] = {0, 0, 0, 0, 0};
+            for (int level = 0; level < levels; level++) {
+                const Level &grid = grids[level];
+                if (!grid.used) continue;
+                const int width = grid.cells.width();
+                auto at = [&](int c, int gx, int gy) { return grid.sums[c][size_t(gy) * (width + 1) + gx]; };
+                if (!level) {
+                    for (int c = 0; c < 5; c++) total[c] += at(c, px - grid.cells.left(), py - grid.cells.top());
+                    continue;
+                }
+                // between the cells' middles, each cell's light shared by the pixels it covers
+                const float cellSize = std::ldexp(1.0f, level);
+                const float gx = (px + 0.5f) / cellSize - 0.5f - grid.cells.left();
+                const float gy = (py + 0.5f) / cellSize - 0.5f - grid.cells.top();
+                const int x0 = int(std::floor(gx)), y0 = int(std::floor(gy));
+                const double tx = gx - x0, ty = gy - y0, per = 1.0 / (double(cellSize) * cellSize);
+                for (int c = 0; c < 5; c++) {
+                    const double top = at(c, x0, y0) + (at(c, x0 + 1, y0) - at(c, x0, y0)) * tx;
+                    const double bottom = at(c, x0, y0 + 1) + (at(c, x0 + 1, y0 + 1) - at(c, x0, y0 + 1)) * tx;
+                    total[c] += (top + (bottom - top) * ty) * per;
+                }
             }
-            float *to = out + i * 4;
-            const float alpha = std::clamp(mixed[3], 0.0f, 1.0f);
-            for (int c = 0; c < 3; c++) to[c] = alpha > 1e-6f ? mixed[c] / alpha : 0.0f;
+            float *to = out + (size_t(y) * rect.width() + x) * 4;
+            if (total[4] <= 1e-9) {
+                std::copy_n(source + (size_t(inside.top() + y) * w + inside.left() + x) * 4, 4, to);
+                continue;
+            }
+            const float alpha = std::clamp(float(total[3] / total[4]), 0.0f, 1.0f);
+            for (int c = 0; c < 3; c++) to[c] = total[3] > 1e-9 ? std::max(0.0f, float(total[c] / total[3])) : 0.0f;
             // back from light to the picture: what wasn't spread is exactly as it was
             if (m_clipped) {
                 const float dimmed = SkissaPixels::reclipOf(0.2126f * to[0] + 0.7152f * to[1] + 0.0722f * to[2]);

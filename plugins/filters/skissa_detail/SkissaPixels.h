@@ -38,19 +38,25 @@ void writeLinear(KisPaintDeviceSP device, const QRect &rect, const float *pixels
 /// Whether \p cs holds values past white (floats)
 bool holdsPastWhite(const KoColorSpace *cs);
 
-/// How much brighter than itself the light a color of \p luminance stands for, where the picture stops at white: its
-/// whitest parts stand for light far brighter than white that was clipped (the inverse of a Reinhard curve, up to ten
-/// times)
+/**
+ * A picture that stops at white is taken to have been made from the light by Reinhard's curve with its white at this
+ * many times white's light (L / (1 + L (1 - 1 / whiteLight)), about three stops past white): a guess, since the light
+ * past white is lost, but one guess that every effect spreading light makes alike.
+ */
+constexpr float whiteLight = 10;
+
+/// How much brighter than itself the light a color of \p luminance stands for, where the picture stops at white: that
+/// curve undone, so its whitest parts stand for light far brighter than white
 inline float unclipOf(float luminance)
 {
-    return 1 / (1 - 0.9f * std::clamp(luminance, 0.0f, 1.0f));
+    return 1 / (1 - (1 - 1 / whiteLight) * std::clamp(luminance, 0.0f, 1.0f));
 }
 
-/// unclipOf undone: how much light of \p luminance is dimmed to show in a picture that stops at white, so what was
-/// only made brighter and then spread comes back as it was where nothing spread
+/// unclipOf undone: how much light of \p luminance is dimmed by that curve to show in a picture that stops at white, so
+/// what was only made brighter and then spread comes back as it was where nothing spread
 inline float reclipOf(float luminance)
 {
-    return 1 / (1 + 0.9f * std::max(0.0f, luminance));
+    return 1 / (1 + (1 - 1 / whiteLight) * std::max(0.0f, luminance));
 }
 
 /**

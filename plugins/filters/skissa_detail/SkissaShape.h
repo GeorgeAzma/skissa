@@ -49,10 +49,10 @@ struct Settings {
     float shadowSoftness {8};
     QColor shadowColor {QColor(0, 0, 0, 140)};
     Fall shadowFall {Fall::Under};
-    /// The bevel: how wide its slope is in pixels (none at 0), how steep (0 to 1), and whether it rises inside the
+    /// The bevel: how wide its slope is in pixels (none at 0), how steep (0 to 1, of 80° at its steepest), and whether it rises inside the
     /// edge or across it (an emboss, half of it outside)
     float bevel {0};
-    float bevelDepth {0.5f};
+    float bevelDepth {0.7f};
     bool emboss {false};
     /// How opaque the layer's paint is where it is solid, found by the panel so that every patch agrees: the edge lies
     /// at half of it, so a layer painted at low opacity still has a shape

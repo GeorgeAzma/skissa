@@ -111,6 +111,13 @@ inline void atop(const float *color, float share, float *under)
 
 /// The light a bevel is lit by comes this high above the picture (degrees)
 constexpr double lightElevation = 30;
+/// How steep a bevel of full depth is at its steepest (degrees)
+constexpr double steepest = 80;
+/// The sky's light beside the sun's (each as it falls on a surface facing it), as on a clear day
+constexpr float skyLight = 0.4f;
+/// The bevel's gloss: how bright its highlight is, and how tight (a Blinn-Phong exponent)
+constexpr float gloss = 0.35f;
+constexpr float glossTightness = 24;
 
 const char *const placeKeys[] = {"outside", "center", "inside"};
 
@@ -311,15 +318,23 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
 
     /*
      * The bevel: the edge as a rounded slope (a quarter of a sine, steepest at the edge), rising inward over its width,
-     * or across the edge for an emboss, as steep as its depth asks. Its normal leans the way the distance grows (the
-     * distance field's gradient), and it is lit by the light that casts the shadow, from lightElevation above:
-     * lighter where it faces the light, darker where it faces away.
+     * or across the edge for an emboss, at most as steep as its depth asks. Its normal leans the way the distance grows
+     * (the distance field's gradient), and it is lit as a surface is outdoors: the sun from the shadow's opposite side,
+     * lightElevation up (Lambert), the sky from above (a hemisphere), and a glossy highlight (Blinn-Phong), each as
+     * much as it differs from a flat surface's, so the paint as it is stays the paint on the flat.
      */
     const float bevel = float(s.bevel * m_scale);
     const bool bevels = bevel > 0 && s.bevelDepth > 0;
     const double turn = qDegreesToRadians(double(s.shadowAngle)), up = qDegreesToRadians(lightElevation);
     const float toLight[3] = {float(-std::cos(turn) * std::cos(up)), float(-std::sin(turn) * std::cos(up)), float(std::sin(up))};
-    const float white[3] = {1, 1, 1}, black[3] = {0, 0, 0};
+    // halfway between the light and the eye, straight above
+    const float halfLength = std::hypot(toLight[0], toLight[1], toLight[2] + 1);
+    const float halfway[3] = {toLight[0] / halfLength, toLight[1] / halfLength, (toLight[2] + 1) / halfLength};
+    auto lightOn = [&](const float *n) { return std::max(0.0f, n[0] * toLight[0] + n[1] * toLight[1] + n[2] * toLight[2]) + skyLight * (1 + n[2]) / 2; };
+    auto shineOn = [&](const float *n) { return gloss * std::pow(std::max(0.0f, n[0] * halfway[0] + n[1] * halfway[1] + n[2] * halfway[2]), glossTightness); };
+    const float flatNormal[3] = {0, 0, 1};
+    const float flatLight = lightOn(flatNormal), flatShine = shineOn(flatNormal);
+    const float steepestSlope = float(std::tan(qDegreesToRadians(steepest * s.bevelDepth)));
     // the slope is read from the distance smoothed a little: exact distances step by whole pixels' roots, and their
     // differences streaked round edges
     std::vector<float> smooth;
@@ -331,21 +346,24 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
     }
     const float shadowAlpha = std::max(shadowColor[3], 1e-6f);
     const float shadowStraight[3] = {shadowColor[0] / shadowAlpha, shadowColor[1] / shadowAlpha, shadowColor[2] / shadowAlpha};
-    // how much lighter or darker a pixel of the slope is: from -1 (facing away) to 1 (facing the light)
-    auto litAt = [&](int sx, int sy, float d) {
+    // how a pixel of the slope is lit beside the flat: a factor for the paint and a highlight added to it; false off
+    // the slope
+    auto litAt = [&](int sx, int sy, float d, float &factor, float &highlight) {
         const float from = s.emboss ? -bevel / 2 : -bevel;
         const float t = (d - from) / bevel;
-        if (t <= 0 || t >= 1) return 0.0f;
+        if (t <= 0 || t >= 1) return false;
         const size_t i = size_t(sy) * w + sx;
         const float gx = 0.5f * (smooth[size_t(sy) * w + std::min(sx + 1, w - 1)] - smooth[size_t(sy) * w + std::max(sx - 1, 0)]);
         const float gy = 0.5f * (smooth[size_t(std::min(sy + 1, h - 1)) * w + sx] - smooth[size_t(std::max(sy - 1, 0)) * w + sx]);
         const float length = std::hypot(gx, gy);
-        if (length < 0.3f || std::abs(distance[i]) >= none / 2) return 0.0f;
+        if (length < 0.3f || std::abs(distance[i]) >= none / 2) return false;
         // the height falls outward as cos: its slope is steepest at the outer end
-        const float slope = s.bevelDepth * float(M_PI) / 2 * std::sin(t * float(M_PI) / 2) * 2.5f;
-        const float normal[3] = {slope * gx / length, slope * gy / length, 1};
-        const float lit = (normal[0] * toLight[0] + normal[1] * toLight[1] + normal[2] * toLight[2]) / std::sqrt(slope * slope + 1);
-        return lit >= toLight[2] ? (lit - toLight[2]) / (1 - toLight[2]) : (lit - toLight[2]) / toLight[2];
+        const float slope = steepestSlope * std::sin(t * float(M_PI) / 2);
+        const float lean = 1 / std::sqrt(slope * slope + 1);
+        const float normal[3] = {slope * gx / length * lean, slope * gy / length * lean, lean};
+        factor = lightOn(normal) / flatLight;
+        highlight = shineOn(normal) - flatShine;
+        return true;
     };
     for (int y = 0; y < rect.height(); y++) {
         for (int x = 0; x < rect.width(); x++) {
@@ -376,19 +394,18 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
             }
             over(shape.data() + i * 4, result);
             if (shadows && cutIn) atop(shadowStraight, shadowAt(sx, sy) * shadowColor[3], result);
-            if (bevels) {
-                const float lit = litAt(sx, sy, d);
-                if (lit != 0) {
-                    const float share = std::min(1.0f, std::abs(lit)) * 0.8f;
-                    if (d < 0) {
-                        atop(lit > 0 ? white : black, share, result);
-                    } else {
-                        // an emboss's outer half, sloping down to what is around
-                        const float *color = lit > 0 ? white : black;
-                        for (int c = 0; c < 3; c++) layer[c] = color[c] * share;
-                        layer[3] = share;
-                        over(layer, result);
-                    }
+            float factor, highlight;
+            if (bevels && litAt(sx, sy, d, factor, highlight)) {
+                if (d < 0) {
+                    // the paint itself lit
+                    for (int c = 0; c < 3; c++) result[c] = std::max(0.0f, result[c] * factor + highlight * result[3]);
+                } else {
+                    // an emboss's outer half, sloping down to what is around, which may lie on layers below: black
+                    // over it darkens anything by exactly the factor, and white lights a middle gray by it
+                    const float shade = factor < 1 ? 1 - factor : 0.0f;
+                    const float light = std::clamp(std::max(0.0f, factor - 1) + std::max(0.0f, highlight), 0.0f, 1.0f);
+                    for (int c = 0; c < 4; c++) layer[c] = c < 3 ? light : light + shade;
+                    over(layer, result);
                 }
             }
             if (width > 0 && s.place != Place::Outside) {

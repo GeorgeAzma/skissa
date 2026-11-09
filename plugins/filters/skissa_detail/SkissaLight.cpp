@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
 #include <vector>
 
 #include <QtMath>
@@ -34,13 +35,24 @@ constexpr float redReach = 1.2f, blueReach = 0.8f;
 /// A spike is followed until its longest fade has fallen to e^-4
 constexpr float spikeEnd = 4;
 /**
- * A spike's light along it falls off about as 1/r², as an aperture edge's diffraction does: three fades at these
- * shares of its length, each holding light in proportion to 1/length (a power law made of exponentials), so it is
- * bright by its source and its tail long and faint
+ * A spike's light along it falls off as 1/r², as an aperture edge's diffraction does. Exponential fades of every
+ * length f, each as bright as 1/f², add up to exactly 1/r² (the integral of f^-3 e^(-r/f) over f is 1/r²): three of
+ * them a ratio of 3 apart stand for that sum, the shortest making the core and the longest where the spike ends.
  */
 constexpr float spikeFades[3] = {0.1f, 0.3f, 1.0f};
-/// Halation: the red-sensitive layer at the back of the film fogged by light the film's base reflects (linear)
+/**
+ * Halation: light through the film reflected by its base back into the layers it passed. What reaches the base of
+ * each color (and so fogs the layer of that color): red nearly all, green the little the green layer let through,
+ * blue almost none past the yellow filter. Estimates; the halo is red-orange around white light, as on film.
+ */
 constexpr float halationTint[3] = {1.0f, 0.24f, 0.06f};
+/**
+ * The halo is light scattered evenly in the emulsion and reflected by the base: from a depth t, what lands r away
+ * falls as (1 + (r / 2t)²)^-2. That is a mix of Gaussians, each of size σ weighted e^(-a²/2σ²) / σ² by the log of σ
+ * (a = 2t); it is made of them from a third of a up to twice a, where the tail beyond holds an eighth of the light,
+ * and Size is six times a.
+ */
+constexpr qreal halationLeast = 1.0 / 3, halationMost = 2;
 /// Spikes are made on a grid this many cells along a spike at most, then enlarged
 constexpr int spikeCells = 64;
 
@@ -211,8 +223,8 @@ Level halved(const Level &finer)
  * octave apart and each weighed by the share of the range it stands for, so it grows smoothly with its size and is the
  * same, scaled, at every level of detail. Together they hold \p strength of the light.
  */
-void addGlare(const Plane3 &shining, const QRect &sourceRect, const QRect &rect, qreal finest, qreal largest, qreal falloff, float strength,
-              Plane3 &light)
+void addGlare(const Plane3 &shining, const QRect &sourceRect, const QRect &rect, qreal finest, qreal largest,
+              const std::function<qreal(qreal)> &weightOf, float strength, Plane3 &light)
 {
     const QRect inside = rect.translated(-sourceRect.topLeft());
     const int w = sourceRect.width();
@@ -225,7 +237,7 @@ void addGlare(const Plane3 &shining, const QRect &sourceRect, const QRect &rect,
         shares.push_back(k == 0 || k == sizes - 1 ? 0.5 : 1.0);
     }
     double total = 0;
-    for (size_t k = 0; k < sigmas.size(); k++) total += shares[k] * std::pow(sigmas[k], falloff);
+    for (size_t k = 0; k < sigmas.size(); k++) total += shares[k] * weightOf(sigmas[k]);
     /*
      * A wide glow is made on a smaller copy: levels of the shine each half the size of the one before (2 by 2
      * averages over cells fixed to the image's corner, so patches agree), each octave blurred on the coarsest
@@ -237,7 +249,7 @@ void addGlare(const Plane3 &shining, const QRect &sourceRect, const QRect &rect,
     std::vector<float> blurred, scratch;
     for (size_t k = 0; k < sigmas.size(); k++) {
         const qreal sigma = sigmas[k];
-        const float weight = float(shares[k] * std::pow(sigma, falloff) / total * strength);
+        const float weight = float(shares[k] * weightOf(sigma) / total * strength);
         int level = 0;
         while (sigma / std::pow(2.0, level + 1) >= 2 && levels[level].planes.w > 8 && levels[level].planes.h > 8) {
             level++;
@@ -379,18 +391,19 @@ void Light::apply(const float *source, const QRect &sourceRect, const QRect &rec
     Plane3 light;
     light.resize(rect.width(), rect.height());
     if (s.glow > 0) {
-        addGlare(shine, sourceRect, rect, finestGlow * m_scale, std::max(finestGlow, qreal(s.size) / 3) * m_scale, glowFalloff, s.glow, light);
+        addGlare(shine, sourceRect, rect, finestGlow * m_scale, std::max(finestGlow, qreal(s.size) / 3) * m_scale,
+                 [](qreal sigma) { return std::pow(sigma, glowFalloff); }, s.glow, light);
     }
     if (s.halation > 0) {
-        // the film's red layer fogged around what shines, by how bright it is: a soft halo of its own size
+        // the film's layers fogged around what shines by what of its light reaches the base
         Plane3 fog;
         fog.resize(w, h);
         for (size_t i = 0; i < count; i++) {
-            const float luminance = 0.2126f * shine.c[0][i] + 0.7152f * shine.c[1][i] + 0.0722f * shine.c[2][i];
-            for (int c = 0; c < 3; c++) fog.c[c][i] = halationTint[c] * luminance;
+            for (int c = 0; c < 3; c++) fog.c[c][i] = halationTint[c] * shine.c[c][i];
         }
-        const qreal largest = std::max(finestGlow, qreal(s.halationSize) / 3) * m_scale;
-        addGlare(fog, sourceRect, rect, largest / 4, largest, 0, s.halation, light);
+        const qreal a = std::max(finestGlow, qreal(s.halationSize) / 6) * m_scale;
+        addGlare(fog, sourceRect, rect, a * halationLeast, a * halationMost,
+                 [a](qreal sigma) { return std::exp(-a * a / (2 * sigma * sigma)) / (sigma * sigma); }, s.halation, light);
     }
     if (s.star > 0) {
         // each straight blade edge diffracts light into a line square to it: an even count's edges pair up into

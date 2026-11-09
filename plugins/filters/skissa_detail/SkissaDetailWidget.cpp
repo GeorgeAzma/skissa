@@ -2353,7 +2353,7 @@ struct SkissaShapeWidget::Private {
              })},
             {i18nc("shape effect look: a raised button with a soft shadow", "Button"), with([](S &s) {
                  s.bevel = 8;
-                 s.bevelDepth = 0.5f;
+                 s.bevelDepth = 0.7f;
                  s.shadow = 4;
                  s.shadowSoftness = 8;
                  s.shadowColor = QColor(0, 0, 0, 110);
