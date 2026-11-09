@@ -9,6 +9,7 @@
 #define KIS_CONVOLUTION_WORKER_FFT_H
 
 #include <iostream>
+#include <new>
 
 #include <KoChannelInfo.h>
 
@@ -89,6 +90,8 @@ public:
 
         // create and fill kernel
         m_kernelFFT = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * m_fftLength);
+        // an area too large to hold: KisFilter::process reports it
+        if (!m_kernelFFT) throw std::bad_alloc();
         memset(m_kernelFFT, 0, sizeof(fftw_complex) * m_fftLength);
         fftFillKernelMatrix(kernel, m_kernelFFT);
 
@@ -98,6 +101,10 @@ public:
         m_channelFFT.resize(convChannelList.count());
         for (auto i = m_channelFFT.begin(); i != m_channelFFT.end(); ++i) {
             *i = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * m_fftLength);
+        }
+        if (m_channelFFT.contains(nullptr)) {
+            cleanUp();
+            throw std::bad_alloc();
         }
 
         const double kernelFactor = kernel->factor() ? kernel->factor() : 1;
@@ -536,6 +543,7 @@ private:
         // free kernel fft data
         if (m_kernelFFT) {
             fftw_free(m_kernelFFT);
+            m_kernelFFT = nullptr;
         }
 
         Q_FOREACH (fftw_complex *channel, m_channelFFT) {

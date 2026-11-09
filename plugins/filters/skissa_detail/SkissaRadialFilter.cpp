@@ -42,6 +42,11 @@ KoID SkissaRadialFilter::radialId()
     return KoID(QStringLiteral("skissa_radial"), i18nc("effect", "Radial blur"));
 }
 
+bool SkissaRadialFilter::readsWholeImage(const KisFilterConfigurationSP config) const
+{
+    return !Settings::from(*config).changesNothing();
+}
+
 QRect SkissaRadialFilter::neededRect(const QRect &rect, const KisFilterConfigurationSP config, int) const
 {
     if (Settings::from(*config).changesNothing()) return rect;

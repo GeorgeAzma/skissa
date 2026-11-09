@@ -65,7 +65,7 @@ QRect KisAdjustmentLayer::incomingChangeRect(const QRect &rect) const
 
     if (filterConfig) {
         KisFilterSP filter = KisFilterRegistry::instance()->value(filterConfig->name());
-        filteredRect = filter->changedRect(rect, filterConfig.data(), projection()->defaultBounds()->currentLevelOfDetail());
+        filteredRect = filter->changedRectIn(rect, filterConfig.data(), projection()->defaultBounds()->currentLevelOfDetail(), projection()->defaultBounds()->bounds());
     }
 
     /**
@@ -97,7 +97,7 @@ QRect KisAdjustmentLayer::needRect(const QRect& rect, PositionToFilthy pos) cons
      */
     QRect needRect = rect;
     needRect |= needRectForOriginal(needRect);
-    needRect = filter->neededRect(needRect, filterConfig.data(), projection()->defaultBounds()->currentLevelOfDetail());
+    needRect = filter->neededRectIn(needRect, filterConfig.data(), projection()->defaultBounds()->currentLevelOfDetail(), projection()->defaultBounds()->bounds());
     return needRect;
 }
 

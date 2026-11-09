@@ -43,6 +43,11 @@ KoID SkissaLensFilter::lensId()
     return KoID(QStringLiteral("skissa_lens"), i18nc("effect", "Lens"));
 }
 
+bool SkissaLensFilter::readsWholeImage(const KisFilterConfigurationSP config) const
+{
+    return !Settings::from(*config).changesNothing();
+}
+
 QRect SkissaLensFilter::neededRect(const QRect &rect, const KisFilterConfigurationSP config, int) const
 {
     if (Settings::from(*config).changesNothing()) return rect;

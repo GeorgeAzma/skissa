@@ -138,6 +138,13 @@ KoID SkissaFewerFilter::fewerId()
     return KoID(QStringLiteral("skissa_fewer_colors"), i18nc("effect", "Fewer colors"));
 }
 
+bool SkissaFewerFilter::readsWholeImage(const KisFilterConfigurationSP config) const
+{
+    // diffusion runs through the whole image once
+    const Settings settings = Settings::from(*config);
+    return settings.dither == Dither::Diffuse && settings.amount > 0;
+}
+
 QRect SkissaFewerFilter::neededRect(const QRect &rect, const KisFilterConfigurationSP config, int lod) const
 {
     const Settings settings = Settings::from(*config);

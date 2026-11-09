@@ -16,6 +16,7 @@
 #include <QMap>
 #include <QPainter>
 #include <QRect>
+#include <QScopedPointer>
 
 #include <kis_debug.h>
 #include <klocalizedstring.h>
@@ -163,19 +164,15 @@ void KisConvolutionPainter::applyMatrix(const KisConvolutionKernelSP kernel, con
          */
 
         if(dataRect.isValid()) {
-            KisConvolutionWorker<RepeatIteratorFactory> *worker;
-            worker = createWorker<RepeatIteratorFactory>(kernel, this, progressUpdater());
+            QScopedPointer<KisConvolutionWorker<RepeatIteratorFactory>> worker(createWorker<RepeatIteratorFactory>(kernel, this, progressUpdater()));
             worker->execute(kernel, src, srcPos, dstPos, areaSize, dataRect);
-            delete worker;
         }
         break;
     }
     case BORDER_IGNORE:
     default: {
-        KisConvolutionWorker<StandardIteratorFactory> *worker;
-        worker = createWorker<StandardIteratorFactory>(kernel, this, progressUpdater());
+        QScopedPointer<KisConvolutionWorker<StandardIteratorFactory>> worker(createWorker<StandardIteratorFactory>(kernel, this, progressUpdater()));
         worker->execute(kernel, src, srcPos, dstPos, areaSize, QRect());
-        delete worker;
     }
     }
 }

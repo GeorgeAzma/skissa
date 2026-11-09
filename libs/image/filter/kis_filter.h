@@ -93,6 +93,16 @@ public:
     virtual QRect changedRect(const QRect & rect, const KisFilterConfigurationSP config, int lod) const;
 
     /**
+     * Whether a pixel's result may come from anywhere in the image and from nothing past it (a lens, a zoom): such a
+     * filter's neededRect and changedRect, not told where the image ends, can only answer with a huge margin
+     */
+    virtual bool readsWholeImage(const KisFilterConfigurationSP config) const;
+
+    /// neededRect and changedRect in an image of \p bounds (KisDefaultBoundsBase::bounds())
+    QRect neededRectIn(const QRect &rect, const KisFilterConfigurationSP config, int lod, const QRect &bounds) const;
+    QRect changedRectIn(const QRect &rect, const KisFilterConfigurationSP config, int lod, const QRect &bounds) const;
+
+    /**
      * Returns true if the filter is capable of handling LoD scaled planes
      * when generating preview.
      */

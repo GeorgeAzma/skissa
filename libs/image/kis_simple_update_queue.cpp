@@ -13,6 +13,20 @@
 #include "kis_full_refresh_walker.h"
 #include "kis_spontaneous_job.h"
 
+#include <algorithm>
+
+namespace {
+/// Whether \p walker's work is all part of \p other's, as when a mask reads the whole image and every small update
+/// would redo all of it
+bool covers(const KisBaseRectsWalkerSP &other, const KisBaseRectsWalkerSP &walker)
+{
+    return other->type() == walker->type() && other->startNode() == walker->startNode()
+        && other->clonesDontInvalidateFrames() == walker->clonesDontInvalidateFrames()
+        && other->cropRect() == walker->cropRect() && other->levelOfDetail() == walker->levelOfDetail()
+        && other->changeRect().contains(walker->changeRect()) && other->accessRect().contains(walker->accessRect());
+}
+}
+
 
 //#define ENABLE_DEBUG_JOIN
 //#define ENABLE_ACCUMULATOR
@@ -231,7 +245,15 @@ void KisSimpleUpdateQueue::addJob(KisNodeSP node, const QVector<QRect> &rects,
         /* else if(type == KisBaseRectsWalker::UNSUPPORTED) fatalKrita; */
 
         walker->collectRects(node, rc);
-        if (!walker->isEmpty()) {
+        if (walker->isEmpty()) continue;
+
+        auto coversThis = [&walker](const KisBaseRectsWalkerSP &other) { return covers(other, walker); };
+        bool covered = std::any_of(walkers.begin(), walkers.end(), coversThis);
+        if (!covered) {
+            QMutexLocker locker(&m_lock);
+            covered = std::any_of(m_updatesList.begin(), m_updatesList.end(), coversThis);
+        }
+        if (!covered) {
             walkers.append(walker);
         }
     }

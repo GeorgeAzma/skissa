@@ -16,6 +16,7 @@
 #include "kis_paint_device.h"
 #include "kis_selection.h"
 #include "kis_types.h"
+#include "kis_default_bounds.h"
 #include <kis_painter.h>
 #include <KoUpdater.h>
 
@@ -48,7 +49,7 @@ void KisFilter::process(const KisPaintDeviceSP src,
     KIS_SAFE_ASSERT_RECOVER_NOOP(config->hasLocalResourcesSnapshot());
 
     if (applyRect.isEmpty()) return;
-    QRect needRect = neededRect(applyRect, config, src->defaultBounds()->currentLevelOfDetail());
+    QRect needRect = neededRectIn(applyRect, config, src->defaultBounds()->currentLevelOfDetail(), src->defaultBounds()->bounds());
 
     KisPaintDeviceSP temporary;
     KisTransaction *transaction = 0;
@@ -100,6 +101,31 @@ QRect KisFilter::changedRect(const QRect & rect, const KisFilterConfigurationSP 
     Q_UNUSED(c);
     Q_UNUSED(lod);
     return rect;
+}
+
+bool KisFilter::readsWholeImage(const KisFilterConfigurationSP config) const
+{
+    Q_UNUSED(config);
+    return false;
+}
+
+namespace {
+bool isKnown(const QRect &bounds)
+{
+    // without an image, bounds are infinite
+    static const QRect unknown = KisDefaultBounds().bounds();
+    return !bounds.isEmpty() && bounds != unknown;
+}
+}
+
+QRect KisFilter::neededRectIn(const QRect &rect, const KisFilterConfigurationSP config, int lod, const QRect &bounds) const
+{
+    return isKnown(bounds) && readsWholeImage(config) ? rect | bounds : neededRect(rect, config, lod);
+}
+
+QRect KisFilter::changedRectIn(const QRect &rect, const KisFilterConfigurationSP config, int lod, const QRect &bounds) const
+{
+    return isKnown(bounds) && readsWholeImage(config) ? rect | bounds : changedRect(rect, config, lod);
 }
 
 bool KisFilter::supportsLevelOfDetail(const KisFilterConfigurationSP config, int lod) const
