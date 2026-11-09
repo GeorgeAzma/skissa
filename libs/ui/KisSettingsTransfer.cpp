@@ -77,7 +77,7 @@ const QStringList arrangedKeys = {
     QStringLiteral("StudioLayout"), QStringLiteral("StudioBarItems"), QStringLiteral("StudioViewPillItems"), QStringLiteral("StudioControlItems"),
     QStringLiteral("StudioControlsPicked"), QStringLiteral("StudioRailItems"), QStringLiteral("StudioHiddenVariants"), QStringLiteral("StudioBrushes"),
     QStringLiteral("StudioEffects"), QStringLiteral("StudioBlendModeGroups"), QStringLiteral("StudioEffectGroups"), QStringLiteral("StudioBrushGroups"),
-    QStringLiteral("StudioControlsGroups"), QStringLiteral("StudioPinnedBrushTips"), QStringLiteral("StudioRing"), QStringLiteral("StudioColorHues"), QStringLiteral("StudioColorShape"), QStringLiteral("StudioColorKeepLightness"),
+    QStringLiteral("StudioControlsGroups"), QStringLiteral("StudioPinned"), QStringLiteral("StudioRing"), QStringLiteral("StudioColorHues"), QStringLiteral("StudioColorShape"), QStringLiteral("StudioColorKeepLightness"),
     QStringLiteral("StudioColorCopyFormat"), QStringLiteral("StudioLastStrokeFollowsBrush"), QStringLiteral("BrushTipSizeLinked"),
     QStringLiteral("recorder/"), QStringLiteral("recorder_export/"),
 };
@@ -201,11 +201,11 @@ Plan planImport(const QByteArray &data)
     const QJsonDocument document = QJsonDocument::fromJson(data, &parseError);
     const QJsonObject root = document.object();
     if (parseError.error != QJsonParseError::NoError || root.value(QStringLiteral("format")).toString() != formatName) {
-        plan.error = i18nc("@info", "This isn't a Krita settings file.");
+        plan.error = i18nc("@info", "This isn't a Skissa settings file.");
         return plan;
     }
     if (root.value(QStringLiteral("version")).toInt() > 1) {
-        plan.error = i18nc("@info", "This file is from a newer Krita.");
+        plan.error = i18nc("@info", "This file is from a newer Skissa.");
         return plan;
     }
     KisSettingsRegistry *registry = KisSettingsRegistry::instance();
@@ -213,7 +213,7 @@ Plan planImport(const QByteArray &data)
     for (auto it = settings.constBegin(); it != settings.constEnd(); ++it) {
         const Setting *s = registry->setting(it.key());
         if (!s) {
-            plan.skipped << i18nc("@info settings import", "%1: not in this Krita", it.key());
+            plan.skipped << i18nc("@info settings import", "%1: not in this Skissa", it.key());
             continue;
         }
         if (s->flags & KisSettingsRegistry::Machine) {

@@ -60,8 +60,11 @@ using namespace SkissaDetail;
 namespace
 {
 
-/// The drag on the image across which a point goes from bottom to top
+/// The drag on the image across which a point goes from bottom to top, or a value across its range
 constexpr qreal dragForWholeCurve = 300;
+constexpr qreal dragForRange = 300;
+/// The drag on the image across which a value grows or shrinks by a factor of e
+constexpr qreal dragForFactor = 150;
 /// A point taken on the image holds the curve this far either side: one size changes alone
 constexpr qreal holdAround = 0.15;
 /// The part of the image the tiles show, at its own size so that fine detail shows, and the room read around it
@@ -177,6 +180,52 @@ SkissaSliders::SkissaSliders(QWidget *parent, const QString &filterId, const QVe
         m_sliders << qMakePair(spec, row);
         connect(row, &KisStudioValueRow::valueChanged, this, &KisConfigWidget::sigConfigurationItemChanged);
     }
+    // up or down the amount, sideways the size; an effect with one size has it up or down
+    for (int i = 0; i < m_sliders.size(); i++) {
+        if (m_sliders[i].second->range().size) {
+            if (m_horizontal < 0) m_horizontal = i;
+        } else if (m_vertical < 0 && qstrcmp(m_sliders[i].first.key, "amount") == 0) {
+            m_vertical = i;
+        }
+    }
+    if (m_vertical < 0) {
+        m_vertical = m_horizontal >= 0 ? m_horizontal : 0;
+        m_horizontal = -1;
+    }
+}
+
+bool SkissaSliders::canvasPressed(const QPoint &)
+{
+    if (m_vertical >= 0) m_startVertical = m_sliders[m_vertical].second->value();
+    if (m_horizontal >= 0) m_startHorizontal = m_sliders[m_horizontal].second->value();
+    return m_vertical >= 0;
+}
+
+QString SkissaSliders::canvasDragged(const QPointF &moved, const QPointF &)
+{
+    // sizes by ratios, the rest across their range
+    auto drag = [this](int index, qreal start, qreal by) {
+        KisStudioValueRow *row = m_sliders[index].second;
+        const KisStudioValueRow::Range range = row->range();
+        const qreal value = range.size ? qMax(range.minimum, start) * std::exp(by / dragForFactor)
+                                       : start + by / dragForRange * (range.maximum - range.minimum);
+        row->setValue(qBound(range.minimum, value, range.maximum));
+    };
+    drag(m_vertical, m_startVertical, -moved.y());
+    if (m_horizontal >= 0) drag(m_horizontal, m_startHorizontal, moved.x());
+    Q_EMIT sigConfigurationItemChanged();
+    const bool across = m_horizontal >= 0 && std::abs(moved.x()) > std::abs(moved.y());
+    const KisStudioValueRow *row = m_sliders[across ? m_horizontal : m_vertical].second;
+    return rowText(row, row->range().decimals, row->range().suffix);
+}
+
+void SkissaSliders::canvasReleased()
+{
+}
+
+Qt::Orientations SkissaSliders::canvasAxes() const
+{
+    return m_horizontal >= 0 ? Qt::Horizontal | Qt::Vertical : Qt::Vertical;
 }
 
 void SkissaSliders::setConfiguration(const KisPropertiesConfigurationSP config)
@@ -393,8 +442,6 @@ void SkissaDetailWidget::canvasReleased()
 namespace
 {
 
-/// The drag on the image across which the noise grows or shrinks by a factor of e
-constexpr qreal dragForFactor = 150;
 /// Room around the tiles' part of the image, for the pixels a wobble takes from beside it
 constexpr int noiseTileMargin = 32;
 

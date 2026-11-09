@@ -16,6 +16,10 @@
 #include <KoColorSpace.h>
 #include <KoMixColorsOp.h>
 
+#include <cmath>
+#include <cstring>
+#include <vector>
+
 
 namespace tmp {
     template <class iter> iter createIterator(KisPaintDeviceSP dev, qint32 start, qint32 lineNum, qint32 len);
@@ -184,7 +188,7 @@ public:
         int m_size;
     };
 
-    /// Keeps each new pixel within the two source pixels nearest it
+    /// Keeps each new pixel within the source pixels it covers, and at least the two nearest it
     void setClampToNeighbours(bool value) {
         m_clampToNeighbours = value;
         if (value) m_clamp = KisResampling::ClampBetween(m_src->colorSpace());
@@ -272,6 +276,8 @@ public:
         }
 
         const quint8 **colors = new const quint8* [buffer->maxSpan()];
+        std::vector<quint8> low(m_clampToNeighbours ? pixelSize : 0);
+        std::vector<quint8> high(low.size());
 
         T dstIt = tmp::createIterator<T>(m_dst, dstStart, line, dstEnd - dstStart);
         for (int i = dstStart; i < dstEnd; i++) {
@@ -300,7 +306,21 @@ public:
                         second = j;
                     }
                 }
-                m_clamp(dstIt->rawData(), colors[first], colors[second]);
+                std::memcpy(low.data(), colors[first], pixelSize);
+                std::memcpy(high.data(), colors[first], pixelSize);
+                m_clamp.widen(low.data(), high.data(), colors[second]);
+                if (std::abs(m_realScale) < 1.0) {
+                    // shrinking, a new pixel covers several: a thin line among them may be what it shows
+                    const qreal a = dstToSrc(i, line);
+                    const qreal b = dstToSrc(i + 1, line);
+                    const qreal from = qMin(a, b);
+                    const qreal to = qMax(a, b);
+                    for (int j = 0; j < span.weights->span; j++) {
+                        const qreal center = span.firstBlendPixel + j + 0.5;
+                        if (center >= from && center < to) m_clamp.widen(low.data(), high.data(), colors[j]);
+                    }
+                }
+                m_clamp(dstIt->rawData(), low.data(), high.data());
             }
             dstIt->nextPixel();
         }

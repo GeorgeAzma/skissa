@@ -45,7 +45,7 @@ public:
     /// How frosted the glass is in the middle of a panel, from 0 (clear) to 2. Defaults to 1.
     static qreal blur();
     static void setBlur(qreal blur);
-    /// How strongly the panel color covers what is behind, from 0 to 1 (solid). Defaults to 0.7.
+    /// How strongly the panel color covers what is behind, from 0 to 1 (solid). Defaults to 0.85.
     static qreal opacity();
     static void setOpacity(qreal opacity);
     /// How bright the line of light along a panel's rim is, from 0 (none) to 2. Defaults to 1.
@@ -85,8 +85,6 @@ public:
     static constexpr qreal ambientKnee = 0.15;
     /// The least light around the image (linear, where all of it is near): a dark image's edge still shows
     static constexpr qreal ambientBacklight = 0.02;
-    /// Crown glass at the sodium d line.
-    static constexpr qreal refractiveIndex = 1.52;
 
     /// Strokes \p shape as \p widget's border, except where the canvas draws a bevel instead.
     static void paintBorder(QPainter &painter, QWidget *widget, const QPainterPath &shape, const QColor &color, qreal width = 1);

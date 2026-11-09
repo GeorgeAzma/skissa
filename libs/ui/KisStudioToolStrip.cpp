@@ -38,6 +38,7 @@
 #include <kis_canvas2.h>
 #include <kis_painting_assistants_decoration.h>
 #include <ksharedconfig.h>
+#include "KisSettingsRegistry.h"
 #include <kconfiggroup.h>
 
 #include <functional>
@@ -818,6 +819,7 @@ void KisStudioToolStrip::addGuides(QWidget *options, QComboBox *types)
         connect(types, QOverload<int>::of(&QComboBox::currentIndexChanged), button, [show, kind, target, inUse]() {
             if (target && inUse()) {
                 KSharedConfig::openConfig()->group(QStringLiteral("StudioGuides")).writeEntry(kind.name, target->currentData().toString());
+                KisSettingsRegistry::instance()->scheduleSync();
             }
             show();
         });

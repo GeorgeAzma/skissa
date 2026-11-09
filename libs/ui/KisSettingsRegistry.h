@@ -152,6 +152,8 @@ public:
 
     /// Writes a list of arranged items (see itemList in the .cpp) as one step of the undo history
     static void writeItems(const QString &key, const QStringList &items);
+    /// Writes a list under \p key in kritarc's main group: as a step of the undo history when it is a setting
+    static void writeList(const QString &key, const QStringList &items);
 
     /// The setting's value in another kritarc; invalid if it is unset or not valid there
     QVariant valueIn(const Setting &setting, KConfig &config) const;

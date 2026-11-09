@@ -17,6 +17,7 @@ private Q_SLOTS:
     void testPixelKeepsPixelsEven();
     void testSmoothHasNoHalos();
     void testShrinkingKeepsLight();
+    void testShrinkingKeepsThinLines();
     void testTellsPixelArt();
 };
 

@@ -47,6 +47,19 @@ void clampChannel(quint8 *pixel, const quint8 *a, const quint8 *b, int offset)
     std::memcpy(pixel + offset, &value, sizeof(T));
 }
 
+template<typename T>
+void widenChannel(quint8 *low, quint8 *high, const quint8 *pixel, int offset)
+{
+    T value;
+    T least;
+    T most;
+    std::memcpy(&value, pixel + offset, sizeof(T));
+    std::memcpy(&least, low + offset, sizeof(T));
+    std::memcpy(&most, high + offset, sizeof(T));
+    if (value < least) std::memcpy(low + offset, &value, sizeof(T));
+    if (most < value) std::memcpy(high + offset, &value, sizeof(T));
+}
+
 /// 8-bit sRGB, the usual image, goes to linear light and back by tables as the brush mixing does: through LCMS,
 /// on one thread, it took most of a shrink's time
 bool isSrgb8(const KoColorSpace *cs)
@@ -151,6 +164,23 @@ void KisResampling::ClampBetween::clampChannels(quint8 *pixel, const quint8 *a, 
             break;
         default:
             clampChannel<float>(pixel, a, b, channel.offset);
+            break;
+        }
+    }
+}
+
+void KisResampling::ClampBetween::widenChannels(quint8 *low, quint8 *high, const quint8 *pixel) const
+{
+    for (const Channel &channel : m_channels) {
+        switch (channel.type) {
+        case KoChannelInfo::UINT8:
+            widenChannel<quint8>(low, high, pixel, channel.offset);
+            break;
+        case KoChannelInfo::UINT16:
+            widenChannel<quint16>(low, high, pixel, channel.offset);
+            break;
+        default:
+            widenChannel<float>(low, high, pixel, channel.offset);
             break;
         }
     }

@@ -986,6 +986,10 @@ msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "크기"
 
+msgctxt "effect"
+msgid "Light"
+msgstr "얇음"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "크기"

@@ -354,9 +354,20 @@ QHash<QString, QStringList> aliasTable()
     return aliases;
 }
 
+/// Uses fade with a time constant of a month: what is used now outranks what was used often long ago
+constexpr qreal usesFadeDays = 30;
+
 struct Usage {
-    int count {0};
+    /// Uses as of lastUsed, each faded by its age then
+    qreal count {0};
     qint64 lastUsed {0};
+
+    /// Uses as of now
+    qreal countNow() const
+    {
+        const qreal days = qMax<qint64>(0, QDateTime::currentSecsSinceEpoch() - lastUsed) / 86400.0;
+        return count * std::exp(-days / usesFadeDays);
+    }
 };
 
 /// Paints result rows (icon tile, title, dimmed detail, shortcut on the right) and section headers
@@ -566,7 +577,7 @@ struct KisStudioFind::Private
             const int second = line.lastIndexOf(QLatin1Char('|'));
             const int first = second > 0 ? line.lastIndexOf(QLatin1Char('|'), second - 1) : -1;
             if (first > 0) {
-                usage.insert(line.left(first), {line.mid(first + 1, second - first - 1).toInt(), line.mid(second + 1).toLongLong()});
+                usage.insert(line.left(first), {line.mid(first + 1, second - first - 1).toDouble(), line.mid(second + 1).toLongLong()});
             }
         }
     }
@@ -574,7 +585,7 @@ struct KisStudioFind::Private
     void recordUse(const QString &key)
     {
         Usage &u = usage[key];
-        u.count++;
+        u.count = u.countNow() + 1;
         u.lastUsed = QDateTime::currentSecsSinceEpoch();
 
         // keep only the 200 most recent
@@ -587,7 +598,7 @@ struct KisStudioFind::Private
         });
         QStringList stored;
         for (int i = 0; i < sorted.size() && i < 200; i++) {
-            stored << QStringLiteral("%1|%2|%3").arg(sorted[i].first).arg(sorted[i].second.count).arg(sorted[i].second.lastUsed);
+            stored << QStringLiteral("%1|%2|%3").arg(sorted[i].first).arg(sorted[i].second.count, 0, 'g', 4).arg(sorted[i].second.lastUsed);
         }
         KisSettingsRegistry::writeLater(QStringLiteral("StudioFindUsage"), stored);
     }
@@ -600,7 +611,7 @@ struct KisStudioFind::Private
             return 0.0;
         }
         const qreal days = qMax<qint64>(0, QDateTime::currentSecsSinceEpoch() - it->lastUsed) / 86400.0;
-        return 6.0 * std::log2(1.0 + it->count) + 14.0 * std::exp(-days / 3.0);
+        return 6.0 * std::log2(1.0 + it->countNow()) + 14.0 * std::exp(-days / 3.0);
     }
 };
 
@@ -1046,7 +1057,7 @@ void KisStudioFind::updateCommands(const QString &query)
         recent.resize(qMin(recent.size(), 6));
         often.erase(std::remove_if(often.begin(), often.end(), [&recent](int i) { return recent.contains(i); }), often.end());
         std::sort(often.begin(), often.end(), [this](int a, int b) {
-            return d->usage.value(d->entries[a].key).count > d->usage.value(d->entries[b].key).count;
+            return d->usage.value(d->entries[a].key).countNow() > d->usage.value(d->entries[b].key).countNow();
         });
         often.resize(qMin(often.size(), 6));
         if (!recent.isEmpty()) {

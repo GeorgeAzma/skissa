@@ -55,6 +55,7 @@
 #include "kis_icon.h"
 #include "kis_image.h"
 #include "kis_paint_layer.h"
+#include <KoProperties.h>
 #include "kis_sequential_iterator.h"
 #include "kis_pixel_selection.h"
 #include "kis_resources_snapshot.h"
@@ -102,6 +103,14 @@ struct Options {
 QString colorsLayerName()
 {
     return i18nc("@item:layer name: flat colors under line art", "Colors");
+}
+
+/// A layer for fills' colors, marked as one: its name may change, or be another language's
+KisPaintLayerSP newColorsLayer(KisImageSP image)
+{
+    KisPaintLayerSP layer = new KisPaintLayer(image.data(), colorsLayerName(), OPACITY_OPAQUE_U8);
+    layer->setNodeProperty(KisColorDrop::colorsMark, true);
+    return layer;
 }
 
 /**
@@ -333,8 +342,10 @@ using Target = KisColorDrop::FillTarget;
 
 bool isColorsLayer(KisNodeSP node, bool multiply)
 {
-    return node && qobject_cast<KisPaintLayer *>(node.data()) && node->name() == colorsLayerName() && node->isEditable()
-        && (node->compositeOpId() == COMPOSITE_MULT) == multiply;
+    // layers from before the mark are known by their name
+    return node && qobject_cast<KisPaintLayer *>(node.data())
+        && (node->nodeProperties().boolProperty(KisColorDrop::colorsMark) || node->name() == colorsLayerName())
+        && node->isEditable() && (node->compositeOpId() == COMPOSITE_MULT) == multiply;
 }
 
 /**
@@ -345,7 +356,7 @@ Target targetFor(KisImageSP image, KisNodeSP active, const QPoint &point)
 {
     Target target;
     if (!active) {
-        target.newLayer = new KisPaintLayer(image.data(), colorsLayerName(), OPACITY_OPAQUE_U8);
+        target.newLayer = newColorsLayer(image);
         target.parent = image->root();
         target.above = image->root()->lastChild();
         return target;
@@ -354,7 +365,7 @@ Target targetFor(KisImageSP image, KisNodeSP active, const QPoint &point)
         // a group, a mask or a layer that cannot be painted: a new layer above it (above a mask's layer)
         KisNodeSP anchor = active;
         while (anchor->parent() && !qobject_cast<KisLayer *>(anchor.data())) anchor = anchor->parent();
-        target.newLayer = new KisPaintLayer(image.data(), colorsLayerName(), OPACITY_OPAQUE_U8);
+        target.newLayer = newColorsLayer(image);
         target.parent = anchor->parent() ? anchor->parent() : image->root();
         target.above = anchor->parent() ? anchor : image->root()->lastChild();
         return target;
@@ -411,7 +422,7 @@ Target targetFor(KisImageSP image, KisNodeSP active, const QPoint &point)
         target.node = neighbor;
         return target;
     }
-    target.newLayer = new KisPaintLayer(image.data(), colorsLayerName(), OPACITY_OPAQUE_U8);
+    target.newLayer = newColorsLayer(image);
     if (!clearPaper) target.newLayer->setCompositeOpId(COMPOSITE_MULT);
     target.parent = active->parent() ? active->parent() : image->root();
     target.above = clearPaper ? active->prevSibling() : active;
@@ -686,6 +697,8 @@ int KisColorDrop::autoGap(KisPaintDeviceSP reference, const QPoint &point, const
     automatic.closeGap = 0;
     return gapFor(automatic, reference, point, bounds);
 }
+
+const QString KisColorDrop::colorsMark = QStringLiteral("skissacolors");
 
 bool KisColorDrop::isColorsLayer(KisNodeSP node)
 {

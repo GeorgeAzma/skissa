@@ -1758,7 +1758,7 @@ qreal KisStudioGlass::blurSigma()
 qreal KisStudioGlass::tintOverDark()
 {
     // Clear at 0 and solid at 1, along one smooth curve each: less over a dark canvas, more over a bright one
-    // (0.63 and 0.77 at the default 0.7).
+    // (0.80 and 0.90 at the default 0.85).
     const qreal o = opacity();
     return o * (0.8 + 0.2 * o * o);
 }

@@ -21,6 +21,7 @@
 #include <KoColorProfile.h>
 #include <KoDocumentInfo.h>
 #include <KoFileDialog.h>
+#include <KisColorDrop.h>
 #include <KisImportExportManager.h>
 #include <KoStoreDevice.h>
 #include <KisResourceServerProvider.h>
@@ -1102,11 +1103,11 @@ KisNodeSP KisKraLoader::loadNode(const QDomElement& element, KisImageSP image)
 KisNodeSP KisKraLoader::loadPaintLayer(const QDomElement& element, KisImageSP image,
                                        const QString& name, const KoColorSpace* cs, quint32 opacity)
 {
-    Q_UNUSED(element);
     KisPaintLayer* layer;
 
     layer = new KisPaintLayer(image, name, opacity, cs);
     Q_CHECK_PTR(layer);
+    if (element.attribute(KisColorDrop::colorsMark) == QLatin1String("1")) layer->setNodeProperty(KisColorDrop::colorsMark, true);
     return layer;
 
 }

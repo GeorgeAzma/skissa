@@ -15,6 +15,7 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QDebug>
+#include <QDir>
 #include <QFileInfo>
 #include <QScreen>
 
@@ -97,7 +98,7 @@ void KisConfig::logImportantSettings() const
         backupDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
         break;
     case 2:
-        backupDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+        backupDir = QDir(KisProfile::tempFolder()).filePath(QStringLiteral("backups"));
         break;
     default:
         // Do nothing: the empty string is user file location

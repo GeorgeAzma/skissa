@@ -56,6 +56,8 @@ public:
     static int autoGap(KisPaintDeviceSP reference, const QPoint &point, const QRect &bounds);
     /// Whether \p node is a layer of colors made by fills, which read the whole picture rather than themselves
     static bool isColorsLayer(KisNodeSP node);
+    /// The node property marking a layer of colors made by fills, kept in .kra files
+    static const QString colorsMark;
 
     explicit KisColorDrop(KisView *view);
     ~KisColorDrop() override;

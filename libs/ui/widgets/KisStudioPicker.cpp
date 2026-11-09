@@ -13,6 +13,7 @@
 #include "KisStudioMotion.h"
 #include "KisTouchMode.h"
 #include "kis_config.h"
+#include "KisSettingsRegistry.h"
 
 #include <QAbstractButton>
 #include <QApplication>
@@ -1071,7 +1072,7 @@ void KisStudioPicker::setPinnedIds(const Source &source, const QStringList &ids)
     Q_FOREACH (const QString &id, KisConfig(true).readEntry<QStringList>(source.pinnedKey, QStringList())) {
         if (!known.contains(id) && !kept.contains(id)) kept << id;
     }
-    KisConfig(false).writeEntry(source.pinnedKey, kept);
+    KisSettingsRegistry::writeList(source.pinnedKey, kept);
 }
 
 namespace {

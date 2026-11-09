@@ -348,9 +348,11 @@ public:
             Q_FOREACH (const QJsonValue &value, release.value(QStringLiteral("assets")).toArray()) {
                 const QJsonObject asset = value.toObject();
                 const QString name = asset.value(QStringLiteral("name")).toString();
-                if (!name.endsWith(QLatin1String("-windows-x64.zip"))) continue;
+                const QString digest = asset.value(QStringLiteral("digest")).toString();
+                // only a download with GitHub's checksum to check it against
+                if (!name.endsWith(QLatin1String("-windows-x64.zip")) || !digest.startsWith(QLatin1String("sha256:"))) continue;
                 fetch(latest, name, QUrl(asset.value(QStringLiteral("browser_download_url")).toString()),
-                      asset.value(QStringLiteral("size")).toVariant().toLongLong(), asset.value(QStringLiteral("digest")).toString(), asked);
+                      asset.value(QStringLiteral("size")).toVariant().toLongLong(), digest, asked);
                 return;
             }
             if (asked) tell(i18nc("@info, %1 a version", "Skissa %1 has no download for Windows", latest));
@@ -512,7 +514,7 @@ private:
         auto *done = new QFutureWatcher<QByteArray>(this);
         connect(done, &QFutureWatcher<QByteArray>::finished, this, [this, done, digest, path]() {
             done->deleteLater();
-            if (digest.startsWith(QLatin1String("sha256:")) && digest.mid(7).toLatin1() != done->result()) {
+            if (digest.mid(7).toLatin1().toLower() != done->result()) {
                 QFile::remove(path);
                 failed();
                 return;

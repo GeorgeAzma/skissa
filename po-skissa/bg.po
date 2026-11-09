@@ -1033,6 +1033,10 @@ msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "Размер"
 
+msgctxt "effect"
+msgid "Light"
+msgstr "Лек"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Размер"

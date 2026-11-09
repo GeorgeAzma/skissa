@@ -1130,6 +1130,10 @@ msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "Size"
 
+msgctxt "effect"
+msgid "Light"
+msgstr "Light"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Size"

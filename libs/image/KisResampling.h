@@ -20,9 +20,9 @@
 class KoColorSpace;
 
 /**
- * Smooth: Lanczos3, each new pixel kept within the range of the two source pixels
- * nearest it, so it stays sharp without halos; shrinking in linear light, so thin
- * bright lines keep their brightness.
+ * Smooth: Lanczos3, each new pixel kept within the range of the source pixels it
+ * covers (at least the two nearest it), so it stays sharp without halos; shrinking
+ * in linear light, so thin bright lines keep their brightness.
  */
 class KRITAIMAGE_EXPORT KisSmoothFilterStrategy : public KisFilterStrategy
 {
@@ -70,6 +70,19 @@ public:
         }
     }
 
+    /// Widens the range from \p low to \p high, channel by channel, to take in \p pixel
+    inline void widen(quint8 *low, quint8 *high, const quint8 *pixel) const
+    {
+        if (m_bytes) {
+            for (int i = 0; i < m_bytes; i++) {
+                low[i] = qMin(low[i], pixel[i]);
+                high[i] = qMax(high[i], pixel[i]);
+            }
+        } else if (!m_channels.empty()) {
+            widenChannels(low, high, pixel);
+        }
+    }
+
 private:
     template<int bytes>
     static inline void clampBytes(quint8 *pixel, const quint8 *a, const quint8 *b)
@@ -77,6 +90,7 @@ private:
         for (int i = 0; i < bytes; i++) pixel[i] = qBound(qMin(a[i], b[i]), pixel[i], qMax(a[i], b[i]));
     }
     void clampChannels(quint8 *pixel, const quint8 *a, const quint8 *b) const;
+    void widenChannels(quint8 *low, quint8 *high, const quint8 *pixel) const;
 
     struct Channel {
         int offset;

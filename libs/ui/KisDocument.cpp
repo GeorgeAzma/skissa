@@ -815,7 +815,9 @@ bool KisDocument::exportDocumentImpl(const KritaUtils::ExportFileJob &job, KisPr
             backupDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
             break;
         case 2:
-            backupDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+            // this app's own temporary folder, apart from other programs' and another profile's
+            backupDir = QDir(KisProfile::tempFolder()).filePath(QStringLiteral("backups"));
+            QDir().mkpath(backupDir);
             break;
         default:
 #ifdef Q_OS_ANDROID

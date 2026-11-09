@@ -647,6 +647,10 @@ msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "Rasvane"
 
+msgctxt "effect"
+msgid "Light"
+msgstr "Hele"
+
 msgctxt "noise effect setting"
 msgid "Color"
 msgstr "Värv"

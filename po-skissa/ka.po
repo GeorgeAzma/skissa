@@ -1045,6 +1045,10 @@ msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "ზომა"
 
+msgctxt "effect"
+msgid "Light"
+msgstr "მსუბუქი"
+
 msgctxt "effect setting"
 msgid "Size"
 msgstr "ზომა"

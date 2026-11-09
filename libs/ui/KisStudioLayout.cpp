@@ -4793,6 +4793,23 @@ void KisStudioLayout::createRail()
 
     d->railPanels = KisConfig(true).readEntry<QStringList>(panelsKey, defaultRailPanels());
     rebuildRailButtons();
+    // an undo or redo of the rail's panels
+    connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::valueChanged, rail, [this](const QString &id) {
+        if (id != panelsKey) return;
+        const QStringList panels = KisConfig(true).readEntry<QStringList>(panelsKey, defaultRailPanels());
+        if (panels == d->railPanels) return;
+        // a panel that lost its button closes, as one taken off the rail does
+        Q_FOREACH (const QString &gone, d->railPanels) {
+            QDockWidget *dock = panels.contains(gone) ? nullptr : d->mainWindow->dockWidget(gone);
+            if (!dock) continue;
+            if (d->pinned.contains(gone)) setPinned(dock, false);
+            if (dock == d->flyout) closeFlyout();
+            dock->hide();
+        }
+        d->railPanels = panels;
+        rebuildRailButtons();
+        arrangePinned();
+    });
     // hidden until normalize() shows it in the column
     mainWindow->removeToolBar(rail);
     panelColumn();
@@ -4840,7 +4857,7 @@ void KisStudioLayout::rebuildRailButtons()
 void KisStudioLayout::setRailPanels(const QStringList &panels)
 {
     d->railPanels = panels;
-    KisSettingsRegistry::writeLater(panelsKey, panels);
+    KisSettingsRegistry::writeItems(panelsKey, panels);
     rebuildRailButtons();
     arrangePinned();
 }

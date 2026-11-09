@@ -31,21 +31,36 @@ struct SkissaSlider {
     const char *follower {nullptr};
 };
 
-/// The slider or two of an effect made of a larger one (Blur of Detail, Grain of Noise)
-class SkissaSliders : public KisConfigWidget
+/**
+ * The slider or two of an effect made of a larger one (Blur of Detail, Grain of Noise). A drag on the image up or
+ * down changes its amount (or its only size), sideways its size.
+ */
+class SkissaSliders : public KisConfigWidget, public KisEffectCanvasEditor
 {
     Q_OBJECT
+    Q_INTERFACES(KisEffectCanvasEditor)
 public:
     SkissaSliders(QWidget *parent, const QString &filterId, const QVector<SkissaSlider> &sliders);
 
     void setConfiguration(const KisPropertiesConfigurationSP config) override;
     KisPropertiesConfigurationSP configuration() const override;
 
+    void canvasHovered(const QPoint &) override {}
+    bool canvasPressed(const QPoint &pixel) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
+    void canvasReleased() override;
+    Qt::Orientations canvasAxes() const override;
+
 private:
     QString m_filterId;
     QVector<QPair<SkissaSlider, KisStudioValueRow *>> m_sliders;
     /// The settings as they came, so that those not shown go back as they were
     KisPropertiesConfigurationSP m_loaded;
+    /// The rows a drag on the image changes up or down and sideways (-1: none), and their values at the press
+    int m_vertical {-1};
+    int m_horizontal {-1};
+    qreal m_startVertical {0};
+    qreal m_startHorizontal {0};
 };
 
 /**

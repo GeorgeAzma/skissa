@@ -297,7 +297,7 @@ QVector<Group> otherGroups(const QStringList &pinned, bool forBrush)
 KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures, bool forBrush)
 {
     Source source;
-    // Krita's own favorites, so Take Krita's settings brings them and Ctrl+Z undoes it
+    // Krita's own favorites, so Take Krita's settings brings them; a setting, so Ctrl+Z undoes it
     source.pinnedKey = QStringLiteral("favoriteCompositeOps");
     source.initialPinned = []() {
         KisConfig cfg(true);

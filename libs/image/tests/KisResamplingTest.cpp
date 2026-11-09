@@ -125,6 +125,28 @@ void KisResamplingTest::testShrinkingKeepsLight()
     QVERIFY(smooth > bicubic + 30);
 }
 
+void KisResamplingTest::testShrinkingKeepsThinLines()
+{
+    // white lines a pixel wide at every phase of the new pixels, shrunk to a third and a quarter: each stays
+    // visible, wherever it falls among the pixels a new one covers
+    QImage lines(96, 32, QImage::Format_ARGB32);
+    lines.fill(qRgb(0, 0, 0));
+    const QList<int> at {13, 26, 39, 52, 65, 78};
+    for (int x : at) {
+        for (int y = 0; y < 32; y++) lines.setPixel(x, y, qRgb(255, 255, 255));
+    }
+    for (int quarter : {3, 4}) {
+        const qreal scale = 1.0 / quarter;
+        const QImage result = scaled(lines, scale, "Smooth")->convertToQImage(nullptr, 0, 0, 96 / quarter, 32 / quarter);
+        for (int x : at) {
+            const int middle = int(x * scale);
+            int brightest = 0;
+            for (int dx = middle - 1; dx <= middle + 1; dx++) brightest = qMax(brightest, qRed(result.pixel(dx, result.height() / 2)));
+            QVERIFY2(brightest > 80, qPrintable(QString("line at %1 shrunk to 1/%2: %3").arg(x).arg(quarter).arg(brightest)));
+        }
+    }
+}
+
 void KisResamplingTest::testTellsPixelArt()
 {
     KisPaintDeviceSP spriteDev = new KisPaintDevice(KoColorSpaceRegistry::instance()->rgb8());

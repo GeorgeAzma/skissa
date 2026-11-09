@@ -43,9 +43,10 @@ private:
     int m_lod;
 };
 
-/// Bilinear upscale of \p in (covering \p from) by \p scale into \p patch, for channels all of plain type T
+/// Bilinear upscale of \p in (covering \p from) by \p scale into \p patch, for channels all of plain type T; colors are
+/// mixed weighted by the alpha at \p alpha (-1: none), so clear pixels beside opaque ones lend them no color
 template <typename T>
-void bilinear(const quint8 *in, const QRect &from, quint8 *out, const QRect &patch, int channels, int scale)
+void bilinear(const quint8 *in, const QRect &from, quint8 *out, const QRect &patch, int channels, int scale, int alpha)
 {
     auto source = [scale](int x) { return (x + 0.5f) / scale - 0.5f; };
     QVector<int> x0(patch.width()), x1(patch.width());
@@ -58,27 +59,37 @@ void bilinear(const quint8 *in, const QRect &from, quint8 *out, const QRect &pat
         wx[x] = fx - qFloor(fx);
     }
     const int rowLength = from.width() * channels;
-    QVector<float> mixed(rowLength);
-    const T *src = reinterpret_cast<const T *>(in);
-    T *dst = reinterpret_cast<T *>(out);
     const bool integer = std::numeric_limits<T>::is_integer;
+    const float opaque = integer ? float(std::numeric_limits<T>::max()) : 1.0f;
+    // premultiplied by alpha
+    const T *src = reinterpret_cast<const T *>(in);
+    QVector<float> held(rowLength * from.height());
+    for (int i = 0; i < held.size(); i += channels) {
+        const float coverage = alpha >= 0 ? float(src[i + alpha]) / opaque : 1.0f;
+        for (int c = 0; c < channels; c++) held[i + c] = c == alpha ? float(src[i + c]) : float(src[i + c]) * coverage;
+    }
+    QVector<float> mixed(rowLength);
+    T *dst = reinterpret_cast<T *>(out);
     for (int y = 0; y < patch.height(); y++) {
         const float fy = source(patch.top() + y);
         const int y0 = qBound(0, qFloor(fy) - from.top(), from.height() - 1);
         const int y1 = qMin(y0 + 1, from.height() - 1);
         const float wy = fy - qFloor(fy);
-        const T *a = src + y0 * rowLength;
-        const T *b = src + y1 * rowLength;
+        const float *a = held.constData() + y0 * rowLength;
+        const float *b = held.constData() + y1 * rowLength;
         for (int i = 0; i < rowLength; i++) {
-            mixed[i] = float(a[i]) + (float(b[i]) - float(a[i])) * wy;
+            mixed[i] = a[i] + (b[i] - a[i]) * wy;
         }
         for (int x = 0; x < patch.width(); x++) {
             const float *p = mixed.constData() + x0[x];
             const float *q = mixed.constData() + x1[x];
             const float w = wx[x];
+            const float coverage = alpha >= 0 ? (p[alpha] + (q[alpha] - p[alpha]) * w) / opaque : 1.0f;
             for (int c = 0; c < channels; c++) {
-                const float v = p[c] + (q[c] - p[c]) * w;
-                *dst++ = integer ? T(v + 0.5f) : T(v);
+                float v = p[c] + (q[c] - p[c]) * w;
+                if (c != alpha) v = coverage > 0 ? v / coverage : 0.0f;
+                if (integer) v = qBound(0.0f, v + 0.5f, opaque);
+                *dst++ = T(v);
             }
         }
     }
@@ -125,12 +136,16 @@ void KisCoarseFilterPreview::upscale(KisPaintDeviceSP small, KisPaintDeviceSP ta
     Q_FOREACH (const KoChannelInfo *channel, channels) plain &= channel->channelValueType() == type;
     const int count = channels.size();
     if (plain && count * int(channels.first()->size()) == pixelSize) {
+        int alpha = -1;
+        Q_FOREACH (const KoChannelInfo *channel, channels) {
+            if (channel->channelType() == KoChannelInfo::ALPHA) alpha = channel->pos() / channel->size();
+        }
         if (type == KoChannelInfo::UINT8) {
-            bilinear<quint8>(in.constData(), from, out.data(), patch, count, scale);
+            bilinear<quint8>(in.constData(), from, out.data(), patch, count, scale, alpha);
         } else if (type == KoChannelInfo::UINT16) {
-            bilinear<quint16>(in.constData(), from, out.data(), patch, count, scale);
+            bilinear<quint16>(in.constData(), from, out.data(), patch, count, scale, alpha);
         } else {
-            bilinear<float>(in.constData(), from, out.data(), patch, count, scale);
+            bilinear<float>(in.constData(), from, out.data(), patch, count, scale, alpha);
         }
         target->writeBytes(out.constData(), patch);
         return;

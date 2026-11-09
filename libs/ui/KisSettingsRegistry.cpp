@@ -307,7 +307,7 @@ QHash<QString, QString> explanations()
         {QStringLiteral("pasteBehaviour"), i18nc("@info:tooltip", "How colors copied from apps that don't say their color profile are read")},
         {QStringLiteral("saveSessionOnQuit"), i18nc("@info:tooltip", "The next start opens the same images in the same windows")},
         {QStringLiteral("useDefaultColorSpace"), i18nc("@info:tooltip", "New images start in this color model, not the one used last")},
-        {QStringLiteral("showOnCanvasMessages"), i18nc("@info:tooltip", "Short notes over the image, such as a value you're dragging")},
+        {QStringLiteral("showOnCanvasMessages"), i18nc("@info:tooltip", "Values you drag and warnings, shown over the image")},
         {QStringLiteral("KineticScrollingEnabled"), i18nc("@info:tooltip", "Lists keep gliding after a flick of a finger or pen")},
         {QStringLiteral("fpsLimit"), i18nc("@info:tooltip", "Higher is smoother and works the computer harder")},
     };
@@ -397,6 +397,13 @@ QVector<Setting> describeAll()
         all << itemList(QStringLiteral("StudioRailItems"), i18nc("setting", "Tools"));
         all << itemList(QStringLiteral("StudioBarItems"), i18nc("setting", "Top bar buttons"));
         all << itemList(QStringLiteral("StudioViewPillItems"), i18nc("setting", "Zoom pill buttons"));
+        all << itemList(QStringLiteral("StudioLayoutPanels"), i18nc("setting", "Panel buttons"));
+        // what the pickers list first
+        all << itemList(QStringLiteral("StudioBrushes"), i18nc("setting", "Favorite brushes"));
+        all << itemList(QStringLiteral("StudioEffects"), i18nc("setting", "Favorite effects"));
+        all << itemList(QStringLiteral("StudioControlsPicked"), i18nc("setting", "Favorite controls"));
+        all << itemList(QStringLiteral("StudioPinnedBrushTips"), i18nc("setting", "Favorite tips"));
+        all << itemList(QStringLiteral("StudioPinnedPatterns"), i18nc("setting", "Favorite patterns"));
 
         Setting glass = toggle(QStringLiteral("StudioGlass"), true, i18nc("setting", "Glass"), R::Fork);
         glass.read = []() { return KisStudioGlass::isEnabled(); };
@@ -578,14 +585,14 @@ QVector<Setting> describeAll()
         all << toggle(QStringLiteral("useDirtyPresets"), true, i18nc("setting", "Keep brush tweaks"));
         all << toggle(QStringLiteral("useEraserBrushSize"), false, i18nc("setting", "Eraser keeps its own size"));
         all << toggle(QStringLiteral("useEraserBrushOpacity"), false, i18nc("setting", "Eraser keeps its own opacity"));
-        all << toggle(QStringLiteral("StrokeShapeSnap"), false, i18nc("setting", "Hold to make a shape"), R::Fork);
-        all << toggle(QStringLiteral("StudioViewPill"), true, i18nc("setting", "Zoom pill"), R::Fork);
-        all << toggle(QStringLiteral("StudioColorIntensity"), true, i18nc("setting", "Brighter than white"), R::Fork);
-        all << toggle(QStringLiteral("StudioTooltips"), true, i18nc("setting", "Tooltips"), R::Fork);
-        all << number(QStringLiteral("StudioTooltipDelay"), 350, 0, 3000, i18nc("setting", "Tooltip delay"), R::Fork);
+        all << toggle(QStringLiteral("StrokeShapeSnap"), false, i18nc("setting", "Hold to make a shape"), R::Fork | R::OwnNotice);
+        all << toggle(QStringLiteral("StudioViewPill"), true, i18nc("setting", "Zoom pill"), R::Fork | R::OwnNotice);
+        all << toggle(QStringLiteral("StudioColorIntensity"), true, i18nc("setting", "Brighter than white"), R::Fork | R::OwnNotice);
+        all << toggle(QStringLiteral("StudioTooltips"), true, i18nc("setting", "Tooltips"), R::Fork | R::OwnNotice);
+        all << number(QStringLiteral("StudioTooltipDelay"), 350, 0, 3000, i18nc("setting", "Tooltip delay"), R::Fork | R::OwnNotice);
         {
             // the blend modes listed first (Your modes); Krita's own key, so taking Krita's settings brings them
-            Setting favorites = text(QStringLiteral("favoriteCompositeOps"), QString(), i18nc("setting", "Favorite blend modes"));
+            Setting favorites = text(QStringLiteral("favoriteCompositeOps"), QString(), i18nc("setting", "Favorite blend modes"), R::OwnNotice);
             favorites.fallbackNow = []() { return KisBlendModePicker::defaultModes().join(QLatin1Char(',')); };
             favorites.format = [](const QVariant &value) {
                 const int count = value.toString().split(QLatin1Char(','), Qt::SkipEmptyParts).size();
@@ -593,7 +600,7 @@ QVector<Setting> describeAll()
             };
             all << favorites;
         }
-        all << toggle(QStringLiteral("StudioUpdates"), true, i18nc("setting", "Update automatically"), R::Fork);
+        all << toggle(QStringLiteral("StudioUpdates"), true, i18nc("setting", "Update automatically"), R::Fork | R::OwnNotice);
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in effects")), QStringLiteral("filterdialog"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in Transform")), QStringLiteral("KisToolTransform"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), false, i18nc("setting", "Instant preview in Move")), QStringLiteral("KritaTransform/KisToolMove"));
@@ -1210,6 +1217,19 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
 void KisSettingsRegistry::writeItems(const QString &key, const QStringList &items)
 {
     instance()->setValue(key, QString::fromUtf8(QJsonDocument(QJsonArray::fromStringList(items)).toJson(QJsonDocument::Compact)));
+}
+
+void KisSettingsRegistry::writeList(const QString &key, const QStringList &items)
+{
+    const Setting *s = instance()->setting(key);
+    if (!s) {
+        writeLater(key, items);
+    } else if (s->read) {
+        writeItems(key, items);
+    } else {
+        // kept as Krita keeps a list: its items joined by commas
+        instance()->setValue(key, items.join(QLatin1Char(',')));
+    }
 }
 
 void KisSettingsRegistry::setValues(const QVector<QPair<QString, QVariant>> &values)

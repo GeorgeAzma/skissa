@@ -633,6 +633,8 @@ public:
     bool internalMoveInProgress{false};
 #else
     QScopedPointer<KisFFMpegWrapper> exporter;
+    /// The seconds the painting takes in the video, between the stills at its start and end
+    int paintingSeconds {1};
     QString exportedFile;
 #endif
     QTimer pausedTimer;
@@ -1031,7 +1033,8 @@ public:
         const int resultLength = settings->extendResult ? settings->lastFrameSec : 0;
         const float transitionLength = settings->resultPreview ? 0.7 : 0;
         return QString(templateArguments)
-            .replace("$IN_FPS", QString::number(settings->inputFps))
+            // exactly as many frames a second as fit the chosen length
+            .replace("$IN_FPS", QStringLiteral("%1/%2").arg(settings->framesCount).arg(paintingSeconds))
             .replace("$OUT_FPS", QString::number(settings->fps))
             .replace("$WIDTH", QString::number(outSize.width()))
             .replace("$HEIGHT", QString::number(outSize.height()))
@@ -1080,8 +1083,7 @@ public:
         settings->size.rheight() &= ~1;
         // as many frames a second as fit the chosen length, after the stills at the start and the end
         const int stills = (settings->resultPreview ? settings->firstFrameSec : 0) + (settings->extendResult ? settings->lastFrameSec : 0);
-        const int painting = qMax(1, lengthValue->seconds() - stills);
-        settings->inputFps = qBound(8, qRound(qreal(settings->framesCount) / painting), 240);
+        paintingSeconds = qMax(1, lengthValue->seconds() - stills);
         settings->profileIndex = RecorderExportConfig(true).profileIndex();
         const RecorderProfile &profile = settings->profiles[qBound(0, settings->profileIndex, int(settings->profiles.size()) - 1)];
         settings->videoFilePath = videoPath(profile.extension);
@@ -1426,7 +1428,7 @@ void RecorderDockerDock::onExporterFinishedWithError(QString error)
 
 void RecorderDockerDock::onExporterProgressUpdated(int frameNo)
 {
-    const qreal frames = exportSettings->framesCount * exportSettings->fps / qMax<qreal>(1, exportSettings->inputFps);
+    const qreal frames = qreal(d->paintingSeconds) * exportSettings->fps;
     d->exportButton->setProgress(qBound<qreal>(0.01, frameNo / qMax<qreal>(1, frames), 1));
 }
 

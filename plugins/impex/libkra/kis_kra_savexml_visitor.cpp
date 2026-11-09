@@ -35,6 +35,7 @@
 #include <lazybrush/kis_colorize_mask.h>
 #include <kis_file_layer.h>
 #include <kis_psd_layer_style.h>
+#include <KisColorDrop.h>
 #include <KisReferenceImage.h>
 #include <KisReferenceImagesLayer.h>
 #include "kis_keyframe_channel.h"
@@ -117,6 +118,7 @@ QDomElement KisSaveXmlVisitor::savePaintLayerAttributes(KisPaintLayer *layer, QD
 
     element.setAttribute(ONION_SKIN_ENABLED, layer->onionSkinEnabled());
     element.setAttribute(VISIBLE_IN_TIMELINE, layer->isPinnedToTimeline());
+    if (layer->nodeProperties().boolProperty(KisColorDrop::colorsMark)) element.setAttribute(KisColorDrop::colorsMark, 1);
 
     if (!saveLayerOffset) {
         element.removeAttribute(X);
