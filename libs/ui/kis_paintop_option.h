@@ -111,6 +111,9 @@ public:
         QString text;
         /// An Auto switch on the row and whether it is on (Spacing: from the brush size); none: no switch
         std::optional<bool> automatic;
+        /// The value at which it changes nothing about the engine's own default (MyPaint's settings): at it, the
+        /// quick editor offers it under Add instead of a row
+        std::optional<qreal> neutral;
     };
 
     /// None for an option whose row has no value

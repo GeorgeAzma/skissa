@@ -742,6 +742,28 @@ void KisStudioToolStrip::addSelectionAdjust()
         });
         m_layout->addWidget(scrubber);
     }
+
+    // letting the selection go and turning it inside out, a pen's reach from the keys
+    KisMainWindow *window = KisPart::instance()->currentMainwindow();
+    if (!window) return;
+    bool gap = false;
+    for (const auto &command : {qMakePair(QStringLiteral("deselect"), QStringLiteral("studio_deselect")),
+                                qMakePair(QStringLiteral("invert_selection"), QStringLiteral("studio_select_invert"))}) {
+        QAction *action = window->actionCollection()->action(command.first);
+        if (!action) continue;
+        if (!gap) addGap();
+        gap = true;
+        QToolButton *button = addButton(KisIconUtils::loadIcon(command.second), KisSentenceCase::of(QString(action->text()).remove(QLatin1Char('&'))));
+        button->setCheckable(false);
+        const QPointer<QAction> target = action;
+        connect(button, &QToolButton::clicked, this, [target]() {
+            if (target) target->trigger();
+        });
+        // always there, so the bar keeps its width and the buttons their places; usable while there is a selection
+        auto follow = [button, target]() { button->setEnabled(target && target->isEnabled()); };
+        follow();
+        connect(action, &QAction::changed, button, follow);
+    }
 }
 
 void KisStudioToolStrip::addGuides(QWidget *options, QComboBox *types)

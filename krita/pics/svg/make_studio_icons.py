@@ -193,6 +193,9 @@ ICONS = {
     'reference': sq(3.5, 5, 17, 14.5, 2.6) + p('M3.8 16.5 9 11.5l3.5 3.5 2.5-2.5 5.2 5') + dot(15.5, 9.5, 1.5),
     'pointer': p('M5 3.5 11 20.5l2.4-7 7.1-2.4Z'),
     'calligraphy': (p('M12.5 3.5 20.5 11.5 15 17l-5.5 1.5-6 3 3-6L8 10Z') + p('M3.5 20.5l5-5') + c(10, 14, 1.5)),
+    # the selection let go, and turned inside out
+    'deselect': dashed(sq(3.5, 3.5, 17, 17, 2.6), '2.6 2.4') + p('M9 9l6 6M15 9l-6 6'),
+    'select_invert': dashed(sq(3.5, 3.5, 17, 17, 2.6), '2.6 2.4') + '<path d="M12 3.5h6.1a2.4 2.4 0 0 1 2.4 2.4v12.2a2.4 2.4 0 0 1-2.4 2.4H12Z" fill="INK" stroke="none"/>',
     'select_ellipse': dashed('<ellipse cx="12" cy="12" rx="8.5" ry="7"/>', '2.6 2.4'),
     'select_polygon': dashed(p('M12 3.5 20.5 9.7 17.3 19.7H6.7L3.5 9.7Z'), '2.6 2.4'),
     'lasso': (dashed(p('M7.2 17C4.6 15.9 3 14 3 11.8 3 7.8 7 4.5 12 4.5s9 3.3 9 7.3-4 7.2-9 7.2'), '2.6 2.4')

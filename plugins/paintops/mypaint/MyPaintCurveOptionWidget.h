@@ -24,6 +24,9 @@ public:
 
     OptionalLodLimitationsReader lodLimitationsReader() const override;
 
+protected:
+    std::optional<RowValue> ownRowValue() const override;
+
 private:
     struct Private;
     const QScopedPointer<Private> m_d;

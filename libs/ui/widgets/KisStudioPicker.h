@@ -104,10 +104,6 @@ public:
     struct Private;
 
 protected:
-    /// Adds a view that can replace the list (e.g. a map), toggled by a link; \p rememberedKey stores which one shows
-    void addAlternateView(QWidget *view, const QString &label, const QString &rememberedKey);
-    /// Picks \p id as if its item were clicked
-    void pickId(const QString &id);
     const Source &pickerSource() const;
 
     bool eventFilter(QObject *watched, QEvent *event) override;

@@ -132,6 +132,8 @@ struct KisStudioBrushEditor::Private
     /// The settings to add are shown, until another part is picked
     bool adding {false};
     QTimer refreshPage;
+    /// Settings at their defaults the user added as rows while the editor is open
+    QSet<KisPaintOpOption *> added;
     /// The options shown as rows and as ones to add, to see whether a change moves any
     QList<KisPaintOpOption *> rowOptions;
     QList<KisPaintOpOption *> unusedOptions;
@@ -162,7 +164,12 @@ struct KisStudioBrushEditor::Private
             if (option->category() != part || !option->isEnabled()) continue;
             const std::optional<KisPaintOpOption::RowValue> value = option->rowValue();
             if (!value) continue;
-            if (value->appliesUnchecked || !option->isCheckable() || option->isChecked()) {
+            // at its engine's default and not driven by the pen: nothing the brush does with it, offered under Add
+            const bool idle = value->neutral && qAbs(value->value - *value->neutral) <= 1e-4 * qMax<qreal>(1, qAbs(*value->neutral))
+                && penCurve(option).isEmpty() && !added.contains(option);
+            if (idle) {
+                unused->append(option);
+            } else if (value->appliesUnchecked || !option->isCheckable() || option->isChecked()) {
                 rows->append(option);
             } else {
                 unused->append(option);
@@ -751,8 +758,15 @@ void KisStudioBrushEditor::showPart(int part)
         Q_FOREACH (KisPaintOpOption *option, unused) {
             targets << option;
         }
-        connect(more, &KisStudioChips::clicked, this, [targets](int index) {
-            if (index >= 0 && index < targets.size() && targets[index]) targets[index]->setChecked(true);
+        connect(more, &KisStudioChips::clicked, this, [this, targets](int index) {
+            if (index < 0 || index >= targets.size() || !targets[index]) return;
+            // one that is always on (a MyPaint setting at its default) is shown as a row to change
+            if (targets[index]->isCheckable()) {
+                targets[index]->setChecked(true);
+            } else {
+                d->added.insert(targets[index]);
+                d->refreshPage.start();
+            }
         });
         d->pageLayout->addSpacing(KisModernStyle::space1);
         d->pageLayout->addWidget(more);

@@ -89,19 +89,19 @@ QColor pinnedColor(const QString &key)
     return QColor(key.mid(colorPrefix.size()));
 }
 
-/// A pinned color's button: a swatch with a faint edge, so white and black both show
+/// A pinned color's button: a round drop of paint like the color chip's, with a faint edge so white and black show
 QIcon swatchIcon(const QColor &color)
 {
     QIcon icon;
     for (qreal ratio : {1.0, 1.5, 2.0}) {
-        QPixmap pixmap(QSize(24, 24) * ratio);
+        QPixmap pixmap(QSize(28, 28) * ratio);
         pixmap.setDevicePixelRatio(ratio);
         pixmap.fill(Qt::transparent);
         QPainter painter(&pixmap);
         painter.setRenderHint(QPainter::Antialiasing, true);
         painter.setPen(QPen(QColor(128, 128, 128, 120), 1));
         painter.setBrush(color);
-        painter.drawPath(KisModernStyle::squircle(QRectF(4.5, 4.5, 15, 15), KisModernStyle::cornerRadius));
+        painter.drawEllipse(QRectF(3.5, 3.5, 21, 21));
         painter.end();
         icon.addPixmap(pixmap);
     }
@@ -1113,9 +1113,11 @@ void KisStudioToolRail::rebuild()
         }
 
         auto *button = new RailButton(this);
-        if (pinned) {
+        if (pinned || key.startsWith(colorPrefix)) {
             button->setIconSize(QSize(28, 28));
         }
+        // a color is picked, not a place to be in: it never stays lit
+        if (key.startsWith(colorPrefix)) button->setCheckable(false);
         button->setIcon(icon);
         button->setAccessibleName(title);
         button->hasVariants = variants;
@@ -1520,6 +1522,8 @@ void KisStudioToolRail::updateActiveSlot()
                 }
             }
             button->setToolTip(tip);
+        } else if (key.startsWith(colorPrefix)) {
+            button->setToolTip(button->accessibleName());
         } else if (key.startsWith(brushPrefix) || KisSuperellipse::lookOf(key, nullptr)) {
             button->setChecked(key == active);
             button->setToolTip(button->accessibleName());

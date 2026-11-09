@@ -114,6 +114,7 @@
 #include "KisWelcomePageWidget.h"
 #include "KisStudioStartPage.h"
 #include "widgets/KisStudioPopup.h"
+#include "widgets/KisStudioColorField.h"
 #include "canvas/kis_canvas2.h"
 #include "canvas/kis_canvas_controller.h"
 #include "kis_canvas_resource_provider.h"
@@ -535,12 +536,14 @@ class ColorChip : public QWidget
 public:
     std::function<void()> openColors;
     std::function<void()> swapColors;
+    /// A right click: the picker of the color under it (the back one or the front one)
+    std::function<void(bool background)> pickColor;
 
     explicit ColorChip(QWidget *parent) : QWidget(parent)
     {
         setFixedSize(40, 40);
         setCursor(Qt::PointingHandCursor);
-        setToolTip(i18nc("@info:tooltip the color chip on the tool rail", "Colors\nDrag onto the image: fill\nClick the back one: swap"));
+        setToolTip(i18nc("@info:tooltip the color chip on the tool rail", "Colors\nDrag onto the image: fill\nClick the back one: swap\nRight-click: change it"));
     }
 
     void setColors(const QColor &foreground, const QColor &background)
@@ -592,6 +595,12 @@ protected:
         } else if (openColors) {
             openColors();
         }
+    }
+
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        event->accept();
+        if (pickColor) pickColor(onBackground(event->pos()));
     }
 
 private:
@@ -5293,6 +5302,20 @@ void KisStudioLayout::createBrushRail()
         const KoColor foreground = resources->fgColor();
         resources->setFGColor(resources->bgColor());
         resources->setBGColor(foreground);
+    };
+    chip->pickColor = [chip, resources](bool background) {
+        // the picker of that one color, beside the chip; the field is the chip's, gone when its picker closes
+        auto *field = new KisStudioColorField(chip);
+        field->setGeometry(chip->rect());
+        field->hide();
+        field->setColor((background ? resources->bgColor() : resources->fgColor()).toQColor());
+        QObject::connect(field, &KisStudioColorField::colorChanged, chip, [resources, background](const QColor &color) {
+            const KoColor picked(color, resources->fgColor().colorSpace());
+            if (background) resources->setBGColor(picked);
+            else resources->setFGColor(picked);
+        });
+        field->openPicker();
+        if (auto *popup = field->findChild<KisStudioPopup *>()) QObject::connect(popup, &QObject::destroyed, field, &QObject::deleteLater);
     };
     chip->openColors = [this]() {
         if (QDockWidget *colors = d->mainWindow->dockWidget(KisStudioColorPanel::id())) {

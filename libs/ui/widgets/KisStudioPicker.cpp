@@ -182,9 +182,6 @@ struct KisStudioPicker::Private
     QLineEdit *search {nullptr};
     QWidget *grid {nullptr};
     QScrollArea *scroll {nullptr};
-    QHBoxLayout *footer {nullptr};
-    QPointer<QWidget> alternate;
-    QAbstractButton *alternateButton {nullptr};
 
     QVector<Group> groups;
     /// The name of the user's own list, which they can rename when they can make groups
@@ -985,25 +982,6 @@ private:
     int m_renamingList {-1};
 };
 
-class LinkButton : public QAbstractButton
-{
-public:
-    using QAbstractButton::QAbstractButton;
-    QSize sizeHint() const override
-    {
-        return QSize(fontMetrics().horizontalAdvance(QString(text()).remove(QLatin1Char('&'))) + 12, 24);
-    }
-
-protected:
-    void paintEvent(QPaintEvent *) override
-    {
-        QPainter painter(this);
-        QColor color = palette().color(QPalette::Link);
-        if (!underMouse()) color.setAlphaF(0.85);
-        painter.setPen(color);
-        painter.drawText(rect(), Qt::AlignVCenter | Qt::AlignRight | Qt::TextHideMnemonic, text());
-    }
-};
 
 } // namespace
 
@@ -1395,48 +1373,6 @@ KisStudioPicker::~KisStudioPicker() = default;
 void KisStudioPicker::updatePreviews()
 {
     d->grid->update();
-    if (d->alternate) d->alternate->update();
-}
-
-void KisStudioPicker::addAlternateView(QWidget *view, const QString &label, const QString &rememberedKey)
-{
-    d->alternate = view;
-    view->setParent(this);
-    view->hide();
-    // placed after the list, which is hidden while the view shows
-    if (auto *box = qobject_cast<QVBoxLayout *>(layout())) {
-        box->insertWidget(box->indexOf(d->scroll) + 1, view);
-    }
-    auto *link = new LinkButton(this);
-    link->setCursor(Qt::PointingHandCursor);
-    d->alternateButton = link;
-    d->footer = new QHBoxLayout();
-    d->footer->setContentsMargins(8, 2, 4, 0);
-    d->footer->addStretch(1);
-    d->footer->addWidget(link);
-    if (auto *box = qobject_cast<QVBoxLayout *>(layout())) box->addLayout(d->footer);
-    auto apply = [this, label](bool on) {
-        d->alternate->setVisible(on);
-        d->scroll->setVisible(!on);
-        d->search->setVisible(!on);
-        d->alternateButton->setText(on ? i18nc("@action:button back to the list", "List") : label);
-        adjustSize();
-        keepOnScreen();
-    };
-    connect(link, &QAbstractButton::clicked, this, [this, apply, rememberedKey]() {
-        const bool on = !d->alternate->isVisible();
-        KisConfig(false).writeEntry(rememberedKey, on);
-        apply(on);
-        // the search field, now hidden, had the focus and so the keys, Escape included
-        if (on) setFocus();
-        else d->search->setFocus();
-    });
-    apply(KisConfig(true).readEntry<bool>(rememberedKey, false));
-}
-
-void KisStudioPicker::pickId(const QString &id)
-{
-    d->pickId(id);
 }
 
 const KisStudioPicker::Source &KisStudioPicker::pickerSource() const
@@ -1487,7 +1423,7 @@ void KisStudioPicker::popupAt(QPoint pos, QWidget *anchor)
 
 void KisStudioPicker::keepOnScreen()
 {
-    // it may grow while shown (a search, the alternate view): keep it on screen
+    // it may grow while shown (a search): keep it on screen
     if (isVisible()) move(onScreen(pos(), size(), screen()));
 }
 
@@ -1540,7 +1476,7 @@ bool KisStudioPicker::eventFilter(QObject *watched, QEvent *event)
 
 void KisStudioPicker::keyPressEvent(QKeyEvent *event)
 {
-    // the search field handles its own keys (see eventFilter); this is for the alternate view
+    // the search field handles its own keys (see eventFilter); this is for when it has none
     if (event->key() == Qt::Key_Escape) {
         close();
         return;
