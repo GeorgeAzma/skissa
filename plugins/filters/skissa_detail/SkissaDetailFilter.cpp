@@ -28,6 +28,7 @@
 #include "SkissaDetailWidget.h"
 #include "SkissaPixels.h"
 #include "SkissaFewerFilter.h"
+#include "SkissaFollow.h"
 #include "SkissaLensFilter.h"
 #include "SkissaInkFilter.h"
 #include "SkissaRadialFilter.h"
@@ -90,6 +91,7 @@ SkissaDetailPlugin::SkissaDetailPlugin(QObject *parent, const QVariantList &)
     KisFilterRegistry::instance()->add(KisFilterSP(new SkissaLightFilter()));
     KisFilterRegistry::instance()->add(KisFilterSP(new SkissaPaintFilter()));
     KisFilterRegistry::instance()->add(KisFilterSP(new SkissaReplaceFilter()));
+    SkissaFollow::addAll();
 }
 
 SkissaDetailFilter::SkissaDetailFilter(Kind kind, bool earlier)

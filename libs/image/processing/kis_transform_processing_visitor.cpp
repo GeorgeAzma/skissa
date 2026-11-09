@@ -58,6 +58,7 @@ KisTransformProcessingVisitor(qreal  xscale, qreal  yscale,
 void KisTransformProcessingVisitor::setSelection(KisSelectionSP selection)
 {
     m_selectionHelper.setSelection(selection);
+    if (selection) m_follower.stop();
 }
 
 KUndo2Command *KisTransformProcessingVisitor::createInitCommand()
@@ -95,6 +96,7 @@ void KisTransformProcessingVisitor::visit(KisAdjustmentLayer *layer, KisUndoAdap
     using namespace KisDoSomethingCommandOps;
     undoAdapter->addCommand(new KisDoSomethingCommand<ResetOp, KisAdjustmentLayer*>(layer, false));
     transformSelection(layer->internalSelection(), undoAdapter, ProgressHelper(layer));
+    m_follower.follow(layer, KisTransformWorker(0, m_sx, m_sy, m_shearx, m_sheary, m_angle, m_tx, m_ty, 0, m_filter).transform(), undoAdapter);
     undoAdapter->addCommand(new KisDoSomethingCommand<ResetOp, KisAdjustmentLayer*>(layer, true));
 
     transformClones(layer, undoAdapter);
@@ -132,6 +134,7 @@ void KisTransformProcessingVisitor::visit(KisCloneLayer *layer, KisUndoAdapter *
 void KisTransformProcessingVisitor::visit(KisFilterMask *mask, KisUndoAdapter *undoAdapter)
 {
     transformSelection(mask->selection(), undoAdapter, ProgressHelper(mask));
+    m_follower.follow(mask, KisTransformWorker(0, m_sx, m_sy, m_shearx, m_sheary, m_angle, m_tx, m_ty, 0, m_filter).transform(), undoAdapter);
 }
 
 void KisTransformProcessingVisitor::visit(KisTransformMask *mask, KisUndoAdapter *undoAdapter)

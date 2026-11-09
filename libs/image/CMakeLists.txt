@@ -302,6 +302,7 @@ set(kritaimage_LIB_SRCS
    kis_cage_transform_worker.cpp
    kis_liquify_transform_worker.cpp
    KisGridRenderer.cpp
+   KisFilterGeometry.cpp
    KisPuppet.cpp
    KisResampling.cpp
    kis_green_coordinates_math.cpp

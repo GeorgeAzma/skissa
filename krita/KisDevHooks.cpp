@@ -110,15 +110,16 @@ public:
         }
         if (msg->message == exportMessage) {
             // the active document as krita-dev-export.kra, or with wParam 1 as krita-dev-export.tif (a format that writes itself),
-            // 2 as krita-dev-export.png
+            // 2 as krita-dev-export.png; saved in the background as the app's own Export does (a synchronous export waits
+            // on this thread for the image's jobs, which may need this thread)
             KisMainWindow *window = KisPart::instance()->currentMainwindow();
             KisDocument *document = window && window->activeView() ? window->activeView()->document() : nullptr;
             if (document && msg->wParam == 1) {
-                document->exportDocumentSync(QDir::temp().filePath(QStringLiteral("krita-dev-export.tif")), "image/tiff");
+                document->exportDocument(QDir::temp().filePath(QStringLiteral("krita-dev-export.tif")), "image/tiff");
             } else if (document && msg->wParam == 2) {
-                document->exportDocumentSync(QDir::temp().filePath(QStringLiteral("krita-dev-export.png")), "image/png");
+                document->exportDocument(QDir::temp().filePath(QStringLiteral("krita-dev-export.png")), "image/png");
             } else if (document) {
-                document->exportDocumentSync(QDir::temp().filePath(QStringLiteral("krita-dev-export.kra")), "application/x-krita");
+                document->exportDocument(QDir::temp().filePath(QStringLiteral("krita-dev-export.kra")), "application/x-krita");
             }
             return true;
         }

@@ -12,6 +12,7 @@
 #include "kis_types.h"
 
 #include "KisSelectionBasedProcessingHelper.h"
+#include "KisFilterGeometry.h"
 
 
 class KRITAIMAGE_EXPORT KisMirrorProcessingVisitor : public KisSimpleProcessingVisitor
@@ -38,6 +39,7 @@ private:
     qreal m_axis = 0.0;
 
     KisSelectionBasedProcessingHelper m_selectionHelper;
+    KisFilterGeometry::Follower m_follower;
 };
 
 #endif /* __KIS_MIRROR_PROCESSING_VISITOR_H */

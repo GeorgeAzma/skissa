@@ -34,6 +34,7 @@ KisMirrorProcessingVisitor::KisMirrorProcessingVisitor(KisSelectionSP selection,
     : KisMirrorProcessingVisitor(selection->selectedExactRect(), orientation)
 {
     m_selectionHelper.setSelection(selection);
+    m_follower.stop();
 }
 
 KUndo2Command *KisMirrorProcessingVisitor::createInitCommand()
@@ -54,6 +55,8 @@ void KisMirrorProcessingVisitor::transformPaintDevice(KisPaintDeviceSP device, K
 void KisMirrorProcessingVisitor::visitNodeWithPaintDevice(KisNode *node, KisUndoAdapter *undoAdapter)
 {
     transformPaintDevice(node->paintDevice(), undoAdapter);
+    const QTransform mirror = m_orientation == Qt::Horizontal ? QTransform(-1, 0, 0, 1, 2 * m_axis, 0) : QTransform(1, 0, 0, -1, 0, 2 * m_axis);
+    m_follower.follow(node, mirror, undoAdapter);
 }
 
 void KisMirrorProcessingVisitor::visitExternalLayer(KisExternalLayer *layer, KisUndoAdapter *undoAdapter)

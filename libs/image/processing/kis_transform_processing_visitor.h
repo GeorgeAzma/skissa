@@ -9,6 +9,7 @@
 
 #include "kis_processing_visitor.h"
 #include "KisSelectionBasedProcessingHelper.h"
+#include "KisFilterGeometry.h"
 
 #include <kis_types.h>
 
@@ -58,6 +59,7 @@ private:
     qreal m_angle;
     QTransform m_shapesCorrection;
     KisSelectionBasedProcessingHelper m_selectionHelper;
+    KisFilterGeometry::Follower m_follower;
 };
 
 #endif /* __KIS_TRANSFORM_PROCESSING_VISITOR_H */
