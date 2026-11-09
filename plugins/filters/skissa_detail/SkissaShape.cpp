@@ -103,6 +103,15 @@ inline void over(const float *top, float *under)
     for (int c = 0; c < 4; c++) under[c] = top[c] + under[c] * (1 - top[3]);
 }
 
+/// \p color (straight, linear) laid at \p share over what \p under (premultiplied) covers, and nowhere else
+inline void atop(const float *color, float share, float *under)
+{
+    for (int c = 0; c < 3; c++) under[c] = under[c] * (1 - share) + color[c] * share * under[3];
+}
+
+/// The light a bevel is lit by comes this high above the picture (degrees)
+constexpr double lightElevation = 30;
+
 const char *const placeKeys[] = {"outside", "center", "inside"};
 
 QColor colorFrom(const KisPropertiesConfiguration &config, const char *key, const QColor &fallback)
@@ -140,6 +149,10 @@ Settings Settings::from(const KisPropertiesConfiguration &config)
     s.shadowSoftness = float(std::clamp(config.getDouble("shadow_softness", s.shadowSoftness), 0.0, 200.0));
     s.shadowColor = colorFrom(config, "shadow_color", s.shadowColor);
     s.solid = float(std::clamp(config.getDouble("solid", 1), 0.02, 1.0));
+    s.shadowFall = config.getString("shadow_fall", QStringLiteral("under")) == QLatin1String("inside") ? Fall::Inside : Fall::Under;
+    s.bevel = float(std::clamp(config.getDouble("bevel", 0), 0.0, 200.0));
+    s.bevelDepth = float(std::clamp(config.getDouble("bevel_depth", s.bevelDepth), 0.0, 1.0));
+    s.emboss = config.getBool("emboss", false);
     return s;
 }
 
@@ -157,6 +170,10 @@ void Settings::writeTo(KisPropertiesConfiguration &config) const
     config.setProperty("shadow_softness", double(shadowSoftness));
     config.setProperty("shadow_color", shadowColor.name(QColor::HexArgb));
     config.setProperty("solid", double(solid));
+    config.setProperty("shadow_fall", shadowFall == Fall::Inside ? QStringLiteral("inside") : QStringLiteral("under"));
+    config.setProperty("bevel", double(bevel));
+    config.setProperty("bevel_depth", double(bevelDepth));
+    config.setProperty("emboss", emboss);
 }
 
 bool Settings::operator==(const Settings &other) const
@@ -164,12 +181,13 @@ bool Settings::operator==(const Settings &other) const
     // the layer's opacity isn't part of the look
     return grow == other.grow && outline == other.outline && place == other.place && outlineColor == other.outlineColor && glow == other.glow
         && glowStrength == other.glowStrength && glowColor == other.glowColor && shadow == other.shadow && shadowAngle == other.shadowAngle
-        && shadowSoftness == other.shadowSoftness && shadowColor == other.shadowColor;
+        && shadowSoftness == other.shadowSoftness && shadowColor == other.shadowColor && shadowFall == other.shadowFall && bevel == other.bevel
+        && bevelDepth == other.bevelDepth && emboss == other.emboss;
 }
 
 bool Settings::changesNothing() const
 {
-    return grow == 0 && outline <= 0 && (glow <= 0 || glowStrength <= 0) && (shadowColor.alpha() == 0 || shadow <= 0);
+    return grow == 0 && outline <= 0 && (glow <= 0 || glowStrength <= 0) && (shadowColor.alpha() == 0 || shadow <= 0) && (bevel <= 0 || bevelDepth <= 0);
 }
 
 Shape::Shape(const Settings &settings, qreal scale)
@@ -183,7 +201,7 @@ int Shape::reach() const
     const Settings &s = m_settings;
     if (s.changesNothing()) return 0;
     // the distance is read as far as the edge's effects reach, around wherever the shadow reads
-    const qreal edge = std::abs(s.grow) + s.outline + s.glow;
+    const qreal edge = std::abs(s.grow) + s.outline + s.glow + (s.bevel > 0 ? s.bevel : 0);
     const qreal shadow = s.shadowColor.alpha() && s.shadow > 0 ? s.shadow + 1.5 * s.shadowSoftness : 0;
     return int(std::ceil((edge + shadow) * m_scale)) + 3;
 }
@@ -262,11 +280,15 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
         silhouette[i] = std::max(to[3], outward > 0 ? coverage(outward - d + 0.5f) : 0.0f);
     }
 
-    // the shadow: the silhouette moved and blurred
+    // the shadow: the silhouette moved and blurred, or inside, what is around the shape moved into it
     std::vector<float> shadow;
     const bool shadows = s.shadowColor.alpha() > 0 && s.shadow > 0;
+    const bool cutIn = s.shadowFall == Fall::Inside;
     if (shadows) {
         shadow = silhouette;
+        if (cutIn) {
+            for (size_t i = 0; i < count; i++) shadow[i] = 1 - shape[i * 4 + 3];
+        }
         std::vector<float> scratch(count);
         const qreal sigma = 0.5 * s.shadowSoftness * m_scale;
         if (sigma > 0.3) SkissaDetail::gaussian(shadow.data(), scratch.data(), w, h, sigma);
@@ -286,13 +308,52 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
     linearOf(s.outlineColor, outlineColor);
     linearOf(s.glowColor, glowColor);
     linearOf(s.shadowColor, shadowColor);
+
+    /*
+     * The bevel: the edge as a rounded slope (a quarter of a sine, steepest at the edge), rising inward over its width,
+     * or across the edge for an emboss, as steep as its depth asks. Its normal leans the way the distance grows (the
+     * distance field's gradient), and it is lit by the light that casts the shadow, from lightElevation above:
+     * lighter where it faces the light, darker where it faces away.
+     */
+    const float bevel = float(s.bevel * m_scale);
+    const bool bevels = bevel > 0 && s.bevelDepth > 0;
+    const double turn = qDegreesToRadians(double(s.shadowAngle)), up = qDegreesToRadians(lightElevation);
+    const float toLight[3] = {float(-std::cos(turn) * std::cos(up)), float(-std::sin(turn) * std::cos(up)), float(std::sin(up))};
+    const float white[3] = {1, 1, 1}, black[3] = {0, 0, 0};
+    // the slope is read from the distance smoothed a little: exact distances step by whole pixels' roots, and their
+    // differences streaked round edges
+    std::vector<float> smooth;
+    if (bevels) {
+        smooth.resize(count);
+        for (size_t i = 0; i < count; i++) smooth[i] = std::clamp(distance[i], -bevel - 4, bevel + 4);
+        std::vector<float> scratch(count);
+        SkissaDetail::gaussian(smooth.data(), scratch.data(), w, h, 1.5);
+    }
+    const float shadowAlpha = std::max(shadowColor[3], 1e-6f);
+    const float shadowStraight[3] = {shadowColor[0] / shadowAlpha, shadowColor[1] / shadowAlpha, shadowColor[2] / shadowAlpha};
+    // how much lighter or darker a pixel of the slope is: from -1 (facing away) to 1 (facing the light)
+    auto litAt = [&](int sx, int sy, float d) {
+        const float from = s.emboss ? -bevel / 2 : -bevel;
+        const float t = (d - from) / bevel;
+        if (t <= 0 || t >= 1) return 0.0f;
+        const size_t i = size_t(sy) * w + sx;
+        const float gx = 0.5f * (smooth[size_t(sy) * w + std::min(sx + 1, w - 1)] - smooth[size_t(sy) * w + std::max(sx - 1, 0)]);
+        const float gy = 0.5f * (smooth[size_t(std::min(sy + 1, h - 1)) * w + sx] - smooth[size_t(std::max(sy - 1, 0)) * w + sx]);
+        const float length = std::hypot(gx, gy);
+        if (length < 0.3f || std::abs(distance[i]) >= none / 2) return 0.0f;
+        // the height falls outward as cos: its slope is steepest at the outer end
+        const float slope = s.bevelDepth * float(M_PI) / 2 * std::sin(t * float(M_PI) / 2) * 2.5f;
+        const float normal[3] = {slope * gx / length, slope * gy / length, 1};
+        const float lit = (normal[0] * toLight[0] + normal[1] * toLight[1] + normal[2] * toLight[2]) / std::sqrt(slope * slope + 1);
+        return lit >= toLight[2] ? (lit - toLight[2]) / (1 - toLight[2]) : (lit - toLight[2]) / toLight[2];
+    };
     for (int y = 0; y < rect.height(); y++) {
         for (int x = 0; x < rect.width(); x++) {
             const int sx = inside.left() + x, sy = inside.top() + y;
             const size_t i = size_t(sy) * w + sx;
             float result[4] = {0, 0, 0, 0};
             float layer[4];
-            if (shadows) {
+            if (shadows && !cutIn) {
                 const float a = shadowAt(sx, sy);
                 for (int c = 0; c < 4; c++) layer[c] = shadowColor[c] * a;
                 over(layer, result);
@@ -314,6 +375,22 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
                 over(layer, result);
             }
             over(shape.data() + i * 4, result);
+            if (shadows && cutIn) atop(shadowStraight, shadowAt(sx, sy) * shadowColor[3], result);
+            if (bevels) {
+                const float lit = litAt(sx, sy, d);
+                if (lit != 0) {
+                    const float share = std::min(1.0f, std::abs(lit)) * 0.8f;
+                    if (d < 0) {
+                        atop(lit > 0 ? white : black, share, result);
+                    } else {
+                        // an emboss's outer half, sloping down to what is around
+                        const float *color = lit > 0 ? white : black;
+                        for (int c = 0; c < 3; c++) layer[c] = color[c] * share;
+                        layer[3] = share;
+                        over(layer, result);
+                    }
+                }
+            }
             if (width > 0 && s.place != Place::Outside) {
                 const float a = s.place == Place::Inside ? coverage(d + width + 0.5f) * shape[i * 4 + 3]
                                                          : coverage(d + width / 2 + 0.5f) * coverage(width / 2 - d + 0.5f);

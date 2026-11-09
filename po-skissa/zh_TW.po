@@ -850,6 +850,14 @@ msgctxt "shape effect: the shadow's color"
 msgid "Color"
 msgstr "色彩"
 
+msgctxt "shape effect: how wide the bevel's slope is"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "shape effect: how steep the bevel is"
+msgid "Depth"
+msgstr "深度"
+
 msgctxt "shape effect: how much the shape grows, or shrinks below 0"
 msgid "Grow"
 msgstr "擴張"
@@ -857,6 +865,10 @@ msgstr "擴張"
 msgctxt "shape effect part"
 msgid "Grow"
 msgstr "擴張"
+
+msgctxt "shape effect: the bevel across the edge"
+msgid "Emboss"
+msgstr "浮雕"
 
 msgctxt "light effect look: nothing added"
 msgid "None"
@@ -870,6 +882,10 @@ msgctxt "light effect: the streak's color"
 msgid "Color"
 msgstr "色彩"
 
+msgctxt "light effect: how far film's red halos reach"
+msgid "Size"
+msgstr "大小"
+
 msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "粗體"
@@ -881,6 +897,14 @@ msgstr "柔和"
 msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "大小"
+
+msgctxt "lens blur: how far a point spreads"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "haze effect look: far away, blue air"
+msgid "Distance"
+msgstr "距離"
 
 msgctxt "effect setting"
 msgid "Size"

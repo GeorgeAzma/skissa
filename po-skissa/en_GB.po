@@ -1082,6 +1082,14 @@ msgctxt "shape effect: the shadow's color"
 msgid "Color"
 msgstr "Colour"
 
+msgctxt "shape effect: how wide the bevel's slope is"
+msgid "Size"
+msgstr "Size"
+
+msgctxt "shape effect: how steep the bevel is"
+msgid "Depth"
+msgstr "Depth"
+
 msgctxt "shape effect: how much the shape grows, or shrinks below 0"
 msgid "Grow"
 msgstr "Grow"
@@ -1093,6 +1101,10 @@ msgstr "Grow"
 msgctxt "shape effect: outline on the edge"
 msgid "Center"
 msgstr "Centre"
+
+msgctxt "shape effect: the bevel across the edge"
+msgid "Emboss"
+msgstr "Emboss"
 
 msgctxt "light effect look: nothing added"
 msgid "None"
@@ -1114,6 +1126,10 @@ msgctxt "light effect: the streak's color"
 msgid "Color"
 msgstr "Colour"
 
+msgctxt "light effect: how far film's red halos reach"
+msgid "Size"
+msgstr "Size"
+
 msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "Bold"
@@ -1125,6 +1141,26 @@ msgstr "Soft"
 msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "Size"
+
+msgctxt "lens blur: how far a point spreads"
+msgid "Size"
+msgstr "Size"
+
+msgctxt "lens blur: the direction of the band in focus"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "haze effect look: far away, blue air"
+msgid "Distance"
+msgstr "Distance"
+
+msgctxt "haze effect: which way the layer gets farther"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "haze effect: farther toward one side"
+msgid "Gradient"
+msgstr "Gradient"
 
 msgctxt "effect"
 msgid "Light"

@@ -20,9 +20,11 @@ class KisPropertiesConfiguration;
  *
  * - Glow: the glare of scattered light, falling off as a power of the distance (about r^-2.6, as the eye's glare
  *   does), made of Gaussians an octave apart whose weights follow that power, up to Size.
- * - Star: diffraction spikes of an aperture's blades, Points of them, fading exponentially along their length; the
- *   longer waves spread further (diffraction grows with wavelength), so the spikes' ends turn red.
+ * - Star: the diffraction of an aperture's Blades: each straight edge spreads light in a line square to it, so an even
+ *   count makes as many spikes and an odd count twice as many, falling off along them about as 1/r²; the longer
+ *   waves spread further (diffraction grows with wavelength), so the spikes' ends turn red.
  * - Streak: the long line of an anamorphic lens, one direction, in its own color.
+ * - Halation: film's red halo, the light the film's base reflects back fogging its red layer around what shines.
  */
 namespace SkissaLight
 {
@@ -36,16 +38,19 @@ struct Settings {
     /// Glow: how strong, and how far it reaches in pixels
     float glow {1};
     float size {60};
-    /// Star: how strong, how long its spikes are in pixels, how many, turned by how many degrees
+    /// Star: how strong, how long its spikes are in pixels, the aperture's blades (3 to 16), turned by how many degrees
     float star {0};
     float length {80};
-    int points {6};
+    int blades {6};
     float angle {15};
     /// Streak: how strong, how long in pixels, at which angle, in which color
     float streak {0};
     float streakLength {300};
     float streakAngle {0};
     QColor streakColor {QColor(110, 170, 255)};
+    /// Halation: how strong, and how far it reaches in pixels
+    float halation {0};
+    float halationSize {40};
 
     static Settings from(const KisPropertiesConfiguration &config);
     void writeTo(KisPropertiesConfiguration &config) const;

@@ -936,6 +936,14 @@ msgctxt "shape effect: the shadow's color"
 msgid "Color"
 msgstr "Barva"
 
+msgctxt "shape effect: how wide the bevel's slope is"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "shape effect: how steep the bevel is"
+msgid "Depth"
+msgstr "Globina"
+
 msgctxt "shape effect: how much the shape grows, or shrinks below 0"
 msgid "Grow"
 msgstr "Pusti rasti"
@@ -943,6 +951,10 @@ msgstr "Pusti rasti"
 msgctxt "shape effect part"
 msgid "Grow"
 msgstr "Pusti rasti"
+
+msgctxt "shape effect: the bevel across the edge"
+msgid "Emboss"
+msgstr "Izboči"
 
 msgctxt "light effect: how far the glow reaches"
 msgid "Size"
@@ -960,6 +972,10 @@ msgctxt "light effect: the streak's color"
 msgid "Color"
 msgstr "Barva"
 
+msgctxt "light effect: how far film's red halos reach"
+msgid "Size"
+msgstr "Velikost"
+
 msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "Krepko"
@@ -971,6 +987,26 @@ msgstr "Mehko"
 msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "Velikost"
+
+msgctxt "lens blur: how far a point spreads"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "lens blur: the direction of the band in focus"
+msgid "Angle"
+msgstr "Kot"
+
+msgctxt "haze effect look: far away, blue air"
+msgid "Distance"
+msgstr "Razdalja"
+
+msgctxt "haze effect: which way the layer gets farther"
+msgid "Angle"
+msgstr "Kot"
+
+msgctxt "haze effect: farther toward one side"
+msgid "Gradient"
+msgstr "Preliv"
 
 msgctxt "effect setting"
 msgid "Size"

@@ -1045,6 +1045,14 @@ msgctxt "shape effect: the shadow's color"
 msgid "Color"
 msgstr "Renk"
 
+msgctxt "shape effect: how wide the bevel's slope is"
+msgid "Size"
+msgstr "Boyut"
+
+msgctxt "shape effect: how steep the bevel is"
+msgid "Depth"
+msgstr "Derinlik"
+
 msgctxt "shape effect: how much the shape grows, or shrinks below 0"
 msgid "Grow"
 msgstr "Genişlet"
@@ -1052,6 +1060,10 @@ msgstr "Genişlet"
 msgctxt "shape effect part"
 msgid "Grow"
 msgstr "Genişlet"
+
+msgctxt "shape effect: the bevel across the edge"
+msgid "Emboss"
+msgstr "Kabart"
 
 msgctxt "light effect look: nothing added"
 msgid "None"
@@ -1073,6 +1085,10 @@ msgctxt "light effect: the streak's color"
 msgid "Color"
 msgstr "Renk"
 
+msgctxt "light effect: how far film's red halos reach"
+msgid "Size"
+msgstr "Boyut"
+
 msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "Kalın"
@@ -1084,6 +1100,22 @@ msgstr "Yumuşak"
 msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "Boyut"
+
+msgctxt "lens blur: how far a point spreads"
+msgid "Size"
+msgstr "Boyut"
+
+msgctxt "lens blur: the direction of the band in focus"
+msgid "Angle"
+msgstr "Açı"
+
+msgctxt "haze effect look: far away, blue air"
+msgid "Distance"
+msgstr "Uzaklık"
+
+msgctxt "haze effect: which way the layer gets farther"
+msgid "Angle"
+msgstr "Açı"
 
 msgctxt "effect"
 msgid "Light"

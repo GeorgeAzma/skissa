@@ -918,6 +918,14 @@ msgctxt "shape effect: the shadow's color"
 msgid "Color"
 msgstr "Farba"
 
+msgctxt "shape effect: how wide the bevel's slope is"
+msgid "Size"
+msgstr "Veľkosť"
+
+msgctxt "shape effect: how steep the bevel is"
+msgid "Depth"
+msgstr "Hĺbka"
+
 msgctxt "shape effect: how much the shape grows, or shrinks below 0"
 msgid "Grow"
 msgstr "Zväčšiť"
@@ -929,6 +937,10 @@ msgstr "Zväčšiť"
 msgctxt "shape effect: outline on the edge"
 msgid "Center"
 msgstr "Vycentrovať"
+
+msgctxt "shape effect: the bevel across the edge"
+msgid "Emboss"
+msgstr "Vyraziť"
 
 msgctxt "light effect: how far the glow reaches"
 msgid "Size"
@@ -946,6 +958,10 @@ msgctxt "light effect: the streak's color"
 msgid "Color"
 msgstr "Farba"
 
+msgctxt "light effect: how far film's red halos reach"
+msgid "Size"
+msgstr "Veľkosť"
+
 msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "Tučné"
@@ -953,6 +969,26 @@ msgstr "Tučné"
 msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "Veľkosť"
+
+msgctxt "lens blur: how far a point spreads"
+msgid "Size"
+msgstr "Veľkosť"
+
+msgctxt "lens blur: the direction of the band in focus"
+msgid "Angle"
+msgstr "Uhol"
+
+msgctxt "haze effect look: far away, blue air"
+msgid "Distance"
+msgstr "Vzdialenosť"
+
+msgctxt "haze effect: which way the layer gets farther"
+msgid "Angle"
+msgstr "Uhol"
+
+msgctxt "haze effect: farther toward one side"
+msgid "Gradient"
+msgstr "Prechod"
 
 msgctxt "effect"
 msgid "Light"

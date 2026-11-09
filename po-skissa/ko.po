@@ -938,6 +938,10 @@ msgctxt "shape effect: the shadow's color"
 msgid "Color"
 msgstr "색상"
 
+msgctxt "shape effect: how wide the bevel's slope is"
+msgid "Size"
+msgstr "크기"
+
 msgctxt "shape effect: how much the shape grows, or shrinks below 0"
 msgid "Grow"
 msgstr "확장"
@@ -949,6 +953,10 @@ msgstr "확장"
 msgctxt "shape effect: outline on the edge"
 msgid "Center"
 msgstr "중앙"
+
+msgctxt "shape effect: the bevel across the edge"
+msgid "Emboss"
+msgstr "엠보스"
 
 msgctxt "light effect look: nothing added"
 msgid "None"
@@ -970,6 +978,10 @@ msgctxt "light effect: the streak's color"
 msgid "Color"
 msgstr "색상"
 
+msgctxt "light effect: how far film's red halos reach"
+msgid "Size"
+msgstr "크기"
+
 msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "굵게"
@@ -981,6 +993,22 @@ msgstr "부드러움"
 msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "크기"
+
+msgctxt "lens blur: how far a point spreads"
+msgid "Size"
+msgstr "크기"
+
+msgctxt "lens blur: the direction of the band in focus"
+msgid "Angle"
+msgstr "각도"
+
+msgctxt "haze effect: which way the layer gets farther"
+msgid "Angle"
+msgstr "각도"
+
+msgctxt "haze effect: farther toward one side"
+msgid "Gradient"
+msgstr "그라디언트"
 
 msgctxt "effect"
 msgid "Light"

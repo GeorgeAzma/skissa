@@ -107,11 +107,11 @@ void addAll()
         if (change.mirrors() && config.hasProperty("spin")) config.setProperty("spin", -config.getDouble("spin"));
     });
     add(QStringLiteral("skissa_light"), [](KisPropertiesConfiguration &config, const Change &change) {
-        for (const char *key : {"size", "length", "streak_length"}) scaled(config, change, key);
+        for (const char *key : {"size", "length", "streak_length", "halation_size"}) scaled(config, change, key);
         for (const char *key : {"angle", "streak_angle"}) turned(config, change, key);
     });
     add(QStringLiteral("skissa_shape"), [](KisPropertiesConfiguration &config, const Change &change) {
-        for (const char *key : {"grow", "outline", "glow", "shadow_softness"}) scaled(config, change, key);
+        for (const char *key : {"grow", "outline", "glow", "shadow_softness", "bevel"}) scaled(config, change, key);
         // the shadow's fall is a length along its direction
         if (config.hasProperty("shadow") && config.hasProperty("shadow_angle")) {
             const qreal angle = config.getDouble("shadow_angle");
@@ -128,6 +128,14 @@ void addAll()
     });
     add(QStringLiteral("skissa_paint"), [](KisPropertiesConfiguration &config, const Change &change) {
         scaled(config, change, "size");
+    });
+    add(QStringLiteral("skissa_focus"), [](KisPropertiesConfiguration &config, const Change &change) {
+        scaled(config, change, "size");
+        placed(config, change);
+        for (const char *key : {"angle", "band_angle"}) turned(config, change, key);
+    });
+    add(QStringLiteral("skissa_haze"), [](KisPropertiesConfiguration &config, const Change &change) {
+        turned(config, change, "angle");
     });
 }
 

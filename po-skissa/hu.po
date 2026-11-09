@@ -1090,6 +1090,14 @@ msgctxt "shape effect: the shadow's color"
 msgid "Color"
 msgstr "Szín"
 
+msgctxt "shape effect: how wide the bevel's slope is"
+msgid "Size"
+msgstr "Méret"
+
+msgctxt "shape effect: how steep the bevel is"
+msgid "Depth"
+msgstr "Mélység"
+
 msgctxt "shape effect: how much the shape grows, or shrinks below 0"
 msgid "Grow"
 msgstr "Növelés"
@@ -1101,6 +1109,10 @@ msgstr "Növelés"
 msgctxt "shape effect: outline on the edge"
 msgid "Center"
 msgstr "Középre"
+
+msgctxt "shape effect: the bevel across the edge"
+msgid "Emboss"
+msgstr "Domborítás"
 
 msgctxt "light effect look: nothing added"
 msgid "None"
@@ -1122,6 +1134,10 @@ msgctxt "light effect: the streak's color"
 msgid "Color"
 msgstr "Szín"
 
+msgctxt "light effect: how far film's red halos reach"
+msgid "Size"
+msgstr "Méret"
+
 msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "Félkövér"
@@ -1133,6 +1149,26 @@ msgstr "Lágy"
 msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "Méret"
+
+msgctxt "lens blur: how far a point spreads"
+msgid "Size"
+msgstr "Méret"
+
+msgctxt "lens blur: the direction of the band in focus"
+msgid "Angle"
+msgstr "Szög"
+
+msgctxt "haze effect look: far away, blue air"
+msgid "Distance"
+msgstr "Távolság"
+
+msgctxt "haze effect: which way the layer gets farther"
+msgid "Angle"
+msgstr "Szög"
+
+msgctxt "haze effect: farther toward one side"
+msgid "Gradient"
+msgstr "Átmenet"
 
 msgctxt "effect setting"
 msgid "Size"

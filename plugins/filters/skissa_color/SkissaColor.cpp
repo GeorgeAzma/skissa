@@ -342,9 +342,13 @@ void Recipe::apply(float rgb[3], bool fit) const
             const float colored = std::min(1.0f, chroma / 0.04f);
 
             float newLightness = lightness;
+            // the tone curve makes a color more or less light, as an exposure does: its chroma grows and shrinks with
+            // its lightness (Oklab scales both alike with the light), so brightened colors don't wash out
+            float exposed = 1;
             if (m_used[Lightness][Lightness]) {
                 newLightness = lightness <= 1 ? read(m_curves[Lightness][Lightness], lightness)
                                               : read(m_curves[Lightness][Lightness], 1) + lightness - 1;
+                if (lightness > 1e-3f) exposed = std::clamp(newLightness / lightness, 0.0f, 4.0f);
             }
             if (m_used[Chroma][Lightness]) newLightness += (read(m_curves[Chroma][Lightness], c) - 0.5f) * 2 * lightnessShift;
             if (m_used[Hue][Lightness]) newLightness += colored * (read(m_curves[Hue][Lightness], x) - 0.5f) * 2 * lightnessShift;
@@ -356,6 +360,7 @@ void Recipe::apply(float rgb[3], bool fit) const
             }
             if (m_used[Lightness][Chroma]) newChroma *= 2 * read(m_curves[Lightness][Chroma], lightness);
             if (m_used[Hue][Chroma]) newChroma *= 1 + colored * (2 * read(m_curves[Hue][Chroma], x) - 1);
+            newChroma *= exposed;
 
             if (m_turns) {
                 float hue = hueOfAxis(m_used[Hue][Hue] ? read(m_curves[Hue][Hue], x) : x);

@@ -700,6 +700,14 @@ msgctxt "shape effect: the shadow's color"
 msgid "Color"
 msgstr "रंग"
 
+msgctxt "shape effect: how wide the bevel's slope is"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "shape effect: how steep the bevel is"
+msgid "Depth"
+msgstr "गहराई"
+
 msgctxt "shape effect: how much the shape grows, or shrinks below 0"
 msgid "Grow"
 msgstr "बढ़त"
@@ -711,6 +719,10 @@ msgstr "बढ़त"
 msgctxt "shape effect: outline on the edge"
 msgid "Center"
 msgstr "मध्य"
+
+msgctxt "shape effect: the bevel across the edge"
+msgid "Emboss"
+msgstr "एम्बोज़"
 
 msgctxt "light effect: how far the glow reaches"
 msgid "Size"
@@ -728,6 +740,10 @@ msgctxt "light effect: the streak's color"
 msgid "Color"
 msgstr "रंग"
 
+msgctxt "light effect: how far film's red halos reach"
+msgid "Size"
+msgstr "आकार"
+
 msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "मोटा"
@@ -735,6 +751,26 @@ msgstr "मोटा"
 msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "आकार"
+
+msgctxt "lens blur: how far a point spreads"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "lens blur: the direction of the band in focus"
+msgid "Angle"
+msgstr "कोण"
+
+msgctxt "haze effect look: far away, blue air"
+msgid "Distance"
+msgstr "दूरी"
+
+msgctxt "haze effect: which way the layer gets farther"
+msgid "Angle"
+msgstr "कोण"
+
+msgctxt "haze effect: farther toward one side"
+msgid "Gradient"
+msgstr "ग्रेडिएंट"
 
 msgctxt "effect"
 msgid "Light"

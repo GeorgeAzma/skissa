@@ -805,7 +805,8 @@ qreal busiestRadius(const QImage &image, const QPoint &at)
             }
         }
         energy /= std::max(weights, 1e-9);
-        if (energy > bestEnergy) {
+        // a flat place has no size that stands out: it keeps the middling one
+        if (energy > bestEnergy && energy > 1e-9) {
             bestEnergy = energy;
             best = radiusAt(i);
         }

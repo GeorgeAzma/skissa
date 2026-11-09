@@ -52,6 +52,8 @@
 #include "KoCompositeOpInLinear.h"
 #include "SkissaDetailFilter.h"
 #include "SkissaFewer.h"
+#include "SkissaFocus.h"
+#include "SkissaHaze.h"
 #include "SkissaInk.h"
 #include "SkissaLight.h"
 #include "SkissaNoise.h"
@@ -588,6 +590,8 @@ SkissaNoiseWidget::SkissaNoiseWidget(QWidget *parent, KisPaintDeviceSP dev)
                                           : valueRow(this, targetName(target), 0, 200, 0, QStringLiteral("%"), 0);
         connect(row, &KisStudioValueRow::valueChanged, this, [this, target](qreal value) {
             d->settings.amount[target] = float(value / Private::shownPer(target));
+            // Midtones weighs only the lightness noise
+            d->mids->setVisible(d->settings.amount[SkissaNoise::Lightness] > 0);
             refreshTiles();
             Q_EMIT sigConfigurationItemChanged();
         });
@@ -635,6 +639,7 @@ void SkissaNoiseWidget::refresh()
     d->view->setCurve(d->settings.sizes, SkissaNoise::fineSizes());
     for (int target = 0; target < SkissaNoise::Targets; target++) d->amounts[target]->setValue(d->settings.amount[target] * Private::shownPer(target));
     d->mids->setValue(d->settings.mids * 100);
+    d->mids->setVisible(d->settings.amount[SkissaNoise::Lightness] > 0);
     refreshTiles();
 }
 
@@ -2204,7 +2209,7 @@ namespace
 using ShapePlace = SkissaShape::Place;
 
 /// The parts of Shape, as its tabs
-enum ShapePart { OutlinePart, GlowPart, ShadowPart, GrowPart };
+enum ShapePart { OutlinePart, GlowPart, ShadowPart, BevelPart, GrowPart };
 
 /// How opaque a layer's paint is where it is solid: all but a hundredth of its painted pixels are at most this opaque;
 /// nearly opaque counts as opaque
@@ -2304,6 +2309,10 @@ struct SkissaShapeWidget::Private {
     KisStudioValueRow *shadowSoftness {nullptr};
     QWidget *shadowColorRow {nullptr};
     KisStudioColorField *shadowColor {nullptr};
+    KisStudioChips *falls {nullptr};
+    KisStudioValueRow *bevel {nullptr};
+    KisStudioValueRow *bevelDepth {nullptr};
+    KisStudioChips *bevelKinds {nullptr};
     KisStudioValueRow *grow {nullptr};
 
     /// The drag on the image: where it began and what it began from
@@ -2341,6 +2350,19 @@ struct SkissaShapeWidget::Private {
                  s.shadow = 12;
                  s.shadowSoftness = 14;
                  s.shadowColor = QColor(0, 0, 0, 150);
+             })},
+            {i18nc("shape effect look: a raised button with a soft shadow", "Button"), with([](S &s) {
+                 s.bevel = 8;
+                 s.bevelDepth = 0.5f;
+                 s.shadow = 4;
+                 s.shadowSoftness = 8;
+                 s.shadowColor = QColor(0, 0, 0, 110);
+             })},
+            {i18nc("shape effect look: pressed into the paper", "Cut in"), with([](S &s) {
+                 s.shadow = 5;
+                 s.shadowSoftness = 6;
+                 s.shadowColor = QColor(0, 0, 0, 170);
+                 s.shadowFall = SkissaShape::Fall::Inside;
              })},
             {i18nc("shape effect look: lines made bolder", "Thicker"), with([](S &s) { s.grow = 2; })},
             {i18nc("shape effect look: lines made finer", "Thinner"), with([](S &s) { s.grow = -1; })},
@@ -2396,14 +2418,19 @@ SkissaShapeWidget::SkissaShapeWidget(QWidget *parent, KisPaintDeviceSP dev)
 
     const int tileHeight = qMax(64, 2 * fontMetrics().height() + 34);
     d->lookTiles = new KisStudioChips(this);
-    d->lookTiles->setTileColumns(4, tileHeight);
+    d->lookTiles->setTileColumns(5, tileHeight);
     connect(d->lookTiles, &KisStudioChips::clicked, this, [this](int index) {
         if (index < 0 || index >= d->looks.size()) return;
         d->settings = d->looks[index].second;
         d->settings.solid = d->solid;
         // the tab of what the look is most about
         const SkissaShape::Settings &s = d->settings;
-        d->part = s.outline > 0 ? OutlinePart : s.glow > 0 ? GlowPart : s.shadow > 0 ? ShadowPart : s.grow != 0 ? GrowPart : d->part;
+        d->part = s.outline > 0 ? OutlinePart
+            : s.glow > 0        ? GlowPart
+            : s.bevel > 0       ? BevelPart
+            : s.shadow > 0      ? ShadowPart
+            : s.grow != 0       ? GrowPart
+                                : d->part;
         refresh();
         Q_EMIT sigConfigurationItemChanged();
     });
@@ -2470,10 +2497,25 @@ SkissaShapeWidget::SkissaShapeWidget(QWidget *parent, KisPaintDeviceSP dev)
                             [this](qreal v) { d->settings.shadowSoftness = float(v); });
     d->shadowColorRow = colorRow(i18nc("shape effect: the shadow's color", "Color"), &d->shadowColor, defaults.shadowColor,
                                  [this](const QColor &c) { d->settings.shadowColor = c; });
+    d->falls = new KisStudioChips(this);
+    connect(d->falls, &KisStudioChips::clicked, this, [this](int index) {
+        d->settings.shadowFall = index == 1 ? SkissaShape::Fall::Inside : SkissaShape::Fall::Under;
+        edited();
+    });
+    layout->addWidget(d->falls);
+
+    d->bevel = add(i18nc("shape effect: how wide the bevel's slope is", "Size"), 0, 100, 1, px, 8, [this](qreal v) { d->settings.bevel = float(v); });
+    d->bevelDepth = add(i18nc("shape effect: how steep the bevel is", "Depth"), 0, 100, 0, percent, defaults.bevelDepth * 100,
+                        [this](qreal v) { d->settings.bevelDepth = float(v / 100); });
+    d->bevelKinds = new KisStudioChips(this);
+    connect(d->bevelKinds, &KisStudioChips::clicked, this, [this](int index) {
+        d->settings.emboss = index == 1;
+        edited();
+    });
+    layout->addWidget(d->bevelKinds);
 
     d->grow = add(i18nc("shape effect: how much the shape grows, or shrinks below 0", "Grow"), -50, 50, 1, px, 0,
                   [this](qreal v) { d->settings.grow = float(v); });
-    d->grow->setToolTip(i18nc("@info:tooltip", "Below 0, it shrinks"));
 
     refresh();
 }
@@ -2523,6 +2565,8 @@ void SkissaShapeWidget::refresh()
     d->shadowAngle->setValue(s.shadowAngle);
     d->shadowSoftness->setValue(s.shadowSoftness);
     d->shadowColor->setColor(s.shadowColor);
+    d->bevel->setValue(s.bevel);
+    d->bevelDepth->setValue(s.bevelDepth * 100);
     d->grow->setValue(s.grow);
     showRows();
     refreshTiles();
@@ -2532,11 +2576,12 @@ void SkissaShapeWidget::showRows()
 {
     const SkissaShape::Settings &s = d->settings;
     const bool outlines = s.outline > 0, glows = s.glow > 0 && s.glowStrength > 0, shadows = s.shadowColor.alpha() > 0 && s.shadow > 0;
+    const bool bevels = s.bevel > 0 && s.bevelDepth > 0;
     QVector<KisStudioChips::Chip> tabs;
     const QString names[] = {i18nc("shape effect part", "Outline"), i18nc("shape effect part", "Glow"), i18nc("shape effect part", "Shadow"),
-                             i18nc("shape effect part", "Grow")};
-    const bool on[] = {outlines, glows, shadows, s.grow != 0};
-    for (int i = 0; i < 4; i++) {
+                             i18nc("shape effect part", "Bevel"), i18nc("shape effect part", "Grow")};
+    const bool on[] = {outlines, glows, shadows, bevels, s.grow != 0};
+    for (int i = 0; i < 5; i++) {
         KisStudioChips::Chip chip;
         chip.text = names[i];
         chip.on = d->part == i;
@@ -2564,6 +2609,22 @@ void SkissaShapeWidget::showRows()
     d->shadowAngle->setVisible(d->part == ShadowPart && shadows);
     d->shadowSoftness->setVisible(d->part == ShadowPart && shadows);
     d->shadowColorRow->setVisible(d->part == ShadowPart && shadows);
+    d->falls->setVisible(d->part == ShadowPart && shadows);
+    auto twoChips = [](const QString &first, const QString &second, bool secondOn) {
+        QVector<KisStudioChips::Chip> chips(2);
+        chips[0].text = first;
+        chips[0].on = !secondOn;
+        chips[1].text = second;
+        chips[1].on = secondOn;
+        return chips;
+    };
+    d->falls->setChips(twoChips(i18nc("shape effect: the shadow falls under the shape, raised", "Under"),
+                                i18nc("shape effect: the shadow falls inside the shape, cut in", "Inside"), s.shadowFall == SkissaShape::Fall::Inside));
+    d->bevel->setVisible(d->part == BevelPart);
+    d->bevelDepth->setVisible(d->part == BevelPart && bevels);
+    d->bevelKinds->setVisible(d->part == BevelPart && bevels);
+    d->bevelKinds->setChips(twoChips(i18nc("shape effect: the bevel inside the edge", "Inside"), i18nc("shape effect: the bevel across the edge", "Emboss"),
+                                     s.emboss));
     d->grow->setVisible(d->part == GrowPart);
 }
 
@@ -2615,6 +2676,10 @@ QString SkissaShapeWidget::canvasDragged(const QPointF &moved, const QPointF &at
         s.glow = float(qBound(0.0, KisValueSteps::draggedBy(d->start.glow, moved.x(), 0, true, 2), 200.0));
         s.glowStrength = float(qBound(0.0, KisValueSteps::draggedBy(d->start.glowStrength, -moved.y(), 1, false), 1.0));
         break;
+    case BevelPart:
+        s.bevel = float(qBound(0.0, KisValueSteps::draggedBy(d->start.bevel, moved.x(), 0, true, 2), 100.0));
+        s.bevelDepth = float(qBound(0.0, KisValueSteps::draggedBy(d->start.bevelDepth, -moved.y(), 1, false), 1.0));
+        break;
     default:
         // pixels, evenly: across the drag's range as far as the usual grow goes
         s.grow = float(qBound(-50.0, KisValueSteps::draggedBy(d->start.grow, moved.x(), 64, false), 50.0));
@@ -2626,6 +2691,7 @@ QString SkissaShapeWidget::canvasDragged(const QPointF &moved, const QPointF &at
     case ShadowPart: return rowText(d->shadow, 0, px) + QStringLiteral("   ") + rowText(d->shadowAngle, 0, QStringLiteral("°"));
     case OutlinePart: return rowText(d->width, 1, px);
     case GlowPart: return rowText(d->glow, 0, px) + QStringLiteral("   ") + rowText(d->glowStrength, 0, QStringLiteral("%"));
+    case BevelPart: return rowText(d->bevel, 0, px) + QStringLiteral("   ") + rowText(d->bevelDepth, 0, QStringLiteral("%"));
     default: return rowText(d->grow, 1, px);
     }
 }
@@ -2643,7 +2709,7 @@ namespace
 {
 
 /// The ways Light spreads, as its tabs
-enum LightPart { GlowLight, StarLight, StreakLight };
+enum LightPart { GlowLight, StarLight, StreakLight, HalationLight };
 
 } // namespace
 
@@ -2665,13 +2731,15 @@ struct SkissaLightWidget::Private {
     KisStudioValueRow *size {nullptr};
     KisStudioValueRow *star {nullptr};
     KisStudioValueRow *length {nullptr};
-    KisStudioValueRow *points {nullptr};
+    KisStudioValueRow *blades {nullptr};
     KisStudioValueRow *angle {nullptr};
     KisStudioValueRow *streak {nullptr};
     KisStudioValueRow *streakLength {nullptr};
     KisStudioValueRow *streakAngle {nullptr};
     QWidget *streakColorRow {nullptr};
     KisStudioColorField *streakColor {nullptr};
+    KisStudioValueRow *halation {nullptr};
+    KisStudioValueRow *halationSize {nullptr};
 
     SkissaLight::Settings start;
 
@@ -2698,7 +2766,7 @@ struct SkissaLightWidget::Private {
              })},
             {i18nc("light effect look: small four-pointed stars", "Sparkle"), with([](S &s) {
                  s.star = 2;
-                 s.points = 4;
+                 s.blades = 4;
                  s.angle = 45;
                  s.length = 40;
                  s.threshold = 0.9f;
@@ -2706,6 +2774,11 @@ struct SkissaLightWidget::Private {
             {i18nc("light effect look: the long streak of an anamorphic lens", "Anamorphic"), with([](S &s) {
                  s.streak = 1.5f;
                  s.glow = 0.3f;
+             })},
+            {i18nc("light effect look: film's red halos around lights", "Film"), with([](S &s) {
+                 s.halation = 1.2f;
+                 s.glow = 0.3f;
+                 s.threshold = 0.65f;
              })},
         };
     }
@@ -2751,13 +2824,13 @@ SkissaLightWidget::SkissaLightWidget(QWidget *parent, KisPaintDeviceSP dev)
 
     const int tileHeight = qMax(64, 2 * fontMetrics().height() + 34);
     d->lookTiles = new KisStudioChips(this);
-    d->lookTiles->setTileColumns(3, tileHeight);
+    d->lookTiles->setTileColumns(4, tileHeight);
     connect(d->lookTiles, &KisStudioChips::clicked, this, [this](int index) {
         if (index < 0 || index >= d->looks.size()) return;
         d->settings = d->looks[index].second;
         d->settings.top = d->layerTop;
         const SkissaLight::Settings &s = d->settings;
-        d->part = s.streak > 0 ? StreakLight : s.star > 0 ? StarLight : GlowLight;
+        d->part = s.streak > 0 ? StreakLight : s.star > 0 ? StarLight : s.halation > 0 ? HalationLight : GlowLight;
         refresh();
         Q_EMIT sigConfigurationItemChanged();
     });
@@ -2792,12 +2865,9 @@ SkissaLightWidget::SkissaLightWidget(QWidget *parent, KisPaintDeviceSP dev)
     d->star = add(i18nc("light effect: how strong the star is", "Strength"), 0, 400, 0, percent, 100, [this](qreal v) { d->settings.star = float(v / 100); });
     d->length = add(i18nc("light effect: how long the star's spikes are", "Length"), 2, 2000, 0, px, defaults.length,
                     [this](qreal v) { d->settings.length = float(v); });
-    d->points = add(i18nc("light effect: how many spikes the star has", "Points"), 2, 16, 0, QString(), defaults.points,
-                    [this](qreal v) {
-                        // a star's spikes come in pairs: the row shows the number it draws
-                        d->settings.points = qRound(v / 2) * 2;
-                        d->points->setValueText(QString::number(d->settings.points));
-                    });
+    d->blades = add(i18nc("light effect: how many blades the aperture that makes the star has", "Blades"), 3, 16, 0, QString(), defaults.blades,
+                    [this](qreal v) { d->settings.blades = qRound(v); });
+    d->blades->setToolTip(i18nc("@info:tooltip", "An odd count makes twice as many spikes"));
     d->angle = add(i18nc("light effect: how the star is turned", "Angle"), -180, 180, 0, QStringLiteral("°"), defaults.angle,
                    [this](qreal v) { d->settings.angle = float(v); });
     asDial(d->angle);
@@ -2819,6 +2889,10 @@ SkissaLightWidget::SkissaLightWidget(QWidget *parent, KisPaintDeviceSP dev)
     });
     colorLayout->addWidget(d->streakColor);
     layout->addWidget(d->streakColorRow);
+    d->halation = add(i18nc("light effect: how strong film's red halos are", "Strength"), 0, 400, 0, percent, 100,
+                      [this](qreal v) { d->settings.halation = float(v / 100); });
+    d->halationSize = add(i18nc("light effect: how far film's red halos reach", "Size"), 2, 1000, 0, px, defaults.halationSize,
+                          [this](qreal v) { d->settings.halationSize = float(v); });
 
     refresh();
 }
@@ -2863,13 +2937,14 @@ void SkissaLightWidget::refresh()
     d->size->setValue(s.size);
     d->star->setValue(s.star * 100);
     d->length->setValue(s.length);
-    d->points->setValue(s.points);
-    d->points->setValueText(QString::number(s.points));
+    d->blades->setValue(s.blades);
     d->angle->setValue(s.angle);
     d->streak->setValue(s.streak * 100);
     d->streakLength->setValue(s.streakLength);
     d->streakAngle->setValue(s.streakAngle);
     d->streakColor->setColor(s.streakColor);
+    d->halation->setValue(s.halation * 100);
+    d->halationSize->setValue(s.halationSize);
     showRows();
 }
 
@@ -2878,9 +2953,9 @@ void SkissaLightWidget::showRows()
     const SkissaLight::Settings &s = d->settings;
     QVector<KisStudioChips::Chip> tabs;
     const QString names[] = {i18nc("light effect part", "Glow"), i18nc("light effect part: diffraction spikes", "Star"),
-                             i18nc("light effect part: an anamorphic lens's streak", "Streak")};
-    const bool on[] = {s.glow > 0, s.star > 0, s.streak > 0};
-    for (int i = 0; i < 3; i++) {
+                             i18nc("light effect part: an anamorphic lens's streak", "Streak"), i18nc("light effect part: film's red halos", "Halation")};
+    const bool on[] = {s.glow > 0, s.star > 0, s.streak > 0, s.halation > 0};
+    for (int i = 0; i < 4; i++) {
         KisStudioChips::Chip chip;
         chip.text = names[i];
         chip.on = d->part == i;
@@ -2892,12 +2967,14 @@ void SkissaLightWidget::showRows()
     d->size->setVisible(d->part == GlowLight && s.glow > 0);
     d->star->setVisible(d->part == StarLight);
     d->length->setVisible(d->part == StarLight && s.star > 0);
-    d->points->setVisible(d->part == StarLight && s.star > 0);
+    d->blades->setVisible(d->part == StarLight && s.star > 0);
     d->angle->setVisible(d->part == StarLight && s.star > 0);
     d->streak->setVisible(d->part == StreakLight);
     d->streakLength->setVisible(d->part == StreakLight && s.streak > 0);
     d->streakAngle->setVisible(d->part == StreakLight && s.streak > 0);
     d->streakColorRow->setVisible(d->part == StreakLight && s.streak > 0);
+    d->halation->setVisible(d->part == HalationLight);
+    d->halationSize->setVisible(d->part == HalationLight && s.halation > 0);
 
     QVector<KisStudioChips::Chip> chips;
     for (int i = 0; i < d->looks.size(); i++) {
@@ -2938,6 +3015,10 @@ QString SkissaLightWidget::canvasDragged(const QPointF &moved, const QPointF &)
         s.streak = float(qBound(0.0, d->start.streak + stronger, 4.0));
         s.streakLength = float(qBound(2.0, d->start.streakLength * larger, 4000.0));
         break;
+    case HalationLight:
+        s.halation = float(qBound(0.0, d->start.halation + stronger, 4.0));
+        s.halationSize = float(qBound(2.0, d->start.halationSize * larger, 1000.0));
+        break;
     default:
         s.glow = float(qBound(0.0, d->start.glow + stronger, 4.0));
         s.size = float(qBound(2.0, d->start.size * larger, 1000.0));
@@ -2948,6 +3029,7 @@ QString SkissaLightWidget::canvasDragged(const QPointF &moved, const QPointF &)
     switch (d->part) {
     case StarLight: return rowText(d->star, 0, QStringLiteral("%")) + QStringLiteral("   ") + rowText(d->length, 0, px);
     case StreakLight: return rowText(d->streak, 0, QStringLiteral("%")) + QStringLiteral("   ") + rowText(d->streakLength, 0, px);
+    case HalationLight: return rowText(d->halation, 0, QStringLiteral("%")) + QStringLiteral("   ") + rowText(d->halationSize, 0, px);
     default: return rowText(d->glow, 0, QStringLiteral("%")) + QStringLiteral("   ") + rowText(d->size, 0, px);
     }
 }
@@ -3119,5 +3201,443 @@ QString SkissaPaintWidget::canvasDragged(const QPointF &moved, const QPointF &)
 }
 
 void SkissaPaintWidget::canvasReleased()
+{
+}
+
+namespace
+{
+
+/// The aperture's shapes, as tiles: round, or of so many blades
+const int apertureBlades[] = {0, 5, 6, 8};
+
+/// An aperture of \p blades, as a defocused light shows it: its lit shape on dark
+QImage aperturePicture(int blades, const QSize &size)
+{
+    QImage picture(size, QImage::Format_ARGB32_Premultiplied);
+    picture.fill(QColor(18, 20, 28));
+    QPainter painter(&picture);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const qreal radius = 0.36 * std::min(size.width(), size.height());
+    const QPointF middle(size.width() / 2.0, size.height() / 2.0);
+    QPainterPath shape;
+    if (blades < 3) {
+        shape.addEllipse(middle, radius, radius);
+    } else {
+        QPolygonF corners;
+        for (int k = 0; k < blades; k++) {
+            const qreal a = 2 * M_PI * k / blades - M_PI / 2;
+            corners << middle + QPointF(radius * std::cos(a), radius * std::sin(a));
+        }
+        shape.addPolygon(corners);
+        shape.closeSubpath();
+    }
+    QRadialGradient light(middle, radius);
+    light.setColorAt(0, QColor(255, 240, 214));
+    light.setColorAt(1, QColor(255, 212, 150));
+    painter.fillPath(shape, light);
+    return picture;
+}
+
+} // namespace
+
+struct SkissaFocusWidget::Private {
+    KisPaintDeviceSP original;
+    QRect bounds;
+    SkissaFocus::Settings settings;
+    /// The layer small, and it evenly out of focus and with a band in focus
+    QImage frame;
+    qreal frameScale {1};
+    QVector<QImage> placePictures;
+    QVector<QImage> aperturePictures;
+
+    KisStudioChips *apertures {nullptr};
+    KisStudioChips *places {nullptr};
+    KisStudioValueRow *size {nullptr};
+    KisStudioValueRow *bandWidth {nullptr};
+    KisStudioValueRow *bandAngle {nullptr};
+
+    SkissaFocus::Settings start;
+    bool placing {false};
+
+    void makePictures()
+    {
+        if (original && original->exactBounds().intersects(bounds)) {
+            const qreal scale = qMin(qreal(lensPictureSize.width()) / bounds.width(), qreal(lensPictureSize.height()) / bounds.height());
+            const QImage picture = original->createThumbnailUncached(qCeil(bounds.width() * scale), qCeil(bounds.height() * scale), bounds);
+            if (!picture.isNull() && !KisEffectPanels::showsLittle(picture)) frame = picture;
+        }
+        if (frame.isNull()) frame = KisStudioPicker::samplePicture(lensPictureSize).convertToFormat(QImage::Format_ARGB32);
+        frameScale = qreal(frame.width()) / bounds.width();
+        // out of focus enough to see at a tile's size
+        SkissaFocus::Settings s;
+        s.size = float(0.025 * std::hypot(frame.width(), frame.height()) / frameScale);
+        placePictures << SkissaFocus::applied(frame, s, frameScale);
+        s.band = true;
+        placePictures << SkissaFocus::applied(frame, s, frameScale);
+        for (int blades : apertureBlades) aperturePictures << aperturePicture(blades, lensPictureSize / 2);
+    }
+};
+
+SkissaFocusWidget::SkissaFocusWidget(QWidget *parent, KisPaintDeviceSP dev)
+    : KisConfigWidget(parent)
+    , d(new Private)
+{
+    if (dev) {
+        d->original = KisEffectPanels::fullSizeCopy(dev);
+        d->bounds = dev->defaultBounds()->bounds();
+    }
+    if (d->bounds.isEmpty()) d->bounds = QRect(0, 0, 1600, 1000);
+    d->makePictures();
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
+    const int tileHeight = qMax(64, 2 * fontMetrics().height() + 34);
+
+    d->apertures = new KisStudioChips(this);
+    d->apertures->setTileColumns(4, tileHeight);
+    connect(d->apertures, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= int(std::size(apertureBlades))) return;
+        d->settings.blades = apertureBlades[index];
+        edited();
+    });
+    layout->addWidget(d->apertures);
+
+    d->places = new KisStudioChips(this);
+    d->places->setTileColumns(2, tileHeight);
+    connect(d->places, &KisStudioChips::clicked, this, [this](int index) {
+        d->settings.band = index == 1;
+        edited();
+    });
+    layout->addWidget(d->places);
+
+    const SkissaFocus::Settings defaults;
+    auto add = [&](const QString &name, qreal low, qreal high, int decimals, const QString &suffix, qreal reset, std::function<void(qreal)> write) {
+        KisStudioValueRow *row = valueRow(this, name, low, high, decimals, suffix, reset);
+        connect(row, &KisStudioValueRow::valueChanged, this, [this, write](qreal value) {
+            write(value);
+            edited();
+        });
+        layout->addWidget(row);
+        return row;
+    };
+    d->size = add(i18nc("lens blur: how far a point spreads", "Size"), 0.5, 300, 1, i18nc("pixels, after a number", " px"), defaults.size,
+                  [this](qreal v) { d->settings.size = float(v); });
+    d->bandWidth = add(i18nc("lens blur: how wide the band in focus is", "Width"), 0, 100, 0, QStringLiteral("%"), defaults.bandWidth * 100,
+                       [this](qreal v) { d->settings.bandWidth = float(v / 100); });
+    d->bandAngle = add(i18nc("lens blur: the direction of the band in focus", "Angle"), -180, 180, 0, QStringLiteral("°"), defaults.bandAngle,
+                       [this](qreal v) { d->settings.bandAngle = float(v); });
+    asDial(d->bandAngle);
+    refresh();
+}
+
+SkissaFocusWidget::~SkissaFocusWidget()
+{
+}
+
+void SkissaFocusWidget::setConfiguration(const KisPropertiesConfigurationSP config)
+{
+    d->settings = config ? SkissaFocus::Settings::from(*config) : SkissaFocus::Settings();
+    refresh();
+}
+
+KisPropertiesConfigurationSP SkissaFocusWidget::configuration() const
+{
+    KisFilterSP filter = KisFilterRegistry::instance()->value(QStringLiteral("skissa_focus"));
+    KisFilterConfigurationSP config = filter->factoryConfiguration(KisGlobalResourcesInterface::instance());
+    d->settings.writeTo(*config);
+    return config;
+}
+
+QSize SkissaFocusWidget::sizeHint() const
+{
+    const int width = 460;
+    return QSize(width, qMax(layout()->heightForWidth(width), layout()->sizeHint().height()));
+}
+
+void SkissaFocusWidget::edited()
+{
+    refresh();
+    Q_EMIT sigConfigurationItemChanged();
+}
+
+void SkissaFocusWidget::refresh()
+{
+    const SkissaFocus::Settings &s = d->settings;
+    d->size->setValue(s.size);
+    d->bandWidth->setValue(s.bandWidth * 100);
+    d->bandAngle->setValue(s.bandAngle);
+    d->bandWidth->setVisible(s.band);
+    d->bandAngle->setVisible(s.band);
+
+    const QString apertureNames[] = {i18nc("lens blur: a round aperture", "Round"), i18nc("lens blur: an aperture of five blades", "Pentagon"),
+                                     i18nc("lens blur: an aperture of six blades", "Hexagon"), i18nc("lens blur: an aperture of eight blades", "Octagon")};
+    QVector<KisStudioChips::Chip> chips;
+    for (int i = 0; i < int(std::size(apertureBlades)); i++) {
+        KisStudioChips::Chip chip;
+        chip.text = apertureNames[i];
+        chip.on = s.blades == apertureBlades[i];
+        chip.picture = tilePicture(d->aperturePictures.value(i));
+        chip.pictureKey = d->aperturePictures.value(i).cacheKey();
+        chips << chip;
+    }
+    d->apertures->setChips(chips);
+    const QString placeNames[] = {i18nc("lens blur: everything equally out of focus", "Even"), i18nc("lens blur: a band in focus", "Tilt-shift")};
+    chips.clear();
+    for (int i = 0; i < 2; i++) {
+        KisStudioChips::Chip chip;
+        chip.text = placeNames[i];
+        chip.on = s.band == (i == 1);
+        chip.picture = tilePicture(d->placePictures.value(i));
+        chip.pictureKey = d->placePictures.value(i).cacheKey();
+        chips << chip;
+    }
+    d->places->setChips(chips);
+}
+
+void SkissaFocusWidget::placeCenter(const QPointF &at)
+{
+    const QPointF center((at.x() - d->bounds.left()) / d->bounds.width(), (at.y() - d->bounds.top()) / d->bounds.height());
+    if (center == d->settings.center) return;
+    d->settings.center = center;
+    Q_EMIT sigConfigurationItemChanged();
+}
+
+void SkissaFocusWidget::canvasHovered(const QPoint &)
+{
+}
+
+bool SkissaFocusWidget::canvasPressed(const QPoint &pixel)
+{
+    d->start = d->settings;
+    d->placing = d->settings.band;
+    if (d->placing) placeCenter(QPointF(pixel) + QPointF(0.5, 0.5));
+    return true;
+}
+
+QString SkissaFocusWidget::canvasDragged(const QPointF &moved, const QPointF &at)
+{
+    if (d->placing) {
+        placeCenter(at);
+        return QString();
+    }
+    // sideways more or less out of focus, by ratios as sizes go
+    d->settings.size = float(qBound(0.5, KisValueSteps::draggedBy(d->start.size, moved.x(), 0, true), 300.0));
+    refresh();
+    Q_EMIT sigConfigurationItemChanged();
+    return rowText(d->size, 1, i18nc("pixels, after a number", " px"));
+}
+
+void SkissaFocusWidget::canvasReleased()
+{
+    d->placing = false;
+}
+
+bool SkissaFocusWidget::canvasMiddle(QPointF *at) const
+{
+    if (!d->settings.band) return false;
+    *at = QPointF(d->bounds.left() + d->settings.center.x() * d->bounds.width(), d->bounds.top() + d->settings.center.y() * d->bounds.height());
+    return true;
+}
+
+struct SkissaHazeWidget::Private {
+    KisPaintDeviceSP original;
+    QRect bounds;
+    SkissaHaze::Settings settings;
+    QVector<QPair<QString, SkissaHaze::Settings>> looks;
+    /// The layer small, and it through each look's air
+    QImage frame;
+    QVector<QImage> lookPictures;
+
+    KisStudioChips *lookTiles {nullptr};
+    KisStudioValueRow *amount {nullptr};
+    KisStudioColorField *air {nullptr};
+    KisStudioChips *depths {nullptr};
+    KisStudioValueRow *angle {nullptr};
+
+    float startAmount {0};
+
+    void makeLooks()
+    {
+        auto haze = [](float amount, const QColor &air, bool gradient = false) {
+            SkissaHaze::Settings s;
+            s.amount = amount;
+            s.air = air;
+            s.gradient = gradient;
+            return s;
+        };
+        looks = {
+            {i18nc("haze effect look: thin pale air", "Mist"), haze(0.25f, QColor(214, 220, 228))},
+            {i18nc("haze effect look: far away, blue air", "Distance"), haze(0.45f, QColor(172, 196, 228))},
+            {i18nc("haze effect look: warm evening air", "Dusk"), haze(0.4f, QColor(232, 176, 140))},
+            {i18nc("haze effect look: thick gray air", "Fog"), haze(0.7f, QColor(200, 204, 208))},
+            {i18nc("haze effect look: farther toward the top", "Horizon"), haze(0.6f, QColor(186, 204, 230), true)},
+        };
+    }
+
+    void makePictures()
+    {
+        if (original && original->exactBounds().intersects(bounds)) {
+            const qreal scale = qMin(qreal(lensPictureSize.width()) / bounds.width(), qreal(lensPictureSize.height()) / bounds.height());
+            const QImage picture = original->createThumbnailUncached(qCeil(bounds.width() * scale), qCeil(bounds.height() * scale), bounds);
+            if (!picture.isNull() && !KisEffectPanels::showsLittle(picture)) frame = picture;
+        }
+        if (frame.isNull()) frame = KisStudioPicker::samplePicture(lensPictureSize).convertToFormat(QImage::Format_ARGB32);
+        for (const auto &look : looks) lookPictures << SkissaHaze::applied(frame, look.second);
+    }
+};
+
+SkissaHazeWidget::SkissaHazeWidget(QWidget *parent, KisPaintDeviceSP dev)
+    : KisConfigWidget(parent)
+    , d(new Private)
+{
+    if (dev) {
+        d->original = KisEffectPanels::fullSizeCopy(dev);
+        d->bounds = dev->defaultBounds()->bounds();
+    }
+    if (d->bounds.isEmpty()) d->bounds = QRect(0, 0, 1600, 1000);
+    d->makeLooks();
+    d->makePictures();
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
+    const int tileHeight = qMax(64, 2 * fontMetrics().height() + 34);
+
+    d->lookTiles = new KisStudioChips(this);
+    d->lookTiles->setTileColumns(5, tileHeight);
+    connect(d->lookTiles, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= d->looks.size()) return;
+        const float angle = d->settings.angle;
+        d->settings = d->looks[index].second;
+        d->settings.angle = angle;
+        edited();
+    });
+    layout->addWidget(d->lookTiles);
+
+    const SkissaHaze::Settings defaults;
+    d->amount = valueRow(this, i18nc("haze effect: how much of the air's color the layer takes", "Amount"), 0, 100, 0, QStringLiteral("%"),
+                         defaults.amount * 100);
+    connect(d->amount, &KisStudioValueRow::valueChanged, this, [this](qreal v) {
+        d->settings.amount = float(v / 100);
+        edited();
+    });
+    layout->addWidget(d->amount);
+
+    auto *airRow = new QWidget(this);
+    auto *airLayout = new QHBoxLayout(airRow);
+    airLayout->setContentsMargins(0, 0, 0, 0);
+    airLayout->addWidget(new QLabel(i18nc("haze effect: the air's color", "Air"), airRow), 1);
+    d->air = new KisStudioColorField(airRow);
+    d->air->setDefaultColor(defaults.air);
+    // the eyedropper takes the layer's own colors, as they were before the effect: the sky's
+    d->air->setSampler([this](const QPoint &pixel, QColor *taken) {
+        if (!d->original || !d->original->defaultBounds()->bounds().contains(pixel)) return false;
+        KoColor color;
+        d->original->pixel(pixel.x(), pixel.y(), &color);
+        *taken = color.toQColor();
+        taken->setAlpha(255);
+        return true;
+    });
+    connect(d->air, &KisStudioColorField::colorChanged, this, [this](const QColor &color) {
+        d->settings.air = color;
+        edited();
+    });
+    airLayout->addWidget(d->air);
+    layout->addWidget(airRow);
+
+    d->depths = new KisStudioChips(this);
+    connect(d->depths, &KisStudioChips::clicked, this, [this](int index) {
+        d->settings.gradient = index == 1;
+        edited();
+    });
+    layout->addWidget(d->depths);
+    d->angle = valueRow(this, i18nc("haze effect: which way the layer gets farther", "Angle"), -180, 180, 0, QStringLiteral("°"), defaults.angle);
+    asDial(d->angle);
+    connect(d->angle, &KisStudioValueRow::valueChanged, this, [this](qreal v) {
+        d->settings.angle = float(v);
+        edited();
+    });
+    layout->addWidget(d->angle);
+    refresh();
+}
+
+SkissaHazeWidget::~SkissaHazeWidget()
+{
+}
+
+void SkissaHazeWidget::setConfiguration(const KisPropertiesConfigurationSP config)
+{
+    d->settings = config ? SkissaHaze::Settings::from(*config) : SkissaHaze::Settings();
+    refresh();
+}
+
+KisPropertiesConfigurationSP SkissaHazeWidget::configuration() const
+{
+    KisFilterSP filter = KisFilterRegistry::instance()->value(QStringLiteral("skissa_haze"));
+    KisFilterConfigurationSP config = filter->factoryConfiguration(KisGlobalResourcesInterface::instance());
+    d->settings.writeTo(*config);
+    return config;
+}
+
+QSize SkissaHazeWidget::sizeHint() const
+{
+    const int width = 460;
+    return QSize(width, qMax(layout()->heightForWidth(width), layout()->sizeHint().height()));
+}
+
+void SkissaHazeWidget::edited()
+{
+    refresh();
+    Q_EMIT sigConfigurationItemChanged();
+}
+
+void SkissaHazeWidget::refresh()
+{
+    const SkissaHaze::Settings &s = d->settings;
+    d->amount->setValue(s.amount * 100);
+    d->air->setColor(s.air);
+    d->angle->setValue(s.angle);
+    d->angle->setVisible(s.gradient);
+    QVector<KisStudioChips::Chip> chips;
+    for (int i = 0; i < d->looks.size(); i++) {
+        SkissaHaze::Settings look = d->looks[i].second;
+        look.angle = s.angle;
+        KisStudioChips::Chip chip;
+        chip.text = d->looks[i].first;
+        chip.on = s == look;
+        chip.picture = tilePicture(d->lookPictures.value(i));
+        chip.pictureKey = d->lookPictures.value(i).cacheKey();
+        chips << chip;
+    }
+    d->lookTiles->setChips(chips);
+    QVector<KisStudioChips::Chip> depths(2);
+    depths[0].text = i18nc("haze effect: the whole layer at one distance", "Even");
+    depths[0].on = !s.gradient;
+    depths[1].text = i18nc("haze effect: farther toward one side", "Gradient");
+    depths[1].on = s.gradient;
+    d->depths->setChips(depths);
+}
+
+void SkissaHazeWidget::canvasHovered(const QPoint &)
+{
+}
+
+bool SkissaHazeWidget::canvasPressed(const QPoint &)
+{
+    d->startAmount = d->settings.amount;
+    return true;
+}
+
+QString SkissaHazeWidget::canvasDragged(const QPointF &moved, const QPointF &)
+{
+    // up thicker air, down thinner
+    d->settings.amount = float(qBound(0.0, KisValueSteps::draggedBy(d->startAmount, -moved.y(), 1, false), 1.0));
+    refresh();
+    Q_EMIT sigConfigurationItemChanged();
+    return rowText(d->amount, 0, QStringLiteral("%"));
+}
+
+void SkissaHazeWidget::canvasReleased()
 {
 }

@@ -19,13 +19,17 @@ class KisPropertiesConfiguration;
  * That distance is exact (Felzenszwalb and Huttenlocher's distance transform, in two passes of lower envelopes of
  * parabolas), and the edge is found between pixels from their alpha, so outlines are smooth at any width and cost
  * the same at any size. From it: the shape grown or shrunk (its colors carried out from the nearest edge), an
- * outline, a glow around it, and a shadow under it.
+ * outline, a glow around it, a shadow under it or inside it, and a bevel: the edge as a rounded slope, lit by the
+ * light that casts the shadow.
  */
 namespace SkissaShape
 {
 
 /// Where an outline lies on the edge
 enum class Place { Outside, Center, Inside };
+
+/// Where the shadow falls: under the shape, raised over what is below, or inside it, cut into it
+enum class Fall { Under, Inside };
 
 struct Settings {
     /// Grown (above 0) or shrunk, in pixels
@@ -44,6 +48,12 @@ struct Settings {
     float shadowAngle {45};
     float shadowSoftness {8};
     QColor shadowColor {QColor(0, 0, 0, 140)};
+    Fall shadowFall {Fall::Under};
+    /// The bevel: how wide its slope is in pixels (none at 0), how steep (0 to 1), and whether it rises inside the
+    /// edge or across it (an emboss, half of it outside)
+    float bevel {0};
+    float bevelDepth {0.5f};
+    bool emboss {false};
     /// How opaque the layer's paint is where it is solid, found by the panel so that every patch agrees: the edge lies
     /// at half of it, so a layer painted at low opacity still has a shape
     float solid {1};

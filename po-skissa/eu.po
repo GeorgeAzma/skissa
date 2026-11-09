@@ -878,6 +878,14 @@ msgctxt "shape effect: the shadow's color"
 msgid "Color"
 msgstr "Kolorea"
 
+msgctxt "shape effect: how wide the bevel's slope is"
+msgid "Size"
+msgstr "Tamaina"
+
+msgctxt "shape effect: how steep the bevel is"
+msgid "Depth"
+msgstr "Sakonera"
+
 msgctxt "shape effect: how much the shape grows, or shrinks below 0"
 msgid "Grow"
 msgstr "Handitu"
@@ -885,6 +893,10 @@ msgstr "Handitu"
 msgctxt "shape effect part"
 msgid "Grow"
 msgstr "Handitu"
+
+msgctxt "shape effect: the bevel across the edge"
+msgid "Emboss"
+msgstr "Bozeldu"
 
 msgctxt "light effect look: nothing added"
 msgid "None"
@@ -906,6 +918,10 @@ msgctxt "light effect: the streak's color"
 msgid "Color"
 msgstr "Kolorea"
 
+msgctxt "light effect: how far film's red halos reach"
+msgid "Size"
+msgstr "Tamaina"
+
 msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "Lodia"
@@ -913,6 +929,26 @@ msgstr "Lodia"
 msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "Tamaina"
+
+msgctxt "lens blur: how far a point spreads"
+msgid "Size"
+msgstr "Tamaina"
+
+msgctxt "lens blur: the direction of the band in focus"
+msgid "Angle"
+msgstr "Angelua"
+
+msgctxt "haze effect look: far away, blue air"
+msgid "Distance"
+msgstr "Distantzia"
+
+msgctxt "haze effect: which way the layer gets farther"
+msgid "Angle"
+msgstr "Angelua"
+
+msgctxt "haze effect: farther toward one side"
+msgid "Gradient"
+msgstr "Gradientea"
 
 msgctxt "effect setting"
 msgid "Size"

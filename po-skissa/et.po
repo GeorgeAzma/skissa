@@ -627,6 +627,10 @@ msgctxt "shape effect: the shadow's color"
 msgid "Color"
 msgstr "Värv"
 
+msgctxt "shape effect: the bevel across the edge"
+msgid "Emboss"
+msgstr "Kohrutus"
+
 msgctxt "light effect look: nothing added"
 msgid "None"
 msgstr "Puudub"
@@ -646,6 +650,22 @@ msgstr "Värv"
 msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "Rasvane"
+
+msgctxt "lens blur: the direction of the band in focus"
+msgid "Angle"
+msgstr "Nurk"
+
+msgctxt "haze effect look: far away, blue air"
+msgid "Distance"
+msgstr "Vahemaa"
+
+msgctxt "haze effect: which way the layer gets farther"
+msgid "Angle"
+msgstr "Nurk"
+
+msgctxt "haze effect: farther toward one side"
+msgid "Gradient"
+msgstr "Üleminek"
 
 msgctxt "effect"
 msgid "Light"

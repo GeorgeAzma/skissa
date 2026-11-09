@@ -46,6 +46,13 @@ inline float unclipOf(float luminance)
     return 1 / (1 - 0.9f * std::clamp(luminance, 0.0f, 1.0f));
 }
 
+/// unclipOf undone: how much light of \p luminance is dimmed to show in a picture that stops at white, so what was
+/// only made brighter and then spread comes back as it was where nothing spread
+inline float reclipOf(float luminance)
+{
+    return 1 / (1 + 0.9f * std::max(0.0f, luminance));
+}
+
 /**
  * How much light a color (linear, premultiplied red, green, blue and alpha) gives off past \p cutoff, as a factor of
  * the color: what of its light looks brighter than the cutoff (the cube root of luminance, with a soft knee), and,

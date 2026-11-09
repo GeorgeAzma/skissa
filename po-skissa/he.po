@@ -1019,6 +1019,14 @@ msgctxt "shape effect: the shadow's color"
 msgid "Color"
 msgstr "צבע"
 
+msgctxt "shape effect: how wide the bevel's slope is"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "shape effect: how steep the bevel is"
+msgid "Depth"
+msgstr "עומק"
+
 msgctxt "shape effect: how much the shape grows, or shrinks below 0"
 msgid "Grow"
 msgstr "תפיחה"
@@ -1030,6 +1038,10 @@ msgstr "תפיחה"
 msgctxt "shape effect: outline on the edge"
 msgid "Center"
 msgstr "מרכז"
+
+msgctxt "shape effect: the bevel across the edge"
+msgid "Emboss"
+msgstr "הבלטה"
 
 msgctxt "light effect look: nothing added"
 msgid "None"
@@ -1051,6 +1063,10 @@ msgctxt "light effect: the streak's color"
 msgid "Color"
 msgstr "צבע"
 
+msgctxt "light effect: how far film's red halos reach"
+msgid "Size"
+msgstr "גודל"
+
 msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "מודגש"
@@ -1062,6 +1078,26 @@ msgstr "רכה"
 msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "גודל"
+
+msgctxt "lens blur: how far a point spreads"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "lens blur: the direction of the band in focus"
+msgid "Angle"
+msgstr "זווית"
+
+msgctxt "haze effect look: far away, blue air"
+msgid "Distance"
+msgstr "מרחק"
+
+msgctxt "haze effect: which way the layer gets farther"
+msgid "Angle"
+msgstr "זווית"
+
+msgctxt "haze effect: farther toward one side"
+msgid "Gradient"
+msgstr "מדרג"
 
 msgctxt "effect setting"
 msgid "Size"

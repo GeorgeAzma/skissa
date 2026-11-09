@@ -116,7 +116,7 @@ public:
     bool canvasPressed(const QPoint &pixel) override;
     QString canvasDragged(const QPointF &moved, const QPointF &at) override;
     void canvasReleased() override;
-    /// Up or down only: the size pressed on stands out more or less
+    /// Up or down only: all the noise stronger or fainter
     Qt::Orientations canvasAxes() const override { return Qt::Vertical; }
 
     QSize sizeHint() const override;
@@ -264,7 +264,7 @@ private:
 };
 
 /**
- * Shape's panel: looks as pictures of an edge of the layer, then its parts as tabs (Outline, Glow, Shadow, Grow),
+ * Shape's panel: looks as pictures of an edge of the layer, then its parts as tabs (Outline, Glow, Shadow, Bevel, Grow),
  * each with its own rows and a dot while it is on. A drag on the image: in Shadow, moves the shadow; otherwise
  * sideways for the part's size, up for its strength.
  */
@@ -283,7 +283,7 @@ public:
     bool canvasPressed(const QPoint &pixel) override;
     QString canvasDragged(const QPointF &moved, const QPointF &at) override;
     void canvasReleased() override;
-    /// Outline and Grow have only a size; Glow has a strength too, and the shadow moves either way
+    /// Outline and Grow have only a size; Glow and Bevel have a strength too, and the shadow moves either way
     Qt::Orientations canvasAxes() const override;
 
     QSize sizeHint() const override;
@@ -300,7 +300,7 @@ private:
 
 /**
  * Light's panel: looks as pictures of the whole layer, the threshold, then the ways it spreads as tabs (Glow, Star,
- * Streak), each with its own rows and a dot while it is on. A drag on the image: up stronger, sideways larger.
+ * Streak, Halation), each with its own rows and a dot while it is on. A drag on the image: up stronger, sideways larger.
  */
 class SkissaLightWidget : public KisConfigWidget, public KisEffectCanvasEditor
 {
@@ -353,6 +353,71 @@ public:
 
 private:
     void refresh();
+
+    struct Private;
+    QScopedPointer<Private> d;
+};
+
+/**
+ * Lens blur's panel: the aperture as pictures of its shape, then evenly out of focus or a band in focus as pictures
+ * of the layer, the size, the aperture's angle, and the band's width and angle. A drag on the image: sideways the
+ * size; with a band, a press puts its middle there and a drag moves it.
+ */
+class SkissaFocusWidget : public KisConfigWidget, public KisEffectCanvasEditor
+{
+    Q_OBJECT
+    Q_INTERFACES(KisEffectCanvasEditor)
+public:
+    SkissaFocusWidget(QWidget *parent, KisPaintDeviceSP dev);
+    ~SkissaFocusWidget() override;
+
+    void setConfiguration(const KisPropertiesConfigurationSP config) override;
+    KisPropertiesConfigurationSP configuration() const override;
+
+    void canvasHovered(const QPoint &pixel) override;
+    bool canvasPressed(const QPoint &pixel) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
+    void canvasReleased() override;
+    bool canvasMiddle(QPointF *at) const override;
+    Qt::Orientations canvasAxes() const override { return Qt::Horizontal; }
+
+    QSize sizeHint() const override;
+
+private:
+    void refresh();
+    void edited();
+    void placeCenter(const QPointF &at);
+
+    struct Private;
+    QScopedPointer<Private> d;
+};
+
+/**
+ * Haze's panel: looks as pictures of the layer through air, how much air, its color (the eyedropper takes the
+ * sky's), and whether the layer is at one distance or farther toward one side. A drag on the image: up thicker.
+ */
+class SkissaHazeWidget : public KisConfigWidget, public KisEffectCanvasEditor
+{
+    Q_OBJECT
+    Q_INTERFACES(KisEffectCanvasEditor)
+public:
+    SkissaHazeWidget(QWidget *parent, KisPaintDeviceSP dev);
+    ~SkissaHazeWidget() override;
+
+    void setConfiguration(const KisPropertiesConfigurationSP config) override;
+    KisPropertiesConfigurationSP configuration() const override;
+
+    void canvasHovered(const QPoint &pixel) override;
+    bool canvasPressed(const QPoint &pixel) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
+    void canvasReleased() override;
+    Qt::Orientations canvasAxes() const override { return Qt::Vertical; }
+
+    QSize sizeHint() const override;
+
+private:
+    void refresh();
+    void edited();
 
     struct Private;
     QScopedPointer<Private> d;

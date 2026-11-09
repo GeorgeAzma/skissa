@@ -829,6 +829,14 @@ msgctxt "shape effect: the shadow's color"
 msgid "Color"
 msgstr "Колір"
 
+msgctxt "shape effect: how wide the bevel's slope is"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "shape effect: how steep the bevel is"
+msgid "Depth"
+msgstr "Глибина"
+
 msgctxt "shape effect: how much the shape grows, or shrinks below 0"
 msgid "Grow"
 msgstr "Збільшити"
@@ -836,6 +844,10 @@ msgstr "Збільшити"
 msgctxt "shape effect part"
 msgid "Grow"
 msgstr "Збільшити"
+
+msgctxt "shape effect: the bevel across the edge"
+msgid "Emboss"
+msgstr "Барельєф"
 
 msgctxt "light effect: how far the glow reaches"
 msgid "Size"
@@ -845,6 +857,10 @@ msgctxt "light effect: the streak's color"
 msgid "Color"
 msgstr "Колір"
 
+msgctxt "light effect: how far film's red halos reach"
+msgid "Size"
+msgstr "Розмір"
+
 msgctxt "painting effect look: large, bold strokes"
 msgid "Bold"
 msgstr "Жирний"
@@ -852,6 +868,14 @@ msgstr "Жирний"
 msgctxt "painting effect: the brush's size"
 msgid "Size"
 msgstr "Розмір"
+
+msgctxt "lens blur: how far a point spreads"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "haze effect look: far away, blue air"
+msgid "Distance"
+msgstr "Відстань"
 
 msgctxt "effect setting"
 msgid "Size"

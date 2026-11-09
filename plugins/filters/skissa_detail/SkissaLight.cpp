@@ -31,8 +31,16 @@ constexpr qreal finestGlow = 1.5;
 constexpr qreal glowFalloff = -0.6;
 /// How much the longest and shortest waves' spikes reach beyond the middle ones'
 constexpr float redReach = 1.2f, blueReach = 0.8f;
-/// A spike is followed until it has faded to e^-4
+/// A spike is followed until its longest fade has fallen to e^-4
 constexpr float spikeEnd = 4;
+/**
+ * A spike's light along it falls off about as 1/r², as an aperture edge's diffraction does: three fades at these
+ * shares of its length, each holding light in proportion to 1/length (a power law made of exponentials), so it is
+ * bright by its source and its tail long and faint
+ */
+constexpr float spikeFades[3] = {0.1f, 0.3f, 1.0f};
+/// Halation: the red-sensitive layer at the back of the film fogged by light the film's base reflects (linear)
+constexpr float halationTint[3] = {1.0f, 0.24f, 0.06f};
 /// Spikes are made on a grid this many cells along a spike at most, then enlarged
 constexpr int spikeCells = 64;
 
@@ -95,11 +103,15 @@ void addSpikes(const Plane3 &shine, const QRect &rect, const QRect &area, const 
      */
     const float cellLength = length / cell;
     const float reach[3] = {cellLength * redReach, cellLength, cellLength * blueReach};
-    float decay[3], share[3];
+    float energy = 0;
+    for (float fade : spikeFades) energy += 1 / fade;
+    float decay[3][3], share[3][3];
     for (int c = 0; c < 3; c++) {
-        decay[c] = std::exp(-1 / reach[c]);
-        // a fade of a^t from t = 1 on, both ways, adds to 2a / (1 - a)
-        share[c] = tint[c] * (1 - decay[c]) / (2 * decay[c]) / directions.size();
+        for (int f = 0; f < 3; f++) {
+            decay[c][f] = std::exp(-1 / std::max(0.5f, reach[c] * spikeFades[f]));
+            // a fade of a^t from t = 1 on, both ways, adds to 2a / (1 - a)
+            share[c][f] = tint[c] * (1 / spikeFades[f] / energy) * (1 - decay[c][f]) / (2 * decay[c][f]) / directions.size();
+        }
     }
     const int cw = cells.width(), ch = cells.height();
     const float middleX = (cw - 1) / 2.0f, middleY = (ch - 1) / 2.0f;
@@ -125,18 +137,22 @@ void addSpikes(const Plane3 &shine, const QRect &rect, const QRect &area, const 
         }
         faded.resize(size_t(tw) * th);
         for (int c = 0; c < 3; c++) {
-            for (int v = 0; v < th; v++) {
-                const float *row = turned.c[c].data() + size_t(v) * tw;
-                float *to = faded.data() + size_t(v) * tw;
-                float carried = 0;
-                for (int u = 0; u < tw; u++) {
-                    to[u] = carried;
-                    carried = decay[c] * (carried + row[u]);
-                }
-                carried = 0;
-                for (int u = tw - 1; u >= 0; u--) {
-                    to[u] += carried;
-                    carried = decay[c] * (carried + row[u]);
+            std::fill(faded.begin(), faded.end(), 0.0f);
+            for (int f = 0; f < 3; f++) {
+                const float a = decay[c][f], weight = share[c][f];
+                for (int v = 0; v < th; v++) {
+                    const float *row = turned.c[c].data() + size_t(v) * tw;
+                    float *to = faded.data() + size_t(v) * tw;
+                    float carried = 0;
+                    for (int u = 0; u < tw; u++) {
+                        to[u] += weight * carried;
+                        carried = a * (carried + row[u]);
+                    }
+                    carried = 0;
+                    for (int u = tw - 1; u >= 0; u--) {
+                        to[u] += weight * carried;
+                        carried = a * (carried + row[u]);
+                    }
                 }
             }
             // turned back onto the grid
@@ -144,7 +160,7 @@ void addSpikes(const Plane3 &shine, const QRect &rect, const QRect &area, const 
                 for (int x = 0; x < cw; x++) {
                     const float px = x - middleX, py = y - middleY;
                     const float u = px * dx + py * dy + turnedX, v = -px * dy + py * dx + turnedY;
-                    spikes.c[c][size_t(y) * cw + x] += share[c] * inGrid(faded, tw, th, u, v);
+                    spikes.c[c][size_t(y) * cw + x] += inGrid(faded, tw, th, u, v);
                 }
             }
         }
@@ -189,6 +205,71 @@ Level halved(const Level &finer)
     return out;
 }
 
+/**
+ * Glare of \p shining (over \p sourceRect) added to \p light over \p rect: Gaussians of every size from \p finest to
+ * \p largest (pixels at this scale), each weighed by \p falloff's power of its size, sampled evenly by ratio at most an
+ * octave apart and each weighed by the share of the range it stands for, so it grows smoothly with its size and is the
+ * same, scaled, at every level of detail. Together they hold \p strength of the light.
+ */
+void addGlare(const Plane3 &shining, const QRect &sourceRect, const QRect &rect, qreal finest, qreal largest, qreal falloff, float strength,
+              Plane3 &light)
+{
+    const QRect inside = rect.translated(-sourceRect.topLeft());
+    const int w = sourceRect.width();
+    largest = std::max(largest, finest);
+    const int sizes = std::max(2, int(std::ceil(std::log2(largest / finest))) + 1);
+    const qreal step = std::log2(largest / finest) / (sizes - 1);
+    std::vector<qreal> sigmas, shares;
+    for (int k = 0; k < sizes; k++) {
+        sigmas.push_back(finest * std::exp2(k * step));
+        shares.push_back(k == 0 || k == sizes - 1 ? 0.5 : 1.0);
+    }
+    double total = 0;
+    for (size_t k = 0; k < sigmas.size(); k++) total += shares[k] * std::pow(sigmas[k], falloff);
+    /*
+     * A wide glow is made on a smaller copy: levels of the shine each half the size of the one before (2 by 2
+     * averages over cells fixed to the image's corner, so patches agree), each octave blurred on the coarsest
+     * level where it spans two cells, less the blur the halving and the enlarging add, then enlarged
+     */
+    std::vector<Level> levels(1);
+    levels[0].origin = sourceRect.topLeft();
+    levels[0].planes = shining;
+    std::vector<float> blurred, scratch;
+    for (size_t k = 0; k < sigmas.size(); k++) {
+        const qreal sigma = sigmas[k];
+        const float weight = float(shares[k] * std::pow(sigma, falloff) / total * strength);
+        int level = 0;
+        while (sigma / std::pow(2.0, level + 1) >= 2 && levels[level].planes.w > 8 && levels[level].planes.h > 8) {
+            level++;
+            if (level >= int(levels.size())) levels.push_back(halved(levels.back()));
+        }
+        const Level &at = levels[level];
+        const double cell = std::pow(2.0, level);
+        const double added = level ? (cell * cell - 1) / 12 + cell * cell / 6 : 0;
+        const qreal left = std::sqrt(std::max(0.25, sigma * sigma - added)) / cell;
+        const int lw = at.planes.w, lh = at.planes.h;
+        blurred.resize(size_t(lw) * lh);
+        scratch.resize(blurred.size());
+        for (int c = 0; c < 3; c++) {
+            blurred = at.planes.c[c];
+            SkissaDetail::gaussian(blurred.data(), scratch.data(), lw, lh, left);
+            for (int y = 0; y < rect.height(); y++) {
+                float *to = light.c[c].data() + size_t(y) * rect.width();
+                if (!level) {
+                    const float *from = blurred.data() + size_t(inside.top() + y) * w + inside.left();
+                    for (int x = 0; x < rect.width(); x++) to[x] += weight * from[x];
+                    continue;
+                }
+                const float ly = float((rect.top() + y + 0.5) / cell - 0.5 - at.origin.y());
+                for (int x = 0; x < rect.width(); x++) {
+                    const float lx = float((rect.left() + x + 0.5) / cell - 0.5 - at.origin.x());
+                    to[x] += weight * readAt(blurred, lw, lh, lx, ly);
+                }
+            }
+        }
+    }
+}
+
 void linearOf(const QColor &color, float *to)
 {
     to[0] = float(KisColorMath::toLinear(color.redF()));
@@ -207,11 +288,14 @@ Settings Settings::from(const KisPropertiesConfiguration &config)
     s.size = float(std::clamp(config.getDouble("size", s.size), 2.0, 1000.0));
     s.star = float(std::clamp(config.getDouble("star", s.star), 0.0, 4.0));
     s.length = float(std::clamp(config.getDouble("length", s.length), 2.0, 2000.0));
-    s.points = std::clamp(config.getInt("points", s.points), 2, 16) / 2 * 2;
+    // an aperture's blades; settings from before counted the star's points, all even, which as many blades make
+    s.blades = std::clamp(config.getInt("blades", config.getInt("points", s.blades)), 3, 16);
     s.angle = float(std::clamp(config.getDouble("angle", s.angle), -180.0, 180.0));
     s.streak = float(std::clamp(config.getDouble("streak", s.streak), 0.0, 4.0));
     s.streakLength = float(std::clamp(config.getDouble("streak_length", s.streakLength), 2.0, 4000.0));
     s.streakAngle = float(std::clamp(config.getDouble("streak_angle", s.streakAngle), -180.0, 180.0));
+    s.halation = float(std::clamp(config.getDouble("halation", s.halation), 0.0, 4.0));
+    s.halationSize = float(std::clamp(config.getDouble("halation_size", s.halationSize), 2.0, 1000.0));
     const QColor color(config.getString("streak_color", s.streakColor.name()));
     if (color.isValid()) s.streakColor = color;
     return s;
@@ -225,24 +309,26 @@ void Settings::writeTo(KisPropertiesConfiguration &config) const
     config.setProperty("size", double(size));
     config.setProperty("star", double(star));
     config.setProperty("length", double(length));
-    config.setProperty("points", points);
+    config.setProperty("blades", blades);
     config.setProperty("angle", double(angle));
     config.setProperty("streak", double(streak));
     config.setProperty("streak_length", double(streakLength));
     config.setProperty("streak_angle", double(streakAngle));
     config.setProperty("streak_color", streakColor.name());
+    config.setProperty("halation", double(halation));
+    config.setProperty("halation_size", double(halationSize));
 }
 
 bool Settings::operator==(const Settings &other) const
 {
     return threshold == other.threshold && top == other.top && glow == other.glow && size == other.size && star == other.star && length == other.length
-        && points == other.points && angle == other.angle && streak == other.streak && streakLength == other.streakLength
-        && streakAngle == other.streakAngle && streakColor == other.streakColor;
+        && blades == other.blades && angle == other.angle && streak == other.streak && streakLength == other.streakLength
+        && streakAngle == other.streakAngle && streakColor == other.streakColor && halation == other.halation && halationSize == other.halationSize;
 }
 
 bool Settings::changesNothing() const
 {
-    return glow <= 0 && star <= 0 && streak <= 0;
+    return glow <= 0 && star <= 0 && streak <= 0 && halation <= 0;
 }
 
 Light::Light(const Settings &settings, qreal scale, bool clipped)
@@ -258,6 +344,7 @@ int Light::reach() const
     if (s.changesNothing()) return 0;
     qreal reach = 0;
     if (s.glow > 0) reach = s.size;
+    if (s.halation > 0) reach = std::max<qreal>(reach, s.halationSize);
     if (s.star > 0) reach = std::max<qreal>(reach, spikeEnd * redReach * s.length);
     if (s.streak > 0) reach = std::max<qreal>(reach, spikeEnd * redReach * s.streakLength);
     return int(std::ceil(reach * m_scale)) + 4;
@@ -292,68 +379,25 @@ void Light::apply(const float *source, const QRect &sourceRect, const QRect &rec
     Plane3 light;
     light.resize(rect.width(), rect.height());
     if (s.glow > 0) {
-        /*
-         * Glare as Gaussians of every size from the finest to the size, each weighed by the falloff's power of its
-         * size: sampled evenly by ratio, at most an octave apart, each weighed by the share of the range it stands
-         * for, so the glow grows smoothly with the size and is the same, scaled, at every level of detail
-         */
-        const qreal finest = finestGlow * m_scale, largest = std::max(finestGlow, qreal(s.size) / 3) * m_scale;
-        const int sizes = std::max(2, int(std::ceil(std::log2(largest / finest))) + 1);
-        const qreal step = std::log2(largest / finest) / (sizes - 1);
-        std::vector<qreal> sigmas, shares;
-        for (int k = 0; k < sizes; k++) {
-            sigmas.push_back(finest * std::exp2(k * step));
-            shares.push_back(k == 0 || k == sizes - 1 ? 0.5 : 1.0);
+        addGlare(shine, sourceRect, rect, finestGlow * m_scale, std::max(finestGlow, qreal(s.size) / 3) * m_scale, glowFalloff, s.glow, light);
+    }
+    if (s.halation > 0) {
+        // the film's red layer fogged around what shines, by how bright it is: a soft halo of its own size
+        Plane3 fog;
+        fog.resize(w, h);
+        for (size_t i = 0; i < count; i++) {
+            const float luminance = 0.2126f * shine.c[0][i] + 0.7152f * shine.c[1][i] + 0.0722f * shine.c[2][i];
+            for (int c = 0; c < 3; c++) fog.c[c][i] = halationTint[c] * luminance;
         }
-        double total = 0;
-        for (size_t k = 0; k < sigmas.size(); k++) total += shares[k] * std::pow(sigmas[k], glowFalloff);
-        /*
-         * A wide glow is made on a smaller copy: levels of the shine each half the size of the one before (2 by 2
-         * averages over cells fixed to the image's corner, so patches agree), each octave blurred on the coarsest
-         * level where it spans two cells, less the blur the halving and the enlarging add, then enlarged
-         */
-        std::vector<Level> levels(1);
-        levels[0].origin = sourceRect.topLeft();
-        levels[0].planes = shine;
-        std::vector<float> blurred, scratch;
-        for (size_t k = 0; k < sigmas.size(); k++) {
-            const qreal sigma = sigmas[k];
-            const float weight = float(shares[k] * std::pow(sigma, glowFalloff) / total * s.glow);
-            int level = 0;
-            while (sigma / std::pow(2.0, level + 1) >= 2 && levels[level].planes.w > 8 && levels[level].planes.h > 8) {
-                level++;
-                if (level >= int(levels.size())) levels.push_back(halved(levels.back()));
-            }
-            const Level &at = levels[level];
-            const double cell = std::pow(2.0, level);
-            const double added = level ? (cell * cell - 1) / 12 + cell * cell / 6 : 0;
-            const qreal left = std::sqrt(std::max(0.25, sigma * sigma - added)) / cell;
-            const int lw = at.planes.w, lh = at.planes.h;
-            blurred.resize(size_t(lw) * lh);
-            scratch.resize(blurred.size());
-            for (int c = 0; c < 3; c++) {
-                blurred = at.planes.c[c];
-                SkissaDetail::gaussian(blurred.data(), scratch.data(), lw, lh, left);
-                for (int y = 0; y < rect.height(); y++) {
-                    float *to = light.c[c].data() + size_t(y) * rect.width();
-                    if (!level) {
-                        const float *from = blurred.data() + size_t(inside.top() + y) * w + inside.left();
-                        for (int x = 0; x < rect.width(); x++) to[x] += weight * from[x];
-                        continue;
-                    }
-                    const float ly = float((rect.top() + y + 0.5) / cell - 0.5 - at.origin.y());
-                    for (int x = 0; x < rect.width(); x++) {
-                        const float lx = float((rect.left() + x + 0.5) / cell - 0.5 - at.origin.x());
-                        to[x] += weight * readAt(blurred, lw, lh, lx, ly);
-                    }
-                }
-            }
-        }
+        const qreal largest = std::max(finestGlow, qreal(s.halationSize) / 3) * m_scale;
+        addGlare(fog, sourceRect, rect, largest / 4, largest, 0, s.halation, light);
     }
     if (s.star > 0) {
+        // each straight blade edge diffracts light into a line square to it: an even count's edges pair up into
+        // as many spikes as blades, an odd count's don't, making twice as many
         std::vector<float> directions;
-        const int pairs = std::max(1, s.points / 2);
-        for (int j = 0; j < pairs; j++) directions.push_back(s.angle + 180.0f * j / pairs);
+        const int lines = s.blades % 2 == 0 ? s.blades / 2 : s.blades;
+        for (int j = 0; j < lines; j++) directions.push_back(s.angle + 180.0f * j / lines);
         const float tint[3] = {s.star, s.star, s.star};
         addSpikes(shine, sourceRect, rect, directions, float(s.length * m_scale), tint, light);
     }

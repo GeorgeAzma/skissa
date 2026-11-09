@@ -42,6 +42,8 @@ inline QString coveredBy(const QString &filterId)
         {QStringLiteral("posterize"), QStringLiteral("skissa_fewer_colors")}, {QStringLiteral("threshold"), QStringLiteral("skissa_fewer_colors")},
         {QStringLiteral("palettize"), QStringLiteral("skissa_fewer_colors")}, {QStringLiteral("indexcolors"), QStringLiteral("skissa_fewer_colors")},
         {QStringLiteral("pixelize"), QStringLiteral("skissa_fewer_colors")},
+        // Lens blur: the aperture's shape in linear light, its lights bright
+        {QStringLiteral("lens blur"), QStringLiteral("skissa_focus")},
         // Drawing's screen; Painting; Replace color, whose new color may be clear
         {QStringLiteral("halftone"), QStringLiteral("skissa_ink")}, {QStringLiteral("oilpaint"), QStringLiteral("skissa_paint")},
         {QStringLiteral("colortoalpha"), QStringLiteral("skissa_replace")},
