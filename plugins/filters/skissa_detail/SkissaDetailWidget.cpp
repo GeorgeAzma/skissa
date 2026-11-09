@@ -1617,7 +1617,7 @@ namespace
 {
 
 SkissaInk::Settings inkOf(float size, float lines, float ink, float softness, float flow, SkissaInk::Colors colors = SkissaInk::Colors::Paper,
-                          int tones = 1, float hatching = 0)
+                          int tones = 1, float hatching = 0, float spacing = 8, float angle = 45)
 {
     SkissaInk::Settings settings;
     settings.size = size;
@@ -1628,6 +1628,8 @@ SkissaInk::Settings inkOf(float size, float lines, float ink, float softness, fl
     settings.colors = colors;
     settings.tones = tones;
     settings.hatching = hatching;
+    settings.spacing = spacing;
+    settings.angle = angle;
     return settings;
 }
 
@@ -1714,10 +1716,10 @@ struct SkissaInkWidget::Private {
             {i18nc("ink effect look", "Ink"), SkissaInk::inked()},
             {i18nc("ink effect look", "Pencil"), inkOf(0.8f, 0.4f, 0.7f, 0.5f, 0.3f)},
             {i18nc("ink effect look", "Charcoal"), inkOf(2.5f, 0.3f, 0.6f, 0.45f, 0.8f)},
-            {i18nc("ink effect look", "Hatching"), inkOf(1.2f, 0.5f, 0.6f, 0.15f, 0.4f, C::Paper, 3, 1)},
+            {i18nc("ink effect look", "Hatching"), inkOf(1.2f, 0.5f, 0.7f, 0.15f, 0.4f, C::Paper, 3, 1)},
             {i18nc("ink effect look", "Woodcut"), inkOf(2.0f, 0.8f, 0.45f, 0, 1)},
             {i18nc("ink effect look", "Comic"), inkOf(1.2f, 0.6f, 0.15f, 0.03f, 0.5f, C::Over)},
-            {i18nc("ink effect look: colored pencils", "Crayon"), inkOf(0.8f, 0.4f, 0.7f, 0.45f, 0.3f, C::Colored, 2, 0.6f)},
+            {i18nc("ink effect look: colored pencils", "Crayon"), inkOf(1.0f, 0.4f, 0.95f, 0.5f, 0.3f, C::Colored, 4, 0.6f, 5, 60)},
             {i18nc("ink effect look", "Wash"), inkOf(2.0f, 0.3f, 0.08f, 0.4f, 1, C::Over)},
         };
         colorings = {
@@ -1784,8 +1786,6 @@ SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
         d->settings = d->onLayer(d->looks[index].second);
         d->settings.inkColor = before.inkColor;
         d->settings.paperColor = before.paperColor;
-        d->settings.spacing = before.spacing;
-        d->settings.angle = before.angle;
         refresh();
         Q_EMIT sigConfigurationItemChanged();
     });
@@ -1928,11 +1928,21 @@ void SkissaInkWidget::refresh()
 
 void SkissaInkWidget::showRows()
 {
+    // only what changes something now: without lines or ink nothing is drawn, without ink there are no tones to
+    // hatch, and each color only where it shows
     const SkissaInk::Settings &s = d->settings;
-    d->spacing->setVisible(s.hatching > 0);
-    d->angle->setVisible(s.hatching > 0);
-    d->inkColorRow->setVisible(s.colors != SkissaInk::Colors::Colored);
-    d->paperColorRow->setVisible(s.colors == SkissaInk::Colors::Paper || s.colors == SkissaInk::Colors::Colored);
+    const bool draws = s.lines > 0 || s.ink > 0;
+    const bool fills = s.ink > 0;
+    d->size->setVisible(draws || s.flow > 0);
+    d->softness->setVisible(draws);
+    d->tones->setVisible(fills);
+    d->hatching->setVisible(fills);
+    d->spacing->setVisible(fills && s.hatching > 0);
+    d->angle->setVisible(fills && s.hatching > 0);
+    d->colorTiles->setVisible(draws);
+    d->inkColorRow->setVisible(draws && s.colors != SkissaInk::Colors::Colored);
+    d->paperColorRow->setVisible(draws && (s.colors == SkissaInk::Colors::Paper || s.colors == SkissaInk::Colors::Colored));
+    d->inkColorRow->parentWidget()->setVisible(!d->inkColorRow->isHidden() || !d->paperColorRow->isHidden());
 }
 
 void SkissaInkWidget::refreshTiles()
@@ -1973,8 +1983,6 @@ void SkissaInkWidget::makePictures()
         SkissaInk::Settings s = look.second;
         s.inkColor = d->settings.inkColor;
         s.paperColor = d->settings.paperColor;
-        s.spacing = d->settings.spacing;
-        s.angle = d->settings.angle;
         asked << s;
     }
     for (const auto &coloring : d->colorings) {

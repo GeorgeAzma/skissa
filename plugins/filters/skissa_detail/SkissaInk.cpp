@@ -23,6 +23,7 @@ namespace SkissaInk
 namespace
 {
 
+constexpr double tau = 2 * M_PI;
 /// The wider blur, as a multiple of the smaller, as in Winnemöller's XDoG
 constexpr double wider = 1.6;
 /// How much edges are sharpened at Lines 100% (XDoG's p)
@@ -143,9 +144,11 @@ Flow flowOf(const std::vector<float> lab[3], int w, int h, qreal sigma)
 std::vector<std::vector<float>> alongFlow(const std::vector<const float *> &planes, const Flow &flow, qreal sigma, const QRect &area)
 {
     const int w = flow.w, h = flow.h;
-    const int steps = std::max(1, int(std::ceil(2 * sigma)));
+    // a pixel a step, longer ones for long flows: a smooth flow loses nothing to them
+    const float stride = float(std::max(1.0, sigma / 3));
+    const int steps = std::max(1, int(std::ceil(2 * sigma / stride)));
     std::vector<float> weights(steps + 1);
-    for (int d = 0; d <= steps; d++) weights[d] = float(std::exp(-d * d / (2 * sigma * sigma)));
+    for (int d = 0; d <= steps; d++) weights[d] = float(std::exp(-(d * stride) * (d * stride) / (2 * sigma * sigma)));
     const int count = int(planes.size());
     std::vector<std::vector<float>> out(count, std::vector<float>(size_t(area.width()) * area.height()));
     std::vector<float> sum(count);
@@ -158,8 +161,8 @@ std::vector<std::vector<float>> alongFlow(const std::vector<const float *> &plan
                 float px = x + 0.5f, py = y + 0.5f;
                 float vx = way * flow.x[here], vy = way * flow.y[here];
                 for (int d = 1; d <= steps; d++) {
-                    px += vx;
-                    py += vy;
+                    px += vx * stride;
+                    py += vy * stride;
                     const int ix = int(std::floor(px)), iy = int(std::floor(py));
                     if (ix < 0 || iy < 0 || ix >= w || iy >= h) break;
                     const size_t at = size_t(iy) * w + ix;
@@ -183,6 +186,66 @@ std::vector<std::vector<float>> alongFlow(const std::vector<const float *> &plan
     return out;
 }
 
+/// The integral from 0 to \p x of ink(t) = -tanh(t / \p width) below 0 and nothing above (XDoG's soft threshold)
+inline double inkIntegral(double x, double width)
+{
+    if (x >= 0) return 0;
+    const double y = -x / width;
+    // -width ln cosh(y), written so that it doesn't overflow
+    return -width * (y + std::log1p(std::exp(-2 * y)) - M_LN2);
+}
+
+/**
+ * The ink of a pixel whose difference of Gaussians is \p d and changes by \p slope across it, below \p threshold:
+ * the soft threshold averaged over the pixel, so edges come out smooth however sharp the ink is
+ */
+inline float inkOver(float d, float slope, float threshold, float width)
+{
+    const double e = d - threshold;
+    if (slope < 1e-5f) return e >= 0 ? 0.0f : float(-std::tanh(e / width));
+    const double half = 0.5 * slope;
+    return float(std::clamp((inkIntegral(e + half, width) - inkIntegral(e - half, width)) / slope, 0.0, 1.0));
+}
+
+inline float hashed(quint32 a, quint32 b, quint32 c)
+{
+    quint32 h = a * 0x9E3779B9u ^ b * 0x85EBCA6Bu ^ c * 0xC2B2AE35u;
+    h ^= h >> 16;
+    h *= 0x7FEB352Du;
+    h ^= h >> 15;
+    h *= 0x846CA68Bu;
+    h ^= h >> 16;
+    return float(h & 0xFFFFFF) / float(0xFFFFFF);
+}
+
+/**
+ * A hatch as drawn by hand, at \p along and \p across its direction (in the image's pixels): rows \p spacing apart,
+ * each a little off its place and wavering, broken into strokes of their own lengths with tapered ends. A stroke
+ * shows where the tone's \p cover passes its own rank, so a light tone has a few strokes and a dark one all of them.
+ */
+float strokeAt(float along, float across, float cover, int tone, float spacing, float width, float pixel)
+{
+    const int nearest = int(std::floor(across / spacing + 0.5f));
+    float ink = 0;
+    for (int row = nearest - 1; row <= nearest + 1; row++) {
+        const quint32 r = quint32(row), t = quint32(tone) + 1;
+        const float wave = spacing * 0.15f * std::sin(along / (spacing * (4 + 4 * hashed(r, t, 1))) + float(tau) * hashed(r, t, 2));
+        const float distance = std::abs(across - (row + (hashed(r, t, 3) - 0.5f) * 0.3f) * spacing - wave);
+        if (distance > width + pixel) continue;
+        const float length = spacing * (3 + 5 * hashed(r, t, 4));
+        const float position = along / length + hashed(r, t, 5);
+        const float within = position - std::floor(position);
+        const float rank = hashed(r, quint32(int(std::floor(position))), t + 16);
+        const float shows = std::clamp((cover - rank) * 8 + 0.5f, 0.0f, 1.0f);
+        // a little gap between strokes, and each thinning toward its ends
+        const float end = std::clamp(std::min(within - 0.06f, 0.94f - within) / 0.18f, 0.0f, 1.0f);
+        if (shows <= 0 || end <= 0) continue;
+        const float half = width * 0.5f * (0.35f + 0.65f * std::sqrt(end));
+        ink = std::max(ink, shows * std::clamp((half - distance) / pixel + 0.5f, 0.0f, 1.0f));
+    }
+    return ink;
+}
+
 inline QColor colorFrom(const KisPropertiesConfiguration &config, const char *key, const QColor &fallback)
 {
     const QColor color(config.getString(key, fallback.name(QColor::HexArgb)));
@@ -202,7 +265,7 @@ Settings Settings::from(const KisPropertiesConfiguration &config)
     settings.flow = float(std::clamp(config.getDouble("flow", 0.5), 0.0, 1.0));
     settings.tones = std::clamp(config.getInt("tones", 1), 1, 8);
     settings.hatching = float(std::clamp(config.getDouble("hatching", 0), 0.0, 1.0));
-    settings.spacing = float(std::clamp(config.getDouble("spacing", 6), 2.0, 200.0));
+    settings.spacing = float(std::clamp(config.getDouble("spacing", 8), 2.0, 200.0));
     settings.angle = float(std::clamp(config.getDouble("angle", 45), -180.0, 180.0));
     settings.colors = colorsNamed(config.getString("colors", QStringLiteral("paper")));
     settings.inkColor = colorFrom(config, "ink_color", Qt::black);
@@ -309,6 +372,10 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
     if (m_sigma > 0.25) SkissaDetail::gaussian(near.data(), scratch.data(), w, h, m_sigma);
     SkissaDetail::gaussian(far.data(), scratch.data(), w, h, wider * std::max(m_sigma, 0.25));
     const float sharpness = mostSharpness * s.lines * s.lines;
+    // hatched, the tones come from the picture's lightness alone, so lines stay whole rather than turning to strokes
+    const bool hatches = s.hatching > 0 && s.ink > 0;
+    std::vector<float> smooth;
+    if (hatches) smooth = near;
     std::vector<float> &difference = near;
     for (size_t i = 0; i < count; i++) {
         const float edge = near[i] - far[i];
@@ -320,26 +387,36 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
     Flow flow;
     const int smoothReach = int(std::ceil(2 * m_smoothSigma)) + 1;
     const QRect work = inside.adjusted(-smoothReach, -smoothReach, smoothReach, smoothReach) & QRect(0, 0, w, h);
-    std::vector<float> drawn;
+    std::vector<float> drawn, toned;
     if (flows) {
         flow = flowOf(lab, w, h, m_tensorSigma);
-        drawn = std::move(alongFlow({difference.data()}, flow, m_flowSigma, work)[0]);
+        std::vector<const float *> planes = {difference.data()};
+        if (hatches) planes.push_back(smooth.data());
+        std::vector<std::vector<float>> along = alongFlow(planes, flow, m_flowSigma, work);
+        drawn = std::move(along[0]);
+        if (hatches) toned = std::move(along[1]);
     } else {
-        drawn.resize(size_t(work.width()) * work.height());
-        for (int y = 0; y < work.height(); y++) {
-            std::copy_n(difference.data() + size_t(work.top() + y) * w + work.left(), work.width(), drawn.data() + size_t(y) * work.width());
-        }
+        auto cut = [&](const std::vector<float> &plane) {
+            std::vector<float> part(size_t(work.width()) * work.height());
+            for (int y = 0; y < work.height(); y++) {
+                std::copy_n(plane.data() + size_t(work.top() + y) * w + work.left(), work.width(), part.data() + size_t(y) * work.width());
+            }
+            return part;
+        };
+        drawn = cut(difference);
+        if (hatches) toned = cut(smooth);
     }
 
     /*
-     * Ink below the threshold: 1 + tanh((D - ε) / width) of paper, as XDoG's soft threshold. Tones are thresholds
-     * spread evenly below it, each as soft; hatched, each tone is lines of its own direction, as wide as the tone is
-     * dark, so they keep its darkness.
+     * Ink below the threshold: 1 + tanh((D - ε) / width) of paper, as XDoG's soft threshold, averaged over each
+     * pixel. Tones are thresholds spread evenly below it, each as soft; hatched, each tone is strokes of its own
+     * direction, more of them the darker it is.
      */
     const int tones = std::max(1, s.tones);
     const float top = s.ink <= 0 ? 0.0f : s.level >= 0 ? s.level : s.ink;
     const float width = (0.002f + 0.45f * s.softness * s.softness) / tones;
     const float spacing = std::max(2.0f, s.spacing);
+    const float strokeWidth = std::max(1.0f, 0.25f * spacing);
     float turnX[8], turnY[8];
     for (int t = 0; t < tones; t++) {
         const double angle = qDegreesToRadians(double(s.angle + hatchTurns[t % 8]));
@@ -347,28 +424,44 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
         turnY[t] = float(std::sin(angle));
     }
     const float pixel = float(1 / m_scale);
+    const int ww = work.width(), wh = work.height();
+    // how much a plane changes across a pixel there, for the threshold's average over it
+    auto slopeAt = [ww, wh](const std::vector<float> &plane, int x, int y) {
+        const float *row = plane.data() + size_t(y) * ww;
+        const float across = 0.5f * (row[std::min(x + 1, ww - 1)] - row[std::max(x - 1, 0)]);
+        const float down = 0.5f * (plane[size_t(std::min(y + 1, wh - 1)) * ww + x] - plane[size_t(std::max(y - 1, 0)) * ww + x]);
+        return std::sqrt(across * across + down * down);
+    };
     std::vector<float> coverage(drawn.size());
-    for (int y = 0; y < work.height(); y++) {
+    for (int y = 0; y < wh; y++) {
         // hatches are fixed to the image's own pixels, whatever the level of detail
         const float imageY = (sourceRect.top() + work.top() + y + 0.5f) * pixel;
-        for (int x = 0; x < work.width(); x++) {
+        for (int x = 0; x < ww; x++) {
+            const size_t i = size_t(y) * ww + x;
+            const float d = drawn[i], slope = slopeAt(drawn, x, y);
+            float flat = 0;
+            for (int t = 0; t < tones; t++) flat += inkOver(d, slope, top * float(tones - t) / tones, width);
+            flat /= tones;
+            if (!hatches) {
+                coverage[i] = flat;
+                continue;
+            }
+            // the lines, whole: what the edges add to the lightest tone
+            const float tone = toned[i], toneSlope = slopeAt(toned, x, y);
+            const float lines = std::max(0.0f, inkOver(d, slope, top, width) - inkOver(tone, toneSlope, top, width));
             const float imageX = (sourceRect.left() + work.left() + x + 0.5f) * pixel;
-            const float d = drawn[size_t(y) * work.width() + x];
-            float flat = 0, paper = 1;
+            float paper = 1 - lines;
             for (int t = 0; t < tones; t++) {
                 // the lightest tone first
-                const float threshold = top * float(tones - t) / tones;
-                const float ink = d >= threshold ? 0.0f : -std::tanh((d - threshold) / width);
-                flat += ink;
-                if (s.hatching > 0 && ink > 0) {
-                    const float across = (imageX * turnX[t] + imageY * turnY[t]) / spacing;
-                    const float fromLine = std::abs(across - std::floor(across) - 0.5f) * spacing;
-                    const float line = std::clamp((ink * spacing / 2 - fromLine) / pixel + 0.5f, 0.0f, 1.0f);
-                    paper *= 1 - line;
-                }
+                const float cover = inkOver(tone, toneSlope, top * float(tones - t) / tones, width);
+                if (cover <= 0) continue;
+                const float along = imageX * -turnY[t] + imageY * turnX[t];
+                const float across = imageX * turnX[t] + imageY * turnY[t];
+                // darker tones press harder: their strokes up to twice as wide, so the darkest close up
+                const float pressed = strokeWidth * (1 + float(t) / std::max(1, tones - 1));
+                paper *= 1 - strokeAt(along, across, cover, t, spacing, pressed, pixel);
             }
-            flat /= tones;
-            coverage[size_t(y) * work.width() + x] = s.hatching > 0 ? flat + s.hatching * (1 - paper - flat) : flat;
+            coverage[i] = flat + s.hatching * (1 - paper - flat);
         }
     }
 
@@ -456,7 +549,11 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
                 // the picture's color where it has one, the ink's where it is clear
                 const float shown = picture[3][i];
                 float color[3];
-                for (int c = 0; c < 3; c++) color[c] = shown > 1e-6f ? picture[c][i] / shown : ink[c];
+                // pigment laid over itself, as a pencil's color is deeper than the picture's average of it
+                for (int c = 0; c < 3; c++) {
+                    const float own = shown > 1e-6f ? picture[c][i] / shown : ink[c];
+                    color[c] = own * (0.4f + 0.6f * own);
+                }
                 const float alpha = cover + paper[3] * (1 - cover);
                 for (int c = 0; c < 3; c++) to[c] = alpha > 1e-6f ? (color[c] * cover + paper[c] * paper[3] * (1 - cover)) / alpha : 0.0f;
                 to[3] = alpha;

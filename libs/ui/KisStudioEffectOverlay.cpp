@@ -53,6 +53,7 @@
 
 #include "KisDocument.h"
 #include "KisEffectCanvasEditor.h"
+#include <KisLodPreferences.h>
 #include "KisEffectPanels.h"
 #include "KisRetiredEffects.h"
 #include "KisMainWindow.h"
@@ -600,6 +601,10 @@ struct KisStudioEffectOverlay::Private
         KisCanvas2 *canvas = viewManager() ? viewManager()->canvasBase() : nullptr;
         auto *gl = canvas ? dynamic_cast<KisOpenGLCanvas2 *>(canvas->canvasWidget()) : nullptr;
         if (!gl || !before || !current()) return false;
+        // zoomed out with instant preview, the preview is made and shown at a level of detail while the image itself
+        // has no effect yet: the canvas made again from the image would show none
+        const KisLodPreferences lod = canvas->image()->lodPreferences();
+        if (lod.lodSupported() && lod.lodPreferred() && lod.desiredLevelOfDetail() > 0) return false;
         gl->openGLImageTextures()->setShownInstead(before);
         redraw(canvas);
         showingBefore = canvas;

@@ -58,7 +58,7 @@ struct Settings {
     /// How much each tone is drawn as lines rather than flat
     float hatching {0};
     /// Between hatch lines, in pixels
-    float spacing {6};
+    float spacing {8};
     /// The first tone's hatch direction, in degrees
     float angle {45};
     Colors colors {Colors::Paper};
