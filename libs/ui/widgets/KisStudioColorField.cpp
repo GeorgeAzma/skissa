@@ -83,9 +83,10 @@ QIcon swatchIcon(const QColor &color, const QPalette &palette, int side)
     return QIcon(pixmap);
 }
 
+/// The color as the color panel's field shows it
 QString written(const QColor &color)
 {
-    return color.name(QColor::HexRgb).toUpper();
+    return color.name(QColor::HexRgb).mid(1).toUpper();
 }
 
 } // namespace
@@ -246,8 +247,8 @@ public:
 
         auto *row = new QHBoxLayout();
         row->setSpacing(KisModernStyle::space1);
-        m_text = new QLineEdit(written(field->color()), this);
-        m_text->setToolTip(i18nc("@info:tooltip", "Hex, rgb, hsv or oklch"));
+        m_text = KisStudioColorWheel::textField(this, [this]() { return m_field->color(); });
+        m_text->setText(written(field->color()));
         connect(m_text, &QLineEdit::editingFinished, this, [this]() {
             // the focus leaving the field is not an edit
             if (!m_text->isModified()) return;
@@ -262,7 +263,8 @@ public:
             m_wheel->setColor(color);
             m_text->setText(written(color));
         });
-        row->addWidget(m_text, 1);
+        row->addWidget(m_text);
+        row->addStretch(1);
 
         // the paint colors, a click away
         if (KisMainWindow *window = KisPart::instance()->currentMainwindow()) {

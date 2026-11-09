@@ -1774,6 +1774,30 @@ QColor KisStudioColorWheel::color() const
     return d->rgb;
 }
 
+QLineEdit *KisStudioColorWheel::textField(QWidget *parent, std::function<QColor()> color)
+{
+    auto *field = new HexField(parent);
+    field->setFrame(false);
+    // clicked into, never given the keys by a window opening around it
+    field->setFocusPolicy(Qt::ClickFocus);
+    field->setToolTip(i18nc("@info:tooltip", "Type a hex code, or rgb(…), oklch(…), hsv(…)"));
+    field->written = [color]() {
+        const QColor current = color();
+        const Oklch lch = oklchFromRgb(current);
+        qreal h, sat, val;
+        current.getHsvF(&h, &sat, &val);
+        const auto number = [](qreal value, int decimals) { return QString::number(value, 'f', decimals); };
+        return QStringList{
+            QLatin1Char('#') + current.name().mid(1).toUpper(),
+            QStringLiteral("rgb(%1, %2, %3)").arg(current.red()).arg(current.green()).arg(current.blue()),
+            QStringLiteral("rgb(%1, %2, %3)").arg(number(current.redF(), 3), number(current.greenF(), 3), number(current.blueF(), 3)),
+            QStringLiteral("oklch(%1 %2 %3)").arg(number(lch.l, 3), number(lch.c, 3), number(lch.h, 0)),
+            QStringLiteral("hsv(%1, %2%, %3%)").arg(number(qMax(0.0, h) * 360.0, 0), number(sat * 100.0, 0), number(val * 100.0, 0)),
+        };
+    };
+    return field;
+}
+
 QColor KisStudioColorWheel::colorOfText(const QString &text)
 {
     const std::optional<TypedColor> typed = readColor(text);

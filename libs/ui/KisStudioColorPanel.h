@@ -11,9 +11,12 @@
 #include <KoCanvasObserverBase.h>
 #include <KoDockFactoryBase.h>
 
+#include <functional>
 #include <memory>
 
 #include "kritaui_export.h"
+
+class QLineEdit;
 
 /**
  * The color panel. It offers OKLCH pickers, where equal steps look equally different (a hue ring around a
@@ -67,6 +70,12 @@ public:
     /// A color as it is typed in the color panel's field, in any format it reads (00F2FC, rgb(…), oklch(…),
     /// hsv(…), hsl(…)); invalid if it reads none
     static QColor colorOfText(const QString &text);
+
+    /**
+     * The color panel's field for a color written out: dim until clicked, never taking the keys unasked, any format
+     * typed, Esc putting back what was there, Copy as each format of \p color
+     */
+    static QLineEdit *textField(QWidget *parent, std::function<QColor()> color);
 
 Q_SIGNALS:
     /// A color picked on it (not one set)
