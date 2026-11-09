@@ -248,11 +248,23 @@ qreal KisStudioValueRow::valueAt(qreal x) const
     return low + at * (high - low);
 }
 
+QString KisStudioValueRow::numberText() const
+{
+    // decimals as the range has them, without trailing zeros: 2, not 2.00
+    const int decimals = m_range.size && m_value >= 10.0 ? 0 : m_range.decimals;
+    QString number = QLocale().toString(m_value, 'f', decimals);
+    const QChar point = QLocale().decimalPoint();
+    if (decimals > 0 && number.contains(point)) {
+        while (number.endsWith(QLatin1Char('0'))) number.chop(1);
+        if (number.endsWith(point)) number.chop(1);
+    }
+    return number;
+}
+
 QString KisStudioValueRow::text() const
 {
     if (!m_valueText.isEmpty()) return m_valueText;
-    const int decimals = m_range.size && m_value >= 10.0 ? 0 : m_range.decimals;
-    return QLocale().toString(m_value, 'f', decimals) + m_range.suffix;
+    return numberText() + m_range.suffix;
 }
 
 void KisStudioValueRow::change(qreal value)
@@ -514,7 +526,7 @@ void KisStudioValueRow::mouseDoubleClickEvent(QMouseEvent *event)
     Q_EMIT typingStarted();
     // the number is typed where it is written, the unit left out
     const QRectF content = textArea();
-    const QString shown = QLocale().toString(m_value, 'f', m_range.size && m_value >= 10.0 ? 0 : m_range.decimals);
+    const QString shown = numberText();
     const int width = fontMetrics().horizontalAdvance(text());
     const QRect at(QPointF(content.right() - width, content.top()).toPoint(), QSize(width, int(content.height())));
     m_editing = true;

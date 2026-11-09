@@ -5705,7 +5705,7 @@ void KisStudioLayout::updateContextBar()
         return false;
     };
 
-    const bool shapeTool = any({"KritaShape/KisToolRectangle", "KritaShape/KisToolEllipse", "KisToolPolygon",
+    const bool shapeTool = any({"KritaShape/KisToolRectangle", "KritaShape/KisToolEllipse", "KritaShape/KisToolSuperellipse", "KisToolPolygon",
                                 "KisToolPolyline", "KisToolPath", "KisToolPencil"});
     // tools that put down paint with the current brush preset
     const bool paints = shapeTool || any({"KritaShape/KisToolBrush", "KritaShape/KisToolDyna",

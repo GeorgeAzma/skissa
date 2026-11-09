@@ -112,6 +112,10 @@ msgctxt "replace color: only the color and its soft edges"
 msgid "Color"
 msgstr "Barva"
 
+msgctxt "propagate colors: fill only so far"
+msgid "Distance"
+msgstr "Razdalja"
+
 msgctxt "propagate colors setting"
 msgid "Distance"
 msgstr "Razdalja"

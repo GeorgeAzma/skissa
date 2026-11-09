@@ -952,7 +952,7 @@ KisConfigWidget *propagateColors(QWidget *parent, KisPaintDeviceSP device)
     auto bounded = [](const Config &c) { return c.getString("expansionMode", QStringLiteral("unbounded")) == QLatin1String("bounded"); };
     panel->addTiles({Tile{i18nc("propagate colors: fill all the way", "Everywhere"), [](Config &c) { c.setProperty("expansionMode", "unbounded"); },
                           [bounded](const Config &c) { return !bounded(c); }},
-                     Tile{i18nc("propagate colors: fill a distance", "A distance"), [](Config &c) { c.setProperty("expansionMode", "bounded"); }, bounded}},
+                     Tile{i18nc("propagate colors: fill only so far", "Distance"), [](Config &c) { c.setProperty("expansionMode", "bounded"); }, bounded}},
                     {}, Panel::Pictures::None);
     panel->addValue({i18nc("propagate colors setting", "Distance"), range(1, 1000, 0, px, true), reads("expansionAmount", 10),
                      writes("expansionAmount"), bounded, 200});

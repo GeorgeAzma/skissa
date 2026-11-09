@@ -962,6 +962,15 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             mirror(widget->findChild<QAbstractButton *>(QStringLiteral("bnCrop")), checkIcon(ink));
         }
 
+        // buttons a tool asks to have on the bar (the shape tool's shapes), in their order
+        bool barButtons = false;
+        Q_FOREACH (QAbstractButton *button, widget->findChildren<QAbstractButton *>()) {
+            if (!button->property("studioBar").toBool()) continue;
+            if (!barButtons) addGap();
+            barButtons = true;
+            mirror(button);
+        }
+
         // a shape's fill and outline, each a picture with the rest in its menu
         if (QComboBox *fill = widget->findChild<QComboBox *>(QStringLiteral("cmbFill"))) {
             addGap();

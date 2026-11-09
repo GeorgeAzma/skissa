@@ -118,7 +118,7 @@ QVector<ToolSlot> toolSlots()
          {QStringLiteral("KritaFill/KisToolFill"), QStringLiteral("KritaFill/KisToolGradient"), QStringLiteral("KisToolEncloseAndFill"),
           QStringLiteral("KritaShape/KisToolLazyBrush")}},
         {QStringLiteral("shape"), i18nc("@info:tooltip tool slot", "Shape"), QStringLiteral("studio_shape"), BrushMode::None,
-         {QStringLiteral("KritaShape/KisToolRectangle"), QStringLiteral("KritaShape/KisToolEllipse"), QStringLiteral("KritaShape/KisToolLine"),
+         {QStringLiteral("KritaShape/KisToolSuperellipse"), QStringLiteral("KritaShape/KisToolLine"),
           QStringLiteral("KisToolPolygon"), QStringLiteral("KisToolPolyline"), QStringLiteral("KisToolPath"), QStringLiteral("KisToolPencil"),
           QStringLiteral("PathTool"), QStringLiteral("KarbonCalligraphyTool"), QStringLiteral("KritaShape/KisToolKnife")}},
         {QStringLiteral("text"), i18nc("@info:tooltip tool slot", "Text"), QStringLiteral("studio_text"), BrushMode::None,

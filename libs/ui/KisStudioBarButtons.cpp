@@ -67,6 +67,7 @@ bool paintsWithBrush(const QString &tool)
     static const QStringList tools = {QStringLiteral("KritaShape/KisToolBrush"), QStringLiteral("KritaShape/KisToolDyna"),
                                       QStringLiteral("KritaShape/KisToolMultiBrush"), QStringLiteral("KritaShape/KisToolLine"),
                                       QStringLiteral("KritaShape/KisToolRectangle"), QStringLiteral("KritaShape/KisToolEllipse"),
+                                      QStringLiteral("KritaShape/KisToolSuperellipse"),
                                       QStringLiteral("KisToolPolygon"), QStringLiteral("KisToolPolyline"), QStringLiteral("KisToolPath"),
                                       QStringLiteral("KisToolPencil")};
     return tools.contains(tool);

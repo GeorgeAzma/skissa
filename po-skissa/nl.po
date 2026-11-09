@@ -128,6 +128,10 @@ msgctxt "replace color: only the color and its soft edges"
 msgid "Color"
 msgstr "Kleur"
 
+msgctxt "propagate colors: fill only so far"
+msgid "Distance"
+msgstr "Afstand"
+
 msgctxt "propagate colors setting"
 msgid "Distance"
 msgstr "Afstand"

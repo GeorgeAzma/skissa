@@ -88,6 +88,10 @@ msgctxt "pixelize setting"
 msgid "Size"
 msgstr "大小"
 
+msgctxt "propagate colors: fill only so far"
+msgid "Distance"
+msgstr "距离"
+
 msgctxt "propagate colors setting"
 msgid "Distance"
 msgstr "距离"

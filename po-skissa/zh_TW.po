@@ -96,6 +96,10 @@ msgctxt "desaturate: gray halfway between the brightest and darkest channels (HS
 msgid "Lightness"
 msgstr "亮度"
 
+msgctxt "propagate colors: fill only so far"
+msgid "Distance"
+msgstr "距離"
+
 msgctxt "propagate colors setting"
 msgid "Distance"
 msgstr "距離"

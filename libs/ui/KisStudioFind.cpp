@@ -303,6 +303,7 @@ QHash<QString, QStringList> aliasTable()
         {"tool:KisToolSelectElliptical", i18nc("@info find aliases, comma separated", "elliptical marquee")},
         {"tool:KritaSelected/KisToolColorSampler", i18nc("@info find aliases, comma separated", "eyedropper, color picker, pipette, picker")},
         {"tool:KritaFill/KisToolFill", i18nc("@info find aliases, comma separated", "paint bucket, bucket")},
+        {"tool:KritaShape/KisToolSuperellipse", i18nc("@info find aliases, comma separated", "rectangle, ellipse, circle, square, rounded rectangle, squircle, superellipse, diamond, star, pill, oval, box")},
         {"tool:KisToolTransform", i18nc("@info find aliases, comma separated", "free transform, scale, rotate, warp, liquify, perspective, distort")},
         {"tool:KritaShape/KisToolSmartPatch", i18nc("@info find aliases, comma separated", "healing brush, spot healing, content aware fill")},
         {"tool:KritaShape/KisToolBrush", i18nc("@info find aliases, comma separated", "paintbrush, pencil, pen")},
@@ -744,6 +745,8 @@ void KisStudioFind::rebuildIndex()
     Q_FOREACH (KoToolFactoryBase *factory, KoToolRegistry::instance()->values()) {
         const QString id = factory->id();
         toolIds.insert(id);
+        // the shape tool draws both
+        if (id == QLatin1String("KritaShape/KisToolRectangle") || id == QLatin1String("KritaShape/KisToolEllipse")) continue;
         QAction *action = mainWindow->actionCollection()->action(id);
         const QString shortcut = action ? action->shortcut().toString(QKeySequence::NativeText) : QString();
         d->entries.append({QStringLiteral("tool:") + id, Kind::Tool,

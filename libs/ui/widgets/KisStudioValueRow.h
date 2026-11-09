@@ -101,6 +101,8 @@ private:
     /// The value at \p x across the row, as the bar shows it
     qreal valueAt(qreal x) const;
     QString text() const;
+    /// The value written out, without its unit
+    QString numberText() const;
     void change(qreal value);
 
     QString m_name;

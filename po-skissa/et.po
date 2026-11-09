@@ -91,6 +91,10 @@ msgctxt "replace color: only the color and its soft edges"
 msgid "Color"
 msgstr "Värv"
 
+msgctxt "propagate colors: fill only so far"
+msgid "Distance"
+msgstr "Vahemaa"
+
 msgctxt "propagate colors setting"
 msgid "Distance"
 msgstr "Vahemaa"

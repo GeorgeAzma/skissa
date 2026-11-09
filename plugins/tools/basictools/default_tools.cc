@@ -24,6 +24,7 @@
 #include "kis_tool_colorsampler.h"
 #include "kis_tool_line.h"
 #include "kis_tool_ellipse.h"
+#include "KisToolSuperellipse.h"
 #include "kis_tool_measure.h"
 #include "kis_tool_path.h"
 #include "kis_tool_move.h"
@@ -42,6 +43,7 @@ DefaultTools::DefaultTools(QObject *parent, const QVariantList &)
     KoToolRegistry::instance()->add(new KisToolColorSamplerFactory());
     KoToolRegistry::instance()->add(new KisToolLineFactory());
     KoToolRegistry::instance()->add(new KisToolEllipseFactory());
+    KoToolRegistry::instance()->add(new KisToolSuperellipseFactory());
     KoToolRegistry::instance()->add(new KisToolRectangleFactory());
     KoToolRegistry::instance()->add(new KisToolMeasureFactory());
     KoToolRegistry::instance()->add(new KisToolPathFactory());

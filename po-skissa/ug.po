@@ -80,6 +80,10 @@ msgctxt "desaturate: gray halfway between the brightest and darkest channels (HS
 msgid "Lightness"
 msgstr "يورۇقلۇق دەرىجىسى"
 
+msgctxt "propagate colors: fill only so far"
+msgid "Distance"
+msgstr "ئارىلىق"
+
 msgctxt "propagate colors setting"
 msgid "Distance"
 msgstr "ئارىلىق"
