@@ -18,6 +18,8 @@
 #include <QVBoxLayout>
 #include <QtMath>
 
+#include <cmath>
+
 #include <KisMainWindow.h>
 #include <KisModernStyle.h>
 #include <KisPart.h>
@@ -197,9 +199,11 @@ QList<QPointer<QWidget>> KisToolSuperellipse::createOptionWidgets()
     KisStudioValueRow::Range exponent;
     exponent.minimum = KisSuperellipse::leastCurve;
     exponent.maximum = KisSuperellipse::mostCurve;
-    exponent.decimals = 2;
+    exponent.decimals = 1;
     // by ratios: as much changes between 1 and 2 as between 2 and 4
     exponent.size = true;
+    // only what looks different: tenths under 1, halves to 6, then whole numbers
+    exponent.snapped = [](qreal v) { return v < 1 ? std::round(v * 10) / 10 : v < 6 ? std::round(v * 2) / 2 : std::round(v); };
     m_curve = add(i18nc("shape tool: the corners' curve", "Curve"), exponent, 2, [](KisSuperellipse::Look &look, qreal v) { look.curve = v; });
     m_curve->setToolTip(i18nc("@info:tooltip the shape tool's corner exponent", "2 is round"));
 

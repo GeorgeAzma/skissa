@@ -270,7 +270,7 @@ QString KisStudioValueRow::text() const
 void KisStudioValueRow::change(qreal value)
 {
     const qreal step = std::pow(10.0, -m_range.decimals);
-    value = qBound(m_range.minimum, std::round(value / step) * step, m_range.maximum);
+    value = qBound(m_range.minimum, m_range.snapped ? m_range.snapped(value) : std::round(value / step) * step, m_range.maximum);
     if (qFuzzyCompare(value + 1.0, m_value + 1.0)) return;
     m_value = value;
     m_valueText.clear();

@@ -7,6 +7,7 @@
 #define KISSTUDIOVALUEROW_H
 
 #include <QWidget>
+#include <functional>
 #include <QtNumeric>
 
 #include "kritaui_export.h"
@@ -32,6 +33,8 @@ public:
         /// further than the value (for a value that names what lies across the direction it is about)
         bool angle {false};
         qreal dialTurn {0};
+        /// The nearest value it may take, where only some are worth telling apart (instead of every step of decimals)
+        std::function<qreal(qreal)> snapped;
     };
 
     explicit KisStudioValueRow(const QString &name, QWidget *parent = nullptr);

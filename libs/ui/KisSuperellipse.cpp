@@ -142,7 +142,7 @@ QVector<Preset> presets()
         {QStringLiteral("pentagon"), i18nc("a shape", "Pentagon"), {5, 0, 2, 0}},
         {QStringLiteral("hexagon"), i18nc("a shape", "Hexagon"), {6, 0, 2, 0}},
         {QStringLiteral("octagon"), i18nc("a shape", "Octagon"), {8, 0, 2, 0}},
-        {QStringLiteral("five-star"), i18nc("a shape: five points curving inward", "Five-point star"), {5, 1, 0.45, 36}},
+        {QStringLiteral("five-star"), i18nc("a shape: five points curving inward", "Five-point star"), {5, 1, 0.5, 36}},
     };
 }
 

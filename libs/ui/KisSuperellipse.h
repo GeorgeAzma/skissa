@@ -31,7 +31,7 @@
 namespace KisSuperellipse
 {
 
-constexpr qreal leastCurve = 0.25;
+constexpr qreal leastCurve = 0.3;
 constexpr qreal mostCurve = 12;
 constexpr int leastSides = 3;
 constexpr int mostSides = 12;
