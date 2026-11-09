@@ -396,6 +396,10 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "اجذب إلى الأدلّة"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "مستطيل"
+
 msgctxt "shortcut set"
 msgid "Krita"
 msgstr "كريتا"
@@ -759,6 +763,10 @@ msgstr "السّطوع"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "التّباين"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "منحنى"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

@@ -45,6 +45,8 @@
 #include <QTabBar>
 #include <QToolButton>
 
+#include "KisSuperellipse.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -756,6 +758,14 @@ void KisStudioFind::rebuildIndex()
         d->entries.last().action = action;
     }
 
+    // the shape tool's shapes, each drawing at once
+    const QColor ink = mainWindow->palette().color(QPalette::ButtonText);
+    Q_FOREACH (const KisSuperellipse::Preset &preset, KisSuperellipse::presets()) {
+        const KisSuperellipse::Look look = preset.look;
+        d->entries.append({KisSuperellipse::keyOf(look), Kind::Tool, preset.name, i18nc("find detail: a shape the shape tool draws", "Shape"),
+                           QString(), QString(), KisSuperellipse::iconOf(look, ink), [look]() { KisSuperellipse::draw(look); }});
+    }
+
     // each command's menu path, shown as its detail
     QHash<QAction *, QString> menuPaths;
     QSet<QAction *> hiddenWithMenu;
@@ -1447,7 +1457,11 @@ bool KisStudioFind::item(const QString &key, Item *item)
     }
     const int at = d->byKey.value(key, -1);
     if (at < 0) {
-        return false;
+        // a shape of the user's own, pinned somewhere
+        KisSuperellipse::Look look;
+        if (!KisSuperellipse::lookOf(key, &look)) return false;
+        if (item) *item = {key, KisSuperellipse::nameOf(look), KisSuperellipse::iconOf(look, d->mainWindow->palette().color(QPalette::ButtonText)), nullptr, {}};
+        return true;
     }
     if (item) {
         const Entry &entry = d->entries[at];
@@ -1467,6 +1481,11 @@ bool KisStudioFind::run(const QString &key)
             entry.run();
             return true;
         }
+    }
+    KisSuperellipse::Look look;
+    if (KisSuperellipse::lookOf(key, &look)) {
+        KisSuperellipse::draw(look);
+        return true;
     }
     return false;
 }
@@ -1550,6 +1569,14 @@ bool KisStudioFind::showCard(QAbstractButton *button)
         return false;
     }
     popupCard(button->icon().isNull() ? action->icon() : button->icon(), title, action, key, button);
+    return true;
+}
+
+bool KisStudioFind::showCard(const QString &key, QWidget *anchor)
+{
+    Item found;
+    if (!item(key, &found)) return false;
+    popupCard(found.icon, found.title, found.action, key, anchor);
     return true;
 }
 

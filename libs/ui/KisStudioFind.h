@@ -62,6 +62,8 @@ public:
 
     /// Shows the item card for \p button beside it; false if Find doesn't know the button.
     bool showCard(QAbstractButton *button);
+    /// Shows the card of the item named \p key beside \p anchor; false if Find doesn't know it.
+    bool showCard(const QString &key, QWidget *anchor);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

@@ -582,6 +582,18 @@ msgctxt "@action:button"
 msgid "Close"
 msgstr "დახურვა"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "მართკუთხედი"
+
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "ოვალი"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "პრიზმა"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "ახალი ნიმუშის გამოყენება Skissa-ის თითოეული გაშვებისას"
 
@@ -1131,6 +1143,14 @@ msgstr "სიკაშკაშე"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "კონტრასტი"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "მრუდი"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "კუთხე"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

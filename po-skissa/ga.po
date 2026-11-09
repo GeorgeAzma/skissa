@@ -568,6 +568,18 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Snap chuig treoracha"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "Dronuilleog"
+
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Éilips"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Diamaint"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Úsáid an teimpléad nua gach uair a thosaíonn Skissa"
 
@@ -1114,6 +1126,14 @@ msgstr "Grádán"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Patrúin"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Cuar"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Uillinn"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

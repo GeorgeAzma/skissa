@@ -16,11 +16,13 @@
 
 class KisStudioValueRow;
 class QAbstractButton;
+class QToolButton;
 
 /**
- * The shape tool: a box dragged on the image (Shift square, Alt from its middle) becomes one superellipse
- * (KisSuperellipse), its look picked from presets or set by Roundness and Curve. Changing the look right after
- * drawing reshapes what was just drawn, as one step.
+ * The shape tool: a box dragged on the image (Shift square, Alt from its middle) becomes one shape
+ * (KisSuperellipse), its look picked from presets or set by Sides, Roundness, Curve and Angle. Changing the look
+ * right after drawing reshapes what was just drawn, as one step. A shape's card (right click, or Pin for the look as
+ * set) pins it to the tools; a shape dragged onto the rail or the top bar is pinned there.
  */
 class KisToolSuperellipse : public KisToolRectangleBase
 {
@@ -44,13 +46,17 @@ protected:
 private:
     void draw(const QRectF &rect, qreal angle);
     void setLook(const KisSuperellipse::Look &look);
+    /// The look was set elsewhere (a pinned shape)
+    void lookChanged();
     void showLook();
 
     KisSuperellipse::Look m_look;
     KisRedoLast m_redoLast;
-    QPointer<QWidget> m_options;
+    QPointer<KisStudioValueRow> m_sides;
     QPointer<KisStudioValueRow> m_roundness;
     QPointer<KisStudioValueRow> m_curve;
+    QPointer<KisStudioValueRow> m_angle;
+    QPointer<QToolButton> m_pin;
     QVector<QPointer<QAbstractButton>> m_presetButtons;
 };
 

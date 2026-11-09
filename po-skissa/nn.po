@@ -526,6 +526,14 @@ msgctxt "@action:button"
 msgid "Close"
 msgstr "Lukk"
 
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Ellipse"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Diamant"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Bruk den nye malen ved kvar start av Skissa"
 
@@ -1027,6 +1035,14 @@ msgstr "Lysstyrke"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontrast"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Kurve"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Vinkel"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

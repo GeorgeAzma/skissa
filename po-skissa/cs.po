@@ -525,6 +525,14 @@ msgctxt "@action:button"
 msgid "Close"
 msgstr "Zavřít"
 
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Elipsa"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Diamant"
+
 msgctxt "new image: one made to measure"
 msgid "Custom"
 msgstr "Vlastní"
@@ -1023,6 +1031,14 @@ msgstr "Jas"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontrast"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Křivka"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Úhel"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

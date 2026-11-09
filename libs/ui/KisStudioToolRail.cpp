@@ -7,6 +7,7 @@
 
 #include <KisModernStyle.h>
 #include "KisStudioTools.h"
+#include "KisSuperellipse.h"
 
 #include <KisSentenceCase.h>
 
@@ -78,6 +79,7 @@ const QString spacePrefix = QStringLiteral("space:");
 const QString effectsItem = QStringLiteral("action:studio_effects");
 /// A brush pinned to the rail, by Find's key for it
 const QString brushPrefix = QStringLiteral("brush:");
+const QString shapeToolId = QStringLiteral("KritaShape/KisToolSuperellipse");
 /// The pinned brushes that take the size and opacity in use instead of keeping their own
 const QString sharedSizeKey = QStringLiteral("StudioRailItemsSharedSize");
 /// Set once the effects button has been added to an existing rail, so removing it sticks
@@ -738,6 +740,9 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     // every slot's key works, on the rail or not (T for Transform, F for Fill: their tools lost their own)
     for (auto it = d->slots.constBegin(); it != d->slots.constEnd(); ++it) d->slotAction(it.key());
 
+    // the shape tool's look lights the shape pinned with it
+    connect(KisSuperellipse::Watch::instance(), &KisSuperellipse::Watch::changed, this, &KisStudioToolRail::updateActiveSlot);
+
     // an undo or redo of the rail's items
     connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::valueChanged, this, [this](const QString &id) {
         if (id != itemsKey) return;
@@ -1367,8 +1372,20 @@ void KisStudioToolRail::updateActiveSlot()
     if (isBrushTool(toolId)) {
         active = erasing ? d->slotWithMode(BrushMode::Erase) : d->brushSlot;
     } else {
+        // a shape pinned with the look the shape tool draws now is lit in place of its slot
+        if (toolId == shapeToolId) {
+            const KisSuperellipse::Look now = KisSuperellipse::current();
+            Q_FOREACH (const QString &key, d->items) {
+                KisSuperellipse::Look look;
+                if (KisSuperellipse::lookOf(key, &look) && look == now) {
+                    active = key;
+                    break;
+                }
+            }
+        }
         // prefer a non-brush slot on the rail that has the tool, then fall back to Paint
         Q_FOREACH (const QString &key, d->items) {
+            if (!active.isEmpty()) break;
             const QString id = key.mid(slotPrefix.size());
             if (key.startsWith(slotPrefix) && d->slots.contains(id) && d->slots[id].brush == BrushMode::None
                 && d->slots[id].tools.contains(toolId)) {
@@ -1406,7 +1423,7 @@ void KisStudioToolRail::updateActiveSlot()
                 }
             }
             button->setToolTip(tip);
-        } else if (key.startsWith(brushPrefix)) {
+        } else if (key.startsWith(brushPrefix) || KisSuperellipse::lookOf(key, nullptr)) {
             button->setChecked(key == active);
             button->setToolTip(button->accessibleName());
         } else {

@@ -6,19 +6,27 @@
 
 #include "KisToolSuperellipse.h"
 
+#include <QApplication>
+#include <QContextMenuEvent>
+#include <QDrag>
+#include <QGridLayout>
 #include <QHBoxLayout>
+#include <QMimeData>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QtMath>
 
-#include <KSharedConfig>
+#include <KisMainWindow.h>
+#include <KisModernStyle.h>
+#include <KisPart.h>
+#include <KisStudioFind.h>
+#include <KisStudioItemCard.h>
+#include <KisStudioLayout.h>
 #include <KoCanvasBase.h>
 #include <KoPathShape.h>
 #include <KoShapeStroke.h>
-#include <KisModernStyle.h>
-#include <KisSettingsRegistry.h>
-#include <KisStudioLayout.h>
 #include <canvas/kis_canvas2.h>
 #include <kis_figure_painting_tool_helper.h>
 #include <kis_resources_snapshot.h>
@@ -33,23 +41,51 @@ const KUndo2MagicString stepName()
     return kundo2_i18n("Draw Shape");
 }
 
-/// The look as a little drawing for its button, in \p ink
-QIcon lookIcon(const KisSuperellipse::Look &look, const QColor &ink)
+/// A shape to pick: a click picks it, a drag takes it to the rail or the top bar, a right click opens its card
+class ShapeButton : public QToolButton
 {
-    QIcon icon;
-    for (qreal ratio : {1.0, 1.5, 2.0}) {
-        QPixmap pixmap(QSize(24, 24) * ratio);
-        pixmap.setDevicePixelRatio(ratio);
-        pixmap.fill(Qt::transparent);
-        QPainter painter(&pixmap);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.setPen(QPen(ink, 1.75, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawPath(KisSuperellipse::pathOf(QRectF(4, 4, 16, 16), look));
-        painter.end();
-        icon.addPixmap(pixmap);
+public:
+    using QToolButton::QToolButton;
+
+    /// The key it is dragged and pinned as
+    std::function<QString()> key;
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton) m_pressAt = event->pos();
+        QToolButton::mousePressEvent(event);
     }
-    return icon;
-}
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (!(event->buttons() & Qt::LeftButton) || m_pressAt.isNull()
+            || (event->pos() - m_pressAt).manhattanLength() < KisModernStyle::dragDistance(event)) {
+            QToolButton::mouseMoveEvent(event);
+            return;
+        }
+        m_pressAt = QPoint();
+        setDown(false);
+        auto *mime = new QMimeData();
+        mime->setData(KisStudioShortcuts::itemMimeType(), key().toUtf8());
+        // owned by the application, not the button: the panel may close while it is dragged
+        auto *drag = new QDrag(qApp);
+        drag->setMimeData(mime);
+        drag->setPixmap(icon().pixmap(32, 32));
+        drag->exec(Qt::CopyAction);
+        drag->deleteLater();
+    }
+
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        KisMainWindow *window = KisPart::instance()->currentMainwindow();
+        if (window && window->studioFind()) window->studioFind()->showCard(key(), this);
+        event->accept();
+    }
+
+private:
+    QPoint m_pressAt;
+};
 
 } // namespace
 
@@ -59,10 +95,8 @@ KisToolSuperellipse::KisToolSuperellipse(KoCanvasBase *canvas)
     setObjectName("tool_superellipse");
     setSupportOutline(true);
     setIsOpacityPresetMode(true);
-    const KConfigGroup config = KSharedConfig::openConfig()->group(QStringLiteral("KritaShape/KisToolSuperellipse"));
-    const KisSuperellipse::Look rounded = KisSuperellipse::presets()[1].look;
-    m_look.roundness = qBound(0.0, config.readEntry("skissaRoundness", rounded.roundness), 1.0);
-    m_look.curve = qBound(KisSuperellipse::leastCurve, config.readEntry("skissaCurve", rounded.curve), KisSuperellipse::mostCurve);
+    m_look = KisSuperellipse::current();
+    connect(KisSuperellipse::Watch::instance(), &KisSuperellipse::Watch::changed, this, [this]() { lookChanged(); });
 }
 
 KisToolSuperellipse::~KisToolSuperellipse()
@@ -73,6 +107,8 @@ void KisToolSuperellipse::activate(const QSet<KoShape *> &shapes)
 {
     KisToolRectangleBase::activate(shapes);
     m_redoLast.forget();
+    m_look = KisSuperellipse::current();
+    showLook();
 }
 
 void KisToolSuperellipse::deactivate()
@@ -83,7 +119,6 @@ void KisToolSuperellipse::deactivate()
 
 QList<QPointer<QWidget>> KisToolSuperellipse::createOptionWidgets()
 {
-    // Krita's fill and outline, shown as the top bar's pictures in the Studio, then the shape itself
     QList<QPointer<QWidget>> widgets = KisToolShape::createOptionWidgets();
     auto *panel = new QWidget();
     panel->setObjectName(QStringLiteral("superellipseOptions"));
@@ -92,63 +127,86 @@ QList<QPointer<QWidget>> KisToolSuperellipse::createOptionWidgets()
     layout->setContentsMargins(KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space2);
     layout->setSpacing(KisModernStyle::space1);
 
-    auto *row = new QHBoxLayout();
-    row->setSpacing(KisModernStyle::space1);
+    // the presets, two rows of six
+    auto *grid = new QGridLayout();
+    grid->setSpacing(KisModernStyle::space1);
     const QColor ink = panel->palette().color(QPalette::ButtonText);
     m_presetButtons.clear();
-    Q_FOREACH (const KisSuperellipse::Preset &preset, KisSuperellipse::presets()) {
-        auto *button = new QToolButton(panel);
-        button->setObjectName(QStringLiteral("shape_") + preset.id);
-        button->setIcon(lookIcon(preset.look, ink));
+    const QVector<KisSuperellipse::Preset> presets = KisSuperellipse::presets();
+    for (int i = 0; i < presets.size(); i++) {
+        const KisSuperellipse::Look look = presets[i].look;
+        auto *button = new ShapeButton(panel);
+        button->key = [look]() { return KisSuperellipse::keyOf(look); };
+        button->setIcon(KisSuperellipse::iconOf(look, ink));
         button->setIconSize(QSize(24, 24));
-        button->setToolTip(preset.name);
+        button->setToolTip(presets[i].name);
         button->setCheckable(true);
         button->setAutoRaise(true);
         button->setFocusPolicy(Qt::NoFocus);
-        // the top bar shows it too
-        button->setProperty("studioBar", true);
-        const KisSuperellipse::Look look = preset.look;
         connect(button, &QToolButton::clicked, this, [this, look]() { setLook(look); });
-        row->addWidget(button);
+        grid->addWidget(button, i / KisSuperellipse::presetsPerRow, i % KisSuperellipse::presetsPerRow);
         m_presetButtons << button;
     }
-    row->addStretch(1);
-    layout->addLayout(row);
+    grid->setColumnStretch(KisSuperellipse::presetsPerRow, 1);
+    layout->addLayout(grid);
 
+    auto add = [&](const QString &name, KisStudioValueRow::Range range, qreal reset, std::function<void(KisSuperellipse::Look &, qreal)> write) {
+        auto *row = new KisStudioValueRow(name, panel);
+        row->setRange(range);
+        row->setClickSetsValue(true);
+        row->setDefaultValue(reset);
+        connect(row, &KisStudioValueRow::valueChanged, this, [this, write](qreal value) {
+            KisSuperellipse::Look look = m_look;
+            write(look, value);
+            setLook(look);
+        });
+        layout->addWidget(row);
+        return row;
+    };
+    KisStudioValueRow::Range count;
+    count.minimum = KisSuperellipse::leastSides;
+    count.maximum = KisSuperellipse::mostSides;
+    m_sides = add(i18nc("shape tool: how many sides the shape has", "Sides"), count, 4, [](KisSuperellipse::Look &look, qreal v) { look.sides = qRound(v); });
     KisStudioValueRow::Range share;
     share.maximum = 100;
     share.suffix = QStringLiteral("%");
-    m_roundness = new KisStudioValueRow(i18nc("shape tool: how far the corners reach", "Roundness"), panel);
-    m_roundness->setRange(share);
-    m_roundness->setClickSetsValue(true);
-    m_roundness->setDefaultValue(KisSuperellipse::presets()[1].look.roundness * 100);
-    m_roundness->setToolTip(i18nc("@info:tooltip", "All the way: an ellipse"));
-    connect(m_roundness, &KisStudioValueRow::valueChanged, this, [this](qreal value) {
-        KisSuperellipse::Look look = m_look;
-        look.roundness = value / 100;
-        setLook(look);
-    });
-    layout->addWidget(m_roundness);
-
+    m_roundness = add(i18nc("shape tool: how far the corners reach", "Roundness"), share, 0,
+                      [](KisSuperellipse::Look &look, qreal v) { look.roundness = v / 100; });
+    m_roundness->setToolTip(i18nc("@info:tooltip", "All the way: no straight side left"));
     KisStudioValueRow::Range exponent;
     exponent.minimum = KisSuperellipse::leastCurve;
     exponent.maximum = KisSuperellipse::mostCurve;
     exponent.decimals = 2;
     // by ratios: as much changes between 1 and 2 as between 2 and 4
     exponent.size = true;
-    m_curve = new KisStudioValueRow(i18nc("shape tool: the corners' curve", "Curve"), panel);
-    m_curve->setRange(exponent);
-    m_curve->setClickSetsValue(true);
-    m_curve->setDefaultValue(2);
+    m_curve = add(i18nc("shape tool: the corners' curve", "Curve"), exponent, 2, [](KisSuperellipse::Look &look, qreal v) { look.curve = v; });
     m_curve->setToolTip(i18nc("@info:tooltip the shape tool's corner exponent", "2 is round"));
-    connect(m_curve, &KisStudioValueRow::valueChanged, this, [this](qreal value) {
-        KisSuperellipse::Look look = m_look;
-        look.curve = value;
-        setLook(look);
-    });
-    layout->addWidget(m_curve);
+    KisStudioValueRow::Range turn;
+    turn.minimum = -180;
+    turn.maximum = 180;
+    turn.suffix = QStringLiteral("°");
+    turn.angle = true;
+    m_angle = add(i18nc("shape tool: how the shape is turned in its box", "Angle"), turn, 0, [](KisSuperellipse::Look &look, qreal v) { look.angle = v; });
 
-    m_options = panel;
+    // the look as set, to pin: its card, or dragged where it goes
+    auto *pinRow = new QHBoxLayout();
+    pinRow->addStretch(1);
+    auto *pin = new ShapeButton(panel);
+    pin->key = [this]() { return KisSuperellipse::keyOf(m_look); };
+    pin->setText(i18nc("shape tool: pin the shape as it is set", "Pin"));
+    pin->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    pin->setIconSize(QSize(24, 24));
+    pin->setAutoRaise(true);
+    pin->setFocusPolicy(Qt::NoFocus);
+    pin->setToolTip(i18nc("@info:tooltip", "Pin this shape to the tools"));
+    connect(pin, &QToolButton::clicked, this, [this, pin]() {
+        KisMainWindow *window = KisPart::instance()->currentMainwindow();
+        if (window && window->studioFind()) window->studioFind()->showCard(KisSuperellipse::keyOf(m_look), pin);
+    });
+    pinRow->addWidget(pin);
+    layout->addLayout(pinRow);
+    m_pin = pin;
+
     showLook();
     // in the Studio, Krita's fill and outline are the top bar's: kept, out of sight, for it to mirror
     if (m_shapeOptionsWidget && KisStudioLayout::isEnabledInConfig()) {
@@ -162,21 +220,33 @@ QList<QPointer<QWidget>> KisToolSuperellipse::createOptionWidgets()
 
 void KisToolSuperellipse::setLook(const KisSuperellipse::Look &look)
 {
-    m_look.roundness = qBound(0.0, look.roundness, 1.0);
-    m_look.curve = qBound(KisSuperellipse::leastCurve, look.curve, KisSuperellipse::mostCurve);
-    KConfigGroup config = KSharedConfig::openConfig()->group(QStringLiteral("KritaShape/KisToolSuperellipse"));
-    config.writeEntry("skissaRoundness", m_look.roundness);
-    config.writeEntry("skissaCurve", m_look.curve);
-    KisSettingsRegistry::instance()->scheduleSync();
+    if (look == m_look) return;
+    m_look = look;
+    KisSuperellipse::use(look);
+    m_look = KisSuperellipse::current();
     showLook();
     // the shape just drawn takes the new look
     m_redoLast.settingChanged();
 }
 
+void KisToolSuperellipse::lookChanged()
+{
+    const KisSuperellipse::Look look = KisSuperellipse::current();
+    if (look == m_look) return;
+    m_look = look;
+    showLook();
+    m_redoLast.settingChanged();
+}
+
 void KisToolSuperellipse::showLook()
 {
+    if (m_sides) m_sides->setValue(m_look.sides);
     if (m_roundness) m_roundness->setValue(m_look.roundness * 100);
     if (m_curve) m_curve->setValue(m_look.curve);
+    if (m_angle) m_angle->setValue(m_look.angle);
+    if (m_pin) {
+        m_pin->setIcon(KisSuperellipse::iconOf(m_look, m_pin->palette().color(QPalette::ButtonText)));
+    }
     const QVector<KisSuperellipse::Preset> presets = KisSuperellipse::presets();
     for (int i = 0; i < m_presetButtons.size() && i < presets.size(); i++) {
         if (m_presetButtons[i]) m_presetButtons[i]->setChecked(presets[i].look == m_look);

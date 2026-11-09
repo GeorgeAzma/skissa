@@ -456,6 +456,14 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "吸附到參考線"
 
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "橢圓"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "菱形"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Skissa 每次啟動時使用此新範本"
 

@@ -420,6 +420,14 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "मार्गदर्शिकाओं से स्नेप करें"
 
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "दीर्घवृत्त"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "तिर्यग्वर्ग"
+
 msgctxt "new image: one made to measure"
 msgid "Custom"
 msgstr "मनपसंद"
@@ -803,6 +811,10 @@ msgstr "पैटर्न"
 msgctxt "texture setting"
 msgid "Scale"
 msgstr "आकार बदलें"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "कोण"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

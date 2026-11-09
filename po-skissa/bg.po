@@ -568,6 +568,14 @@ msgctxt "@action:button"
 msgid "Close"
 msgstr "Затваряне"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "Правоъгълник"
+
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Елипса"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Използване на новия шаблон при всеки старт на Skissa"
 
@@ -1126,6 +1134,14 @@ msgstr "Яркост"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Контраст"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Крива"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Ъгъл"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

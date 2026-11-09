@@ -448,6 +448,18 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Przyciągaj do prowadnic"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "Prostokąt"
+
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Elipsa"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Diament"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Użyj nowego wzorca za każdym razem, kiedy Skissa się uruchamia"
 
@@ -852,6 +864,14 @@ msgstr "Gradient"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Wzorce"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Krzywa"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Kąt"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

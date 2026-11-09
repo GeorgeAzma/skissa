@@ -544,6 +544,18 @@ msgctxt "@action:button"
 msgid "Close"
 msgstr "Tanca"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "Rectangle"
+
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "El·lipse"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Diamant"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Usa la plantilla nova cada cop que s'iniciï el Skissa"
 
@@ -1094,6 +1106,14 @@ msgstr "Brillantor"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Contrast"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Corba"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Angle"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

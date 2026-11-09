@@ -608,6 +608,18 @@ msgctxt "@action:button"
 msgid "Close"
 msgstr "Kapat"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "Dikdörtgen"
+
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Elips"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Elmas"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Skissa her başlatıldığında yeni şablonu kullan"
 
@@ -1190,6 +1202,14 @@ msgstr "Parlaklık"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Karşıtlık"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Eğri"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Açı"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

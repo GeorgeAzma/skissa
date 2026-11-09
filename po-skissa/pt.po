@@ -552,6 +552,14 @@ msgctxt "@action:button"
 msgid "Close"
 msgstr "Fechar"
 
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Elipse"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Diamante"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Usar o novo modelo sempre que o Skissa se iniciar"
 
@@ -1087,6 +1095,14 @@ msgstr "Brilho"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Contraste"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Curva"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Ângulo"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

@@ -533,6 +533,18 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Atxiki saretara"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "Laukizuzena"
+
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Elipsea"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Diamantea"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Erabili txantiloi berria Skissa hasten den bakoitzean"
 
@@ -992,6 +1004,14 @@ msgstr "Bat ere ez"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Ereduak"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Kurba"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Angelua"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

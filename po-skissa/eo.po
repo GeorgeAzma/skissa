@@ -552,6 +552,18 @@ msgctxt "@action:button"
 msgid "Close"
 msgstr "Fermi"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "Ortangulo"
+
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Elipso"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Lozanĝo"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Uzi la novan ŝablonon ĉiufoje kiam Skissa komenciĝas"
 
@@ -1091,6 +1103,14 @@ msgstr "Brilo"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontrasto"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Kurbo"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Angulo"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

@@ -580,6 +580,14 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Vastzetten op hulplijnen"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "Rechthoek"
+
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Ellips"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Het nieuwe sjabloon steeds gebruiken als Skissa opstart"
 
@@ -1126,6 +1134,14 @@ msgstr "Geen"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Patronen"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Kromme"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Hoek"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

@@ -433,6 +433,14 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "An Hilfslinien ausrichten"
 
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Ellipse"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Diamant"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Die neue Vorlage immer beim Start von Skissa als Standard setzen"
 
@@ -800,6 +808,10 @@ msgstr "Verlauf"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Muster"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Winkel"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

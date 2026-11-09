@@ -44,7 +44,7 @@ bool savedShortcutsHave(const QString &name);
 KRITAUI_EXPORT void enableMenuEditing();
 
 /// Mime type for items dragged around the studio layout; the data is the item's key
-QString itemMimeType();
+KRITAUI_EXPORT QString itemMimeType();
 
 /// All of the window's actions: those in its action collections plus those added directly
 QList<QAction *> allActions(KisMainWindow *mainWindow);

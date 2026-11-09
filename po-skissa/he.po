@@ -590,6 +590,14 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "הצמדה לקווים המנחים"
 
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "אליפסה"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "יהלום"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "להשתמש בתבנית החדשה עם כל הפעלה של Skissa"
 
@@ -1161,6 +1169,10 @@ msgstr "בהירות"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "ניגודיות"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "זווית"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

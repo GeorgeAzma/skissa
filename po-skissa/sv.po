@@ -528,6 +528,10 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Lås till hjälplinjer"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "Rektangel"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Använd den nya mallen varje gång Skissa startas"
 
@@ -1014,6 +1018,14 @@ msgstr "Mönster"
 msgctxt "texture setting"
 msgid "Scale"
 msgstr "Skala"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Kurva"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Vinkel"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

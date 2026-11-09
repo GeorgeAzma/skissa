@@ -388,6 +388,10 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "吸附到参考线"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "矩形"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Skissa 每次启动时加载此新模板"
 
@@ -802,6 +806,10 @@ msgstr "亮度"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "对比度"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "曲线"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

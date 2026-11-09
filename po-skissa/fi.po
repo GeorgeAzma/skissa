@@ -421,6 +421,14 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Kohdista apuviivoihin"
 
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Ellipsi"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Timantti"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Käytä pohjaa aina kun Skissa käynnistyy"
 
@@ -801,6 +809,10 @@ msgstr "Liukuväri"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Kuviot"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Kulma"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

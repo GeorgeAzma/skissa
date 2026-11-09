@@ -456,6 +456,14 @@ msgctxt "@action:button"
 msgid "Close"
 msgstr "Tutup"
 
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Elips"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Berlian"
+
 msgctxt "new image: one made to measure"
 msgid "Custom"
 msgstr "Kustom"
@@ -945,6 +953,14 @@ msgstr "Kecerahan"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontras"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Kurva"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Sudutpandang"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

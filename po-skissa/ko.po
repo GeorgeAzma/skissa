@@ -550,6 +550,14 @@ msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "안내선에 스냅"
 
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "타원"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "다이아몬드"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Skissa 시작 시 새 서식 사용"
 
@@ -1068,6 +1076,14 @@ msgstr "패턴"
 msgctxt "texture setting"
 msgid "Scale"
 msgstr "크기 조정"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "곡선"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "각도"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"

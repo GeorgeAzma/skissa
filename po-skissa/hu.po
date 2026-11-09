@@ -619,6 +619,18 @@ msgctxt "@action:button"
 msgid "Close"
 msgstr "Bezárás"
 
+msgctxt "a shape"
+msgid "Rectangle"
+msgstr "Téglalap"
+
+msgctxt "a shape"
+msgid "Ellipse"
+msgstr "Ellipszis"
+
+msgctxt "a shape"
+msgid "Diamond"
+msgstr "Rombusz"
+
 msgid "Use the new template every time Skissa starts"
 msgstr "Új sablon használata a Skissa minden indításakor"
 
@@ -1243,6 +1255,14 @@ msgstr "Fényerő"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontraszt"
+
+msgctxt "shape tool: the corners' curve"
+msgid "Curve"
+msgstr "Görbe"
+
+msgctxt "shape tool: how the shape is turned in its box"
+msgid "Angle"
+msgstr "Szög"
 
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"
