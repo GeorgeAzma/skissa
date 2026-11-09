@@ -77,7 +77,7 @@ void KisToolSelectContiguous::activate(const QSet<KoShape*> &shapes)
 
 void KisToolSelectContiguous::deactivate()
 {
-    m_reselect.forget();
+    m_redoLast.forget();
     m_referencePaintDevice = nullptr;
     m_referenceNodeList = nullptr;
     KisToolSelect::deactivate();
@@ -105,7 +105,7 @@ void KisToolSelectContiguous::beginPrimaryAction(KoPointerEvent *event)
     const SelectionAction action = selectionAction();
     selectAt(pos, action);
     // a threshold changed next makes this selection again, at the same place
-    m_reselect.made(dynamic_cast<KisCanvas2 *>(canvas()), kundo2_i18n("Select Contiguous Area"), [this, pos, action]() {
+    m_redoLast.made(dynamic_cast<KisCanvas2 *>(canvas()), kundo2_i18n("Select Contiguous Area"), [this, pos, action]() {
         selectAt(pos, action);
     });
 }
@@ -299,7 +299,7 @@ void KisToolSelectContiguous::slotSetThreshold(int threshold)
 {
     m_threshold = threshold;
     m_configGroup.writeEntry("threshold", threshold);
-    m_reselect.settingChanged();
+    m_redoLast.settingChanged();
 }
 
 void KisToolSelectContiguous::slotSetOpacitySpread(int opacitySpread)

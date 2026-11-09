@@ -9,6 +9,7 @@
 
 #include <functional>
 
+#include <QColor>
 #include <QRect>
 
 #include "kritaimage_export.h"
@@ -35,6 +36,14 @@ public:
      */
     static void grow(KisPixelSelectionSP region, KisPaintDeviceSP reference, const KoColor &seedColor, int threshold,
                      bool underLines, int speckSize, int closeGap, const QRect &bounds, KisPaintDeviceSP target = nullptr);
+
+    /// How much ink \p pixel holds, 0 to 255: its darkness times its coverage
+    static int inkOf(QRgb pixel)
+    {
+        return qAlpha(pixel) * (255 - qGray(pixel)) / 255;
+    }
+    /// A pixel with this much ink or more is a line: fills stop at it and don't count it as paper
+    static constexpr int lineInk = 64;
 
     /**
      * How wide the lines near \p point are, in pixels: the dark ink, whatever colors are around it. Half

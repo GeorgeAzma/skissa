@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioCanvasHud.h"
+#include "KisStudioGlide.h"
 
 #include <QAction>
 #include <QApplication>
@@ -173,6 +174,9 @@ struct KisStudioCanvasHud::Private
 
     /// Where it was dragged to, as shares of the room it has (see KisStudioLayout::spotShare()); bottom right at first
     QPointF spot {1, 1};
+    KisStudioGlide *glide {nullptr};
+    /// Where the pointer alone puts it, while dragged
+    std::optional<QPoint> byPointer;
     bool pressed {false};
     bool moving {false};
     QPoint pressPos;
@@ -256,6 +260,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     d->mainWindow = mainWindow;
     setObjectName(QStringLiteral("studioCanvasHud"));
     setAttribute(Qt::WA_TranslucentBackground);
+    d->glide = new KisStudioGlide(this);
 
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(KisModernStyle::space2, KisModernStyle::space1, KisModernStyle::space2, KisModernStyle::space1);
@@ -511,7 +516,7 @@ void KisStudioCanvasHud::reposition()
     const QPoint wanted(room.left() + KisStudioLayout::spotOffset(d->spot.x(), room.width(), grown.width()),
                         room.top() + KisStudioLayout::spotOffset(d->spot.y(), room.height(), grown.height()));
     const QRect at = Private::clearOf(QRect(wanted, size()), d->taken(this), room);
-    if (at.topLeft() != pos()) move(at.topLeft());
+    d->glide->moveTo(at.topLeft(), d->byPointer);
     KisStudioLayout::keepAbove(this);
 }
 
@@ -542,7 +547,9 @@ bool KisStudioCanvasHud::drag(QMouseEvent *event, QWidget *from)
         const QSize grown = KisStudioLayout::spotGrowth(this);
         d->spot = QPointF(KisStudioLayout::spotShare(at.x() - room.left(), room.width(), grown.width()),
                           KisStudioLayout::spotShare(at.y() - room.top(), room.height(), grown.height()));
+        d->byPointer = QPoint(qBound(room.left(), at.x(), room.left() + room.width()), qBound(room.top(), at.y(), room.top() + room.height()));
         reposition();
+        d->byPointer.reset();
         return true;
     }
     case QEvent::MouseButtonRelease:

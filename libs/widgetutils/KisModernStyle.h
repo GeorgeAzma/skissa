@@ -106,6 +106,8 @@ public:
     /// \p a toward \p b by \p t, alpha too
     static QColor mix(const QColor &a, const QColor &b, qreal t);
 
+    /// Whether the theme has an accent color: without one, Highlight is a gray made for checks and slider fills
+    static bool hasAccent(const QPalette &palette);
     /// A selected row or menu item's fill, as the style draws them; a shade of the text on themes with no accent
     static QColor selectedRow(const QPalette &palette);
     /// The text on selectedRow()

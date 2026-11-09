@@ -26,8 +26,15 @@
 #include <kis_group_layer.h>
 
 #include <kis_assert.h>
+#include <kis_layer.h>
+#include <kis_paint_device.h>
+#include <KoColorSpace.h>
 #include <QPointer>
 #include <QElapsedTimer>
+#include <QLineF>
+#include <QtMath>
+
+#include <algorithm>
 
 class KisSelectLayerAction::Private
 {
@@ -36,7 +43,7 @@ public:
     QPointer<KisLayerHover> hover;
     int shortcut {makeShortcut(LayerSelectionMode_TopLayer, SelectionOverrideMode_Replace)};
 
-    /// Clicking again where the last click picked a layer picks the next one down with paint there
+    /// Clicking again where the last click picked a layer picks the next one with paint there
     QPointF pressedAt;
     QPointF lastPickAt;
     QElapsedTimer lastPick;
@@ -54,27 +61,125 @@ public:
     /// The image the layer moves in, to end its stroke even when the canvas is gone by then
     KisImageWSP moveImage;
 
-    /// The layers with paint at \p imagePos, the top one first
-    KisNodeList stackAt(const QPoint &imagePos) const
+    /// Paint this close to the pointer counts as under it, so thin lines are easy to hit (screen pixels; at most
+    /// maxReach image pixels, so a view zoomed far out reads little)
+    static constexpr qreal reach = 3;
+    static constexpr qreal maxReach = 32;
+    /// Layers showing this nearly the same are a tie, which the upper one wins
+    static constexpr float tie = 1.0f / 255;
+
+    /// The pixels around the pointer, with how much of each the layers so far let through
+    struct Spot {
+        QRect rect;
+        QVector<int> inside;
+        QVector<float> through;
+    };
+
+    struct Shown {
+        KisNodeSP node;
+        float most;
+    };
+
+    static QVector<quint8> alphaOf(const KisPaintDeviceSP &device, const Spot &spot)
     {
-        KisImageSP image = q->inputManager()->canvas()->image();
-        KisNodeList nodes = KisToolUtils::findNodes(image->root()->firstChild(), imagePos, false, false);
-        std::reverse(nodes.begin(), nodes.end());
-        return nodes;
+        const KoColorSpace *space = device->colorSpace();
+        const int count = spot.rect.width() * spot.rect.height();
+        QVector<quint8> bytes(count * int(space->pixelSize()));
+        device->readBytes(bytes.data(), spot.rect);
+        QVector<quint8> alpha(count);
+        space->copyOpacityU8(bytes.data(), alpha.data(), count);
+        return alpha;
     }
 
-    /// What a click at \p widgetPos picks: the top layer there, or the one under the current one when clicking again
-    /// (or when the top one is the current one already, so a click always changes something)
-    KisNodeSP pickAt(const QPointF &widgetPos) const
+    /// Every layer from \p node down with paint near the pointer, with the most of it that shows there: its alpha
+    /// times what the layers above let through. Hidden and locked layers neither count nor cover.
+    static void collect(KisNodeSP node, qreal opacity, Spot &spot, QVector<Shown> &shown)
+    {
+        for (; node; node = node->prevSibling()) {
+            KisLayer *layer = qobject_cast<KisLayer *>(node.data());
+            if (!layer || !layer->isEditable()) continue;
+            const KisPaintDeviceSP device = layer->projection();
+            if (!device) continue;
+            const qreal scale = opacity * layer->opacity() / 255.0;
+            const KisGroupLayer *group = dynamic_cast<KisGroupLayer *>(layer);
+            if (group) {
+                // a group with nothing near isn't entered
+                bool painted = group->passThroughMode();
+                if (!painted) {
+                    const QVector<quint8> alpha = alphaOf(device, spot);
+                    painted = std::any_of(spot.inside.cbegin(), spot.inside.cend(), [&](int i) { return alpha[i] != 0; });
+                }
+                if (painted) collect(node->lastChild(), scale, spot, shown);
+                continue;
+            }
+            const QVector<quint8> alpha = alphaOf(device, spot);
+            const float weight = float(scale / 255);
+            bool painted = false;
+            float most = 0;
+            for (const int i : spot.inside) {
+                if (!alpha[i]) continue;
+                painted = true;
+                const float a = alpha[i] * weight;
+                most = qMax(most, a * spot.through[i]);
+                spot.through[i] *= 1 - a;
+            }
+            if (painted) shown.append(Shown{node, most});
+        }
+    }
+
+    /// The layers with paint near \p widgetPos, the one that shows most there first; layers showing alike in the
+    /// order they stack
+    KisNodeList stackAt(const QPointF &widgetPos) const
     {
         KisCanvas2 *canvas = q->inputManager()->canvas();
-        if (!canvas || !canvas->image()) return KisNodeSP();
-        const KisNodeList stack = stackAt(canvas->coordinatesConverter()->widgetToImage(widgetPos).toPoint());
+        if (!canvas || !canvas->image()) return KisNodeList();
+        const KisCoordinatesConverter *converter = canvas->coordinatesConverter();
+        const QPointF at = converter->widgetToImage(widgetPos);
+        const qreal radius =
+            qMin(maxReach, QLineF(at, converter->widgetToImage(widgetPos + QPointF(reach, 0))).length());
+        const QPoint under(qFloor(at.x()), qFloor(at.y()));
+
+        Spot spot;
+        spot.rect = QRect(QPoint(qFloor(at.x() - radius), qFloor(at.y() - radius)),
+                          QPoint(qFloor(at.x() + radius), qFloor(at.y() + radius)));
+        for (int y = spot.rect.top(); y <= spot.rect.bottom(); y++) {
+            for (int x = spot.rect.left(); x <= spot.rect.right(); x++) {
+                const QPointF d = QPointF(x + 0.5, y + 0.5) - at;
+                if (QPoint(x, y) == under || d.x() * d.x() + d.y() * d.y() <= radius * radius) {
+                    spot.inside.append((y - spot.rect.top()) * spot.rect.width() + x - spot.rect.left());
+                }
+            }
+        }
+        spot.through.fill(1, spot.rect.width() * spot.rect.height());
+
+        QVector<Shown> shown;
+        collect(canvas->image()->root()->lastChild(), 1, spot, shown);
+
+        KisNodeList stack;
+        while (!shown.isEmpty()) {
+            int best = 0;
+            for (int i = 1; i < shown.size(); i++) {
+                if (shown[i].most > shown[best].most + tie) best = i;
+            }
+            stack.append(shown.takeAt(best).node);
+        }
+        return stack;
+    }
+
+    /// What a click at \p widgetPos picks from the \p stack there: the layer that shows most, or the next one when
+    /// clicking again (or when that one is the current one already, so a click always changes something)
+    KisNodeSP pickFrom(const KisNodeList &stack, const QPointF &widgetPos) const
+    {
         if (stack.isEmpty()) return KisNodeSP();
-        const KisNodeSP active = canvas->viewManager()->nodeManager()->activeNode();
+        const KisNodeSP active = q->inputManager()->canvas()->viewManager()->nodeManager()->activeNode();
         const bool again = lastPick.isValid() && lastPick.elapsed() < againTime
             && QLineF(widgetPos, lastPickAt).length() < againDistance && stack.contains(active);
         return again || stack.first() == active ? stack[(stack.indexOf(active) + 1) % stack.size()] : stack.first();
+    }
+
+    KisNodeSP pickAt(const QPointF &widgetPos) const
+    {
+        return pickFrom(stackAt(widgetPos), widgetPos);
     }
 
     Private(KisSelectLayerAction *q)
@@ -270,14 +375,14 @@ void KisSelectLayerAction::inputEvent(QEvent *event)
             || event->type() == QEvent::TabletPress || event->type() == QTouchEvent::TouchBegin;
         KisNodeSP foundNode;
         if (press) {
-            // a click: the top layer, or the next one down when clicking again where the last one picked; picked
-            // when let go, as a drag moves the one pressed on instead
-            d->pendingPick = d->pickAt(widgetPos);
+            // a click: the layer that shows most there, or the next one when clicking again where the last one
+            // picked; picked when let go, as a drag moves the one pressed on instead
+            const KisNodeList stack = d->stackAt(widgetPos);
+            d->pendingPick = d->pickFrom(stack, widgetPos);
             d->pendingOverride = selectionOverrideMode;
             d->pressedAt = widgetPos;
             d->lastPickAt = widgetPos;
             d->lastPick.restart();
-            const KisNodeList stack = d->stackAt(pos);
             d->pressedNode = stack.isEmpty() ? KisNodeSP() : stack.first();
             d->pressedImageAt = pos;
             return;
@@ -295,9 +400,10 @@ void KisSelectLayerAction::inputEvent(QEvent *event)
             image->addJob(d->moveStroke, new MoveStrokeStrategy::Data(pos - d->pressedImageAt));
             return;
         } else if (QLineF(widgetPos, d->pressedAt).length() >= Private::againDistance) {
-            // dragged from nothing (or adding to the selection): the top layer under the pointer, as it goes
+            // dragged from nothing (or adding to the selection): the layer that shows most under the pointer, as it goes
             d->pendingPick.clear();
-            foundNode = KisToolUtils::findNode(inputManager()->canvas()->image()->root(), pos, false);
+            const KisNodeList stack = d->stackAt(widgetPos);
+            foundNode = stack.isEmpty() ? KisNodeSP() : stack.first();
             d->lastPick.invalidate();
         }
         if (!foundNode) {

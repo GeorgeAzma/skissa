@@ -4,12 +4,18 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioLayout.h"
+#include "KisStudioGlide.h"
 #include "KisStudioTools.h"
 
 #include <KisSentenceCase.h>
 #include <KisResourceItemChooser.h>
 #include "KisColorDrop.h"
 
+#include <QScopedValueRollback>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <ksharedconfig.h>
+#include <kconfiggroup.h>
 #include <QAbstractButton>
 #include <QTreeView>
 #include <QListView>
@@ -175,6 +181,28 @@ const QString panelSpotKey = QStringLiteral("StudioLayoutPanelSpot");
 const QString farSpotKey = QStringLiteral("StudioLayoutFarPanelSpot");
 const QString topBarSpotKey = QStringLiteral("StudioLayoutTopBarSpot");
 const QString classicStateKey = QStringLiteral("StudioLayoutClassicState");
+
+/// The arrangement as of the last step of the undo history (see KisStudioLayout::arrangementNow())
+QString &committedStore()
+{
+    static QString committed;
+    return committed;
+}
+
+/// Every window's layout: an undo of the arrangement arranges them all
+QList<QPointer<KisStudioLayout>> &everyLayout()
+{
+    static QList<QPointer<KisStudioLayout>> layouts;
+    return layouts;
+}
+
+/// Whether \p key holds part of the arrangement undone as one: not whether the Studio is on, the classic layout to go
+/// back to, the panel buttons (a setting of their own) or the zoom pill (which places itself)
+bool isArrangementKey(const QString &key)
+{
+    return key.startsWith(QLatin1String("StudioLayout")) && key != activeKey && key != classicStateKey && key != panelsKey
+        && !key.startsWith(QLatin1String("StudioLayoutViewPill"));
+}
 
 /// The panels on the rail by default; the tool options open from the tool chip instead
 QStringList defaultRailPanels()
@@ -1279,6 +1307,7 @@ public:
         layout->setSizeConstraint(QLayout::SetFixedSize);
         m_grip = new DragGrip(this);
         layout->addWidget(m_grip);
+        m_glide = new KisStudioGlide(this);
         canvasArea->installEventFilter(this);
         setTucked(false);
     }
@@ -1316,16 +1345,17 @@ public:
         const QRect room = this->room();
         const QSize grown = roomGrowth(this);
         const int across = offsetOf(m_spot.x(), room.width(), grown.width());
-        move(m_left ? room.left() + across : room.left() + room.width() - across, room.top() + offsetOf(m_spot.y(), room.height(), grown.height()));
+        m_glide->moveTo(QPoint(m_left ? room.left() + across : room.left() + room.width() - across, room.top() + offsetOf(m_spot.y(), room.height(), grown.height())),
+                        m_byPointer);
         KisStudioLayout::keepAbove(this);
         updateReach();
     }
 
-    /// Tells the panels where it is, so they keep off it: where it lands, not on the way while dragged
+    /// Tells the panels where it is, so they keep off it: where it lands, not on the way while dragged or gliding
     void updateReach()
     {
         QWidget *area = parentWidget();
-        const QRect at = isVisibleTo(area) ? geometry() : QRect();
+        const QRect at = isVisibleTo(area) ? QRect(m_glide->target(), size()) : QRect();
         if (area->property(railRectProperty).toRect() == at) return;
         area->setProperty(railRectProperty, at);
         if (!m_moving && reachChanged) reachChanged();
@@ -1376,7 +1406,9 @@ protected:
         const int across = m_left ? at.x() - room.left() : room.left() + room.width() - at.x();
         const QSize grown = roomGrowth(this);
         m_spot = QPointF(shareOf(across, room.width(), grown.width()), shareOf(at.y() - room.top(), room.height(), grown.height()));
+        m_byPointer = QPoint(qBound(room.left(), at.x(), room.left() + room.width()), qBound(room.top(), at.y(), room.top() + room.height()));
         place();
+        m_byPointer.reset();
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override
@@ -1439,6 +1471,9 @@ private:
     }
 
     DragGrip *m_grip {nullptr};
+    KisStudioGlide *m_glide {nullptr};
+    /// Where the pointer alone puts it, while dragged
+    std::optional<QPoint> m_byPointer;
     bool m_left {true};
     QPointF m_spot;
     bool m_pressed {false};
@@ -1484,6 +1519,7 @@ public:
         contents->setContentsMargins(0, 0, 0, 0);
         contents->setSpacing(0);
         layout->addWidget(m_contents);
+        m_glide = new KisStudioGlide(this);
         setTucked(false);
         canvasArea->installEventFilter(this);
         hide();
@@ -1526,7 +1562,7 @@ public:
     {
         QWidget *area = parentWidget();
         if (m_right) {
-            move(area->width() - margin - width(), margin);
+            m_glide->moveTo(QPoint(area->width() - margin - width(), margin));
         } else {
             const QSize grown = roomGrowth(this);
             int y = margin + offsetOf(m_spot.y(), roomY(), grown.height());
@@ -1548,7 +1584,7 @@ public:
                 const int refSpan = span.second + openWidth() - m_refWidth;
                 x = qBound(span.first, span.first + offsetOf(m_spot.x(), refSpan - span.first, grown.width()), span.second);
             }
-            move(x, y);
+            m_glide->moveTo(QPoint(x, y), m_byPointer);
         }
         KisStudioLayout::keepAbove(this);
     }
@@ -1651,7 +1687,9 @@ private:
         const QPair<int, int> span = spanAt(margin + offsetOf(down, roomY(), grown.height()));
         m_spot = QPointF(shareOf(at.x() - span.first, span.second - span.first, grown.width()), down);
         m_refWidth = openWidth();
+        m_byPointer = at;
         place();
+        m_byPointer.reset();
         if (changed) changed();
     }
 
@@ -1666,6 +1704,9 @@ private:
     TopGrip *m_grip {nullptr};
     QWidget *m_contents {nullptr};
     QPointer<QWidget> m_squeezable;
+    KisStudioGlide *m_glide {nullptr};
+    /// Where the pointer alone puts it, while dragged
+    std::optional<QPoint> m_byPointer;
 };
 
 /// The application icon in the top-left corner, capping the tool rail: a click goes home, a drag moves the window
@@ -2365,7 +2406,9 @@ private:
             if (!widget || widget->isHidden()) continue;
             const QString name = widget->objectName();
             if (name == QLatin1String("studioTopPill") || name == QLatin1String("studioWindowPill") || name == QLatin1String("studioWindowHandle")) {
-                bars << widget->geometry();
+                // a bar gliding somewhere is already there
+                const QRect target = widget->property("studioTarget").toRect();
+                bars << (target.isValid() ? target : widget->geometry());
             }
         }
         return bars;
@@ -2560,6 +2603,9 @@ struct KisStudioLayout::Private
 {
     KisMainWindow *mainWindow {nullptr};
     bool active {false};
+    /// Arranging again after an undo: nothing done then is a step of its own
+    bool reloadingArrangement {false};
+    bool commitPending {false};
 
     /// The strip of panel buttons above the pinned panels
     QPointer<QToolBar> rail;
@@ -2849,6 +2895,7 @@ KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
     , d(new Private)
 {
     d->mainWindow = mainWindow;
+    everyLayout() << this;
     // snapshot the settings at startup, so later changes that need a restart show as pending
     KisSettingsRegistry::instance();
     // Krita's tags for the resources taken from it, now that they are read
@@ -2889,6 +2936,103 @@ KisStudioLayout::~KisStudioLayout()
     if (d->active) {
         qApp->removeEventFilter(this);
     }
+}
+
+QString KisStudioLayout::arrangementNow()
+{
+    QJsonObject keys;
+    const QMap<QString, QString> entries = KSharedConfig::openConfig()->group(QString()).entryMap();
+    for (auto it = entries.constBegin(); it != entries.constEnd(); ++it) {
+        if (isArrangementKey(it.key())) keys.insert(it.key(), it.value());
+    }
+    return QString::fromUtf8(QJsonDocument(keys).toJson(QJsonDocument::Compact));
+}
+
+QString KisStudioLayout::committedArrangement()
+{
+    if (committedStore().isNull()) committedStore() = arrangementNow();
+    return committedStore();
+}
+
+void KisStudioLayout::restoreArrangement(const QString &arrangement)
+{
+    committedStore() = arrangement;
+    if (arrangement == arrangementNow()) return;
+    KConfigGroup group = KSharedConfig::openConfig()->group(QString());
+    const QJsonObject keys = QJsonDocument::fromJson(arrangement.toUtf8()).object();
+    const QMap<QString, QString> entries = group.entryMap();
+    for (auto it = entries.constBegin(); it != entries.constEnd(); ++it) {
+        if (isArrangementKey(it.key()) && !keys.contains(it.key())) group.deleteEntry(it.key());
+    }
+    for (auto it = keys.constBegin(); it != keys.constEnd(); ++it) group.writeEntry(it.key(), it.value().toString());
+    KisSettingsRegistry::instance()->scheduleSync();
+    Q_FOREACH (const QPointer<KisStudioLayout> &layout, everyLayout()) {
+        if (layout) layout->reloadArrangement();
+    }
+}
+
+void KisStudioLayout::reloadArrangement()
+{
+    if (!d->active) return;
+    QScopedValueRollback<bool> reloading(d->reloadingArrangement, true);
+    const QSet<QString> wasPinned = d->pinned;
+    readArrangement();
+    // panels pinned since go back to their buttons; those unpinned since come back
+    Q_FOREACH (QDockWidget *dock, d->panels) {
+        const QString id = dock->objectName();
+        const bool pinned = d->pinned.contains(id);
+        if (wasPinned.contains(id) == pinned) continue;
+        if (pinned) {
+            if (dock == d->flyout) releaseFlyout();
+            dockAway(dock);
+            dock->show();
+        } else {
+            applyFold(dock, false);
+            dock->hide();
+            parkPanel(dock);
+        }
+    }
+    // the groups take their places, sides and widths again
+    d->laneWidths.clear();
+    if (d->panelColumn) {
+        d->laneWidths.insert(0, readWidths(0));
+        d->panelColumn->setSpot(readSpot(panelSpotKey), readSpotHeight(panelSpotKey));
+    }
+    for (auto it = d->groupColumns.constBegin(); it != d->groupColumns.constEnd(); ++it) {
+        KisStudioPanelColumn *column = it.value();
+        if (!column) continue;
+        const int group = it.key();
+        d->laneWidths.insert(group, readWidths(group));
+        if (group >= 2) column->setLeft(KisConfig(true).readEntry<QString>(groupKey(group, "Side"), QString()) == QLatin1String("left"));
+        const QString spotKey = group == 1 ? farSpotKey : groupKey(group, "Spot");
+        column->setSpot(readSpot(spotKey), readSpotHeight(spotKey));
+    }
+    d->arrangement.clear();
+    arrangePinned();
+    Q_FOREACH (const QString &id, d->pinned) applyFold(d->mainWindow->dockWidget(id), d->folded.contains(id));
+    setPanelsTucked(d->panelsTucked);
+    if (auto *rail = static_cast<RailOverlay *>(d->brushRail.data())) {
+        rail->setTucked(d->toolRailTucked);
+        rail->setPlace(d->toolRailLeft, d->toolRailSpot);
+    }
+    if (d->topPill) {
+        d->topPill->setTucked(d->topBarTucked);
+        d->topPill->setSpot(d->topBarSpot, readSpotHeight(topBarSpotKey));
+    }
+    updateCanvasInsets();
+}
+
+void KisStudioLayout::commitArrangement()
+{
+    if (!d->active || d->reloadingArrangement || d->commitPending) return;
+    d->commitPending = true;
+    // once this event is done with, so every write of the gesture is in the step
+    QTimer::singleShot(0, this, [this]() {
+        d->commitPending = false;
+        KisSettingsRegistry *registry = KisSettingsRegistry::instance();
+        if (!d->active || d->reloadingArrangement || registry->replaying()) return;
+        registry->setValue(QStringLiteral("StudioLayoutArrangement"), arrangementNow());
+    });
 }
 
 void KisStudioLayout::keepAbove(QWidget *overlay)
@@ -2951,23 +3095,14 @@ void KisStudioLayout::setActive(bool active)
     }
 }
 
-void KisStudioLayout::enter()
+void KisStudioLayout::readArrangement()
 {
-    KisMainWindow *mainWindow = d->mainWindow;
-    // the pills and panels live in the main window's canvas area
-    mainWindow->setCanvasDetached(false);
-
     KisConfig cfg(true);
     auto readSet = [&cfg](const QString &key) {
         const QStringList list = cfg.readEntry<QStringList>(key);
         return QSet<QString>(list.begin(), list.end());
     };
     d->pinned = readSet(pinnedKey);
-    // a first start shows the panels painting needs together, not one at a time
-    const bool firstStart = cfg.readEntry<QString>(pinnedKey, QStringLiteral("\x1f")) == QLatin1String("\x1f");
-    if (firstStart) {
-        d->pinned = {QStringLiteral("StudioColor"), QStringLiteral("PresetDocker"), QStringLiteral("KisLayerBox")};
-    }
     d->groups.clear();
     Q_FOREACH (const QString &id, readSet(farKey)) {
         d->groups.insert(id, 1);
@@ -2976,15 +3111,6 @@ void KisStudioLayout::enter()
         const int separator = entry.lastIndexOf(QLatin1Char('='));
         const int group = separator > 0 ? entry.mid(separator + 1).toInt() : 0;
         if (group >= 2) d->groups.insert(entry.left(separator), group);
-    }
-    if (firstStart && cfg.readEntry<QStringList>(groupsKey).isEmpty()) {
-        // color and brushes together at the bottom by the tools, away from the hand that paints; the layers with the
-        // panel buttons
-        d->groups.insert(QStringLiteral("StudioColor"), 2);
-        d->groups.insert(QStringLiteral("PresetDocker"), 2);
-        KisConfig out(false);
-        out.writeEntry(groupKey(2, "Side"), QStringLiteral("left"));
-        out.writeEntry(groupKey(2, "Spot"), QStringLiteral("0,1"));
     }
     d->lanes.clear();
     Q_FOREACH (const QString &entry, cfg.readEntry<QStringList>(lanesKey)) {
@@ -3002,7 +3128,6 @@ void KisStudioLayout::enter()
     d->panelsTucked = cfg.readEntry<bool>(panelsHiddenKey, false);
     d->toolRailTucked = cfg.readEntry<bool>(toolRailHiddenKey, false);
     d->topBarTucked = cfg.readEntry<bool>(topBarHiddenKey, false);
-    d->arrangement.clear();
     d->heights.clear();
     Q_FOREACH (const QString &entry, cfg.readEntry<QStringList>(heightsKey)) {
         const int separator = entry.lastIndexOf(QLatin1Char('='));
@@ -3010,6 +3135,33 @@ void KisStudioLayout::enter()
             d->heights.insert(entry.left(separator), entry.mid(separator + 1).toInt());
         }
     }
+}
+
+void KisStudioLayout::enter()
+{
+    // what is arranged on the way in (a first start's places) is where undo stops
+    QTimer::singleShot(0, this, []() { committedStore() = arrangementNow(); });
+    KisMainWindow *mainWindow = d->mainWindow;
+    // the pills and panels live in the main window's canvas area
+    mainWindow->setCanvasDetached(false);
+
+    KisConfig cfg(true);
+    // a first start shows the panels painting needs together, not one at a time
+    const bool firstStart = cfg.readEntry<QString>(pinnedKey, QStringLiteral("\x1f")) == QLatin1String("\x1f");
+    readArrangement();
+    if (firstStart) {
+        d->pinned = {QStringLiteral("StudioColor"), QStringLiteral("PresetDocker"), QStringLiteral("KisLayerBox")};
+    }
+    if (firstStart && cfg.readEntry<QStringList>(groupsKey).isEmpty()) {
+        // color and brushes together at the bottom by the tools, away from the hand that paints; the layers with the
+        // panel buttons
+        d->groups.insert(QStringLiteral("StudioColor"), 2);
+        d->groups.insert(QStringLiteral("PresetDocker"), 2);
+        KisConfig out(false);
+        out.writeEntry(groupKey(2, "Side"), QStringLiteral("left"));
+        out.writeEntry(groupKey(2, "Spot"), QStringLiteral("0,1"));
+    }
+    d->arrangement.clear();
 
     Q_FOREACH (QDockWidget *dock, mainWindow->dockWidgets()) {
         QWidget *titleBar = dock->titleBarWidget();
@@ -3785,6 +3937,7 @@ void KisStudioLayout::toggleToolOptions()
 
 void KisStudioLayout::setPinned(QDockWidget *dock, bool pinned)
 {
+    commitArrangement();
     const QString id = dock->objectName();
     if (pinned) {
         d->pinned.insert(id);
@@ -4024,6 +4177,7 @@ QList<QStringList> KisStudioLayout::lanesOf(const KisStudioPanelColumn *column) 
 
 void KisStudioLayout::joinGroups(KisStudioPanelColumn *from, KisStudioPanelColumn *to, Qt::Edge edge, int lane, const QRect &placed)
 {
+    commitArrangement();
     const QList<QStringList> moving = lanesOf(from);
     const QList<QStringList> staying = lanesOf(to);
     const QVector<int> movingWidths = from->laneWidths().mid(0, moving.size());
@@ -4074,6 +4228,7 @@ void KisStudioLayout::joinGroups(KisStudioPanelColumn *from, KisStudioPanelColum
 
 void KisStudioLayout::separateLanes(KisStudioPanelColumn *column, int lane)
 {
+    commitArrangement();
     const QList<QStringList> lanes = lanesOf(column);
     if (lane <= 0 || lane >= lanes.size()) return;
     QWidget *area = column->parentWidget();
@@ -4103,6 +4258,7 @@ void KisStudioLayout::separateLanes(KisStudioPanelColumn *column, int lane)
 
 void KisStudioLayout::separateBelow(KisStudioPanelColumn *column, int lane, QDockWidget *above)
 {
+    commitArrangement();
     const QList<QStringList> lanes = lanesOf(column);
     if (!above || lane < 0 || lane >= lanes.size()) return;
     const QStringList ids = lanes[lane];
@@ -4165,6 +4321,7 @@ KisStudioPanelColumn *KisStudioLayout::panelColumn()
             writeSpot(panelSpotKey, spot, d->panelColumn ? d->panelColumn->refHeight() : 0);
             if (left != d->panelsLeft) setPanelsSide(left);
             else updateCanvasInsets();
+            commitArrangement();
         };
         d->panelColumn->tapped = [this]() { setPanelsTucked(!d->panelsTucked); };
     }
@@ -4201,6 +4358,7 @@ KisStudioPanelColumn *KisStudioLayout::groupColumn(int group)
             KisSettingsRegistry::writeLater(groupKey(group, "Side"), left ? QStringLiteral("left") : QStringLiteral("right"));
         }
         updateCanvasInsets();
+        commitArrangement();
     };
     d->groupColumns.insert(group, column);
     return column;
@@ -4248,6 +4406,7 @@ KisStudioPanelColumn *KisStudioLayout::createColumn(int group, bool left)
         if (done && self) {
             d->laneWidths.insert(group, self->laneWidths());
             saveWidths(group);
+            commitArrangement();
         }
     };
     column->stackMade = [this](PanelStack *stack) {
@@ -4261,7 +4420,10 @@ KisStudioPanelColumn *KisStudioLayout::createColumn(int group, bool left)
         stack->resizedByUser = [this](QDockWidget *dock, int height, bool done) {
             if (height > 0) d->heights.insert(dock->objectName(), height);
             else d->heights.remove(dock->objectName());
-            if (done) saveHeights();
+            if (done) {
+                saveHeights();
+                commitArrangement();
+            }
         };
     };
     column->joining = [this](KisStudioPanelColumn *dragged, const QRect &placed, bool dropped) { return joinAt(dragged, placed, dropped); };
@@ -4276,6 +4438,7 @@ KisStudioPanelColumn *KisStudioLayout::createColumn(int group, bool left)
 
 void KisStudioLayout::setPanelsTucked(bool tucked)
 {
+    commitArrangement();
     d->panelsTucked = tucked;
     KisSettingsRegistry::writeLater(panelsHiddenKey, tucked);
     if (d->stripGrip) {
@@ -4287,6 +4450,7 @@ void KisStudioLayout::setPanelsTucked(bool tucked)
 
 void KisStudioLayout::setToolRailTucked(bool tucked)
 {
+    commitArrangement();
     d->toolRailTucked = tucked;
     KisSettingsRegistry::writeLater(toolRailHiddenKey, tucked);
     if (auto *rail = static_cast<RailOverlay *>(d->brushRail.data())) rail->setTucked(tucked);
@@ -4294,6 +4458,7 @@ void KisStudioLayout::setToolRailTucked(bool tucked)
 
 void KisStudioLayout::setTopBarTucked(bool tucked)
 {
+    commitArrangement();
     d->topBarTucked = tucked;
     KisSettingsRegistry::writeLater(topBarHiddenKey, tucked);
     if (d->topPill) d->topPill->setTucked(tucked);
@@ -4302,6 +4467,7 @@ void KisStudioLayout::setTopBarTucked(bool tucked)
 
 void KisStudioLayout::setPanelsSide(bool left)
 {
+    commitArrangement();
     d->panelsLeft = left;
     KisSettingsRegistry::writeLater(panelSideKey, left ? QStringLiteral("left") : QStringLiteral("right"));
     d->arrangement.clear();
@@ -4310,6 +4476,7 @@ void KisStudioLayout::setPanelsSide(bool left)
 
 void KisStudioLayout::setToolRailSide(bool left)
 {
+    commitArrangement();
     d->toolRailLeft = left;
     KisSettingsRegistry::writeLater(toolRailSideKey, left ? QStringLiteral("left") : QStringLiteral("right"));
     if (auto *rail = static_cast<RailOverlay *>(d->brushRail.data())) rail->setPlace(left, d->toolRailSpot);
@@ -4540,6 +4707,7 @@ void KisStudioLayout::saveHeights()
 
 void KisStudioLayout::gripClicked(const QString &id)
 {
+    commitArrangement();
     QDockWidget *dock = d->mainWindow->dockWidget(id);
     if (!dock) {
         return;
@@ -4645,6 +4813,7 @@ void KisStudioLayout::applyFold(QDockWidget *dock, bool fold)
 
 void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool fromRail)
 {
+    commitArrangement();
     d->hidePanelDrop();
     QDockWidget *dock = d->mainWindow->dockWidget(id);
     if (!dock) {
@@ -5105,6 +5274,7 @@ void KisStudioLayout::createBrushRail()
         d->toolRailSpot = spot;
         writeSpot(toolRailSpotKey, spot);
         setToolRailSide(left);
+        commitArrangement();
     };
     rail->tapped = [this]() { setToolRailTucked(!d->toolRailTucked); };
     // the panels on its side go beside it
@@ -5283,6 +5453,7 @@ void KisStudioLayout::adoptTopBars()
             d->topBarSpot = spot;
             writeSpot(topBarSpotKey, spot, d->topPill->spotWidth());
             updateCanvasInsets();
+            commitArrangement();
         };
         d->topPill->setTucked(d->topBarTucked);
         d->topPill->setSpot(d->topBarSpot, readSpotHeight(topBarSpotKey));

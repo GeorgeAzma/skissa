@@ -5,6 +5,7 @@
  */
 
 #include "KisColorDrop.h"
+#include "KisRedoLast.h"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -403,7 +404,7 @@ Target targetFor(KisImageSP image, KisNodeSP active, const QPoint &point)
         // blue, green, red, alpha
         const quint8 *p = pictureIsSrgb ? pictureRow.data() : colors.data();
         for (int x = 0; x < width; x++, p += 4) {
-            if (p[3] * (255 - qGray(p[2], p[1], p[0])) < 96 * 255) {
+            if (KisLineArtFill::inkOf(qRgba(p[2], p[1], p[0], p[3])) < KisLineArtFill::lineInk) {
                 (ownAlpha[x] < 128 ? clear : opaque)++;
                 continue;
             }
@@ -464,13 +465,7 @@ struct KisColorDrop::Private {
     // the last drop, made again as its panel changes it while it is still the newest step
     QPoint lastSeed {-1, -1};
     KoColor lastColor;
-    QPointer<KUndo2Stack> stack;
-    QMetaObject::Connection stackConnection;
-    const KUndo2Command *step {nullptr};
-    QTimer refill;
-    int refillTries {0};
-    const KUndo2Command *stepBefore {nullptr};
-    bool expecting {false};
+    KisRedoLast redo;
     /// Making the last fill again: its layer is the one active at the drop, not what is active now
     bool refilling {false};
     /// The layer active when the last fill was made
@@ -566,19 +561,13 @@ struct KisColorDrop::Private {
     /// The last fill taken back, while it is still the newest step
     void takeBack()
     {
-        refill.stop();
-        if (!stack || !step) return;
-        const int index = stack->index();
-        if (index >= 1 && index == stack->count() && stack->command(index - 1) == step) {
-            step = nullptr;
-            stack->setIndex(index - 1);
-        }
+        redo.takeBack();
     }
 
     void hidePanel()
     {
         keepFilling = false;
-        refill.stop();
+        redo.forget();
         qApp->removeEventFilter(q);
         if (panel) panel->deleteLater();
         panel = nullptr;
@@ -593,8 +582,7 @@ struct KisColorDrop::Private {
         options.underLines = panel->underLines->isChecked();
         options.write();
         threshold = options.threshold;
-        refillTries = 0;
-        refill.start(0);
+        redo.settingChanged();
     }
 
     void showPanel(const QPoint &canvasPos)
@@ -631,32 +619,6 @@ struct KisColorDrop::Private {
         panel->raise();
         panel->bucket->update();
     }
-
-    /// Notes the history step the next fill makes, to take it back if its panel changes it
-    void expectStep()
-    {
-        KisDocument *document = view ? view->document() : nullptr;
-        KUndo2Stack *undo = document ? document->undoStack() : nullptr;
-        step = nullptr;
-        if (undo != stack) {
-            QObject::disconnect(stackConnection);
-            stack = undo;
-            if (undo) {
-                stackConnection = QObject::connect(undo, &KUndo2Stack::indexChanged, q, [this](int index) {
-                    if (step || !stack || !expecting || index < 1) return;
-                    const KUndo2Command *top = stack->command(index - 1);
-                    if (top && top != stepBefore) {
-                        step = top;
-                        expecting = false;
-                    }
-                });
-            }
-        }
-        // the newest command now: the fill's is the next that differs (a full history drops its oldest instead
-        // of growing, so its index doesn't tell)
-        stepBefore = stack && stack->index() > 0 ? stack->command(stack->index() - 1) : nullptr;
-        expecting = stack;
-    }
 };
 
 KisColorDrop::KisColorDrop(KisView *view)
@@ -667,8 +629,6 @@ KisColorDrop::KisColorDrop(KisView *view)
     d->view = view;
     d->preview = new Preview(view);
     view->canvasBase()->addDecoration(KisCanvasDecorationSP(d->preview.data()));
-    d->refill.setSingleShot(true);
-    connect(&d->refill, &QTimer::timeout, this, [this]() { refillLast(); });
     // picking another tool ends keeping on filling
     if (KoToolManager *tools = view && view->viewManager() ? view->viewManager()->toolManager() : nullptr) {
         connect(tools, &KoToolManager::changedTool, this, [this]() {
@@ -771,25 +731,8 @@ bool KisColorDrop::drop(const KoColor &color, const QPoint &canvasPos)
 void KisColorDrop::refillLast()
 {
     KisImageSP image = d->view ? d->view->image() : nullptr;
-    if (!image || !d->stack || d->lastSeed == QPoint(-1, -1)) return;
-    if (!d->step) {
-        // the fill's step isn't in the history yet: it is still being made
-        if (d->expecting && ++d->refillTries < 300) d->refill.start(16);
-        return;
-    }
-    const int index = d->stack->index();
-    // only while the fill is still the newest step, with nothing undone after it
-    if (index < 1 || index != d->stack->count() || d->stack->command(index - 1) != d->step) {
-        d->step = nullptr;
-        return;
-    }
-    if (!image->isIdle()) {
-        if (++d->refillTries < 300) d->refill.start(16);
-        return;
-    }
-    d->step = nullptr;
-    d->stack->setIndex(index - 1);
-    // the undo runs as a stroke of its own: done before the fill reads which layers there are
+    if (!image || d->lastSeed == QPoint(-1, -1)) return;
+    // the fill was just taken back, as a stroke of its own: done before the fill reads which layers there are
     image->waitForDone();
     d->refilling = true;
     fillAt(d->lastColor, d->lastSeed);
@@ -820,7 +763,8 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
 
     d->lastSeed = point;
     d->lastColor = color;
-    d->expectStep();
+    // made again while its panel changes it and it is still the newest step
+    d->redo.made(d->view->document() ? d->view->document()->undoStack() : nullptr, kundo2_i18n("Fill"), [this]() { refillLast(); });
     KisStrokeStrategyUndoCommandBased *strategy =
         new KisStrokeStrategyUndoCommandBased(kundo2_i18n("Fill"), false, image.data());
     strategy->setSupportsWrapAroundMode(true);

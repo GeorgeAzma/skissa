@@ -442,6 +442,11 @@ QEasingCurve KisModernStyle::motionCurve()
     return curve;
 }
 
+bool KisModernStyle::hasAccent(const QPalette &palette)
+{
+    return !accentless(palette);
+}
+
 QColor KisModernStyle::selectedRow(const QPalette &palette)
 {
     return selectionTint(palette);

@@ -47,6 +47,13 @@ public:
      */
     static void keepAbove(QWidget *overlay);
 
+    /// Where the panels and bars are (places, groups, lanes, sizes, folds) as one value, so that each change of it is
+    /// one step of the undo history: as it is now, and as of the last step
+    static QString arrangementNow();
+    static QString committedArrangement();
+    /// An undo or redo of the arrangement: writes \p arrangement and arranges every window by it
+    static void restoreArrangement(const QString &arrangement);
+
     bool isActive() const;
     /// Switches between the studio layout and Krita's classic dockers
     void setActive(bool active);
@@ -75,6 +82,12 @@ public:
 private:
     void enter();
     void leave();
+    /// Reads the arrangement from kritarc (see arrangementNow())
+    void readArrangement();
+    /// Arranges the panels and bars again as kritarc has them
+    void reloadArrangement();
+    /// Makes what was just arranged a step of the undo history, once the event doing it is done
+    void commitArrangement();
     /// Creates the settings panel the first time it is needed
     void ensureSettings();
     /// Handles clicks and the wheel on the brush bar's preset button

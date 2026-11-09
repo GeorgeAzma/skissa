@@ -38,6 +38,7 @@
 #include "KisPart.h"
 #include "KisPlatformPluginInterfaceFactory.h"
 #include "KisStudioGlass.h"
+#include "KisStudioLayout.h"
 #include "KisStudioTheme.h"
 #include "KisView.h"
 #include "KisViewManager.h"
@@ -398,6 +399,14 @@ QVector<Setting> describeAll()
         all << itemList(QStringLiteral("StudioBarItems"), i18nc("setting", "Top bar buttons"));
         all << itemList(QStringLiteral("StudioViewPillItems"), i18nc("setting", "Zoom pill buttons"));
         all << itemList(QStringLiteral("StudioLayoutPanels"), i18nc("setting", "Panel buttons"));
+        {
+            // where the panels and bars are, one step for each change (KisStudioLayout::arrangementNow)
+            Setting arrangement = make(Kind::Text, QStringLiteral("StudioLayoutArrangement"), QString(), i18nc("setting", "Panels"),
+                                       KisSettingsRegistry::Fork | KisSettingsRegistry::OwnNotice);
+            arrangement.read = []() { return QVariant(KisStudioLayout::committedArrangement()); };
+            arrangement.write = [](const QVariant &value) { KisStudioLayout::restoreArrangement(value.toString()); };
+            all << arrangement;
+        }
         // what the pickers list first
         all << itemList(QStringLiteral("StudioBrushes"), i18nc("setting", "Favorite brushes"));
         all << itemList(QStringLiteral("StudioEffects"), i18nc("setting", "Favorite effects"));

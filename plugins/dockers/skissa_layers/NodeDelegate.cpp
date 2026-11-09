@@ -8,6 +8,8 @@
 #include "kis_config.h"
 #include "NodeDelegate.h"
 #include "kis_node_model.h"
+#include "kis_node_filter_proxy_model.h"
+#include <kis_node.h>
 #include "NodeToolTip.h"
 #include "NodeView.h"
 #include "KisPart.h"
@@ -22,7 +24,6 @@
 #include <QHeaderView>
 #include <KisTouchMode.h>
 #include <KisStudioTips.h>
-#include <QRegularExpression>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QModelIndex>
@@ -172,25 +173,18 @@ QRect NodeDelegate::opacityRect(const QModelIndex &index, const QRect &row, Qt::
     return QRect(direction == Qt::RightToLeft ? controls.left() : controls.right() + 1 - width, controls.top(), width, controls.height());
 }
 
-/// What isn't a digit, made once: rows are painted often
-static const QRegularExpression &nonDigits()
-{
-    static const QRegularExpression expression(QStringLiteral("[^0-9]"));
-    return expression;
-}
-
-/// A layer's opacity in percent, from its properties; -1 if it has none
+/// A layer's opacity in percent, read from the layer, not its shown text (other scripts write other digits); -1 for
+/// what has none (masks)
 static int opacityPercentOf(const QModelIndex &index)
 {
-    const KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
-    for (const KisBaseNode::Property &prop : props) {
-        if (prop.id == QLatin1String("opacity")) {
-            QString digits = prop.state.toString();
-            digits.remove(nonDigits());
-            return digits.isEmpty() ? -1 : digits.toInt();
-        }
+    if (!index.isValid()) return -1;
+    KisNodeSP node;
+    if (const auto *filter = qobject_cast<const KisNodeFilterProxyModel *>(index.model())) {
+        node = filter->nodeFromIndex(index);
+    } else if (const auto *model = qobject_cast<const KisNodeModel *>(index.model())) {
+        node = model->nodeFromIndex(index);
     }
-    return -1;
+    return node && node->inherits("KisLayer") ? node->percentOpacity() : -1;
 }
 
 QSize NodeDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
@@ -516,15 +510,10 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
         p->drawText(rc, start | Qt::AlignVCenter, p->fontMetrics().elidedText(text, Qt::ElideRight, rc.width()));
         // the blend mode and opacity on the second line, where the current layer has its controls instead
         QString mode;
-        int opacity = -1;
+        const int opacity = opacityPercentOf(index);
         const KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
         for (const KisBaseNode::Property &prop : props) {
             if (prop.id == QLatin1String("compositeop")) mode = prop.state.toString();
-            if (prop.id == QLatin1String("opacity")) {
-                QString digits = prop.state.toString();
-                digits.remove(nonDigits());
-                opacity = digits.isEmpty() ? -1 : digits.toInt();
-            }
         }
         if (!mode.isEmpty() && opacity >= 0) {
             const QRect line = inlineControlsRect(index, option.rect, option.direction);

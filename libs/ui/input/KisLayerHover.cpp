@@ -19,6 +19,38 @@
 #include <kis_node.h>
 #include <kis_paint_device.h>
 
+#include "KisColorMath.h"
+
+#include <cmath>
+
+namespace
+{
+
+struct Colors {
+    QColor fill;
+    QColor text;
+};
+
+/// The theme's accent, or its text color on a theme without one: the gray selection color, made for checks, reads
+/// muddy over a picture. Text in the theme's own color where it stands well apart, else near white or near black.
+Colors colorsOf(const QPalette &palette)
+{
+    const QColor accent = palette.color(QPalette::Highlight);
+    const bool accentless = !KisModernStyle::hasAccent(palette);
+    Colors colors;
+    colors.fill = accentless ? palette.color(QPalette::Text) : accent;
+    colors.fill.setAlpha(255);
+    colors.text = accentless ? palette.color(QPalette::Window) : palette.color(QPalette::HighlightedText);
+    colors.text.setAlpha(255);
+    const qreal lightness = KisColorMath::oklabOf(colors.fill).l;
+    if (std::abs(KisColorMath::oklabOf(colors.text).l - lightness) < 0.45) {
+        colors.text = lightness < 0.68 ? QColor(250, 250, 250) : QColor(24, 24, 24);
+    }
+    return colors;
+}
+
+} // namespace
+
 KisLayerHover::KisLayerHover(KisCanvas2 *canvas, std::function<KisNodeSP(const QPointF &)> picks)
     : QWidget(canvas->canvasWidget())
     , m_picks(std::move(picks))
@@ -78,11 +110,11 @@ void KisLayerHover::pointAt(const QPointF &widgetPos)
         }
         m_bounds = node->exactBounds();
         if (!m_bounds.isEmpty()) {
-            // in the selection color, at a size good enough over the canvas
+            // in the name's color, at a size good enough over the canvas
             const QSize size = m_bounds.size().scaled(QSize(480, 480), Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
             QImage alpha = device->createThumbnailUncached(size.width(), size.height(), m_bounds)
                                .convertToFormat(QImage::Format_ARGB32);
-            const QColor ink = palette().color(QPalette::Highlight);
+            const QColor ink = colorsOf(palette()).fill;
             for (int y = 0; y < alpha.height(); y++) {
                 QRgb *line = reinterpret_cast<QRgb *>(alpha.scanLine(y));
                 for (int x = 0; x < alpha.width(); x++) {
@@ -125,28 +157,36 @@ void KisLayerHover::paintEvent(QPaintEvent *)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    const QColor ink = palette().color(QPalette::Highlight);
+    const Colors colors = colorsOf(palette());
     if (!m_tint.isNull()) {
         // in image coordinates: rotated and mirrored with the canvas
         painter.save();
         painter.setTransform(m_canvas->coordinatesConverter()->imageToWidgetTransform());
         painter.drawImage(QRectF(m_bounds), m_tint);
-        QPen pen(ink, 1.5);
-        pen.setCosmetic(true);
-        pen.setStyle(Qt::DashLine);
-        painter.setPen(pen);
+        // dashes over a line of the other color, seen on light and dark pictures alike
+        QPen line(colors.text, 1.5);
+        line.setCosmetic(true);
+        painter.setPen(line);
         painter.setBrush(Qt::NoBrush);
+        painter.drawRect(QRectF(m_bounds));
+        QPen dashes(colors.fill, 1.5);
+        dashes.setCosmetic(true);
+        dashes.setStyle(Qt::DashLine);
+        painter.setPen(dashes);
         painter.drawRect(QRectF(m_bounds));
         painter.restore();
     }
-    // the name, by the pointer
+    // the name, by the pointer, its edge showing on a picture of its own color
     painter.setFont(nameFont());
     const QString name = m_node->name();
     const QRectF pill = pillAt();
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(ink);
-    painter.drawPath(KisModernStyle::squircle(pill, pill.height() / 2));
-    painter.setPen(palette().color(QPalette::HighlightedText));
+    QColor edge = colors.text;
+    edge.setAlphaF(0.35);
+    painter.setPen(QPen(edge, 1));
+    painter.setBrush(colors.fill);
+    const QRectF shape = pill.adjusted(0.5, 0.5, -0.5, -0.5);
+    painter.drawPath(KisModernStyle::squircle(shape, shape.height() / 2));
+    painter.setPen(colors.text);
     painter.drawText(pill, Qt::AlignCenter, name);
 }
 

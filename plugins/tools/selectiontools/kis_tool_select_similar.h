@@ -13,7 +13,7 @@
 #include "kis_tool_select_base.h"
 #include <kconfiggroup.h>
 #include <commands_new/KisMergeLabeledLayersCommand.h>
-#include <KisReselect.h>
+#include <KisRedoLast.h>
 
 /*
  * Tool to select colors by pointing at a color on the image.
@@ -50,7 +50,7 @@ private:
     int m_previousTime;
     /// The click's selection at \p pos, with the settings there are
     void selectAt(const QPoint &pos, SelectionAction action);
-    KisReselect m_reselect;
+    KisRedoLast m_redoLast;
 };
 
 

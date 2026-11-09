@@ -116,6 +116,7 @@ void KisToolFill::activate(const QSet<KoShape*> &shapes)
 
 void KisToolFill::deactivate()
 {
+    m_redoLast.forget();
     m_referencePaintDevice = nullptr;
     m_referenceNodeList = nullptr;
     KisCanvas2 *kisCanvas = static_cast<KisCanvas2*>(canvas());
@@ -175,6 +176,13 @@ void KisToolFill::beginPrimaryAction(KoPointerEvent *event)
         m_effectiveFillMode = m_fillMode;
     }
 
+    // a click's fill is made again as its settings change, while it is the newest step
+    const FillMode mode = m_effectiveFillMode;
+    const KisNodeWSP from = currentNode();
+    m_redoLast.made(static_cast<KisCanvas2 *>(canvas()), kundo2_i18n("Flood Fill"), [this, lastImagePosition, mode, from]() {
+        fillAgain(lastImagePosition, mode, from);
+    });
+
     m_seedPoints.append(lastImagePosition);
     beginFilling(lastImagePosition);
     m_isFilling = true;
@@ -199,6 +207,8 @@ void KisToolFill::continuePrimaryAction(KoPointerEvent *event)
         }
 
         m_isDragging = true;
+        // a fill dragged along isn't one click to make again
+        m_redoLast.forget();
     }
 
     const QPoint newImagePosition = convertToImagePixelCoordFloored(event);
@@ -256,13 +266,15 @@ void KisToolFill::beginFilling(const QPoint &seedPoint)
     m_fillStrokeId = image()->startStroke(strategy);
     KIS_SAFE_ASSERT_RECOVER_RETURN(m_fillStrokeId);
 
+    // the layer it was asked for (a fill made again), else the current one
+    const KisNodeSP from = m_fillFrom ? m_fillFrom : currentNode();
     // as every fill chooses: on line art, a Colors layer of its own, the lines staying on top (KisColorDrop)
-    m_fillNode = currentNode();
+    m_fillNode = from;
     m_effectiveCloseGap = m_closeGap;
     if (m_effectiveFillMode == FillMode_FillContiguousRegion) {
         KisCanvas2 *kisCanvas = dynamic_cast<KisCanvas2 *>(canvas());
         KisSelectionSP selection = kisCanvas ? kisCanvas->viewManager()->selection() : nullptr;
-        const KisColorDrop::FillTarget target = KisColorDrop::fillTarget(image(), currentNode(), seedPoint, selection);
+        const KisColorDrop::FillTarget target = KisColorDrop::fillTarget(image(), from, seedPoint, selection);
         KisColorDrop::addFillLayer(image(), m_fillStrokeId, target);
         if (target.filled()) m_fillNode = target.filled();
         // Auto: closing gaps as wide as the lines here are
@@ -271,15 +283,15 @@ void KisToolFill::beginFilling(const QPoint &seedPoint)
 
     m_resourcesSnapshot = new KisResourcesSnapshot(image(), m_fillNode, this->canvas()->resourceManager());
     // a new layer is empty: with Preserve Alpha the fill would show nowhere
-    if (m_fillNode != currentNode()) m_resourcesSnapshot->setGlobalAlphaLock(false);
+    if (m_fillNode != from) m_resourcesSnapshot->setGlobalAlphaLock(false);
 
     KisPaintDeviceSP referencePaintDevice = nullptr;
     if (m_effectiveFillMode != FillMode_FillSelection) {
-        if (m_reference == Reference_CurrentLayer && KisColorDrop::isColorsLayer(currentNode())) {
+        if (m_reference == Reference_CurrentLayer && KisColorDrop::isColorsLayer(from)) {
             // a layer of fills is filled from the picture: by itself it holds no lines
             referencePaintDevice = currentImage()->projection();
         } else if (m_reference == Reference_CurrentLayer) {
-            referencePaintDevice = currentNode()->paintDevice();
+            referencePaintDevice = from->paintDevice();
         } else if (m_reference == Reference_AllLayers) {
             referencePaintDevice = currentImage()->projection();
         } else if (m_reference == Reference_ColorLabeledLayers) {
@@ -304,7 +316,7 @@ void KisToolFill::beginFilling(const QPoint &seedPoint)
                         m_selectedColorLabels,
                         KisMergeLabeledLayersCommand::GroupSelectionPolicy_SelectIfColorLabeled,
                         m_previousTime != currentTime,
-                        m_useActiveLayer ? currentNode() : nullptr
+                        m_useActiveLayer ? from : nullptr
                     )),
                     false,
                     KisStrokeJobData::SEQUENTIAL,
@@ -526,6 +538,24 @@ void KisToolFill::endFilling()
     m_fillMask = nullptr;
     m_dirtyRect = nullptr;
     m_fillNode = nullptr;
+}
+
+void KisToolFill::fillAgain(const QPoint &seedPoint, FillMode mode, KisNodeWSP from)
+{
+    if (m_isFilling || !image()) return;
+    // the fill was just taken back, as a stroke of its own: done before the new one reads which layers there are
+    image()->waitForDone();
+    m_redoLast.made(static_cast<KisCanvas2 *>(canvas()), kundo2_i18n("Flood Fill"), [this, seedPoint, mode, from]() {
+        fillAgain(seedPoint, mode, from);
+    });
+    m_effectiveFillMode = mode;
+    m_fillFrom = from;
+    m_seedPoints = {seedPoint};
+    beginFilling(seedPoint);
+    m_fillFrom = nullptr;
+    slotUpdateFill();
+    endFilling();
+    m_seedPoints.clear();
 }
 
 void KisToolFill::slotUpdateFill()
@@ -1096,6 +1126,7 @@ void KisToolFill::slot_optionButtonStripFillWith_buttonToggled(
         ? "foregroundColor"
         : (button == m_buttonFillWithBG ? "backgroundColor" : "pattern")
     );
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_sliderPatternScale_valueChanged(double value)
@@ -1105,6 +1136,7 @@ void KisToolFill::slot_sliderPatternScale_valueChanged(double value)
     }
     m_patternScale = value;
     m_configGroup.writeEntry("patternScale", value);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_angleSelectorPatternRotation_angleChanged(double value)
@@ -1114,6 +1146,7 @@ void KisToolFill::slot_angleSelectorPatternRotation_angleChanged(double value)
     }
     m_patternRotation = value;
     m_configGroup.writeEntry("patternRotate", value);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_checkBoxUseCustomBlendingOptions_toggled(bool checked)
@@ -1124,6 +1157,7 @@ void KisToolFill::slot_checkBoxUseCustomBlendingOptions_toggled(bool checked)
     sectionFillWith->setWidgetVisible("comboBoxCustomCompositeOp", checked);
     m_useCustomBlendingOptions = checked;
     m_configGroup.writeEntry("useCustomBlendingOptions", checked);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_sliderCustomOpacity_valueChanged(int value)
@@ -1133,6 +1167,7 @@ void KisToolFill::slot_sliderCustomOpacity_valueChanged(int value)
     }
     m_customOpacity = value;
     m_configGroup.writeEntry("customOpacity", value);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_comboBoxCustomCompositeOp_currentIndexChanged(int index)
@@ -1144,6 +1179,7 @@ void KisToolFill::slot_comboBoxCustomCompositeOp_currentIndexChanged(int index)
     }
     m_customCompositeOp = compositeOpId;
     m_configGroup.writeEntry("customCompositeOp", compositeOpId);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_optionButtonStripContiguousFillMode_buttonToggled(
@@ -1169,6 +1205,7 @@ void KisToolFill::slot_optionButtonStripContiguousFillMode_buttonToggled(
         ? "floodFill"
         : "boundaryFill"
     );
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_buttonContiguousFillBoundaryColor_changed(const KoColor &color)
@@ -1178,6 +1215,7 @@ void KisToolFill::slot_buttonContiguousFillBoundaryColor_changed(const KoColor &
     }
     m_contiguousFillBoundaryColor = color;
     m_configGroup.writeEntry("contiguousFillBoundaryColor", color.toXML());
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_sliderThreshold_valueChanged(int value)
@@ -1187,6 +1225,7 @@ void KisToolFill::slot_sliderThreshold_valueChanged(int value)
     }
     m_threshold = value;
     m_configGroup.writeEntry("thresholdAmount", value);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_sliderSpread_valueChanged(int value)
@@ -1196,6 +1235,7 @@ void KisToolFill::slot_sliderSpread_valueChanged(int value)
     }
     m_opacitySpread = value;
     m_configGroup.writeEntry("opacitySpread", value);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_sliderCloseGap_valueChanged(int value)
@@ -1205,6 +1245,7 @@ void KisToolFill::slot_sliderCloseGap_valueChanged(int value)
     }
     m_closeGap = value;
     m_configGroup.writeEntry("closeGapAmount", value);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_checkBoxUnderLines_toggled(bool checked)
@@ -1214,6 +1255,7 @@ void KisToolFill::slot_checkBoxUnderLines_toggled(bool checked)
     }
     m_underLines = checked;
     m_configGroup.writeEntry("fillUnderLines", checked);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_sliderSpecks_valueChanged(int value)
@@ -1223,6 +1265,7 @@ void KisToolFill::slot_sliderSpecks_valueChanged(int value)
     }
     m_speckSize = value;
     m_configGroup.writeEntry("speckSize", value);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_checkBoxSelectionAsBoundary_toggled(bool checked)
@@ -1232,6 +1275,7 @@ void KisToolFill::slot_checkBoxSelectionAsBoundary_toggled(bool checked)
     }
     m_useSelectionAsBoundary = checked;
     m_configGroup.writeEntry("useSelectionAsBoundary", checked);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_checkBoxAntiAlias_toggled(bool checked)
@@ -1241,6 +1285,7 @@ void KisToolFill::slot_checkBoxAntiAlias_toggled(bool checked)
     }
     m_antiAlias = checked;
     m_configGroup.writeEntry("antiAlias", checked);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_sliderGrow_valueChanged(int value)
@@ -1250,6 +1295,7 @@ void KisToolFill::slot_sliderGrow_valueChanged(int value)
     }
     m_sizemod = value;
     m_configGroup.writeEntry("growSelection", value);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_buttonStopGrowingAtDarkestPixel_toggled(bool enabled)
@@ -1259,6 +1305,7 @@ void KisToolFill::slot_buttonStopGrowingAtDarkestPixel_toggled(bool enabled)
     }
     m_stopGrowingAtDarkestPixel = enabled;
     m_configGroup.writeEntry("stopGrowingAtDarkestPixel", enabled);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_sliderFeather_valueChanged(int value)
@@ -1268,6 +1315,7 @@ void KisToolFill::slot_sliderFeather_valueChanged(int value)
     }
     m_feather = value;
     m_configGroup.writeEntry("featherAmount", value);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_optionButtonStripReference_buttonToggled(
@@ -1292,6 +1340,7 @@ void KisToolFill::slot_optionButtonStripReference_buttonToggled(
         ? "currentLayer"
         : (button == m_buttonReferenceAll ? "allLayers" : "colorLabeledLayers")
     );
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_widgetLabels_selectionChanged()
@@ -1309,6 +1358,7 @@ void KisToolFill::slot_widgetLabels_selectionChanged()
         colorLabels += "," + QString::number(labels[i]);
     }
     m_configGroup.writeEntry("colorLabels", colorLabels);
+    m_redoLast.settingChanged();
 }
 
 void KisToolFill::slot_optionButtonStripDragFill_buttonToggled(

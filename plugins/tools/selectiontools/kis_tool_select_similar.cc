@@ -54,7 +54,7 @@ void KisToolSelectSimilar::activate(const QSet<KoShape*> &shapes)
 
 void KisToolSelectSimilar::deactivate()
 {
-    m_reselect.forget();
+    m_redoLast.forget();
     m_referencePaintDevice = nullptr;
     m_referenceNodeList = nullptr;
     KisToolSelect::deactivate();
@@ -86,7 +86,7 @@ void KisToolSelectSimilar::beginPrimaryAction(KoPointerEvent *event)
     const SelectionAction action = selectionAction();
     selectAt(pos, action);
     // a threshold changed next makes this selection again, at the same place
-    m_reselect.made(kisCanvas, kundo2_i18n("Select Similar Color"), [this, pos, action]() { selectAt(pos, action); });
+    m_redoLast.made(kisCanvas, kundo2_i18n("Select Similar Color"), [this, pos, action]() { selectAt(pos, action); });
 }
 
 void KisToolSelectSimilar::selectAt(const QPoint &pos, SelectionAction action)
@@ -223,7 +223,7 @@ void KisToolSelectSimilar::slotSetThreshold(int threshold)
 {
     m_threshold = threshold;
     m_configGroup.writeEntry("threshold", threshold);
-    m_reselect.settingChanged();
+    m_redoLast.settingChanged();
 }
 
 void KisToolSelectSimilar::slotSetOpacitySpread(int opacitySpread)

@@ -248,7 +248,7 @@ static void growArea(KisPixelSelectionSP region, KisPaintDeviceSP reference, con
         targetInk.resize(size_t(count));
         for (int y = 0; y < height; y++) {
             const QRgb *row = reinterpret_cast<const QRgb *>(image.constScanLine(y));
-            for (int x = 0; x < width; x++) targetInk[size_t(y) * width + x] = qAlpha(row[x]) * (255 - qGray(row[x])) / 255 > 64;
+            for (int x = 0; x < width; x++) targetInk[size_t(y) * width + x] = KisLineArtFill::inkOf(row[x]) >= KisLineArtFill::lineInk;
         }
     }
     const QRect out = area & written;
@@ -296,7 +296,7 @@ int KisLineArtFill::lineWidthNear(KisPaintDeviceSP reference, const QPoint &poin
     std::vector<quint8> ink(size_t(width) * height);
     for (int y = 0; y < height; y++) {
         const QRgb *row = reinterpret_cast<const QRgb *>(picture.constScanLine(y));
-        for (int x = 0; x < width; x++) ink[y * width + x] = quint8(qAlpha(row[x]) * (255 - qGray(row[x])) / 255);
+        for (int x = 0; x < width; x++) ink[y * width + x] = quint8(KisLineArtFill::inkOf(row[x]));
     }
     // runs of ink with something else on both sides, across and down
     std::vector<int> runs;
@@ -305,6 +305,7 @@ int KisLineArtFill::lineWidthNear(KisPaintDeviceSP reference, const QPoint &poin
             int run = 0;
             bool bounded = false;
             for (int b = 0; b < length; b++) {
+                // the line's core: its antialiased edges would widen it
                 if (ink[at(a, b)] > 96) {
                     run++;
                 } else {
@@ -337,20 +338,18 @@ KisPaintDeviceSP KisLineArtFill::flats(KisPaintDeviceSP lines, const QRect &boun
         for (int y = 0; y < height; y++) {
             const QRgb *row = reinterpret_cast<const QRgb *>(picture.constScanLine(y));
             for (int x = 0; x < width; x++) {
-                const QRgb p = row[x];
-                ink[y * width + x] = quint8(qAlpha(p) * (255 - qGray(p)) / 255);
+                ink[y * width + x] = quint8(KisLineArtFill::inkOf(row[x]));
             }
         }
     }
     const int count = width * height;
     if (!count) return nullptr;
-    const quint8 lineInk = 64;
     if (stop()) return nullptr;
 
     // Distance to the nearest line, so gaps narrower than the closing stay shut (3-4 chamfer).
     std::vector<quint16> distance(count);
     const quint16 far = 60000;
-    for (int i = 0; i < count; i++) distance[i] = ink[i] > lineInk ? 0 : far;
+    for (int i = 0; i < count; i++) distance[i] = ink[i] >= KisLineArtFill::lineInk ? 0 : far;
     auto relax = [&](int i, int j, int step) {
         if (distance[j] + step < distance[i]) distance[i] = quint16(distance[j] + step);
     };
@@ -390,7 +389,7 @@ KisPaintDeviceSP KisLineArtFill::flats(KisPaintDeviceSP lines, const QRect &boun
     };
     std::vector<Area> areas(1);
     for (int start = 0; start < count; start++) {
-        if (seen[start] || ink[start] > lineInk || distance[start] <= clearance) continue;
+        if (seen[start] || ink[start] >= KisLineArtFill::lineInk || distance[start] <= clearance) continue;
         members.clear();
         stack.push_back(start);
         seen[start] = 1;
@@ -402,7 +401,7 @@ KisPaintDeviceSP KisLineArtFill::flats(KisPaintDeviceSP lines, const QRect &boun
             const int x = i % width, y = i / width;
             edge |= x == 0 || y == 0 || x == width - 1 || y == height - 1;
             forNeighbors(i, width, height, [&](int j) {
-                if (!seen[j] && ink[j] <= lineInk && distance[j] > clearance) {
+                if (!seen[j] && ink[j] < KisLineArtFill::lineInk && distance[j] > clearance) {
                     seen[j] = 1;
                     stack.push_back(j);
                 }

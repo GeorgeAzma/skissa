@@ -41,7 +41,7 @@ set(skissa_ui_SRCS
     KisStudioRings.cpp
     KisStudioScrubber.cpp
     KisStudioSelectionAdjust.cpp
-    KisReselect.cpp
+    KisRedoLast.cpp
     KisStudioExport.cpp
     KisStudioFontPicker.cpp
     KisStudioSettings.cpp
@@ -59,6 +59,7 @@ set(skissa_ui_SRCS
     KisEffectPanels.cpp
     KisStudioCanvasSize.cpp
     KisStudioFlash.cpp
+    KisStudioGlide.cpp
     KisUpdatePacer.cpp
     dialogs/KisKeysPage.cpp
     input/KisDragValueAction.cpp

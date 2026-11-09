@@ -24,6 +24,7 @@
 #include <kis_resources_snapshot.h>
 #include <commands_new/KisMergeLabeledLayersCommand.h>
 #include <KoCompositeOpRegistry.h>
+#include <KisRedoLast.h>
 
 class KisOptionCollectionWidget;
 class KoGroupButton;
@@ -144,6 +145,10 @@ private:
     QTransform m_transform;
 
     FillMode m_effectiveFillMode {FillMode_FillSelection};
+    /// The last click's fill, made again as its settings change
+    KisRedoLast m_redoLast;
+    /// The layer the fill made now starts from, when not the current one
+    KisNodeSP m_fillFrom;
     bool m_isFilling {false};
     bool m_isDragging {false};
     QPoint m_fillStartWidgetPosition;
@@ -196,6 +201,8 @@ private:
     KoGroupButton *m_buttonDragFillSimilar {nullptr};
 
     void beginFilling(const QPoint &seedPoint);
+    /// The last click's fill made again, from \p seedPoint on \p from, with the settings now
+    void fillAgain(const QPoint &seedPoint, FillMode mode, KisNodeWSP from);
     void addFillingOperation(const QPoint &seedPoint);
     void addFillingOperation(const QVector<QPoint> &seedPoints);
     void addUpdateOperation();
