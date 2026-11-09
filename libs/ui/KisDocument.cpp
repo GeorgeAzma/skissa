@@ -121,7 +121,7 @@
 #include "kis_guides_config.h"
 #include "KisImageBarrierLock.h"
 #include "KisReferenceImagesLayer.h"
-#include "dialogs/KisRecoverNamedAutosaveDialog.h"
+#include "KisNewerAutosave.h"
 
 #include <mutex>
 #include "kis_config_notifier.h"
@@ -2077,50 +2077,24 @@ bool KisDocument::openPath(const QString &_path, OpenFlags flags)
     bool autosaveOpened = false;
     QString declinedAutosave;
     if (!fileBatchMode()) {
-        QString file = path;
-        QString asf = generateAutoSaveFileName(file);
-        // An autosave named the other way (hidden or not: an earlier setting, or a regular Krita's) is offered
-        // while it is newer than the file and its own; it is never deleted, as it may be another app's.
-        bool foreign = false;
-        {
-            const QFileInfo info(asf);
-            const QString name = info.fileName();
-            const QString other = info.dir().filePath(name.startsWith(QLatin1Char('.')) ? name.mid(1) : QLatin1Char('.') + name);
-            const QFileInfo otherInfo(other);
-            if (otherInfo.exists() && otherInfo.lastModified() > QFileInfo(file).lastModified()
-                && (!info.exists() || otherInfo.lastModified() > info.lastModified())) {
-                asf = other;
-                foreign = true;
-            }
-        }
-        if (QFile::exists(asf)) {
-            KisApplication *kisApp = static_cast<KisApplication*>(qApp);
-            kisApp->hideSplashScreen();
-            //qDebug() <<"asf=" << asf;
-            // ## TODO compare timestamps ?
-            KisRecoverNamedAutosaveDialog dlg(0, file, asf);
-            dlg.exec();
-            int res = dlg.result();
-
-            switch (res) {
-            case KisRecoverNamedAutosaveDialog::OpenAutosave :
-                original = file;
-                path = asf;
-                autosaveOpened = true;
-                break;
-            case KisRecoverNamedAutosaveDialog::OpenMainFile :
-                if (!foreign) declinedAutosave = asf;
-                break;
-            default: // Cancel
-                return false;
-            }
+        // An autosave newer than the file holds work that wasn't saved (a crash, a closed program): it opens in its
+        // place, unsaved, as turned down autosaves are gone already. One named the other way (an earlier setting, or
+        // a regular Krita's) counts too, but is never deleted, as it may be another app's; an own one older than the
+        // file is left over and goes.
+        const QString file = path;
+        const QString newer = KisNewerAutosave::of(file);
+        if (!newer.isEmpty()) {
+            original = file;
+            path = newer;
+            autosaveOpened = true;
+        } else if (QFile::exists(generateAutoSaveFileName(file))) {
+            declinedAutosave = generateAutoSaveFileName(file);
         }
     }
 
     bool ret = openPathInternal(path);
 
-    // the autosave goes only once the file it was declined for has opened, and to the Recycle Bin: a click on the
-    // wrong picture can be taken back
+    // a left over autosave goes only once its file has opened, and to the Recycle Bin
     if (ret && !declinedAutosave.isEmpty()) {
         KisUsageLogger::log(QString("Removing autosave file: %1").arg(declinedAutosave));
         if (!QFile::moveToTrash(declinedAutosave)) QFile::remove(declinedAutosave);

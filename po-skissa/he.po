@@ -1170,10 +1170,6 @@ msgctxt "texture setting"
 msgid "Contrast"
 msgstr "ניגודיות"
 
-msgctxt "shape tool: how the shape is turned in its box"
-msgid "Angle"
-msgstr "זווית"
-
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"
 msgstr "הצמדה לקווים המנחים"

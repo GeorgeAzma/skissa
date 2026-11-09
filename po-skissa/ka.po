@@ -1148,10 +1148,6 @@ msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "მრუდი"
 
-msgctxt "shape tool: how the shape is turned in its box"
-msgid "Angle"
-msgstr "კუთხე"
-
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"
 msgstr "მიმაგრება მიმმართველებზე"

@@ -1005,10 +1005,6 @@ msgctxt "texture setting"
 msgid "Contrast"
 msgstr "コントラスト"
 
-msgctxt "shape tool: how the shape is turned in its box"
-msgid "Angle"
-msgstr "角度"
-
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"
 msgstr "基準線に合わせる"

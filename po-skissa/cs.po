@@ -1036,10 +1036,6 @@ msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "Křivka"
 
-msgctxt "shape tool: how the shape is turned in its box"
-msgid "Angle"
-msgstr "Úhel"
-
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"
 msgstr "Přichytávat k vodítkům"

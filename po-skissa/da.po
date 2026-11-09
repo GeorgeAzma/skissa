@@ -504,7 +504,3 @@ msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Mønstre"
 
-msgctxt "shape tool: how the shape is turned in its box"
-msgid "Angle"
-msgstr "Vinkel"
-

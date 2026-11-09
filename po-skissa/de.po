@@ -809,10 +809,6 @@ msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Muster"
 
-msgctxt "shape tool: how the shape is turned in its box"
-msgid "Angle"
-msgstr "Winkel"
-
 msgctxt "@option:check snap the stroke to the image's guides (assistants)"
 msgid "Snap to guides"
 msgstr "An Hilfslinien ausrichten"

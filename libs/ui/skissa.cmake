@@ -43,6 +43,7 @@ set(skissa_ui_SRCS
     KisStudioScrubber.cpp
     KisStudioSelectionAdjust.cpp
     KisRedoLast.cpp
+    KisNewerAutosave.cpp
     KisSuperellipse.cpp
     KisStudioExport.cpp
     KisStudioFontPicker.cpp

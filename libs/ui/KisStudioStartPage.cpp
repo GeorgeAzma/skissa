@@ -5,6 +5,8 @@
  */
 #include "KisStudioStartPage.h"
 
+#include "KisNewerAutosave.h"
+
 #include <KisValueSteps.h>
 
 #include <QAbstractButton>
@@ -12,6 +14,7 @@
 #include <QClipboard>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QFile>
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QDragEnterEvent>
@@ -1339,6 +1342,8 @@ public:
     /// by value: opening refreshes the items it would refer into
     std::function<void(QString path)> opened;
     std::function<void(const QString &path)> forgotten;
+    /// Whether the image is open now
+    std::function<bool(const QString &path)> isOpen;
     /// Esc with nothing typed: whether there is somewhere to go back to, and going there
     std::function<bool()> canLeave;
     std::function<void()> left;
@@ -1434,7 +1439,9 @@ protected:
             const Item &item = m_items[placed.item];
             const qreal radius = placed.hero ? KisModernStyle::panelRadius : KisModernStyle::cardRadius;
             const QPainterPath shape = KisModernStyle::squircle(placed.rect, radius);
-            const QImage picture = Pictures::instance()->get(item.path, placed.hero ? heroLength : pictureLength);
+            const QImage picture = Pictures::instance()->get(item.shown, placed.hero ? heroLength : pictureLength);
+            // marked as an image with changes not saved is everywhere
+            const QString name = item.unsaved ? item.name + QStringLiteral(" •") : item.name;
             if (picture.isNull()) {
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(withAlpha(ink, 0.06));
@@ -1459,7 +1466,7 @@ protected:
                 painter.setPen(picture.isNull() ? ink : QColor(Qt::white));
                 painter.setFont(font());
                 const QRectF text = band.adjusted(KisModernStyle::space2, 0, -KisModernStyle::space2, -KisModernStyle::space1);
-                painter.drawText(text, Qt::AlignLeft | Qt::AlignBottom, fontMetrics().elidedText(item.name, Qt::ElideMiddle, int(text.width())));
+                painter.drawText(text, Qt::AlignLeft | Qt::AlignBottom, fontMetrics().elidedText(name, Qt::ElideMiddle, int(text.width())));
             }
             painter.setBrush(Qt::NoBrush);
             if (selected) {
@@ -1490,7 +1497,7 @@ protected:
                 painter.setFont(title);
                 painter.setPen(ink);
                 const int titleHeight = QFontMetrics(title).height();
-                painter.drawText(QRectF(under.left(), under.top(), under.width(), titleHeight), Qt::AlignHCenter | Qt::AlignVCenter, item.name);
+                painter.drawText(QRectF(under.left(), under.top(), under.width(), titleHeight), Qt::AlignHCenter | Qt::AlignVCenter, name);
                 painter.setFont(font());
                 painter.setPen(KisModernStyle::secondaryInk(ink));
                 painter.drawText(QRectF(under.left(), under.top() + titleHeight, under.width(), fontMetrics().height() + 2), Qt::AlignHCenter | Qt::AlignVCenter,
@@ -1598,8 +1605,19 @@ protected:
         if (at < 0) return;
         const QString path = m_items[arrangement().placed[at].item].path;
         QMenu menu;
+        // with work that wasn't saved, the image as it was saved instead, its autosave to the Recycle Bin
+        QAction *saved = nullptr;
+        if (m_items[arrangement().placed[at].item].unsaved && !(isOpen && isOpen(path))) {
+            saved = menu.addAction(i18nc("@action:inmenu open an image as last saved, not its newer autosave", "Open saved version"));
+        }
         QAction *forget = menu.addAction(i18nc("@action:inmenu take an image off the recent images", "Forget"));
-        if (menu.exec(event->globalPos()) == forget && forgotten) forgotten(path);
+        QAction *chosen = menu.exec(event->globalPos());
+        if (chosen == forget && forgotten) forgotten(path);
+        if (chosen && chosen == saved && opened) {
+            const QString autosave = KisNewerAutosave::of(path);
+            if (!autosave.isEmpty() && !QFile::moveToTrash(autosave)) return;
+            opened(path);
+        }
     }
 
     void resizeEvent(QResizeEvent *event) override
@@ -1613,6 +1631,10 @@ private:
         QString path;
         QString name;
         QDateTime time;
+        /// What its picture is read from: its newer autosave, if it has one
+        QString shown;
+        /// Its autosave holds work newer than it
+        bool unsaved {false};
     };
     struct Placed {
         int item;
@@ -1637,7 +1659,12 @@ private:
             const QString path = m_model->index(i, 0).data(Qt::ToolTipRole).toString();
             if (path.isEmpty()) continue;
             const QFileInfo info(path);
-            m_items.append({path, info.completeBaseName(), info.lastModified()});
+            const QString newer = KisNewerAutosave::of(path);
+            if (newer.isEmpty()) {
+                m_items.append({path, info.completeBaseName(), info.lastModified(), path, false});
+            } else {
+                m_items.append({path, info.completeBaseName(), QFileInfo(newer).lastModified(), newer, true});
+            }
         }
         relayout();
     }
@@ -2031,6 +2058,15 @@ KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
     // the recent images, no wider than reads well
     d->gallery = new Gallery(this);
     d->gallery->setMaximumWidth(1480);
+    d->gallery->isOpen = [this](const QString &path) {
+        Q_FOREACH (QPointer<KisView> view, KisPart::instance()->views()) {
+            if (view && view->document() && !view->document()->localFilePath().isEmpty()
+                && QFileInfo(view->document()->localFilePath()) == QFileInfo(path)) {
+                return true;
+            }
+        }
+        return false;
+    };
     d->gallery->opened = [this](const QString path) {
         if (!d->mainWindow) return;
         // one already open is shown again, not opened twice
