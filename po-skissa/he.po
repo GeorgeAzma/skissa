@@ -952,10 +952,6 @@ msgid "Levels"
 msgstr "רמות"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "מקור"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "קווים"
 

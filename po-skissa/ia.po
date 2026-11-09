@@ -787,10 +787,6 @@ msgid "Levels"
 msgstr "Nivellos"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Original"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "Lineas"
 

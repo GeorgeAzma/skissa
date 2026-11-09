@@ -826,10 +826,6 @@ msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Mailak"
 
-msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Jatorrizkoa"
-
 msgctxt "drawing effect: shading as dots"
 msgid "Dots"
 msgstr "Puntuak"

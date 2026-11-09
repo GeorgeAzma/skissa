@@ -942,10 +942,6 @@ msgid "Levels"
 msgstr "დონეები"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "ორიგინალი"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "ხაზები"
 

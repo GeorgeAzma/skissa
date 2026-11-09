@@ -982,10 +982,6 @@ msgid "Levels"
 msgstr "Düzeyler"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Özgün"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "Çizgiler"
 

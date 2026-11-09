@@ -649,10 +649,6 @@ msgid "Levels"
 msgstr "Tasot"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Alkuperäinen"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "Viivat"
 

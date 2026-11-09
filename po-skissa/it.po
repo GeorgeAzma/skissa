@@ -893,10 +893,6 @@ msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Livelli"
 
-msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Originale"
-
 msgctxt "drawing effect: shading as flat ink"
 msgid "Solid"
 msgstr "In tinta unita"

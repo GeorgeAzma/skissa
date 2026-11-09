@@ -252,10 +252,6 @@ msgctxt "no dithering"
 msgid "None"
 msgstr "Ekkert"
 
-msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Upprunalegt"
-
 msgctxt "drawing effect: ink alone, see-through between"
 msgid "Clear"
 msgstr "Hreinsa"

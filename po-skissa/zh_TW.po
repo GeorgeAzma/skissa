@@ -814,10 +814,6 @@ msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "色階"
 
-msgctxt "drawing effect look"
-msgid "Original"
-msgstr "原始"
-
 msgctxt "drawing effect: shading as soft gray"
 msgid "Soft"
 msgstr "柔和"

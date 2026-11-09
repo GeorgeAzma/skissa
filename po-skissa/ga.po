@@ -930,10 +930,6 @@ msgid "Levels"
 msgstr "Leibhéil"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Bunaidh"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "Línte"
 

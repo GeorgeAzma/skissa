@@ -879,10 +879,6 @@ msgid "Levels"
 msgstr "레벨"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "원본"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "선"
 

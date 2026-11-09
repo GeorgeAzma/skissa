@@ -640,10 +640,6 @@ msgid "Levels"
 msgstr "رەڭ دەرىجىسى"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "ئەسلى"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "سىزىقلار"
 

@@ -33,6 +33,9 @@ constexpr float mostSharpness = 100;
 constexpr float leastEdge = 0.006f;
 /// Each hatch direction after the first's, lightest first: crossing, then between
 const float hatchTurns[3] = {0, 90, 45};
+/// How different in lightness (Oklab) a place along the flow may be and still be smoothed with where the line starts:
+/// smoothed regardless, small shapes such as eyes melted into blobs and thin ones were smeared along long ones
+constexpr float edgeRange = 0.1f;
 
 QString nameOf(Colors colors)
 {
@@ -176,17 +179,20 @@ Flow flowOf(const std::vector<float> lab[3], int w, int h, qreal sigma, float ca
 
 /**
  * \p planes smoothed along the flow over \p area (in the planes' pixels): each pixel the Gaussian-weighted average along
- * the line through it that follows the flow both ways, a pixel a step (a line integral convolution)
+ * the line through it that follows the flow both ways (a line integral convolution). With \p guide, a sample counts
+ * less the more the guide there differs from where the line starts, and nothing past \p range: where a thin shape
+ * crosses a long one, the flow runs along the long one, and the line would smear the thin one's edges along it.
  */
 std::vector<std::vector<float>> alongFlow(const std::vector<const float *> &planes, const Flow &flow, qreal sigma, const QRect &area,
-                                          qreal longestStep = 1e9)
+                                          const float *guide = nullptr, float range = 1)
 {
     const int w = flow.w, h = flow.h;
-    // a pixel a step, longer ones for long flows: a smooth flow loses nothing to them (noise would: \p longestStep)
-    const float stride = float(std::min(longestStep, std::max(1.0, sigma / 3)));
+    // a pixel a step, longer ones for long flows: a smooth flow loses nothing to them
+    const float stride = float(std::max(1.0, sigma / 3));
     const int steps = std::max(1, int(std::ceil(2 * sigma / stride)));
     std::vector<float> weights(steps + 1);
     for (int d = 0; d <= steps; d++) weights[d] = float(std::exp(-(d * stride) * (d * stride) / (2 * sigma * sigma)));
+    const float apart = 1 / (range * range);
     const int count = int(planes.size());
     std::vector<std::vector<float>> out(count, std::vector<float>(size_t(area.width()) * area.height()));
     std::vector<float> sum(count);
@@ -195,6 +201,7 @@ std::vector<std::vector<float>> alongFlow(const std::vector<const float *> &plan
             const size_t here = size_t(y) * w + x;
             for (int c = 0; c < count; c++) sum[c] = planes[c][here];
             float total = 1;
+            const float start = guide ? guide[here] : 0.0f;
             for (const float way : {1.0f, -1.0f}) {
                 float px = x + 0.5f, py = y + 0.5f;
                 float vx = way * flow.x[here], vy = way * flow.y[here];
@@ -210,7 +217,14 @@ std::vector<std::vector<float>> alongFlow(const std::vector<const float *> &plan
                         nx = -nx;
                         ny = -ny;
                     }
-                    const float weight = weights[d];
+                    float weight = weights[d];
+                    if (guide) {
+                        // a biweight of the difference: smooth, and none at all past the range; the guide is smooth
+                        // enough to read at the pixel stepped into
+                        const float differs = guide[at] - start;
+                        const float kept = std::max(0.0f, 1 - differs * differs * apart);
+                        weight *= kept * kept;
+                    }
                     for (int c = 0; c < count; c++) sum[c] += weight * readAt(planes[c], w, h, px, py);
                     total += weight;
                     vx = nx;
@@ -342,6 +356,16 @@ inline float bandOver(float distance, float half, float pixel)
     return std::clamp(covered / pixel, 0.0f, 1.0f);
 }
 
+/**
+ * How much of a pixel \p pixel wide lines at every whole \p u cover, each \p half wide either side (in units of u),
+ * where u changes by \p stretch a pixel of the image: the nearest line and the next, which meet where they are wide
+ */
+inline float bandsOver(float u, float half, float stretch, float pixel)
+{
+    const float off = u - std::floor(u);
+    return std::min(1.0f, bandOver(off / stretch, half / stretch, pixel) + bandOver((1 - off) / stretch, half / stretch, pixel));
+}
+
 /// The inverse of the normal distribution (Abramowitz and Stegun 26.2.23, within 0.00045)
 inline float normalQuantile(float p)
 {
@@ -356,9 +380,10 @@ inline float normalQuantile(float p)
  * Hatching as drawn with a pen, at \p along and \p across its direction (in the image's pixels). Where it is darkest,
  * rows are \p spacing apart; lighter, every second, then every fourth (each row's rank), so light hatching is sparse,
  * not broken. A row comes in thin where \p cover passes its rank and its full \p width a quarter later, so it tapers
- * where the shading ends. Each row is long strokes with small gaps, each a little off its place and tilted.
+ * where the shading ends. Each row is long strokes with small gaps, each a little off its place and tilted; pressed
+ * \p press times harder (\p width is the pressed one), the gaps close in as the strokes widen.
  */
-float hatchAt(float along, float across, float cover, int direction, float spacing, float width, float pixel)
+float hatchAt(float along, float across, float cover, int direction, float spacing, float width, float press, float pixel)
 {
     static const float rankOfRow[4] = {0, 0.5f, 0.25f, 0.75f};
     const int nearest = int(std::floor(across / spacing + 0.5f));
@@ -378,14 +403,66 @@ float hatchAt(float along, float across, float cover, int direction, float spaci
         const float tilt = (hashed(r, stroke, d + 21) - 0.5f) * 0.04f;
         const float wave = spacing * 0.05f * std::sin(along / (spacing * (3 + 3 * hashed(r, d, 1))) + float(tau) * hashed(r, d, 2));
         const float middle = row * spacing + offset + tilt * (within - 0.5f * length) + wave;
-        // a small gap between strokes, and each thinning toward its ends
-        const float fromEnd = std::min(within, length - within) - 0.25f * spacing;
-        const float taper = std::clamp(fromEnd / spacing, 0.0f, 1.0f);
+        // a small gap between strokes, and each thinning toward its ends; pressed harder, both shorter
+        const float fromEnd = std::min(within, length - within) - 0.25f * spacing / press;
+        const float taper = std::clamp(fromEnd * press / spacing, 0.0f, 1.0f);
         if (taper <= 0) continue;
         const float half = 0.5f * width * std::sqrt(strength) * (0.3f + 0.7f * std::sqrt(taper));
         ink = std::max(ink, bandOver(std::abs(across - middle), half, pixel));
     }
     return ink;
+}
+
+/**
+ * Hatching that covers \p dark of the paper with strokes \p width (in spacings) wide: how far each direction's rows
+ * have come in (hatchAt's cover) and how much harder all are pressed. The first direction fills in, then the crossing
+ * ones over it, then all widen until they close up.
+ */
+void hatchCovers(float dark, float width, float cover[3], float *press)
+{
+    // the rows' sum by how far they have come in (each row's width grows as the root of its strength), inverted
+    static const std::vector<float> rowsFor = []() {
+        constexpr int n = 256;
+        auto rows = [](float k) {
+            float sum = 0;
+            for (int j = 0; j < 4; j++) sum += std::sqrt(std::clamp(4 * k - j, 0.0f, 1.0f));
+            return sum / 4;
+        };
+        std::vector<float> out(n + 1);
+        for (int i = 0; i <= n; i++) {
+            const float share = float(i) / n;
+            float low = 0, high = 1;
+            for (int step = 0; step < 24; step++) {
+                const float middle = 0.5f * (low + high);
+                (rows(middle) < share ? low : high) = middle;
+            }
+            out[i] = high;
+        }
+        return out;
+    }();
+    // one direction with every row in: the strokes' gaps and tapering ends leave about a twelfth of each row
+    const float full = std::min(0.916f * width, 0.95f);
+    *press = 1;
+    cover[0] = cover[1] = cover[2] = 0;
+    float laid = 0;
+    for (int t = 0; t < 3; t++) {
+        // this direction's share over what the ones before laid
+        const float wanted = 1 - (1 - dark) / (1 - laid);
+        if (wanted <= 0) break;
+        if (wanted < full) {
+            const float at = wanted / full * 256;
+            const int i = std::min(int(at), 255);
+            cover[t] = rowsFor[i] + (rowsFor[i + 1] - rowsFor[i]) * (at - i);
+            break;
+        }
+        cover[t] = 1;
+        laid = 1 - (1 - laid) * (1 - full);
+    }
+    if (dark > laid && cover[2] >= 1) {
+        // every direction pressed alike, each covering its share, at most as wide as the space between rows
+        const float each = 1 - std::cbrt(std::max(0.0f, 1 - dark));
+        *press = std::clamp(each / full, 1.0f, 1 / width);
+    }
 }
 
 /// A stipple dot: where it lies (in the image's pixels) and how far it reaches; none where it reaches nothing
@@ -417,6 +494,56 @@ Dot dotOf(int column, int row, float radius, float dark)
         dot.reach = own * std::sqrt(dark / full) * (1 + 0.4f * (dark - full) / (1 - full));
     }
     return dot;
+}
+
+/**
+ * The darkness to ask of dotOf for its dots to cover \p dark: past where every cell has its dot they overlap as they
+ * grow, and cover less than their area. Measured once by laying dots out over the blue noise's 64 × 64 cells.
+ */
+float dotsFor(float dark)
+{
+    static const std::vector<float> covered = []() {
+        constexpr int levels = 32, cells = 64, samples = 4;
+        const float radius = 1, cell = radius * 2.4f;
+        std::vector<float> out(levels + 1);
+        std::vector<Dot> dots(size_t(cells + 2) * (cells + 2));
+        for (int level = 0; level <= levels; level++) {
+            const float asked = float(level) / levels;
+            for (int j = -1; j <= cells; j++) {
+                for (int i = -1; i <= cells; i++) dots[size_t(j + 1) * (cells + 2) + (i + 1)] = dotOf(i, j, radius, asked);
+            }
+            int inked = 0;
+            for (int j = 0; j < cells; j++) {
+                for (int i = 0; i < cells; i++) {
+                    for (int sy = 0; sy < samples; sy++) {
+                        for (int sx = 0; sx < samples; sx++) {
+                            const float x = (i + (sx + 0.5f) / samples) * cell, y = (j + (sy + 0.5f) / samples) * cell;
+                            bool in = false;
+                            for (int b = j - 1; b <= j + 1 && !in; b++) {
+                                for (int a = i - 1; a <= i + 1 && !in; a++) {
+                                    const Dot &dot = dots[size_t(b + 1) * (cells + 2) + (a + 1)];
+                                    const float dx = x - dot.x, dy = y - dot.y;
+                                    in = dx * dx + dy * dy < dot.reach * dot.reach;
+                                }
+                            }
+                            inked += in;
+                        }
+                    }
+                }
+            }
+            out[level] = float(inked) / (cells * cells * samples * samples);
+        }
+        return out;
+    }();
+    if (dark <= 0) return 0;
+    const int levels = int(covered.size()) - 1;
+    for (int level = 1; level <= levels; level++) {
+        if (covered[level] >= dark) {
+            const float low = covered[level - 1], high = covered[level];
+            return (level - 1 + (high > low ? (dark - low) / (high - low) : 1)) / levels;
+        }
+    }
+    return 1;
 }
 
 /// Where the darkness under a dot is read: its own place, which lies within a cell and a half of its cell
@@ -741,8 +868,9 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
     // shading drawn as marks takes its darkness from the picture's lightness alone, so lines stay whole rather than
     // turning to marks
     const bool marked = s.ink > 0 && s.shading != Shading::Solid && s.shading != Shading::Soft;
+    // the picture's lightness at the lines' size: the marks' tone, and what the flow's lines keep to
     std::vector<float> smooth;
-    if (marked) smooth = near;
+    if (marked || flows) smooth = near;
     std::vector<float> &difference = near;
     for (size_t i = 0; i < count; i++) {
         const float edge = near[i] - far[i];
@@ -759,7 +887,7 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
     if (flows) {
         std::vector<const float *> planes = {difference.data()};
         if (marked) planes.push_back(smooth.data());
-        std::vector<std::vector<float>> along = alongFlow(planes, flow, m_flowSigma, work);
+        std::vector<std::vector<float>> along = alongFlow(planes, flow, m_flowSigma, work, smooth.data(), edgeRange);
         drawn = std::move(along[0]);
         if (marked) toned = std::move(along[1]);
     } else {
@@ -799,15 +927,22 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
         const float down = 0.5f * (plane[size_t(std::min(y + 1, ph - 1)) * pw + x] - plane[size_t(std::max(y - 1, 0)) * pw + x]);
         return std::sqrt(across * across + down * down);
     };
+    // under marks, the lines are the edges alone, drawn as they would be on the paper's white, so they stay whole over
+    // the darkest marks: added to the picture's own tone, they would show only where it is lighter than the level
+    std::vector<float> edges;
+    if (marked) {
+        edges.resize(drawn.size());
+        for (size_t i = 0; i < drawn.size(); i++) edges[i] = 1 + drawn[i] - toned[i];
+    }
     std::vector<float> coverage(drawn.size());
     for (int y = 0; y < wh; y++) {
         for (int x = 0; x < ww; x++) {
             const size_t i = size_t(y) * ww + x;
-            const float d = drawn[i], slope = slopeAt(drawn, ww, wh, x, y);
             if (marked) {
-                coverage[i] = std::max(0.0f, inkOver(d, slope, top, width) - inkOver(toned[i], slopeAt(toned, ww, wh, x, y), top, width));
+                coverage[i] = inkOver(edges[i], slopeAt(edges, ww, wh, x, y), top, width);
                 continue;
             }
+            const float d = drawn[i], slope = slopeAt(drawn, ww, wh, x, y);
             float flat = 0;
             for (int t = 0; t < tones; t++) flat += inkOver(d, slope, top * float(tones - t) / tones, width / tones);
             coverage[i] = flat / tones;
@@ -856,7 +991,7 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
                 const QPointF place = dotPlace(i, j, dotRadius);
                 const int px = std::clamp(int(std::floor(place.x() / pixel - sourceRect.left() - work.left())), 0, ww - 1);
                 const int py = std::clamp(int(std::floor(place.y() / pixel - sourceRect.top() - work.top())), 0, wh - 1);
-                dots[size_t(j - dotCells.top()) * dotCells.width() + (i - dotCells.left())] = dotOf(i, j, dotRadius, darkness(toned[size_t(py) * ww + px]));
+                dots[size_t(j - dotCells.top()) * dotCells.width() + (i - dotCells.left())] = dotOf(i, j, dotRadius, dotsFor(darkness(toned[size_t(py) * ww + px])));
             }
         }
     }
@@ -878,17 +1013,15 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
                 const float dark = darkness(toned[size_t(inWork.top() + y) * ww + inWork.left() + x]);
                 float paper = 1;
                 switch (s.shading) {
-                case Shading::Hatch:
-                    // the first direction fills in over the lightest third, the crossing ones after; the darkest third
-                    // presses harder, so it closes up
-                    for (int t = 0; t < 3; t++) {
-                        const float cover = std::clamp(dark * 3 - t, 0.0f, 1.0f);
-                        if (cover <= 0) break;
-                        const float pressed = strokeWidth * (1 + 1.5f * std::clamp(dark * 3 - 2, 0.0f, 1.0f));
+                case Shading::Hatch: {
+                    float cover[3], press;
+                    hatchCovers(dark, strokeWidth / spacing, cover, &press);
+                    for (int t = 0; t < 3 && cover[t] > 0; t++) {
                         const float along = imageX * -turnY[t] + imageY * turnX[t], across = imageX * turnX[t] + imageY * turnY[t];
-                        paper *= 1 - hatchAt(along, across, cover, t, spacing, pressed, pixel);
+                        paper *= 1 - hatchAt(along, across, cover[t], t, spacing, strokeWidth * press, press, pixel);
                     }
                     break;
+                }
                 case Shading::Strokes: {
                     // the first strokes cover up to a little over half, those crossing them the rest
                     const float first = std::min(dark, 0.55f), second = dark > first ? 1 - (1 - dark) / (1 - first) : 0.0f;
@@ -928,8 +1061,7 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
                     const float u = (imageX * turnX[0] + imageY * turnY[0]) / spacing + engraveBend * broad[at];
                     const float ux = turnX[0] / spacing + engraveBend * gx, uy = turnY[0] / spacing + engraveBend * gy;
                     const float stretch = std::max(std::sqrt(ux * ux + uy * uy), 1e-6f);
-                    const float off = std::abs(u - std::floor(u + 0.5f));
-                    paper = 1 - bandOver(off / stretch, 0.5f * printed(dark) / stretch, pixel);
+                    paper = 1 - bandsOver(u, 0.5f * printed(dark), stretch, pixel);
                     break;
                 }
                 case Shading::Contour: {
@@ -938,9 +1070,8 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
                     const float u = dark * float(s.levels);
                     const float stretch = float(s.levels) * slopeAt(toned, ww, wh, tx, ty) / std::max(top, 0.05f) / pixel;
                     if (dark <= 0 || stretch < 1e-6f) break;
-                    const float off = std::abs(u - std::floor(u + 0.5f));
                     const float pen = std::max(1.0f, 0.7f * s.size) * (0.6f + 0.8f * dark);
-                    paper = 1 - bandOver(off / stretch, 0.5f * pen, pixel);
+                    paper = 1 - bandsOver(u, 0.5f * pen * stretch, stretch, pixel);
                     break;
                 }
                 default:
@@ -986,7 +1117,8 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
             premultiplied[3][i] = alpha;
         }
         if (flows) {
-            picture = alongFlow({premultiplied[0].data(), premultiplied[1].data(), premultiplied[2].data(), premultiplied[3].data()}, flow, m_flowSigma, inside);
+            picture = alongFlow({premultiplied[0].data(), premultiplied[1].data(), premultiplied[2].data(), premultiplied[3].data()}, flow, m_flowSigma,
+                                inside, smooth.data(), edgeRange);
         } else {
             picture.assign(4, std::vector<float>(size_t(rect.width()) * rect.height()));
             for (int c = 0; c < 4; c++) {
@@ -1020,8 +1152,10 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
             const size_t i = size_t(y) * rect.width() + x;
             float cover = std::clamp(smoothed[i], 0.0f, 1.0f);
             if (!tooth.empty()) {
-                // the ink catches on the paper's peaks first: the tooth's height against what is left of the paper
-                const float caught = std::clamp((cover - (1 - tooth[i])) / 0.3f + 0.5f, 0.0f, 1.0f);
+                // the ink catches on the paper's peaks first: the tooth's height against what is left of the paper,
+                // softly, though never so softly that bare paper catches some or full ink leaves some
+                const float soft = std::max(std::min({0.3f, 2 * cover, 2 * (1 - cover)}), 1e-4f);
+                const float caught = std::clamp((cover - (1 - tooth[i])) / soft + 0.5f, 0.0f, 1.0f);
                 cover = cover + s.grain * (caught - cover);
             }
             if (!marks.empty()) cover = 1 - (1 - cover) * (1 - marks[i]);

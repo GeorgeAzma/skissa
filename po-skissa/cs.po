@@ -821,10 +821,6 @@ msgid "Levels"
 msgstr "Úrovně"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Originál"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "Čáry"
 

@@ -1811,22 +1811,20 @@ struct SkissaInkWidget::Private {
     void makeLooks()
     {
         using C = SkissaInk::Colors;
+        // two rows: drawn with lines and tone, then drawn or printed with marks
         looks = {
-            {i18nc("drawing effect look", "Original"), drawingOf(1.5f, 0, 0, 0, Shading::Solid, 0, C::Over)},
             {i18nc("drawing effect look", "Lines"), drawingOf(1.0f, 0.7f, 0, 0.5f, Shading::Solid)},
             {i18nc("drawing effect look", "Ink"), SkissaInk::inked()},
+            {i18nc("drawing effect look", "Comic"), drawingOf(1.2f, 0.6f, 0.15f, 0.5f, Shading::Solid, 0, C::Over)},
             {i18nc("drawing effect look", "Pencil"), drawingOf(0.8f, 0.4f, 0.7f, 0.3f, Shading::Soft, 0.5f, C::Paper, 0.4f)},
             {i18nc("drawing effect look", "Charcoal"), drawingOf(2.5f, 0.3f, 0.6f, 0.8f, Shading::Soft, 0.45f, C::Paper, 0.8f)},
             {i18nc("drawing effect look", "Wash"), drawingOf(2.0f, 0.3f, 0.08f, 1, Shading::Soft, 0.4f, C::Over)},
-            {i18nc("drawing effect look", "Hatching"), drawingOf(1.2f, 0.5f, 0.9f, 0, Shading::Hatch, 6)},
+            {i18nc("drawing effect look", "Hatching"), drawingOf(1.2f, 0.5f, 0.9f, 0.3f, Shading::Hatch, 6)},
             {i18nc("drawing effect look: fine strokes following the shapes", "Etching"), drawingOf(1.0f, 0.4f, 0.9f, 0.8f, Shading::Strokes, 20, C::Paper, 5)},
             {i18nc("drawing effect look: drawn in dots", "Stipple"), drawingOf(1.0f, 0.5f, 0.85f, 0.3f, Shading::Dots, 2.5f)},
             {i18nc("drawing effect look: lines swelling where dark, as on banknotes", "Engraving"), drawingOf(1.0f, 0.5f, 0.95f, 0.3f, Shading::Engrave, 5)},
             {i18nc("drawing effect look: printed in dots", "Halftone"), drawingOf(1.2f, 0.5f, 0.9f, 0.5f, Shading::Screen, 6)},
             {i18nc("drawing effect look: printed in colored dots", "Pop art"), drawingOf(1.5f, 0.6f, 0.95f, 0.5f, Shading::Screen, 6, C::Colored)},
-            {i18nc("drawing effect look", "Woodcut"), drawingOf(2.0f, 0.8f, 0.45f, 1, Shading::Solid)},
-            {i18nc("drawing effect look", "Comic"), drawingOf(1.2f, 0.6f, 0.15f, 0.5f, Shading::Solid, 0, C::Over)},
-            {i18nc("drawing effect look: colored pencils", "Crayon"), drawingOf(1.0f, 0.4f, 0.9f, 0.5f, Shading::Strokes, 16, C::Colored, 4)},
         };
         shadings = {
             {i18nc("drawing effect: shading as flat ink", "Solid"), Shading::Solid},
@@ -2118,9 +2116,7 @@ void SkissaInkWidget::showTiles()
     };
     QVector<QString> names;
     for (const auto &look : d->looks) names << look.first;
-    d->lookTiles->setChips(chipsOf(names, d->lookPictures, [this](int i) {
-        return d->settings.sameLook(d->looks[i].second) || (i == 0 && d->settings.changesNothing());
-    }));
+    d->lookTiles->setChips(chipsOf(names, d->lookPictures, [this](int i) { return d->settings.sameLook(d->looks[i].second); }));
     names.clear();
     for (const auto &shading : d->shadings) names << shading.first;
     d->shadingTiles->setChips(chipsOf(names, d->shadingPictures, [this](int i) { return d->settings.shading == d->shadings[i].second; }));

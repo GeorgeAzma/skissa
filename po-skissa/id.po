@@ -759,10 +759,6 @@ msgid "Levels"
 msgstr "Level"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Asli"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "Garis"
 

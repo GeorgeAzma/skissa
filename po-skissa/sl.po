@@ -877,10 +877,6 @@ msgid "Levels"
 msgstr "Ravni"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Izvirnik"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "Črte"
 

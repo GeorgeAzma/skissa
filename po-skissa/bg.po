@@ -934,10 +934,6 @@ msgid "Levels"
 msgstr "Нива"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Оригинал"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "Редове"
 

@@ -823,10 +823,6 @@ msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "レベル補正"
 
-msgctxt "drawing effect look"
-msgid "Original"
-msgstr "オリジナル"
-
 msgctxt "drawing effect: shading as soft gray"
 msgid "Soft"
 msgstr "ソフト"

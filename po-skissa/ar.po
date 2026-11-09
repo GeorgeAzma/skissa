@@ -633,10 +633,6 @@ msgid "Levels"
 msgstr "المستويات"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "الأصلي"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "الخطوط"
 

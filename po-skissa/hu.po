@@ -1023,10 +1023,6 @@ msgid "Levels"
 msgstr "Szintek"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Eredeti"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "Vonalak"
 

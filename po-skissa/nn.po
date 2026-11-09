@@ -846,10 +846,6 @@ msgid "Levels"
 msgstr "Nivå"
 
 msgctxt "drawing effect look"
-msgid "Original"
-msgstr "Opphavleg"
-
-msgctxt "drawing effect look"
 msgid "Lines"
 msgstr "Linjer"
 
