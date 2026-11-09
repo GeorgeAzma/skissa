@@ -392,35 +392,4 @@ private:
     QScopedPointer<Private> d;
 };
 
-/**
- * Haze's panel: looks as pictures of the layer through air, how much air, its color (the eyedropper takes the
- * sky's), and whether the layer is at one distance or farther toward one side. A drag on the image: up thicker.
- */
-class SkissaHazeWidget : public KisConfigWidget, public KisEffectCanvasEditor
-{
-    Q_OBJECT
-    Q_INTERFACES(KisEffectCanvasEditor)
-public:
-    SkissaHazeWidget(QWidget *parent, KisPaintDeviceSP dev);
-    ~SkissaHazeWidget() override;
-
-    void setConfiguration(const KisPropertiesConfigurationSP config) override;
-    KisPropertiesConfigurationSP configuration() const override;
-
-    void canvasHovered(const QPoint &pixel) override;
-    bool canvasPressed(const QPoint &pixel) override;
-    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
-    void canvasReleased() override;
-    Qt::Orientations canvasAxes() const override { return Qt::Vertical; }
-
-    QSize sizeHint() const override;
-
-private:
-    void refresh();
-    void edited();
-
-    struct Private;
-    QScopedPointer<Private> d;
-};
-
 #endif

@@ -123,7 +123,6 @@ QString groupOf(const QString &id)
         {QStringLiteral("invert"), QStringLiteral("color")},
         {QStringLiteral("gradientmap"), QStringLiteral("color")},
         {QStringLiteral("skissa_replace"), QStringLiteral("color")},
-        {QStringLiteral("skissa_haze"), QStringLiteral("color")},
         {QStringLiteral("asc-cdl"), QStringLiteral("color")},
         {QStringLiteral("colortransfer"), QStringLiteral("color")},
         {QStringLiteral("fastcoloroverlay"), QStringLiteral("color")},

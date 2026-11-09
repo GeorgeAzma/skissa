@@ -156,10 +156,6 @@ msgctxt "light effect look: nothing added"
 msgid "None"
 msgstr "Ingen"
 
-msgctxt "haze effect: farther toward one side"
-msgid "Gradient"
-msgstr "Overgang"
-
 msgctxt "picture brush tip adjustment"
 msgid "Brightness"
 msgstr "Lysstyrke"

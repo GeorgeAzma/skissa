@@ -1065,18 +1065,6 @@ msgctxt "lens blur: the direction of the band in focus"
 msgid "Angle"
 msgstr "კუთხე"
 
-msgctxt "haze effect look: far away, blue air"
-msgid "Distance"
-msgstr "მანძილი"
-
-msgctxt "haze effect: which way the layer gets farther"
-msgid "Angle"
-msgstr "კუთხე"
-
-msgctxt "haze effect: farther toward one side"
-msgid "Gradient"
-msgstr "გრადაცია"
-
 msgctxt "effect"
 msgid "Light"
 msgstr "მსუბუქი"

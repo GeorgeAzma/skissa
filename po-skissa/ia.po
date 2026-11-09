@@ -910,18 +910,6 @@ msgctxt "lens blur: the direction of the band in focus"
 msgid "Angle"
 msgstr "Angulo"
 
-msgctxt "haze effect look: far away, blue air"
-msgid "Distance"
-msgstr "Distantia:"
-
-msgctxt "haze effect: which way the layer gets farther"
-msgid "Angle"
-msgstr "Angulo"
-
-msgctxt "haze effect: farther toward one side"
-msgid "Gradient"
-msgstr "Gradiente"
-
 msgctxt "effect"
 msgid "Light"
 msgstr "Lumine"

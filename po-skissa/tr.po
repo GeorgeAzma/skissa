@@ -1109,14 +1109,6 @@ msgctxt "lens blur: the direction of the band in focus"
 msgid "Angle"
 msgstr "Açı"
 
-msgctxt "haze effect look: far away, blue air"
-msgid "Distance"
-msgstr "Uzaklık"
-
-msgctxt "haze effect: which way the layer gets farther"
-msgid "Angle"
-msgstr "Açı"
-
 msgctxt "effect"
 msgid "Light"
 msgstr "Işık"

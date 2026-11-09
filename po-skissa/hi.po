@@ -760,18 +760,6 @@ msgctxt "lens blur: the direction of the band in focus"
 msgid "Angle"
 msgstr "कोण"
 
-msgctxt "haze effect look: far away, blue air"
-msgid "Distance"
-msgstr "दूरी"
-
-msgctxt "haze effect: which way the layer gets farther"
-msgid "Angle"
-msgstr "कोण"
-
-msgctxt "haze effect: farther toward one side"
-msgid "Gradient"
-msgstr "ग्रेडिएंट"
-
 msgctxt "effect"
 msgid "Light"
 msgstr "लाइट"

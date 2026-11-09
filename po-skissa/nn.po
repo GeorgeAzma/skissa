@@ -965,14 +965,6 @@ msgctxt "lens blur: the direction of the band in focus"
 msgid "Angle"
 msgstr "Vinkel"
 
-msgctxt "haze effect look: far away, blue air"
-msgid "Distance"
-msgstr "Avstand"
-
-msgctxt "haze effect: which way the layer gets farther"
-msgid "Angle"
-msgstr "Vinkel"
-
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Storleik"

@@ -873,10 +873,6 @@ msgctxt "lens blur: how far a point spreads"
 msgid "Size"
 msgstr "Розмір"
 
-msgctxt "haze effect look: far away, blue air"
-msgid "Distance"
-msgstr "Відстань"
-
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Розмір"

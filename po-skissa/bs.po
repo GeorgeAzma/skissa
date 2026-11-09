@@ -128,10 +128,6 @@ msgctxt "drawing effect: ink alone, see-through between"
 msgid "Clear"
 msgstr "Čisto"
 
-msgctxt "haze effect: farther toward one side"
-msgid "Gradient"
-msgstr "Gradijent"
-
 msgctxt "brush tip shape"
 msgid "Square"
 msgstr "Kvadratni"

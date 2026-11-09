@@ -882,18 +882,6 @@ msgctxt "lens blur: the direction of the band in focus"
 msgid "Angle"
 msgstr "Sudutpandang"
 
-msgctxt "haze effect look: far away, blue air"
-msgid "Distance"
-msgstr "Jarak"
-
-msgctxt "haze effect: which way the layer gets farther"
-msgid "Angle"
-msgstr "Sudutpandang"
-
-msgctxt "haze effect: farther toward one side"
-msgid "Gradient"
-msgstr "Gradien"
-
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Ukuran"

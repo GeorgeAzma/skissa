@@ -6,8 +6,6 @@ set(kritaskissadetail_SOURCES
     SkissaFewerFilter.cpp
     SkissaFocus.cpp
     SkissaFocusFilter.cpp
-    SkissaHaze.cpp
-    SkissaHazeFilter.cpp
     SkissaFollow.cpp
     SkissaInk.cpp
     SkissaInkFilter.cpp

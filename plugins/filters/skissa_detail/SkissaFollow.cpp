@@ -134,9 +134,6 @@ void addAll()
         placed(config, change);
         for (const char *key : {"angle", "band_angle"}) turned(config, change, key);
     });
-    add(QStringLiteral("skissa_haze"), [](KisPropertiesConfiguration &config, const Change &change) {
-        turned(config, change, "angle");
-    });
 }
 
 } // namespace SkissaFollow

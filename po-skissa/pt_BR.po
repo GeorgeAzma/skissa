@@ -1077,18 +1077,6 @@ msgctxt "lens blur: the direction of the band in focus"
 msgid "Angle"
 msgstr "Ângulo"
 
-msgctxt "haze effect look: far away, blue air"
-msgid "Distance"
-msgstr "Distância"
-
-msgctxt "haze effect: which way the layer gets farther"
-msgid "Angle"
-msgstr "Ângulo"
-
-msgctxt "haze effect: farther toward one side"
-msgid "Gradient"
-msgstr "Gradiente"
-
 msgctxt "effect setting"
 msgid "Size"
 msgstr "Tamanho"
