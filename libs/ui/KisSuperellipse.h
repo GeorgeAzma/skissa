@@ -69,8 +69,8 @@ KRITAUI_EXPORT QString keyOf(const Look &look);
 KRITAUI_EXPORT bool lookOf(const QString &key, Look *look);
 /// Its preset's name, or "Shape" and its sides
 KRITAUI_EXPORT QString nameOf(const Look &look);
-/// The look drawn in \p ink, in 24 px
-KRITAUI_EXPORT QIcon iconOf(const Look &look, const QColor &ink);
+/// The look drawn in \p ink, \p size px square, its line as thick at any size
+KRITAUI_EXPORT QIcon iconOf(const Look &look, const QColor &ink, int size = 24);
 
 /// The look the shape tool draws with
 KRITAUI_EXPORT Look current();

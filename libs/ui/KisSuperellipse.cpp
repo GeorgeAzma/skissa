@@ -188,17 +188,18 @@ QString nameOf(const Look &wanted)
     return i18nc("a shape of the user's own, by its number of sides", "%1-sided shape", look.sides);
 }
 
-QIcon iconOf(const Look &look, const QColor &ink)
+QIcon iconOf(const Look &look, const QColor &ink, int size)
 {
     QIcon icon;
+    const qreal margin = size / 6.0;
     for (qreal ratio : {1.0, 1.5, 2.0}) {
-        QPixmap pixmap(QSize(24, 24) * ratio);
+        QPixmap pixmap(QSize(size, size) * ratio);
         pixmap.setDevicePixelRatio(ratio);
         pixmap.fill(Qt::transparent);
         QPainter painter(&pixmap);
         painter.setRenderHint(QPainter::Antialiasing, true);
         painter.setPen(QPen(ink, 1.75, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawPath(pathOf(QRectF(4, 4, 16, 16), look));
+        painter.drawPath(pathOf(QRectF(margin, margin, size - 2 * margin, size - 2 * margin), look));
         painter.end();
         icon.addPixmap(pixmap);
     }

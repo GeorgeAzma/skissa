@@ -150,6 +150,22 @@ QList<QPointer<QWidget>> KisToolSuperellipse::createOptionWidgets()
     grid->setColumnStretch(KisSuperellipse::presetsPerRow, 1);
     layout->addLayout(grid);
 
+    // the shape as set, beside its values: dragged onto the rail or the top bar, it stays there with them
+    auto *shaped = new QHBoxLayout();
+    shaped->setSpacing(KisModernStyle::space2);
+    auto *preview = new ShapeButton(panel);
+    preview->key = [this]() { return KisSuperellipse::keyOf(m_look); };
+    preview->setIconSize(QSize(48, 48));
+    preview->setAutoRaise(true);
+    preview->setFocusPolicy(Qt::NoFocus);
+    preview->setToolTip(i18nc("@info:tooltip the shape tool's shape as set", "Drag to the tools"));
+    shaped->addWidget(preview, 0, Qt::AlignTop);
+    m_preview = preview;
+    auto *rows = new QVBoxLayout();
+    rows->setSpacing(KisModernStyle::space1);
+    shaped->addLayout(rows, 1);
+    layout->addLayout(shaped);
+
     auto add = [&](const QString &name, KisStudioValueRow::Range range, qreal reset, std::function<void(KisSuperellipse::Look &, qreal)> write) {
         auto *row = new KisStudioValueRow(name, panel);
         row->setRange(range);
@@ -160,13 +176,18 @@ QList<QPointer<QWidget>> KisToolSuperellipse::createOptionWidgets()
             write(look, value);
             setLook(look);
         });
-        layout->addWidget(row);
+        rows->addWidget(row);
         return row;
     };
     KisStudioValueRow::Range count;
     count.minimum = KisSuperellipse::leastSides;
     count.maximum = KisSuperellipse::mostSides;
-    m_sides = add(i18nc("shape tool: how many sides the shape has", "Sides"), count, 4, [](KisSuperellipse::Look &look, qreal v) { look.sides = qRound(v); });
+    m_sides = add(i18nc("shape tool: how many sides the shape has", "Sides"), count, 4, [](KisSuperellipse::Look &look, qreal v) {
+        // a shape turned to point down (the five-point star) stays so with more or fewer sides
+        const bool turned = qAbs(look.angle) > 1e-3;
+        look.sides = qRound(v);
+        look.angle = turned ? 180.0 / look.sides : 0.0;
+    });
     KisStudioValueRow::Range share;
     share.maximum = 100;
     share.suffix = QStringLiteral("%");
@@ -181,31 +202,6 @@ QList<QPointer<QWidget>> KisToolSuperellipse::createOptionWidgets()
     exponent.size = true;
     m_curve = add(i18nc("shape tool: the corners' curve", "Curve"), exponent, 2, [](KisSuperellipse::Look &look, qreal v) { look.curve = v; });
     m_curve->setToolTip(i18nc("@info:tooltip the shape tool's corner exponent", "2 is round"));
-    KisStudioValueRow::Range turn;
-    turn.minimum = -180;
-    turn.maximum = 180;
-    turn.suffix = QStringLiteral("°");
-    turn.angle = true;
-    m_angle = add(i18nc("shape tool: how the shape is turned in its box", "Angle"), turn, 0, [](KisSuperellipse::Look &look, qreal v) { look.angle = v; });
-
-    // the look as set, to pin: its card, or dragged where it goes
-    auto *pinRow = new QHBoxLayout();
-    pinRow->addStretch(1);
-    auto *pin = new ShapeButton(panel);
-    pin->key = [this]() { return KisSuperellipse::keyOf(m_look); };
-    pin->setText(i18nc("shape tool: pin the shape as it is set", "Pin"));
-    pin->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    pin->setIconSize(QSize(24, 24));
-    pin->setAutoRaise(true);
-    pin->setFocusPolicy(Qt::NoFocus);
-    pin->setToolTip(i18nc("@info:tooltip", "Pin this shape to the tools"));
-    connect(pin, &QToolButton::clicked, this, [this, pin]() {
-        KisMainWindow *window = KisPart::instance()->currentMainwindow();
-        if (window && window->studioFind()) window->studioFind()->showCard(KisSuperellipse::keyOf(m_look), pin);
-    });
-    pinRow->addWidget(pin);
-    layout->addLayout(pinRow);
-    m_pin = pin;
 
     showLook();
     // in the Studio, Krita's fill and outline are the top bar's: kept, out of sight, for it to mirror
@@ -243,10 +239,7 @@ void KisToolSuperellipse::showLook()
     if (m_sides) m_sides->setValue(m_look.sides);
     if (m_roundness) m_roundness->setValue(m_look.roundness * 100);
     if (m_curve) m_curve->setValue(m_look.curve);
-    if (m_angle) m_angle->setValue(m_look.angle);
-    if (m_pin) {
-        m_pin->setIcon(KisSuperellipse::iconOf(m_look, m_pin->palette().color(QPalette::ButtonText)));
-    }
+    if (m_preview) m_preview->setIcon(KisSuperellipse::iconOf(m_look, m_preview->palette().color(QPalette::ButtonText), m_preview->iconSize().width()));
     const QVector<KisSuperellipse::Preset> presets = KisSuperellipse::presets();
     for (int i = 0; i < m_presetButtons.size() && i < presets.size(); i++) {
         if (m_presetButtons[i]) m_presetButtons[i]->setChecked(presets[i].look == m_look);
