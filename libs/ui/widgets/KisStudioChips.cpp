@@ -160,6 +160,14 @@ void KisStudioChips::paintEvent(QPaintEvent *)
     const QColor ink = palette().color(QPalette::WindowText);
     const QColor accent = palette().color(QPalette::Highlight);
     const QVector<QRectF> rects = layoutFor(width());
+    // tiles' names a little smaller rather than cut short, all alike when one is long
+    QFont small = KisModernStyle::textFont(font(), 0.9);
+    for (int i = 0; i < m_chips.size() && m_tile; i++) {
+        if (QFontMetrics(small).horizontalAdvance(m_chips[i].text) > rects[i].width() - 7) {
+            small = KisModernStyle::textFont(font(), 0.8);
+            break;
+        }
+    }
     for (int i = 0; i < m_chips.size(); i++) {
         const Chip &chip = m_chips[i];
         const QRectF box = rects[i].adjusted(0.5, 0.5, -0.5, -0.5);
@@ -192,9 +200,6 @@ void KisStudioChips::paintEvent(QPaintEvent *)
             QRectF picture = box.adjusted(4, 4, -4, -4);
             if (m_tile && !chip.text.isEmpty()) {
                 // a picture with its name under it
-                // a long name a little smaller rather than cut short
-                QFont small = KisModernStyle::textFont(font(), 0.9);
-                if (QFontMetrics(small).horizontalAdvance(chip.text) > box.width() - 6) small = KisModernStyle::textFont(font(), 0.8);
                 const int line = QFontMetrics(small).height();
                 picture.setBottom(box.bottom() - line - 4);
                 painter.save();

@@ -1936,9 +1936,9 @@ SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
     d->flow = add(i18nc("drawing effect setting", "Flow"), 0, 100, 0, percent, defaults.flow * 100, [this](qreal v) { d->settings.flow = float(v / 100); },
                   i18nc("@info:tooltip", "How much lines follow the shapes"));
 
-    // how the shading is drawn, each way with its own setting
+    // how the shading is drawn, each way with its own setting, in one row
     d->shadingTiles = new KisStudioChips(this);
-    d->shadingTiles->setTileColumns(4, tileHeight);
+    d->shadingTiles->setTileColumns(8, tileHeight);
     connect(d->shadingTiles, &KisStudioChips::clicked, this, [this](int index) {
         if (index < 0 || index >= d->shadings.size()) return;
         d->settings.shading = d->shadings[index].second;

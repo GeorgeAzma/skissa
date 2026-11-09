@@ -285,10 +285,12 @@ QVector<Knob> findKnobs(QWidget *root, bool *simple)
     return knobs;
 }
 
-/// Makes scroll areas as tall as their contents, up to 560 px, instead of the size they ask for themselves
-void fitScrolls(QWidget *root)
+/// The most of the canvas's height the panel takes
+constexpr qreal mostOfCanvas = 0.65;
+
+/// Makes scroll areas as tall as their contents, up to \p tallest, instead of the size they ask for themselves
+void fitScrolls(QWidget *root, int tallest)
 {
-    constexpr int tallest = 560;
     Q_FOREACH (QScrollArea *scroll, root->findChildren<QScrollArea *>()) {
         if (!scroll->widget()) continue;
         const int held = scroll->widget()->sizeHint().height();
@@ -374,7 +376,6 @@ void styleSettings(QWidget *root, bool simple)
         scroll->viewport()->setAutoFillBackground(false);
         if (scroll->widget()) scroll->widget()->setAutoFillBackground(false);
     }
-    fitScrolls(root);
     root->setMinimumSize(0, 0);
 }
 
@@ -847,6 +848,7 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
     d->editor = qobject_cast<KisEffectCanvasEditor *>(settings);
     d->editorWidget = d->editor ? settings : nullptr;
     styleSettings(selector, d->simple);
+    fitScrolls(selector, settingsRoom());
     selector->adjustSize();
     // a scroll area absorbs its contents' size changes, so watch the contents too
     selector->installEventFilter(this);
@@ -1015,6 +1017,13 @@ void KisStudioEffectOverlay::finishEditing()
     d->node = nullptr;
 }
 
+int KisStudioEffectOverlay::settingsRoom() const
+{
+    // the title bar, the margins and what the settings hold around their scrolling part
+    const int around = 80;
+    return parentWidget() ? qMax(240, int(parentWidget()->height() * mostOfCanvas) - around) : 560;
+}
+
 void KisStudioEffectOverlay::reposition()
 {
     if (!parentWidget()) {
@@ -1025,7 +1034,7 @@ void KisStudioEffectOverlay::reposition()
     const int wanted = d->selector ? d->selector->sizeHint().width() + 32 : 0;
     int width = qMin(qMax(520, wanted), area.width() - 40);
     const int contents = d->selector ? d->selector->sizeHint().height() : 0;
-    const int height = qMin(46 + contents + (contents ? 14 : 0), int(area.height() * 0.65));
+    const int height = qMin(46 + contents + (contents ? 14 : 0), int(area.height() * mostOfCanvas));
     const int left = parentWidget()->property("studioCanvasLeftInset").toInt();
     const int right = parentWidget()->property("studioCanvasRightInset").toInt();
     const int bottom = parentWidget()->property("studioCanvasBottomInset").toInt();
@@ -1276,11 +1285,12 @@ bool KisStudioEffectOverlay::eventFilter(QObject *watched, QEvent *event)
         QTimer::singleShot(0, this, [this]() {
             d->fitPending = false;
             if (!d->selector) return;
-            fitScrolls(d->selector);
+            fitScrolls(d->selector, settingsRoom());
             reposition();
         });
     }
     if (watched == parentWidget() && event->type() == QEvent::Resize && isVisible()) {
+        if (d->selector) fitScrolls(d->selector, settingsRoom());
         reposition();
     }
     if (d->canvasWidget && watched == d->canvasWidget && isVisible()) {

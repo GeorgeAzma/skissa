@@ -49,6 +49,8 @@ private:
     void createMask(KisFilterConfigurationSP config);
     void finishEditing();
     void reposition();
+    /// How tall the settings may grow before they scroll: the panel takes at most part of the canvas's height
+    int settingsRoom() const;
     /// Returns true if a press, move or release on the canvas was consumed as a drag
     bool handleCanvasDrag(QEvent *event);
     /// The canvas event for an effect whose settings are edited on the image (KisEffectCanvasEditor)
