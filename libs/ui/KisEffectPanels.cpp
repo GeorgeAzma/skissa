@@ -5,6 +5,8 @@
  */
 #include "KisEffectPanels.h"
 
+#include <KisValueSteps.h>
+
 #include <QGuiApplication>
 #include <QDomDocument>
 #include <QHBoxLayout>
@@ -54,9 +56,6 @@ namespace
 
 /// The part of the layer the pictures show, at its own size so that fine detail shows
 const QSize tileSize(96, 60);
-/// The drag on the image across which a value goes its usual way, or a size grows by a factor of e
-constexpr qreal dragForRange = 300;
-constexpr qreal dragForSize = 150;
 
 using Config = KisFilterConfiguration;
 using Edit = std::function<void(Config &)>;
@@ -340,7 +339,8 @@ public:
     QString canvasDragged(const QPointF &moved, const QPointF &) override
     {
         if (!m_dragging) return QString();
-        if (!m_moved && std::hypot(moved.x(), moved.y()) < 3) return QString();
+        // the overlay calls with nothing moved at the press, to show the value
+        if (!m_moved && moved.isNull()) return QString();
         m_moved = true;
         if (m_lineLength >= 0 && m_lineAngle >= 0) {
             setValue(m_lineLength, std::hypot(moved.x(), moved.y()));
@@ -355,12 +355,8 @@ public:
             if (index < 0) return;
             const Value &value = m_values[index].first;
             const qreal start = m_startValues.value(index);
-            if (value.range.size) {
-                setValue(index, std::max(value.range.minimum, start) * std::exp((up ? -by : by) / dragForSize));
-            } else {
-                const qreal span = (value.usualMaximum > value.range.minimum ? value.usualMaximum : value.range.maximum) - value.range.minimum;
-                setValue(index, start + (up ? -by : by) / dragForRange * span);
-            }
+            const qreal span = (value.usualMaximum > value.range.minimum ? value.usualMaximum : value.range.maximum) - value.range.minimum;
+            setValue(index, KisValueSteps::draggedBy(start, up ? -by : by, span, value.range.size, value.range.minimum));
         };
         drag(m_vertical, moved.y(), true);
         drag(m_horizontal, moved.x(), false);

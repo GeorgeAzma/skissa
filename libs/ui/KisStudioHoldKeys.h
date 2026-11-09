@@ -19,8 +19,6 @@ namespace KisStudioHoldKeys
 /// Handles the shortcuts of \p mainWindow's actions; call once per window.
 void install(KisMainWindow *mainWindow);
 
-/// How long a key must be down to count as held rather than tapped, in milliseconds
-constexpr int holdTime = 350;
 }
 
 #endif // KISSTUDIOHOLDKEYS_H

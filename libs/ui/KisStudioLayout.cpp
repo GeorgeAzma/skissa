@@ -330,7 +330,7 @@ protected:
     {
         if (!(event->buttons() & Qt::LeftButton)) return;
         const QPoint pos = globalMousePos(event);
-        if (!m_dragging && (pos - m_pressPos).manhattanLength() >= QApplication::startDragDistance()) {
+        if (!m_dragging && (pos - m_pressPos).manhattanLength() >= KisModernStyle::dragDistance(event)) {
             m_dragging = true;
             setCursor(Qt::ClosedHandCursor);
             update();
@@ -462,7 +462,7 @@ protected:
         const bool scrubbable = amount && setAmount && amount() >= 0;
         if (scrubbable && (event->buttons() & Qt::LeftButton)) {
             const bool fine = event->modifiers() & Qt::ShiftModifier;
-            if (!m_scrubbing && qAbs(event->pos().x() - m_pressX) > QApplication::startDragDistance()) {
+            if (!m_scrubbing && qAbs(event->pos().x() - m_pressX) > KisModernStyle::dragDistance(event)) {
                 // dragged sideways: the smoothing, not a click
                 m_scrubbing = true;
                 m_scrubbedThisPress = true;
@@ -573,7 +573,7 @@ protected:
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (!m_pressed || (event->pos() - m_pressAt).manhattanLength() < QApplication::startDragDistance()) return;
+        if (!m_pressed || (event->pos() - m_pressAt).manhattanLength() < KisModernStyle::dragDistance(event)) return;
         m_pressed = false;
         KisColorDrop::startDrag(this, onBackground(m_pressAt) ? m_background : m_foreground);
     }
@@ -775,7 +775,7 @@ protected:
     {
         if (!m_pressed || !(event->buttons() & Qt::LeftButton)) return;
         const QPoint pos = globalMousePos(event);
-        if (!m_dragging && (pos - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
+        if (!m_dragging && (pos - m_pressPos).manhattanLength() < KisModernStyle::dragDistance(event)) return;
         m_dragging = true;
         setCursor(Qt::ClosedHandCursor);
         if (dragged) dragged(pos);
@@ -861,7 +861,7 @@ protected:
         if (!m_pressed) return;
         const int dy = globalMousePos(event).y() - m_pressY;
         // a tap (or a pen's wobble) isn't a resize
-        if (!m_moved && qAbs(dy) < QApplication::startDragDistance()) return;
+        if (!m_moved && qAbs(dy) < KisModernStyle::dragDistance(event)) return;
         m_moved = true;
         if (dragged) dragged(dy, false);
     }
@@ -1391,7 +1391,7 @@ protected:
         if (!m_pressed) return;
         const QPoint global = globalMousePos(event);
         if (!m_moving) {
-            if ((global - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
+            if ((global - m_pressPos).manhattanLength() < KisModernStyle::dragDistance(event)) return;
             m_moving = true;
             // what is carried goes over the other overlays
             raise();
@@ -1733,7 +1733,7 @@ protected:
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (!m_pressed || (event->globalPos() - m_press).manhattanLength() < 5) return;
+        if (!m_pressed || (event->globalPos() - m_press).manhattanLength() <= KisModernStyle::dragDistance(event)) return;
         m_pressed = false;
         if (QWindow *window = this->window()->windowHandle()) window->startSystemMove();
     }
@@ -1870,7 +1870,7 @@ protected:
     {
         if (!m_pressed) return;
         const int dx = globalMousePos(event).x() - m_pressX;
-        if (!m_dragging && qAbs(dx) < QApplication::startDragDistance()) return;
+        if (!m_dragging && qAbs(dx) < KisModernStyle::dragDistance(event)) return;
         m_dragging = true;
         if (dragged) dragged(dx);
     }
@@ -2221,7 +2221,7 @@ protected:
         }
         const QPoint global = globalMousePos(event);
         if (!m_moving) {
-            if ((global - m_pressPos).manhattanLength() < QApplication::startDragDistance()) return;
+            if ((global - m_pressPos).manhattanLength() < KisModernStyle::dragDistance(event)) return;
             m_moving = true;
             m_movingSize = QSize();
             // what is carried goes over the other overlays
@@ -5131,7 +5131,7 @@ bool KisStudioLayout::handleRailDrag(QObject *watched, QEvent *event)
             return false;
         }
         if (!drag.active) {
-            if ((globalMousePos(mouseEvent) - drag.pressPos).manhattanLength() < QApplication::startDragDistance()) {
+            if ((globalMousePos(mouseEvent) - drag.pressPos).manhattanLength() < KisModernStyle::dragDistance(mouseEvent)) {
                 return false;
             }
             drag.active = true;

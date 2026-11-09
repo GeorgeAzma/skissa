@@ -17,11 +17,7 @@
 #include "kis_paintop_box.h"
 #include "KisStudioSmoothing.h"
 
-namespace
-{
-/// Horizontal drag distance, in widget pixels, that covers the value's whole range
-constexpr qreal fullRange = 320;
-}
+#include <KisValueSteps.h>
 
 KisDragValueAction::KisDragValueAction()
     : KisAbstractInputAction("Drag Value")
@@ -90,7 +86,7 @@ void KisDragValueAction::inputEvent(QEvent *event)
     if (m_shortcut == SmoothingShortcut) {
         // the brush tool's smoothing, by the same amounts as its chip on the top bar; off at the left end
         if (m_startValue < 0) return;
-        KisStudioSmoothing::setAmount(mainWindow(), qBound(0.0, m_startValue + dx / fullRange, 1.0));
+        KisStudioSmoothing::setAmount(mainWindow(), qBound(0.0, KisValueSteps::draggedBy(m_startValue, dx, 1, false), 1.0));
         if (KisCanvas2 *canvas = inputManager()->canvas()) {
             canvas->viewManager()->showFloatingMessage(i18nc("the smoothing being dragged, e.g. Smoothing: 50", "Smoothing: %1", KisStudioSmoothing::text(mainWindow())),
                                                        QIcon(), 700, KisFloatingMessage::Low);
@@ -99,7 +95,7 @@ void KisDragValueAction::inputEvent(QEvent *event)
     }
     KisDoubleSliderSpinBox *s = slider(m_shortcut);
     if (!s) return;
-    const qreal value = qBound(s->minimum(), m_startValue + dx / fullRange * (s->maximum() - s->minimum()), s->maximum());
+    const qreal value = qBound(s->minimum(), KisValueSteps::draggedBy(m_startValue, dx, s->maximum() - s->minimum(), false), s->maximum());
     s->setValue(value);
     if (KisCanvas2 *canvas = inputManager()->canvas()) {
         const QString what = m_shortcut == FlowShortcut ? i18nc("brush value", "Flow") : i18nc("brush value", "Opacity");

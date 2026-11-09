@@ -5,6 +5,8 @@
  */
 #include "KisTouchMode.h"
 
+#include "KisModernStyle.h"
+
 #include <QAbstractSlider>
 #include <QAbstractSpinBox>
 #include <QApplication>
@@ -22,8 +24,6 @@
 
 namespace {
 
-/// How far a finger may drift during a long press; below the drag distance so a drag never becomes one.
-constexpr int holdSlack = 8;
 
 /// The canvas handles long presses itself, e.g. painting a dot.
 bool isCanvas(const QWidget *widget)
@@ -36,7 +36,7 @@ bool isCanvas(const QWidget *widget)
 KisTouchMode::KisTouchMode()
 {
     m_holdTimer.setSingleShot(true);
-    m_holdTimer.setInterval(longPressDelay);
+    m_holdTimer.setInterval(KisModernStyle::holdInterval());
     connect(&m_holdTimer, &QTimer::timeout, this, &KisTouchMode::hold);
 
     // When KisLongPressEventFilter is enabled it opens the menu, so don't do it twice.
@@ -110,7 +110,7 @@ bool KisTouchMode::eventFilter(QObject *watched, QEvent *event)
             }
             m_lastMousePos = mouse->globalPos();
         }
-        if (m_holdTimer.isActive() && (mouse->globalPos() - m_holdPos).manhattanLength() > holdSlack) {
+        if (m_holdTimer.isActive() && (mouse->globalPos() - m_holdPos).manhattanLength() > KisModernStyle::dragDistance(mouse)) {
             m_holdTimer.stop();
         }
         break;

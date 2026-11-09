@@ -15,6 +15,7 @@
 #include <QProxyStyle>
 
 class QAction;
+class QInputEvent;
 class QWheelEvent;
 
 /// A flat, rounded style built on Fusion. All colors come from the palette.
@@ -120,6 +121,14 @@ public:
 
     /// The action whose shortcut a menu entry shows: the entry or its "kisShortcutTarget". Null for submenus, separators and unnamed actions.
     static QAction *shortcutTarget(QAction *entry);
+
+    /// How far a press may move and still be a click: the system's drag distance, twice that when \p event came
+    /// from a pen or a finger, which wobble as they land
+    static int dragDistance(const QInputEvent *event = nullptr);
+    /// How long a key, a press or a finger is held to be held rather than tapped (Windows' key repeat delay), and how
+    /// soon a second click makes a double click: the system's
+    static int holdInterval();
+    static int doubleClickInterval();
 
     /// Whole wheel notches in \p event. Smaller deltas (touchpads, fine wheels) accumulate on \p receiver.
     static int wheelSteps(const QWheelEvent *event, QObject *receiver);

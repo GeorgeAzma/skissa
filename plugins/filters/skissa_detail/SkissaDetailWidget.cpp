@@ -60,11 +60,6 @@ using namespace SkissaDetail;
 namespace
 {
 
-/// The drag on the image across which a point goes from bottom to top, or a value across its range
-constexpr qreal dragForWholeCurve = 300;
-constexpr qreal dragForRange = 300;
-/// The drag on the image across which a value grows or shrinks by a factor of e
-constexpr qreal dragForFactor = 150;
 /// A point taken on the image holds the curve this far either side: one size changes alone
 constexpr qreal holdAround = 0.15;
 /// The part of the image the tiles show, at its own size so that fine detail shows, and the room read around it
@@ -207,8 +202,7 @@ QString SkissaSliders::canvasDragged(const QPointF &moved, const QPointF &)
     auto drag = [this](int index, qreal start, qreal by) {
         KisStudioValueRow *row = m_sliders[index].second;
         const KisStudioValueRow::Range range = row->range();
-        const qreal value = range.size ? qMax(range.minimum, start) * std::exp(by / dragForFactor)
-                                       : start + by / dragForRange * (range.maximum - range.minimum);
+        const qreal value = KisValueSteps::draggedBy(start, by, range.maximum - range.minimum, range.size, range.minimum);
         row->setValue(qBound(range.minimum, value, range.maximum));
     };
     drag(m_vertical, m_startVertical, -moved.y());
@@ -428,7 +422,7 @@ bool SkissaDetailWidget::canvasPressed(const QPoint &pixel)
 QString SkissaDetailWidget::canvasDragged(const QPointF &moved, const QPointF &)
 {
     if (d->dragPoint < 0) return QString();
-    d->view->setPointY(d->dragPoint, d->dragStart - moved.y() / dragForWholeCurve);
+    d->view->setPointY(d->dragPoint, KisValueSteps::draggedBy(d->dragStart, -moved.y(), 1, false));
     const QPointF point = d->view->curve().points.value(d->dragPoint);
     return radiusText(radiusAt(point.x())) + QStringLiteral("  ") + gainText(gainOf(point.y()));
 }
@@ -672,7 +666,7 @@ QString SkissaNoiseWidget::canvasDragged(const QPointF &moved, const QPointF &)
 {
     if (!d->dragging) return QString();
     // up makes all of it stronger, by ratios, so a faint grain and a strong wobble grow alike
-    const float factor = float(std::exp(-moved.y() / dragForFactor));
+    const float factor = float(KisValueSteps::draggedBy(1, -moved.y(), 0, true));
     QStringList shown;
     bool any = false;
     auto set = [this, &shown](int target, qreal value) {
@@ -1287,7 +1281,6 @@ namespace
 {
 
 /// The drag on the image across which the number of colors, or the pixels' size, grows or shrinks by a factor of e
-constexpr qreal dragForCount = 150;
 
 /// The most steps of each channel, and the most colors taken from the image or of gray
 constexpr int mostLevels = 32;
@@ -1676,13 +1669,13 @@ QString SkissaFewerWidget::canvasDragged(const QPointF &moved, const QPointF &)
 {
     if (!d->dragging) return QString();
     // sideways larger or smaller pixels, by ratios as sizes go
-    d->settings.pixel = std::clamp(int(qRound(d->dragPixel * std::exp(moved.x() / dragForCount))), 1, 64);
+    d->settings.pixel = std::clamp(int(qRound(KisValueSteps::draggedBy(d->dragPixel, moved.x(), 0, true))), 1, 64);
     d->pixel->setValue(d->settings.pixel);
     const QString pixels = rowText(d->pixel, 0, i18nc("pixels, after a number", " px"));
     if (d->settings.source != SkissaFewer::Source::Palette) {
         // up more colors, by ratios, so few change slowly and many quickly
         const int most = d->settings.source == SkissaFewer::Source::Levels ? mostLevels : mostColors;
-        d->settings.count = std::clamp(int(qRound(d->dragCount * std::exp(-moved.y() / dragForCount))), 2, most);
+        d->settings.count = std::clamp(int(qRound(KisValueSteps::draggedBy(d->dragCount, -moved.y(), 0, true))), 2, most);
         if (d->settings.source == SkissaFewer::Source::Image) d->settings.colors = d->colorsOfImage(d->settings.count);
         d->count->setValue(d->settings.count);
     }
@@ -2190,9 +2183,9 @@ bool SkissaInkWidget::canvasPressed(const QPoint &)
 QString SkissaInkWidget::canvasDragged(const QPointF &moved, const QPointF &)
 {
     // up for more shading, sideways for bolder or finer lines, by ratios as brush sizes go
-    d->settings.ink = float(qBound(0.0, d->startShaded - moved.y() / 300.0, 1.0));
+    d->settings.ink = float(qBound(0.0, KisValueSteps::draggedBy(d->startShaded, -moved.y(), 1, false), 1.0));
     d->settings.level = levelOf(d->layerLightness, d->settings.ink);
-    d->settings.size = float(qBound(0.3, d->startSize * std::exp(moved.x() / 250.0), 40.0));
+    d->settings.size = float(qBound(0.3, KisValueSteps::draggedBy(d->startSize, moved.x(), 0, true), 40.0));
     d->shaded->setValue(d->settings.ink * 100.0);
     d->size->setValue(d->settings.size);
     Q_EMIT sigConfigurationItemChanged();
@@ -2584,11 +2577,11 @@ QString SkissaShapeWidget::canvasDragged(const QPointF &moved, const QPointF &at
     }
     case OutlinePart:
         // by ratios, as sizes go, from a little when there was none
-        s.outline = float(qBound(0.0, std::max(1.0, double(d->start.outline)) * std::exp(moved.x() / 150.0), 100.0));
+        s.outline = float(qBound(0.0, KisValueSteps::draggedBy(d->start.outline, moved.x(), 0, true, 1), 100.0));
         break;
     case GlowPart:
-        s.glow = float(qBound(0.0, std::max(2.0, double(d->start.glow)) * std::exp(moved.x() / 150.0), 200.0));
-        s.glowStrength = float(qBound(0.0, d->start.glowStrength - moved.y() / 300.0, 1.0));
+        s.glow = float(qBound(0.0, KisValueSteps::draggedBy(d->start.glow, moved.x(), 0, true, 2), 200.0));
+        s.glowStrength = float(qBound(0.0, KisValueSteps::draggedBy(d->start.glowStrength, -moved.y(), 1, false), 1.0));
         break;
     default:
         s.grow = float(qBound(-50.0, d->start.grow + moved.x() / 20.0, 50.0));
@@ -2891,7 +2884,7 @@ QString SkissaLightWidget::canvasDragged(const QPointF &moved, const QPointF &)
 {
     // up stronger, sideways larger by ratios, for the part shown
     SkissaLight::Settings &s = d->settings;
-    const qreal stronger = -moved.y() / 200.0, larger = std::exp(moved.x() / 150.0);
+    const qreal stronger = KisValueSteps::draggedBy(0, -moved.y(), 1, false), larger = KisValueSteps::draggedBy(1, moved.x(), 0, true);
     const QString px = i18nc("pixels, after a number", " px");
     switch (d->part) {
     case StarLight:
@@ -3075,8 +3068,8 @@ bool SkissaPaintWidget::canvasPressed(const QPoint &)
 QString SkissaPaintWidget::canvasDragged(const QPointF &moved, const QPointF &)
 {
     // sideways a larger or smaller brush, by ratios; up crisper
-    d->settings.size = float(qBound(1.0, d->start.size * std::exp(moved.x() / 150.0), 100.0));
-    d->settings.sharpness = float(qBound(0.0, d->start.sharpness - moved.y() / 300.0, 1.0));
+    d->settings.size = float(qBound(1.0, KisValueSteps::draggedBy(d->start.size, moved.x(), 0, true), 100.0));
+    d->settings.sharpness = float(qBound(0.0, KisValueSteps::draggedBy(d->start.sharpness, -moved.y(), 1, false), 1.0));
     refresh();
     Q_EMIT sigConfigurationItemChanged();
     return rowText(d->size, 1, i18nc("pixels, after a number", " px")) + QStringLiteral("   ") + rowText(d->sharpness, 0, QStringLiteral("%"));

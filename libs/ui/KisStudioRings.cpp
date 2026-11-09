@@ -235,7 +235,7 @@ protected:
             auto *key = static_cast<QKeyEvent *>(event);
             if (!key->isAutoRepeat() && key->key() == m_heldKey) {
                 m_held = false;
-                if (m_since.elapsed() >= KisStudioHoldKeys::holdTime) {
+                if (m_since.elapsed() >= KisModernStyle::holdInterval()) {
                     if (m_hover >= 0 && m_hover < m_slots.size()) runSlot(m_hover);
                     else closeRing();
                 }

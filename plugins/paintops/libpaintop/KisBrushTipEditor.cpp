@@ -886,7 +886,7 @@ public:
             update();
             return;
         }
-        if (!m_moved && QLineF(pos, m_press).length() < 3) return;
+        if (!m_moved && QLineF(pos, m_press).length() <= KisModernStyle::dragDistance(event)) return;
         m_moved = true;
         const bool flip = event->modifiers() & Qt::ShiftModifier;
         dragTo(pos, flip);
@@ -1511,7 +1511,7 @@ public:
             update();
             return;
         }
-        if (!m_moved && QLineF(pos, m_press).length() < 3) return;
+        if (!m_moved && QLineF(pos, m_press).length() <= KisModernStyle::dragDistance(event)) return;
         m_moved = true;
         switch (m_dragPart) {
         case Knee:

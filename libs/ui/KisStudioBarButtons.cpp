@@ -152,7 +152,7 @@ protected:
     {
         // pens wobble, so only a clear move counts as a drag
         if (!m_dragged && (event->buttons() & Qt::LeftButton)
-            && (event->pos() - m_pressPos).manhattanLength() > 2 * QApplication::startDragDistance()) {
+            && (event->pos() - m_pressPos).manhattanLength() > KisModernStyle::dragDistance(event)) {
             m_dragged = true;
             setDown(false);
             if (onDrag) onDrag();

@@ -88,8 +88,6 @@ QString effectName(const KisFilter *filter)
 }
 
 const QString editableKey = QStringLiteral("StudioEffectsEditable");
-/// The drag distance, in pixels, that covers a setting's whole usual range
-constexpr qreal dragForWholeRange = 500.0;
 
 QToolButton *headerButton(QWidget *parent, const QString &toolTip)
 {
@@ -141,6 +139,13 @@ struct Knob {
         else if (auto *box = qobject_cast<QDoubleSpinBox *>(widget)) box->setValue(value);
         else if (auto *box = qobject_cast<QSpinBox *>(widget)) box->setValue(qRound(value));
         else if (auto *slider = qobject_cast<QSlider *>(widget)) slider->setValue(qRound(value));
+    }
+    /// Whether it is a size in pixels, which a drag changes by ratios
+    bool isSize() const
+    {
+        if (auto *box = qobject_cast<QDoubleSpinBox *>(widget)) return box->suffix().contains(QLatin1String("px"));
+        if (auto *box = qobject_cast<QSpinBox *>(widget)) return box->suffix().contains(QLatin1String("px"));
+        return false;
     }
     QString text() const
     {
@@ -538,6 +543,11 @@ struct KisStudioEffectOverlay::Private
     QPointF editMoved;
     QPointF editLast;
     QPointF editStart;
+    /// How far the pointer moves before a press is a drag (none where it moves a middle), and whether it has
+    qreal editSlop {0};
+    bool editPassed {false};
+    /// Whether a drag of the first numbers has passed the drag distance
+    bool knobsPassed {false};
     bool simple {false};
     QPointer<QWidget> canvasWidget;
     QPointer<ValuePill> pill;
@@ -1111,6 +1121,7 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
         d->fine = fine;
         d->dragStart = pos;
         d->secondLinked = false;
+        d->knobsPassed = false;
         for (Knob &knob : d->knobs) {
             knob.start = knob.value();
             knob.span = usualSpan(knob.widget);
@@ -1137,21 +1148,28 @@ bool KisStudioEffectOverlay::handleCanvasDrag(QEvent *event)
         }
         // horizontal movement sets the first setting, vertical the second (up increases it)
         const QPointF moved = pos - d->dragStart;
-        const QPointF delta = moved * (fine ? 0.25 : 1.0);
+        const QPointF delta = moved * (fine ? KisValueSteps::fine : 1.0);
+        const int slop = KisModernStyle::dragDistance(static_cast<QInputEvent *>(event));
+        // a press with a little jitter isn't a drag
+        if (!d->knobsPassed && QLineF(QPointF(), moved).length() <= slop) {
+            event->accept();
+            return true;
+        }
+        d->knobsPassed = true;
         QStringList shown;
         const Knob &first = d->knobs[0];
         if (first.widget) {
-            first.setValue(KisValueSteps::dragged(first.start + delta.x() * first.span / dragForWholeRange, first.span));
+            first.setValue(KisValueSteps::dragged(KisValueSteps::draggedBy(first.start, delta.x(), first.span, first.isSize(), 1), first.span));
             shown << QStringLiteral("%1 %2").arg(first.label, first.text());
         }
         if (d->knobs.size() > 1 && d->knobs[1].widget) {
             const Knob &second = d->knobs[1];
             // if it changed on its own before any vertical movement, it is linked to the first
-            if (!d->secondLinked && second.value() != second.start && qAbs(moved.y()) <= 6) {
+            if (!d->secondLinked && second.value() != second.start && qAbs(moved.y()) <= slop) {
                 d->secondLinked = true;
             }
-            if (!d->secondLinked && qAbs(moved.y()) > 6) {
-                second.setValue(KisValueSteps::dragged(second.start - delta.y() * second.span / dragForWholeRange, second.span));
+            if (!d->secondLinked && qAbs(moved.y()) > slop) {
+                second.setValue(KisValueSteps::dragged(KisValueSteps::draggedBy(second.start, -delta.y(), second.span, second.isSize(), 1), second.span));
                 shown << QStringLiteral("%1 %2").arg(second.label, second.text());
             }
         }
@@ -1189,9 +1207,12 @@ bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos
             d->editMoved = QPointF();
             d->editLast = pos;
             d->editStart = pos;
-            // what the drag changes shows at once, before it moves
             QPointF middle;
-            if (!d->editor->canvasMiddle(&middle)) {
+            const bool hasMiddle = d->editor->canvasMiddle(&middle);
+            d->editSlop = hasMiddle ? 0 : KisModernStyle::dragDistance(static_cast<QInputEvent *>(event));
+            d->editPassed = false;
+            // what the drag changes shows at once, before it moves
+            if (!hasMiddle) {
                 const QString text = d->editor->canvasDragged(QPointF(), at);
                 if (d->pill && !text.isEmpty()) d->pill->showAt(pos.toPoint(), text);
             }
@@ -1218,8 +1239,14 @@ bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos
         d->showMiddle();
         if (d->pill && !text.isEmpty()) d->pill->showAt(pos.toPoint(), text);
     } else {
+        // a press with a little jitter isn't a drag
+        if (!d->editPassed && QLineF(pos, d->editStart).length() <= d->editSlop) {
+            event->accept();
+            return true;
+        }
+        d->editPassed = true;
         // Shift slows the drag from where it is, without a jump
-        d->editMoved += (pos - d->editLast) * (modifiers & Qt::ShiftModifier ? 0.25 : 1.0);
+        d->editMoved += (pos - d->editLast) * (modifiers & Qt::ShiftModifier ? KisValueSteps::fine : 1.0);
         d->editLast = pos;
         const QPointF over = converter->viewportToImage(converter->widgetToViewport(d->editStart + d->editMoved));
         const QString text = d->editor->canvasDragged(d->editMoved, over);

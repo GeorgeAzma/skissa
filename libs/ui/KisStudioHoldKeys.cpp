@@ -114,7 +114,7 @@ private:
         if (!m_action) return;
         // use the key events' own times so a slow action doesn't turn a tap into a hold
         const qint64 down = timestamp && m_pressedAt ? qint64(timestamp - m_pressedAt) : m_since.elapsed();
-        if (!m_used && (down < KisStudioHoldKeys::holdTime || paintsOnly(m_action))) return;
+        if (!m_used && (down < KisModernStyle::holdInterval() || paintsOnly(m_action))) return;
         // a missed release (drag and drop can swallow it) is not a stroke in progress
         m_pointerDown = m_pointerDown && KisModernStyle::pointerHeld();
         if (m_pointerDown) {

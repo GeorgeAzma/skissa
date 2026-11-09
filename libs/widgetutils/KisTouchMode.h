@@ -31,8 +31,6 @@ public:
     static void install();
     static bool isActive();
 
-    /// Long-press duration in ms.
-    static constexpr int longPressDelay = 480;
 
 Q_SIGNALS:
     void changed(bool active);

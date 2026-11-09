@@ -29,6 +29,37 @@ inline double dragged(double value, double range)
     return std::round(value / step) * step;
 }
 
+/*
+ * One law for a value dragged or turned by the wheel, so the same move does as much everywhere: a size (a diameter, a
+ * radius) moves by ratios, as sizes are seen, anything else evenly across its usual range. With Shift a drag is
+ * finer by `fine`; the gains are the top bar's.
+ */
+
+/// Pixels of drag that double a size
+constexpr double pixelsPerDoubling = 100;
+/// Pixels of drag across a value's whole usual range
+constexpr double pixelsPerRange = 200;
+/// How much finer a drag is with Shift held
+constexpr double fine = 0.25;
+/// One notch of the wheel: a fifth of a doubling, or a twentieth of the range
+constexpr double notchesPerDoubling = 5;
+constexpr double notchesPerRange = 20;
+
+/// \p start dragged by \p pixels (positive is more): a size by ratios (from \p least when it starts below), anything
+/// else across \p range
+inline double draggedBy(double start, double pixels, double range, bool size, double least = 0)
+{
+    if (size) return std::max(start, least) * std::exp2(pixels / pixelsPerDoubling);
+    return start + pixels / pixelsPerRange * range;
+}
+
+/// \p value turned by \p notches of the wheel, by the same law
+inline double turnedBy(double value, double notches, double range, bool size, double least = 0)
+{
+    if (size) return std::max(value, least) * std::exp2(notches / notchesPerDoubling);
+    return value + notches / notchesPerRange * range;
+}
+
 /// \p text without the zeros ending its decimals: "192" for "192.00", "0.5" for "0.50"
 inline QString withoutTrailingZeros(QString text, QChar decimalPoint = QLatin1Char('.'))
 {

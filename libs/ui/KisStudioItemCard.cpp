@@ -155,7 +155,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if ((event->buttons() & Qt::LeftButton) && !m_choice.key.isEmpty()
-            && (event->pos() - m_pressPos).manhattanLength() > QApplication::startDragDistance()) {
+            && (event->pos() - m_pressPos).manhattanLength() > KisModernStyle::dragDistance(event)) {
             setDown(false);
             // taking a variant out of its slot rebuilds the card, this tile with it: the drag can't be the tile's
             auto *drag = new QDrag(qApp);

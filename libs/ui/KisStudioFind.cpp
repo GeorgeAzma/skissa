@@ -1628,7 +1628,7 @@ bool KisStudioFind::eventFilter(QObject *watched, QEvent *event)
             d->dragStart = mouse->pos();
             d->dragIndex = d->list->indexAt(mouse->pos());
         } else if (event->type() == QEvent::MouseMove && (mouse->buttons() & Qt::LeftButton) && d->dragIndex.isValid()
-                   && (mouse->pos() - d->dragStart).manhattanLength() > QApplication::startDragDistance()) {
+                   && (mouse->pos() - d->dragStart).manhattanLength() > KisModernStyle::dragDistance(mouse)) {
             const int index = d->dragIndex.data(EntryRole).toInt();
             d->dragIndex = QModelIndex();
             if (index >= 0 && index < d->entries.size() && !d->entries[index].key.isEmpty()) {

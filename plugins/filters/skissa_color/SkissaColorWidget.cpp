@@ -5,6 +5,7 @@
  */
 #include "SkissaColorWidget.h"
 
+#include <KisValueSteps.h>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -49,7 +50,6 @@ constexpr int mapTab = 4;
 constexpr qreal nearStop = 0.04;
 constexpr int bins = 64;
 /// The drag on the image across which a curve goes from bottom to top
-constexpr qreal dragForWholeCurve = 300;
 
 /// What the panel showed last, kept for the next time it opens
 int lastChange = Lightness;
@@ -208,7 +208,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if (!(event->buttons() & Qt::LeftButton)) return;
-        if (!m_moved && (event->pos() - m_grab).manhattanLength() < 3) return;
+        if (!m_moved && (event->pos() - m_grab).manhattanLength() <= KisModernStyle::dragDistance(event)) return;
         m_moved = true;
         const bool fine = event->modifiers() & Qt::ShiftModifier;
         if (fine != m_fine) {
@@ -990,10 +990,10 @@ QString SkissaColorWidget::canvasDragged(const QPointF &moved, const QPointF &)
         float lab[3];
         KoMixing::linearToOklab(linear, lab);
         float chroma = std::hypot(lab[1], lab[2]);
-        float hue = std::atan2(lab[2], lab[1]) + float(moved.x() / dragForWholeCurve * 2 * M_PI);
+        float hue = std::atan2(lab[2], lab[1]) + float(KisValueSteps::draggedBy(0, moved.x(), 2 * M_PI, false));
         // a gray has no hue to turn: it takes on a little color first
         if (chroma < 0.02f && std::abs(moved.x()) > 4) chroma = 0.06f;
-        lab[0] = float(qBound(0.0, lab[0] - moved.y() / dragForWholeCurve, 1.0));
+        lab[0] = float(qBound(0.0, KisValueSteps::draggedBy(lab[0], -moved.y(), 1, false), 1.0));
         lab[1] = chroma * std::cos(hue);
         lab[2] = chroma * std::sin(hue);
         d->settings.map[d->mapDragStop].second = colorOfLab(lab);
@@ -1002,7 +1002,7 @@ QString SkissaColorWidget::canvasDragged(const QPointF &moved, const QPointF &)
         return i18nc("gradient map: the lightness and hue of a stop's color while dragged", "Lightness %1  Hue %2°", qRound(lab[0] * 100), degrees);
     }
     if (d->dragPoint < 0) return QString();
-    const qreal y = d->dragStart - moved.y() / dragForWholeCurve;
+    const qreal y = KisValueSteps::draggedBy(d->dragStart, -moved.y(), 1, false);
     d->curve->setPointY(d->dragPoint, y);
     const QString name = d->isRgb() ? channelName(d->currentBy()) : axisName(d->change);
     return name + QStringLiteral("  ") + d->valueText(d->curve->curve().points.value(d->dragPoint).y(), false);

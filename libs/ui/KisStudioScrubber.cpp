@@ -16,12 +16,15 @@
 
 #include <cmath>
 #include <KisModernStyle.h>
+#include <KisValueSteps.h>
 
 #include "widgets/KisStudioInlineEdit.h"
 
 namespace {
 
 constexpr int iconSize = 20;
+/// The usual Grow or Soft, in pixels: a drag across the law's whole range goes this far
+constexpr qreal usualAmount = 64;
 
 int eventX(QMouseEvent *event)
 {
@@ -200,22 +203,20 @@ void KisStudioScrubber::mouseMoveEvent(QMouseEvent *event)
         m_pressValue = m_value;
     }
     // Ignore small jitter so a plain click doesn't count as a drag
-    if (!m_moved && qAbs(eventX(event) - m_pressX) <= 2) {
+    if (!m_moved && qAbs(eventX(event) - m_pressX) <= KisModernStyle::dragDistance(event)) {
         return;
     }
     if (!m_moved) Q_EMIT dragStarted();
     m_moved = true;
-    const qreal dx = (eventX(event) - m_pressX) * (fine ? 0.25 : 1.0);
+    const qreal dx = (eventX(event) - m_pressX) * (fine ? KisValueSteps::fine : 1.0);
     const qreal before = m_value;
     if (m_kind == Kind::Size) {
-        // 100 px of drag doubles or halves the size
-        m_value = bounded(m_pressValue * std::pow(2.0, dx / 100.0));
+        m_value = bounded(KisValueSteps::draggedBy(m_pressValue, dx, 0, true, qMax<qreal>(m_minimum, 1)));
     } else if (m_kind == Kind::Grow || m_kind == Kind::Soft) {
-        // whole pixels, 3 px of drag each
-        m_value = bounded(qRound(m_pressValue + dx / 3.0));
+        // whole pixels
+        m_value = bounded(qRound(KisValueSteps::draggedBy(m_pressValue, dx, usualAmount, false)));
     } else {
-        // 2 px of drag per percent
-        m_value = bounded(m_pressValue + dx * (m_maximum - m_minimum) / 200.0);
+        m_value = bounded(KisValueSteps::draggedBy(m_pressValue, dx, m_maximum - m_minimum, false));
     }
     if (m_value != before) Q_EMIT valueChanging(m_value);
     update();
@@ -276,11 +277,13 @@ void KisStudioScrubber::wheelEvent(QWheelEvent *event)
         return;
     }
     if (m_kind == Kind::Size) {
-        commit(m_value * std::pow(1.15, steps));
+        commit(KisValueSteps::turnedBy(m_value, steps, 0, true, qMax<qreal>(m_minimum, 1)));
     } else if (m_kind == Kind::Grow || m_kind == Kind::Soft) {
-        commit(m_value + steps);
+        // whole pixels, at least one a notch
+        const qreal by = KisValueSteps::turnedBy(0, steps, usualAmount, false);
+        commit(m_value + (steps > 0 ? qMax<qreal>(1, qRound(by)) : qMin<qreal>(-1, qRound(by))));
     } else {
-        commit(m_value + steps * (m_maximum - m_minimum) / 20.0);
+        commit(KisValueSteps::turnedBy(m_value, steps, m_maximum - m_minimum, false));
     }
     event->accept();
 }

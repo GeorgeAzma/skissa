@@ -421,13 +421,13 @@ void KisStudioValueRow::mouseMoveEvent(QMouseEvent *event)
     if (!m_dragging) {
         // pulled out up or down: carried elsewhere, not scrubbed
         const int dy = eventY(event) - m_pressY;
-        if (m_pinnable && qAbs(dy) > 10 && qAbs(dy) > 2 * qAbs(x - m_pressX)) {
+        if (m_pinnable && qAbs(dy) > 2 * KisModernStyle::dragDistance(event) && qAbs(dy) > 2 * qAbs(x - m_pressX)) {
             m_pressed = false;
             Q_EMIT pulledOut();
             return;
         }
         // a click with a little jitter isn't a drag
-        if (qAbs(x - m_pressX) <= 3) return;
+        if (qAbs(x - m_pressX) <= KisModernStyle::dragDistance(event)) return;
         m_dragging = true;
         m_draggedThisPress = true;
         m_pressX = x;

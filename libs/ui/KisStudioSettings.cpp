@@ -2073,7 +2073,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if (!draggable || m_pressed.x() < 0 || !(event->buttons() & Qt::LeftButton)
-            || (event->pos() - m_pressed).manhattanLength() < QApplication::startDragDistance()) {
+            || (event->pos() - m_pressed).manhattanLength() < KisModernStyle::dragDistance(event)) {
             QFrame::mouseMoveEvent(event);
             return;
         }

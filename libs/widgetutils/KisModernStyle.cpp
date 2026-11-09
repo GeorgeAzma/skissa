@@ -24,6 +24,8 @@
 #include <QToolButton>
 #include <QHash>
 #include <QApplication>
+#include <QStyleHints>
+#include <QMouseEvent>
 #include <QComboBox>
 #include <QDockWidget>
 #include <QEvent>
@@ -665,6 +667,32 @@ void KisModernStyle::drawKeyCap(QPainter *painter, const QRectF &rect, const QFo
     painter->setFont(font);
     painter->drawText(face, Qt::AlignCenter, keyCapShown(text, state));
     painter->restore();
+}
+
+int KisModernStyle::dragDistance(const QInputEvent *event)
+{
+    const int distance = QApplication::startDragDistance();
+    if (!event) return distance;
+    const QEvent::Type type = event->type();
+    const bool pen = type == QEvent::TabletPress || type == QEvent::TabletMove || type == QEvent::TabletRelease
+        || type == QEvent::TouchBegin || type == QEvent::TouchUpdate || type == QEvent::TouchEnd;
+    const auto *mouse = dynamic_cast<const QMouseEvent *>(event);
+    return pen || (mouse && mouse->source() != Qt::MouseEventNotSynthesized) ? 2 * distance : distance;
+}
+
+int KisModernStyle::holdInterval()
+{
+#ifdef Q_OS_WIN
+    // Windows' key repeat delay: when it takes a key as held, from 0 (a quarter second) to 3 (one second)
+    int delay = 1;
+    if (SystemParametersInfoW(SPI_GETKEYBOARDDELAY, 0, &delay, 0)) return 250 * (qBound(0, delay, 3) + 1);
+#endif
+    return QGuiApplication::styleHints()->mousePressAndHoldInterval();
+}
+
+int KisModernStyle::doubleClickInterval()
+{
+    return QGuiApplication::styleHints()->mouseDoubleClickInterval();
 }
 
 int KisModernStyle::wheelSteps(const QWheelEvent *event, QObject *receiver)

@@ -745,7 +745,7 @@ protected:
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
-        if (m_pressed < 0 || (event->pos() - m_pressAt).manhattanLength() < QApplication::startDragDistance()) return;
+        if (m_pressed < 0 || (event->pos() - m_pressAt).manhattanLength() < KisModernStyle::dragDistance(event)) return;
         const int index = m_pressed;
         m_pressed = -1;
         KisColorDrop::startDrag(this, m_colors[index]);

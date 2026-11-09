@@ -370,7 +370,7 @@ public:
         // a long press previews or drags here instead of opening a context menu
         setProperty("ownLongPress", true);
         m_hold.setSingleShot(true);
-        m_hold.setInterval(KisTouchMode::longPressDelay);
+        m_hold.setInterval(KisModernStyle::holdInterval());
         QObject::connect(&m_hold, &QTimer::timeout, this, [this]() {
             if (m_press < 0) return;
             m_lifted = true;
@@ -602,7 +602,7 @@ protected:
     {
         if (m_touch && (event->buttons() & Qt::LeftButton)) {
             const QPoint moved = event->globalPos() - m_pressGlobal;
-            if (m_dragging < 0 && moved.manhattanLength() > QApplication::startDragDistance()) {
+            if (m_dragging < 0 && moved.manhattanLength() > KisModernStyle::dragDistance(event)) {
                 m_hold.stop();
                 if (m_lifted && m_press >= 0) {
                     m_dragging = m_press;

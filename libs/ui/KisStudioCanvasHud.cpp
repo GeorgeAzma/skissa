@@ -535,7 +535,7 @@ bool KisStudioCanvasHud::drag(QMouseEvent *event, QWidget *from)
         if (!d->pressed || !(event->buttons() & Qt::LeftButton)) return false;
         // pens wobble, so only a clear move counts as a drag
         if (!d->moving) {
-            if ((global - d->pressPos).manhattanLength() <= 2 * QApplication::startDragDistance()) return false;
+            if ((global - d->pressPos).manhattanLength() <= KisModernStyle::dragDistance(event)) return false;
             d->moving = true;
             raise();
             if (auto *button = qobject_cast<QAbstractButton *>(from)) button->setDown(false);

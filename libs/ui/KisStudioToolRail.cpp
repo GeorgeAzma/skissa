@@ -4,6 +4,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioToolRail.h"
+
+#include <KisModernStyle.h>
 #include "KisStudioTools.h"
 
 #include <KisSentenceCase.h>
@@ -167,7 +169,7 @@ protected:
     static bool isDrag(QMouseEvent *event, const QPoint &pressPos)
     {
         return (event->buttons() & Qt::LeftButton)
-            && (event->pos() - pressPos).manhattanLength() > 2 * QApplication::startDragDistance();
+            && (event->pos() - pressPos).manhattanLength() > KisModernStyle::dragDistance(event);
     }
 };
 
