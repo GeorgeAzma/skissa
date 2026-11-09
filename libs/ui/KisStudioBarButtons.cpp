@@ -49,6 +49,8 @@ namespace
 
 const QString itemsKey = QStringLiteral("StudioBarItems");
 const QString pillItemsKey = QStringLiteral("StudioViewPillItems");
+/// Clipping to the layers below (KisStudioLayout makes it)
+const QString clipItem = QStringLiteral("action:studio_clip_below");
 const QString symmetryItem = QStringLiteral("bar:symmetry");
 const QString shapesItem = QStringLiteral("action:stroke_shapes");
 const QString brushEditorItem = QStringLiteral("action:show_brush_editor");
@@ -57,7 +59,7 @@ const QString indexMimeType = QStringLiteral("application/x-krita-studio-bar-ind
 QStringList defaultItems()
 {
     // the brush editor opens from the brush's chip, before these
-    return {symmetryItem, shapesItem, QStringLiteral("action:erase_action"), QStringLiteral("action:preserve_alpha"),
+    return {symmetryItem, shapesItem, QStringLiteral("action:erase_action"), QStringLiteral("action:preserve_alpha"), clipItem,
             QStringLiteral("action:reload_preset_action")};
 }
 
@@ -263,6 +265,16 @@ KisStudioBarButtons::KisStudioBarButtons(KisMainWindow *mainWindow, QWidget *par
         cfg.writeEntry("StudioBarBrushEditorRetired", true);
         if (d->items.removeAll(brushEditorItem) && cfg.readEntry(itemsKey, QString()).size()) cfg.writeEntry(itemsKey, d->items);
     }
+    // clipping, beside alpha lock, offered once to a bar arranged before it
+    if (place == TopBar && !KisConfig(true).readEntry("StudioBarClipOffered", false)) {
+        KisConfig cfg(false);
+        cfg.writeEntry("StudioBarClipOffered", true);
+        if (!d->items.contains(clipItem) && cfg.readEntry(itemsKey, QString()).size()) {
+            const int lock = d->items.indexOf(QStringLiteral("action:preserve_alpha"));
+            d->items.insert(lock >= 0 ? lock + 1 : d->items.size(), clipItem);
+            cfg.writeEntry(itemsKey, d->items);
+        }
+    }
     // an undo or redo of the buttons
     connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::valueChanged, this, [this](const QString &id) {
         if (id != d->key()) return;
@@ -430,7 +442,7 @@ void KisStudioBarButtons::updateForTool()
     // the brush's own buttons only with the tools they apply to; anything added stays
     const QString tool = KisStudioTools::activeToolId();
     const QStringList brushOnly = {symmetryItem, shapesItem, brushEditorItem, QStringLiteral("action:reload_preset_action")};
-    const QStringList painting = {QStringLiteral("action:erase_action"), QStringLiteral("action:preserve_alpha")};
+    const QStringList painting = {QStringLiteral("action:erase_action"), QStringLiteral("action:preserve_alpha"), clipItem};
     for (int w = 0; w < d->widgets.size(); w++) {
         const QString key = d->items.value(d->widgetItem[w]);
         const bool brush = brushOnly.contains(key) || key.startsWith(brushPrefix);

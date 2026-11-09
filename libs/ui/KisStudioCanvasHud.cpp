@@ -19,6 +19,7 @@
 #include <QProgressBar>
 #include <QStatusBar>
 #include <QStyleOptionToolButton>
+#include <QElapsedTimer>
 #include <QTimer>
 #include <QToolButton>
 #include <QWheelEvent>
@@ -167,6 +168,10 @@ struct KisStudioCanvasHud::Private
 
     QToolButton *mirror {nullptr};
     QToolButton *value {nullptr};
+    QAction *valueView {nullptr};
+    /// Value view as it was when the button was pressed, and how long it has been held
+    bool valueWasOn {false};
+    QElapsedTimer valueHeld;
     QToolButton *rotation {nullptr};
     QToolButton *zoom {nullptr};
     /// Buttons added to it
@@ -336,9 +341,14 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
             if (canvas) canvas->updateCanvas();
         }
     });
+    // a press shows it at once: let go quickly it stays, held it was only a look (eventFilter)
+    d->valueView = valueView;
     d->value = hudButton(this);
-    d->value->setDefaultAction(valueView);
+    d->value->setIcon(valueView->icon());
+    d->value->setCheckable(true);
     d->value->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    d->value->setToolTip(i18nc("@info:tooltip the value view button", "Grayscale\nClick: on or off\nHold: while held"));
+    connect(valueView, &QAction::toggled, d->value, &QToolButton::setChecked);
     layout->addWidget(d->value);
 
     // shown only while the canvas is rotated; a click resets the rotation
@@ -413,7 +423,7 @@ void KisStudioCanvasHud::setActive(bool active)
         }
     } else {
         // the value view button leaves with the Studio layout, so value view is turned off
-        if (d->value && d->value->defaultAction()) d->value->defaultAction()->setChecked(false);
+        if (d->valueView) d->valueView->setChecked(false);
         if (d->progress && statusBar) {
             if (QProgressBar *bar = d->progress->findChild<QProgressBar *>()) {
                 bar->removeEventFilter(this);
@@ -602,6 +612,17 @@ bool KisStudioCanvasHud::eventFilter(QObject *watched, QEvent *event)
                && (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseMove || event->type() == QEvent::MouseButtonRelease)
                && drag(static_cast<QMouseEvent *>(event), qobject_cast<QWidget *>(watched))) {
         // only on itself: a press another pill let through to the canvas area isn't its drag
+        return true;
+    } else if (watched == d->value && d->valueView && (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease)
+               && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
+        if (event->type() == QEvent::MouseButtonPress) {
+            d->valueWasOn = d->valueView->isChecked();
+            d->valueHeld.start();
+            if (!d->valueWasOn) d->valueView->setChecked(true);
+        } else if (d->valueWasOn || d->valueHeld.elapsed() >= KisModernStyle::holdInterval()) {
+            // a click while on turns it off; held, it was a look
+            d->valueView->setChecked(false);
+        }
         return true;
     } else if (watched == d->zoom && event->type() == QEvent::Wheel) {
         // one zoom step per wheel notch, however fine the wheel

@@ -340,6 +340,8 @@ QHash<QString, QStringList> aliasTable()
         {"action:view_show_canvas_only", i18nc("@info find aliases, comma separated", "full screen, focus mode, hide interface")},
         {"action:zoom_to_100pct", i18nc("@info find aliases, comma separated", "actual pixels, actual size")},
         {"action:preserve_alpha", i18nc("@info find aliases, comma separated", "alpha lock, lock alpha, lock transparency, lock transparent pixels")},
+        {"action:studio_clip_below", i18nc("@info find aliases, comma separated", "clipping mask, clip, clip to layer below, inherit alpha, alpha inheritance")},
+        {"action:KisToolTransformLiquify", i18nc("@info find aliases, comma separated", "liquify, push, smudge shape, warp brush")},
         {"action:create_quick_clipping_group", i18nc("@info find aliases, comma separated", "clipping mask, clip to layer below")},
         {"action:layer_style", i18nc("@info find aliases, comma separated", "layer effects, drop shadow, outer glow, stroke")},
         {"action:copy_merged", i18nc("@info find aliases, comma separated", "copy visible")},

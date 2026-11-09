@@ -66,6 +66,7 @@ static QString studioIcon(const QString &name)
         // the top bar
         {QStringLiteral("draw-eraser"), QStringLiteral("studio_erase")},
         {QStringLiteral("transform_icons_penPressure"), QStringLiteral("studio_pressure")},
+        {QStringLiteral("transform_icons_liquify_main"), QStringLiteral("studio_push")},
         {QStringLiteral("transform_icons_penPressure_locked"), QStringLiteral("studio_pressure_off")},
         {QStringLiteral("paintop_settings_02"), QStringLiteral("studio_brush_settings")},
         {QStringLiteral("bar-transparency-locked"), QStringLiteral("studio_alpha_lock")},

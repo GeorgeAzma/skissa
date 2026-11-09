@@ -6,6 +6,7 @@
  */
 
 #include "KisView.h"
+#include "KisStudioLayout.h"
 #include "KisColorDrop.h"
 #include <KisProfile.h>
 
@@ -538,11 +539,19 @@ void KisView::dropEvent(QDropEvent *event)
 
         const auto callPos = QCursor::pos();
 
-        const KisCanvasDrop::Action action = dlgAction.dropAs(*mData, callPos);
+        // in the Studio, a picture dropped on the image is a layer and one dropped beside it a reference, without
+        // asking (the file itself when there is one); with Alt held, Krita's menu of every way
+        const bool decided = KisStudioLayout::isEnabledInConfig() && !(event->keyboardModifiers() & Qt::AltModifier);
+        const bool many = urls.size() > 1;
+        const KisCanvasDrop::Action action = !decided ? dlgAction.dropAs(*mData, callPos)
+            : imageBounds.contains(imgCursorPos) ? (many ? KisCanvasDrop::INSERT_MANY_LAYERS : KisCanvasDrop::INSERT_AS_NEW_LAYER)
+                                                 : (many ? KisCanvasDrop::INSERT_AS_REFERENCE_IMAGES : KisCanvasDrop::INSERT_AS_REFERENCE_IMAGE);
 
         if (action == KisCanvasDrop::INSERT_AS_NEW_LAYER) {
-            const QPair<bool, KisClipboard::PasteFormatBehaviour> source =
-                KisClipboard::instance()->askUserForSourceWithData (qimage, urls);
+            const bool local = std::any_of(urls.constBegin(), urls.constEnd(), std::mem_fn(&QUrl::isLocalFile));
+            const QPair<bool, KisClipboard::PasteFormatBehaviour> source = decided
+                ? qMakePair(true, local ? KisClipboard::PASTE_FORMAT_LOCAL : !qimage.isNull() ? KisClipboard::PASTE_FORMAT_CLIP : KisClipboard::PASTE_FORMAT_DOWNLOAD)
+                : KisClipboard::instance()->askUserForSourceWithData(qimage, urls);
 
             if (!source.first) {
                 dbgUI << "Paste event cancelled";

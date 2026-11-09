@@ -84,6 +84,9 @@ const QString shapeToolId = QStringLiteral("KritaShape/KisToolSuperellipse");
 const QString sharedSizeKey = QStringLiteral("StudioRailItemsSharedSize");
 /// Set once the effects button has been added to an existing rail, so removing it sticks
 const QString effectsOfferedKey = QStringLiteral("StudioRailEffectsOffered");
+/// The transform tool's Push (liquify), one tap away
+const QString pushItem = QStringLiteral("action:KisToolTransformLiquify");
+const QString pushOfferedKey = QStringLiteral("StudioRailPushOffered");
 
 enum class BrushMode {
     None,
@@ -154,7 +157,7 @@ QStringList defaultItems()
             blender.isEmpty() ? slotPrefix + QStringLiteral("blend") : brushPrefix + blender,
             slotPrefix + QStringLiteral("erase"),
             spacePrefix,
-            slotPrefix + QStringLiteral("select"), slotPrefix + QStringLiteral("move"), slotPrefix + QStringLiteral("fill"),
+            slotPrefix + QStringLiteral("select"), slotPrefix + QStringLiteral("move"), pushItem, slotPrefix + QStringLiteral("fill"),
             slotPrefix + QStringLiteral("shape"), slotPrefix + QStringLiteral("text"), slotPrefix + QStringLiteral("guides"),
             effectsItem};
 }
@@ -735,6 +738,16 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
             writable.writeEntry(itemsKey, d->items);
         }
         writable.writeEntry(effectsOfferedKey, true);
+    }
+    // and Push beside Transform, once
+    if (!cfg.readEntry<bool>(pushOfferedKey, false)) {
+        KisConfig writable(false);
+        if (!d->items.contains(pushItem)) {
+            const int move = d->items.indexOf(slotPrefix + QStringLiteral("move"));
+            d->items.insert(move >= 0 ? move + 1 : d->items.size(), pushItem);
+            writable.writeEntry(itemsKey, d->items);
+        }
+        writable.writeEntry(pushOfferedKey, true);
     }
     d->q = this;
     // every slot's key works, on the rail or not (T for Transform, F for Fill: their tools lost their own)

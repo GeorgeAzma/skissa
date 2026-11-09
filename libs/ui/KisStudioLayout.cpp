@@ -106,6 +106,10 @@
 #include "KisTouchMode.h"
 #include "KisView.h"
 #include "KisViewManager.h"
+#include "kis_node_manager.h"
+#include <kis_image.h>
+#include <kis_layer.h>
+#include <QSharedPointer>
 #include "KisWelcomePageWidget.h"
 #include "KisStudioStartPage.h"
 #include "widgets/KisStudioPopup.h"
@@ -3302,6 +3306,34 @@ void KisStudioLayout::enter()
             }
         }
     });
+    // clipping to the layers below: Krita's alpha inheritance, as a switch showing the current layer's
+    if (viewManager) {
+        auto *clip = new QAction(KisIconUtils::loadIcon(QStringLiteral("studio_clip")), i18nc("@action", "Clip to layers below"), mainWindow);
+        clip->setObjectName(QStringLiteral("studio_clip_below"));
+        clip->setCheckable(true);
+        clip->setToolTip(i18nc("@info:tooltip", "Clip to layers below: paints only where they are"));
+        mainWindow->actionCollection()->addAction(clip->objectName(), clip);
+        const QPointer<KisViewManager> view = viewManager;
+        auto shown = [clip, view]() {
+            KisLayer *layer = view ? qobject_cast<KisLayer *>(view->activeNode().data()) : nullptr;
+            const QSignalBlocker blocker(clip);
+            clip->setEnabled(layer);
+            clip->setChecked(layer && layer->alphaChannelDisabled());
+        };
+        connect(clip, &QAction::triggered, clip, [view, shown]() {
+            if (view && view->nodeManager()) view->nodeManager()->toggleInheritAlpha();
+            shown();
+        });
+        connect(viewManager->nodeManager(), &KisNodeManager::sigNodeActivated, clip, shown);
+        // the layer's switch changed elsewhere (the layer panel, an undo)
+        auto watched = QSharedPointer<QMetaObject::Connection>::create();
+        connect(viewManager, &KisViewManager::viewChanged, clip, [view, shown, watched]() {
+            QObject::disconnect(*watched);
+            if (view && view->image()) *watched = QObject::connect(view->image().data(), &KisImage::sigNodeChanged, view.data(), [shown](KisNodeSP) { shown(); }, Qt::QueuedConnection);
+            shown();
+        });
+    }
+
     // one name for one thing: the brush editors call it so
     if (QAction *reload = mainWindow->actionCollection()->action(QStringLiteral("reload_preset_action"))) {
         reload->setText(i18nc("@action drop the brush's unsaved changes", "Back to the saved brush"));
@@ -5876,7 +5908,9 @@ void KisStudioLayout::tidyCommand(QAction *action)
     }
     // commands Krita names in code keep its Title Case ("Gaussian Blur…", "Merge with Layer Below"); items without
     // a name of their own (recent files, workspaces) are the user's and keep theirs
-    const QString text = KisSentenceCase::of(action->text());
+    QString text = KisSentenceCase::of(action->text());
+    // the transform tool's liquify mode, as its own command, is called what the bar calls it
+    if (action->objectName() == QLatin1String("KisToolTransformLiquify")) text = i18nc("@action the transform tool's liquify mode", "Push");
     if (text != action->text()) action->setText(text);
 }
 

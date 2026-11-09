@@ -273,6 +273,8 @@ ICONS = {
     # a pushpin: kept where it is
     'bend': p('M6 18.5c0-7 4.5-11.5 12.5-11.5') + c(6, 18.5, 1.9) + c(18.5, 7, 1.9),
     'pin': p('M9 3.5h6l-.9 5.6 3.4 3.9h-11l3.4-3.9Z') + p('M12 13v7.5'),
+    # a line pushed up into a bump from below: the transform tool's Push (liquify)
+    'push': p('M3.5 14.5h3.5c3 0 3-7 5-7s2 7 5 7h3.5') + p('M12 20.5v-7.5M9.5 15.5 12 13l2.5 2.5'),
     'pin_on': solid('M9 3.5h6l-.9 5.6 3.4 3.9h-11l3.4-3.9Z') + p('M12 13v7.5'),
     # two links of a chain: kept together, and apart
     'link': p('M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1') + p('M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1'),
