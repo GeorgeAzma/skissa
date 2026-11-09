@@ -235,7 +235,8 @@ public:
         layout->setSpacing(KisModernStyle::space2);
 
         m_wheel = new KisStudioColorWheel(this);
-        m_wheel->setFixedSize(qMax(220, 16 * fontMetrics().averageCharWidth()), qMax(188, 11 * fontMetrics().height()));
+        const int wheelWidth = qMax(220, 16 * fontMetrics().averageCharWidth());
+        m_wheel->setFixedSize(wheelWidth, m_wheel->heightFor(wheelWidth));
         m_wheel->setColor(field->color());
         layout->addWidget(m_wheel);
         connect(m_wheel, &KisStudioColorWheel::colorPicked, this, [this](const QColor &picked) {

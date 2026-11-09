@@ -1616,20 +1616,26 @@ void SkissaFewerWidget::canvasReleased()
 namespace
 {
 
-SkissaInk::Settings inkOf(float size, float lines, float ink, float softness, float flow, SkissaInk::Colors colors = SkissaInk::Colors::Paper,
-                          int tones = 1, float hatching = 0, float spacing = 8, float angle = 45)
+using Shading = SkissaInk::Shading;
+
+/// A look: what is drawn, how its shading is drawn (with that way's own setting), where it goes
+SkissaInk::Settings drawingOf(float size, float lines, float shaded, float flow, Shading shading, float setting = 0,
+                              SkissaInk::Colors colors = SkissaInk::Colors::Paper)
 {
     SkissaInk::Settings settings;
     settings.size = size;
     settings.lines = lines;
-    settings.ink = ink;
-    settings.softness = softness;
+    settings.ink = shaded;
     settings.flow = flow;
+    settings.shading = shading;
     settings.colors = colors;
-    settings.tones = tones;
-    settings.hatching = hatching;
-    settings.spacing = spacing;
-    settings.angle = angle;
+    switch (shading) {
+    case Shading::Solid: settings.steps = setting > 0 ? int(setting) : settings.steps; break;
+    case Shading::Soft: settings.softness = setting > 0 ? setting : settings.softness; break;
+    case Shading::Hatch: settings.spacing = setting > 0 ? setting : settings.spacing; break;
+    case Shading::Strokes: settings.length = setting > 0 ? setting : settings.length; break;
+    case Shading::Dots: settings.dot = setting > 0 ? setting : settings.dot; break;
+    }
     return settings;
 }
 
@@ -1654,7 +1660,7 @@ std::vector<float> lightnessOf(const QImage &picture)
     return seen;
 }
 
-/// The lightness below which \p share of a picture lies (its sorted lightness \p sorted); none for no ink
+/// The lightness below which \p share of a picture lies (its sorted lightness \p sorted); none for no shading
 float levelOf(const std::vector<float> &sorted, float share)
 {
     if (share <= 0) return 0;
@@ -1665,8 +1671,8 @@ float levelOf(const std::vector<float> &sorted, float share)
 
 /// A tile's picture, and the scale it shows the layer at: large enough that lines show as they will, small enough
 /// that a tile holds more than one thing
-const QSize inkTileSize(120, 75);
-constexpr qreal inkTileScale = 0.5;
+const QSize drawingTileSize(120, 75);
+constexpr qreal drawingTileScale = 0.5;
 
 } // namespace
 
@@ -1677,11 +1683,13 @@ struct SkissaInkWidget::Private {
     std::vector<float> layerLightness;
     std::vector<float> baseLightness;
     QVector<QPair<QString, SkissaInk::Settings>> looks;
+    QVector<QPair<QString, Shading>> shadings;
     QVector<QPair<QString, SkissaInk::Colors>> colorings;
     /// The tiles' part of the layer, with room around it for what the looks read
     QImage base;
     QPoint corner;
     QVector<QImage> lookPictures;
+    QVector<QImage> shadingPictures;
     QVector<QImage> colorPictures;
     /// Pictures are made on another thread after a pause; only the latest asked for are shown (a widget gone by then
     /// drops them)
@@ -1689,75 +1697,85 @@ struct SkissaInkWidget::Private {
     int generation {0};
 
     KisStudioChips *lookTiles {nullptr};
+    KisStudioChips *shadingTiles {nullptr};
     KisStudioChips *colorTiles {nullptr};
     KisStudioValueRow *size {nullptr};
     KisStudioValueRow *lines {nullptr};
-    KisStudioValueRow *ink {nullptr};
-    KisStudioValueRow *softness {nullptr};
+    KisStudioValueRow *shaded {nullptr};
     KisStudioValueRow *flow {nullptr};
-    KisStudioValueRow *tones {nullptr};
-    KisStudioValueRow *hatching {nullptr};
+    KisStudioValueRow *steps {nullptr};
+    KisStudioValueRow *softness {nullptr};
     KisStudioValueRow *spacing {nullptr};
     KisStudioValueRow *angle {nullptr};
+    KisStudioValueRow *length {nullptr};
+    KisStudioValueRow *dot {nullptr};
     QWidget *inkColorRow {nullptr};
     QWidget *paperColorRow {nullptr};
     KisStudioColorField *inkColor {nullptr};
     KisStudioColorField *paperColor {nullptr};
 
-    float startInk {0};
+    float startShaded {0};
     float startSize {1};
 
     void makeLooks()
     {
         using C = SkissaInk::Colors;
         looks = {
-            {i18nc("ink effect look", "Original"), inkOf(1.5f, 0, 0, 0.05f, 0, C::Over)},
-            {i18nc("ink effect look", "Lines"), inkOf(1.0f, 0.7f, 0, 0.08f, 0.5f)},
-            {i18nc("ink effect look", "Ink"), SkissaInk::inked()},
-            {i18nc("ink effect look", "Pencil"), inkOf(0.8f, 0.4f, 0.7f, 0.5f, 0.3f)},
-            {i18nc("ink effect look", "Charcoal"), inkOf(2.5f, 0.3f, 0.6f, 0.45f, 0.8f)},
-            {i18nc("ink effect look", "Hatching"), inkOf(1.2f, 0.5f, 0.7f, 0.15f, 0, C::Paper, 3, 1)},
-            {i18nc("ink effect look: fine strokes following the shapes", "Etching"), inkOf(1.0f, 0.4f, 1.0f, 0.3f, 0.8f, C::Paper, 1, 1)},
-            {i18nc("ink effect look", "Woodcut"), inkOf(2.0f, 0.8f, 0.45f, 0, 1)},
-            {i18nc("ink effect look", "Comic"), inkOf(1.2f, 0.6f, 0.15f, 0.03f, 0.5f, C::Over)},
-            {i18nc("ink effect look: colored pencils", "Crayon"), inkOf(1.0f, 0.4f, 0.95f, 0.5f, 0.3f, C::Colored, 4, 0.6f, 5, 60)},
-            {i18nc("ink effect look", "Wash"), inkOf(2.0f, 0.3f, 0.08f, 0.4f, 1, C::Over)},
+            {i18nc("drawing effect look", "Original"), drawingOf(1.5f, 0, 0, 0, Shading::Solid, 0, C::Over)},
+            {i18nc("drawing effect look", "Lines"), drawingOf(1.0f, 0.7f, 0, 0.5f, Shading::Solid)},
+            {i18nc("drawing effect look", "Ink"), SkissaInk::inked()},
+            {i18nc("drawing effect look", "Pencil"), drawingOf(0.8f, 0.4f, 0.7f, 0.3f, Shading::Soft, 0.5f)},
+            {i18nc("drawing effect look", "Charcoal"), drawingOf(2.5f, 0.3f, 0.6f, 0.8f, Shading::Soft, 0.45f)},
+            {i18nc("drawing effect look", "Hatching"), drawingOf(1.2f, 0.5f, 0.9f, 0, Shading::Hatch, 8)},
+            {i18nc("drawing effect look: fine strokes following the shapes", "Etching"), drawingOf(1.0f, 0.4f, 1.0f, 0.8f, Shading::Strokes, 8)},
+            {i18nc("drawing effect look: drawn in dots", "Stipple"), drawingOf(1.0f, 0.5f, 0.85f, 0.3f, Shading::Dots, 2.5f)},
+            {i18nc("drawing effect look", "Woodcut"), drawingOf(2.0f, 0.8f, 0.45f, 1, Shading::Solid)},
+            {i18nc("drawing effect look", "Comic"), drawingOf(1.2f, 0.6f, 0.15f, 0.5f, Shading::Solid, 0, C::Over)},
+            {i18nc("drawing effect look: colored pencils", "Crayon"), drawingOf(1.0f, 0.4f, 1.0f, 0.3f, Shading::Hatch, 5, C::Colored)},
+            {i18nc("drawing effect look", "Wash"), drawingOf(2.0f, 0.3f, 0.08f, 1, Shading::Soft, 0.4f, C::Over)},
+        };
+        shadings = {
+            {i18nc("drawing effect: shading as flat ink", "Solid"), Shading::Solid},
+            {i18nc("drawing effect: shading as soft gray", "Soft"), Shading::Soft},
+            {i18nc("drawing effect: shading as straight strokes", "Hatch"), Shading::Hatch},
+            {i18nc("drawing effect: shading as strokes along the shapes", "Strokes"), Shading::Strokes},
+            {i18nc("drawing effect: shading as dots", "Dots"), Shading::Dots},
         };
         colorings = {
-            {i18nc("ink effect: ink on paper", "Paper"), C::Paper},
-            {i18nc("ink effect: ink alone, see-through between", "Clear"), C::Clear},
-            {i18nc("ink effect: ink over the picture", "Picture"), C::Over},
-            {i18nc("ink effect: the picture's own colors as ink", "Colors"), C::Colored},
+            {i18nc("drawing effect: ink on paper", "Paper"), C::Paper},
+            {i18nc("drawing effect: ink alone, see-through between", "Clear"), C::Clear},
+            {i18nc("drawing effect: ink over the picture", "Picture"), C::Over},
+            {i18nc("drawing effect: the picture's own colors as ink", "Colors"), C::Colored},
         };
     }
 
     void makeBase()
     {
         int margin = 0;
-        for (const auto &look : looks) margin = std::max(margin, SkissaInk::Ink(look.second, inkTileScale).reach());
+        for (const auto &look : looks) margin = std::max(margin, SkissaInk::Ink(look.second, drawingTileScale).reach());
         margin = std::min(margin + 4, 64);
-        const QSize whole = inkTileSize + QSize(2 * margin, 2 * margin);
+        const QSize whole = drawingTileSize + QSize(2 * margin, 2 * margin);
         if (original) {
             const QRect bounds = original->exactBounds();
             if (!bounds.isEmpty()) {
                 const qreal scale = qMin(1.0, 256.0 / qMax(bounds.width(), bounds.height()));
                 layerLightness = lightnessOf(original->createThumbnailUncached(qCeil(bounds.width() * scale), qCeil(bounds.height() * scale), bounds));
                 const QPoint busiest = KisEffectPanels::busiestPoint(original, bounds);
-                const QSize read = whole / inkTileScale;
+                const QSize read = whole / drawingTileScale;
                 const QRect crop(busiest - QPoint(read.width() / 2, read.height() / 2), read);
                 base = original->convertToQImage(nullptr, crop).scaled(whole, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
                 corner = QPoint(margin, margin);
                 baseLightness = layerLightness;
             }
         }
-        if (base.isNull() || KisEffectPanels::showsLittle(base.copy(QRect(corner, inkTileSize)))) {
+        if (base.isNull() || KisEffectPanels::showsLittle(base.copy(QRect(corner, drawingTileSize)))) {
             base = KisStudioPicker::samplePicture(whole * 3).convertToFormat(QImage::Format_ARGB32).copy(QRect(QPoint(whole.width(), whole.height()), whole));
             corner = QPoint(margin, margin);
             baseLightness = lightnessOf(base);
         }
     }
 
-    /// \p look as the layer has it: its share of ink at the layer's own lightness
+    /// \p look as the layer has it: its share of shading at the layer's own lightness
     SkissaInk::Settings onLayer(SkissaInk::Settings look) const
     {
         look.level = levelOf(layerLightness, look.ink);
@@ -1808,28 +1826,46 @@ SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
         return row;
     };
     const SkissaInk::Settings defaults = SkissaInk::inked();
-    d->size = add(i18nc("ink effect setting", "Size"), 0.3, 40, 1, px, defaults.size, [this](qreal v) { d->settings.size = float(v); },
-                  i18nc("@info:tooltip", "How fine or bold the lines are"));
-    d->lines = add(i18nc("ink effect setting", "Lines"), 0, 100, 0, percent, defaults.lines * 100, [this](qreal v) { d->settings.lines = float(v / 100); },
-                   i18nc("@info:tooltip", "From the picture's own tones to outlines only"));
-    d->ink = add(i18nc("ink effect setting", "Ink"), 0, 100, 0, percent, defaults.ink * 100,
-                 [this](qreal v) {
-                     d->settings.ink = float(v / 100);
-                     d->settings.level = levelOf(d->layerLightness, d->settings.ink);
-                 },
-                 i18nc("@info:tooltip", "How much of the picture goes dark"));
-    d->softness = add(i18nc("ink effect setting", "Softness"), 0, 100, 0, percent, defaults.softness * 100,
-                      [this](qreal v) { d->settings.softness = float(v / 100); });
-    d->flow = add(i18nc("ink effect setting", "Flow"), 0, 100, 0, percent, defaults.flow * 100, [this](qreal v) { d->settings.flow = float(v / 100); },
-                  i18nc("@info:tooltip", "How much lines and colors follow the shapes"));
-    d->tones = add(i18nc("ink effect setting", "Tones"), 1, 8, 0, QString(), defaults.tones, [this](qreal v) { d->settings.tones = qRound(v); });
-    d->hatching = add(i18nc("ink effect setting", "Hatching"), 0, 100, 0, percent, 0, [this](qreal v) { d->settings.hatching = float(v / 100); },
-                      i18nc("@info:tooltip", "Tones drawn as strokes, along the shapes with Flow"));
-    d->spacing = add(i18nc("ink effect setting: between hatch lines", "Spacing"), 2, 60, 1, px, defaults.spacing,
-                     [this](qreal v) { d->settings.spacing = float(v); });
-    d->angle = add(i18nc("ink effect setting: of the hatch lines", "Angle"), -90, 90, 0, QStringLiteral("°"), defaults.angle,
-                   [this](qreal v) { d->settings.angle = float(v); });
 
+    // what is drawn
+    d->size = add(i18nc("drawing effect setting", "Size"), 0.3, 40, 1, px, defaults.size, [this](qreal v) { d->settings.size = float(v); },
+                  i18nc("@info:tooltip", "How fine or bold the lines are"));
+    d->lines = add(i18nc("drawing effect setting", "Lines"), 0, 100, 0, percent, defaults.lines * 100,
+                   [this](qreal v) { d->settings.lines = float(v / 100); });
+    d->shaded = add(i18nc("drawing effect setting: how much of the picture is shaded", "Shading"), 0, 100, 0, percent, defaults.ink * 100,
+                    [this](qreal v) {
+                        d->settings.ink = float(v / 100);
+                        d->settings.level = levelOf(d->layerLightness, d->settings.ink);
+                    },
+                    i18nc("@info:tooltip", "How much of the picture is shaded, darkest first"));
+    d->flow = add(i18nc("drawing effect setting", "Flow"), 0, 100, 0, percent, defaults.flow * 100, [this](qreal v) { d->settings.flow = float(v / 100); },
+                  i18nc("@info:tooltip", "How much lines follow the shapes"));
+
+    // how the shading is drawn, each way with its own setting
+    d->shadingTiles = new KisStudioChips(this);
+    d->shadingTiles->setTileColumns(5, tileHeight);
+    connect(d->shadingTiles, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= d->shadings.size()) return;
+        d->settings.shading = d->shadings[index].second;
+        showRows();
+        refreshTiles();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    layout->addWidget(d->shadingTiles);
+    d->steps = add(i18nc("drawing effect setting: steps of darkness", "Steps"), 1, 8, 0, QString(), defaults.steps,
+                   [this](qreal v) { d->settings.steps = qRound(v); });
+    d->softness = add(i18nc("drawing effect setting", "Softness"), 0, 100, 0, percent, defaults.softness * 100,
+                      [this](qreal v) { d->settings.softness = float(v / 100); });
+    d->spacing = add(i18nc("drawing effect setting: between hatch strokes", "Spacing"), 2, 60, 1, px, defaults.spacing,
+                     [this](qreal v) { d->settings.spacing = float(v); });
+    d->angle = add(i18nc("drawing effect setting: of the hatch strokes", "Angle"), -90, 90, 0, QStringLiteral("°"), defaults.angle,
+                   [this](qreal v) { d->settings.angle = float(v); });
+    d->length = add(i18nc("drawing effect setting: of the strokes", "Length"), 2, 60, 1, px, defaults.length,
+                    [this](qreal v) { d->settings.length = float(v); });
+    d->dot = add(i18nc("drawing effect setting: how wide the dots are", "Dot size"), 1, 30, 1, px, defaults.dot,
+                 [this](qreal v) { d->settings.dot = float(v); });
+
+    // where the ink goes
     d->colorTiles = new KisStudioChips(this);
     d->colorTiles->setTileColumns(4, tileHeight);
     connect(d->colorTiles, &KisStudioChips::clicked, this, [this](int index) {
@@ -1873,9 +1909,9 @@ SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
         colorsLayout->addWidget(part, 1);
         return part;
     };
-    d->inkColorRow = colorPart(i18nc("ink effect: the color of the ink", "Ink"), d->settings.inkColor, defaults.inkColor, &d->inkColor,
+    d->inkColorRow = colorPart(i18nc("drawing effect: the color of the ink", "Ink"), d->settings.inkColor, defaults.inkColor, &d->inkColor,
                                [this](const QColor &c) { d->settings.inkColor = c; });
-    d->paperColorRow = colorPart(i18nc("ink effect: the color of the paper", "Paper"), d->settings.paperColor, defaults.paperColor, &d->paperColor,
+    d->paperColorRow = colorPart(i18nc("drawing effect: the color of the paper", "Paper"), d->settings.paperColor, defaults.paperColor, &d->paperColor,
                                  [this](const QColor &c) { d->settings.paperColor = c; });
     layout->addWidget(colors);
 
@@ -1894,7 +1930,7 @@ SkissaInkWidget::~SkissaInkWidget()
 
 void SkissaInkWidget::setConfiguration(const KisPropertiesConfigurationSP config)
 {
-    // the share of ink is read on this layer, not the one the settings were last used on
+    // the share of shading is read on this layer, not the one the settings were last used on
     d->settings = d->onLayer(config ? SkissaInk::Settings::from(*config) : SkissaInk::inked());
     refresh();
 }
@@ -1918,13 +1954,14 @@ void SkissaInkWidget::refresh()
     const SkissaInk::Settings &s = d->settings;
     d->size->setValue(s.size);
     d->lines->setValue(s.lines * 100.0);
-    d->ink->setValue(s.ink * 100.0);
-    d->softness->setValue(s.softness * 100.0);
+    d->shaded->setValue(s.ink * 100.0);
     d->flow->setValue(s.flow * 100.0);
-    d->tones->setValue(s.tones);
-    d->hatching->setValue(s.hatching * 100.0);
+    d->steps->setValue(s.steps);
+    d->softness->setValue(s.softness * 100.0);
     d->spacing->setValue(s.spacing);
     d->angle->setValue(s.angle);
+    d->length->setValue(s.length);
+    d->dot->setValue(s.dot);
     d->inkColor->setColor(s.inkColor);
     d->paperColor->setColor(s.paperColor);
     showRows();
@@ -1933,22 +1970,18 @@ void SkissaInkWidget::refresh()
 
 void SkissaInkWidget::showRows()
 {
-    // only what changes something now: without lines or ink nothing is drawn, without ink there are no tones to
-    // hatch, and each color only where it shows
+    // the four rows of what is drawn always show; how the shading is drawn while there is shading, with only its own
+    // way's setting; where the ink goes while anything is drawn, with each color where it shows
     const SkissaInk::Settings &s = d->settings;
     const bool draws = s.lines > 0 || s.ink > 0;
-    const bool fills = s.ink > 0;
-    d->size->setVisible(draws || s.flow > 0);
-    d->softness->setVisible(draws);
-    // with flow, hatching follows the shapes: no angle, and its strokes have a length rather than rows a spacing;
-    // drawn wholly in such strokes, its darkness is the picture's own, in no steps
-    const bool flowing = s.flow > 0;
-    d->tones->setVisible(fills && !(flowing && s.hatching >= 1));
-    d->hatching->setVisible(fills);
-    d->spacing->setVisible(fills && s.hatching > 0);
-    d->spacing->setName(flowing ? i18nc("ink effect setting: of strokes following the shapes", "Length")
-                                : i18nc("ink effect setting: between hatch lines", "Spacing"));
-    d->angle->setVisible(fills && s.hatching > 0 && !flowing);
+    const bool shades = s.ink > 0;
+    d->shadingTiles->setVisible(shades);
+    d->steps->setVisible(shades && s.shading == Shading::Solid);
+    d->softness->setVisible(shades && s.shading == Shading::Soft);
+    d->spacing->setVisible(shades && s.shading == Shading::Hatch);
+    d->angle->setVisible(shades && s.shading == Shading::Hatch);
+    d->length->setVisible(shades && s.shading == Shading::Strokes);
+    d->dot->setVisible(shades && s.shading == Shading::Dots);
     d->colorTiles->setVisible(draws);
     d->inkColorRow->setVisible(draws && s.colors != SkissaInk::Colors::Colored);
     d->paperColorRow->setVisible(draws && (s.colors == SkissaInk::Colors::Paper || s.colors == SkissaInk::Colors::Colored));
@@ -1963,36 +1996,45 @@ void SkissaInkWidget::refreshTiles()
 
 void SkissaInkWidget::showTiles()
 {
-    QVector<KisStudioChips::Chip> looks;
-    for (int i = 0; i < d->looks.size(); i++) {
-        KisStudioChips::Chip chip;
-        chip.text = d->looks[i].first;
-        chip.on = d->settings.sameLook(d->looks[i].second) || (i == 0 && d->settings.changesNothing());
-        chip.picture = tilePicture(d->lookPictures.value(i));
-        chip.pictureKey = d->lookPictures.value(i).cacheKey();
-        looks << chip;
-    }
-    d->lookTiles->setChips(looks);
-    QVector<KisStudioChips::Chip> colorings;
-    for (int i = 0; i < d->colorings.size(); i++) {
-        KisStudioChips::Chip chip;
-        chip.text = d->colorings[i].first;
-        chip.on = d->settings.colors == d->colorings[i].second;
-        chip.picture = tilePicture(d->colorPictures.value(i));
-        chip.pictureKey = d->colorPictures.value(i).cacheKey();
-        colorings << chip;
-    }
-    d->colorTiles->setChips(colorings);
+    auto chipsOf = [](const QVector<QString> &names, const QVector<QImage> &pictures, std::function<bool(int)> on) {
+        QVector<KisStudioChips::Chip> chips;
+        for (int i = 0; i < names.size(); i++) {
+            KisStudioChips::Chip chip;
+            chip.text = names[i];
+            chip.on = on(i);
+            chip.picture = tilePicture(pictures.value(i));
+            chip.pictureKey = pictures.value(i).cacheKey();
+            chips << chip;
+        }
+        return chips;
+    };
+    QVector<QString> names;
+    for (const auto &look : d->looks) names << look.first;
+    d->lookTiles->setChips(chipsOf(names, d->lookPictures, [this](int i) {
+        return d->settings.sameLook(d->looks[i].second) || (i == 0 && d->settings.changesNothing());
+    }));
+    names.clear();
+    for (const auto &shading : d->shadings) names << shading.first;
+    d->shadingTiles->setChips(chipsOf(names, d->shadingPictures, [this](int i) { return d->settings.shading == d->shadings[i].second; }));
+    names.clear();
+    for (const auto &coloring : d->colorings) names << coloring.first;
+    d->colorTiles->setChips(chipsOf(names, d->colorPictures, [this](int i) { return d->settings.colors == d->colorings[i].second; }));
 }
 
 void SkissaInkWidget::makePictures()
 {
-    // the looks with the colors chosen, and the look chosen in each coloring, made away from the window's thread
+    // the looks with the colors chosen; the drawing as it is with each way of shading, then in each place; made away
+    // from the window's thread
     QVector<SkissaInk::Settings> asked;
     for (const auto &look : d->looks) {
         SkissaInk::Settings s = look.second;
         s.inkColor = d->settings.inkColor;
         s.paperColor = d->settings.paperColor;
+        asked << s;
+    }
+    for (const auto &shading : d->shadings) {
+        SkissaInk::Settings s = d->settings;
+        s.shading = shading.second;
         asked << s;
     }
     for (const auto &coloring : d->colorings) {
@@ -2003,16 +2045,17 @@ void SkissaInkWidget::makePictures()
     for (SkissaInk::Settings &s : asked) s.level = levelOf(d->baseLightness, s.ink);
     const int generation = ++d->generation;
     const QImage base = d->base;
-    const QRect shown(d->corner, inkTileSize);
-    const int looks = d->looks.size();
+    const QRect shown(d->corner, drawingTileSize);
+    const int looks = d->looks.size(), shadings = d->shadings.size();
     QPointer<SkissaInkWidget> self(this);
-    QThreadPool::globalInstance()->start([self, generation, base, shown, asked, looks]() {
+    QThreadPool::globalInstance()->start([self, generation, base, shown, asked, looks, shadings]() {
         QVector<QImage> pictures;
-        for (const SkissaInk::Settings &s : asked) pictures << SkissaInk::applied(base, s, inkTileScale).copy(shown);
-        QMetaObject::invokeMethod(qApp, [self, generation, pictures, looks]() {
+        for (const SkissaInk::Settings &s : asked) pictures << SkissaInk::applied(base, s, drawingTileScale).copy(shown);
+        QMetaObject::invokeMethod(qApp, [self, generation, pictures, looks, shadings]() {
             if (!self || self->d->generation != generation) return;
             self->d->lookPictures = pictures.mid(0, looks);
-            self->d->colorPictures = pictures.mid(looks);
+            self->d->shadingPictures = pictures.mid(looks, shadings);
+            self->d->colorPictures = pictures.mid(looks + shadings);
             self->showTiles();
         }, Qt::QueuedConnection);
     });
@@ -2024,21 +2067,21 @@ void SkissaInkWidget::canvasHovered(const QPoint &)
 
 bool SkissaInkWidget::canvasPressed(const QPoint &)
 {
-    d->startInk = d->settings.ink;
+    d->startShaded = d->settings.ink;
     d->startSize = d->settings.size;
     return true;
 }
 
 QString SkissaInkWidget::canvasDragged(const QPointF &moved, const QPointF &)
 {
-    // up for more ink, sideways for bolder or finer lines, by ratios as brush sizes go
-    d->settings.ink = float(qBound(0.0, d->startInk - moved.y() / 300.0, 1.0));
+    // up for more shading, sideways for bolder or finer lines, by ratios as brush sizes go
+    d->settings.ink = float(qBound(0.0, d->startShaded - moved.y() / 300.0, 1.0));
     d->settings.level = levelOf(d->layerLightness, d->settings.ink);
     d->settings.size = float(qBound(0.3, d->startSize * std::exp(moved.x() / 250.0), 40.0));
-    d->ink->setValue(d->settings.ink * 100.0);
+    d->shaded->setValue(d->settings.ink * 100.0);
     d->size->setValue(d->settings.size);
     Q_EMIT sigConfigurationItemChanged();
-    return QStringLiteral("%1   %2").arg(rowText(d->ink, 0, QStringLiteral("%")), rowText(d->size, 1, i18nc("pixels, after a number", " px")));
+    return QStringLiteral("%1   %2").arg(rowText(d->shaded, 0, QStringLiteral("%")), rowText(d->size, 1, i18nc("pixels, after a number", " px")));
 }
 
 void SkissaInkWidget::canvasReleased()

@@ -21,7 +21,7 @@
 using namespace SkissaInk;
 
 SkissaInkFilter::SkissaInkFilter()
-    : KisFilter(inkId(), FiltersCategoryArtisticId, i18nc("@action effect", "&Ink..."))
+    : KisFilter(inkId(), FiltersCategoryArtisticId, i18nc("@action effect", "&Drawing..."))
 {
     setSupportsPainting(true);
     setSupportsAdjustmentLayers(true);
@@ -32,7 +32,7 @@ SkissaInkFilter::SkissaInkFilter()
 
 KoID SkissaInkFilter::inkId()
 {
-    return KoID(QStringLiteral("skissa_ink"), i18nc("effect", "Ink"));
+    return KoID(QStringLiteral("skissa_ink"), i18nc("effect", "Drawing"));
 }
 
 QRect SkissaInkFilter::neededRect(const QRect &rect, const KisFilterConfigurationSP config, int lod) const

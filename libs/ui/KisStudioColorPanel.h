@@ -66,6 +66,8 @@ public:
 
     void setColor(const QColor &color);
     QColor color() const;
+    /// The height its picker fills at \p width, without room around it
+    int heightFor(int width) const;
 
     /// A color as it is typed in the color panel's field, in any format it reads (00F2FC, rgb(…), oklch(…),
     /// hsv(…), hsl(…)); invalid if it reads none

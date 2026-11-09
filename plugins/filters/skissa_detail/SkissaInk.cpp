@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <vector>
 
 #include <QtMath>
@@ -42,6 +43,26 @@ QString nameOf(Colors colors)
     case Colors::Colored: return QStringLiteral("colored");
     }
     return QStringLiteral("paper");
+}
+
+QString nameOf(Shading shading)
+{
+    switch (shading) {
+    case Shading::Solid: return QStringLiteral("solid");
+    case Shading::Soft: return QStringLiteral("soft");
+    case Shading::Hatch: return QStringLiteral("hatch");
+    case Shading::Strokes: return QStringLiteral("strokes");
+    case Shading::Dots: return QStringLiteral("dots");
+    }
+    return QStringLiteral("solid");
+}
+
+Shading shadingNamed(const QString &name)
+{
+    for (Shading shading : {Shading::Solid, Shading::Soft, Shading::Hatch, Shading::Strokes, Shading::Dots}) {
+        if (nameOf(shading) == name) return shading;
+    }
+    return Shading::Solid;
 }
 
 Colors colorsNamed(const QString &name)
@@ -247,6 +268,35 @@ float strokeAt(float along, float across, float cover, int tone, float spacing, 
     return ink;
 }
 
+/**
+ * Stippling at a pixel (in the image's pixels): dots on a jittered grid of cells, each there where the darkness at its
+ * middle passes its own rank, and wider once every cell has one, so the dots are as dense as it is dark
+ */
+float dotAt(float imageX, float imageY, float radius, float pixel, const std::function<float(float, float)> &darkAt)
+{
+    const float cell = radius * 2.4f;
+    const int column = int(std::floor(imageX / cell)), row = int(std::floor(imageY / cell));
+    // how much is covered once every cell has its dot
+    const float full = float(M_PI) * radius * radius / (cell * cell);
+    float ink = 0;
+    for (int j = row - 1; j <= row + 1; j++) {
+        for (int i = column - 1; i <= column + 1; i++) {
+            const quint32 a = quint32(i), b = quint32(j);
+            const float x = (i + 0.15f + 0.7f * hashed(a, b, 41)) * cell, y = (j + 0.15f + 0.7f * hashed(a, b, 42)) * cell;
+            const float dark = darkAt(x, y);
+            if (dark <= 0) continue;
+            float shows = 1, reach = radius;
+            if (dark < full) shows = std::clamp((dark / full - hashed(a, b, 43)) * 8 + 0.5f, 0.0f, 1.0f);
+            // past every cell having its dot, they grow, a little past touching at the darkest, to close up
+            else reach = radius * std::sqrt(dark / full) * (1 + 0.4f * (dark - full) / (1 - full));
+            if (shows <= 0) continue;
+            const float distance = std::hypot(imageX - x, imageY - y);
+            ink = std::max(ink, shows * std::clamp((reach - distance) / pixel + 0.5f, 0.0f, 1.0f));
+        }
+    }
+    return ink;
+}
+
 inline QColor colorFrom(const KisPropertiesConfiguration &config, const char *key, const QColor &fallback)
 {
     const QColor color(config.getString(key, fallback.name(QColor::HexArgb)));
@@ -262,12 +312,14 @@ Settings Settings::from(const KisPropertiesConfiguration &config)
     settings.lines = float(std::clamp(config.getDouble("lines", 0.5), 0.0, 1.0));
     settings.ink = float(std::clamp(config.getDouble("ink", 0.3), 0.0, 1.0));
     settings.level = float(std::clamp(config.getDouble("level", -1), -1.0, 1.5));
-    settings.softness = float(std::clamp(config.getDouble("softness", 0.05), 0.0, 1.0));
     settings.flow = float(std::clamp(config.getDouble("flow", 0.5), 0.0, 1.0));
-    settings.tones = std::clamp(config.getInt("tones", 1), 1, 8);
-    settings.hatching = float(std::clamp(config.getDouble("hatching", 0), 0.0, 1.0));
+    settings.shading = shadingNamed(config.getString("shading", QStringLiteral("solid")));
+    settings.steps = std::clamp(config.getInt("steps", 1), 1, 8);
+    settings.softness = float(std::clamp(config.getDouble("softness", 0.5), 0.0, 1.0));
     settings.spacing = float(std::clamp(config.getDouble("spacing", 8), 2.0, 200.0));
     settings.angle = float(std::clamp(config.getDouble("angle", 45), -180.0, 180.0));
+    settings.length = float(std::clamp(config.getDouble("length", 8), 2.0, 200.0));
+    settings.dot = float(std::clamp(config.getDouble("dot", 3), 1.0, 100.0));
     settings.colors = colorsNamed(config.getString("colors", QStringLiteral("paper")));
     settings.inkColor = colorFrom(config, "ink_color", Qt::black);
     settings.paperColor = colorFrom(config, "paper_color", Qt::white);
@@ -280,27 +332,42 @@ void Settings::writeTo(KisPropertiesConfiguration &config) const
     config.setProperty("lines", double(lines));
     config.setProperty("ink", double(ink));
     config.setProperty("level", double(level));
-    config.setProperty("softness", double(softness));
     config.setProperty("flow", double(flow));
-    config.setProperty("tones", tones);
-    config.setProperty("hatching", double(hatching));
+    config.setProperty("shading", nameOf(shading));
+    config.setProperty("steps", steps);
+    config.setProperty("softness", double(softness));
     config.setProperty("spacing", double(spacing));
     config.setProperty("angle", double(angle));
+    config.setProperty("length", double(length));
+    config.setProperty("dot", double(dot));
     config.setProperty("colors", nameOf(colors));
     config.setProperty("ink_color", inkColor.name(QColor::HexArgb));
     config.setProperty("paper_color", paperColor.name(QColor::HexArgb));
 }
 
+bool Settings::sameShading(const Settings &other) const
+{
+    if (shading != other.shading) return false;
+    switch (shading) {
+    case Shading::Solid: return steps == other.steps;
+    case Shading::Soft: return softness == other.softness;
+    case Shading::Hatch: return spacing == other.spacing && angle == other.angle;
+    case Shading::Strokes: return length == other.length;
+    case Shading::Dots: return dot == other.dot;
+    }
+    return true;
+}
+
 bool Settings::sameLook(const Settings &other) const
 {
-    return size == other.size && lines == other.lines && ink == other.ink && softness == other.softness && flow == other.flow
-        && tones == other.tones && hatching == other.hatching && (hatching == 0 || (spacing == other.spacing && angle == other.angle))
-        && colors == other.colors;
+    return size == other.size && lines == other.lines && ink == other.ink && flow == other.flow && colors == other.colors
+        && (ink == 0 || sameShading(other));
 }
 
 bool Settings::operator==(const Settings &other) const
 {
-    return sameLook(other) && level == other.level && spacing == other.spacing && angle == other.angle && inkColor == other.inkColor
+    return sameLook(other) && shading == other.shading && steps == other.steps && softness == other.softness && spacing == other.spacing
+        && angle == other.angle && length == other.length && dot == other.dot && level == other.level && inkColor == other.inkColor
         && paperColor == other.paperColor;
 }
 
@@ -325,16 +392,23 @@ Ink::Ink(const Settings &settings, qreal scale)
     // after the threshold, the lines' edges smoothed along them; fading in with the flow
     m_smoothSigma = std::min(1.0, 4.0 * settings.flow) * scale;
     if (m_flowSigma < 0.3) m_flowSigma = 0;
-    // hatching with flow is strokes along the shapes, about four spacings long
-    if (m_flowSigma > 0 && settings.hatching > 0 && settings.ink > 0) m_strokeSigma = 2 * std::max(2.0f, settings.spacing) * scale;
     if (m_smoothSigma < 0.3) m_smoothSigma = 0;
+    // strokes along the shapes reach about twice their length to either side of a pixel
+    if (settings.ink > 0 && settings.shading == Shading::Strokes) m_strokeSigma = 2 * settings.length * scale;
+    m_needsFlow = m_flowSigma > 0 || m_strokeSigma > 0;
 }
 
 int Ink::reach() const
 {
     if (m_settings.changesNothing()) return 0;
-    const int blurs = std::max(SkissaDetail::reachOf(wider * m_sigma), m_flowSigma > 0 ? SkissaDetail::reachOf(m_tensorSigma) + 1 : 0);
-    return int(std::ceil(2 * m_flowSigma + 2 * m_smoothSigma + 2 * m_strokeSigma)) + blurs + 2;
+    const int blurs = std::max(SkissaDetail::reachOf(wider * m_sigma), m_needsFlow ? SkissaDetail::reachOf(m_tensorSigma) + 1 : 0);
+    return int(std::ceil(2 * m_flowSigma + 2 * m_smoothSigma + 2 * m_strokeSigma + dotReach())) + blurs + 2;
+}
+
+qreal Ink::dotReach() const
+{
+    // a dot's middle can lie a cell and a half away, the darkness read there
+    return m_settings.ink > 0 && m_settings.shading == Shading::Dots ? 4 * m_settings.dot * m_scale : 0;
 }
 
 void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect, float *out) const
@@ -354,7 +428,7 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
     // lightness, and the colors where the flow is found, as seen on white paper
     std::vector<float> lab[3];
     lab[0].resize(count);
-    if (flows) {
+    if (m_needsFlow) {
         lab[1].resize(count);
         lab[2].resize(count);
     }
@@ -364,7 +438,7 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
         float c[3];
         oklabOf(pixel[0] * alpha + 1 - alpha, pixel[1] * alpha + 1 - alpha, pixel[2] * alpha + 1 - alpha, c);
         lab[0][i] = c[0];
-        if (flows) {
+        if (m_needsFlow) {
             lab[1][i] = c[1];
             lab[2][i] = c[2];
         }
@@ -375,8 +449,9 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
     if (m_sigma > 0.25) SkissaDetail::gaussian(near.data(), scratch.data(), w, h, m_sigma);
     SkissaDetail::gaussian(far.data(), scratch.data(), w, h, wider * std::max(m_sigma, 0.25));
     const float sharpness = mostSharpness * s.lines * s.lines;
-    // hatched, the tones come from the picture's lightness alone, so lines stay whole rather than turning to strokes
-    const bool hatches = s.hatching > 0 && s.ink > 0;
+    // shading drawn as marks takes its darkness from the picture's lightness alone, so lines stay whole rather than
+    // turning to marks
+    const bool hatches = s.ink > 0 && (s.shading == Shading::Hatch || s.shading == Shading::Strokes || s.shading == Shading::Dots);
     std::vector<float> smooth;
     if (hatches) smooth = near;
     std::vector<float> &difference = near;
@@ -388,11 +463,11 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
 
     // along the flow, over what the smoothing after the threshold reads
     Flow flow;
-    const int smoothReach = int(std::ceil(2 * m_smoothSigma)) + 1;
+    const int smoothReach = int(std::ceil(std::max(2 * m_smoothSigma, dotReach()))) + 1;
     const QRect work = inside.adjusted(-smoothReach, -smoothReach, smoothReach, smoothReach) & QRect(0, 0, w, h);
     std::vector<float> drawn, toned;
+    if (m_needsFlow) flow = flowOf(lab, w, h, m_tensorSigma);
     if (flows) {
-        flow = flowOf(lab, w, h, m_tensorSigma);
         std::vector<const float *> planes = {difference.data()};
         if (hatches) planes.push_back(smooth.data());
         std::vector<std::vector<float>> along = alongFlow(planes, flow, m_flowSigma, work);
@@ -412,13 +487,15 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
 
     /*
      * Ink below the threshold: 1 + tanh((D - ε) / width) of paper, as XDoG's soft threshold, averaged over each
-     * pixel. Tones are thresholds spread evenly below it, each as soft; hatched, each tone is strokes of its own
-     * direction, more of them the darker it is.
+     * pixel. Solid shading is thresholds spread evenly below it (its steps); soft, one as wide as asked; hatched, three,
+     * each strokes of its own direction, more of them the darker it is.
      */
-    const int tones = std::max(1, s.tones);
+    const int tones = s.shading == Shading::Solid ? std::max(1, s.steps) : s.shading == Shading::Hatch ? 3 : 1;
     const float top = s.ink <= 0 ? 0.0f : s.level >= 0 ? s.level : s.ink;
-    const float width = (0.002f + 0.45f * s.softness * s.softness) / tones;
+    const float width = (0.002f + (s.shading == Shading::Soft ? 0.45f * s.softness * s.softness : 0.0f)) / tones;
     const float spacing = std::max(2.0f, s.spacing);
+    // the darkness marks draw: as dark as the picture is below the shading's level, evenly
+    auto darkness = [top](float lightness) { return std::clamp((top - lightness) / std::max(top, 0.05f), 0.0f, 1.0f); };
     const float strokeWidth = std::max(1.0f, 0.25f * spacing);
     float turnX[8], turnY[8];
     for (int t = 0; t < tones; t++) {
@@ -436,12 +513,12 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
         return std::sqrt(across * across + down * down);
     };
     /*
-     * With flow, hatching is strokes along the shapes, as pencil drawings are made from a picture: dots scattered
+     * Strokes along the shapes, as pencil drawings are made from a picture: dots scattered
      * where it is dark, each drawn out along the flow into a thin line fading toward its ends (a line integral of the
      * dots), as many as make its darkness once they cover it. Dots are fixed to the image's own pixels.
      */
     std::vector<float> strokes;
-    if (hatches && m_strokeSigma > 0) {
+    if (m_strokeSigma > 0) {
         // a dot draws out to about three sigmas of ink, a pixel and a bit across
         const double reach = 3 * m_strokeSigma * 1.3;
         std::vector<float> dots(count);
@@ -449,7 +526,7 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
             const quint32 imageY = quint32(qint32(std::floor((sourceRect.top() + y + 0.5f) * pixel)));
             for (int x = 0; x < w; x++) {
                 const size_t i = size_t(y) * w + x;
-                const float dark = std::clamp((top - smooth[i]) / std::max(top, 0.05f), 0.0f, 0.98f);
+                const float dark = std::min(darkness(smooth[i]), 0.98f);
                 if (dark <= 0) continue;
                 const double chance = -std::log(1.0 - dark) / reach;
                 const quint32 imageX = quint32(qint32(std::floor((sourceRect.left() + x + 0.5f) * pixel)));
@@ -480,23 +557,32 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
             const float tone = toned[i], toneSlope = slopeAt(toned, x, y);
             const float lines = std::max(0.0f, inkOver(d, slope, top, width) - inkOver(tone, toneSlope, top, width));
             float paper = 1 - lines;
-            if (!strokes.empty()) {
-                paper *= 1 - strokes[i];
-                coverage[i] = flat + s.hatching * (1 - paper - flat);
+            const float imageX = (sourceRect.left() + work.left() + x + 0.5f) * pixel;
+            if (s.shading == Shading::Strokes) {
+                coverage[i] = 1 - paper * (1 - strokes[i]);
                 continue;
             }
-            const float imageX = (sourceRect.left() + work.left() + x + 0.5f) * pixel;
+            if (s.shading == Shading::Dots) {
+                auto darkAt = [&](float atX, float atY) {
+                    const int px = std::clamp(int(std::floor(atX / pixel - sourceRect.left() - work.left())), 0, ww - 1);
+                    const int py = std::clamp(int(std::floor(atY / pixel - sourceRect.top() - work.top())), 0, wh - 1);
+                    return darkness(toned[size_t(py) * ww + px]);
+                };
+                coverage[i] = 1 - paper * (1 - dotAt(imageX, imageY, 0.5f * s.dot, pixel, darkAt));
+                continue;
+            }
+            // the darkness shared out: the first direction fills in over its lightest third, the crossing ones after
+            const float dark = darkness(tone);
             for (int t = 0; t < tones; t++) {
-                // the lightest tone first
-                const float cover = inkOver(tone, toneSlope, top * float(tones - t) / tones, width);
+                const float cover = std::clamp(dark * tones - t, 0.0f, 1.0f);
                 if (cover <= 0) continue;
                 const float along = imageX * -turnY[t] + imageY * turnX[t];
                 const float across = imageX * turnX[t] + imageY * turnY[t];
-                // darker tones press harder: their strokes up to twice as wide, so the darkest close up
-                const float pressed = strokeWidth * (1 + float(t) / std::max(1, tones - 1));
+                // darker tones press harder: their strokes up to three times as wide, so the darkest close up
+                const float pressed = strokeWidth * (1 + 2 * float(t) / std::max(1, tones - 1));
                 paper *= 1 - strokeAt(along, across, cover, t, spacing, pressed, pixel);
             }
-            coverage[i] = flat + s.hatching * (1 - paper - flat);
+            coverage[i] = 1 - paper;
         }
     }
 

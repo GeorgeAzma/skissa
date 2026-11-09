@@ -342,6 +342,13 @@ public:
 
     QSize sizeHint() const override { return QSize(240, 240); }
 
+    /// The height that leaves no room around the shape at \p width
+    int heightFor(int width) const
+    {
+        if (m_layout == HueLayout::Strip) return qMax(0, int(std::ceil(width - stripWidth - KisModernStyle::space2)));
+        return width;
+    }
+
     void setStyle(HueLayout layout, PickerShape shape)
     {
         if (layout == m_layout && shape == m_shape) return;
@@ -1772,6 +1779,11 @@ void KisStudioColorWheel::setColor(const QColor &color)
 QColor KisStudioColorWheel::color() const
 {
     return d->rgb;
+}
+
+int KisStudioColorWheel::heightFor(int width) const
+{
+    return d->picker->heightFor(width);
 }
 
 QLineEdit *KisStudioColorWheel::textField(QWidget *parent, std::function<QColor()> color)

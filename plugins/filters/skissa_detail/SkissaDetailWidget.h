@@ -210,9 +210,9 @@ private:
 };
 
 /**
- * Ink's panel: looks as pictures of a busy part of the layer at its own size, the rows that make them, then where the
- * ink goes (on paper, alone, over the picture, in its colors) as pictures too, and the ink's and paper's colors. A
- * drag on the image: up for more ink, sideways for bolder lines.
+ * Drawing's panel: looks as pictures of a busy part of the layer, then what is drawn (Size, Lines, Shading, Flow),
+ * how the shading is drawn as pictures (each way with its own setting), and where the ink goes as pictures, with the
+ * ink's and paper's colors. A drag on the image: up for more shading, sideways for bolder lines.
  */
 class SkissaInkWidget : public KisConfigWidget, public KisEffectCanvasEditor
 {

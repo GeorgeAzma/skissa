@@ -8,7 +8,8 @@
 
 #include <filter/kis_filter.h>
 
-/// Ink: the picture drawn as lines, ink, pencil, hatching, by the difference of Gaussians along its flow
+/// Drawing: the picture drawn as lines with shading (ink, pencil, hatching, strokes, dots), by the difference of
+/// Gaussians along its flow
 class SkissaInkFilter : public KisFilter
 {
 public:
