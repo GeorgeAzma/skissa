@@ -53,22 +53,18 @@ quint64 originalKeyOf(KisPaintDeviceSP device, const QRect &rect)
     static QMutex lock;
     static Seen seen;
     const KisMementoSP transaction = device->dataManager()->currentMemento();
-    if (transaction) {
-        QMutexLocker locker(&lock);
-        if (seen.device.isValid() && seen.device == device.data() && seen.transaction.isValid() && seen.transaction == transaction.data()
-            && seen.rect == rect) {
-            return seen.key;
-        }
+    if (!transaction) return SkissaPixels::originalKey(device, rect);
+    // hashed while the run's other patches wait for it: each would hash the whole image itself
+    QMutexLocker locker(&lock);
+    if (seen.device.isValid() && seen.device == device.data() && seen.transaction.isValid() && seen.transaction == transaction.data()
+        && seen.rect == rect) {
+        return seen.key;
     }
-    const quint64 key = SkissaPixels::originalKey(device, rect);
-    if (transaction) {
-        QMutexLocker locker(&lock);
-        seen.device = device.data();
-        seen.transaction = transaction;
-        seen.rect = rect;
-        seen.key = key;
-    }
-    return key;
+    seen.device = device.data();
+    seen.transaction = transaction;
+    seen.rect = rect;
+    seen.key = SkissaPixels::originalKey(device, rect);
+    return seen.key;
 }
 
 /**

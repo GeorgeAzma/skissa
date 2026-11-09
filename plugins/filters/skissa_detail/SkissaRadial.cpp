@@ -15,6 +15,7 @@
 #include <kis_properties_configuration.h>
 
 #include "KoCompositeOpInLinear.h"
+#include "SkissaPixels.h"
 
 namespace SkissaRadial
 {
@@ -38,11 +39,6 @@ constexpr int sums = 8;
 constexpr int powers = 3;
 constexpr int stored = sums * powers;
 
-inline float luminance(const float *rgb)
-{
-    return 0.2126f * rgb[0] + 0.7152f * rgb[1] + 0.0722f * rgb[2];
-}
-
 /// The picture at \p x, \p y (in the source's pixels, centres at halves) premultiplied, the edge repeating beyond it
 inline void readAt(const float *source, int w, int h, double x, double y, float *to)
 {
@@ -62,12 +58,11 @@ inline void readAt(const float *source, int w, int h, double x, double y, float 
     }
 }
 
-/// The light of a premultiplied color: what of it is brighter, to the eye, than \p cutoff, all of it at \p top
-inline void lightOf(const float *premultiplied, float cutoff, float top, float *to)
+/// The light of a premultiplied color: what of it shines past \p cutoff, as Light finds it, as a share of what the
+/// brightest parts give (\p atTop), so those give their own color
+inline void lightOf(const float *premultiplied, float cutoff, float atTop, bool clipped, float *to)
 {
-    const float alpha = premultiplied[3];
-    const float brightness = alpha > 1e-6f ? std::cbrt(std::max(0.0f, luminance(premultiplied) / alpha)) : 0.0f;
-    const float share = std::max(0.0f, brightness - cutoff) / std::max(1e-3f, top - cutoff);
+    const float share = SkissaPixels::shineOf(premultiplied, cutoff, clipped) / atTop;
     for (int c = 0; c < 3; c++) to[c] = std::max(0.0f, premultiplied[c]) * share;
 }
 
@@ -159,8 +154,9 @@ Settings zoomed()
     return settings;
 }
 
-Radial::Radial(const Settings &settings, const QRect &bounds)
+Radial::Radial(const Settings &settings, const QRect &bounds, bool clipped)
     : m_settings(settings)
+    , m_clipped(clipped)
 {
     const QRectF frame = bounds.isEmpty() ? QRectF(0, 0, 1, 1) : QRectF(bounds);
     m_center = frame.topLeft() + QPointF(settings.center.x() * frame.width(), settings.center.y() * frame.height());
@@ -215,6 +211,8 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
     const float light = m_settings.light * lightGain;
     // what shines is relative to the layer's own brightest parts, so a dim lamp in a night scene still does
     const float top = m_settings.top, cutoff = std::min(m_settings.threshold, 0.99f) * top;
+    const float gray = top * top * top, brightest[4] = {gray, gray, gray, 1};
+    const float atTop = std::max(1e-3f, SkissaPixels::shineOf(brightest, cutoff, m_clipped));
     const std::vector<float> beams = m_settings.light > 0 && m_settings.shafts > 0 ? shaftsOf(m_settings.shafts, m_settings.seed) : std::vector<float>();
     auto beamAt = [&beams](double x, double y) {
         const double turn = std::atan2(y, x) / tau + 1;
@@ -245,7 +243,7 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
         const float *pixel = original(x, y);
         const float alpha = std::clamp(pixel[3], 0.0f, 1.0f);
         float streak[7] = {pixel[0] * alpha, pixel[1] * alpha, pixel[2] * alpha, alpha};
-        lightOf(streak, cutoff, top, streak + 4);
+        lightOf(streak, cutoff, atTop, m_clipped, streak + 4);
         if (!beams.empty()) {
             const float through = beamAt(rect.left() + x + 0.5 - m_center.x(), rect.top() + y + 0.5 - m_center.y());
             for (int c = 4; c < 7; c++) streak[c] *= through;
@@ -417,7 +415,7 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
                 float sample[sums];
                 readAt(source, sw, sh, m_center.x() + zx - sourceRect.left(), m_center.y() + zy - sourceRect.top(), sample);
                 if (shines) {
-                    lightOf(sample, cutoff, top, sample + 4);
+                    lightOf(sample, cutoff, atTop, m_clipped, sample + 4);
                     // the light broken into beams where it starts, so things in front still cast their shadows
                     if (!beams.empty()) {
                         const float through = beamAt(zx, zy);

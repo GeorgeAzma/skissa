@@ -101,6 +101,8 @@ private:
     bool m_turns {false};
     bool m_nothing {true};
     float m_gain[3] {1, 1, 1};
+    /// The gains' share that keeps white inside a picture that stops there
+    float m_whiteKept {1};
     /// The gradient map in Oklab, a color for each step of lightness
     QVector<float> m_map;
     bool m_mapKeepsLightness {false};

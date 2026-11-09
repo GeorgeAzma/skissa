@@ -71,7 +71,8 @@ Settings vintage();
 class Lens
 {
 public:
-    Lens(const Settings &settings, const QRect &bounds, qreal scale);
+    /// \p clipped: the picture stops at white (integers), so its glow blooms from the brighter light its whites stand for
+    Lens(const Settings &settings, const QRect &bounds, qreal scale, bool clipped = true);
 
     /// The pixels it reads to make \p rect
     QRect sourceOf(const QRect &rect) const;
@@ -89,6 +90,7 @@ private:
     /// The pixels the lens's geometry reads for \p rect, before the blurs
     QRect bentSourceOf(const QRect &rect) const;
 
+    bool m_clipped {true};
     QPointF m_center;
     /// The half diagonal, in pixels at this scale
     qreal m_unit {1};

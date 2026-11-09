@@ -18,6 +18,8 @@
 #include <QVBoxLayout>
 #include <QtMath>
 
+#include <array>
+
 #include <algorithm>
 #include <climits>
 #include <cmath>
@@ -29,6 +31,7 @@
 #include <KisResourceTypes.h>
 #include <KoColor.h>
 #include <KoColorSet.h>
+#include <KoColorSpace.h>
 #include <KoColorSpaceRegistry.h>
 #include <KisModernStyle.h>
 #include <KisValueSteps.h>
@@ -38,6 +41,7 @@
 #include <kis_icon_utils.h>
 #include <kis_default_bounds_base.h>
 #include <kis_paint_device.h>
+#include <kis_sequential_iterator.h>
 #include <klocalizedstring.h>
 #include <widgets/KisStudioChips.h>
 #include <widgets/KisStudioColorField.h>
@@ -821,6 +825,8 @@ SkissaLensWidget::SkissaLensWidget(QWidget *parent, KisPaintDeviceSP dev)
         row->setToolTip(tip);
         connect(row, &KisStudioValueRow::valueChanged, this, [this, value, shownPer](qreal shown) {
             d->settings.*value = float(shown / shownPer);
+            // the glow's size only while there is a glow
+            d->glowSize->setVisible(d->settings.glow > 0);
             refreshTiles();
             Q_EMIT sigConfigurationItemChanged();
         });
@@ -870,6 +876,7 @@ void SkissaLensWidget::refresh()
         {d->halo, d->settings.halo * d->unit},  {d->glow, d->settings.glow * 100.0},         {d->glowSize, d->settings.glowSize * d->unit},
     };
     for (const auto &row : shown) row.first->setValue(row.second);
+    d->glowSize->setVisible(d->settings.glow > 0);
     refreshTiles();
 }
 
@@ -1279,8 +1286,6 @@ QString SkissaRadialWidget::canvasStreakDragged(const QPointF &end)
 
 namespace
 {
-
-/// The drag on the image across which the number of colors, or the pixels' size, grows or shrinks by a factor of e
 
 /// The most steps of each channel, and the most colors taken from the image or of gray
 constexpr int mostLevels = 32;
@@ -2201,6 +2206,26 @@ using ShapePlace = SkissaShape::Place;
 /// The parts of Shape, as its tabs
 enum ShapePart { OutlinePart, GlowPart, ShadowPart, GrowPart };
 
+/// How opaque a layer's paint is where it is solid: all but a hundredth of its painted pixels are at most this opaque;
+/// nearly opaque counts as opaque
+float solidOf(KisPaintDeviceSP device)
+{
+    const QRect bounds = device ? device->exactBounds() : QRect();
+    if (bounds.isEmpty()) return 1;
+    const KoColorSpace *cs = device->colorSpace();
+    std::array<qint64, 256> counts {};
+    KisSequentialConstIterator it(device, bounds);
+    while (it.nextPixel()) counts[cs->opacityU8(it.rawDataConst())]++;
+    qint64 painted = 0;
+    for (int a = 3; a < 256; a++) painted += counts[a];
+    qint64 seen = 0;
+    for (int a = 255; a >= 3; a--) {
+        seen += counts[a];
+        if (seen > painted / 100) return a >= 230 ? 1.0f : a / 255.0f;
+    }
+    return 1;
+}
+
 /// The scale the shape's tiles show the layer at, and their size
 constexpr qreal shapeTileScale = 0.5;
 const QSize shapeTileSize(120, 75);
@@ -2255,6 +2280,8 @@ QPoint edgeOf(const QImage &image, bool *found)
 struct SkissaShapeWidget::Private {
     KisPaintDeviceSP original;
     SkissaShape::Settings settings;
+    /// How opaque the layer's solid paint is (SkissaShape::Settings::solid)
+    float solid {1};
     int part {OutlinePart};
     /// The tiles' part of the layer, at their scale, with room around for what the looks reach
     QImage base;
@@ -2345,7 +2372,11 @@ struct SkissaShapeWidget::Private {
         if (!found) base = sampleShape(whole);
         corner = QPoint(margin, margin);
         // the looks don't change with the settings: their pictures are made once
-        for (const auto &look : looks) lookPictures << SkissaShape::applied(base, look.second, shapeTileScale).copy(QRect(corner, shapeTileSize));
+        for (const auto &look : looks) {
+            SkissaShape::Settings s = look.second;
+            s.solid = found ? solid : 1;
+            lookPictures << SkissaShape::applied(base, s, shapeTileScale).copy(QRect(corner, shapeTileSize));
+        }
     }
 };
 
@@ -2354,6 +2385,8 @@ SkissaShapeWidget::SkissaShapeWidget(QWidget *parent, KisPaintDeviceSP dev)
     , d(new Private)
 {
     if (dev) d->original = KisEffectPanels::fullSizeCopy(dev);
+    d->solid = solidOf(d->original);
+    d->settings.solid = d->solid;
     d->makeLooks();
     d->makeBase();
 
@@ -2367,6 +2400,7 @@ SkissaShapeWidget::SkissaShapeWidget(QWidget *parent, KisPaintDeviceSP dev)
     connect(d->lookTiles, &KisStudioChips::clicked, this, [this](int index) {
         if (index < 0 || index >= d->looks.size()) return;
         d->settings = d->looks[index].second;
+        d->settings.solid = d->solid;
         // the tab of what the look is most about
         const SkissaShape::Settings &s = d->settings;
         d->part = s.outline > 0 ? OutlinePart : s.glow > 0 ? GlowPart : s.shadow > 0 ? ShadowPart : s.grow != 0 ? GrowPart : d->part;
@@ -2451,6 +2485,8 @@ SkissaShapeWidget::~SkissaShapeWidget()
 void SkissaShapeWidget::setConfiguration(const KisPropertiesConfigurationSP config)
 {
     d->settings = config ? SkissaShape::Settings::from(*config) : SkissaShape::Settings();
+    // the opacity of this layer's paint, not the one the settings were last used on
+    d->settings.solid = d->solid;
     refresh();
 }
 
@@ -2596,6 +2632,11 @@ QString SkissaShapeWidget::canvasDragged(const QPointF &moved, const QPointF &at
 
 void SkissaShapeWidget::canvasReleased()
 {
+}
+
+Qt::Orientations SkissaShapeWidget::canvasAxes() const
+{
+    return d->part == OutlinePart || d->part == GrowPart ? Qt::Horizontal : Qt::Horizontal | Qt::Vertical;
 }
 
 namespace
@@ -2752,7 +2793,11 @@ SkissaLightWidget::SkissaLightWidget(QWidget *parent, KisPaintDeviceSP dev)
     d->length = add(i18nc("light effect: how long the star's spikes are", "Length"), 2, 2000, 0, px, defaults.length,
                     [this](qreal v) { d->settings.length = float(v); });
     d->points = add(i18nc("light effect: how many spikes the star has", "Points"), 2, 16, 0, QString(), defaults.points,
-                    [this](qreal v) { d->settings.points = qRound(v / 2) * 2; });
+                    [this](qreal v) {
+                        // a star's spikes come in pairs: the row shows the number it draws
+                        d->settings.points = qRound(v / 2) * 2;
+                        d->points->setValueText(QString::number(d->settings.points));
+                    });
     d->angle = add(i18nc("light effect: how the star is turned", "Angle"), -180, 180, 0, QStringLiteral("°"), defaults.angle,
                    [this](qreal v) { d->settings.angle = float(v); });
     asDial(d->angle);
@@ -2819,6 +2864,7 @@ void SkissaLightWidget::refresh()
     d->star->setValue(s.star * 100);
     d->length->setValue(s.length);
     d->points->setValue(s.points);
+    d->points->setValueText(QString::number(s.points));
     d->angle->setValue(s.angle);
     d->streak->setValue(s.streak * 100);
     d->streakLength->setValue(s.streakLength);

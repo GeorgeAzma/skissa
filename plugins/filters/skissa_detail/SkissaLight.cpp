@@ -17,6 +17,7 @@
 #include "KisColorMath.h"
 #include "KoCompositeOpInLinear.h"
 #include "SkissaDetail.h"
+#include "SkissaPixels.h"
 
 namespace SkissaLight
 {
@@ -24,7 +25,7 @@ namespace SkissaLight
 namespace
 {
 
-/// The finest glow, in pixels: the octaves start here
+/// The finest glow, in the image's pixels: its sizes start here
 constexpr qreal finestGlow = 1.5;
 /// The glow's falloff: each octave weighs its size to this power (glare falls off about as r^-2.6)
 constexpr qreal glowFalloff = -0.6;
@@ -244,9 +245,10 @@ bool Settings::changesNothing() const
     return glow <= 0 && star <= 0 && streak <= 0;
 }
 
-Light::Light(const Settings &settings, qreal scale)
+Light::Light(const Settings &settings, qreal scale, bool clipped)
     : m_settings(settings)
     , m_scale(scale)
+    , m_clipped(clipped)
 {
 }
 
@@ -274,36 +276,37 @@ void Light::apply(const float *source, const QRect &sourceRect, const QRect &rec
         return;
     }
 
-    // what shines: the light above the threshold, with a soft knee, in the picture's own colors
+    // what shines: the light above the threshold, in the picture's own colors
     Plane3 shine;
     shine.resize(w, h);
-    const float cutoff = s.threshold * s.top, knee = 0.08f;
+    const float cutoff = s.threshold * s.top;
     for (size_t i = 0; i < count; i++) {
         const float *pixel = source + i * 4;
         const float alpha = std::clamp(pixel[3], 0.0f, 1.0f);
-        const float rgb[3] = {std::max(0.0f, pixel[0]) * alpha, std::max(0.0f, pixel[1]) * alpha, std::max(0.0f, pixel[2]) * alpha};
-        const float seen = std::cbrt(0.2126f * rgb[0] + 0.7152f * rgb[1] + 0.0722f * rgb[2]);
-        const float over = seen - cutoff;
-        const float excess = over <= -knee ? 0.0f : over >= knee ? over : (over + knee) * (over + knee) / (4 * knee);
-        if (excess <= 0 || seen <= 1e-4f) continue;
-        // the share of its light above the cutoff, as light (the cube of what is seen); a picture's whitest parts
-        // stand for light far brighter than white, clipped (the inverse of a Reinhard curve, up to ten times)
-        const float below = std::max(0.0f, seen - excess) / seen;
-        const float share = 1 - below * below * below;
-        const float luminance = std::min(1.0f, seen * seen * seen);
-        const float unclipped = 1 / (1 - 0.9f * luminance);
-        for (int c = 0; c < 3; c++) shine.c[c][i] = rgb[c] * share * unclipped;
+        const float premultiplied[4] = {std::max(0.0f, pixel[0]) * alpha, std::max(0.0f, pixel[1]) * alpha, std::max(0.0f, pixel[2]) * alpha, alpha};
+        const float shines = SkissaPixels::shineOf(premultiplied, cutoff, m_clipped);
+        if (shines <= 0) continue;
+        for (int c = 0; c < 3; c++) shine.c[c][i] = premultiplied[c] * shines;
     }
 
     Plane3 light;
     light.resize(rect.width(), rect.height());
     if (s.glow > 0) {
-        // Gaussians an octave apart up to the size, weighed by the falloff's power of their size
-        const qreal largest = std::max(finestGlow, s.size * m_scale / 3);
-        std::vector<qreal> sigmas;
-        for (qreal sigma = finestGlow; sigma < largest * 1.01; sigma *= 2) sigmas.push_back(std::min(sigma, largest));
+        /*
+         * Glare as Gaussians of every size from the finest to the size, each weighed by the falloff's power of its
+         * size: sampled evenly by ratio, at most an octave apart, each weighed by the share of the range it stands
+         * for, so the glow grows smoothly with the size and is the same, scaled, at every level of detail
+         */
+        const qreal finest = finestGlow * m_scale, largest = std::max(finestGlow, qreal(s.size) / 3) * m_scale;
+        const int sizes = std::max(2, int(std::ceil(std::log2(largest / finest))) + 1);
+        const qreal step = std::log2(largest / finest) / (sizes - 1);
+        std::vector<qreal> sigmas, shares;
+        for (int k = 0; k < sizes; k++) {
+            sigmas.push_back(finest * std::exp2(k * step));
+            shares.push_back(k == 0 || k == sizes - 1 ? 0.5 : 1.0);
+        }
         double total = 0;
-        for (qreal sigma : sigmas) total += std::pow(sigma, glowFalloff);
+        for (size_t k = 0; k < sigmas.size(); k++) total += shares[k] * std::pow(sigmas[k], glowFalloff);
         /*
          * A wide glow is made on a smaller copy: levels of the shine each half the size of the one before (2 by 2
          * averages over cells fixed to the image's corner, so patches agree), each octave blurred on the coarsest
@@ -313,8 +316,9 @@ void Light::apply(const float *source, const QRect &sourceRect, const QRect &rec
         levels[0].origin = sourceRect.topLeft();
         levels[0].planes = shine;
         std::vector<float> blurred, scratch;
-        for (qreal sigma : sigmas) {
-            const float weight = float(std::pow(sigma, glowFalloff) / total * s.glow);
+        for (size_t k = 0; k < sigmas.size(); k++) {
+            const qreal sigma = sigmas[k];
+            const float weight = float(shares[k] * std::pow(sigma, glowFalloff) / total * s.glow);
             int level = 0;
             while (sigma / std::pow(2.0, level + 1) >= 2 && levels[level].planes.w > 8 && levels[level].planes.h > 8) {
                 level++;

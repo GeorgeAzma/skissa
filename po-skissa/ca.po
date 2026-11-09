@@ -124,7 +124,7 @@ msgctxt "replace color: only the color and its soft edges"
 msgid "Color"
 msgstr "Color"
 
-msgctxt "desaturate: gray as bright as the color looks"
+msgctxt "desaturate: gray halfway between the brightest and darkest channels (HSL lightness)"
 msgid "Lightness"
 msgstr "Claredat"
 

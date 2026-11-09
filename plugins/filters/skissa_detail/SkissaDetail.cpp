@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <functional>
 #include <memory>
 
 #include <kis_properties_configuration.h>
@@ -497,10 +498,12 @@ bool Plan::changesNothing() const
 
 Plan Plan::scaled(qreal factor) const
 {
+    // the blur's spread scales, not Krita's radius (sigma 0.3 r + 0.3), or a smaller copy previews a larger blur
+    auto scaledRadius = [factor](qreal radius) { return std::max(0.01, factor * (radius + 1) - 1); };
     Plan plan = *this;
     for (Step &step : plan.steps) {
-        step.radius *= factor;
-        if (step.radiusDown >= 0) step.radiusDown *= factor;
+        if (step.radius > 0) step.radius = scaledRadius(step.radius);
+        if (step.radiusDown > 0) step.radiusDown = scaledRadius(step.radiusDown);
     }
     return plan;
 }
@@ -620,38 +623,51 @@ void apply(const Plan &plan, const Planes &source, const QRect &sourceRect, cons
         lightHere = cropped(lightAll, sourceRect, resultRect);
     }
 
+    // where a step changes the colors and the transparency apart (sharpening a cut-out), the colors it adds are the
+    // visible ones around, times the pixel's own alpha: blurred with the clear pixels, they would count as black and
+    // light a rim inside every edge
+    const std::vector<float> alphaHere = opaque ? std::vector<float>() : cropped(source.plane[3], sourceRect, resultRect);
     for (int s = 0; s < plan.steps.size(); s++) {
         const Step &step = plan.steps[s];
         const float alphaGain = alphaLevels[s + 1] - alphaLevels[s];
         if (std::abs(step.gain) < 1e-6f && std::abs(alphaGain) < 1e-6f) continue;
+        const bool visibleOnly = !opaque && std::abs(step.gain) >= 1e-6f && std::abs(step.gain - alphaGain) > 1e-6f;
         const qreal sigma = sigmaOf(step.radius);
+        auto addSteps = [&](const std::function<std::vector<float>(int)> &blurredOf) {
+            const std::vector<float> alphaBlurred = visibleOnly || (planeCount == 4 && std::abs(alphaGain) >= 1e-6f) ? blurredOf(3) : std::vector<float>();
+            for (int c = 0; c < planeCount; c++) {
+                const float gain = c < 3 ? step.gain : alphaGain;
+                if (std::abs(gain) < 1e-6f) continue;
+                const std::vector<float> blurred = c == 3 ? alphaBlurred : blurredOf(c);
+                float *out = result.plane[c].data();
+                if (c < 3 && visibleOnly) {
+                    for (size_t i = 0; i < count; i++) {
+                        if (alphaBlurred[i] > 1e-4f) out[i] += gain * alphaHere[i] * blurred[i] / alphaBlurred[i];
+                    }
+                    continue;
+                }
+                for (size_t i = 0; i < count; i++) out[i] += gain * blurred[i];
+            }
+        };
         if (step.radiusDown >= 0) {
             // across and down apart, at full size
             const qreal down = sigmaOf(step.radiusDown);
             const int reachHere = std::max(reachOf(sigma), reachOf(down));
             const QRect room = resultRect.adjusted(-reachHere, -reachHere, reachHere, reachHere);
-            for (int c = 0; c < planeCount; c++) {
-                const float gain = c < 3 ? step.gain : alphaGain;
-                if (std::abs(gain) < 1e-6f) continue;
+            addSteps([&](int c) {
                 std::vector<float> work = cropped(source.plane[c], sourceRect, room), scratch(work.size());
                 gaussian(work.data(), scratch.data(), room.width(), room.height(), step.radius > 0 ? sigma : 0, step.radiusDown > 0 ? down : 0);
-                const std::vector<float> blurred = cropped(work, room, resultRect);
-                float *out = result.plane[c].data();
-                for (size_t i = 0; i < count; i++) out[i] += gain * blurred[i];
-            }
+                return cropped(work, room, resultRect);
+            });
             continue;
         }
         const int at = levelFor(sigma);
         if (!edges) {
             const QRect cells = cellsOf(resultRect, at, at > 0 ? 2 : 0);
-            for (int c = 0; c < planeCount; c++) {
-                const float gain = c < 3 ? step.gain : alphaGain;
-                if (std::abs(gain) < 1e-6f) continue;
+            addSteps([&](int c) {
                 Pyramid &pyramid = pyramidOf(planes[c], [&]() { return source.plane[c].data(); });
-                const std::vector<float> blurred = enlarged(pyramid.blurred(at, blurOnLevel(sigma, at, true), cells), cells, at, resultRect);
-                float *out = result.plane[c].data();
-                for (size_t i = 0; i < count; i++) out[i] += gain * blurred[i];
-            }
+                return enlarged(pyramid.blurred(at, blurOnLevel(sigma, at, true), cells), cells, at, resultRect);
+            });
             continue;
         }
         // He, Sun and Tang's guided filter, with Gaussian windows: in each window a plane is fitted as a line of the
@@ -669,9 +685,7 @@ void apply(const Plan &plan, const Planes &source, const QRect &sourceRect, cons
             for (float &v : values) v *= v;
             return values;
         }).blurred(at, first, around);
-        for (int c = 0; c < planeCount; c++) {
-            const float gain = c < 3 ? step.gain : alphaGain;
-            if (std::abs(gain) < 1e-6f) continue;
+        addSteps([&](int c) {
             const std::vector<float> mean = pyramidOf(planes[c], [&]() { return source.plane[c].data(); }).blurred(at, first, around);
             const std::vector<float> meanProduct = pyramidOf(lightTimes[c], [&]() {
                 std::vector<float> values = lightOf();
@@ -686,9 +700,10 @@ void apply(const Plan &plan, const Planes &source, const QRect &sourceRect, cons
             }
             const std::vector<float> slope = enlarged(blurredOver(a, around, secondCells, cells), cells, at, resultRect);
             const std::vector<float> base = enlarged(blurredOver(b, around, secondCells, cells), cells, at, resultRect);
-            float *out = result.plane[c].data();
-            for (size_t i = 0; i < count; i++) out[i] += gain * (slope[i] * lightHere[i] + base[i]);
-        }
+            std::vector<float> filtered(count);
+            for (size_t i = 0; i < count; i++) filtered[i] = slope[i] * lightHere[i] + base[i];
+            return filtered;
+        });
     }
 
     // what was taken of the largest shapes leaves middle gray, as a high pass does

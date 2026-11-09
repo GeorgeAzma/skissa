@@ -17,8 +17,9 @@
 class KisPropertiesConfiguration;
 
 /**
- * Fewer colors: every pixel takes the nearest of a few colors, measured in Oklab, so near means looks near. The
- * colors are steps of each channel (posterize), grays, colors found in the image, or a palette's. Dithering mixes
+ * Fewer colors: every pixel takes the nearest of a few colors: steps of each channel (posterize, each channel
+ * rounded on its own), or, nearest in Oklab so near means looks near, grays, colors found in the image, or a
+ * palette's. Dithering mixes
  * neighbouring colors so that from a step back they average to the pixel's own color, in linear light: a pattern
  * (Bayer's) or noise (blue noise, without clumps), both fixed to the image's pixels, or error diffusion
  * (Floyd and Steinberg's), which runs through the whole image in order.

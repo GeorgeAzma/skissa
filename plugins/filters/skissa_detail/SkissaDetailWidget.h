@@ -283,6 +283,8 @@ public:
     bool canvasPressed(const QPoint &pixel) override;
     QString canvasDragged(const QPointF &moved, const QPointF &at) override;
     void canvasReleased() override;
+    /// Outline and Grow have only a size; Glow has a strength too, and the shadow moves either way
+    Qt::Orientations canvasAxes() const override;
 
     QSize sizeHint() const override;
 

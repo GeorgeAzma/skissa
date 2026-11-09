@@ -317,7 +317,8 @@ std::vector<float> cellColors(const float *pixels, const QRect &read, const QRec
                 const float c[3] = {chosen[0] / alpha, chosen[1] / alpha, chosen[2] / alpha};
                 KoMixing::oklabToLinear(c, to);
             }
-            to[3] = alpha;
+            // a cell is in the picture or out of it, as a pixel artist's pixels are: soft edges would stay soft
+            to[3] = alpha >= 0.5f ? 1.0f : 0.0f;
         }
     }
     return out;

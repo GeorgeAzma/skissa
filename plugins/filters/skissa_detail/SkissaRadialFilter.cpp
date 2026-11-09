@@ -59,7 +59,7 @@ void SkissaRadialFilter::processImpl(KisPaintDeviceSP device, const QRect &apply
     const Settings settings = Settings::from(*config);
     if (settings.changesNothing() || applyRect.isEmpty()) return;
     const QRect bounds = device->defaultBounds()->bounds();
-    const Radial radial(settings, bounds);
+    const Radial radial(settings, bounds, !SkissaPixels::holdsPastWhite(device->colorSpace()));
 
     // beyond the image its edge repeats
     const QRect source = (radial.sourceOf(applyRect) & (bounds | applyRect)) | applyRect;

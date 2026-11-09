@@ -936,7 +936,7 @@ KisConfigWidget *desaturate(QWidget *parent, KisPaintDeviceSP device)
     auto way = [](const QString &name, int type) {
         return Tile{name, [type](Config &c) { c.setProperty("type", type); }, [type](const Config &c) { return c.getInt("type", 0) == type; }};
     };
-    panel->addTiles({way(i18nc("desaturate: gray as bright as the color looks", "Lightness"), 0),
+    panel->addTiles({way(i18nc("desaturate: gray halfway between the brightest and darkest channels (HSL lightness)", "Lightness"), 0),
                      way(i18nc("desaturate: gray by the light given off (Rec. 709)", "Luminance"), 1),
                      way(i18nc("desaturate: gray from the channels' average", "Average"), 3),
                      way(i18nc("desaturate: gray from the darkest channel", "Darkest"), 4),

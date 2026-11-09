@@ -149,7 +149,7 @@ void Paint::apply(const float *source, const QRect &sourceRect, const QRect &rec
     const float radius = float(std::max(0.5, s.size * m_scale));
 
     // Oklab and alpha, the colors weighed by their alpha
-    std::vector<float> lab(count * 4), lightness(count);
+    std::vector<float> lab(count * 4);
     for (size_t i = 0; i < count; i++) {
         const float *pixel = source + i * 4;
         const float alpha = std::clamp(pixel[3], 0.0f, 1.0f);
@@ -158,22 +158,28 @@ void Paint::apply(const float *source, const QRect &sourceRect, const QRect &rec
         KoMixing::linearToOklab(rgb, c);
         for (int k = 0; k < 3; k++) lab[i * 4 + k] = c[k] * alpha;
         lab[i * 4 + 3] = alpha;
-        lightness[i] = c[0] * alpha + (1 - alpha);
     }
 
-    // the flow: the structure tensor of lightness, smoothed
+    // the flow: the structure tensor of the colors (Oklab) and the coverage, smoothed: lightness alone has no edge
+    // between colors as light as each other, nor around a white shape on a clear layer
     std::vector<float> e(count), f(count), g(count), scratch(count);
     for (int y = 0; y < h; y++) {
         const int up = std::max(y - 1, 0), down = std::min(y + 1, h - 1);
         for (int x = 0; x < w; x++) {
             const int left = std::max(x - 1, 0), right = std::min(x + 1, w - 1);
-            auto v = [&](int px, int py) { return lightness[size_t(py) * w + px]; };
-            const float sx = (v(right, up) + 2 * v(right, y) + v(right, down) - v(left, up) - 2 * v(left, y) - v(left, down)) / 4;
-            const float sy = (v(left, down) + 2 * v(x, down) + v(right, down) - v(left, up) - 2 * v(x, up) - v(right, up)) / 4;
+            float ee = 0, ff = 0, gg = 0;
+            for (int k = 0; k < 4; k++) {
+                auto v = [&](int px, int py) { return lab[(size_t(py) * w + px) * 4 + k]; };
+                const float sx = (v(right, up) + 2 * v(right, y) + v(right, down) - v(left, up) - 2 * v(left, y) - v(left, down)) / 4;
+                const float sy = (v(left, down) + 2 * v(x, down) + v(right, down) - v(left, up) - 2 * v(x, up) - v(right, up)) / 4;
+                ee += sx * sx;
+                ff += sx * sy;
+                gg += sy * sy;
+            }
             const size_t i = size_t(y) * w + x;
-            e[i] = sx * sx;
-            f[i] = sx * sy;
-            g[i] = sy * sy;
+            e[i] = ee;
+            f[i] = ff;
+            g[i] = gg;
         }
     }
     const qreal tensorSigma = 1 + 0.25 * radius;

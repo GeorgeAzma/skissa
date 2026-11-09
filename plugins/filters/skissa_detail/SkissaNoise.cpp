@@ -329,7 +329,11 @@ void apply(const Settings &settings, qreal scale, const float *source, const QRe
                 if (!light.empty()) {
                     const float tone = std::clamp(lab[0], 0.0f, 1.0f);
                     const float weight = 1 - settings.mids + settings.mids * 4 * tone * (1 - tone);
-                    lab[0] += amount[Lightness] * lightnessAtFull * weight * light[i];
+                    float spread = amount[Lightness] * lightnessAtFull * weight;
+                    // near black, and near white where the picture stops there, the noise has room on one side only:
+                    // cut there it would darken whites and lift blacks, so it stays within two spreads of the end
+                    spread = std::min(spread, (fit ? std::min(tone, 1 - tone) : tone) / 2);
+                    lab[0] += spread * light[i];
                 }
                 if (!green.empty()) {
                     lab[1] += amount[Color] * colorAtFull * green[i];

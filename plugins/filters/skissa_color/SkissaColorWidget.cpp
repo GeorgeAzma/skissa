@@ -49,7 +49,6 @@ constexpr int mapTab = 4;
 /// A press on the image this near a stop's lightness takes that stop rather than adding one
 constexpr qreal nearStop = 0.04;
 constexpr int bins = 64;
-/// The drag on the image across which a curve goes from bottom to top
 
 /// What the panel showed last, kept for the next time it opens
 int lastChange = Lightness;
@@ -132,10 +131,6 @@ QImage applied(const QImage &image, const Settings &settings)
 }
 
 /**
- * One curve, drawn over how much of the image is at each place along it. A press on the line adds a point and
- * drags it; a point pulled far off the box, double-clicked or right-clicked goes; a right click elsewhere resets.
- */
-/**
  * A color shift as a point on a disc of OKLab's colors: dragged toward orange, the image (or its shadows or
  * highlights) warms. A click puts it there, right click takes it back to the middle.
  */
@@ -158,6 +153,12 @@ public:
     {
         m_value = value;
         update();
+    }
+    /// \p value as far as the disc reaches
+    QPointF within(QPointF value) const
+    {
+        const qreal length = std::hypot(value.x(), value.y());
+        return length > m_range ? value * (m_range / length) : value;
     }
 
     QSize sizeHint() const override
@@ -815,6 +816,8 @@ void SkissaColorWidget::refreshChips()
         chip.text = d->presets[i].name;
         chip.on = d->settings == d->presets[i].settings;
         const QImage picture = d->presetPictures.value(i);
+        // unchanged pictures aren't painted again while a curve is dragged
+        chip.pictureKey = picture.cacheKey();
         chip.picture = [picture](QPainter &painter, const QRectF &rect) {
             painter.save();
             painter.setClipPath(KisModernStyle::squircle(rect, KisModernStyle::cornerRadius));
@@ -952,7 +955,7 @@ bool SkissaColorWidget::canvasPressed(const QPoint &pixel)
         float lab[3];
         KoMixing::linearToOklab(linear, lab);
         if (lab[0] > 0.05f) {
-            d->settings.balance = QPointF(-lab[1] / lab[0], -lab[2] / lab[0]);
+            d->settings.balance = d->balance->within(QPointF(-lab[1] / lab[0], -lab[2] / lab[0]));
             d->balance->setValue(d->settings.balance);
             Q_EMIT sigConfigurationItemChanged();
         }

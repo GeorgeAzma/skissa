@@ -139,6 +139,7 @@ Settings Settings::from(const KisPropertiesConfiguration &config)
     s.shadowAngle = float(std::clamp(config.getDouble("shadow_angle", s.shadowAngle), -180.0, 180.0));
     s.shadowSoftness = float(std::clamp(config.getDouble("shadow_softness", s.shadowSoftness), 0.0, 200.0));
     s.shadowColor = colorFrom(config, "shadow_color", s.shadowColor);
+    s.solid = float(std::clamp(config.getDouble("solid", 1), 0.02, 1.0));
     return s;
 }
 
@@ -155,10 +156,12 @@ void Settings::writeTo(KisPropertiesConfiguration &config) const
     config.setProperty("shadow_angle", double(shadowAngle));
     config.setProperty("shadow_softness", double(shadowSoftness));
     config.setProperty("shadow_color", shadowColor.name(QColor::HexArgb));
+    config.setProperty("solid", double(solid));
 }
 
 bool Settings::operator==(const Settings &other) const
 {
+    // the layer's opacity isn't part of the look
     return grow == other.grow && outline == other.outline && place == other.place && outlineColor == other.outlineColor && glow == other.glow
         && glowStrength == other.glowStrength && glowColor == other.glowColor && shadow == other.shadow && shadowAngle == other.shadowAngle
         && shadowSoftness == other.shadowSoftness && shadowColor == other.shadowColor;
@@ -199,10 +202,13 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
     }
     const float grow = float(s.grow * m_scale), width = float(s.outline * m_scale), glow = float(s.glow * m_scale);
 
-    // how far each pixel is from the edge, between pixels from their alpha: negative inside
+    // how far each pixel is from the edge, between pixels from their alpha (as a share of the layer's solid paint):
+    // negative inside
+    const float solid = std::clamp(s.solid, 0.02f, 1.0f);
+    auto cover = [source, solid](size_t i) { return std::clamp(source[i * 4 + 3] / solid, 0.0f, 1.0f); };
     std::vector<char> opaque(count), clear(count);
     for (size_t i = 0; i < count; i++) {
-        const bool in = source[i * 4 + 3] >= 0.5f;
+        const bool in = cover(i) >= 0.5f;
         opaque[i] = in;
         clear[i] = !in;
     }
@@ -212,17 +218,19 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
             const size_t i = size_t(y) * w + x;
-            const float alpha = std::clamp(source[i * 4 + 3], 0.0f, 1.0f);
+            const float alpha = cover(i);
             if (!opaque[i]) {
                 // past the nearest opaque pixel's edge, which lies as far out of it as it is opaque past a half
                 const int q = nearestIn[i];
-                const float far = q < 0 ? none : std::hypot(float(x - q % w), float(y - q / w)) + 0.5f - std::clamp(source[size_t(q) * 4 + 3], 0.0f, 1.0f);
-                // a pixel partly covered has the edge within it
-                distance[i] = alpha > 0 ? std::min(far, 0.5f - alpha) : far;
+                const float far = q < 0 ? none : std::hypot(float(x - q % w), float(y - q / w)) + 0.5f - cover(size_t(q));
+                // a pixel partly covered beside the inside has the edge within it
+                distance[i] = alpha > 0 && far <= 1 ? std::min(far, 0.5f - alpha) : far;
             } else {
                 const int r = nearestOut[i];
-                const float far = r < 0 ? none : std::hypot(float(x - r % w), float(y - r / w)) - 0.5f + std::clamp(source[size_t(r) * 4 + 3], 0.0f, 1.0f);
-                distance[i] = alpha < 1 ? std::max(-far, 0.5f - alpha) : -far;
+                const float far = r < 0 ? none : std::hypot(float(x - r % w), float(y - r / w)) - 0.5f + cover(size_t(r));
+                // only a pixel beside the outside can hold the edge; further in, paint less than solid is see-through
+                // paint, not an edge
+                distance[i] = alpha < 1 && far <= 1 ? std::max(-far, 0.5f - alpha) : -far;
             }
         }
     }
@@ -240,13 +248,14 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
             for (int c = 0; c < 3; c++) to[c] = own[c] * alpha;
             to[3] = alpha;
         } else if (grow > 0) {
-            const float grown = std::max(alpha, coverage(0.5f - d));
+            // as opaque as the paint it grows from
+            const float grown = std::max(alpha, solid * coverage(0.5f - d));
             const int q = nearestIn[i];
             const float *edge = q >= 0 ? source + size_t(q) * 4 : own;
             for (int c = 0; c < 3; c++) to[c] = own[c] * alpha + edge[c] * (grown - alpha);
             to[3] = grown;
         } else {
-            const float shrunk = std::min(alpha, coverage(0.5f - d));
+            const float shrunk = std::min(alpha, solid * coverage(0.5f - d));
             for (int c = 0; c < 3; c++) to[c] = own[c] * shrunk;
             to[3] = shrunk;
         }
@@ -290,15 +299,17 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
             }
             const float d = distance[i] - grow;
             if (glow > 0 && s.glowStrength > 0) {
-                // light falling off from the silhouette's edge
+                // light falling off from the silhouette's edge, under the shape only as far as its soft edge, so a
+                // see-through shape isn't tinted
                 const float t = std::max(0.0f, d - outward) / glow;
-                const float a = s.glowStrength * std::exp(-4.6f * t * t);
+                const float a = s.glowStrength * std::exp(-4.6f * t * t) * coverage(d + 3);
                 for (int c = 0; c < 4; c++) layer[c] = glowColor[c] * a;
                 over(layer, result);
             }
             if (width > 0 && s.place == Place::Outside) {
-                // under the shape, so the two meet without a seam
-                const float a = coverage(width - d + 0.5f);
+                // under the shape's soft edge, so the two meet without a seam; no further in, or a see-through shape
+                // is tinted with it
+                const float a = coverage(width - d + 0.5f) * coverage(d + 3);
                 for (int c = 0; c < 4; c++) layer[c] = outlineColor[c] * a;
                 over(layer, result);
             }

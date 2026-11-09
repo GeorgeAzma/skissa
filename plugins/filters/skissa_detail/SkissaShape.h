@@ -44,6 +44,9 @@ struct Settings {
     float shadowAngle {45};
     float shadowSoftness {8};
     QColor shadowColor {QColor(0, 0, 0, 140)};
+    /// How opaque the layer's paint is where it is solid, found by the panel so that every patch agrees: the edge lies
+    /// at half of it, so a layer painted at low opacity still has a shape
+    float solid {1};
 
     static Settings from(const KisPropertiesConfiguration &config);
     void writeTo(KisPropertiesConfiguration &config) const;

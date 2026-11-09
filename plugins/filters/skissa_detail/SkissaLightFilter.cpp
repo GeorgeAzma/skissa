@@ -52,7 +52,7 @@ void SkissaLightFilter::processImpl(KisPaintDeviceSP device, const QRect &applyR
     const Settings settings = Settings::from(*config);
     if (settings.changesNothing() || applyRect.isEmpty()) return;
     KisLodTransformScalar t(device);
-    const Light light(settings, t.scale(1.0));
+    const Light light(settings, t.scale(1.0), !SkissaPixels::holdsPastWhite(device->colorSpace()));
     const int reach = light.reach();
     // light from past the image shines into it too: a layer can reach beyond it
     const QRect source = applyRect.adjusted(-reach, -reach, reach, reach);

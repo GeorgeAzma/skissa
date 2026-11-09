@@ -58,7 +58,8 @@ struct Settings {
 class Light
 {
 public:
-    Light(const Settings &settings, qreal scale);
+    /// \p clipped: the picture stops at white (integers), so its whitest parts stand for brighter light
+    Light(const Settings &settings, qreal scale, bool clipped = true);
 
     /// How far it reads around what it makes
     int reach() const;
@@ -72,6 +73,7 @@ public:
 private:
     Settings m_settings;
     qreal m_scale {1};
+    bool m_clipped {true};
 };
 
 /// \p image (8-bit sRGB) with light at \p scale

@@ -61,7 +61,7 @@ void SkissaLensFilter::processImpl(KisPaintDeviceSP device, const QRect &applyRe
     if (settings.changesNothing() || applyRect.isEmpty()) return;
     KisLodTransformScalar t(device);
     const QRect bounds = device->defaultBounds()->bounds();
-    const Lens lens(settings, bounds, t.scale(1.0));
+    const Lens lens(settings, bounds, t.scale(1.0), !SkissaPixels::holdsPastWhite(device->colorSpace()));
 
     // beyond the image its edge repeats
     const QRect source = lens.sourceOf(applyRect) & (bounds | applyRect);

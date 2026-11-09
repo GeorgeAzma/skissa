@@ -13,6 +13,7 @@
 
 #include "KoCompositeOpInLinear.h"
 #include "SkissaDetail.h"
+#include "SkissaPixels.h"
 
 namespace SkissaLens
 {
@@ -86,8 +87,9 @@ struct Grid {
 constexpr int nearRoom = 12;
 
 /// \p source (straight red, green, blue and alpha over \p sourceRect) premultiplied, on \p cells of 2^shift
-/// pixels, each the average of the pixels of it that were read
-Grid premultiplied(const float *source, const QRect &sourceRect, const QRect &cells, int shift, int planes)
+/// pixels, each the average of the pixels of it that were read; \p unclip: as the light each pixel stands for
+/// (SkissaPixels::unclipOf)
+Grid premultiplied(const float *source, const QRect &sourceRect, const QRect &cells, int shift, int planes, bool unclip = false)
 {
     Grid grid;
     grid.shift = shift;
@@ -105,7 +107,8 @@ Grid premultiplied(const float *source, const QRect &sourceRect, const QRect &ce
                 const float *pixel = source + (size_t(y - sourceRect.top()) * sourceRect.width() + (left - sourceRect.left())) * 4;
                 for (int x = left; x <= right; x++, pixel += 4) {
                     const float alpha = std::clamp(pixel[3], 0.0f, 1.0f);
-                    for (int c = 0; c < 3; c++) sum[c] += pixel[c] * alpha;
+                    const float brighter = unclip ? SkissaPixels::unclipOf(0.2126f * pixel[0] + 0.7152f * pixel[1] + 0.0722f * pixel[2]) : 1.0f;
+                    for (int c = 0; c < 3; c++) sum[c] += pixel[c] * alpha * brighter;
                     sum[3] += alpha;
                 }
             }
@@ -220,7 +223,8 @@ Settings vintage()
     return settings;
 }
 
-Lens::Lens(const Settings &settings, const QRect &bounds, qreal scale)
+Lens::Lens(const Settings &settings, const QRect &bounds, qreal scale, bool clipped)
+    : m_clipped(clipped)
 {
     const QRectF frame = bounds.isEmpty() ? QRectF(0, 0, 1, 1) : QRectF(bounds);
     m_center = frame.topLeft() + QPointF(settings.center.x() * frame.width(), settings.center.y() * frame.height());
@@ -367,17 +371,20 @@ void Lens::apply(const float *source, const QRect &sourceRect, const QRect &rect
     for (size_t i = 0; i < count && opaque; i++) opaque = source[i * 4 + 3] >= 1;
     const int planes = opaque ? 3 : 4;
 
-    // full size only around the work area, where the geometry and the finest glow read; the far glow from halves
+    // full size only around the work area, where the geometry and the finest glow read; the far glow from halves.
+    // What glows is the light the picture stands for: a clipped white lamp blooms rather than dims
     const QRect near = work.adjusted(-nearRoom, -nearRoom, nearRoom, nearRoom) & sourceRect;
+    const bool unclip = m_clipped && !m_glowSigmas.isEmpty();
     std::vector<Grid> levels;
-    levels.push_back(premultiplied(source, sourceRect, near, 0, planes));
+    levels.push_back(premultiplied(source, sourceRect, near, 0, planes, unclip));
+    const Grid kept = unclip ? premultiplied(source, sourceRect, near, 0, planes) : Grid();
 
     const int ww = work.width(), wh = work.height();
     const size_t workCount = size_t(ww) * wh;
     std::vector<float> plane[4];
     for (int p = 0; p < planes; p++) {
         plane[p].resize(workCount);
-        const Grid &grid = levels.front();
+        const Grid &grid = unclip ? kept : levels.front();
         for (int y = 0; y < wh; y++) {
             const float *from = grid.plane[p].data() + size_t(work.top() - near.top() + y) * near.width() + (work.left() - near.left());
             float *to = plane[p].data() + size_t(y) * ww;
@@ -390,7 +397,7 @@ void Lens::apply(const float *source, const QRect &sourceRect, const QRect &rect
         if (levelFor(m_glowSigmas.front()) > 0) {
             const QRect halves(QPoint(floorDiv(sourceRect.left(), 2), floorDiv(sourceRect.top(), 2)),
                                QPoint(floorDiv(sourceRect.right(), 2), floorDiv(sourceRect.bottom(), 2)));
-            levels.push_back(premultiplied(source, sourceRect, halves, 1, planes));
+            levels.push_back(premultiplied(source, sourceRect, halves, 1, planes, unclip));
         }
         std::vector<float> buffer, scratch;
         std::vector<int> x0(ww), x1(ww), y0(wh), y1(wh);

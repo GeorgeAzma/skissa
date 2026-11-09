@@ -286,8 +286,22 @@ Recipe::Recipe(const Settings &settings)
         const float cones[3] = {1 + 0.3963377774f * a + 0.2158037573f * b, 1 - 0.1055613458f * a - 0.0638541728f * b,
                                 1 - 0.0894841775f * a - 1.2914855480f * b};
         for (int i = 0; i < 3; i++) m_gain[i] = 1 / std::max(1e-3f, cones[i] * cones[i] * cones[i]);
+        // where the picture stops at white, white itself is kept inside it, so paper takes the cast the grays beside
+        // it take instead of a channel being cut at white
+        const float white[3] = {4.0767416621f * m_gain[0] - 3.3077115913f * m_gain[1] + 0.2309699292f * m_gain[2],
+                                -1.2684380046f * m_gain[0] + 2.6097574011f * m_gain[1] - 0.3413193965f * m_gain[2],
+                                -0.0041960863f * m_gain[0] - 0.7034186147f * m_gain[1] + 1.7076147010f * m_gain[2]};
+        m_whiteKept = 1 / std::max(1.0f, std::max({white[0], white[1], white[2]}));
     }
     m_nothing = !m_oklch && !m_anyRgb && !balanced && m_map.isEmpty();
+}
+
+/// \p lab in a picture that stops at white: as much of its chroma as fits at its lightness, and past white as a
+/// near-white is fitted, not cut channel by channel into a tint the near-whites beside it don't have
+inline void fitted(float lab[3], float rgb[3])
+{
+    lab[0] = std::min(lab[0], 0.99999f);
+    KoOklch::inGamut(lab, rgb);
 }
 
 void Recipe::apply(float rgb[3], bool fit) const
@@ -306,15 +320,16 @@ void Recipe::apply(float rgb[3], bool fit) const
         if (m_mapKeepsLightness) mapped[0] = lab[0];
         for (int c = 0; c < 3; c++) lab[c] += (mapped[c] - lab[c]) * m_mapStrength;
         if (fit) {
-            KoOklch::inGamut(lab, rgb);
+            fitted(lab, rgb);
         } else {
             KoMixing::oklabToLinear(lab, rgb);
         }
     }
     if (m_oklch || m_gain[0] != 1 || m_gain[1] != 1 || m_gain[2] != 1) {
-        const float cones[3] = {std::cbrt((0.4122214708f * rgb[0] + 0.5363325363f * rgb[1] + 0.0514459929f * rgb[2]) * m_gain[0]),
-                                std::cbrt((0.2119034982f * rgb[0] + 0.6806995451f * rgb[1] + 0.1073969566f * rgb[2]) * m_gain[1]),
-                                std::cbrt((0.0883024619f * rgb[0] + 0.2817188376f * rgb[1] + 0.6299787005f * rgb[2]) * m_gain[2])};
+        const float kept = fit ? m_whiteKept : 1.0f;
+        const float cones[3] = {std::cbrt((0.4122214708f * rgb[0] + 0.5363325363f * rgb[1] + 0.0514459929f * rgb[2]) * m_gain[0] * kept),
+                                std::cbrt((0.2119034982f * rgb[0] + 0.6806995451f * rgb[1] + 0.1073969566f * rgb[2]) * m_gain[1] * kept),
+                                std::cbrt((0.0883024619f * rgb[0] + 0.2817188376f * rgb[1] + 0.6299787005f * rgb[2]) * m_gain[2] * kept)};
         float lab[3] = {0.2104542553f * cones[0] + 0.7936177850f * cones[1] - 0.0040720468f * cones[2],
                         1.9779984951f * cones[0] - 2.4285922050f * cones[1] + 0.4505937099f * cones[2],
                         0.0259040371f * cones[0] + 0.7827717662f * cones[1] - 0.8086757660f * cones[2]};
@@ -362,7 +377,7 @@ void Recipe::apply(float rgb[3], bool fit) const
             lab[2] += float(m_shadows.y()) * toShadows + float(m_highlights.y()) * toHighlights;
         }
         if (fit) {
-            KoOklch::inGamut(lab, rgb);
+            fitted(lab, rgb);
         } else {
             KoMixing::oklabToLinear(lab, rgb);
         }

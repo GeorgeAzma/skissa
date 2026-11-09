@@ -64,7 +64,8 @@ Settings zoomed();
 class Radial
 {
 public:
-    Radial(const Settings &settings, const QRect &bounds);
+    /// \p clipped: the picture stops at white (integers), so its whitest parts stand for brighter light
+    Radial(const Settings &settings, const QRect &bounds, bool clipped = true);
 
     /// The pixels it reads to make \p rect
     QRect sourceOf(const QRect &rect) const;
@@ -77,6 +78,7 @@ public:
 
 private:
     Settings m_settings;
+    bool m_clipped {true};
     QPointF m_center;
     /// The streak's zoom and turn, as the logarithm of its scale and an angle: a point at σ along it is scaled by
     /// exp(σ m_logScale) and turned by σ m_turn about the middle, σ from -m_back to 1 - m_back
