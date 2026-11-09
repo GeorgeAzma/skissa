@@ -57,6 +57,8 @@
 #include "kis_canvas_resource_provider.h"
 #include "KisColorDrop.h"
 #include "widgets/KisStudioColorField.h"
+#include "widgets/KisStudioPopup.h"
+#include <QSharedPointer>
 #include <KoColorSpaceRegistry.h>
 #include "KisSettingsRegistry.h"
 #include "kis_config.h"
@@ -87,7 +89,7 @@ QColor pinnedColor(const QString &key)
     return QColor(key.mid(colorPrefix.size()));
 }
 
-/// A pinned color's button: a round swatch with a faint ring, so white and black both show
+/// A pinned color's button: a swatch with a faint edge, so white and black both show
 QIcon swatchIcon(const QColor &color)
 {
     QIcon icon;
@@ -99,7 +101,7 @@ QIcon swatchIcon(const QColor &color)
         painter.setRenderHint(QPainter::Antialiasing, true);
         painter.setPen(QPen(QColor(128, 128, 128, 120), 1));
         painter.setBrush(color);
-        painter.drawEllipse(QRectF(4.5, 4.5, 15, 15));
+        painter.drawPath(KisModernStyle::squircle(QRectF(4.5, 4.5, 15, 15), KisModernStyle::cornerRadius));
         painter.end();
         icon.addPixmap(pixmap);
     }
@@ -1194,17 +1196,35 @@ void KisStudioToolRail::showCard(int index, bool touch)
 
     // a pinned color: its picker, the pin taking the color chosen (dragged off the rail, it goes)
     if (key.startsWith(colorPrefix)) {
-        auto *field = new KisStudioColorField(anchor);
-        field->setGeometry(anchor->rect());
+        // the rail's own child, so remaking its buttons leaves it (and its open picker) alone
+        auto *field = new KisStudioColorField(this);
+        field->setGeometry(QRect(mapFromGlobal(anchor->mapToGlobal(QPoint())), anchor->size()));
         field->hide();
         field->setColor(pinnedColor(key));
-        connect(field, &KisStudioColorField::colorChanged, this, [this, index, key](const QColor &color) {
+        // the pin takes the color once the picker rests: one step, not one for every move of a drag
+        auto pinned = QSharedPointer<QString>::create(key);
+        auto *settle = new QTimer(field);
+        settle->setSingleShot(true);
+        settle->setInterval(250);
+        connect(field, &KisStudioColorField::colorChanged, settle, qOverload<>(&QTimer::start));
+        auto take = [this, field, pinned]() {
+            const QString next = colorPrefix + field->color().name();
+            const int at = d->items.indexOf(*pinned);
+            if (at < 0 || next == *pinned) return;
             QStringList items = d->items;
-            if (items.value(index) != key) return;
-            items[index] = colorPrefix + color.name();
-            QTimer::singleShot(0, this, [this, items]() { setItems(items); });
-        });
+            items[at] = next;
+            *pinned = next;
+            setItems(items);
+        };
+        connect(settle, &QTimer::timeout, this, take);
         field->openPicker();
+        // the picker closed: what it last showed is taken, and the field goes
+        if (auto *popup = field->findChild<KisStudioPopup *>()) {
+            connect(popup, &QObject::destroyed, this, [field, settle, take]() {
+                if (settle->isActive()) take();
+                field->deleteLater();
+            });
+        }
         return;
     }
 

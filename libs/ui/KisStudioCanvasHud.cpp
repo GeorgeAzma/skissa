@@ -609,10 +609,14 @@ bool KisStudioCanvasHud::eventFilter(QObject *watched, QEvent *event)
                && (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseMove || event->type() == QEvent::MouseButtonRelease)
                && drag(static_cast<QMouseEvent *>(event), qobject_cast<QWidget *>(watched))) {
         // only on itself: a press another pill let through to the canvas area isn't its drag
+        // a press on Grayscale that became a move of the pill was no click: what it showed goes
+        if (watched == d->value && d->valueView && event->type() == QEvent::MouseButtonRelease && !d->valueWasOn) d->valueView->setChecked(false);
         return true;
-    } else if (watched == d->value && d->valueView && (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease)
+    } else if (watched == d->value && d->valueView
+               && (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick || event->type() == QEvent::MouseButtonRelease)
                && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
-        if (event->type() == QEvent::MouseButtonPress) {
+        // a second quick press is a press too: let through, the button would go down and never come up
+        if (event->type() != QEvent::MouseButtonRelease) {
             d->valueWasOn = d->valueView->isChecked();
             d->valueHeld.start();
             if (!d->valueWasOn) d->valueView->setChecked(true);

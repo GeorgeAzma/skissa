@@ -765,7 +765,8 @@ void KisStudioFind::rebuildIndex()
     Q_FOREACH (const KisSuperellipse::Preset &preset, KisSuperellipse::presets()) {
         const KisSuperellipse::Look look = preset.look;
         d->entries.append({KisSuperellipse::keyOf(look), Kind::Tool, preset.name, i18nc("find detail: a shape the shape tool draws", "Shape"),
-                           QString(), QString(), KisSuperellipse::iconOf(look, ink), [look]() { KisSuperellipse::draw(look); }});
+                           QString(), QString(), QIcon(), [look]() { KisSuperellipse::draw(look); }});
+        d->entries.last().makeIcon = [look, ink]() { return KisSuperellipse::iconOf(look, ink); };
     }
 
     // each command's menu path, shown as its detail

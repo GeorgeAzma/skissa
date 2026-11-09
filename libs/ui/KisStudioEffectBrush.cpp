@@ -38,6 +38,7 @@
 
 #include "KisMainWindow.h"
 #include "KisModernStyle.h"
+#include "KisStudioCanvasHud.h"
 #include "KisStudioGlass.h"
 #include "KisStudioLayout.h"
 #include "KisStudioTools.h"
@@ -50,8 +51,10 @@ struct KisStudioEffectBrush::Private {
     QPointer<KisMainWindow> mainWindow;
     KisLayerSP layer;
     KisFilterMaskSP mask;
-    /// The paint color before painting the effect
+    /// The paint color, the eraser and alpha lock before painting the effect, given back after
     KoColor color;
+    bool erasing {false};
+    bool alphaLocked {false};
     bool finished {false};
     /// The mask has been picked: picking another from now on keeps it
     bool entered {false};
@@ -103,7 +106,6 @@ KisStudioEffectBrush::KisStudioEffectBrush(KisMainWindow *mainWindow, KisLayerSP
         b->setToolTip(tip);
         b->setAutoRaise(true);
         b->setFocusPolicy(Qt::NoFocus);
-        b->setFixedSize(28, 26);
         connect(b, &QToolButton::clicked, this, [this, done]() { (this->*done)(); });
         KisStudioGlass::setSeeThrough(b, true);
         row->addWidget(b);
@@ -115,10 +117,17 @@ KisStudioEffectBrush::KisStudioEffectBrush(KisMainWindow *mainWindow, KisLayerSP
     // only a paint layer has pixels to take it
     apply->setEnabled(qobject_cast<KisPaintLayer *>(layer.data()));
 
-    // painting with the brush, white: where the effect shows
+    // painting with the brush, white: where the effect shows (alpha lock would keep the empty mask empty)
     KisViewManager *view = mainWindow->viewManager();
     KisStudioTools::switchTo(QStringLiteral("KritaShape/KisToolBrush"));
-    if (QAction *erase = mainWindow->actionCollection()->action(QStringLiteral("erase_action"))) erase->setChecked(false);
+    if (QAction *erase = mainWindow->actionCollection()->action(QStringLiteral("erase_action"))) {
+        d->erasing = erase->isChecked();
+        erase->setChecked(false);
+    }
+    if (QAction *lock = mainWindow->actionCollection()->action(QStringLiteral("preserve_alpha"))) {
+        d->alphaLocked = lock->isChecked();
+        lock->setChecked(false);
+    }
     if (KisCanvasResourceProvider *resources = view->canvasResourceProvider()) {
         d->color = resources->fgColor();
         resources->setFGColor(KoColor(Qt::white, KoColorSpaceRegistry::instance()->rgb8()));
@@ -206,6 +215,12 @@ void KisStudioEffectBrush::finish(bool pickLayer)
         // the color back, unless one was picked meanwhile
         KisCanvasResourceProvider *resources = view->canvasResourceProvider();
         if (resources && resources->fgColor().toQColor() == QColor(Qt::white)) resources->setFGColor(d->color);
+        if (QAction *erase = d->mainWindow->actionCollection()->action(QStringLiteral("erase_action"))) {
+            if (d->erasing) erase->setChecked(true);
+        }
+        if (QAction *lock = d->mainWindow->actionCollection()->action(QStringLiteral("preserve_alpha"))) {
+            if (d->alphaLocked) lock->setChecked(true);
+        }
         if (pickLayer && d->layer && d->layer->image()) view->nodeManager()->slotNonUiActivatedNode(d->layer);
     }
     close();
@@ -215,8 +230,14 @@ void KisStudioEffectBrush::place()
 {
     QWidget *room = parentWidget();
     if (!room) return;
-    // over the bottom of the canvas, clear of the zoom pill
-    move((room->width() - width()) / 2, room->height() - height() - 72);
+    // over the bottom of the canvas, above the zoom pill where it would cover it
+    QRect at(QPoint((room->width() - width()) / 2, room->height() - height() - KisModernStyle::space4), size());
+    if (auto *pill = room->findChild<KisStudioCanvasHud *>()) {
+        if (pill->isVisible() && pill->geometry().adjusted(-KisModernStyle::space2, -KisModernStyle::space2, KisModernStyle::space2, 0).intersects(at)) {
+            at.moveBottom(pill->geometry().top() - KisModernStyle::space2);
+        }
+    }
+    move(at.topLeft());
 }
 
 bool KisStudioEffectBrush::eventFilter(QObject *watched, QEvent *event)
