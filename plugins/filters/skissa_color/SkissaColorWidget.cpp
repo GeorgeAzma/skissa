@@ -29,7 +29,10 @@
 #include <kis_paint_device.h>
 #include <klocalizedstring.h>
 #include <widgets/KisStudioChips.h>
+#include <widgets/KisStudioColorField.h>
 #include <widgets/KisStudioCurve.h>
+#include <widgets/KisStudioGradientBar.h>
+#include <widgets/KisStudioValueRow.h>
 
 #include "KoCompositeOpOklch.h"
 #include "SkissaColor.h"
@@ -39,8 +42,11 @@ using namespace SkissaColor;
 namespace
 {
 
-/// The tab of the red, green and blue curves, after lightness, chroma and hue
+/// The tab of the red, green and blue curves, after lightness, chroma and hue, then the gradient map's
 constexpr int rgbTab = 3;
+constexpr int mapTab = 4;
+/// A press on the image this near a stop's lightness takes that stop rather than adding one
+constexpr qreal nearStop = 0.04;
 constexpr int bins = 64;
 /// The drag on the image across which a curve goes from bottom to top
 constexpr qreal dragForWholeCurve = 300;
@@ -305,7 +311,21 @@ struct SkissaColorWidget::Private {
 
     KisStudioChips *presetChips {nullptr};
     KisStudioChips *changeTabs {nullptr};
+    QWidget *byRow {nullptr};
     KisStudioChips *byChips {nullptr};
+    /// The gradient map's tab: looks, the stops, the chosen stop's color, how they blend
+    QWidget *mapBox {nullptr};
+    KisStudioChips *mapLooks {nullptr};
+    KisStudioGradientBar *mapBar {nullptr};
+    KisStudioColorField *mapColor {nullptr};
+    KisStudioChips *mapBlend {nullptr};
+    KisStudioChips *mapKeep {nullptr};
+    KisStudioValueRow *mapStrength {nullptr};
+    QVector<QPair<QString, Stops>> mapLookStops;
+    QVector<QImage> mapLookPictures;
+    /// The stop a drag on the image recolors, and its color when the drag began
+    int mapDragStop {-1};
+    QColor mapDragColor;
     KisStudioCurveView *curve {nullptr};
     BalanceDisc *shadows {nullptr};
     BalanceDisc *balance {nullptr};
@@ -321,6 +341,7 @@ struct SkissaColorWidget::Private {
     QString dragFrom;
 
     bool isRgb() const { return change == rgbTab; }
+    bool isMap() const { return change == mapTab; }
     int currentBy() const { return by[change]; }
     Curve &current() { return isRgb() ? settings.rgb[currentBy()] : settings.curves[currentBy()][change]; }
     Curve fallback() const { return isRgb() ? defaultRgbCurve() : defaultCurve(currentBy(), change); }
@@ -434,6 +455,81 @@ struct SkissaColorWidget::Private {
         presetPictures.clear();
         Q_FOREACH (const Preset &preset, presets) presetPictures << applied(tileBase, preset.settings);
     }
+
+    /// Five stops at the image's own colors, from its darker to its lighter parts: a map that keeps it much as it is
+    Stops ownStops() const
+    {
+        std::vector<std::array<float, 3>> seen;
+        if (!sample.isNull()) {
+            const QImage image = sample.convertToFormat(QImage::Format_ARGB32);
+            for (int y = 0; y < image.height(); y++) {
+                const QRgb *line = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+                for (int x = 0; x < image.width(); x++) {
+                    if (qAlpha(line[x]) < 8) continue;
+                    const float linear[3] = {linearOf(qRed(line[x]) / 255.0), linearOf(qGreen(line[x]) / 255.0), linearOf(qBlue(line[x]) / 255.0)};
+                    std::array<float, 3> lab;
+                    KoMixing::linearToOklab(linear, lab.data());
+                    seen.push_back(lab);
+                }
+            }
+        }
+        if (seen.size() < 10) return {qMakePair(0.0, QColor(Qt::black)), qMakePair(1.0, QColor(Qt::white))};
+        std::sort(seen.begin(), seen.end(), [](const std::array<float, 3> &a, const std::array<float, 3> &b) { return a[0] < b[0]; });
+        Stops stops;
+        for (int k = 0; k < 5; k++) {
+            // the average color of each fifth, at its middle lightness
+            const size_t from = seen.size() * k / 5, to = seen.size() * (k + 1) / 5;
+            float sum[3] = {0, 0, 0};
+            for (size_t i = from; i < to; i++) {
+                for (int c = 0; c < 3; c++) sum[c] += seen[i][c];
+            }
+            const float n = float(std::max<size_t>(1, to - from));
+            const float lab[3] = {sum[0] / n, sum[1] / n, sum[2] / n};
+            stops << qMakePair(qreal(seen[(from + to) / 2][0]), colorOfLab(lab));
+        }
+        return stops;
+    }
+
+    void makeMapLooks()
+    {
+        auto rgb = [](const char *hex) { return QColor(QLatin1String(hex)); };
+        mapLookStops = {
+            {i18nc("gradient map look: no map", "None"), {}},
+            {i18nc("gradient map look: the picture's own colors", "Picture"), ownStops()},
+            {i18nc("gradient map look", "Noir"), {{0, rgb("#000000")}, {1, rgb("#ffffff")}}},
+            {i18nc("gradient map look", "Sepia"), {{0, rgb("#1e130b")}, {0.55, rgb("#9c7a52")}, {1, rgb("#f6ead2")}}},
+            {i18nc("gradient map look", "Duotone"), {{0, rgb("#1b1f4b")}, {1, rgb("#f9c784")}}},
+            {i18nc("gradient map look", "Sunset"), {{0, rgb("#1a0b2e")}, {0.4, rgb("#9b2d5e")}, {0.75, rgb("#f08a4b")}, {1, rgb("#fde9a9")}}},
+            {i18nc("gradient map look", "Night"), {{0, rgb("#05070d")}, {0.5, rgb("#1f4e6b")}, {1, rgb("#c9f2ff")}}},
+            {i18nc("gradient map look", "Thermal"), {{0, rgb("#000000")}, {0.3, rgb("#4b0f8a")}, {0.6, rgb("#e5432d")}, {0.85, rgb("#ffc93c")}, {1, rgb("#ffffff")}}},
+        };
+        mapLookPictures.clear();
+        for (const auto &look : mapLookStops) {
+            Settings s;
+            s.map = look.second;
+            mapLookPictures << applied(tileBase, s);
+        }
+    }
+
+    /// The stop at lightness \p at: one this near, or a new one with the map's color there
+    int stopAt(qreal at)
+    {
+        int nearest = -1;
+        for (int i = 0; i < settings.map.size(); i++) {
+            if (std::abs(settings.map[i].first - at) < nearStop && (nearest < 0 || std::abs(settings.map[i].first - at) < std::abs(settings.map[nearest].first - at))) {
+                nearest = i;
+            }
+        }
+        if (nearest >= 0) return nearest;
+        float lab[3];
+        mapAt(settings.map, settings.mapSteps, float(at), lab);
+        settings.map << qMakePair(at, colorOfLab(lab));
+        std::stable_sort(settings.map.begin(), settings.map.end(), [](const QPair<qreal, QColor> &a, const QPair<qreal, QColor> &b) { return a.first < b.first; });
+        for (int i = 0; i < settings.map.size(); i++) {
+            if (settings.map[i].first == at) return i;
+        }
+        return 0;
+    }
 };
 
 SkissaColorWidget::SkissaColorWidget(QWidget *parent, KisPaintDeviceSP dev)
@@ -462,6 +558,7 @@ SkissaColorWidget::SkissaColorWidget(QWidget *parent, KisPaintDeviceSP dev)
     }
     d->makeHistograms();
     d->makePresets();
+    d->makeMapLooks();
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -500,17 +597,92 @@ SkissaColorWidget::SkissaColorWidget(QWidget *parent, KisPaintDeviceSP dev)
     auto *curveColumn = new QVBoxLayout();
     curveColumn->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
     curveColumn->addWidget(d->curve);
-    auto *byRow = new QHBoxLayout();
+    d->byRow = new QWidget(this);
+    auto *byRow = new QHBoxLayout(d->byRow);
+    byRow->setContentsMargins(0, 0, 0, 0);
     byRow->setSpacing(KisModernStyle::space2);
-    auto *byLabel = new QLabel(i18nc("color effect: the curve goes by this", "By"), this);
+    auto *byLabel = new QLabel(i18nc("color effect: the curve goes by this", "By"), d->byRow);
     byRow->addWidget(byLabel);
-    d->byChips = new KisStudioChips(this);
+    d->byChips = new KisStudioChips(d->byRow);
     connect(d->byChips, &KisStudioChips::clicked, this, [this](int index) {
         d->by[d->change] = lastBy[d->change] = index;
         refresh();
     });
     byRow->addWidget(d->byChips, 1);
-    curveColumn->addLayout(byRow);
+    curveColumn->addWidget(d->byRow);
+
+    // the gradient map: looks, the stops over the image's lightness, the chosen stop's color, how the stops meet
+    d->mapBox = new QWidget(this);
+    auto *mapLayout = new QVBoxLayout(d->mapBox);
+    mapLayout->setContentsMargins(0, 0, 0, 0);
+    mapLayout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
+    d->mapLooks = new KisStudioChips(d->mapBox);
+    d->mapLooks->setTileColumns(4, qMax(56, 2 * fontMetrics().height() + 26));
+    connect(d->mapLooks, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= d->mapLookStops.size()) return;
+        d->settings.map = d->mapLookStops[index].second;
+        mapChanged();
+    });
+    mapLayout->addWidget(d->mapLooks);
+    d->mapBar = new KisStudioGradientBar(d->mapBox);
+    d->mapBar->colorAt = [this](const Stops &stops, qreal at) {
+        float lab[3];
+        mapAt(stops, d->settings.mapSteps, float(at), lab);
+        return colorOfLab(lab);
+    };
+    d->mapBar->setToolTip(i18nc("@info:tooltip", "Click: add\nDrag: move\nRight-click: remove"));
+    connect(d->mapBar, &KisStudioGradientBar::stopsChanged, this, [this]() {
+        d->settings.map = d->mapBar->stops();
+        mapChanged();
+    });
+    connect(d->mapBar, &KisStudioGradientBar::selectedChanged, this, [this]() { refreshMap(); });
+    mapLayout->addWidget(d->mapBar);
+    auto *colorRow = new QHBoxLayout();
+    colorRow->addWidget(new QLabel(i18nc("gradient map: the color of the chosen stop", "Color"), d->mapBox), 1);
+    d->mapColor = new KisStudioColorField(d->mapBox);
+    d->mapColor->setSampler([this](const QPoint &pixel, QColor *taken) {
+        if (!d->original || !d->original->defaultBounds()->bounds().contains(pixel)) return false;
+        KoColor color;
+        d->original->pixel(pixel.x(), pixel.y(), &color);
+        *taken = color.toQColor();
+        return true;
+    });
+    connect(d->mapColor, &KisStudioColorField::colorChanged, this, [this](const QColor &color) {
+        const int selected = d->mapBar->selected();
+        if (selected < 0 || selected >= d->settings.map.size()) return;
+        d->settings.map[selected].second = color;
+        mapChanged();
+    });
+    colorRow->addWidget(d->mapColor);
+    mapLayout->addLayout(colorRow);
+    d->mapBlend = new KisStudioChips(d->mapBox);
+    connect(d->mapBlend, &KisStudioChips::clicked, this, [this](int index) {
+        d->settings.mapSteps = index == 1;
+        mapChanged();
+    });
+    mapLayout->addWidget(d->mapBlend);
+    d->mapKeep = new KisStudioChips(d->mapBox);
+    d->mapKeep->setSwitches(true);
+    connect(d->mapKeep, &KisStudioChips::clicked, this, [this](int) {
+        d->settings.mapKeepsLightness = !d->settings.mapKeepsLightness;
+        mapChanged();
+    });
+    mapLayout->addWidget(d->mapKeep);
+    d->mapStrength = new KisStudioValueRow(i18nc("gradient map: how much of its color", "Strength"), d->mapBox);
+    d->mapStrength->setClickSetsValue(true);
+    {
+        KisStudioValueRow::Range range;
+        range.maximum = 100;
+        range.suffix = QStringLiteral("%");
+        d->mapStrength->setRange(range);
+        d->mapStrength->setDefaultValue(100);
+    }
+    connect(d->mapStrength, &KisStudioValueRow::valueChanged, this, [this](qreal value) {
+        d->settings.mapStrength = float(value / 100);
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    mapLayout->addWidget(d->mapStrength);
+    curveColumn->addWidget(d->mapBox);
     middle->addLayout(curveColumn, 1);
 
     auto *discs = new QGridLayout();
@@ -554,6 +726,9 @@ SkissaColorWidget::~SkissaColorWidget()
 void SkissaColorWidget::setConfiguration(const KisPropertiesConfigurationSP config)
 {
     d->settings = config ? Settings::from(*config) : Settings();
+    // a map opens on its own tab
+    if (!d->settings.map.isEmpty()) d->change = mapTab;
+    else if (d->isMap()) d->change = Lightness;
     refresh();
 }
 
@@ -573,6 +748,17 @@ QSize SkissaColorWidget::sizeHint() const
 
 void SkissaColorWidget::refresh()
 {
+    d->curve->setVisible(!d->isMap());
+    d->byRow->setVisible(!d->isMap());
+    d->mapBox->setVisible(d->isMap());
+    if (d->isMap()) {
+        d->shadows->setValue(d->settings.shadows);
+        d->balance->setValue(d->settings.balance);
+        d->highlights->setValue(d->settings.highlights);
+        refreshMap();
+        refreshChips();
+        return;
+    }
     d->curve->setCurve(d->current(), d->fallback(), d->wraps(), d->wraps() && d->mapping());
     d->curve->setHistogram(d->isRgb() ? d->rgbHistograms[d->currentBy()] : d->histograms[d->currentBy()]);
 
@@ -642,10 +828,15 @@ void SkissaColorWidget::refreshChips()
     d->presetChips->setChips(presets);
 
     QVector<KisStudioChips::Chip> tabs;
-    for (int change = 0; change <= rgbTab; change++) {
+    for (int change = 0; change <= mapTab; change++) {
         KisStudioChips::Chip chip;
-        chip.text = change == rgbTab ? i18nc("color effect tab", "RGB") : axisName(change);
+        chip.text = change == mapTab ? i18nc("color effect tab: the gradient map", "Map") : change == rgbTab ? i18nc("color effect tab", "RGB") : axisName(change);
         chip.on = change == d->change;
+        if (change == mapTab) {
+            chip.dot = !d->settings.map.isEmpty();
+            tabs << chip;
+            continue;
+        }
         for (int by = 0; by < 3; by++) {
             if (change == rgbTab ? d->settings.rgb[by] != defaultRgbCurve() : d->settings.curves[by][change] != defaultCurve(by, change)) {
                 chip.dot = true;
@@ -654,6 +845,7 @@ void SkissaColorWidget::refreshChips()
         tabs << chip;
     }
     d->changeTabs->setChips(tabs);
+    if (d->isMap()) return;
 
     QVector<KisStudioChips::Chip> bys;
     for (int by = 0; by < 3; by++) {
@@ -666,21 +858,83 @@ void SkissaColorWidget::refreshChips()
     d->byChips->setChips(bys);
 }
 
+void SkissaColorWidget::refreshMap()
+{
+    const Settings &s = d->settings;
+    {
+        QSignalBlocker blocker(d->mapBar);
+        d->mapBar->setStops(s.map);
+        d->mapBar->setHistogram(d->histograms[Lightness]);
+    }
+    d->mapColor->setEnabled(!s.map.isEmpty());
+    if (!s.map.isEmpty()) d->mapColor->setColor(s.map.value(d->mapBar->selected()).second);
+    QVector<KisStudioChips::Chip> looks;
+    for (int i = 0; i < d->mapLookStops.size(); i++) {
+        KisStudioChips::Chip chip;
+        chip.text = d->mapLookStops[i].first;
+        chip.on = s.map == d->mapLookStops[i].second;
+        const QImage picture = d->mapLookPictures.value(i);
+        chip.pictureKey = picture.cacheKey();
+        chip.picture = [picture](QPainter &painter, const QRectF &rect) {
+            painter.save();
+            painter.setClipPath(KisModernStyle::squircle(rect, KisModernStyle::cornerRadius));
+            const QSizeF size = QSizeF(picture.size()).scaled(rect.size(), Qt::KeepAspectRatioByExpanding);
+            painter.drawImage(QRectF(rect.center() - QPointF(size.width(), size.height()) / 2, size), picture);
+            painter.restore();
+        };
+        looks << chip;
+    }
+    d->mapLooks->setChips(looks);
+    const bool mapped = !s.map.isEmpty();
+    d->mapBar->setVisible(mapped);
+    QVector<KisStudioChips::Chip> blends;
+    for (int i = 0; i < 2; i++) {
+        KisStudioChips::Chip chip;
+        chip.text = i == 0 ? i18nc("gradient map: colors blended", "Smooth") : i18nc("gradient map: the nearest stop's color", "Steps");
+        chip.on = s.mapSteps == (i == 1);
+        blends << chip;
+    }
+    d->mapBlend->setChips(blends);
+    d->mapBlend->setVisible(mapped);
+    KisStudioChips::Chip keep;
+    keep.text = i18nc("gradient map: the map gives only hue and chroma", "Keep lightness");
+    keep.on = s.mapKeepsLightness;
+    d->mapKeep->setChips({keep});
+    d->mapKeep->setVisible(mapped);
+    d->mapStrength->setValue(s.mapStrength * 100);
+    d->mapStrength->setVisible(mapped);
+    for (QLabel *label : d->mapBox->findChildren<QLabel *>()) label->setVisible(mapped);
+    d->mapColor->setVisible(mapped);
+}
+
+void SkissaColorWidget::mapChanged()
+{
+    refreshMap();
+    refreshChips();
+    Q_EMIT sigConfigurationItemChanged();
+}
+
 void SkissaColorWidget::canvasHovered(const QPoint &pixel)
 {
     if (!d->original || pixel.x() == INT_MIN) {
         d->curve->setMarker(-1);
+        d->mapBar->setMarker(-1);
         return;
     }
     KoColor color;
     d->original->pixel(pixel.x(), pixel.y(), &color);
     if (color.opacityU8() < 8) {
         d->curve->setMarker(-1);
+        d->mapBar->setMarker(-1);
         return;
     }
     QColor rgb;
     color.toQColor(&rgb);
     const Place place = placeOf(rgb);
+    if (d->isMap()) {
+        d->mapBar->setMarker(qBound(0.0f, place.axis[Lightness], 1.0f));
+        return;
+    }
     d->curve->setMarker(qBound(0.0f, d->isRgb() ? place.rgb[d->currentBy()] : place.axis[d->currentBy()], 1.0f));
 }
 
@@ -708,6 +962,16 @@ bool SkissaColorWidget::canvasPressed(const QPoint &pixel)
     }
 
     const Place place = placeOf(rgb);
+    if (d->isMap()) {
+        // the stop at this pixel's lightness, made if there is none, to recolor by the drag
+        if (d->settings.map.isEmpty()) d->settings.map = d->ownStops();
+        d->mapDragStop = d->stopAt(qBound(0.0f, place.axis[Lightness], 1.0f));
+        d->mapDragColor = d->settings.map[d->mapDragStop].second;
+        d->mapBar->setStops(d->settings.map);
+        d->mapBar->setSelected(d->mapDragStop);
+        mapChanged();
+        return true;
+    }
     const qreal x = qBound(0.0f, d->isRgb() ? place.rgb[d->currentBy()] : place.axis[d->currentBy()], 1.0f);
     d->dragPoint = d->curve->pointAt(x);
     d->dragStart = d->curve->curve().points.value(d->dragPoint).y();
@@ -720,6 +984,23 @@ bool SkissaColorWidget::canvasPressed(const QPoint &pixel)
 
 QString SkissaColorWidget::canvasDragged(const QPointF &moved, const QPointF &)
 {
+    if (d->isMap() && d->mapDragStop >= 0 && d->mapDragStop < d->settings.map.size()) {
+        // up lighter, sideways around the hues, as the stop's color in OKLCH
+        const float linear[3] = {linearOf(d->mapDragColor.redF()), linearOf(d->mapDragColor.greenF()), linearOf(d->mapDragColor.blueF())};
+        float lab[3];
+        KoMixing::linearToOklab(linear, lab);
+        float chroma = std::hypot(lab[1], lab[2]);
+        float hue = std::atan2(lab[2], lab[1]) + float(moved.x() / dragForWholeCurve * 2 * M_PI);
+        // a gray has no hue to turn: it takes on a little color first
+        if (chroma < 0.02f && std::abs(moved.x()) > 4) chroma = 0.06f;
+        lab[0] = float(qBound(0.0, lab[0] - moved.y() / dragForWholeCurve, 1.0));
+        lab[1] = chroma * std::cos(hue);
+        lab[2] = chroma * std::sin(hue);
+        d->settings.map[d->mapDragStop].second = colorOfLab(lab);
+        mapChanged();
+        const int degrees = (qRound(hue * 180 / M_PI) % 360 + 360) % 360;
+        return i18nc("gradient map: the lightness and hue of a stop's color while dragged", "Lightness %1  Hue %2°", qRound(lab[0] * 100), degrees);
+    }
     if (d->dragPoint < 0) return QString();
     const qreal y = d->dragStart - moved.y() / dragForWholeCurve;
     d->curve->setPointY(d->dragPoint, y);
@@ -727,8 +1008,14 @@ QString SkissaColorWidget::canvasDragged(const QPointF &moved, const QPointF &)
     return name + QStringLiteral("  ") + d->valueText(d->curve->curve().points.value(d->dragPoint).y(), false);
 }
 
+Qt::Orientations SkissaColorWidget::canvasAxes() const
+{
+    return d->isMap() ? Qt::Horizontal | Qt::Vertical : Qt::Vertical;
+}
+
 void SkissaColorWidget::canvasReleased()
 {
+    d->mapDragStop = -1;
     d->dragPoint = -1;
     d->curve->setShownPoint(-1);
 }

@@ -43,6 +43,7 @@
 #include <klocalizedstring.h>
 #include <widgets/KisStudioChips.h>
 #include <widgets/KisStudioColorField.h>
+#include <widgets/KisStudioGradientBar.h>
 #include <widgets/KisStudioValueRow.h>
 
 namespace KisEffectPanels
@@ -573,6 +574,8 @@ KisStudioValueRow::Range range(qreal minimum, qreal maximum, int decimals, const
     r.decimals = decimals;
     r.suffix = suffix;
     r.size = size;
+    // a direction is shown as a dial
+    r.angle = suffix == QStringLiteral("°");
     return r;
 }
 
@@ -955,179 +958,6 @@ void setStops(Config &c, const Stops &stops)
     c.setProperty("gradientXML", document.toString());
 }
 
-/// The color of \p stops at \p at
-QColor colorAt(const Stops &stops, qreal at)
-{
-    if (at <= stops.first().first) return stops.first().second;
-    for (int i = 1; i < stops.size(); i++) {
-        if (at <= stops[i].first) {
-            const qreal t = (at - stops[i - 1].first) / std::max(1e-6, stops[i].first - stops[i - 1].first);
-            return KisModernStyle::mix(stops[i - 1].second, stops[i].second, t);
-        }
-    }
-    return stops.last().second;
-}
-
-/**
- * A gradient as a bar with its stops under it: a stop is dragged along it, a click on the bar adds one with the
- * color there, a right click takes one away. The stop pressed last is the one whose color the panel shows.
- */
-class GradientBar : public QWidget
-{
-    Q_OBJECT
-public:
-    explicit GradientBar(QWidget *parent)
-        : QWidget(parent)
-    {
-        setMinimumHeight(barHeight + handle + KisModernStyle::space1);
-        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        setMouseTracking(true);
-    }
-
-    void setStops(const Stops &stops)
-    {
-        m_stops = stops;
-        m_selected = qBound(0, m_selected, int(m_stops.size()) - 1);
-        update();
-    }
-    Stops stops() const { return m_stops; }
-    int selected() const { return m_selected; }
-
-    QSize sizeHint() const override
-    {
-        return QSize(200, minimumHeight());
-    }
-
-Q_SIGNALS:
-    void stopsChanged();
-    void selectedChanged();
-
-protected:
-    void paintEvent(QPaintEvent *) override
-    {
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::Antialiasing);
-        const QRectF bar = barRect();
-        QLinearGradient gradient(bar.topLeft(), bar.topRight());
-        for (const auto &stop : m_stops) gradient.setColorAt(stop.first, stop.second);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(gradient);
-        painter.drawPath(KisModernStyle::squircle(bar, KisModernStyle::cornerRadius));
-        for (int i = 0; i < m_stops.size(); i++) {
-            const QPointF at = handleAt(i);
-            const qreal radius = handle / 2.0;
-            // white with a dark ring, so a stop shows on any color
-            painter.setPen(QPen(QColor(0, 0, 0, 160), 1.5));
-            painter.setBrush(Qt::white);
-            painter.drawEllipse(at, radius, radius);
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(m_stops[i].second);
-            painter.drawEllipse(at, radius - 3, radius - 3);
-            if (i == m_selected) {
-                painter.setPen(QPen(palette().color(QPalette::WindowText), 1.5));
-                painter.setBrush(Qt::NoBrush);
-                painter.drawEllipse(at, radius + 2.5, radius + 2.5);
-            }
-        }
-    }
-
-    void mousePressEvent(QMouseEvent *event) override
-    {
-        const int index = stopAt(event->pos());
-        if (event->button() == Qt::RightButton) {
-            if (index >= 0 && m_stops.size() > 2) {
-                m_stops.removeAt(index);
-                m_selected = qBound(0, m_selected - (index <= m_selected ? 1 : 0), int(m_stops.size()) - 1);
-                update();
-                Q_EMIT stopsChanged();
-                Q_EMIT selectedChanged();
-            }
-            return;
-        }
-        if (event->button() != Qt::LeftButton) return;
-        if (index >= 0) {
-            m_selected = index;
-        } else {
-            const qreal at = positionOf(event->pos().x());
-            m_stops << qMakePair(at, colorAt(m_stops, at));
-            sortKeeping(m_stops.size() - 1);
-            Q_EMIT stopsChanged();
-        }
-        m_dragging = true;
-        update();
-        Q_EMIT selectedChanged();
-    }
-
-    void mouseMoveEvent(QMouseEvent *event) override
-    {
-        if (!m_dragging || !(event->buttons() & Qt::LeftButton)) {
-            m_dragging = false;
-            setCursor(stopAt(event->pos()) >= 0 ? Qt::SizeHorCursor : Qt::ArrowCursor);
-            return;
-        }
-        m_stops[m_selected].first = positionOf(event->pos().x());
-        sortKeeping(m_selected);
-        update();
-        Q_EMIT stopsChanged();
-    }
-
-    void mouseReleaseEvent(QMouseEvent *) override
-    {
-        m_dragging = false;
-    }
-
-private:
-    static constexpr int barHeight = 22;
-    static constexpr int handle = 16;
-
-    QRectF barRect() const
-    {
-        return QRectF(handle / 2.0, 0, width() - handle, barHeight);
-    }
-
-    QPointF handleAt(int index) const
-    {
-        const QRectF bar = barRect();
-        return QPointF(bar.left() + m_stops[index].first * bar.width(), bar.bottom() + handle / 2.0 + KisModernStyle::hairline);
-    }
-
-    qreal positionOf(int x) const
-    {
-        const QRectF bar = barRect();
-        return qBound(0.0, (x - bar.left()) / bar.width(), 1.0);
-    }
-
-    /// The stop under \p pos, the nearest when they overlap; -1: none
-    int stopAt(const QPoint &pos) const
-    {
-        int found = -1;
-        qreal nearest = handle;
-        for (int i = 0; i < m_stops.size(); i++) {
-            const QPointF at = handleAt(i);
-            const qreal distance = std::abs(pos.x() - at.x());
-            if (distance < nearest && pos.y() >= barRect().bottom() - KisModernStyle::space1) {
-                nearest = distance;
-                found = i;
-            }
-        }
-        return found;
-    }
-
-    /// Keeps the stops in order, following stop \p index as the selected one
-    void sortKeeping(int index)
-    {
-        const QPair<qreal, QColor> moved = m_stops[index];
-        std::stable_sort(m_stops.begin(), m_stops.end(), [](const QPair<qreal, QColor> &a, const QPair<qreal, QColor> &b) { return a.first < b.first; });
-        for (int i = 0; i < m_stops.size(); i++) {
-            if (m_stops[i] == moved) m_selected = i;
-        }
-    }
-
-    Stops m_stops;
-    int m_selected {0};
-    bool m_dragging {false};
-};
-
 KisConfigWidget *gradientMap(QWidget *parent, KisPaintDeviceSP device)
 {
     auto *panel = new Panel(parent, QStringLiteral("gradientmap"), device);
@@ -1155,7 +985,7 @@ KisConfigWidget *gradientMap(QWidget *parent, KisPaintDeviceSP device)
                      look(i18nc("gradient map look", "Thermal"), {{0, rgb("#000000")}, {0.3, rgb("#4b0f8a")}, {0.6, rgb("#e5432d")}, {0.85, rgb("#ffc93c")}, {1, rgb("#ffffff")}})},
                     {}, Panel::Pictures::Whole);
 
-    auto *bar = new GradientBar(panel);
+    auto *bar = new KisStudioGradientBar(panel);
     auto *colorRow = new QWidget(panel);
     auto *colorLayout = new QHBoxLayout(colorRow);
     colorLayout->setContentsMargins(0, 0, 0, 0);
@@ -1168,11 +998,11 @@ KisConfigWidget *gradientMap(QWidget *parent, KisPaintDeviceSP device)
         showColor();
     });
     panel->addRow(colorRow, {});
-    QObject::connect(bar, &GradientBar::stopsChanged, panel, [panel, bar]() {
+    QObject::connect(bar, &KisStudioGradientBar::stopsChanged, panel, [panel, bar]() {
         setStops(panel->config(), bar->stops());
         panel->edited();
     });
-    QObject::connect(bar, &GradientBar::selectedChanged, panel, showColor);
+    QObject::connect(bar, &KisStudioGradientBar::selectedChanged, panel, showColor);
     QObject::connect(button, &KisStudioColorField::colorChanged, panel, [panel, bar](const QColor &color) {
         Stops stops = bar->stops();
         if (bar->selected() < 0 || bar->selected() >= stops.size()) return;

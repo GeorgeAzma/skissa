@@ -72,6 +72,66 @@ msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Färger"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Punkter"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Linjer"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Rensa"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Storlek"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Storlek"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Storlek"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Ljushet"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Avstånd"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Storlek"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Färg"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Behörighet saknas. Skissa har inte rättighet att läsa eller skriva filen."
 
@@ -199,6 +259,18 @@ msgstr "Återställ"
 msgctxt "effect group"
 msgid "Color"
 msgstr "Färg"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Exportera"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Exportera"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Exportera"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -428,6 +500,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Kurva"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Bild"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Lager"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Fyll"
@@ -527,6 +607,10 @@ msgstr "Linjär"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Mjuk"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Ogenomskinlighet"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -717,6 +801,14 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Original"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "radial blur setting"
+msgid "Light"
+msgstr "Ljus"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Färger"
@@ -732,6 +824,106 @@ msgstr "Nivåer"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Nivåer"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Linjer"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Mjuk"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Punkter"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Rensa"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Färger"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Storlek"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Linjer"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Nivåer"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Storlek"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Avstånd"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Öka"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Öka"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Storlek"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Färg"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Fetstil"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Mjuk"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Storlek"
 
 msgctxt "effect setting"
 msgid "Size"

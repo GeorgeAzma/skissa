@@ -28,6 +28,10 @@ public:
         QString suffix;
         /// Dragged and drawn by ratios, as sizes are
         bool size {false};
+        /// Degrees, shown as a dial that is also turned by dragging around it; the dial points this many degrees
+        /// further than the value (for a value that names what lies across the direction it is about)
+        bool angle {false};
+        qreal dialTurn {0};
     };
 
     explicit KisStudioValueRow(const QString &name, QWidget *parent = nullptr);
@@ -35,6 +39,7 @@ public:
     QString name() const { return m_name; }
     void setName(const QString &name);
     void setRange(const Range &range);
+    Range range() const { return m_range; }
     /// Shows \p value without emitting valueChanged()
     void setValue(qreal value);
     qreal value() const { return m_value; }
@@ -116,6 +121,11 @@ private:
     QRectF pinRect() const;
     QRectF removeRect() const;
     QRectF automaticRect() const;
+    /// The angle's dial, before the number
+    QRectF dialRect() const;
+    /// The angle the pointer at \p pos points to around the dial, as a value within the range
+    qreal angleAt(const QPointF &pos) const;
+    bool m_dialing {false};
     /// What shows only under the pointer is shown: hovered, or always in touch mode
     bool revealed() const;
     bool showsPin() const;

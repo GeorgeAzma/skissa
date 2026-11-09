@@ -68,6 +68,8 @@ public:
     bool canvasPressed(const QPoint &pixel) override;
     QString canvasDragged(const QPointF &moved, const QPointF &at) override;
     void canvasReleased() override;
+    /// Up or down only: the size pressed on stands out more or less
+    Qt::Orientations canvasAxes() const override { return Qt::Vertical; }
 
     QSize sizeHint() const override;
 
@@ -99,6 +101,8 @@ public:
     bool canvasPressed(const QPoint &pixel) override;
     QString canvasDragged(const QPointF &moved, const QPointF &at) override;
     void canvasReleased() override;
+    /// Up or down only: the size pressed on stands out more or less
+    Qt::Orientations canvasAxes() const override { return Qt::Vertical; }
 
     QSize sizeHint() const override;
 
@@ -239,6 +243,99 @@ private:
     void refreshTiles();
     void showTiles();
     void makePictures();
+
+    struct Private;
+    QScopedPointer<Private> d;
+};
+
+/**
+ * Shape's panel: looks as pictures of an edge of the layer, then its parts as tabs (Outline, Glow, Shadow, Grow),
+ * each with its own rows and a dot while it is on. A drag on the image: in Shadow, moves the shadow; otherwise
+ * sideways for the part's size, up for its strength.
+ */
+class SkissaShapeWidget : public KisConfigWidget, public KisEffectCanvasEditor
+{
+    Q_OBJECT
+    Q_INTERFACES(KisEffectCanvasEditor)
+public:
+    SkissaShapeWidget(QWidget *parent, KisPaintDeviceSP dev);
+    ~SkissaShapeWidget() override;
+
+    void setConfiguration(const KisPropertiesConfigurationSP config) override;
+    KisPropertiesConfigurationSP configuration() const override;
+
+    void canvasHovered(const QPoint &pixel) override;
+    bool canvasPressed(const QPoint &pixel) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
+    void canvasReleased() override;
+
+    QSize sizeHint() const override;
+
+private:
+    void refresh();
+    void showRows();
+    void refreshTiles();
+    void edited();
+
+    struct Private;
+    QScopedPointer<Private> d;
+};
+
+/**
+ * Light's panel: looks as pictures of the whole layer, the threshold, then the ways it spreads as tabs (Glow, Star,
+ * Streak), each with its own rows and a dot while it is on. A drag on the image: up stronger, sideways larger.
+ */
+class SkissaLightWidget : public KisConfigWidget, public KisEffectCanvasEditor
+{
+    Q_OBJECT
+    Q_INTERFACES(KisEffectCanvasEditor)
+public:
+    SkissaLightWidget(QWidget *parent, KisPaintDeviceSP dev);
+    ~SkissaLightWidget() override;
+
+    void setConfiguration(const KisPropertiesConfigurationSP config) override;
+    KisPropertiesConfigurationSP configuration() const override;
+
+    void canvasHovered(const QPoint &pixel) override;
+    bool canvasPressed(const QPoint &pixel) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
+    void canvasReleased() override;
+
+    QSize sizeHint() const override;
+
+private:
+    void refresh();
+    void showRows();
+    void edited();
+
+    struct Private;
+    QScopedPointer<Private> d;
+};
+
+/**
+ * Painting's panel: looks as pictures of a busy part of the layer, then the brush's size, how crisp the strokes are,
+ * and how much they follow the shapes. A drag on the image: sideways the brush's size, up crisper.
+ */
+class SkissaPaintWidget : public KisConfigWidget, public KisEffectCanvasEditor
+{
+    Q_OBJECT
+    Q_INTERFACES(KisEffectCanvasEditor)
+public:
+    SkissaPaintWidget(QWidget *parent, KisPaintDeviceSP dev);
+    ~SkissaPaintWidget() override;
+
+    void setConfiguration(const KisPropertiesConfigurationSP config) override;
+    KisPropertiesConfigurationSP configuration() const override;
+
+    void canvasHovered(const QPoint &pixel) override;
+    bool canvasPressed(const QPoint &pixel) override;
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override;
+    void canvasReleased() override;
+
+    QSize sizeHint() const override;
+
+private:
+    void refresh();
 
     struct Private;
     QScopedPointer<Private> d;

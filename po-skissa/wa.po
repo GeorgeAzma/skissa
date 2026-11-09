@@ -36,7 +36,19 @@ msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "Nouk"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "Nouk"
+
 msgctxt "no dithering"
+msgid "None"
+msgstr "Nouk"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "Nouk"
+
+msgctxt "light effect look: nothing added"
 msgid "None"
 msgstr "Nouk"
 

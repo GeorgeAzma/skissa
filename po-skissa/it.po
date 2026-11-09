@@ -84,6 +84,62 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Estensione"
 
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Pulisci"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Colore"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Dimensione"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Angolo"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Angolo"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Dimensione"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Angolo"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Dimensione"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Colore"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Chiarezza"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Distanza"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Dimensione"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Colore"
+
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "Smussa"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Permesso negato. A Skissa non è permesso leggere o scrivere il file."
 
@@ -215,6 +271,18 @@ msgstr "Colore"
 msgctxt "effect group"
 msgid "Other"
 msgstr "Altro"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Esporta"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Esporta"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Esporta"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -444,6 +512,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Curva"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Immagine"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Livello"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Riempi"
@@ -567,6 +643,10 @@ msgstr "Smussa"
 msgctxt "resampling choice for pixel art"
 msgid "Pixel"
 msgstr "Pixel"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Opacità"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -749,6 +829,10 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Dissolvi"
 
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Mappa"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&Sfoca..."
@@ -789,6 +873,10 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Originale"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Originale"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Colori"
@@ -804,6 +892,90 @@ msgstr "Livelli"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Livelli"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Originale"
+
+msgctxt "drawing effect: shading as flat ink"
+msgid "Solid"
+msgstr "In tinta unita"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Pulisci"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Colori"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Dimensione"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Angolo"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Livelli"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Colore"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Dimensione"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Colore"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Distanza"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Angolo"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Colore"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Accresci"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Accresci"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Dimensione"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Angolo"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Angolo"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Colore"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Grassetto"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Dimensione"
 
 msgctxt "effect setting"
 msgid "Size"

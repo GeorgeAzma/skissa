@@ -36,7 +36,19 @@ msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "គ្មាន"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "គ្មាន"
+
 msgctxt "no dithering"
+msgid "None"
+msgstr "គ្មាន"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "គ្មាន"
+
+msgctxt "light effect look: nothing added"
 msgid "None"
 msgstr "គ្មាន"
 

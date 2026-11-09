@@ -7,6 +7,7 @@
 #define KISEFFECTCANVASEDITOR_H
 
 #include <QObject>
+#include <Qt>
 #include <QPoint>
 #include <QPointF>
 #include <QPolygonF>
@@ -30,6 +31,12 @@ public:
     /// Shift); returns the value to show
     virtual QString canvasDragged(const QPointF &moved, const QPointF &at) = 0;
     virtual void canvasReleased() = 0;
+
+    /// Which ways a drag on the image changes something: the pointer shows them over the image
+    virtual Qt::Orientations canvasAxes() const
+    {
+        return Qt::Horizontal | Qt::Vertical;
+    }
 
     /// The point on the image the effect is about (a lens's or a radial blur's middle), drawn as a handle there;
     /// false if it has none. Its presses place that point and its drags move it, under a crosshair.

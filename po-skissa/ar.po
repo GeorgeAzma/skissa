@@ -20,6 +20,50 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "الانتشار"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "نقاط"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "الخطوط"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "اللون"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "المقاس"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "المقاس"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "المقاس"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "اللون"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "المسافة"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "المقاس"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "اللون"
+
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "سَلِس"
+
 msgctxt "canvas renderer"
 msgid "Auto"
 msgstr "آليّ"
@@ -123,6 +167,18 @@ msgstr "اللون"
 msgctxt "effect group"
 msgid "Other"
 msgstr "أخرى"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "صدر"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "صدر"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "صدر"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -320,6 +376,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "منحنى"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "الصورة"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "الطبقة"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "الملء"
@@ -383,6 +447,10 @@ msgstr "بكسل"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "لين"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "الشّفافيّة"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -508,6 +576,10 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "التّلاشي"
 
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "خريطة"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&غشاوة..."
@@ -548,6 +620,10 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "الأصلي"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "الأصلي"
+
 msgctxt "fewer colors effect setting"
 msgid "Brightness"
 msgstr "السّطوع"
@@ -559,6 +635,78 @@ msgstr "المستويات"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "المستويات"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "الأصلي"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "الخطوط"
+
+msgctxt "drawing effect: shading as flat ink"
+msgid "Solid"
+msgstr "صلب"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "لين"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "نقاط"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "المقاس"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "الخطوط"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "المستويات"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "اللون"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "المقاس"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "اللون"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "المسافة"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "اللون"
+
+msgctxt "shape effect: outline on the edge"
+msgid "Center"
+msgstr "الوسط"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "المقاس"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "اللون"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "لين"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "المقاس"
 
 msgctxt "effect setting"
 msgid "Size"

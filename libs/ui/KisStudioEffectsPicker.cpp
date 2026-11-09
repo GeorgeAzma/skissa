@@ -70,7 +70,7 @@ QStringList defaultEffects()
 {
     return {
         QStringLiteral("skissa_color"), QStringLiteral("gaussian blur"), QStringLiteral("unsharp"), QStringLiteral("skissa_detail"),
-        QStringLiteral("motion blur"), QStringLiteral("gaussianhighpass"), QStringLiteral("gradientmap"), QStringLiteral("colortoalpha"),
+        QStringLiteral("motion blur"), QStringLiteral("gaussianhighpass"), QStringLiteral("skissa_ink"), QStringLiteral("colortoalpha"),
     };
 }
 
@@ -138,6 +138,9 @@ QString groupOf(const QString &id)
         {QStringLiteral("skissa_noise"), QStringLiteral("stylize")},
         {QStringLiteral("skissa_lens"), QStringLiteral("stylize")},
         {QStringLiteral("skissa_ink"), QStringLiteral("stylize")},
+        {QStringLiteral("skissa_shape"), QStringLiteral("stylize")},
+        {QStringLiteral("skissa_paint"), QStringLiteral("stylize")},
+        {QStringLiteral("skissa_light"), QStringLiteral("stylize")},
         {QStringLiteral("skissa_fewer_colors"), QStringLiteral("stylize")},
         {QStringLiteral("randompick"), QStringLiteral("stylize")},
         {QStringLiteral("noise"), QStringLiteral("stylize")},

@@ -36,7 +36,19 @@ msgctxt "held key input: nothing set"
 msgid "None"
 msgstr "किछु नहि"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "किछु नहि"
+
 msgctxt "no dithering"
+msgid "None"
+msgstr "किछु नहि"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "किछु नहि"
+
+msgctxt "light effect look: nothing added"
 msgid "None"
 msgstr "किछु नहि"
 

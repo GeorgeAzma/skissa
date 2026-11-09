@@ -72,11 +72,12 @@ quint64 originalKeyOf(KisPaintDeviceSP device, const QRect &rect)
 }
 
 /**
- * The diffusion of \p rect of \p device's pixels as they were when the effect began. Patches run side by side, and
- * a filter mask's each on a copy of their own, so it is found again by what it was made of: the pixels and the
- * settings. The last one is kept.
+ * The diffusion of \p rect of \p device's pixels as they were when the effect began, or of the cells \p cell wide
+ * over it (then its rect is in cells). Patches run side by side, and a filter mask's each on a copy of their own, so
+ * it is found again by what it was made of: the pixels and the settings. The last one is kept.
  */
-std::shared_ptr<Diffused> diffusedFor(KisPaintDeviceSP device, const QRect &rect, const Settings &settings, const Quantizer &quantizer, const QString &config)
+std::shared_ptr<Diffused> diffusedFor(KisPaintDeviceSP device, const QRect &rect, const Settings &settings, const Quantizer &quantizer, const QString &config,
+                                      int cell)
 {
     const quint64 key = originalKeyOf(device, rect) ^ (quint64(qHash(config)) << 32 | qHash(device->colorSpace()->id()));
     static QMutex kept;
@@ -93,6 +94,22 @@ std::shared_ptr<Diffused> diffusedFor(KisPaintDeviceSP device, const QRect &rect
     }
     QMutexLocker locker(&diffused->lock);
     if (diffused->done) return diffused;
+    if (cell > 1) {
+        // a row of cells at a time, read with the rows of cells either side, which their colors look at
+        const QRect cells = cellsOver(rect, cell);
+        diffused->rect = cells;
+        diffused->chosen.resize(size_t(cells.width()) * cells.height());
+        Diffuser diffuser(settings, quantizer, cells.width());
+        for (int row = cells.top(); row <= cells.bottom(); row++) {
+            const QRect line(cells.left(), row, cells.width(), 1);
+            const QRect read = pixelsOf(line.adjusted(-1, -1, 1, 1), cell);
+            const std::vector<float> pixels = SkissaPixels::readLinear(device, read);
+            const std::vector<float> colors = cellColors(pixels.data(), read, rect, cell, line);
+            diffuser.row(colors.data(), diffused->chosen.data() + size_t(row - cells.top()) * cells.width());
+        }
+        diffused->done = true;
+        return diffused;
+    }
     diffused->rect = rect;
     diffused->chosen.resize(size_t(rect.width()) * rect.height());
     Diffuser diffuser(settings, quantizer, rect.width());
@@ -125,11 +142,14 @@ KoID SkissaFewerFilter::fewerId()
     return KoID(QStringLiteral("skissa_fewer_colors"), i18nc("effect", "Fewer colors"));
 }
 
-QRect SkissaFewerFilter::neededRect(const QRect &rect, const KisFilterConfigurationSP config, int) const
+QRect SkissaFewerFilter::neededRect(const QRect &rect, const KisFilterConfigurationSP config, int lod) const
 {
     const Settings settings = Settings::from(*config);
-    if (settings.dither != Dither::Diffuse || settings.amount <= 0) return rect;
-    return rect.adjusted(-anywhere, -anywhere, anywhere, anywhere);
+    if (settings.dither == Dither::Diffuse && settings.amount > 0) return rect.adjusted(-anywhere, -anywhere, anywhere, anywhere);
+    // pixel art reads whole cells, and the cells around them
+    const int cell = cellAt(settings.pixel, lod);
+    if (cell > 1) return pixelsOf(cellsOver(rect, cell).adjusted(-1, -1, 1, 1), cell);
+    return rect;
 }
 
 QRect SkissaFewerFilter::changedRect(const QRect &rect, const KisFilterConfigurationSP config, int lod) const
@@ -143,13 +163,45 @@ void SkissaFewerFilter::processImpl(KisPaintDeviceSP device, const QRect &applyR
     if (applyRect.isEmpty()) return;
     const Settings settings = Settings::from(*config);
     const Quantizer quantizer(settings);
+    const bool diffuses = settings.dither == Dither::Diffuse && settings.amount > 0;
+    const int cell = cellAt(settings.pixel, device->defaultBounds()->currentLevelOfDetail());
+    if (cell > 1) {
+        // pixel art: each cell's color, with fewer colors as one pixel, spread over the cell
+        const QRect bounds = device->defaultBounds()->bounds();
+        const QRect cells = cellsOver(applyRect, cell);
+        const QRect read = pixelsOf(cells.adjusted(-1, -1, 1, 1), cell);
+        const std::vector<float> source = SkissaPixels::readLinear(device, read);
+        std::vector<float> colors = cellColors(source.data(), read, bounds, cell, cells);
+        if (diffuses) {
+            const std::shared_ptr<Diffused> diffused = diffusedFor(device, bounds, settings, quantizer, config->toXML(), cell);
+            for (int cy = cells.top(); cy <= cells.bottom(); cy++) {
+                for (int cx = cells.left(); cx <= cells.right(); cx++) {
+                    if (!diffused->rect.contains(cx, cy)) continue;
+                    const quint16 chosen = diffused->chosen[size_t(cy - diffused->rect.top()) * diffused->rect.width() + (cx - diffused->rect.left())];
+                    float *to = colors.data() + (size_t(cy - cells.top()) * cells.width() + (cx - cells.left())) * 4;
+                    if (chosen != Diffuser::none) std::copy_n(quantizer.colorOf(chosen), 3, to);
+                }
+            }
+        } else {
+            apply(settings, quantizer, colors.data(), cells);
+        }
+        std::vector<float> pixels(size_t(applyRect.width()) * applyRect.height() * 4);
+        for (int y = 0; y < applyRect.height(); y++) {
+            for (int x = 0; x < applyRect.width(); x++) {
+                const QPoint at = cellsOver(QRect(applyRect.topLeft() + QPoint(x, y), QSize(1, 1)), cell).topLeft() - cells.topLeft();
+                std::copy_n(colors.data() + (size_t(at.y()) * cells.width() + at.x()) * 4, 4, pixels.data() + (size_t(y) * applyRect.width() + x) * 4);
+            }
+        }
+        SkissaPixels::writeLinear(device, applyRect, pixels.data());
+        return;
+    }
     std::vector<float> pixels = SkissaPixels::readLinear(device, applyRect);
-    if (settings.dither != Dither::Diffuse || settings.amount <= 0) {
+    if (!diffuses) {
         apply(settings, quantizer, pixels.data(), applyRect);
     } else {
         // beyond the image there is nothing to diffuse through: the nearest color
         const QRect bounds = device->defaultBounds()->bounds();
-        const std::shared_ptr<Diffused> diffused = diffusedFor(device, bounds, settings, quantizer, config->toXML());
+        const std::shared_ptr<Diffused> diffused = diffusedFor(device, bounds, settings, quantizer, config->toXML(), 1);
         Settings plain = settings;
         plain.dither = Dither::None;
         for (int y = 0; y < applyRect.height(); y++) {

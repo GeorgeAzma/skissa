@@ -15,7 +15,8 @@
 /**
  * The Color effect's panel: pictures of the image under a few starting points, the curve being edited (chosen by
  * what it changes, then what it goes by), and discs for the white balance and the tints. A drag up or down on the
- * image bends the curve at the value of the pixel pressed on.
+ * image bends the curve at the value of the pixel pressed on. Its last tab is the gradient map: looks, the stops
+ * over how much of the image is at each lightness, and a drag on the image recolors the stop at that lightness.
  */
 class SkissaColorWidget : public KisConfigWidget, public KisEffectCanvasEditor
 {
@@ -32,6 +33,8 @@ public:
     bool canvasPressed(const QPoint &pixel) override;
     QString canvasDragged(const QPointF &moved, const QPointF &at) override;
     void canvasReleased() override;
+    /// Up or down bends the curve at the value pressed on; on the map, sideways also turns the stop's hue
+    Qt::Orientations canvasAxes() const override;
 
     /// As tall as the rows are at the panel's usual width: the panel sizes itself by this
     QSize sizeHint() const override;
@@ -39,6 +42,8 @@ public:
 private:
     void refresh();
     void refreshChips();
+    void refreshMap();
+    void mapChanged();
 
     struct Private;
     QScopedPointer<Private> d;

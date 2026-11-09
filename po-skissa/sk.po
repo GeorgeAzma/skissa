@@ -64,6 +64,66 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Rozprestrenie"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Bodky"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Čiary"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Vyčistiť"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Farba"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Veľkosť"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Uhol"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Uhol"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Veľkosť"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Uhol"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Veľkosť"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Farba"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Svetlosť"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Vzdialenosť"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Veľkosť"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Farba"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Prístup zamietnutý. Skissa nemá povolené čítať alebo zapisovať do súboru."
 
@@ -203,6 +263,18 @@ msgstr "Farba"
 msgctxt "effect group"
 msgid "Other"
 msgstr "Iný"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Exportovať"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Exportovať"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Exportovať"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -444,6 +516,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Krivka"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Obrázok"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Vrstva"
+
 msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Prichytiť k vodiacim čiaram"
@@ -540,6 +620,10 @@ msgstr "Upraviť"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "Nový AppImage bol stiahnutý do %1. Na dokončenie aktualizácie zatvorte Skissa a spustite nový AppImage."
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Nepriehľadnosť"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -722,6 +806,10 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Blednutie"
 
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Mapa"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "Rozmazať..."
@@ -750,6 +838,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Stredné tóny"
 
+msgctxt "radial blur setting"
+msgid "Light"
+msgstr "Svetlo"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Farby"
@@ -761,6 +853,102 @@ msgstr "Úrovne"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Úrovne"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Čiary"
+
+msgctxt "drawing effect: shading as flat ink"
+msgid "Solid"
+msgstr "Jednoliata"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Bodky"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Vyčistiť"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Farby"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Veľkosť"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Čiary"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Uhol"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Úrovne"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Farba"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Veľkosť"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Farba"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Vzdialenosť"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Uhol"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Farba"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Zväčšiť"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Zväčšiť"
+
+msgctxt "shape effect: outline on the edge"
+msgid "Center"
+msgstr "Vycentrovať"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Veľkosť"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Uhol"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Uhol"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Farba"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Tučné"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Veľkosť"
 
 msgctxt "effect setting"
 msgid "Size"

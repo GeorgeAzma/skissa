@@ -72,6 +72,66 @@ msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Colors"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Punts"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Línies"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Neteja"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Mida"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Mida"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Mida"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Claredat"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Distància"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Mida"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Color"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "S'ha denegat el permís. El Skissa no té permís per a llegir o escriure al fitxer."
 
@@ -207,6 +267,18 @@ msgstr "Reinicia"
 msgctxt "effect group"
 msgid "Color"
 msgstr "Color"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Exporta"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Exporta"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Exporta"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -444,6 +516,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Corba"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Imatge"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Capa"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Emplenat"
@@ -563,6 +643,10 @@ msgstr "Píxel"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Suau"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Opacitat"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."
@@ -741,6 +825,10 @@ msgctxt "color effect preset"
 msgid "Original"
 msgstr "Original"
 
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Mapa"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&Difumina..."
@@ -773,6 +861,10 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Original"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Original"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Colors"
@@ -792,6 +884,114 @@ msgstr "Nivells"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Nivells"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Línies"
+
+msgctxt "drawing effect: shading as flat ink"
+msgid "Solid"
+msgstr "Sòlid"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Suau"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Punts"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Neteja"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Colors"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Mida"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Línies"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Nivells"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Mida"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Distància"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Fes créixer"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Fes créixer"
+
+msgctxt "shape effect: outline on the edge"
+msgid "Center"
+msgstr "Centre"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Mida"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Color"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Negreta"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Suau"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Mida"
 
 msgctxt "effect setting"
 msgid "Size"

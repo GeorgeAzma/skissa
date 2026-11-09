@@ -49,8 +49,11 @@
 #include "SkissaDetailFilter.h"
 #include "SkissaFewer.h"
 #include "SkissaInk.h"
+#include "SkissaLight.h"
 #include "SkissaNoise.h"
+#include "SkissaPaint.h"
 #include "SkissaRadial.h"
+#include "SkissaShape.h"
 
 using namespace SkissaDetail;
 
@@ -95,6 +98,15 @@ KisStudioValueRow *valueRow(QWidget *parent, const QString &name, qreal minimum,
     row->setRange(range);
     row->setDefaultValue(reset);
     return row;
+}
+
+/// \p row's angle shown as a dial, pointing \p turn degrees further than the value
+void asDial(KisStudioValueRow *row, qreal turn = 0)
+{
+    KisStudioValueRow::Range range = row->range();
+    range.angle = true;
+    range.dialTurn = turn;
+    row->setRange(range);
 }
 
 /// The row's name and value, as a drag on the image shows it
@@ -1227,10 +1239,8 @@ QString SkissaRadialWidget::canvasStreakDragged(const QPointF &end)
 namespace
 {
 
-/// The drag on the image across which the number of colors grows or shrinks by a factor of e
+/// The drag on the image across which the number of colors, or the pixels' size, grows or shrinks by a factor of e
 constexpr qreal dragForCount = 150;
-/// The drag on the image across which a palette's lightness moves its whole way
-constexpr qreal dragForLightness = 600;
 
 /// The most steps of each channel, and the most colors taken from the image or of gray
 constexpr int mostLevels = 32;
@@ -1277,6 +1287,8 @@ struct SkissaFewerWidget::Private {
     /// The layer at the size the source tiles show it, for their pictures: tiles of that size covered by it
     QImage tileWhole;
     QSize tileCover;
+    /// The layer's width, for pixel art's cells at the size of the pictures
+    int layerWidth {0};
     int tileHeight {64};
     QHash<int, QVector<QColor>> imageColors;
     QVector<QPair<QString, QVector<QColor>>> palettes;
@@ -1287,6 +1299,7 @@ struct SkissaFewerWidget::Private {
     /// The source each tile stands for: Levels only while the settings use it
     QVector<SkissaFewer::Source> shownSources;
     KisStudioValueRow *count {nullptr};
+    KisStudioValueRow *pixel {nullptr};
     QWidget *paletteRow {nullptr};
     QComboBox *palette {nullptr};
     KisStudioValueRow *brightness {nullptr};
@@ -1296,7 +1309,7 @@ struct SkissaFewerWidget::Private {
 
     /// The drag on the image: what it started from
     int dragCount {0};
-    float dragLightness {0};
+    int dragPixel {1};
     bool dragging {false};
 
     QVector<QColor> colorsOfImage(int count)
@@ -1355,7 +1368,10 @@ struct SkissaFewerWidget::Private {
     {
         if (original) {
             const QRect bounds = original->exactBounds();
-            if (!bounds.isEmpty()) whole = original->createThumbnailUncached(256, 256, bounds);
+            if (!bounds.isEmpty()) {
+                whole = original->createThumbnailUncached(256, 256, bounds);
+                layerWidth = bounds.width();
+            }
         }
         if (whole.isNull()) {
             // a ramp of every hue and lightness, for a layer with nothing on it
@@ -1405,6 +1421,25 @@ SkissaFewerWidget::SkissaFewerWidget(QWidget *parent, KisPaintDeviceSP dev)
         Q_EMIT sigConfigurationItemChanged();
     });
     layout->addWidget(d->count);
+
+    d->pixel = new KisStudioValueRow(i18nc("fewer colors effect setting: how large each pixel of pixel art is", "Pixel size"), this);
+    d->pixel->setClickSetsValue(true);
+    {
+        KisStudioValueRow::Range range;
+        range.minimum = 1;
+        range.maximum = 64;
+        range.size = true;
+        range.suffix = i18nc("pixels, after a number", " px");
+        d->pixel->setRange(range);
+        d->pixel->setDefaultValue(1);
+    }
+    d->pixel->setToolTip(i18nc("@info:tooltip", "Above 1, pixel art"));
+    connect(d->pixel, &KisStudioValueRow::valueChanged, this, [this](qreal value) {
+        d->settings.pixel = qRound(value);
+        d->tilesLater.start();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    layout->addWidget(d->pixel);
 
     d->paletteRow = new QWidget(this);
     auto *paletteLayout = new QHBoxLayout(d->paletteRow);
@@ -1541,6 +1576,7 @@ void SkissaFewerWidget::refresh()
         if (index >= 0) d->palette->setCurrentIndex(index);
     }
     d->brightness->setValue(s.lightness * 200);
+    d->pixel->setValue(s.pixel);
     d->amount->setValue(s.amount * 100);
     d->amount->setVisible(s.dither != Dither::None);
     for (int i = 0; i < d->ditherChips.size(); i++) d->ditherChips[i].on = int(s.dither) == i;
@@ -1570,7 +1606,8 @@ void SkissaFewerWidget::refreshTiles()
         }
         chip.on = source == d->settings.source;
         // the whole layer, small: where the colors come from shows in all of it
-        chip.picture = tilePicture(SkissaFewer::applied(d->tileWhole, QPoint(), d->withSource(source)));
+        const qreal scale = d->layerWidth > 0 ? qreal(d->tileWhole.width()) / d->layerWidth : 1.0;
+        chip.picture = tilePicture(SkissaFewer::applied(d->tileWhole, QPoint(), d->withSource(source), scale));
         chips << chip;
     }
     d->sources->setChips(chips);
@@ -1583,7 +1620,7 @@ void SkissaFewerWidget::canvasHovered(const QPoint &)
 bool SkissaFewerWidget::canvasPressed(const QPoint &)
 {
     d->dragCount = d->settings.count;
-    d->dragLightness = d->settings.lightness;
+    d->dragPixel = d->settings.pixel;
     d->dragging = true;
     return true;
 }
@@ -1591,10 +1628,10 @@ bool SkissaFewerWidget::canvasPressed(const QPoint &)
 QString SkissaFewerWidget::canvasDragged(const QPointF &moved, const QPointF &)
 {
     if (!d->dragging) return QString();
-    // sideways lighter or darker
-    d->settings.lightness = float(qBound(-0.5, d->dragLightness + moved.x() / dragForLightness, 0.5));
-    d->brightness->setValue(d->settings.lightness * 200);
-    const QString brightness = i18nc("fewer colors effect setting", "Brightness") + QStringLiteral(" %1%").arg(qRound(d->settings.lightness * 200));
+    // sideways larger or smaller pixels, by ratios as sizes go
+    d->settings.pixel = std::clamp(int(qRound(d->dragPixel * std::exp(moved.x() / dragForCount))), 1, 64);
+    d->pixel->setValue(d->settings.pixel);
+    const QString pixels = rowText(d->pixel, 0, i18nc("pixels, after a number", " px"));
     if (d->settings.source != SkissaFewer::Source::Palette) {
         // up more colors, by ratios, so few change slowly and many quickly
         const int most = d->settings.source == SkissaFewer::Source::Levels ? mostLevels : mostColors;
@@ -1604,8 +1641,8 @@ QString SkissaFewerWidget::canvasDragged(const QPointF &moved, const QPointF &)
     }
     d->tilesLater.start();
     Q_EMIT sigConfigurationItemChanged();
-    if (d->settings.source == SkissaFewer::Source::Palette || std::abs(moved.x()) > std::abs(moved.y())) return brightness;
-    return countText(d->settings.source, d->settings.count);
+    if (d->settings.source == SkissaFewer::Source::Palette) return pixels;
+    return QStringLiteral("%1   %2").arg(countText(d->settings.source, d->settings.count), pixels);
 }
 
 void SkissaFewerWidget::canvasReleased()
@@ -1618,9 +1655,9 @@ namespace
 
 using Shading = SkissaInk::Shading;
 
-/// A look: what is drawn, how its shading is drawn (with that way's own setting), where it goes
+/// A look: what is drawn, how its shading is drawn (with that way's own settings), where it goes
 SkissaInk::Settings drawingOf(float size, float lines, float shaded, float flow, Shading shading, float setting = 0,
-                              SkissaInk::Colors colors = SkissaInk::Colors::Paper)
+                              SkissaInk::Colors colors = SkissaInk::Colors::Paper, float second = -1)
 {
     SkissaInk::Settings settings;
     settings.size = size;
@@ -1631,10 +1668,22 @@ SkissaInk::Settings drawingOf(float size, float lines, float shaded, float flow,
     settings.colors = colors;
     switch (shading) {
     case Shading::Solid: settings.steps = setting > 0 ? int(setting) : settings.steps; break;
-    case Shading::Soft: settings.softness = setting > 0 ? setting : settings.softness; break;
-    case Shading::Hatch: settings.spacing = setting > 0 ? setting : settings.spacing; break;
-    case Shading::Strokes: settings.length = setting > 0 ? setting : settings.length; break;
+    case Shading::Soft:
+        settings.softness = setting > 0 ? setting : settings.softness;
+        settings.grain = second >= 0 ? second : settings.grain;
+        break;
+    case Shading::Hatch:
+    case Shading::Screen:
+    case Shading::Engrave:
+        settings.spacing = setting > 0 ? setting : settings.spacing;
+        settings.angle = second >= 0 ? second : settings.angle;
+        break;
+    case Shading::Strokes:
+        settings.length = setting > 0 ? setting : settings.length;
+        settings.spacing = second > 0 ? second : settings.spacing;
+        break;
     case Shading::Dots: settings.dot = setting > 0 ? setting : settings.dot; break;
+    case Shading::Contour: settings.levels = setting > 0 ? int(setting) : settings.levels; break;
     }
     return settings;
 }
@@ -1705,10 +1754,12 @@ struct SkissaInkWidget::Private {
     KisStudioValueRow *flow {nullptr};
     KisStudioValueRow *steps {nullptr};
     KisStudioValueRow *softness {nullptr};
+    KisStudioValueRow *grain {nullptr};
     KisStudioValueRow *spacing {nullptr};
     KisStudioValueRow *angle {nullptr};
     KisStudioValueRow *length {nullptr};
     KisStudioValueRow *dot {nullptr};
+    KisStudioValueRow *levels {nullptr};
     QWidget *inkColorRow {nullptr};
     QWidget *paperColorRow {nullptr};
     KisStudioColorField *inkColor {nullptr};
@@ -1724,15 +1775,18 @@ struct SkissaInkWidget::Private {
             {i18nc("drawing effect look", "Original"), drawingOf(1.5f, 0, 0, 0, Shading::Solid, 0, C::Over)},
             {i18nc("drawing effect look", "Lines"), drawingOf(1.0f, 0.7f, 0, 0.5f, Shading::Solid)},
             {i18nc("drawing effect look", "Ink"), SkissaInk::inked()},
-            {i18nc("drawing effect look", "Pencil"), drawingOf(0.8f, 0.4f, 0.7f, 0.3f, Shading::Soft, 0.5f)},
-            {i18nc("drawing effect look", "Charcoal"), drawingOf(2.5f, 0.3f, 0.6f, 0.8f, Shading::Soft, 0.45f)},
-            {i18nc("drawing effect look", "Hatching"), drawingOf(1.2f, 0.5f, 0.9f, 0, Shading::Hatch, 8)},
-            {i18nc("drawing effect look: fine strokes following the shapes", "Etching"), drawingOf(1.0f, 0.4f, 1.0f, 0.8f, Shading::Strokes, 8)},
+            {i18nc("drawing effect look", "Pencil"), drawingOf(0.8f, 0.4f, 0.7f, 0.3f, Shading::Soft, 0.5f, C::Paper, 0.4f)},
+            {i18nc("drawing effect look", "Charcoal"), drawingOf(2.5f, 0.3f, 0.6f, 0.8f, Shading::Soft, 0.45f, C::Paper, 0.8f)},
+            {i18nc("drawing effect look", "Wash"), drawingOf(2.0f, 0.3f, 0.08f, 1, Shading::Soft, 0.4f, C::Over)},
+            {i18nc("drawing effect look", "Hatching"), drawingOf(1.2f, 0.5f, 0.9f, 0, Shading::Hatch, 6)},
+            {i18nc("drawing effect look: fine strokes following the shapes", "Etching"), drawingOf(1.0f, 0.4f, 0.9f, 0.8f, Shading::Strokes, 20, C::Paper, 5)},
             {i18nc("drawing effect look: drawn in dots", "Stipple"), drawingOf(1.0f, 0.5f, 0.85f, 0.3f, Shading::Dots, 2.5f)},
+            {i18nc("drawing effect look: lines swelling where dark, as on banknotes", "Engraving"), drawingOf(1.0f, 0.5f, 0.95f, 0.3f, Shading::Engrave, 5)},
+            {i18nc("drawing effect look: printed in dots", "Halftone"), drawingOf(1.2f, 0.5f, 0.9f, 0.5f, Shading::Screen, 6)},
+            {i18nc("drawing effect look: printed in colored dots", "Pop art"), drawingOf(1.5f, 0.6f, 0.95f, 0.5f, Shading::Screen, 6, C::Colored)},
             {i18nc("drawing effect look", "Woodcut"), drawingOf(2.0f, 0.8f, 0.45f, 1, Shading::Solid)},
             {i18nc("drawing effect look", "Comic"), drawingOf(1.2f, 0.6f, 0.15f, 0.5f, Shading::Solid, 0, C::Over)},
-            {i18nc("drawing effect look: colored pencils", "Crayon"), drawingOf(1.0f, 0.4f, 1.0f, 0.3f, Shading::Hatch, 5, C::Colored)},
-            {i18nc("drawing effect look", "Wash"), drawingOf(2.0f, 0.3f, 0.08f, 1, Shading::Soft, 0.4f, C::Over)},
+            {i18nc("drawing effect look: colored pencils", "Crayon"), drawingOf(1.0f, 0.4f, 0.9f, 0.5f, Shading::Strokes, 16, C::Colored, 4)},
         };
         shadings = {
             {i18nc("drawing effect: shading as flat ink", "Solid"), Shading::Solid},
@@ -1740,6 +1794,9 @@ struct SkissaInkWidget::Private {
             {i18nc("drawing effect: shading as straight strokes", "Hatch"), Shading::Hatch},
             {i18nc("drawing effect: shading as strokes along the shapes", "Strokes"), Shading::Strokes},
             {i18nc("drawing effect: shading as dots", "Dots"), Shading::Dots},
+            {i18nc("drawing effect: shading as a printer's grid of dots", "Screen"), Shading::Screen},
+            {i18nc("drawing effect: shading as engraved lines", "Engrave"), Shading::Engrave},
+            {i18nc("drawing effect: shading as lines of equal lightness", "Contour"), Shading::Contour},
         };
         colorings = {
             {i18nc("drawing effect: ink on paper", "Paper"), C::Paper},
@@ -1843,7 +1900,7 @@ SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
 
     // how the shading is drawn, each way with its own setting
     d->shadingTiles = new KisStudioChips(this);
-    d->shadingTiles->setTileColumns(5, tileHeight);
+    d->shadingTiles->setTileColumns(4, tileHeight);
     connect(d->shadingTiles, &KisStudioChips::clicked, this, [this](int index) {
         if (index < 0 || index >= d->shadings.size()) return;
         d->settings.shading = d->shadings[index].second;
@@ -1856,14 +1913,20 @@ SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
                    [this](qreal v) { d->settings.steps = qRound(v); });
     d->softness = add(i18nc("drawing effect setting", "Softness"), 0, 100, 0, percent, defaults.softness * 100,
                       [this](qreal v) { d->settings.softness = float(v / 100); });
-    d->spacing = add(i18nc("drawing effect setting: between hatch strokes", "Spacing"), 2, 60, 1, px, defaults.spacing,
+    d->grain = add(i18nc("drawing effect setting: how much the paper's tooth shows", "Grain"), 0, 100, 0, percent, defaults.grain * 100,
+                   [this](qreal v) { d->settings.grain = float(v / 100); });
+    d->spacing = add(i18nc("drawing effect setting: between strokes or dots", "Spacing"), 2, 60, 1, px, defaults.spacing,
                      [this](qreal v) { d->settings.spacing = float(v); });
     d->angle = add(i18nc("drawing effect setting: of the hatch strokes", "Angle"), -90, 90, 0, QStringLiteral("°"), defaults.angle,
                    [this](qreal v) { d->settings.angle = float(v); });
+    // the angle is across the first strokes: the dial shows the strokes
+    asDial(d->angle, 90);
     d->length = add(i18nc("drawing effect setting: of the strokes", "Length"), 2, 60, 1, px, defaults.length,
                     [this](qreal v) { d->settings.length = float(v); });
     d->dot = add(i18nc("drawing effect setting: how wide the dots are", "Dot size"), 1, 30, 1, px, defaults.dot,
                  [this](qreal v) { d->settings.dot = float(v); });
+    d->levels = add(i18nc("drawing effect setting: how many lines of equal lightness", "Levels"), 2, 64, 0, QString(), defaults.levels,
+                    [this](qreal v) { d->settings.levels = qRound(v); });
 
     // where the ink goes
     d->colorTiles = new KisStudioChips(this);
@@ -1958,10 +2021,12 @@ void SkissaInkWidget::refresh()
     d->flow->setValue(s.flow * 100.0);
     d->steps->setValue(s.steps);
     d->softness->setValue(s.softness * 100.0);
+    d->grain->setValue(s.grain * 100.0);
     d->spacing->setValue(s.spacing);
     d->angle->setValue(s.angle);
     d->length->setValue(s.length);
     d->dot->setValue(s.dot);
+    d->levels->setValue(s.levels);
     d->inkColor->setColor(s.inkColor);
     d->paperColor->setColor(s.paperColor);
     showRows();
@@ -1978,10 +2043,13 @@ void SkissaInkWidget::showRows()
     d->shadingTiles->setVisible(shades);
     d->steps->setVisible(shades && s.shading == Shading::Solid);
     d->softness->setVisible(shades && s.shading == Shading::Soft);
-    d->spacing->setVisible(shades && s.shading == Shading::Hatch);
-    d->angle->setVisible(shades && s.shading == Shading::Hatch);
+    d->grain->setVisible(shades && s.shading == Shading::Soft);
+    const bool spaced = s.shading == Shading::Hatch || s.shading == Shading::Strokes || s.shading == Shading::Screen || s.shading == Shading::Engrave;
+    d->spacing->setVisible(shades && spaced);
+    d->angle->setVisible(shades && spaced && s.shading != Shading::Strokes);
     d->length->setVisible(shades && s.shading == Shading::Strokes);
     d->dot->setVisible(shades && s.shading == Shading::Dots);
+    d->levels->setVisible(shades && s.shading == Shading::Contour);
     d->colorTiles->setVisible(draws);
     d->inkColorRow->setVisible(draws && s.colors != SkissaInk::Colors::Colored);
     d->paperColorRow->setVisible(draws && (s.colors == SkissaInk::Colors::Paper || s.colors == SkissaInk::Colors::Colored));
@@ -2087,4 +2155,886 @@ QString SkissaInkWidget::canvasDragged(const QPointF &moved, const QPointF &)
 void SkissaInkWidget::canvasReleased()
 {
     refreshTiles();
+}
+
+namespace
+{
+
+using ShapePlace = SkissaShape::Place;
+
+/// The parts of Shape, as its tabs
+enum ShapePart { OutlinePart, GlowPart, ShadowPart, GrowPart };
+
+/// The scale the shape's tiles show the layer at, and their size
+constexpr qreal shapeTileScale = 0.5;
+const QSize shapeTileSize(120, 75);
+
+/// A shape to show the looks on, for a layer without one: a disc, a bar and letters
+QImage sampleShape(const QSize &size)
+{
+    QImage image(size, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(232, 92, 70));
+    const qreal unit = size.height() / 10.0;
+    painter.drawEllipse(QRectF(unit * 2, unit * 2, unit * 6, unit * 6));
+    painter.setBrush(QColor(70, 140, 225));
+    painter.drawRoundedRect(QRectF(unit * 9, unit * 2.5, unit * 7, unit * 3), unit, unit);
+    QFont font = painter.font();
+    font.setBold(true);
+    font.setPixelSize(qRound(unit * 3.4));
+    painter.setFont(font);
+    painter.setPen(QColor(250, 200, 50));
+    painter.drawText(QRectF(unit * 9, unit * 5.5, unit * 8, unit * 4), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("Aa"));
+    return image;
+}
+
+/// Where \p image's shape has an edge, nearest its middle; its middle if it has none
+QPoint edgeOf(const QImage &image, bool *found)
+{
+    const QImage alpha = image.convertToFormat(QImage::Format_ARGB32);
+    const QPointF middle(alpha.width() / 2.0, alpha.height() / 2.0);
+    QPoint best = middle.toPoint();
+    qreal bestScore = -1;
+    for (int y = 1; y + 1 < alpha.height(); y++) {
+        for (int x = 1; x + 1 < alpha.width(); x++) {
+            const int a = qAlpha(alpha.pixel(x, y));
+            const int change = std::abs(qAlpha(alpha.pixel(x + 1, y)) - a) + std::abs(qAlpha(alpha.pixel(x, y + 1)) - a);
+            if (change < 64) continue;
+            const qreal score = change / (1.0 + QLineF(middle, QPointF(x, y)).length());
+            if (score > bestScore) {
+                bestScore = score;
+                best = QPoint(x, y);
+            }
+        }
+    }
+    *found = bestScore > 0;
+    return best;
+}
+
+} // namespace
+
+struct SkissaShapeWidget::Private {
+    KisPaintDeviceSP original;
+    SkissaShape::Settings settings;
+    int part {OutlinePart};
+    /// The tiles' part of the layer, at their scale, with room around for what the looks reach
+    QImage base;
+    QPoint corner;
+    QVector<QPair<QString, SkissaShape::Settings>> looks;
+    QVector<QImage> lookPictures;
+
+    KisStudioChips *lookTiles {nullptr};
+    KisStudioChips *parts {nullptr};
+    KisStudioValueRow *width {nullptr};
+    KisStudioChips *places {nullptr};
+    QWidget *outlineColorRow {nullptr};
+    KisStudioColorField *outlineColor {nullptr};
+    KisStudioValueRow *glow {nullptr};
+    KisStudioValueRow *glowStrength {nullptr};
+    QWidget *glowColorRow {nullptr};
+    KisStudioColorField *glowColor {nullptr};
+    KisStudioValueRow *shadow {nullptr};
+    KisStudioValueRow *shadowAngle {nullptr};
+    KisStudioValueRow *shadowSoftness {nullptr};
+    QWidget *shadowColorRow {nullptr};
+    KisStudioColorField *shadowColor {nullptr};
+    KisStudioValueRow *grow {nullptr};
+
+    /// The drag on the image: where it began and what it began from
+    QPoint pressed;
+    SkissaShape::Settings start;
+
+    void makeLooks()
+    {
+        using S = SkissaShape::Settings;
+        auto with = [](std::function<void(S &)> change) {
+            S s;
+            change(s);
+            return s;
+        };
+        looks = {
+            {i18nc("shape effect look: nothing added", "None"), with([](S &) {})},
+            {i18nc("shape effect look", "Outline"), with([](S &s) { s.outline = 4; })},
+            {i18nc("shape effect look: a white border and a soft shadow", "Sticker"), with([](S &s) {
+                 s.outline = 10;
+                 s.outlineColor = Qt::white;
+                 s.shadow = 4;
+                 s.shadowSoftness = 12;
+                 s.shadowColor = QColor(0, 0, 0, 110);
+             })},
+            {i18nc("shape effect look", "Glow"), with([](S &s) { s.glow = 30; })},
+            {i18nc("shape effect look: a bright outline that glows", "Neon"), with([](S &s) {
+                 s.outline = 3;
+                 s.place = ShapePlace::Center;
+                 s.outlineColor = QColor(120, 250, 255);
+                 s.glow = 24;
+                 s.glowStrength = 0.9f;
+                 s.glowColor = QColor(40, 200, 255);
+             })},
+            {i18nc("shape effect look", "Shadow"), with([](S &s) {
+                 s.shadow = 12;
+                 s.shadowSoftness = 14;
+                 s.shadowColor = QColor(0, 0, 0, 150);
+             })},
+            {i18nc("shape effect look: lines made bolder", "Thicker"), with([](S &s) { s.grow = 2; })},
+            {i18nc("shape effect look: lines made finer", "Thinner"), with([](S &s) { s.grow = -1; })},
+        };
+    }
+
+    void makeBase()
+    {
+        int margin = 0;
+        for (const auto &look : looks) margin = std::max(margin, SkissaShape::Shape(look.second, shapeTileScale).reach());
+        margin = std::min(margin + 2, 48);
+        const QSize whole = shapeTileSize + QSize(2 * margin, 2 * margin);
+        bool found = false;
+        if (original) {
+            const QRect bounds = original->exactBounds();
+            if (!bounds.isEmpty()) {
+                // an edge of the shape, found on a small picture of it, shown at the tiles' scale
+                const qreal small = qMin(1.0, 256.0 / qMax(bounds.width(), bounds.height()));
+                const QImage thumbnail = original->createThumbnailUncached(qCeil(bounds.width() * small), qCeil(bounds.height() * small), bounds);
+                const QPoint edge = edgeOf(thumbnail, &found);
+                if (found) {
+                    const QPoint at = bounds.topLeft() + (QPointF(edge) / small).toPoint();
+                    const QSize read = whole / shapeTileScale;
+                    base = original->convertToQImage(nullptr, QRect(at - QPoint(read.width() / 2, read.height() / 2), read))
+                               .scaled(whole, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                }
+            }
+        }
+        if (!found) base = sampleShape(whole);
+        corner = QPoint(margin, margin);
+        // the looks don't change with the settings: their pictures are made once
+        for (const auto &look : looks) lookPictures << SkissaShape::applied(base, look.second, shapeTileScale).copy(QRect(corner, shapeTileSize));
+    }
+};
+
+SkissaShapeWidget::SkissaShapeWidget(QWidget *parent, KisPaintDeviceSP dev)
+    : KisConfigWidget(parent)
+    , d(new Private)
+{
+    if (dev) d->original = KisEffectPanels::fullSizeCopy(dev);
+    d->makeLooks();
+    d->makeBase();
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
+
+    const int tileHeight = qMax(64, 2 * fontMetrics().height() + 34);
+    d->lookTiles = new KisStudioChips(this);
+    d->lookTiles->setTileColumns(4, tileHeight);
+    connect(d->lookTiles, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= d->looks.size()) return;
+        d->settings = d->looks[index].second;
+        // the tab of what the look is most about
+        const SkissaShape::Settings &s = d->settings;
+        d->part = s.outline > 0 ? OutlinePart : s.glow > 0 ? GlowPart : s.shadow > 0 ? ShadowPart : s.grow != 0 ? GrowPart : d->part;
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    layout->addWidget(d->lookTiles);
+
+    d->parts = new KisStudioChips(this);
+    d->parts->setTabs(true);
+    connect(d->parts, &KisStudioChips::clicked, this, [this](int index) {
+        d->part = index;
+        showRows();
+    });
+    layout->addWidget(d->parts);
+
+    const QString px = i18nc("pixels, after a number", " px");
+    const QString percent = QStringLiteral("%");
+    const SkissaShape::Settings defaults;
+    auto add = [&](const QString &name, qreal low, qreal high, int decimals, const QString &suffix, qreal reset, std::function<void(qreal)> write) {
+        KisStudioValueRow *row = valueRow(this, name, low, high, decimals, suffix, reset);
+        connect(row, &KisStudioValueRow::valueChanged, this, [this, write](qreal value) {
+            write(value);
+            edited();
+        });
+        layout->addWidget(row);
+        return row;
+    };
+    auto colorRow = [&](const QString &name, KisStudioColorField **field, const QColor &reset, std::function<void(const QColor &)> write) {
+        auto *row = new QWidget(this);
+        auto *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        rowLayout->addWidget(new QLabel(name, row), 1);
+        *field = new KisStudioColorField(row);
+        (*field)->setDefaultColor(reset);
+        (*field)->setAlphaEnabled(true);
+        connect(*field, &KisStudioColorField::colorChanged, this, [this, write](const QColor &color) {
+            write(color);
+            edited();
+        });
+        rowLayout->addWidget(*field);
+        layout->addWidget(row);
+        return row;
+    };
+
+    d->width = add(i18nc("shape effect: how wide the outline is", "Width"), 0, 100, 1, px, 4, [this](qreal v) { d->settings.outline = float(v); });
+    d->places = new KisStudioChips(this);
+    connect(d->places, &KisStudioChips::clicked, this, [this](int index) {
+        d->settings.place = ShapePlace(qBound(0, index, 2));
+        edited();
+    });
+    layout->addWidget(d->places);
+    d->outlineColorRow = colorRow(i18nc("shape effect: the outline's color", "Color"), &d->outlineColor, defaults.outlineColor,
+                                  [this](const QColor &c) { d->settings.outlineColor = c; });
+
+    d->glow = add(i18nc("shape effect: how far the glow reaches", "Size"), 0, 200, 1, px, 30, [this](qreal v) { d->settings.glow = float(v); });
+    d->glowStrength = add(i18nc("shape effect: how strong the glow is", "Strength"), 0, 100, 0, percent, defaults.glowStrength * 100,
+                          [this](qreal v) { d->settings.glowStrength = float(v / 100); });
+    d->glowColorRow = colorRow(i18nc("shape effect: the glow's color", "Color"), &d->glowColor, defaults.glowColor,
+                               [this](const QColor &c) { d->settings.glowColor = c; });
+
+    d->shadow = add(i18nc("shape effect: how far the shadow falls", "Distance"), 0, 200, 1, px, 12, [this](qreal v) { d->settings.shadow = float(v); });
+    d->shadowAngle = add(i18nc("shape effect: which way the shadow falls", "Angle"), -180, 180, 0, QStringLiteral("°"), defaults.shadowAngle,
+                         [this](qreal v) { d->settings.shadowAngle = float(v); });
+    asDial(d->shadowAngle);
+    d->shadowSoftness = add(i18nc("shape effect: how soft the shadow is", "Softness"), 0, 100, 1, px, defaults.shadowSoftness,
+                            [this](qreal v) { d->settings.shadowSoftness = float(v); });
+    d->shadowColorRow = colorRow(i18nc("shape effect: the shadow's color", "Color"), &d->shadowColor, defaults.shadowColor,
+                                 [this](const QColor &c) { d->settings.shadowColor = c; });
+
+    d->grow = add(i18nc("shape effect: how much the shape grows, or shrinks below 0", "Grow"), -50, 50, 1, px, 0,
+                  [this](qreal v) { d->settings.grow = float(v); });
+    d->grow->setToolTip(i18nc("@info:tooltip", "Below 0, it shrinks"));
+
+    refresh();
+}
+
+SkissaShapeWidget::~SkissaShapeWidget()
+{
+}
+
+void SkissaShapeWidget::setConfiguration(const KisPropertiesConfigurationSP config)
+{
+    d->settings = config ? SkissaShape::Settings::from(*config) : SkissaShape::Settings();
+    refresh();
+}
+
+KisPropertiesConfigurationSP SkissaShapeWidget::configuration() const
+{
+    KisFilterSP filter = KisFilterRegistry::instance()->value(QStringLiteral("skissa_shape"));
+    KisFilterConfigurationSP config = filter->factoryConfiguration(KisGlobalResourcesInterface::instance());
+    d->settings.writeTo(*config);
+    return config;
+}
+
+QSize SkissaShapeWidget::sizeHint() const
+{
+    const int width = 460;
+    return QSize(width, qMax(layout()->heightForWidth(width), layout()->sizeHint().height()));
+}
+
+void SkissaShapeWidget::edited()
+{
+    showRows();
+    refreshTiles();
+    Q_EMIT sigConfigurationItemChanged();
+}
+
+void SkissaShapeWidget::refresh()
+{
+    const SkissaShape::Settings &s = d->settings;
+    d->width->setValue(s.outline);
+    d->outlineColor->setColor(s.outlineColor);
+    d->glow->setValue(s.glow);
+    d->glowStrength->setValue(s.glowStrength * 100);
+    d->glowColor->setColor(s.glowColor);
+    d->shadow->setValue(s.shadow);
+    d->shadowAngle->setValue(s.shadowAngle);
+    d->shadowSoftness->setValue(s.shadowSoftness);
+    d->shadowColor->setColor(s.shadowColor);
+    d->grow->setValue(s.grow);
+    showRows();
+    refreshTiles();
+}
+
+void SkissaShapeWidget::showRows()
+{
+    const SkissaShape::Settings &s = d->settings;
+    const bool outlines = s.outline > 0, glows = s.glow > 0 && s.glowStrength > 0, shadows = s.shadowColor.alpha() > 0 && s.shadow > 0;
+    QVector<KisStudioChips::Chip> tabs;
+    const QString names[] = {i18nc("shape effect part", "Outline"), i18nc("shape effect part", "Glow"), i18nc("shape effect part", "Shadow"),
+                             i18nc("shape effect part", "Grow")};
+    const bool on[] = {outlines, glows, shadows, s.grow != 0};
+    for (int i = 0; i < 4; i++) {
+        KisStudioChips::Chip chip;
+        chip.text = names[i];
+        chip.on = d->part == i;
+        chip.dot = on[i];
+        tabs << chip;
+    }
+    d->parts->setChips(tabs);
+    d->width->setVisible(d->part == OutlinePart);
+    d->places->setVisible(d->part == OutlinePart && outlines);
+    d->outlineColorRow->setVisible(d->part == OutlinePart && outlines);
+    QVector<KisStudioChips::Chip> places;
+    const QString placeNames[] = {i18nc("shape effect: outline outside the shape", "Outside"), i18nc("shape effect: outline on the edge", "Center"),
+                                  i18nc("shape effect: outline inside the shape", "Inside")};
+    for (int i = 0; i < 3; i++) {
+        KisStudioChips::Chip chip;
+        chip.text = placeNames[i];
+        chip.on = int(s.place) == i;
+        places << chip;
+    }
+    d->places->setChips(places);
+    d->glow->setVisible(d->part == GlowPart);
+    d->glowStrength->setVisible(d->part == GlowPart && glows);
+    d->glowColorRow->setVisible(d->part == GlowPart && glows);
+    d->shadow->setVisible(d->part == ShadowPart);
+    d->shadowAngle->setVisible(d->part == ShadowPart && shadows);
+    d->shadowSoftness->setVisible(d->part == ShadowPart && shadows);
+    d->shadowColorRow->setVisible(d->part == ShadowPart && shadows);
+    d->grow->setVisible(d->part == GrowPart);
+}
+
+void SkissaShapeWidget::refreshTiles()
+{
+    QVector<KisStudioChips::Chip> chips;
+    for (int i = 0; i < d->looks.size(); i++) {
+        const auto &look = d->looks[i];
+        KisStudioChips::Chip chip;
+        chip.text = look.first;
+        chip.on = d->settings == look.second || (look.second.changesNothing() && d->settings.changesNothing());
+        chip.picture = tilePicture(d->lookPictures.value(i));
+        chip.pictureKey = d->lookPictures.value(i).cacheKey();
+        chips << chip;
+    }
+    d->lookTiles->setChips(chips);
+}
+
+void SkissaShapeWidget::canvasHovered(const QPoint &)
+{
+}
+
+bool SkissaShapeWidget::canvasPressed(const QPoint &pixel)
+{
+    d->pressed = pixel;
+    d->start = d->settings;
+    return true;
+}
+
+QString SkissaShapeWidget::canvasDragged(const QPointF &moved, const QPointF &at)
+{
+    SkissaShape::Settings &s = d->settings;
+    const QString px = i18nc("pixels, after a number", " px");
+    switch (d->part) {
+    case ShadowPart: {
+        // the shadow follows the pointer: where it was pressed is where the shape's shadow was
+        const double angle = qDegreesToRadians(double(d->start.shadowAngle));
+        const QPointF began(std::cos(angle) * d->start.shadow, std::sin(angle) * d->start.shadow);
+        const QPointF now = began + (at - QPointF(d->pressed));
+        s.shadow = float(qBound(0.0, std::hypot(now.x(), now.y()), 200.0));
+        if (s.shadow > 0.5f) s.shadowAngle = float(qRadiansToDegrees(std::atan2(now.y(), now.x())));
+        break;
+    }
+    case OutlinePart:
+        // by ratios, as sizes go, from a little when there was none
+        s.outline = float(qBound(0.0, std::max(1.0, double(d->start.outline)) * std::exp(moved.x() / 150.0), 100.0));
+        break;
+    case GlowPart:
+        s.glow = float(qBound(0.0, std::max(2.0, double(d->start.glow)) * std::exp(moved.x() / 150.0), 200.0));
+        s.glowStrength = float(qBound(0.0, d->start.glowStrength - moved.y() / 300.0, 1.0));
+        break;
+    default:
+        s.grow = float(qBound(-50.0, d->start.grow + moved.x() / 20.0, 50.0));
+        break;
+    }
+    refresh();
+    Q_EMIT sigConfigurationItemChanged();
+    switch (d->part) {
+    case ShadowPart: return rowText(d->shadow, 0, px) + QStringLiteral("   ") + rowText(d->shadowAngle, 0, QStringLiteral("°"));
+    case OutlinePart: return rowText(d->width, 1, px);
+    case GlowPart: return rowText(d->glow, 0, px) + QStringLiteral("   ") + rowText(d->glowStrength, 0, QStringLiteral("%"));
+    default: return rowText(d->grow, 1, px);
+    }
+}
+
+void SkissaShapeWidget::canvasReleased()
+{
+}
+
+namespace
+{
+
+/// The ways Light spreads, as its tabs
+enum LightPart { GlowLight, StarLight, StreakLight };
+
+} // namespace
+
+struct SkissaLightWidget::Private {
+    KisPaintDeviceSP original;
+    SkissaLight::Settings settings;
+    int part {GlowLight};
+    /// The layer small, how bright its brightest parts look, and the tiles' pictures of it at that scale
+    QImage frame;
+    qreal frameScale {1};
+    float layerTop {1};
+    QVector<QPair<QString, SkissaLight::Settings>> looks;
+    QVector<QImage> lookPictures;
+
+    KisStudioChips *lookTiles {nullptr};
+    KisStudioValueRow *threshold {nullptr};
+    KisStudioChips *parts {nullptr};
+    KisStudioValueRow *glow {nullptr};
+    KisStudioValueRow *size {nullptr};
+    KisStudioValueRow *star {nullptr};
+    KisStudioValueRow *length {nullptr};
+    KisStudioValueRow *points {nullptr};
+    KisStudioValueRow *angle {nullptr};
+    KisStudioValueRow *streak {nullptr};
+    KisStudioValueRow *streakLength {nullptr};
+    KisStudioValueRow *streakAngle {nullptr};
+    QWidget *streakColorRow {nullptr};
+    KisStudioColorField *streakColor {nullptr};
+
+    SkissaLight::Settings start;
+
+    void makeLooks()
+    {
+        using S = SkissaLight::Settings;
+        auto with = [](std::function<void(S &)> change) {
+            S s;
+            s.glow = 0;
+            change(s);
+            return s;
+        };
+        looks = {
+            {i18nc("light effect look: nothing added", "None"), with([](S &) {})},
+            {i18nc("light effect look", "Bloom"), with([](S &s) { s.glow = 1; })},
+            {i18nc("light effect look: a soft, wide glow", "Dreamy"), with([](S &s) {
+                 s.glow = 2;
+                 s.size = 160;
+                 s.threshold = 0.55f;
+             })},
+            {i18nc("light effect look: diffraction spikes", "Star"), with([](S &s) {
+                 s.star = 1.2f;
+                 s.glow = 0.3f;
+             })},
+            {i18nc("light effect look: small four-pointed stars", "Sparkle"), with([](S &s) {
+                 s.star = 2;
+                 s.points = 4;
+                 s.angle = 45;
+                 s.length = 40;
+                 s.threshold = 0.9f;
+             })},
+            {i18nc("light effect look: the long streak of an anamorphic lens", "Anamorphic"), with([](S &s) {
+                 s.streak = 1.5f;
+                 s.glow = 0.3f;
+             })},
+        };
+    }
+
+    void makeFrame()
+    {
+        if (original) {
+            const QRect bounds = original->exactBounds();
+            if (!bounds.isEmpty()) {
+                frameScale = qMin(qreal(lensPictureSize.width()) / bounds.width(), qreal(lensPictureSize.height()) / bounds.height());
+                const QImage picture = original->createThumbnailUncached(qCeil(bounds.width() * frameScale), qCeil(bounds.height() * frameScale), bounds);
+                if (!picture.isNull()) layerTop = brightestOf(picture);
+                if (!picture.isNull() && !KisEffectPanels::showsLittle(picture)) frame = picture;
+            }
+        }
+        float frameTop = layerTop;
+        if (frame.isNull()) {
+            frame = KisStudioPicker::samplePicture(lensPictureSize).convertToFormat(QImage::Format_ARGB32);
+            frameTop = brightestOf(frame);
+            frameScale = 0.25;
+        }
+        for (const auto &look : looks) {
+            SkissaLight::Settings s = look.second;
+            s.top = frameTop;
+            // at least a few pixels of each spread, so the tiles show its shape
+            lookPictures << SkissaLight::applied(frame, s, std::max(frameScale, 0.15));
+        }
+    }
+};
+
+SkissaLightWidget::SkissaLightWidget(QWidget *parent, KisPaintDeviceSP dev)
+    : KisConfigWidget(parent)
+    , d(new Private)
+{
+    if (dev) d->original = KisEffectPanels::fullSizeCopy(dev);
+    d->makeLooks();
+    d->makeFrame();
+    d->settings.top = d->layerTop;
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
+
+    const int tileHeight = qMax(64, 2 * fontMetrics().height() + 34);
+    d->lookTiles = new KisStudioChips(this);
+    d->lookTiles->setTileColumns(3, tileHeight);
+    connect(d->lookTiles, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= d->looks.size()) return;
+        d->settings = d->looks[index].second;
+        d->settings.top = d->layerTop;
+        const SkissaLight::Settings &s = d->settings;
+        d->part = s.streak > 0 ? StreakLight : s.star > 0 ? StarLight : GlowLight;
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    layout->addWidget(d->lookTiles);
+
+    const QString px = i18nc("pixels, after a number", " px");
+    const QString percent = QStringLiteral("%");
+    const SkissaLight::Settings defaults;
+    auto add = [&](const QString &name, qreal low, qreal high, int decimals, const QString &suffix, qreal reset, std::function<void(qreal)> write) {
+        KisStudioValueRow *row = valueRow(this, name, low, high, decimals, suffix, reset);
+        connect(row, &KisStudioValueRow::valueChanged, this, [this, write](qreal value) {
+            write(value);
+            edited();
+        });
+        layout->addWidget(row);
+        return row;
+    };
+    d->threshold = add(i18nc("light effect: how bright a part must be to shine", "Threshold"), 0, 100, 0, percent, defaults.threshold * 100,
+                       [this](qreal v) { d->settings.threshold = float(v / 100); });
+    d->threshold->setToolTip(i18nc("@info:tooltip", "Lower, more of the picture shines"));
+
+    d->parts = new KisStudioChips(this);
+    d->parts->setTabs(true);
+    connect(d->parts, &KisStudioChips::clicked, this, [this](int index) {
+        d->part = index;
+        showRows();
+    });
+    layout->addWidget(d->parts);
+
+    d->glow = add(i18nc("light effect: how strong the glow is", "Strength"), 0, 400, 0, percent, 100, [this](qreal v) { d->settings.glow = float(v / 100); });
+    d->size = add(i18nc("light effect: how far the glow reaches", "Size"), 2, 1000, 0, px, defaults.size, [this](qreal v) { d->settings.size = float(v); });
+    d->star = add(i18nc("light effect: how strong the star is", "Strength"), 0, 400, 0, percent, 100, [this](qreal v) { d->settings.star = float(v / 100); });
+    d->length = add(i18nc("light effect: how long the star's spikes are", "Length"), 2, 2000, 0, px, defaults.length,
+                    [this](qreal v) { d->settings.length = float(v); });
+    d->points = add(i18nc("light effect: how many spikes the star has", "Points"), 2, 16, 0, QString(), defaults.points,
+                    [this](qreal v) { d->settings.points = qRound(v / 2) * 2; });
+    d->angle = add(i18nc("light effect: how the star is turned", "Angle"), -180, 180, 0, QStringLiteral("°"), defaults.angle,
+                   [this](qreal v) { d->settings.angle = float(v); });
+    asDial(d->angle);
+    d->streak = add(i18nc("light effect: how strong the streak is", "Strength"), 0, 400, 0, percent, 100, [this](qreal v) { d->settings.streak = float(v / 100); });
+    d->streakLength = add(i18nc("light effect: how long the streak is", "Length"), 2, 4000, 0, px, defaults.streakLength,
+                          [this](qreal v) { d->settings.streakLength = float(v); });
+    d->streakAngle = add(i18nc("light effect: the streak's direction", "Angle"), -180, 180, 0, QStringLiteral("°"), defaults.streakAngle,
+                         [this](qreal v) { d->settings.streakAngle = float(v); });
+    asDial(d->streakAngle);
+    d->streakColorRow = new QWidget(this);
+    auto *colorLayout = new QHBoxLayout(d->streakColorRow);
+    colorLayout->setContentsMargins(0, 0, 0, 0);
+    colorLayout->addWidget(new QLabel(i18nc("light effect: the streak's color", "Color"), d->streakColorRow), 1);
+    d->streakColor = new KisStudioColorField(d->streakColorRow);
+    d->streakColor->setDefaultColor(defaults.streakColor);
+    connect(d->streakColor, &KisStudioColorField::colorChanged, this, [this](const QColor &color) {
+        d->settings.streakColor = color;
+        edited();
+    });
+    colorLayout->addWidget(d->streakColor);
+    layout->addWidget(d->streakColorRow);
+
+    refresh();
+}
+
+SkissaLightWidget::~SkissaLightWidget()
+{
+}
+
+void SkissaLightWidget::setConfiguration(const KisPropertiesConfigurationSP config)
+{
+    d->settings = config ? SkissaLight::Settings::from(*config) : SkissaLight::Settings();
+    // the brightest parts are this layer's, not those of the one the settings were last used on
+    d->settings.top = d->layerTop;
+    refresh();
+}
+
+KisPropertiesConfigurationSP SkissaLightWidget::configuration() const
+{
+    KisFilterSP filter = KisFilterRegistry::instance()->value(QStringLiteral("skissa_light"));
+    KisFilterConfigurationSP config = filter->factoryConfiguration(KisGlobalResourcesInterface::instance());
+    d->settings.writeTo(*config);
+    return config;
+}
+
+QSize SkissaLightWidget::sizeHint() const
+{
+    const int width = 460;
+    return QSize(width, qMax(layout()->heightForWidth(width), layout()->sizeHint().height()));
+}
+
+void SkissaLightWidget::edited()
+{
+    showRows();
+    Q_EMIT sigConfigurationItemChanged();
+}
+
+void SkissaLightWidget::refresh()
+{
+    const SkissaLight::Settings &s = d->settings;
+    d->threshold->setValue(s.threshold * 100);
+    d->glow->setValue(s.glow * 100);
+    d->size->setValue(s.size);
+    d->star->setValue(s.star * 100);
+    d->length->setValue(s.length);
+    d->points->setValue(s.points);
+    d->angle->setValue(s.angle);
+    d->streak->setValue(s.streak * 100);
+    d->streakLength->setValue(s.streakLength);
+    d->streakAngle->setValue(s.streakAngle);
+    d->streakColor->setColor(s.streakColor);
+    showRows();
+}
+
+void SkissaLightWidget::showRows()
+{
+    const SkissaLight::Settings &s = d->settings;
+    QVector<KisStudioChips::Chip> tabs;
+    const QString names[] = {i18nc("light effect part", "Glow"), i18nc("light effect part: diffraction spikes", "Star"),
+                             i18nc("light effect part: an anamorphic lens's streak", "Streak")};
+    const bool on[] = {s.glow > 0, s.star > 0, s.streak > 0};
+    for (int i = 0; i < 3; i++) {
+        KisStudioChips::Chip chip;
+        chip.text = names[i];
+        chip.on = d->part == i;
+        chip.dot = on[i];
+        tabs << chip;
+    }
+    d->parts->setChips(tabs);
+    d->glow->setVisible(d->part == GlowLight);
+    d->size->setVisible(d->part == GlowLight && s.glow > 0);
+    d->star->setVisible(d->part == StarLight);
+    d->length->setVisible(d->part == StarLight && s.star > 0);
+    d->points->setVisible(d->part == StarLight && s.star > 0);
+    d->angle->setVisible(d->part == StarLight && s.star > 0);
+    d->streak->setVisible(d->part == StreakLight);
+    d->streakLength->setVisible(d->part == StreakLight && s.streak > 0);
+    d->streakAngle->setVisible(d->part == StreakLight && s.streak > 0);
+    d->streakColorRow->setVisible(d->part == StreakLight && s.streak > 0);
+
+    QVector<KisStudioChips::Chip> chips;
+    for (int i = 0; i < d->looks.size(); i++) {
+        SkissaLight::Settings look = d->looks[i].second;
+        look.top = s.top;
+        KisStudioChips::Chip chip;
+        chip.text = d->looks[i].first;
+        chip.on = s == look || (look.changesNothing() && s.changesNothing());
+        chip.picture = tilePicture(d->lookPictures.value(i));
+        chip.pictureKey = d->lookPictures.value(i).cacheKey();
+        chips << chip;
+    }
+    d->lookTiles->setChips(chips);
+}
+
+void SkissaLightWidget::canvasHovered(const QPoint &)
+{
+}
+
+bool SkissaLightWidget::canvasPressed(const QPoint &)
+{
+    d->start = d->settings;
+    return true;
+}
+
+QString SkissaLightWidget::canvasDragged(const QPointF &moved, const QPointF &)
+{
+    // up stronger, sideways larger by ratios, for the part shown
+    SkissaLight::Settings &s = d->settings;
+    const qreal stronger = -moved.y() / 200.0, larger = std::exp(moved.x() / 150.0);
+    const QString px = i18nc("pixels, after a number", " px");
+    switch (d->part) {
+    case StarLight:
+        s.star = float(qBound(0.0, d->start.star + stronger, 4.0));
+        s.length = float(qBound(2.0, d->start.length * larger, 2000.0));
+        break;
+    case StreakLight:
+        s.streak = float(qBound(0.0, d->start.streak + stronger, 4.0));
+        s.streakLength = float(qBound(2.0, d->start.streakLength * larger, 4000.0));
+        break;
+    default:
+        s.glow = float(qBound(0.0, d->start.glow + stronger, 4.0));
+        s.size = float(qBound(2.0, d->start.size * larger, 1000.0));
+        break;
+    }
+    refresh();
+    Q_EMIT sigConfigurationItemChanged();
+    switch (d->part) {
+    case StarLight: return rowText(d->star, 0, QStringLiteral("%")) + QStringLiteral("   ") + rowText(d->length, 0, px);
+    case StreakLight: return rowText(d->streak, 0, QStringLiteral("%")) + QStringLiteral("   ") + rowText(d->streakLength, 0, px);
+    default: return rowText(d->glow, 0, QStringLiteral("%")) + QStringLiteral("   ") + rowText(d->size, 0, px);
+    }
+}
+
+void SkissaLightWidget::canvasReleased()
+{
+}
+
+namespace
+{
+
+/// The scale Painting's tiles show the layer at, and their size
+constexpr qreal paintTileScale = 0.5;
+const QSize paintTileSize(120, 75);
+
+} // namespace
+
+struct SkissaPaintWidget::Private {
+    KisPaintDeviceSP original;
+    SkissaPaint::Settings settings;
+    QVector<QPair<QString, SkissaPaint::Settings>> looks;
+    QVector<QImage> lookPictures;
+
+    KisStudioChips *lookTiles {nullptr};
+    KisStudioValueRow *size {nullptr};
+    KisStudioValueRow *sharpness {nullptr};
+    KisStudioValueRow *flow {nullptr};
+    SkissaPaint::Settings start;
+
+    void makeLooks()
+    {
+        auto look = [](float size, float sharpness, float flow) {
+            SkissaPaint::Settings s;
+            s.size = size;
+            s.sharpness = sharpness;
+            s.flow = flow;
+            return s;
+        };
+        looks = {
+            {i18nc("painting effect look", "Oil"), look(6, 0.6f, 0.7f)},
+            {i18nc("painting effect look", "Gouache"), look(4, 0.9f, 0.9f)},
+            {i18nc("painting effect look: large, bold strokes", "Bold"), look(12, 0.6f, 0.8f)},
+            {i18nc("painting effect look: soft, blended strokes", "Soft"), look(8, 0.2f, 0.5f)},
+        };
+        // a busy part of the layer at the tiles' scale, with room around for the largest brush
+        int margin = 0;
+        for (const auto &l : looks) margin = std::max(margin, SkissaPaint::Paint(l.second, paintTileScale).reach());
+        const QSize whole = paintTileSize + QSize(2 * margin, 2 * margin);
+        QImage base;
+        if (original) {
+            const QRect bounds = original->exactBounds();
+            if (!bounds.isEmpty()) {
+                const QPoint busiest = KisEffectPanels::busiestPoint(original, bounds);
+                const QSize read = whole / paintTileScale;
+                base = original->convertToQImage(nullptr, QRect(busiest - QPoint(read.width() / 2, read.height() / 2), read))
+                           .scaled(whole, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            }
+        }
+        if (base.isNull() || KisEffectPanels::showsLittle(base.copy(QRect(QPoint(margin, margin), paintTileSize)))) {
+            base = KisStudioPicker::samplePicture(whole * 3).convertToFormat(QImage::Format_ARGB32).copy(QRect(QPoint(whole.width(), whole.height()), whole));
+        }
+        for (const auto &l : looks) lookPictures << SkissaPaint::applied(base, l.second, paintTileScale).copy(QRect(QPoint(margin, margin), paintTileSize));
+    }
+};
+
+SkissaPaintWidget::SkissaPaintWidget(QWidget *parent, KisPaintDeviceSP dev)
+    : KisConfigWidget(parent)
+    , d(new Private)
+{
+    if (dev) d->original = KisEffectPanels::fullSizeCopy(dev);
+    d->makeLooks();
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space1 + KisModernStyle::hairline);
+
+    d->lookTiles = new KisStudioChips(this);
+    d->lookTiles->setTileColumns(4, qMax(64, 2 * fontMetrics().height() + 34));
+    connect(d->lookTiles, &KisStudioChips::clicked, this, [this](int index) {
+        if (index < 0 || index >= d->looks.size()) return;
+        d->settings = d->looks[index].second;
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    layout->addWidget(d->lookTiles);
+
+    const SkissaPaint::Settings defaults;
+    auto add = [&](const QString &name, qreal low, qreal high, int decimals, const QString &suffix, qreal reset, std::function<void(qreal)> write,
+                   const QString &tip = QString()) {
+        KisStudioValueRow *row = valueRow(this, name, low, high, decimals, suffix, reset);
+        row->setToolTip(tip);
+        connect(row, &KisStudioValueRow::valueChanged, this, [this, write](qreal value) {
+            write(value);
+            refresh();
+            Q_EMIT sigConfigurationItemChanged();
+        });
+        layout->addWidget(row);
+        return row;
+    };
+    d->size = add(i18nc("painting effect: the brush's size", "Size"), 1, 100, 1, i18nc("pixels, after a number", " px"), defaults.size,
+                  [this](qreal v) { d->settings.size = float(v); });
+    d->sharpness = add(i18nc("painting effect: how crisp the strokes' edges are", "Sharpness"), 0, 100, 0, QStringLiteral("%"), defaults.sharpness * 100,
+                       [this](qreal v) { d->settings.sharpness = float(v / 100); });
+    d->flow = add(i18nc("painting effect: how much strokes follow the shapes", "Flow"), 0, 100, 0, QStringLiteral("%"), defaults.flow * 100,
+                  [this](qreal v) { d->settings.flow = float(v / 100); }, i18nc("@info:tooltip", "How much strokes follow the shapes"));
+    refresh();
+}
+
+SkissaPaintWidget::~SkissaPaintWidget()
+{
+}
+
+void SkissaPaintWidget::setConfiguration(const KisPropertiesConfigurationSP config)
+{
+    d->settings = config ? SkissaPaint::Settings::from(*config) : SkissaPaint::Settings();
+    refresh();
+}
+
+KisPropertiesConfigurationSP SkissaPaintWidget::configuration() const
+{
+    KisFilterSP filter = KisFilterRegistry::instance()->value(QStringLiteral("skissa_paint"));
+    KisFilterConfigurationSP config = filter->factoryConfiguration(KisGlobalResourcesInterface::instance());
+    d->settings.writeTo(*config);
+    return config;
+}
+
+QSize SkissaPaintWidget::sizeHint() const
+{
+    const int width = 460;
+    return QSize(width, qMax(layout()->heightForWidth(width), layout()->sizeHint().height()));
+}
+
+void SkissaPaintWidget::refresh()
+{
+    const SkissaPaint::Settings &s = d->settings;
+    d->size->setValue(s.size);
+    d->sharpness->setValue(s.sharpness * 100);
+    d->flow->setValue(s.flow * 100);
+    QVector<KisStudioChips::Chip> chips;
+    for (int i = 0; i < d->looks.size(); i++) {
+        KisStudioChips::Chip chip;
+        chip.text = d->looks[i].first;
+        chip.on = s == d->looks[i].second;
+        chip.picture = tilePicture(d->lookPictures.value(i));
+        chip.pictureKey = d->lookPictures.value(i).cacheKey();
+        chips << chip;
+    }
+    d->lookTiles->setChips(chips);
+}
+
+void SkissaPaintWidget::canvasHovered(const QPoint &)
+{
+}
+
+bool SkissaPaintWidget::canvasPressed(const QPoint &)
+{
+    d->start = d->settings;
+    return true;
+}
+
+QString SkissaPaintWidget::canvasDragged(const QPointF &moved, const QPointF &)
+{
+    // sideways a larger or smaller brush, by ratios; up crisper
+    d->settings.size = float(qBound(1.0, d->start.size * std::exp(moved.x() / 150.0), 100.0));
+    d->settings.sharpness = float(qBound(0.0, d->start.sharpness - moved.y() / 300.0, 1.0));
+    refresh();
+    Q_EMIT sigConfigurationItemChanged();
+    return rowText(d->size, 1, i18nc("pixels, after a number", " px")) + QStringLiteral("   ") + rowText(d->sharpness, 0, QStringLiteral("%"));
+}
+
+void SkissaPaintWidget::canvasReleased()
+{
 }

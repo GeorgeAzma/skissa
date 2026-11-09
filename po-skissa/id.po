@@ -28,6 +28,66 @@ msgctxt "color drop gap: sized from the lines"
 msgid "Auto"
 msgstr "Auto"
 
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Garis"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Bersihkan"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Ukuran"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Sudutpandang"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Sudutpandang"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Ukuran"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Sudutpandang"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Ukuran"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Kecahayaan"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Jarak"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Ukuran"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "Halus"
+
 msgctxt "canvas renderer"
 msgid "Auto"
 msgstr "Auto"
@@ -123,6 +183,18 @@ msgstr "Warna"
 msgctxt "effect group"
 msgid "Other"
 msgstr "Lainnya"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Ekspor"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Ekspor"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Ekspor"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -356,6 +428,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Kurva"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Gambar"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Lapisan"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Isi"
@@ -449,6 +529,10 @@ msgstr "Piksel"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Lembut"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Opasitas"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -602,6 +686,14 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Lesap"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "Tidak ada"
+
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Peta"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&Buram..."
@@ -638,6 +730,10 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Asli"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Asli"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Warna"
@@ -661,6 +757,110 @@ msgstr "Level"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Level"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Asli"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Garis"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Lembut"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Bersihkan"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Warna"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Ukuran"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Garis"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Sudutpandang"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Level"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "Tidak ada"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Ukuran"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Jarak"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Sudutpandang"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Tumbuh"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Tumbuh"
+
+msgctxt "light effect look: nothing added"
+msgid "None"
+msgstr "Tidak ada"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Ukuran"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Sudutpandang"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Sudutpandang"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Warna"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Tebal"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Lembut"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Ukuran"
 
 msgctxt "effect setting"
 msgid "Size"

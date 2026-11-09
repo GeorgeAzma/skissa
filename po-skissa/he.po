@@ -82,6 +82,70 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "פריסה"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "נקודות"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "קווים"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "פינוי"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "זווית"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "זווית"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "זווית"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "בהירות"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "מרחק"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "חלק"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "ההרשאה נדחתה. ל־Skissa אסור לקרוא מהקובץ או לכתוב אליו."
 
@@ -245,6 +309,18 @@ msgstr "צבע"
 msgctxt "effect group"
 msgid "Other"
 msgstr "אחר"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "ייצוא"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "ייצוא"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "ייצוא"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -490,6 +566,14 @@ msgctxt "an ellipse guide"
 msgid "Ellipse"
 msgstr "אליפסה"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "תמונה"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "שכבה"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "מילוי"
@@ -600,6 +684,10 @@ msgstr "פיקסל"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "רכה"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "אטימות"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -787,6 +875,14 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "עמעום"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "ללא"
+
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "מפה"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&טשטוש…"
@@ -827,6 +923,10 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "מקור"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "מקור"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "צבעים"
@@ -850,6 +950,122 @@ msgstr "רמות"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "רמות"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "מקור"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "קווים"
+
+msgctxt "drawing effect: shading as flat ink"
+msgid "Solid"
+msgstr "אחיד"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "רכה"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "נקודות"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "פינוי"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "צבעים"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "קווים"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "זווית"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "רמות"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "ללא"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "מרחק"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "זווית"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "תפיחה"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "תפיחה"
+
+msgctxt "shape effect: outline on the edge"
+msgid "Center"
+msgstr "מרכז"
+
+msgctxt "light effect look: nothing added"
+msgid "None"
+msgstr "ללא"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "גודל"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "זווית"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "זווית"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "צבע"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "מודגש"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "רכה"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "גודל"
 
 msgctxt "effect setting"
 msgid "Size"

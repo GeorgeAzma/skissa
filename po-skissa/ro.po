@@ -1,5 +1,17 @@
 # Skissa: its own text, with translations Krita already has (packaging/skissa-translations.py)
 
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Culoare"
+
 msgctxt "rendering intent"
 msgid "Saturation"
 msgstr "Saturație"
@@ -65,6 +77,22 @@ msgid "Color"
 msgstr "Culoare"
 
 msgctxt "noise effect preset"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Culoare"
+
+msgctxt "light effect: the streak's color"
 msgid "Color"
 msgstr "Culoare"
 

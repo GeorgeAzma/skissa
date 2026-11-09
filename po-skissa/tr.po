@@ -80,6 +80,66 @@ msgctxt "color drop gap: sized from the lines"
 msgid "Auto"
 msgstr "Kendiliğinden"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Noktalar"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Çizgiler"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Temizle"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Renk"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Boyut"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Açı"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Açı"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Boyut"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Açı"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Boyut"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Renk"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Açıklık"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Uzaklık"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Boyut"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Renk"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "İzin reddedildi. Skissa’nın dosyayı okumasına veya yazmasına izin verilmiyor."
 
@@ -251,6 +311,18 @@ msgstr "Renk"
 msgctxt "effect group"
 msgid "Other"
 msgstr "Diğer"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Dışa Aktar"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Dışa Aktar"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Dışa Aktar"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -508,6 +580,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Eğri"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Görsel"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Katman"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Doldur"
@@ -627,6 +707,10 @@ msgstr "Piksel"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Yumuşak"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Matlık"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -821,6 +905,14 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Soldur"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "Yok"
+
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Eşlemle"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&Bulanıklaştır…"
@@ -857,6 +949,14 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Özgün"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Özgün"
+
+msgctxt "radial blur setting"
+msgid "Light"
+msgstr "Işık"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Renkler"
@@ -880,6 +980,114 @@ msgstr "Düzeyler"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Düzeyler"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Özgün"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Çizgiler"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Yumuşak"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Noktalar"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Temizle"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Renkler"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Boyut"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Çizgiler"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Açı"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Düzeyler"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "Yok"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Renk"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Boyut"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Renk"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Uzaklık"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Açı"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Renk"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Genişlet"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Genişlet"
+
+msgctxt "light effect look: nothing added"
+msgid "None"
+msgstr "Yok"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Boyut"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Açı"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Açı"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Renk"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Kalın"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Yumuşak"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Boyut"
 
 msgctxt "effect setting"
 msgid "Size"

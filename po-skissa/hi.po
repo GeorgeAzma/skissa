@@ -20,6 +20,70 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "फैलाव"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "बिन्दुएँ"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "रेखाएं"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "साफ करें"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "कोण"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "कोण"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "कोण"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "उजालापन"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "दूरी"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "चिकना"
+
 msgctxt "color sampler preview"
 msgid "Right"
 msgstr "दायाँ"
@@ -107,6 +171,18 @@ msgstr "रंग"
 msgctxt "effect group"
 msgid "Other"
 msgstr "अन्य"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "निर्यात"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "निर्यात"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "निर्यात"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -320,6 +396,14 @@ msgctxt "an ellipse guide"
 msgid "Ellipse"
 msgstr "दीर्घवृत्त"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "चित्र"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "परत"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "भरें"
@@ -391,6 +475,10 @@ msgstr "चिकना"
 msgctxt "resampling choice for pixel art"
 msgid "Pixel"
 msgstr "पिक्सेल"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "अपार्दरशिता"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -508,6 +596,10 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "फीका"
 
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "नक्शा"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "धुंधला करें... (&B)"
@@ -544,6 +636,10 @@ msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "मध्य रंगत"
 
+msgctxt "radial blur setting"
+msgid "Light"
+msgstr "लाइट"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "रंग"
@@ -551,6 +647,94 @@ msgstr "रंग"
 msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "पैटर्न"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "रेखाएं"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "बिन्दुएँ"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "साफ करें"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "रंग"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "रेखाएं"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "कोण"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "दूरी"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "कोण"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "बढ़त"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "बढ़त"
+
+msgctxt "shape effect: outline on the edge"
+msgid "Center"
+msgstr "मध्य"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "आकार"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "कोण"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "कोण"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "रंग"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "मोटा"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "आकार"
 
 msgctxt "effect setting"
 msgid "Size"

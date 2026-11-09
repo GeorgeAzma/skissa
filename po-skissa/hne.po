@@ -40,7 +40,19 @@ msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "रंगदानी मं जोड़व"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "कुछ नइ"
+
 msgctxt "no dithering"
+msgid "None"
+msgstr "कुछ नइ"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "कुछ नइ"
+
+msgctxt "light effect look: nothing added"
 msgid "None"
 msgstr "कुछ नइ"
 

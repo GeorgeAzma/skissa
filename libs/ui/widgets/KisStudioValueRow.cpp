@@ -5,6 +5,8 @@
  */
 #include "KisStudioValueRow.h"
 
+#include <QtMath>
+
 #include "KisStudioTips.h"
 
 #include <KisTouchMode.h>
@@ -168,6 +170,25 @@ QRectF KisStudioValueRow::removeRect() const
     return QRectF(right - 16, (height() - 16) / 2.0, 16, 16);
 }
 
+QRectF KisStudioValueRow::dialRect() const
+{
+    const QRectF content = textArea();
+    const qreal side = qMin<qreal>(height() - 2 * KisModernStyle::space1, 22);
+    const qreal number = fontMetrics().horizontalAdvance(text());
+    return QRectF(content.right() - number - KisModernStyle::space2 - side, (height() - side) / 2.0, side, side);
+}
+
+qreal KisStudioValueRow::angleAt(const QPointF &pos) const
+{
+    const QPointF from = pos - dialRect().center();
+    qreal degrees = qRadiansToDegrees(std::atan2(from.y(), from.x())) - m_range.dialTurn;
+    // a direction either way (a range half a turn wide) or all around
+    const qreal turn = m_range.maximum - m_range.minimum <= 180.5 ? 180 : 360;
+    while (degrees < m_range.minimum) degrees += turn;
+    while (degrees > m_range.maximum) degrees -= turn;
+    return qRound(degrees);
+}
+
 QRectF KisStudioValueRow::textArea() const
 {
     QRectF content = QRectF(rect()).adjusted(KisModernStyle::space3, 0, -KisModernStyle::space3, 0);
@@ -261,7 +282,7 @@ void KisStudioValueRow::paintEvent(QPaintEvent *)
     }
     painter.fillPath(shape, ground);
 
-    if (m_draggable && !m_inactive) {
+    if (m_draggable && !m_inactive && !m_range.angle) {
         QColor bar = ink;
         bar.setAlphaF(0.08);
         painter.save();
@@ -323,6 +344,19 @@ void KisStudioValueRow::paintEvent(QPaintEvent *)
         painter.drawText(pill, Qt::AlignCenter, i18nc("chosen for itself, as a switch on a setting's row", "Auto"));
         painter.setBrush(Qt::NoBrush);
     }
+    if (m_range.angle) {
+        // a dial pointing where the angle does
+        const QRectF dial = dialRect().adjusted(1, 1, -1, -1);
+        QColor rim = ink;
+        rim.setAlphaF(m_dialing ? 0.55 : 0.3);
+        painter.setPen(QPen(rim, 1.2));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(dial);
+        const qreal radians = qDegreesToRadians(m_value + m_range.dialTurn);
+        const QPointF tip = dial.center() + QPointF(std::cos(radians), std::sin(radians)) * (dial.width() / 2 - 1.5);
+        painter.setPen(QPen(ink, 1.8, Qt::SolidLine, Qt::RoundCap));
+        painter.drawLine(dial.center(), tip);
+    }
     // while it is typed, the editor stands where the value is
     if (m_editing) return;
     painter.setPen(KisModernStyle::secondaryInk(ink));
@@ -353,6 +387,14 @@ void KisStudioValueRow::mousePressEvent(QMouseEvent *event)
         event->accept();
         return;
     }
+    if (m_range.angle && m_draggable && dialRect().adjusted(-4, -4, 4, 4).contains(event->pos())) {
+        // turned around the dial
+        m_dialing = true;
+        change(angleAt(event->pos()));
+        update();
+        event->accept();
+        return;
+    }
     m_pressed = true;
     m_dragging = false;
     m_pressY = eventY(event);
@@ -364,6 +406,13 @@ void KisStudioValueRow::mousePressEvent(QMouseEvent *event)
 
 void KisStudioValueRow::mouseMoveEvent(QMouseEvent *event)
 {
+    if (m_dialing) {
+        if (event->buttons() & Qt::LeftButton) change(angleAt(event->pos()));
+        else m_dialing = false;
+        update();
+        event->accept();
+        return;
+    }
     if (!m_pressed || !m_draggable) {
         QWidget::mouseMoveEvent(event);
         return;
@@ -432,6 +481,12 @@ void KisStudioValueRow::wheelEvent(QWheelEvent *event)
 
 void KisStudioValueRow::mouseReleaseEvent(QMouseEvent *event)
 {
+    if (m_dialing) {
+        m_dialing = false;
+        update();
+        event->accept();
+        return;
+    }
     if (!m_pressed || event->button() != Qt::LeftButton) {
         QWidget::mouseReleaseEvent(event);
         return;

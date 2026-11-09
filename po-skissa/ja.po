@@ -69,6 +69,58 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "スプレッド"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "点線"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "クリア"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "色"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "サイズ"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "角度"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "角度"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "サイズ"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "角度"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "サイズ"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "色"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "距離"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "サイズ"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "色"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "アクセスが拒否されました。Skissa はファイルの読み取りまたは書き込みが許可されていません。"
 
@@ -188,6 +240,18 @@ msgstr "色"
 msgctxt "effect group"
 msgid "Other"
 msgstr "その他"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "エクスポート"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "エクスポート"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "エクスポート"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -405,6 +469,14 @@ msgctxt "an ellipse guide"
 msgid "Ellipse"
 msgstr "楕円"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "画像"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "レイヤー"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "塗りつぶし"
@@ -517,6 +589,10 @@ msgstr "ピクセル"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "ソフト"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "不透明度"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -699,6 +775,10 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "減衰"
 
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "マッピング"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "ぼかし(&B)..."
@@ -723,6 +803,10 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "オリジナル"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "オリジナル"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "色"
@@ -742,6 +826,98 @@ msgstr "レベル補正"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "レベル補正"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "オリジナル"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "ソフト"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "点線"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "クリア"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "色"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "サイズ"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "角度"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "レベル補正"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "色"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "サイズ"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "色"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "距離"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "角度"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "色"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "拡大"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "拡大"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "サイズ"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "角度"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "角度"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "色"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "太字"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "ソフト"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "サイズ"
 
 msgctxt "effect setting"
 msgid "Size"

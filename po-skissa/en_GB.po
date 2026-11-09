@@ -80,6 +80,70 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Spread"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Dots"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Lines"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Clear"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Colour"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Size"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Size"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Size"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Colour"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Lightness"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Distance"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Size"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Colour"
+
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "Smooth"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Permission denied. Skissa is not allowed to read or write to the file."
 
@@ -251,6 +315,18 @@ msgstr "Colour"
 msgctxt "effect group"
 msgid "Other"
 msgstr "Other"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Export"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Export"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Export"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -516,6 +592,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Curve"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Image"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Layer"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Fill"
@@ -648,6 +732,10 @@ msgstr "Pixel"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Soft"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Opacity"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -850,6 +938,14 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Fade"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "None"
+
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Map"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&Blur..."
@@ -894,6 +990,14 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Original"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "radial blur setting"
+msgid "Light"
+msgstr "Light"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Colours"
@@ -913,6 +1017,118 @@ msgstr "Levels"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Levels"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Original"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Lines"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Soft"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Dots"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Clear"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Colours"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Size"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Lines"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Levels"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "None"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Colour"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Size"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Colour"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Distance"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Colour"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Grow"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Grow"
+
+msgctxt "shape effect: outline on the edge"
+msgid "Center"
+msgstr "Centre"
+
+msgctxt "light effect look: nothing added"
+msgid "None"
+msgstr "None"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Size"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Angle"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Colour"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Bold"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Soft"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Size"
 
 msgctxt "effect setting"
 msgid "Size"

@@ -68,6 +68,42 @@ msgctxt "color drop gap: sized from the lines"
 msgid "Auto"
 msgstr "自動"
 
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "亮度"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "距離"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "色彩"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "沒有權限。該檔案不允許 Skissa 進行讀寫。"
 
@@ -400,6 +436,14 @@ msgctxt "an ellipse guide"
 msgid "Ellipse"
 msgstr "橢圓"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "影像"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "圖層"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "填充"
@@ -516,6 +560,10 @@ msgstr "像素"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "柔和"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "不透明度"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -702,6 +750,14 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "淡化"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "無"
+
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "映射"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "模糊(&B)…"
@@ -738,6 +794,10 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "原始"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "原始"
+
 msgctxt "fewer colors effect setting"
 msgid "Brightness"
 msgstr "亮度"
@@ -757,6 +817,78 @@ msgstr "色階"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "色階"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "原始"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "柔和"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "色階"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "無"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "距離"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "擴張"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "擴張"
+
+msgctxt "light effect look: nothing added"
+msgid "None"
+msgstr "無"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "大小"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "色彩"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "粗體"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "柔和"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "大小"
 
 msgctxt "effect setting"
 msgid "Size"

@@ -6,6 +6,8 @@
 #ifndef SKISSACOLOR_H
 #define SKISSACOLOR_H
 
+#include <QColor>
+#include <QPair>
 #include <QPointF>
 #include <QString>
 #include <QVector>
@@ -17,9 +19,10 @@
 class KisPropertiesConfiguration;
 
 /**
- * The Color effect: every pixel's color changed by its color alone, in OKLCH. Curves give each of lightness,
- * chroma and hue by each of them (lightness by lightness is the tone curve, chroma by hue the saturation of one
- * hue), then a white balance, tints for the shadows and highlights, and red, green and blue curves.
+ * The Color effect: every pixel's color changed by its color alone, in OKLCH. A gradient map first, if any: each
+ * lightness becomes a color, blended between its stops in Oklab. Then curves give each of lightness, chroma and hue
+ * by each of them (lightness by lightness is the tone curve, chroma by hue the saturation of one hue), a white
+ * balance, tints for the shadows and highlights, and red, green and blue curves.
  */
 namespace SkissaColor
 {
@@ -46,7 +49,20 @@ float axisOfHue(float degrees);
 /// The OKLCH hue, in degrees, at \p x on the hue axis
 float hueOfAxis(float x);
 
+using Stops = QVector<QPair<qreal, QColor>>;
+
+/// The color of a gradient map's \p stops at lightness \p at (Oklab, linear): blended in Oklab, or in \p steps
+void mapAt(const Stops &stops, bool steps, float at, float lab[3]);
+
 struct Settings {
+    /// The gradient map, from black to white; empty: none
+    Stops map;
+    /// Each lightness takes its nearest stop's color, not a blend
+    bool mapSteps {false};
+    /// The map gives only hue and chroma; each pixel keeps its lightness
+    bool mapKeepsLightness {false};
+    /// How much of the map's color, mixed in Oklab with the pixel's own
+    float mapStrength {1};
     std::array<std::array<Curve, 3>, 3> curves; ///< [by][change]
     std::array<Curve, 3> rgb;
     /// OKLab a and b: the cast added to the whole image (moved toward orange, it warms), and the tints
@@ -85,6 +101,10 @@ private:
     bool m_turns {false};
     bool m_nothing {true};
     float m_gain[3] {1, 1, 1};
+    /// The gradient map in Oklab, a color for each step of lightness
+    QVector<float> m_map;
+    bool m_mapKeepsLightness {false};
+    float m_mapStrength {1};
     QPointF m_shadows;
     QPointF m_highlights;
 };

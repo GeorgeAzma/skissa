@@ -70,6 +70,62 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "퍼짐"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "점"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "선"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "지우기"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "색상"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "크기"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "각도"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "각도"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "크기"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "각도"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "크기"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "색상"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "광도"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "크기"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "색상"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "권한이 거부되었습니다. Skissa에서 파일을 읽거나 쓸 수 없습니다."
 
@@ -213,6 +269,18 @@ msgstr "색상"
 msgctxt "effect group"
 msgid "Other"
 msgstr "기타"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "내보내기"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "내보내기"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "내보내기"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -462,6 +530,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "곡선"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "이미지"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "레이어"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "채우기"
@@ -559,6 +635,10 @@ msgstr "픽셀"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "부드러움"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "불투명도"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -726,6 +806,14 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "페이드"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "없음"
+
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "맵"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "흐림(&B)..."
@@ -762,6 +850,14 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "원본"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "원본"
+
+msgctxt "radial blur setting"
+msgid "Light"
+msgstr "얇음"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "색상"
@@ -781,6 +877,114 @@ msgstr "레벨"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "레벨"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "원본"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "선"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "부드러움"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "점"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "지우기"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "색상"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "크기"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "선"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "각도"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "레벨"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "없음"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "색상"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "크기"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "색상"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "각도"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "색상"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "확장"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "확장"
+
+msgctxt "shape effect: outline on the edge"
+msgid "Center"
+msgstr "중앙"
+
+msgctxt "light effect look: nothing added"
+msgid "None"
+msgstr "없음"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "크기"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "각도"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "각도"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "색상"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "굵게"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "부드러움"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "크기"
 
 msgctxt "effect setting"
 msgid "Size"

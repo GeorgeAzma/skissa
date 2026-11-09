@@ -4,6 +4,10 @@ msgctxt "resampling filter: sharp, without halos"
 msgid "Smooth"
 msgstr "Čábbát"
 
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "Čábbát"
+
 msgctxt "@item:inmenu color picker: HSV square"
 msgid "Square"
 msgstr "Boksa"

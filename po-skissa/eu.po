@@ -69,6 +69,62 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Zabaldu"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Puntuak"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Garbitu"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Tamaina"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Angelua"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Angelua"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Tamaina"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Angelua"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Tamaina"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Argitasuna"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Distantzia"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Tamaina"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Kolorea"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Baimena ukatu da. Skissak ez du fitxategi hau irakurtzeko edo idazteko baimenik."
 
@@ -208,6 +264,18 @@ msgstr "Kolorea"
 msgctxt "effect group"
 msgid "Other"
 msgstr "Bestelakoak"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Esportatu"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Esportatu"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Esportatu"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -441,6 +509,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Kurba"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Irudia"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Geruza"
+
 msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Atxiki saretara"
@@ -519,6 +595,10 @@ msgstr "«AppImage» berria zama-jaitsi da %1(e)ra. Eguneratzea osatzeko, itxi S
 msgctxt "curve preset"
 msgid "Linear"
 msgstr "Lineala"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Opakutasuna"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -678,6 +758,14 @@ msgctxt "color effect preset"
 msgid "Auto"
 msgstr "Automatikoa"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "Bat ere ez"
+
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Mapa"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&Lausotu..."
@@ -710,6 +798,10 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Jatorrizkoa"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Jatorrizkoa"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Koloreak"
@@ -729,6 +821,98 @@ msgstr "Mailak"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Mailak"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Jatorrizkoa"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Puntuak"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Garbitu"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Koloreak"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Tamaina"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Angelua"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Mailak"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "Bat ere ez"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Tamaina"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Distantzia"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Angelua"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Handitu"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Handitu"
+
+msgctxt "light effect look: nothing added"
+msgid "None"
+msgstr "Bat ere ez"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Tamaina"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Angelua"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Angelua"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Kolorea"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Lodia"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Tamaina"
 
 msgctxt "effect setting"
 msgid "Size"

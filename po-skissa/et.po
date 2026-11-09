@@ -63,6 +63,34 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Valguvus"
 
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Värv"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Nurk"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Nurk"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Nurk"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Värv"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Vahemaa"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Värv"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Õigused puuduvad. Skissal pole lubatud faili lugeda ega kirjutada."
 
@@ -332,6 +360,10 @@ msgctxt "a guide"
 msgid "Perspective"
 msgstr "Perspektiiv"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Pilt"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Täitmine"
@@ -515,6 +547,10 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Hajumine"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "Puudub"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&Hägustamine..."
@@ -530,6 +566,10 @@ msgstr "Värv"
 msgctxt "noise effect preset"
 msgid "Color"
 msgstr "Värv"
+
+msgctxt "radial blur setting"
+msgid "Light"
+msgstr "Hele"
 
 msgctxt "fewer colors effect setting"
 msgid "Colors"
@@ -550,6 +590,62 @@ msgstr "Tasemed"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Tasemed"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Värvid"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Nurk"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Tasemed"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "Puudub"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Värv"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Värv"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Vahemaa"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Nurk"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Värv"
+
+msgctxt "light effect look: nothing added"
+msgid "None"
+msgstr "Puudub"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Nurk"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Nurk"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Värv"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Rasvane"
 
 msgctxt "noise effect setting"
 msgid "Color"

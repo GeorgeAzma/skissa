@@ -45,6 +45,66 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Rozptyl"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Tečky"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Čáry"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Vymazat"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Úhel"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Úhel"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Úhel"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Jas"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Vzdálenost"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Barva"
+
 msgctxt "canvas renderer"
 msgid "Auto"
 msgstr "Automaticky"
@@ -172,6 +232,18 @@ msgstr "Obnovit"
 msgctxt "effect group"
 msgid "Color"
 msgstr "Barva"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Exportovat"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Exportovat"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Exportovat"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -425,6 +497,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Křivka"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Obrázek"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Vrstva"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Vyplnit"
@@ -503,6 +583,10 @@ msgstr "Pixel"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Jemně"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Krytí"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -660,6 +744,14 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Blednutí"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "Žádný"
+
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Mapování"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "Rozostře&ní..."
@@ -696,6 +788,10 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Originál"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Originál"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Barvy"
@@ -719,6 +815,118 @@ msgstr "Úrovně"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Úrovně"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Originál"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Čáry"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Jemně"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Tečky"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Vymazat"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Barvy"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Čáry"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Úhel"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Úrovně"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "Žádný"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Vzdálenost"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Úhel"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Zvětšit"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Zvětšit"
+
+msgctxt "shape effect: outline on the edge"
+msgid "Center"
+msgstr "Střed"
+
+msgctxt "light effect look: nothing added"
+msgid "None"
+msgstr "Žádný"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Úhel"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Úhel"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Tučné"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Jemně"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Velikost"
 
 msgctxt "effect setting"
 msgid "Size"

@@ -84,6 +84,66 @@ msgctxt "color drop gap: sized from the lines"
 msgid "Auto"
 msgstr "Автоматично"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Точка"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Редове"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Изчистване"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Цвят"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Ъгъл"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Ъгъл"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Ъгъл"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Цвят"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Разстояние"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Цвят"
+
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "Изглаждане"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Отказан достъп. Skissa няма разрешение за четене или запис на файла."
 
@@ -227,6 +287,18 @@ msgstr "Цвят"
 msgctxt "effect group"
 msgid "Other"
 msgstr "Други"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Експортиране"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Експортиране"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Експортиране"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -468,6 +540,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Крива"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Изображение"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Слой"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Запълване"
@@ -595,6 +675,10 @@ msgstr "Пиксел"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Меко"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Непрозрачност"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -781,6 +865,10 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Избледняване"
 
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Карта"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&Замъгляване..."
@@ -817,6 +905,14 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Оригинал"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Оригинал"
+
+msgctxt "radial blur setting"
+msgid "Light"
+msgstr "Лек"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Цветове"
@@ -836,6 +932,106 @@ msgstr "Нива"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Нива"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Оригинал"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Редове"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Меко"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Точка"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Изчистване"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Цветове"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Редове"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Ъгъл"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Нива"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Цвят"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Цвят"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Разстояние"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Ъгъл"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Цвят"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Увеличаване"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Увеличаване"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Ъгъл"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Ъгъл"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Цвят"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Получер"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Меко"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Размер"
 
 msgctxt "effect setting"
 msgid "Size"

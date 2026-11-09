@@ -60,6 +60,62 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Širjenje"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Pike"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Črte"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Počisti"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Kot"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Kot"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Kot"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Razdalja"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Barva"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Dovoljenje zavrnjeno. Skissa ne sme brati ali pisati v datoteko."
 
@@ -211,6 +267,18 @@ msgstr "Barva"
 msgctxt "effect group"
 msgid "Other"
 msgstr "Drugo"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Izvozi"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Izvozi"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Izvozi"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -456,6 +524,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Krivulja"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Slika"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Plast"
+
 msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Pripni na vodila"
@@ -558,6 +634,10 @@ msgstr "Slikovna točka"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Mehko"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Prekrivnost"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -736,6 +816,10 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Pojemanje"
 
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Preslikaj"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "Zabri&ši ..."
@@ -768,6 +852,10 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Izvirnik"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Izvirnik"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Barve"
@@ -787,6 +875,106 @@ msgstr "Ravni"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Ravni"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Izvirnik"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Črte"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Mehko"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Pike"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Počisti"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Barve"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Črte"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Kot"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Ravni"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Razdalja"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Kot"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Pusti rasti"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Pusti rasti"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Velikost"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Kot"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Kot"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Barva"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Krepko"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Mehko"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Velikost"
 
 msgctxt "effect setting"
 msgid "Size"

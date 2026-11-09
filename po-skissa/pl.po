@@ -44,6 +44,66 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Rozsianie"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Kropki"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Linie"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Wyczyść"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Rozmiar"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Kąt"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Kąt"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Rozmiar"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Kąt"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Rozmiar"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Odległość"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Rozmiar"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "Wygładź"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Odmówiono uprawnień. Skissa nie jest uprawniona do odczytu lub zapisu do pliku."
 
@@ -368,6 +428,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Krzywa"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Obraz"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Warstwa"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Wypełnienie"
@@ -462,6 +530,10 @@ msgstr "Wygładź"
 msgctxt "resampling choice for pixel art"
 msgid "Pixel"
 msgstr "Piksel"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Nieprzezroczystość"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -636,6 +708,94 @@ msgstr "Poziomy"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Poziomy"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Linie"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Kropki"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Wyczyść"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Barwy"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Rozmiar"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Linie"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Kąt"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Poziomy"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Rozmiar"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Odległość"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Kąt"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Zwiększ"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Zwiększ"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Rozmiar"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Kąt"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Kąt"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Barwa"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Pogrubienie"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Rozmiar"
 
 msgctxt "effect setting"
 msgid "Size"

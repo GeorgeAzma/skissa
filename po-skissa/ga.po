@@ -76,6 +76,66 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Scaipeadh"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Poncanna"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Línte"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Glan"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Méid"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Uillinn"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Uillinn"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Méid"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Uillinn"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Méid"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Éadromacht"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Fad"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Méid"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Dath"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Cead diúltaithe. Níl cead ag Skissa an comhad a léamh ná a scríobh chuige."
 
@@ -227,6 +287,18 @@ msgstr "Dath"
 msgctxt "effect group"
 msgid "Other"
 msgstr "Eile"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Easpórtáil"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Easpórtáil"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Easpórtáil"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -472,6 +544,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Cuar"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Íomhá"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Sraith"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Líon"
@@ -595,6 +675,10 @@ msgstr "Picteilín"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Bog"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Teimhneacht"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -789,6 +873,10 @@ msgctxt "color effect preset"
 msgid "Original"
 msgstr "Bunaidh"
 
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Mapa"
+
 msgctxt "effect"
 msgid "Sharpen"
 msgstr "Géaraigh"
@@ -817,6 +905,14 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Bunaidh"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Bunaidh"
+
+msgctxt "radial blur setting"
+msgid "Light"
+msgstr "Solas"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Dathanna"
@@ -832,6 +928,114 @@ msgstr "Leibhéil"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Leibhéil"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Bunaidh"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Línte"
+
+msgctxt "drawing effect: shading as flat ink"
+msgid "Solid"
+msgstr "Soladach"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Bog"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Poncanna"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Glan"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Dathanna"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Méid"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Línte"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Uillinn"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Leibhéil"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Méid"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Fad"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Uillinn"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Fás"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Fás"
+
+msgctxt "shape effect: outline on the edge"
+msgid "Center"
+msgstr "Lár"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Méid"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Uillinn"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Uillinn"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Dath"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Trom"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Bog"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Méid"
 
 msgctxt "effect setting"
 msgid "Size"

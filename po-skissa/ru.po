@@ -76,6 +76,46 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Размах"
 
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Линии"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Цвет"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Цвет"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Светлота"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Расстояние"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Цвет"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Отказано в доступе. У Skissa нет прав для чтения и записи в файл."
 
@@ -388,6 +428,10 @@ msgctxt "an ellipse guide"
 msgid "Ellipse"
 msgstr "Эллипс"
 
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Слой"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Заливка"
@@ -472,6 +516,10 @@ msgstr "Новый пакет AppImage был загружен в %1. Чтобы
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Мягкий"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Непрозрачность"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -638,6 +686,10 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Угасание"
 
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Карта"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&Размывание..."
@@ -677,6 +729,74 @@ msgstr "Уровни"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Уровни"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Линии"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Мягкий"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Цвета"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Линии"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Уровни"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Цвет"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Цвет"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Расстояние"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Цвет"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Увеличение"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Увеличение"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Размер"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Цвет"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Мягкий"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Размер"
 
 msgctxt "effect setting"
 msgid "Size"

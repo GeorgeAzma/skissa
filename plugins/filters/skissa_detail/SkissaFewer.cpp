@@ -80,6 +80,22 @@ const std::array<float, 64> &bayer()
     return pattern;
 }
 
+float thresholdAt(Dither dither, int x, int y)
+{
+    if (dither == Dither::Pattern) return bayer()[(y & 7) * 8 + (x & 7)];
+    return blueNoise()[size_t(y & 63) * 64 + (x & 63)];
+}
+
+QColor colorOfLab(const float lab[3])
+{
+    float rgb[3];
+    KoMixing::oklabToLinear(lab, rgb);
+    return QColor::fromRgbF(KoMixing::srgbOf(std::clamp(rgb[0], 0.0f, 1.0f)), KoMixing::srgbOf(std::clamp(rgb[1], 0.0f, 1.0f)),
+                            KoMixing::srgbOf(std::clamp(rgb[2], 0.0f, 1.0f)));
+}
+
+} // namespace
+
 /**
  * Blue noise, 64 by 64, made by Ulichney's void and cluster: points are added one at a time where they are
  * loneliest, so any threshold of it is spread evenly, without the clumps of white noise or the grid of a pattern.
@@ -157,21 +173,155 @@ const std::vector<float> &blueNoise()
     return noise;
 }
 
-float thresholdAt(Dither dither, int x, int y)
+int cellAt(int pixel, int lod)
 {
-    if (dither == Dither::Pattern) return bayer()[(y & 7) * 8 + (x & 7)];
-    return blueNoise()[size_t(y & 63) * 64 + (x & 63)];
+    return std::max(1, int(std::lround(pixel / std::pow(2.0, lod))));
 }
 
-QColor colorOfLab(const float lab[3])
+QRect cellsOver(const QRect &rect, int cell)
 {
-    float rgb[3];
-    KoMixing::oklabToLinear(lab, rgb);
-    return QColor::fromRgbF(KoMixing::srgbOf(std::clamp(rgb[0], 0.0f, 1.0f)), KoMixing::srgbOf(std::clamp(rgb[1], 0.0f, 1.0f)),
-                            KoMixing::srgbOf(std::clamp(rgb[2], 0.0f, 1.0f)));
+    auto down = [cell](int v) { return v >= 0 ? v / cell : -((-v + cell - 1) / cell); };
+    return QRect(QPoint(down(rect.left()), down(rect.top())), QPoint(down(rect.right()), down(rect.bottom())));
 }
 
-} // namespace
+QRect pixelsOf(const QRect &cells, int cell)
+{
+    return QRect(cells.left() * cell, cells.top() * cell, cells.width() * cell, cells.height() * cell);
+}
+
+std::vector<float> cellColors(const float *pixels, const QRect &read, const QRect &bounds, int cell, const QRect &cells)
+{
+    // each pixel in Oklab times its alpha, and its alpha: a clear pixel is near any other clear one
+    const size_t count = size_t(read.width()) * read.height();
+    std::vector<std::array<float, 4>> lab(count);
+    for (size_t i = 0; i < count; i++) {
+        const float *pixel = pixels + i * 4;
+        const float alpha = std::clamp(pixel[3], 0.0f, 1.0f);
+        const float clamped[3] = {std::max(pixel[0], 0.0f), std::max(pixel[1], 0.0f), std::max(pixel[2], 0.0f)};
+        float c[3];
+        KoMixing::linearToOklab(clamped, c);
+        lab[i] = {c[0] * alpha, c[1] * alpha, c[2] * alpha, alpha};
+    }
+    auto distance = [](const std::array<float, 4> &a, const std::array<float, 4> &b) {
+        float d = 0;
+        for (int k = 0; k < 4; k++) d += (a[k] - b[k]) * (a[k] - b[k]);
+        return d;
+    };
+    const QRect inside = bounds & read;
+    auto pixelsIn = [&](const QPoint &at) { return pixelsOf(QRect(at, QSize(1, 1)), cell) & inside; };
+    // every cell's average, and of those around the cells asked for: what a cell stands out from
+    const QRect around = cells.adjusted(-1, -1, 1, 1);
+    std::vector<std::array<float, 4>> means(size_t(around.width()) * around.height(), {0, 0, 0, 0});
+    std::vector<int> counts(means.size(), 0);
+    for (int cy = around.top(); cy <= around.bottom(); cy++) {
+        for (int cx = around.left(); cx <= around.right(); cx++) {
+            const QRect area = pixelsIn(QPoint(cx, cy));
+            const size_t m = size_t(cy - around.top()) * around.width() + (cx - around.left());
+            for (int y = area.top(); y <= area.bottom(); y++) {
+                for (int x = area.left(); x <= area.right(); x++) {
+                    const std::array<float, 4> &v = lab[size_t(y - read.top()) * read.width() + (x - read.left())];
+                    for (int k = 0; k < 4; k++) means[m][k] += v[k];
+                    counts[m]++;
+                }
+            }
+            if (counts[m]) {
+                for (float &v : means[m]) v /= counts[m];
+            }
+        }
+    }
+    std::vector<float> out(size_t(cells.width()) * cells.height() * 4, 0.0f);
+    std::vector<std::array<float, 4>> samples;
+    std::vector<int> side;
+    for (int cy = cells.top(); cy <= cells.bottom(); cy++) {
+        for (int cx = cells.left(); cx <= cells.right(); cx++) {
+            const size_t m = size_t(cy - around.top()) * around.width() + (cx - around.left());
+            if (!counts[m]) continue;
+            samples.clear();
+            const QRect area = pixelsIn(QPoint(cx, cy));
+            for (int y = area.top(); y <= area.bottom(); y++) {
+                for (int x = area.left(); x <= area.right(); x++) samples.push_back(lab[size_t(y - read.top()) * read.width() + (x - read.left())]);
+            }
+            const std::array<float, 4> &mean = means[m];
+            std::array<float, 4> chosen = mean;
+            // two kinds of color in the cell: from the one farthest from its average and the one farthest from that
+            std::array<float, 4> centers[2];
+            float far = -1;
+            for (const auto &s : samples) {
+                if (distance(s, mean) > far) {
+                    far = distance(s, mean);
+                    centers[0] = s;
+                }
+            }
+            far = -1;
+            for (const auto &s : samples) {
+                if (distance(s, centers[0]) > far) {
+                    far = distance(s, centers[0]);
+                    centers[1] = s;
+                }
+            }
+            if (far > 0.06f * 0.06f) {
+                side.assign(samples.size(), 0);
+                float shares[2] = {0, 0};
+                for (int round = 0; round < 4; round++) {
+                    std::array<float, 4> sums[2] = {{0, 0, 0, 0}, {0, 0, 0, 0}};
+                    shares[0] = shares[1] = 0;
+                    for (size_t i = 0; i < samples.size(); i++) {
+                        side[i] = distance(samples[i], centers[1]) < distance(samples[i], centers[0]) ? 1 : 0;
+                        for (int k = 0; k < 4; k++) sums[side[i]][k] += samples[i][k];
+                        shares[side[i]]++;
+                    }
+                    for (int j = 0; j < 2; j++) {
+                        if (shares[j] > 0) {
+                            for (int k = 0; k < 4; k++) centers[j][k] = sums[j][k] / shares[j];
+                        }
+                    }
+                }
+                if (distance(centers[0], centers[1]) > 0.06f * 0.06f) {
+                    // what is around the cell
+                    std::array<float, 4> context = {0, 0, 0, 0};
+                    int seen = 0;
+                    for (int dy = -1; dy <= 1; dy++) {
+                        for (int dx = -1; dx <= 1; dx++) {
+                            const size_t n = size_t(cy + dy - around.top()) * around.width() + (cx + dx - around.left());
+                            if ((dx || dy) && counts[n]) {
+                                for (int k = 0; k < 4; k++) context[k] += means[n][k];
+                                seen++;
+                            }
+                        }
+                    }
+                    if (seen) {
+                        for (float &v : context) v /= seen;
+                    } else {
+                        context = mean;
+                    }
+                    /*
+                     * Of the two, the one that stands for the cell best: the larger, unless the other stands out
+                     * from what is around the cell (a line, an edge's dark side) and is more than a speck, so thin
+                     * lines stay whole, as a pixel artist keeps them
+                     */
+                    float best = -1;
+                    for (int j = 0; j < 2; j++) {
+                        const float share = shares[j] / samples.size();
+                        if (share < 0.2f) continue;
+                        const float score = share * (std::sqrt(distance(centers[j], context)) + 0.05f);
+                        if (score > best) {
+                            best = score;
+                            chosen = centers[j];
+                        }
+                    }
+                }
+            }
+            float *to = out.data() + (size_t(cy - cells.top()) * cells.width() + (cx - cells.left())) * 4;
+            const float alpha = chosen[3];
+            if (alpha > 1e-4f) {
+                const float c[3] = {chosen[0] / alpha, chosen[1] / alpha, chosen[2] / alpha};
+                KoMixing::oklabToLinear(c, to);
+            }
+            to[3] = alpha;
+        }
+    }
+    return out;
+}
 
 Settings Settings::from(const KisPropertiesConfiguration &config)
 {
@@ -192,6 +342,7 @@ Settings Settings::from(const KisPropertiesConfiguration &config)
     settings.palette = config.getString("palette");
     settings.amount = float(std::clamp(config.getDouble("amount", 1), 0.0, 1.0));
     settings.lightness = float(std::clamp(config.getDouble("lightness", 0), -0.5, 0.5));
+    settings.pixel = std::clamp(config.getInt("pixel", 1), 1, 256);
     return settings;
 }
 
@@ -208,12 +359,13 @@ void Settings::writeTo(KisPropertiesConfiguration &config) const
     config.setProperty("dither", QString::fromLatin1(ditherKeys[int(dither)]));
     config.setProperty("amount", double(amount));
     config.setProperty("lightness", double(lightness));
+    config.setProperty("pixel", pixel);
 }
 
 bool Settings::operator==(const Settings &other) const
 {
     return source == other.source && count == other.count && (!takesColors() || colors == other.colors) && dither == other.dither
-        && (dither == Dither::None || amount == other.amount) && lightness == other.lightness;
+        && (dither == Dither::None || amount == other.amount) && lightness == other.lightness && pixel == other.pixel;
 }
 
 Quantizer::Quantizer(const Settings &settings)
@@ -522,7 +674,7 @@ QVector<QColor> colorsOf(const QImage &image, int count)
     return colors;
 }
 
-QImage applied(const QImage &image, const QPoint &corner, const Settings &settings)
+QImage applied(const QImage &image, const QPoint &corner, const Settings &settings, qreal scale)
 {
     const QImage picture = image.convertToFormat(QImage::Format_ARGB32);
     const int w = picture.width(), h = picture.height();
@@ -540,7 +692,33 @@ QImage applied(const QImage &image, const QPoint &corner, const Settings &settin
         }
     }
     const Quantizer quantizer(settings);
-    if (settings.dither == Dither::Diffuse) {
+    const int cell = std::max(1, int(std::lround(settings.pixel * scale)));
+    if (cell > 1) {
+        // the cells' colors, with fewer colors as one pixel each, then spread over their cells
+        const QRect rect(corner, picture.size());
+        const QRect cells = cellsOver(rect, cell);
+        std::vector<float> colors = cellColors(pixels.data(), rect, rect, cell, cells);
+        const int cw = cells.width(), ch = cells.height();
+        if (settings.dither == Dither::Diffuse) {
+            Diffuser diffuser(settings, quantizer, cw);
+            std::vector<quint16> chosen(cw);
+            for (int y = 0; y < ch; y++) {
+                float *row = colors.data() + size_t(y) * cw * 4;
+                diffuser.row(row, chosen.data());
+                for (int x = 0; x < cw; x++) {
+                    if (chosen[x] != Diffuser::none) std::copy_n(quantizer.colorOf(chosen[x]), 3, row + size_t(x) * 4);
+                }
+            }
+        } else {
+            apply(settings, quantizer, colors.data(), cells);
+        }
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                const QPoint at = cellsOver(QRect(corner + QPoint(x, y), QSize(1, 1)), cell).topLeft() - cells.topLeft();
+                std::copy_n(colors.data() + (size_t(at.y()) * cw + at.x()) * 4, 4, pixels.data() + (size_t(y) * w + x) * 4);
+            }
+        }
+    } else if (settings.dither == Dither::Diffuse) {
         Diffuser diffuser(settings, quantizer, w);
         std::vector<quint16> chosen(w);
         for (int y = 0; y < h; y++) {

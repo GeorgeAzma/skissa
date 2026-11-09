@@ -1,0 +1,82 @@
+/*
+ *  SPDX-FileCopyrightText: 2026 GeorgeAzma <lumi.main.mail@gmail.com>
+ *
+ *  SPDX-License-Identifier: GPL-2.0-or-later
+ */
+#ifndef SKISSALIGHT_H
+#define SKISSALIGHT_H
+
+#include <QColor>
+#include <QImage>
+#include <QRect>
+
+class KisPropertiesConfiguration;
+
+/**
+ * Light: the bright parts of the picture scattering light as an eye or a lens does, added in linear light. What
+ * shines is what looks brighter (cube root of luminance) than a share of the layer's brightest parts, with a soft
+ * knee; the whitest parts shine most, as the clipped light they stand for (an inverse Reinhard curve). It spreads
+ * three ways:
+ *
+ * - Glow: the glare of scattered light, falling off as a power of the distance (about r^-2.6, as the eye's glare
+ *   does), made of Gaussians an octave apart whose weights follow that power, up to Size.
+ * - Star: diffraction spikes of an aperture's blades, Points of them, fading exponentially along their length; the
+ *   longer waves spread further (diffraction grows with wavelength), so the spikes' ends turn red.
+ * - Streak: the long line of an anamorphic lens, one direction, in its own color.
+ */
+namespace SkissaLight
+{
+
+struct Settings {
+    /// What shines: brighter than this share of the brightest parts
+    float threshold {0.75f};
+    /// How bright the layer's brightest parts look (cube root of luminance), found by the panel so that every patch
+    /// and preview agrees
+    float top {1};
+    /// Glow: how strong, and how far it reaches in pixels
+    float glow {1};
+    float size {60};
+    /// Star: how strong, how long its spikes are in pixels, how many, turned by how many degrees
+    float star {0};
+    float length {80};
+    int points {6};
+    float angle {15};
+    /// Streak: how strong, how long in pixels, at which angle, in which color
+    float streak {0};
+    float streakLength {300};
+    float streakAngle {0};
+    QColor streakColor {QColor(110, 170, 255)};
+
+    static Settings from(const KisPropertiesConfiguration &config);
+    void writeTo(KisPropertiesConfiguration &config) const;
+    bool operator==(const Settings &other) const;
+    bool operator!=(const Settings &other) const { return !(*this == other); }
+    bool changesNothing() const;
+};
+
+/// Light at \p scale of the image's size (a level of detail)
+class Light
+{
+public:
+    Light(const Settings &settings, qreal scale);
+
+    /// How far it reads around what it makes
+    int reach() const;
+
+    /**
+     * \p source (linear red, green, blue and alpha over \p sourceRect, which holds \p rect and reach() around it)
+     * with the light added, written to \p out for \p rect
+     */
+    void apply(const float *source, const QRect &sourceRect, const QRect &rect, float *out) const;
+
+private:
+    Settings m_settings;
+    qreal m_scale {1};
+};
+
+/// \p image (8-bit sRGB) with light at \p scale
+QImage applied(const QImage &image, const Settings &settings, qreal scale);
+
+} // namespace SkissaLight
+
+#endif

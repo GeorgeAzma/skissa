@@ -78,6 +78,66 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "გავრცელება"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "წერტილები"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "ხაზები"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "გაწმენდა"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "ფერი"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "ზომა"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "კუთხე"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "კუთხე"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "ზომა"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "კუთხე"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "ზომა"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "ფერი"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "მანძილი"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "ზომა"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "ფერი"
+
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "რბილი"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "წვდომა აკრძალულია. Skissa-ს ფაილში ჩაწერის ან ფაილიდან წაკითხვის უფლება არ გააჩნია."
 
@@ -225,6 +285,18 @@ msgstr "ფერი"
 msgctxt "effect group"
 msgid "Other"
 msgstr "სხვა"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "გატანა"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "გატანა"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "გატანა"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -482,6 +554,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "მრუდი"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "გამოსახულება"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "ფენა"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "შევსება"
@@ -611,6 +691,10 @@ msgstr "პიქსელი"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "რბილი"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "გაუმჭვირვალობა"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -785,6 +869,10 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "მინავლება"
 
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "რუკა"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&ბუნდოვნება..."
@@ -825,6 +913,14 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "ორიგინალი"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "ორიგინალი"
+
+msgctxt "radial blur setting"
+msgid "Light"
+msgstr "მსუბუქი"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "ფერები"
@@ -844,6 +940,110 @@ msgstr "დონეები"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "დონეები"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "ორიგინალი"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "ხაზები"
+
+msgctxt "drawing effect: shading as flat ink"
+msgid "Solid"
+msgstr "მყარი"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "რბილი"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "წერტილები"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "გაწმენდა"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "ფერები"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "ზომა"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "ხაზები"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "კუთხე"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "დონეები"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "ფერი"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "ზომა"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "ფერი"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "მანძილი"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "კუთხე"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "ფერი"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "გაზრდა"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "გაზრდა"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "ზომა"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "კუთხე"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "კუთხე"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "ფერი"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "გასქელება"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "რბილი"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "ზომა"
 
 msgctxt "effect setting"
 msgid "Size"

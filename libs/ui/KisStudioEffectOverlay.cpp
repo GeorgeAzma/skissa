@@ -617,9 +617,12 @@ struct KisStudioEffectOverlay::Private
         cursorSet = on;
         QPointF middle;
         if (on) {
+            // the ways a drag changes something
+            Qt::Orientations axes = knobs.size() > 1 ? Qt::Horizontal | Qt::Vertical : Qt::Horizontal;
+            if (editor) axes = editor->canvasAxes();
             QApplication::setOverrideCursor(editor && editor->canvasMiddle(&middle) ? Qt::CrossCursor
-                                                : editor                             ? Qt::SizeVerCursor
-                                                : knobs.size() > 1                   ? Qt::SizeAllCursor
+                                                : axes == (Qt::Horizontal | Qt::Vertical) ? Qt::SizeAllCursor
+                                                : axes == Qt::Vertical               ? Qt::SizeVerCursor
                                                                                      : Qt::SizeHorCursor);
         } else {
             QApplication::restoreOverrideCursor();
@@ -778,8 +781,14 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
 
     const QString instead = KisRetiredEffects::replacement(filter->id());
     if (KisFilterSP replacement = instead.isEmpty() ? KisFilterSP() : KisFilterRegistry::instance()->value(instead)) {
+        const QVariantMap asked = KisRetiredEffects::replacementSettings(filter->id());
         filter = replacement;
         overrideDefaultConfig = KisFilterManager::lastUsedConfiguration(filter, viewManager->activeNode()->paintDevice());
+        if (!asked.isEmpty()) {
+            overrideDefaultConfig = overrideDefaultConfig ? overrideDefaultConfig->clone()
+                                                          : filter->defaultConfiguration(KisGlobalResourcesInterface::instance());
+            for (auto it = asked.constBegin(); it != asked.constEnd(); ++it) overrideDefaultConfig->setProperty(it.key(), it.value());
+        }
     }
 
     d->filter = filter;
@@ -1180,6 +1189,12 @@ bool KisStudioEffectOverlay::handleEditorEvent(QEvent *event, const QPointF &pos
             d->editMoved = QPointF();
             d->editLast = pos;
             d->editStart = pos;
+            // what the drag changes shows at once, before it moves
+            QPointF middle;
+            if (!d->editor->canvasMiddle(&middle)) {
+                const QString text = d->editor->canvasDragged(QPointF(), at);
+                if (d->pill && !text.isEmpty()) d->pill->showAt(pos.toPoint(), text);
+            }
         }
         event->accept();
         return true;

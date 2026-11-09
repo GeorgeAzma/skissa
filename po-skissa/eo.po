@@ -76,6 +76,62 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Disvastigi"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Punktoj"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Linioj"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Grandeco"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Angulo"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Angulo"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Grandeco"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Angulo"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Grandeco"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Heleco"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Distanco"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Grandeco"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Koloro"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Permeso Rifuzita. Skissa ne rajtas legi aŭ skribi al la dosiero."
 
@@ -223,6 +279,18 @@ msgstr "Koloro"
 msgctxt "effect group"
 msgid "Other"
 msgstr "Alia"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Eksporto"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Eksporto"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Eksporto"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -456,6 +524,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Kurbo"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Bildo"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Tavolo"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Plenigi"
@@ -568,6 +644,10 @@ msgstr "Rastrumero"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Mola"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Travidebleco"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -762,6 +842,10 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Dissolvi"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "Neniu"
+
 msgctxt "noise effect: what the noise changes"
 msgid "Lightness"
 msgstr "Heleco"
@@ -777,6 +861,10 @@ msgstr "Koloro"
 msgctxt "noise effect setting"
 msgid "Midtones"
 msgstr "Meztonoj"
+
+msgctxt "radial blur setting"
+msgid "Light"
+msgstr "Lumo"
 
 msgctxt "fewer colors effect setting"
 msgid "Colors"
@@ -801,6 +889,106 @@ msgstr "Niveloj"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Niveloj"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Linioj"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Mola"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Punktoj"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Koloroj"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Grandeco"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Linioj"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Angulo"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Niveloj"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Grandeco"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Distanco"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Angulo"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Kreskigi"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Kreskigi"
+
+msgctxt "light effect look: nothing added"
+msgid "None"
+msgstr "Neniu"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Grandeco"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Angulo"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Angulo"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Koloro"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Grasa"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Mola"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Grandeco"
 
 msgctxt "effect setting"
 msgid "Size"

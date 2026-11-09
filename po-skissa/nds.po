@@ -64,7 +64,19 @@ msgctxt "@info:tooltip"
 msgid "Add to palette"
 msgstr "Na Klörensett tofögen"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "Keen"
+
 msgctxt "no dithering"
+msgid "None"
+msgstr "Keen"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "Keen"
+
+msgctxt "light effect look: nothing added"
 msgid "None"
 msgstr "Keen"
 

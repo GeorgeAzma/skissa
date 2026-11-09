@@ -12,6 +12,10 @@ msgctxt "color drop gap: sized from the lines"
 msgid "Auto"
 msgstr "Auto"
 
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Tøm"
+
 msgctxt "canvas renderer"
 msgid "Auto"
 msgstr "Auto"
@@ -132,11 +136,27 @@ msgctxt "color effect preset"
 msgid "Auto"
 msgstr "Auto"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "Ingen"
+
 msgctxt "fewer colors effect setting"
 msgid "Brightness"
 msgstr "Lysstyrke"
 
 msgctxt "no dithering"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Tøm"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "light effect look: nothing added"
 msgid "None"
 msgstr "Ingen"
 

@@ -12,6 +12,14 @@ msgctxt "color drop gap: sized from the lines"
 msgid "Auto"
 msgstr "Automatski"
 
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Čisto"
+
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "Glatko"
+
 msgctxt "canvas renderer"
 msgid "Auto"
 msgstr "Automatski"
@@ -115,6 +123,10 @@ msgstr "Glatko"
 msgctxt "detail effect preset"
 msgid "Smooth"
 msgstr "Glatko"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Čisto"
 
 msgctxt "brush tip shape"
 msgid "Square"

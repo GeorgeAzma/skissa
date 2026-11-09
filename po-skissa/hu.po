@@ -80,6 +80,70 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Kiterjedés"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Pontok"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Vonalak"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Törlés"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Méret"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Szög"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Szög"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Méret"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Szög"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Méret"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Világosság"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Távolság"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Méret"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "Simítás"
+
 msgid "Skissa does not support this file format."
 msgstr "A Skissa nem támogatja ezt a fájlformátumot."
 
@@ -250,6 +314,18 @@ msgstr "Szín"
 msgctxt "effect group"
 msgid "Other"
 msgstr "Egyéb"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Exportálás"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Exportálás"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Exportálás"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -515,6 +591,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Görbe"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Kép"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Réteg"
+
 msgctxt "@info:tooltip a shape's fill"
 msgid "Fill"
 msgstr "Kitöltés"
@@ -644,6 +728,10 @@ msgstr "Pixel"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Lágy"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Átlátszatlanság"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -854,6 +942,14 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Elhalványítás"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "Nincs"
+
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Leképezés"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&Elmosás..."
@@ -898,6 +994,10 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Eredeti"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Eredeti"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Színek"
@@ -921,6 +1021,122 @@ msgstr "Szintek"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Szintek"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Eredeti"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Vonalak"
+
+msgctxt "drawing effect: shading as flat ink"
+msgid "Solid"
+msgstr "Egyszínű"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Lágy"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Pontok"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Törlés"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Színek"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Méret"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Vonalak"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Szög"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Szintek"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "Nincs"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Méret"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Távolság"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Szög"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Növelés"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Növelés"
+
+msgctxt "shape effect: outline on the edge"
+msgid "Center"
+msgstr "Középre"
+
+msgctxt "light effect look: nothing added"
+msgid "None"
+msgstr "Nincs"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Méret"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Szög"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Szög"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Szín"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Félkövér"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Lágy"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Méret"
 
 msgctxt "effect setting"
 msgid "Size"

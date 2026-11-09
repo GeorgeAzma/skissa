@@ -56,6 +56,58 @@ msgctxt "color drop gap: sized from the lines"
 msgid "Auto"
 msgstr "Automaattinen"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Pisteet"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Viivat"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Koko"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Kulma"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Kulma"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Koko"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Kulma"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Koko"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Etäisyys"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Koko"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Väri"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Lupa evätty. Skissalla ei ole lupaa lukea tai kirjoittaa tiedostoa."
 
@@ -140,6 +192,18 @@ msgstr "Väri"
 msgctxt "effect group"
 msgid "Other"
 msgstr "Muu"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Vie"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Vie"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Vie"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -337,6 +401,14 @@ msgctxt "an ellipse guide"
 msgid "Ellipse"
 msgstr "Ellipsi"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Kuva"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Taso"
+
 msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Kohdista apuviivoihin"
@@ -396,6 +468,10 @@ msgstr "Kuvapiste"
 msgctxt "resampling choice: Krita's bicubic"
 msgid "Soft"
 msgstr "Pehmeä"
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Peittävyys"
 
 msgctxt "picker group of what is in no other"
 msgid "Other"
@@ -548,6 +624,14 @@ msgctxt "lens effect preset"
 msgid "Original"
 msgstr "Alkuperäinen"
 
+msgctxt "radial blur preset"
+msgid "Original"
+msgstr "Alkuperäinen"
+
+msgctxt "radial blur setting"
+msgid "Light"
+msgstr "Vaalea"
+
 msgctxt "fewer colors effect setting"
 msgid "Colors"
 msgstr "Värit"
@@ -563,6 +647,98 @@ msgstr "Tasot"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Tasot"
+
+msgctxt "drawing effect look"
+msgid "Original"
+msgstr "Alkuperäinen"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Viivat"
+
+msgctxt "drawing effect: shading as soft gray"
+msgid "Soft"
+msgstr "Pehmeä"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Pisteet"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Värit"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Koko"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Viivat"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Kulma"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Tasot"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Koko"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Etäisyys"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Kulma"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Kasvata"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Kasvata"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Koko"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Kulma"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Kulma"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Väri"
+
+msgctxt "painting effect look: soft, blended strokes"
+msgid "Soft"
+msgstr "Pehmeä"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Koko"
 
 msgctxt "effect setting"
 msgid "Size"

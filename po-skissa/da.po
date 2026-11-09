@@ -24,6 +24,46 @@ msgctxt "color drop gap: sized from the lines"
 msgid "Auto"
 msgstr "Auto"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Prikker"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Linjer"
+
+msgctxt "halftone: ink alone, see-through between"
+msgid "Clear"
+msgstr "Ryd"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "halftone setting"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "motion blur setting"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "lens blur setting"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "gradient map: colors blended"
+msgid "Smooth"
+msgstr "Glat"
+
 msgctxt "canvas renderer"
 msgid "Auto"
 msgstr "Auto"
@@ -328,6 +368,10 @@ msgctxt "color effect preset"
 msgid "Auto"
 msgstr "Auto"
 
+msgctxt "gradient map look: no map"
+msgid "None"
+msgstr "Ingen"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "S&lør..."
@@ -363,6 +407,66 @@ msgstr "Ingen"
 msgctxt "dithering by a pattern"
 msgid "Pattern"
 msgstr "Mønster"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Linjer"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Prikker"
+
+msgctxt "drawing effect: ink alone, see-through between"
+msgid "Clear"
+msgstr "Ryd"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Farver"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Linjer"
+
+msgctxt "drawing effect setting: of the hatch strokes"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "shape effect look: nothing added"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "shape effect: which way the shadow falls"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Farve"
+
+msgctxt "light effect look: nothing added"
+msgid "None"
+msgstr "Ingen"
+
+msgctxt "light effect: how the star is turned"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "light effect: the streak's direction"
+msgid "Angle"
+msgstr "Vinkel"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Farve"
 
 msgctxt "noise effect setting"
 msgid "Color"

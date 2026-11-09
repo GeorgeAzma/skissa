@@ -80,6 +80,50 @@ msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Розсіювання"
 
+msgctxt "halftone shape"
+msgid "Dots"
+msgstr "Крапки"
+
+msgctxt "halftone shape"
+msgid "Lines"
+msgstr "Лінії"
+
+msgctxt "halftone: each color channel screened"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "halftone setting"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "lens blur setting"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "pixelize setting"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "color to alpha: the color made see-through"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "desaturate: gray as bright as the color looks"
+msgid "Lightness"
+msgstr "Освітленість"
+
+msgctxt "propagate colors setting"
+msgid "Distance"
+msgstr "Відстань"
+
+msgctxt "height to normal map setting"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "gradient map: the color of the chosen stop"
+msgid "Color"
+msgstr "Колір"
+
 msgid "Permission denied. Skissa is not allowed to read or write to the file."
 msgstr "Відмовлено у доступі. Skissa заборонено читати файл або записувати до нього дані."
 
@@ -207,6 +251,18 @@ msgstr "Скинути"
 msgctxt "effect group"
 msgid "Color"
 msgstr "Колір"
+
+msgctxt "@title the export sheet"
+msgid "Export"
+msgstr "Експортувати"
+
+msgctxt "@action:button"
+msgid "Export"
+msgstr "Експортувати"
+
+msgctxt "@title:window"
+msgid "Export"
+msgstr "Експортувати"
 
 msgctxt "@title find results"
 msgid "Layers"
@@ -416,6 +472,14 @@ msgctxt "a guide: a spline"
 msgid "Curve"
 msgstr "Крива"
 
+msgctxt "@info:tooltip the color sampler takes the color as seen"
+msgid "Image"
+msgstr "Зображення"
+
+msgctxt "@info:tooltip the color sampler takes the current layer's color"
+msgid "Layer"
+msgstr "Шар"
+
 msgctxt "@info:tooltip lines drawn are pulled onto the image's guides"
 msgid "Snap to guides"
 msgstr "Прилипання до напрямних"
@@ -499,6 +563,10 @@ msgstr "Зміни"
 
 msgid "New AppImage was downloaded to %1. To complete the update, close Skissa and run the new AppImage."
 msgstr "Новий пакунок AppImage було збережено до %1. Щоб завершити оновлення, закрийте вікно Skissa і запустіть новий AppImage."
+
+msgctxt "color field: how see-through the color is"
+msgid "Opacity"
+msgstr "Непрозорість"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"
@@ -657,6 +725,10 @@ msgctxt "color effect preset"
 msgid "Fade"
 msgstr "Згасання"
 
+msgctxt "color effect tab: the gradient map"
+msgid "Map"
+msgstr "Карта"
+
 msgctxt "@action effect"
 msgid "&Blur..."
 msgstr "&Розмивання…"
@@ -704,6 +776,74 @@ msgstr "Рівні"
 msgctxt "colors taken from: steps of each channel"
 msgid "Levels"
 msgstr "Рівні"
+
+msgctxt "drawing effect look"
+msgid "Lines"
+msgstr "Лінії"
+
+msgctxt "drawing effect: shading as dots"
+msgid "Dots"
+msgstr "Крапки"
+
+msgctxt "drawing effect: the picture's own colors as ink"
+msgid "Colors"
+msgstr "Кольори"
+
+msgctxt "drawing effect setting"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "drawing effect setting"
+msgid "Lines"
+msgstr "Лінії"
+
+msgctxt "drawing effect setting: how many lines of equal lightness"
+msgid "Levels"
+msgstr "Рівні"
+
+msgctxt "shape effect: the outline's color"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "shape effect: how far the glow reaches"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "shape effect: the glow's color"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "shape effect: how far the shadow falls"
+msgid "Distance"
+msgstr "Відстань"
+
+msgctxt "shape effect: the shadow's color"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "shape effect: how much the shape grows, or shrinks below 0"
+msgid "Grow"
+msgstr "Збільшити"
+
+msgctxt "shape effect part"
+msgid "Grow"
+msgstr "Збільшити"
+
+msgctxt "light effect: how far the glow reaches"
+msgid "Size"
+msgstr "Розмір"
+
+msgctxt "light effect: the streak's color"
+msgid "Color"
+msgstr "Колір"
+
+msgctxt "painting effect look: large, bold strokes"
+msgid "Bold"
+msgstr "Жирний"
+
+msgctxt "painting effect: the brush's size"
+msgid "Size"
+msgstr "Розмір"
 
 msgctxt "effect setting"
 msgid "Size"

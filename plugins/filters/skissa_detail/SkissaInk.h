@@ -48,10 +48,16 @@ enum class Shading {
     Soft,
     /// Straight strokes, crossing where darker
     Hatch,
-    /// Strokes along the shapes, as dense as it is dark
+    /// Strokes along the shapes, crossing where darker
     Strokes,
     /// Dots, as dense as it is dark
     Dots,
+    /// A printer's screen: dots on a grid, as large as it is dark
+    Screen,
+    /// Parallel lines, swelling where it is dark and bending with the picture's tones, as engraved
+    Engrave,
+    /// Lines of equal lightness, as on a map
+    Contour,
 };
 
 struct Settings {
@@ -69,15 +75,19 @@ struct Settings {
     Shading shading {Shading::Solid};
     /// Solid: how many steps of darkness
     int steps {1};
-    /// Soft: from sharp to soft gray
+    /// Soft: from sharp to soft gray, and how much the paper's tooth catches it
     float softness {0.5f};
-    /// Hatch: between strokes, in pixels, and the first strokes' direction in degrees
+    float grain {0};
+    /// Hatch, Strokes and Screen: between strokes or dots where it is darkest, in pixels
     float spacing {8};
+    /// Hatch and Screen: the direction of the first strokes or of the grid, in degrees
     float angle {45};
     /// Strokes: how long, in pixels
-    float length {8};
+    float length {16};
     /// Dots: how wide, in pixels
     float dot {3};
+    /// Contour: how many lines from the shading's level to black
+    int levels {12};
     Colors colors {Colors::Paper};
     QColor inkColor {Qt::black};
     QColor paperColor {Qt::white};
@@ -114,6 +124,8 @@ public:
 private:
     /// How far stippling reads around a pixel, at this scale
     qreal dotReach() const;
+    /// The blur of the picture's tones that engraved lines bend with, at this scale
+    qreal broadSigma() const;
 
     Settings m_settings;
     qreal m_scale {1};
@@ -122,8 +134,10 @@ private:
     qreal m_tensorSigma {1};
     qreal m_flowSigma {0};
     qreal m_smoothSigma {0};
-    /// Strokes along the shapes: how long they are
+    /// Strokes along the shapes: how long they are, how far apart, and the smoothing of the flow they follow
     qreal m_strokeSigma {0};
+    qreal m_stripeSpacing {0};
+    qreal m_strokeTensorSigma {0};
     /// The flow is needed: for lines that follow it, or for strokes along it
     bool m_needsFlow {false};
 };
