@@ -109,6 +109,10 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "色"
 
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "色"
+
 msgctxt "propagate colors setting"
 msgid "Distance"
 msgstr "距離"
@@ -197,11 +201,7 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "フィルタ"
 
-msgctxt "brush group"
-msgid "Pixel"
-msgstr "ピクセル"
-
-msgctxt "brush group"
+msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "その他"
 
@@ -593,10 +593,6 @@ msgstr "ソフト"
 msgctxt "color field: how see-through the color is"
 msgid "Opacity"
 msgstr "不透明度"
-
-msgctxt "picker group of what is in no other"
-msgid "Other"
-msgstr "その他"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"

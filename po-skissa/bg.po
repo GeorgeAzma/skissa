@@ -128,6 +128,14 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Цвят"
 
+msgctxt "replace color: the color is under everything, as paper is"
+msgid "Background"
+msgstr "Фон"
+
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "Цвят"
+
 msgctxt "propagate colors setting"
 msgid "Distance"
 msgstr "Разстояние"
@@ -248,11 +256,7 @@ msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "Добавяне"
 
-msgctxt "brush group"
-msgid "Pixel"
-msgstr "Пиксел"
-
-msgctxt "brush group"
+msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "Други"
 
@@ -679,10 +683,6 @@ msgstr "Меко"
 msgctxt "color field: how see-through the color is"
 msgid "Opacity"
 msgstr "Непрозрачност"
-
-msgctxt "picker group of what is in no other"
-msgid "Other"
-msgstr "Други"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"

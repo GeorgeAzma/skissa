@@ -120,6 +120,14 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Kleur"
 
+msgctxt "replace color: the color is under everything, as paper is"
+msgid "Background"
+msgstr "Achtergrond"
+
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "Kleur"
+
 msgctxt "propagate colors setting"
 msgid "Distance"
 msgstr "Afstand"
@@ -244,11 +252,7 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "Filter"
 
-msgctxt "brush group"
-msgid "Pixel"
-msgstr "Pixel"
-
-msgctxt "brush group"
+msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "Overige"
 
@@ -687,10 +691,6 @@ msgstr "Zacht"
 msgctxt "color field: how see-through the color is"
 msgid "Opacity"
 msgstr "Dekking"
-
-msgctxt "picker group of what is in no other"
-msgid "Other"
-msgstr "Overige"
 
 msgctxt "If the selected model is CMYK"
 msgid "<b><a href=\"https://en.wikipedia.org/wiki/CMYK_color_model\">CMYK (Cyan, Magenta, Yellow, Key)</a></b>, is the model used by printers and other ink-based media.<br/>CMYK is a subtractive model, meaning that adding colors together will turn them darker. Because of CMYK profiles being very specific per printer, it is recommended to work in RGB space, and then later convert to a CMYK profile, preferably one delivered by your printer. <br/>CMYK is <b>not</b> recommended for painting.Unfortunately, Skissa cannot retrieve colorants or the TRC for this space."

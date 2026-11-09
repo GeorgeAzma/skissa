@@ -325,6 +325,7 @@ QHash<QString, QStringList> aliasTable()
         {"effect:skissa_detail", i18nc("@info find aliases, comma separated", "clarity, local contrast, structure, texture, frequency, equalizer")},
         {"effect:skissa_light", i18nc("@info find aliases, comma separated", "glow, bloom, optical glow, deep glow, glare, star filter, starburst, sparkle, twinkle, diffraction spikes, lens flare, anamorphic, streak, light leak, highlights glow, dreamy, orton, neon")},
         {"effect:skissa_paint", i18nc("@info find aliases, comma separated", "painterly, oil paint, oil painting, kuwahara, anisotropic kuwahara, paint, gouache, impasto, brush strokes, artistic, watercolor, abstract, photo to painting")},
+        {"effect:skissa_replace", i18nc("@info find aliases, comma separated", "color to alpha, remove white, white to transparent, remove paper, transparent background, make transparent, knock out, swap color, change color, recolor, line color, line art color, color lines")},
         {"effect:skissa_shape", i18nc("@info find aliases, comma separated", "outline, stroke, border, sticker, outer glow, inner glow, glow, drop shadow, shadow, layer style, grow, shrink, expand, contract, dilate, erode, thicken lines, thin lines, bolder lines, offset, distance field")},
         {"action:invert_selection", i18nc("@info find aliases, comma separated", "inverse selection")},
         {"action:mirror_canvas", i18nc("@info find aliases, comma separated", "flip canvas, flip view, mirror view")},

@@ -20,6 +20,10 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Litur"
 
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "Litur"
+
 msgctxt "gradient map: the color of the chosen stop"
 msgid "Color"
 msgstr "Litur"
@@ -59,10 +63,6 @@ msgstr "Litur"
 msgctxt "brush part"
 msgid "Filter"
 msgstr "Sía"
-
-msgctxt "brush group"
-msgid "Pixel"
-msgstr "Mynddíll"
 
 msgctxt "@title:window"
 msgid "Color"

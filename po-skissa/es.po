@@ -116,6 +116,14 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Color"
 
+msgctxt "replace color: the color is under everything, as paper is"
+msgid "Background"
+msgstr "Fondo"
+
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "Color"
+
 msgctxt "propagate colors setting"
 msgid "Distance"
 msgstr "Distancia"
@@ -231,10 +239,6 @@ msgstr "Trazo"
 msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "Añadir"
-
-msgctxt "brush group"
-msgid "Pixel"
-msgstr "Píxel"
 
 msgctxt "@action:button save the brush over itself"
 msgid "Save"

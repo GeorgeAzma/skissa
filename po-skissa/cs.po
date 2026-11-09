@@ -89,6 +89,14 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Barva"
 
+msgctxt "replace color: the color is under everything, as paper is"
+msgid "Background"
+msgstr "Pozadí"
+
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "Barva"
+
 msgctxt "desaturate: gray as bright as the color looks"
 msgid "Lightness"
 msgstr "Jas"
@@ -196,10 +204,6 @@ msgstr "Tah"
 msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "Přidat"
-
-msgctxt "brush group"
-msgid "Pixel"
-msgstr "Pixel"
 
 msgctxt "@action:button save the brush over itself"
 msgid "Save"

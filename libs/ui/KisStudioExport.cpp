@@ -38,6 +38,7 @@
 #include <kis_paint_device.h>
 
 #include "KisEffectPanels.h"
+#include "KisHiddenColors.h"
 #include "KisSettingsRegistry.h"
 #include "KisStudioLayout.h"
 #include "widgets/KisStudioChips.h"
@@ -140,6 +141,8 @@ KisStudioExport::KisStudioExport(KisMainWindow *window)
     KisImageSP image = d->document->image();
     image->waitForDone();
     d->whole = image->projection()->convertToQImage(nullptr, image->bounds()).convertToFormat(QImage::Format_ARGB32);
+    // sized as the files are written
+    KisHiddenColors::clear(d->whole);
 
     const int count = formats().size();
     d->sizes.fill(-1, count);

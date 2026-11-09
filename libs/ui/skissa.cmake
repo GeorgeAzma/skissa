@@ -9,6 +9,7 @@
 
 set(skissa_ui_SRCS
     KisColorDrop.cpp
+    KisHiddenColors.cpp
     KisLastStrokeReplay.cpp
     KisSafeSave.cpp
     KisSettingsRegistry.cpp

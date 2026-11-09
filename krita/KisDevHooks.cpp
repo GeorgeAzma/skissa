@@ -109,11 +109,14 @@ public:
             return true;
         }
         if (msg->message == exportMessage) {
-            // the active document as krita-dev-export.kra, or with wParam 1 as krita-dev-export.tif (a format that writes itself)
+            // the active document as krita-dev-export.kra, or with wParam 1 as krita-dev-export.tif (a format that writes itself),
+            // 2 as krita-dev-export.png
             KisMainWindow *window = KisPart::instance()->currentMainwindow();
             KisDocument *document = window && window->activeView() ? window->activeView()->document() : nullptr;
             if (document && msg->wParam == 1) {
                 document->exportDocumentSync(QDir::temp().filePath(QStringLiteral("krita-dev-export.tif")), "image/tiff");
+            } else if (document && msg->wParam == 2) {
+                document->exportDocumentSync(QDir::temp().filePath(QStringLiteral("krita-dev-export.png")), "image/png");
             } else if (document) {
                 document->exportDocumentSync(QDir::temp().filePath(QStringLiteral("krita-dev-export.kra")), "application/x-krita");
             }

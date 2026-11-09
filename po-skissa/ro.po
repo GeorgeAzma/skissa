@@ -8,6 +8,10 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Culoare"
 
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "Culoare"
+
 msgctxt "gradient map: the color of the chosen stop"
 msgid "Color"
 msgstr "Culoare"

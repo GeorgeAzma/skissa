@@ -64,6 +64,14 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "रंग"
 
+msgctxt "replace color: the color is under everything, as paper is"
+msgid "Background"
+msgstr "पृष्ठभूमि"
+
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "रंग"
+
 msgctxt "desaturate: gray as bright as the color looks"
 msgid "Lightness"
 msgstr "उजालापन"
@@ -140,11 +148,7 @@ msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "जोड़ें"
 
-msgctxt "brush group"
-msgid "Pixel"
-msgstr "पिक्सेल"
-
-msgctxt "brush group"
+msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "अन्य"
 
@@ -479,10 +483,6 @@ msgstr "पिक्सेल"
 msgctxt "color field: how see-through the color is"
 msgid "Opacity"
 msgstr "अपार्दरशिता"
-
-msgctxt "picker group of what is in no other"
-msgid "Other"
-msgstr "अन्य"
 
 msgctxt "@title:menu"
 msgid "Select"

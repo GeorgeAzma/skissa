@@ -116,6 +116,14 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Färg"
 
+msgctxt "replace color: the color is under everything, as paper is"
+msgid "Background"
+msgstr "Bakgrund"
+
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "Färg"
+
 msgctxt "desaturate: gray as bright as the color looks"
 msgid "Lightness"
 msgstr "Ljushet"

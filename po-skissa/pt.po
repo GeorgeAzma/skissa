@@ -124,6 +124,14 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Cor"
 
+msgctxt "replace color: the color is under everything, as paper is"
+msgid "Background"
+msgstr "Fundo"
+
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "Cor"
+
 msgctxt "desaturate: gray as bright as the color looks"
 msgid "Lightness"
 msgstr "Iluminação"
@@ -236,11 +244,7 @@ msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "Adicionar"
 
-msgctxt "brush group"
-msgid "Pixel"
-msgstr "Pixel"
-
-msgctxt "brush group"
+msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "Outro"
 
@@ -656,10 +660,6 @@ msgstr "Suave"
 msgctxt "color field: how see-through the color is"
 msgid "Opacity"
 msgstr "Opacidade"
-
-msgctxt "picker group of what is in no other"
-msgid "Other"
-msgstr "Outro"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"

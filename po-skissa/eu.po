@@ -109,6 +109,14 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Kolorea"
 
+msgctxt "replace color: the color is under everything, as paper is"
+msgid "Background"
+msgstr "Atzeko planoa"
+
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "Kolorea"
+
 msgctxt "desaturate: gray as bright as the color looks"
 msgid "Lightness"
 msgstr "Argitasuna"
@@ -229,7 +237,7 @@ msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "Gehitu"
 
-msgctxt "brush group"
+msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "Bestelakoak"
 
@@ -599,10 +607,6 @@ msgstr "Lineala"
 msgctxt "color field: how see-through the color is"
 msgid "Opacity"
 msgstr "Opakutasuna"
-
-msgctxt "picker group of what is in no other"
-msgid "Other"
-msgstr "Bestelakoak"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"

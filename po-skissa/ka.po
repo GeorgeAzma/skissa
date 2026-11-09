@@ -122,6 +122,14 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "ფერი"
 
+msgctxt "replace color: the color is under everything, as paper is"
+msgid "Background"
+msgstr "ფონი"
+
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "ფერი"
+
 msgctxt "propagate colors setting"
 msgid "Distance"
 msgstr "მანძილი"
@@ -246,11 +254,7 @@ msgctxt "@action:button add a brush setting"
 msgid "Add"
 msgstr "დამატება"
 
-msgctxt "brush group"
-msgid "Pixel"
-msgstr "პიქსელი"
-
-msgctxt "brush group"
+msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "სხვა"
 
@@ -695,10 +699,6 @@ msgstr "რბილი"
 msgctxt "color field: how see-through the color is"
 msgid "Opacity"
 msgstr "გაუმჭვირვალობა"
-
-msgctxt "picker group of what is in no other"
-msgid "Other"
-msgstr "სხვა"
 
 msgid "The selected file name does not have a file extension that Skissa understands.\nMake sure the file name ends in '.%1' for example."
 msgstr "არჩეული ფაილის სახელს არ აქვს გაფართოება, რომელიც Skissa-ს ესმის.\nდარწმუნდით, რომ ფაილის სახელი სრულდება, მაგალითად, '.%1'-ით."

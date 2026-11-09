@@ -57,6 +57,7 @@
 #include <kis_painter.h>
 #include <kis_transaction.h>
 #include <kis_hdr_metadata.h>
+#include "KisHiddenColors.h"
 
 #include <kis_assert.h>
 
@@ -1050,6 +1051,8 @@ KisImportExportErrorCode KisPNGConverter::buildFile(QIODevice* iodevice, const Q
         gc.bitBlt(imageRect.topLeft(), device, imageRect);
         gc.end();
         device = tmp;
+    } else {
+        device = KisHiddenColors::cleared(device, imageRect);
     }
 
     KIS_SAFE_ASSERT_RECOVER(!(options.convertFloatToRec2020 && options.forceSRGB)) {

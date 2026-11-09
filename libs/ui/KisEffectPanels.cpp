@@ -22,6 +22,7 @@
 #include <QtMath>
 
 #include <cmath>
+#include <memory>
 
 #include <KisEffectCanvasEditor.h>
 #include <KisGlobalResourcesInterface.h>
@@ -88,6 +89,8 @@ struct Color {
     std::function<KoColor(const Config &)> read;
     std::function<void(Config &, const KoColor &)> write;
     Test shown;
+    /// Whether it may be see-through
+    bool alpha {false};
 };
 
 /// Bounds of a picture of its own, for effects that read past the edge (Krita's blurs repeat the image's edge)
@@ -210,6 +213,7 @@ public:
         rowLayout->setContentsMargins(0, 0, 0, 0);
         rowLayout->addWidget(new QLabel(color.name, row), 1);
         auto *field = colorField(row);
+        field->setAlphaEnabled(color.alpha);
         field->setDefaultColor(color.read(*defaults()).toQColor());
         rowLayout->addWidget(field);
         layout()->addWidget(row);
@@ -324,6 +328,15 @@ public:
 
     void canvasHovered(const QPoint &) override
     {
+    }
+
+    Qt::Orientations canvasAxes() const override
+    {
+        if (m_lineLength >= 0 && m_lineAngle >= 0) return Qt::Horizontal | Qt::Vertical;
+        Qt::Orientations axes;
+        if (m_vertical >= 0) axes |= Qt::Vertical;
+        if (m_horizontal >= 0) axes |= Qt::Horizontal;
+        return axes ? axes : Qt::Horizontal | Qt::Vertical;
     }
 
     bool canvasPressed(const QPoint &pixel) override
@@ -851,6 +864,70 @@ KisConfigWidget *colorToAlpha(QWidget *parent, KisPaintDeviceSP device)
     return panel;
 }
 
+KisConfigWidget *replaceColor(QWidget *parent, KisPaintDeviceSP device)
+{
+    auto colorOf = [](const char *key, const QColor &fallback) {
+        return [key, fallback](const Config &c) {
+            const QColor color(c.getString(key, fallback.name(QColor::HexArgb)));
+            return KoColor(color.isValid() ? color : fallback, KoColorSpaceRegistry::instance()->rgb8());
+        };
+    };
+    auto writesColor = [](const char *key) {
+        return [key](Config &c, const KoColor &color) { c.setProperty(key, color.toQColor().name(QColor::HexArgb)); };
+    };
+    auto *panel = new Panel(parent, QStringLiteral("skissa_replace"), device);
+    auto mode = [](const QString &name, bool background) {
+        return Tile{name, [background](Config &c) { c.setProperty("background", background); },
+                    [background](const Config &c) { return c.getBool("background", true) == background; }};
+    };
+    panel->addTiles({mode(i18nc("replace color: the color is under everything, as paper is", "Background"), true),
+                     mode(i18nc("replace color: only the color and its soft edges", "Color"), false)},
+                    {}, Panel::Pictures::Whole);
+    panel->addColor({i18nc("replace color: the color replaced", "Replace"), colorOf("color", Qt::white), [](Config &c, const KoColor &color) {
+                         QColor opaque = color.toQColor();
+                         opaque.setAlpha(255);
+                         c.setProperty("color", opaque.name(QColor::HexArgb));
+                     },
+                     {}});
+    panel->addColor({i18nc("replace color: what takes its place", "With"), colorOf("with", Qt::transparent), writesColor("with"), {}, true});
+    panel->addValue({i18nc("replace color: how far a color may be from it and still count", "Range"), range(0, 100, 0, QStringLiteral("%")),
+                     [](const Config &c) { return c.getDouble("range", 0.02) * 100; }, [](Config &c, qreal v) { c.setProperty("range", v / 100); },
+                     {}, 30});
+    KisPaintDeviceSP original = panel->original();
+    auto picture = std::make_shared<QImage>();
+    panel->pickColor([original, picture](Config &c, const KoColor &color) mutable {
+        if (color.opacityU8() == OPACITY_TRANSPARENT_U8) return;
+        QColor opaque = color.toQColor();
+        opaque.setAlpha(255);
+        c.setProperty("color", opaque.name(QColor::HexArgb));
+        // a color most of the layer is lies under the rest, as paper does
+        if (picture->isNull()) {
+            const QRect bounds = original->exactBounds();
+            if (bounds.isEmpty()) return;
+            const QSize size = bounds.size().scaled(256, 256, Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
+            *picture = original->createThumbnailUncached(size.width(), size.height(), bounds).convertToFormat(QImage::Format_ARGB32);
+        }
+        const int near = qMax(10, qRound(c.getDouble("range", 0.02) * 255));
+        qint64 seen = 0;
+        qint64 same = 0;
+        for (int y = 0; y < picture->height(); y++) {
+            const QRgb *line = reinterpret_cast<const QRgb *>(picture->constScanLine(y));
+            for (int x = 0; x < picture->width(); x++) {
+                if (qAlpha(line[x]) < 128) continue;
+                seen++;
+                if (qAbs(qRed(line[x]) - opaque.red()) <= near && qAbs(qGreen(line[x]) - opaque.green()) <= near
+                    && qAbs(qBlue(line[x]) - opaque.blue()) <= near) {
+                    same++;
+                }
+            }
+        }
+        c.setProperty("background", seen > 0 && same * 10 >= seen * 3);
+    });
+    panel->dragValues(0, -1);
+    panel->finish();
+    return panel;
+}
+
 KisConfigWidget *desaturate(QWidget *parent, KisPaintDeviceSP device)
 {
     auto *panel = new Panel(parent, QStringLiteral("desaturate"), device);
@@ -1028,6 +1105,7 @@ KisConfigWidget *create(const QString &filterId, QWidget *parent, KisPaintDevice
     if (filterId == QLatin1String("lens blur")) return lensBlur(parent, device);
     if (filterId == QLatin1String("pixelize")) return pixelize(parent, device);
     if (filterId == QLatin1String("colortoalpha")) return colorToAlpha(parent, device);
+    if (filterId == QLatin1String("skissa_replace")) return replaceColor(parent, device);
     if (filterId == QLatin1String("propagatecolors")) return propagateColors(parent, device);
     if (filterId == QLatin1String("desaturate")) return desaturate(parent, device);
     if (filterId == QLatin1String("height to normal")) return heightToNormal(parent, device);

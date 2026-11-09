@@ -70,7 +70,7 @@ QStringList defaultEffects()
 {
     return {
         QStringLiteral("skissa_color"), QStringLiteral("gaussian blur"), QStringLiteral("unsharp"), QStringLiteral("skissa_detail"),
-        QStringLiteral("motion blur"), QStringLiteral("gaussianhighpass"), QStringLiteral("skissa_ink"), QStringLiteral("colortoalpha"),
+        QStringLiteral("motion blur"), QStringLiteral("gaussianhighpass"), QStringLiteral("skissa_ink"), QStringLiteral("skissa_replace"),
     };
 }
 
@@ -85,7 +85,6 @@ QVector<QPair<QString, QString>> groupTitles()
         {QStringLiteral("stylize"), i18nc("effect group", "Stylize")},
         {QStringLiteral("distort"), i18nc("effect group", "Distort")},
         {QStringLiteral("edges"), i18nc("effect group", "Edges and relief")},
-        {QStringLiteral("transparency"), i18nc("effect group", "Transparency")},
         {QStringLiteral("other"), i18nc("effect group", "Other")},
     };
 }
@@ -122,6 +121,7 @@ QString groupOf(const QString &id)
         {QStringLiteral("desaturate"), QStringLiteral("color")},
         {QStringLiteral("invert"), QStringLiteral("color")},
         {QStringLiteral("gradientmap"), QStringLiteral("color")},
+        {QStringLiteral("skissa_replace"), QStringLiteral("color")},
         {QStringLiteral("asc-cdl"), QStringLiteral("color")},
         {QStringLiteral("colortransfer"), QStringLiteral("color")},
         {QStringLiteral("fastcoloroverlay"), QStringLiteral("color")},
@@ -148,10 +148,7 @@ QString groupOf(const QString &id)
         {QStringLiteral("wave"), QStringLiteral("distort")},
         {QStringLiteral("raindrops"), QStringLiteral("distort")},
         {QStringLiteral("edge detection"), QStringLiteral("edges")},
-        {QStringLiteral("height to normal"), QStringLiteral("edges")},
         {QStringLiteral("phongbumpmap"), QStringLiteral("edges")},
-        {QStringLiteral("colortoalpha"), QStringLiteral("transparency")},
-        {QStringLiteral("resettransparent"), QStringLiteral("transparency")},
     };
     const auto it = byId.constFind(id);
     if (it != byId.constEnd()) {

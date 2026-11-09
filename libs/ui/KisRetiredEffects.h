@@ -42,8 +42,9 @@ inline QString coveredBy(const QString &filterId)
         {QStringLiteral("posterize"), QStringLiteral("skissa_fewer_colors")}, {QStringLiteral("threshold"), QStringLiteral("skissa_fewer_colors")},
         {QStringLiteral("palettize"), QStringLiteral("skissa_fewer_colors")}, {QStringLiteral("indexcolors"), QStringLiteral("skissa_fewer_colors")},
         {QStringLiteral("pixelize"), QStringLiteral("skissa_fewer_colors")},
-        // Drawing's screen; Painting
+        // Drawing's screen; Painting; Replace color, whose new color may be clear
         {QStringLiteral("halftone"), QStringLiteral("skissa_ink")}, {QStringLiteral("oilpaint"), QStringLiteral("skissa_paint")},
+        {QStringLiteral("colortoalpha"), QStringLiteral("skissa_replace")},
     };
     return by.value(filterId);
 }
@@ -59,6 +60,8 @@ inline bool isLeftOut(const QString &filterId)
         QStringLiteral("burn"), QStringLiteral("tone_gamut_map"),
         // a color over the layer in a blend mode (a fill layer does it); the colors of an image file
         QStringLiteral("fastcoloroverlay"), QStringLiteral("colortransfer"),
+        // textures for 3D lighting; the hidden colors of clear pixels (PNG export clears them)
+        QStringLiteral("height to normal"), QStringLiteral("resettransparent"),
     };
     return leftOut.contains(filterId);
 }

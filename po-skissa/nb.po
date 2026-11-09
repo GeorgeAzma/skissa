@@ -52,10 +52,6 @@ msgctxt "brush part"
 msgid "Filter"
 msgstr "Filter"
 
-msgctxt "brush group"
-msgid "Pixel"
-msgstr "Piksel"
-
 msgctxt "@label:textbox"
 msgid "Name"
 msgstr "Navn"

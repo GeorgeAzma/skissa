@@ -96,6 +96,14 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Väri"
 
+msgctxt "replace color: the color is under everything, as paper is"
+msgid "Background"
+msgstr "Tausta"
+
+msgctxt "replace color: only the color and its soft edges"
+msgid "Color"
+msgstr "Väri"
+
 msgctxt "propagate colors setting"
 msgid "Distance"
 msgstr "Etäisyys"
@@ -161,11 +169,7 @@ msgctxt "brush part: how the line is laid down (smoothing, shapes)"
 msgid "Stroke"
 msgstr "Veto"
 
-msgctxt "brush group"
-msgid "Pixel"
-msgstr "Kuvapiste"
-
-msgctxt "brush group"
+msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "Muu"
 
@@ -472,10 +476,6 @@ msgstr "Pehmeä"
 msgctxt "color field: how see-through the color is"
 msgid "Opacity"
 msgstr "Peittävyys"
-
-msgctxt "picker group of what is in no other"
-msgid "Other"
-msgstr "Muu"
 
 msgctxt "chosen for itself, as a switch on a setting's row"
 msgid "Auto"

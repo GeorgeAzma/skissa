@@ -34,6 +34,7 @@
 #include "SkissaShapeFilter.h"
 #include "SkissaLightFilter.h"
 #include "SkissaPaintFilter.h"
+#include "SkissaReplaceFilter.h"
 #include "SkissaNoiseFilter.h"
 
 K_PLUGIN_FACTORY_WITH_JSON(SkissaDetailFactory, "kritaskissadetail.json", registerPlugin<SkissaDetailPlugin>();)
@@ -88,6 +89,7 @@ SkissaDetailPlugin::SkissaDetailPlugin(QObject *parent, const QVariantList &)
     KisFilterRegistry::instance()->add(KisFilterSP(new SkissaShapeFilter()));
     KisFilterRegistry::instance()->add(KisFilterSP(new SkissaLightFilter()));
     KisFilterRegistry::instance()->add(KisFilterSP(new SkissaPaintFilter()));
+    KisFilterRegistry::instance()->add(KisFilterSP(new SkissaReplaceFilter()));
 }
 
 SkissaDetailFilter::SkissaDetailFilter(Kind kind, bool earlier)

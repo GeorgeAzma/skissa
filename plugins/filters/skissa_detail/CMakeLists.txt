@@ -17,6 +17,7 @@ set(kritaskissadetail_SOURCES
     SkissaPixels.cpp
     SkissaRadial.cpp
     SkissaRadialFilter.cpp
+    SkissaReplaceFilter.cpp
     SkissaShape.cpp
     SkissaShapeFilter.cpp
     )

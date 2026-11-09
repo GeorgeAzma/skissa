@@ -4,7 +4,7 @@ msgctxt "a setting's value: not set"
 msgid "Default"
 msgstr "Mặc định"
 
-msgctxt "brush group"
+msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "Khác"
 
@@ -25,10 +25,6 @@ msgid "Animation"
 msgstr "Hoạt ảnh"
 
 msgctxt "keys group"
-msgid "Other"
-msgstr "Khác"
-
-msgctxt "picker group of what is in no other"
 msgid "Other"
 msgstr "Khác"
 
