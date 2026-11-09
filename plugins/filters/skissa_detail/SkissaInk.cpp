@@ -7,7 +7,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <functional>
 #include <vector>
 
 #include <QtMath>
@@ -225,6 +224,50 @@ std::vector<std::vector<float>> alongFlow(const std::vector<const float *> &plan
     return out;
 }
 
+/**
+ * One plane smoothed along a smooth flow, for strokes: as alongFlow, a pixel a step, but reading the pixel stepped
+ * into and turning with the flow every third step. Over \p area of the plane.
+ */
+std::vector<float> strokeAlong(const std::vector<float> &plane, const Flow &flow, qreal sigma, const QRect &area)
+{
+    const int w = flow.w, h = flow.h;
+    const int steps = std::max(1, int(std::ceil(2 * sigma)));
+    std::vector<float> weights(steps + 1);
+    for (int d = 0; d <= steps; d++) weights[d] = float(std::exp(-d * d / (2 * sigma * sigma)));
+    std::vector<float> out(size_t(area.width()) * area.height());
+    for (int y = area.top(); y <= area.bottom(); y++) {
+        for (int x = area.left(); x <= area.right(); x++) {
+            const size_t here = size_t(y) * w + x;
+            float sum = plane[here], total = 1;
+            for (const float way : {1.0f, -1.0f}) {
+                float px = x + 0.5f, py = y + 0.5f;
+                float vx = way * flow.x[here], vy = way * flow.y[here];
+                for (int d = 1; d <= steps; d++) {
+                    px += vx;
+                    py += vy;
+                    const int ix = int(std::floor(px)), iy = int(std::floor(py));
+                    if (ix < 0 || iy < 0 || ix >= w || iy >= h) break;
+                    const size_t at = size_t(iy) * w + ix;
+                    if (d % 3 == 0) {
+                        // the flow has no sign: keep going the way it went
+                        float nx = flow.x[at], ny = flow.y[at];
+                        if (nx * vx + ny * vy < 0) {
+                            nx = -nx;
+                            ny = -ny;
+                        }
+                        vx = nx;
+                        vy = ny;
+                    }
+                    sum += weights[d] * readAt(plane.data(), w, h, px, py);
+                    total += weights[d];
+                }
+            }
+            out[size_t(y - area.top()) * area.width() + (x - area.left())] = sum / total;
+        }
+    }
+    return out;
+}
+
 /// The integral from 0 to \p x of ink(t) = -tanh(t / \p width) below 0 and nothing above (XDoG's soft threshold)
 inline double inkIntegral(double x, double width)
 {
@@ -345,38 +388,42 @@ float hatchAt(float along, float across, float cover, int direction, float spaci
     return ink;
 }
 
+/// A stipple dot: where it lies (in the image's pixels) and how far it reaches; none where it reaches nothing
+struct Dot {
+    float x {0}, y {0}, reach {0};
+};
+
 /**
- * Stippling at a pixel (in the image's pixels): dots on a grid of cells, each a little off its cell's middle, there
- * where the darkness under it passes its cell's rank in blue noise, so that dots are spread evenly at any density,
- * without clumps. A dot comes in small and grows to its size; once every cell has one, they grow until they close up.
+ * Stippling: dots on a grid of cells \p radius × 2.4 wide, each a little off its cell's middle, there where the
+ * darkness under it passes its cell's rank in blue noise, so that dots are spread evenly at any density, without
+ * clumps. A dot comes in small and grows to its size; once every cell has one, they grow until they close up.
  */
-float dotAt(float imageX, float imageY, float radius, float pixel, const std::function<float(float, float)> &darkAt)
+Dot dotOf(int column, int row, float radius, float dark)
 {
     const std::vector<float> &ranks = SkissaFewer::blueNoise();
     const float cell = radius * 2.4f;
-    const int column = int(std::floor(imageX / cell)), row = int(std::floor(imageY / cell));
     // how much is covered once every cell has its dot
     const float full = float(M_PI) * radius * radius / (cell * cell);
-    float ink = 0;
-    for (int j = row - 1; j <= row + 1; j++) {
-        for (int i = column - 1; i <= column + 1; i++) {
-            const quint32 a = quint32(i), b = quint32(j);
-            const float x = (i + 0.5f + 0.5f * (hashed(a, b, 41) - 0.5f)) * cell, y = (j + 0.5f + 0.5f * (hashed(a, b, 42) - 0.5f)) * cell;
-            const float dark = darkAt(x, y);
-            if (dark <= 0) continue;
-            const float own = radius * (0.85f + 0.3f * hashed(a, b, 44));
-            float reach = own;
-            if (dark < full) {
-                const float past = dark / full - ranks[size_t(j & 63) * 64 + size_t(i & 63)];
-                if (past <= 0) continue;
-                reach = own * std::min(1.0f, std::sqrt(past * 8));
-            } else {
-                reach = own * std::sqrt(dark / full) * (1 + 0.4f * (dark - full) / (1 - full));
-            }
-            ink = std::max(ink, std::clamp((reach - std::hypot(imageX - x, imageY - y)) / pixel + 0.5f, 0.0f, 1.0f));
-        }
+    const quint32 a = quint32(column), b = quint32(row);
+    Dot dot;
+    dot.x = (column + 0.5f + 0.5f * (hashed(a, b, 41) - 0.5f)) * cell;
+    dot.y = (row + 0.5f + 0.5f * (hashed(a, b, 42) - 0.5f)) * cell;
+    if (dark <= 0) return dot;
+    const float own = radius * (0.85f + 0.3f * hashed(a, b, 44));
+    if (dark < full) {
+        const float past = dark / full - ranks[size_t(row & 63) * 64 + size_t(column & 63)];
+        if (past > 0) dot.reach = own * std::min(1.0f, std::sqrt(past * 8));
+    } else {
+        dot.reach = own * std::sqrt(dark / full) * (1 + 0.4f * (dark - full) / (1 - full));
     }
-    return ink;
+    return dot;
+}
+
+/// Where the darkness under a dot is read: its own place, which lies within a cell and a half of its cell
+inline QPointF dotPlace(int column, int row, float radius)
+{
+    const Dot dot = dotOf(column, row, radius, 0);
+    return QPointF(dot.x, dot.y);
 }
 
 /// The Euclidean dot, from -1 to 1: round dots in light tones, a checkerboard at half, round holes in dark ones
@@ -420,23 +467,13 @@ float screenAt(float imageX, float imageY, float dark, float spacing, float cosi
 }
 
 /**
- * Strokes along the flow, as drawn: white noise fixed to the image's pixels, filtered across the flow into stripes
- * \p spacing apart (a Gabor kernel) and smoothed along it into strokes (a line integral, \p sigma), then brought to
- * unit spread around each place, so that a threshold covers as much as the normal distribution says. Over \p area.
+ * Stripes along \p flow on a grid of \p noise: filtered across the flow into stripes \p spacing apart (a broad
+ * Gabor kernel, so the strokes vary as drawn ones do rather than lining up as a weave) and smoothed along it into
+ * strokes (a line integral, \p sigma), then brought to unit spread around each place. Over \p area of the grid.
  */
-std::vector<float> stripesOf(const Flow &flow, const QRect &sourceRect, float pixel, qreal spacing, qreal sigma, const QRect &area,
-                             quint32 seed)
+std::vector<float> stripesOnGrid(const Flow &flow, const std::vector<float> &noise, qreal spacing, qreal sigma, const QRect &area)
 {
     const int w = flow.w, h = flow.h;
-    std::vector<float> noise(size_t(w) * h);
-    for (int y = 0; y < h; y++) {
-        const quint32 imageY = quint32(qint32(std::floor((sourceRect.top() + y + 0.5f) * pixel)));
-        for (int x = 0; x < w; x++) {
-            const quint32 imageX = quint32(qint32(std::floor((sourceRect.left() + x + 0.5f) * pixel)));
-            noise[size_t(y) * w + x] = hashed(imageX, imageY, seed) - 0.5f;
-        }
-    }
-    // a broad band, so the strokes vary as drawn ones do rather than lining up as a weave
     const double band = 0.25 * spacing;
     const int reach = int(std::ceil(3 * band));
     std::vector<float> kernel(2 * reach + 1);
@@ -460,7 +497,7 @@ std::vector<float> stripesOf(const Flow &flow, const QRect &sourceRect, float pi
             across[i] = sum;
         }
     }
-    std::vector<float> field = std::move(alongFlow({across.data()}, flow, sigma, evened, 1.0)[0]);
+    std::vector<float> field = strokeAlong(across, flow, sigma, evened);
     const int ew = evened.width(), eh = evened.height();
     std::vector<float> power(field.size()), scratch(field.size());
     for (size_t i = 0; i < field.size(); i++) power[i] = field[i] * field[i];
@@ -470,6 +507,59 @@ std::vector<float> stripesOf(const Flow &flow, const QRect &sourceRect, float pi
         for (int x = 0; x < area.width(); x++) {
             const size_t from = size_t(area.top() + y - evened.top()) * ew + (area.left() + x - evened.left());
             out[size_t(y) * area.width() + x] = field[from] / std::sqrt(power[from] + 1e-12f);
+        }
+    }
+    return out;
+}
+
+/**
+ * Strokes along the flow, as drawn: stripes of white noise fixed to the image's pixels (stripesOnGrid), so that a
+ * threshold covers as much as the normal distribution says. Over \p area (in \p flow's pixels, which cover
+ * \p sourceRect). Stripes are smooth across many pixels: wide ones are made on a grid of cells a fifth of a
+ * stripe apart, fixed to the image's corner, and enlarged (fewer cells to a stripe, the strokes turn blotchy).
+ */
+std::vector<float> stripesOf(const Flow &flow, const QRect &sourceRect, float pixel, qreal spacing, qreal sigma, const QRect &area,
+                             quint32 seed)
+{
+    const int w = flow.w, h = flow.h;
+    const int cell = std::max(1, int(spacing / 5));
+    auto down = [cell](int v) { return v >= 0 ? v / cell : -((-v + cell - 1) / cell); };
+    const QRect cells(QPoint(down(sourceRect.left()), down(sourceRect.top())), QPoint(down(sourceRect.right()), down(sourceRect.bottom())));
+    const int cw = cells.width(), ch = cells.height();
+    // each cell's noise, by the image's pixel at its middle, and the flow there
+    Flow grid;
+    grid.w = cw;
+    grid.h = ch;
+    grid.x.resize(size_t(cw) * ch);
+    grid.y.resize(size_t(cw) * ch);
+    std::vector<float> noise(size_t(cw) * ch);
+    for (int y = 0; y < ch; y++) {
+        const int middleY = (cells.top() + y) * cell + cell / 2;
+        const quint32 imageY = quint32(qint32(std::floor((middleY + 0.5f) * pixel)));
+        const int sy = std::clamp(middleY - sourceRect.top(), 0, h - 1);
+        for (int x = 0; x < cw; x++) {
+            const int middleX = (cells.left() + x) * cell + cell / 2;
+            const quint32 imageX = quint32(qint32(std::floor((middleX + 0.5f) * pixel)));
+            const int sx = std::clamp(middleX - sourceRect.left(), 0, w - 1);
+            const size_t i = size_t(y) * cw + x;
+            noise[i] = hashed(imageX, imageY, seed) - 0.5f;
+            grid.x[i] = flow.x[size_t(sy) * w + sx];
+            grid.y[i] = flow.y[size_t(sy) * w + sx];
+        }
+    }
+    // the cells over the area, with one around for reading between them
+    const QRect onImage = area.translated(sourceRect.topLeft());
+    const QRect areaCells = QRect(QPoint(down(onImage.left()) - 1, down(onImage.top()) - 1), QPoint(down(onImage.right()) + 1, down(onImage.bottom()) + 1))
+                                .translated(-cells.topLeft())
+        & QRect(0, 0, cw, ch);
+    const std::vector<float> coarse = stripesOnGrid(grid, noise, spacing / cell, sigma / cell, areaCells);
+    if (cell == 1 && areaCells == area) return coarse;
+    std::vector<float> out(size_t(area.width()) * area.height());
+    for (int y = 0; y < area.height(); y++) {
+        const float gy = (onImage.top() + y + 0.5f) / cell - 0.5f - cells.top() - areaCells.top();
+        for (int x = 0; x < area.width(); x++) {
+            const float gx = (onImage.left() + x + 0.5f) / cell - 0.5f - cells.left() - areaCells.left();
+            out[size_t(y) * area.width() + x] = readAt(coarse.data(), areaCells.width(), areaCells.height(), gx + 0.5f, gy + 0.5f);
         }
     }
     return out;
@@ -751,6 +841,25 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
         stripes[1] = stripesOf(along, sourceRect, pixel, m_stripeSpacing, m_strokeSigma, inside, 202);
     }
     const bool colorScreen = s.shading == Shading::Screen && s.colors == Colors::Colored;
+    // the dots that reach the rect, each found once
+    std::vector<Dot> dots;
+    QRect dotCells;
+    const float dotRadius = 0.5f * s.dot;
+    if (marked && s.shading == Shading::Dots) {
+        const float cell = dotRadius * 2.4f;
+        auto cellOf = [cell](float v) { return int(std::floor(v / cell)); };
+        dotCells = QRect(QPoint(cellOf(rect.left() * pixel) - 1, cellOf(rect.top() * pixel) - 1),
+                         QPoint(cellOf((rect.right() + 1) * pixel) + 1, cellOf((rect.bottom() + 1) * pixel) + 1));
+        dots.resize(size_t(dotCells.width()) * dotCells.height());
+        for (int j = dotCells.top(); j <= dotCells.bottom(); j++) {
+            for (int i = dotCells.left(); i <= dotCells.right(); i++) {
+                const QPointF place = dotPlace(i, j, dotRadius);
+                const int px = std::clamp(int(std::floor(place.x() / pixel - sourceRect.left() - work.left())), 0, ww - 1);
+                const int py = std::clamp(int(std::floor(place.y() / pixel - sourceRect.top() - work.top())), 0, wh - 1);
+                dots[size_t(j - dotCells.top()) * dotCells.width() + (i - dotCells.left())] = dotOf(i, j, dotRadius, darkness(toned[size_t(py) * ww + px]));
+            }
+        }
+    }
     if (marked && !colorScreen) {
         marks.resize(size_t(rw) * rh);
         const float spacing = std::max(2.0f, s.spacing);
@@ -761,11 +870,6 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
             turnX[t] = float(std::cos(angle));
             turnY[t] = float(std::sin(angle));
         }
-        auto darkAt = [&](float atX, float atY) {
-            const int px = std::clamp(int(std::floor(atX / pixel - sourceRect.left() - work.left())), 0, ww - 1);
-            const int py = std::clamp(int(std::floor(atY / pixel - sourceRect.top() - work.top())), 0, wh - 1);
-            return darkness(toned[size_t(py) * ww + px]);
-        };
         for (int y = 0; y < rh; y++) {
             const float imageY = (rect.top() + y + 0.5f) * pixel;
             for (int x = 0; x < rw; x++) {
@@ -796,9 +900,21 @@ void Ink::apply(const float *source, const QRect &sourceRect, const QRect &rect,
                     }
                     break;
                 }
-                case Shading::Dots:
-                    paper = 1 - dotAt(imageX, imageY, 0.5f * s.dot, pixel, darkAt);
+                case Shading::Dots: {
+                    const float cell = dotRadius * 2.4f;
+                    const int column = int(std::floor(imageX / cell)), row = int(std::floor(imageY / cell));
+                    float ink = 0;
+                    for (int j = row - 1; j <= row + 1; j++) {
+                        for (int i = column - 1; i <= column + 1; i++) {
+                            const Dot &dot = dots[size_t(j - dotCells.top()) * dotCells.width() + (i - dotCells.left())];
+                            if (dot.reach <= 0) continue;
+                            const float dx = imageX - dot.x, dy = imageY - dot.y;
+                            ink = std::max(ink, std::clamp((dot.reach - std::sqrt(dx * dx + dy * dy)) / pixel + 0.5f, 0.0f, 1.0f));
+                        }
+                    }
+                    paper = 1 - ink;
                     break;
+                }
                 case Shading::Screen:
                     paper = 1 - screenAt(imageX, imageY, printed(dark), spacing, turnX[0], turnY[0], pixel);
                     break;

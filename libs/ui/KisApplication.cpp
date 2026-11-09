@@ -295,11 +295,14 @@ KisApplication::KisApplication(const QString &key, int &argc, char **argv)
     installNativeEventFilter(new TaskbarThemeFilter);
     {
         // Windows 11 runs the timers of a program whose window it thinks hidden at its 15.6 ms tick, and Qt's
-        // short timers with them: the canvas's once-a-frame timer then held a stroke's dabs back up to 16 ms
+        // short timers with them: the canvas's once-a-frame timer then held a stroke's dabs back up to 16 ms.
+        // It also moves such a program's threads to its efficiency cores at low clocks (EcoQoS), where an effect
+        // being made took three times as long
         const ULONG ignoreTimerResolution = 0x4; // PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION
+        const ULONG executionSpeed = 0x1; // PROCESS_POWER_THROTTLING_EXECUTION_SPEED
         PROCESS_POWER_THROTTLING_STATE state {};
         state.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
-        state.ControlMask = ignoreTimerResolution;
+        state.ControlMask = ignoreTimerResolution | executionSpeed;
         state.StateMask = 0;
         SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, &state, sizeof(state));
     }

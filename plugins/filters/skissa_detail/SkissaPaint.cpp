@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <vector>
 
 #include <QtMath>
@@ -83,16 +84,24 @@ const std::vector<Point> &pattern()
     return spread;
 }
 
-inline void readAt(const std::vector<float> &planes, int w, int h, float x, float y, float *to)
+/// \p x to the power \p y, for x above 0, within a few parts in a thousand (the sectors' weights need no more): the
+/// exponent and a quadratic in the mantissa for log2, a quadratic for 2 to the fraction
+inline float roughPow(float x, float y)
 {
-    x = std::clamp(x - 0.5f, 0.0f, float(w - 1));
-    y = std::clamp(y - 0.5f, 0.0f, float(h - 1));
-    const int ix = std::min(int(x), std::max(0, w - 2)), iy = std::min(int(y), std::max(0, h - 2));
-    const int jx = std::min(ix + 1, w - 1), jy = std::min(iy + 1, h - 1);
-    const float tx = x - ix, ty = y - iy;
-    const float *a = planes.data() + (size_t(iy) * w + ix) * 4, *b = planes.data() + (size_t(iy) * w + jx) * 4;
-    const float *c = planes.data() + (size_t(jy) * w + ix) * 4, *d = planes.data() + (size_t(jy) * w + jx) * 4;
-    for (int k = 0; k < 4; k++) to[k] = (a[k] + (b[k] - a[k]) * tx) * (1 - ty) + (c[k] + (d[k] - c[k]) * tx) * ty;
+    if (x <= 1e-30f) return 0;
+    int bits;
+    std::memcpy(&bits, &x, sizeof(bits));
+    const float mantissa = float(bits & 0x7fffff) / float(0x800000);
+    const float log2 = float((bits >> 23) & 0xff) - 127 + mantissa * (1.3465557f - 0.34655572f * mantissa);
+    const float e = std::clamp(y * log2, -126.0f, 126.0f);
+    const float whole = std::floor(e), fraction = e - whole;
+    const float power = 1 + fraction * (0.6565f + 0.3435f * fraction);
+    int out;
+    std::memcpy(&out, &power, sizeof(out));
+    out += int(whole) << 23;
+    float result;
+    std::memcpy(&result, &out, sizeof(result));
+    return result;
 }
 
 } // namespace
@@ -208,8 +217,9 @@ void Paint::apply(const float *source, const QRect &sourceRect, const QRect &rec
                 // the disk's point stretched into the ellipse and turned along the flow
                 const float ox = p.x * along, oy = p.y * across;
                 const float px = sx + 0.5f + ox * tx - oy * ty, py = sy + 0.5f + ox * ty + oy * tx;
-                float c[4];
-                readAt(lab, w, h, px, py, c);
+                // the nearest pixel: 48 points over the ellipse average out where between pixels they fall
+                const int nx = std::clamp(int(px), 0, w - 1), ny = std::clamp(int(py), 0, h - 1);
+                const float *c = lab.data() + (size_t(ny) * w + nx) * 4;
                 const float squares[4] = {c[0] * c[0], c[1] * c[1], c[2] * c[2], c[3] * c[3]};
                 for (int j = 0; j < p.count; j++) {
                     const int k = p.sector[j];
@@ -230,7 +240,7 @@ void Paint::apply(const float *source, const QRect &sourceRect, const QRect &rec
                     mean[ch] = m[k][ch] / total[k];
                     spread2 += std::max(0.0f, sq[k][ch] / total[k] - mean[ch] * mean[ch]);
                 }
-                const float weight = 1 / (1 + std::pow(1000 * spread2, 0.5f * q));
+                const float weight = 1 / (1 + roughPow(1000 * spread2, 0.5f * q));
                 for (int ch = 0; ch < 4; ch++) result[ch] += mean[ch] * weight;
                 weights += weight;
             }

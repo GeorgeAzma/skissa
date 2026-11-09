@@ -32,8 +32,8 @@ constexpr qreal glowFalloff = -0.6;
 constexpr float redReach = 1.2f, blueReach = 0.8f;
 /// A spike is followed until it has faded to e^-4
 constexpr float spikeEnd = 4;
-/// Spikes are made on a grid this many cells along a spike at most, then enlarged: they are smooth along it
-constexpr int spikeCells = 24;
+/// Spikes are made on a grid this many cells along a spike at most, then enlarged
+constexpr int spikeCells = 64;
 
 struct Plane3 {
     int w {0}, h {0};
@@ -87,31 +87,64 @@ void addSpikes(const Plane3 &shine, const QRect &rect, const QRect &area, const 
             for (int c = 0; c < 3; c++) coarse.c[c][i] /= counts[i];
         }
     }
-    // each wavelength's spike its own length; each spike holds as much light as shone, shared out along it
+    /*
+     * Each wavelength's spike its own length, fading exponentially along it, and holding as much light as shone:
+     * the fade is a recursive filter, run both ways along the rows of the grid turned to the spike's direction, so
+     * a spike of any length costs a few passes over the grid
+     */
     const float cellLength = length / cell;
     const float reach[3] = {cellLength * redReach, cellLength, cellLength * blueReach};
-    const int steps = int(std::ceil(spikeEnd * reach[0]));
-    std::vector<std::array<float, 3>> weights(steps + 1);
+    float decay[3], share[3];
     for (int c = 0; c < 3; c++) {
-        double total = 0;
-        for (int t = 1; t <= steps; t++) total += 2 * std::exp(-t / reach[c]);
-        for (int t = 1; t <= steps; t++) weights[t][c] = float(std::exp(-t / reach[c]) / std::max(1e-9, total)) * tint[c];
+        decay[c] = std::exp(-1 / reach[c]);
+        // a fade of a^t from t = 1 on, both ways, adds to 2a / (1 - a)
+        share[c] = tint[c] * (1 - decay[c]) / (2 * decay[c]) / directions.size();
     }
+    const int cw = cells.width(), ch = cells.height();
+    const float middleX = (cw - 1) / 2.0f, middleY = (ch - 1) / 2.0f;
+    auto inGrid = [](const std::vector<float> &plane, int w, int h, float x, float y) {
+        return x < -0.5f || y < -0.5f || x > w - 0.5f || y > h - 0.5f ? 0.0f : readAt(plane, w, h, x, y);
+    };
     Plane3 spikes;
-    spikes.resize(cells.width(), cells.height());
+    spikes.resize(cw, ch);
+    Plane3 turned;
+    std::vector<float> faded;
     for (float degrees : directions) {
         const float dx = float(std::cos(qDegreesToRadians(double(degrees)))), dy = float(std::sin(qDegreesToRadians(double(degrees))));
-        for (int y = 0; y < cells.height(); y++) {
-            for (int x = 0; x < cells.width(); x++) {
-                float sum[3] = {0, 0, 0};
-                for (int t = 1; t <= steps; t++) {
-                    for (const float way : {1.0f, -1.0f}) {
-                        const float px = x + way * t * dx, py = y + way * t * dy;
-                        if (px < 0 || py < 0 || px > cells.width() - 1 || py > cells.height() - 1) continue;
-                        for (int c = 0; c < 3; c++) sum[c] += weights[t][c] * readAt(coarse.c[c], cells.width(), cells.height(), px, py);
-                    }
+        // the grid turned so the spike runs along its rows
+        const int tw = int(std::ceil(std::abs(dx) * cw + std::abs(dy) * ch)) + 2, th = int(std::ceil(std::abs(dy) * cw + std::abs(dx) * ch)) + 2;
+        const float turnedX = (tw - 1) / 2.0f, turnedY = (th - 1) / 2.0f;
+        turned.resize(tw, th);
+        for (int v = 0; v < th; v++) {
+            for (int u = 0; u < tw; u++) {
+                const float a = u - turnedX, b = v - turnedY;
+                const float x = middleX + a * dx - b * dy, y = middleY + a * dy + b * dx;
+                for (int c = 0; c < 3; c++) turned.c[c][size_t(v) * tw + u] = inGrid(coarse.c[c], cw, ch, x, y);
+            }
+        }
+        faded.resize(size_t(tw) * th);
+        for (int c = 0; c < 3; c++) {
+            for (int v = 0; v < th; v++) {
+                const float *row = turned.c[c].data() + size_t(v) * tw;
+                float *to = faded.data() + size_t(v) * tw;
+                float carried = 0;
+                for (int u = 0; u < tw; u++) {
+                    to[u] = carried;
+                    carried = decay[c] * (carried + row[u]);
                 }
-                for (int c = 0; c < 3; c++) spikes.c[c][size_t(y) * cells.width() + x] += sum[c] / directions.size();
+                carried = 0;
+                for (int u = tw - 1; u >= 0; u--) {
+                    to[u] += carried;
+                    carried = decay[c] * (carried + row[u]);
+                }
+            }
+            // turned back onto the grid
+            for (int y = 0; y < ch; y++) {
+                for (int x = 0; x < cw; x++) {
+                    const float px = x - middleX, py = y - middleY;
+                    const float u = px * dx + py * dy + turnedX, v = -px * dy + py * dx + turnedY;
+                    spikes.c[c][size_t(y) * cw + x] += share[c] * inGrid(faded, tw, th, u, v);
+                }
             }
         }
     }
@@ -124,6 +157,35 @@ void addSpikes(const Plane3 &shine, const QRect &rect, const QRect &area, const 
             for (int c = 0; c < 3; c++) light.c[c][to] += readAt(spikes.c[c], cells.width(), cells.height(), cx, cy);
         }
     }
+}
+
+/// A level of the shine: its planes, and the cell its first one is (in cells of its size from the image's corner)
+struct Level {
+    QPoint origin;
+    Plane3 planes;
+};
+
+/// \p finer halved: each of its cells the average of the cells of \p finer it covers
+Level halved(const Level &finer)
+{
+    auto down = [](int v) { return v >= 0 ? v / 2 : -((-v + 1) / 2); };
+    Level out;
+    out.origin = QPoint(down(finer.origin.x()), down(finer.origin.y()));
+    const int right = down(finer.origin.x() + finer.planes.w - 1), bottom = down(finer.origin.y() + finer.planes.h - 1);
+    out.planes.resize(right - out.origin.x() + 1, bottom - out.origin.y() + 1);
+    std::vector<float> counts(size_t(out.planes.w) * out.planes.h, 0.0f);
+    for (int y = 0; y < finer.planes.h; y++) {
+        const int oy = down(finer.origin.y() + y) - out.origin.y();
+        for (int x = 0; x < finer.planes.w; x++) {
+            const size_t to = size_t(oy) * out.planes.w + (down(finer.origin.x() + x) - out.origin.x());
+            for (int c = 0; c < 3; c++) out.planes.c[c][to] += finer.planes.c[c][size_t(y) * finer.planes.w + x];
+            counts[to] += 1;
+        }
+    }
+    for (size_t i = 0; i < counts.size(); i++) {
+        for (int c = 0; c < 3; c++) out.planes.c[c][i] /= std::max(1.0f, counts[i]);
+    }
+    return out;
 }
 
 void linearOf(const QColor &color, float *to)
@@ -242,16 +304,44 @@ void Light::apply(const float *source, const QRect &sourceRect, const QRect &rec
         for (qreal sigma = finestGlow; sigma < largest * 1.01; sigma *= 2) sigmas.push_back(std::min(sigma, largest));
         double total = 0;
         for (qreal sigma : sigmas) total += std::pow(sigma, glowFalloff);
-        std::vector<float> blurred(count), scratch(count);
+        /*
+         * A wide glow is made on a smaller copy: levels of the shine each half the size of the one before (2 by 2
+         * averages over cells fixed to the image's corner, so patches agree), each octave blurred on the coarsest
+         * level where it spans two cells, less the blur the halving and the enlarging add, then enlarged
+         */
+        std::vector<Level> levels(1);
+        levels[0].origin = sourceRect.topLeft();
+        levels[0].planes = shine;
+        std::vector<float> blurred, scratch;
         for (qreal sigma : sigmas) {
             const float weight = float(std::pow(sigma, glowFalloff) / total * s.glow);
+            int level = 0;
+            while (sigma / std::pow(2.0, level + 1) >= 2 && levels[level].planes.w > 8 && levels[level].planes.h > 8) {
+                level++;
+                if (level >= int(levels.size())) levels.push_back(halved(levels.back()));
+            }
+            const Level &at = levels[level];
+            const double cell = std::pow(2.0, level);
+            const double added = level ? (cell * cell - 1) / 12 + cell * cell / 6 : 0;
+            const qreal left = std::sqrt(std::max(0.25, sigma * sigma - added)) / cell;
+            const int lw = at.planes.w, lh = at.planes.h;
+            blurred.resize(size_t(lw) * lh);
+            scratch.resize(blurred.size());
             for (int c = 0; c < 3; c++) {
-                blurred = shine.c[c];
-                SkissaDetail::gaussian(blurred.data(), scratch.data(), w, h, sigma);
+                blurred = at.planes.c[c];
+                SkissaDetail::gaussian(blurred.data(), scratch.data(), lw, lh, left);
                 for (int y = 0; y < rect.height(); y++) {
-                    const float *from = blurred.data() + size_t(inside.top() + y) * w + inside.left();
                     float *to = light.c[c].data() + size_t(y) * rect.width();
-                    for (int x = 0; x < rect.width(); x++) to[x] += weight * from[x];
+                    if (!level) {
+                        const float *from = blurred.data() + size_t(inside.top() + y) * w + inside.left();
+                        for (int x = 0; x < rect.width(); x++) to[x] += weight * from[x];
+                        continue;
+                    }
+                    const float ly = float((rect.top() + y + 0.5) / cell - 0.5 - at.origin.y());
+                    for (int x = 0; x < rect.width(); x++) {
+                        const float lx = float((rect.left() + x + 0.5) / cell - 0.5 - at.origin.x());
+                        to[x] += weight * readAt(blurred, lw, lh, lx, ly);
+                    }
                 }
             }
         }
