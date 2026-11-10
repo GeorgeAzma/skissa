@@ -22,6 +22,7 @@
 #include <kpluginfactory.h>
 
 #include "KoCompositeOpInLinear.h"
+#include "KoCompositeOpOklch.h"
 #include "SkissaColor.h"
 #include "SkissaColorWidget.h"
 
@@ -44,6 +45,8 @@ public:
         const KoChannelInfo::enumChannelValueType type = cs->channels().first()->channelValueType();
         // floats hold colors past sRGB, which are kept
         m_fit = type != KoChannelInfo::FLOAT16 && type != KoChannelInfo::FLOAT32 && type != KoChannelInfo::FLOAT64;
+        // a wider gamut keeps what is past sRGB for the conversion into it
+        m_inSrgb = m_srgb8 || KoOklch::fitsInSrgb(cs);
         if (!m_srgb8 && !m_linear) {
             KoColorSpaceRegistry *registry = KoColorSpaceRegistry::instance();
             m_toLinear.reset(registry->createColorConverter(cs, linear, KoColorConversionTransformation::internalRenderingIntent(),
@@ -81,7 +84,7 @@ public:
         } else {
             m_toLinear->transform(src, reinterpret_cast<quint8 *>(pixels), nPixels);
         }
-        for (qint32 i = 0; i < nPixels; i++) m_recipe.apply(pixels + 4 * i, m_fit);
+        for (qint32 i = 0; i < nPixels; i++) m_recipe.apply(pixels + 4 * i, m_fit, m_inSrgb);
         if (m_linear) {
             std::copy(reinterpret_cast<const quint8 *>(pixels), reinterpret_cast<const quint8 *>(pixels) + size_t(nPixels) * m_pixelSize, dst);
         } else {
@@ -95,6 +98,7 @@ private:
     bool m_srgb8 {false};
     bool m_linear {false};
     bool m_fit {true};
+    bool m_inSrgb {true};
     std::unique_ptr<KoColorConversionTransformation> m_toLinear;
     std::unique_ptr<KoColorConversionTransformation> m_toOwn;
     /// Each thread has its own transformation (KisColorTransformationConfiguration), so this needs no lock

@@ -353,7 +353,8 @@ protected:
         if ((event->pos() - m_pressPos).manhattanLength() < KisModernStyle::dragDistance(event)) {
             return;
         }
-        if (isOccupied(m_press) && editable && editable()) {
+        // a locked palette's colors still go onto the canvas; only moving and removing them needs it unlocked
+        if (isOccupied(m_press)) {
             startDrag();
         } else if (!m_pressOnPlus) {
             // from an empty place: the swatches follow the finger
@@ -393,7 +394,7 @@ protected:
     void dragEnterEvent(QDragEnterEvent *event) override
     {
         // swatches of this palette, moved; recent colors, kept
-        if ((event->source() == this && event->mimeData()->hasFormat(swatchMimeType))
+        if ((m_dragging && event->mimeData()->hasFormat(swatchMimeType) && editable && editable())
             || (event->mimeData()->hasFormat(recentMimeType) && editable && editable())) {
             event->acceptProposedAction();
         }
@@ -500,7 +501,8 @@ private:
     void startDrag()
     {
         const QPersistentModelIndex from = m_press;
-        auto *drag = new QDrag(this);
+        const bool canMove = editable && editable();
+        auto *drag = new QDrag(qApp);
         auto *mime = new QMimeData();
         mime->setData(swatchMimeType, QByteArray::number(from.row()) + ',' + QByteArray::number(from.column()));
         // its color too, so it fills where it is dropped on the canvas or recolors a layer it is dropped on
@@ -511,14 +513,19 @@ private:
 
         m_dragging = true;
         update();
-        const Qt::DropAction result = drag->exec(Qt::MoveAction | Qt::CopyAction, Qt::MoveAction);
+        const Qt::DropAction result = canMove ? drag->exec(Qt::MoveAction | Qt::CopyAction, Qt::MoveAction) : drag->exec(Qt::CopyAction);
+        drag->deleteLater();
         m_dragging = false;
         m_dropRect = QRect();
         update();
 
-        // let go outside the panel: taken out of the palette
-        QWidget *panel = parentWidget() ? parentWidget() : this;
-        if (result == Qt::IgnoreAction && !KisModernStyle::pointerHeld() && !panel->rect().contains(panel->mapFromGlobal(QCursor::pos()))) {
+        // let go outside the windows: taken out of the palette; anywhere in them that doesn't take it, kept
+        const QPoint at = QCursor::pos();
+        bool overWindow = false;
+        Q_FOREACH (QWidget *top, QApplication::topLevelWidgets()) {
+            if (top->isVisible() && top->frameGeometry().contains(at)) overWindow = true;
+        }
+        if (canMove && result == Qt::IgnoreAction && !KisModernStyle::pointerHeld() && !overWindow) {
             QTimer::singleShot(0, this, [this, from]() {
                 if (draggedOff && from.isValid()) draggedOff(from);
             });

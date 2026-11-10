@@ -6,13 +6,16 @@
 #ifndef KOCOMPOSITEOPOKLCH_H
 #define KOCOMPOSITEOPOKLCH_H
 
+#include <QColor>
 #include <QList>
 #include <QString>
 #include <QVector>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 
+#include "KoColorProfile.h"
 #include "KoCompositeOpInLinear.h"
 #include "KoID.h"
 #include <klocalizedstring.h>
@@ -53,6 +56,83 @@ void addTo(Categories &categories, Map &map)
     const int hsv = categories.indexOf(KoID(QStringLiteral("hsv")));
     categories.insert(hsv < 0 ? categories.size() : hsv + 1, category());
     Q_FOREACH (const KoID &mode, modes()) map.insert(category(), mode);
+}
+
+/**
+ * The OKLCH hues of the pure colors around an HSV wheel, a quarter degree apart (1441 of them, the last a turn on),
+ * unwrapped: the color picker's ring and the Color effect's hue axis are spaced by it. Around blue they stall and even
+ * fall back a little (HSV 229° to 240° are all near 264°): where they rise slower than 0.15° a degree, they rise evenly
+ * instead, so each hue has one place and none moves more than 2°.
+ */
+inline const QVector<qreal> &wheelHues()
+{
+    static const QVector<qreal> hues = []() {
+        constexpr int count = 1441;
+        constexpr qreal least = 0.15 * 0.25;
+        constexpr qreal degrees = 180.0 / 3.14159265358979323846;
+        auto linear = [](qreal c) { return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4); };
+        QVector<qreal> hues(count);
+        qreal turns = 0;
+        for (int i = 0; i < count; i++) {
+            const QColor pure = QColor::fromHsvF(std::fmod(i * 0.25 / 360.0, 1.0), 1.0, 1.0);
+            const qreal r = linear(pure.redF()), g = linear(pure.greenF()), b = linear(pure.blueF());
+            const qreal l = std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+            const qreal m = std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+            const qreal s = std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+            qreal h = std::atan2(0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+                                 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s) * degrees;
+            if (h < 0) h += 360.0;
+            h += turns;
+            if (i > 0 && h < hues[i - 1] - 180.0) {
+                turns += 360.0;
+                h += 360.0;
+            }
+            hues[i] = h;
+        }
+        for (int i = 1; i < count;) {
+            if (hues[i] - hues[i - 1] >= least - 1e-9) {
+                i++;
+                continue;
+            }
+            int a = i - 1;
+            int b = i;
+            while (hues[b] - hues[a] < least * (b - a) && (a > 0 || b < count - 1)) {
+                a = std::max(0, a - 1);
+                b = std::min(count - 1, b + 1);
+            }
+            const qreal from = hues[a];
+            const qreal to = hues[b];
+            for (int k = a; k <= b; k++) hues[k] = from + (to - from) * (k - a) / (b - a);
+            i = a + 1;
+        }
+        return hues;
+    }();
+    return hues;
+}
+
+/**
+ * Whether colors in \p cs stop at sRGB's edge, so results past it give up chroma to fit (inGamut): integer values
+ * with sRGB's primaries. Floats hold what is past sRGB, and a wider gamut holds more of it, which the conversion
+ * into it keeps. Not from a color space's constructor: it asks the registry for sRGB.
+ */
+inline bool fitsInSrgb(const KoColorSpace *cs)
+{
+    if (!cs) return false;
+    const KoID depth = cs->colorDepthId();
+    if (depth == Float16BitsColorDepthID || depth == Float32BitsColorDepthID || depth == Float64BitsColorDepthID) return false;
+    const KoColorProfile *profile = cs->profile();
+    const KoColorProfile *srgb = KoColorSpaceRegistry::instance()->rgb8()->profile();
+    if (!profile || !srgb) return false;
+    if (profile == srgb) return true;
+    if (!profile->hasColorants() || !srgb->hasColorants()) return false;
+    // the same primaries as Krita's own sRGB, read alike (adapted to the profile's white), within what profiles round
+    const QVector<KoColorimetryUtils::xyY> own = profile->getColorantsxyY();
+    const QVector<KoColorimetryUtils::xyY> standard = srgb->getColorantsxyY();
+    if (own.size() < 3 || standard.size() < 3) return false;
+    for (int i = 0; i < 3; i++) {
+        if (std::abs(own[i].x - standard[i].x) > 0.002 || std::abs(own[i].y - standard[i].y) > 0.002) return false;
+    }
+    return true;
 }
 
 /// Whether linear sRGB \p rgb is a color sRGB has; past white (lightness above 1) only its darks count
@@ -146,6 +226,9 @@ public:
 
     void composite(const KoCompositeOp::ParameterInfo &params) const override
     {
+        // found at the first use: the color space is still being made when its blends are
+        if (m_fit < 0) m_fit = KoOklch::fitsInSrgb(colorSpace()) ? 1 : 0;
+        const bool fit = m_fit > 0;
         // a color seen again (one paint color, a flat area under it) isn't blended again
         float sourceSeen[3] = {-1, -1, -1};
         float underSeen[3] = {-1, -1, -1};
@@ -165,7 +248,11 @@ public:
             if (!blendedFresh) {
                 float lab[3];
                 KoOklch::blend(m_mode, sourceLab, underLab, lab);
-                KoOklch::inGamut(lab, blended);
+                if (fit) {
+                    KoOklch::inGamut(lab, blended);
+                } else {
+                    KoMixing::oklabToLinear(lab, blended);
+                }
                 blendedFresh = true;
             }
         };
@@ -198,6 +285,8 @@ public:
 
 private:
     int m_mode;
+    /// Whether results are fitted into sRGB (KoOklch::fitsInSrgb); -1 until known
+    mutable std::atomic<int> m_fit {-1};
 };
 
 #endif // KOCOMPOSITEOPOKLCH_H

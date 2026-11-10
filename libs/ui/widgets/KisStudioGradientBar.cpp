@@ -200,6 +200,8 @@ void KisStudioGradientBar::mousePressEvent(QMouseEvent *event)
         Q_EMIT stopsChanged();
     }
     m_dragging = true;
+    m_moved = false;
+    m_pressX = event->pos().x();
     update();
     Q_EMIT selectedChanged();
 }
@@ -211,7 +213,13 @@ void KisStudioGradientBar::mouseMoveEvent(QMouseEvent *event)
         setCursor(stopAt(event->pos()) >= 0 ? Qt::SizeHorCursor : Qt::ArrowCursor);
         return;
     }
-    m_stops[m_selected].first = positionOf(event->pos().x());
+    if (!m_moved) {
+        if (qAbs(event->pos().x() - m_pressX) < KisModernStyle::dragDistance(event)) return;
+        // from here, without a jump by the distance it took to start
+        m_moved = true;
+        m_grab = event->pos().x() - handleAt(m_selected).x();
+    }
+    m_stops[m_selected].first = positionOf(qRound(event->pos().x() - m_grab));
     sortKeeping(m_selected);
     update();
     Q_EMIT stopsChanged();

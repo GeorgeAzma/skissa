@@ -86,8 +86,9 @@ class Recipe
 public:
     explicit Recipe(const Settings &settings);
 
-    /// Changes linear sRGB \p rgb; \p fit keeps the result within sRGB (integer images), giving up chroma
-    void apply(float rgb[3], bool fit) const;
+    /// Changes linear sRGB \p rgb; \p fit keeps it below white (integer images), and with \p inSrgb within sRGB,
+    /// giving up chroma (the image's gamut is sRGB's: KoOklch::fitsInSrgb)
+    void apply(float rgb[3], bool fit, bool inSrgb = true) const;
     bool changesNothing() const { return m_nothing; }
 
 private:

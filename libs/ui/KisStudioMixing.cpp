@@ -16,10 +16,13 @@
 #include <brushengine/kis_paintop_preset.h>
 #include <brushengine/kis_paintop_settings.h>
 #include <compositeops/KoCompositeOpMix.h>
+#include <KoColorSpace.h>
 
 #include "KisMainWindow.h"
 #include "KisViewManager.h"
 #include "kis_canvas_resource_provider.h"
+#include "kis_node.h"
+#include "kis_paint_device.h"
 #include "widgets/KisStudioChips.h"
 
 namespace
@@ -77,7 +80,13 @@ QWidget *KisStudioMixing::chooser(KisMainWindow *mainWindow, QWidget *parent)
     modes->setTileColumns(3, 48);
     auto refresh = [modes, resources]() {
         const KisPaintOpPresetSP preset = resources->currentPreset();
-        const int mode = preset ? preset->settings()->getInt(KoMixing::settingName(), KoMixing::Normal) : KoMixing::Normal;
+        // only RGB layers mix otherwise: elsewhere the brush paints as RGB, which is what shows, and the choice waits
+        const KisNodeSP node = resources->currentNode();
+        const KisPaintDeviceSP device = node ? node->paintDevice() : KisPaintDeviceSP();
+        const bool mixes = !device || device->colorSpace()->hasCompositeOp(KoMixing::opId(KoMixing::Even, COMPOSITE_OVER));
+        modes->setEnabled(mixes);
+        const int chosen = preset ? preset->settings()->getInt(KoMixing::settingName(), KoMixing::Normal) : KoMixing::Normal;
+        const int mode = mixes ? chosen : KoMixing::Normal;
         KisStudioChips::Chip normal;
         normal.text = i18nc("how paint mixes: in the image's own red, green and blue, as Krita does", "RGB");
         normal.toolTip = i18nc("@info:tooltip", "Krita's usual mixing");
@@ -87,6 +96,9 @@ QWidget *KisStudioMixing::chooser(KisMainWindow *mainWindow, QWidget *parent)
         KisStudioChips::Chip pigment;
         pigment.text = i18nc("how paint mixes: as real pigments do", "Pigment");
         pigment.toolTip = i18nc("@info:tooltip", "Blue and yellow make green, like real paint");
+        if (!mixes) {
+            even.toolTip = pigment.toolTip = i18nc("@info:tooltip OKLab and Pigment mixing on a CMYK or gray layer", "Only on RGB layers");
+        }
         QVector<KisStudioChips::Chip> chips {normal, even, pigment};
         for (int i = 0; i < chips.size(); i++) {
             chips[i].picture = picture(i);
@@ -105,5 +117,6 @@ QWidget *KisStudioMixing::chooser(KisMainWindow *mainWindow, QWidget *parent)
     QObject::connect(resources->resourceManager(), &KoCanvasResourceProvider::canvasResourceChanged, modes, [refresh](int key) {
         if (key == KoCanvasResource::CurrentPaintOpPreset) refresh();
     });
+    QObject::connect(resources, &KisCanvasResourceProvider::sigNodeChanged, modes, [refresh]() { refresh(); });
     return modes;
 }

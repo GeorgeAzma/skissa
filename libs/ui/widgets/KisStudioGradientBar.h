@@ -69,6 +69,11 @@ private:
     qreal m_marker {-1};
     int m_selected {0};
     bool m_dragging {false};
+    /// The stop follows the pointer only once the press has moved a drag's distance
+    bool m_moved {false};
+    int m_pressX {0};
+    /// How far the pointer was from the stop's middle when it began to move, kept while it moves
+    qreal m_grab {0};
 };
 
 #endif

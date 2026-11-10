@@ -57,6 +57,7 @@
 #include "kis_canvas_resource_provider.h"
 #include <KisUniqueColorSet.h>
 #include <KoCompositeOpRegistry.h>
+#include <compositeops/KoCompositeOpOklch.h>
 #include "canvas/kis_canvas2.h"
 #include "kis_image.h"
 #include "KisSettingsRegistry.h"
@@ -222,43 +223,10 @@ qreal ringAngleAt(const QPointF &offset)
     return std::fmod(std::atan2(offset.x(), -offset.y()) * 180.0 / M_PI + 360.0, 360.0);
 }
 
+/// The Color effect's hue axis is spaced by the same table
 const QVector<qreal> &ringHues()
 {
-    // the OKLCH hues of the pure colors every quarter degree, unwrapped. Around blue they stall and even fall back a
-    // little (HSV 229° to 240° are all near 264°), which made the ring stick and its knob jump there: where they rise
-    // slower than 0.15° a degree, they rise evenly instead (no hue moves more than 2°)
-    static const QVector<qreal> hues = []() {
-        const int count = 1441;
-        const qreal least = 0.15 * 0.25;
-        QVector<qreal> hues(count);
-        qreal turns = 0;
-        for (int i = 0; i < count; i++) {
-            qreal h = oklchFromRgb(QColor::fromHsvF(std::fmod(i * 0.25 / 360.0, 1.0), 1.0, 1.0)).h + turns;
-            if (i > 0 && h < hues[i - 1] - 180.0) {
-                turns += 360.0;
-                h += 360.0;
-            }
-            hues[i] = h;
-        }
-        for (int i = 1; i < count;) {
-            if (hues[i] - hues[i - 1] >= least - 1e-9) {
-                i++;
-                continue;
-            }
-            int a = i - 1;
-            int b = i;
-            while (hues[b] - hues[a] < least * (b - a) && (a > 0 || b < count - 1)) {
-                a = qMax(0, a - 1);
-                b = qMin(count - 1, b + 1);
-            }
-            const qreal from = hues[a];
-            const qreal to = hues[b];
-            for (int k = a; k <= b; k++) hues[k] = from + (to - from) * (k - a) / (b - a);
-            i = a + 1;
-        }
-        return hues;
-    }();
-    return hues;
+    return KoOklch::wheelHues();
 }
 
 /**
@@ -287,6 +255,28 @@ qreal hsvHueOfOklch(qreal oklchHue)
     const qreal span = hues[i] - hues[i - 1];
     const qreal along = span > 0 ? (h - hues[i - 1]) / span : 0.0;
     return std::fmod((i - 1 + along) * 0.25, 360.0);
+}
+
+/// At HSV hue \p hue (0..1), into \p s and \p v the color as light (OKLCH) as \p lightness at saturation \p saturation
+void keptLightness(qreal hue, qreal lightness, qreal saturation, qreal &s, qreal &v)
+{
+    auto lightnessAt = [hue](qreal sat, qreal val) { return oklchFromRgb(QColor::fromHsvF(hue, sat, val)).l; };
+    auto solve = [lightness](const std::function<qreal(qreal)> &of) {
+        qreal low = 0.0, high = 1.0;
+        for (int i = 0; i < 20; i++) {
+            const qreal middle = (low + high) / 2;
+            if (of(middle) < lightness) low = middle;
+            else high = middle;
+        }
+        return (low + high) / 2;
+    };
+    if (lightnessAt(saturation, 1.0) >= lightness) {
+        s = saturation;
+        v = solve([&](qreal value) { return lightnessAt(saturation, value); });
+    } else {
+        v = 1.0;
+        s = 1.0 - solve([&](qreal w) { return lightnessAt(1.0 - w, 1.0); });
+    }
 }
 
 /// Darkens \p color to mark the area past the edge of sRGB
@@ -1313,23 +1303,7 @@ struct KisStudioColorPanel::Private
      */
     void holdLightness()
     {
-        auto lightnessAt = [this](qreal s, qreal v) { return oklchFromRgb(QColor::fromHsvF(hsvHue, s, v)).l; };
-        auto solve = [this](const std::function<qreal(qreal)> &lightness) {
-            qreal low = 0.0, high = 1.0;
-            for (int i = 0; i < 20; i++) {
-                const qreal middle = (low + high) / 2;
-                if (lightness(middle) < heldLightness) low = middle;
-                else high = middle;
-            }
-            return (low + high) / 2;
-        };
-        if (lightnessAt(heldSaturation, 1.0) >= heldLightness) {
-            hsvS = heldSaturation;
-            hsvV = solve([&](qreal v) { return lightnessAt(heldSaturation, v); });
-        } else {
-            hsvV = 1.0;
-            hsvS = 1.0 - solve([&](qreal w) { return lightnessAt(1.0 - w, 1.0); });
-        }
+        keptLightness(hsvHue, heldLightness, heldSaturation, hsvS, hsvV);
     }
 
     void refresh()
@@ -1386,7 +1360,11 @@ struct KisStudioColorPanel::Private
             break;
         case ColorFormat::Hsv: rgb = QColor::fromHsvF(parts[0] / 360.0, parts[1] / 100.0, parts[2] / 100.0); break;
         }
-        if (!rgb.isValid()) return;
+        if (!rgb.isValid()) {
+            // what was typed says no color: the field shows the one there is
+            hex->setText(current.name().mid(1).toUpper());
+            return;
+        }
         setBase(rgb);
         // the model it was written in keeps its numbers, a gray's hue too
         if (written.format == ColorFormat::Oklch) {
@@ -1711,6 +1689,10 @@ struct KisStudioColorWheel::Private {
     qreal hsvV {1};
     /// A picked chroma is held while the hue changes, as on the color panel
     qreal heldChroma {0};
+    /// Turning the hue in an HSV shape keeps how light the color looks, as on the color panel
+    bool keepLightness {true};
+    qreal heldLightness {0};
+    qreal heldSaturation {0};
 
     void show()
     {
@@ -1733,6 +1715,7 @@ KisStudioColorWheel::KisStudioColorWheel(QWidget *parent)
     const int savedShape = shapeNames.indexOf(config.readEntry<QString>("StudioColorShape", QString()));
     d->shape = savedShape >= 0 ? PickerShape(savedShape) : PickerShape::Oklch;
     d->picker->setStyle(savedLayout >= 0 ? HueLayout(savedLayout) : HueLayout::Ring, d->shape);
+    d->keepLightness = config.readEntry<bool>("StudioColorKeepLightness", true);
     auto pick = [this](const QColor &rgb) {
         d->rgb = QColor::fromRgb(rgb.rgb());
         d->show();
@@ -1746,6 +1729,7 @@ KisStudioColorWheel::KisStudioColorWheel(QWidget *parent)
             return;
         }
         d->hsvHue = hue;
+        if (d->keepLightness) keptLightness(d->hsvHue, d->heldLightness, d->heldSaturation, d->hsvS, d->hsvV);
         pick(QColor::fromHsvF(d->hsvHue, d->hsvS, d->hsvV));
     };
     d->picker->planePicked = [this, pick](qreal x, qreal y) {
@@ -1757,7 +1741,10 @@ KisStudioColorWheel::KisStudioColorWheel(QWidget *parent)
     d->picker->svPicked = [this, pick](qreal s, qreal v) {
         d->hsvS = s;
         d->hsvV = v;
-        pick(QColor::fromHsvF(d->hsvHue, d->hsvS, d->hsvV));
+        const QColor rgb = QColor::fromHsvF(d->hsvHue, d->hsvS, d->hsvV);
+        d->heldSaturation = s;
+        d->heldLightness = oklchFromRgb(rgb).l;
+        pick(rgb);
     };
     setColor(Qt::white);
 }
@@ -1775,6 +1762,8 @@ void KisStudioColorWheel::setColor(const QColor &color)
     d->hsvS = s;
     d->hsvV = v;
     const Oklch oklch = oklchFromRgb(d->rgb);
+    d->heldLightness = oklch.l;
+    d->heldSaturation = s;
     d->color.l = oklch.l;
     d->color.c = oklch.c;
     if (oklch.c > 0.012) d->color.h = oklch.h;

@@ -25,28 +25,13 @@ constexpr float degrees = float(180.0 / M_PI);
 const char axisLetters[] = "lch";
 const char rgbLetters[] = "rgb";
 
-/// The OKLCH hues of the pure colors around an HSV wheel, a quarter degree apart, unwrapped and always rising
+/// The OKLCH hues of the pure colors around an HSV wheel, a quarter degree apart, as the color picker's ring has them
 const QVector<float> &wheelHues()
 {
     static const QVector<float> hues = []() {
-        const int count = 1441;
-        QVector<float> hues(count);
-        float turns = 0;
-        for (int i = 0; i < count; i++) {
-            const QColor pure = QColor::fromHsvF(std::fmod(i / 1440.0, 1.0), 1.0, 1.0);
-            const float rgb[3] = {float(std::pow((pure.redF() + 0.055) / 1.055, 2.4)),
-                                  float(std::pow((pure.greenF() + 0.055) / 1.055, 2.4)),
-                                  float(std::pow((pure.blueF() + 0.055) / 1.055, 2.4))};
-            float lab[3];
-            KoMixing::linearToOklab(rgb, lab);
-            float h = std::atan2(lab[2], lab[1]) * degrees + turns;
-            if (i > 0 && h < hues[i - 1] - 180) {
-                turns += 360;
-                h += 360;
-            }
-            // around blue the hues stall and fall back a little: rising slowly instead, each has one place
-            hues[i] = i > 0 ? std::max(h, hues[i - 1] + 0.01f) : h;
-        }
+        const QVector<qreal> &wheel = KoOklch::wheelHues();
+        QVector<float> hues(wheel.size());
+        for (int i = 0; i < wheel.size(); i++) hues[i] = float(wheel[i]);
         return hues;
     }();
     return hues;
@@ -296,15 +281,20 @@ Recipe::Recipe(const Settings &settings)
     m_nothing = !m_oklch && !m_anyRgb && !balanced && m_map.isEmpty();
 }
 
-/// \p lab in a picture that stops at white: as much of its chroma as fits at its lightness, and past white as a
-/// near-white is fitted, not cut channel by channel into a tint the near-whites beside it don't have
-inline void fitted(float lab[3], float rgb[3])
+/// \p lab in a picture that stops at white: past white as a near-white is fitted, not cut channel by channel into a
+/// tint the near-whites beside it don't have; in sRGB, as much of its chroma as fits at its lightness, while a wider
+/// gamut keeps it for the conversion into it
+inline void fitted(float lab[3], float rgb[3], bool inSrgb)
 {
     lab[0] = std::min(lab[0], 0.99999f);
-    KoOklch::inGamut(lab, rgb);
+    if (inSrgb) {
+        KoOklch::inGamut(lab, rgb);
+    } else {
+        KoMixing::oklabToLinear(lab, rgb);
+    }
 }
 
-void Recipe::apply(float rgb[3], bool fit) const
+void Recipe::apply(float rgb[3], bool fit, bool inSrgb) const
 {
     if (m_nothing) return;
     if (!m_map.isEmpty()) {
@@ -320,7 +310,7 @@ void Recipe::apply(float rgb[3], bool fit) const
         if (m_mapKeepsLightness) mapped[0] = lab[0];
         for (int c = 0; c < 3; c++) lab[c] += (mapped[c] - lab[c]) * m_mapStrength;
         if (fit) {
-            fitted(lab, rgb);
+            fitted(lab, rgb, inSrgb);
         } else {
             KoMixing::oklabToLinear(lab, rgb);
         }
@@ -382,7 +372,7 @@ void Recipe::apply(float rgb[3], bool fit) const
             lab[2] += float(m_shadows.y()) * toShadows + float(m_highlights.y()) * toHighlights;
         }
         if (fit) {
-            fitted(lab, rgb);
+            fitted(lab, rgb, inSrgb);
         } else {
             KoMixing::oklabToLinear(lab, rgb);
         }
