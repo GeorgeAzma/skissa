@@ -387,7 +387,8 @@ public:
             const float ofUnder = m_copy ? (1 - amount) * d[3] : d[3] * (1 - amount * s[3]);
             if (ofSource <= 0 && !(m_copy && amount > 0)) return false;
             const float total = ofSource + ofUnder;
-            const float t = total > 0 ? ofSource / total : 1;
+            // with the alpha locked nothing is added, so the paint counts by its own coverage, as in Krita's Normal
+            const float t = alphaLocked && !m_copy ? ofSource : total > 0 ? ofSource / total : 1;
             float mixed[3];
             if (d[3] <= 0 || t >= 1) {
                 std::copy(s, s + 3, mixed);

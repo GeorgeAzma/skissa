@@ -13,6 +13,7 @@
 #include "kis_tool_freehand.h"
 
 #include "KisLastStrokeReplay.h"
+#include "KisModernStyle.h"
 #include "KisDocument.h"
 #include "KisView.h"
 #include <optional>
@@ -133,7 +134,7 @@ KisToolFreehand::KisToolFreehand(KoCanvasBase * canvas, const QCursor & cursor,
     connect(m_helper, &KisToolFreehandHelper::sigStrokeEnded, this, &KisToolFreehand::reportStrokeEnded);
 
     m_shapeHold.setSingleShot(true);
-    m_shapeHold.setInterval(500);
+    m_shapeHold.setInterval(KisModernStyle::holdInterval());
     connect(&m_shapeHold, &QTimer::timeout, this, &KisToolFreehand::snapToShape);
 
     connect(qobject_cast<KisCanvas2*>(canvas)->viewManager(), SIGNAL(brushOutlineToggled()), SLOT(explicitUpdateOutline()));

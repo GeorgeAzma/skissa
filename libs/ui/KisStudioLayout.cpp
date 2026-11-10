@@ -1733,7 +1733,7 @@ public:
         : QWidget(canvasArea)
     {
         setObjectName(QStringLiteral("studioWindowHandle"));
-        setToolTip(i18nc("@info:tooltip the app's icon in the window's corner: your artworks", "Home\nDrag: move\nDouble-click: maximize"));
+        setToolTip(i18nc("@info:tooltip the app's icon in the window's corner: your artworks", "Home\nDrag: move"));
         hide();
     }
 
@@ -1757,14 +1757,6 @@ protected:
         if (!m_pressed) return;
         m_pressed = false;
         if (clicked) clicked();
-    }
-
-    void mouseDoubleClickEvent(QMouseEvent *) override
-    {
-        m_pressed = false;
-        QWidget *top = window();
-        if (top->isMaximized()) top->showNormal();
-        else top->showMaximized();
     }
 
     void paintEvent(QPaintEvent *) override
@@ -3743,11 +3735,12 @@ void KisStudioLayout::normalize()
     }
     placeWindowButtons();
     // also on the start page, where the window pill acts as the title bar
+    const bool windowShown = !canvasOnly || d->peeking.contains(QPointer<QWidget>(d->windowPill.data()));
     for (QAction *action : {d->menuButtonAction.data(), d->settingsButtonAction.data(), d->findFieldAction.data()}) {
-        if (action) action->setVisible(!canvasOnly);
+        if (action) action->setVisible(windowShown);
     }
     if (d->windowButtonsAction) {
-        d->windowButtonsAction->setVisible(d->frame && d->frame->isEnabled() && !canvasOnly);
+        d->windowButtonsAction->setVisible(d->frame && d->frame->isEnabled() && windowShown);
     }
 
     // hide these again, since restoring a window state brings them back
@@ -5550,7 +5543,7 @@ void KisStudioLayout::adoptTopBars()
     if (d->windowBar) d->windowBar->show();
 
     // the window pill shows on the start page too, as its title bar
-    const bool window = d->active && !isCanvasOnly();
+    const bool window = d->active && (!isCanvasOnly() || d->peeking.contains(QPointer<QWidget>(d->windowPill.data())));
     d->topPill->setVisible(tools);
     d->windowHandle->setVisible(tools);
     d->windowPill->setVisible(window);
@@ -5898,6 +5891,8 @@ void KisStudioLayout::peek(const QPoint &global)
         bool near;
     };
     QList<Edge> edges = {
+        // first, so the top bar is placed beside it: the menu and the window's buttons, the way out of the mode
+        {d->windowPill.data(), at.y() < reach},
         {d->topPill.data(), d->topPill && !d->topPill->isAtTop() ? at.y() >= area->height() - reach : at.y() < reach},
         {d->brushRail.data(), toolsLeft ? at.x() < reach : at.x() >= area->width() - reach},
         {d->panelColumn.data(), d->panelColumn && d->panelColumn->isLeft() ? at.x() < reach : at.x() >= area->width() - reach},
@@ -5921,6 +5916,14 @@ void KisStudioLayout::peek(const QPoint &global)
                 if (d->toolStripAction && d->toolStrip) d->toolStripAction->setVisible(d->toolStrip->hasOptions());
                 updateContextBar();
                 d->topPill->place();
+            } else if (widget == d->windowPill) {
+                // canvas-only mode hides its buttons and its bar
+                for (QAction *action : {d->menuButtonAction.data(), d->settingsButtonAction.data(), d->findFieldAction.data()}) {
+                    if (action) action->setVisible(true);
+                }
+                if (d->windowButtonsAction) d->windowButtonsAction->setVisible(d->frame && d->frame->isEnabled());
+                if (d->windowBar) d->windowBar->show();
+                d->windowPill->place();
             }
             widget->raise();
             KisStudioMotion::showFaded(widget);
@@ -6001,9 +6004,12 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
     if ((event->type() == QEvent::MouseMove || event->type() == QEvent::TabletMove) && isCanvasOnly()) {
         // only moves over this window
         auto *widget = qobject_cast<QWidget *>(watched);
-        const QPoint global = event->type() == QEvent::MouseMove ? static_cast<QMouseEvent *>(event)->globalPos()
-                                                                  : static_cast<QTabletEvent *>(event)->globalPos();
-        if (widget && widget->window() == d->mainWindow) peek(global);
+        const bool mouse = event->type() == QEvent::MouseMove;
+        const QPoint global = mouse ? static_cast<QMouseEvent *>(event)->globalPos() : static_cast<QTabletEvent *>(event)->globalPos();
+        // a stroke or a drag passing an edge brings nothing back, and takes nothing away
+        const bool pressed = mouse ? static_cast<QMouseEvent *>(event)->buttons() != Qt::NoButton
+                                   : static_cast<QTabletEvent *>(event)->buttons() != Qt::NoButton;
+        if (widget && widget->window() == d->mainWindow && !pressed) peek(global);
     }
     // what the pointer brought back goes when it leaves the window (to another screen), unless it went to a menu
     // or popup of the window's own

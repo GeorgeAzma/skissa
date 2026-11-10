@@ -1569,7 +1569,7 @@ QVector<CardDef> makeCards()
     add(QStringLiteral("files"), QStringLiteral("autosave"), i18nc("settings card", "Autosave"),
         {QStringLiteral("AutoSaveInterval")}, QStringLiteral("auto save recovery crash interval every minutes"), [](Builder &b) {
             // A few fixed steps; autosave waits for a pause anyway, so frequent saves cost little
-            static const QVector<int> minutes {0, 1, 5, 15, 30};
+            static const QVector<int> minutes {0, 1, 2, 5, 15, 30};
             QStringList texts;
             Q_FOREACH (int m, minutes) texts << (m == 0 ? i18nc("autosave", "Off") : i18nc("autosave interval", "%1 min", m));
             auto *steps = new Segmented(texts, b.card);

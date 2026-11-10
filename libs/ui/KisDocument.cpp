@@ -2094,6 +2094,13 @@ bool KisDocument::openPath(const QString &_path, OpenFlags flags)
 
     bool ret = openPathInternal(path);
 
+    // an autosave that can't be read doesn't keep the image from opening as it was saved; it stays where it is
+    if (!ret && autosaveOpened) {
+        autosaveOpened = false;
+        path = original;
+        ret = openPathInternal(path);
+    }
+
     // a left over autosave goes only once its file has opened, and to the Recycle Bin
     if (ret && !declinedAutosave.isEmpty()) {
         KisUsageLogger::log(QString("Removing autosave file: %1").arg(declinedAutosave));

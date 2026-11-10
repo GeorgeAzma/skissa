@@ -56,6 +56,38 @@ QVector<int> boxRadii(qreal sigma, int count)
     return radii;
 }
 
+/// The weights of a gaussian of \p sigma out to \p r, as shares of 65536 that add up to all of it
+QVector<int> gaussWeights(qreal sigma, int r)
+{
+    QVector<qreal> exact;
+    qreal total = 0;
+    for (int k = -r; k <= r; k++) {
+        exact << std::exp(-k * k / (2 * sigma * sigma));
+        total += exact.last();
+    }
+    QVector<int> weights;
+    int given = 0;
+    for (const qreal weight : exact) {
+        weights << qRound(65536 * weight / total);
+        given += weights.last();
+    }
+    weights[r] += 65536 - given;
+    return weights;
+}
+
+/// The gaussian itself along \p n bytes \p step apart, for edges so thin that box blurs can't tell them apart
+void gaussLine(quint8 *line, int n, size_t step, const QVector<int> &weights)
+{
+    const int r = weights.size() / 2;
+    std::vector<quint8> in(n);
+    for (int i = 0; i < n; i++) in[i] = line[i * step];
+    for (int i = 0; i < n; i++) {
+        int sum = 1 << 15;
+        for (int k = -r; k <= r; k++) sum += weights[k + r] * in[qBound(0, i + k, n - 1)];
+        line[i * step] = quint8(sum >> 16);
+    }
+}
+
 /// A box blur of radius \p r along a row of \p n bytes, by a running sum: the same work at any radius
 void boxRow(quint8 *row, int n, int r)
 {
@@ -113,7 +145,18 @@ public:
         QVector<int> rows(h), blocks((w + 63) / 64);
         std::iota(rows.begin(), rows.end(), 0);
         std::iota(blocks.begin(), blocks.end(), 0);
-        Q_FOREACH (const int r, boxRadii(qMax(0.5, m_reach / 3.0), 3)) {
+        const qreal sigma = qMax(0.5, m_reach / 3.0);
+        // three boxes come out the same for every reach up to 3 px
+        if (m_reach <= 3) {
+            const QVector<int> weights = gaussWeights(sigma, qMax(1, m_reach));
+            QtConcurrent::blockingMap(rows, [data, w, &weights](int y) { gaussLine(data + size_t(y) * w, w, 1, weights); });
+            QtConcurrent::blockingMap(blocks, [data, w, h, &weights](int b) {
+                for (int x = b * 64; x < qMin(w, b * 64 + 64); x++) gaussLine(data + x, h, size_t(w), weights);
+            });
+            pixels->writeBytes(mask.data(), rect);
+            return;
+        }
+        Q_FOREACH (const int r, boxRadii(sigma, 3)) {
             if (r <= 0) continue;
             QtConcurrent::blockingMap(rows, [data, w, r](int y) { boxRow(data + size_t(y) * w, w, r); });
             QtConcurrent::blockingMap(blocks, [data, w, h, r](int b) { boxColumns(data, w, h, b * 64, qMin(64, w - b * 64), r); });

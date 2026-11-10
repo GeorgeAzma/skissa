@@ -33,9 +33,11 @@ template<typename T>
 inline void cfGlowDodge(T src, T sa, T &dst, T &da)
 {
     const T light = src * sa;
-    const T glow = dst <= T(0) ? T(0) : light >= T(1) ? T(1) : std::min(T(1), dst / (T(1) - light));
-    // where nothing is under it, the paint as it is
-    dst = da * glow + (T(1) - da) * src;
+    // never darker than what is under it, which may be brighter than white
+    const T glow = dst <= T(0) ? T(0) : std::max(dst, light >= T(1) ? T(1) : std::min(T(1), dst / (T(1) - light)));
+    // where nothing is under it, the paint as it is, by its coverage: no paint leaves the pixel as it was
+    const T covered = da + sa - da * sa;
+    if (covered > T(0)) dst = (da * glow + (T(1) - da) * sa * src) / covered;
 }
 
 /// Renames the SAI blend and adds Glow dodge beside it, in the registry's lists

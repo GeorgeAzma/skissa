@@ -1303,7 +1303,8 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
             const QModelIndex pressed = static_cast<QAbstractItemView *>(view)->indexAt(mouse->pos());
             m_opacityPress = mouse->button() == Qt::LeftButton && pressed.column() != NodeView::VISIBILITY_COL ? QPersistentModelIndex(pressed) : QPersistentModelIndex();
             m_opacityPressPos = mouse->pos();
-            m_opacitySlop = KisModernStyle::dragDistance(mouse);
+            // further than a drag starts at: far enough to tell sideways from up or down, and before the list's own drag
+            m_opacitySlop = 3 * KisModernStyle::dragDistance(mouse);
             m_opacityScrubbing = false;
             break;
         }
@@ -1393,6 +1394,9 @@ bool LayerBox::handleOpacityDrag(const QPoint &pos, bool fine)
         m_opacityStart = node->opacity() * 100.0 / 255.0;
         m_opacityOriginal = m_opacityStart;
         view->viewport()->setCursor(Qt::SizeHorCursor);
+        // counted from here, so the value doesn't jump by the distance that made it a drag
+        m_opacityPressPos = pos;
+        return true;
     }
     if (!m_opacityNode) {
         return true;

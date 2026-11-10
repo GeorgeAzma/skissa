@@ -949,6 +949,7 @@ std::optional<TypedColor> readColor(const QString &text)
         if (percent[1]) values[1] *= 0.4 / 100.0;
         return TypedColor{ColorFormat::Oklch, {qBound(0.0, values[0], 1.0), qBound(0.0, values[1], 0.4), values[2]}, QColor()};
     case ColorFormat::Hsv:
+        values[0] = std::fmod(std::fmod(values[0], 360.0) + 360.0, 360.0);
         for (int i = 1; i < 3; i++) {
             if (!percent[i] && values[i] <= 1.0 && pieces[i].contains(QLatin1Char('.'))) values[i] *= 100.0;
             values[i] = qBound(0.0, values[i], 100.0);

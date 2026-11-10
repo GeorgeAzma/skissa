@@ -322,6 +322,10 @@ bool NodeView::viewportEvent(QEvent *e)
                     || (!d->soloing && (pos - d->lastPos).manhattanLength() > KisModernStyle::dragDistance(static_cast<QMouseEvent *>(e))))) {
                 d->endSolo();
             }
+            // a look that drifts stays a look: it doesn't start moving the layer
+            if (d->soloing) {
+                return true;
+            }
             if (d->eyeDrag && !(static_cast<QMouseEvent*>(e)->buttons() & Qt::LeftButton)) {
                 // its release never came (a menu took it)
                 d->eyeDrag.reset();

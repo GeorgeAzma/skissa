@@ -69,6 +69,7 @@
 #include "canvas/kis_coordinates_converter.h"
 #include "input/KisInputActionGroup.h"
 #include "kis_config.h"
+#include "KisSettingsRegistry.h"
 #include "kis_filter_manager.h"
 #include "kis_icon_utils.h"
 #include "kis_node_manager.h"
@@ -730,7 +731,7 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
 
     d->editable = iconButton(QStringLiteral("filterMask"), i18nc("@info:tooltip", "Keep the effect editable on its own layer"), this);
     d->editable->setCheckable(true);
-    connect(d->editable, &QToolButton::toggled, this, [](bool on) { KisConfig(false).writeEntry(editableKey, on); });
+    connect(d->editable, &QToolButton::clicked, this, [](bool on) { KisSettingsRegistry::instance()->setValue(editableKey, on); });
     header->addWidget(d->editable);
 
     header->addSpacing(6);
@@ -869,8 +870,8 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
         d->canvasWidget = viewManager->canvasBase()->canvasWidget();
         if (d->canvasWidget) {
             d->canvasWidget->installEventFilter(this);
-            QPointF middle;
-            if (d->editor && d->editor->canvasMiddle(&middle)) {
+            // for every editor: one without a middle may get one as its settings change (Lens blur's Tilt-shift)
+            if (d->editor) {
                 d->mark = new MiddleMark(d->canvasWidget);
                 d->viewChanged = connect(viewManager->canvasBase(), &KisCanvas2::sigCanvasStateChanged, this, [this]() { d->showMiddle(); });
                 d->showMiddle();

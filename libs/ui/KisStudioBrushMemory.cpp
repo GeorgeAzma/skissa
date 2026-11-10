@@ -9,6 +9,7 @@
 #include <klocalizedstring.h>
 
 #include "KisMainWindow.h"
+#include "KisSettingsRegistry.h"
 #include "KisStrokeLog.h"
 #include "KisStudioBrushPicker.h"
 #include "KisViewManager.h"
@@ -36,7 +37,7 @@ bool KisStudioBrushMemory::layersRememberBrushes()
 
 void KisStudioBrushMemory::setLayersRememberBrushes(bool on)
 {
-    KisConfig(false).writeEntry(QStringLiteral("StudioLayersRememberBrushes"), on);
+    KisSettingsRegistry::instance()->setValue(QStringLiteral("StudioLayersRememberBrushes"), on);
 }
 
 void KisStudioBrushMemory::layerChosen(KisNodeSP node)

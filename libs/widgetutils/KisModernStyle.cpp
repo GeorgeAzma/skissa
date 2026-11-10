@@ -669,7 +669,12 @@ void KisModernStyle::drawKeyCap(QPainter *painter, const QRectF &rect, const QFo
 
 int KisModernStyle::dragDistance(const QInputEvent *event)
 {
-    const int distance = QApplication::startDragDistance();
+#ifdef Q_OS_WIN
+    // Windows' own, not QApplication's, which Krita sets to 25 px for its item views
+    const int distance = qMax(1, GetSystemMetrics(SM_CXDRAG));
+#else
+    const int distance = 4;
+#endif
     if (!event) return distance;
     const QEvent::Type type = event->type();
     const bool pen = type == QEvent::TabletPress || type == QEvent::TabletMove || type == QEvent::TabletRelease

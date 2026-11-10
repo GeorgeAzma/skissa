@@ -349,16 +349,18 @@ public:
         return true;
     }
 
-    QString canvasDragged(const QPointF &moved, const QPointF &) override
+    QString canvasDragged(const QPointF &moved, const QPointF &at) override
     {
         if (!m_dragging) return QString();
         // the overlay calls with nothing moved at the press, to show the value
         if (!m_moved && moved.isNull()) return QString();
         m_moved = true;
         if (m_lineLength >= 0 && m_lineAngle >= 0) {
-            setValue(m_lineLength, std::hypot(moved.x(), moved.y()));
+            // the line as drawn on the image, whatever the view's zoom, turn or mirroring
+            const QPointF drawn = at - QPointF(m_pressedAt);
+            setValue(m_lineLength, std::hypot(drawn.x(), drawn.y()));
             // clockwise from the right, as the image's y grows down
-            qreal angle = qRadiansToDegrees(std::atan2(moved.y(), moved.x()));
+            qreal angle = qRadiansToDegrees(std::atan2(drawn.y(), drawn.x()));
             if (angle < 0) angle += 360;
             setValue(m_lineAngle, angle);
             return shown(m_lineLength) + QStringLiteral("  ") + shown(m_lineAngle);

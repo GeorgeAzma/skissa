@@ -352,7 +352,7 @@ protected:
             break;
         }
         case QEvent::MouseMove:
-            moved(static_cast<QMouseEvent *>(event)->globalPos());
+            moved(static_cast<QMouseEvent *>(event)->globalPos(), KisModernStyle::dragDistance(static_cast<QMouseEvent *>(event)));
             break;
         default:
             break;
@@ -433,11 +433,12 @@ private:
         if (!widget->toolTip().isEmpty() || viewOf(widget)) see(keyOf(widget, widget->mapFromGlobal(globalPos)));
     }
 
-    void moved(const QPoint &globalPos)
+    /// \p wobble is how far the pointer moves while it rests: more for a pen than for a mouse
+    void moved(const QPoint &globalPos, int wobble)
     {
-        if (m_pending.isActive() && (globalPos - m_pendingGlobal).manhattanLength() > 4) m_pending.stop();
+        if (m_pending.isActive() && (globalPos - m_pendingGlobal).manhattanLength() > wobble) m_pending.stop();
         // the tip goes as the pointer moves on
-        if (!m_shownAt.isNull() && (globalPos - m_shownAt).manhattanLength() > 8) {
+        if (!m_shownAt.isNull() && (globalPos - m_shownAt).manhattanLength() > 2 * wobble) {
             m_shownAt = QPoint();
             if (QWidget *tip = shownTip()) KisStudioMotion::hideFaded(tip);
         }
