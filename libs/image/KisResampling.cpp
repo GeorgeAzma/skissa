@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <numeric>
 #include <vector>
 
 #include <QSet>
@@ -190,34 +191,65 @@ bool KisResampling::looksLikePixelArt(KisPaintDeviceSP device, const QRect &rect
 {
     if (!device || rect.isEmpty()) return false;
 
-    // the middle of the picture is enough to tell: painting and photos have thousands of colours there
-    const int side = 512;
-    const QRect window = QRect(rect.center() - QPoint(side / 2, side / 2), QSize(side, side)) & rect;
+    // the middle and the middles of the four quarters: paintings and photos have thousands of colours in each
+    const int side = 256;
+    const QPoint quarter(rect.width() / 4, rect.height() / 4);
+    const QPoint middles[] = {rect.center(), rect.center() - quarter, rect.center() + quarter,
+                              rect.center() + QPoint(quarter.x(), -quarter.y()), rect.center() + QPoint(-quarter.x(), quarter.y())};
     const int pixelSize = device->pixelSize();
-    std::vector<quint8> bytes(size_t(window.width()) * window.height() * pixelSize);
-    device->readBytes(bytes.data(), window);
-
     const KoColorSpace *cs = device->colorSpace();
-    std::vector<quint8> alpha(size_t(window.width()) * window.height());
-    cs->copyOpacityU8(bytes.data(), alpha.data(), int(alpha.size()));
-
     const int mostColors = 64;
-    // a colour as one number when it fits in one, rather than a byte array allocated for every pixel
-    QSet<quint64> colors;
-    QSet<QByteArray> wideColors;
-    for (size_t i = 0; i < alpha.size(); i++) {
-        if (!alpha[i]) continue;
-        const quint8 *pixel = bytes.data() + i * pixelSize;
-        if (pixelSize <= int(sizeof(quint64))) {
-            quint64 key = 0;
-            std::memcpy(&key, pixel, pixelSize);
-            colors.insert(key);
-        } else {
-            wideColors.insert(QByteArray(reinterpret_cast<const char *>(pixel), pixelSize));
+    // runs of one colour with another on both sides, across and down: pixel art's features are a pixel or two
+    // (or as many as it was enlarged by), where flat shapes have long runs
+    std::vector<int> runs;
+    for (const QPoint &middle : middles) {
+        const QRect window = QRect(middle - QPoint(side / 2, side / 2), QSize(side, side)) & rect;
+        if (window.isEmpty()) continue;
+        const int w = window.width(), h = window.height();
+        std::vector<quint8> bytes(size_t(w) * h * pixelSize);
+        device->readBytes(bytes.data(), window);
+        std::vector<quint8> alpha(size_t(w) * h);
+        cs->copyOpacityU8(bytes.data(), alpha.data(), int(alpha.size()));
+
+        // a colour as one number when it fits in one, rather than a byte array allocated for every pixel
+        QSet<quint64> colors;
+        QSet<QByteArray> wideColors;
+        for (size_t i = 0; i < alpha.size(); i++) {
+            if (!alpha[i]) continue;
+            const quint8 *pixel = bytes.data() + i * pixelSize;
+            if (pixelSize <= int(sizeof(quint64))) {
+                quint64 key = 0;
+                std::memcpy(&key, pixel, pixelSize);
+                colors.insert(key);
+            } else {
+                wideColors.insert(QByteArray(reinterpret_cast<const char *>(pixel), pixelSize));
+            }
+            if (colors.size() + wideColors.size() > mostColors) return false;
         }
-        if (colors.size() + wideColors.size() > mostColors) return false;
+
+        auto same = [&](size_t a, size_t b) {
+            if (!alpha[a] || !alpha[b]) return !alpha[a] && !alpha[b];
+            return std::memcmp(bytes.data() + a * pixelSize, bytes.data() + b * pixelSize, pixelSize) == 0;
+        };
+        auto scan = [&](size_t first, int count, size_t step) {
+            int start = 0;
+            for (int i = 1; i <= count; i++) {
+                if (i < count && same(first + (i - 1) * step, first + i * step)) continue;
+                if (start > 0 && i < count && alpha[first + start * step]) runs.push_back(i - start);
+                start = i;
+            }
+        };
+        for (int y = 0; y < h; y++) scan(size_t(y) * w, w, 1);
+        for (int x = 0; x < w; x++) scan(size_t(x), h, size_t(w));
     }
-    return !colors.isEmpty() || !wideColors.isEmpty();
+
+    // too few to tell (a flat shape, or nothing painted)
+    if (runs.size() < 16) return false;
+    int unit = 0;
+    for (int run : runs) unit = std::gcd(unit, run);
+    if (unit > 8) return false;
+    const size_t fine = size_t(std::count_if(runs.begin(), runs.end(), [unit](int run) { return run <= 2 * unit; }));
+    return 4 * fine >= runs.size();
 }
 
 KisPaintDeviceSP KisResampling::linearCopy(KisPaintDeviceSP device, KisFilterStrategy *filter, qreal xscale, qreal yscale)

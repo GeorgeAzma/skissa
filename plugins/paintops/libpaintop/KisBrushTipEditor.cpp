@@ -22,6 +22,7 @@
 
 #include <KisGlobalResourcesInterface.h>
 #include <KisModernStyle.h>
+#include <KisValueSteps.h>
 #include <KisStudioTips.h>
 #include <KisResourceModel.h>
 #include <KoColorSpaceRegistry.h>
@@ -1036,8 +1037,8 @@ private:
         }
         case ChipWidth:
         case ChipHeight: {
-            // by ratios, as sizes are: 100 px of drag doubles it
-            const qreal factor = std::pow(2.0, step / 100.0);
+            // by ratios, as sizes are; Shift here unlinks the sides, so it doesn't drag finer
+            const qreal factor = KisValueSteps::draggedBy(1.0, step, 0, true);
             const bool width = m_dragPart == ChipWidth;
             const qreal dragged = (width ? m_pressSize.width() : m_pressSize.height()) * factor;
             const qreal other = width ? m_pressSize.height() : m_pressSize.width();
@@ -1045,10 +1046,10 @@ private:
             break;
         }
         case ChipAngle:
-            setAngle(qRound(m_pressAngle + step / 2.0));
+            setAngle(qRound(KisValueSteps::draggedBy(m_pressAngle, step * (flip ? KisValueSteps::fine : 1.0), 360, false)));
             break;
         case ChipPoints:
-            m_auto->setspikes(qBound(3, m_pressSpikes + int(step / 14.0), 20));
+            m_auto->setspikes(qBound(3, qRound(KisValueSteps::draggedBy(m_pressSpikes, step * (flip ? KisValueSteps::fine : 1.0), 20 - 3, false)), 20));
             break;
         default:
             break;
@@ -1519,7 +1520,9 @@ public:
             break;
         case ChipSoft:
             // more soft to the right, as the value reads
-            setHardness(m_model, m_pressEdge, hardnessOf(m_pressEdge) - (pos.x() - m_press.x()) / 200.0);
+            setHardness(m_model, m_pressEdge,
+                        KisValueSteps::draggedBy(hardnessOf(m_pressEdge),
+                                                 (m_press.x() - pos.x()) * (event->modifiers() & Qt::ShiftModifier ? KisValueSteps::fine : 1.0), 1, false));
             break;
         case Point: {
             QList<KisCubicCurvePoint> points = m_pressPoints;

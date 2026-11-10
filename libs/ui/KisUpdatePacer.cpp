@@ -310,17 +310,38 @@ private:
         return composed;
     }
 
+    /// One refresh of \p window's own screen, in ns.
+    static qreal refreshOf(QWidget *window)
+    {
+        QWindow *handle = window ? window->windowHandle() : nullptr;
+        const qreal rate = handle && handle->screen() ? handle->screen()->refreshRate() : 60;
+        return 1e9 / qBound(30.0, rate, 1000.0);
+    }
+
+    /// One refresh of the fastest screen among the windows this frame shows, so none gets fewer frames than its
+    /// screen shows; the last one when there are none.
+    void takeRefresh(bool settling)
+    {
+        qreal fastest = 0;
+        auto take = [&fastest](QWidget *window) {
+            if (!window) return;
+            const qreal ns = refreshOf(window);
+            if (fastest <= 0 || ns < fastest) fastest = ns;
+        };
+        if (settling) {
+            for (auto it = m_beats.constBegin(); it != m_beats.constEnd(); ++it) {
+                if (it.value() && it.key()->isVisible()) take(it.key());
+            }
+        }
+        for (const QPointer<QWidget> &window : qAsConst(m_waiting)) take(window.data());
+        for (const QPointer<QWidget> &canvas : qAsConst(m_canvases)) take(canvas ? canvas->window() : nullptr);
+        if (fastest > 0) m_refresh = fastest;
+    }
+
     /// One screen refresh, in ns.
     qreal refresh() const
     {
-        qreal rate = 60;
-        for (auto it = m_beats.constBegin(); it != m_beats.constEnd(); ++it) {
-            if (it.value() && it.key()->windowHandle() && it.key()->windowHandle()->screen()) {
-                rate = it.key()->windowHandle()->screen()->refreshRate();
-                break;
-            }
-        }
-        return 1e9 / qBound(30.0, rate, 1000.0);
+        return m_refresh;
     }
 
     /// The frame period: as many refreshes as a frame takes (see measured()).
@@ -388,17 +409,23 @@ private:
     void tick()
     {
         const bool settling = m_clock.nsecsElapsed() < m_settleUntil;
+        if (!settling && m_waiting.isEmpty() && m_canvases.isEmpty()) {
+            // Idle: stop until the next repaint.
+            m_upWait = 250'000'000;
+            return;
+        }
+        takeRefresh(settling);
+        // the frame as a whole, widgets and canvas together, is what has to fit the refresh
+        QElapsedTimer took;
+        took.start();
         if (settling) {
             // Present settling windows even if nothing changed, using the heartbeat.
             for (auto it = m_beats.constBegin(); it != m_beats.constEnd(); ++it) {
                 if (it.value() && it.key()->isVisible() && !m_waiting.contains(it.key())) show(it.key(), it.value());
             }
-        } else if (m_waiting.isEmpty() && m_canvases.isEmpty()) {
-            // Idle: stop until the next repaint.
-            m_upWait = 250'000'000;
-            return;
         }
         deliver();
+        measured(took.nsecsElapsed());
         schedule();
     }
 
@@ -422,7 +449,6 @@ private:
             QEvent request(QEvent::UpdateRequest);
             QCoreApplication::sendEvent(canvas->window(), &request);
             m_delivering = false;
-            measured(took.nsecsElapsed());
             if (frameLog) frameLog->write(QStringLiteral("%1 canvas shown %2 us\n").arg(m_clock.nsecsElapsed() / 1000).arg(took.nsecsElapsed() / 1000).toUtf8());
         }
     }
@@ -455,7 +481,6 @@ private:
             QCoreApplication::sendEvent(window, &request);
         }
         m_delivering = false;
-        measured(took.nsecsElapsed());
         if (frameLog) {
             frameLog->write(QStringLiteral("%1 shown %2 us, every %3 refreshes%4\n").arg(m_clock.nsecsElapsed() / 1000).arg(took.nsecsElapsed() / 1000)
                                 .arg(m_refreshes).arg(heartbeat ? QStringLiteral(", heartbeat") : QString()).toUtf8());
@@ -466,6 +491,8 @@ private:
     FrameTimer m_tick {[this]() { tick(); }};
     qint64 m_settleUntil {0};
     qint64 m_next {0};
+    /// One refresh of the screens shown on, in ns
+    qreal m_refresh {1e9 / 60};
     /// Refreshes per frame, a bitmask of recent late frames, and since when frames fit the faster rate.
     int m_refreshes {1};
     quint16 m_late {0};

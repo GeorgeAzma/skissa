@@ -46,17 +46,16 @@ QPointF unit(const QPointF &v)
     return length > 0 ? v / length : QPointF();
 }
 
-} // namespace
+qreal cross(const QPointF &a, const QPointF &b)
+{
+    return a.x() * b.y() - a.y() * b.x();
+}
 
-QPainterPath pathOf(const QRectF &box, const Look &wanted)
+/// The look's polygon stretched to \p frame, its corners rounded
+QPainterPath roundedIn(const QRectF &frame, const Look &look)
 {
     QPainterPath path;
-    const QRectF r = box.normalized();
-    if (r.isEmpty()) return path;
-    const Look look = bounded(wanted);
     const int n = look.sides;
-    // stretched, made in a square and fitted to the box at the end, corners and all
-    const QRectF frame = look.stretched ? QRectF(0, 0, 1024, 1024) : r;
 
     // the polygon: a side flat at the bottom, clockwise on screen, turned, then stretched to its frame
     QVector<QPointF> corners(n);
@@ -90,23 +89,46 @@ QPainterPath pathOf(const QRectF &box, const Look &wanted)
     if (reach < 1e-6) {
         path.addPolygon(QPolygonF(corners));
         path.closeSubpath();
-        if (look.stretched) path = QTransform::fromTranslate(r.left(), r.top()).scale(r.width() / frame.width(), r.height() / frame.height()).map(path);
         return path;
     }
+
+    // Each corner keeps to its own wedge, between the lines from the polygon's middle to the middles of its two
+    // sides: the wedges never overlap, so neither do the corners (pinched ones reach far inward at sharp corners)
+    QPointF center;
+    for (const QPointF &p : corners) center += p / n;
+    QVector<QPointF> sideMiddles(n);
+    for (int k = 0; k < n; k++) sideMiddles[k] = (corners[k] + corners[(k + 1) % n]) / 2;
+
     const qreal power = 2 / look.curve;
     bool first = true;
+    QVector<QPointF> offsets;
     for (int k = 0; k < n; k++) {
         const QPointF corner = corners[k];
         const QPointF before = corners[(k + n - 1) % n], after = corners[(k + 1) % n];
         const qreal back = std::min(reach, halfSide[(k + n - 1) % n]), on = std::min(reach, halfSide[k]);
         const QPointF toBefore = unit(before - corner), toAfter = unit(after - corner);
         // the Lamé curve in the parallelogram of the two sides, from the side before to the side after
-        const QPointF middle = corner + back * toBefore + on * toAfter;
         const int steps = std::clamp(int(std::max(back, on) / 2), 24, 256);
+        offsets.resize(steps + 1);
         for (int i = 0; i <= steps; i++) {
             const qreal t = qreal(i) / steps * M_PI / 2;
             const qreal c = std::pow(std::max(0.0, std::cos(t)), power), s = std::pow(std::max(0.0, std::sin(t)), power);
-            const QPointF p = middle - on * c * toAfter - back * s * toBefore;
+            offsets[i] = back * (1 - s) * toBefore + on * (1 - c) * toAfter;
+        }
+        // the share of its reach that stays in the wedge
+        qreal share = 1;
+        for (const int side : {(k + n - 1) % n, k}) {
+            const QPointF across = sideMiddles[side] - center;
+            const qreal room = cross(across, corner - center);
+            if (qAbs(room) < 1e-12) continue;
+            const qreal sign = room > 0 ? 1 : -1;
+            for (const QPointF &offset : offsets) {
+                const qreal toward = sign * cross(across, offset);
+                if (toward < 0) share = std::min(share, qAbs(room) / -toward);
+            }
+        }
+        for (const QPointF &offset : offsets) {
+            const QPointF p = corner + share * offset;
             if (first) {
                 path.moveTo(p);
                 first = false;
@@ -116,16 +138,46 @@ QPainterPath pathOf(const QRectF &box, const Look &wanted)
         }
     }
     path.closeSubpath();
+    return path;
+}
 
-    // rounding can pull the shape in from its box, and a stretched one is in its square: it fills the box
-    const QRectF drawn = path.boundingRect();
-    if (drawn.width() > 1e-6 && drawn.height() > 1e-6) {
-        QTransform fit;
-        fit.translate(r.left(), r.top());
-        fit.scale(r.width() / drawn.width(), r.height() / drawn.height());
-        fit.translate(-drawn.left(), -drawn.top());
-        path = fit.map(path);
+/// The scaling and moving that takes \p from onto \p to
+QTransform fitting(const QRectF &from, const QRectF &to)
+{
+    QTransform fit;
+    fit.translate(to.left(), to.top());
+    fit.scale(to.width() / from.width(), to.height() / from.height());
+    fit.translate(-from.left(), -from.top());
+    return fit;
+}
+
+} // namespace
+
+QPainterPath pathOf(const QRectF &box, const Look &wanted)
+{
+    const QRectF r = box.normalized();
+    if (r.isEmpty()) return QPainterPath();
+    const Look look = bounded(wanted);
+    // stretched, made in a square and fitted to the box at the end, corners and all
+    const QRectF target = look.stretched ? QRectF(0, 0, 1024, 1024) : r;
+
+    // rounding pulls the shape in from its polygon's box: the polygon is stretched until the rounded shape fills
+    // the box, so the corners stay round (stretching the rounded shape would make them oval)
+    QRectF frame = target;
+    QPainterPath path = roundedIn(frame, look);
+    for (int i = 0; i < 4; i++) {
+        const QRectF drawn = path.boundingRect();
+        if (drawn.width() < 1e-6 || drawn.height() < 1e-6) break;
+        const qreal off = std::max({qAbs(drawn.left() - target.left()), qAbs(drawn.top() - target.top()),
+                                    qAbs(drawn.right() - target.right()), qAbs(drawn.bottom() - target.bottom())});
+        if (off < 1e-3 * std::max(target.width(), target.height())) break;
+        frame = fitting(drawn, target).mapRect(frame);
+        path = roundedIn(frame, look);
     }
+
+    // the last hair of it, and a stretched one is in its square: it fills the box
+    const QRectF drawn = path.boundingRect();
+    if (drawn.width() > 1e-6 && drawn.height() > 1e-6) path = fitting(drawn, r).map(path);
     return path;
 }
 

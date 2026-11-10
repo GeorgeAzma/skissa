@@ -14,6 +14,7 @@
 #include <klocalizedstring.h>
 
 #include <QSlider>
+#include <QTimer>
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QPushButton>
@@ -53,6 +54,7 @@
 #include <kis_fill_painter.h>
 #include <kis_selection_filters.h>
 
+#include <KisFrameRate.h>
 #include <KisPart.h>
 #include <KisDocument.h>
 #include <kis_dummies_facade.h>
@@ -542,9 +544,13 @@ void KisToolFill::endFilling()
 
 void KisToolFill::fillAgain(const QPoint &seedPoint, FillMode mode, KisNodeWSP from)
 {
-    if (m_isFilling || !image()) return;
-    // the fill was just taken back, as a stroke of its own: done before the new one reads which layers there are
-    image()->waitForDone();
+    if (m_isFilling || !image() || !isActive()) return;
+    // the fill was just taken back, as a stroke of its own: done before the new one reads which layers there are,
+    // waited for a frame at a time rather than holding the window
+    if (!image()->isIdle()) {
+        QTimer::singleShot(KisFrameRate::frameMs(), this, [this, seedPoint, mode, from]() { fillAgain(seedPoint, mode, from); });
+        return;
+    }
     m_redoLast.made(static_cast<KisCanvas2 *>(canvas()), kundo2_i18n("Flood Fill"), [this, seedPoint, mode, from]() {
         fillAgain(seedPoint, mode, from);
     });

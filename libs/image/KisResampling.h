@@ -101,7 +101,8 @@ private:
     std::vector<Channel> m_channels;
 };
 
-/// Whether \p device looks like pixel art within \p rect: few colors and hard edges
+/// Whether \p device looks like pixel art within \p rect: few colors, hard edges and features a pixel or two across
+/// (or as many as it was enlarged by)
 KRITAIMAGE_EXPORT bool looksLikePixelArt(KisPaintDeviceSP device, const QRect &rect);
 
 /// A copy of \p device in linear light when shrinking it with \p filter should be done

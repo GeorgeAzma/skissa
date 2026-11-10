@@ -79,7 +79,8 @@ KisToolMultihand::Handle KisToolMultihand::handleAt(const QPointF &point) const
     if (QLineF(at, pixelToView(m_center)).length() <= grab) {
         return Handle::Center;
     }
-    if (QLineF(at, pixelToView(knob())).length() <= grab) {
+    // the knob turns the mirror axes; turned copies alone look the same at any turn
+    if (m_mirrored && QLineF(at, pixelToView(knob())).length() <= grab) {
         return Handle::Knob;
     }
     return Handle::None;
@@ -202,14 +203,16 @@ void KisToolMultihand::paint(QPainter &gc, const KoViewConverter &converter)
     }
     QPainterPath outline = pixelToView(guides);
     if (!m_tile) {
-        // the handles, drawn as the brush outline is (seen over any color): the center, a ring with a dot, and the
-        // knob on the first axis; larger under the pointer
+        // the handles, drawn as the brush outline is (seen over any color): the center, a ring with a dot, and,
+        // when mirrored, the knob on the first axis; larger under the pointer
         const QPointF center = pixelToView(m_center);
         const qreal centerRadius = m_hovered == Handle::Center || m_dragging == Handle::Center ? 8 : 6;
         outline.addEllipse(center, centerRadius, centerRadius);
         outline.addEllipse(center, 1.5, 1.5);
-        const qreal knobRadius = m_hovered == Handle::Knob || m_dragging == Handle::Knob ? 6.5 : 4.5;
-        outline.addEllipse(pixelToView(knob()), knobRadius, knobRadius);
+        if (m_mirrored) {
+            const qreal knobRadius = m_hovered == Handle::Knob || m_dragging == Handle::Knob ? 6.5 : 4.5;
+            outline.addEllipse(pixelToView(knob()), knobRadius, knobRadius);
+        }
     }
     paintToolOutline(&gc, outline);
 }

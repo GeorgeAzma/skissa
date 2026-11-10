@@ -110,6 +110,8 @@ struct KisPuppet::Private {
     std::vector<int> nearest;
     // how firmly each corner holds to its island's movement
     std::vector<double> anchor;
+    // how many pins hold each island
+    std::vector<int> pinsOn;
 
     bool factored {false};
     Solver scaleFree;
@@ -262,7 +264,7 @@ void KisPuppet::Private::findIslands()
 
 void KisPuppet::Private::factor()
 {
-    std::vector<int> pinsOn(size_t(islands), 0);
+    pinsOn.assign(size_t(islands), 0);
     for (const Pin &pin : pins) {
         if (pin.island >= 0) pinsOn[size_t(pin.island)]++;
     }
@@ -434,7 +436,12 @@ void KisPuppet::Private::pose()
     }
     const Eigen::VectorXd x = fitted.solve(bx);
     const Eigen::VectorXd y = fitted.solve(by);
-    for (int i = 0; i < n; i++) bent[i] = QPointF(x[i], y[i]);
+    for (int i = 0; i < n; i++) {
+        // a shape without pins, and the air nearest it, stay exactly where they were: the solve leaves them a hair
+        // off, which resampled them and made every move redraw the whole layer
+        const int at = nearest[size_t(i)];
+        bent[i] = at >= 0 && pinsOn[size_t(at)] == 0 ? rest[i] : QPointF(x[i], y[i]);
+    }
 }
 
 KisPuppet::KisPuppet(const QRect &bounds, int step, const std::function<bool(const QRect &cell)> &stiff)
@@ -592,6 +599,9 @@ QPointF KisPuppet::map(const QPointF &rest) const
     int corners[4];
     double weights[4];
     d->cornersOf(rest, corners, weights);
+    // a cell that hasn't moved gives the point back as it was, not one a rounding off
+    bool still = true;
+    for (int k = 0; k < 4; k++) still = still && d->bent[corners[k]] == d->rest[corners[k]];
     QPointF result;
     for (int k = 0; k < 4; k++) result += weights[k] * d->bent[corners[k]];
     // outside the grid the nearest edge's movement carries on
@@ -605,7 +615,7 @@ QPointF KisPuppet::map(const QPointF &rest) const
         for (int k = 0; k < 4; k++) moved += nearWeights[k] * (d->bent[nearCorners[k]] - d->rest[nearCorners[k]]);
         return rest + moved;
     }
-    return result;
+    return still ? rest : result;
 }
 
 int KisPuppet::columns() const

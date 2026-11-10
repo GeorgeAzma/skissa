@@ -13,6 +13,7 @@
 #include "kis_canvas2.h"
 #include <KisSignalMapper.h>
 #include "kis_liquify_properties.h"
+#include "kis_liquify_transform_worker.h"
 
 #include "KisMainWindow.h"
 #include "KisViewManager.h"
@@ -758,11 +759,20 @@ void KisToolTransformConfigWidget::updateConfig(const ToolTransformArgs &config)
     } else if (config.mode() == ToolTransformArgs::LIQUIFY) {
 
         stackedWidget->setCurrentIndex(3);
+        // a transform Bend made opens in Bend, one Push made in Push; an untouched one keeps the mode chosen
+        if (const KisLiquifyTransformWorker *worker = config.liquifyWorker()) {
+            if (!worker->pinsRest().isEmpty()) {
+                m_bending = true;
+            } else if (!worker->isIdentity()) {
+                m_bending = false;
+            }
+        }
         if (m_bending) {
             m_bendButton->setChecked(true);
         } else {
             liquifyButton->setChecked(true);
         }
+        lblTransformType->setText(m_bending ? m_bendButton->toolTip() : liquifyButton->toolTip());
 
         const KisLiquifyProperties *props =
             config.liquifyProperties();
