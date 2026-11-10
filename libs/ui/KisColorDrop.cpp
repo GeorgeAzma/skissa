@@ -32,7 +32,9 @@
 
 #include <QtConcurrent>
 
+#include <KisValueSteps.h>
 #include <KoColor.h>
+#include <KoColorModelStandardIds.h>
 #include <KoColorSpace.h>
 #include <KoColorSpaceRegistry.h>
 #include <KoCompositeOpRegistry.h>
@@ -170,6 +172,207 @@ KisPixelSelectionSP regionAt(KisPaintDeviceSP reference, const QPoint &point, in
     return painter.createFloodSelection(new KisPixelSelection(), point.x(), point.y(), reference, nullptr);
 }
 
+/// The layer a drop at \p point recolors by its own colors: a painting, or a flat on a layer of colors (the active one or
+/// the one beside the line art); null where it fills line art
+KisNodeSP recoloredAt(KisNodeSP active, const QPoint &point)
+{
+    if (!active || !qobject_cast<KisPaintLayer *>(active.data()) || !active->isEditable()) return nullptr;
+    auto flatAt = [&point](KisNodeSP node) { return KisColorDrop::isColorsLayer(node) && node->paintDevice()->pixel(point).opacityU8() >= 128; };
+    if (KisColorDrop::isColorsLayer(active)) return flatAt(active) ? active : nullptr;
+    if (KisColorDrop::isPaintingAt(active, point)) return active;
+    if (flatAt(active->prevSibling())) return active->prevSibling();
+    if (flatAt(active->nextSibling())) return active->nextSibling();
+    return nullptr;
+}
+
+/// What a recoloring drop at \p seed covers on \p device: the touching area of colors like the seed's, or every one
+KisPixelSelectionSP recolorRegion(KisPaintDeviceSP device, const QPoint &seed, int threshold, bool everywhere, const QRect &bounds)
+{
+    KisFillPainter painter;
+    painter.setFillThreshold(threshold);
+    painter.setOpacitySpread(100);
+    painter.setAntiAlias(false);
+    painter.setCareForSelection(false);
+    painter.setWidth(bounds.width());
+    painter.setHeight(bounds.height());
+    KisPixelSelectionSP region = new KisPixelSelection();
+    if (everywhere) {
+        painter.createSimilarColorsSelection(region, device->pixel(seed), device, bounds, nullptr);
+        return region;
+    }
+    return painter.createFloodSelection(region, seed.x(), seed.y(), device, nullptr);
+}
+
+/// How far beside an area its soft edge is looked for: anti-aliasing and a little softness
+constexpr int softRim = 3;
+
+/**
+ * \p region of \p device made \p color, as if the area had been painted that color. A pixel beside it is read as
+ * a share of the area's color blended with what lies beyond, and that share takes the new color, so the soft edge
+ * keeps its blend instead of a faint ring of the old color. On a clear area (\p clear) the color goes under what is
+ * there; on paint each pixel keeps its opacity. \p original is the device as it was. Returns what changed.
+ */
+QRect recolorIn(KisPaintDeviceSP device, KisPaintDeviceSP original, KisPixelSelectionSP region, const KoColor &color, bool clear,
+                const QRect &bounds)
+{
+    const QRect area = region->selectedExactRect();
+    if (area.isEmpty()) return QRect();
+    const QRect rect = area.adjusted(-softRim, -softRim, softRim, softRim) & bounds;
+    const KoColorSpace *cs = device->colorSpace();
+    // blends are read in the layer's own encoding, where its soft edges were blended
+    const KoColorProfile *profile = cs->colorModelId() == RGBAColorModelID ? cs->profile() : nullptr;
+    const KoColorSpace *floats = KoColorSpaceRegistry::instance()->colorSpace(RGBAColorModelID.id(), Float32BitsColorDepthID.id(), profile);
+    const KoColor own = color.convertedTo(cs);
+    const KoColor paintF = color.convertedTo(floats);
+    const float *paint = reinterpret_cast<const float *>(paintF.data());
+    const int pixelSize = cs->pixelSize();
+    const int margin = 2 * softRim;
+
+    // tiles on Krita's own tile grid, so no two threads write one tile
+    constexpr int tile = 128;
+    QVector<QRect> tiles;
+    for (int y = rect.top() - ((rect.top() % tile) + tile) % tile; y <= rect.bottom(); y += tile) {
+        for (int x = rect.left() - ((rect.left() % tile) + tile) % tile; x <= rect.right(); x += tile) {
+            const QRect t = QRect(x, y, tile, tile) & rect;
+            if (!t.isEmpty()) tiles.append(t);
+        }
+    }
+    QtConcurrent::blockingMap(tiles, [&](const QRect &t) {
+        // the region far enough around to tell what is beside it and what lies beyond
+        const QRect wide = t.adjusted(-margin - softRim, -margin - softRim, margin + softRim, margin + softRim) & bounds;
+        const int w = wide.width(), h = wide.height();
+        std::vector<quint8> in(size_t(w) * h), rows(size_t(w) * h), near(size_t(w) * h);
+        region->readBytes(in.data(), wide);
+        // near: the region within softRim, by a separable maximum
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                quint8 m = 0;
+                for (int i = std::max(0, x - softRim); i <= std::min(w - 1, x + softRim); i++) m = std::max(m, in[size_t(y) * w + i]);
+                rows[size_t(y) * w + x] = m;
+            }
+        }
+        bool any = false;
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                quint8 m = 0;
+                for (int i = std::max(0, y - softRim); i <= std::min(h - 1, y + softRim); i++) m = std::max(m, rows[size_t(i) * w + x]);
+                near[size_t(y) * w + x] = m;
+                any = any || (m >= 128 && t.contains(wide.left() + x, wide.top() + y));
+            }
+        }
+        if (!any) return;
+        auto index = [&](int x, int y) { return size_t(y - wide.top()) * w + size_t(x - wide.left()); };
+
+        std::vector<quint8> pixels(size_t(w) * h * pixelSize);
+        original->readBytes(pixels.data(), wide);
+        std::vector<quint8> out(size_t(t.width()) * t.height() * pixelSize);
+        for (int y = t.top(); y <= t.bottom(); y++) {
+            memcpy(out.data() + size_t(y - t.top()) * t.width() * pixelSize, pixels.data() + index(t.left(), y) * pixelSize,
+                   size_t(t.width()) * pixelSize);
+        }
+        // pixels that need blending: the soft edge, and (on a clear area) paint the color goes under
+        std::vector<QPoint> blended;
+        for (int y = t.top(); y <= t.bottom(); y++) {
+            for (int x = t.left(); x <= t.right(); x++) {
+                const size_t i = index(x, y);
+                if (near[i] < 128) continue;
+                const quint8 *src = pixels.data() + i * pixelSize;
+                quint8 *dst = out.data() + (size_t(y - t.top()) * t.width() + (x - t.left())) * pixelSize;
+                if (in[i] >= 128 && (!clear || cs->opacityU8(src) == 0)) {
+                    const qreal opacity = clear ? 1.0 : cs->opacityF(src);
+                    memcpy(dst, own.data(), pixelSize);
+                    cs->setOpacity(dst, opacity, 1);
+                    continue;
+                }
+                blended.push_back(QPoint(x, y));
+            }
+        }
+        if (blended.empty()) {
+            device->writeBytes(out.data(), t);
+            return;
+        }
+        // premultiplied, so a blend is a straight line between two colors, transparency included
+        std::vector<float> f(size_t(w) * h * 4);
+        cs->convertPixelsTo(pixels.data(), reinterpret_cast<quint8 *>(f.data()), floats, w * h,
+                            KoColorConversionTransformation::internalRenderingIntent(), KoColorConversionTransformation::internalConversionFlags());
+        for (size_t i = 0; i < size_t(w) * h; i++) {
+            for (int c = 0; c < 3; c++) f[i * 4 + c] *= f[i * 4 + 3];
+        }
+        std::vector<float> results(blended.size() * 4);
+        for (size_t k = 0; k < blended.size(); k++) {
+            const QPoint at = blended[k];
+            const float *p = f.data() + index(at.x(), at.y()) * 4;
+            float q[4];
+            if (clear) {
+                // the color under what is there
+                for (int c = 0; c < 3; c++) q[c] = p[c] + (1 - p[3]) * paint[c];
+                q[3] = p[3] + (1 - p[3]);
+            } else {
+                // the area's color beside it and what lies beyond, nearer pixels counting more
+                float o[4] = {0, 0, 0, 0}, b[4] = {0, 0, 0, 0}, wo = 0, wb = 0;
+                for (int dy = -margin; dy <= margin; dy++) {
+                    for (int dx = -margin; dx <= margin; dx++) {
+                        const int x = at.x() + dx, y = at.y() + dy;
+                        if ((dx == 0 && dy == 0) || !wide.contains(x, y)) continue;
+                        const size_t i = index(x, y);
+                        const float weight = 1.0f / float(dx * dx + dy * dy);
+                        const float *s = f.data() + i * 4;
+                        if (in[i] >= 128) {
+                            for (int c = 0; c < 4; c++) o[c] += weight * s[c];
+                            wo += weight;
+                        } else if (near[i] < 128) {
+                            for (int c = 0; c < 4; c++) b[c] += weight * s[c];
+                            wb += weight;
+                        }
+                    }
+                }
+                for (int c = 0; c < 4; c++) o[c] /= std::max(wo, 1e-6f);
+                float share = 0;
+                if (wb > 0) {
+                    // the pixel as share × the area's color + the rest × what is beyond, and how far off that line it is
+                    float ob[4], pb[4], len2 = 0, along = 0;
+                    for (int c = 0; c < 4; c++) {
+                        b[c] /= wb;
+                        ob[c] = o[c] - b[c];
+                        pb[c] = p[c] - b[c];
+                        len2 += ob[c] * ob[c];
+                        along += pb[c] * ob[c];
+                    }
+                    if (len2 > 1e-4f) {
+                        share = qBound(0.0f, along / len2, 1.0f);
+                        float off = 0;
+                        for (int c = 0; c < 4; c++) off += (pb[c] - share * ob[c]) * (pb[c] - share * ob[c]);
+                        share *= qBound(0.0f, 1.0f - std::sqrt(off / len2), 1.0f);
+                    }
+                } else {
+                    // a speck inside the area: changed as far as it is like it
+                    float d2 = 0;
+                    for (int c = 0; c < 4; c++) d2 += (p[c] - o[c]) * (p[c] - o[c]);
+                    share = qBound(0.0f, 1.0f - std::sqrt(d2) / 0.25f, 1.0f);
+                }
+                const float alpha = o[3];
+                for (int c = 0; c < 3; c++) q[c] = p[c] + share * (paint[c] * alpha - o[c]);
+                q[3] = p[3];
+            }
+            q[3] = qBound(0.0f, q[3], 1.0f);
+            for (int c = 0; c < 3; c++) {
+                q[c] = std::max(0.0f, q[c]);
+                q[c] = q[3] > 1e-6f ? q[c] / q[3] : 0.0f;
+            }
+            memcpy(results.data() + k * 4, q, sizeof(q));
+        }
+        std::vector<quint8> native(blended.size() * pixelSize);
+        floats->convertPixelsTo(reinterpret_cast<const quint8 *>(results.data()), native.data(), cs, int(blended.size()),
+                                KoColorConversionTransformation::internalRenderingIntent(), KoColorConversionTransformation::internalConversionFlags());
+        for (size_t k = 0; k < blended.size(); k++) {
+            const QPoint at = blended[k];
+            memcpy(out.data() + (size_t(at.y() - t.top()) * t.width() + (at.x() - t.left())) * pixelSize, native.data() + k * pixelSize, pixelSize);
+        }
+        device->writeBytes(out.data(), t);
+    });
+    return rect;
+}
+
 /// \p region tinted with \p color, at most 1600 pixels across.
 QImage tintedOverlay(KisPixelSelectionSP region, const QRect &rect, const QColor &color)
 {
@@ -202,15 +405,36 @@ public:
 
     QImage overlay;
     QRect rect;
+    /// A value being tuned, shown above the pointer (widget coordinates)
+    QString label;
+    QPoint labelAt;
 
 protected:
     void drawDecoration(QPainter &gc, const QRectF &, const KisCoordinatesConverter *converter, KisCanvas2 *) override
     {
-        if (overlay.isNull()) return;
+        if (!overlay.isNull()) {
+            gc.save();
+            gc.setTransform(converter->imageToWidgetTransform(), false);
+            gc.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            gc.drawImage(QRectF(rect), overlay);
+            gc.restore();
+        }
+        if (label.isEmpty()) return;
         gc.save();
-        gc.setTransform(converter->imageToWidgetTransform(), false);
-        gc.setRenderHint(QPainter::SmoothPixmapTransform, true);
-        gc.drawImage(QRectF(rect), overlay);
+        gc.setRenderHint(QPainter::Antialiasing, true);
+        const QPalette palette = qApp->palette();
+        gc.setFont(qApp->font());
+        const QFontMetrics metrics(qApp->font());
+        const QSizeF size(metrics.horizontalAdvance(label) + 2 * KisModernStyle::space3, metrics.height() + KisModernStyle::space2);
+        // above the pointer and the drag's picture under it
+        const QRectF pill(QPointF(labelAt) + QPointF(-size.width() / 2, -size.height() - 24), size);
+        QColor base = palette.color(QPalette::Window);
+        base.setAlphaF(0.92);
+        gc.setPen(Qt::NoPen);
+        gc.setBrush(base);
+        gc.drawPath(KisModernStyle::squircle(pill, KisModernStyle::tileRadius));
+        gc.setPen(palette.color(QPalette::WindowText));
+        gc.drawText(pill, Qt::AlignCenter, label);
         gc.restore();
     }
 };
@@ -238,19 +462,26 @@ protected:
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        const QRectF disc = QRectF(rect()).adjusted(1.5, 1.5, -1.5, -1.5);
-        QColor base = palette().color(QPalette::Window);
-        base.setAlphaF(0.94);
-        QColor edge = palette().color(QPalette::WindowText);
-        edge.setAlphaF(underMouse() ? 0.45 : 0.22);
-        painter.setPen(QPen(isChecked() ? color : edge, isChecked() ? 3 : 1));
-        painter.setBrush(base);
-        painter.drawEllipse(disc);
-        // the color it fills with, as a dot under the bucket
-        painter.setPen(Qt::NoPen);
+        // on, or under the pointer: a ring around it
+        if (isChecked() || underMouse()) {
+            QColor ring = palette().color(QPalette::WindowText);
+            ring.setAlphaF(isChecked() ? 0.9 : 0.3);
+            painter.setPen(QPen(ring, 1.5));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawEllipse(QRectF(rect()).adjusted(0.75, 0.75, -0.75, -0.75));
+        }
+        // a drop of the color it fills with, the bucket on it in an ink that shows
+        painter.setPen(QPen(QColor(0, 0, 0, 50), 1));
         painter.setBrush(color);
-        painter.drawEllipse(QRectF(disc.right() - 11, disc.bottom() - 11, 9, 9));
-        icon().paint(&painter, QRect(QPoint(8, 7), iconSize()));
+        painter.drawEllipse(QRectF(rect()).adjusted(3.5, 3.5, -3.5, -3.5));
+        const QColor ink = qGray(color.rgb()) > 150 ? QColor(24, 24, 24) : QColor(Qt::white);
+        QPixmap glyph = window() && window()->windowHandle() ? icon().pixmap(window()->windowHandle(), iconSize()) : icon().pixmap(iconSize());
+        {
+            QPainter tint(&glyph);
+            tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
+            tint.fillRect(glyph.rect(), ink);
+        }
+        painter.drawPixmap(QRect(QPoint((width() - iconSize().width()) / 2, (height() - iconSize().height()) / 2), iconSize()), glyph);
     }
 };
 
@@ -273,7 +504,7 @@ public:
         row->setContentsMargins(KisModernStyle::space2, KisModernStyle::space2, KisModernStyle::space3, KisModernStyle::space2);
         row->setSpacing(KisModernStyle::space2);
         bucket = new KeepFillingChip(this);
-        row->addWidget(bucket, 0, Qt::AlignTop);
+        row->addWidget(bucket, 0, Qt::AlignVCenter);
         // the values as the Studio's rows: drag, a click on the bar, double-click types, right-click resets
         auto *grid = new QVBoxLayout();
         grid->setContentsMargins(0, 0, 0, 0);
@@ -294,16 +525,26 @@ public:
         gap = value(i18nc("color drop: openings in the lines it closes", "Gap"), 0, 32, i18nc("unit", " px"), 0);
         gap->setToolTip(i18nc("@info:tooltip", "Seals breaks in the lines"));
         spread = value(i18nc("color drop: how far into similar colors it fills", "Spread"), 1, 100, QString(), 8);
+        {
+            // by ratios: the small values, where most fills are, get most of the bar
+            KisStudioValueRow::Range range = spread->range();
+            range.size = true;
+            spread->setRange(range);
+        }
         spread->setToolTip(i18nc("@info:tooltip", "Higher takes in nearby shades"));
         underLines = new QCheckBox(i18nc("color drop: the fill reaches under the lines", "Under lines"), this);
         underLines->setFocusPolicy(Qt::NoFocus);
         underLines->setToolTip(i18nc("@info:tooltip", "Fills to the middle of the lines"));
+        everywhere = new QCheckBox(i18nc("color drop: every area of the color, not only the one dropped on", "Everywhere"), this);
+        everywhere->setFocusPolicy(Qt::NoFocus);
+        everywhere->setToolTip(i18nc("@info:tooltip", "Every area of this color"));
         grid->addWidget(gap);
         grid->addWidget(spread);
         grid->addWidget(underLines);
+        grid->addWidget(everywhere);
         row->addLayout(grid);
         // the fill is made as it drops: done keeps it as it is, cancel takes it back
-        auto *ends = new QVBoxLayout();
+        auto *ends = new QHBoxLayout();
         ends->setContentsMargins(0, 0, 0, 0);
         ends->setSpacing(KisModernStyle::hairline);
         auto end = [this](const QString &icon, const QString &toolTip) {
@@ -319,9 +560,9 @@ public:
         cancel = end(QStringLiteral("studio_cancel"), i18nc("@info:tooltip", "Take back the fill (Esc)"));
         ends->addWidget(done);
         ends->addWidget(cancel);
-        ends->addStretch(1);
         row->addLayout(ends);
-        for (QWidget *widget : std::initializer_list<QWidget *>{gap, spread, underLines}) {
+        row->setAlignment(ends, Qt::AlignVCenter);
+        for (QWidget *widget : std::initializer_list<QWidget *>{gap, spread, underLines, everywhere}) {
             KisStudioGlass::setSeeThrough(widget, true);
         }
         adjustSize();
@@ -331,6 +572,7 @@ public:
     KisStudioValueRow *gap {nullptr};
     KisStudioValueRow *spread {nullptr};
     QCheckBox *underLines {nullptr};
+    QCheckBox *everywhere {nullptr};
     QToolButton *done {nullptr};
     QToolButton *cancel {nullptr};
 
@@ -487,8 +729,16 @@ struct KisColorDrop::Private {
     int previewGap {0};
     /// The gap a drop takes over from the area shown under it
     int dropGap {0};
-    /// The last fill was on a painting: by color alone, so the panel has only Spread
-    bool painting {false};
+    /// The last fill recolored a painting or a flat by its own colors: the panel has Spread and Everywhere, not the lines' settings
+    bool recolor {false};
+    /// Every area of the color, not only the one dropped on (a recoloring drop's)
+    bool everywhere {false};
+    /// Held still while dragging a color: then sliding sideways tunes Spread, the fill staying where it rested
+    QTimer hold;
+    bool tuning {false};
+    QPoint restAt {-1000, -1000};
+    int tuneX {0};
+    int tuneFrom {8};
     bool keepFilling {false};
     KoColor keepColor;
 
@@ -518,6 +768,15 @@ struct KisColorDrop::Private {
         if (canvas()) canvas()->updateCanvasDecorations();
     }
 
+    /// The spread being tuned, above the pointer
+    void showSpread()
+    {
+        if (!preview) return;
+        preview->label = i18nc("color drop: the spread being tuned while dragging", "Spread %1", threshold);
+        preview->labelAt = pointer;
+        showPreview();
+    }
+
     void clearPreview()
     {
         generation++;
@@ -525,7 +784,13 @@ struct KisColorDrop::Private {
         region = nullptr;
         previewGap = 0;
         seed = QPoint(-1, -1);
-        if (preview) preview->overlay = QImage();
+        hold.stop();
+        tuning = false;
+        restAt = QPoint(-1000, -1000);
+        if (preview) {
+            preview->overlay = QImage();
+            preview->label.clear();
+        }
         if (canvas()) canvas()->updateCanvasDecorations();
     }
 
@@ -541,18 +806,18 @@ struct KisColorDrop::Private {
         computing = true;
         pending = false;
         const int ticket = ++generation;
-        // a snapshot, as the image may change while this runs
-        KisPaintDeviceSP reference = new KisPaintDevice(*image->projection());
         const QRect bounds = image->bounds();
         const QPoint at = seed;
         const int t = threshold;
-        Options o = options;
-        // as the fill will be made: on a painting by color alone
+        const Options o = options;
+        const bool all = everywhere;
+        // as the fill will be made: a painting or a flat by the layer's own colors, line art by the picture
         KisNodeSP active = view->viewManager() ? view->viewManager()->activeNode() : nullptr;
-        if (!KisColorDrop::isColorsLayer(active) && KisColorDrop::isPaintingAt(active, at)) {
-            o.closeGap = -1;
-            o.underLines = false;
-        }
+        KisSelectionSP selection = view->viewManager() ? view->viewManager()->selection() : nullptr;
+        const bool inSelection = selection && selection->projection()->pixel(at).opacityU8() > 0;
+        KisNodeSP recolored = inSelection ? nullptr : recoloredAt(active, at);
+        // a snapshot, as the image may change while this runs
+        KisPaintDeviceSP reference = new KisPaintDevice(recolored ? *recolored->paintDevice() : *image->projection());
         const QColor tint = color.toQColor();
         struct Result {
             KisPixelSelectionSP region;
@@ -574,14 +839,18 @@ struct KisColorDrop::Private {
             }
             if (pending) compute();
         });
-        watcher->setFuture(QtConcurrent::run([reference, at, t, o, bounds, tint]() {
+        const bool byOwnColors = recolored;
+        watcher->setFuture(QtConcurrent::run([reference, at, t, o, bounds, tint, byOwnColors, all]() {
             Result result;
             // out of memory on a huge image: no preview, rather than an exception thrown into the window's thread
             try {
-                // the gap too, as finding the width of the lines nearby reads a piece of the image
-                // Auto's search for a gap that keeps the fill inside floods several times: here, never on the window's thread
-                result.gap = o.closeGap < 0 ? 0 : gapFor(o, reference, at, bounds, 0.5, t);
-                result.region = regionAt(reference, at, t, result.gap, o, bounds);
+                if (byOwnColors) {
+                    result.region = recolorRegion(reference, at, t, all, bounds);
+                } else {
+                    // Auto's search for a gap that keeps the fill inside floods several times: here, never on the window's thread
+                    result.gap = gapFor(o, reference, at, bounds, 0.5, t);
+                    result.region = regionAt(reference, at, t, result.gap, o, bounds);
+                }
                 result.rect = result.region->selectedExactRect();
                 result.overlay = tintedOverlay(result.region, result.rect, tint);
             } catch (const std::bad_alloc &) {
@@ -591,13 +860,14 @@ struct KisColorDrop::Private {
         }));
     }
 
-    /// On a painting there are no lines: the gap and filling under them go
+    /// Recoloring by the layer's own colors there are no lines: the gap and filling under them go, Everywhere comes
     void fitPanel()
     {
         if (!panel) return;
-        if (panel->gap->isVisibleTo(panel) == !painting) return;
-        panel->gap->setVisible(!painting);
-        panel->underLines->setVisible(!painting);
+        if (panel->gap->isVisibleTo(panel) == !recolor && panel->everywhere->isVisibleTo(panel) == recolor) return;
+        panel->gap->setVisible(!recolor);
+        panel->underLines->setVisible(!recolor);
+        panel->everywhere->setVisible(recolor);
         // the layout sees the rows go only once it is run again
         panel->layout()->activate();
         panel->resize(panel->sizeHint());
@@ -624,6 +894,7 @@ struct KisColorDrop::Private {
     void hidePanel()
     {
         keepFilling = false;
+        everywhere = false;
         redo.forget();
         qApp->removeEventFilter(q);
         if (panel) panel->deleteLater();
@@ -638,6 +909,7 @@ struct KisColorDrop::Private {
         options.threshold = qRound(panel->spread->value());
         showAutoGap();
         options.underLines = panel->underLines->isChecked();
+        everywhere = panel->everywhere->isChecked();
         options.write();
         threshold = options.threshold;
         redo.settingChanged();
@@ -660,15 +932,18 @@ struct KisColorDrop::Private {
             QObject::connect(panel->gap, &KisStudioValueRow::valueChanged, q, [this]() { changed(); });
             QObject::connect(panel->spread, &KisStudioValueRow::valueChanged, q, [this]() { changed(); });
             QObject::connect(panel->underLines, &QCheckBox::toggled, q, [this]() { changed(); });
+            QObject::connect(panel->everywhere, &QCheckBox::toggled, q, [this]() { changed(); });
             // beside the drop, clear of the pointer
             const QPoint at = canvasPos + QPoint(22, 22);
             panel->move(qBound(0, at.x(), widget->width() - panel->width()), qBound(0, at.y(), widget->height() - panel->height()));
         }
         {
             const QSignalBlocker linesBlocker(panel->underLines);
+            const QSignalBlocker everywhereBlocker(panel->everywhere);
             panel->gap->setValue(options.closeGap);
             panel->spread->setValue(threshold);
             panel->underLines->setChecked(options.underLines);
+            panel->everywhere->setChecked(everywhere);
         }
         showAutoGap();
         fitPanel();
@@ -688,6 +963,14 @@ KisColorDrop::KisColorDrop(KisView *view)
     d->view = view;
     d->preview = new Preview(view);
     view->canvasBase()->addDecoration(KisCanvasDecorationSP(d->preview.data()));
+    d->hold.setSingleShot(true);
+    connect(&d->hold, &QTimer::timeout, this, [this]() {
+        if (d->seed == QPoint(-1, -1)) return;
+        d->tuning = true;
+        d->tuneX = d->pointer.x();
+        d->tuneFrom = d->threshold;
+        d->showSpread();
+    });
     // picking another tool ends keeping on filling
     if (KoToolManager *tools = view && view->viewManager() ? view->viewManager()->toolManager() : nullptr) {
         connect(tools, &KoToolManager::changedTool, this, [this]() {
@@ -786,6 +1069,22 @@ void KisColorDrop::hover(const KoColor &color, const QPoint &canvasPos)
     d->color = color;
     d->pointer = canvasPos;
 
+    // tuning: sideways is Spread, by ratios as sizes are, the fill staying where it rested
+    if (d->tuning) {
+        const int spread = qBound(1, qRound(KisValueSteps::draggedBy(d->tuneFrom, canvasPos.x() - d->tuneX, 99, true, 1)), 100);
+        if (spread != d->threshold) {
+            d->threshold = spread;
+            d->compute();
+        }
+        d->showSpread();
+        return;
+    }
+    // resting a moment starts tuning
+    if ((canvasPos - d->restAt).manhattanLength() > KisModernStyle::dragDistance()) {
+        d->restAt = canvasPos;
+        d->hold.start(KisModernStyle::holdInterval());
+    }
+
     const QPoint point = d->imagePoint(canvasPos);
     if (!image->bounds().contains(point)) {
         d->clearPreview();
@@ -808,10 +1107,17 @@ void KisColorDrop::leave()
 bool KisColorDrop::drop(const KoColor &color, const QPoint &canvasPos)
 {
     if (!d->canvas()) return false;
-    const QPoint point = d->imagePoint(canvasPos);
+    // tuned: the fill where it rested, with the spread slid to, kept for the next drops
+    const bool tuned = d->tuning && d->seed != QPoint(-1, -1);
+    const QPoint point = tuned ? d->seed : d->imagePoint(canvasPos);
+    const int spread = d->threshold;
     // the gap Auto found for the area shown under it, if it was worked out there
     d->dropGap = d->region && d->region->pixel(point).opacityU8() > 0 ? d->previewGap : 0;
     d->options = Options::read();
+    if (tuned) {
+        d->options.threshold = spread;
+        d->options.write();
+    }
     d->threshold = d->options.threshold;
     d->clearPreview();
     if (!fillAt(color, point)) return false;
@@ -850,8 +1156,10 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
 
     KisSelectionSP selection = viewManager->selection();
     const bool inSelection = selection && selection->projection()->pixel(point).opacityU8() > 0;
-    const Target target = fillTarget(image, active, point, selection);
-    KisNodeSP node = target.filled();
+    // a painting or a flat: recolored by its own colors, its soft edges taking the new color by their share
+    KisNodeSP recolored = inSelection ? nullptr : recoloredAt(active, point);
+    d->recolor = recolored;
+    if (d->panel) d->fitPanel();
 
     d->lastSeed = point;
     d->lastColor = color;
@@ -862,6 +1170,30 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
     strategy->setSupportsWrapAroundMode(true);
     KisStrokeId stroke = image->startStroke(strategy);
     KIS_SAFE_ASSERT_RECOVER_RETURN_VALUE(stroke, false);
+
+    if (recolored) {
+        const bool everywhere = d->everywhere;
+        const QRect bounds = image->bounds();
+        image->addJob(stroke, new KisStrokeStrategyUndoCommandBased::Data(
+                                  KUndo2CommandSP(new KisCommandUtils::LambdaCommand([recolored, point, threshold, everywhere, color, bounds]() mutable -> KUndo2Command * {
+                                      KisPaintDeviceSP device = recolored->paintDevice();
+                                      // read as it was: the tiles are written side by side
+                                      KisPaintDeviceSP original = new KisPaintDevice(*device);
+                                      KisPixelSelectionSP region = recolorRegion(original, point, threshold, everywhere, bounds);
+                                      if (region->selectedExactRect().isEmpty()) return nullptr;
+                                      const bool clear = original->pixel(point).opacityU8() < 128;
+                                      KisTransaction transaction(device);
+                                      const QRect changed = recolorIn(device, original, region, color, clear, bounds);
+                                      recolored->setDirty(changed);
+                                      return transaction.endAndTake();
+                                  })),
+                                  false, KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::EXCLUSIVE));
+        image->endStroke(stroke);
+        return true;
+    }
+
+    const Target target = fillTarget(image, active, point, selection);
+    KisNodeSP node = target.filled();
     addLayerJob(image, stroke, target);
 
     KisResourcesSnapshotSP resources =
@@ -880,16 +1212,12 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
     visitor->setRegionFillingMode(KisFillPainter::RegionFillingMode_FloodFill);
     visitor->setFillThreshold(threshold);
     visitor->setOpacitySpread(100);
-    // Auto: the gap found with the preview, or once for a drop without one; made again (Spread changed), the one it had.
-    // A painting has no lines to close or reach under
-    const bool painting = target.node == active && !isColorsLayer(node) && isPaintingAt(active, point);
-    d->painting = painting;
-    if (d->panel) d->fitPanel();
-    int gap = painting ? 0 : d->options.closeGap;
-    if (gap <= 0 && !painting) {
+    // Auto: the gap found with the preview, or once for a drop without one; made again (Spread changed), the one it had
+    int gap = d->options.closeGap;
+    if (gap <= 0) {
         gap = d->refilling && d->autoChosen > 0 ? d->autoChosen
             : d->dropGap > 0                     ? d->dropGap
-                                                 : gapFor(d->options, image->projection(), point, image->bounds(), 0.5, threshold);
+                                                 : gapFor(d->options, image->projection(), point, image->bounds());
         d->autoChosen = gap;
     }
     d->dropGap = 0;
@@ -897,7 +1225,7 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
     visitor->setCloseGap(gap);
     visitor->setUseSelectionAsBoundary(true);
     visitor->setAntiAlias(true);
-    visitor->setLineArt(d->options.underLines && !painting, d->options.speckSize);
+    visitor->setLineArt(d->options.underLines, d->options.speckSize);
     QSharedPointer<QRect> dirty(new QRect);
     visitor->setOutDirtyRect(dirty);
     image->addJob(stroke, new KisStrokeStrategyUndoCommandBased::Data(KUndo2CommandSP(new KisProcessingCommand(visitor, node)), false,
@@ -1036,6 +1364,13 @@ bool KisColorDrop::eventFilter(QObject *watched, QEvent *event)
 {
     QWidget *canvas = d->canvasWidget();
     if (!d->panel || !canvas) return false;
+    // Space pans: its presses only look around
+    if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
+        const auto *key = static_cast<QKeyEvent *>(event);
+        if (key->key() == Qt::Key_Space && !key->isAutoRepeat()) d->spaceHeld = event->type() == QEvent::KeyPress;
+    } else if (event->type() == QEvent::ApplicationDeactivate) {
+        d->spaceHeld = false;
+    }
     // While the panel shows, the fill is still being decided: Enter keeps it as it is and Esc takes it back (keeping
     // on filling, Esc only stops), unless a number is being typed; carrying on painting keeps it too.
     if (event->type() == QEvent::KeyPress && !d->keepFilling) {
@@ -1060,11 +1395,15 @@ bool KisColorDrop::eventFilter(QObject *watched, QEvent *event)
     }
     if (watched != canvas) return false;
     if (!d->keepFilling) {
-        if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TabletPress) d->hidePanel();
+        // painting on keeps the fill; panning, zooming, turning (other buttons, modifiers, Space) look around with it open
+        if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TabletPress) {
+            const Qt::MouseButton button = event->type() == QEvent::MouseButtonPress ? static_cast<QMouseEvent *>(event)->button()
+                                                                                     : static_cast<QTabletEvent *>(event)->button();
+            if (button == Qt::LeftButton && static_cast<QInputEvent *>(event)->modifiers() == Qt::NoModifier && !d->spaceHeld) d->hidePanel();
+        }
         return false;
     }
     // Keeping on filling: a tap on the canvas fills, a drag does nothing, Esc or a right click stops.
-    if (!d->keepFilling) return false;
     // a pen's tap arrives as a tablet event and then again as a mouse event made from it: one fill
     if (auto *mouse = dynamic_cast<QMouseEvent *>(event); mouse && mouse->source() != Qt::MouseEventNotSynthesized) return true;
     if (dynamic_cast<QTabletEvent *>(event)) event->accept();
@@ -1111,13 +1450,6 @@ bool KisColorDrop::eventFilter(QObject *watched, QEvent *event)
             d->hidePanel();
             return true;
         }
-        if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Space) d->spaceHeld = true;
-        return false;
-    case QEvent::KeyRelease:
-        if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Space && !static_cast<QKeyEvent *>(event)->isAutoRepeat()) d->spaceHeld = false;
-        return false;
-    case QEvent::FocusOut:
-        d->spaceHeld = false;
         return false;
     default:
         return false;
