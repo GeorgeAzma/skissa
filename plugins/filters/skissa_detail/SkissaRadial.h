@@ -72,9 +72,10 @@ public:
 
     /**
      * \p source (linear sRGB red, green, blue and alpha, covering \p sourceRect, which holds \p rect and
-     * sourceOf(rect) within the image) streaked, written to \p out for \p rect
+     * sourceOf(rect) within the image) streaked, written to \p out for \p rect. The streaks summed are spaced for
+     * \p spacedFor (\p rect if empty): parts of one result share it, so the result is the same however it is cut.
      */
-    void apply(const float *source, const QRect &sourceRect, const QRect &rect, float *out) const;
+    void apply(const float *source, const QRect &sourceRect, const QRect &rect, float *out, const QRect &spacedFor = QRect()) const;
 
 private:
     Settings m_settings;

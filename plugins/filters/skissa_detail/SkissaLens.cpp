@@ -372,19 +372,19 @@ void Lens::apply(const float *source, const QRect &sourceRect, const QRect &rect
     const int planes = opaque ? 3 : 4;
 
     // full size only around the work area, where the geometry and the finest glow read; the far glow from halves.
-    // What glows is the light the picture stands for: a clipped white lamp blooms rather than dims
+    // What glows is the light the picture stands for: a clipped white lamp blooms rather than dims. The light that
+    // stays is that light too, and all of it is shown again as the picture would show it, so an even area is as it was
     const QRect near = work.adjusted(-nearRoom, -nearRoom, nearRoom, nearRoom) & sourceRect;
     const bool unclip = m_clipped && !m_glowSigmas.isEmpty();
     std::vector<Grid> levels;
     levels.push_back(premultiplied(source, sourceRect, near, 0, planes, unclip));
-    const Grid kept = unclip ? premultiplied(source, sourceRect, near, 0, planes) : Grid();
 
     const int ww = work.width(), wh = work.height();
     const size_t workCount = size_t(ww) * wh;
     std::vector<float> plane[4];
     for (int p = 0; p < planes; p++) {
         plane[p].resize(workCount);
-        const Grid &grid = unclip ? kept : levels.front();
+        const Grid &grid = levels.front();
         for (int y = 0; y < wh; y++) {
             const float *from = grid.plane[p].data() + size_t(work.top() - near.top() + y) * near.width() + (work.left() - near.left());
             float *to = plane[p].data() + size_t(y) * ww;
@@ -502,7 +502,9 @@ void Lens::apply(const float *source, const QRect &sourceRect, const QRect &rect
             const float alpha = opaque ? 1.0f : std::clamp(std::max({sum[4], sum[5], sum[6]}), 0.0f, 1.0f);
             const float shade = m_vignetteT > 0 ? 1 / ((1 + m_vignetteT * r2) * (1 + m_vignetteT * r2)) : 1.0f;
             float *pixel = out + (size_t(y) * rect.width() + x) * 4;
-            for (int c = 0; c < 3; c++) pixel[c] = alpha > 1e-6f ? sum[c] * shade / alpha : 0.0f;
+            for (int c = 0; c < 3; c++) pixel[c] = alpha > 1e-6f ? sum[c] / alpha : 0.0f;
+            const float dimmed = unclip ? SkissaPixels::reclipOf(0.2126f * pixel[0] + 0.7152f * pixel[1] + 0.0722f * pixel[2]) : 1.0f;
+            for (int c = 0; c < 3; c++) pixel[c] *= dimmed * shade;
             pixel[3] = alpha;
         }
     }

@@ -258,7 +258,8 @@ void Focus::apply(const float *source, const QRect &sourceRect, const QRect &rec
             // the picture as light: its whites as the brighter light they stand for
             const float alpha = std::clamp(pixel[3], 0.0f, 1.0f);
             const float brighter = m_clipped ? SkissaPixels::unclipOf(0.2126f * pixel[0] + 0.7152f * pixel[1] + 0.0722f * pixel[2]) : 1.0f;
-            for (int c = 0; c < 3; c++) cell.value[c] += std::max(0.0f, pixel[c]) * alpha * brighter;
+            // a wider gamut's colors past sRGB's are negative here: they spread as they are, as light does
+            for (int c = 0; c < 3; c++) cell.value[c] += pixel[c] * alpha * brighter;
             cell.value[3] += alpha;
             cell.value[4] += 1;
             cell.size += r;
@@ -355,7 +356,7 @@ void Focus::apply(const float *source, const QRect &sourceRect, const QRect &rec
                 continue;
             }
             const float alpha = std::clamp(float(total[3] / total[4]), 0.0f, 1.0f);
-            for (int c = 0; c < 3; c++) to[c] = total[3] > 1e-9 ? std::max(0.0f, float(total[c] / total[3])) : 0.0f;
+            for (int c = 0; c < 3; c++) to[c] = total[3] > 1e-9 ? float(total[c] / total[3]) : 0.0f;
             // back from light to the picture: what wasn't spread is exactly as it was
             if (m_clipped) {
                 const float dimmed = SkissaPixels::reclipOf(0.2126f * to[0] + 0.7152f * to[1] + 0.0722f * to[2]);

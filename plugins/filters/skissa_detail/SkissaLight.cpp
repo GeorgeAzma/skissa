@@ -126,7 +126,9 @@ void addSpikes(const Plane3 &shine, const QRect &rect, const QRect &area, const 
         }
     }
     const int cw = cells.width(), ch = cells.height();
-    const float middleX = (cw - 1) / 2.0f, middleY = (ch - 1) / 2.0f;
+    // turned about the image's first cell, its rows a whole number of cells from it, so every patch reads the cells
+    // at the same places
+    const double pivotX = -cells.left(), pivotY = -cells.top();
     auto inGrid = [](const std::vector<float> &plane, int w, int h, float x, float y) {
         return x < -0.5f || y < -0.5f || x > w - 0.5f || y > h - 0.5f ? 0.0f : readAt(plane, w, h, x, y);
     };
@@ -135,15 +137,26 @@ void addSpikes(const Plane3 &shine, const QRect &rect, const QRect &area, const 
     Plane3 turned;
     std::vector<float> faded;
     for (float degrees : directions) {
-        const float dx = float(std::cos(qDegreesToRadians(double(degrees)))), dy = float(std::sin(qDegreesToRadians(double(degrees))));
-        // the grid turned so the spike runs along its rows
-        const int tw = int(std::ceil(std::abs(dx) * cw + std::abs(dy) * ch)) + 2, th = int(std::ceil(std::abs(dy) * cw + std::abs(dx) * ch)) + 2;
-        const float turnedX = (tw - 1) / 2.0f, turnedY = (th - 1) / 2.0f;
+        const double dx = std::cos(qDegreesToRadians(double(degrees))), dy = std::sin(qDegreesToRadians(double(degrees)));
+        // the grid turned so the spike runs along its rows, over all of the cells
+        double lowU = HUGE_VAL, highU = -HUGE_VAL, lowV = HUGE_VAL, highV = -HUGE_VAL;
+        for (double x : {-0.5, cw - 0.5}) {
+            for (double y : {-0.5, ch - 0.5}) {
+                const double px = x - pivotX, py = y - pivotY;
+                const double u = px * dx + py * dy, v = -px * dy + py * dx;
+                lowU = std::min(lowU, u);
+                highU = std::max(highU, u);
+                lowV = std::min(lowV, v);
+                highV = std::max(highV, v);
+            }
+        }
+        const int firstU = int(std::floor(lowU)) - 1, firstV = int(std::floor(lowV)) - 1;
+        const int tw = int(std::ceil(highU)) + 2 - firstU, th = int(std::ceil(highV)) + 2 - firstV;
         turned.resize(tw, th);
         for (int v = 0; v < th; v++) {
             for (int u = 0; u < tw; u++) {
-                const float a = u - turnedX, b = v - turnedY;
-                const float x = middleX + a * dx - b * dy, y = middleY + a * dy + b * dx;
+                const double a = firstU + u, b = firstV + v;
+                const float x = float(pivotX + a * dx - b * dy), y = float(pivotY + a * dy + b * dx);
                 for (int c = 0; c < 3; c++) turned.c[c][size_t(v) * tw + u] = inGrid(coarse.c[c], cw, ch, x, y);
             }
         }
@@ -170,8 +183,8 @@ void addSpikes(const Plane3 &shine, const QRect &rect, const QRect &area, const 
             // turned back onto the grid
             for (int y = 0; y < ch; y++) {
                 for (int x = 0; x < cw; x++) {
-                    const float px = x - middleX, py = y - middleY;
-                    const float u = px * dx + py * dy + turnedX, v = -px * dy + py * dx + turnedY;
+                    const double px = x - pivotX, py = y - pivotY;
+                    const float u = float(px * dx + py * dy - firstU), v = float(-px * dy + py * dx - firstV);
                     spikes.c[c][size_t(y) * cw + x] += inGrid(faded, tw, th, u, v);
                 }
             }
@@ -282,6 +295,29 @@ void addGlare(const Plane3 &shining, const QRect &sourceRect, const QRect &rect,
     }
 }
 
+/// How far addGlare reads around a pixel for Gaussians up to \p largest (pixels at this scale): the widest one's
+/// kernel on the level it is blurred on, and that level's cells for halving and enlarging
+int glareReach(qreal largest)
+{
+    int level = 0;
+    while (largest / std::pow(2.0, level + 1) >= 2) level++;
+    const double cell = std::pow(2.0, level);
+    const double added = level ? (cell * cell - 1) / 12 + cell * cell / 6 : 0;
+    const qreal left = std::sqrt(std::max(0.25, largest * largest - added)) / cell;
+    return int(std::ceil((SkissaDetail::reachOf(left) + 2) * cell));
+}
+
+/// The widest Gaussian of Glow, and Halation's depth a (pixels at \p scale)
+qreal glowLargest(const Settings &s, qreal scale)
+{
+    return std::max(finestGlow, qreal(s.size) / 3) * scale;
+}
+
+qreal halationDepth(const Settings &s, qreal scale)
+{
+    return std::max(finestGlow, qreal(s.halationSize) / 6) * scale;
+}
+
 void linearOf(const QColor &color, float *to)
 {
     to[0] = float(KisColorMath::toLinear(color.redF()));
@@ -354,12 +390,13 @@ int Light::reach() const
 {
     const Settings &s = m_settings;
     if (s.changesNothing()) return 0;
+    // in pixels at this scale
     qreal reach = 0;
-    if (s.glow > 0) reach = s.size;
-    if (s.halation > 0) reach = std::max<qreal>(reach, s.halationSize);
-    if (s.star > 0) reach = std::max<qreal>(reach, spikeEnd * redReach * s.length);
-    if (s.streak > 0) reach = std::max<qreal>(reach, spikeEnd * redReach * s.streakLength);
-    return int(std::ceil(reach * m_scale)) + 4;
+    if (s.glow > 0) reach = glareReach(glowLargest(s, m_scale));
+    if (s.halation > 0) reach = std::max<qreal>(reach, glareReach(halationMost * halationDepth(s, m_scale)));
+    if (s.star > 0) reach = std::max<qreal>(reach, spikeEnd * redReach * s.length * m_scale);
+    if (s.streak > 0) reach = std::max<qreal>(reach, spikeEnd * redReach * s.streakLength * m_scale);
+    return int(std::ceil(reach)) + 4;
 }
 
 void Light::apply(const float *source, const QRect &sourceRect, const QRect &rect, float *out) const
@@ -391,7 +428,7 @@ void Light::apply(const float *source, const QRect &sourceRect, const QRect &rec
     Plane3 light;
     light.resize(rect.width(), rect.height());
     if (s.glow > 0) {
-        addGlare(shine, sourceRect, rect, finestGlow * m_scale, std::max(finestGlow, qreal(s.size) / 3) * m_scale,
+        addGlare(shine, sourceRect, rect, finestGlow * m_scale, glowLargest(s, m_scale),
                  [](qreal sigma) { return std::pow(sigma, glowFalloff); }, s.glow, light);
     }
     if (s.halation > 0) {
@@ -401,7 +438,7 @@ void Light::apply(const float *source, const QRect &sourceRect, const QRect &rec
         for (size_t i = 0; i < count; i++) {
             for (int c = 0; c < 3; c++) fog.c[c][i] = halationTint[c] * shine.c[c][i];
         }
-        const qreal a = std::max(finestGlow, qreal(s.halationSize) / 6) * m_scale;
+        const qreal a = halationDepth(s, m_scale);
         addGlare(fog, sourceRect, rect, a * halationLeast, a * halationMost,
                  [a](qreal sigma) { return std::exp(-a * a / (2 * sigma * sigma)) / (sigma * sigma); }, s.halation, light);
     }

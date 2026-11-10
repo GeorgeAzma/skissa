@@ -64,8 +64,9 @@ void SkissaNoiseFilter::processImpl(KisPaintDeviceSP device, const QRect &applyR
 
     const std::vector<float> in = SkissaPixels::readLinear(device, source);
     std::vector<float> out(size_t(applyRect.width()) * applyRect.height() * 4);
-    // floats hold colors past sRGB, which are kept
-    apply(settings, scale, in.data(), source, applyRect, out.data(), !SkissaPixels::holdsPastWhite(device->colorSpace()));
+    // floats hold colors past sRGB, which are kept, and so do wider gamuts, which their conversion clips
+    const KoColorSpace *cs = device->colorSpace();
+    apply(settings, scale, in.data(), source, applyRect, out.data(), !SkissaPixels::holdsPastWhite(cs), SkissaPixels::primariesAreSrgb(cs));
     SkissaPixels::writeLinear(device, applyRect, out.data());
 }
 

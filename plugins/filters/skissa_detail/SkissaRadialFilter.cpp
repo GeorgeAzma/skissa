@@ -71,7 +71,7 @@ void SkissaRadialFilter::processImpl(KisPaintDeviceSP device, const QRect &apply
     if (bounds.contains(applyRect) && device->defaultBounds()->currentLevelOfDetail() == 0) {
         const quint64 settingsKey = qHash(config->toXML()) ^ (quint64(bounds.width()) << 32 | quint32(bounds.height()));
         const auto whole = SkissaPixels::wholeResult(device, bounds, settingsKey, [&radial, &bounds](const float *in, const QRect &part, float *out) {
-            radial.apply(in, bounds, part, out);
+            radial.apply(in, bounds, part, out, bounds);
         });
         if (whole) {
             SkissaPixels::writeLinear(device, applyRect, SkissaPixels::partOf(*whole, bounds, applyRect).data());

@@ -276,7 +276,7 @@ void Field::render(const QRect &rect, quint32 key, float *out) const
     }
 }
 
-void apply(const Settings &settings, qreal scale, const float *source, const QRect &sourceRect, const QRect &rect, float *out, bool fit)
+void apply(const Settings &settings, qreal scale, const float *source, const QRect &sourceRect, const QRect &rect, float *out, bool fit, bool inSrgb)
 {
     const int w = rect.width(), h = rect.height();
     const size_t n = size_t(w) * h;
@@ -339,7 +339,7 @@ void apply(const Settings &settings, qreal scale, const float *source, const QRe
                     lab[1] += amount[Color] * colorAtFull * green[i];
                     lab[2] += amount[Color] * colorAtFull * blue[i];
                 }
-                if (fit) {
+                if (fit && inSrgb) {
                     KoOklch::inGamut(lab, pixel);
                 } else {
                     KoMixing::oklabToLinear(lab, pixel);

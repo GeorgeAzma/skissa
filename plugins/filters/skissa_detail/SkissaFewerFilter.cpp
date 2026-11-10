@@ -40,24 +40,14 @@ struct Diffused {
 /**
  * The diffusion of \p rect of \p device's pixels as they were when the effect began, or of the cells \p cell wide
  * over it (then its rect is in cells). Patches run side by side, and a filter mask's each on a copy of their own, so
- * it is found again by what it was made of: the pixels and the settings. The last one is kept.
+ * it is found again by what it was made of: the pixels and the settings (SkissaPixels::kept).
  */
 std::shared_ptr<Diffused> diffusedFor(KisPaintDeviceSP device, const QRect &rect, const Settings &settings, const Quantizer &quantizer, const QString &config,
-                                      int cell)
+                                      qreal cell)
 {
     const quint64 key = SkissaPixels::originalKeyOf(device, rect) ^ (quint64(qHash(config)) << 32 | qHash(device->colorSpace()->id()));
-    static QMutex kept;
-    static quint64 keptKey = 0;
-    static std::shared_ptr<Diffused> last;
-    std::shared_ptr<Diffused> diffused;
-    {
-        QMutexLocker locker(&kept);
-        if (!last || keptKey != key) {
-            last = std::make_shared<Diffused>();
-            keptKey = key;
-        }
-        diffused = last;
-    }
+    const QRect over = cell > 1 ? cellsOver(rect, cell) : rect;
+    const std::shared_ptr<Diffused> diffused = SkissaPixels::kept<Diffused>(key, size_t(over.width()) * over.height() * sizeof(quint16));
     QMutexLocker locker(&diffused->lock);
     if (diffused->done) return diffused;
     if (cell > 1) {
@@ -120,7 +110,7 @@ QRect SkissaFewerFilter::neededRect(const QRect &rect, const KisFilterConfigurat
     const Settings settings = Settings::from(*config);
     if (settings.dither == Dither::Diffuse && settings.amount > 0) return rect.adjusted(-anywhere, -anywhere, anywhere, anywhere);
     // pixel art reads whole cells, and the cells around them
-    const int cell = cellAt(settings.pixel, lod);
+    const qreal cell = cellAt(settings.pixel, lod);
     if (cell > 1) return pixelsOf(cellsOver(rect, cell).adjusted(-1, -1, 1, 1), cell);
     return rect;
 }
@@ -137,7 +127,7 @@ void SkissaFewerFilter::processImpl(KisPaintDeviceSP device, const QRect &applyR
     const Settings settings = Settings::from(*config);
     const Quantizer quantizer(settings);
     const bool diffuses = settings.dither == Dither::Diffuse && settings.amount > 0;
-    const int cell = cellAt(settings.pixel, device->defaultBounds()->currentLevelOfDetail());
+    const qreal cell = cellAt(settings.pixel, device->defaultBounds()->currentLevelOfDetail());
     if (cell > 1) {
         // pixel art: each cell's color, with fewer colors as one pixel, spread over the cell
         const QRect bounds = device->defaultBounds()->bounds();

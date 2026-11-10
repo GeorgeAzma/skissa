@@ -76,9 +76,12 @@ private:
 
 /**
  * \p settings applied at \p scale to the linear sRGB pixels (red, green, blue, alpha) of \p source, which covers
- * \p sourceRect, written to \p out for \p rect (inside it). \p fit keeps colors within sRGB.
+ * \p sourceRect, written to \p out for \p rect (inside it). \p fit: the picture stops at white, so the noise keeps
+ * within it there, and with \p inSrgb (the picture's colors are sRGB's) colors are kept within sRGB; otherwise the
+ * conversion to the picture's own colors clips them.
  */
-void apply(const Settings &settings, qreal scale, const float *source, const QRect &sourceRect, const QRect &rect, float *out, bool fit);
+void apply(const Settings &settings, qreal scale, const float *source, const QRect &sourceRect, const QRect &rect, float *out, bool fit,
+           bool inSrgb = true);
 
 /// \p image (8-bit sRGB), its top left at \p corner of the image, with \p settings applied
 QImage applied(const QImage &image, const QPoint &corner, const Settings &settings);

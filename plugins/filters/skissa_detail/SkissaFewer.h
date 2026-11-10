@@ -103,11 +103,13 @@ private:
     std::vector<float> m_nextError;
 };
 
-/// A cell's width in the pixels of a level of detail \p lod, for pixels of the result \p pixel wide
-int cellAt(int pixel, int lod);
-/// The cells \p cell wide (counted from the image's corner) that \p rect touches, and the pixels a span of cells covers
-QRect cellsOver(const QRect &rect, int cell);
-QRect pixelsOf(const QRect &cells, int cell);
+/// A cell's width in the pixels of a level of detail \p lod, for pixels of the result \p pixel wide: a fraction
+/// where the level's pixels don't divide it, so a preview's cells are the image's
+qreal cellAt(int pixel, int lod);
+/// The cells \p cell wide (counted from the image's corner) that \p rect touches, and the pixels a span of cells
+/// covers; a pixel is in the cell its middle falls in
+QRect cellsOver(const QRect &rect, qreal cell);
+QRect pixelsOf(const QRect &cells, qreal cell);
 
 /**
  * Pixel art: the color of each cell \p cell pixels wide of \p cells, from \p pixels (linear red, green, blue and
@@ -116,7 +118,7 @@ QRect pixelsOf(const QRect &cells, int cell);
  * it stands out from the cells around and is more than a speck, so thin lines and the dark side of edges stay whole
  * instead of blending into a color that is in neither. Linear red, green, blue and alpha, a cell after another.
  */
-std::vector<float> cellColors(const float *pixels, const QRect &read, const QRect &bounds, int cell, const QRect &cells);
+std::vector<float> cellColors(const float *pixels, const QRect &read, const QRect &bounds, qreal cell, const QRect &cells);
 
 /// Blue noise, 64 by 64, as each pixel's rank from 0 to 1: any threshold of it is spread evenly
 const std::vector<float> &blueNoise();

@@ -12,6 +12,7 @@
 #include <cmath>
 #include <functional>
 #include <memory>
+#include <typeinfo>
 #include <vector>
 
 #include <kis_types.h>
@@ -37,6 +38,20 @@ quint64 originalKey(KisPaintDeviceSP device, const QRect &rect);
  */
 quint64 originalKeyOf(KisPaintDeviceSP device, const QRect &rect);
 
+/**
+ * What is kept under \p key and \p type, made by \p make when nothing is: the results of a whole image, made once for
+ * every patch of a run and kept for the next run of the same. A few are kept, about \p bytes each, within a bound of
+ * memory, and each is let go once nothing has asked for it for a while.
+ */
+std::shared_ptr<void> keptFor(quint64 key, size_t type, size_t bytes, const std::function<std::shared_ptr<void>()> &make);
+
+/// keptFor(), of a \p T made empty
+template<class T>
+std::shared_ptr<T> kept(quint64 key, size_t bytes)
+{
+    return std::static_pointer_cast<T>(keptFor(key, typeid(T).hash_code(), bytes, []() { return std::shared_ptr<void>(std::make_shared<T>()); }));
+}
+
 /// \p rect's pixels out of \p pixels, which hold all of \p whole
 std::vector<float> partOf(const std::vector<float> &pixels, const QRect &whole, const QRect &rect);
 
@@ -57,6 +72,9 @@ void writeLinear(KisPaintDeviceSP device, const QRect &rect, const float *pixels
 
 /// Whether \p cs holds values past white (floats)
 bool holdsPastWhite(const KoColorSpace *cs);
+
+/// Whether \p cs is RGB with sRGB's primaries, so that a color fitted into sRGB loses nothing it could hold
+bool primariesAreSrgb(const KoColorSpace *cs);
 
 /**
  * A picture that stops at white is taken to have been made from the light by Reinhard's curve with its white at this

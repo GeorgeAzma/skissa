@@ -202,7 +202,7 @@ QRect Radial::sourceOf(const QRect &rect) const
                  QPoint(int(std::ceil(right)) + margin, int(std::ceil(bottom)) + margin));
 }
 
-void Radial::apply(const float *source, const QRect &sourceRect, const QRect &rect, float *out) const
+void Radial::apply(const float *source, const QRect &sourceRect, const QRect &rect, float *out, const QRect &spacedFor) const
 {
     const int w = rect.width(), h = rect.height();
     const size_t count = size_t(w) * h;
@@ -272,7 +272,15 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
     std::vector<double> named(count), along(count);
     const QPointF middle = QRectF(rect).center() - m_center;
     const double middleAngle = std::atan2(middle.y(), middle.x());
+    // the farthest pixel's middle from the middle of the effect: one of the corners'
     double farthestHere = 0;
+    {
+        const QRect spaced = spacedFor.isEmpty() ? rect : spacedFor;
+        for (const QPointF &corner : {QPointF(spaced.left() + 0.5, spaced.top() + 0.5), QPointF(spaced.right() + 0.5, spaced.top() + 0.5),
+                                      QPointF(spaced.left() + 0.5, spaced.bottom() + 0.5), QPointF(spaced.right() + 0.5, spaced.bottom() + 0.5)}) {
+            farthestHere = std::max(farthestHere, std::hypot(corner.x() - m_center.x(), corner.y() - m_center.y()));
+        }
+    }
     double least = std::numeric_limits<double>::infinity(), most = -std::numeric_limits<double>::infinity();
     for (int y = 0; y < h; y++) {
         const double dy = rect.top() + y + 0.5 - m_center.y();
@@ -291,7 +299,6 @@ void Radial::apply(const float *source, const QRect &sourceRect, const QRect &re
             along[i] = (u * L + angle * A) / D2;
             least = std::min(least, named[i]);
             most = std::max(most, named[i]);
-            farthestHere = std::max(farthestHere, r);
         }
     }
     if (least > most) {

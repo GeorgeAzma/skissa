@@ -70,6 +70,96 @@ KoID categoryOf(Kind kind)
 /// layouts directly, anything else through a conversion
 enum class Layout { U8, U16, F32, Converted };
 
+bool isPlainBlur(const Plan &plan)
+{
+    return plan.edges <= 0 && plan.fine == 0 && plan.steps.size() == 1 && std::abs(plan.steps.first().gain - 1) < 1e-6f;
+}
+
+/**
+ * \p plan, a plain blur, over each of \p device's own channels weighed by its alpha, as Krita's blur blurs CMYK, Lab or
+ * gray, read over \p source; empty where a channel isn't 8 or 16-bit or 32-bit float
+ */
+std::vector<quint8> blurredNatively(const Plan &plan, KisPaintDeviceSP device, const QRect &source, const QRect &applyRect)
+{
+    const KoColorSpace *cs = device->colorSpace();
+    const QList<KoChannelInfo *> channels = cs->channels();
+    const KoChannelInfo *alpha = nullptr;
+    QVector<const KoChannelInfo *> colors;
+    Q_FOREACH (const KoChannelInfo *channel, channels) {
+        const KoChannelInfo::enumChannelValueType type = channel->channelValueType();
+        if (type != KoChannelInfo::UINT8 && type != KoChannelInfo::UINT16 && type != KoChannelInfo::FLOAT32) return {};
+        if (channel->channelType() == KoChannelInfo::ALPHA) {
+            alpha = channel;
+        } else {
+            colors << channel;
+        }
+    }
+    if (colors.isEmpty()) return {};
+    // integers as 0 to 1, floats as they are: a blur is the same at any scale
+    auto read = [](const quint8 *pixel, const KoChannelInfo *channel) {
+        const quint8 *at = pixel + channel->pos();
+        switch (channel->channelValueType()) {
+        case KoChannelInfo::UINT8: return *at / 255.0f;
+        case KoChannelInfo::UINT16: {
+            quint16 value;
+            std::memcpy(&value, at, sizeof(value));
+            return value / 65535.0f;
+        }
+        default: {
+            float value;
+            std::memcpy(&value, at, sizeof(value));
+            return value;
+        }
+        }
+    };
+    auto write = [](quint8 *pixel, const KoChannelInfo *channel, float value) {
+        quint8 *at = pixel + channel->pos();
+        switch (channel->channelValueType()) {
+        case KoChannelInfo::UINT8: *at = quint8(std::clamp(value, 0.0f, 1.0f) * 255 + 0.5f); break;
+        case KoChannelInfo::UINT16: {
+            const quint16 v = quint16(std::clamp(value, 0.0f, 1.0f) * 65535 + 0.5f);
+            std::memcpy(at, &v, sizeof(v));
+            break;
+        }
+        default: std::memcpy(at, &value, sizeof(value)); break;
+        }
+    };
+    const int pixelSize = cs->pixelSize();
+    const size_t count = size_t(source.width()) * source.height();
+    std::vector<quint8> raw(count * pixelSize);
+    SkissaPixels::readOriginal(device, source, raw.data());
+    std::vector<float> coverage(count, 1.0f);
+    if (alpha) {
+        for (size_t i = 0; i < count; i++) coverage[i] = std::clamp(read(raw.data() + i * pixelSize, alpha), 0.0f, 1.0f);
+    }
+    const size_t written = size_t(applyRect.width()) * applyRect.height();
+    std::vector<quint8> out(written * pixelSize);
+    SkissaPixels::readOriginal(device, applyRect, out.data());
+    // three channels at a time, as Detail's planes hold them
+    for (int first = 0; first < colors.size(); first += 3) {
+        const int here = std::min(3, colors.size() - first);
+        Planes planes;
+        planes.resize(source.width(), source.height());
+        for (size_t i = 0; i < count; i++) {
+            for (int k = 0; k < here; k++) planes.plane[k][i] = read(raw.data() + i * pixelSize, colors[first + k]) * coverage[i];
+            planes.plane[3][i] = coverage[i];
+        }
+        Planes result;
+        SkissaDetail::apply(plan, planes, source, applyRect, result);
+        for (size_t i = 0; i < written; i++) {
+            quint8 *pixel = out.data() + i * pixelSize;
+            const float a = std::clamp(result.plane[3][i], 0.0f, 1.0f);
+            for (int k = 0; k < here; k++) {
+                float v = a > 1e-6f ? result.plane[k][i] / a : 0.0f;
+                if (!std::isfinite(v)) v = 0;
+                write(pixel, colors[first + k], v);
+            }
+            if (alpha && first == 0) write(pixel, alpha, a);
+        }
+    }
+    return out;
+}
+
 } // namespace
 
 SkissaDetailPlugin::SkissaDetailPlugin(QObject *parent, const QVariantList &)
@@ -239,6 +329,11 @@ std::vector<quint8> SkissaDetailFilter::rendered(const Plan &plan, KisPaintDevic
 
     const KoColorSpace *cs = device->colorSpace();
     const bool rgb = cs->colorModelId() == RGBAColorModelID;
+    if (!rgb && isPlainBlur(plan)) {
+        // a blur keeps to the image's own channels, as Krita's does: through RGB, CMYK's black would be made anew
+        std::vector<quint8> blurred = blurredNatively(plan, device, source, applyRect);
+        if (!blurred.empty()) return blurred;
+    }
     const QString depth = cs->colorDepthId().id();
     const Layout layout = !rgb                                   ? Layout::Converted
         : depth == Integer8BitsColorDepthID.id()                 ? Layout::U8

@@ -173,23 +173,40 @@ const std::vector<float> &blueNoise()
     return noise;
 }
 
-int cellAt(int pixel, int lod)
+qreal cellAt(int pixel, int lod)
 {
-    return std::max(1, int(std::lround(pixel / std::pow(2.0, lod))));
+    return std::ldexp(qreal(pixel), -lod);
 }
 
-QRect cellsOver(const QRect &rect, int cell)
+namespace
 {
-    auto down = [cell](int v) { return v >= 0 ? v / cell : -((-v + cell - 1) / cell); };
-    return QRect(QPoint(down(rect.left()), down(rect.top())), QPoint(down(rect.right()), down(rect.bottom())));
+
+/// The cell the pixel \p v is in: the one its middle falls in (exact for whole cells and for a level's halvings)
+inline int cellOf(int v, qreal cell)
+{
+    return int(std::floor((v + 0.5) / cell));
 }
 
-QRect pixelsOf(const QRect &cells, int cell)
+/// The first pixel of cell \p k
+inline int firstPixelOf(int k, qreal cell)
 {
-    return QRect(cells.left() * cell, cells.top() * cell, cells.width() * cell, cells.height() * cell);
+    return int(std::ceil(k * cell - 0.5));
 }
 
-std::vector<float> cellColors(const float *pixels, const QRect &read, const QRect &bounds, int cell, const QRect &cells)
+} // namespace
+
+QRect cellsOver(const QRect &rect, qreal cell)
+{
+    return QRect(QPoint(cellOf(rect.left(), cell), cellOf(rect.top(), cell)), QPoint(cellOf(rect.right(), cell), cellOf(rect.bottom(), cell)));
+}
+
+QRect pixelsOf(const QRect &cells, qreal cell)
+{
+    return QRect(QPoint(firstPixelOf(cells.left(), cell), firstPixelOf(cells.top(), cell)),
+                 QPoint(firstPixelOf(cells.right() + 1, cell) - 1, firstPixelOf(cells.bottom() + 1, cell) - 1));
+}
+
+std::vector<float> cellColors(const float *pixels, const QRect &read, const QRect &bounds, qreal cell, const QRect &cells)
 {
     // each pixel in Oklab times its alpha, and its alpha: a clear pixel is near any other clear one
     const size_t count = size_t(read.width()) * read.height();
@@ -693,7 +710,7 @@ QImage applied(const QImage &image, const QPoint &corner, const Settings &settin
         }
     }
     const Quantizer quantizer(settings);
-    const int cell = std::max(1, int(std::lround(settings.pixel * scale)));
+    const qreal cell = settings.pixel * scale;
     if (cell > 1) {
         // the cells' colors, with fewer colors as one pixel each, then spread over their cells
         const QRect rect(corner, picture.size());

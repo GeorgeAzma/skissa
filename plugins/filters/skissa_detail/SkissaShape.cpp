@@ -207,8 +207,9 @@ int Shape::reach() const
 {
     const Settings &s = m_settings;
     if (s.changesNothing()) return 0;
-    // the distance is read as far as the edge's effects reach, around wherever the shadow reads
-    const qreal edge = std::abs(s.grow) + s.outline + s.glow + (s.bevel > 0 ? s.bevel : 0);
+    // the distance is read as far as the edge's effects reach, around wherever the shadow reads; the glow's falloff,
+    // e^(-4.6 t²), is under half a step of 16 bits past 1.6 of its size
+    const qreal edge = std::abs(s.grow) + s.outline + 1.6 * s.glow + (s.bevel > 0 ? s.bevel : 0);
     const qreal shadow = s.shadowColor.alpha() && s.shadow > 0 ? s.shadow + 1.5 * s.shadowSoftness : 0;
     return int(std::ceil((edge + shadow) * m_scale)) + 3;
 }
