@@ -62,13 +62,13 @@ msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Fargar"
 
-msgctxt "color drop gap: sized from the lines"
-msgid "Auto"
-msgstr "Auto"
-
 msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Spreiing"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Auto"
 
 msgctxt "halftone shape"
 msgid "Dots"
@@ -309,6 +309,14 @@ msgstr "Tettleik"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Vindauge"
+
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "Ellipse"
+
+msgctxt "the bezier curve selection tool, short"
+msgid "Curve"
+msgstr "Kurve"
 
 msgctxt "pen input"
 msgid "Pressure"

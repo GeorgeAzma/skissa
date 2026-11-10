@@ -61,6 +61,8 @@ private:
     QVector<QColor> m_colors;
     QColor m_current;
     QString m_currentBrush;
+    /// The brush in use as the ring draws brushes
+    QImage m_currentPicture;
     /// The press that opened the ring is still down; releasing over a target selects it
     bool m_held {false};
     bool m_moved {false};

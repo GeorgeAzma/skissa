@@ -256,6 +256,10 @@ msgctxt "@title:window"
 msgid "Window"
 msgstr "視窗"
 
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "橢圓"
+
 msgctxt "pen input"
 msgid "Pressure"
 msgstr "壓力"

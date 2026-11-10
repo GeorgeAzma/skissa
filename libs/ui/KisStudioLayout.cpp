@@ -2940,7 +2940,7 @@ KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
         if (!d->active) return;
         rebuildRailButtons();
         if (d->toolRail) d->toolRail->refresh();
-        if (d->addPanelButton) d->addPanelButton->setIcon(KisIconUtils::loadIcon(QStringLiteral("list-add")));
+        if (d->addPanelButton) d->addPanelButton->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_more")));
         updateContextBar();
     });
 }
@@ -4956,7 +4956,7 @@ void KisStudioLayout::createRail()
     connect(rail, &QWidget::customContextMenuRequested, this, &KisStudioLayout::showRailContextMenu);
     d->rail = rail;
 
-    // sits between the buttons and the "+", and drags the pill
+    // sits between the buttons and the more button, and drags the pill
     auto *spacer = new DragGrip(rail);
     d->stripGrip = spacer;
     spacer->setMinimumHeight(0);
@@ -4967,8 +4967,9 @@ void KisStudioLayout::createRail()
     setPanelsTucked(d->panelsTucked);
 
     auto *addPanel = new QToolButton(rail);
-    addPanel->setIcon(KisIconUtils::loadIcon(QStringLiteral("list-add")));
-    addPanel->setToolTip(i18nc("@info:tooltip", "Add a panel"));
+    // "more panels", not a "+": a panel's own "+" (a new layer) sits right below it
+    addPanel->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_more")));
+    addPanel->setToolTip(i18nc("@info:tooltip", "More panels"));
     addPanel->setAccessibleName(addPanel->toolTip());
     d->addPanelButton = addPanel;
     connect(addPanel, &QToolButton::clicked, this, [this, addPanel]() {
@@ -5732,7 +5733,18 @@ void KisStudioLayout::updateToolChip()
     KisViewManager *view = d->mainWindow->viewManager();
     KisCanvasResourceProvider *resources = view ? view->canvasResourceProvider() : nullptr;
     const QString brush = brushTool && resources && resources->currentPreset() ? KisStudioBrushPicker::title(resources->currentPreset()->name()) : QString();
-    const QString toolName = KisStudioToolRail::toolName(factory);
+    // on the bar beside its icon, which already says what kind it is: the selections by their shape alone
+    static const QHash<QString, QString> shortNames = {
+        {QStringLiteral("KisToolSelectRectangular"), i18nc("the rectangular selection tool, short", "Rectangle")},
+        {QStringLiteral("KisToolSelectElliptical"), i18nc("the elliptical selection tool, short", "Ellipse")},
+        {QStringLiteral("KisToolSelectPolygonal"), i18nc("the polygonal selection tool, short", "Polygon")},
+        {QStringLiteral("KisToolSelectOutline"), i18nc("the freehand selection tool, short", "Lasso")},
+        {QStringLiteral("KisToolSelectContiguous"), i18nc("the contiguous selection tool, short", "Magic wand")},
+        {QStringLiteral("KisToolSelectSimilar"), i18nc("the similar color selection tool, short", "Same color")},
+        {QStringLiteral("KisToolSelectPath"), i18nc("the bezier curve selection tool, short", "Curve")},
+        {QStringLiteral("KisToolSelectMagnetic"), i18nc("the magnetic selection tool, short", "Magnetic")},
+    };
+    const QString toolName = shortNames.value(tool, KisStudioToolRail::toolName(factory));
     d->toolChip->setText(brush.isEmpty() ? toolName : brush);
     // a right click resets the smoothing, instead of showing the chip's card
     d->toolChip->setProperty("ownContextMenu", bool(KisStudioSmoothing::options(d->mainWindow)));

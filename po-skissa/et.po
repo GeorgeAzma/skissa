@@ -55,13 +55,13 @@ msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Värvid"
 
-msgctxt "color drop gap: sized from the lines"
-msgid "Auto"
-msgstr "Automaatne"
-
 msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Valguvus"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Automaatne"
 
 msgctxt "halftone: each color channel screened"
 msgid "Color"

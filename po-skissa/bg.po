@@ -332,6 +332,18 @@ msgctxt "@title:window"
 msgid "Window"
 msgstr "Прозорец"
 
+msgctxt "the rectangular selection tool, short"
+msgid "Rectangle"
+msgstr "Правоъгълник"
+
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "Елипса"
+
+msgctxt "the bezier curve selection tool, short"
+msgid "Curve"
+msgstr "Крива"
+
 msgctxt "pen input"
 msgid "Pressure"
 msgstr "Налягане"

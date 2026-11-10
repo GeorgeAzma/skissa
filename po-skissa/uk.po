@@ -72,13 +72,13 @@ msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "Кольори"
 
-msgctxt "color drop gap: sized from the lines"
-msgid "Auto"
-msgstr "Авто"
-
 msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "Розсіювання"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "Авто"
 
 msgctxt "halftone shape"
 msgid "Dots"
@@ -299,6 +299,18 @@ msgstr "Непрозорість"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "Вікно"
+
+msgctxt "the rectangular selection tool, short"
+msgid "Rectangle"
+msgstr "Прямокутник"
+
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "Еліпс"
+
+msgctxt "the bezier curve selection tool, short"
+msgid "Curve"
+msgstr "Крива"
 
 msgctxt "pen input"
 msgid "Pressure"

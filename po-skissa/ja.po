@@ -61,13 +61,13 @@ msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "色"
 
-msgctxt "color drop gap: sized from the lines"
-msgid "Auto"
-msgstr "自動"
-
 msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "スプレッド"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "自動"
 
 msgctxt "halftone shape"
 msgid "Dots"
@@ -284,6 +284,10 @@ msgstr "不透明度"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "ウィンドウ"
+
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "楕円"
 
 msgctxt "pen input"
 msgid "Pressure"

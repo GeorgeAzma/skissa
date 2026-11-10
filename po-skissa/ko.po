@@ -62,13 +62,13 @@ msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "색상"
 
-msgctxt "color drop gap: sized from the lines"
-msgid "Auto"
-msgstr "자동"
-
 msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "퍼짐"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "자동"
 
 msgctxt "halftone shape"
 msgid "Dots"
@@ -313,6 +313,14 @@ msgstr "불투명도"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "창"
+
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "타원"
+
+msgctxt "the bezier curve selection tool, short"
+msgid "Curve"
+msgstr "곡선"
 
 msgctxt "pen input"
 msgid "Pressure"

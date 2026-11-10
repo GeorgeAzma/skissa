@@ -260,6 +260,14 @@ msgctxt "@title:window"
 msgid "Window"
 msgstr "Окно"
 
+msgctxt "the rectangular selection tool, short"
+msgid "Rectangle"
+msgstr "Прямоугольник"
+
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "Эллипс"
+
 msgctxt "pen input"
 msgid "Pressure"
 msgstr "Давление"

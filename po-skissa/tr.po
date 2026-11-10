@@ -360,6 +360,18 @@ msgctxt "@title:window"
 msgid "Window"
 msgstr "Pencere"
 
+msgctxt "the rectangular selection tool, short"
+msgid "Rectangle"
+msgstr "Dikdörtgen"
+
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "Elips"
+
+msgctxt "the bezier curve selection tool, short"
+msgid "Curve"
+msgstr "Eğri"
+
 msgctxt "pen input"
 msgid "Pressure"
 msgstr "Basınç"

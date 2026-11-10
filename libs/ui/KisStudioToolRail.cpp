@@ -1020,12 +1020,16 @@ void KisStudioToolRail::startDrag(int index, const QPixmap &pixmap)
     mime->setData(KisStudioShortcuts::itemMimeType(), dragged.toUtf8());
     // the index too, to tell several gaps apart
     mime->setData(QStringLiteral("application/x-krita-studio-rail-index"), QByteArray::number(index));
+    // a pinned color is paint too: dropped on the image it fills, as a swatch does
+    const bool color = dragged.startsWith(colorPrefix);
+    if (color) mime->setColorData(pinnedColor(dragged));
     drag->setMimeData(mime);
     if (!pixmap.isNull()) {
         drag->setPixmap(pixmap);
     }
-    // dropping it off the rail removes it, unless the drag was cancelled with Esc
-    const Qt::DropAction done = drag->exec(Qt::MoveAction);
+    // dropping it off the rail removes it, unless the drag was cancelled with Esc (or a color was dropped as paint)
+    if (color) drag->setHotSpot(QPoint(pixmap.width(), pixmap.height()) / (2 * pixmap.devicePixelRatio()));
+    const Qt::DropAction done = drag->exec(color ? Qt::MoveAction | Qt::CopyAction : Qt::MoveAction, Qt::MoveAction);
     drag->deleteLater();
     if (done == Qt::IgnoreAction && !KisModernStyle::pointerHeld()) {
         QStringList items = d->items;
@@ -1523,7 +1527,8 @@ void KisStudioToolRail::updateActiveSlot()
             }
             button->setToolTip(tip);
         } else if (key.startsWith(colorPrefix)) {
-            button->setToolTip(button->accessibleName());
+            button->setToolTip(button->accessibleName()
+                               + i18nc("@info:tooltip a color pinned to the tools, after its name", "\nDrag onto the image: fill\nRight-click: change it"));
         } else if (key.startsWith(brushPrefix) || KisSuperellipse::lookOf(key, nullptr)) {
             button->setChecked(key == active);
             button->setToolTip(button->accessibleName());

@@ -244,6 +244,18 @@ msgctxt "@title:window"
 msgid "Window"
 msgstr "Okno"
 
+msgctxt "the rectangular selection tool, short"
+msgid "Rectangle"
+msgstr "Prostokąt"
+
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "Elipsa"
+
+msgctxt "the bezier curve selection tool, short"
+msgid "Curve"
+msgstr "Krzywa"
+
 msgctxt "pen input"
 msgid "Speed"
 msgstr "Szybkość"

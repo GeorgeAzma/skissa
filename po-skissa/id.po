@@ -232,6 +232,14 @@ msgctxt "@title:window"
 msgid "Window"
 msgstr "Jendela"
 
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "Elips"
+
+msgctxt "the bezier curve selection tool, short"
+msgid "Curve"
+msgstr "Kurva"
+
 msgctxt "pen input"
 msgid "Speed"
 msgstr "Kecepatan"

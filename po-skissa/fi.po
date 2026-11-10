@@ -241,6 +241,10 @@ msgctxt "@title:window"
 msgid "Window"
 msgstr "Ikkuna"
 
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "Ellipsi"
+
 msgctxt "pen input"
 msgid "Pressure"
 msgstr "Paine"

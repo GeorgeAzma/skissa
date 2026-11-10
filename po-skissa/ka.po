@@ -334,6 +334,18 @@ msgctxt "@title:window"
 msgid "Window"
 msgstr "ფანჯარა"
 
+msgctxt "the rectangular selection tool, short"
+msgid "Rectangle"
+msgstr "მართკუთხედი"
+
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "ოვალი"
+
+msgctxt "the bezier curve selection tool, short"
+msgid "Curve"
+msgstr "მრუდი"
+
 msgctxt "pen input"
 msgid "Pressure"
 msgstr "წნევა"

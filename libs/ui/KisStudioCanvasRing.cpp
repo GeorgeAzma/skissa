@@ -135,6 +135,9 @@ void KisStudioCanvasRing::open(QWidget *canvas, const QPointF &pos)
     }
     m_current = resources->fgColor().toQColor();
     m_currentBrush = resources->currentPreset() ? resources->currentPreset()->name() : QString();
+    // its stroke, or with strokes off its own picture, as the slots show theirs
+    m_currentPicture = m_currentBrush.isEmpty() ? QImage() : KisStudioBrushPicker::strokePicture(m_currentBrush);
+    if (m_currentPicture.isNull() && resources->currentPreset()) m_currentPicture = resources->currentPreset()->image();
 
     // Keep the whole ring on the canvas: shift it in from the edges while the pointer stays put
     const QSizeF half = QSizeF(size()) / 2;
@@ -537,8 +540,13 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
         paintBrush(painter, c, r, m_slots[i].picture, m_dragging && i == m_pressed ? 0.35 : 1.0);
         const bool current = m_slots[i].brush == m_currentBrush;
         painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(hovered ? accent : current ? pal.color(QPalette::WindowText) : line, hovered ? 2.5 : current ? 1.5 : 1));
+        painter.setPen(QPen(hovered ? accent : line, hovered ? 2.5 : 1));
         painter.drawEllipse(c, r, r);
+        // the brush in use: a ring around it, apart from its edge, as a selected tile is marked
+        if (current) {
+            painter.setPen(QPen(pal.color(QPalette::WindowText), 2));
+            painter.drawEllipse(c, r + KisModernStyle::space1, r + KisModernStyle::space1);
+        }
     }
 
     // Empty slots for adding brushes
@@ -578,10 +586,11 @@ void KisStudioCanvasRing::paintEvent(QPaintEvent *)
         }
     }
 
-    // Current color in the middle
+    // The brush in use in the middle, ringed by the color it paints (a click there shows all the brushes)
     painter.setPen(QPen(QColor(0, 0, 0, 120), 1));
     painter.setBrush(m_current);
-    painter.drawEllipse(m_center, middleRadius - 4, middleRadius - 4);
+    painter.drawEllipse(m_center, middleRadius - 2, middleRadius - 2);
+    if (!m_currentPicture.isNull()) paintBrush(painter, m_center, middleRadius - 7, m_currentPicture, 1.0);
     if (m_hover == -2) {
         painter.setBrush(Qt::NoBrush);
         painter.setPen(QPen(accent, 2));

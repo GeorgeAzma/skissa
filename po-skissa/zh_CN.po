@@ -220,6 +220,14 @@ msgctxt "@title:window"
 msgid "Window"
 msgstr "窗口"
 
+msgctxt "the rectangular selection tool, short"
+msgid "Rectangle"
+msgstr "矩形"
+
+msgctxt "the bezier curve selection tool, short"
+msgid "Curve"
+msgstr "曲线"
+
 msgctxt "pen input"
 msgid "Pressure"
 msgstr "压力"

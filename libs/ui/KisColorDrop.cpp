@@ -5,6 +5,8 @@
  */
 
 #include "KisColorDrop.h"
+#include "widgets/KisStudioValueRow.h"
+#include <QAbstractSpinBox>
 
 #include <KisModernStyle.h>
 #include "KisRedoLast.h"
@@ -46,7 +48,6 @@
 #include "KisStudioGlass.h"
 #include "KisView.h"
 #include "KisViewManager.h"
-#include "kis_slider_spin_box.h"
 #include <kundo2stack.h>
 #include "canvas/kis_canvas2.h"
 #include "canvas/kis_canvas_decoration.h"
@@ -121,11 +122,34 @@ KisPaintLayerSP newColorsLayer(KisImageSP image)
  * nearby, for gaps further away). \p share picks which lines: flats size it from the bolder ones, since
  * fine hatching beside them would make every gap look small.
  */
-int gapFor(const Options &options, KisPaintDeviceSP reference, const QPoint &point, const QRect &bounds, qreal share = 0.5)
+KisPixelSelectionSP regionAt(KisPaintDeviceSP reference, const QPoint &point, int threshold, int closeGap, const Options &options,
+                             const QRect &bounds);
+
+/// The widest Auto tries when the gap the lines suggest lets the fill out
+constexpr int widestAutoGap = 32;
+
+/**
+ * The gap to close: the one set, or Auto, twice the width of the lines near \p point. A fill from inside a shape
+ * that still runs out to the image's edge (\p threshold given) went through an opening wider than that: Auto then
+ * widens the gap until the fill stays well inside, and keeps the one it had when no width does.
+ */
+int gapFor(const Options &options, KisPaintDeviceSP reference, const QPoint &point, const QRect &bounds, qreal share = 0.5, int threshold = -1)
 {
     if (options.closeGap > 0) return options.closeGap;
     const int width = KisLineArtFill::lineWidthNear(reference, point, bounds, share);
-    return width > 0 ? qBound(4, 2 * width, 12) : 4;
+    const int gap = width > 0 ? qBound(4, 2 * width, 12) : 4;
+    if (threshold < 0) return gap;
+    auto reachesEdge = [&](const QRect &rect) {
+        return rect.left() <= bounds.left() || rect.top() <= bounds.top() || rect.right() >= bounds.right() || rect.bottom() >= bounds.bottom();
+    };
+    const QRect first = regionAt(reference, point, threshold, gap, options, bounds)->selectedExactRect();
+    if (!reachesEdge(first)) return gap;
+    for (int wider = 2 * gap; wider <= widestAutoGap; wider *= 2) {
+        const QRect kept = regionAt(reference, point, threshold, wider, options, bounds)->selectedExactRect();
+        // kept in: off the edges and a good deal smaller than what got out
+        if (!kept.isEmpty() && !reachesEdge(kept) && qint64(kept.width()) * kept.height() * 2 < qint64(first.width()) * first.height()) return wider;
+    }
+    return gap;
 }
 
 /// What a fill from \p point would cover.
@@ -249,42 +273,33 @@ public:
         row->setSpacing(KisModernStyle::space2);
         bucket = new KeepFillingChip(this);
         row->addWidget(bucket, 0, Qt::AlignTop);
-        auto *grid = new QGridLayout();
+        // the values as the Studio's rows: drag, a click on the bar, double-click types, right-click resets
+        auto *grid = new QVBoxLayout();
         grid->setContentsMargins(0, 0, 0, 0);
-        grid->setHorizontalSpacing(KisModernStyle::space2);
-        grid->setVerticalSpacing(0);
-        auto value = [this](int low, int high) {
-            auto *slider = new KisSliderSpinBox(this);
-            slider->setRange(low, high);
-            slider->setFrame(false);
-            slider->setProperty(KisModernStyle::quietFieldProperty, true);
-            slider->setButtonSymbols(QAbstractSpinBox::NoButtons);
-            slider->setFixedWidth(120);
-            slider->setMinimumHeight(26);
-            slider->setBlockUpdateSignalOnDrag(true);
-            slider->setKeyboardTracking(false);
-            return slider;
+        grid->setSpacing(KisModernStyle::hairline);
+        auto value = [this](const QString &name, int low, int high, const QString &suffix, int reset) {
+            auto *valueRow = new KisStudioValueRow(name, this);
+            KisStudioValueRow::Range range;
+            range.minimum = low;
+            range.maximum = high;
+            range.suffix = suffix;
+            valueRow->setRange(range);
+            valueRow->setClickSetsValue(true);
+            valueRow->setDefaultValue(reset);
+            valueRow->setCompact(true);
+            valueRow->setMinimumWidth(10 * fontMetrics().averageCharWidth() + 120);
+            return valueRow;
         };
-        gap = value(0, 32);
-        gap->setSpecialValueText(i18nc("color drop gap: sized from the lines", "Auto"));
-        gap->setSuffix(i18nc("unit", " px"));
-        gap->setProperty("kisDefaultValue", 0);
-        auto *gapName = new QLabel(i18nc("color drop: openings in the lines it closes", "Gap"), this);
-        gapName->setToolTip(i18nc("@info:tooltip", "Seals breaks in the lines"));
-        gap->setToolTip(gapName->toolTip());
-        spread = value(1, 100);
-        spread->setProperty("kisDefaultValue", 8);
-        auto *spreadName = new QLabel(i18nc("color drop: how far into similar colors it fills", "Spread"), this);
-        spreadName->setToolTip(i18nc("@info:tooltip", "Higher takes in nearby shades"));
-        spread->setToolTip(spreadName->toolTip());
+        gap = value(i18nc("color drop: openings in the lines it closes", "Gap"), 0, 32, i18nc("unit", " px"), 0);
+        gap->setToolTip(i18nc("@info:tooltip", "Seals breaks in the lines"));
+        spread = value(i18nc("color drop: how far into similar colors it fills", "Spread"), 1, 100, QString(), 8);
+        spread->setToolTip(i18nc("@info:tooltip", "Higher takes in nearby shades"));
         underLines = new QCheckBox(i18nc("color drop: the fill reaches under the lines", "Under lines"), this);
         underLines->setFocusPolicy(Qt::NoFocus);
         underLines->setToolTip(i18nc("@info:tooltip", "Fills to the middle of the lines"));
-        grid->addWidget(gapName, 0, 0);
-        grid->addWidget(gap, 0, 1);
-        grid->addWidget(spreadName, 1, 0);
-        grid->addWidget(spread, 1, 1);
-        grid->addWidget(underLines, 2, 0, 1, 2);
+        grid->addWidget(gap);
+        grid->addWidget(spread);
+        grid->addWidget(underLines);
         row->addLayout(grid);
         // the fill is made as it drops: done keeps it as it is, cancel takes it back
         auto *ends = new QVBoxLayout();
@@ -305,15 +320,15 @@ public:
         ends->addWidget(cancel);
         ends->addStretch(1);
         row->addLayout(ends);
-        for (QWidget *widget : std::initializer_list<QWidget *>{gapName, spreadName, gap, spread, underLines}) {
+        for (QWidget *widget : std::initializer_list<QWidget *>{gap, spread, underLines}) {
             KisStudioGlass::setSeeThrough(widget, true);
         }
         adjustSize();
     }
 
     KeepFillingChip *bucket {nullptr};
-    KisSliderSpinBox *gap {nullptr};
-    KisSliderSpinBox *spread {nullptr};
+    KisStudioValueRow *gap {nullptr};
+    KisStudioValueRow *spread {nullptr};
     QCheckBox *underLines {nullptr};
     QToolButton *done {nullptr};
     QToolButton *cancel {nullptr};
@@ -542,7 +557,7 @@ struct KisColorDrop::Private {
             // out of memory on a huge image: no preview, rather than an exception thrown into the window's thread
             try {
                 // the gap too, as finding the width of the lines nearby reads a piece of the image
-                result.region = regionAt(reference, at, t, gapFor(o, reference, at, bounds), o, bounds);
+                result.region = regionAt(reference, at, t, gapFor(o, reference, at, bounds, 0.5, t), o, bounds);
                 result.rect = result.region->selectedExactRect();
                 result.overlay = tintedOverlay(result.region, result.rect, tint);
             } catch (const std::bad_alloc &) {
@@ -556,8 +571,12 @@ struct KisColorDrop::Private {
     void showAutoGap()
     {
         if (!panel) return;
-        panel->gap->setSpecialValueText(autoChosen > 0 ? i18nc("color drop gap sized from the lines, and the size", "Auto %1 px", autoChosen)
-                                                       : i18nc("color drop gap: sized from the lines", "Auto"));
+        if (qRound(panel->gap->value()) != 0) {
+            panel->gap->setValueText(QString());
+            return;
+        }
+        panel->gap->setValueText(autoChosen > 0 ? i18nc("color drop gap sized from the lines, and the size", "Auto %1 px", autoChosen)
+                                                : i18nc("color drop gap: sized from the lines", "Auto"));
     }
 
     /// The last fill taken back, while it is still the newest step
@@ -579,8 +598,9 @@ struct KisColorDrop::Private {
     void changed()
     {
         if (!panel) return;
-        options.closeGap = panel->gap->value();
-        options.threshold = panel->spread->value();
+        options.closeGap = qRound(panel->gap->value());
+        options.threshold = qRound(panel->spread->value());
+        showAutoGap();
         options.underLines = panel->underLines->isChecked();
         options.write();
         threshold = options.threshold;
@@ -601,15 +621,15 @@ struct KisColorDrop::Private {
             });
             // Enter and Esc in the window while it shows, a press on the canvas, and keeping on filling
             qApp->installEventFilter(q);
-            QObject::connect(panel->gap, QOverload<int>::of(&KisSliderSpinBox::valueChanged), q, [this]() { changed(); });
-            QObject::connect(panel->spread, QOverload<int>::of(&KisSliderSpinBox::valueChanged), q, [this]() { changed(); });
+            QObject::connect(panel->gap, &KisStudioValueRow::valueChanged, q, [this]() { changed(); });
+            QObject::connect(panel->spread, &KisStudioValueRow::valueChanged, q, [this]() { changed(); });
             QObject::connect(panel->underLines, &QCheckBox::toggled, q, [this]() { changed(); });
             // beside the drop, clear of the pointer
             const QPoint at = canvasPos + QPoint(22, 22);
             panel->move(qBound(0, at.x(), widget->width() - panel->width()), qBound(0, at.y(), widget->height() - panel->height()));
         }
         {
-            const QSignalBlocker gapBlocker(panel->gap), spreadBlocker(panel->spread), linesBlocker(panel->underLines);
+            const QSignalBlocker linesBlocker(panel->underLines);
             panel->gap->setValue(options.closeGap);
             panel->spread->setValue(threshold);
             panel->underLines->setChecked(options.underLines);
@@ -790,7 +810,7 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
     visitor->setRegionFillingMode(KisFillPainter::RegionFillingMode_FloodFill);
     visitor->setFillThreshold(threshold);
     visitor->setOpacitySpread(100);
-    const int gap = gapFor(d->options, image->projection(), point, image->bounds());
+    const int gap = gapFor(d->options, image->projection(), point, image->bounds(), 0.5, threshold);
     if (d->options.closeGap <= 0) d->autoChosen = gap;
     d->showAutoGap();
     visitor->setCloseGap(gap);

@@ -74,13 +74,13 @@ msgctxt "@item:layer name: flat colors under line art"
 msgid "Colors"
 msgstr "צבעים"
 
-msgctxt "color drop gap: sized from the lines"
-msgid "Auto"
-msgstr "אוטו׳"
-
 msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "פריסה"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "אוטו׳"
 
 msgctxt "halftone shape"
 msgid "Dots"
@@ -357,6 +357,10 @@ msgstr "אטימות"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "חלון"
+
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "אליפסה"
 
 msgctxt "pen input"
 msgid "Pressure"

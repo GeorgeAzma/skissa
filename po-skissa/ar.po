@@ -12,13 +12,13 @@ msgctxt "default name of a new layer, followed by a number"
 msgid "Layer"
 msgstr "الطبقة"
 
-msgctxt "color drop gap: sized from the lines"
-msgid "Auto"
-msgstr "آليّ"
-
 msgctxt "color drop: how far into similar colors it fills"
 msgid "Spread"
 msgstr "الانتشار"
+
+msgctxt "color drop gap: sized from the lines"
+msgid "Auto"
+msgstr "آليّ"
 
 msgctxt "halftone shape"
 msgid "Dots"
@@ -211,6 +211,14 @@ msgstr "الشّفافيّة"
 msgctxt "@title:window"
 msgid "Window"
 msgstr "النافذة"
+
+msgctxt "the rectangular selection tool, short"
+msgid "Rectangle"
+msgstr "مستطيل"
+
+msgctxt "the bezier curve selection tool, short"
+msgid "Curve"
+msgstr "منحنى"
 
 msgctxt "pen input"
 msgid "Pressure"

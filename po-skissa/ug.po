@@ -231,6 +231,14 @@ msgctxt "@info:tooltip"
 msgid "Opacity"
 msgstr "غۇۋالىقى"
 
+msgctxt "the rectangular selection tool, short"
+msgid "Rectangle"
+msgstr "تىك تۆت بۇلۇڭ"
+
+msgctxt "the bezier curve selection tool, short"
+msgid "Curve"
+msgstr "ئەگرى سىزىق"
+
 msgctxt "pen input"
 msgid "Speed"
 msgstr "سۈرئىتى"

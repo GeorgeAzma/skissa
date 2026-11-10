@@ -220,6 +220,10 @@ msgctxt "@title:window"
 msgid "Window"
 msgstr "विंडो"
 
+msgctxt "the elliptical selection tool, short"
+msgid "Ellipse"
+msgstr "दीर्घवृत्त"
+
 msgctxt "pen input"
 msgid "Pressure"
 msgstr "दबाव"
