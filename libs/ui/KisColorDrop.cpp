@@ -28,6 +28,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <new>
+#include <numeric>
 #include <vector>
 
 #include <QtConcurrent>
@@ -172,25 +173,231 @@ KisPixelSelectionSP regionAt(KisPaintDeviceSP reference, const QPoint &point, in
     return painter.createFloodSelection(new KisPixelSelection(), point.x(), point.y(), reference, nullptr);
 }
 
-/// The layer a drop at \p point recolors by its own colors: a painting, or a flat on a layer of colors (the active one or
-/// the one beside the line art); null where it fills line art
-KisNodeSP recoloredAt(KisNodeSP active, const QPoint &point)
+/// A sparse look at \p device around \p point, every fourth pixel and row as far as a shape's outline is: how much of it
+/// is paper (clear, or light and gray: white, cream, a scan's off-white), clear, and dark ink
+struct Look {
+    int all {0};
+    int paper {0};
+    int clear {0};
+    int ink {0};
+
+    /// covered with paint, light or dark: line art leaves most of its layer paper, however dark its lines
+    bool painting() const { return all > 64 && paper * 10 < all * 3; }
+    /// mostly clear, and what is on it isn't mostly lines
+    bool clearOfLines() const
+    {
+        const int painted = all - clear;
+        return all > 64 && clear * 10 >= all * 7 && (painted == 0 || ink * 2 < painted);
+    }
+};
+
+Look lookAt(KisPaintDeviceSP device, const QPoint &point)
 {
-    if (!active || !qobject_cast<KisPaintLayer *>(active.data()) || !active->isEditable()) return nullptr;
-    auto flatAt = [&point](KisNodeSP node) { return KisColorDrop::isColorsLayer(node) && node->paintDevice()->pixel(point).opacityU8() >= 128; };
-    if (KisColorDrop::isColorsLayer(active)) return flatAt(active) ? active : nullptr;
-    if (KisColorDrop::isPaintingAt(active, point)) return active;
-    if (flatAt(active->prevSibling())) return active->prevSibling();
-    if (flatAt(active->nextSibling())) return active->nextSibling();
-    return nullptr;
+    Look look;
+    if (!device) return look;
+    const QRect window = QRect(point - QPoint(384, 384), QSize(768, 768)) & device->defaultBounds()->bounds();
+    if (window.isEmpty()) return look;
+    const KoColorSpace *srgb = KoColorSpaceRegistry::instance()->rgb8();
+    const bool isSrgb = *device->colorSpace() == *srgb;
+    const int width = window.width();
+    std::vector<quint8> row(size_t(width) * device->pixelSize()), colors(size_t(width) * 4);
+    for (int y = window.top(); y <= window.bottom(); y += 4) {
+        device->readBytes(row.data(), window.left(), y, width, 1);
+        if (!isSrgb) {
+            device->colorSpace()->convertPixelsTo(row.data(), colors.data(), srgb, width, KoColorConversionTransformation::internalRenderingIntent(),
+                                                  KoColorConversionTransformation::internalConversionFlags());
+        }
+        const quint8 *p = isSrgb ? row.data() : colors.data();
+        for (int x = 0; x < width; x += 4) {
+            // blue, green, red, alpha
+            const quint8 *px = p + size_t(x) * 4;
+            look.all++;
+            const int high = std::max({px[0], px[1], px[2]}), low = std::min({px[0], px[1], px[2]});
+            if (px[3] < 128) look.clear++;
+            if (px[3] < 128 || (low >= 200 && high - low <= 40)) look.paper++;
+            if (px[3] >= 128 && KisLineArtFill::inkOf(qRgba(px[2], px[1], px[0], px[3])) >= KisLineArtFill::lineInk) look.ink++;
+        }
+    }
+    return look;
 }
 
-/// What a recoloring drop at \p seed covers on \p device: the touching area of colors like the seed's, or every one
-KisPixelSelectionSP recolorRegion(KisPaintDeviceSP device, const QPoint &seed, int threshold, bool everywhere, const QRect &bounds)
+/**
+ * How a drop fills by color: the layer that takes it, and whether it recolors that layer's own pixels (a painting, a
+ * flat of a Colors layer) or paints over the picture as it is seen, on a clear layer above it. Empty where the drop
+ * fills line art, which closes gaps and reaches under the lines instead.
+ */
+struct ByColor {
+    KisNodeSP node;
+    bool inPlace {true};
+
+    explicit operator bool() const { return node; }
+    bool operator==(const ByColor &other) const { return node == other.node && inPlace == other.inPlace; }
+};
+
+ByColor byColorAt(KisImageSP image, KisNodeSP active, const QPoint &point)
 {
+    ByColor way;
+    if (!image || !active || !qobject_cast<KisPaintLayer *>(active.data()) || !active->isEditable()) return way;
+    auto flatAt = [&point](KisNodeSP node) { return KisColorDrop::isColorsLayer(node) && node->paintDevice()->pixel(point).opacityU8() >= 128; };
+    if (KisColorDrop::isColorsLayer(active)) {
+        if (flatAt(active)) way.node = active;
+        return way;
+    }
+    const Look own = lookAt(active->paintDevice(), point);
+    if (own.painting()) {
+        way.node = active;
+        return way;
+    }
+    // a flat beside the line art
+    for (KisNodeSP beside : {active->prevSibling(), active->nextSibling()}) {
+        if (flatAt(beside)) {
+            way.node = beside;
+            return way;
+        }
+    }
+    // a layer of its own over a painting, as an artist keeps one to paint on
+    if (own.clearOfLines() && lookAt(image->projection(), point).painting()) {
+        way.node = active;
+        way.inPlace = false;
+    }
+    return way;
+}
+
+KisPixelSelectionSP regionByColorAlone(KisPaintDeviceSP device, const QPoint &seed, int threshold, bool everywhere, const QRect &bounds);
+
+/// The distance between two premultiplied colors
+float colorDistance(const float *a, const float *b)
+{
+    float d2 = 0;
+    for (int c = 0; c < 4; c++) d2 += (a[c] - b[c]) * (a[c] - b[c]);
+    return std::sqrt(d2);
+}
+
+/// How far across a soft edge between two other colors is looked through
+constexpr int blendWidth = 3;
+
+/**
+ * \p region without the pixels that only blend two others: the soft edge between two colors may pass through one like
+ * the seed's, which isn't an area of it (a sliver along every stripe of another color). A pixel goes when, along a
+ * row, a column or a diagonal, the region ends within blendWidth on both sides of it and it lies between the colors
+ * found there.
+ */
+void dropBlends(KisPixelSelectionSP region, KisPaintDeviceSP device, const QRect &bounds)
+{
+    const QRect rect = region->selectedExactRect() & bounds;
+    if (rect.isEmpty()) return;
+    const KoColorSpace *cs = device->colorSpace();
+    const KoColorProfile *profile = cs->colorModelId() == RGBAColorModelID ? cs->profile() : nullptr;
+    const KoColorSpace *floats = KoColorSpaceRegistry::instance()->colorSpace(RGBAColorModelID.id(), Float32BitsColorDepthID.id(), profile);
+    constexpr int band = 64;
+    QVector<QRect> bands;
+    for (int y = rect.top(); y <= rect.bottom(); y += band) bands.append(QRect(rect.left(), y, rect.width(), std::min(band, rect.bottom() - y + 1)));
+    QVector<std::vector<QPoint>> dropped(bands.size());
+    QVector<int> order(bands.size());
+    std::iota(order.begin(), order.end(), 0);
+    QtConcurrent::blockingMap(order, [&](int n) {
+        const QRect r = bands[n];
+        const QRect wide = r.adjusted(-blendWidth, -blendWidth, blendWidth, blendWidth) & bounds;
+        const int w = wide.width(), h = wide.height();
+        std::vector<quint8> in(size_t(w) * h);
+        region->readBytes(in.data(), wide);
+        auto index = [&](int x, int y) { return size_t(y - wide.top()) * w + size_t(x - wide.left()); };
+        // outside the region but in the image: beyond its edges there is nothing to blend with
+        auto outside = [&](int x, int y) { return wide.contains(x, y) && in[index(x, y)] < 128; };
+        static const QPoint axes[] = {QPoint(1, 0), QPoint(0, 1), QPoint(1, 1), QPoint(1, -1)};
+        struct Candidate {
+            QPoint at;
+            QPoint ends[4][2];
+            int count;
+        };
+        std::vector<Candidate> candidates;
+        for (int y = r.top(); y <= r.bottom(); y++) {
+            for (int x = r.left(); x <= r.right(); x++) {
+                if (in[index(x, y)] < MAX_SELECTED) continue;
+                Candidate candidate {QPoint(x, y), {}, 0};
+                for (const QPoint &axis : axes) {
+                    QPoint ends[2];
+                    bool found[2] = {false, false};
+                    for (int side = 0; side < 2; side++) {
+                        const QPoint step = side ? axis : -axis;
+                        for (int k = 1; k <= blendWidth && !found[side]; k++) {
+                            const QPoint q = QPoint(x, y) + step * k;
+                            if (outside(q.x(), q.y())) {
+                                ends[side] = q;
+                                found[side] = true;
+                            }
+                        }
+                    }
+                    if (found[0] && found[1]) {
+                        candidate.ends[candidate.count][0] = ends[0];
+                        candidate.ends[candidate.count][1] = ends[1];
+                        candidate.count++;
+                    }
+                }
+                if (candidate.count) candidates.push_back(candidate);
+            }
+        }
+        if (candidates.empty()) return;
+        std::vector<quint8> pixels(size_t(w) * h * cs->pixelSize());
+        device->readBytes(pixels.data(), wide);
+        std::vector<float> f(size_t(w) * h * 4);
+        cs->convertPixelsTo(pixels.data(), reinterpret_cast<quint8 *>(f.data()), floats, w * h, KoColorConversionTransformation::internalRenderingIntent(),
+                            KoColorConversionTransformation::internalConversionFlags());
+        for (size_t i = 0; i < size_t(w) * h; i++) {
+            for (int c = 0; c < 3; c++) f[i * 4 + c] *= f[i * 4 + 3];
+        }
+        auto between = [&](const float *p, const float *a, const float *b) {
+            const float span = colorDistance(a, b);
+            if (span < 0.1f) return false;
+            float along = 0;
+            for (int c = 0; c < 4; c++) along += (p[c] - b[c]) * (a[c] - b[c]);
+            const float share = along / (span * span);
+            if (share < 0.04f || share > 0.96f) return false;
+            float off = 0;
+            for (int c = 0; c < 4; c++) {
+                const float d = p[c] - b[c] - share * (a[c] - b[c]);
+                off += d * d;
+            }
+            return std::sqrt(off) < 0.25f * span;
+        };
+        for (const Candidate &candidate : candidates) {
+            const float *p = f.data() + index(candidate.at.x(), candidate.at.y()) * 4;
+            for (int i = 0; i < candidate.count; i++) {
+                const QPoint a = candidate.ends[i][0], b = candidate.ends[i][1];
+                if (between(p, f.data() + index(a.x(), a.y()) * 4, f.data() + index(b.x(), b.y()) * 4)) {
+                    dropped[n].push_back(candidate.at);
+                    break;
+                }
+            }
+        }
+    });
+    const quint8 none = MIN_SELECTED;
+    for (const std::vector<QPoint> &points : dropped) {
+        for (const QPoint &at : points) region->writeBytes(&none, at.x(), at.y(), 1, 1);
+    }
+    region->invalidateOutlineCache();
+}
+
+/// What a drop by color at \p seed covers on \p device: the touching area of colors like the seed's, or every one
+KisPixelSelectionSP regionByColor(KisPaintDeviceSP device, const QPoint &seed, int threshold, bool everywhere, const QRect &bounds)
+{
+    KisPixelSelectionSP region = regionByColorAlone(device, seed, threshold, everywhere, bounds);
+    dropBlends(region, device, bounds);
+    return region;
+}
+
+/**
+ * The area of colors like the seed's, as the fill tool finds it: wholly within \p threshold, then fading out over half
+ * as far again, so where it ends inside a gradient the new color fades into the old instead of stopping at a hard line.
+ */
+KisPixelSelectionSP regionByColorAlone(KisPaintDeviceSP device, const QPoint &seed, int threshold, bool everywhere, const QRect &bounds)
+{
+    // Krita's soft fill: covered wholly up to threshold × (1 − softness), then less and less up to the threshold
+    const int reach = threshold + std::max(3, threshold / 2);
+    const int softness = qBound(1, qRound(100.0 * (reach - threshold) / reach), 100);
     KisFillPainter painter;
-    painter.setFillThreshold(threshold);
-    painter.setOpacitySpread(100);
+    painter.setFillThreshold(reach);
+    painter.setOpacitySpread(100 - softness);
     painter.setAntiAlias(false);
     painter.setCareForSelection(false);
     painter.setWidth(bounds.width());
@@ -204,29 +411,42 @@ KisPixelSelectionSP recolorRegion(KisPaintDeviceSP device, const QPoint &seed, i
 }
 
 /// How far beside an area its soft edge is looked for: anti-aliasing and a little softness
-constexpr int softRim = 3;
+constexpr int softRim = 2;
+/// How far around a pixel of the soft edge the area's color and what lies beyond are read
+constexpr int rimReach = 2 * softRim;
+/// How unlike the area a pixel (premultiplied, 0 to 1 a channel) may be and still be a blend of it: closer neighbours
+/// than this are the same color, a gradient or a speck of texture, not something beyond its edge
+constexpr float alike = 0.15f;
 
 /**
- * \p region of \p device made \p color, as if the area had been painted that color. A pixel beside it is read as
- * a share of the area's color blended with what lies beyond, and that share takes the new color, so the soft edge
- * keeps its blend instead of a faint ring of the old color. On a clear area (\p clear) the color goes under what is
- * there; on paint each pixel keeps its opacity. \p original is the device as it was. Returns what changed.
+ * \p region of the picture made \p color, written into \p device, so that it looks as if the area had been painted that
+ * color with nothing to fix up. \p seen is the picture before the fill: \p device's own pixels when it is recolored in
+ * place, else the picture as it is seen, painted over on \p device (a clear layer above it). A pixel beside the area is
+ * read as a share of the area's color blended with what lies beyond (premultiplied, in the picture's own encoding,
+ * where its soft edges were blended), and that share takes the new color, so the edge keeps its blend instead of a ring
+ * of the old color; specks of texture inside take it as far as they are like it. Over the picture the area is solid and
+ * its edge is the least see-through color that looks right. A clear area (\p clear) gets the color under what is
+ * there. Returns what changed.
  */
-QRect recolorIn(KisPaintDeviceSP device, KisPaintDeviceSP original, KisPixelSelectionSP region, const KoColor &color, bool clear,
-                const QRect &bounds)
+QRect fillByColor(KisPaintDeviceSP device, KisPaintDeviceSP seen, KisPixelSelectionSP region, const KoColor &color, bool inPlace, bool clear,
+                  const QRect &bounds)
 {
     const QRect area = region->selectedExactRect();
     if (area.isEmpty()) return QRect();
     const QRect rect = area.adjusted(-softRim, -softRim, softRim, softRim) & bounds;
     const KoColorSpace *cs = device->colorSpace();
-    // blends are read in the layer's own encoding, where its soft edges were blended
-    const KoColorProfile *profile = cs->colorModelId() == RGBAColorModelID ? cs->profile() : nullptr;
+    const KoColorSpace *seenCs = seen->colorSpace();
+    // blends are read in the picture's own encoding, where its soft edges were blended
+    const KoColorProfile *profile = seenCs->colorModelId() == RGBAColorModelID ? seenCs->profile() : nullptr;
     const KoColorSpace *floats = KoColorSpaceRegistry::instance()->colorSpace(RGBAColorModelID.id(), Float32BitsColorDepthID.id(), profile);
     const KoColor own = color.convertedTo(cs);
+    KoColor solid = own;
+    cs->setOpacity(solid.data(), OPACITY_OPAQUE_U8, 1);
     const KoColor paintF = color.convertedTo(floats);
     const float *paint = reinterpret_cast<const float *>(paintF.data());
-    const int pixelSize = cs->pixelSize();
-    const int margin = 2 * softRim;
+    const int pixelSize = cs->pixelSize(), seenSize = seenCs->pixelSize();
+    const auto intent = KoColorConversionTransformation::internalRenderingIntent();
+    const auto flags = KoColorConversionTransformation::internalConversionFlags();
 
     // tiles on Krita's own tile grid, so no two threads write one tile
     constexpr int tile = 128;
@@ -239,15 +459,30 @@ QRect recolorIn(KisPaintDeviceSP device, KisPaintDeviceSP original, KisPixelSele
     }
     QtConcurrent::blockingMap(tiles, [&](const QRect &t) {
         // the region far enough around to tell what is beside it and what lies beyond
-        const QRect wide = t.adjusted(-margin - softRim, -margin - softRim, margin + softRim, margin + softRim) & bounds;
+        const QRect wide = t.adjusted(-rimReach - softRim, -rimReach - softRim, rimReach + softRim, rimReach + softRim) & bounds;
         const int w = wide.width(), h = wide.height();
         std::vector<quint8> in(size_t(w) * h), rows(size_t(w) * h), near(size_t(w) * h);
         region->readBytes(in.data(), wide);
-        // near: the region within softRim, by a separable maximum
+        auto index = [&](int x, int y) { return size_t(y - wide.top()) * w + size_t(x - wide.left()); };
+        // all of the tile wholly in the area: over the picture, solid paint
+        bool whole = true;
+        for (int y = t.top(); y <= t.bottom() && whole; y++) {
+            for (int x = t.left(); x <= t.right(); x++) {
+                if (in[index(x, y)] < MAX_SELECTED) {
+                    whole = false;
+                    break;
+                }
+            }
+        }
+        if (whole && !inPlace) {
+            device->fill(t, solid);
+            return;
+        }
+        // near: within softRim of the area wholly covered, by a separable maximum
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 quint8 m = 0;
-                for (int i = std::max(0, x - softRim); i <= std::min(w - 1, x + softRim); i++) m = std::max(m, in[size_t(y) * w + i]);
+                for (int i = std::max(0, x - softRim); i <= std::min(w - 1, x + softRim); i++) m = std::max(m, in[size_t(y) * w + i] == MAX_SELECTED ? quint8(255) : quint8(0));
                 rows[size_t(y) * w + x] = m;
             }
         }
@@ -257,32 +492,42 @@ QRect recolorIn(KisPaintDeviceSP device, KisPaintDeviceSP original, KisPixelSele
                 quint8 m = 0;
                 for (int i = std::max(0, y - softRim); i <= std::min(h - 1, y + softRim); i++) m = std::max(m, rows[size_t(i) * w + x]);
                 near[size_t(y) * w + x] = m;
-                any = any || (m >= 128 && t.contains(wide.left() + x, wide.top() + y));
+                any = any || ((m >= 128 || in[size_t(y) * w + x] > 0) && t.contains(wide.left() + x, wide.top() + y));
             }
         }
         if (!any) return;
-        auto index = [&](int x, int y) { return size_t(y - wide.top()) * w + size_t(x - wide.left()); };
 
-        std::vector<quint8> pixels(size_t(w) * h * pixelSize);
-        original->readBytes(pixels.data(), wide);
+        std::vector<quint8> pixels(size_t(w) * h * seenSize);
+        seen->readBytes(pixels.data(), wide);
+        // the tile as it will be written: the layer as it is, its area painted
         std::vector<quint8> out(size_t(t.width()) * t.height() * pixelSize);
-        for (int y = t.top(); y <= t.bottom(); y++) {
-            memcpy(out.data() + size_t(y - t.top()) * t.width() * pixelSize, pixels.data() + index(t.left(), y) * pixelSize,
-                   size_t(t.width()) * pixelSize);
+        if (inPlace) {
+            for (int y = t.top(); y <= t.bottom(); y++) {
+                memcpy(out.data() + size_t(y - t.top()) * t.width() * pixelSize, pixels.data() + index(t.left(), y) * pixelSize,
+                       size_t(t.width()) * pixelSize);
+            }
+        } else {
+            device->readBytes(out.data(), t);
         }
-        // pixels that need blending: the soft edge, and (on a clear area) paint the color goes under
+        auto outAt = [&](int x, int y) { return out.data() + (size_t(y - t.top()) * t.width() + (x - t.left())) * pixelSize; };
+        // pixels that need blending: the soft edge, and (in place on a clear area) paint the color goes under
         std::vector<QPoint> blended;
         for (int y = t.top(); y <= t.bottom(); y++) {
             for (int x = t.left(); x <= t.right(); x++) {
                 const size_t i = index(x, y);
-                if (near[i] < 128) continue;
-                const quint8 *src = pixels.data() + i * pixelSize;
-                quint8 *dst = out.data() + (size_t(y - t.top()) * t.width() + (x - t.left())) * pixelSize;
-                if (in[i] >= 128 && (!clear || cs->opacityU8(src) == 0)) {
-                    const qreal opacity = clear ? 1.0 : cs->opacityF(src);
-                    memcpy(dst, own.data(), pixelSize);
-                    cs->setOpacity(dst, opacity, 1);
-                    continue;
+                if (near[i] < 128 && in[i] == 0) continue;
+                if (in[i] == MAX_SELECTED) {
+                    if (!inPlace) {
+                        memcpy(outAt(x, y), solid.data(), pixelSize);
+                        continue;
+                    }
+                    const quint8 *src = pixels.data() + i * seenSize;
+                    if (!clear || seenCs->opacityU8(src) == 0) {
+                        const qreal opacity = clear ? 1.0 : seenCs->opacityF(src);
+                        memcpy(outAt(x, y), own.data(), pixelSize);
+                        cs->setOpacity(outAt(x, y), opacity, 1);
+                        continue;
+                    }
                 }
                 blended.push_back(QPoint(x, y));
             }
@@ -293,81 +538,129 @@ QRect recolorIn(KisPaintDeviceSP device, KisPaintDeviceSP original, KisPixelSele
         }
         // premultiplied, so a blend is a straight line between two colors, transparency included
         std::vector<float> f(size_t(w) * h * 4);
-        cs->convertPixelsTo(pixels.data(), reinterpret_cast<quint8 *>(f.data()), floats, w * h,
-                            KoColorConversionTransformation::internalRenderingIntent(), KoColorConversionTransformation::internalConversionFlags());
+        seenCs->convertPixelsTo(pixels.data(), reinterpret_cast<quint8 *>(f.data()), floats, w * h, intent, flags);
         for (size_t i = 0; i < size_t(w) * h; i++) {
             for (int c = 0; c < 3; c++) f[i * 4 + c] *= f[i * 4 + 3];
+        }
+        // over the picture: what the layer holds there, which the paint goes over
+        std::vector<float> layer;
+        if (!inPlace) {
+            std::vector<quint8> held(blended.size() * pixelSize);
+            for (size_t k = 0; k < blended.size(); k++) memcpy(held.data() + k * pixelSize, outAt(blended[k].x(), blended[k].y()), pixelSize);
+            layer.resize(blended.size() * 4);
+            cs->convertPixelsTo(held.data(), reinterpret_cast<quint8 *>(layer.data()), floats, int(blended.size()), intent, flags);
         }
         std::vector<float> results(blended.size() * 4);
         for (size_t k = 0; k < blended.size(); k++) {
             const QPoint at = blended[k];
             const float *p = f.data() + index(at.x(), at.y()) * 4;
-            float q[4];
+            // what the picture should look like there (premultiplied), and how much of it is the area
+            float target[4];
+            float share = 1;
             if (clear) {
                 // the color under what is there
-                for (int c = 0; c < 3; c++) q[c] = p[c] + (1 - p[3]) * paint[c];
-                q[3] = p[3] + (1 - p[3]);
+                for (int c = 0; c < 3; c++) target[c] = p[c] + (1 - p[3]) * paint[c];
+                target[3] = 1;
             } else {
-                // the area's color beside it and what lies beyond, nearer pixels counting more
+                // the area's color beside it and what lies beyond, nearer pixels counting more; without anything beyond
+                // within reach, the unlike pixel nearby that most stands out (a thin line, a speck's core)
                 float o[4] = {0, 0, 0, 0}, b[4] = {0, 0, 0, 0}, wo = 0, wb = 0;
-                for (int dy = -margin; dy <= margin; dy++) {
-                    for (int dx = -margin; dx <= margin; dx++) {
-                        const int x = at.x() + dx, y = at.y() + dy;
-                        if ((dx == 0 && dy == 0) || !wide.contains(x, y)) continue;
-                        const size_t i = index(x, y);
-                        const float weight = 1.0f / float(dx * dx + dy * dy);
-                        const float *s = f.data() + i * 4;
-                        if (in[i] >= 128) {
-                            for (int c = 0; c < 4; c++) o[c] += weight * s[c];
-                            wo += weight;
-                        } else if (near[i] < 128) {
-                            for (int c = 0; c < 4; c++) b[c] += weight * s[c];
-                            wb += weight;
+                const float *apart = nullptr;
+                float apartBy = -1;
+                for (int pass = 0; pass < 2; pass++) {
+                    for (int dy = -rimReach; dy <= rimReach; dy++) {
+                        for (int dx = -rimReach; dx <= rimReach; dx++) {
+                            const int x = at.x() + dx, y = at.y() + dy;
+                            if ((dx == 0 && dy == 0) || !wide.contains(x, y)) continue;
+                            const size_t i = index(x, y);
+                            const float *s = f.data() + i * 4;
+                            const float weight = 1.0f / float(dx * dx + dy * dy);
+                            if (pass == 0) {
+                                if (in[i] == MAX_SELECTED) {
+                                    for (int c = 0; c < 4; c++) o[c] += weight * s[c];
+                                    wo += weight;
+                                }
+                            } else if (in[i] < MAX_SELECTED) {
+                                if (near[i] < 128 && in[i] == 0) {
+                                    for (int c = 0; c < 4; c++) b[c] += weight * s[c];
+                                    wb += weight;
+                                }
+                                const float by = colorDistance(s, o);
+                                if (by > apartBy) {
+                                    apartBy = by;
+                                    apart = s;
+                                }
+                            }
                         }
                     }
+                    if (pass == 0) {
+                        for (int c = 0; c < 4; c++) o[c] /= std::max(wo, 1e-6f);
+                    }
                 }
-                for (int c = 0; c < 4; c++) o[c] /= std::max(wo, 1e-6f);
-                float share = 0;
                 if (wb > 0) {
-                    // the pixel as share × the area's color + the rest × what is beyond, and how far off that line it is
-                    float ob[4], pb[4], len2 = 0, along = 0;
-                    for (int c = 0; c < 4; c++) {
-                        b[c] /= wb;
-                        ob[c] = o[c] - b[c];
-                        pb[c] = p[c] - b[c];
-                        len2 += ob[c] * ob[c];
-                        along += pb[c] * ob[c];
-                    }
-                    if (len2 > 1e-4f) {
-                        share = qBound(0.0f, along / len2, 1.0f);
-                        float off = 0;
-                        for (int c = 0; c < 4; c++) off += (pb[c] - share * ob[c]) * (pb[c] - share * ob[c]);
-                        share *= qBound(0.0f, 1.0f - std::sqrt(off / len2), 1.0f);
-                    }
+                    for (int c = 0; c < 4; c++) b[c] /= wb;
+                } else if (apart) {
+                    for (int c = 0; c < 4; c++) b[c] = apart[c];
                 } else {
-                    // a speck inside the area: changed as far as it is like it
-                    float d2 = 0;
-                    for (int c = 0; c < 4; c++) d2 += (p[c] - o[c]) * (p[c] - o[c]);
-                    share = qBound(0.0f, 1.0f - std::sqrt(d2) / 0.25f, 1.0f);
+                    for (int c = 0; c < 4; c++) b[c] = p[c];
                 }
-                const float alpha = o[3];
-                for (int c = 0; c < 3; c++) q[c] = p[c] + share * (paint[c] * alpha - o[c]);
-                q[3] = p[3];
+                const float span = colorDistance(o, b);
+                if (span < alike) {
+                    // nothing unlike beyond: a gradient going on or a speck, changed as far as it is like the area
+                    share = qBound(0.0f, 1.0f - colorDistance(p, o) / alike, 1.0f);
+                } else {
+                    // the pixel as share × the area's color + the rest × what is beyond, and how far off that line it is
+                    float along = 0, off = 0;
+                    for (int c = 0; c < 4; c++) along += (p[c] - b[c]) * (o[c] - b[c]);
+                    share = qBound(0.0f, along / (span * span), 1.0f);
+                    for (int c = 0; c < 4; c++) {
+                        const float d = p[c] - b[c] - share * (o[c] - b[c]);
+                        off += d * d;
+                    }
+                    share *= qBound(0.0f, 1.0f - std::sqrt(off) / span, 1.0f);
+                }
+                // a pixel in the fading part of the area: at least as much as it is covered
+                const float covered = in[index(at.x(), at.y())] / 255.0f;
+                if (wo <= 0) {
+                    // nothing wholly covered nearby: only the fade
+                    for (int c = 0; c < 4; c++) o[c] = p[c];
+                    share = 0;
+                }
+                share = std::max(share, covered);
+                for (int c = 0; c < 3; c++) target[c] = p[c] + share * (paint[c] * o[3] - o[c]);
+                target[3] = p[3];
+            }
+            float q[4];
+            if (inPlace) {
+                memcpy(q, target, sizeof(q));
+            } else {
+                // paint that, laid over the picture, gives the target: as see-through as it can be (but no less than its
+                // share, so the layer holds the area's shape), then laid over what the layer already holds
+                float alpha;
+                if (p[3] < 0.999f) {
+                    alpha = qBound(0.0f, (target[3] - p[3]) / (1 - p[3]), 1.0f);
+                } else {
+                    alpha = share;
+                    for (int c = 0; c < 3; c++) {
+                        if (target[c] < p[c] && p[c] > 0) alpha = std::max(alpha, (p[c] - target[c]) / p[c]);
+                        if (target[c] > p[c] && p[c] < 1) alpha = std::max(alpha, (target[c] - p[c]) / (1 - p[c]));
+                    }
+                    alpha = qBound(0.0f, alpha, 1.0f);
+                }
+                const float *held = layer.data() + k * 4;
+                for (int c = 0; c < 3; c++) {
+                    const float added = qBound(0.0f, target[c] - (1 - alpha) * p[c], alpha);
+                    q[c] = added + (1 - alpha) * held[c] * held[3];
+                }
+                q[3] = alpha + (1 - alpha) * held[3];
             }
             q[3] = qBound(0.0f, q[3], 1.0f);
-            for (int c = 0; c < 3; c++) {
-                q[c] = std::max(0.0f, q[c]);
-                q[c] = q[3] > 1e-6f ? q[c] / q[3] : 0.0f;
-            }
+            for (int c = 0; c < 3; c++) q[c] = q[3] > 1e-6f ? std::max(0.0f, q[c]) / q[3] : 0.0f;
             memcpy(results.data() + k * 4, q, sizeof(q));
         }
         std::vector<quint8> native(blended.size() * pixelSize);
-        floats->convertPixelsTo(reinterpret_cast<const quint8 *>(results.data()), native.data(), cs, int(blended.size()),
-                                KoColorConversionTransformation::internalRenderingIntent(), KoColorConversionTransformation::internalConversionFlags());
-        for (size_t k = 0; k < blended.size(); k++) {
-            const QPoint at = blended[k];
-            memcpy(out.data() + (size_t(at.y() - t.top()) * t.width() + (at.x() - t.left())) * pixelSize, native.data() + k * pixelSize, pixelSize);
-        }
+        floats->convertPixelsTo(reinterpret_cast<const quint8 *>(results.data()), native.data(), cs, int(blended.size()), intent, flags);
+        for (size_t k = 0; k < blended.size(); k++) memcpy(outAt(blended[k].x(), blended[k].y()), native.data() + k * pixelSize, pixelSize);
         device->writeBytes(out.data(), t);
     });
     return rect;
@@ -718,6 +1011,12 @@ struct KisColorDrop::Private {
     int threshold {8};
     /// The area last shown, to skip work while the pointer stays inside it.
     KisPixelSelectionSP region;
+    /// How it was worked out, so a drop on it takes it over instead of flooding again
+    ByColor previewWay;
+    KisPaintDeviceSP previewReference;
+    QPoint previewSeed {-1, -1};
+    int previewThreshold {-1};
+    bool previewEverywhere {false};
     int generation {0};
     bool computing {false};
     bool pending {false};
@@ -729,8 +1028,14 @@ struct KisColorDrop::Private {
     int previewGap {0};
     /// The gap a drop takes over from the area shown under it
     int dropGap {0};
-    /// The last fill recolored a painting or a flat by its own colors: the panel has Spread and Everywhere, not the lines' settings
-    bool recolor {false};
+    /// The last fill was by color (ByColor): the panel has Spread and Everywhere, not the lines' settings
+    ByColor lastWay;
+    /// The picture before it, which it is made again from as the panel changes it, and the area it is to cover
+    KisPaintDeviceSP lastReference;
+    KisPixelSelectionSP readyRegion;
+    int fillTicket {0};
+    bool fillComputing {false};
+    bool fillPending {false};
     /// Every area of the color, not only the one dropped on (a recoloring drop's)
     bool everywhere {false};
     /// Held still while dragging a color: then sliding sideways tunes Spread, the fill staying where it rested
@@ -782,6 +1087,8 @@ struct KisColorDrop::Private {
         generation++;
         pending = false;
         region = nullptr;
+        previewWay = ByColor();
+        previewReference = nullptr;
         previewGap = 0;
         seed = QPoint(-1, -1);
         hold.stop();
@@ -815,9 +1122,9 @@ struct KisColorDrop::Private {
         KisNodeSP active = view->viewManager() ? view->viewManager()->activeNode() : nullptr;
         KisSelectionSP selection = view->viewManager() ? view->viewManager()->selection() : nullptr;
         const bool inSelection = selection && selection->projection()->pixel(at).opacityU8() > 0;
-        KisNodeSP recolored = inSelection ? nullptr : recoloredAt(active, at);
+        const ByColor way = inSelection ? ByColor() : byColorAt(image, active, at);
         // a snapshot, as the image may change while this runs
-        KisPaintDeviceSP reference = new KisPaintDevice(recolored ? *recolored->paintDevice() : *image->projection());
+        KisPaintDeviceSP reference = new KisPaintDevice(way && way.inPlace ? *way.node->paintDevice() : *image->projection());
         const QColor tint = color.toQColor();
         struct Result {
             KisPixelSelectionSP region;
@@ -826,12 +1133,17 @@ struct KisColorDrop::Private {
             int gap {0};
         };
         auto *watcher = new QFutureWatcher<Result>(q);
-        QObject::connect(watcher, &QFutureWatcher<Result>::finished, q, [this, watcher, ticket]() {
+        QObject::connect(watcher, &QFutureWatcher<Result>::finished, q, [this, watcher, ticket, way, reference, at, t, all]() {
             const Result result = watcher->result();
             watcher->deleteLater();
             computing = false;
             if (ticket == generation && preview) {
                 region = result.region;
+                previewWay = way;
+                previewReference = reference;
+                previewSeed = at;
+                previewThreshold = t;
+                previewEverywhere = all;
                 previewGap = result.gap;
                 preview->overlay = result.overlay;
                 preview->rect = result.rect;
@@ -839,13 +1151,13 @@ struct KisColorDrop::Private {
             }
             if (pending) compute();
         });
-        const bool byOwnColors = recolored;
+        const bool byOwnColors = bool(way);
         watcher->setFuture(QtConcurrent::run([reference, at, t, o, bounds, tint, byOwnColors, all]() {
             Result result;
             // out of memory on a huge image: no preview, rather than an exception thrown into the window's thread
             try {
                 if (byOwnColors) {
-                    result.region = recolorRegion(reference, at, t, all, bounds);
+                    result.region = regionByColor(reference, at, t, all, bounds);
                 } else {
                     // Auto's search for a gap that keeps the fill inside floods several times: here, never on the window's thread
                     result.gap = gapFor(o, reference, at, bounds, 0.5, t);
@@ -864,6 +1176,7 @@ struct KisColorDrop::Private {
     void fitPanel()
     {
         if (!panel) return;
+        const bool recolor = bool(lastWay);
         if (panel->gap->isVisibleTo(panel) == !recolor && panel->everywhere->isVisibleTo(panel) == recolor) return;
         panel->gap->setVisible(!recolor);
         panel->underLines->setVisible(!recolor);
@@ -871,6 +1184,101 @@ struct KisColorDrop::Private {
         // the layout sees the rows go only once it is run again
         panel->layout()->activate();
         panel->resize(panel->sizeHint());
+    }
+
+    /// A fill by color from \p point: the area shown under the drop if it was worked out for this same fill, else
+    /// worked out in the background; either way never flooded on the window's thread
+    void startByColor(const ByColor &way, const QPoint &point, const KoColor &fill)
+    {
+        KisImageSP image = view ? view->image() : nullptr;
+        if (!image) return;
+        lastWay = way;
+        lastColor = fill;
+        if (region && previewReference && previewWay == way && previewThreshold == threshold && previewEverywhere == everywhere
+            && region->pixel(point).opacityU8() > 0) {
+            lastSeed = previewSeed;
+            lastReference = previewReference;
+            commitByColor(region);
+            return;
+        }
+        lastSeed = point;
+        lastReference = new KisPaintDevice(way.inPlace ? *way.node->paintDevice() : *image->projection());
+        regionInBackground(false);
+    }
+
+    /// The area of the last fill by color with the settings now, worked out from the picture before it; then the fill
+    /// is made (\p again: made again in place of the last, while that is still the newest step)
+    void regionInBackground(bool again)
+    {
+        KisImageSP image = view ? view->image() : nullptr;
+        if (!image || !lastReference) return;
+        if (fillComputing) {
+            fillPending = true;
+            return;
+        }
+        fillComputing = true;
+        fillPending = false;
+        const int ticket = ++fillTicket;
+        const KisPaintDeviceSP reference = lastReference;
+        const QPoint at = lastSeed;
+        const int t = threshold;
+        const bool all = everywhere;
+        const QRect bounds = image->bounds();
+        auto *watcher = new QFutureWatcher<KisPixelSelectionSP>(q);
+        QObject::connect(watcher, &QFutureWatcher<KisPixelSelectionSP>::finished, q, [this, watcher, ticket, again]() {
+            const KisPixelSelectionSP filled = watcher->result();
+            watcher->deleteLater();
+            fillComputing = false;
+            // a newer change waits: only its area is worth filling
+            if (fillPending) {
+                regionInBackground(true);
+                return;
+            }
+            if (ticket != fillTicket || !filled) return;
+            if (again) {
+                readyRegion = filled;
+                redo.settingChanged();
+            } else {
+                commitByColor(filled);
+            }
+        });
+        watcher->setFuture(QtConcurrent::run([reference, at, t, all, bounds]() -> KisPixelSelectionSP {
+            try {
+                return regionByColor(reference, at, t, all, bounds);
+            } catch (const std::bad_alloc &) {
+                return nullptr;
+            }
+        }));
+    }
+
+    /// The last fill by color made over \p filled, as one step
+    void commitByColor(KisPixelSelectionSP filled)
+    {
+        KisImageSP image = view ? view->image() : nullptr;
+        if (!image || !lastWay || !filled) return;
+        readyRegion = filled;
+        redo.made(view->document() ? view->document()->undoStack() : nullptr, kundo2_i18n("Fill"), [this]() { commitByColor(readyRegion); });
+        KisStrokeStrategyUndoCommandBased *strategy = new KisStrokeStrategyUndoCommandBased(kundo2_i18n("Fill"), false, image.data());
+        KisStrokeId stroke = image->startStroke(strategy);
+        KIS_SAFE_ASSERT_RECOVER_RETURN(stroke);
+        KisNodeSP node = lastWay.node;
+        const bool inPlace = lastWay.inPlace;
+        const KisPaintDeviceSP reference = lastReference;
+        const KoColor fill = lastColor;
+        const QPoint at = lastSeed;
+        const QRect bounds = image->bounds();
+        image->addJob(stroke, new KisStrokeStrategyUndoCommandBased::Data(
+                                  KUndo2CommandSP(new KisCommandUtils::LambdaCommand([node, inPlace, reference, filled, fill, at, bounds]() mutable -> KUndo2Command * {
+                                      if (filled->selectedExactRect().isEmpty()) return nullptr;
+                                      KisPaintDeviceSP device = node->paintDevice();
+                                      const bool clear = reference->pixel(at).opacityU8() < 128;
+                                      KisTransaction transaction(device);
+                                      const QRect changed = fillByColor(device, reference, filled, fill, inPlace, clear, bounds);
+                                      node->setDirty(changed);
+                                      return transaction.endAndTake();
+                                  })),
+                                  false, KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::EXCLUSIVE));
+        image->endStroke(stroke);
     }
 
     /// Auto shows the size it chose for the last fill
@@ -912,6 +1320,11 @@ struct KisColorDrop::Private {
         everywhere = panel->everywhere->isChecked();
         options.write();
         threshold = options.threshold;
+        // by color: the new area worked out in the background first, the fill made again only once it is ready
+        if (lastWay) {
+            regionInBackground(true);
+            return;
+        }
         redo.settingChanged();
     }
 
@@ -1009,33 +1422,7 @@ bool KisColorDrop::isColorsLayer(KisNodeSP node)
 
 bool KisColorDrop::isPaintingAt(KisNodeSP layer, const QPoint &point)
 {
-    KisPaintDeviceSP device = layer && qobject_cast<KisPaintLayer *>(layer.data()) ? layer->paintDevice() : nullptr;
-    if (!device) return false;
-    // a sparse look around the point, as wide as a shape's outline is far: every fourth pixel and row
-    const QRect window = QRect(point - QPoint(384, 384), QSize(768, 768)) & device->defaultBounds()->bounds();
-    if (window.isEmpty()) return false;
-    const KoColorSpace *srgb = KoColorSpaceRegistry::instance()->rgb8();
-    const bool isSrgb = *device->colorSpace() == *srgb;
-    const int width = window.width();
-    std::vector<quint8> row(size_t(width) * device->pixelSize()), colors(size_t(width) * 4);
-    int paper = 0, all = 0;
-    for (int y = window.top(); y <= window.bottom(); y += 4) {
-        device->readBytes(row.data(), window.left(), y, width, 1);
-        if (!isSrgb) {
-            device->colorSpace()->convertPixelsTo(row.data(), colors.data(), srgb, width, KoColorConversionTransformation::internalRenderingIntent(),
-                                                  KoColorConversionTransformation::internalConversionFlags());
-        }
-        const quint8 *p = isSrgb ? row.data() : colors.data();
-        for (int x = 0; x < width; x += 4) {
-            const quint8 *px = p + size_t(x) * 4;
-            all++;
-            // paper: clear, or light and gray (white, cream, a scan's off-white)
-            const int high = std::max({px[0], px[1], px[2]}), low = std::min({px[0], px[1], px[2]});
-            if (px[3] < 128 || (low >= 200 && high - low <= 40)) paper++;
-        }
-    }
-    // line art leaves most of its layer paper, however dark its lines; a painting covers it, light or dark
-    return all > 64 && paper * 10 < all * 3;
+    return layer && qobject_cast<KisPaintLayer *>(layer.data()) && lookAt(layer->paintDevice(), point).painting();
 }
 
 bool KisColorDrop::carriesColor(const QMimeData *data)
@@ -1119,8 +1506,9 @@ bool KisColorDrop::drop(const KoColor &color, const QPoint &canvasPos)
         d->options.write();
     }
     d->threshold = d->options.threshold;
+    const bool filled = fillAt(color, point);
     d->clearPreview();
-    if (!fillAt(color, point)) return false;
+    if (!filled) return false;
     d->color = color;
     d->showPanel(canvasPos);
     return true;
@@ -1156,10 +1544,14 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
 
     KisSelectionSP selection = viewManager->selection();
     const bool inSelection = selection && selection->projection()->pixel(point).opacityU8() > 0;
-    // a painting or a flat: recolored by its own colors, its soft edges taking the new color by their share
-    KisNodeSP recolored = inSelection ? nullptr : recoloredAt(active, point);
-    d->recolor = recolored;
+    // a painting, a flat, or a clear layer over a painting: filled by color, its soft edges taking the new color by their share
+    const ByColor way = inSelection ? ByColor() : byColorAt(image, active, point);
+    d->lastWay = way;
     if (d->panel) d->fitPanel();
+    if (way) {
+        d->startByColor(way, point, color);
+        return true;
+    }
 
     d->lastSeed = point;
     d->lastColor = color;
@@ -1170,27 +1562,6 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
     strategy->setSupportsWrapAroundMode(true);
     KisStrokeId stroke = image->startStroke(strategy);
     KIS_SAFE_ASSERT_RECOVER_RETURN_VALUE(stroke, false);
-
-    if (recolored) {
-        const bool everywhere = d->everywhere;
-        const QRect bounds = image->bounds();
-        image->addJob(stroke, new KisStrokeStrategyUndoCommandBased::Data(
-                                  KUndo2CommandSP(new KisCommandUtils::LambdaCommand([recolored, point, threshold, everywhere, color, bounds]() mutable -> KUndo2Command * {
-                                      KisPaintDeviceSP device = recolored->paintDevice();
-                                      // read as it was: the tiles are written side by side
-                                      KisPaintDeviceSP original = new KisPaintDevice(*device);
-                                      KisPixelSelectionSP region = recolorRegion(original, point, threshold, everywhere, bounds);
-                                      if (region->selectedExactRect().isEmpty()) return nullptr;
-                                      const bool clear = original->pixel(point).opacityU8() < 128;
-                                      KisTransaction transaction(device);
-                                      const QRect changed = recolorIn(device, original, region, color, clear, bounds);
-                                      recolored->setDirty(changed);
-                                      return transaction.endAndTake();
-                                  })),
-                                  false, KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::EXCLUSIVE));
-        image->endStroke(stroke);
-        return true;
-    }
 
     const Target target = fillTarget(image, active, point, selection);
     KisNodeSP node = target.filled();
