@@ -102,22 +102,104 @@ struct KisColorAreas::Private {
     /// The step at each pixel, as a level; and how far its own color is from the area around a line it may be on
     std::vector<quint8> level;
     std::vector<quint8> lineLevel;
-    /// The tree of areas: each pixel's parent, the node of its own level or, for a node, the area it joins at a
-    /// higher level; and each node's size
-    std::vector<int> parent;
-    std::vector<int> size;
 
     const quint8 *pixel(int x, int y) const { return pixels.data() + (size_t(y) * w + x) * 4; }
     size_t count() const { return size_t(w) * h; }
+
+    /// The steps over \p rect, read from the picture around it
+    void stepsIn(const QRect &rect);
 };
 
-KisColorAreas::KisColorAreas(KisPaintDeviceSP device, const QRect &bounds)
+void KisColorAreas::Private::stepsIn(const QRect &rect)
+{
+    // the step at each pixel, on the picture smoothed by a Gaussian of 1 px: how far apart its two sides are, the least
+    // over the distances and the most of four directions. Across an edge it is the edge's whole step; across a thin
+    // line the sides are alike further out, so a line doesn't part what it lies on; along a gradient it is a small share
+    // of its slope. Distances are compared squared, the root taken once
+    const Kernels kernels;
+    // the columns the steps read, smoothed, and the columns smoothing those reads
+    const int smoothLeft = std::max(0, rect.left() - across), smoothRight = std::min(w - 1, rect.right() + across);
+    const int readLeft = std::max(0, smoothLeft - kernelReach), readRight = std::min(w - 1, smoothRight + kernelReach);
+    const int cols = readRight - readLeft + 1;
+    constexpr int band = 32;
+    QVector<int> starts;
+    for (int y = rect.top(); y <= rect.bottom(); y += band) starts.append(y);
+    QtConcurrent::blockingMap(starts, [&](int top) {
+        const int bottom = std::min(rect.bottom() + 1, top + band);
+        const int smoothFirst = std::max(0, top - across), smoothLast = std::min(h - 1, bottom - 1 + across);
+        const int first = std::max(0, smoothFirst - kernelReach), last = std::min(h - 1, smoothLast + kernelReach);
+        const int rows = last - first + 1;
+        auto column = [&](int x) { return size_t(qBound(0, x, w - 1) - readLeft); };
+        std::vector<Color> lab(size_t(rows) * cols), along(size_t(rows) * cols);
+        for (int y = first; y <= last; y++) {
+            for (int x = readLeft; x <= readRight; x++) lab[size_t(y - first) * cols + column(x)] = oklabOf(pixel(x, y));
+        }
+        // along rows, then down columns, the edges of the picture repeating
+        for (int r = 0; r < rows; r++) {
+            const Color *row = lab.data() + size_t(r) * cols;
+            for (int x = smoothLeft; x <= smoothRight; x++) {
+                Color s {0, 0, 0, 0};
+                for (int k = -kernelReach; k <= kernelReach; k++) {
+                    const Color &c = row[column(x - k)];
+                    for (int i = 0; i < 4; i++) s[size_t(i)] += kernels.smooth[k + kernelReach] * c[size_t(i)];
+                }
+                along[size_t(r) * cols + column(x)] = s;
+            }
+        }
+        const int smoothRows = smoothLast - smoothFirst + 1;
+        std::vector<Color> smooth(size_t(smoothRows) * cols);
+        for (int y = smoothFirst; y <= smoothLast; y++) {
+            for (int x = smoothLeft; x <= smoothRight; x++) {
+                Color s {0, 0, 0, 0};
+                for (int k = -kernelReach; k <= kernelReach; k++) {
+                    const Color &c = along[size_t(qBound(0, y - k, h - 1) - first) * cols + column(x)];
+                    for (int i = 0; i < 4; i++) s[size_t(i)] += kernels.smooth[k + kernelReach] * c[size_t(i)];
+                }
+                smooth[size_t(y - smoothFirst) * cols + column(x)] = s;
+            }
+        }
+        auto at = [&](int x, int y) -> const Color & { return smooth[size_t(qBound(smoothFirst, y, smoothLast) - smoothFirst) * cols + column(x)]; };
+        auto apart2 = [](const Color &a, const Color &b) {
+            float d2 = 0;
+            for (int i = 0; i < 4; i++) d2 += (a[size_t(i)] - b[size_t(i)]) * (a[size_t(i)] - b[size_t(i)]);
+            return d2;
+        };
+        // across, down and the diagonals. A mark on an area (a line across it) is how far the pixel's own color is from
+        // the two sides' where they are most alike, in the direction it is furthest
+        const int directions[4][2] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+        for (int y = top; y < bottom; y++) {
+            for (int x = rect.left(); x <= rect.right(); x++) {
+                const Color &own = lab[size_t(y - first) * cols + column(x)];
+                float most = 0, mark = 0;
+                for (const auto &u : directions) {
+                    float least = std::numeric_limits<float>::max();
+                    Color sides {0, 0, 0, 0};
+                    for (const int r : distances) {
+                        const Color &a = at(x + u[0] * r, y + u[1] * r), &b = at(x - u[0] * r, y - u[1] * r);
+                        const float step = apart2(a, b);
+                        if (step < least) {
+                            least = step;
+                            for (int i = 0; i < 4; i++) sides[size_t(i)] = (a[size_t(i)] + b[size_t(i)]) / 2;
+                        }
+                    }
+                    most = std::max(most, least);
+                    mark = std::max(mark, apart2(own, sides));
+                }
+                level[size_t(y) * w + x] = quint8(levelOf(std::sqrt(most)));
+                lineLevel[size_t(y) * w + x] = quint8(levelOf(std::sqrt(mark)));
+            }
+        }
+    });
+}
+
+KisColorAreas::KisColorAreas(KisPaintDeviceSP device, const QRect &bounds, const KisColorAreas *before)
 {
     auto *p = new Private;
     p->bounds = bounds;
     p->w = bounds.width();
     p->h = bounds.height();
-    const size_t count = size_t(p->w) * p->h;
+    const int w = p->w, h = p->h;
+    const size_t count = p->count();
     const KoColorSpace *srgb = KoColorSpaceRegistry::instance()->rgb8();
     p->pixels.resize(count * 4);
     if (*device->colorSpace() == *srgb) {
@@ -128,126 +210,32 @@ KisColorAreas::KisColorAreas(KisPaintDeviceSP device, const QRect &bounds)
         device->colorSpace()->convertPixelsTo(raw.data(), p->pixels.data(), srgb, int(count), KoColorConversionTransformation::internalRenderingIntent(),
                                               KoColorConversionTransformation::internalConversionFlags());
     }
-
-    // the step at each pixel, on the picture smoothed by a Gaussian of 1 px: how far apart its two sides are, the least
-    // over the distances and the most of four directions. Across an edge it is the edge's whole step; across a thin
-    // line the sides are alike further out, so a line doesn't part what it lies on; along a gradient it is a small share
-    // of its slope
-    p->level.resize(count);
-    p->lineLevel.resize(count);
-    const Kernels kernels;
-    const int w = p->w, h = p->h;
-    constexpr int band = 32;
-    QVector<int> starts;
-    for (int y = 0; y < h; y += band) starts.append(y);
-    QtConcurrent::blockingMap(starts, [&](int top) {
-        const int bottom = std::min(h, top + band);
-        // the smoothed rows this band reads, and the picture's rows those need
-        const int smoothFirst = std::max(0, top - across), smoothLast = std::min(h - 1, bottom - 1 + across);
-        const int first = std::max(0, smoothFirst - kernelReach), last = std::min(h - 1, smoothLast + kernelReach);
-        const int rows = last - first + 1;
-        std::vector<Color> lab(size_t(rows) * w), along(size_t(rows) * w);
-        for (int y = first; y <= last; y++) {
-            for (int x = 0; x < w; x++) lab[size_t(y - first) * w + x] = oklabOf(p->pixel(x, y));
+    // the same picture changed in places (a fill): its steps again only where what they read changed
+    QRect changed(0, 0, w, h);
+    if (before && before->d->bounds == bounds) {
+        const Private &old = *before->d;
+        p->level = old.level;
+        p->lineLevel = old.lineLevel;
+        int top = h, bottom = -1, left = w, right = -1;
+        for (int y = 0; y < h; y++) {
+            const quint8 *a = p->pixel(0, y), *b = old.pixel(0, y);
+            if (memcmp(a, b, size_t(w) * 4) == 0) continue;
+            top = std::min(top, y);
+            bottom = y;
+            int x = 0;
+            while (x < left && memcmp(a + x * 4, b + x * 4, 4) == 0) x++;
+            left = std::min(left, x);
+            x = w - 1;
+            while (x > right && memcmp(a + x * 4, b + x * 4, 4) == 0) x--;
+            right = std::max(right, x);
         }
-        // along rows, then down columns, the edges of the picture repeating
-        for (int r = 0; r < rows; r++) {
-            const Color *row = lab.data() + size_t(r) * w;
-            for (int x = 0; x < w; x++) {
-                Color s {0, 0, 0, 0};
-                for (int k = -kernelReach; k <= kernelReach; k++) {
-                    const Color &c = row[qBound(0, x - k, w - 1)];
-                    for (int i = 0; i < 4; i++) s[size_t(i)] += kernels.smooth[k + kernelReach] * c[size_t(i)];
-                }
-                along[size_t(r) * w + x] = s;
-            }
-        }
-        const int smoothRows = smoothLast - smoothFirst + 1;
-        std::vector<Color> smooth(size_t(smoothRows) * w);
-        for (int y = smoothFirst; y <= smoothLast; y++) {
-            for (int x = 0; x < w; x++) {
-                Color s {0, 0, 0, 0};
-                for (int k = -kernelReach; k <= kernelReach; k++) {
-                    const Color &c = along[size_t(qBound(0, y - k, h - 1) - first) * w + x];
-                    for (int i = 0; i < 4; i++) s[size_t(i)] += kernels.smooth[k + kernelReach] * c[size_t(i)];
-                }
-                smooth[size_t(y - smoothFirst) * w + x] = s;
-            }
-        }
-        auto at = [&](int x, int y) -> const Color & {
-            return smooth[size_t(qBound(smoothFirst, y, smoothLast) - smoothFirst) * w + qBound(0, x, w - 1)];
-        };
-        // across, down and the diagonals. A mark on an area (a line across it) is how far the pixel's own color is from
-        // the two sides' where they are most alike, in the direction it is furthest
-        const int directions[4][2] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
-        for (int y = top; y < bottom; y++) {
-            for (int x = 0; x < w; x++) {
-                const Color &own = lab[size_t(y - first) * w + x];
-                float most = 0, mark = 0;
-                for (const auto &u : directions) {
-                    float least = std::numeric_limits<float>::max();
-                    Color sides {0, 0, 0, 0};
-                    for (const int r : distances) {
-                        const Color &a = at(x + u[0] * r, y + u[1] * r), &b = at(x - u[0] * r, y - u[1] * r);
-                        const float step = distance(a, b);
-                        if (step < least) {
-                            least = step;
-                            for (int i = 0; i < 4; i++) sides[size_t(i)] = (a[size_t(i)] + b[size_t(i)]) / 2;
-                        }
-                    }
-                    most = std::max(most, least);
-                    mark = std::max(mark, distance(own, sides));
-                }
-                p->level[size_t(y) * w + x] = quint8(levelOf(most));
-                p->lineLevel[size_t(y) * w + x] = quint8(levelOf(mark));
-            }
-        }
-    });
-
-    // the tree of every threshold's areas: pixels taken from the slowest change up, each joining the areas around it
-    // (Berger et al.'s union-find), so an area at a level is a node whose pixels change at most that fast
-    std::vector<int> order(count);
-    {
-        std::array<size_t, levels + 1> start {};
-        for (size_t i = 0; i < count; i++) start[size_t(p->level[i]) + 1]++;
-        for (int l = 0; l < levels; l++) start[size_t(l) + 1] += start[size_t(l)];
-        for (size_t i = 0; i < count; i++) order[start[p->level[i]]++] = int(i);
+        const int reads = across + kernelReach;
+        changed = right < 0 ? QRect() : QRect(QPoint(left, top), QPoint(right, bottom)).adjusted(-reads, -reads, reads, reads) & QRect(0, 0, w, h);
+    } else {
+        p->level.resize(count);
+        p->lineLevel.resize(count);
     }
-    p->parent.assign(count, -1);
-    std::vector<int> root(count);
-    auto find = [&](int x) {
-        int r = x;
-        while (root[size_t(r)] != r) r = root[size_t(r)];
-        while (root[size_t(x)] != r) {
-            const int next = root[size_t(x)];
-            root[size_t(x)] = r;
-            x = next;
-        }
-        return r;
-    };
-    for (const int at : order) {
-        p->parent[size_t(at)] = at;
-        root[size_t(at)] = at;
-        const int x = at % w, y = at / w;
-        const int around[4] = {x > 0 ? at - 1 : -1, x < w - 1 ? at + 1 : -1, y > 0 ? at - w : -1, y < h - 1 ? at + w : -1};
-        for (const int n : around) {
-            if (n < 0 || p->parent[size_t(n)] < 0) continue;
-            const int r = find(n);
-            if (r == at) continue;
-            p->parent[size_t(r)] = at;
-            root[size_t(r)] = at;
-        }
-    }
-    // each pixel's parent the node of its own level, then sizes summed up the tree
-    for (auto it = order.rbegin(); it != order.rend(); ++it) {
-        const int q = p->parent[size_t(*it)];
-        if (p->level[size_t(p->parent[size_t(q)])] == p->level[size_t(q)]) p->parent[size_t(*it)] = p->parent[size_t(q)];
-    }
-    p->size.assign(count, 1);
-    for (const int at : order) {
-        const int up = p->parent[size_t(at)];
-        if (up != at) p->size[size_t(up)] += p->size[size_t(at)];
-    }
+    if (!changed.isEmpty()) p->stepsIn(changed);
     d.reset(p);
 }
 
@@ -259,10 +247,11 @@ QRect KisColorAreas::bounds() const
 qreal KisColorAreas::autoStep(const QPoint &point, int reach) const
 {
     const int w = d->w, h = d->h;
+    const size_t total = d->count();
     const QPoint at = point - d->bounds.topLeft();
     constexpr qreal fallback = 0.02;
     if (at.x() < 0 || at.y() < 0 || at.x() >= w || at.y() >= h) return fallback;
-    // the most inside pixel under the pointer: the one whose color changes slowest, nearest the point
+    // the most inside pixel under the pointer: the one with the smallest step, nearest the point
     int seed = at.y() * w + at.x();
     for (int y = std::max(0, at.y() - reach); y <= std::min(h - 1, at.y() + reach); y++) {
         for (int x = std::max(0, at.x() - reach); x <= std::min(w - 1, at.x() + reach); x++) {
@@ -270,47 +259,85 @@ qreal KisColorAreas::autoStep(const QPoint &point, int reach) const
             if (d->level[size_t(y) * w + x] < d->level[size_t(seed)]) seed = y * w + x;
         }
     }
-    // its area's size at every level, up the tree
-    std::array<qint64, levels> sizeAt {};
-    int node = d->parent[size_t(seed)];
-    if (d->level[size_t(node)] != d->level[size_t(seed)]) node = seed;
-    for (int l = 0; l < levels; l++) {
-        if (l < d->level[size_t(node)]) continue;
-        while (d->parent[size_t(node)] != node && d->level[size_t(d->parent[size_t(node)])] <= l) node = d->parent[size_t(node)];
-        sizeAt[size_t(l)] = d->size[size_t(node)];
-    }
-    // stability: how much the size changes over a span of levels either way (a factor of 1.2 in the threshold), against
-    // the size; among the levels Spread reaches, at least the pointer's size and less than nearly all the picture
+
+    // Stability: how much the area's size changes over a span of levels either way (a factor of 1.15 in the step),
+    // against the size; among the levels Spread reaches, at least the pointer's size and less than nearly all the
+    // picture. A level is stable where that is a local least under 0.25 (MSER's usual span and largest variation); the
+    // first such, the finest thing in the picture there: further up, it joins what is beside it.
     constexpr int span = 5;
-    // a level is stable where that is a local least under 0.25 (MSER's usual span and largest variation); the first
-    // such, the finest thing in the picture there: further up, it joins what is beside it
     constexpr double variation = 0.25;
     const qint64 smallest = std::max<qint64>(64, qint64(4) * reach * reach);
-    const qint64 most = qint64(d->count()) * 9 / 10;
+    const qint64 most = qint64(total) * 9 / 10;
     // under half the least difference the eye notices (Oklab 0.02) a step can't be a thing's edge: eight-bit color
     // makes slight gradients flat bands a level apart, each of them stable
     const int low = std::max(span, levelOf(0.01));
     const int high = std::min(levels - 1 - span, levelOf(0.25));
-    std::array<double, levels> change;
-    change.fill(std::numeric_limits<double>::max());
-    for (int l = low; l <= high; l++) {
-        const qint64 size = sizeAt[size_t(l)];
-        if (size < smallest || size > most || sizeAt[size_t(l - span)] == 0) continue;
-        change[size_t(l)] = double(sizeAt[size_t(l + span)] - sizeAt[size_t(l - span)]) / double(size);
+    std::array<qint64, levels> sizeAt {};
+    std::array<double, levels> change {};
+    constexpr int undecided = -1, none = -2;
+    // the stable level once the sizes up to \p known are final
+    auto choose = [&](int known) {
+        const int last = std::min(high, known - span);
+        change.fill(std::numeric_limits<double>::max());
+        for (int l = low; l <= last; l++) {
+            const qint64 size = sizeAt[size_t(l)];
+            if (size < smallest || size > most || sizeAt[size_t(l - span)] == 0) continue;
+            change[size_t(l)] = double(sizeAt[size_t(l + span)] - sizeAt[size_t(l - span)]) / double(size);
+        }
+        for (int l = low; l <= last; l++) {
+            if (change[size_t(l)] > variation) continue;
+            // down to its least, then the levels about as stable around it, and their middle, well inside the range
+            // that finds the area
+            int least = l;
+            while (least + 1 <= last && change[size_t(least + 1)] <= change[size_t(least)]) least++;
+            if (least == last && last < high) return undecided;
+            const double stable = change[size_t(least)] + 0.002;
+            int first = least, end = least;
+            while (first - 1 >= l && change[size_t(first - 1)] <= stable) first--;
+            while (end + 1 <= last && change[size_t(end + 1)] <= stable) end++;
+            if (end == last && last < high) return undecided;
+            return (first + end) / 2;
+        }
+        return last < high ? undecided : none;
+    };
+
+    // The area at every level, grown from the seed in order of step (a priority flood): the pixels taken before the
+    // first one past a level are the area at that level. It stops once the stable level is known.
+    std::vector<char> queued(total, 0);
+    std::array<std::vector<int>, levels> queue;
+    int lowest = d->level[size_t(seed)];
+    queue[size_t(lowest)].push_back(seed);
+    queued[size_t(seed)] = 1;
+    qint64 taken = 0;
+    int reached = lowest;
+    int chosen = undecided;
+    while (chosen == undecided) {
+        while (lowest < levels && queue[size_t(lowest)].empty()) lowest++;
+        if (lowest >= levels) break;
+        const int i = queue[size_t(lowest)].back();
+        queue[size_t(lowest)].pop_back();
+        if (lowest > reached) {
+            for (int l = reached; l < lowest; l++) sizeAt[size_t(l)] = taken;
+            reached = lowest;
+            chosen = choose(reached - 1);
+            if (chosen != undecided || taken > most) break;
+        }
+        taken++;
+        const int x = i % w, y = i / w;
+        const int around[4] = {x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1};
+        for (const int n : around) {
+            if (n < 0 || queued[size_t(n)]) continue;
+            queued[size_t(n)] = 1;
+            const int l = d->level[size_t(n)];
+            queue[size_t(l)].push_back(n);
+            lowest = std::min(lowest, l);
+        }
     }
-    for (int l = low; l <= high; l++) {
-        if (change[size_t(l)] > variation) continue;
-        // down to its least, then the levels about as stable around it, and their middle, well inside the range that
-        // finds the area
-        int least = l;
-        while (least + 1 <= high && change[size_t(least + 1)] <= change[size_t(least)]) least++;
-        const double stable = change[size_t(least)] + 0.002;
-        int first = least, last = least;
-        while (first - 1 >= l && change[size_t(first - 1)] <= stable) first--;
-        while (last + 1 <= high && change[size_t(last + 1)] <= stable) last++;
-        return stepOfLevel((first + last) / 2);
+    if (chosen == undecided) {
+        for (int l = reached; l < levels; l++) sizeAt[size_t(l)] = taken;
+        chosen = choose(levels - 1);
     }
-    return fallback;
+    return chosen >= 0 ? stepOfLevel(chosen) : fallback;
 }
 
 KisColorAreas::Cover KisColorAreas::cover(const QPoint &point, int reach, qreal step, bool everywhere) const
@@ -539,27 +566,14 @@ KisColorAreas::Cover KisColorAreas::cover(const QPoint &point, int reach, qreal 
                 result.blends.push_back({int(i), further(int(i), inside[i], outer, true), outer});
                 continue;
             }
-            // enclosed in the area: within the step of its color it is the area; else a line, blended with its core,
-            // the pixel nearby most unlike the area
+            // enclosed in the area, no other area near: within the step of its color it is the area; else a mark on it
+            // (a bird, a seam where two shapes overlapped), which takes the new color with its difference kept
             const Color own = oklabOf(d->pixel(x, y)), area = oklabOf(d->pixel(inside[i] % w, inside[i] / w));
             if (distance(own, area) < step) {
                 result.mask[i] = MAX_SELECTED;
                 continue;
             }
-            int core = int(i);
-            float apart = distance(own, area);
-            for (int v = std::max(0, y - 3); v <= std::min(h - 1, y + 3); v++) {
-                for (int u = std::max(0, x - 3); u <= std::min(w - 1, x + 3); u++) {
-                    const size_t n = size_t(v) * w + u;
-                    if (inArea(n)) continue;
-                    const float by = distance(oklabOf(d->pixel(u, v)), area);
-                    if (by > apart) {
-                        apart = by;
-                        core = int(n);
-                    }
-                }
-            }
-            result.blends.push_back({int(i), inside[i], core});
+            marks.push_back({int(i), inside[i], -1});
         }
     }
     // marks on the area (a faint line, a bird): pixels whose own color is a step from the area's around them. They take

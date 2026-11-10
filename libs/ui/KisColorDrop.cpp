@@ -463,7 +463,20 @@ QRect fillByColor(KisPaintDeviceSP device, KisPaintDeviceSP seen, const Covered 
                     along += (p[c] - b[c]) * (o[c] - b[c]);
                     span2 += (o[c] - b[c]) * (o[c] - b[c]);
                 }
-                share = span2 > 1e-8f ? qBound(0.0f, along / span2, 1.0f) : 0.0f;
+                const float read = span2 > 1e-8f ? qBound(0.0f, along / span2, 1.0f) : 0.0f;
+                // How well that reading explains the pixel: off the two colors' line (a seam darker than either where
+                // two near alike shapes overlap) or with the two alike, the pixel says little, and where it lies
+                // between the two sides does: the share then follows the distances, as an edge's anti-aliasing would
+                float off2 = 0;
+                for (int c = 0; c < 4; c++) {
+                    const float d = p[c] - b[c] - read * (o[c] - b[c]);
+                    off2 += d * d;
+                }
+                const float trust = span2 / (span2 + off2 + 1e-12f);
+                auto gap = [&](int other) { return std::hypot(float(other % bw - blend.at % bw), float(other / bw - blend.at / bw)); };
+                const float toInside = gap(blend.inside), toBeyond = gap(blend.beyond);
+                const float placed = toBeyond / std::max(toInside + toBeyond, 1e-6f);
+                share = trust * read + (1 - trust) * placed;
             }
             if (share <= 0) continue;
             // the inside color made the new one: as opaque as it was, or on a clear area, opaque
@@ -883,6 +896,8 @@ struct KisColorDrop::Private {
     /// The picture before it, which it is made again from as the panel changes it, its areas, and the area to cover
     KisPaintDeviceSP lastReference;
     QSharedPointer<KisColorAreas> lastAreas;
+    /// The areas of the same picture before its last change, while lastAreas isn't read yet
+    QSharedPointer<KisColorAreas> lastEarlier;
     int lastReach {1};
     Covered readyCovered;
     /// The spread the last fill by color found for itself
@@ -927,6 +942,12 @@ struct KisColorDrop::Private {
     QSharedPointer<KisColorAreas> knownAreas(KisPaintDeviceSP source) const
     {
         return areas && areasOf == source.data() && areasSequence == source->sequenceNumber() ? areas : QSharedPointer<KisColorAreas>();
+    }
+
+    /// The areas last read of \p source, changed since or not: a new reading works out again only what changed
+    QSharedPointer<KisColorAreas> earlierAreas(KisPaintDeviceSP source) const
+    {
+        return areas && areasOf == source.data() ? areas : QSharedPointer<KisColorAreas>();
     }
 
     void showPreview()
@@ -974,6 +995,7 @@ struct KisColorDrop::Private {
         KisPaintDeviceSP source = way && way.inPlace ? way.node->paintDevice() : image->projection();
         KisPaintDeviceSP reference = new KisPaintDevice(*source);
         const QSharedPointer<KisColorAreas> known = way ? knownAreas(source) : QSharedPointer<KisColorAreas>();
+        const QSharedPointer<KisColorAreas> earlier = way && !known ? earlierAreas(source) : QSharedPointer<KisColorAreas>();
         const KisPaintDevice *sourceOf = source.data();
         const int sequence = source->sequenceNumber();
         const int pointer = reach();
@@ -1019,7 +1041,7 @@ struct KisColorDrop::Private {
             try {
                 if (byColor) {
                     // the picture as it will look
-                    result.areas = known ? known : QSharedPointer<KisColorAreas>::create(reference, bounds);
+                    result.areas = known ? known : QSharedPointer<KisColorAreas>::create(reference, bounds, earlier.data());
                     result.covered = coveredAt(*result.areas, at, pointer, 0, all);
                     result.region = result.covered.region;
                     result.overlay = previewOf(reference, result.covered, fill, inPlace, at, &result.rect);
@@ -1074,6 +1096,7 @@ struct KisColorDrop::Private {
         lastReach = reach();
         lastReference = new KisPaintDevice(*source);
         lastAreas = knownAreas(source);
+        lastEarlier = lastAreas ? QSharedPointer<KisColorAreas>() : earlierAreas(source);
         coverInBackground(false);
     }
 
@@ -1106,6 +1129,7 @@ struct KisColorDrop::Private {
         fillPending = false;
         const KisPaintDeviceSP reference = lastReference;
         const QSharedPointer<KisColorAreas> known = lastAreas;
+        const QSharedPointer<KisColorAreas> earlier = lastEarlier;
         const QPoint at = lastSeed;
         const int pointer = lastReach;
         // a new drop finds its own spread; made again, the one dragged to
@@ -1121,7 +1145,10 @@ struct KisColorDrop::Private {
             const Result result = watcher->result();
             watcher->deleteLater();
             fillComputing = false;
-            if (result.areas) lastAreas = result.areas;
+            if (result.areas) {
+                lastAreas = result.areas;
+                lastEarlier.reset();
+            }
             if (result.covered) {
                 if (again) {
                     readyCovered = result.covered;
@@ -1133,10 +1160,10 @@ struct KisColorDrop::Private {
             }
             if (fillPending) coverInBackground(true);
         });
-        watcher->setFuture(QtConcurrent::run([reference, known, at, pointer, t, all, bounds]() {
+        watcher->setFuture(QtConcurrent::run([reference, known, earlier, at, pointer, t, all, bounds]() {
             Result result;
             try {
-                result.areas = known ? known : QSharedPointer<KisColorAreas>::create(reference, bounds);
+                result.areas = known ? known : QSharedPointer<KisColorAreas>::create(reference, bounds, earlier.data());
                 result.covered = coveredAt(*result.areas, at, pointer, t, all);
             } catch (const std::bad_alloc &) {
                 result = Result();
