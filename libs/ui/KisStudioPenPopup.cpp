@@ -5,16 +5,20 @@
  */
 #include "KisStudioPenPopup.h"
 
+#include <QApplication>
 #include <QCheckBox>
 #include <QHash>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPainter>
+#include <QPixmap>
 #include <QPointer>
 #include <QVBoxLayout>
 
 #include <klocalizedstring.h>
 
 #include <KisModernStyle.h>
+#include <KisSentenceCase.h>
 #include <kis_cubic_curve.h>
 #include <kis_signals_blocker.h>
 
@@ -39,6 +43,8 @@ struct KisStudioPenPopup::Private
     QWidget *inputPageHolder {nullptr};
     QWidget *inputPage {nullptr};
     QString inputPageId;
+    /// The curve is drawn with its zero across the middle
+    bool zeroShown {false};
 
     KisPaintOpOption::PenInput input(const QString &id) const
     {
@@ -69,7 +75,27 @@ QString KisStudioPenPopup::inputName(const QString &id, const QString &fallback)
         {QStringLiteral("perspective"), i18nc("pen input", "Perspective")},
         {QStringLiteral("tangentialpressure"), i18nc("pen input: an airbrush pen's wheel", "Wheel")},
     };
-    return names.value(id, fallback);
+    // engines name their inputs in Title Case ("Gross Speed")
+    return names.value(kritaInput(id), KisSentenceCase::of(fallback));
+}
+
+QString KisStudioPenPopup::kritaInput(const QString &id)
+{
+    static const QHash<QString, QString> mypaint = {
+        {QStringLiteral("mypaint_pressure"), QStringLiteral("pressure")},
+        {QStringLiteral("mypaint_speed1"), QStringLiteral("speed")},
+        {QStringLiteral("mypaint_random"), QStringLiteral("fuzzy")},
+        {QStringLiteral("mypaint_stroke"), QStringLiteral("fade")},
+        {QStringLiteral("mypaint_direction"), QStringLiteral("drawingangle")},
+        {QStringLiteral("mypaint_tilt_declination"), QStringLiteral("declination")},
+        {QStringLiteral("mypaint_tilt_ascension"), QStringLiteral("ascension")},
+    };
+    return mypaint.value(id, id);
+}
+
+bool KisStudioPenPopup::curvesAroundZero(const QString &id)
+{
+    return id.startsWith(QLatin1String("mypaint_"));
 }
 
 QString KisStudioPenPopup::inputTip(const QString &id)
@@ -92,7 +118,7 @@ QString KisStudioPenPopup::inputTip(const QString &id)
         {QStringLiteral("perspective"), i18nc("@info:tooltip pen input", "Near → far on the perspective grid")},
         {QStringLiteral("tangentialpressure"), i18nc("@info:tooltip pen input", "The airbrush pen's finger wheel")},
     };
-    return tips.value(id);
+    return tips.value(kritaInput(id));
 }
 
 QStringList KisStudioPenPopup::mainInputs()
@@ -117,7 +143,11 @@ KisStudioPenPopup::KisStudioPenPopup(KisPaintOpOption *option, QWidget *parent, 
             }
         }
     }
-    if (d->selected.isEmpty()) d->selected = QStringLiteral("pressure");
+    // none on: the pressure, by whatever id the engine gives it
+    Q_FOREACH (const KisPaintOpOption::PenInput &each, option->penInputs()) {
+        if (!d->selected.isEmpty()) break;
+        if (kritaInput(each.id) == QLatin1String("pressure")) d->selected = each.id;
+    }
 
     auto *layout = new QVBoxLayout(this);
     fitLayout(layout, KisModernStyle::space3);
@@ -234,12 +264,12 @@ void KisStudioPenPopup::refresh()
     };
     Q_FOREACH (const QString &id, main) {
         Q_FOREACH (const KisPaintOpOption::PenInput &input, all) {
-            if (input.id == id) add(input);
+            if (kritaInput(input.id) == id) add(input);
         }
     }
     Q_FOREACH (const KisPaintOpOption::PenInput &input, all) {
         if (input.active) activeCount++;
-        if (main.contains(input.id)) continue;
+        if (main.contains(kritaInput(input.id))) continue;
         if (d->showAll || input.active || input.id == d->selected) add(input);
     }
     KisStudioChips::Chip more;
@@ -256,6 +286,22 @@ void KisStudioPenPopup::refresh()
         d->curve->setCurve(KisCubicCurve(curve));
     }
     d->saved->setCurrent(curve);
+    const bool aroundZero = curvesAroundZero(d->selected);
+    if (aroundZero != d->zeroShown) {
+        d->zeroShown = aroundZero;
+        QPixmap zero;
+        if (aroundZero) {
+            // where the curve leaves the setting as it is
+            zero = QPixmap(qMax(64, d->curve->width()), d->curve->height());
+            zero.fill(QApplication::palette().color(QPalette::Base));
+            QPainter painter(&zero);
+            QColor ink = QApplication::palette().color(QPalette::Text);
+            ink.setAlphaF(0.45);
+            painter.setPen(QPen(ink, KisModernStyle::hairline));
+            painter.drawLine(QPointF(0, zero.height() / 2.0), QPointF(zero.width(), zero.height() / 2.0));
+        }
+        d->curve->setPixmap(zero);
+    }
 
     const int mode = d->option->penMode();
     // decided here, not by isVisible(): the popup itself may not be shown yet

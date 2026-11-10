@@ -359,14 +359,26 @@ QVector<QPointF> squared(const QVector<QPointF> &quad)
 KisStrokeShape KisStrokeShape::recognize(const QVector<QPointF> &input, qreal pixel)
 {
     KisStrokeShape shape;
-    // the hold at the end piles points up; keep ones that moved, at most about two thousand: finding the
-    // loop compares them pairwise, and a long scribble held still would stall the stroke
+    // the path at even steps along it, so slow parts (dense reports, the hold at the end) weigh no more than fast
+    // ones; at most about two thousand: finding the loop compares them pairwise, and a long scribble held still
+    // would stall the stroke
     const qreal spacing = qMax(0.75 * pixel, pathLength(input) / 2000);
     QVector<QPointF> points;
-    for (const QPointF &p : input) {
-        if (points.isEmpty() || distance(p, points.last()) >= spacing) points << p;
+    if (!input.isEmpty()) points << input.first();
+    // how far the path went since the last point placed
+    qreal walked = 0;
+    for (int i = 1; i < input.size(); i++) {
+        QPointF from = input[i - 1];
+        qreal left = distance(from, input[i]);
+        while (walked + left >= spacing) {
+            from += (input[i] - from) * ((spacing - walked) / left);
+            points << from;
+            left = distance(from, input[i]);
+            walked = 0;
+        }
+        walked += left;
     }
-    if (!input.isEmpty() && points.size() > 1 && distance(input.last(), points.last()) >= 0.75 * pixel) points << input.last();
+    if (!points.isEmpty() && distance(input.last(), points.last()) >= 0.75 * pixel) points << input.last();
     if (points.size() < 5) return shape;
     const qreal length = pathLength(points);
     if (length < 30 * pixel) return shape;

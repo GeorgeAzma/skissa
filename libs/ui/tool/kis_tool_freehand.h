@@ -141,9 +141,9 @@ private:
     std::optional<KoPointerEventWrapper> m_beginAlternateActionEvent;
 
     void snapToShape();
-    /// The stroke in image pixels and its pressure, while it may still become a shape
+    /// The stroke in image pixels and the pen's reports along it, while it may still become a shape
     QVector<QPointF> m_shapePoints;
-    QVector<qreal> m_shapePressures;
+    QVector<KisPaintInformation> m_shapeInputs;
     QPointF m_shapeHoldPos;
     QTimer m_shapeHold;
     bool m_shapeSnapped {false};

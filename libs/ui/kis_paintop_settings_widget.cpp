@@ -8,6 +8,7 @@
 #include "kis_paintop_settings_widget.h"
 
 #include <KisModernStyle.h>
+#include <KisValueSteps.h>
 #include "kis_paintop_option.h"
 #include "kis_paintop_options_model.h"
 
@@ -93,22 +94,25 @@ struct KisPaintOpSettingsWidget::Private
         KisPaintOpOption *option = optionAt(scrubIndex);
         const std::optional<KisPaintOpOption::RowValue> value = option ? option->rowValue() : std::nullopt;
         if (!value) return;
-        // Shift: a quarter as fast, from where it is now
+        // Shift: finer, from where it is now
         if (fine != scrubFine) {
             scrubFine = fine;
             scrubFrom = value->value;
             scrubX = x;
         }
+        // the bar's edge follows the pointer, as on every drawn bar
         const qreal width = qMax(40, valueRect(scrubIndex).width());
-        const qreal moved = (x - scrubX) / width * (fine ? 0.25 : 1.0);
+        const qreal moved = (x - scrubX) / width * (fine ? KisValueSteps::fine : 1.0);
         qreal next;
         if (value->size && value->minimum > 0) {
             next = qMax(scrubFrom, value->minimum) * std::exp(moved * std::log(value->maximum / value->minimum));
         } else {
             next = scrubFrom + moved * (value->maximum - value->minimum);
         }
-        const qreal step = std::pow(10.0, -value->decimals);
-        next = qBound(value->minimum, std::round(next / step) * step, value->maximum);
+        // landing by size as every dragged value does, never finer than the option keeps
+        const qreal unit = std::pow(10.0, -value->decimals);
+        next = std::round(KisValueSteps::dragged(next, value->maximum - value->minimum) / unit) * unit;
+        next = qBound(value->minimum, next, value->maximum);
         if (!qFuzzyCompare(next, value->value)) option->setRowValue(next);
     }
 };

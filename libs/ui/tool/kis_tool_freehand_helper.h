@@ -71,9 +71,13 @@ public:
     void endPaint();
     /// Drops the stroke so far, paints \p points in its place and ends it
     void repaintAs(const QVector<KisPaintInformation> &points);
+    /// The pen's last report in the stroke being painted, as it came, before any smoothing
+    KisPaintInformation lastInput() const;
 
     /// Whether the last stroke painted can be painted again (replayLastStroke())
     bool hasLastStroke() const;
+    /// Whether replayLastStroke() would paint it now, with the brush and smoothing as they are
+    bool canReplayLastStroke() const;
     /// The image the last stroke was painted on
     KisImageWSP lastStrokeImage() const;
     /// The name of the step a stroke leaves in the history

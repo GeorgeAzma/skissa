@@ -156,7 +156,7 @@ public:
         const QStringList main = KisStudioPenPopup::mainInputs();
         QVector<KisPaintOpOption::PenInput> shown;
         Q_FOREACH (const KisPaintOpOption::PenInput &input, all) {
-            if (main.contains(input.id) || used.contains(input.id) || m_extraColumns.contains(input.id)) shown << input;
+            if (main.contains(KisStudioPenPopup::kritaInput(input.id)) || used.contains(input.id) || m_extraColumns.contains(input.id)) shown << input;
         }
         return shown;
     }
@@ -225,6 +225,11 @@ protected:
                     const QPointF point(glyph.left() + x * glyph.width(), glyph.bottom() - qBound(0.0, curve.value(x), 1.0) * glyph.height());
                     if (i) path.lineTo(point);
                     else path.moveTo(point);
+                }
+                if (KisStudioPenPopup::curvesAroundZero(input.id)) {
+                    // where the curve leaves the setting as it is
+                    painter.setPen(QPen(quiet, 1.0));
+                    painter.drawLine(QPointF(glyph.left(), glyph.center().y()), QPointF(glyph.right(), glyph.center().y()));
                 }
                 painter.setPen(QPen(ink, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
                 painter.setBrush(Qt::NoBrush);

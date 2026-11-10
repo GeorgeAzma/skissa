@@ -26,12 +26,16 @@ public:
 
     KisPaintOpOption *option() const;
 
-    /// Short names of the pen inputs, by Krita's sensor id
+    /// Short names of the pen inputs, by Krita's sensor id (a MyPaint input's by the Krita input it is)
     static QString inputName(const QString &id, const QString &fallback);
     /// What a pen input is, as a short tooltip; empty for one without
     static QString inputTip(const QString &id);
-    /// The inputs shown before "more"
+    /// The inputs shown before "more", by Krita's sensor id
     static QStringList mainInputs();
+    /// The Krita sensor id a pen input \p id stands for: a MyPaint input's counterpart, else \p id
+    static QString kritaInput(const QString &id);
+    /// Whether input \p id's curve is an offset around zero (MyPaint's), drawn with zero across its middle
+    static bool curvesAroundZero(const QString &id);
 
 private:
     void refresh();

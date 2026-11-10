@@ -26,6 +26,9 @@
 #include <kis_icon_utils.h>
 #include <KoCanvasResourceProvider.h>
 #include <QElapsedTimer>
+#include <QInputEvent>
+
+#include <algorithm>
 
 #include <Eigen/Core>
 
@@ -421,12 +424,12 @@ void KisToolFreehand::beginPrimaryAction(KoPointerEvent *event)
 
     m_shapeSnapped = false;
     m_shapePoints.clear();
-    m_shapePressures.clear();
+    m_shapeInputs.clear();
     // not while an assistant or the straight ruler guides the stroke: the shape would leave the guide
     if (m_snapsToShapes && KisSettingsRegistry::instance()->value(QStringLiteral("StrokeShapeSnap")).toBool() && !m_assistant
         && !temporaryStraightRulerActive()) {
         m_shapePoints << convertToPixelCoord(event);
-        m_shapePressures << m_infoBuilder->strokePressure(event->pressure());
+        m_shapeInputs << m_helper->lastInput();
         m_shapeHoldPos = event->pos();
         m_shapeHold.start();
     }
@@ -448,9 +451,10 @@ void KisToolFreehand::continuePrimaryAction(KoPointerEvent *event)
 
     if (!m_shapePoints.isEmpty()) {
         m_shapePoints << convertToPixelCoord(event);
-        m_shapePressures << m_infoBuilder->strokePressure(event->pressure());
-        // a hand holding still still trembles a little
-        if (QLineF(event->pos(), m_shapeHoldPos).length() > 3) {
+        m_shapeInputs << m_helper->lastInput();
+        // a hand holding still still trembles a little, a pen's more than a mouse's
+        const QInputEvent device(event->isTabletEvent() ? QEvent::TabletMove : event->isTouchEvent() ? QEvent::TouchUpdate : QEvent::MouseMove);
+        if (QLineF(event->pos(), m_shapeHoldPos).length() > KisModernStyle::dragDistance(&device)) {
             m_shapeHoldPos = event->pos();
             m_shapeHold.start();
         }
@@ -481,12 +485,21 @@ void KisToolFreehand::snapToShape()
         for (int k = 0; k < travelled.size(); k++) {
             const qreal at = travelled[k] / total;
             if (std::abs(at - shape.along[i]) < 0.05) {
-                sum += m_shapePressures[k];
+                sum += m_shapeInputs[k].pressure();
                 count++;
             }
             if (std::abs(at - shape.along[i]) < std::abs(travelled[nearest] / total - shape.along[i])) nearest = k;
         }
-        points << KisPaintInformation(shape.outline[i], count ? sum / count : m_shapePressures[nearest]);
+        // tilt, rotation, time and speed as the pen had them at the same share of its way, from where it first got there
+        // (a hold at the end adds reports that don't move)
+        const qreal length = shape.along[i] * total;
+        const int after = qBound(0, int(std::lower_bound(travelled.begin(), travelled.end(), length) - travelled.begin()), travelled.size() - 1);
+        const int before = qMax(0, after - 1);
+        const qreal span = travelled[after] - travelled[before];
+        const qreal share = span > 0 ? qBound<qreal>(0, (length - travelled[before]) / span, 1) : 1;
+        KisPaintInformation info = KisPaintInformation::mix(shape.outline[i], share, m_shapeInputs[before], m_shapeInputs[after]);
+        info.setPressure(count ? sum / count : m_shapeInputs[nearest].pressure());
+        points << info;
     }
     m_helper->repaintAs(points);
     m_shapeSnapped = true;

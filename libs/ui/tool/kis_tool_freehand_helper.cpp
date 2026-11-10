@@ -81,6 +81,8 @@ struct KisToolFreehandHelper::Private
     KoColor piecesColor;
     /// The pen's own path, before any smoothing: painted again when the smoothing changes
     QVector<KisPaintInformation> rawInputs;
+    /// The pen's last report, as it came
+    KisPaintInformation lastInput;
     /// The smoothing the pieces were painted with
     QString piecesSmoothing;
     bool replaying {false};
@@ -349,6 +351,7 @@ void KisToolFreehandHelper::initPaint(KoPointerEvent *event,
         m_d->infoBuilder->startStroke(event, elapsedStrokeTime(), m_d->resourceManager);
     KisPenLatency::strokeStarted();
     KisPenLatency::arrived(pi.currentTime(), pi.pos(), event->time());
+    m_d->lastInput = pi;
     qreal startAngle = KisAlgebra2D::directionBetweenPoints(prevPoint, pixelCoords, 0.0);
 
     initPaintImpl(startAngle,
@@ -586,6 +589,7 @@ void KisToolFreehandHelper::paintEvent(KoPointerEvent *event)
                                              elapsedStrokeTime());
     KisUpdateTimeMonitor::instance()->reportMouseMove(info.pos());
     KisPenLatency::arrived(info.currentTime(), info.pos(), event->time());
+    m_d->lastInput = info;
     if (m_d->recording) m_d->recordInput(info);
 
     paint(info);
@@ -913,7 +917,7 @@ QString KisToolFreehandHelper::smoothingKey() const
         .arg(o.finishStabilizedCurve()).arg(o.stabilizeSensors());
 }
 
-bool KisToolFreehandHelper::replayLastStroke()
+bool KisToolFreehandHelper::canReplayLastStroke() const
 {
     KisImageSP image = m_d->piecesImage;
     KisNodeSP node = m_d->piecesNode;
@@ -922,6 +926,21 @@ bool KisToolFreehandHelper::replayLastStroke()
         // the stabilizer is replayed a sample per millisecond, on this thread: not for a pen held for minutes
         const qreal duration = m_d->rawInputs.last().currentTime() - m_d->rawInputs.first().currentTime();
         if (m_d->smoothingOptions->smoothingType() == KisSmoothingOptions::STABILIZER && duration > 60000) return false;
+    }
+    return true;
+}
+
+KisPaintInformation KisToolFreehandHelper::lastInput() const
+{
+    return m_d->lastInput;
+}
+
+bool KisToolFreehandHelper::replayLastStroke()
+{
+    if (!canReplayLastStroke()) return false;
+    KisImageSP image = m_d->piecesImage;
+    KisNodeSP node = m_d->piecesNode;
+    if (smoothingKey() != m_d->piecesSmoothing && !m_d->rawInputs.isEmpty()) {
         replayFromInput();
         return true;
     }

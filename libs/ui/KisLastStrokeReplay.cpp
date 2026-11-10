@@ -71,7 +71,6 @@ struct KisLastStrokeReplay::Private
     bool idleSeen {false};
     /// The brush changed since the stroke was last painted
     bool dirty {false};
-    int retries {0};
     /// The next look, one at a time however often the brush changes while it waits
     QTimer retry;
 };
@@ -150,10 +149,7 @@ void KisLastStrokeReplay::strokeEnded(KisToolFreehandHelper *helper, KUndo2Stack
             d->expectedIndex = index;
             d->painting = false;
             // changed again meanwhile: on to the newest look, once out of the history's own call
-            if (d->dirty) {
-                d->retries = 0;
-                d->retry.start(0);
-            }
+            if (d->dirty) d->retry.start(0);
         });
     }
     // the stroke's step arrives once the image has painted it; the image's own thread may have pushed it already, a
@@ -198,7 +194,6 @@ void KisLastStrokeReplay::brushChanged(const QString &preset, const QString &set
     const bool smoothingOnly = d->settings.startsWith(settings);
     d->settings = look;
     d->dirty = true;
-    d->retries = 0;
     // after the change has reached the brush the stroke is painted with
     d->retry.start(smoothingOnly ? 150 : 0);
 }
@@ -218,7 +213,8 @@ void KisLastStrokeReplay::replay()
         // Stopped halfway, the stroke would be in no look at all: the step it replaces is gone once it starts.
         if (!image->isIdle() || !d->idleSeen) {
             d->idleSeen = image->isIdle();
-            if (++d->retries < 600) d->retry.start(16);
+            // however long the image is busy: the change waits, it isn't dropped
+            d->retry.start(16);
             return;
         }
         // idle twice in a row and its step never arrived: it was taken back (an undo), and stays so
@@ -228,11 +224,8 @@ void KisLastStrokeReplay::replay()
         return;
     }
 
-    if (!d->step) {
-        // the stroke's own step isn't in the history yet: it is still being painted
-        if (d->expectedIndex > 0 && ++d->retries < 600) d->retry.start(16);
-        return;
-    }
+    // the stroke's own step isn't in the history yet: it is still being painted, and its arrival looks again
+    if (!d->step) return;
     // only while the stroke is still the newest step, with nothing undone after it
     if (index < 1 || index != d->stack->count() || d->stack->command(index - 1) != d->step) {
         d->step = nullptr;
@@ -240,7 +233,12 @@ void KisLastStrokeReplay::replay()
         return;
     }
     if (!image->isIdle()) {
-        if (++d->retries < 600) d->retry.start(16);
+        d->retry.start(16);
+        return;
+    }
+    if (!d->helper->canReplayLastStroke()) {
+        // taken back, a stroke that can't be painted again would be lost: it stays as it is
+        d->dirty = false;
         return;
     }
     d->step = nullptr;
@@ -252,7 +250,7 @@ void KisLastStrokeReplay::replay()
         // the image refused the undo (busy): the stroke stays as it is until the next look
         d->step = d->stack->command(index - 1);
         d->dirty = true;
-        if (++d->retries < 600) d->retry.start(16);
+        d->retry.start(16);
         return;
     }
     if (!d->helper->replayLastStroke()) {

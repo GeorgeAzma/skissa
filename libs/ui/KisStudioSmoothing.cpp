@@ -356,7 +356,10 @@ KConfigGroup memory()
     return KSharedConfig::openConfig()->group("StudioBrushSmoothing");
 }
 
-/// Remembers each brush's smoothing, and gives a brush its own when it is picked
+/// The smoothing of every brush the artist hasn't given one of its own, under a key no brush file has
+const QString sharedKey = QStringLiteral("<shared>");
+
+/// Remembers the smoothing of each brush it was changed for, and gives a brush its own when it is picked
 class SmoothingMemory : public QObject
 {
     Q_OBJECT
@@ -408,6 +411,7 @@ private:
         return preset->filename().isEmpty() ? preset->name() : preset->filename();
     }
 
+    /// The artist changed the smoothing: from now on it is the brush's own
     void save()
     {
         if (m_applying || m_preset.isEmpty() || !m_options) return;
@@ -419,8 +423,6 @@ private:
     void follow()
     {
         watchResources();
-        // what the last brush had, kept for it
-        save();
         m_options = KisStudioSmoothing::options(m_mainWindow);
         m_preset = presetKey();
         if (!m_options || m_preset.isEmpty()) return;
@@ -437,12 +439,19 @@ private:
                 connect(tool, signal.constData(), KisStudioSmoothing::instance(), SIGNAL(sigToolChanged()), Qt::UniqueConnection);
             }
         }
-        QString kept = memory().readEntry(m_preset, QString());
+        KConfigGroup kept = memory();
+        // what brushes without their own share: the smoothing in use when that was first needed
+        if (!kept.hasKey(sharedKey)) {
+            kept.writeEntry(sharedKey, remembered(*m_options));
+            KisSettingsRegistry::instance()->scheduleSync();
+        }
+        QString own = kept.readEntry(m_preset, QString());
         // kept by the brush's name before
-        if (kept.isEmpty() && currentPreset()) kept = memory().readEntry(currentPreset()->name(), QString());
-        if (kept.isEmpty()) return;
+        if (own.isEmpty() && currentPreset()) own = kept.readEntry(currentPreset()->name(), QString());
+        if (own.isEmpty()) own = kept.readEntry(sharedKey, QString());
+        if (own.isEmpty()) return;
         m_applying = true;
-        if (recall(kept, *m_options)) KisStudioSmoothing::changed(m_mainWindow);
+        if (recall(own, *m_options)) KisStudioSmoothing::changed(m_mainWindow);
         m_applying = false;
     }
 

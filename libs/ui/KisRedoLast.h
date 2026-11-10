@@ -9,6 +9,7 @@
 
 #include <QObject>
 #include <QPointer>
+#include <QTimer>
 
 #include <functional>
 
@@ -57,6 +58,8 @@ private:
     bool m_waiting {false};
     /// A setting changed while waiting
     bool m_pending {false};
+    /// The image refused to take the step back (busy): asked again shortly
+    QTimer m_retry;
 };
 
 #endif

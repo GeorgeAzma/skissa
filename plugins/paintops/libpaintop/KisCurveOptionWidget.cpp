@@ -29,6 +29,10 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <memory>
+
+#include <lager/state.hpp>
+#include <KisSensorData.h>
 
 #include <kis_config.h>
 #include <kis_config_notifier.h>
@@ -48,6 +52,37 @@ auto rowCheckedLens = lager::lenses::getset(
         }
         return data;
     });
+
+/// \p curve of \p sensor across 0 to 1 with \p factory's range model, as the option's page draws it: MyPaint keeps a
+/// curve in its input's own units, as an offset around zero
+QString shownCurve(const KisCurveRangeModelFactory &factory, const KisSensorData *sensor, const QString &curve)
+{
+    if (!factory) return curve;
+    auto stored = lager::make_state(curve, lager::automatic_tag{});
+    auto range = lager::make_state(sensor->baseCurveRange(), lager::automatic_tag{});
+    const std::unique_ptr<KisCurveRangeModelInterface> model(
+        factory(stored, range, lager::make_constant(sensor->id.id()), lager::make_constant(0)));
+    return model->curve().get();
+}
+
+/// \p shown (across 0 to 1, as shownCurve() gives it) written into \p sensor as it keeps its curve
+void storeCurve(const KisCurveRangeModelFactory &factory, KisSensorData *sensor, const QString &shown)
+{
+    if (!factory) {
+        sensor->curve = shown;
+        return;
+    }
+    auto stored = lager::make_state(sensor->curve, lager::automatic_tag{});
+    auto range = lager::make_state(sensor->baseCurveRange(), lager::automatic_tag{});
+    {
+        const std::unique_ptr<KisCurveRangeModelInterface> model(
+            factory(stored, range, lager::make_constant(sensor->id.id()), lager::make_constant(0)));
+        model->curve().set(shown);
+    }
+    sensor->curve = stored.get();
+    // only inputs with a range of their own (MyPaint's) have one to set
+    if (range.get() != sensor->baseCurveRange()) sensor->setBaseCurveRange(range.get());
+}
 } // namespace
 
 struct KisCurveOptionWidget::Private
@@ -58,9 +93,12 @@ struct KisCurveOptionWidget::Private
             qreal strengthDisplayMultiplier,
             KisCurveRangeModelFactory curveRangeFactory)
         : model(optionData, enabledLink, strengthRangeReader, strengthDisplayMultiplier, curveRangeFactory)
+        , rangeFactory(curveRangeFactory)
     {}
 
     KisCurveOptionModel model;
+    /// How the page shows each input's curve, for the pen inputs shown elsewhere
+    KisCurveRangeModelFactory rangeFactory;
     bool noPenCheckbox {false};
 };
 
@@ -322,7 +360,7 @@ QVector<KisPaintOpOption::PenInput> KisCurveOptionWidget::penInputs() const
         input.name = sensor->id.name();
         // the pen off (useCurve) keeps its inputs for when it is on again
         input.active = sensor->isActive && data.useCurve;
-        input.curve = data.useSameCurve ? data.commonCurve : sensor->curve;
+        input.curve = shownCurve(m_d->rangeFactory, sensor, data.useSameCurve ? data.commonCurve : sensor->curve);
         inputs << input;
     }
     return inputs;
@@ -361,7 +399,7 @@ void KisCurveOptionWidget::setPenCurve(const QString &id, const QString &curve)
         data.useSameCurve = false;
     }
     for (KisSensorData *sensor : data.sensors()) {
-        if (sensor->id.id() == id) sensor->curve = curve;
+        if (sensor->id.id() == id) storeCurve(m_d->rangeFactory, sensor, curve);
     }
     m_d->model.optionData.set(data);
 }
