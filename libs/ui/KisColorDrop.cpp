@@ -377,10 +377,122 @@ void dropBlends(KisPixelSelectionSP region, KisPaintDeviceSP device, const QRect
     region->invalidateOutlineCache();
 }
 
+/**
+ * \p region joined by the area around \p seed that changes only gradually, so a gradient (a sky, water, a glow)
+ * fills whole up to the edges of shapes. From pixel to pixel a gradient changes by a steady amount, while an edge,
+ * however faint, is a sudden change of it: a pixel joins when it differs from the one it is reached from by little
+ * (\p threshold sets how little) and that difference is close to the one before it.
+ */
+void followGradients(KisPixelSelectionSP region, KisPaintDeviceSP device, const QPoint &seed, int threshold, const QRect &bounds)
+{
+    if (!bounds.contains(seed)) return;
+    const int w = bounds.width(), h = bounds.height();
+    const size_t count = size_t(w) * h;
+    const KoColorSpace *srgb = KoColorSpaceRegistry::instance()->rgb8();
+    // the picture as premultiplied 8-bit sRGB: a change is the largest change of a channel
+    std::vector<quint8> rgba(count * 4);
+    if (*device->colorSpace() == *srgb) {
+        device->readBytes(rgba.data(), bounds);
+    } else {
+        std::vector<quint8> raw(count * device->pixelSize());
+        device->readBytes(raw.data(), bounds);
+        device->colorSpace()->convertPixelsTo(raw.data(), rgba.data(), srgb, int(count), KoColorConversionTransformation::internalRenderingIntent(),
+                                              KoColorConversionTransformation::internalConversionFlags());
+    }
+    for (size_t i = 0; i < count; i++) {
+        quint8 *p = rgba.data() + i * 4;
+        for (int c = 0; c < 3; c++) p[c] = quint8((p[c] * p[3] + 127) / 255);
+    }
+    auto pixel = [&](int x, int y) { return rgba.data() + (size_t(y) * w + x) * 4; };
+    // the largest change of a channel from \p a to \p b, and how much that differs from the change from \p before to \p a
+    auto change = [](const quint8 *a, const quint8 *b) {
+        return std::max({std::abs(a[0] - b[0]), std::abs(a[1] - b[1]), std::abs(a[2] - b[2]), std::abs(a[3] - b[3])});
+    };
+    auto bend = [](const quint8 *before, const quint8 *a, const quint8 *b) {
+        int most = 0;
+        for (int c = 0; c < 4; c++) most = std::max(most, std::abs(int(b[c]) - 2 * int(a[c]) + int(before[c])));
+        return most;
+    };
+    // 8-bit steps of a gradient differ by a level or two
+    const int step = 3 + threshold / 2;
+    const int curve = 2 + threshold / 16;
+
+    std::vector<quint8> mine(count, 0);
+    std::vector<int> stack;
+    stack.reserve(4096);
+    // from the color most of the pixels around the drop have: a drop on a hairline (a faint reflection) fills what is
+    // around it, one on a shape a few pixels wide fills the shape
+    const int sx = seed.x() - bounds.left(), sy = seed.y() - bounds.top();
+    constexpr int around = 3;
+    const QRect near = QRect(sx - around, sy - around, 2 * around + 1, 2 * around + 1) & QRect(0, 0, w, h);
+    auto alikeAround = [&](int x, int y) {
+        int alike = 0;
+        for (int v = near.top(); v <= near.bottom(); v++) {
+            for (int u = near.left(); u <= near.right(); u++) alike += change(pixel(x, y), pixel(u, v)) <= step;
+        }
+        return alike;
+    };
+    // the drop's own color unless another is more common
+    QPoint main(sx, sy);
+    int most = alikeAround(sx, sy);
+    for (int y = near.top(); y <= near.bottom(); y++) {
+        for (int x = near.left(); x <= near.right(); x++) {
+            const int alike = alikeAround(x, y);
+            if (alike > most) {
+                most = alike;
+                main = QPoint(x, y);
+            }
+        }
+    }
+    for (int y = near.top(); y <= near.bottom(); y++) {
+        for (int x = near.left(); x <= near.right(); x++) {
+            if (change(pixel(x, y), pixel(main.x(), main.y())) > step) continue;
+            mine[size_t(y) * w + x] = MAX_SELECTED;
+            stack.push_back(y * w + x);
+        }
+    }
+    int left = sx, top = sy, right = sx, bottom = sy;
+    while (!stack.empty()) {
+        const int at = stack.back();
+        stack.pop_back();
+        const int x = at % w, y = at / w;
+        left = std::min(left, x);
+        right = std::max(right, x);
+        top = std::min(top, y);
+        bottom = std::max(bottom, y);
+        const quint8 *from = pixel(x, y);
+        static const QPoint directions[] = {QPoint(-1, 0), QPoint(1, 0), QPoint(0, -1), QPoint(0, 1)};
+        for (const QPoint &d : directions) {
+            const int qx = x + d.x(), qy = y + d.y();
+            if (qx < 0 || qy < 0 || qx >= w || qy >= h || mine[size_t(qy) * w + qx]) continue;
+            const quint8 *to = pixel(qx, qy);
+            if (change(from, to) > step) continue;
+            const int bx = x - d.x(), by = y - d.y();
+            if (bx >= 0 && by >= 0 && bx < w && by < h && bend(pixel(bx, by), from, to) > curve) continue;
+            mine[size_t(qy) * w + qx] = MAX_SELECTED;
+            stack.push_back(qy * w + qx);
+        }
+    }
+    // joined with what the fill tool found, over what this reached
+    const QRect reached(QPoint(left, top), QPoint(right, bottom));
+    const QRect rect = reached.translated(bounds.topLeft());
+    std::vector<quint8> joined(size_t(rect.width()) * rect.height());
+    region->readBytes(joined.data(), rect);
+    for (int y = 0; y < rect.height(); y++) {
+        for (int x = 0; x < rect.width(); x++) {
+            quint8 &value = joined[size_t(y) * rect.width() + x];
+            value = std::max(value, mine[size_t(y + reached.top()) * w + (x + reached.left())]);
+        }
+    }
+    region->writeBytes(joined.data(), rect);
+    region->invalidateOutlineCache();
+}
+
 /// What a drop by color at \p seed covers on \p device: the touching area of colors like the seed's, or every one
 KisPixelSelectionSP regionByColor(KisPaintDeviceSP device, const QPoint &seed, int threshold, bool everywhere, const QRect &bounds)
 {
     KisPixelSelectionSP region = regionByColorAlone(device, seed, threshold, everywhere, bounds);
+    if (!everywhere) followGradients(region, device, seed, threshold, bounds);
     dropBlends(region, device, bounds);
     return region;
 }
@@ -604,8 +716,13 @@ QRect fillByColor(KisPaintDeviceSP device, KisPaintDeviceSP seen, KisPixelSelect
                     for (int c = 0; c < 4; c++) b[c] = p[c];
                 }
                 const float span = colorDistance(o, b);
-                if (span < alike) {
-                    // nothing unlike beyond: a gradient going on or a speck, changed as far as it is like the area
+                // a detail inside the area, a little unlike it (a faint line, a speck, texture): in the new color, as
+                // unlike it as it was
+                const bool detail = wb <= 0 && span < alike;
+                if (detail) {
+                    share = 1;
+                } else if (span < alike) {
+                    // nothing unlike beyond: a gradient going on, changed as far as it is like the area
                     share = qBound(0.0f, 1.0f - colorDistance(p, o) / alike, 1.0f);
                 } else {
                     // the pixel as share × the area's color + the rest × what is beyond, and how far off that line it is
@@ -628,6 +745,7 @@ QRect fillByColor(KisPaintDeviceSP device, KisPaintDeviceSP seen, KisPixelSelect
                 share = std::max(share, covered);
                 for (int c = 0; c < 3; c++) target[c] = p[c] + share * (paint[c] * o[3] - o[c]);
                 target[3] = p[3];
+                for (int c = 0; c < 3; c++) target[c] = qBound(0.0f, target[c], target[3]);
             }
             float q[4];
             if (inPlace) {
