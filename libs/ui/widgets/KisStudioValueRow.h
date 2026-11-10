@@ -27,7 +27,7 @@ public:
         qreal maximum {1.0};
         int decimals {0};
         QString suffix;
-        /// Dragged and drawn by ratios, as sizes are
+        /// Dragged and drawn by ratios, as sizes are; a range starting at 0 (off) by ratios from the least step
         bool size {false};
         /// Degrees, shown as a dial that is also turned by dragging around it; the dial points this many degrees
         /// further than the value (for a value that names what lies across the direction it is about)
@@ -101,6 +101,15 @@ protected:
 private:
     qreal fraction() const;
     qreal fractionOf(qreal value) const;
+    /// Where \p value lies along the bar (0 to 1 within the range, beyond it outside), and the value at a place
+    qreal placeOf(qreal value) const;
+    qreal valueOfPlace(qreal place) const;
+    /// The smallest change the number shows
+    qreal leastStep() const;
+    /// A size whose 0 is off: by ratios from the least step, with 0 at the bar's left end
+    bool offAtZero() const;
+    /// The decimals \p value is shown and kept with
+    int decimalsOf(qreal value) const;
     /// The value at \p x across the row, as the bar shows it
     qreal valueAt(qreal x) const;
     QString text() const;

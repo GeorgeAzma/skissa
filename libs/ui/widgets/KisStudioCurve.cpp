@@ -16,6 +16,7 @@
 #include <cmath>
 
 #include <KisModernStyle.h>
+#include <KisValueSteps.h>
 
 namespace
 {
@@ -404,7 +405,7 @@ void KisStudioCurveView::mouseMoveEvent(QMouseEvent *event)
         m_start = m_curve.points[m_dragged];
     }
     const QRectF box = boxRect();
-    const QPointF moved = QPointF(event->pos() - m_grab) * (fine ? 0.25 : 1.0);
+    const QPointF moved = QPointF(event->pos() - m_grab) * (fine ? KisValueSteps::fine : 1.0);
     QPointF point(m_start.x() + moved.x() / box.width(), m_start.y() - moved.y() / box.height());
     const int last = m_curve.points.size() - 1;
     const bool end = m_dragged == 0 || m_dragged == last;

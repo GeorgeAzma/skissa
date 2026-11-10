@@ -26,6 +26,7 @@
 #include <cmath>
 
 #include <KisModernStyle.h>
+#include <KisValueSteps.h>
 #include <kis_icon_utils.h>
 
 #include "KisStudioInlineEdit.h"
@@ -230,28 +231,60 @@ qreal KisStudioValueRow::fraction() const
 
 qreal KisStudioValueRow::fractionOf(qreal value) const
 {
+    return qBound(0.0, placeOf(value), 1.0);
+}
+
+qreal KisStudioValueRow::leastStep() const
+{
+    return std::pow(10.0, -m_range.decimals);
+}
+
+bool KisStudioValueRow::offAtZero() const
+{
+    return m_range.size && m_range.minimum == 0 && m_range.maximum > 0;
+}
+
+qreal KisStudioValueRow::placeOf(qreal value) const
+{
     const qreal low = m_range.minimum;
     const qreal high = m_range.maximum;
-    if (m_range.size && low > 0) {
-        return qBound(0.0, std::log(qMax(value, low) / low) / std::log(high / low), 1.0);
+    if (m_range.size && low > 0) return std::log(qMax(value, low) / low) / std::log(high / low);
+    if (offAtZero()) {
+        // 0 at the left end, then by ratios from the least step
+        const qreal least = leastStep();
+        return std::log(qMax(value, 0.0) / least + 1) / std::log(high / least + 1);
     }
-    return qBound(0.0, (value - low) / (high - low), 1.0);
+    return (value - low) / (high - low);
+}
+
+qreal KisStudioValueRow::valueOfPlace(qreal place) const
+{
+    const qreal low = m_range.minimum;
+    const qreal high = m_range.maximum;
+    if (m_range.size && low > 0) return low * std::pow(high / low, place);
+    if (offAtZero()) {
+        const qreal least = leastStep();
+        return least * (std::pow(high / least + 1, place) - 1);
+    }
+    return low + place * (high - low);
 }
 
 qreal KisStudioValueRow::valueAt(qreal x) const
 {
     const QRectF box = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-    const qreal at = qBound(0.0, (x - box.left()) / box.width(), 1.0);
-    const qreal low = m_range.minimum;
-    const qreal high = m_range.maximum;
-    if (m_range.size && low > 0) return low * std::pow(high / low, at);
-    return low + at * (high - low);
+    return valueOfPlace(qBound(0.0, (x - box.left()) / box.width(), 1.0));
+}
+
+int KisStudioValueRow::decimalsOf(qreal value) const
+{
+    // a size of 10 or more is whole
+    return m_range.size && std::abs(value) >= 10.0 ? 0 : m_range.decimals;
 }
 
 QString KisStudioValueRow::numberText() const
 {
     // decimals as the range has them, without trailing zeros: 2, not 2.00
-    const int decimals = m_range.size && m_value >= 10.0 ? 0 : m_range.decimals;
+    const int decimals = decimalsOf(m_value);
     QString number = QLocale().toString(m_value, 'f', decimals);
     const QChar point = QLocale().decimalPoint();
     if (decimals > 0 && number.contains(point)) {
@@ -269,7 +302,8 @@ QString KisStudioValueRow::text() const
 
 void KisStudioValueRow::change(qreal value)
 {
-    const qreal step = std::pow(10.0, -m_range.decimals);
+    // stored as it is shown
+    const qreal step = std::pow(10.0, -decimalsOf(value));
     value = qBound(m_range.minimum, m_range.snapped ? m_range.snapped(value) : std::round(value / step) * step, m_range.maximum);
     if (qFuzzyCompare(value + 1.0, m_value + 1.0)) return;
     m_value = value;
@@ -451,13 +485,9 @@ void KisStudioValueRow::mouseMoveEvent(QMouseEvent *event)
         m_pressX = x;
         m_pressValue = qIsNaN(m_dragged) ? m_value : m_dragged;
     }
-    const qreal moved = (x - m_pressX) / qMax<qreal>(40, width()) * (fine ? 0.25 : 1.0);
-    qreal next;
-    if (m_range.size && m_range.minimum > 0) {
-        next = qMax(m_pressValue, m_range.minimum) * std::exp(moved * std::log(m_range.maximum / m_range.minimum));
-    } else {
-        next = m_pressValue + moved * (m_range.maximum - m_range.minimum);
-    }
+    // the bar's edge follows the pointer, at the scale the bar is drawn in
+    const qreal moved = (x - m_pressX) / qMax<qreal>(40, width()) * (fine ? KisValueSteps::fine : 1.0);
+    const qreal next = valueOfPlace(placeOf(m_pressValue) + moved);
     // the bar follows the pointer at every move, though the value only changes at its steps
     const qreal shown = qBound(m_range.minimum, next, m_range.maximum);
     if (shown != m_dragged) {
@@ -478,15 +508,12 @@ void KisStudioValueRow::wheelEvent(QWheelEvent *event)
     const int steps = KisModernStyle::wheelSteps(event, this);
     if (!steps) return;
     const bool fine = event->modifiers() & Qt::ShiftModifier;
-    qreal next;
-    if (m_range.size && m_range.minimum > 0) {
-        // sizes by ratios, as dragged
-        next = qMax(m_value, m_range.minimum) * std::pow(fine ? 1.03 : 1.15, steps);
-    } else {
-        next = m_value + steps * (m_range.maximum - m_range.minimum) / (fine ? 100.0 : 20.0);
-    }
+    // sizes by ratios, from the least step where 0 is off; the rest across the range
+    const qreal least = m_range.minimum > 0 ? m_range.minimum : leastStep();
+    qreal next = KisValueSteps::turnedBy(m_value, steps * (fine ? KisValueSteps::fine : 1.0), m_range.maximum - m_range.minimum,
+                                         m_range.size && m_range.minimum >= 0, least);
     // a notch always moves it, however small the step is against the number's precision
-    const qreal unit = std::pow(10.0, -m_range.decimals);
+    const qreal unit = std::pow(10.0, -decimalsOf(m_value));
     if (qAbs(next - m_value) < unit) next = m_value + (steps > 0 ? unit : -unit);
     change(next);
 }

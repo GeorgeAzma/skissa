@@ -762,7 +762,7 @@ KisConfigWidget *halftone(QWidget *parent, KisPaintDeviceSP device)
                          c.setProperty("intensity_background_color", v);
                      },
                      [intensity](const Config &c) { return intensity(c) && c.getInt("intensity_background_opacity", 100) > 0; }});
-    panel->dragValues(size, angle);
+    panel->dragValues(angle, size);
     panel->finish();
     return panel;
 }
@@ -826,7 +826,7 @@ KisConfigWidget *lensBlur(QWidget *parent, KisPaintDeviceSP device)
         c.setProperty("halfWidth", int(std::ceil(rect.width() / 2.0)));
         c.setProperty("halfHeight", int(std::ceil(rect.height() / 2.0)));
     });
-    panel->dragValues(0, 1);
+    panel->dragValues(1, 0);
     panel->finish();
     return panel;
 }
@@ -841,7 +841,7 @@ KisConfigWidget *pixelize(QWidget *parent, KisPaintDeviceSP device)
                          c.setProperty("keepAspect", true);
                      },
                      {}, 64});
-    panel->dragValues(0, -1);
+    panel->dragValues(-1, 0);
     panel->finish();
     return panel;
 }
@@ -964,7 +964,7 @@ KisConfigWidget *propagateColors(QWidget *parent, KisPaintDeviceSP device)
                          const bool preserve = c.getString("alphaChannelMode", QStringLiteral("expand")) == QLatin1String("preserve");
                          c.setProperty("alphaChannelMode", preserve ? "expand" : "preserve");
                      });
-    panel->dragValues(0, -1);
+    panel->dragValues(-1, 0);
     panel->finish();
     return panel;
 }
@@ -986,7 +986,7 @@ KisConfigWidget *heightToNormal(QWidget *parent, KisPaintDeviceSP device)
                          c.setProperty("lockAspect", true);
                      },
                      {}, 20});
-    panel->dragValues(0, -1);
+    panel->dragValues(-1, 0);
     panel->finish();
     return panel;
 }

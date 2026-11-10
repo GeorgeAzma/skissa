@@ -13,6 +13,7 @@
 
 
 #include <QHash>
+#include <QStringList>
 #include <KisSignalMapper.h>
 
 #include <QMessageBox>
@@ -84,8 +85,11 @@ struct KisFilterManager::Private {
 
     /// Replaces the dialog when set, e.g. by the studio layout's overlay on the canvas
     KisFilterManager::InlineEditor inlineEditor;
-    /// The image the running preview stroke was started on
+    /// The image the running preview stroke was started on, and its layer
     KisImageWSP strokeImage;
+    KisNodeWSP strokeNode;
+    /// The layer the last effect was applied to
+    KisNodeWSP lastNode;
 };
 
 KisFilterManager::KisFilterManager(KisViewManager * view)
@@ -190,7 +194,13 @@ void KisFilterManager::reapplyLastFilter()
 {
     if (!d->lastConfiguration) return;
 
-    apply(d->lastConfiguration);
+    KisFilterConfigurationSP config = d->lastConfiguration;
+    // settings found in another layer don't fit this one
+    if (d->view->activeNode().data() != KisNodeSP(d->lastNode).data()) {
+        config = config->clone();
+        forgetLayerSettings(config);
+    }
+    apply(config);
     finish();
 }
 
@@ -311,6 +321,24 @@ QString lastUsedColorModelKey(const QString &filterId)
 }
 }
 
+void KisFilterManager::forgetLayerSettings(KisFilterConfigurationSP config)
+{
+    if (!config) return;
+    // what an effect's panel finds in the layer it opens on: its brightest parts, how far its shading reaches, how
+    // opaque its paint is; without them each effect does what it does on any layer
+    static const QHash<QString, QStringList> found = {
+        {QStringLiteral("skissa_radial"), {QStringLiteral("top")}},
+        {QStringLiteral("skissa_light"), {QStringLiteral("top")}},
+        {QStringLiteral("skissa_ink"), {QStringLiteral("level")}},
+        {QStringLiteral("skissa_shape"), {QStringLiteral("solid")}},
+    };
+    Q_FOREACH (const QString &key, found.value(config->name())) config->removeProperty(key);
+    // colors found in a layer belong to it: the next layer's are found again
+    if (config->getString(QStringLiteral("source")) == QLatin1String("image") && config->hasProperty(QStringLiteral("colors"))) {
+        config->setProperty(QStringLiteral("colors"), QString());
+    }
+}
+
 KisFilterConfigurationSP KisFilterManager::lastUsedConfiguration(KisFilterSP filter, KisPaintDeviceSP device)
 {
     if (!filter) return KisFilterConfigurationSP();
@@ -323,10 +351,7 @@ KisFilterConfigurationSP KisFilterManager::lastUsedConfiguration(KisFilterSP fil
         const bool fits = !perChannel
             || (device && KisConfig(true).readEntry(lastUsedColorModelKey(filter->id()), QString()) == device->colorSpace()->id());
         if (config && config->name() == filter->id() && fits) {
-            // colors found in a layer belong to it: the next layer's are found again
-            if (config->getString(QStringLiteral("source")) == QLatin1String("image") && config->hasProperty(QStringLiteral("colors"))) {
-                config->setProperty(QStringLiteral("colors"), QString());
-            }
+            forgetLayerSettings(config);
             return config;
         }
     }
@@ -402,6 +427,7 @@ void KisFilterManager::apply(KisFilterConfigurationSP _filterConfig)
     d->currentStrokeId =
         image->startStroke(strategy);
     d->strokeImage = image;
+    d->strokeNode = d->view->activeNode();
 
     // Apply filter preview to active, visible frame only.
     KisImageConfig imgConf(true);
@@ -447,9 +473,13 @@ void KisFilterManager::finish()
     // ended: the stroke lives on until its last job is done, and cancelling it then would undo the effect
     d->currentStrokeId.clear();
     d->strokeImage = KisImageWSP();
+    // the layer it was applied to: another may be the active one by now
+    KisNodeSP node = d->strokeNode;
+    d->lastNode = node;
+    d->strokeNode = KisNodeWSP();
 
     KisFilterSP filter = KisFilterRegistry::instance()->value(d->currentlyAppliedConfiguration->name());
-    rememberLastUsed(d->currentlyAppliedConfiguration, d->view->activeNode() ? d->view->activeNode()->paintDevice() : KisPaintDeviceSP());
+    rememberLastUsed(d->currentlyAppliedConfiguration, node ? node->paintDevice() : KisPaintDeviceSP());
 
     d->lastConfiguration = d->currentlyAppliedConfiguration;
     d->reapplyAction->setEnabled(true);

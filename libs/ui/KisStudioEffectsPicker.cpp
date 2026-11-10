@@ -40,6 +40,7 @@
 #include "filter/kis_filter_registry.h"
 #include "kis_config.h"
 #include "kis_filter_manager.h"
+#include "kis_icon_utils.h"
 #include "kis_image.h"
 #include "kis_node.h"
 #include "kis_paint_device.h"
@@ -424,6 +425,19 @@ KisStudioEffectsPicker::KisStudioEffectsPicker(KisMainWindow *mainWindow, std::s
 
     connect(this, &KisStudioPicker::sigPreview, this, [this](const QString &id) { d->previewOnCanvas(id); });
     connect(this, &KisStudioPicker::sigPicked, this, [mainWindow](const QString &id) {
+        // an effect can't run on this layer: say why rather than do nothing
+        KisViewManager *view = mainWindow->viewManager();
+        KisNodeSP node = view ? view->activeNode() : KisNodeSP();
+        if (view && node && !node->hasEditablePaintDevice()) {
+            if (node->paintDevice()) {
+                view->showFloatingMessage(i18nc("@info:status an effect asked for on a locked layer", "The layer is locked"),
+                                          KisIconUtils::loadIcon(QStringLiteral("object-locked")));
+            } else {
+                view->showFloatingMessage(i18nc("@info:status an effect asked for on a group or vector layer", "Effects work on paint layers"),
+                                          KisIconUtils::loadIcon(QStringLiteral("studio_effects")));
+            }
+            return;
+        }
         recordUse(id);
         // run it as Find does: opened for adjusting, or applied if there is nothing to adjust
         QTimer::singleShot(0, mainWindow, [mainWindow, id]() {

@@ -36,6 +36,9 @@ public:
     static KisFilterConfigurationSP lastUsedConfiguration(KisFilterSP filter, KisPaintDeviceSP device);
     /// Keeps \p config as its filter's last used settings, applied to \p device
     static void rememberLastUsed(KisFilterConfigurationSP config, KisPaintDeviceSP device);
+    /// Takes out of \p config what an effect's panel found in the layer it was made on (its colors, its brightest
+    /// parts), which another layer's would get wrong
+    static void forgetLayerSettings(KisFilterConfigurationSP config);
 
     KisFilterManager(KisViewManager * parent);
     ~KisFilterManager() override;

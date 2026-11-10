@@ -308,6 +308,10 @@ void KisFilterStrokeStrategy::doStrokeCallback(KisStrokeJobData *data)
                     shared->filterDeviceBounds &= shared->selection()->selectedRect();
                 }
             }
+            // only what the selection lets through is written: the rest needn't be made
+            if (shared->selection()) {
+                shared->processRect &= shared->selection()->selectedRect();
+            }
 
             auto startFull = [this, shared, progress]() {
                 // Filter device needs a transaction to prevent grid-patch artifacts from multithreaded read/write.

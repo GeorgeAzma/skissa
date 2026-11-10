@@ -50,6 +50,13 @@ private:
     void paintIn();
     void createMask(KisFilterConfigurationSP config);
     void finishEditing();
+    /// A change of the settings, made a step back once the gesture making it is over (commitStep)
+    void noteChange();
+    void commitStep();
+    /// Shows the settings \p by steps back (-1) or forward (1); back past the first, the effect goes
+    void stepBy(int by);
+    /// The effect kept, and in the image's history, before its image or window closes
+    void keepBeforeClosing();
     void reposition();
     /// How tall the settings may grow before they scroll: the panel takes at most part of the canvas's height
     int settingsRoom() const;

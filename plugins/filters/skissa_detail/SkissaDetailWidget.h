@@ -33,7 +33,7 @@ struct SkissaSlider {
 
 /**
  * The slider or two of an effect made of a larger one (Blur of Detail, Grain of Noise). A drag on the image up or
- * down changes its amount (or its only size), sideways its size.
+ * down changes its amount, sideways its size.
  */
 class SkissaSliders : public KisConfigWidget, public KisEffectCanvasEditor
 {
@@ -200,7 +200,7 @@ private:
 /**
  * Fewer colors' panel: where the colors come from, each a picture of the whole layer reduced that way, how many and
  * how bright, and the dithering, each way of it as a ramp. A drag up or down on the
- * image gives more or fewer colors, sideways lighter or darker.
+ * image gives more or fewer colors, sideways larger or smaller pixels.
  */
 class SkissaFewerWidget : public KisConfigWidget, public KisEffectCanvasEditor
 {

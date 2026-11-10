@@ -96,8 +96,8 @@ KisStudioValueRow *valueRow(QWidget *parent, const QString &name, qreal minimum,
     range.maximum = maximum;
     range.decimals = decimals;
     range.suffix = suffix;
-    // sizes move by ratios, as brush sizes do
-    range.size = minimum > 0 && suffix.contains(QLatin1String("px"));
+    // sizes move by ratios, as brush sizes do (one that starts at 0, off, from its least step)
+    range.size = minimum >= 0 && suffix.contains(QLatin1String("px"));
     row->setRange(range);
     row->setDefaultValue(reset);
     return row;
@@ -180,7 +180,7 @@ SkissaSliders::SkissaSliders(QWidget *parent, const QString &filterId, const QVe
         m_sliders << qMakePair(spec, row);
         connect(row, &KisStudioValueRow::valueChanged, this, &KisConfigWidget::sigConfigurationItemChanged);
     }
-    // up or down the amount, sideways the size; an effect with one size has it up or down
+    // up or down the amount, sideways the size, as in every effect
     for (int i = 0; i < m_sliders.size(); i++) {
         if (m_sliders[i].second->range().size) {
             if (m_horizontal < 0) m_horizontal = i;
@@ -188,17 +188,15 @@ SkissaSliders::SkissaSliders(QWidget *parent, const QString &filterId, const QVe
             m_vertical = i;
         }
     }
-    if (m_vertical < 0) {
-        m_vertical = m_horizontal >= 0 ? m_horizontal : 0;
-        m_horizontal = -1;
-    }
+    // neither: the first setting, up or down
+    if (m_vertical < 0 && m_horizontal < 0 && !m_sliders.isEmpty()) m_vertical = 0;
 }
 
 bool SkissaSliders::canvasPressed(const QPoint &)
 {
     if (m_vertical >= 0) m_startVertical = m_sliders[m_vertical].second->value();
     if (m_horizontal >= 0) m_startHorizontal = m_sliders[m_horizontal].second->value();
-    return m_vertical >= 0;
+    return m_vertical >= 0 || m_horizontal >= 0;
 }
 
 QString SkissaSliders::canvasDragged(const QPointF &moved, const QPointF &)
@@ -210,11 +208,13 @@ QString SkissaSliders::canvasDragged(const QPointF &moved, const QPointF &)
         const qreal value = KisValueSteps::draggedBy(start, by, range.maximum - range.minimum, range.size, range.minimum);
         row->setValue(qBound(range.minimum, value, range.maximum));
     };
-    drag(m_vertical, m_startVertical, -moved.y());
+    if (m_vertical >= 0) drag(m_vertical, m_startVertical, -moved.y());
     if (m_horizontal >= 0) drag(m_horizontal, m_startHorizontal, moved.x());
     Q_EMIT sigConfigurationItemChanged();
-    const bool across = m_horizontal >= 0 && std::abs(moved.x()) > std::abs(moved.y());
-    const KisStudioValueRow *row = m_sliders[across ? m_horizontal : m_vertical].second;
+    const bool across = m_horizontal >= 0 && (m_vertical < 0 || std::abs(moved.x()) > std::abs(moved.y()));
+    const int shown = across ? m_horizontal : m_vertical;
+    if (shown < 0) return QString();
+    const KisStudioValueRow *row = m_sliders[shown].second;
     return rowText(row, row->range().decimals, row->range().suffix);
 }
 
@@ -224,7 +224,10 @@ void SkissaSliders::canvasReleased()
 
 Qt::Orientations SkissaSliders::canvasAxes() const
 {
-    return m_horizontal >= 0 ? Qt::Horizontal | Qt::Vertical : Qt::Vertical;
+    Qt::Orientations axes;
+    if (m_vertical >= 0) axes |= Qt::Vertical;
+    if (m_horizontal >= 0) axes |= Qt::Horizontal;
+    return axes;
 }
 
 void SkissaSliders::setConfiguration(const KisPropertiesConfigurationSP config)
@@ -583,10 +586,13 @@ SkissaNoiseWidget::SkissaNoiseWidget(QWidget *parent, KisPaintDeviceSP dev)
     curveRow->addWidget(shuffle, 0, Qt::AlignTop);
     layout->addLayout(curveRow);
 
+    // a right click gives the effect's default
+    const SkissaNoise::Settings noiseDefaults {};
     for (int target = 0; target < SkissaNoise::Targets; target++) {
         const bool displace = target == SkissaNoise::Displace;
-        KisStudioValueRow *row = displace ? valueRow(this, targetName(target), 0, 50, 1, i18nc("pixels, after a number", " px"), 0)
-                                          : valueRow(this, targetName(target), 0, 200, 0, QStringLiteral("%"), 0);
+        const qreal reset = noiseDefaults.amount[target] * Private::shownPer(target);
+        KisStudioValueRow *row = displace ? valueRow(this, targetName(target), 0, 50, 1, i18nc("pixels, after a number", " px"), reset)
+                                          : valueRow(this, targetName(target), 0, 200, 0, QStringLiteral("%"), reset);
         connect(row, &KisStudioValueRow::valueChanged, this, [this, target](qreal value) {
             d->settings.amount[target] = float(value / Private::shownPer(target));
             // Midtones weighs only the lightness noise
@@ -597,7 +603,7 @@ SkissaNoiseWidget::SkissaNoiseWidget(QWidget *parent, KisPaintDeviceSP dev)
         layout->addWidget(row);
         d->amounts[target] = row;
     }
-    d->mids = valueRow(this, i18nc("noise effect setting", "Midtones"), 0, 100, 0, QStringLiteral("%"), 0);
+    d->mids = valueRow(this, i18nc("noise effect setting", "Midtones"), 0, 100, 0, QStringLiteral("%"), noiseDefaults.mids * 100);
     d->mids->setToolTip(i18nc("@info:tooltip", "Grain shows most in the middle tones, as on film"));
     connect(d->mids, &KisStudioValueRow::valueChanged, this, [this](qreal value) {
         d->settings.mids = float(value / 100);
@@ -822,10 +828,12 @@ SkissaLensWidget::SkissaLensWidget(QWidget *parent, KisPaintDeviceSP dev)
 
     const QString px = i18nc("pixels, after a number", " px");
     const QString percent = QStringLiteral("%");
-    // sizes are kept as shares of the half diagonal and shown in this image's pixels
+    // sizes are kept as shares of the half diagonal and shown in this image's pixels; a right click gives the effect's
+    // default
+    const SkissaLens::Settings lensDefaults = SkissaLens::vintage();
     auto add = [&](const QString &name, float SkissaLens::Settings::*value, qreal low, qreal high, int decimals, const QString &suffix, qreal shownPer,
                    const QString &tip = QString()) {
-        KisStudioValueRow *row = valueRow(this, name, low * shownPer, high * shownPer, decimals, suffix, SkissaLens::Settings().*value * shownPer);
+        KisStudioValueRow *row = valueRow(this, name, low * shownPer, high * shownPer, decimals, suffix, lensDefaults.*value * shownPer);
         row->setToolTip(tip);
         connect(row, &KisStudioValueRow::valueChanged, this, [this, value, shownPer](qreal shown) {
             d->settings.*value = float(shown / shownPer);
@@ -1115,12 +1123,15 @@ SkissaRadialWidget::SkissaRadialWidget(QWidget *parent, KisPaintDeviceSP dev)
         return row;
     };
     using S = SkissaRadial::Settings;
-    d->zoom = add(i18nc("radial blur setting", "Zoom"), &S::zoom, 0, 0.98, percent, 100, 0);
-    d->spin = add(i18nc("radial blur setting", "Spin"), &S::spin, -180, 180, degrees, 1, 0);
-    d->picture = add(i18nc("radial blur setting: how much the picture itself streaks", "Picture"), &S::blur, 0, 1, percent, 100, 1,
+    // a right click gives the effect's default
+    const S radialDefaults = SkissaRadial::zoomed();
+    d->zoom = add(i18nc("radial blur setting", "Zoom"), &S::zoom, 0, 0.98, percent, 100, radialDefaults.zoom);
+    d->spin = add(i18nc("radial blur setting", "Spin"), &S::spin, -180, 180, degrees, 1, radialDefaults.spin);
+    d->picture = add(i18nc("radial blur setting: how much the picture itself streaks", "Picture"), &S::blur, 0, 1, percent, 100, radialDefaults.blur,
                      i18nc("@info:tooltip", "How much the picture itself streaks"));
-    d->light = add(i18nc("radial blur setting", "Light"), &S::light, 0, 4, percent, 100, 0, i18nc("@info:tooltip", "Rays from the bright parts"));
-    d->threshold = add(i18nc("radial blur setting", "Threshold"), &S::threshold, 0, 0.99, percent, 100, 0.8,
+    d->light = add(i18nc("radial blur setting", "Light"), &S::light, 0, 4, percent, 100, radialDefaults.light,
+                   i18nc("@info:tooltip", "Rays from the bright parts"));
+    d->threshold = add(i18nc("radial blur setting", "Threshold"), &S::threshold, 0, 0.99, percent, 100, radialDefaults.threshold,
                        i18nc("@info:tooltip", "Only the brightest parts shine"));
 
     // beams, with the dice for others
@@ -1128,7 +1139,7 @@ SkissaRadialWidget::SkissaRadialWidget(QWidget *parent, KisPaintDeviceSP dev)
     auto *shaftsLayout = new QHBoxLayout(d->shaftsRow);
     shaftsLayout->setContentsMargins(0, 0, 0, 0);
     shaftsLayout->setSpacing(KisModernStyle::space1);
-    d->shafts = make(i18nc("radial blur setting: light broken into beams", "Shafts"), &S::shafts, 0, 1, percent, 100, 0,
+    d->shafts = make(i18nc("radial blur setting: light broken into beams", "Shafts"), &S::shafts, 0, 1, percent, 100, radialDefaults.shafts,
                      i18nc("@info:tooltip", "Light broken into beams"));
     d->shafts->setParent(d->shaftsRow);
     shaftsLayout->addWidget(d->shafts, 1);
@@ -1974,6 +1985,12 @@ SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
                  [this](qreal v) { d->settings.dot = float(v); });
     d->levels = add(i18nc("drawing effect setting: how many lines of equal lightness", "Levels"), 2, 64, 0, QString(), defaults.levels,
                     [this](qreal v) { d->settings.levels = qRound(v); });
+    {
+        // a count, by ratios
+        KisStudioValueRow::Range range = d->levels->range();
+        range.size = true;
+        d->levels->setRange(range);
+    }
 
     // where the ink goes
     d->colorTiles = new KisStudioChips(this);
@@ -2216,9 +2233,13 @@ float solidOf(KisPaintDeviceSP device)
 {
     const QRect bounds = device ? device->exactBounds() : QRect();
     if (bounds.isEmpty()) return 1;
-    const KoColorSpace *cs = device->colorSpace();
+    // a sample of the layer's pixels tells how opaque its paint is, at the same cost on any layer
+    QSize size = bounds.size();
+    if (size.width() > 512 || size.height() > 512) size.scale(512, 512, Qt::KeepAspectRatio);
+    const KisPaintDeviceSP sample = device->createThumbnailDevice(qMax(1, size.width()), qMax(1, size.height()), bounds);
+    const KoColorSpace *cs = sample->colorSpace();
     std::array<qint64, 256> counts {};
-    KisSequentialConstIterator it(device, bounds);
+    KisSequentialConstIterator it(sample, sample->exactBounds());
     while (it.nextPixel()) counts[cs->opacityU8(it.rawDataConst())]++;
     qint64 painted = 0;
     for (int a = 3; a < 256; a++) painted += counts[a];
@@ -2445,7 +2466,10 @@ SkissaShapeWidget::SkissaShapeWidget(QWidget *parent, KisPaintDeviceSP dev)
 
     const QString px = i18nc("pixels, after a number", " px");
     const QString percent = QStringLiteral("%");
-    const SkissaShape::Settings defaults;
+    // what a right click gives: the effect's default
+    KisFilterSP shapeFilter = KisFilterRegistry::instance()->value(QStringLiteral("skissa_shape"));
+    const SkissaShape::Settings defaults = shapeFilter ? SkissaShape::Settings::from(*shapeFilter->defaultConfiguration(KisGlobalResourcesInterface::instance()))
+                                                       : SkissaShape::Settings();
     auto add = [&](const QString &name, qreal low, qreal high, int decimals, const QString &suffix, qreal reset, std::function<void(qreal)> write) {
         KisStudioValueRow *row = valueRow(this, name, low, high, decimals, suffix, reset);
         connect(row, &KisStudioValueRow::valueChanged, this, [this, write](qreal value) {
@@ -2472,7 +2496,7 @@ SkissaShapeWidget::SkissaShapeWidget(QWidget *parent, KisPaintDeviceSP dev)
         return row;
     };
 
-    d->width = add(i18nc("shape effect: how wide the outline is", "Width"), 0, 100, 1, px, 4, [this](qreal v) { d->settings.outline = float(v); });
+    d->width = add(i18nc("shape effect: how wide the outline is", "Width"), 0, 100, 1, px, defaults.outline, [this](qreal v) { d->settings.outline = float(v); });
     d->places = new KisStudioChips(this);
     connect(d->places, &KisStudioChips::clicked, this, [this](int index) {
         d->settings.place = ShapePlace(qBound(0, index, 2));
@@ -2482,13 +2506,13 @@ SkissaShapeWidget::SkissaShapeWidget(QWidget *parent, KisPaintDeviceSP dev)
     d->outlineColorRow = colorRow(i18nc("shape effect: the outline's color", "Color"), &d->outlineColor, defaults.outlineColor,
                                   [this](const QColor &c) { d->settings.outlineColor = c; });
 
-    d->glow = add(i18nc("shape effect: how far the glow reaches", "Size"), 0, 200, 1, px, 30, [this](qreal v) { d->settings.glow = float(v); });
+    d->glow = add(i18nc("shape effect: how far the glow reaches", "Size"), 0, 200, 1, px, defaults.glow, [this](qreal v) { d->settings.glow = float(v); });
     d->glowStrength = add(i18nc("shape effect: how strong the glow is", "Strength"), 0, 100, 0, percent, defaults.glowStrength * 100,
                           [this](qreal v) { d->settings.glowStrength = float(v / 100); });
     d->glowColorRow = colorRow(i18nc("shape effect: the glow's color", "Color"), &d->glowColor, defaults.glowColor,
                                [this](const QColor &c) { d->settings.glowColor = c; });
 
-    d->shadow = add(i18nc("shape effect: how far the shadow falls", "Distance"), 0, 200, 1, px, 12, [this](qreal v) { d->settings.shadow = float(v); });
+    d->shadow = add(i18nc("shape effect: how far the shadow falls", "Distance"), 0, 200, 1, px, defaults.shadow, [this](qreal v) { d->settings.shadow = float(v); });
     d->shadowAngle = add(i18nc("shape effect: which way the shadow falls", "Angle"), -180, 180, 0, QStringLiteral("°"), defaults.shadowAngle,
                          [this](qreal v) { d->settings.shadowAngle = float(v); });
     asDial(d->shadowAngle);
@@ -2503,7 +2527,7 @@ SkissaShapeWidget::SkissaShapeWidget(QWidget *parent, KisPaintDeviceSP dev)
     });
     layout->addWidget(d->falls);
 
-    d->bevel = add(i18nc("shape effect: how wide the bevel's slope is", "Size"), 0, 100, 1, px, 8, [this](qreal v) { d->settings.bevel = float(v); });
+    d->bevel = add(i18nc("shape effect: how wide the bevel's slope is", "Size"), 0, 100, 1, px, defaults.bevel, [this](qreal v) { d->settings.bevel = float(v); });
     d->bevelDepth = add(i18nc("shape effect: how steep the bevel is", "Depth"), 0, 100, 0, percent, defaults.bevelDepth * 100,
                         [this](qreal v) { d->settings.bevelDepth = float(v / 100); });
     d->bevelKinds = new KisStudioChips(this);
@@ -2843,9 +2867,9 @@ SkissaLightWidget::SkissaLightWidget(QWidget *parent, KisPaintDeviceSP dev)
     });
     layout->addWidget(d->parts);
 
-    d->glow = add(i18nc("light effect: how strong the glow is", "Strength"), 0, 400, 0, percent, 100, [this](qreal v) { d->settings.glow = float(v / 100); });
+    d->glow = add(i18nc("light effect: how strong the glow is", "Strength"), 0, 400, 0, percent, defaults.glow * 100, [this](qreal v) { d->settings.glow = float(v / 100); });
     d->size = add(i18nc("light effect: how far the glow reaches", "Size"), 2, 1000, 0, px, defaults.size, [this](qreal v) { d->settings.size = float(v); });
-    d->star = add(i18nc("light effect: how strong the star is", "Strength"), 0, 400, 0, percent, 100, [this](qreal v) { d->settings.star = float(v / 100); });
+    d->star = add(i18nc("light effect: how strong the star is", "Strength"), 0, 400, 0, percent, defaults.star * 100, [this](qreal v) { d->settings.star = float(v / 100); });
     d->length = add(i18nc("light effect: how long the star's spikes are", "Length"), 2, 2000, 0, px, defaults.length,
                     [this](qreal v) { d->settings.length = float(v); });
     d->blades = add(i18nc("light effect: how many blades the aperture that makes the star has", "Blades"), 3, 16, 0, QString(), defaults.blades,
@@ -2854,7 +2878,7 @@ SkissaLightWidget::SkissaLightWidget(QWidget *parent, KisPaintDeviceSP dev)
     d->angle = add(i18nc("light effect: how the star is turned", "Angle"), -180, 180, 0, QStringLiteral("°"), defaults.angle,
                    [this](qreal v) { d->settings.angle = float(v); });
     asDial(d->angle);
-    d->streak = add(i18nc("light effect: how strong the streak is", "Strength"), 0, 400, 0, percent, 100, [this](qreal v) { d->settings.streak = float(v / 100); });
+    d->streak = add(i18nc("light effect: how strong the streak is", "Strength"), 0, 400, 0, percent, defaults.streak * 100, [this](qreal v) { d->settings.streak = float(v / 100); });
     d->streakLength = add(i18nc("light effect: how long the streak is", "Length"), 2, 4000, 0, px, defaults.streakLength,
                           [this](qreal v) { d->settings.streakLength = float(v); });
     d->streakAngle = add(i18nc("light effect: the streak's direction", "Angle"), -180, 180, 0, QStringLiteral("°"), defaults.streakAngle,
@@ -2872,7 +2896,7 @@ SkissaLightWidget::SkissaLightWidget(QWidget *parent, KisPaintDeviceSP dev)
     });
     colorLayout->addWidget(d->streakColor);
     layout->addWidget(d->streakColorRow);
-    d->halation = add(i18nc("light effect: how strong film's red halos are", "Strength"), 0, 400, 0, percent, 100,
+    d->halation = add(i18nc("light effect: how strong film's red halos are", "Strength"), 0, 400, 0, percent, defaults.halation * 100,
                       [this](qreal v) { d->settings.halation = float(v / 100); });
     d->halationSize = add(i18nc("light effect: how far film's red halos reach", "Size"), 2, 1000, 0, px, defaults.halationSize,
                           [this](qreal v) { d->settings.halationSize = float(v); });

@@ -27,7 +27,10 @@
 #include <QScrollBar>
 #include <QSlider>
 
+#include <KisFrameRate.h>
 #include <KisValueSteps.h>
+#include <QAction>
+#include <QKeySequence>
 #include <QSpinBox>
 #include <QTabletEvent>
 #include <QTextEdit>
@@ -42,8 +45,12 @@
 #include <filter/kis_filter.h>
 #include <filter/kis_filter_configuration.h>
 #include <filter/kis_filter_registry.h>
+#include <commands/kis_image_layer_add_command.h>
+#include <kactioncollection.h>
 #include <klocalizedstring.h>
 #include <kis_filter_mask.h>
+#include <kis_image.h>
+#include <kis_undo_adapter.h>
 #include "KisStudioEffectBrush.h"
 #include <kis_layer.h>
 #include <kis_paint_layer.h>
@@ -58,6 +65,7 @@
 #include "KisEffectPanels.h"
 #include "KisRetiredEffects.h"
 #include "KisMainWindow.h"
+#include "KisView.h"
 #include "KisStudioGlass.h"
 #include "KisStudioMotion.h"
 #include "KisStudioEffectsPicker.h"
@@ -73,7 +81,6 @@
 #include "kis_filter_manager.h"
 #include "kis_icon_utils.h"
 #include "kis_node_manager.h"
-#include "kis_node_commands_adapter.h"
 #include "kis_selection.h"
 #include "kis_signal_compressor.h"
 #include "widgets/kis_filter_selector_widget.h"
@@ -505,6 +512,83 @@ private:
     QPolygonF m_path;
 };
 
+/// The whole canvas fetched again; refetchDataFromImage() would wait for the effect, holding the image's lock
+void redrawCanvas(KisCanvas2 *canvas)
+{
+    KisImageSP image = canvas->image();
+    if (!image) return;
+    QMetaObject::invokeMethod(canvas, "startUpdateCanvasProjection", Qt::DirectConnection, Q_ARG(QRect, image->bounds()));
+}
+
+/**
+ * Keeps the picture shown instead of the image (KisOpenGLImageTextures::setShownInstead) until the image has nothing
+ * left to do, or the canvas is pressed: a mask made from a preview shows its effect at once, not the layer without
+ * it while the mask renders.
+ */
+class PictureHold : public QObject
+{
+public:
+    static void liftWhenDone(KisCanvas2 *canvas, KisOpenGLCanvas2 *gl, KisImageSP image)
+    {
+        new PictureHold(canvas, gl, image);
+    }
+
+protected:
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        const QEvent::Type type = event->type();
+        if (type == QEvent::MouseButtonPress || type == QEvent::TabletPress || type == QEvent::TouchBegin) lift();
+        return false;
+    }
+
+private:
+    PictureHold(KisCanvas2 *canvas, KisOpenGLCanvas2 *gl, KisImageSP image)
+        : QObject(canvas)
+        , m_canvas(canvas)
+        , m_gl(gl)
+        , m_image(image)
+    {
+        gl->installEventFilter(this);
+        m_timer.setInterval(KisFrameRate::frameMs());
+        connect(&m_timer, &QTimer::timeout, this, [this]() {
+            KisImageSP held = m_image;
+            if (!held || held->isIdle()) lift();
+        });
+        m_timer.start();
+    }
+
+    void lift()
+    {
+        if (m_lifted) return;
+        m_lifted = true;
+        m_timer.stop();
+        if (m_gl) m_gl->openGLImageTextures()->setShownInstead(nullptr);
+        if (m_canvas) redrawCanvas(m_canvas);
+        deleteLater();
+    }
+
+    QPointer<KisCanvas2> m_canvas;
+    QPointer<KisOpenGLCanvas2> m_gl;
+    KisImageWSP m_image;
+    QTimer m_timer;
+    bool m_lifted {false};
+};
+
+/// Whether \p key is the undo (-1) or the redo (1) shortcut, as the window has them; 0: neither
+int undoStepOf(KisMainWindow *window, const QKeyEvent *key)
+{
+    const int modifiers = int(key->modifiers()) & ~int(Qt::KeypadModifier);
+    const QKeySequence pressed(modifiers | key->key());
+    auto bound = [&](const QString &name, QKeySequence::StandardKey standard) {
+        QAction *action = window->actionCollection() ? window->actionCollection()->action(name) : nullptr;
+        const QList<QKeySequence> keys = action && !action->shortcuts().isEmpty() ? action->shortcuts() : QKeySequence::keyBindings(standard);
+        return keys.contains(pressed);
+    };
+    if (bound(QStringLiteral("edit_undo"), QKeySequence::Undo)) return -1;
+    if (bound(QStringLiteral("edit_redo"), QKeySequence::Redo)) return 1;
+    return 0;
+}
+
 } // namespace
 
 struct KisStudioEffectOverlay::Private
@@ -594,10 +678,27 @@ struct KisStudioEffectOverlay::Private
         return node && view && view->image() && node->image().data() == view->image().data();
     }
 
-    /// The whole canvas fetched again; refetchDataFromImage() would wait for the effect, holding the image's lock
+    /// The settings after each change made while the panel is open (a drag is one) and the one shown: Ctrl+Z steps
+    /// back through them, Ctrl+Shift+Z forward
+    QVector<KisFilterConfigurationSP> steps;
+    int step {0};
+    /// Changed since the last step; a step being shown, which is no change of the artist's
+    bool stepPending {false};
+    bool showingStep {false};
+    /// Ends a change as a step once the pointer has let go and nothing more came for a moment
+    QTimer stepTimer;
+
+    /// A drag on the image, of the panel or of anything in it is going on
+    bool holding() const { return QApplication::mouseButtons() != Qt::NoButton || dragging || moving; }
+    /// Whether Enter makes a mask rather than changing the layer's pixels
+    bool endsAsMask(KisFilterConfigurationSP config) const
+    {
+        return editable && editable->isChecked() && maskPossible() && config && filter->configurationAllowedForMask(config);
+    }
+
     static void redraw(KisCanvas2 *canvas)
     {
-        QMetaObject::invokeMethod(canvas, "startUpdateCanvasProjection", Qt::DirectConnection, Q_ARG(QRect, canvas->image()->bounds()));
+        redrawCanvas(canvas);
     }
 
     /// Shows the image as it was, or the preview again, without changing either: switching is instant both ways.
@@ -625,22 +726,33 @@ struct KisStudioEffectOverlay::Private
         return true;
     }
 
+    /// The pointer over the image: the ways a drag changes something, or a crosshair for a middle
+    Qt::CursorShape cursorShape() const
+    {
+        QPointF middle;
+        Qt::Orientations axes = knobs.size() > 1 ? Qt::Horizontal | Qt::Vertical : Qt::Horizontal;
+        if (editor) axes = editor->canvasAxes();
+        return editor && editor->canvasMiddle(&middle) ? Qt::CrossCursor
+            : axes == (Qt::Horizontal | Qt::Vertical)  ? Qt::SizeAllCursor
+            : axes == Qt::Vertical                     ? Qt::SizeVerCursor
+                                                       : Qt::SizeHorCursor;
+    }
+
     void setCursor(bool on)
     {
         if (on == cursorSet) return;
         cursorSet = on;
-        QPointF middle;
         if (on) {
-            // the ways a drag changes something
-            Qt::Orientations axes = knobs.size() > 1 ? Qt::Horizontal | Qt::Vertical : Qt::Horizontal;
-            if (editor) axes = editor->canvasAxes();
-            QApplication::setOverrideCursor(editor && editor->canvasMiddle(&middle) ? Qt::CrossCursor
-                                                : axes == (Qt::Horizontal | Qt::Vertical) ? Qt::SizeAllCursor
-                                                : axes == Qt::Vertical               ? Qt::SizeVerCursor
-                                                                                     : Qt::SizeHorCursor);
+            QApplication::setOverrideCursor(cursorShape());
         } else {
             QApplication::restoreOverrideCursor();
         }
+    }
+
+    /// The pointer again after a change of the settings, which may change the ways a drag goes (Tilt-shift's middle)
+    void refreshCursor()
+    {
+        if (cursorSet) QApplication::changeOverrideCursor(cursorShape());
     }
 
     /// The effect's middle drawn where it is on the image now
@@ -721,6 +833,7 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
         d->defaults = d->selector->configuration()->toXML();
         d->compressor.start();
         showReset();
+        noteChange();
     });
     header->addWidget(d->reset);
 
@@ -732,6 +845,11 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     d->editable = iconButton(QStringLiteral("filterMask"), i18nc("@info:tooltip", "Keep the effect editable on its own layer"), this);
     d->editable->setCheckable(true);
     connect(d->editable, &QToolButton::clicked, this, [](bool on) { KisSettingsRegistry::instance()->setValue(editableKey, on); });
+    // a mask keeps none of the layer's channel locks: on an alpha locked layer the preview is made again to match
+    connect(d->editable, &QToolButton::toggled, this, [this]() {
+        auto *layer = qobject_cast<KisPaintLayer *>(d->node.data());
+        if (isVisible() && layer && !layer->channelLockFlags().isEmpty()) d->compressor.start();
+    });
     header->addWidget(d->editable);
 
     header->addSpacing(6);
@@ -756,17 +874,25 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
     connect(&d->compressor, &KisSignalCompressor::timeout, this, &KisStudioEffectOverlay::startApplying);
     parentWidget()->installEventFilter(this);
 
-    // the preview belongs to one layer of one document: switching either cancels it
+    d->stepTimer.setSingleShot(true);
+    d->stepTimer.setInterval(KisModernStyle::holdInterval());
+    connect(&d->stepTimer, &QTimer::timeout, this, [this]() {
+        if (d->holding()) d->stepTimer.start();
+        else commitStep();
+    });
+
+    // the preview belongs to one layer of one document: moving on to another keeps it, as moving on to other work
+    // does; only Esc, the cross or Ctrl+Z past its first change drops it
     connect(mainWindow, &KisMainWindow::activeViewChanged, this, [this]() {
-        if (isVisible()) reject();
+        if (isVisible()) accept();
     });
     if (KisViewManager *viewManager = mainWindow->viewManager()) {
         connect(viewManager->nodeManager(), &KisNodeManager::sigNodeActivated, this, [this](KisNodeSP node) {
-            if (isVisible() && node != d->node) reject();
+            if (isVisible() && node != d->node) accept();
         });
         // also when the last document closes, as no other view becomes active then
         connect(viewManager, &KisViewManager::viewChanged, this, [this]() {
-            if (isVisible() && !d->current()) reject();
+            if (isVisible() && !d->current()) accept();
         });
     }
     hide();
@@ -826,7 +952,11 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
     }
     connect(selector, &KisFilterSelectorWidget::configurationChanged, &d->compressor, &KisSignalCompressor::start);
     connect(selector, &KisFilterSelectorWidget::configurationChanged, this, &KisStudioEffectOverlay::showReset);
-    connect(selector, &KisFilterSelectorWidget::configurationChanged, this, [this]() { d->showMiddle(); });
+    connect(selector, &KisFilterSelectorWidget::configurationChanged, this, [this]() {
+        d->showMiddle();
+        d->refreshCursor();
+    });
+    connect(selector, &KisFilterSelectorWidget::configurationChanged, this, &KisStudioEffectOverlay::noteChange);
     connect(selector, &KisFilterSelectorWidget::sigSizeChanged, this, &KisStudioEffectOverlay::reposition);
     d->scroll->setWidget(selector);
     d->selector = selector;
@@ -892,6 +1022,12 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
     setFocus();
     // its tiles are shared with the image's until the preview changes them
     d->before = KisEffectPanels::fullSizeCopy(viewManager->image()->projection());
+    // the settings it opened with are the first step back
+    d->stepTimer.stop();
+    d->stepPending = false;
+    d->steps.clear();
+    d->step = 0;
+    if (KisFilterConfigurationSP opened = selector->configuration()) d->steps << opened->clone();
     startApplying();
     return true;
 }
@@ -906,7 +1042,9 @@ void KisStudioEffectOverlay::startApplying()
     if (!config) {
         return;
     }
-    if (auto *layer = qobject_cast<KisPaintLayer *>(d->node.data())) {
+    // the layer's channel locks, as applying keeps them; a mask keeps none, so neither does its preview
+    auto *layer = qobject_cast<KisPaintLayer *>(d->node.data());
+    if (layer && !d->endsAsMask(config)) {
         config->setChannelFlags(layer->channelLockFlags());
     }
     filterManager->apply(config);
@@ -918,16 +1056,16 @@ void KisStudioEffectOverlay::accept()
     if (!isVisible() || !filterManager) {
         return;
     }
-    if (!d->current()) {
+    // its image is gone, or its preview went with the view: nothing is left to keep
+    KisImageSP image = d->node ? KisImageSP(d->node->image()) : KisImageSP();
+    if (!image || (!d->current() && !filterManager->isStrokeRunning())) {
         reject();
         return;
     }
-    if (d->editable->isChecked() && d->maskPossible() && d->selector) {
-        KisFilterConfigurationSP config = d->selector->configuration();
-        if (config && d->filter->configurationAllowedForMask(config)) {
-            createMask(config);
-            return;
-        }
+    KisFilterConfigurationSP config = d->selector ? d->selector->configuration() : KisFilterConfigurationSP();
+    if (d->endsAsMask(config)) {
+        createMask(config);
+        return;
     }
     // apply a pending change now; otherwise keep the last preview
     const bool pending = d->compressor.isActive();
@@ -985,36 +1123,57 @@ void KisStudioEffectOverlay::createMask(KisFilterConfigurationSP config)
 {
     KisViewManager *viewManager = d->viewManager();
     KisFilterManager *filterManager = d->filterManager();
-    KisLayer *layer = qobject_cast<KisLayer *>(d->node.data());
-    if (!viewManager || !filterManager || !layer) {
+    KisLayerSP layer = qobject_cast<KisLayer *>(d->node.data());
+    // the layer's own image, which may no longer be the one shown
+    KisImageSP image = d->node ? KisImageSP(d->node->image()) : KisImageSP();
+    if (!viewManager || !filterManager || !layer || !image) {
         return;
+    }
+    // the preview stays on the canvas until the mask has made it again, not the layer without it meanwhile
+    KisCanvas2 *canvas = d->current() ? viewManager->canvasBase() : nullptr;
+    auto *gl = canvas ? dynamic_cast<KisOpenGLCanvas2 *>(canvas->canvasWidget()) : nullptr;
+    const KisLodPreferences lod = image->lodPreferences();
+    if (lod.lodSupported() && lod.lodPreferred() && lod.desiredLevelOfDetail() > 0) gl = nullptr;
+    const QPointer<KisCanvas2> wasShowingBefore = d->showingBefore;
+    if (gl) {
+        gl->openGLImageTextures()->setShownInstead(KisEffectPanels::fullSizeCopy(image->projection()));
+        d->showingBefore = nullptr;
     }
     d->compressor.stop();
     if (filterManager->isStrokeRunning()) {
         filterManager->cancelRunningStroke();
-        if (!viewManager->blockUntilOperationsFinished(viewManager->image())) {
+        if (!viewManager->blockUntilOperationsFinished(image)) {
+            if (gl) {
+                gl->openGLImageTextures()->setShownInstead(wasShowingBefore ? d->before : KisPaintDeviceSP());
+                d->showingBefore = wasShowingBefore;
+                Private::redraw(canvas);
+            }
             startApplying();
             return;
         }
     }
 
-    KisFilterMaskSP mask = new KisFilterMask(viewManager->image(), effectName(d->filter.data()));
-    mask->initSelection(viewManager->selection(), layer);
+    KisFilterMaskSP mask = new KisFilterMask(image, effectName(d->filter.data()));
+    mask->initSelection(d->current() ? viewManager->selection() : image->globalSelection(), layer);
     mask->setFilter(config->cloneWithResourcesSnapshot());
     if (layer->allowAsChild(mask)) {
-        KisNodeCommandsAdapter adapter(viewManager);
-        adapter.addNode(mask, layer, layer->lastChild());
+        image->undoAdapter()->addCommand(new KisImageLayerAddCommand(image, mask, layer, layer->lastChild()));
         // its settings are the ones it opens with next time, as when painted in
         KisFilterManager::rememberLastUsed(config, d->node->paintDevice());
         KisStudioEffectsPicker::recordUse(d->filter->id());
     }
     finishEditing();
+    if (gl) PictureHold::liftWhenDone(canvas, gl, image);
 }
 
 void KisStudioEffectOverlay::finishEditing()
 {
     d->showBefore(false);
     d->before = nullptr;
+    d->stepTimer.stop();
+    d->stepPending = false;
+    d->steps.clear();
+    d->step = 0;
     d->over.clear();
     d->overAge.invalidate();
     d->guard.reset();
@@ -1044,6 +1203,63 @@ void KisStudioEffectOverlay::finishEditing()
     }
     d->filter = nullptr;
     d->node = nullptr;
+}
+
+void KisStudioEffectOverlay::noteChange()
+{
+    if (d->showingStep || !isVisible()) return;
+    d->stepPending = true;
+    d->stepTimer.start();
+}
+
+void KisStudioEffectOverlay::commitStep()
+{
+    if (!d->stepPending) return;
+    d->stepPending = false;
+    d->stepTimer.stop();
+    KisFilterConfigurationSP now = d->selector ? d->selector->configuration() : KisFilterConfigurationSP();
+    if (!now) return;
+    if (d->step >= 0 && d->step < d->steps.size() && d->steps[d->step]->toXML() == now->toXML()) return;
+    // a change after stepping back takes the place of the steps undone
+    d->steps.resize(qMin(d->steps.size(), d->step + 1));
+    d->steps << now->clone();
+    d->step = d->steps.size() - 1;
+}
+
+void KisStudioEffectOverlay::stepBy(int by)
+{
+    commitStep();
+    const int to = d->step + by;
+    // back past the settings it opened with: the effect goes, as with Esc
+    if (to < 0) {
+        reject();
+        return;
+    }
+    KisConfigWidget *settings = d->selector ? d->selector->findChild<KisConfigWidget *>() : nullptr;
+    if (to >= d->steps.size() || !settings) return;
+    d->step = to;
+    d->showingStep = true;
+    settings->setConfiguration(d->steps[to]->clone());
+    d->showingStep = false;
+    // what the panel itself sends for the settings shown is no change of the artist's
+    d->stepPending = false;
+    d->stepTimer.stop();
+    d->compressor.start();
+    showReset();
+    d->showMiddle();
+    d->refreshCursor();
+}
+
+void KisStudioEffectOverlay::keepBeforeClosing()
+{
+    KisImageSP image = d->node ? KisImageSP(d->node->image()) : KisImageSP();
+    accept();
+    KisViewManager *view = d->viewManager();
+    if (!image || !view) return;
+    // kept as a step of the image before it is asked whether to save it
+    view->blockUntilOperationsFinished(image);
+    // the step reaches the undo stack a turn of the event loop after the image is done
+    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 }
 
 int KisStudioEffectOverlay::settingsRoom() const
@@ -1321,6 +1537,28 @@ bool KisStudioEffectOverlay::eventFilter(QObject *watched, QEvent *event)
     if (watched == parentWidget() && event->type() == QEvent::Resize && isVisible()) {
         if (d->selector) fitScrolls(d->selector, settingsRoom());
         reposition();
+    }
+    // a press starts another gesture: the change before it is a step of its own
+    if ((event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TabletPress) && isVisible() && d->stepPending) {
+        commitStep();
+    }
+    // kept, and in the image's history, before its window or its view closes and asks whether to save
+    if (event->type() == QEvent::Close && isVisible()) {
+        auto *view = qobject_cast<KisView *>(watched);
+        if (watched == d->mainWindow || (view && view->document() == d->held.data())) keepBeforeClosing();
+    }
+    // Ctrl+Z steps back through the effect's own changes and Ctrl+Shift+Z forward, wherever the focus is but in a text
+    // field: taken from the shortcut before the window's undo sees it
+    if ((event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) && isVisible()) {
+        auto *key = static_cast<QKeyEvent *>(event);
+        QWidget *focus = QApplication::focusWidget();
+        const bool here = focus ? focus->window() == window() : watched == window();
+        const bool ours = here && (watched == focus || !focus) && !(focus && isTextInput(focus));
+        if (const int by = ours ? undoStepOf(d->mainWindow, key) : 0) {
+            if (event->type() == QEvent::KeyPress) stepBy(by);
+            event->accept();
+            return true;
+        }
     }
     if (d->canvasWidget && watched == d->canvasWidget && isVisible()) {
         if (event->type() == QEvent::Enter) d->setCursor(true);
