@@ -8,6 +8,7 @@
 # merges from Krita don't meet the fork's lines in kritaui's list.
 
 set(skissa_ui_SRCS
+    KisColorAreas.cpp
     KisColorDrop.cpp
     KisHiddenColors.cpp
     KisLastStrokeReplay.cpp
