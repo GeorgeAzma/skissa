@@ -33,7 +33,6 @@
 
 #include <QtConcurrent>
 
-#include <KisValueSteps.h>
 #include <KoColor.h>
 #include <KoColorModelStandardIds.h>
 #include <KoColorSpace.h>
@@ -686,7 +685,7 @@ QImage tintedOverlay(KisPixelSelectionSP region, const QRect &rect, const QColor
     return overlay;
 }
 
-/// The area under the color as the drag goes, and how far it spreads while it is tuned.
+/// The area under the color as the drag goes.
 class Preview : public KisCanvasDecoration
 {
 public:
@@ -698,36 +697,15 @@ public:
 
     QImage overlay;
     QRect rect;
-    /// A value being tuned, shown above the pointer (widget coordinates)
-    QString label;
-    QPoint labelAt;
 
 protected:
     void drawDecoration(QPainter &gc, const QRectF &, const KisCoordinatesConverter *converter, KisCanvas2 *) override
     {
-        if (!overlay.isNull()) {
-            gc.save();
-            gc.setTransform(converter->imageToWidgetTransform(), false);
-            gc.setRenderHint(QPainter::SmoothPixmapTransform, true);
-            gc.drawImage(QRectF(rect), overlay);
-            gc.restore();
-        }
-        if (label.isEmpty()) return;
+        if (overlay.isNull()) return;
         gc.save();
-        gc.setRenderHint(QPainter::Antialiasing, true);
-        const QPalette palette = qApp->palette();
-        gc.setFont(qApp->font());
-        const QFontMetrics metrics(qApp->font());
-        const QSizeF size(metrics.horizontalAdvance(label) + 2 * KisModernStyle::space3, metrics.height() + KisModernStyle::space2);
-        // above the pointer and the drag's picture under it
-        const QRectF pill(QPointF(labelAt) + QPointF(-size.width() / 2, -size.height() - 24), size);
-        QColor base = palette.color(QPalette::Window);
-        base.setAlphaF(0.92);
-        gc.setPen(Qt::NoPen);
-        gc.setBrush(base);
-        gc.drawPath(KisModernStyle::squircle(pill, KisModernStyle::tileRadius));
-        gc.setPen(palette.color(QPalette::WindowText));
-        gc.drawText(pill, Qt::AlignCenter, label);
+        gc.setTransform(converter->imageToWidgetTransform(), false);
+        gc.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        gc.drawImage(QRectF(rect), overlay);
         gc.restore();
     }
 };
@@ -1038,12 +1016,6 @@ struct KisColorDrop::Private {
     bool fillPending {false};
     /// Every area of the color, not only the one dropped on (a recoloring drop's)
     bool everywhere {false};
-    /// Held still while dragging a color: then sliding sideways tunes Spread, the fill staying where it rested
-    QTimer hold;
-    bool tuning {false};
-    QPoint restAt {-1000, -1000};
-    int tuneX {0};
-    int tuneFrom {8};
     bool keepFilling {false};
     KoColor keepColor;
 
@@ -1073,15 +1045,6 @@ struct KisColorDrop::Private {
         if (canvas()) canvas()->updateCanvasDecorations();
     }
 
-    /// The spread being tuned, above the pointer
-    void showSpread()
-    {
-        if (!preview) return;
-        preview->label = i18nc("color drop: the spread being tuned while dragging", "Spread %1", threshold);
-        preview->labelAt = pointer;
-        showPreview();
-    }
-
     void clearPreview()
     {
         generation++;
@@ -1091,13 +1054,7 @@ struct KisColorDrop::Private {
         previewReference = nullptr;
         previewGap = 0;
         seed = QPoint(-1, -1);
-        hold.stop();
-        tuning = false;
-        restAt = QPoint(-1000, -1000);
-        if (preview) {
-            preview->overlay = QImage();
-            preview->label.clear();
-        }
+        if (preview) preview->overlay = QImage();
         if (canvas()) canvas()->updateCanvasDecorations();
     }
 
@@ -1376,14 +1333,6 @@ KisColorDrop::KisColorDrop(KisView *view)
     d->view = view;
     d->preview = new Preview(view);
     view->canvasBase()->addDecoration(KisCanvasDecorationSP(d->preview.data()));
-    d->hold.setSingleShot(true);
-    connect(&d->hold, &QTimer::timeout, this, [this]() {
-        if (d->seed == QPoint(-1, -1)) return;
-        d->tuning = true;
-        d->tuneX = d->pointer.x();
-        d->tuneFrom = d->threshold;
-        d->showSpread();
-    });
     // picking another tool ends keeping on filling
     if (KoToolManager *tools = view && view->viewManager() ? view->viewManager()->toolManager() : nullptr) {
         connect(tools, &KoToolManager::changedTool, this, [this]() {
@@ -1456,22 +1405,6 @@ void KisColorDrop::hover(const KoColor &color, const QPoint &canvasPos)
     d->color = color;
     d->pointer = canvasPos;
 
-    // tuning: sideways is Spread, by ratios as sizes are, the fill staying where it rested
-    if (d->tuning) {
-        const int spread = qBound(1, qRound(KisValueSteps::draggedBy(d->tuneFrom, canvasPos.x() - d->tuneX, 99, true, 1)), 100);
-        if (spread != d->threshold) {
-            d->threshold = spread;
-            d->compute();
-        }
-        d->showSpread();
-        return;
-    }
-    // resting a moment starts tuning
-    if ((canvasPos - d->restAt).manhattanLength() > KisModernStyle::dragDistance()) {
-        d->restAt = canvasPos;
-        d->hold.start(KisModernStyle::holdInterval());
-    }
-
     const QPoint point = d->imagePoint(canvasPos);
     if (!image->bounds().contains(point)) {
         d->clearPreview();
@@ -1494,17 +1427,10 @@ void KisColorDrop::leave()
 bool KisColorDrop::drop(const KoColor &color, const QPoint &canvasPos)
 {
     if (!d->canvas()) return false;
-    // tuned: the fill where it rested, with the spread slid to, kept for the next drops
-    const bool tuned = d->tuning && d->seed != QPoint(-1, -1);
-    const QPoint point = tuned ? d->seed : d->imagePoint(canvasPos);
-    const int spread = d->threshold;
+    const QPoint point = d->imagePoint(canvasPos);
     // the gap Auto found for the area shown under it, if it was worked out there
     d->dropGap = d->region && d->region->pixel(point).opacityU8() > 0 ? d->previewGap : 0;
     d->options = Options::read();
-    if (tuned) {
-        d->options.threshold = spread;
-        d->options.write();
-    }
     d->threshold = d->options.threshold;
     const bool filled = fillAt(color, point);
     d->clearPreview();
