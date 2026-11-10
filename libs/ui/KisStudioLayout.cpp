@@ -12,6 +12,7 @@
 #include "KisColorDrop.h"
 
 #include <QScopedValueRollback>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <ksharedconfig.h>
@@ -162,6 +163,8 @@ const int edgeDropZone = 140;
 /// Heights set by the handles between pinned panels, as "id=height" entries; the others fit their contents
 const QString heightsKey = QStringLiteral("StudioLayoutPanelSizes");
 const QString foldedKey = QStringLiteral("StudioLayoutFoldedPanels");
+/// Pinned panels put away with their button, which stay away
+const QString hiddenPinnedKey = QStringLiteral("StudioLayoutHiddenPanels");
 const QString columnWidthKey = QStringLiteral("StudioLayoutPanelWidth");
 /// The pinned panels docked on the far side of the canvas, away from the panel buttons
 const QString farKey = QStringLiteral("StudioLayoutFarPanels");
@@ -203,11 +206,10 @@ QList<QPointer<KisStudioLayout>> &everyLayout()
 }
 
 /// Whether \p key holds part of the arrangement undone as one: not whether the Studio is on, the classic layout to go
-/// back to, the panel buttons (a setting of their own) or the zoom pill (which places itself)
+/// back to, or the panel buttons (a setting of their own, written in the same step when a gesture changes them)
 bool isArrangementKey(const QString &key)
 {
-    return key.startsWith(QLatin1String("StudioLayout")) && key != activeKey && key != classicStateKey && key != panelsKey
-        && !key.startsWith(QLatin1String("StudioLayoutViewPill"));
+    return key.startsWith(QLatin1String("StudioLayout")) && key != activeKey && key != classicStateKey && key != panelsKey;
 }
 
 /// The panels on the rail by default; the tool options open from the tool chip instead
@@ -482,7 +484,8 @@ protected:
                     m_pressX = event->pos().x();
                     m_pressAmount = amount();
                 }
-                const qreal span = fine ? 800.0 : 200.0;
+                // the fill's edge follows the pointer, as a drawn bar's does; Shift a quarter as fast
+                const qreal span = qMax(1, width() - 2) * (fine ? 4.0 : 1.0);
                 setAmount(qBound(0.0, m_pressAmount + (event->pos().x() - m_pressX) / span, 1.0));
                 update();
                 event->accept();
@@ -874,6 +877,13 @@ protected:
     {
         if (!m_pressed) return;
         const int dy = globalMousePos(event).y() - m_pressY;
+        if (!(event->buttons() & Qt::LeftButton)) {
+            // let go in another window, whose release never comes here: done where it is
+            m_pressed = false;
+            update();
+            if (m_moved && dragged) dragged(dy, true);
+            return;
+        }
         // a tap (or a pen's wobble) isn't a resize
         if (!m_moved && qAbs(dy) < KisModernStyle::dragDistance(event)) return;
         m_moved = true;
@@ -1096,6 +1106,18 @@ private:
         bool byHand {false};
     };
 
+    /// \p dock's main scroll area (mainScrollArea()), kept: a drag measures every panel at each move. Looked for
+    /// again once it is gone, hidden or out of the panel, or the panel holds other contents
+    QAbstractScrollArea *scrollAreaOf(QDockWidget *dock)
+    {
+        FoundArea &found = m_scrollAreas[dock];
+        QAbstractScrollArea *area = found.area;
+        if (area && found.contents == dock->widget() && dock->isAncestorOf(area) && area->isVisibleTo(dock)) return area;
+        found.contents = dock->widget();
+        found.area = mainScrollArea(dock);
+        return found.area;
+    }
+
     Measure measure(QDockWidget *dock)
     {
         Measure m;
@@ -1107,7 +1129,7 @@ private:
             return m;
         }
         int natural;
-        QAbstractScrollArea *area = mainScrollArea(dock);
+        QAbstractScrollArea *area = scrollAreaOf(dock);
         int byHand = userHeight ? userHeight(dock) : 0;
         // with its height set, only whether it has a little to show counts: a long list (layers, the history
         // after every stroke) isn't walked row by row
@@ -1289,6 +1311,11 @@ private:
     };
 
     QList<QPointer<QDockWidget>> m_panels;
+    struct FoundArea {
+        QPointer<QWidget> contents;
+        QPointer<QAbstractScrollArea> area;
+    };
+    QHash<const QDockWidget *, FoundArea> m_scrollAreas;
     QList<PanelHandle *> m_handles;
     QList<QPointer<QAbstractItemModel>> m_models;
     Watcher *m_watcher {nullptr};
@@ -1403,6 +1430,17 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if (!m_pressed) return;
+        if (!(event->buttons() & Qt::LeftButton)) {
+            // let go in another window, whose release never comes here: dropped where it is, and no tap
+            if (!m_moving) {
+                m_pressed = false;
+                return;
+            }
+            QMouseEvent release(QEvent::MouseButtonRelease, event->localPos(), event->windowPos(), event->screenPos(), Qt::LeftButton,
+                                Qt::NoButton, event->modifiers());
+            mouseReleaseEvent(&release);
+            return;
+        }
         const QPoint global = globalMousePos(event);
         if (!m_moving) {
             if ((global - m_pressPos).manhattanLength() < KisModernStyle::dragDistance(event)) return;
@@ -1875,6 +1913,14 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override
     {
         if (!m_pressed) return;
+        if (!(event->buttons() & Qt::LeftButton)) {
+            // let go in another window, whose release never comes here: done where it is
+            m_pressed = false;
+            update();
+            if (m_dragging && released) released();
+            m_dragging = false;
+            return;
+        }
         const int dx = globalMousePos(event).x() - m_pressX;
         if (!m_dragging && qAbs(dx) < KisModernStyle::dragDistance(event)) return;
         m_dragging = true;
@@ -2141,6 +2187,14 @@ protected:
                 }
                 break;
             case QEvent::MouseMove:
+                if (m_resizing && !(static_cast<QMouseEvent *>(event)->buttons() & Qt::LeftButton)) {
+                    // let go in another window, whose release never comes here: done at the width it has
+                    m_resizing = false;
+                    if (resized) resized(true);
+                    if (!isDocked() && moved) moved(m_left, m_spot);
+                    update();
+                    return true;
+                }
                 if (m_resizing) {
                     const QWidget *area = parentWidget();
                     const int x = area->mapFromGlobal(globalMousePos(static_cast<QMouseEvent *>(event))).x();
@@ -2612,6 +2666,9 @@ struct KisStudioLayout::Private
     /// Arranging again after an undo: nothing done then is a step of its own
     bool reloadingArrangement {false};
     bool commitPending {false};
+    /// The panel buttons as a gesture left them, written in its step (see setRailPanels())
+    bool panelsPending {false};
+    QStringList pendingPanels;
 
     /// The strip of panel buttons above the pinned panels
     QPointer<QToolBar> rail;
@@ -2987,12 +3044,15 @@ void KisStudioLayout::reloadArrangement()
     Q_FOREACH (QDockWidget *dock, d->panels) {
         const QString id = dock->objectName();
         const bool pinned = d->pinned.contains(id);
-        if (wasPinned.contains(id) == pinned) continue;
         if (pinned) {
-            if (dock == d->flyout) releaseFlyout();
-            dockAway(dock);
-            dock->show();
-        } else {
+            // put away with its button, or brought back
+            const bool shown = !d->hiddenPinned.contains(id) && !arePanelsHidden();
+            if (!wasPinned.contains(id)) {
+                if (dock == d->flyout) releaseFlyout();
+                dockAway(dock);
+            }
+            if (dock->isHidden() == shown) dock->setVisible(shown);
+        } else if (wasPinned.contains(id)) {
             applyFold(dock, false);
             dock->hide();
             parkPanel(dock);
@@ -3035,9 +3095,22 @@ void KisStudioLayout::commitArrangement()
     // once this event is done with, so every write of the gesture is in the step
     QTimer::singleShot(0, this, [this]() {
         d->commitPending = false;
+        const bool panels = d->panelsPending;
+        d->panelsPending = false;
         KisSettingsRegistry *registry = KisSettingsRegistry::instance();
-        if (!d->active || d->reloadingArrangement || registry->replaying()) return;
-        registry->setValue(QStringLiteral("StudioLayoutArrangement"), arrangementNow());
+        if (!d->active || d->reloadingArrangement || registry->replaying()) {
+            if (panels) KisSettingsRegistry::writeItems(panelsKey, d->pendingPanels);
+            return;
+        }
+        // the panel buttons first: an undo goes back in the reverse order, the arrangement first, so a button that
+        // goes leads to no pinned panel to close
+        QVector<QPair<QString, QVariant>> values;
+        if (panels) {
+            const QString items = QString::fromUtf8(QJsonDocument(QJsonArray::fromStringList(d->pendingPanels)).toJson(QJsonDocument::Compact));
+            values << qMakePair(panelsKey, QVariant(items));
+        }
+        values << qMakePair(QStringLiteral("StudioLayoutArrangement"), QVariant(arrangementNow()));
+        registry->setValues(values);
     });
 }
 
@@ -3125,6 +3198,7 @@ void KisStudioLayout::readArrangement()
         if (lane > 0) d->lanes.insert(entry.left(separator), lane);
     }
     d->folded = readSet(foldedKey);
+    d->hiddenPinned = readSet(hiddenPinnedKey);
     const QString panelSide = cfg.readEntry<QString>(panelSideKey, QString());
     d->panelsLeft = panelSide == QLatin1String("left")
                     || (panelSide.isEmpty() && !d->pinned.isEmpty() && readSet(leftKey).contains(d->pinned));
@@ -3861,8 +3935,16 @@ void KisStudioLayout::showPanel(QDockWidget *dock)
 
 void KisStudioLayout::togglePanel(QDockWidget *dock, bool show)
 {
+    // a pinned panel put away stays away, also at the next start; one step of the undo history
+    const bool wasHidden = d->hiddenPinned.contains(dock->objectName());
+    const bool hides = !show && dock != d->flyout && d->pinned.contains(dock->objectName());
+    if (wasHidden != hides) {
+        commitArrangement();
+        if (hides) d->hiddenPinned.insert(dock->objectName());
+        else d->hiddenPinned.remove(dock->objectName());
+        savePinned();
+    }
     if (show) {
-        d->hiddenPinned.remove(dock->objectName());
         if (d->pinned.contains(dock->objectName())) {
             if (d->panelsTucked) setPanelsTucked(false);
             dock->show();
@@ -3873,7 +3955,6 @@ void KisStudioLayout::togglePanel(QDockWidget *dock, bool show)
     } else if (dock == d->flyout) {
         closeFlyout();
     } else {
-        if (d->pinned.contains(dock->objectName())) d->hiddenPinned.insert(dock->objectName());
         dock->hide();
     }
 }
@@ -4257,7 +4338,7 @@ void KisStudioLayout::joinGroups(KisStudioPanelColumn *from, KisStudioPanelColum
     const QRect box = placed | to->targetGeometry();
     QPointer<KisStudioPanelColumn> stays = kept;
     d->arrangement.clear();
-    setRailPanels(panels);
+    setRailPanels(panels, true);
     if (stays) stays->placeAt(box);
 }
 
@@ -4358,7 +4439,11 @@ KisStudioPanelColumn *KisStudioLayout::panelColumn()
             else updateCanvasInsets();
             commitArrangement();
         };
-        d->panelColumn->tapped = [this]() { setPanelsTucked(!d->panelsTucked); };
+        // a tap folds its own panels, as every group's grip does; panels tucked away before come back
+        d->panelColumn->tapped = [this]() {
+            if (d->panelsTucked) setPanelsTucked(false);
+            else foldGroup(0);
+        };
     }
     if (d->rail) d->panelColumn->setStrip(d->rail);
     return d->panelColumn;
@@ -4478,7 +4563,7 @@ void KisStudioLayout::setPanelsTucked(bool tucked)
     KisSettingsRegistry::writeLater(panelsHiddenKey, tucked);
     if (d->stripGrip) {
         d->stripGrip->setToolTip(tucked ? i18nc("@info:tooltip", "Click: show panels\nDrag: move")
-                                        : i18nc("@info:tooltip", "Drag: move\nClick: hide"));
+                                        : i18nc("@info:tooltip a group of panels' grip", "Drag: move\nClick: fold"));
     }
     updateColumns();
 }
@@ -4622,7 +4707,10 @@ void KisStudioLayout::updateColumns()
             title->setAlone(alone);
             for (PanelStack *stack : column->stacks()) stack->later();
         }
-        if (QWidget *grip = column->findChild<QWidget *>(QStringLiteral("studioGroupGrip"), Qt::FindDirectChildrenOnly)) {
+        // the strip's grip says so while the panels are tucked away (see setPanelsTucked())
+        QWidget *grip = column == d->panelColumn ? (d->panelsTucked ? nullptr : d->stripGrip.data())
+                                                 : column->findChild<QWidget *>(QStringLiteral("studioGroupGrip"), Qt::FindDirectChildrenOnly);
+        if (grip) {
             grip->setToolTip(allFolded ? i18nc("@info:tooltip a group of panels' grip", "Drag: move\nClick: unfold")
                                        : i18nc("@info:tooltip a group of panels' grip", "Drag: move\nClick: fold"));
         }
@@ -4901,7 +4989,7 @@ void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool
     panels.insert(at < 0 ? panels.size() : qMin(at, panels.size()), id);
     d->arrangement.clear();
     dock->show();
-    setRailPanels(panels);
+    setRailPanels(panels, true);
 }
 
 void KisStudioLayout::savePinned()
@@ -4920,9 +5008,15 @@ void KisStudioLayout::savePinned()
     for (auto it = d->lanes.constBegin(); it != d->lanes.constEnd(); ++it) {
         if (d->pinned.contains(it.key()) && it.value() > 0) lanes << it.key() + QLatin1Char('=') + QString::number(it.value());
     }
+    QStringList hidden;
+    Q_FOREACH (const QString &id, d->hiddenPinned) {
+        if (d->pinned.contains(id)) hidden << id;
+    }
     far.sort();
     floating.sort();
     lanes.sort();
+    hidden.sort();
+    KisSettingsRegistry::writeLater(hiddenPinnedKey, hidden);
     KisSettingsRegistry::writeLater(farKey, far);
     KisSettingsRegistry::writeLater(groupsKey, floating);
     KisSettingsRegistry::writeLater(lanesKey, lanes);
@@ -5003,11 +5097,16 @@ void KisStudioLayout::createRail()
         if (id != panelsKey) return;
         const QStringList panels = KisConfig(true).readEntry<QStringList>(panelsKey, defaultRailPanels());
         if (panels == d->railPanels) return;
-        // a panel that lost its button closes, as one taken off the rail does
+        // a panel that lost its button closes, as one taken off the rail does; a pinned one in an undo or redo is
+        // the arrangement's of the same step to put away, not a new step
+        const bool replaying = KisSettingsRegistry::instance()->replaying();
         Q_FOREACH (const QString &gone, d->railPanels) {
             QDockWidget *dock = panels.contains(gone) ? nullptr : d->mainWindow->dockWidget(gone);
             if (!dock) continue;
-            if (d->pinned.contains(gone)) setPinned(dock, false);
+            if (d->pinned.contains(gone)) {
+                if (replaying) continue;
+                setPinned(dock, false);
+            }
             if (dock == d->flyout) closeFlyout();
             dock->hide();
         }
@@ -5059,10 +5158,17 @@ void KisStudioLayout::rebuildRailButtons()
     syncRail();
 }
 
-void KisStudioLayout::setRailPanels(const QStringList &panels)
+void KisStudioLayout::setRailPanels(const QStringList &panels, bool arranged)
 {
     d->railPanels = panels;
-    KisSettingsRegistry::writeItems(panelsKey, panels);
+    if (arranged && d->active && !d->reloadingArrangement) {
+        // written with the arrangement, as one step
+        d->pendingPanels = panels;
+        d->panelsPending = true;
+        commitArrangement();
+    } else {
+        KisSettingsRegistry::writeItems(panelsKey, panels);
+    }
     rebuildRailButtons();
     arrangePinned();
 }
@@ -5105,7 +5211,14 @@ void KisStudioLayout::showRailContextMenu(const QPoint &pos)
     auto *card = new KisStudioItemCard(d->mainWindow, KisIconUtils::loadIcon(QStringLiteral("studio_more")),
                                        i18nc("@title panels rail", "Panels"), nullptr);
     card->addCommand({KisIconUtils::loadIcon(QStringLiteral("view-refresh")), i18nc("@info:tooltip", "Reset panels"),
-                      [this]() { setRailPanels(defaultRailPanels()); }});
+                      [this]() {
+                          // a pinned panel keeps its button, or it would close with it
+                          QStringList panels = defaultRailPanels();
+                          Q_FOREACH (const QString &id, d->railPanels) {
+                              if (d->pinned.contains(id) && !panels.contains(id)) panels << id;
+                          }
+                          setRailPanels(panels);
+                      }});
     auto *anchor = new QWidget(d->rail);
     anchor->setGeometry(QRect(pos, QSize(1, 1)));
     card->popupBeside(anchor);
@@ -5122,7 +5235,7 @@ void KisStudioLayout::takeOffRail(const QString &id)
     }
     QStringList panels = d->railPanels;
     panels.removeAll(id);
-    setRailPanels(panels);
+    setRailPanels(panels, true);
 }
 
 void KisStudioLayout::showPanelCard(const QString &id, QWidget *anchor)

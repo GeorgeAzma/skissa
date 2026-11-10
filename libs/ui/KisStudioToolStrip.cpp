@@ -453,6 +453,13 @@ QIcon eyeIcon(const QColor &ink)
     });
 }
 
+/// The window \p widget is in, whose tools and image it shows (the active window may be another)
+KisMainWindow *windowOf(const QWidget *widget)
+{
+    if (auto *window = qobject_cast<KisMainWindow *>(widget->window())) return window;
+    return KisPart::instance()->currentMainwindow();
+}
+
 /// Follows a widget's own shown state (not its window's) onto its mirror on the strip
 class FollowShown : public QObject
 {
@@ -672,8 +679,9 @@ void KisStudioToolStrip::addCropAspects(QWidget *options)
     const QVector<qreal> ratios = {0, 1, 4.0 / 3, 16.0 / 9, -1};
     const QStringList names = {i18nc("@info:tooltip a crop of any shape", "Free"), i18nc("@info:tooltip a crop's shape", "Square"),
                                QStringLiteral("4:3"), QStringLiteral("16:9"), i18nc("@info:tooltip a crop the image's own shape", "As the image")};
-    auto imageRatio = []() {
-        KisMainWindow *window = KisPart::instance()->currentMainwindow();
+    const QPointer<KisMainWindow> own = windowOf(this);
+    auto imageRatio = [own]() {
+        KisMainWindow *window = own.data();
         KisImageSP image = window && window->viewManager() ? KisImageSP(window->viewManager()->image()) : KisImageSP();
         return image && image->height() > 0 ? qreal(image->width()) / image->height() : 1.0;
     };
@@ -744,7 +752,7 @@ void KisStudioToolStrip::addSelectionAdjust()
     }
 
     // letting the selection go and turning it inside out, a pen's reach from the keys
-    KisMainWindow *window = KisPart::instance()->currentMainwindow();
+    KisMainWindow *window = windowOf(this);
     if (!window) return;
     bool gap = false;
     for (const auto &command : {qMakePair(QStringLiteral("deselect"), QStringLiteral("studio_deselect")),
@@ -873,7 +881,7 @@ void KisStudioToolStrip::addGuides(QWidget *options, QComboBox *types)
 
     // showing them, and the rest
     addGap();
-    if (KisMainWindow *window = KisPart::instance()->currentMainwindow()) {
+    if (KisMainWindow *window = windowOf(this)) {
         if (QAction *eye = window->actionCollection()->action(QStringLiteral("view_toggle_painting_assistants"))) {
             QToolButton *button = addButton(eyeIcon(ink), i18nc("@info:tooltip show the guides on the canvas", "Show guides"));
             button->setChecked(eye->isChecked());
@@ -999,7 +1007,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
 
         // painting pulled onto the image's guides, while it has some
         if (QCheckBox *snap = widget->findChild<QCheckBox *>(QStringLiteral("chkAssistant"))) {
-            KisMainWindow *window = KisPart::instance()->currentMainwindow();
+            KisMainWindow *window = windowOf(this);
             KisViewManager *view = window ? window->viewManager() : nullptr;
             KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
             if (canvas && canvas->paintingAssistantsDecoration() && !canvas->paintingAssistantsDecoration()->assistants().isEmpty()) {
@@ -1055,7 +1063,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
 
 void KisStudioToolStrip::addFontChip()
 {
-    KisMainWindow *window = KisPart::instance()->currentMainwindow();
+    KisMainWindow *window = windowOf(this);
     KisViewManager *view = window ? window->viewManager() : nullptr;
     KisCanvasResourceProvider *provider = view ? view->canvasResourceProvider() : nullptr;
     if (!provider || !provider->resourceManager()) return;

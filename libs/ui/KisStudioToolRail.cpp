@@ -16,6 +16,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QContextMenuEvent>
+#include <QCursor>
 #include <QDateTime>
 #include <QDrag>
 #include <QDragEnterEvent>
@@ -311,7 +312,7 @@ public:
         setFixedSize(40, name.isEmpty() ? 14 : 20);
         setAttribute(Qt::WA_Hover);
         setCursor(Qt::PointingHandCursor);
-        setToolTip(name.isEmpty() ? i18nc("@info:tooltip a gap between groups of tools", "Gap\nClick: name\nDrag off: remove")
+        setToolTip(name.isEmpty() ? i18nc("@info:tooltip a gap between groups of tools", "Gap\nDouble-click: name\nDrag off: remove")
                                   : name);
     }
 
@@ -383,13 +384,16 @@ protected:
         }
     }
 
-    void mouseReleaseEvent(QMouseEvent *event) override
+    void mouseReleaseEvent(QMouseEvent *) override
     {
-        // released elsewhere, or after a long press (see KisTouchMode): not a click
-        if (m_dragged || event->button() != Qt::LeftButton || !rect().contains(event->pos()) || m_editor) {
-            m_dragged = false;
-            return;
-        }
+        m_dragged = false;
+    }
+
+    // typing is a double click away, as everywhere
+    void mouseDoubleClickEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton || m_editor) return;
+        m_dragged = false;
         startEditing();
     }
 
@@ -428,6 +432,8 @@ private:
         m_editor = nullptr;
         const QString name = editor->text().trimmed();
         editor->removeEventFilter(this);
+        // the keys go back to the painter, not to whatever Qt picks next
+        if (editor->hasFocus()) KisStudioTools::focusCanvas(this);
         editor->hide();
         editor->deleteLater();
         if (!keep || name == m_name) {
@@ -541,7 +547,11 @@ struct KisStudioToolRail::Private
     QPointer<PlusButton> plus;             ///< a child of the canvas area, below the panel
     QTimer *plusHide {nullptr};            ///< delays hiding so the pointer can cross from the panel to the "+"
     bool hovered {false};
-    int hoverGap {-1};                     ///< where a click in the hovered gap inserts a gap, or -1
+    int hoverGap {-1};                     ///< where a press held in the hovered gap inserts a gap, or -1
+    QTimer *gapHold {nullptr};             ///< a press between two items, until it counts as held
+    int heldGap {-1};
+    QPoint heldAt;                         ///< where that press was, global
+    int heldReach {0};                     ///< how far it may wobble and still be held
 
     QHash<QString, ToolSlot> slots;        ///< the built-in slots available in this build, by id
     QHash<QString, QString> currentTool;   ///< slot id -> its current variant
@@ -716,6 +726,14 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     connect(d->plusHide, &QTimer::timeout, this, &KisStudioToolRail::updatePlus);
     connect(KisTouchMode::instance(), &KisTouchMode::changed, this, &KisStudioToolRail::updatePlus);
     d->plus->left = [this]() { d->plusHide->start(); };
+    d->gapHold = new QTimer(this);
+    d->gapHold->setSingleShot(true);
+    connect(d->gapHold, &QTimer::timeout, this, [this]() {
+        // still held where it was pressed: not let go, nor the rail dragged away
+        if (KisModernStyle::pointerHeld() && (QCursor::pos() - d->heldAt).manhattanLength() <= d->heldReach) {
+            insertGap(d->heldGap);
+        }
+    });
     connect(d->plus, &QToolButton::clicked, this, [this]() {
         if (KisStudioFind *find = d->mainWindow->studioFind()) {
             find->pick(i18nc("@info:placeholder", "Add to the tools"), [this](const QString &key) { addItem(key); });
@@ -986,13 +1004,12 @@ void KisStudioToolRail::showIndicator(int itemIndex, int thickness)
 
 void KisStudioToolRail::mouseMoveEvent(QMouseEvent *event)
 {
-    // a click between two items inserts a gap there
+    // a press held between two items inserts a gap there
     const int gap = gapAt(event->pos().y());
     if (gap >= 0) {
         d->hoverGap = gap;
         showIndicator(gap, 1);
-        setCursor(Qt::PointingHandCursor);
-        setToolTip(i18nc("@info:tooltip", "Add gap"));
+        setToolTip(i18nc("@info:tooltip a press held between two tools", "Hold: add gap"));
     } else {
         clearGap();
     }
@@ -1001,14 +1018,23 @@ void KisStudioToolRail::mouseMoveEvent(QMouseEvent *event)
 
 void KisStudioToolRail::mousePressEvent(QMouseEvent *event)
 {
+    // a plain press there still grabs the rail (it goes on to the rail's panel); only one held still adds a gap
     if (event->button() == Qt::LeftButton && d->hoverGap >= 0) {
-        QStringList items = d->items;
-        items.insert(d->hoverGap, spacePrefix);
-        clearGap();
-        setItems(items);
-        return;
+        d->heldGap = d->hoverGap;
+        d->heldAt = event->globalPos();
+        d->heldReach = KisModernStyle::dragDistance(event);
+        d->gapHold->start(KisModernStyle::holdInterval());
     }
     QWidget::mousePressEvent(event);
+}
+
+void KisStudioToolRail::insertGap(int index)
+{
+    if (index < 0 || index > d->items.size()) return;
+    QStringList items = d->items;
+    items.insert(index, spacePrefix);
+    clearGap();
+    setItems(items);
 }
 
 void KisStudioToolRail::startDrag(int index, const QPixmap &pixmap)
@@ -1295,7 +1321,7 @@ void KisStudioToolRail::showCard(int index, bool touch)
         }
     }
 
-    // same as clicking between two buttons, for touch where the gap is hard to hit
+    // as holding between two buttons, for touch where the gap is hard to hit
     if (touch) {
         card->addCommand({KisIconUtils::loadIcon(QStringLiteral("list-add")),
                           i18nc("@info:tooltip", "Add gap above"),
@@ -1352,6 +1378,13 @@ void KisStudioToolRail::showRestoreCard(const QPoint &globalPos)
 
 void KisStudioToolRail::contextMenuEvent(QContextMenuEvent *event)
 {
+    // a long press between two items (by Krita's long press, which takes the press itself) adds a gap
+    const bool longPress = QDateTime::currentMSecsSinceEpoch() - qApp->property("longPressAt").toLongLong() < 1000;
+    const int gap = gapAt(event->pos().y());
+    if (longPress && gap >= 0) {
+        insertGap(gap);
+        return;
+    }
     showRestoreCard(event->globalPos());
 }
 

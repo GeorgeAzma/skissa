@@ -911,6 +911,9 @@ int KisModernStyle::styleHint(StyleHint hint, const QStyleOption *option, const 
         return 0;
     case SH_ToolTip_WakeUpDelay:
         return toolTipDelay;
+    case SH_ToolButton_PopupDelay:
+        // a button's menu on a long press waits as long as every other hold
+        return holdInterval();
     default:
         break;
     }

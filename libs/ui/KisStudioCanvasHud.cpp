@@ -54,6 +54,16 @@ namespace {
 
 const QString spotKey = QStringLiteral("StudioLayoutViewPillSpot");
 const QString shownKey = QStringLiteral("StudioViewPill");
+/// Where the panels and bars are, the pill's place among them (see KisStudioLayout::arrangementNow())
+const QString arrangementKey = QStringLiteral("StudioLayoutArrangement");
+
+/// The pill's place as saved, or \p fallback
+QPointF savedSpot(const QPointF &fallback)
+{
+    const QStringList spot = KisConfig(true).readEntry<QString>(spotKey, QString()).split(QLatin1Char(','));
+    if (spot.size() != 2) return fallback;
+    return QPointF(qBound(0.0, spot[0].toDouble(), 1.0), qBound(0.0, spot[1].toDouble(), 1.0));
+}
 
 QToolButton *hudButton(QWidget *parent)
 {
@@ -373,10 +383,17 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     for (QToolButton *button : {d->alphaLock.button, d->mirrorX.button, d->mirrorY.button, d->selectionHidden, d->mirror, d->value, d->rotation}) {
         button->installEventFilter(this);
     }
-    const QStringList spot = KisConfig(true).readEntry<QString>(spotKey, QString()).split(QLatin1Char(','));
-    if (spot.size() == 2) d->spot = QPointF(qBound(0.0, spot[0].toDouble(), 1.0), qBound(0.0, spot[1].toDouble(), 1.0));
+    d->spot = savedSpot(d->spot);
     connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::valueChanged, this, [this](const QString &id) {
         if (id == shownKey) viewChanged();
+        // an undo or redo of where the bars are
+        if (id == arrangementKey && !d->moving) {
+            const QPointF spot = savedSpot(QPointF(1, 1));
+            if (spot != d->spot) {
+                d->spot = spot;
+                if (isVisible()) reposition();
+            }
+        }
     });
 
     parentWidget()->installEventFilter(this);
@@ -463,6 +480,8 @@ void KisStudioCanvasHud::viewChanged()
     if (KisCanvas2 *canvas = view->canvasBase()) {
         updateZoom(canvas->coordinatesConverter()->effectiveZoom());
         updateRotation(canvas->rotationAngle());
+        // the grayscale is drawn by the OpenGL canvas alone
+        if (d->valueView) d->valueView->setEnabled(canvas->canvasIsOpenGL());
     }
 
     updateBadges();
@@ -567,6 +586,8 @@ bool KisStudioCanvasHud::drag(QMouseEvent *event, QWidget *from)
         unsetCursor();
         if (auto *button = qobject_cast<QAbstractButton *>(from)) button->setDown(false);
         KisSettingsRegistry::writeLater(spotKey, QString(QString::number(d->spot.x()) + QLatin1Char(',') + QString::number(d->spot.y())));
+        // part of where the bars are: a step of the undo history, as a move of the rail is
+        KisSettingsRegistry::instance()->setValue(arrangementKey, KisStudioLayout::arrangementNow());
         return true;
     default:
         return false;
@@ -610,9 +631,11 @@ bool KisStudioCanvasHud::eventFilter(QObject *watched, QEvent *event)
                && drag(static_cast<QMouseEvent *>(event), qobject_cast<QWidget *>(watched))) {
         // only on itself: a press another pill let through to the canvas area isn't its drag
         // a press on Grayscale that became a move of the pill was no click: what it showed goes
-        if (watched == d->value && d->valueView && event->type() == QEvent::MouseButtonRelease && !d->valueWasOn) d->valueView->setChecked(false);
+        if (watched == d->value && d->valueView && d->valueView->isEnabled() && event->type() == QEvent::MouseButtonRelease && !d->valueWasOn) {
+            d->valueView->setChecked(false);
+        }
         return true;
-    } else if (watched == d->value && d->valueView
+    } else if (watched == d->value && d->valueView && d->valueView->isEnabled()
                && (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick || event->type() == QEvent::MouseButtonRelease)
                && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
         // a second quick press is a press too: let through, the button would go down and never come up

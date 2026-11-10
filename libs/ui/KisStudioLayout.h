@@ -171,7 +171,8 @@ private:
 
     void createRail();
     void rebuildRailButtons();
-    void setRailPanels(const QStringList &panels);
+    /// \p arranged: part of a gesture that arranges the panels, made one undo step with it
+    void setRailPanels(const QStringList &panels, bool arranged = false);
     QIcon railIcon(QDockWidget *dock) const;
     void showRailContextMenu(const QPoint &pos);
     bool handleRailDrag(QObject *watched, QEvent *event);

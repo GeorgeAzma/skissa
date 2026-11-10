@@ -68,12 +68,14 @@ private:
     void rebuild();
     void updatePlus();
     int gapAt(int y) const;
+    /// A gap before the item at \p index
+    void insertGap(int index);
     void clearGap();
     void showIndicator(int itemIndex, int thickness);
     void startDrag(int index, const QPixmap &pixmap);
     void setItems(const QStringList &items);
     int dropIndex(int y) const;
-    /// \p touch: opened by a long press, so it offers what a pointer does by clicking between items
+    /// \p touch: opened by a long press, so it offers what a pointer does by holding between items
     void showCard(int index, bool touch = false);
     void showRestoreCard(const QPoint &globalPos);
     void runItem(int index);
