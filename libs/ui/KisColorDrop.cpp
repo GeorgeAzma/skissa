@@ -6,6 +6,7 @@
 
 #include "KisColorDrop.h"
 #include "widgets/KisStudioValueRow.h"
+#include <kis_default_bounds_base.h>
 #include <QAbstractSpinBox>
 
 #include <KisModernStyle.h>
@@ -373,6 +374,12 @@ bool isColorsLayer(KisNodeSP node, bool multiply)
 Target targetFor(KisImageSP image, KisNodeSP active, const QPoint &point)
 {
     Target target;
+    // a painting: the layer it is on takes the paint, as a brush's would
+    if (active && qobject_cast<KisPaintLayer *>(active.data()) && !isColorsLayer(active, false) && !isColorsLayer(active, true)
+        && KisColorDrop::isPaintingAt(active, point)) {
+        target.node = active;
+        return target;
+    }
     if (!active) {
         target.newLayer = newColorsLayer(image);
         target.parent = image->root();
@@ -474,8 +481,14 @@ struct KisColorDrop::Private {
     bool pending {false};
 
     QPointer<DropPanel> panel;
-    /// The gap Auto chose for the last fill, shown on the panel; 0 before one
+    /// The gap Auto chose for the last fill, shown on the panel and kept while it is made again; 0 before one
     int autoChosen {0};
+    /// The gap Auto chose for the area shown, worked out with it in the background; 0 while none is
+    int previewGap {0};
+    /// The gap a drop takes over from the area shown under it
+    int dropGap {0};
+    /// The last fill was on a painting: by color alone, so the panel has only Spread
+    bool painting {false};
     bool keepFilling {false};
     KoColor keepColor;
 
@@ -510,6 +523,7 @@ struct KisColorDrop::Private {
         generation++;
         pending = false;
         region = nullptr;
+        previewGap = 0;
         seed = QPoint(-1, -1);
         if (preview) preview->overlay = QImage();
         if (canvas()) canvas()->updateCanvasDecorations();
@@ -532,12 +546,19 @@ struct KisColorDrop::Private {
         const QRect bounds = image->bounds();
         const QPoint at = seed;
         const int t = threshold;
-        const Options o = options;
+        Options o = options;
+        // as the fill will be made: on a painting by color alone
+        KisNodeSP active = view->viewManager() ? view->viewManager()->activeNode() : nullptr;
+        if (!KisColorDrop::isColorsLayer(active) && KisColorDrop::isPaintingAt(active, at)) {
+            o.closeGap = -1;
+            o.underLines = false;
+        }
         const QColor tint = color.toQColor();
         struct Result {
             KisPixelSelectionSP region;
             QImage overlay;
             QRect rect;
+            int gap {0};
         };
         auto *watcher = new QFutureWatcher<Result>(q);
         QObject::connect(watcher, &QFutureWatcher<Result>::finished, q, [this, watcher, ticket]() {
@@ -546,6 +567,7 @@ struct KisColorDrop::Private {
             computing = false;
             if (ticket == generation && preview) {
                 region = result.region;
+                previewGap = result.gap;
                 preview->overlay = result.overlay;
                 preview->rect = result.rect;
                 showPreview();
@@ -557,7 +579,9 @@ struct KisColorDrop::Private {
             // out of memory on a huge image: no preview, rather than an exception thrown into the window's thread
             try {
                 // the gap too, as finding the width of the lines nearby reads a piece of the image
-                result.region = regionAt(reference, at, t, gapFor(o, reference, at, bounds, 0.5, t), o, bounds);
+                // Auto's search for a gap that keeps the fill inside floods several times: here, never on the window's thread
+                result.gap = o.closeGap < 0 ? 0 : gapFor(o, reference, at, bounds, 0.5, t);
+                result.region = regionAt(reference, at, t, result.gap, o, bounds);
                 result.rect = result.region->selectedExactRect();
                 result.overlay = tintedOverlay(result.region, result.rect, tint);
             } catch (const std::bad_alloc &) {
@@ -565,6 +589,18 @@ struct KisColorDrop::Private {
             }
             return result;
         }));
+    }
+
+    /// On a painting there are no lines: the gap and filling under them go
+    void fitPanel()
+    {
+        if (!panel) return;
+        if (panel->gap->isVisibleTo(panel) == !painting) return;
+        panel->gap->setVisible(!painting);
+        panel->underLines->setVisible(!painting);
+        // the layout sees the rows go only once it is run again
+        panel->layout()->activate();
+        panel->resize(panel->sizeHint());
     }
 
     /// Auto shows the size it chose for the last fill
@@ -635,6 +671,7 @@ struct KisColorDrop::Private {
             panel->underLines->setChecked(options.underLines);
         }
         showAutoGap();
+        fitPanel();
         panel->bucket->color = color.toQColor();
         keepColor = color;
         panel->show();
@@ -685,6 +722,37 @@ const QString KisColorDrop::colorsMark = QStringLiteral("skissacolors");
 bool KisColorDrop::isColorsLayer(KisNodeSP node)
 {
     return ::isColorsLayer(node, false) || ::isColorsLayer(node, true);
+}
+
+bool KisColorDrop::isPaintingAt(KisNodeSP layer, const QPoint &point)
+{
+    KisPaintDeviceSP device = layer && qobject_cast<KisPaintLayer *>(layer.data()) ? layer->paintDevice() : nullptr;
+    if (!device) return false;
+    // a sparse look around the point, as wide as a shape's outline is far: every fourth pixel and row
+    const QRect window = QRect(point - QPoint(384, 384), QSize(768, 768)) & device->defaultBounds()->bounds();
+    if (window.isEmpty()) return false;
+    const KoColorSpace *srgb = KoColorSpaceRegistry::instance()->rgb8();
+    const bool isSrgb = *device->colorSpace() == *srgb;
+    const int width = window.width();
+    std::vector<quint8> row(size_t(width) * device->pixelSize()), colors(size_t(width) * 4);
+    int paper = 0, all = 0;
+    for (int y = window.top(); y <= window.bottom(); y += 4) {
+        device->readBytes(row.data(), window.left(), y, width, 1);
+        if (!isSrgb) {
+            device->colorSpace()->convertPixelsTo(row.data(), colors.data(), srgb, width, KoColorConversionTransformation::internalRenderingIntent(),
+                                                  KoColorConversionTransformation::internalConversionFlags());
+        }
+        const quint8 *p = isSrgb ? row.data() : colors.data();
+        for (int x = 0; x < width; x += 4) {
+            const quint8 *px = p + size_t(x) * 4;
+            all++;
+            // paper: clear, or light and gray (white, cream, a scan's off-white)
+            const int high = std::max({px[0], px[1], px[2]}), low = std::min({px[0], px[1], px[2]});
+            if (px[3] < 128 || (low >= 200 && high - low <= 40)) paper++;
+        }
+    }
+    // line art leaves most of its layer paper, however dark its lines; a painting covers it, light or dark
+    return all > 64 && paper * 10 < all * 3;
 }
 
 bool KisColorDrop::carriesColor(const QMimeData *data)
@@ -741,6 +809,8 @@ bool KisColorDrop::drop(const KoColor &color, const QPoint &canvasPos)
 {
     if (!d->canvas()) return false;
     const QPoint point = d->imagePoint(canvasPos);
+    // the gap Auto found for the area shown under it, if it was worked out there
+    d->dropGap = d->region && d->region->pixel(point).opacityU8() > 0 ? d->previewGap : 0;
     d->options = Options::read();
     d->threshold = d->options.threshold;
     d->clearPreview();
@@ -810,13 +880,24 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
     visitor->setRegionFillingMode(KisFillPainter::RegionFillingMode_FloodFill);
     visitor->setFillThreshold(threshold);
     visitor->setOpacitySpread(100);
-    const int gap = gapFor(d->options, image->projection(), point, image->bounds(), 0.5, threshold);
-    if (d->options.closeGap <= 0) d->autoChosen = gap;
+    // Auto: the gap found with the preview, or once for a drop without one; made again (Spread changed), the one it had.
+    // A painting has no lines to close or reach under
+    const bool painting = target.node == active && !isColorsLayer(node) && isPaintingAt(active, point);
+    d->painting = painting;
+    if (d->panel) d->fitPanel();
+    int gap = painting ? 0 : d->options.closeGap;
+    if (gap <= 0 && !painting) {
+        gap = d->refilling && d->autoChosen > 0 ? d->autoChosen
+            : d->dropGap > 0                     ? d->dropGap
+                                                 : gapFor(d->options, image->projection(), point, image->bounds(), 0.5, threshold);
+        d->autoChosen = gap;
+    }
+    d->dropGap = 0;
     d->showAutoGap();
     visitor->setCloseGap(gap);
     visitor->setUseSelectionAsBoundary(true);
     visitor->setAntiAlias(true);
-    visitor->setLineArt(d->options.underLines, d->options.speckSize);
+    visitor->setLineArt(d->options.underLines && !painting, d->options.speckSize);
     QSharedPointer<QRect> dirty(new QRect);
     visitor->setOutDirtyRect(dirty);
     image->addJob(stroke, new KisStrokeStrategyUndoCommandBased::Data(KUndo2CommandSP(new KisProcessingCommand(visitor, node)), false,

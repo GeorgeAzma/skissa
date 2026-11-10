@@ -56,6 +56,12 @@ public:
     static int autoGap(KisPaintDeviceSP reference, const QPoint &point, const QRect &bounds);
     /// Whether \p node is a layer of colors made by fills, which read the whole picture rather than themselves
     static bool isColorsLayer(KisNodeSP node);
+    /**
+     * Whether \p layer around \p point (image coordinates) is a painting rather than line art: line art is ink on
+     * plain paper (clear or white), a painting covers its paper with color. On a painting dark shapes aren't lines,
+     * so a fill goes on the layer itself, by color alone, without closing gaps or reaching under them.
+     */
+    static bool isPaintingAt(KisNodeSP layer, const QPoint &point);
     /// The node property marking a layer of colors made by fills, kept in .kra files
     static const QString colorsMark;
 
