@@ -284,6 +284,9 @@ ICONS = {
     # keeping and dropping what is being decided (an effect, a fill)
     'done': p('M4.5 12.5 9.5 17.5 19.5 6.5'),
     'cancel': p('M6 6 18 18M18 6 6 18'),
+    # every area of a color: drops of it here and there
+    'everywhere': c(7.5, 8, 3.2) + c(17, 6.5, 2.3) + c(15.5, 16.5, 3.6) + c(6.2, 18, 2),
+    'everywhere_on': solid(hole_circle(7.5, 8, 3.2)) + solid(hole_circle(17, 6.5, 2.3)) + solid(hole_circle(15.5, 16.5, 3.6)) + solid(hole_circle(6.2, 18, 2)),
     'unlink': p('M9 15l-1.5 1.5a3.5 3.5 0 0 1-5-5L4 10M15 9l1.5-1.5a3.5 3.5 0 0 1 5 5L20 14') + p('M8.5 3.5v2.5M3.5 8.5H6M15.5 20.5V18M20.5 15.5H18'),
 }
 

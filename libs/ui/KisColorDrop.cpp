@@ -806,13 +806,9 @@ public:
         underLines = new QCheckBox(i18nc("color drop: the fill reaches under the lines", "Under lines"), this);
         underLines->setFocusPolicy(Qt::NoFocus);
         underLines->setToolTip(i18nc("@info:tooltip", "Fills to the middle of the lines"));
-        everywhere = new QCheckBox(i18nc("color drop: every area of the color, not only the one dropped on", "Everywhere"), this);
-        everywhere->setFocusPolicy(Qt::NoFocus);
-        everywhere->setToolTip(i18nc("@info:tooltip", "Every area of this color"));
         grid->addWidget(gap);
         grid->addWidget(spread);
         grid->addWidget(underLines);
-        grid->addWidget(everywhere);
         row->addLayout(grid);
         // the fill is made as it drops: done keeps it as it is, cancel takes it back
         auto *ends = new QHBoxLayout();
@@ -827,8 +823,13 @@ public:
             button->setFixedSize(28, 26);
             return button;
         };
+        // every area of the color, not only the one dropped on
+        everywhere = end(QStringLiteral("studio_everywhere"), i18nc("@info:tooltip color drop", "Every area of this color"));
+        everywhere->setCheckable(true);
+        QObject::connect(everywhere, &QToolButton::toggled, everywhere, [this]() { showEverywhere(); });
         done = end(QStringLiteral("studio_done"), i18nc("@info:tooltip", "Done (Enter)"));
         cancel = end(QStringLiteral("studio_cancel"), i18nc("@info:tooltip", "Take back the fill (Esc)"));
+        ends->addWidget(everywhere);
         ends->addWidget(done);
         ends->addWidget(cancel);
         row->addLayout(ends);
@@ -843,7 +844,13 @@ public:
     KisStudioValueRow *gap {nullptr};
     KisStudioValueRow *spread {nullptr};
     QCheckBox *underLines {nullptr};
-    QCheckBox *everywhere {nullptr};
+    QToolButton *everywhere {nullptr};
+
+    /// Drawn solid while on
+    void showEverywhere()
+    {
+        everywhere->setIcon(KisIconUtils::loadIcon(everywhere->isChecked() ? QStringLiteral("studio_everywhere_on") : QStringLiteral("studio_everywhere")));
+    }
     QToolButton *done {nullptr};
     QToolButton *cancel {nullptr};
 
@@ -1302,7 +1309,7 @@ struct KisColorDrop::Private {
             QObject::connect(panel->gap, &KisStudioValueRow::valueChanged, q, [this]() { changed(); });
             QObject::connect(panel->spread, &KisStudioValueRow::valueChanged, q, [this]() { changed(); });
             QObject::connect(panel->underLines, &QCheckBox::toggled, q, [this]() { changed(); });
-            QObject::connect(panel->everywhere, &QCheckBox::toggled, q, [this]() { changed(); });
+            QObject::connect(panel->everywhere, &QToolButton::toggled, q, [this]() { changed(); });
             // beside the drop, clear of the pointer
             const QPoint at = canvasPos + QPoint(22, 22);
             panel->move(qBound(0, at.x(), widget->width() - panel->width()), qBound(0, at.y(), widget->height() - panel->height()));
@@ -1314,6 +1321,7 @@ struct KisColorDrop::Private {
             panel->spread->setValue(threshold);
             panel->underLines->setChecked(options.underLines);
             panel->everywhere->setChecked(everywhere);
+            panel->showEverywhere();
         }
         showAutoGap();
         fitPanel();
