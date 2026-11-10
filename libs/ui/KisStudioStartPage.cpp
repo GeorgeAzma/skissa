@@ -156,7 +156,10 @@ QImage readPicture(const QString &path, int longest)
             reader.setScaledSize(size.scaled(longest, longest, Qt::KeepAspectRatio));
         }
         image = reader.read();
-        if (image.isNull()) {
+        // a file larger than a 16 MP picture held whole (64 MB) holds layers: opening it all for a picture takes
+        // seconds and gigabytes
+        constexpr qint64 wholeDocumentAtMost = qint64(64) << 20;
+        if (image.isNull() && QFileInfo(path).size() <= wholeDocumentAtMost) {
             // what Qt can't read (TIFF, PSD, JPEG XL...), through Krita
             QScopedPointer<KisDocument> doc(KisPart::instance()->createTemporaryDocument());
             doc->setFileBatchMode(true);
@@ -223,6 +226,33 @@ QImage cachedPicture(const QString &path, int longest)
     return image;
 }
 
+/// Where the start page asks the disk about files (times, autosaves): a file on a network drive can take long to
+/// answer, and the window never waits for one
+QThreadPool *diskPool()
+{
+    static QThreadPool *pool = []() {
+        auto *made = new QThreadPool(qApp);
+        made->setMaxThreadCount(1);
+        QObject::connect(qApp, &QCoreApplication::aboutToQuit, made, [made]() { made->clear(); });
+        return made;
+    }();
+    return pool;
+}
+
+/// A picture as read, with the time its file had then
+struct ReadPicture {
+    QImage image;
+    QDateTime time;
+};
+
+ReadPicture readCachedPicture(const QString &path, int longest)
+{
+    ReadPicture read;
+    read.time = QFileInfo(path).lastModified();
+    read.image = cachedPicture(path, longest);
+    return read;
+}
+
 /// The recent images' pictures, read on two threads and kept until their files change
 class Pictures : public QObject
 {
@@ -242,23 +272,24 @@ public:
         const QString key = path + QLatin1Char('|') + QString::number(longest);
         const QDateTime time = modified(path);
         const auto found = m_pictures.constFind(key);
-        if ((found == m_pictures.constEnd() || found->time != time) && !m_reading.contains(key)) {
+        // a time not known yet doesn't make a picture stale
+        const bool stale = found != m_pictures.constEnd() && time.isValid() && found->time != time;
+        if ((found == m_pictures.constEnd() || stale) && !m_reading.contains(key)) {
             m_reading.insert(key);
-            auto *watcher = new QFutureWatcher<QImage>(this);
-            connect(watcher, &QFutureWatcher<QImage>::finished, this, [this, watcher, key, time]() {
+            auto *watcher = new QFutureWatcher<ReadPicture>(this);
+            connect(watcher, &QFutureWatcher<ReadPicture>::finished, this, [this, watcher, key, path]() {
                 m_reading.remove(key);
-                m_pictures.insert(key, {watcher->result(), time});
+                const ReadPicture read = watcher->result();
+                m_pictures.insert(key, {read.image, read.time});
+                m_modified.insert(path, {read.time, m_clock.elapsed()});
                 // the pictures asked for longest ago go: files dropped from the recent list aren't asked for again
                 m_used.removeOne(key);
                 m_used.append(key);
                 while (m_used.size() > keptPictures) m_pictures.remove(m_used.takeFirst());
                 watcher->deleteLater();
-                for (int i = m_viewers.size() - 1; i >= 0; i--) {
-                    if (m_viewers[i].first) m_viewers[i].second();
-                    else m_viewers.removeAt(i);
-                }
+                tellViewers();
             });
-            watcher->setFuture(QtConcurrent::run(&m_pool, cachedPicture, path, longest));
+            watcher->setFuture(QtConcurrent::run(&m_pool, readCachedPicture, path, longest));
         }
         // a changed file shows its old picture until the new one is read
         if (found == m_pictures.constEnd()) return QImage();
@@ -279,17 +310,35 @@ private:
         connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() { m_pool.clear(); });
     }
 
-    /// When \p path last changed, looked at no more than every two seconds: asked at every paint and layout of
-    /// the gallery, and a file on a network drive can take long to answer
+    /// When \p path last changed as far as known, looked at again off the window's thread no more than every two
+    /// seconds (asked at every paint and layout of the gallery); invalid until first known
     QDateTime modified(const QString &path)
     {
-        auto it = m_modified.find(path);
-        if (it == m_modified.end() || m_clock.elapsed() - it->second > 2000) {
-            const QDateTime time = QFileInfo(path).lastModified();
-            if (it == m_modified.end()) it = m_modified.insert(path, {time, m_clock.elapsed()});
-            else *it = {time, m_clock.elapsed()};
+        const auto it = m_modified.constFind(path);
+        const bool known = it != m_modified.constEnd();
+        if ((!known || m_clock.elapsed() - it->second > 2000) && !m_asking.contains(path)) {
+            m_asking.insert(path);
+            auto *watcher = new QFutureWatcher<QDateTime>(this);
+            connect(watcher, &QFutureWatcher<QDateTime>::finished, this, [this, watcher, path]() {
+                watcher->deleteLater();
+                m_asking.remove(path);
+                const QDateTime time = watcher->result();
+                const auto was = m_modified.constFind(path);
+                const bool changed = was == m_modified.constEnd() || was->first != time;
+                m_modified.insert(path, {time, m_clock.elapsed()});
+                if (changed) tellViewers();
+            });
+            watcher->setFuture(QtConcurrent::run(diskPool(), [path]() { return QFileInfo(path).lastModified(); }));
         }
-        return it->first;
+        return known ? it->first : QDateTime();
+    }
+
+    void tellViewers()
+    {
+        for (int i = m_viewers.size() - 1; i >= 0; i--) {
+            if (m_viewers[i].first) m_viewers[i].second();
+            else m_viewers.removeAt(i);
+        }
     }
 
     struct Picture {
@@ -302,6 +351,8 @@ private:
     /// Least recently asked for first
     QStringList m_used;
     QHash<QString, QPair<QDateTime, qint64>> m_modified;
+    /// Files whose time is being looked at
+    QSet<QString> m_asking;
     QElapsedTimer m_clock;
     QSet<QString> m_reading;
     QThreadPool m_pool;
@@ -1347,6 +1398,8 @@ public:
     /// Esc with nothing typed: whether there is somewhere to go back to, and going there
     std::function<bool()> canLeave;
     std::function<void()> left;
+    /// The images and their autosaves have been looked at again
+    std::function<void()> loaded;
 
     explicit Gallery(QWidget *parent)
         : QWidget(parent)
@@ -1380,6 +1433,13 @@ protected:
         // the page is away most of the time: its tiles are made again when it shows
         m_tiles.clear();
         QWidget::hideEvent(event);
+    }
+
+    void showEvent(QShowEvent *event) override
+    {
+        // autosaves written and files changed while it was away
+        reload();
+        QWidget::showEvent(event);
     }
 
     /// \p picture scaled into \p rect's shape once, so scrolling only copies it
@@ -1430,7 +1490,8 @@ protected:
             painter.drawLine(c + QPointF(-4, 4), c + QPointF(4, -4));
         }
         if (arranged.placed.isEmpty()) {
-            paintEmpty(painter, arranged);
+            // nothing said before the images have been looked at
+            if (m_loaded || !m_filter.isEmpty()) paintEmpty(painter, arranged);
             return;
         }
         for (int i = 0; i < arranged.placed.size(); i++) {
@@ -1615,7 +1676,7 @@ protected:
         if (chosen == forget && forgotten) forgotten(path);
         if (chosen && chosen == saved && opened) {
             const QString autosave = KisNewerAutosave::of(path);
-            if (!autosave.isEmpty() && !QFile::moveToTrash(autosave)) return;
+            if (!autosave.isEmpty() && !KisNewerAutosave::putAway(autosave)) return;
             opened(path);
         }
     }
@@ -1652,21 +1713,39 @@ private:
         int height {0};
     };
 
+    /// The recent images and their autosaves looked at off the window's thread; the items as they were until then
     void reload()
     {
-        m_items.clear();
+        QStringList paths;
         for (int i = 0; i < m_model->rowCount(); i++) {
             const QString path = m_model->index(i, 0).data(Qt::ToolTipRole).toString();
-            if (path.isEmpty()) continue;
-            const QFileInfo info(path);
-            const QString newer = KisNewerAutosave::of(path);
-            if (newer.isEmpty()) {
-                m_items.append({path, info.completeBaseName(), info.lastModified(), path, false});
-            } else {
-                m_items.append({path, info.completeBaseName(), QFileInfo(newer).lastModified(), newer, true});
-            }
+            if (!path.isEmpty()) paths << path;
         }
-        relayout();
+        const int generation = ++m_generation;
+        auto *watcher = new QFutureWatcher<QVector<Item>>(this);
+        connect(watcher, &QFutureWatcher<QVector<Item>>::finished, this, [this, watcher, generation]() {
+            watcher->deleteLater();
+            if (generation != m_generation) return;
+            m_items = watcher->result();
+            m_loaded = true;
+            m_hovered = -1;
+            m_pressed = -1;
+            relayout();
+            if (loaded) loaded();
+        });
+        watcher->setFuture(QtConcurrent::run(diskPool(), [paths]() {
+            QVector<Item> items;
+            for (const QString &path : paths) {
+                const QFileInfo info(path);
+                const QString newer = KisNewerAutosave::of(path);
+                if (newer.isEmpty()) {
+                    items.append({path, info.completeBaseName(), info.lastModified(), path, false});
+                } else {
+                    items.append({path, info.completeBaseName(), QFileInfo(newer).lastModified(), newer, true});
+                }
+            }
+            return items;
+        }));
     }
 
     void relayout()
@@ -1741,7 +1820,7 @@ private:
 
     qreal aspectOf(int item) const
     {
-        const QImage picture = Pictures::instance()->get(m_items[item].path, pictureLength);
+        const QImage picture = Pictures::instance()->get(m_items[item].shown, pictureLength);
         if (picture.isNull() || picture.height() <= 0) return 1.5;
         return qBound(0.4, qreal(picture.width()) / picture.height(), 3.0);
     }
@@ -1788,7 +1867,7 @@ private:
             const int window = this->window() ? this->window()->height() : 900;
             const qreal heroHeight = qBound<qreal>(200, window * 0.36, 440);
             const qreal aspect = [this, &shown]() {
-                const QImage picture = Pictures::instance()->get(m_items[shown.first()].path, heroLength);
+                const QImage picture = Pictures::instance()->get(m_items[shown.first()].shown, heroLength);
                 return picture.isNull() || picture.height() <= 0 ? aspectOf(shown.first()) : qBound(0.4, qreal(picture.width()) / picture.height(), 3.0);
             }();
             QSizeF size(heroHeight * aspect, heroHeight);
@@ -1864,6 +1943,9 @@ private:
 
     QPointer<QStandardItemModel> m_model;
     QVector<Item> m_items;
+    /// The items have been looked at once; the latest look asked for
+    bool m_loaded {false};
+    int m_generation {0};
     /// The pictures as drawn, by picture, size and shape
     QHash<QString, QPixmap> m_tiles;
     QString m_filter;
@@ -2089,6 +2171,11 @@ KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
     };
     d->gallery->forgotten = [this](const QString &path) {
         if (d->mainWindow) d->mainWindow->removeRecentFile(path);
+    };
+    // the last image is known: the backdrop, and the open images but that one
+    d->gallery->loaded = [this]() {
+        if (isVisible()) showOpenImages();
+        update();
     };
     auto *galleryRow = new QHBoxLayout();
     galleryRow->addStretch(0);

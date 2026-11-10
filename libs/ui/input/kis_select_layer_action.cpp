@@ -29,8 +29,9 @@
 #include <kis_layer.h>
 #include <kis_paint_device.h>
 #include <KoColorSpace.h>
+#include <KoCompositeOpRegistry.h>
+#include <KisModernStyle.h>
 #include <QPointer>
-#include <QElapsedTimer>
 #include <QLineF>
 #include <QtMath>
 
@@ -43,13 +44,11 @@ public:
     QPointer<KisLayerHover> hover;
     int shortcut {makeShortcut(LayerSelectionMode_TopLayer, SelectionOverrideMode_Replace)};
 
-    /// Clicking again where the last click picked a layer picks the next one with paint there
+    /// Clicking again where the last click picked a layer, while it is still the active one, picks the next one
+    /// with paint there
     QPointF pressedAt;
     QPointF lastPickAt;
-    QElapsedTimer lastPick;
-
-    static constexpr qreal againDistance = 8;
-    static constexpr qint64 againTime = 4000;
+    QPointer<KisNode> lastPicked;
 
     /// A press picks when let go (pendingPick); pressed on paint and dragged, the layer pressed on moves with the
     /// pointer instead
@@ -80,24 +79,50 @@ public:
         float most;
     };
 
-    static QVector<quint8> alphaOf(const KisPaintDeviceSP &device, const Spot &spot)
+    static QVector<quint8> bytesOf(const KisPaintDeviceSP &device, const Spot &spot)
     {
-        const KoColorSpace *space = device->colorSpace();
-        const int count = spot.rect.width() * spot.rect.height();
-        QVector<quint8> bytes(count * int(space->pixelSize()));
+        QVector<quint8> bytes(spot.rect.width() * spot.rect.height() * int(device->colorSpace()->pixelSize()));
         device->readBytes(bytes.data(), spot.rect);
+        return bytes;
+    }
+
+    static QVector<quint8> alphaOf(const KisPaintDeviceSP &device, const QVector<quint8> &bytes)
+    {
+        const int count = bytes.size() / int(device->colorSpace()->pixelSize());
         QVector<quint8> alpha(count);
-        space->copyOpacityU8(bytes.data(), alpha.data(), count);
+        // copyOpacityU8 only reads its source, though Krita declares it writable
+        QVector<quint8> source = bytes;
+        device->colorSpace()->copyOpacityU8(source.data(), alpha.data(), count);
         return alpha;
     }
 
+    /// Modes that only darken: what they show is the paint's darkness, so white paper on them shows nothing
+    static bool darkens(const QString &compositeOp)
+    {
+        return compositeOp == COMPOSITE_MULT || compositeOp == COMPOSITE_DARKEN || compositeOp == COMPOSITE_BURN
+            || compositeOp == COMPOSITE_LINEAR_BURN;
+    }
+
+    /// What a layer clipped to the layers below it (alpha inheritance) shows through: its group's picture
+    static KisPaintDeviceSP clipOf(const KisNodeSP &node)
+    {
+        KisNodeSP parent = node->parent();
+        while (parent && parent->parent()) {
+            const KisGroupLayer *group = dynamic_cast<KisGroupLayer *>(parent.data());
+            if (!group || !group->passThroughMode()) break;
+            parent = parent->parent();
+        }
+        return parent ? parent->projection() : KisPaintDeviceSP();
+    }
+
     /// Every layer from \p node down with paint near the pointer, with the most of it that shows there: its alpha
-    /// times what the layers above let through. Hidden and locked layers neither count nor cover.
+    /// times what the layers above let through. Hidden and locked layers neither count nor cover, and filter layers
+    /// hold nothing of their own.
     static void collect(KisNodeSP node, qreal opacity, Spot &spot, QVector<Shown> &shown)
     {
         for (; node; node = node->prevSibling()) {
             KisLayer *layer = qobject_cast<KisLayer *>(node.data());
-            if (!layer || !layer->isEditable()) continue;
+            if (!layer || !layer->isEditable() || layer->inherits("KisAdjustmentLayer")) continue;
             const KisPaintDeviceSP device = layer->projection();
             if (!device) continue;
             const qreal scale = opacity * layer->opacity() / 255.0;
@@ -106,20 +131,33 @@ public:
                 // a group with nothing near isn't entered
                 bool painted = group->passThroughMode();
                 if (!painted) {
-                    const QVector<quint8> alpha = alphaOf(device, spot);
+                    const QVector<quint8> alpha = alphaOf(device, bytesOf(device, spot));
                     painted = std::any_of(spot.inside.cbegin(), spot.inside.cend(), [&](int i) { return alpha[i] != 0; });
                 }
                 if (painted) collect(node->lastChild(), scale, spot, shown);
                 continue;
             }
-            const QVector<quint8> alpha = alphaOf(device, spot);
+            const QVector<quint8> bytes = bytesOf(device, spot);
+            const QVector<quint8> alpha = alphaOf(device, bytes);
+            const KoColorSpace *space = device->colorSpace();
+            const int pixelSize = int(space->pixelSize());
+            // darkness times coverage, as line art's ink is counted (KisLineArtFill::inkOf)
+            const bool byDarkness = darkens(layer->compositeOpId());
+            QVector<quint8> clip;
+            if (layer->alphaChannelDisabled()) {
+                const KisPaintDeviceSP under = clipOf(node);
+                if (under) clip = alphaOf(under, bytesOf(under, spot));
+            }
             const float weight = float(scale / 255);
             bool painted = false;
             float most = 0;
             for (const int i : spot.inside) {
                 if (!alpha[i]) continue;
+                float a = alpha[i] * weight;
+                if (byDarkness) a *= (255 - space->intensity8(bytes.constData() + i * pixelSize)) / 255.0f;
+                if (!clip.isEmpty()) a *= clip[i] / 255.0f;
+                if (a <= 0) continue;
                 painted = true;
-                const float a = alpha[i] * weight;
                 most = qMax(most, a * spot.through[i]);
                 spot.through[i] *= 1 - a;
             }
@@ -172,8 +210,9 @@ public:
     {
         if (stack.isEmpty()) return KisNodeSP();
         const KisNodeSP active = q->inputManager()->canvas()->viewManager()->nodeManager()->activeNode();
-        const bool again = lastPick.isValid() && lastPick.elapsed() < againTime
-            && QLineF(widgetPos, lastPickAt).length() < againDistance && stack.contains(active);
+        // again: the layer the last click picked is still the active one, and this click reads paint it read
+        const bool again = lastPicked && lastPicked.data() == active.data()
+            && QLineF(widgetPos, lastPickAt).length() <= 2 * reach && stack.contains(active);
         return again || stack.first() == active ? stack[(stack.indexOf(active) + 1) % stack.size()] : stack.first();
     }
 
@@ -333,6 +372,8 @@ void KisSelectLayerAction::end(QEvent *event)
     } else if (d->pendingPick) {
         // let go without dragging: the click picks
         d->selectNodes({d->pendingPick}, d->pendingOverride, true);
+        d->lastPicked = d->pendingPick.data();
+        d->lastPickAt = d->pressedAt;
         if (d->hover) d->hover->picksChanged(d->pressedAt);
     }
     d->pendingPick.clear();
@@ -381,30 +422,29 @@ void KisSelectLayerAction::inputEvent(QEvent *event)
             d->pendingPick = d->pickFrom(stack, widgetPos);
             d->pendingOverride = selectionOverrideMode;
             d->pressedAt = widgetPos;
-            d->lastPickAt = widgetPos;
-            d->lastPick.restart();
             d->pressedNode = stack.isEmpty() ? KisNodeSP() : stack.first();
             d->pressedImageAt = pos;
             return;
-        } else if (selectionOverrideMode == SelectionOverrideMode_Replace && d->pressedNode
-                   && (d->moveStroke || QLineF(widgetPos, d->pressedAt).length() >= Private::againDistance)) {
+        }
+        const bool dragged = QLineF(widgetPos, d->pressedAt).length() >= KisModernStyle::dragDistance(static_cast<QInputEvent *>(event));
+        if (selectionOverrideMode == SelectionOverrideMode_Replace && d->pressedNode && (d->moveStroke || dragged)) {
             // pressed on paint and dragged: the layer pressed on is picked and moves along
             KisImageSP image = inputManager()->canvas()->image();
             if (!d->moveStroke) {
                 d->pendingPick.clear();
-                d->lastPick.invalidate();
+                d->lastPicked.clear();
                 d->selectNodes({d->pressedNode}, SelectionOverrideMode_Replace, true);
                 d->moveStroke = image->startStroke(new MoveStrokeStrategy(KisNodeList{d->pressedNode}, image.data(), image.data()));
                 d->moveImage = image;
             }
             image->addJob(d->moveStroke, new MoveStrokeStrategy::Data(pos - d->pressedImageAt));
             return;
-        } else if (QLineF(widgetPos, d->pressedAt).length() >= Private::againDistance) {
+        } else if (dragged) {
             // dragged from nothing (or adding to the selection): the layer that shows most under the pointer, as it goes
             d->pendingPick.clear();
             const KisNodeList stack = d->stackAt(widgetPos);
             foundNode = stack.isEmpty() ? KisNodeSP() : stack.first();
-            d->lastPick.invalidate();
+            d->lastPicked.clear();
         }
         if (!foundNode) {
             return;

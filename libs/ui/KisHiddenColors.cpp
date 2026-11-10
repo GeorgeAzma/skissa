@@ -25,18 +25,26 @@ KisPaintDeviceSP cleared(KisPaintDeviceSP device, const QRect &rect)
     auto hides = [&](const quint8 *pixel) {
         return cs->opacityF(pixel) <= 0 && std::memcmp(pixel, clear.data(), pixelSize) != 0;
     };
-    bool found = false;
-    KisSequentialConstIterator seek(device, rect);
-    while (!found && seek.nextPixel()) found = hides(seek.rawDataConst());
-    if (!found) return device;
-
-    // tiles are shared until written: only those with hidden colors are copied
-    KisPaintDeviceSP copy = new KisPaintDevice(*device);
-    KisSequentialIterator it(copy, rect);
-    while (it.nextPixel()) {
-        if (hides(it.rawDataConst())) std::memcpy(it.rawData(), clear.data(), pixelSize);
+    // tiles are shared until written: each tile's block is read, and only one holding hidden colors is written,
+    // so only those are copied
+    constexpr int tile = 64;
+    KisPaintDeviceSP copy;
+    for (int top = rect.top() - ((rect.top() % tile) + tile) % tile; top <= rect.bottom(); top += tile) {
+        for (int left = rect.left() - ((rect.left() % tile) + tile) % tile; left <= rect.right(); left += tile) {
+            const QRect block = QRect(left, top, tile, tile) & rect;
+            if (block.isEmpty()) continue;
+            bool found = false;
+            KisSequentialConstIterator seek(device, block);
+            while (!found && seek.nextPixel()) found = hides(seek.rawDataConst());
+            if (!found) continue;
+            if (!copy) copy = new KisPaintDevice(*device);
+            KisSequentialIterator it(copy, block);
+            while (it.nextPixel()) {
+                if (hides(it.rawDataConst())) std::memcpy(it.rawData(), clear.data(), pixelSize);
+            }
+        }
     }
-    return copy;
+    return copy ? copy : device;
 }
 
 void clear(QImage &image)

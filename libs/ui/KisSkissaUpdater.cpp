@@ -288,6 +288,8 @@ public:
     int shownPercent {-1};
     /// The user asked for this check, so the download's progress is shown to them
     bool telling {false};
+    /// The version whose download couldn't be unpacked
+    QString unpackFailed;
 
     void start()
     {
@@ -345,6 +347,9 @@ public:
                 if (asked) tell(i18nc("@info", "Skissa is up to date"));
                 return;
             }
+            // a version that couldn't be unpacked here (no room, a folder that can't be written) isn't fetched
+            // again at every look this session; asked for, it is tried again
+            if (!asked && latest == unpackFailed) return;
             Q_FOREACH (const QJsonValue &value, release.value(QStringLiteral("assets")).toArray()) {
                 const QJsonObject asset = value.toObject();
                 const QString name = asset.value(QStringLiteral("name")).toString();
@@ -536,6 +541,7 @@ private:
         QDir(unpackFolder()).removeRecursively();
         if (!QDir().mkpath(unpackFolder())) {
             QFile::remove(download.fileName());
+            unpackFailed = found;
             failed();
             return;
         }
@@ -551,6 +557,7 @@ private:
             connect(done, &QFutureWatcher<bool>::finished, this, [this, done]() {
                 done->deleteLater();
                 if (!done->result()) {
+                    unpackFailed = found;
                     failed();
                     return;
                 }
@@ -576,6 +583,7 @@ private:
             if (error != QProcess::FailedToStart) return;
             tar->deleteLater();
             QFile::remove(download.fileName());
+            unpackFailed = found;
             failed();
         });
         tar->start(program, {QStringLiteral("-xf"), download.fileName(), QStringLiteral("-C"), unpackFolder()});

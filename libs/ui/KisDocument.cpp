@@ -179,6 +179,8 @@ public:
         : KUndo2Stack(doc),
           m_doc(doc)
     {
+        // so Undo knows whether a step here or a setting's change came last
+        KisSettingsUndo::watch(this);
     }
 
     void setIndex(int idx) override {
@@ -2101,10 +2103,10 @@ bool KisDocument::openPath(const QString &_path, OpenFlags flags)
         ret = openPathInternal(path);
     }
 
-    // a left over autosave goes only once its file has opened, and to the Recycle Bin
+    // a left over autosave goes only once its file has opened, and never for good
     if (ret && !declinedAutosave.isEmpty()) {
         KisUsageLogger::log(QString("Removing autosave file: %1").arg(declinedAutosave));
-        if (!QFile::moveToTrash(declinedAutosave)) QFile::remove(declinedAutosave);
+        KisNewerAutosave::putAway(declinedAutosave);
     }
 
     if (autosaveOpened || flags & RecoveryFile) {
@@ -2396,8 +2398,10 @@ QString KisDocument::warningMessage() const
 
 void KisDocument::removeAutoSaveFiles(const QString &autosaveBaseName, bool wasRecovered, bool toTrash)
 {
+    // turned down work is put away, not destroyed; an autosave whose work was saved simply goes
     auto remove = [toTrash](const QString &path) {
-        if (!toTrash || !QFile::moveToTrash(path)) QFile::remove(path);
+        if (toTrash) KisNewerAutosave::putAway(path);
+        else QFile::remove(path);
     };
 
     // Eliminate any auto-save file

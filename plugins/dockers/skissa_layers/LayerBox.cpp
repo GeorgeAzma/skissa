@@ -1246,10 +1246,13 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
             if (m_opacityPress.isValid() && (mouse->buttons() & Qt::LeftButton) && handleOpacityDrag(mouse->pos(), mouse->modifiers() & Qt::ShiftModifier)) {
                 return true;
             }
+            // a row pressed on that went away mid-press decides nothing
+            if (!m_opacityPress.isValid() && !m_opacityScrubbing) view->setMoveWaits(false);
             // its release went elsewhere (a window that came up under the pointer): the drag is over
             if (!(mouse->buttons() & Qt::LeftButton) && (m_opacityScrubbing || m_opacityPress.isValid())) {
                 m_opacityScrubbing = false;
                 m_opacityPress = QModelIndex();
+                view->setMoveWaits(false);
                 m_opacityScrub->hide();
                 view->viewport()->unsetCursor();
             }
@@ -1276,21 +1279,26 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
             break;
         case QEvent::MouseButtonDblClick:
         case QEvent::ContextMenu: {
-            // on the opacity: a double-click types it, a right-click makes it full
+            // on the opacity: a double-click types it (the current layer's), a right-click makes it full (any row's)
             auto *delegate = qobject_cast<NodeDelegate *>(view->itemDelegate());
             const QPoint pos = event->type() == QEvent::ContextMenu ? static_cast<QContextMenuEvent *>(event)->pos() : static_cast<QMouseEvent *>(event)->pos();
             const QModelIndex at = static_cast<QAbstractItemView *>(view)->indexAt(pos);
             const QModelIndex main = at.isValid() ? at.sibling(at.row(), NodeView::DEFAULT_COL) : QModelIndex();
-            if (!delegate || !main.isValid() || !delegate->opacityRect(main, view->visualRect(main), view->layoutDirection()).contains(pos)) break;
+            if (!delegate || !main.isValid()) break;
+            const QRect row = view->visualRect(main);
             if (event->type() == QEvent::ContextMenu) {
-                if (m_activeNode && m_activeNode->isEditable(false)) m_nodeManager->setNodeOpacity(m_activeNode, OPACITY_OPAQUE_U8);
+                if (!delegate->shownOpacityRect(main, row, view->layoutDirection()).contains(pos)) break;
+                KisNodeSP node = m_filteringModel ? m_filteringModel->nodeFromIndex(main) : KisNodeSP();
+                if (node && node->isEditable(false) && m_nodeManager) m_nodeManager->setNodeOpacity(node, OPACITY_OPAQUE_U8);
             } else {
+                if (!delegate->opacityRect(main, row, view->layoutDirection()).contains(pos)) break;
                 typeOpacity();
             }
             return true;
         }
         case QEvent::MouseButtonPress: {
             auto *mouse = static_cast<QMouseEvent *>(event);
+            view->setMoveWaits(false);
             int y = 0;
             if (mouse->button() == Qt::LeftButton && m_gapIndicator->isVisible() && m_gapIndex.isValid()
                 && gapAt(mouse->pos(), &y).isValid()) {
@@ -1306,9 +1314,12 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
             // further than a drag starts at: far enough to tell sideways from up or down, and before the list's own drag
             m_opacitySlop = 3 * KisModernStyle::dragDistance(mouse);
             m_opacityScrubbing = false;
+            // the rows move only once this has decided the drag isn't the opacity
+            view->setMoveWaits(m_opacityPress.isValid());
             break;
         }
         case QEvent::MouseButtonRelease:
+            view->setMoveWaits(false);
             if (m_opacityScrubbing) {
                 m_opacityScrubbing = false;
                 m_opacityPress = QModelIndex();
@@ -1316,9 +1327,9 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
                 view->viewport()->unsetCursor();
                 m_nodeOpacityCompressor.stop();
                 if (qRound(m_newOpacity) == 0 && m_opacityNode && m_canvas) {
-                    // let go at nothing: hidden, keeping the opacity it had (the opacity steps undo each other,
-                    // so hiding is the one step)
-                    m_newOpacity = m_opacityOriginal >= 1 ? m_opacityOriginal : 100;
+                    // let go at nothing: hidden, keeping the opacity it had, however faint (the opacity steps undo
+                    // each other, so hiding is the one step)
+                    m_newOpacity = m_opacityOriginal;
                     m_changedOpacityNode = m_opacityNode;
                     slotOpacityChanged();
                     KisBaseNode::PropertyList props = m_opacityNode->sectionModelProperties();
@@ -1387,6 +1398,7 @@ bool LayerBox::handleOpacityDrag(const QPoint &pos, bool fine)
         KisNodeSP node = m_filteringModel ? m_filteringModel->nodeFromIndex(m_opacityPress) : KisNodeSP();
         if (qAbs(delta.x()) < 2 * qAbs(delta.y()) || !node || !node->isEditable(false)) {
             m_opacityPress = QModelIndex();
+            view->setMoveWaits(false);
             return false;
         }
         m_opacityScrubbing = true;

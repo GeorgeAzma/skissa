@@ -39,9 +39,12 @@
 #include <QScroller>
 
 #include "kis_node_view_color_scheme.h"
+#include <KisDocument.h>
 #include <KisMainWindow.h>
 #include <KisPart.h>
 #include <KisViewManager.h>
+#include <kundo2stack.h>
+#include <QPointer>
 #include <kis_action.h>
 #include <kis_action_manager.h>
 
@@ -91,6 +94,19 @@ public:
     /// While a press on an eye drags on: what it made that layer, and the last row it set
     std::optional<bool> eyeDrag;
     QPersistentModelIndex eyeDragLast;
+    /// The document whose undo step the eye's press opened, so a drag down the eyes is one step
+    QPointer<KisDocument> eyeStep;
+    /// While set, a press dragged on moves no rows: the row decides first whether the drag is its opacity
+    bool moveWaits {false};
+    /// The press was on a row, which a drag past the drag distance moves
+    bool pressedOnRow {false};
+
+    void endEyeDrag()
+    {
+        eyeDrag.reset();
+        if (eyeStep) eyeStep->undoStack()->endMacro();
+        eyeStep = nullptr;
+    }
     /// A thumbnail held still shows its layer alone until let go
     QTimer soloTimer;
     bool thumbnailHeld {false};
@@ -159,6 +175,7 @@ NodeView::NodeView(QWidget *parent)
 NodeView::~NodeView()
 {
     d->endSolo();
+    d->endEyeDrag();
     delete d;
 }
 
@@ -263,11 +280,12 @@ bool NodeView::viewportEvent(QEvent *e)
         switch(e->type()) {
         case QEvent::MouseButtonPress: {
             DRAG_WHILE_DRAG_WORKAROUND_STOP();
-            d->eyeDrag.reset();
+            d->endEyeDrag();
             d->endSolo();
 
             const QPoint pos = static_cast<QMouseEvent*>(e)->pos();
             d->lastPos = pos;
+            d->pressedOnRow = indexAt(pos).isValid();
 
             if (!indexAt(pos).isValid()) {
                 return QTreeView::viewportEvent(e);
@@ -286,8 +304,9 @@ bool NodeView::viewportEvent(QEvent *e)
             }
         } break;
         case QEvent::MouseButtonRelease: {
-            d->eyeDrag.reset();
+            d->endEyeDrag();
             d->endSolo();
+            d->pressedOnRow = false;
             const QPoint pos = static_cast<QMouseEvent*>(e)->pos();
             QModelIndex index = model()->buddy(indexAt(pos));
             if (!indexAt(pos).isValid()) {
@@ -326,9 +345,9 @@ bool NodeView::viewportEvent(QEvent *e)
             if (d->soloing) {
                 return true;
             }
-            if (d->eyeDrag && !(static_cast<QMouseEvent*>(e)->buttons() & Qt::LeftButton)) {
+            if ((d->eyeDrag || d->eyeStep) && !(static_cast<QMouseEvent*>(e)->buttons() & Qt::LeftButton)) {
                 // its release never came (a menu took it)
-                d->eyeDrag.reset();
+                d->endEyeDrag();
             }
             if (d->eyeDrag) {
                 // down the eyes: each row passed over is shown or hidden like the first, also those between two moves
@@ -368,12 +387,21 @@ bool NodeView::viewportEvent(QEvent *e)
             d->hoveredSlot = slot;
             /* This is a workaround for a bug in QTreeView that immediately begins a dragging action
             when the mouse lands on the decoration/icon of a different index and moves 1 pixel or more */
-            Qt::MouseButtons buttons = static_cast<QMouseEvent*>(e)->buttons();
+            auto *mouse = static_cast<QMouseEvent *>(e);
+            Qt::MouseButtons buttons = mouse->buttons();
             if ((Qt::LeftButton | Qt::MiddleButton) & buttons) {
-                if ((pos - d->lastPos).manhattanLength() > qApp->startDragDistance()) {
-                    return QTreeView::viewportEvent(e);
+                // the row decides first; once it has, rows move from the drag distance, not Qt's own 25 px
+                if (d->moveWaits || (pos - d->lastPos).manhattanLength() < KisModernStyle::dragDistance(mouse)) {
+                    return true;
                 }
-                return true;
+                if (d->pressedOnRow && state() != EditingState && selectionModel() && selectionModel()->hasSelection()) {
+                    d->pressedOnRow = false;
+                    startDrag(model()->supportedDragActions());
+                    setState(NoState);
+                    stopAutoScroll();
+                    return true;
+                }
+                return QTreeView::viewportEvent(e);
             }
         } break;
         case QEvent::ToolTip: {
@@ -398,7 +426,7 @@ bool NodeView::viewportEvent(QEvent *e)
 void NodeView::contextMenuEvent(QContextMenuEvent *e)
 {
     // a finger held on an eye opens the menu, which takes the release
-    d->eyeDrag.reset();
+    d->endEyeDrag();
     d->endSolo();
     QTreeView::contextMenuEvent(e);
     QModelIndex i = indexAt(e->pos());
@@ -679,6 +707,22 @@ void NodeView::mousePressEvent(QMouseEvent *e) {
     if (ind.has_value()) {
         setExclusiveActiveItem(ind.value());
     }
+}
+
+void NodeView::beginVisibilityStep()
+{
+    d->endEyeDrag();
+    KisMainWindow *window = KisPart::instance()->currentMainwindow();
+    KisDocument *document = window && window->viewManager() ? window->viewManager()->document() : nullptr;
+    if (!document || !document->undoStack()) return;
+    // the same name as one layer's change, which it is when no other row is passed
+    document->undoStack()->beginMacro(kundo2_i18n("Property Changes"));
+    d->eyeStep = document;
+}
+
+void NodeView::setMoveWaits(bool waits)
+{
+    d->moveWaits = waits;
 }
 
 void NodeView::startVisibilityDrag(const QModelIndex &index)

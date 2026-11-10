@@ -22,6 +22,10 @@ namespace KisNewerAutosave
 /// The autosave beside \p path (hidden or not, as either setting names it) newer than it; empty if there is none
 KRITAUI_EXPORT QString of(const QString &path);
 
+/// Takes a turned down \p autosave out of the way without destroying it: to the Recycle Bin, or where the drive has
+/// none, into this app's temporary folder. False if it is still where it was.
+KRITAUI_EXPORT bool putAway(const QString &autosave);
+
 } // namespace KisNewerAutosave
 
 #endif

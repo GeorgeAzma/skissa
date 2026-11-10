@@ -46,6 +46,8 @@ public:
 
     /// Where in \p row the current layer's opacity is written, if it is (see LayerBox::updateRowShown())
     QRect opacityRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const;
+    /// Where in \p row the layer's opacity is written, the current layer's or another's
+    QRect shownOpacityRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const;
     /// How wide the opacity is written
     int opacityWidth() const;
     /// Which of the row's icon places \p pos (in the viewport) is over, as painting lights it; -1 for none

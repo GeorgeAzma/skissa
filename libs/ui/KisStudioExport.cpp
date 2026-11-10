@@ -26,6 +26,9 @@
 #include <klocalizedstring.h>
 
 #include <KisDocument.h>
+#include <KoColorModelStandardIds.h>
+#include <KoColorSpace.h>
+#include <KoColorSpaceRegistry.h>
 #include <KoDocumentInfo.h>
 #include <KisImportExportFilter.h>
 #include <KisImportExportManager.h>
@@ -117,7 +120,57 @@ struct KisStudioExport::Private {
     KisStudioChips *tiles {nullptr};
     KisStudioValueRow *qualityRow {nullptr};
     QTimer measureLater;
+    /// The lossless file measured at the image's own depth (16-bit PNG for a deeper image): not measured again
+    bool losslessMeasured {false};
 };
+
+namespace
+{
+
+/// What the sheet shows, made off the window's thread
+struct Prepared {
+    QImage whole;
+    QImage part;
+    /// The PNG's size, when the image is deeper than 8 bits; -1 otherwise
+    qint64 deepPngSize {-1};
+};
+
+/// \p device (the image's picture) as a 16-bit sRGB PNG would hold it, erased colors cleared
+QImage deepImage(KisPaintDeviceSP device, const QRect &bounds)
+{
+    KisPaintDeviceSP copy = new KisPaintDevice(*device);
+    KoColorSpaceRegistry *registry = KoColorSpaceRegistry::instance();
+    copy->convertTo(registry->rgb16(registry->p709SRGBProfile()));
+    QImage deep(bounds.size(), QImage::Format_RGBA64);
+    QVector<quint16> row(bounds.width() * 4);
+    for (int y = 0; y < bounds.height(); y++) {
+        copy->readBytes(reinterpret_cast<quint8 *>(row.data()), bounds.left(), bounds.top() + y, bounds.width(), 1);
+        QRgba64 *line = reinterpret_cast<QRgba64 *>(deep.scanLine(y));
+        for (int x = 0; x < bounds.width(); x++) {
+            // Krita keeps blue first
+            const quint16 *pixel = row.constData() + 4 * x;
+            line[x] = pixel[3] ? QRgba64::fromRgba64(pixel[2], pixel[1], pixel[0], pixel[3]) : QRgba64::fromRgba64(0);
+        }
+    }
+    return deep;
+}
+
+Prepared prepare(KisPaintDeviceSP device, const QRect &bounds, const QSize &partSize, bool deeper)
+{
+    Prepared prepared;
+    prepared.whole = device->convertToQImage(nullptr, bounds).convertToFormat(QImage::Format_ARGB32);
+    // sized as the files are written
+    KisHiddenColors::clear(prepared.whole);
+    const QPoint middle = KisEffectPanels::busiestPoint(device, bounds);
+    QRect partRect(middle - bounds.topLeft() - QPoint(partSize.width() / 2, partSize.height() / 2), partSize);
+    partRect.moveLeft(qBound(0, partRect.left(), qMax(0, prepared.whole.width() - partRect.width())));
+    partRect.moveTop(qBound(0, partRect.top(), qMax(0, prepared.whole.height() - partRect.height())));
+    prepared.part = prepared.whole.copy(partRect & prepared.whole.rect());
+    if (deeper) prepared.deepPngSize = encoded(deepImage(device, bounds), formats().first(), 100).size();
+    return prepared;
+}
+
+} // namespace
 
 bool KisStudioExport::open(KisMainWindow *window)
 {
@@ -140,9 +193,6 @@ KisStudioExport::KisStudioExport(KisMainWindow *window)
     d->document = window->activeView()->document();
     KisImageSP image = d->document->image();
     image->waitForDone();
-    d->whole = image->projection()->convertToQImage(nullptr, image->bounds()).convertToFormat(QImage::Format_ARGB32);
-    // sized as the files are written
-    KisHiddenColors::clear(d->whole);
 
     const int count = formats().size();
     d->sizes.fill(-1, count);
@@ -171,11 +221,27 @@ KisStudioExport::KisStudioExport(KisMainWindow *window)
     setMinimumWidth(count * tile.width() + 4 * KisModernStyle::space3 + 2 * shadowMargin());
     const qreal dpr = devicePixelRatioF();
     const QSize partSize = (QSizeF(tile.width(), tile.height() - fontMetrics().height() - KisModernStyle::space2) * dpr / 2).toSize();
-    const QPoint middle = KisEffectPanels::busiestPoint(image->projection(), image->bounds());
-    QRect partRect(middle - QPoint(partSize.width() / 2, partSize.height() / 2), partSize);
-    partRect.moveLeft(qBound(0, partRect.left(), qMax(0, d->whole.width() - partRect.width())));
-    partRect.moveTop(qBound(0, partRect.top(), qMax(0, d->whole.height() - partRect.height())));
-    d->part = d->whole.copy(partRect & d->whole.rect());
+    // the picture read and its busy part found off the window's thread, from the image as it is now
+    {
+        const KisPaintDeviceSP snapshot = KisEffectPanels::fullSizeCopy(image->projection());
+        const QRect bounds = image->bounds();
+        const bool deeper = image->colorSpace()->colorDepthId() != Integer8BitsColorDepthID;
+        auto *watcher = new QFutureWatcher<Prepared>(this);
+        connect(watcher, &QFutureWatcher<Prepared>::finished, this, [this, watcher]() {
+            watcher->deleteLater();
+            const Prepared prepared = watcher->result();
+            d->whole = prepared.whole;
+            d->part = prepared.part;
+            if (prepared.deepPngSize >= 0) {
+                d->sizes[0] = prepared.deepPngSize;
+                d->losslessMeasured = true;
+            }
+            d->pictures.fill(QImage());
+            refresh();
+            for (int i = 0; i < formats().size(); i++) measure(i);
+        });
+        watcher->setFuture(QtConcurrent::run([snapshot, bounds, partSize, deeper]() { return prepare(snapshot, bounds, partSize, deeper); }));
+    }
 
     d->tiles = new KisStudioChips(this);
     d->tiles->setTileColumns(count, tile.height());
@@ -232,7 +298,6 @@ KisStudioExport::KisStudioExport(KisMainWindow *window)
     layout->addLayout(buttons);
 
     refresh();
-    for (int i = 0; i < count; i++) measure(i);
 }
 
 KisStudioExport::~KisStudioExport()
@@ -244,7 +309,7 @@ void KisStudioExport::refresh()
     QVector<KisStudioChips::Chip> chips;
     for (int i = 0; i < formats().size(); i++) {
         const Format &format = formats()[i];
-        if (d->pictures[i].isNull()) {
+        if (d->pictures[i].isNull() && !d->part.isNull()) {
             d->pictures[i] = canEncode(format) ? QImage::fromData(encoded(d->part, format, d->quality[i])) : d->part;
             if (d->pictures[i].isNull()) d->pictures[i] = d->part;
         }
@@ -252,8 +317,11 @@ void KisStudioExport::refresh()
         chip.text = d->sizes[i] < 0 ? format.name
                                     : i18nc("export format and the size of its file", "%1 · %2", format.name,
                                             QLocale().formattedDataSize(d->sizes[i], 1, QLocale::DataSizeTraditionalFormat));
-        chip.picture = KisEffectPanels::tilePicture(d->pictures[i], false, true);
-        chip.pictureKey = d->pictures[i].cacheKey();
+        // nothing drawn until the picture has been read
+        if (!d->pictures[i].isNull()) {
+            chip.picture = KisEffectPanels::tilePicture(d->pictures[i], false, true);
+            chip.pictureKey = d->pictures[i].cacheKey();
+        }
         chip.on = i == d->current;
         chips << chip;
     }
@@ -270,7 +338,7 @@ void KisStudioExport::refresh()
 void KisStudioExport::measure(int index)
 {
     const Format format = formats()[index];
-    if (!canEncode(format)) return;
+    if (!canEncode(format) || d->whole.isNull() || (!format.lossy && d->losslessMeasured)) return;
     const int generation = ++d->generation[index];
     auto *watcher = new QFutureWatcher<qint64>(this);
     connect(watcher, &QFutureWatcher<qint64>::finished, this, [this, watcher, index, generation]() {
@@ -310,8 +378,10 @@ void KisStudioExport::exportNow()
         KisSettingsRegistry::writeLater(folderKey, QFileInfo(path).absolutePath());
 
         QScopedPointer<KisImportExportFilter> filter(KisImportExportManager::filterForMimeType(format.mime, KisImportExportManager::Export));
-        KisPropertiesConfigurationSP settings = filter ? filter->lastSavedConfiguration("application/x-krita", format.mime.toLatin1())
-                                                       : KisPropertiesConfigurationSP(new KisPropertiesConfiguration());
+        // Krita's defaults, which the pictures show, not options last set in Krita's own dialog and not shown here
+        KisPropertiesConfigurationSP settings = filter ? filter->defaultConfiguration("application/x-krita", format.mime.toLatin1())
+                                                       : KisPropertiesConfigurationSP();
+        if (!settings) settings = new KisPropertiesConfiguration();
         if (format.lossy) {
             if (format.mime == QLatin1String("image/webp")) {
                 settings->setProperty("quality", double(quality));

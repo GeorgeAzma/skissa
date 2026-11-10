@@ -104,6 +104,12 @@ public:
     /// A plain press on \p index's eye: dragging on over other rows gives their layers the visibility it gave this one
     void startVisibilityDrag(const QModelIndex &index);
 
+    /// Opens the undo step that a plain press on an eye and the rows its drag passes share; it closes when the press ends
+    void beginVisibilityStep();
+
+    /// While \p waits, a press dragged on moves no rows: the row is still deciding whether the drag is its opacity
+    void setMoveWaits(bool waits);
+
 protected:
     QItemSelectionModel::SelectionFlags selectionCommand(const QModelIndex &index, const QEvent *event) const override;
     QModelIndex indexAt(const QPoint &point) const override;

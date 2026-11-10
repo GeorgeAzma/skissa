@@ -187,6 +187,34 @@ static int opacityPercentOf(const QModelIndex &index)
     return node && node->inherits("KisLayer") ? node->percentOpacity() : -1;
 }
 
+QRect NodeDelegate::shownOpacityRect(const QModelIndex &index, const QRect &row, Qt::LayoutDirection direction) const
+{
+    if (holdsControls(d->view, index)) return opacityRect(index, row, direction);
+    // other rows write it only when below full: in tall rows at the end of the second line, else in the blend's text
+    // after the name
+    const int opacity = opacityPercentOf(index);
+    if (opacity < 0 || opacity >= 100) return QRect();
+    const int width = opacityWidth();
+    if (isTall()) {
+        const QRect line = inlineControlsRect(index, row, direction);
+        return QRect(line.right() + 1 - width, line.top(), width, line.height());
+    }
+    const QString infoText = index.data(KisNodeModel::InfoTextRole).toString();
+    if (infoText.isEmpty()) return QRect();
+    QStyleOptionViewItem option;
+    option.rect = row;
+    option.direction = direction;
+    option.font = d->view->font();
+    option.fontMetrics = d->view->fontMetrics();
+    if (index.model() && index.model()->hasChildren(index)) option.state |= QStyle::State_Children;
+    KisNodeViewColorScheme scm;
+    const QRect text = textRect(option, index).adjusted(scm.textMargin(), 0, -scm.textMargin(), 0);
+    const int info = qMin(text.width() / 2, d->view->fontMetrics().horizontalAdvance(infoText) + 2 * scm.textMargin());
+    const int shown = qMax(width, info);
+    return direction == Qt::RightToLeft ? QRect(text.left(), text.top(), shown, text.height())
+                                        : QRect(text.right() + 1 - shown, text.top(), shown, text.height());
+}
+
 QSize NodeDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
     KisNodeViewColorScheme scm;
@@ -1270,8 +1298,11 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
                 Qt::KeyboardModifiers modifiers = mouseEvent->modifiers();
                 // Alt+click shows only this layer, as Shift+click does
                 if (modifiers == Qt::AltModifier) modifiers = Qt::ShiftModifier;
+                // the press and the rows its drag passes are one undo step
+                const bool drags = modifiers == Qt::NoModifier && event->type() == QEvent::MouseButtonPress;
+                if (drags) d->view->beginVisibilityStep();
                 d->toggleProperty(props, clickedProperty, modifiers, index);
-                if (modifiers == Qt::NoModifier && event->type() == QEvent::MouseButtonPress) d->view->startVisibilityDrag(index);
+                if (drags) d->view->startVisibilityDrag(index);
 
                 return true;
             }
