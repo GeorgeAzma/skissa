@@ -4,14 +4,21 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisSettingsRegistry.h"
+#include "KisSettingsUndo.h"
 #include "KisSuperellipse.h"
 #include "widgets/KisBlendModePicker.h"
 #include <KisProfile.h>
 
+#include <QAbstractSpinBox>
 #include <QApplication>
 #include <QColor>
+#include <QComboBox>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QKeyEvent>
+#include <QLineEdit>
+#include <QPlainTextEdit>
+#include <QTextEdit>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLocale>
@@ -114,7 +121,7 @@ Setting text(const QString &key, const QString &fallback, const QString &label, 
  */
 Setting itemList(const QString &key, const QString &label)
 {
-    Setting s = make(Kind::Text, key, QString(), label, KisSettingsRegistry::Fork | KisSettingsRegistry::OwnNotice);
+    Setting s = make(Kind::Text, key, QString(), label, KisSettingsRegistry::Fork | KisSettingsRegistry::OwnNotice | KisSettingsRegistry::Arranged);
     s.read = [key]() {
         const KConfigGroup group = KSharedConfig::openConfig()->group(QString());
         if (!group.hasKey(key)) return QVariant(QString());
@@ -393,8 +400,8 @@ QVector<Setting> describeAll()
             all << made(grouped(toggle(QStringLiteral("UseAccent"), false, i18nc("setting", "Theme accent"), R::Fork), themeGroup));
             all << made(grouped(color(QStringLiteral("Accent"), QColor(92, 124, 250), i18nc("setting", "Theme accent color"), R::Fork), themeGroup));
             // The picker's themes and the one in use (KisStudioTheme::themes)
-            all << grouped(text(QStringLiteral("List"), QLatin1String(""), i18nc("setting", "Themes"), R::Fork | R::OwnNotice), QStringLiteral("StudioThemes"));
-            all << grouped(text(QStringLiteral("Current"), QLatin1String(""), i18nc("setting", "Theme"), R::Fork | R::OwnNotice), QStringLiteral("StudioThemes"));
+            all << grouped(text(QStringLiteral("List"), QLatin1String(""), i18nc("setting", "Themes"), R::Fork | R::OwnNotice | R::Arranged), QStringLiteral("StudioThemes"));
+            all << grouped(text(QStringLiteral("Current"), QLatin1String(""), i18nc("setting", "Theme"), R::Fork | R::OwnNotice | R::Arranged), QStringLiteral("StudioThemes"));
         }
         {
             // The shape tool's look (KisSuperellipse): those showing it follow its writes, an undo's too
@@ -417,7 +424,7 @@ QVector<Setting> describeAll()
         {
             // where the panels and bars are, one step for each change (KisStudioLayout::arrangementNow)
             Setting arrangement = make(Kind::Text, QStringLiteral("StudioLayoutArrangement"), QString(), i18nc("setting", "Panels"),
-                                       KisSettingsRegistry::Fork | KisSettingsRegistry::OwnNotice);
+                                       KisSettingsRegistry::Fork | KisSettingsRegistry::OwnNotice | KisSettingsRegistry::Arranged);
             arrangement.read = []() { return QVariant(KisStudioLayout::committedArrangement()); };
             arrangement.write = [](const QVariant &value) { KisStudioLayout::restoreArrangement(value.toString()); };
             all << arrangement;
@@ -941,6 +948,55 @@ QVariant fallbackOf(const Setting &s)
     return s.fallbackNow ? s.fallbackNow() : s.fallback;
 }
 
+/**
+ * Counts the user's gestures: each press of a button, pen or finger, each turn of the wheel and each run of typing in
+ * one field is a new one. A setting's writes within one gesture are one step of the undo history, whatever their
+ * timing; two clicks are two steps however quick.
+ */
+class GestureCount : public QObject
+{
+public:
+    quint64 now {1};
+
+protected:
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        switch (event->type()) {
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonDblClick:
+        case QEvent::TabletPress:
+        case QEvent::TouchBegin:
+            now++;
+            m_typingIn = nullptr;
+            break;
+        case QEvent::Wheel:
+            // a pause ends a turn, as for the wheel's latch on values (KisModernStyle)
+            if (!m_wheel.isValid() || m_wheel.elapsed() > 400) now++;
+            m_wheel.restart();
+            m_typingIn = nullptr;
+            break;
+        case QEvent::KeyPress: {
+            if (static_cast<QKeyEvent *>(event)->isAutoRepeat()) break;
+            QWidget *focus = QApplication::focusWidget();
+            const auto *combo = qobject_cast<QComboBox *>(focus);
+            const bool typing = qobject_cast<QLineEdit *>(focus) || qobject_cast<QAbstractSpinBox *>(focus) || qobject_cast<QTextEdit *>(focus)
+                || qobject_cast<QPlainTextEdit *>(focus) || (combo && combo->isEditable());
+            // keys elsewhere (shortcuts on the canvas) are each a gesture of their own
+            if (!typing || focus != m_typingIn) now++;
+            m_typingIn = typing ? focus : nullptr;
+            break;
+        }
+        default:
+            break;
+        }
+        return false;
+    }
+
+private:
+    QElapsedTimer m_wheel;
+    QPointer<QWidget> m_typingIn;
+};
+
 } // namespace
 
 struct KisSettingsRegistry::Private
@@ -965,9 +1021,13 @@ struct KisSettingsRegistry::Private
         QString id;
         QVariant before;
         QVariant after;
-        QElapsedTimer made;
+        /// Where it was made or last redone in the order of every step (KisSettingsUndo::nextStamp)
+        quint64 stamp {0};
+        /// The gesture it was made in (GestureCount); 0 for one redone, which nothing joins
+        quint64 gesture {0};
         QVector<Follower> followers;
     };
+    GestureCount *gestures {nullptr};
     QVector<Change> undo;
     QVector<Change> redo;
     /// Set while undoing or redoing, so the write isn't recorded as a new change
@@ -1011,6 +1071,9 @@ KisSettingsRegistry::KisSettingsRegistry()
     d->sync.setInterval(800);
     connect(&d->sync, &QTimer::timeout, this, []() { KSharedConfig::openConfig()->sync(); });
     connect(qApp, &QCoreApplication::aboutToQuit, this, &KisSettingsRegistry::flush);
+    d->gestures = new GestureCount();
+    d->gestures->setParent(this);
+    qApp->installEventFilter(d->gestures);
 }
 
 const QVector<Setting> &KisSettingsRegistry::settings() const
@@ -1199,23 +1262,30 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
     if (!v.isValid()) return false;
     const QVariant before = value(id);
     if (sameValue(*s, v, before)) return true;
+    const bool recorded = !d->replaying;
     if (!d->replaying && (d->writing > 0 || (d->batch && d->batchStarted)) && !d->undo.isEmpty()) {
         // written again within the step (a theme's list at every move of a drag): only where it ends changes
-        QVector<Private::Follower> &followers = d->undo.last().followers;
+        Private::Change &step = d->undo.last();
+        QVector<Private::Follower> &followers = step.followers;
         auto known = std::find_if(followers.begin(), followers.end(), [&id](const Private::Follower &f) { return f.id == id; });
-        if (known != followers.end()) known->after = v;
+        if (step.id == id) step.after = v;
+        else if (known != followers.end()) known->after = v;
         else followers << Private::Follower{id, before, v};
     } else if (!d->replaying) {
         if (d->batch) d->batchStarted = true;
-        // Merge quick successive changes of one setting (a slider drag, typing) into one step
-        if (!d->undo.isEmpty() && d->undo.last().id == id && d->undo.last().made.elapsed() < 1500) {
+        // one setting's changes in one gesture (a slider dragged, a field typed in) are one step
+        if (!d->undo.isEmpty() && d->undo.last().id == id && d->undo.last().gesture == d->gestures->now) {
             d->undo.last().after = v;
         } else {
-            Private::Change change{id, before, v, QElapsedTimer(), {}};
+            Private::Change change;
+            change.id = id;
+            change.before = before;
+            change.after = v;
+            change.gesture = d->gestures->now;
             d->undo << change;
             if (d->undo.size() > 200) d->undo.removeFirst();
         }
-        d->undo.last().made.restart();
+        d->undo.last().stamp = KisSettingsUndo::nextStamp();
         d->redo.clear();
         // dragged there and back: no step at all
         if (d->undo.last().followers.isEmpty() && sameValue(*s, d->undo.last().after, d->undo.last().before)) d->undo.removeLast();
@@ -1235,6 +1305,7 @@ bool KisSettingsRegistry::setValue(const QString &id, const QVariant &newValue)
     d->writing--;
     schedule(*s);
     Q_EMIT valueChanged(id);
+    if (recorded) Q_EMIT historyChanged();
     return true;
 }
 
@@ -1264,9 +1335,14 @@ void KisSettingsRegistry::setValues(const QVector<QPair<QString, QVariant>> &val
     d->batch = false;
 }
 
-qint64 KisSettingsRegistry::undoAge() const
+quint64 KisSettingsRegistry::undoStamp() const
 {
-    return d->undo.isEmpty() ? -1 : d->undo.last().made.elapsed();
+    return d->undo.isEmpty() ? 0 : d->undo.last().stamp;
+}
+
+bool KisSettingsRegistry::canUndoChange() const
+{
+    return !d->undo.isEmpty();
 }
 
 QString KisSettingsRegistry::undoName() const
@@ -1280,13 +1356,15 @@ bool KisSettingsRegistry::undoChange()
     if (d->undo.isEmpty()) return false;
     Private::Change change = d->undo.takeLast();
     d->replaying = true;
-    const bool done = setValue(change.id, change.before);
+    // in the reverse of the order they were written
     for (int i = change.followers.size() - 1; i >= 0; i--) setValue(change.followers[i].id, change.followers[i].before);
+    const bool done = setValue(change.id, change.before);
     d->replaying = false;
     // a value that can't be gone back to (a choice since removed): on to the step before
     if (!done) return undoChange();
-    change.made.restart();
+    change.gesture = 0;
     d->redo << change;
+    Q_EMIT historyChanged();
     return true;
 }
 
@@ -1314,9 +1392,10 @@ bool KisSettingsRegistry::redoChange()
     setValue(change.id, change.after);
     for (const Private::Follower &follower : change.followers) setValue(follower.id, follower.after);
     d->replaying = false;
-    // A redone change counts as new when Undo weighs it against the document's steps
-    change.made.restart();
+    // a redone change counts as done now when Undo weighs it against the documents' steps
+    change.stamp = KisSettingsUndo::nextStamp();
     d->undo << change;
+    Q_EMIT historyChanged();
     return true;
 }
 
@@ -1335,9 +1414,17 @@ QHash<QString, QVariant> KisSettingsRegistry::snapshot() const
 
 void KisSettingsRegistry::restore(const QHash<QString, QVariant> &snapshot)
 {
-    for (auto it = snapshot.constBegin(); it != snapshot.constEnd(); ++it) {
-        setValue(it.key(), it.value());
+    // one step; the themes and the one in use first, so the values a theme holds go back into their own theme, not
+    // into the one picked since
+    const QStringList first = {QStringLiteral("[StudioThemes] List"), QStringLiteral("[StudioThemes] Current")};
+    QVector<QPair<QString, QVariant>> values;
+    for (const QString &id : first) {
+        if (snapshot.contains(id)) values << qMakePair(id, snapshot.value(id));
     }
+    Q_FOREACH (const Setting &s, d->settings) {
+        if (!first.contains(s.id) && snapshot.contains(s.id)) values << qMakePair(s.id, snapshot.value(s.id));
+    }
+    setValues(values);
 }
 
 QStringList KisSettingsRegistry::waitingForRestart() const

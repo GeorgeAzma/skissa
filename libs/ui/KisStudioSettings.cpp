@@ -2992,9 +2992,8 @@ struct KisStudioSettings::Private
                 if (const CardDef *def = cardDef(id)) fresh->box()->addWidget(makeCard(*def, fresh, shown));
             }
             if (own->isEmpty()) {
-                fresh->box()->addWidget(dimLabel(shown == quickId ? i18nc("@info", "Drag settings here by their titles, or pin them with a right click. A right click on the Settings button shows them.")
-                                                                  : i18nc("@info", "Drag settings here by their titles, or add them with a right click."),
-                                                 fresh));
+                // a state, not instructions: cards come here by their right click or dragged by their titles
+                fresh->box()->addWidget(dimLabel(i18nc("@info an empty settings section", "No settings here yet"), fresh));
             }
             const QString target = shown;
             fresh->dropped = [this, target](const QString &cardId, int index) {
@@ -3051,7 +3050,7 @@ struct KisStudioSettings::Private
 
     // ---- Transferring settings
 
-    void showPlan(const KisSettingsTransfer::Plan &plan, const QString &title, const QString &explanation, const QString &applyText,
+    void showPlan(const KisSettingsTransfer::Plan &plan, const QString &title, const QString &applyText,
                   std::function<void(const QVector<KisSettingsTransfer::Change> &, bool sections, bool arrangement)> apply)
     {
         if (!plan.error.isEmpty()) {
@@ -3067,7 +3066,6 @@ struct KisStudioSettings::Private
         auto *layout = new QVBoxLayout(review);
         layout->setContentsMargins(0, 0, KisModernStyle::space1, 0);
         layout->addWidget(titleLabel(title, review));
-        if (!explanation.isEmpty()) layout->addWidget(dimLabel(explanation, review));
         auto *list = new QScrollArea(review);
         list->setFrameShape(QFrame::NoFrame);
         list->setWidgetResizable(true);
@@ -3147,8 +3145,7 @@ struct KisStudioSettings::Private
             q->say(i18ncp("@info", "%1 setting changed. Panels, buttons and shortcuts follow at the next start.",
                           "%1 settings changed. Panels, buttons and shortcuts follow at the next start.", applied));
         } else {
-            q->say(i18ncp("@info", "%1 setting changed. Undo puts back what changed since Settings opened.",
-                          "%1 settings changed. Undo puts back what changed since Settings opened.", applied));
+            q->say(i18ncp("@info", "%1 setting changed.", "%1 settings changed.", applied));
         }
         rebuild();
         updateFooter();
@@ -3185,7 +3182,7 @@ struct KisStudioSettings::Private
             return;
         }
         const KisSettingsTransfer::Plan plan = KisSettingsTransfer::planImport(file.readAll());
-        showPlan(plan, i18nc("@title", "Import from %1", QFileInfo(path).fileName()), QString(), i18nc("@action:button", "Import"),
+        showPlan(plan, i18nc("@title", "Import from %1", QFileInfo(path).fileName()), i18nc("@action:button", "Import"),
                  [this, plan](const QVector<KisSettingsTransfer::Change> &chosen, bool sections, bool arrangement) {
                      applyHere(chosen, sections ? plan.sections : QByteArray(), arrangement ? plan.arrangement : QByteArray());
                  });
@@ -3194,7 +3191,7 @@ struct KisStudioSettings::Private
     void fromKrita()
     {
         const KisSettingsTransfer::Plan plan = KisSettingsTransfer::planFromKrita();
-        showPlan(plan, i18nc("@title", "Krita's settings, here"), i18nc("@info", "What Krita has set that differs here."), i18nc("@action:button", "Take them"),
+        showPlan(plan, i18nc("@title", "Krita's settings, here"), i18nc("@action:button", "Take them"),
                  [this](const QVector<KisSettingsTransfer::Change> &chosen, bool, bool) { applyHere(chosen, QByteArray()); });
     }
 

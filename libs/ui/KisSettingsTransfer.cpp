@@ -83,9 +83,11 @@ const QStringList arrangedKeys = {
 };
 /// Kept as they are here: the classic layout's window state and the recorder's folder belong to this computer
 const QStringList notArranged = {QStringLiteral("StudioLayoutClassicState"), QStringLiteral("recorder/snapshotdirectory")};
-/// Whole groups the user arranged: saved curves, each brush's smoothing, the brush sheet's columns, guides, the key scheme
+/// Whole groups the user arranged: saved curves, each brush's smoothing, the brush sheet's columns, guides, the key
+/// scheme, the themes
+const QString themesGroup = QStringLiteral("StudioThemes");
 const QStringList arrangedGroups = {QStringLiteral("SavedCurves"), QStringLiteral("StudioBrushSmoothing"), QStringLiteral("StudioBrushSheet"),
-                                    QStringLiteral("StudioGuides"), QStringLiteral("Shortcut Schemes")};
+                                    QStringLiteral("StudioGuides"), QStringLiteral("Shortcut Schemes"), themesGroup};
 const QString mainGroup = QStringLiteral("main");
 
 bool isArranged(const QString &key)
@@ -141,7 +143,7 @@ Plan plan(KConfig *source)
     Plan plan;
     KisSettingsRegistry *registry = KisSettingsRegistry::instance();
     Q_FOREACH (const Setting &s, registry->settings()) {
-        if ((s.flags & KisSettingsRegistry::Machine) || !s.storedInKritarc()) continue;
+        if ((s.flags & (KisSettingsRegistry::Machine | KisSettingsRegistry::Arranged)) || !s.storedInKritarc()) continue;
         const QVariant to = registry->valueIn(s, *source);
         if (!to.isValid()) continue; // not set in the source
         const QVariant from = registry->value(s.id);
@@ -170,7 +172,8 @@ QByteArray exportSettings()
     KisSettingsRegistry *registry = KisSettingsRegistry::instance();
     QJsonObject settings;
     Q_FOREACH (const Setting &s, registry->settings()) {
-        if ((s.flags & KisSettingsRegistry::Machine) || registry->isDefault(s.id)) continue;
+        // what the user arranged goes in the arrangement, as it is kept
+        if ((s.flags & (KisSettingsRegistry::Machine | KisSettingsRegistry::Arranged)) || registry->isDefault(s.id)) continue;
         settings.insert(s.id, toJson(s, registry->value(s.id)));
     }
     QJsonObject root;
@@ -216,6 +219,8 @@ Plan planImport(const QByteArray &data)
             plan.skipped << i18nc("@info settings import", "%1: not in this Skissa", it.key());
             continue;
         }
+        // files from before kept them here too; they come with the arrangement
+        if (s->flags & KisSettingsRegistry::Arranged) continue;
         if (s->flags & KisSettingsRegistry::Machine) {
             plan.skipped << i18nc("@info settings import", "%1: kept as this computer has it", nameOf(*s));
             continue;
@@ -264,6 +269,8 @@ bool applyArrangement(const QByteArray &data, QString *error)
         if (isArranged(it.key())) main.writeEntry(it.key(), it.value().toString());
     }
     for (const QString &name : arrangedGroups) {
+        // a file from before themes were arranged has none: the themes here stay rather than going back to the shipped ones
+        if (name == themesGroup && !kritarc.contains(name)) continue;
         config->deleteGroup(name);
         KConfigGroup group = config->group(name);
         const QJsonObject groupEntries = kritarc.value(name).toObject();

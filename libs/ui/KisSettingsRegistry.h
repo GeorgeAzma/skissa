@@ -46,6 +46,8 @@ public:
         NewViews = 1 << 3,  ///< applies only to images opened afterwards
         /// Applied by its own code (a setter, a listener of valueChanged): Krita's whole config notice isn't sent for it
         OwnNotice = 1 << 4,
+        /// What the user arranged (lists, the panels' places, the themes): it travels with the arrangement in an export, not as a setting
+        Arranged = 1 << 5,
     };
 
     struct Choice {
@@ -121,11 +123,12 @@ public:
     /// The settings changed since startup whose change needs a restart
     QStringList waitingForRestart() const;
 
-    // Undo history of settings changes (see KisSettingsUndo). Quick successive changes
-    // of one setting, such as a slider drag, form a single step.
+    // Undo history of settings changes (see KisSettingsUndo). The changes of one setting
+    // within one gesture, such as a slider drag or typing in a field, form a single step.
 
-    /// Milliseconds since the change Undo would revert was made, or -1 if there is none
-    qint64 undoAge() const;
+    /// When the change Undo would revert was made or redone, in KisSettingsUndo::nextStamp()'s order; 0 if there is none
+    quint64 undoStamp() const;
+    bool canUndoChange() const;
     QString undoName() const;
     bool undoChange();
     bool canRedoChange() const;
@@ -162,6 +165,8 @@ public:
 Q_SIGNALS:
     /// Emitted whenever \p id is written
     void valueChanged(const QString &id);
+    /// Emitted when a step is added to the history, undone or redone
+    void historyChanged();
 
 private:
     KisSettingsRegistry();

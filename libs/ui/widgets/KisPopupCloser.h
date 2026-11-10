@@ -7,6 +7,7 @@
 #define KISPOPUPCLOSER_H
 
 #include <QObject>
+#include <QPoint>
 #include <QPointer>
 
 #include "kritaui_export.h"
@@ -42,6 +43,9 @@ private:
 
     QWidget *m_popup;
     QPointer<QWidget> m_anchor;
+    /// Where the pointer was when the popup showed, and how far from it a press is still on what opened it (-1: anywhere)
+    QPoint m_shownAt;
+    int m_reach = -1;
     bool m_wasActive = false;
     bool m_enabled = true;
 };

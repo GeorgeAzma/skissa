@@ -102,29 +102,55 @@ bool everyWordStarts(const QStringList &queryWords, const QStringList &words)
     });
 }
 
+/// How a query matches a name, best last: the class decides the order, use only orders a class
+enum MatchClass {
+    FuzzyMatch = 1,
+    KeywordMatch,
+    InnerMatch,
+    AllWordsMatch,
+    InitialsMatch,
+    WordStartMatch,
+    PrefixMatch,
+    ExactMatch,
+};
+
+/**
+ * A score of \p matchClass, \p fit ordering names within it (shorter, closer). A query of one or two letters says
+ * little about which class is meant, so there classes lie close and what is used often can pass one; from three
+ * letters on, the class decides alone.
+ */
+qreal ranked(MatchClass matchClass, qreal fit, const QString &query)
+{
+    const qreal classStep = query.size() <= 2 ? 15.0 : 1000.0;
+    return matchClass * classStep + fit;
+}
+
 /**
  * Scores how well \p query matches \p title; negative if it doesn't match.
- * Only predictable matches count, best first: a prefix of the title, a prefix
+ * Only predictable matches count, best first: the whole title, a prefix of the title, a prefix
  * of a word, the initials ("gb" for Gaussian Blur), every query word starting
  * a title word ("gaus bl"), and last a substring inside a word. The last one
  * needs three letters, as shorter queries hit it by accident ("gb" in RGBA).
  */
 qreal strictMatch(const QString &query, const QString &title)
 {
+    if (title.compare(query, Qt::CaseInsensitive) == 0) {
+        return ranked(ExactMatch, 0.0, query);
+    }
     const qreal lengthPenalty = title.size() * 0.3;
     qreal best = -1.0;
 
     for (int at = title.indexOf(query, 0, Qt::CaseInsensitive); at >= 0;
          at = title.indexOf(query, at + 1, Qt::CaseInsensitive)) {
         if (at == 0) {
-            best = qMax(best, 130.0 - lengthPenalty);
+            best = qMax(best, ranked(PrefixMatch, -lengthPenalty, query));
         } else if (!title.at(at - 1).isLetterOrNumber()) {
-            best = qMax(best, 115.0 - lengthPenalty);
+            best = qMax(best, ranked(WordStartMatch, -lengthPenalty, query));
         } else if (query.size() >= 3) {
-            best = qMax(best, 50.0 - lengthPenalty);
+            best = qMax(best, ranked(InnerMatch, -lengthPenalty, query));
         }
     }
-    if (best >= 100.0) {
+    if (best >= ranked(WordStartMatch, -lengthPenalty, query)) {
         return best;
     }
 
@@ -132,7 +158,7 @@ qreal strictMatch(const QString &query, const QString &title)
     const QStringList titleWords = title.split(nonWord, Qt::SkipEmptyParts);
     const QStringList queryWords = query.split(QLatin1Char(' '), Qt::SkipEmptyParts);
     if (queryWords.size() > 1 && everyWordStarts(queryWords, titleWords)) {
-        best = qMax(best, 90.0 - lengthPenalty);
+        best = qMax(best, ranked(AllWordsMatch, -lengthPenalty, query));
     }
 
     if (query.size() >= 2 && !query.contains(QLatin1Char(' ')) && titleWords.size() >= query.size()) {
@@ -141,7 +167,7 @@ qreal strictMatch(const QString &query, const QString &title)
             initials += word.at(0);
         }
         if (initials.startsWith(query, Qt::CaseInsensitive)) {
-            best = qMax(best, initials.size() == query.size() ? 100.0 : 92.0);
+            best = qMax(best, ranked(InitialsMatch, initials.size() == query.size() ? 0.0 : -8.0, query));
         }
     }
     return best;
@@ -610,15 +636,14 @@ struct KisStudioFind::Private
         KisSettingsRegistry::writeLater(QStringLiteral("StudioFindUsage"), stored);
     }
 
-    /// Frequently and recently used results rank higher; recency decays over a few days
+    /// Results used often rank higher within their match class; the uses fade (usesFadeDays), so recent ones count most
     qreal frecency(const QString &key) const
     {
         const auto it = usage.constFind(key);
         if (it == usage.constEnd()) {
             return 0.0;
         }
-        const qreal days = qMax<qint64>(0, QDateTime::currentSecsSinceEpoch() - it->lastUsed) / 86400.0;
-        return 6.0 * std::log2(1.0 + it->countNow()) + 14.0 * std::exp(-days / 3.0);
+        return 6.0 * std::log2(1.0 + it->countNow());
     }
 };
 
@@ -1114,10 +1139,10 @@ void KisStudioFind::updateCommands(const QString &query)
                 int fuzzy = 0;
                 if (kfts::fuzzy_match(query, entry.title, fuzzy)) {
                     loose = true;
-                    score = fuzzy * 0.3 - 10;
+                    score = ranked(FuzzyMatch, fuzzy * 0.3 - 10, query);
                 } else if (!inMenu.isEmpty() && (kfts::fuzzy_match(query, inMenu, fuzzy) || kfts::fuzzy_match(query, fullPath, fuzzy))) {
                     loose = true;
-                    score = fuzzy * 0.3 - 14;
+                    score = ranked(FuzzyMatch, fuzzy * 0.3 - 14, query);
                 }
             }
             if (score >= 0.0 || loose) {
@@ -1326,7 +1351,7 @@ void KisStudioFind::updateResults()
             if (query.size() < 2 || !everyWordStarts(queryWords, entry.allWords())) {
                 continue;
             }
-            total = 30;
+            total = ranked(KeywordMatch, 0.0, query);
         }
         scored.append({i, total + frecency() + kindBias(entry.kind)});
     }
@@ -1341,7 +1366,7 @@ void KisStudioFind::updateResults()
                 continue;
             }
             if (!have.contains(i) && kfts::fuzzy_match(query, d->entries[i].title, score)) {
-                scored.append({i, score * 0.3 - 20 + kindBias(d->entries[i].kind)});
+                scored.append({i, ranked(FuzzyMatch, score * 0.3 - 20, query) + kindBias(d->entries[i].kind)});
             }
         }
     }

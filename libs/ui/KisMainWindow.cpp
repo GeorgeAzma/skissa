@@ -174,6 +174,8 @@
 #include "KisStudioFind.h"
 #include "KisStudioHoldKeys.h"
 #include "KisStudioRings.h"
+#include "KisSettingsRegistry.h"
+#include "KisSettingsUndo.h"
 #include <config-qmdiarea-always-show-subwindow-title.h>
 #include <config-qt-patches-present.h>
 #include <KisPlatformPluginInterfaceFactory.h>
@@ -381,6 +383,13 @@ public:
         widget->setEnabled(true);
     }
 };
+
+/// Undo and Redo stay usable while settings have a change to take back or repeat, whatever the image's own history
+static void enableForSettings(QAction *undo, QAction *redo)
+{
+    if (KisSettingsRegistry::instance()->canUndoChange()) undo->setEnabled(true);
+    if (KisSettingsRegistry::instance()->canRedoChange()) redo->setEnabled(true);
+}
 
 KisMainWindow::KisMainWindow(QUuid uuid)
     : KXmlGuiWindow()
@@ -1649,6 +1658,9 @@ void KisMainWindow::undo()
 {
     if (activeView()) {
         activeView()->document()->undoStack()->undo();
+    } else {
+        // no image: settings' changes still go back
+        KisSettingsUndo::undoSettings();
     }
 }
 
@@ -1656,6 +1668,8 @@ void KisMainWindow::redo()
 {
     if (activeView()) {
         activeView()->document()->undoStack()->redo();
+    } else {
+        KisSettingsUndo::redoSettings();
     }
 }
 
@@ -1852,6 +1866,7 @@ void KisMainWindow::setActiveView(KisView* view)
 
     if (d->undoActionsUpdateManager) {
         d->undoActionsUpdateManager->setCurrentDocument(view ? view->document() : 0);
+        enableForSettings(d->undo, d->redo);
     }
 
     d->viewManager->setCurrentView(view);
@@ -3212,14 +3227,17 @@ void KisMainWindow::createActions()
     d->saveActionAs = actionManager->createStandardAction(KStandardAction::SaveAs, this, SLOT(slotFileSaveAs()));
     d->saveActionAs->setActivationFlags(KisAction::ACTIVE_IMAGE);
 
+    // also with no image open, where they take settings' changes back
     d->undo = actionManager->createStandardAction(KStandardAction::Undo, this, SLOT(undo()));
-    d->undo->setActivationFlags(KisAction::ACTIVE_IMAGE);
+    d->undo->setActivationFlags(KisAction::NONE);
 
     d->redo = actionManager->createStandardAction(KStandardAction::Redo, this, SLOT(redo()));
-    d->redo->setActivationFlags(KisAction::ACTIVE_IMAGE);
+    d->redo->setActivationFlags(KisAction::NONE);
 
     d->undoActionsUpdateManager.reset(new KisUndoActionsUpdateManager(d->undo, d->redo));
     d->undoActionsUpdateManager->setCurrentDocument(d->activeView ? d->activeView->document() : 0);
+    connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::historyChanged, d->undo,
+            [undo = d->undo, redo = d->redo]() { enableForSettings(undo, redo); });
 
     d->importAnimation  = actionManager->createAction("file_import_animation");
     connect(d->importAnimation, SIGNAL(triggered()), this, SLOT(importAnimation()));
