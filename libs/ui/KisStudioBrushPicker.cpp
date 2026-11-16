@@ -4,6 +4,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioBrushPicker.h"
+#include <climits>
+#include <KisResourceOrder.h>
 #include "KisStudioTools.h"
 
 #include <QApplication>
@@ -45,6 +47,8 @@ struct KisStudioBrushStrokes {
         int resourceId {-1};
         QString title;
         QString engine;
+        /// For the order the brushes were dragged into
+        QString file;
         QStringList tags;
         QPersistentModelIndex index;    ///< in the catalog's model
     };
@@ -150,10 +154,17 @@ std::shared_ptr<Catalog> loadCatalog()
         brush.tags = index.data(Qt::UserRole + KisAbstractResourceModel::Tags).toStringList();
         brush.engine = index.data(Qt::UserRole + KisAbstractResourceModel::MetaData).toMap().value(QStringLiteral("paintopid")).toString();
         brush.index = index;
+        brush.file = index.data(Qt::UserRole + KisAbstractResourceModel::Filename).toString();
         catalog->ids << brush.name;
         catalog->brushes.insert(brush.name, brush);
     }
-    std::sort(catalog->ids.begin(), catalog->ids.end(), [catalog](const QString &a, const QString &b) {
+    // in the order the brushes were dragged into in the list (All's), the rest after by name
+    QHash<QString, int> order;
+    const QStringList ordered = KisResourceOrder::inTag(ResourceType::PaintOpPresets, KisAllTagsModel::urlAll());
+    for (int i = 0; i < ordered.size(); i++) order.insert(ordered[i], i);
+    std::sort(catalog->ids.begin(), catalog->ids.end(), [catalog, &order](const QString &a, const QString &b) {
+        const int left = order.value(catalog->brushes.value(a).file, INT_MAX), right = order.value(catalog->brushes.value(b).file, INT_MAX);
+        if (left != right) return left < right;
         return catalog->brushes.value(a).title.localeAwareCompare(catalog->brushes.value(b).title) < 0;
     });
     groupByTags(*catalog, nameOfId);
@@ -315,12 +326,9 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
     };
     if (strokes) {
         source.paintPreview = [catalog, strokes](QPainter &painter, const QRect &rect, const QString &id) {
-            const QImage stroke = KisPresetStrokeThumbnails::isEnabled() ? strokeOf(*catalog, id, strokes->ink) : QImage();
-            if (!stroke.isNull()) {
-                drawStroke(painter, QRectF(rect).adjusted(KisModernStyle::space1, KisModernStyle::space1, -KisModernStyle::space1, -KisModernStyle::space1), stroke);
-                return;
-            }
-            // not painted yet, or painting nothing alone: the brush's own picture
+            Q_UNUSED(strokes);
+            // the brush's own picture: a small square says which brush at a glance, where a stroke needs a wide
+            // tile and left most of the picker empty
             const QImage icon = catalog->icon(id);
             if (icon.isNull()) return;
             const int side = rect.height() - 2 * KisModernStyle::space1;
@@ -332,8 +340,9 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
             painter.restore();
         };
     }
-    source.recent = []() { return KisConfig(true).readEntry<QStringList>(recentKey, QStringList()); };
     source.tiles = true;
+    // a picture and its name under it
+    source.tileSize = QSize(76, 92);
     source.yoursTitle = i18nc("brush group", "Favorites");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search %1 brushes", catalog->ids.size());
     return source;

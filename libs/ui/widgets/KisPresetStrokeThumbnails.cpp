@@ -300,15 +300,23 @@ void KisPresetStrokeThumbnails::finished()
     d->watchdog.stop();
     d->busy = false;
 
-    const QImage painted = d->layer->paintDevice()->convertToQImage(nullptr, d->image->bounds()).convertToFormat(QImage::Format_ARGB32_Premultiplied);
-    // Treat a (nearly) empty result as nothing painted, e.g. smudging on an empty layer
-    bool any = false;
-    for (int y = 0; y < painted.height() && !any; y += 2) {
+    QImage painted = d->layer->paintDevice()->convertToQImage(nullptr, d->image->bounds()).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    // the most opaque the stroke got: nothing at all, e.g. smudging on an empty layer, or faint (watercolors, low
+    // flow), which is brightened so its shape reads in the list, as the brush would build up over a few strokes
+    int most = 0;
+    for (int y = 0; y < painted.height(); y++) {
         const QRgb *line = reinterpret_cast<const QRgb *>(painted.constScanLine(y));
-        for (int x = 0; x < painted.width(); x += 2) {
-            if (qAlpha(line[x]) > 24) {
-                any = true;
-                break;
+        for (int x = 0; x < painted.width(); x++) most = qMax(most, qAlpha(line[x]));
+    }
+    const bool any = most > 3;
+    if (any && most < 160) {
+        const qreal gain = 200.0 / most;
+        for (int y = 0; y < painted.height(); y++) {
+            QRgb *line = reinterpret_cast<QRgb *>(painted.scanLine(y));
+            for (int x = 0; x < painted.width(); x++) {
+                const QRgb c = line[x];
+                line[x] = qRgba(qMin(255, qRound(qRed(c) * gain)), qMin(255, qRound(qGreen(c) * gain)), qMin(255, qRound(qBlue(c) * gain)),
+                                qMin(255, qRound(qAlpha(c) * gain)));
             }
         }
     }

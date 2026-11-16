@@ -52,6 +52,7 @@
 #include "KisStudioMotion.h"
 #include "KisTouchMode.h"
 #include "KisView.h"
+#include "kis_canvas2.h"
 #include "KisViewManager.h"
 #include "kis_paintop_box.h"
 #include "canvas/kis_canvas_controller.h"
@@ -1057,7 +1058,20 @@ void KisStudioToolRail::startDrag(int index, const QPixmap &pixmap)
     if (color) drag->setHotSpot(QPoint(pixmap.width(), pixmap.height()) / (2 * pixmap.devicePixelRatio()));
     const Qt::DropAction done = drag->exec(color ? Qt::MoveAction | Qt::CopyAction : Qt::MoveAction, Qt::MoveAction);
     drag->deleteLater();
-    if (done == Qt::IgnoreAction && !KisModernStyle::pointerHeld()) {
+    // a color stays only where it was put to use, the picture (it filled there) or the rail (it moved); dropped
+    // anywhere else, a panel taking colors among them, it goes
+    bool goes = done == Qt::IgnoreAction;
+    if (color && !KisModernStyle::pointerHeld()) {
+        const QPoint at = QCursor::pos();
+        QWidget *canvas = nullptr;
+        if (KisView *view = d->mainWindow->activeView()) {
+            if (view->canvasBase()) canvas = view->canvasBase()->canvasWidget();
+        }
+        const bool onCanvas = canvas && canvas->isVisible() && canvas->rect().contains(canvas->mapFromGlobal(at));
+        const bool onRail = rect().contains(mapFromGlobal(at));
+        goes = !onCanvas && !onRail;
+    }
+    if (goes && !KisModernStyle::pointerHeld()) {
         QStringList items = d->items;
         if (index < items.size() && items[index] == dragged) {
             items.removeAt(index);

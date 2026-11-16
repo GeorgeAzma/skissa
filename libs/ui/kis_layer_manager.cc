@@ -6,6 +6,7 @@
  */
 
 #include "kis_layer_manager.h"
+#include "KisStudioMaskEditor.h"
 #include <QGuiApplication>
 #include <QScreen>
 #include "KisColorDrop.h"
@@ -267,6 +268,12 @@ void KisLayerManager::layerProperties()
 
     if (adjustmentLayer && !multipleLayersSelected) {
         KisPaintDeviceSP dev = adjustmentLayer->projection();
+
+        // in the Studio, the effect's own panel beside the canvas, which it doesn't hold
+        if (m_view->mainWindowAsQWidget() && m_view->mainWindowAsQWidget()->property("studioLayoutActive").toBool()
+            && KisStudioMaskEditor::edit(m_view, adjustmentLayer, adjustmentLayer.data(), dev)) {
+            return;
+        }
 
         KisDlgAdjustmentLayer dlg(adjustmentLayer, adjustmentLayer.data(), dev,
                                   adjustmentLayer->name(), i18n("Filter Layer Properties"),

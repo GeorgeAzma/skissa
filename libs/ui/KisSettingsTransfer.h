@@ -69,6 +69,8 @@ KRITAUI_EXPORT int takeKritaTags();
 KRITAUI_EXPORT void takePendingKritaTags();
 /// Once per profile: the tags that came with the resources are put away, so the user starts from their own
 KRITAUI_EXPORT void startWithoutTags();
+/// Once per profile: Skissa's brush set is the one listed, the other brushes put away (the user's own kept)
+KRITAUI_EXPORT void useSkissaBrushes();
 
 } // namespace KisSettingsTransfer
 

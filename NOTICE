@@ -17,6 +17,10 @@ Artwork shown in the README: "Kiki Paints Over the Waves" by Tyson Tan, Krita's 
 art, CC BY-SA 4.0 (https://tysontan.com/gallery/gallery-mascots/kiki-splash-2026/),
 shown inside the app's interface. The sunset picture was drawn for the README.
 
+Brushes: "Rakurri Brush Set V2.1" by Rakurri (https://twitter.com/Rakurri), CC BY-SA, ships
+with release builds as its bundle; Skissa's "Rough" brush is its "Charred", renamed. Skissa's
+other brushes are Krita's default brushes, renamed, "Flow" and "Smear" with changed settings.
+
 Release builds bundle third-party libraries (Qt, KDE Frameworks, FFmpeg, Python and
 others) under their own licenses; their license texts are in the release's
 licenses/third-party folder, and their sources are listed at

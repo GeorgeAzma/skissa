@@ -2964,6 +2964,7 @@ KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
     // Krita's tags for the resources taken from it, now that they are read
     KisSettingsTransfer::takePendingKritaTags();
     KisSettingsTransfer::startWithoutTags();
+    KisSettingsTransfer::useSkissaBrushes();
 
     // save the heights once a resize has settled
 

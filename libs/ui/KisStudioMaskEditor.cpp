@@ -25,6 +25,7 @@
 #include <filter/kis_filter_registry.h>
 #include <kis_config_widget.h>
 #include <kis_filter_mask.h>
+#include <kis_node_filter_interface.h>
 #include <kis_icon_utils.h>
 #include <kis_layer.h>
 #include <kis_undo_adapter.h>
@@ -42,11 +43,12 @@ namespace
 class MaskPanel : public KisStudioPopup
 {
 public:
-    MaskPanel(KisViewManager *view, KisFilterMaskSP mask, KisConfigWidget *settings, QWidget *parent)
+    MaskPanel(KisViewManager *view, KisNodeSP node, KisNodeFilterInterface *filtered, KisConfigWidget *settings, QWidget *parent)
         : KisStudioPopup(parent)
         , m_view(view)
-        , m_mask(mask)
-        , m_before(mask->filter()->cloneWithResourcesSnapshot())
+        , m_node(node)
+        , m_filtered(filtered)
+        , m_before(filtered->filter()->cloneWithResourcesSnapshot())
         , m_settings(settings)
     {
         setAttribute(Qt::WA_DeleteOnClose);
@@ -57,7 +59,7 @@ public:
         layout->setSpacing(KisModernStyle::space2);
         auto *title = new QHBoxLayout();
         title->setSpacing(KisModernStyle::space1);
-        auto *name = new QLabel(mask->name(), this);
+        auto *name = new QLabel(node->name(), this);
         QFont bold = name->font();
         bold.setWeight(QFont::DemiBold);
         name->setFont(bold);
@@ -127,9 +129,9 @@ private:
     void apply()
     {
         const KisFilterConfigurationSP config = now();
-        if (!config || !m_mask) return;
-        m_mask->setFilter(config->cloneWithResourcesSnapshot());
-        m_mask->setDirty();
+        if (!config || !m_node) return;
+        m_filtered->setFilter(config->cloneWithResourcesSnapshot());
+        m_node->setDirty();
     }
 
     void finish(bool keep)
@@ -137,28 +139,29 @@ private:
         if (m_finished) return;
         m_finished = true;
         m_apply.stop();
-        if (m_mask) {
+        if (m_node) {
             const KisFilterConfigurationSP after = keep ? now() : KisFilterConfigurationSP();
             if (after && after->toXML() != m_before->toXML()) {
                 // the mask shows the new settings; the step sets them, and takes back to the old
-                m_mask->setFilter(m_before->cloneWithResourcesSnapshot());
+                m_filtered->setFilter(m_before->cloneWithResourcesSnapshot());
                 if (m_view && m_view->undoAdapter()) {
-                    m_view->undoAdapter()->addCommand(new KisChangeFilterCmd(m_mask, m_before->cloneWithResourcesSnapshot(), after->cloneWithResourcesSnapshot()));
+                    m_view->undoAdapter()->addCommand(new KisChangeFilterCmd(m_node, m_before->cloneWithResourcesSnapshot(), after->cloneWithResourcesSnapshot()));
                     if (m_view->document()) m_view->document()->setModified(true);
                 } else {
-                    m_mask->setFilter(after->cloneWithResourcesSnapshot());
+                    m_filtered->setFilter(after->cloneWithResourcesSnapshot());
                 }
             } else {
-                m_mask->setFilter(m_before->cloneWithResourcesSnapshot());
+                m_filtered->setFilter(m_before->cloneWithResourcesSnapshot());
             }
-            m_mask->setDirty();
+            m_node->setDirty();
         }
         KisStudioTools::focusCanvas();
         close();
     }
 
     QPointer<KisViewManager> m_view;
-    KisFilterMaskSP m_mask;
+    KisNodeSP m_node;
+    KisNodeFilterInterface *m_filtered;
     KisFilterConfigurationSP m_before;
     KisConfigWidget *m_settings;
     QTimer m_apply;
@@ -169,22 +172,26 @@ private:
 
 bool KisStudioMaskEditor::edit(KisViewManager *view, KisFilterMaskSP mask)
 {
-    if (!view || !mask || !mask->filter()) return false;
-    KisLayerSP layer = qobject_cast<KisLayer *>(mask->parent().data());
-    KisPaintDeviceSP device = layer ? layer->original() : KisPaintDeviceSP();
-    KisFilterSP filter = KisFilterRegistry::instance()->value(mask->filter()->name());
-    if (!device || !filter) return false;
+    KisLayerSP layer = mask ? qobject_cast<KisLayer *>(mask->parent().data()) : KisLayerSP();
+    return mask && layer && edit(view, mask, mask.data(), layer->original());
+}
+
+bool KisStudioMaskEditor::edit(KisViewManager *view, KisNodeSP node, KisNodeFilterInterface *filtered, KisPaintDeviceSP device)
+{
+    if (!view || !node || !filtered || !filtered->filter() || !device) return false;
+    KisFilterSP filter = KisFilterRegistry::instance()->value(filtered->filter()->name());
+    if (!filter) return false;
     QWidget *window = view->mainWindowAsQWidget();
     KisConfigWidget *settings = KisEffectPanels::create(filter->id(), window, device);
     if (!settings) settings = filter->createConfigurationWidget(window, device, true);
     if (!settings) return false;
     settings->setView(view);
     settings->blockSignals(true);
-    settings->setConfiguration(mask->filter());
+    settings->setConfiguration(filtered->filter());
     settings->blockSignals(false);
     settings->setUpdateDelay(10);
 
-    auto *panel = new MaskPanel(view, mask, settings, window);
+    auto *panel = new MaskPanel(view, node, filtered, settings, window);
     // beside the pointer, toward the window's middle, not over the picture's middle
     panel->adjustSize();
     const QPoint pointer = QCursor::pos();

@@ -48,9 +48,10 @@ struct KisTagFilterResourceProxyModel::Private
     void readOrder()
     {
         order.clear();
-        // the user's tags and All have an order; All untagged doesn't
-        if (!currentTagFilter || (currentTagFilter->id() < 0 && currentTagFilter->url() != KisAllTagsModel::urlAll())) return;
-        const QStringList names = KisResourceOrder::inTag(resourceType, currentTagFilter->url());
+        // the user's tags and All (also before a tag is chosen) have an order; All untagged doesn't
+        if (currentTagFilter && currentTagFilter->id() < 0 && currentTagFilter->url() != KisAllTagsModel::urlAll()) return;
+        const QString url = currentTagFilter ? currentTagFilter->url() : KisAllTagsModel::urlAll();
+        const QStringList names = KisResourceOrder::inTag(resourceType, url);
         for (int i = 0; i < names.size(); i++) order.insert(names[i], i);
     }
 };
@@ -64,6 +65,7 @@ KisTagFilterResourceProxyModel::KisTagFilterResourceProxyModel(const QString &re
     d->tagResourceModel = new KisTagResourceModel(resourceType);
 
     setSourceModel(d->resourceModel);
+    d->readOrder();
     connect(KisResourceOrder::instance(), &KisResourceOrder::changed, this, [this]() {
         d->readOrder();
         invalidate();
