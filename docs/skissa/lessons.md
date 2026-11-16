@@ -1,0 +1,59 @@
+# Lessons
+
+Append newest last. Skim before debugging something odd: most entries are traps already hit once.
+
+- Check the dev profile's state before blaming code: a "wrong" value is often a setting.
+- Count only deliberate input as "the user is working": pen hover sends moves all the time.
+- Public text (README, release notes) is shown, not told: a clip or screenshot per feature, a line of plain first-person words at most. Release notes are pictures and a line or two of facts. Selling, bold lead-ins, feature lists and comparison tables read as marketing or machine-written to the owner.
+- Windows caches program icons by path: after the .exe's icon changes, `ie4uinit.exe -show` refreshes it.
+- Python one-liners in a bash heredoc turn `\n` inside C++ strings into real newlines: make escape-heavy edits with the Edit tool.
+- PowerShell's `[int]` rounds to even: use `[math]::Floor` in test scripts. `Set-Content -Encoding utf8` writes a BOM, which CMake files can't take. `Copy-Item` keeps the old modified time, so ninja won't rebuild a copied-back source: touch it.
+- Widgets made before `KisStudioGlass::installMenuGlass()` were polished without it: anything new must be polished before its native window is created.
+- A stroke's step reaches the undo stack a moment after the image goes idle: wait a turn of the event loop before deciding a stroke was cancelled.
+- A drag owned by the widget it starts from dies with it: parent drags to `qApp` and delete them after `exec()`.
+- A drag must check `event->buttons()` on every move: a release in another window never arrives.
+- A tool's `updateSettingsViews()` must block its widgets' signals while setting them, or stale neighbours get written back.
+- Windows headers define `near` and `far` as macros: don't use them as names.
+- A widget's Leave event also arrives while its children are being deleted: hover handlers touching children must not run then (`HoverWatch` defers).
+- Krita's stroke preview (`KisPresetLivePreviewView`) paints over its palette's window color: give it a transparent Window and Base to show it on glass.
+- A lambda taking a `const QString &` into a list must not refresh that list before it is done: take such ids by value.
+- Classes without `Q_OBJECT` (`KisStudioPanelColumn`) can't be found with `findChildren<T *>()`, which returns every widget: use `dynamic_cast` (`columnsBeside()`).
+- A column sized by hand needs `QLayout::SetNoConstraint`, or its layout keeps an old minimum size.
+- `setParent` hides a widget: read its visibility first and restore it.
+- A view in fit mode refits whenever panel insets change: the canvas controller refits only while panels settle in (2 s from the first insets).
+- A panel shown inside a hidden group gets no Show event: the stack watches ShowToParent and HideToParent (`shownChanged`).
+- A fixed-height widget with no layout has no size hint (-1): read `minimumHeight()`.
+- A hidden QDockWidget title bar still keeps its room: give it no height (`PanelGrip::setAlone`).
+- A widget's drag filter takes events only from its own children, or presses passed through from elsewhere start drags.
+- Blend ops must keep channels switched off (channel locks) and clear them where nothing was painted (`KoRgbU8ColorSpaceTester`).
+- Writing a layer's or the selection's device outside a `KisTransaction` while under undo corrupts the history (`KisMementoManager::getMemento`).
+- With `-fmath-errno`, `std::sqrt` in a loop doesn't vectorize; `std::sqrt(std::fmax(x, 0.0f))` does.
+- `QWidget::mapTo` crashes unless the target is an ancestor: map through `mapToGlobal`/`mapFromGlobal`.
+- Segoe UI Variable has no italic: `KisModernStyle::polish` gives italic text Segoe UI (`italicFace`); italic set after polishing isn't caught.
+- An item view's hover look needs `WA_Hover` on its viewport (`KisResourceItemListView`).
+- Krita's slider boxes (`kis_slider_spin_box_p.h`) veil themselves while typing; ending the typing must redraw what's under them. Check fields after typing, clicking again and clicking away.
+- Anything moving over the canvas repaints every panel each frame: keep row painting cheap (a stroked `QPainterPath` halo on brush names cost 22 ms a frame).
+- A group's place is a share of the room `spanY` gives it: anything that writes a place must use that same room.
+- Caches of pictures need a bound by bytes, not only count; kept files stay small (logs restart past 1 MB, stale entries dropped).
+- Measure before optimizing: the composite ops' cost was the color conversion, not the mixing math. A benchmark from `build-tests` (`KoCompositeOpsBenchmark`) loads color plugins from whatever folders it finds, the installed Skissa too: copy the .exe into `env\_install\bin` to run it against the dev install, with `QT_FORCE_STDERR_LOGGING=1` to see its output.
+- A fresh profile's first start builds Krita's resource database (`KisResourceCacheDb`). It took 24 s: `updateMetaDataForId` committed the caller's transaction, so every later statement synced to disk on its own. A helper commits only a transaction it began. Measure the first start by deleting the apart profile's `resourcecache.sqlite` (kept aside and put back) and sampling (`KRITA_DEV_SAMPLE`).
+- A program unpacked fresh starts slowly once (12–24 s here) while Windows scans its files: time starts on fresh copies, and know a second start is warm.
+- Time a stroke's whole cycle, not only its work: liquify's updates took 10 ms but came every 100–200 ms, the rest spent copying and rescaling the point grid between them (found by timing each job in `KisUpdateJobItem::run`).
+- Eraser mode is the brush's in Krita (its `EraserMode`): anything that switches the brush unasked (layers remembering their brush) must keep the eraser as it was, or the eraser key seems to do nothing. Hold-to-revert (`KisStudioHoldKeys`) takes back such switches only after a stroke: a tablet pad's button press can last past the hold time.
+- Anything holding text is sized from the font (`fontMetrics()`), not a fixed number, with the old number as the least: at a large interface font, fixed rows, labels and badges clipped or overlapped. Test sizes with the apart profile's `custom_font_size`, `custom_system_font` and `use_custom_system_font` at the top of its kritarc and in each theme of `[StudioThemes] List`. The top bar shortens the brush name and then takes a row of its own under the window's buttons (`TopPill::squeezedTo`).
+- The full test run (`tests.ps1`) puts Windows crash dialogs on the owner's screen from Krita's tests that crash (`kis_view_signals_test`, `kis_clipboard_test`): while someone is at the PC, run only the tests that cover the change (`ctest -R`).
+- The canvas in the Studio never emits `QOpenGLWidget::frameSwapped`, and a queued `QMetaObject::invokeMethod` lambda from `paintGL` didn't run either: mark "after this frame" with `QTimer::singleShot(0, …)`.
+- An Enter posted by `devinput.ps1` right after a `drag` is lost; move the pointer first (a real pen always does).
+- Windows 11 runs the timers of a program whose window it counts as hidden (behind others, as the dev build often is) at its 15.6 ms tick, Qt's short precise ones too: the canvas's 2 ms frame timer held dabs back up to 16 ms. It also runs such a program's threads at efficiency speed (EcoQoS): effects behind another window took three times as long, and every timing of the dev build behind another window was that slow. Skissa opts out of both at start (`PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION` and `_EXECUTION_SPEED`, `KisApplication`). Suspect timer resolution when a wait spreads evenly over 0–16 ms; suspect EcoQoS when work in the app is far slower than the same work in a harness.
+- A native event filter also sees messages Windows sends in the middle of other work (a title being set): only the event loop's own call passes no `result`.
+- Never type into Find (or any field) to drive the dev build: if it hasn't opened yet, the letters land on the canvas as tool keys and change the owner's tool, eraser and colors. Open things with `action.ps1`; `devinput key` takes Qt keys and modifiers (Return is `0x01000004`, Ctrl `0x04000000`).
+- A copy of a layer (`new KisPaintDevice(*dev)`) keeps the image's default bounds, so while the image shows a coarse preview it reads its own empty lower level: panels' pictures came out blank. Copy with `KisEffectPanels::fullSizeCopy`.
+- `KisCanvas2::refetchDataFromImage()` takes the image's lock and waits for running strokes (Krita's modal "Waiting…"): to redraw the canvas while an effect previews, call its `startUpdateCanvasProjection` slot.
+- `std::vector<T> a(n), b(size_t(m));` declares `b` as a function (the most vexing parse): write `static_cast<size_t>(m)` or braces.
+- Measure where time goes before trusting a reading of the code: an effect's second opening, CPU per thread (`threads.ps1`) and the sampler's main thread together. Hovering the canvas at 360 Hz costs about 1 ms of main thread and as much in the driver a frame; that is showing frames, not waste.
+- The frame log (`KisUpdatePacer::log`) writes one file from the window's thread: from an image worker thread it corrupted the heap (0xc0000374) within seconds. Log from a worker through `QMetaObject::invokeMethod(qApp, …, Qt::QueuedConnection)`, with the values read before.
+- `QScrollArea::setWidget` turns on the widget's autoFillBackground: on glass, turn it off after setWidget, not before (the brush editor's page was a white sheet).
+- A widget made a child of the canvas takes the canvas's cursor, which is hidden (the canvas draws the brush outline): give it its own (`setCursor(Qt::ArrowCursor)`), or the pointer vanishes over it.
+- `devinput.ps1 key 0x01000004` sends Esc: the second positional is `-Out`, so the key must be `-K 0x01000004`. And `Set-Content -Encoding ascii` turns every non-ASCII character (…, ×) into "?": edit sources with the Edit tool or Python.
+- A crash that leaves nothing in kritacrash.log is heap corruption (0xc0000374, found at a later free): Windows keeps a minidump in `%LOCALAPPDATA%\CrashDumps` (copy it out through WMI), and `llvm-mingw/bin/lldb.exe --batch -o "target create <install>/bin/skissa.exe --core <dump>" -o "thread backtrace"` reads it, symbols resolving only against the build that crashed. Attaching lldb to a running Skissa stops at its own break-in thread every time; read dumps instead. A vector sized before more items are numbered, then indexed by them, was one.
+- After killing the dev build, wait until its process is gone before starting another: one started while the old one is still exiting comes up with dead dev hooks (captures and clicks do nothing).
