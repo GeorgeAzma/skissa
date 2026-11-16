@@ -1085,6 +1085,10 @@ msgctxt "texture setting"
 msgid "Scale"
 msgstr "크기 조정"
 
+msgctxt "@info:tooltip"
+msgid "Curve"
+msgstr "곡선"
+
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "곡선"

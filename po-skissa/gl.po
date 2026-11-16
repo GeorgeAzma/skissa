@@ -1032,6 +1032,10 @@ msgctxt "picture brush tip used as"
 msgid "Gradient"
 msgstr "Gradación"
 
+msgctxt "@info:tooltip"
+msgid "Curve"
+msgstr "Curva"
+
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "Curva"

@@ -772,6 +772,10 @@ msgctxt "texture setting"
 msgid "Contrast"
 msgstr "التّباين"
 
+msgctxt "@info:tooltip"
+msgid "Curve"
+msgstr "منحنى"
+
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "منحنى"

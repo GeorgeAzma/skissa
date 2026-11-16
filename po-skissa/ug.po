@@ -815,6 +815,10 @@ msgctxt "no texture on the brush"
 msgid "None"
 msgstr "يوق"
 
+msgctxt "@info:tooltip"
+msgid "Curve"
+msgstr "ئەگرى سىزىق"
+
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "ئەگرى سىزىق"

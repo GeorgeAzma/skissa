@@ -1139,6 +1139,10 @@ msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Patrúin"
 
+msgctxt "@info:tooltip"
+msgid "Curve"
+msgstr "Cuar"
+
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "Cuar"

@@ -815,6 +815,10 @@ msgctxt "texture setting"
 msgid "Contrast"
 msgstr "对比度"
 
+msgctxt "@info:tooltip"
+msgid "Curve"
+msgstr "曲线"
+
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "曲线"

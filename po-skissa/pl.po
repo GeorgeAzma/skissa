@@ -877,6 +877,10 @@ msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Wzorce"
 
+msgctxt "@info:tooltip"
+msgid "Curve"
+msgstr "Krzywa"
+
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "Krzywa"

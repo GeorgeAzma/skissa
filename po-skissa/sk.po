@@ -1065,6 +1065,10 @@ msgctxt "texture setting"
 msgid "Scale"
 msgstr "Mierka"
 
+msgctxt "@info:tooltip"
+msgid "Curve"
+msgstr "Krivka"
+
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "Krivka"

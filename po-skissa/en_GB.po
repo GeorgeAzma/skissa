@@ -1248,6 +1248,10 @@ msgctxt "texture setting"
 msgid "Scale"
 msgstr "Scale"
 
+msgctxt "@info:tooltip"
+msgid "Curve"
+msgstr "Curve"
+
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "Curve"

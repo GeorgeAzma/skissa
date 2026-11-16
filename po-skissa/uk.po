@@ -963,6 +963,10 @@ msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Контрастність"
 
+msgctxt "@info:tooltip"
+msgid "Curve"
+msgstr "Крива"
+
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "Крива"

@@ -1017,6 +1017,10 @@ msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Ereduak"
 
+msgctxt "@info:tooltip"
+msgid "Curve"
+msgstr "Kurba"
+
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"
 msgstr "Kurba"
