@@ -249,7 +249,7 @@ void KisCompositeOpComboBox::hidePopup()
 
 bool KisCompositeOpComboBox::isUsable(const QString &id) const
 {
-    if (m_forBrush && KoMixing::isLayerOnly(id)) return false;
+    if ((m_forBrush && KoMixing::isLayerOnly(id)) || KoMixing::isRetired(id)) return false;
     const QModelIndex index = m_model->indexOf(KoCompositeOpRegistry::instance().getKoID(id));
     return index.isValid() && (index.flags() & Qt::ItemIsEnabled);
 }

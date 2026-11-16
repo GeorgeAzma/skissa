@@ -627,38 +627,44 @@ void startWithoutTags()
 void useSkissaBrushes()
 {
     KConfigGroup group = KSharedConfig::openConfig()->group(QString());
-    if (group.readEntry("StudioBrushSet", 0) >= 5) return;
+    const int version = group.readEntry("StudioBrushSet", 0);
+    if (version >= 6) return;
     // Skissa's set (krita/data/skissa_brushes), in the order they are listed at first
     const QStringList files = {QStringLiteral("Round.kpp"), QStringLiteral("Opacity.kpp"), QStringLiteral("Flow.kpp"), QStringLiteral("Size.kpp"),
                                QStringLiteral("Soft.kpp"), QStringLiteral("Pencil.myb"), QStringLiteral("Rough.kpp"), QStringLiteral("Blend.kpp"),
                                QStringLiteral("Blur.kpp"), QStringLiteral("Smear.kpp"), QStringLiteral("Fill.kpp"), QStringLiteral("Clone.kpp")};
     const QString userFolder = QDir::cleanPath(KisResourceLocator::instance()->resourceLocationBase());
-    // Krita copies what is installed into a profile only at its first start: the set and the bundles shipped with
-    // Skissa are taken in here, for profiles made before them
-    const QString installed = KoResourcePaths::getApplicationRoot() + QStringLiteral("/share/krita/");
-    KisResourceModel presets(ResourceType::PaintOpPresets);
-    Q_FOREACH (const QString &file, files) {
-        const QString source = installed + QStringLiteral("paintoppresets/") + file;
-        const QString target = userFolder + QStringLiteral("/paintoppresets/") + file;
-        if (!QFile::exists(source)) continue;
-        // a version of the set made before replaces the profile's copy
-        const bool replaces = QFile::exists(target);
-        if (file.endsWith(QLatin1String(".myb"))) {
-            // a MyPaint brush's picture lies beside it
-            const QString picture = QFileInfo(file).completeBaseName() + QStringLiteral("_prev.png");
-            QFile::copy(installed + QStringLiteral("paintoppresets/") + picture, userFolder + QStringLiteral("/paintoppresets/") + picture);
+    if (version < 5) {
+        // Krita copies what is installed into a profile only at its first start: the set and the bundles shipped
+        // with Skissa are taken in here, for profiles made before them
+        const QString installed = KoResourcePaths::getApplicationRoot() + QStringLiteral("/share/krita/");
+        KisResourceModel presets(ResourceType::PaintOpPresets);
+        Q_FOREACH (const QString &file, files) {
+            const QString source = installed + QStringLiteral("paintoppresets/") + file;
+            const QString target = userFolder + QStringLiteral("/paintoppresets/") + file;
+            if (!QFile::exists(source)) continue;
+            // a version of the set made before replaces the profile's copy
+            const bool replaces = QFile::exists(target);
+            if (file.endsWith(QLatin1String(".myb"))) {
+                // a MyPaint brush's picture lies beside it
+                const QString picture = QFileInfo(file).completeBaseName() + QStringLiteral("_prev.png");
+                QFile::copy(installed + QStringLiteral("paintoppresets/") + picture, userFolder + QStringLiteral("/paintoppresets/") + picture);
+            }
+            presets.importResourceFile(source, replaces);
         }
-        presets.importResourceFile(source, replaces);
-    }
-    Q_FOREACH (const QString &bundle, QDir(installed + QStringLiteral("bundles")).entryList({QStringLiteral("*.bundle")}, QDir::Files)) {
-        if (!QFile::exists(userFolder + QLatin1Char('/') + bundle)) {
-            KisStorageModel::instance()->importStorage(installed + QStringLiteral("bundles/") + bundle, KisStorageModel::None);
+        Q_FOREACH (const QString &bundle, QDir(installed + QStringLiteral("bundles")).entryList({QStringLiteral("*.bundle")}, QDir::Files)) {
+            if (!QFile::exists(userFolder + QLatin1Char('/') + bundle)) {
+                KisStorageModel::instance()->importStorage(installed + QStringLiteral("bundles/") + bundle, KisStorageModel::None);
+            }
         }
     }
     // Krita's sorting prefix ("b) "): a copy of one of its brushes, not one of the user's
     const QRegularExpression kritas(QStringLiteral("^[a-z]\\)_"));
     KisResourceModel model(ResourceType::PaintOpPresets);
-    QList<QPersistentModelIndex> away;
+    // the set before this one left the others inactive, as deleted: they come back, put away
+    if (version == 5) model.setResourceFilter(KisResourceModel::ShowAllResources);
+    QStringList away;
+    QList<QPersistentModelIndex> back;
     for (int row = 0; row < model.rowCount(); row++) {
         const QModelIndex index = model.index(row, 0);
         const QString file = index.data(Qt::UserRole + KisAbstractResourceModel::Filename).toString();
@@ -666,16 +672,20 @@ void useSkissaBrushes()
         if (files.contains(file)) continue;
         // the user's own folder, not the bundles beside it
         if (location == userFolder && !kritas.match(file).hasMatch()) continue;
-        away << QPersistentModelIndex(index);
+        if (!away.contains(file)) away << file;
+        if (!index.data(Qt::UserRole + KisAbstractResourceModel::ResourceActive).toBool()) back << QPersistentModelIndex(index);
     }
-    // inactive, as Krita's own delete leaves them: nothing is lost, and Krita reads the database as ever
-    Q_FOREACH (const QPersistentModelIndex &index, away) {
-        if (index.isValid()) model.setResourceInactive(index);
+    Q_FOREACH (const QPersistentModelIndex &index, back) {
+        if (index.isValid()) model.setResourceActive(index, true);
     }
-    KisResourceOrder::setInTag(ResourceType::PaintOpPresets, KisAllTagsModel::urlAll(), files);
-    // the bundles taken in brought their tags: the user starts from none
-    putTagsAway();
-    group.writeEntry("StudioBrushSet", 5);
+    // the list shows the set; the rest are a search or a pick away
+    KisResourceOrder::setPutAway(ResourceType::PaintOpPresets, away);
+    if (version < 5) {
+        KisResourceOrder::setInTag(ResourceType::PaintOpPresets, KisAllTagsModel::urlAll(), files);
+        // the bundles taken in brought their tags: the user starts from none
+        putTagsAway();
+    }
+    group.writeEntry("StudioBrushSet", 6);
     KisSettingsRegistry::instance()->scheduleSync();
 }
 

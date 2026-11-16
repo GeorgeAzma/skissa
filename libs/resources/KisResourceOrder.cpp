@@ -89,6 +89,22 @@ void KisResourceOrder::setInTag(const QString &type, const QString &tagUrl, cons
     writeList(resourcesKey, items);
 }
 
+namespace
+{
+/// Kept as the order of a tag no resource can have
+const QString putAwayUrl = QStringLiteral("skissa:put-away");
+} // namespace
+
+QStringList KisResourceOrder::putAway(const QString &type)
+{
+    return inTag(type, putAwayUrl);
+}
+
+void KisResourceOrder::setPutAway(const QString &type, const QStringList &fileNames)
+{
+    setInTag(type, putAwayUrl, fileNames);
+}
+
 void KisResourceOrder::setWriter(const std::function<void(const QString &, const QStringList &)> &writer)
 {
     writerFunction() = writer;

@@ -678,7 +678,10 @@ void KisTagChooserWidget::setAddButton(const QString &toolTip, const std::functi
         d->addButton->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_add")));
         // just after the tag's name
         static_cast<QHBoxLayout *>(layout())->insertWidget(1, d->addButton);
-        auto shown = [this]() { d->addButton->setVisible(isUserTag(currentlySelectedTag())); };
+        auto shown = [this]() {
+            const KisTagSP tag = currentlySelectedTag();
+            d->addButton->setVisible(isUserTag(tag) || (tag && tag->url() == KisAllTagsModel::urlAll()));
+        };
         connect(this, &KisTagChooserWidget::sigTagChosen, d->addButton, shown);
         shown();
     }

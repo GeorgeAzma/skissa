@@ -117,6 +117,7 @@
 #include "widgets/KisStudioPopup.h"
 #include "widgets/KisStudioColorField.h"
 #include "canvas/kis_canvas2.h"
+#include "canvas/kis_coordinates_converter.h"
 #include "canvas/kis_canvas_controller.h"
 #include "kis_canvas_resource_provider.h"
 #include "kis_config.h"
@@ -5531,6 +5532,23 @@ void KisStudioLayout::createTopBar()
                             scrubber->setValue(value);
                         }
                     });
+            // the dab it paints, under it while it changes, as large as the canvas shows it
+            QPointer<KisMainWindow> window = mainWindow;
+            QPointer<KisDoubleSliderSpinBox> size = paintopBox->brushSlider(QStringLiteral("size"));
+            QPointer<KisDoubleSliderSpinBox> opacity = paintopBox->brushSlider(QStringLiteral("opacity"));
+            scrubber->setLook([window, size, opacity]() {
+                KisStudioScrubber::Look look;
+                KisViewManager *view = window ? window->viewManager() : nullptr;
+                look.color = view && view->canvasResourceProvider() ? view->canvasResourceProvider()->fgColor().toQColor() : QColor(Qt::black);
+                look.color.setAlpha(255);
+                if (size) look.size = size->value();
+                if (opacity) look.opacity = (opacity->value() - opacity->minimum()) / qMax(1e-6, opacity->maximum() - opacity->minimum());
+                if (KisCanvas2 *canvas = view ? view->canvasBase() : nullptr) {
+                    const KisCoordinatesConverter *converter = canvas->coordinatesConverter();
+                    look.zoom = QLineF(converter->imageToWidget(QPointF(0, 0)), converter->imageToWidget(QPointF(1, 0))).length();
+                }
+                return look;
+            });
             // a right click resets to the brush's value from when it was picked
             scrubber->setDefaultValue(source->value());
             if (KisCanvasResourceProvider *resources = mainWindow->viewManager()->canvasResourceProvider()) {

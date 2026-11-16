@@ -12,6 +12,10 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPropertyAnimation>
+#include <QScreen>
+#include <QTimer>
+#include <QtMath>
 #include <QWheelEvent>
 
 #include <cmath>
@@ -34,6 +38,119 @@ int eventX(QMouseEvent *event)
     return event->x();
 #endif
 }
+
+/// The largest dab shown at its own size; a larger one is shown this large, its ring dashed
+constexpr qreal largestDab = 200;
+
+/**
+ * A brush's dab floating under its scrubber while its size or opacity changes: as large as the canvas will show
+ * it, in its color and opacity, with a ring like the brush outline so a color like the panel's still shows.
+ */
+class DabView : public QWidget
+{
+public:
+    explicit DabView(QWidget *owner)
+        : QWidget(owner, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowTransparentForInput | Qt::NoDropShadowWindowHint)
+        , m_fade(this, "windowOpacity")
+    {
+        setAttribute(Qt::WA_TranslucentBackground);
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_ShowWithoutActivating);
+        m_fade.setEasingCurve(KisModernStyle::motionCurve());
+        QObject::connect(&m_fade, &QPropertyAnimation::finished, this, [this]() {
+            if (m_leaving) hide();
+        });
+        m_linger.setSingleShot(true);
+        QObject::connect(&m_linger, &QTimer::timeout, this, [this]() { fadeTo(0.0, KisModernStyle::exitDuration); });
+    }
+
+    void present(const KisStudioScrubber::Look &look, QWidget *under, int lingerMs)
+    {
+        m_look = look;
+        const qreal diameter = qMax<qreal>(1.0, look.size * look.zoom);
+        const int side = qCeil(qMax<qreal>(56, qMin(diameter, largestDab) + 2 * KisModernStyle::space4));
+        resize(side, side);
+        const QRect screen = under->screen() ? under->screen()->availableGeometry() : QRect();
+        const QPoint below = under->mapToGlobal(QPoint(under->width() / 2, under->height())) + QPoint(-side / 2, KisModernStyle::space1);
+        QPoint at = below;
+        if (screen.isValid() && at.y() + side > screen.bottom()) at.setY(under->mapToGlobal(QPoint(0, 0)).y() - side - KisModernStyle::space1);
+        if (screen.isValid()) at.setX(qBound(screen.left(), at.x(), screen.right() - side));
+        move(at);
+        if (!isVisible() || m_leaving) {
+            if (!isVisible()) setWindowOpacity(0.0);
+            show();
+            fadeTo(1.0, KisModernStyle::enterDuration);
+        }
+        update();
+        if (lingerMs >= 0) {
+            m_linger.start(lingerMs);
+        } else {
+            m_linger.stop();
+        }
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QColor window = palette().color(QPalette::Window);
+        const QColor ink = palette().color(QPalette::WindowText);
+        const QRectF panel = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+        QColor edge = ink;
+        edge.setAlphaF(0.12);
+        painter.setPen(QPen(edge, 1));
+        painter.setBrush(window);
+        painter.drawPath(KisModernStyle::squircle(panel, KisModernStyle::panelRadius));
+
+        const qreal diameter = qMax<qreal>(1.0, m_look.size * m_look.zoom);
+        const bool scaled = diameter > largestDab;
+        const qreal shown = qMin(diameter, largestDab);
+        const QPointF middle = panel.center();
+        const QRectF dab(middle - QPointF(shown / 2, shown / 2), QSizeF(shown, shown));
+        QPainterPath round;
+        round.addEllipse(dab);
+        painter.save();
+        painter.setClipPath(round);
+        // checks under a see-through dab, so its opacity reads as on the canvas
+        if (m_look.opacity < 0.999 && shown > 6) {
+            const qreal cell = qBound<qreal>(4, shown / 6, 10);
+            const QColor dark = KisModernStyle::mix(window, ink, 0.14);
+            for (qreal y = dab.top(); y < dab.bottom(); y += cell) {
+                for (qreal x = dab.left(); x < dab.right(); x += cell) {
+                    if ((qRound((x - dab.left()) / cell) + qRound((y - dab.top()) / cell)) % 2) painter.fillRect(QRectF(x, y, cell, cell), dark);
+                }
+            }
+        }
+        QColor paint = m_look.color;
+        paint.setAlphaF(qBound(0.0, m_look.opacity, 1.0));
+        painter.fillRect(dab, paint);
+        painter.restore();
+        QColor ring = ink;
+        ring.setAlphaF(0.45);
+        QPen pen(ring, 1);
+        if (scaled) pen.setStyle(Qt::DashLine);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(dab.adjusted(-0.5, -0.5, 0.5, 0.5));
+    }
+
+private:
+    void fadeTo(qreal opacity, int ms)
+    {
+        m_leaving = opacity == 0.0;
+        m_fade.stop();
+        m_fade.setDuration(ms);
+        m_fade.setStartValue(windowOpacity());
+        m_fade.setEndValue(opacity);
+        m_fade.start();
+    }
+
+    KisStudioScrubber::Look m_look;
+    QPropertyAnimation m_fade;
+    QTimer m_linger;
+    bool m_leaving {false};
+};
 
 } // namespace
 
@@ -66,6 +183,24 @@ void KisStudioScrubber::setValue(qreal value)
     }
     m_value = bounded(value);
     update();
+}
+
+void KisStudioScrubber::setLook(const std::function<Look()> &look)
+{
+    m_look = look;
+}
+
+void KisStudioScrubber::showDab(int lingerMs)
+{
+    if (!m_look || (m_kind != Kind::Size && m_kind != Kind::Opacity)) return;
+    Look look = m_look();
+    if (m_kind == Kind::Size) {
+        look.size = m_value;
+    } else {
+        look.opacity = (m_value - m_minimum) / (m_maximum - m_minimum);
+    }
+    if (!m_dab) m_dab = new DabView(this);
+    static_cast<DabView *>(m_dab.data())->present(look, this, lingerMs);
 }
 
 qreal KisStudioScrubber::bounded(qreal value) const
@@ -219,6 +354,8 @@ void KisStudioScrubber::mouseMoveEvent(QMouseEvent *event)
         m_value = bounded(KisValueSteps::draggedBy(m_pressValue, dx, m_maximum - m_minimum, false));
     }
     if (m_value != before) Q_EMIT valueChanging(m_value);
+    // stays while the drag does
+    showDab(-1);
     update();
 }
 
@@ -234,6 +371,7 @@ void KisStudioScrubber::mouseReleaseEvent(QMouseEvent *event)
 void KisStudioScrubber::endDrag()
 {
     m_dragging = false;
+    if (m_dab && m_dab->isVisible()) showDab(600);
     if (m_moved) {
         commit(m_value);
     } else {
@@ -285,6 +423,7 @@ void KisStudioScrubber::wheelEvent(QWheelEvent *event)
     } else {
         commit(KisValueSteps::turnedBy(m_value, steps, m_maximum - m_minimum, false));
     }
+    showDab(700);
     event->accept();
 }
 

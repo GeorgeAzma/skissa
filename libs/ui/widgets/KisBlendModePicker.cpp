@@ -262,7 +262,7 @@ QList<KoID> allOps(bool forBrush)
     QSet<QString> seen;
     const auto map = KoCompositeOpRegistry::instance().getCompositeOps();
     for (auto it = map.constBegin(); it != map.constEnd(); ++it) {
-        if (!seen.contains(it.value().id()) && !(forBrush && KoMixing::isLayerOnly(it.value().id()))) {
+        if (!seen.contains(it.value().id()) && !KoMixing::isRetired(it.value().id()) && !(forBrush && KoMixing::isLayerOnly(it.value().id()))) {
             seen.insert(it.value().id());
             ops << it.value();
         }
@@ -279,7 +279,7 @@ QVector<Group> otherGroups(const QStringList &pinned, bool forBrush)
     Q_FOREACH (const KoID &category, KoCompositeOpRegistry::instance().getCategories()) {
         Group group{category.name(), {}, category.id()};
         Q_FOREACH (const KoID &op, ops.values(category)) {
-            if (!seen.contains(op.id()) && !(forBrush && KoMixing::isLayerOnly(op.id()))) {
+            if (!seen.contains(op.id()) && !KoMixing::isRetired(op.id()) && !(forBrush && KoMixing::isLayerOnly(op.id()))) {
                 seen.insert(op.id());
                 group.ids << op.id();
             }

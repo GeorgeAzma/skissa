@@ -120,11 +120,14 @@ void groupByTags(Catalog &catalog, const QHash<int, QString> &nameOfId)
         }
     }
 
+    // the brushes put away from the list stay out of Other too; search still finds them
+    const QStringList awayFiles = KisResourceOrder::putAway(ResourceType::PaintOpPresets);
+    const QSet<QString> away(awayFiles.begin(), awayFiles.end());
     Q_FOREACH (const QString &id, catalog.ids) {
         auto first = firstGroup.constFind(id);
         if (first != firstGroup.constEnd()) {
             catalog.tagGroups[*first].ids << id;
-        } else {
+        } else if (!away.contains(catalog.brushes.value(id).file)) {
             catalog.untagged << id;
         }
     }
@@ -206,6 +209,7 @@ std::shared_ptr<Catalog> catalog()
             QObject::connect(model, &QAbstractItemModel::rowsRemoved, qApp, drop);
             if (model != presets) QObject::connect(model, &QAbstractItemModel::dataChanged, qApp, drop);
         }
+        QObject::connect(KisResourceOrder::instance(), &KisResourceOrder::changed, qApp, drop);
         if (presets) {
             // a brush read again from its file (switching brushes, Reload) leaves it as the catalog has it
             QObject::connect(presets, &QAbstractItemModel::dataChanged, qApp,

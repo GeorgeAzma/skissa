@@ -12,6 +12,7 @@
 #include <QUrl>
 #include <QModelIndex>
 #include <QPainter>
+#include <QPainterPath>
 #include <QRegularExpression>
 #include <QtMath>
 
@@ -76,74 +77,91 @@ QImage KisIconToolTip::card(const QModelIndex &index)
     const QString key = QStringLiteral("%1|%2|%3|%4|%5|%6").arg(pictureKey).arg(name, tags.join(QLatin1Char(',')), location, ink.name(QColor::HexArgb)).arg(ratio);
     if (key == m_cardKey) return m_card;
 
-    const int width = 240;
-    const int pad = 2;
     QFont titleFont = font();
     titleFont.setWeight(QFont::DemiBold);
-    titleFont.setPointSizeF(titleFont.pointSizeF() * 1.1);
     QFont smallFont = font();
     smallFont.setPointSizeF(smallFont.pointSizeF() * 0.88);
     const QFontMetrics titleMetrics(titleFont);
     const QFontMetrics smallMetrics(smallFont);
 
-    // the picture as large as fits the width, at most 120 tall
-    QSizeF pictureSize = QSizeF(picture.size()) / picture.devicePixelRatio();
-    pictureSize.scale(QSizeF(width, 120), Qt::KeepAspectRatio);
+    // a wide picture (a stroke) lies above the words; a square one stands small beside them
+    const QSizeF source = QSizeF(picture.size()) / picture.devicePixelRatio();
+    const bool beside = source.width() < source.height() * 1.6;
+    QSizeF pictureSize = source;
+    pictureSize.scale(beside ? QSizeF(56, 56) : QSizeF(200, 56), Qt::KeepAspectRatio);
+    const int gap = 10;
+    const int textRoom = beside ? 160 : qRound(pictureSize.width());
 
     // the tags, wrapped into rows of pills
-    const int pillHeight = smallMetrics.height() + 6;
+    const int pillHeight = smallMetrics.height() + 4;
     QVector<QRectF> pills;
     qreal x = 0;
     qreal y = 0;
+    qreal widest = 0;
     Q_FOREACH (const QString &tag, tags) {
-        const qreal w = smallMetrics.horizontalAdvance(tag) + 14;
-        if (x > 0 && x + w > width) {
+        const qreal w = qMin<qreal>(textRoom, smallMetrics.horizontalAdvance(tag) + 12);
+        if (x > 0 && x + w > textRoom) {
             x = 0;
-            y += pillHeight + 4;
+            y += pillHeight + 3;
         }
         pills << QRectF(x, y, w, pillHeight);
-        x += w + 4;
+        x += w + 3;
+        widest = qMax(widest, x - 3);
     }
     const qreal tagsHeight = pills.isEmpty() ? 0 : y + pillHeight;
-    const QString where = smallMetrics.elidedText(location, Qt::ElideMiddle, width);
+    const QString title = titleMetrics.elidedText(name, Qt::ElideRight, textRoom);
+    const QString where = smallMetrics.elidedText(location, Qt::ElideMiddle, textRoom);
+    const qreal textWidth = beside ? qMin<qreal>(textRoom, qMax(widest, qMax<qreal>(titleMetrics.horizontalAdvance(title),
+                                                                                            smallMetrics.horizontalAdvance(where))))
+                                   : textRoom;
+    const qreal textHeight = titleMetrics.height() + (pills.isEmpty() ? 0 : 5 + tagsHeight) + (where.isEmpty() ? 0 : 3 + smallMetrics.height());
 
-    const qreal height = pad + pictureSize.height() + 10 + titleMetrics.height() + (pills.isEmpty() ? 0 : 8 + tagsHeight)
-        + (where.isEmpty() ? 0 : 6 + smallMetrics.height()) + pad;
-    QImage card(QSize(width + 2 * pad, qCeil(height)) * ratio, QImage::Format_ARGB32_Premultiplied);
+    const qreal width = beside ? pictureSize.width() + gap + textWidth : pictureSize.width();
+    const qreal height = beside ? qMax(pictureSize.height(), textHeight) : pictureSize.height() + 6 + textHeight;
+    QImage card(QSize(qCeil(width), qCeil(height)) * ratio, QImage::Format_ARGB32_Premultiplied);
     card.setDevicePixelRatio(ratio);
     card.fill(Qt::transparent);
     QPainter painter(&card);
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    qreal top = pad;
-    painter.drawImage(QRectF(pad + (width - pictureSize.width()) / 2, top, pictureSize.width(), pictureSize.height()), picture);
-    top += pictureSize.height() + 10;
+    QRectF pictureRect(QPointF(0, beside ? (height - pictureSize.height()) / 2 : 0), pictureSize);
+    if (beside) {
+        QPainterPath round;
+        round.addRoundedRect(pictureRect, 6, 6);
+        painter.save();
+        painter.setClipPath(round);
+        painter.drawImage(pictureRect, picture);
+        painter.restore();
+    } else {
+        painter.drawImage(pictureRect, picture);
+    }
+    const qreal left = beside ? pictureSize.width() + gap : 0;
+    qreal top = beside ? (height - textHeight) / 2 : pictureSize.height() + 6;
     painter.setFont(titleFont);
     painter.setPen(ink);
-    painter.drawText(QRectF(pad, top, width, titleMetrics.height()), Qt::AlignLeft | Qt::AlignVCenter,
-                     titleMetrics.elidedText(name, Qt::ElideRight, width));
+    painter.drawText(QRectF(left, top, textWidth, titleMetrics.height()), Qt::AlignLeft | Qt::AlignVCenter, title);
     top += titleMetrics.height();
     painter.setFont(smallFont);
     if (!pills.isEmpty()) {
-        top += 8;
+        top += 5;
         QColor fill = ink;
         fill.setAlphaF(0.12);
         for (int i = 0; i < pills.size(); i++) {
-            const QRectF pill = pills[i].translated(pad, top);
+            const QRectF pill = pills[i].translated(left, top);
             painter.setPen(Qt::NoPen);
             painter.setBrush(fill);
             painter.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2);
             painter.setPen(ink);
-            painter.drawText(pill, Qt::AlignCenter, tags[i]);
+            painter.drawText(pill, Qt::AlignCenter, smallMetrics.elidedText(tags[i], Qt::ElideRight, int(pill.width()) - 8));
         }
         top += tagsHeight;
     }
     if (!where.isEmpty()) {
-        top += 6;
+        top += 3;
         QColor quiet = ink;
         quiet.setAlphaF(0.5);
         painter.setPen(quiet);
-        painter.drawText(QRectF(pad, top, width, smallMetrics.height()), Qt::AlignLeft | Qt::AlignVCenter, where);
+        painter.drawText(QRectF(left, top, textWidth, smallMetrics.height()), Qt::AlignLeft | Qt::AlignVCenter, where);
     }
     painter.end();
     m_cardKey = key;
@@ -161,8 +179,8 @@ QTextDocument *KisIconToolTip::createDocument(const QModelIndex &index)
         const QString url = QStringLiteral("data:card%1").arg(cardImage.cacheKey());
         doc->addResource(QTextDocument::ImageResource, QUrl(url), cardImage);
         doc->setHtml(QStringLiteral("<html><body><img src=\"%1\"></body></html>").arg(url));
-        doc->setDocumentMargin(10);
-        doc->setTextWidth(cardImage.width() / cardImage.devicePixelRatio() + 20);
+        doc->setDocumentMargin(8);
+        doc->setTextWidth(cardImage.width() / cardImage.devicePixelRatio() + 16);
         return doc;
     }
 

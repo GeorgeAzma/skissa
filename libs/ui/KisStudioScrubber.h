@@ -41,6 +41,18 @@ public:
 
     QSize sizeHint() const override;
 
+    /// What a brush's Size or Opacity scrubber shows under it while it changes: the dab the brush will paint
+    struct Look {
+        QColor color;
+        /// in image pixels
+        qreal size {0.0};
+        /// 0 to 1
+        qreal opacity {1.0};
+        /// screen pixels to an image pixel
+        qreal zoom {1.0};
+    };
+    void setLook(const std::function<Look()> &look);
+
 Q_SIGNALS:
     /// Emitted when a drag ends, on a wheel step or after typing; not during a drag, since applying it can be expensive
     void valueCommitted(qreal value);
@@ -64,6 +76,8 @@ private:
     void commit(qreal value);
     /// Ends a drag, committing the value if it moved
     void endDrag();
+    /// The dab under the scrubber, as it is now; hidden again \p lingerMs after the last change
+    void showDab(int lingerMs);
 
     Kind m_kind;
     qreal m_minimum {0.0};
@@ -77,6 +91,8 @@ private:
     /// Shift is held: the drag moves at a quarter of the speed
     bool m_fine {false};
     QPointer<QLineEdit> m_editor;
+    std::function<Look()> m_look;
+    QPointer<QWidget> m_dab;
 };
 
 #endif // KISSTUDIOSCRUBBER_H

@@ -63,6 +63,8 @@ KisBrushListArranger::KisBrushListArranger(KisResourceItemChooser *chooser, QBox
     m_tags = chooser->findChild<KisTagChooserWidget *>();
     // the user's tags are where brushes are found; "All" and "All untagged" only while there are none
     if (m_tags) m_tags->setHidesAllRows(true);
+    // All is the user's set: the brushes they put away are found by search, and picked again while adding
+    chooser->tagFilterModel()->setHidesPutAway(true);
 
     QWidget *viewport = chooser->itemView()->viewport();
     viewport->setAcceptDrops(true);
@@ -105,6 +107,7 @@ KisBrushListArranger::KisBrushListArranger(KisResourceItemChooser *chooser, QBox
         connect(m_tags, &KisTagChooserWidget::sigTagChosen, this, [this](const KisTagSP tag) {
             if (isAdding() && (!tag || tag->url() != m_adding->url())) {
                 m_adding.clear();
+                m_chooser->tagFilterModel()->setHidesPutAway(true);
                 m_header->hide();
                 m_chooser->itemView()->viewport()->update();
             }
@@ -132,18 +135,32 @@ int KisBrushListArranger::markOf(const QModelIndex &index) const
 
 void KisBrushListArranger::startAdding()
 {
-    const KisTagSP tag = userTag();
+    const KisTagSP tag = orderedTag();
     if (!tag) return;
     m_adding = tag;
     m_members.clear();
-    KisTagResourceModel inTag(ResourceType::PaintOpPresets);
-    inTag.setTagsFilter({tag});
-    for (int row = 0; row < inTag.rowCount(); row++) {
-        m_members.insert(inTag.data(inTag.index(row, 0), Qt::UserRole + KisAbstractResourceModel::Id).toInt());
+    if (tag->id() >= 0) {
+        KisTagResourceModel inTag(ResourceType::PaintOpPresets);
+        inTag.setTagsFilter({tag});
+        for (int row = 0; row < inTag.rowCount(); row++) {
+            m_members.insert(inTag.data(inTag.index(row, 0), Qt::UserRole + KisAbstractResourceModel::Id).toInt());
+        }
+        m_headerName->setText(i18nc("@title brushes are being added to the tag %1", "Add to %1", tag->name()));
+    } else {
+        // All: every brush not put away
+        const QStringList away = KisResourceOrder::putAway(ResourceType::PaintOpPresets);
+        KisResourceModel all(ResourceType::PaintOpPresets);
+        for (int row = 0; row < all.rowCount(); row++) {
+            const QModelIndex index = all.index(row, 0);
+            if (!away.contains(index.data(Qt::UserRole + KisAbstractResourceModel::Filename).toString())) {
+                m_members.insert(index.data(Qt::UserRole + KisAbstractResourceModel::Id).toInt());
+            }
+        }
+        m_headerName->setText(i18nc("@title choosing which brushes the list shows", "Your brushes"));
     }
-    m_headerName->setText(i18nc("@title brushes are being added to the tag %1", "Add to %1", tag->name()));
     m_header->show();
     // every brush, the tag's among them
+    m_chooser->tagFilterModel()->setHidesPutAway(false);
     m_chooser->tagFilterModel()->setTagFilter(KisTagSP());
     m_chooser->itemView()->viewport()->update();
 }
@@ -154,6 +171,7 @@ void KisBrushListArranger::stopAdding()
     const KisTagSP tag = m_adding;
     m_adding.clear();
     m_header->hide();
+    m_chooser->tagFilterModel()->setHidesPutAway(true);
     m_chooser->tagFilterModel()->setTagFilter(tag);
     m_chooser->itemView()->viewport()->update();
     KisStudioTools::focusCanvas();
@@ -163,6 +181,21 @@ void KisBrushListArranger::toggle(const QModelIndex &index)
 {
     const int id = index.data(Qt::UserRole + KisAbstractResourceModel::Id).toInt();
     if (!isAdding() || id < 0) return;
+    if (m_adding->id() < 0) {
+        // All: put away, or back
+        const QString file = index.data(Qt::UserRole + KisAbstractResourceModel::Filename).toString();
+        QStringList away = KisResourceOrder::putAway(ResourceType::PaintOpPresets);
+        if (m_members.contains(id)) {
+            if (!away.contains(file)) away << file;
+            m_members.remove(id);
+        } else {
+            away.removeAll(file);
+            m_members.insert(id);
+        }
+        KisResourceOrder::setPutAway(ResourceType::PaintOpPresets, away);
+        m_chooser->itemView()->viewport()->update();
+        return;
+    }
     KisTagResourceModel model(ResourceType::PaintOpPresets);
     if (m_members.contains(id)) {
         if (model.untagResources(m_adding, {id})) m_members.remove(id);
@@ -206,6 +239,8 @@ void KisBrushListArranger::showMenu(const QPoint &globalPos)
         menu.addAction(i18nc("@action stop adding brushes to the tag", "Done"), this, &KisBrushListArranger::stopAdding);
     } else if (const KisTagSP tag = userTag()) {
         menu.addAction(i18nc("@action %1 is a tag", "Add brushes to %1", tag->name()), this, &KisBrushListArranger::startAdding);
+    } else if (orderedTag()) {
+        menu.addAction(i18nc("@action", "Choose brushes"), this, &KisBrushListArranger::startAdding);
     }
     menu.addAction(i18nc("@action", "Import brushes…"), this, &KisBrushListArranger::chooseFilesToImport);
     menu.exec(globalPos);

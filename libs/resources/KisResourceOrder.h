@@ -33,6 +33,9 @@ public:
     /// The file names of the resources in tag \p tagUrl, in the order the user gave them
     static QStringList inTag(const QString &type, const QString &tagUrl);
     static void setInTag(const QString &type, const QString &tagUrl, const QStringList &fileNames);
+    /// The file names of \p type's resources left out of the list of all of them; search and tags still find them
+    static QStringList putAway(const QString &type);
+    static void setPutAway(const QString &type, const QStringList &fileNames);
 
     /// Where an order is written: the settings' undo history, given by the interface; kritarc by default
     static void setWriter(const std::function<void(const QString &key, const QStringList &items)> &writer);

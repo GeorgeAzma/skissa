@@ -10,6 +10,7 @@
 #ifndef KOCOMPOSITEOPMIX_H
 #define KOCOMPOSITEOPMIX_H
 
+#include <QSet>
 #include <QString>
 #include <QVector>
 
@@ -330,6 +331,27 @@ inline KoID layerMode()
 inline bool isLayerOnly(const QString &id)
 {
     return id == opId(Pigment, COMPOSITE_OVER);
+}
+
+/**
+ * Whether blend mode \p id is left out of the pickers: Krita's hue, saturation and lightness modes in HSY, HSI, HSL
+ * and HSV, which the OKLCH ones do evenly. Layers and files that have one keep it.
+ */
+inline bool isRetired(const QString &id)
+{
+    static const QSet<QString> retired = []() {
+        QSet<QString> ids;
+        const auto ops = KoCompositeOpRegistry::instance().getCompositeOps();
+        for (auto it = ops.constBegin(); it != ops.constEnd(); ++it) {
+            const QString category = it.key().id();
+            if (category == QLatin1String("hsy") || category == QLatin1String("hsi") || category == QLatin1String("hsl")
+                || category == QLatin1String("hsv")) {
+                ids.insert(it.value().id());
+            }
+        }
+        return ids;
+    }();
+    return retired.contains(id);
 }
 
 } // namespace KoMixing

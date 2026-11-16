@@ -80,6 +80,9 @@ public:
      */
     void setTagFilter(const KisTagSP tag);
 
+    /// Whether All leaves out what the user put away (KisResourceOrder::putAway) while nothing is searched for
+    void setHidesPutAway(bool hides);
+
     /**
      * @brief currentTagFilter
      * @return return the current tag that's being used to filter.

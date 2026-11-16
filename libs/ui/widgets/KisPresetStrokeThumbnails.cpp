@@ -8,6 +8,9 @@
 #include <QList>
 #include <QLinearGradient>
 #include <QPainter>
+#include <QPainterPath>
+#include <QRadialGradient>
+#include <QtMath>
 #include <QSet>
 #include <QTimer>
 
@@ -86,6 +89,79 @@ bool paintsAlone(const QString &engine)
     static const QSet<QString> none = {QStringLiteral("duplicate"), QStringLiteral("deformbrush"),
                                        QStringLiteral("filter"), QStringLiteral("experimentbrush")};
     return !none.contains(engine);
+}
+
+/// The wave every stroke follows, as painted in next()
+QPainterPath wave()
+{
+    const qreal w = strokeWidth, h = strokeHeight;
+    QPainterPath path(QPointF(w * 0.07, h * 0.62));
+    path.cubicTo(QPointF(w * 0.22, h * 0.08), QPointF(w * 0.34, h * 0.2), QPointF(w * 0.5, h * 0.5));
+    path.cubicTo(QPointF(w * 0.66, h * 0.8), QPointF(w * 0.78, h * 0.92), QPointF(w * 0.93, h * 0.38));
+    return path;
+}
+
+/**
+ * What an engine that paints nothing alone does, drawn in \p ink as the strokes are: a lasso's fill for a shape
+ * filler, a soft stroke for a filter, a stroke of copied picture (checks) for a clone, a dragged stroke running
+ * out for a deformer. \p size is the brush's, as the strips paint it.
+ */
+QImage drawnStroke(const QString &engine, qreal size, const QColor &ink)
+{
+    QImage image(strokeWidth, strokeHeight, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(Qt::NoPen);
+    const qreal w = strokeWidth, h = strokeHeight;
+    if (engine == QLatin1String("experimentbrush")) {
+        // a loop drawn by hand, a little crooked, filled
+        QPainterPath lasso(QPointF(w * 0.3, h * 0.86));
+        lasso.cubicTo(QPointF(w * 0.12, h * 0.8), QPointF(w * 0.14, h * 0.22), QPointF(w * 0.42, h * 0.12));
+        lasso.cubicTo(QPointF(w * 0.62, h * 0.05), QPointF(w * 0.78, h * 0.2), QPointF(w * 0.72, h * 0.48));
+        lasso.cubicTo(QPointF(w * 0.67, h * 0.72), QPointF(w * 0.48, h * 0.94), QPointF(w * 0.3, h * 0.86));
+        painter.setBrush(ink);
+        painter.drawPath(lasso);
+        return image;
+    }
+    const bool soft = engine == QLatin1String("filter");
+    const bool copied = engine == QLatin1String("duplicate");
+    const qreal radius = 0.5 * ((soft || copied) ? qMax<qreal>(size, strokeHeight * 0.3) : size);
+    const QPainterPath path = wave();
+    const int dabs = 160;
+    for (int i = 0; i <= dabs; i++) {
+        const qreal t = qreal(i) / dabs;
+        // light pressure at both ends, full in the middle
+        const qreal r = qMax<qreal>(0.75, radius * (0.15 + 0.85 * qSin(M_PI * t)));
+        const QPointF at = path.pointAtPercent(t);
+        if (soft) {
+            QRadialGradient blur(at, r * 1.6);
+            QColor middle = ink;
+            middle.setAlphaF(0.1);
+            QColor edge = ink;
+            edge.setAlpha(0);
+            blur.setColorAt(0, middle);
+            blur.setColorAt(1, edge);
+            painter.setBrush(blur);
+            painter.drawEllipse(at, r * 1.6, r * 1.6);
+        } else {
+            painter.setBrush(ink);
+            painter.drawEllipse(at, r, r);
+        }
+    }
+    if (copied) {
+        // the picture copied along the stroke: checks
+        QImage checks(20, 20, QImage::Format_ARGB32_Premultiplied);
+        checks.fill(QColor(0, 0, 0, 255));
+        QPainter cells(&checks);
+        cells.fillRect(0, 0, 10, 10, QColor(0, 0, 0, 60));
+        cells.fillRect(10, 10, 10, 10, QColor(0, 0, 0, 60));
+        cells.end();
+        painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+        painter.fillRect(image.rect(), QBrush(checks));
+    }
+    painter.end();
+    return engine == QLatin1String("deformbrush") ? fadedOut(image) : image;
 }
 } // namespace
 
@@ -231,8 +307,17 @@ void KisPresetStrokeThumbnails::next()
             d->queue.clear();
             return;
         }
-        if (!preset || !preset->valid() || !preset->settings() || !paintsAlone(preset->paintOp().id())) {
+        if (!preset || !preset->valid() || !preset->settings()) {
             d->nothing.insert(request.key);
+            continue;
+        }
+        if (!paintsAlone(preset->paintOp().id())) {
+            QColor ink = request.ink;
+            ink.setAlpha(255);
+            d->made.insert(request.key, drawnStroke(preset->paintOp().id(),
+                                                    qBound(1.5, preset->settings()->paintOpSize(), strokeHeight * 0.3), ink));
+            d->used.append(request.key);
+            Q_EMIT changed();
             continue;
         }
 

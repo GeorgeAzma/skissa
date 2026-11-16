@@ -394,7 +394,7 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
                 const QImage stroke = KisPresetStrokeThumbnails::instance()->stroke(index.data(Qt::UserRole + KisAbstractResourceModel::Id).toInt(),
                                                                                    index.data(Qt::UserRole + KisAbstractResourceModel::MD5).toString(),
                                                                                    strokeInk);
-                if (!stroke.isNull()) return stroke;
+                if (!stroke.isNull()) return stroke.copy(KisPresetStrokeThumbnails::paintedPart(stroke));
             }
             return picture;
         });

@@ -7,6 +7,7 @@
 #include "KisResourceOrder.h"
 
 #include <QHash>
+#include <QSet>
 #include <climits>
 
 #include <QDebug>
@@ -44,10 +45,23 @@ struct KisTagFilterResourceProxyModel::Private
 
     /// Where each file name is in the user's order of the current tag
     QHash<QString, int> order;
+    bool hidesPutAway {false};
+    /// What All leaves out while hidesPutAway
+    QSet<QString> away;
+
+    /// Whether \p fileName is left out of the list
+    bool isAway(const QString &fileName) const
+    {
+        if (!hidesPutAway || away.isEmpty() || !filter->isEmpty()) return false;
+        if (currentTagFilter && currentTagFilter->url() != KisAllTagsModel::urlAll()) return false;
+        return away.contains(fileName);
+    }
 
     void readOrder()
     {
         order.clear();
+        const QStringList awayNames = hidesPutAway ? KisResourceOrder::putAway(resourceType) : QStringList();
+        away = QSet<QString>(awayNames.begin(), awayNames.end());
         // the user's tags and All (also before a tag is chosen) have an order; All untagged doesn't
         if (currentTagFilter && currentTagFilter->id() < 0 && currentTagFilter->url() != KisAllTagsModel::urlAll()) return;
         const QString url = currentTagFilter ? currentTagFilter->url() : KisAllTagsModel::urlAll();
@@ -256,6 +270,16 @@ void KisTagFilterResourceProxyModel::setTagFilter(const KisTagSP tag)
     updateTagFilter();
 }
 
+void KisTagFilterResourceProxyModel::setHidesPutAway(bool hides)
+{
+    if (d->hidesPutAway == hides) return;
+    Q_EMIT beforeFilterChanges();
+    d->hidesPutAway = hides;
+    d->readOrder();
+    invalidateFilter();
+    Q_EMIT afterFilterChanged();
+}
+
 KisTagSP KisTagFilterResourceProxyModel::currentTagFilter() const
 {
     return d->currentTagFilter;
@@ -377,6 +401,11 @@ bool KisTagFilterResourceProxyModel::filterAcceptsColumn(int /*source_column*/, 
 
 bool KisTagFilterResourceProxyModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const
 {
+    if (!d->away.isEmpty() && d->isAway(sourceModel()->data(sourceModel()->index(source_row, 0, source_parent),
+                                                            Qt::UserRole + KisAbstractResourceModel::Filename).toString())) {
+        return false;
+    }
+
     // if both filters are empty, just accept everything
     if (d->filter->isEmpty() && d->metaDataMapFilter.isEmpty() && !d->useStorageIdFilter) {
         return true;
